@@ -37,6 +37,7 @@ import {
 import { hasCurrentWorkplaceAccommodation, hasMedicalOverdue } from "@/lib/medicalFollowUpLabels";
 import { getMedicalSettings, getObligationsForEmployee } from "@/api/medicalFollowUp";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { invaliderApresSaisie } from "@/features/payroll/utils/invalidationsBulletin";
 import { assignEmployeeTeam, getTeams } from "@/api/teams";
 import { EmployeeDetailDocumentsTab } from "@/components/employee-detail/EmployeeDetailDocumentsTab";
 import { EmployeeDetailLeaveBalancesTab } from "@/components/employee-detail/EmployeeDetailLeaveBalancesTab";
@@ -391,6 +392,7 @@ export default function EmployeeDetail() {
       await saisiesApi.deleteEmployeeMonthlyInput(employeeId!, id);
       toast({ title: "Supprimée", description: "La saisie a été supprimée." });
       fetchSaisies();
+      void invaliderApresSaisie(queryClient, activeCompanyId || undefined);
     } catch {
       toast({ title: "Erreur", description: "Impossible de supprimer la saisie.", variant: "destructive" });
     }
@@ -503,6 +505,7 @@ export default function EmployeeDetail() {
         ].filter(Boolean).join(' '),
       });
       fetchSaisies();
+      void invaliderApresSaisie(queryClient, activeCompanyId || undefined);
     } catch {
       toast({ title: "Erreur", description: "Échec de l'enregistrement.", variant: "destructive" });
     }

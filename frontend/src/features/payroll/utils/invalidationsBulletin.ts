@@ -84,3 +84,16 @@ export async function invaliderApresBulletin(
     invaliderCles(queryClient, clesAutourDesBulletins(companyId)),
   ]);
 }
+
+/**
+ * Après une saisie du mois créée, corrigée ou supprimée : le serveur marque les
+ * bulletins du mois « à recalculer », mais la paie du mois garde en cache l'ancien
+ * état tant qu'on ne recharge pas. Le salarié touché n'est pas connu de l'écran
+ * des saisies (plusieurs à la fois) : toutes les listes de la société.
+ */
+export function invaliderApresSaisie(
+  queryClient: QueryClient,
+  companyId: string | undefined
+): Promise<void> {
+  return invaliderApresBulletin(queryClient, companyId, undefined);
+}

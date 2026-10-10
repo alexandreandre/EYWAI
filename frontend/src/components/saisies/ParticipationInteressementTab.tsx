@@ -1,4 +1,7 @@
 // Composant pour le simulateur Participation & Intéressement
+import { useQueryClient } from '@tanstack/react-query';
+import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
+import { invaliderApresSaisie } from '@/features/payroll/utils/invalidationsBulletin';
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,6 +72,9 @@ type DistributionMode = 'uniforme' | 'salaire' | 'presence' | 'combinaison';
 
 export function ParticipationInteressementTab() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const companyIdActif = useActiveCompanyId();
+  const apresSaisie = () => void invaliderApresSaisie(queryClient, companyIdActif);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [employeeData, setEmployeeData] = useState<Map<string, EmployeeData>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -562,6 +568,7 @@ export function ParticipationInteressementTab() {
         title: "Saisies créées",
         description: `${pluriel(payloads.length, 'ligne')} ${accord(payloads.length, 'ajoutée')} aux saisies de ${monthLabel} ${validateYear}. Retrouvez-les dans l'onglet Primes.`,
       });
+      apresSaisie();
       setShowValidateDialog(false);
     } catch (error: any) {
       log.error('Erreur lors de la validation du calcul:', error);

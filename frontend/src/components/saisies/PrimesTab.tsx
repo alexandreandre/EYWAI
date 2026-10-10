@@ -1,5 +1,8 @@
 // Composant pour l'onglet Primes (contenu actuel de Saisies.tsx)
 import { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
+import { invaliderApresSaisie } from '@/features/payroll/utils/invalidationsBulletin';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -54,6 +57,9 @@ export function PrimesTab({
   onClearFocusEmployee,
 }: PrimesTabProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const companyIdActif = useActiveCompanyId();
+  const apresSaisie = () => void invaliderApresSaisie(queryClient, companyIdActif);
   const { user } = useAuth();
   const payrollFocus = isPayrollFocusActive(user);
   const [modalOpen, setModalOpen] = useState(false);
@@ -122,6 +128,7 @@ export function PrimesTab({
         ].filter(Boolean).join(' '),
       });
       fetchData();
+      apresSaisie();
       setModalOpen(false);
     } catch (error) {
       toast({ title: "Erreur", description: "Échec de l'ajout de la saisie.", variant: "destructive" });
@@ -148,6 +155,7 @@ export function PrimesTab({
             },
       );
       fetchData();
+      apresSaisie();
     } catch (error) {
       toast({ title: "Erreur", description: "Impossible de supprimer la saisie.", variant: "destructive" });
     }
@@ -173,6 +181,7 @@ export function PrimesTab({
       });
       setEditingId(null);
       fetchData();
+      apresSaisie();
     } catch (error) {
       log.error(error);
       toast({
