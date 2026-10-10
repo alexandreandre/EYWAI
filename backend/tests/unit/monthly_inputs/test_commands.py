@@ -305,6 +305,36 @@ class TestUpdateMonthlyInput:
         assert changes["manual_override"] is True
         assert result == {"id": "abc", "amount": 200.0}
 
+    def _corriger(self, montant_en_base, nouveau, **autres):
+        """Corrige une saisie dont le montant en base est `montant_en_base`."""
+        from app.modules.monthly_inputs.schemas.requests import MonthlyInputUpdate
+
+        with patch.object(commands, "monthly_inputs_repository") as repo:
+            repo.get_by_id.return_value = {"id": "abc", "amount": montant_en_base, **autres}
+            repo.update_by_id.return_value = {"id": "abc"}
+            commands.update_monthly_input("abc", MonthlyInputUpdate(amount=nouveau), SOCIETE)
+        return repo.update_by_id.call_args[0][1]["amount"]
+
+    def test_corriger_une_retenue_sur_le_net_garde_le_sens_negatif(self):
+        """Corriger le montant change le montant, jamais le sens : un positif
+        serait lu par le moteur comme un versement ajouté au net."""
+        assert self._corriger(-200.0, 201.0, sur_le_net=True) == -201.0
+
+    def test_un_signe_negatif_tape_sur_une_retenue_ne_double_pas_le_signe(self):
+        assert self._corriger(-200.0, -201.0, sur_le_net=True) == -201.0
+
+    def test_corriger_un_versement_sur_le_net_reste_positif(self):
+        assert self._corriger(150.0, 160.0, sur_le_net=True) == 160.0
+
+    def test_corriger_une_prime_reste_positive(self):
+        assert self._corriger(300.0, 350.0) == 350.0
+
+    def test_une_ancienne_retenue_negative_sans_sur_le_net_reste_negative(self):
+        assert self._corriger(-100.0, 120.0, sur_le_net=False) == -120.0
+
+    def test_un_negatif_tape_sur_un_versement_ne_le_retourne_pas(self):
+        assert self._corriger(150.0, -160.0, sur_le_net=True) == 160.0
+
     def test_omitted_fields_are_not_sent(self):
         """Champs omis = inchangés : ils ne doivent pas partir en base à None."""
         from app.modules.monthly_inputs.schemas.requests import MonthlyInputUpdate
