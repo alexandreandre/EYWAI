@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   LIBELLE_SOUMISE_COTISATIONS,
   LIBELLE_SOUMISE_IMPOT,
+  messageBulletinsARecalculer,
   moisEnToutesLettres,
   pastilleSoumise,
   phraseSaisiePonctuelle,
@@ -44,5 +45,40 @@ describe('vocabulaire commun des saisies', () => {
     expect(sousTitreSaisies(2026, 7, false)).not.toContain('en cours');
     expect(sousTitreSaisies(2026, 7, true)).toContain('juillet 2026');
     expect(sousTitreSaisies(2026, 7, true)).toContain('ce salarié');
+  });
+});
+
+describe('messageBulletinsARecalculer', () => {
+  const nom = (id: string) => ({ a: 'Camille Test', b: 'Dominique Essai', c: 'Claude Exemple', d: 'Alix Modèle' })[id] ?? 'Inconnu';
+  const cible = (employee_id: string, month = 10) => ({ employee_id, year: 2026, month });
+
+  it('un seul bulletin : le nom du salarié et le mois', () => {
+    expect(messageBulletinsARecalculer([cible('a')], nom)).toBe(
+      "Le bulletin d'octobre 2026 de Camille Test est à recalculer.",
+    );
+  });
+
+  it("élision devant une voyelle, pas devant une consonne", () => {
+    expect(messageBulletinsARecalculer([cible('a', 8)], nom)).toContain("d'août 2026");
+    expect(messageBulletinsARecalculer([cible('a', 9)], nom)).toContain('de septembre 2026');
+  });
+
+  it('plusieurs bulletins : accordé au pluriel, noms écrits', () => {
+    expect(messageBulletinsARecalculer([cible('a'), cible('b')], nom)).toBe(
+      "Les bulletins d'octobre 2026 de Camille Test et Dominique Essai sont à recalculer.",
+    );
+  });
+
+  it('beaucoup de bulletins : le nombre, sans liste interminable', () => {
+    const texte = messageBulletinsARecalculer([cible('a'), cible('b'), cible('c'), cible('d')], nom);
+    expect(texte).toBe("4 bulletins d'octobre 2026 sont à recalculer.");
+  });
+
+  it('aucun bulletin : rien à dire', () => {
+    expect(messageBulletinsARecalculer([], nom)).toBeNull();
+  });
+
+  it('recherche impossible : le dit au lieu de se taire', () => {
+    expect(messageBulletinsARecalculer(null, nom)).toContain('à recalculer');
   });
 });
