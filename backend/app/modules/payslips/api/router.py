@@ -225,7 +225,7 @@ def get_reports_net_negatif_du_mois_route(
         logger.exception("Échec de get_reports_net_negatif_du_mois_route")
         raise HTTPException(
             status_code=500,
-            detail=f"Lecture des reports du net négatif impossible : {e}",
+            detail=MESSAGE_ERREUR_INTERNE,
         )
 
 
@@ -420,7 +420,7 @@ def get_report_net_negatif_route(
         logger.exception("Échec de get_report_net_negatif_route")
         raise HTTPException(
             status_code=500,
-            detail=f"Lecture du report du net négatif impossible : {e}",
+            detail=MESSAGE_ERREUR_INTERNE,
         )
 
 
@@ -441,7 +441,7 @@ def post_report_net_negatif_route(
         logger.exception("Échec de post_report_net_negatif_route")
         raise HTTPException(
             status_code=500,
-            detail=f"Écriture du report du net négatif impossible : {e}",
+            detail=MESSAGE_ERREUR_INTERNE,
         )
 
 

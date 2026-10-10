@@ -51,7 +51,9 @@ def test_le_message_interne_dit_quoi_faire():
 
 
 def test_le_catalogue_de_primes_ne_montre_pas_le_nom_de_la_classe():
-    from app.modules.monthly_inputs.api import router as m
+    import importlib
+
+    m = importlib.import_module("app.modules.monthly_inputs.api.router")
 
     utilisateur = type("U", (), {"active_company_id": "co-1", "has_access_to_company": lambda s, c: True})()
     with (
