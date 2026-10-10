@@ -14,6 +14,9 @@ describe('message de départ créé', () => {
 
   it("le message d'absence de contrat ne prétend pas que la fiche vient d'un autre logiciel", () => {
     expect(CONTRAT_ABSENT_MESSAGE).not.toContain('repris');
-    expect(CONTRAT_ABSENT_MESSAGE).toContain('Aucun contrat');
+    // La détection teste le document du contrat, pas le contrat de la fiche.
+    expect(CONTRAT_ABSENT_MESSAGE).not.toContain('Aucun contrat');
+    expect(CONTRAT_ABSENT_MESSAGE).toContain('document du contrat');
+    expect(CONTRAT_ABSENT_MESSAGE).toContain('le départ se crée quand même');
   });
 });
