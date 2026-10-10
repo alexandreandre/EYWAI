@@ -309,21 +309,28 @@ def _calculer_assiettes(
     pss_mensuel = contexte.baremes.get("pss", {}).get("mensuel", 0.0)
     duree_legale_hebdo = lc.DUREE_LEGALE_HEBDO
 
-    # --- NOUVEAU BLOC : CALCUL DU PLAFOND AU PRORATA ---
+    # --- Plafond d'un temps partiel (Code de la sécurité sociale, art. R242-7) ---
+    # Pour un salarié à temps partiel, le plafond est réduit au prorata de la
+    # durée prévue au contrat sur la durée légale. La fiche dit le temps partiel
+    # (`temps_travail.is_temps_partiel`) ; la clé `proratiser_plafond_ss` ne sert
+    # plus qu'à couper la règle explicitement (à faux), si une pratique l'exige.
     pss_calcule = pss_mensuel
     duree_contrat_hebdo = contexte.duree_hebdo_contrat
+    temps_travail = contexte.contrat.get("contrat", {}).get("temps_travail", {}) or {}
+    proratiser_explicite = temps_travail.get("proratiser_plafond_ss")
     proratiser = (
-        contexte.contrat.get("contrat", {})
-        .get("temps_travail", {})
-        .get("proratiser_plafond_ss", False)
+        bool(temps_travail.get("is_temps_partiel"))
+        if proratiser_explicite is None
+        else bool(proratiser_explicite)
     )
 
     if proratiser and duree_contrat_hebdo < duree_legale_hebdo:
-        # Formule URSSAF : Plafond × (Durée retenue / Durée légale).
-        # Les heures complémentaires du mois relèvent la durée retenue
-        # (plafonnée à la durée légale) : on les convertit en heures mensuelles.
-        heures_contrat_mois = round((duree_contrat_hebdo * 52) / 12, 2)
-        heures_legales_mois = round((duree_legale_hebdo * 52) / 12, 2)
+        # Plafond × (durée retenue / durée légale), sans arrondir les heures
+        # mensuelles (24 h : 4 005 × 24/35 = 2 746,29 €). Les heures
+        # complémentaires du mois relèvent la durée retenue (plafonnée à la
+        # durée légale) : on les convertit en heures mensuelles.
+        heures_contrat_mois = (duree_contrat_hebdo * 52) / 12
+        heures_legales_mois = (duree_legale_hebdo * 52) / 12
         heures_comp_mois = float(
             getattr(contexte, "heures_complementaires_mois", 0.0) or 0.0
         )
@@ -335,9 +342,8 @@ def _calculer_assiettes(
             if heures_legales_mois > 0
             else 1.0
         )
-        pss_calcule = pss_mensuel * ratio
+        pss_calcule = round(pss_mensuel * ratio, 2)
         log_payroll_debug(logger, f'INFO: Plafond SS proratisé pour temps partiel (HC {heures_comp_mois}h) : {pss_calcule:.2f} €')
-    # --- FIN DU NOUVEAU BLOC ---
 
     # Plafond réduit prorata temporis (jours calendaires) pour une entrée/sortie
     # en cours de mois ou une suspension du contrat sans rémunération — ratio
