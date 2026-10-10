@@ -50,6 +50,17 @@ def test_block_reason_when_locked():
     assert "15 juillet 2026" in reason
 
 
+def test_block_reason_parle_de_correction_comme_l_ecran():
+    """L'écran dit « Correction verrouillée » : le serveur emploie le même mot."""
+    reason = payslip_manual_edit_block_reason(
+        2026, 6, cutoff_day=15, today=date(2026, 7, 15)
+    )
+    assert "édition manuelle" not in reason
+    assert reason == (
+        "La correction du bulletin de juin 2026 est verrouillée depuis le 15 juillet 2026."
+    )
+
+
 def test_block_reason_none_when_open():
     assert (
         payslip_manual_edit_block_reason(
