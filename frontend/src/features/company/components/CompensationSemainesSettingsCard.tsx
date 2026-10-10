@@ -89,9 +89,9 @@ export default function CompensationSemainesSettingsCard() {
             <span className="block text-xs text-muted-foreground">
               Chaque semaine est soldée (écart entre heures faites et horaire prévu, majorations
               à 25 % puis 50 %), puis les semaines s&apos;additionnent sur la fenêtre des
-              variables, semaines en manque comprises. Une semaine courte réduit les heures
-              supplémentaires payées ; elle ne donne jamais lieu à une retenue. Le bulletin le
-              mentionne.
+              variables. Les heures supplémentaires de la fenêtre absorbent d&apos;abord les
+              absences ; le manque qu&apos;elles ne couvrent pas est retenu sur les derniers jours
+              manqués. Le bulletin le mentionne.
             </span>
           </Label>
         </div>
