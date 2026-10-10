@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   aDesModifications,
+  avecSaisiesSurLeNet,
   etatInitial,
   heuresDeclarees,
   quantitesHeuresSup,
@@ -165,5 +166,38 @@ describe('primeDepuisSaisie', () => {
     });
     expect(prime.sur_le_net).toBe(true);
     expect(prime.amount).toBe(-200);
+  });
+});
+
+describe('retenues et versements sur le net', () => {
+  const saisies = [
+    { id: 'n-1', name: 'Acompte d\'octobre', amount: -200, sur_le_net: true },
+    { id: 'n-2', name: 'Avance versée', amount: 80, sur_le_net: true },
+    { id: 'p-1', name: 'Prime', amount: 50, sur_le_net: false },
+  ];
+
+  it('les saisies sur le net rejoignent les primes du mois, avec leur sens', () => {
+    const etat = avecSaisiesSurLeNet(etatInitial(bulletin, null), saisies);
+    expect(etat.primes.slice(2)).toEqual([
+      { saisieId: 'n-1', libelle: 'Acompte d\'octobre', montant: -200, soumise: false, surLeNet: 'retenue' },
+      { saisieId: 'n-2', libelle: 'Avance versée', montant: 80, soumise: false, surLeNet: 'versement' },
+    ]);
+  });
+
+  it('ne les ajoute pas deux fois', () => {
+    const une = avecSaisiesSurLeNet(etatInitial(bulletin, null), saisies);
+    expect(avecSaisiesSurLeNet(une, saisies).primes).toHaveLength(4);
+  });
+
+  it('une retenue corrigée ou retirée part comme une prime', () => {
+    const initial = avecSaisiesSurLeNet(etatInitial(bulletin, null), saisies);
+    const courant = {
+      ...initial,
+      primes: initial.primes.map((p) => (p.saisieId === 'n-1' ? { ...p, montant: -150 } : p)),
+      primesRetirees: ['n-2'],
+    };
+    const { corrections } = requeteDeCorrection(initial, courant, null);
+    expect(corrections.primes_corrigees).toEqual([{ saisie_id: 'n-1', amount: -150 }]);
+    expect(corrections.primes_retirees).toEqual(['n-2']);
   });
 });
