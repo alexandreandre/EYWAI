@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   aDesModifications,
   avecSaisiesSurLeNet,
+  titreDuBulletin,
   etatInitial,
   heuresDeclarees,
   quantitesHeuresSup,
@@ -199,5 +200,16 @@ describe('retenues et versements sur le net', () => {
     const { corrections } = requeteDeCorrection(initial, courant, null);
     expect(corrections.primes_corrigees).toEqual([{ saisie_id: 'n-1', amount: -150 }]);
     expect(corrections.primes_retirees).toEqual(['n-2']);
+  });
+});
+
+describe('titre de l’écran du bulletin', () => {
+  const data = { en_tete: { salarie: { prenom: 'Camille', nom_complet: 'Camille Roussel' } } };
+  it('dit le mois et le salarié, sans nom de fichier', () => {
+    expect(titreDuBulletin(data, 10, 2026)).toBe("Bulletin d'octobre 2026 — Camille Roussel");
+    expect(titreDuBulletin(data, 3, 2026)).toBe('Bulletin de mars 2026 — Camille Roussel');
+  });
+  it('sans nom connu, ne garde que le mois', () => {
+    expect(titreDuBulletin({}, 8, 2026)).toBe("Bulletin d'août 2026");
   });
 });
