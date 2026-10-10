@@ -18,7 +18,7 @@ import {
 import { DocumentFileRow, DownloadLinkButton, ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
 import type { PayslipInfo } from '@/api/payslips';
 import { MOTIF_BULLETIN_IMPORTE, estBulletinImporte } from '@/features/payroll/utils/bulletinImporte';
-import { estPerime } from '@/features/payroll/utils/bulletinARecalculer';
+import { estPerime, infobulleARecalculer } from '@/features/payroll/utils/bulletinARecalculer';
 import {
   hasNetSuperieurBrutWarning,
   PayslipNetBrutInlineLabel,
@@ -160,8 +160,8 @@ export function PayrollPayslipRow({
               À recalculer
             </Badge>
           </TooltipTrigger>
-          {payslip?.raison_a_recalculer ? (
-            <TooltipContent className="max-w-xs">{payslip.raison_a_recalculer}</TooltipContent>
+          {infobulleARecalculer(payslip) ? (
+            <TooltipContent className="max-w-xs">{infobulleARecalculer(payslip)}</TooltipContent>
           ) : null}
         </Tooltip>
       )}

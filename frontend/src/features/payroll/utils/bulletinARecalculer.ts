@@ -85,6 +85,9 @@ export function messageARecalculer(
   return message && payslip.status === 'valide' ? pourBulletinValide(message) : message;
 }
 
+/** Le texte de l'info-bulle de la pastille « À recalculer » : celui du bandeau de l'écran du bulletin. */
+export const infobulleARecalculer = messageARecalculer;
+
 const FIN_RECALCULEZ = / depuis le calcul : recalculez avant de valider\.$/;
 
 /** Un bulletin validé ne se « recalcule » pas avant validation : il se régénère, puis se valide de nouveau. */
