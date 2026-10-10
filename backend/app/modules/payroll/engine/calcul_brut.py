@@ -2,6 +2,7 @@
 
 from .contexte import ContextePaie
 from . import legal_constants as lc
+import unicodedata
 from datetime import date, timedelta
 from typing import Dict, Any, List, Optional
 from .calcul_conges import calculer_indemnite_conges
@@ -648,6 +649,16 @@ def _taux_majoration_hs(contexte: ContextePaie, index: int = 0) -> Optional[floa
         return float(val)
     except (TypeError, ValueError):
         return None
+
+
+def est_ligne_heures_complementaires(ligne: Dict[str, Any]) -> bool:
+    """La ligne paie des heures complémentaires d'un temps partiel : celle que le
+    moteur produit (« Heures complémentaires majorées à 10% ») ou une saisie du
+    mois (« Heure complémentaire majorée 10% »). Les saisies n'ont pas de code
+    de catalogue stable pour ces heures : le libellé fait foi, accents ignorés."""
+    libelle = unicodedata.normalize("NFKD", str(ligne.get("libelle") or ""))
+    libelle = "".join(c for c in libelle if not unicodedata.combining(c)).strip().lower()
+    return libelle.startswith(("heure complementaire", "heures complementaire"))
 
 
 def _taux_majoration_hc(contexte: ContextePaie, index: int = 0) -> Optional[float]:
@@ -1807,8 +1818,9 @@ def calculer_salaire_brut(
                 "perte": None,
             }
         )
-    # Heures complémentaires (temps partiel) : rémunération ordinaire majorée,
-    # sans régime social des heures supplémentaires.
+    # Heures complémentaires (temps partiel) : rémunération majorée (10 % puis
+    # 25 %, BOSS § 290). Réduction salariale et exonération d'impôt comme les
+    # heures sup (plus bas), sans déduction forfaitaire patronale.
     if heures_travail_hc1_total > 0:
         gain = round(heures_travail_hc1_total * taux_hc1, 2)
         lignes_composants_brut.append(
@@ -1999,6 +2011,19 @@ def calculer_salaire_brut(
         if ligne.get("libelle", "").startswith("Heures suppl. majorées")
     )
 
+    # Heures complémentaires d'un temps partiel, calculées ou saisies : même
+    # réduction de cotisations salariales (CSS art. L241-17, I, 5°) et même
+    # exonération d'impôt dans la limite annuelle de 7 500 € (CGI art. 81
+    # quater) que les heures sup — BOSS « Exonérations heures supplémentaires
+    # et complémentaires » § 110 à 140 et § 290. Elles n'entrent pas dans le
+    # nombre d'heures de la déduction forfaitaire patronale, réservée aux heures
+    # supplémentaires (Urssaf) : `total_heures_supp` ne les compte pas.
+    remuneration_heures_complementaires = sum(
+        float(ligne.get("gain") or 0.0)
+        for ligne in lignes_composants_brut
+        if not ligne.get("is_sous_total") and est_ligne_heures_complementaires(ligne)
+    )
+
     # Étape 2 (NOUVEAU) : Isoler les pertes liées aux HS
     pertes_heures_supp = sum(
         ligne.get("perte", 0.0)
@@ -2015,7 +2040,9 @@ def calculer_salaire_brut(
 
     # Étape 3 : Calculer la rémunération NETTE des heures supplémentaires
     remuneration_hs_totale = (
-        remuneration_hs_structurelles + remuneration_hs_conjoncturelles
+        remuneration_hs_structurelles
+        + remuneration_hs_conjoncturelles
+        + remuneration_heures_complementaires
     ) - pertes_heures_supp
 
     # Le total des heures supp pour la déduction forfaitaire patronale n'est pas impacté par les absences
