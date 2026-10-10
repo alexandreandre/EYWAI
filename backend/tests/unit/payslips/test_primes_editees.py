@@ -308,3 +308,29 @@ def test_une_prime_ajoutee_sans_precision_n_est_pas_sur_le_net():
             employee_id="e1", company_id="c1", year=2026, month=9,
         )
     assert client.table.return_value.insert.call_args.args[0][0].get("sur_le_net") is False
+
+
+def test_un_montant_corrige_au_bulletin_garde_le_sens_de_la_saisie():
+    """Corriger un montant change le montant, jamais le sens : un positif sur
+    une retenue serait lu par le moteur comme un versement ajouté au net."""
+    from unittest.mock import patch
+
+    from app.modules.payslips.application import primes_editees as app_primes
+    from app.modules.payslips.domain.primes_editees import DiffPrimes
+
+    base = _Saisies(
+        [
+            {"id": "s-ret", "amount": -200.0, "sur_le_net": True},
+            {"id": "s-ver", "amount": 150.0, "sur_le_net": True},
+            {"id": "s-prime", "amount": 300.0, "sur_le_net": False},
+        ]
+    )
+    with patch.object(app_primes, "supabase", base):
+        app_primes.appliquer_primes_editees(
+            DiffPrimes(modifiees=(("s-ret", 201.0), ("s-ver", 160.0), ("s-prime", 350.0))),
+            employee_id="e1", company_id="c1", year=2026, month=10,
+        )
+
+    assert base.lignes["s-ret"]["amount"] == -201.0
+    assert base.lignes["s-ver"]["amount"] == 160.0
+    assert base.lignes["s-prime"]["amount"] == 350.0
