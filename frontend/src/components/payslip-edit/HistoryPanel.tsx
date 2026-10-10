@@ -124,7 +124,7 @@ export default function HistoryPanel({
         <AlertDescription>
           {canRestore
             ? 'Restaurer une version revient à ses heures sup et à ses primes saisies, puis recalcule le bulletin. La version actuelle reste dans l\'historique.'
-            : 'La restauration est désactivée : la période de ce bulletin est verrouillée pour l\'édition manuelle.'}
+            : 'La restauration est désactivée : la période de ce bulletin est verrouillée pour la correction.'}
         </AlertDescription>
       </Alert>
 

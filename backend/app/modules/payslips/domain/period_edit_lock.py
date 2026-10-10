@@ -77,6 +77,6 @@ def payslip_manual_edit_block_reason(
     period_label = f"{_MONTH_NAMES[month]} {year}".strip()
     lock_month_label = _MONTH_NAMES[lock_date.month]
     return (
-        f"L'édition manuelle du bulletin de {period_label} est verrouillée "
+        f"La correction du bulletin de {period_label} est verrouillée "
         f"depuis le {lock_date.day} {lock_month_label} {lock_date.year}."
     )
