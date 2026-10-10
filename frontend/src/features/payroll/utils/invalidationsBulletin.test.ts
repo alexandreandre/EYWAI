@@ -11,6 +11,7 @@ import {
   clesAutourDesBulletins,
   clesDeLaPaieDuMois,
   invaliderApresBulletin,
+  invaliderApresSaisie,
   invaliderCles,
 } from '@/features/payroll/utils/invalidationsBulletin';
 
@@ -165,5 +166,20 @@ describe('clesApresAnnulation : un lot annulé', () => {
       'utf8'
     );
     expect(source).toMatch(/clesApresAnnulation\(companyId, salarieInterrompu\)/);
+  });
+});
+
+describe('invaliderApresSaisie : après création, correction ou suppression d’une saisie', () => {
+  it('les listes de bulletins de tous les salariés et la paie du mois sont rechargées, pas celles d’une autre société', async () => {
+    const client = clientAvec(TOUTES);
+
+    await invaliderApresSaisie(client, 'co-1');
+
+    for (const key of [LISTE_E1, LISTE_E2, PREFLIGHT, PREFLIGHT_AUTRE_MOIS]) {
+      expect(invalidee(client, key), JSON.stringify(key)).toBe(true);
+    }
+    for (const key of [LISTE_AUTRE_SOCIETE, PREFLIGHT_AUTRE_SOCIETE, SALARIES, FICHE]) {
+      expect(invalidee(client, key), JSON.stringify(key)).toBe(false);
+    }
   });
 });
