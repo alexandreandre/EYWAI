@@ -228,3 +228,27 @@ describe('libelleToastRecalcul : élision devant le nom', () => {
     expect(libelleToastRecalcul(null, null, 'Élodie Test').title).toBe("Bulletin d'Élodie Test recalculé");
   });
 });
+
+describe('messageARecalculer : bulletin déjà validé', () => {
+  const GESTE = ' : régénérez le bulletin (l’ancienne version est archivée), puis validez-le de nouveau.';
+
+  it('dit le vrai geste au lieu de « recalculez avant de valider »', () => {
+    expect(
+      messageARecalculer({
+        status: 'valide',
+        a_recalculer: true,
+        raison_a_recalculer: 'Les variables du mois ont changé depuis le calcul : recalculez avant de valider.',
+      })
+    ).toBe('Les variables du mois ont changé depuis la validation' + GESTE);
+  });
+
+  it('sans phrase du serveur, le message général suit le même geste', () => {
+    expect(messageARecalculer({ status: 'valide', a_recalculer: true })).toBe(
+      'Une donnée du bulletin a changé depuis la validation' + GESTE
+    );
+  });
+
+  it('un bulletin en brouillon garde « recalculez avant de valider »', () => {
+    expect(messageARecalculer({ status: 'brouillon', a_recalculer: true })).toBe(MESSAGE_A_RECALCULER);
+  });
+});
