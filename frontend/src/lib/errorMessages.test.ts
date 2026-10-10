@@ -1,7 +1,7 @@
 import { AxiosError } from 'axios';
 import { describe, expect, it } from 'vitest';
 
-import { extractDetail, getUserErrorMessage } from './errorMessages';
+import { extractDetail, getPayrollGenerationErrorMessage, getUserErrorMessage } from './errorMessages';
 
 function erreur409(detail: unknown): AxiosError {
   const err = new AxiosError('Request failed with status code 409');
@@ -38,5 +38,16 @@ describe('lecture du détail d’une erreur serveur', () => {
   it('les détails texte et de validation restent lus', () => {
     expect(extractDetail(erreur409('Refusé'))).toBe('Refusé');
     expect(extractDetail(erreur409([{ msg: 'Champ requis' }]))).toBe('Champ requis');
+  });
+});
+
+describe('getPayrollGenerationErrorMessage : connexion coupée en cours de génération', () => {
+  it('dit que le calcul a pu se poursuivre côté serveur et quand réessayer (verrou de 5 minutes)', () => {
+    const coupure = new AxiosError('Network Error', 'ERR_NETWORK');
+    expect(getPayrollGenerationErrorMessage(coupure)).toBe(
+      'La connexion a été coupée avant la fin de la génération. Le calcul a pu se poursuivre sur le serveur : ' +
+        'rechargez le bulletin pour voir s’il est à jour. Si ce n’est pas le cas, patientez 5 minutes (le serveur ' +
+        'n’accepte pas deux calculs du même bulletin en même temps), puis relancez.'
+    );
   });
 });
