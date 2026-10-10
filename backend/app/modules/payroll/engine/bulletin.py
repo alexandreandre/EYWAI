@@ -463,16 +463,16 @@ def creer_bulletin_final(
     ]
     periode_formatee = f"{mois_nom_francais[mois - 1]} {annee}"
 
-    # Base du PAS : net imposable, sauf apprenti exonéré d'IR (base réduite).
+    # Base du PAS : net imposable, sauf apprenti ou stagiaire exonéré d'IR (base réduite).
     base_pas = resultats_nets.get("base_pas")
     if base_pas is None:
         base_pas = resultats_nets.get("net_imposable")
-    exoneration_ir_apprenti = bool(
-        contexte.is_apprenti
-        and base_pas is not None
+    base_pas_reduite = bool(
+        base_pas is not None
         and resultats_nets.get("net_imposable") is not None
         and base_pas < resultats_nets.get("net_imposable")
     )
+    exoneration_ir_apprenti = bool(contexte.is_apprenti and base_pas_reduite)
 
     # Net avant impôt = net à payer + PAS réintégré (pas le montant net social :
     # celui-ci peut différer du net réellement dû ce mois-ci quand une partie de
@@ -507,6 +507,11 @@ def creer_bulletin_final(
             "acompte_verse", 0.0
         ),  # Montant des avances déduites
     }
+    # Stagiaire : gratification exonérée d'impôt dans la limite du SMIC annuel
+    # (CGI art. 81 bis). Clé posée pour le seul stagiaire : le bulletin d'un
+    # salarié garde exactement sa forme.
+    if getattr(contexte, "is_stagiaire", False):
+        synthese_net["exoneration_ir_stagiaire"] = base_pas_reduite
     if resultats_maintien:
         synthese_net["ijss_subrogees"] = (
             resultats_maintien.get("ijss", {}).get("ijss_theorique", 0.0) or 0.0

@@ -14,6 +14,7 @@ from .exoneration_alternance import (
 from .exoneration_stage import (
     assiette_stage_residuelle,
     contexte_exoneration_stage,
+    cotisations_exclues_stage,
 )
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -625,6 +626,8 @@ def calculer_cotisations(
     # Exonération apprenti (None si non applicable). Tout est dynamique (barèmes).
     exo_apprenti = contexte_exoneration_apprenti(contexte)
     exoneration_salariale_apprenti = 0.0
+    # Stagiaire : cotisations jamais dues sur la gratification (vide pour un salarié).
+    exclues_stage = cotisations_exclues_stage(contexte)
 
     for coti_data in liste_cotisations_brutes:
         coti_id = coti_data.get("id")
@@ -664,6 +667,13 @@ def calculer_cotisations(
             )
             if coti_id in cotis_exclues:
                 continue
+
+        # Stagiaire : au-delà de la franchise, la part qui dépasse supporte les
+        # cotisations de droit commun, mais jamais la retraite complémentaire,
+        # l'assurance chômage (ni l'AGS) ni la contribution au dialogue social,
+        # « quel que soit son montant » (BOSS, exonération stagiaires, § 70).
+        if str(coti_id or "").lower() in exclues_stage:
+            continue
 
         libelle = coti_data.get("libelle", "")
         base_id = coti_data.get("base", "brut")

@@ -452,6 +452,23 @@ def _iccp_legale_par_periode(
     return indemnite_fin_de_contrat(periodes, taux=taux, valeur_jour=valeur_jour)
 
 
+def base_et_taux_affiches_iccp(resultat: Any) -> tuple[float | None, float | None]:
+    """Base et taux imprimés sur la ligne d'indemnité de fin de contrat,
+    cohérents avec la méthode retenue — le montant n'en dépend pas :
+    - dixième sur chaque période : le taux du dixième, sans base (inchangé) ;
+    - maintien sur chaque période : les jours restants et la valeur d'un jour,
+      jamais 10 % à côté d'un montant de maintien ;
+    - mélange des deux : ni base ni taux, aucun couple ne donne le montant ; la
+      mention du bulletin détaille chaque période."""
+    methodes = {d.methode for d in resultat.periodes}
+    if methodes <= {"dixieme"}:
+        return None, resultat.taux
+    if methodes <= {"maintien", "maintien_seul"}:
+        jours = round(sum(float(d.periode.restants or 0.0) for d in resultat.periodes), 2)
+        return jours, round(float(resultat.valeur_jour), 2)
+    return None, None
+
+
 LIBELLE_ICCP_DEPART = "Indemnité compensatrice de congés payés"
 
 
@@ -556,9 +573,11 @@ def _calculer_iccp_cdd(
     resultat = _iccp_legale_par_periode(
         contexte, brut_du_mois, taux, taux_horaire_base, majoration_hs25
     )
+    quantite_affichee, taux_affiche = None, taux
     if resultat is not None:
         contexte.detail_iccp_fin_contrat = resultat.resume()
         montant = resultat.total
+        quantite_affichee, taux_affiche = base_et_taux_affiches_iccp(resultat)
     else:
         # Repli sans compteurs (bac à sable sans base, tests) : le dixième de
         # toute la rémunération du contrat, précarité comprise.
@@ -580,8 +599,8 @@ def _calculer_iccp_cdd(
     )
     return {
         "libelle": libelle_iccp,
-        "quantite": None,
-        "taux": taux,
+        "quantite": quantite_affichee,
+        "taux": taux_affiche,
         "gain": montant,
         "perte": None,
     }

@@ -3,6 +3,7 @@ from app.shared.pas_taux import est_taux_bareme
 
 from .contexte import ContextePaie
 from .exoneration_alternance import contexte_exoneration_apprenti
+from .exoneration_stage import exoneration_ir_stage
 from . import legal_constants as lc
 from typing import Dict, Any, List
 from app.modules.payroll.engine.mutuelles import mutuelles_du_salarie
@@ -71,7 +72,8 @@ def _participation_aggregats(
 def _get_part_patronale_mutuelle(contexte: ContextePaie) -> float:
     """Part patronale mutuelle réintégrée au NET IMPOSABLE (avantage taxable).
 
-    Utilisée UNIQUEMENT par `_calculer_net_imposable` (pas par le MNS).
+    Utilisée UNIQUEMENT par `_calculer_net_imposable` (pas par le MNS), au travers
+    de `_part_patronale_mutuelle_du_bulletin` qui la borne aux lignes calculées.
 
     Cas particulier `part_patronale_reintegree_impot=False` : certaines
     contributions patronales complémentaires (options « famille » Salarié+
@@ -107,6 +109,31 @@ def _get_part_patronale_mutuelle(contexte: ContextePaie) -> float:
         part_patronale_mutuelle += _get_safe_float(mutuelle_spec.get("montant_patronal"))
 
     return round(part_patronale_mutuelle, 2)
+
+
+def _part_patronale_mutuelle_du_bulletin(
+    contexte: ContextePaie, lignes_cotisations: List[Dict[str, Any]]
+) -> float:
+    """Part patronale de mutuelle réintégrée au net imposable, bornée à ce que
+    le bulletin calcule vraiment.
+
+    La fiche dit quelles parts patronales se réintègrent (drapeaux de
+    `_get_part_patronale_mutuelle`) ; les lignes calculées disent si elles
+    existent. Sans ligne de mutuelle sur le bulletin — stagiaire sous la
+    franchise, dont `calculer_cotisations` sort avant la mutuelle —, rien à
+    réintégrer : 600 € de gratification n'ont pas à devenir 617,62 € imposables.
+    Un salarié dont le bulletin porte sa mutuelle garde la valeur de la fiche."""
+    calculee = round(
+        sum(
+            _get_safe_float(ligne.get("montant_patronal"))
+            for ligne in lignes_cotisations
+            if ligne.get("coti_id") == "mutuelle"
+        ),
+        2,
+    )
+    if calculee <= 0:
+        return 0.0
+    return min(_get_part_patronale_mutuelle(contexte), calculee)
 
 
 def _get_part_salariale_mutuelle_non_deductible(contexte: ContextePaie) -> float:
@@ -304,7 +331,9 @@ def _calculer_net_imposable(
         elif "csg/crds" in libelle and "non déductible" in libelle:
             montant_csg_non_deductible += _get_safe_float(ligne.get("montant_salarial"))
 
-    part_patronale_mutuelle = _get_part_patronale_mutuelle(contexte)
+    part_patronale_mutuelle = _part_patronale_mutuelle_du_bulletin(
+        contexte, lignes_cotisations
+    )
     part_salariale_mutuelle_non_deductible = (
         _get_part_salariale_mutuelle_non_deductible(contexte)
     )
@@ -461,20 +490,23 @@ def _base_pas_du_mois(contexte: ContextePaie, net_imposable_mois: float) -> floa
 
     Cas général : la base PAS = net imposable du mois.
 
-    Apprenti : la rémunération est exonérée d'impôt jusqu'au SMIC annuel.
+    Apprenti et stagiaire : la rémunération (la gratification) est exonérée
+    d'impôt jusqu'au SMIC annuel (CGI art. 81 bis).
     On ne rabote QUE la base PAS (le net imposable affiché/déclaré DSN reste
-    inchangé). L'exonération étant annuelle, on raisonne en cumul : la base
-    imposable du mois est la fraction du cumul annuel dépassant le plafond.
+    inchangé : net-entreprises, fiche 1891, la rémunération nette fiscale garde
+    la part exonérée, déclarée à part). L'exonération étant annuelle, on raisonne
+    en cumul : la base imposable du mois est la fraction du cumul annuel
+    dépassant le plafond.
     Conséquence connue : un « saut » de PAS le mois où le cumul franchit le
     SMIC annuel (comportement correct sur l'année).
     """
     net_imposable_mois = _get_safe_float(net_imposable_mois)
 
     exo = contexte_exoneration_apprenti(contexte)
-    if exo is None:
-        return net_imposable_mois
-
-    exoneration_ir = exo.get("exoneration_ir") or {}
+    if exo is not None:
+        exoneration_ir = exo.get("exoneration_ir") or {}
+    else:
+        exoneration_ir = exoneration_ir_stage(contexte) or {}
     if not exoneration_ir.get("actif"):
         return net_imposable_mois
 
@@ -484,7 +516,7 @@ def _base_pas_du_mois(contexte: ContextePaie, net_imposable_mois: float) -> floa
 
     plafond_ir_annuel = contexte.smic_mensuel * 12 * pct_annuel
 
-    # Le plafond d'exonération de l'apprenti court sur l'ANNÉE CIVILE. En janvier,
+    # Le plafond d'exonération court sur l'ANNÉE CIVILE. En janvier,
     # le générateur lit décembre N-1 et `net_imposable` n'est pas remis à zéro à
     # l'écriture : sans cette garde, l'apprenti arriverait en janvier avec le
     # cumul de l'année précédente et serait imposé dès le premier euro.

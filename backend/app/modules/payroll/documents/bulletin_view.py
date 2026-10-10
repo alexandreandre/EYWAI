@@ -623,6 +623,23 @@ def calculer_evolution_remuneration(salaire_brut: float, base_csg: float) -> flo
     return round(max(0.0, montant), 2)
 
 
+def _est_stagiaire(bulletin: Dict[str, Any]) -> bool:
+    """Même règle que `ContextePaie.is_stagiaire`, lue sur l'en-tête du bulletin."""
+    salarie = ((bulletin.get("en_tete") or {}).get("salarie")) or {}
+    return "stage" in str(salarie.get("type_contrat") or "").lower()
+
+
+def _evolution_remuneration(bulletin: Dict[str, Any]) -> float:
+    """Un stagiaire n'a jamais cotisé à l'assurance chômage ni à la maladie
+    salariale, ni avant ni après leur suppression : la mention vaut 0, au lieu
+    du repli sur le brut quand le bulletin ne porte pas de CSG."""
+    if _est_stagiaire(bulletin):
+        return 0.0
+    return calculer_evolution_remuneration(
+        float(bulletin.get("salaire_brut") or 0.0), _base_csg(bulletin)
+    )
+
+
 def _base_csg(bulletin: Dict[str, Any]) -> float:
     """Base de la CSG, prise sur la première ligne de la rubrique dédiée."""
     for rubrique in bulletin.get("cotisations_officielles") or []:
@@ -653,9 +670,7 @@ def construire_pied(bulletin: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "montant_net_social": synthese.get("montant_net_social"),
         "net_avant_impot": synthese.get("net_social_avant_impot"),
-        "evolution_remuneration": calculer_evolution_remuneration(
-            float(bulletin.get("salaire_brut") or 0.0), _base_csg(bulletin)
-        ),
+        "evolution_remuneration": _evolution_remuneration(bulletin),
         "mention_evolution": MENTION_EVOLUTION_REMUNERATION,
         "impot": {
             "net_imposable": synthese.get("net_imposable"),
@@ -667,6 +682,7 @@ def construire_pied(bulletin: Dict[str, Any]) -> Dict[str, Any]:
             "net_hs_exonerees": synthese.get("montant_net_hs_exonerees"),
             "cumul_net_hs_exonerees": cumuls.get("montant_net_hs_exonerees_cumul"),
             "exoneration_apprenti": bool(synthese.get("exoneration_ir_apprenti")),
+            "exoneration_stagiaire": bool(synthese.get("exoneration_ir_stagiaire")),
         },
         "net_a_payer": bulletin.get("net_a_payer"),
         "convention_collective": salarie.get("convention_collective") or "",

@@ -10,6 +10,15 @@ Le plafond horaire est fixé par arrêté : il vient des barèmes
 par 151,67 h (4 005 / 151,67 × 15 % = 3,96 €/h au lieu de 4,50 €). Sans valeur
 dans les barèmes, aucune franchise n'est devinée : la gratification est cotisée
 en entier et une alerte le dit sur le bulletin.
+
+Quel que soit son montant, la gratification ne supporte ni la retraite
+complémentaire, ni l'assurance chômage, ni la contribution au dialogue social
+(BOSS, exonération stagiaires, § 70) :
+https://boss.gouv.fr/portail/accueil/exonerations/exoneration-stagiaires.html
+
+Impôt : la gratification est exonérée dans la limite du montant annuel du SMIC
+(CGI art. 81 bis), comme le salaire d'un apprenti :
+https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000029236245
 """
 
 from __future__ import annotations
@@ -22,9 +31,54 @@ logger = get_logger("modules.payroll.engine.exoneration_stage")
 
 CODE_ALERTE_PLAFOND_HORAIRE_ABSENT = "stage_plafond_horaire_ss_absent"
 
+#: Cotisations que la gratification ne supporte jamais (BOSS § 70) : retraite
+#: complémentaire (AGIRC-ARRCO, CEG, CET, APEC), assurance chômage et AGS,
+#: contribution au dialogue social. Surchargeable par
+#: `payroll_config.stage.cotisations_exclues`.
+COTISATIONS_EXCLUES_STAGE = (
+    "retraite_comp_t1",
+    "retraite_comp_t2",
+    "ceg_t1",
+    "ceg_t2",
+    "cet",
+    "apec",
+    "assurance_chomage",
+    "chomage",
+    "ags",
+    "dialogue_social",
+)
+
+#: CGI art. 81 bis : exonération d'impôt dans la limite du SMIC annuel (100 %).
+PLAFOND_IR_ANNUEL_PCT_SMIC_STAGE = 1.0
+
 
 def _config_stage(contexte) -> Dict[str, Any]:
     return contexte.baremes.get("stage", {}) or {}
+
+
+def cotisations_exclues_stage(contexte) -> frozenset:
+    """Identifiants des cotisations jamais dues sur une gratification de stage,
+    vide pour un salarié."""
+    if not getattr(contexte, "is_stagiaire", False):
+        return frozenset()
+    liste = _config_stage(contexte).get("cotisations_exclues", COTISATIONS_EXCLUES_STAGE)
+    return frozenset(str(c).lower() for c in (liste or ()))
+
+
+def exoneration_ir_stage(contexte) -> Optional[Dict[str, Any]]:
+    """Paramètres de l'exonération d'impôt du stagiaire (même forme que
+    `exoneration_ir` de l'apprenti), ou None pour un salarié."""
+    if not getattr(contexte, "is_stagiaire", False):
+        return None
+    cfg = _config_stage(contexte).get("exoneration_ir") or {}
+    if cfg.get("actif") is False:
+        return None
+    return {
+        "actif": True,
+        "plafond_annuel_pct_smic": float(
+            cfg.get("plafond_annuel_pct_smic", PLAFOND_IR_ANNUEL_PCT_SMIC_STAGE)
+        ),
+    }
 
 
 def plafond_horaire_ss(contexte) -> Optional[float]:

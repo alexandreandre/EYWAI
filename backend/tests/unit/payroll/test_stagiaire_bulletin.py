@@ -29,7 +29,10 @@ import pytest
 from app.modules.payroll.documents.bulletin_view import construire_vue_bulletin
 from app.modules.payroll.engine.bulletin import creer_bulletin_final
 from app.modules.payroll.engine.calcul_cotisations import calculer_cotisations
-from app.modules.payroll.engine.calcul_net import _base_pas_du_mois, calculer_net_et_impot
+from app.modules.payroll.engine.calcul_net import (
+    _base_pas_du_mois,
+    calculer_net_et_impot,
+)
 
 from .fixtures.baremes_snapshot import baremes_snapshot
 from .helpers import build_test_contexte

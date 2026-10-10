@@ -234,6 +234,11 @@
                 <td colspan="5">Apprenti : rémunération exonérée d'impôt sur le revenu dans la limite du SMIC annuel.</td>
             </tr>
             {% endif %}
+            {% if vue.pied.impot.exoneration_stagiaire %}
+            <tr>
+                <td colspan="5">Stagiaire : gratification exonérée d'impôt sur le revenu dans la limite du SMIC annuel.</td>
+            </tr>
+            {% endif %}
         </tbody>
     </table>
 
