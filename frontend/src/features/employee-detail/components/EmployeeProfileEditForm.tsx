@@ -1,4 +1,5 @@
 import { Loader2 } from 'lucide-react';
+import { aideCodeDsn } from './aideCodesDsn';
 import type { Control } from 'react-hook-form';
 import { useWatch } from 'react-hook-form';
 import { Link } from 'react-router-dom';
@@ -104,7 +105,7 @@ function CodeDsnSelectField({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">Déclaré en DSN, sans effet sur le bulletin.</p>
+          <p className="text-xs text-muted-foreground">{aideCodeDsn(name)}</p>
           <FormMessage />
         </FormItem>
       )}
