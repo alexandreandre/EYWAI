@@ -17,6 +17,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  PopoverAnchor,
 } from "@/components/ui/popover";
 import {
   Command,
@@ -455,7 +456,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
               <Label>Nom / Type de Saisie</Label>
               <div className="flex gap-2">
                 <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-                  <PopoverTrigger asChild>
+                  <PopoverAnchor asChild>
                     <Input 
                       placeholder="Sélectionnez ou saisissez un nom..."
                       value={formData.name}
@@ -463,8 +464,11 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                       onClick={() => setPopoverOpen(true)}
                       className="flex-1"
                     />
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                  </PopoverAnchor>
+                  <PopoverContent
+                    className="w-[--radix-popover-trigger-width] p-0"
+                    onOpenAutoFocus={e => e.preventDefault()}
+                  >
                     <Command>
                       <CommandInput placeholder="Rechercher une prime..." />
                       <CommandList>
