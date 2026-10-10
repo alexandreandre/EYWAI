@@ -5,6 +5,7 @@ import {
   titreDuBulletin,
   etatInitial,
   heuresDeclarees,
+  montantCorrigeDeLaPrime,
   quantitesHeuresSup,
   recalculAttendu,
   requeteDeCorrection,
