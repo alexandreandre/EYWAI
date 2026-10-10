@@ -59,7 +59,12 @@ def mutuelles_du_salarie(contexte: Any, mutuelle_type_ids: list[Any] | None) -> 
                 .eq("is_active", True)
                 .execute()
             )
-            lignes = list(reponse.data or [])
+            # Lue sans ORDER BY, la table rendait deux mutuelles dans un ordre
+            # variable : le bulletin les inversait d'un calcul à l'autre.
+            lignes = sorted(
+                reponse.data or [],
+                key=lambda m: (str(m.get("libelle") or ""), str(m.get("id") or "")),
+            )
             break
         except Exception as exc:  # noqa: BLE001 — réseau : on relit, puis on s'arrête
             derniere = exc
