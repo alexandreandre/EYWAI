@@ -330,6 +330,24 @@ class TestDeletePayslipCommand:
             mock_repo.delete.assert_called_once_with("ps-123")
 
 
+class TestRefusSuppressionBulletinValide:
+    def test_le_refus_dit_le_vrai_geste_de_l_ecran(self):
+        """Pas de jargon (« en forçant ») : le geste de l'écran du bulletin."""
+        from app.modules.payslips.application.dto import PayslipValidatedError
+
+        with patch(
+            "app.modules.payslips.application.commands._fetch_payslip_status",
+            return_value={"id": "ps-1", "status": "valide"},
+        ):
+            with pytest.raises(PayslipValidatedError) as exc:
+                delete_payslip("ps-1")
+        message = str(exc.value)
+        assert "forçant" not in message
+        assert "Ouvrez le bulletin" in message
+        assert "« Régénérer »" in message
+        assert "archivée" in message
+
+
 class TestBulletinImporteIntouchable:
     """Un bulletin repris de l'ancien logiciel (origine « importe ») ne se
     supprime pas et ne se modifie pas : il ne pourrait pas être recalculé."""
