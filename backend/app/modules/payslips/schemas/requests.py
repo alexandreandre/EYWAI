@@ -46,6 +46,9 @@ class PrimeAjoutee(BaseModel):
     amount: float = Field(..., ge=-100_000, le=100_000)
     is_socially_taxed: bool = True
     is_taxable: bool = True
+    #: Retenue ou versement sur le net à payer, sans toucher au brut (acompte,
+    #: avance…) : le montant porte alors son signe.
+    sur_le_net: bool = False
     catalog_prime_id: str | None = Field(None, max_length=120)
 
 

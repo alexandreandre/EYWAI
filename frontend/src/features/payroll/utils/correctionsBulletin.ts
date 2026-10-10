@@ -115,6 +115,7 @@ export function primeDepuisSaisie(saisie: MonthlyInputCreate): PrimeAjoutee {
     amount: arrondi(Number(saisie.amount) || 0),
     is_socially_taxed: saisie.is_socially_taxed ?? true,
     is_taxable: saisie.is_taxable ?? true,
+    sur_le_net: saisie.sur_le_net ?? false,
     catalog_prime_id: saisie.catalog_prime_id ?? null,
   };
 }

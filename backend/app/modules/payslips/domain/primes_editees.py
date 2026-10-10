@@ -29,7 +29,13 @@ _TOLERANCE = 0.005
 #: Seuls champs qu'une prime ajoutée depuis le bulletin peut porter. Le salarié,
 #: la société et la période sont toujours ceux du bulletin, jamais ceux envoyés
 #: par l'écran (audit du 28/09).
-CHAMPS_PRIME_AJOUTEE = ("name", "is_socially_taxed", "is_taxable", "catalog_prime_id")
+CHAMPS_PRIME_AJOUTEE = (
+    "name",
+    "is_socially_taxed",
+    "is_taxable",
+    "sur_le_net",
+    "catalog_prime_id",
+)
 
 
 def prime_ajoutee_propre(brute: dict[str, Any]) -> dict[str, Any]:

@@ -290,6 +290,8 @@ export interface PrimeAjoutee {
   amount: number;
   is_socially_taxed: boolean;
   is_taxable: boolean;
+  /** Retenue ou versement sur le net à payer, sans toucher au brut. */
+  sur_le_net?: boolean;
   catalog_prime_id: string | null;
 }
 
