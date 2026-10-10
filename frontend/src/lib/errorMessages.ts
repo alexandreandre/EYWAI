@@ -123,7 +123,9 @@ export const PAYROLL_GENERATION_FALLBACK =
   'Impossible de générer le bulletin. Vérifiez la fiche du collaborateur (contrat, planning du mois, saisies variables).';
 
 export const PAYROLL_GENERATION_NETWORK_MESSAGE =
-  'La génération a été interrompue (délai dépassé ou surcharge serveur). Réessayez dans quelques instants.';
+  'La connexion a été coupée avant la fin de la génération. Le calcul a pu se poursuivre sur le serveur : ' +
+  'rechargez le bulletin pour voir s’il est à jour. Si ce n’est pas le cas, patientez 5 minutes (le serveur ' +
+  'n’accepte pas deux calculs du même bulletin en même temps), puis relancez.';
 
 /**
  * Message d'échec de génération de paie : privilégie le détail métier renvoyé par
