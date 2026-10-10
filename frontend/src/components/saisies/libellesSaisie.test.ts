@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   LIBELLE_SOUMISE_COTISATIONS,
   LIBELLE_SOUMISE_IMPOT,
+  heuresDeclareesDeLaSaisie,
   messageBulletinsARecalculer,
   moisEnToutesLettres,
   pastilleSoumise,
@@ -96,5 +97,27 @@ describe('messageBulletinsARecalculer : élision devant le nom', () => {
     expect(messageBulletinsARecalculer([cible('a'), cible('b')], nom)).toBe(
       "Les bulletins d'octobre 2026 d'Élodie Test et Camille Test sont à recalculer.",
     );
+  });
+});
+
+describe('heuresDeclareesDeLaSaisie : les heures sup corrigées depuis le bulletin', () => {
+  it('le palier à 25 % se lit en heures', () => {
+    expect(
+      heuresDeclareesDeLaSaisie({
+        name: 'Heures supplémentaires (corrigées au bulletin)',
+        payroll_quantity: 6,
+      }),
+    ).toEqual({ libelle: 'Heures sup. corrigées au bulletin : 6 h à 25 %', quantite: '6 h' });
+  });
+  it('le palier à 50 % aussi, avec la virgule française', () => {
+    expect(
+      heuresDeclareesDeLaSaisie({
+        name: 'Heures supplémentaires majorées à 50 % (corrigées au bulletin)',
+        payroll_quantity: 2.5,
+      }),
+    ).toEqual({ libelle: 'Heures sup. corrigées au bulletin : 2,5 h à 50 %', quantite: '2,5 h' });
+  });
+  it('une saisie ordinaire n’est pas touchée', () => {
+    expect(heuresDeclareesDeLaSaisie({ name: 'Prime de chantier', payroll_quantity: null })).toBeNull();
   });
 });
