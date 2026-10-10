@@ -124,6 +124,8 @@ function fmtNombre(n: number): string {
   return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(n);
 }
 
+import { deDevant } from './elision';
+
 function fmtEuro(n: number): string {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n);
 }
@@ -133,7 +135,7 @@ export function libelleToastRecalcul(
   apres: MontantsBulletin | null | undefined,
   employeeName?: string
 ): { title: string; description: string } {
-  const title = employeeName ? `Bulletin de ${employeeName} recalculé` : 'Bulletin recalculé';
+  const title = employeeName ? `Bulletin ${deDevant(employeeName)} recalculé` : 'Bulletin recalculé';
   if (!avant || !apres || !comparaisonPossible(avant, apres)) {
     return { title, description: MESSAGE_COMPARAISON_INDISPONIBLE };
   }

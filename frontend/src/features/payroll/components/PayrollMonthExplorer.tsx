@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { deDevant } from '@/features/payroll/utils/elision';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -259,7 +260,7 @@ export function PayrollMonthExplorer({
             deletingPayslipId={deletingPayslipId}
             deleteDescription={
               <>
-                Le bulletin de {employee.first_name} {employee.last_name} pour{' '}
+                Le bulletin {deDevant(`${employee.first_name} ${employee.last_name}`)} pour{' '}
                 {monthYearLabel(selectedMonth, selectedYear)} sera supprimé définitivement.
               </>
             }

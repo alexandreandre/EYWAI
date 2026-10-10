@@ -3,6 +3,8 @@
  * tableau, la fenêtre de saisie et les pastilles du bulletin disent la même chose.
  */
 
+import { deDevant } from '@/features/payroll/utils/elision';
+
 const MOIS = [
   'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
   'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
@@ -39,7 +41,7 @@ export type BulletinARecalculer = { employee_id: string; year: number; month: nu
 
 function deMois(year: number, month: number): string {
   const mois = moisEnToutesLettres(year, month);
-  return /^[aeiouhéèêàâ]/i.test(mois) ? `d'${mois}` : `de ${mois}`;
+  return deDevant(mois);
 }
 
 /**
@@ -61,12 +63,12 @@ export function messageBulletinsARecalculer(
   const phrases = [...parMois.values()].map((groupe) => {
     const mois = deMois(groupe[0].year, groupe[0].month);
     if (groupe.length === 1) {
-      return `Le bulletin ${mois} de ${nomDe(groupe[0].employee_id)} est à recalculer.`;
+      return `Le bulletin ${mois} ${deDevant(nomDe(groupe[0].employee_id))} est à recalculer.`;
     }
     if (groupe.length > 3) return `${groupe.length} bulletins ${mois} sont à recalculer.`;
     const noms = groupe.map((c) => nomDe(c.employee_id));
     const liste = `${noms.slice(0, -1).join(', ')} et ${noms[noms.length - 1]}`;
-    return `Les bulletins ${mois} de ${liste} sont à recalculer.`;
+    return `Les bulletins ${mois} ${deDevant(liste)} sont à recalculer.`;
   });
   return phrases.join(' ');
 }

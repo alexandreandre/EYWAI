@@ -15,7 +15,7 @@ describe('deDevant', () => {
     expect(deDevant('Camille Roussel')).toBe('de Camille Roussel');
     expect(deDevant('mars')).toBe('de mars');
   });
-  it('ne dit rien d'un nom vide', () => {
+  it("ne dit rien d'un nom vide", () => {
     expect(deDevant('')).toBe('');
     expect(deDevant(null)).toBe('');
   });

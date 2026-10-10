@@ -1,4 +1,5 @@
 import { log } from '@/lib/logger';
+import { deDevant } from '@/features/payroll/utils/elision';
 import { RhPageHeader } from '@/components/layout';
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -113,7 +114,7 @@ const EmployeeExitsPage = () => {
   ];
 
   const handleDeleteExit = async (exitId: string, employeeName: string) => {
-    const confirmMessage = `Êtes-vous sûr de vouloir supprimer le départ de ${employeeName} ?\n\nCette action est irréversible et :\n- Supprimera tous les documents associés\n- Supprimera la checklist\n- Remettra l'employé en statut "actif"`;
+    const confirmMessage = `Êtes-vous sûr de vouloir supprimer le départ ${deDevant(employeeName)} ?\n\nCette action est irréversible et :\n- Supprimera tous les documents associés\n- Supprimera la checklist\n- Remettra l'employé en statut "actif"`;
 
     if (!confirm(confirmMessage)) {
       return;
