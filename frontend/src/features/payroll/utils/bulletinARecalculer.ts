@@ -71,13 +71,28 @@ export function messageARecalculer(
         a_regenerer?: string | null;
         raison_a_recalculer?: string | null;
         origine?: string | null;
+        status?: string | null;
       }
     | null
     | undefined
 ): string | null {
   if (!payslip || estBulletinImporte(payslip)) return null;
-  if (payslip.raison_a_recalculer) return payslip.raison_a_recalculer;
-  return estPerime(payslip) && !payslip.a_regenerer ? MESSAGE_A_RECALCULER : null;
+  const message = payslip.raison_a_recalculer
+    ? payslip.raison_a_recalculer
+    : estPerime(payslip) && !payslip.a_regenerer
+      ? MESSAGE_A_RECALCULER
+      : null;
+  return message && payslip.status === 'valide' ? pourBulletinValide(message) : message;
+}
+
+const FIN_RECALCULEZ = / depuis le calcul : recalculez avant de valider\.$/;
+
+/** Un bulletin validé ne se « recalcule » pas avant validation : il se régénère, puis se valide de nouveau. */
+function pourBulletinValide(message: string): string {
+  const debut = FIN_RECALCULEZ.test(message)
+    ? message.replace(FIN_RECALCULEZ, '')
+    : 'Une donnée du bulletin a changé';
+  return `${debut} depuis la validation : régénérez le bulletin (l’ancienne version est archivée), puis validez-le de nouveau.`;
 }
 
 function nombreOuNull(valeur: unknown): number | null {
