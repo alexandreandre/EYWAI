@@ -18,3 +18,16 @@ describe("carte Compensation des heures entre semaines", () => {
     expect(texte).toMatch(/retenu sur les derniers jours manqués/);
   });
 });
+
+describe("synthèse mensuelle du calendrier", () => {
+  const texte = lire("components/employee-calendar/EmployeeCalendarMonthSummary.tsx");
+
+  it("n'appelle plus « heures supplémentaires » un excédent calculé jour par jour", () => {
+    expect(texte).not.toContain("Heures supplémentaires faites");
+    expect(texte).toContain("Heures au-delà du prévu");
+  });
+
+  it("explique que les heures sup du bulletin se comptent à la semaine", () => {
+    expect(texte).toMatch(/heures supplémentaires du bulletin se comptent à la semaine/);
+  });
+});
