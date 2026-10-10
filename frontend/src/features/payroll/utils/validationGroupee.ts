@@ -37,7 +37,7 @@ function bulletins(n: number, participe: string): string {
 export function resumeValidationGroupee(
   resultat: ResultatValidationGroupee,
   nomParBulletin: Readonly<Record<string, string>>
-): { titre: string; refus: RefusNomme[] } {
+): { titre: string; refus: RefusNomme[]; valides: string[] } {
   const nValides = resultat.valides.length;
   const nRefus = resultat.refus.length;
   const valides = nValides > 0 ? bulletins(nValides, 'validé') : 'Aucun bulletin validé';
@@ -47,6 +47,7 @@ export function resumeValidationGroupee(
       : `${valides}, ${nRefus} refusé${nRefus > 1 ? 's' : ''} : ouvrez-${nRefus > 1 ? 'les' : 'le'} pour corriger.`;
   return {
     titre,
+    valides: resultat.valides.map((id) => nomParBulletin[id] ?? NOM_BULLETIN_INCONNU),
     refus: resultat.refus.map((r) => ({
       payslipId: r.payslip_id,
       nom: nomParBulletin[r.payslip_id] ?? NOM_BULLETIN_INCONNU,

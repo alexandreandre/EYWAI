@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { validerBulletinsPrets } from '@/api/payslips';
 import { toast } from '@/hooks/use-toast';
+import { accord, pluriel } from '@/lib/pluriel';
 import { showErrorToast } from '@/lib/errorMessages';
 import {
   libelleBoutonValider,
@@ -52,7 +53,7 @@ export function ValiderBulletinsPrets({
 }: Props) {
   const [confirmation, setConfirmation] = useState(false);
   const [enCours, setEnCours] = useState(false);
-  const [recap, setRecap] = useState<{ titre: string; refus: RefusNomme[] } | null>(null);
+  const [recap, setRecap] = useState<{ titre: string; refus: RefusNomme[]; valides: string[] } | null>(null);
 
   if (idsPrets.length === 0 && !enCours && !recap) return null;
 
@@ -142,6 +143,14 @@ export function ValiderBulletinsPrets({
               </li>
             ))}
           </ul>
+          {recap && recap.valides.length > 0 ? (
+            <div className="space-y-1 text-sm" data-testid="valides-validation">
+              <p className="font-medium">
+                {pluriel(recap.valides.length, 'bulletin')} {accord(recap.valides.length, 'validé')}
+              </p>
+              <p className="text-xs text-muted-foreground">{recap.valides.join(', ')}</p>
+            </div>
+          ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setRecap(null)}>
               Fermer
