@@ -256,3 +256,55 @@ def test_un_montant_corrige_au_bulletin_n_est_plus_ecrase_par_la_generation():
     client.table.return_value.update.assert_called_once_with(
         {"amount": 150.0, "manual_override": True}
     )
+
+
+def test_une_retenue_sur_le_net_ajoutee_depuis_le_bulletin_devient_une_saisie_sur_le_net():
+    """Défaut 1 de l'écran du bulletin : la retenue sur le net devenait une prime
+    négative non soumise, parce que `sur_le_net` ne traversait pas la requête."""
+    from unittest.mock import MagicMock, patch
+
+    from app.modules.payslips.application import primes_editees as app_primes
+    from app.modules.payslips.schemas.requests import PayslipEditRequest
+
+    requete = PayslipEditRequest(
+        corrections={
+            "primes_ajoutees": [
+                {
+                    "name": "Acompte",
+                    "amount": -200,
+                    "sur_le_net": True,
+                    "is_socially_taxed": False,
+                    "is_taxable": False,
+                }
+            ]
+        }
+    )
+    diff = requete.corrections.vers_domaine().primes
+    client = MagicMock()
+    with patch.object(app_primes, "supabase", client):
+        app_primes.appliquer_primes_editees(
+            diff, employee_id="e1", company_id="c1", year=2026, month=9
+        )
+
+    insere = client.table.return_value.insert.call_args.args[0][0]
+    assert insere["sur_le_net"] is True
+    assert insere["amount"] == -200.0
+    assert insere["is_socially_taxed"] is False
+
+
+def test_une_prime_ajoutee_sans_precision_n_est_pas_sur_le_net():
+    from unittest.mock import MagicMock, patch
+
+    from app.modules.payslips.application import primes_editees as app_primes
+    from app.modules.payslips.schemas.requests import PayslipEditRequest
+
+    requete = PayslipEditRequest(
+        corrections={"primes_ajoutees": [{"name": "Prime", "amount": 50}]}
+    )
+    client = MagicMock()
+    with patch.object(app_primes, "supabase", client):
+        app_primes.appliquer_primes_editees(
+            requete.corrections.vers_domaine().primes,
+            employee_id="e1", company_id="c1", year=2026, month=9,
+        )
+    assert client.table.return_value.insert.call_args.args[0][0].get("sur_le_net") is False

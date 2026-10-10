@@ -147,6 +147,23 @@ describe('primeDepuisSaisie', () => {
       is_socially_taxed: false,
       is_taxable: true,
       catalog_prime_id: null,
+      sur_le_net: false,
     });
+  });
+
+  it('garde « sur le net » : une retenue ne devient pas une prime négative', async () => {
+    const { primeDepuisSaisie } = await import('./correctionsBulletin');
+    const prime = primeDepuisSaisie({
+      employee_id: 'emp-1',
+      year: 2026,
+      month: 8,
+      name: 'Acompte',
+      amount: -200,
+      sur_le_net: true,
+      is_socially_taxed: false,
+      is_taxable: false,
+    });
+    expect(prime.sur_le_net).toBe(true);
+    expect(prime.amount).toBe(-200);
   });
 });
