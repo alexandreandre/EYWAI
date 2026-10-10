@@ -40,3 +40,17 @@ describe("mode RTT par défaut", () => {
     expect(texte).toContain("Défaut (aucun RTT)");
   });
 });
+
+describe("préréglages de la carte Organisation du temps", () => {
+  const texte = lire("features/company/components/ModulationSettingsCard.tsx");
+
+  it("demande confirmation avant d'appliquer un préréglage", () => {
+    expect(texte).toContain("AlertDialog");
+    expect(texte).toContain("changementsDuPreset");
+    expect(texte).toContain("Annuler");
+  });
+
+  it("n'applique plus le préréglage directement au clic", () => {
+    expect(texte).not.toMatch(/onClick=\{\(\) => applyPresetMutation\.mutate\(p\.id\)\}/);
+  });
+});
