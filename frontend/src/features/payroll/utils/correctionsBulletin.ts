@@ -121,6 +121,16 @@ export function primesDuBulletin(data: unknown): PrimeDuBulletin[] {
 }
 
 /**
+ * Montant d'une prime après correction : le sens (retenue, versement, prime)
+ * ne change jamais en corrigeant, quel que soit le signe tapé.
+ */
+export function montantCorrigeDeLaPrime(prime: PrimeDuBulletin, saisi: number): number {
+  if (prime.surLeNet === 'retenue') return -Math.abs(saisi);
+  if (prime.surLeNet === 'versement') return Math.abs(saisi);
+  return saisi;
+}
+
+/**
  * Les retenues et versements sur le net ne sont pas imprimés comme des lignes
  * de prime : le bulletin ne les porte pas. On les lit dans les saisies du mois
  * et on les ajoute aux primes, corrigeables et retirables comme elles.

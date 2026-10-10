@@ -1,4 +1,5 @@
 // Composant pour l'onglet Primes (contenu actuel de Saisies.tsx)
+import { libelleMontantSaisie, montantAEditer, montantAEnvoyer } from './sensSaisie';
 import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
@@ -172,7 +173,8 @@ export function PrimesTab({
       return;
     }
     try {
-      const reponse = await saisiesApi.updateMonthlyInput(id, { amount: parsed });
+      const ancien = monthlyInputs.find((m) => m.id === id)?.amount ?? 0;
+      const reponse = await saisiesApi.updateMonthlyInput(id, { amount: montantAEnvoyer(ancien, parsed) });
       toast({
         title: "Saisie corrigée",
         description: [
@@ -367,11 +369,16 @@ export function PrimesTab({
                               title="Cliquer pour corriger le montant"
                               onClick={() => {
                                 setEditingId(input.id);
-                                setEditingAmount(String(input.amount));
+                                setEditingAmount(montantAEditer(input.amount));
                               }}
                             >
                               {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(input.amount)}
                             </button>
+                          )}
+                          {editingId !== input.id && libelleMontantSaisie(input.amount, !!input.sur_le_net) && (
+                            <Badge variant="outline" className="ml-2">
+                              {libelleMontantSaisie(input.amount, !!input.sur_le_net)}
+                            </Badge>
                           )}
                         </TableCell>
                         <TableCell>

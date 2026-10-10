@@ -43,3 +43,18 @@ export function champsDeLaSaisie(
     is_taxable: false,
   };
 }
+
+/** Valeur proposée à la correction : toujours positive, le sens ne se change pas en tapant un signe. */
+export function montantAEditer(amount: number): string {
+  return String(Math.abs(amount));
+}
+
+/** Montant envoyé à la correction : celui qui est tapé, avec le sens de la saisie existante. */
+export function montantAEnvoyer(ancien: number, saisi: number): number {
+  return ancien < 0 ? -Math.abs(saisi) : Math.abs(saisi);
+}
+
+/** Le sens d'une retenue, dit en toutes lettres à côté du montant (négatif = retenue). */
+export function libelleMontantSaisie(amount: number, _surLeNet: boolean): string | null {
+  return amount < 0 ? 'Retenue sur le net' : null;
+}

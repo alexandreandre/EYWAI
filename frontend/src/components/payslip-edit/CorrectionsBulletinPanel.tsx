@@ -22,6 +22,7 @@ import { pastilleSoumise } from '@/components/saisies/libellesSaisie';
 import {
   heuresDeclarees,
   type EtatCorrections,
+  montantCorrigeDeLaPrime,
 } from '@/features/payroll/utils/correctionsBulletin';
 
 function texteDe(valeur: number): string {
@@ -259,7 +260,7 @@ export default function CorrectionsBulletinPanel({
                       valeur={prime.surLeNet === 'retenue' ? Math.abs(prime.montant) : prime.montant}
                       negatifPermis={!prime.surLeNet}
                       onValeur={(saisi) => {
-                        const montant = prime.surLeNet === 'retenue' ? -Math.abs(saisi) : saisi;
+                        const montant = montantCorrigeDeLaPrime(prime, saisi);
                         maj({
                           primes: etat.primes.map((p) =>
                             p.saisieId === prime.saisieId ? { ...p, montant } : p
