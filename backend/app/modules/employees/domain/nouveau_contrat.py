@@ -187,6 +187,21 @@ def date_anciennete(
     return demande.date_debut
 
 
+#: Drapeaux d'alternance propres à un contrat (lus par le moteur :
+#: exoneration_alternance._maintien_ancien_regime, contexte.is_apprenti).
+DRAPEAUX_ALTERNANCE = {"maintien_regime_apprenti": False, "apprenti_date_effet": None}
+
+
+def _specificites_sans_alternance(specificites: Any) -> dict[str, Any] | None:
+    """Les spécificités de paie, drapeaux d'alternance remis à zéro ; None si
+    aucun n'était posé (rien à réécrire)."""
+    if not isinstance(specificites, Mapping):
+        return None
+    if not any(specificites.get(cle) for cle in DRAPEAUX_ALTERNANCE):
+        return None
+    return {**specificites, **DRAPEAUX_ALTERNANCE}
+
+
 def ecritures(
     fiche: Mapping[str, Any], precedent: ContratPrecedent, demande: Demande
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None]:
@@ -194,7 +209,9 @@ def ecritures(
 
     Dates en ISO. `date_debut_execution` et `date_conclusion_contrat` étaient
     celles du contrat précédent : elles sont vidées, sinon la garde de présence
-    lirait encore l'ancien début.
+    lirait encore l'ancien début. Le maintien de l'ancien régime apprenti et sa
+    date d'effet (`specificites_paie`) étaient aussi ceux du contrat rangé : ils
+    sont remis à zéro, le reste des spécificités est gardé.
     """
     periode = {
         "contract_type": precedent.contract_type,
@@ -214,6 +231,9 @@ def ecritures(
         "current_exit_id": None,
         "seniority_reference_date": date_anciennete(fiche, precedent, demande).isoformat(),
     }
+    specificites = _specificites_sans_alternance(fiche.get("specificites_paie"))
+    if specificites is not None:
+        nouvelle_fiche["specificites_paie"] = specificites
     ancien = fiche.get("salaire_de_base")
     ancien_montant = valeur_salaire(ancien)
     salaire = None

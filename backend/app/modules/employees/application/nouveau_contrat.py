@@ -43,7 +43,8 @@ logger = get_logger(__name__)
 COLONNES_FICHE = (
     "id, company_id, employment_status, hire_date, date_debut_execution, "
     "date_conclusion_contrat, contract_type, contract_end_date, seniority_reference_date, "
-    "duree_hebdomadaire, is_temps_partiel, job_title, salaire_de_base, current_exit_id"
+    "duree_hebdomadaire, is_temps_partiel, job_title, salaire_de_base, current_exit_id, "
+    "specificites_paie"
 )
 
 
