@@ -45,7 +45,7 @@ def build_test_contexte(
     cumuls: Optional[Dict[str, Any]] = None,
     specificites_extra: Optional[Dict[str, Any]] = None,
     is_temps_partiel: bool = False,
-    proratiser_plafond_ss: bool = False,
+    proratiser_plafond_ss: bool | None = None,
     jei_enabled: bool = False,
     date_creation_etablissement: str | None = None,
     taux_exoneration_jei: float = 1.0,
@@ -70,7 +70,13 @@ def build_test_contexte(
             "temps_travail": {
                 "duree_hebdomadaire": duree_hebdo,
                 "is_temps_partiel": is_temps_partiel,
-                "proratiser_plafond_ss": proratiser_plafond_ss,
+                # Clé posée seulement quand un test la fixe : absente, comme sur
+                # une vraie fiche (payslip_generator._build_temps_travail_payload).
+                **(
+                    {"proratiser_plafond_ss": proratiser_plafond_ss}
+                    if proratiser_plafond_ss is not None
+                    else {}
+                ),
             },
         },
         "remuneration": {
