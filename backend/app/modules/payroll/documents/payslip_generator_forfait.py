@@ -150,12 +150,13 @@ def process_payslip_generation_forfait(
         is_forfait_flag = employee_data.get("is_forfait_jour")
 
         if not is_forfait_jour(statut, is_forfait_flag):
+            from app.modules.payroll.documents.payslip_run_forfait import (
+                message_pas_forfait_jour,
+            )
+
             raise HTTPException(
                 status_code=400,
-                detail=(
-                    "Ce collaborateur n'est pas en forfait jour. "
-                    "Utilisez la génération standard ou corrigez son statut."
-                ),
+                detail=message_pas_forfait_jour(),
             )
 
         company_data = (

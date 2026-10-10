@@ -61,14 +61,24 @@ def _employee_name(emp: Dict[str, Any]) -> tuple[str, str]:
     )
 
 
-def _format_deadline_label(reminder_type: str, deadline: date) -> str:
+def _est_un_stage(emp: Dict[str, Any]) -> bool:
+    return "STAGE" in str(emp.get("contract_type") or "").upper()
+
+
+def _format_deadline_label(
+    reminder_type: str, deadline: date, *, stage: bool = False
+) -> str:
     type_label = REMINDER_TYPE_LABELS.get(reminder_type, reminder_type)
+    if stage and reminder_type == REMINDER_TYPE_CDD:
+        type_label = "Fin de stage"
     return f"{type_label} le {deadline.strftime('%d/%m/%Y')}"
 
 
 def _cdd_deadline(emp: Dict[str, Any]) -> Optional[date]:
+    # Un stage a une date de fin comme un CDD. La table des relances n'admet
+    # que ce type : seul le libellé change.
     ctype = str(emp.get("contract_type") or "").upper()
-    if "CDD" not in ctype:
+    if "CDD" not in ctype and "STAGE" not in ctype:
         return None
     return parse_date(emp.get("contract_end_date"))
 
@@ -120,7 +130,9 @@ def _iter_candidates_for_employee(
                 reminder_type=reminder_type,
                 deadline=deadline,
                 days_remaining=remaining,
-                label=_format_deadline_label(reminder_type, deadline),
+                label=_format_deadline_label(
+                    reminder_type, deadline, stage=_est_un_stage(emp)
+                ),
                 first_name=first_name,
                 last_name=last_name,
             )

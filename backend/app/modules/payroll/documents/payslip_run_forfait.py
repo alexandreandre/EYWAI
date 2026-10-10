@@ -62,7 +62,7 @@ def message_pas_forfait_jour() -> str:
     """Refus d'un bulletin au forfait jour pour un salarié qui ne l'est pas."""
     return (
         "Ce salarié n'est pas au forfait jour : son bulletin se calcule sur ses heures. "
-        "Vérifiez son statut sur sa fiche."
+        "Pour le passer au forfait jour, cochez la case « Forfait jours » sur sa fiche."
     )
 
 
