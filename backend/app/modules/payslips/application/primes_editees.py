@@ -11,6 +11,9 @@ from __future__ import annotations
 import logging
 
 from app.core.database import supabase
+from app.modules.monthly_inputs.application.commands import (
+    _montant_corrige_meme_sens,
+)
 from app.modules.monthly_inputs.domain.rules import (
     RETRAIT_SAISIE_GENEREE,
     est_saisie_generee,
@@ -70,7 +73,19 @@ def appliquer_primes_editees(
                 for p in diff.ajoutees
             ]
         ).execute()
+    anciens: dict[str, object] = {}
+    if diff.modifiees:
+        r = (
+            supabase.table("monthly_inputs")
+            .select("id, amount")
+            .in_("id", [saisie_id for saisie_id, _ in diff.modifiees])
+            .execute()
+        )
+        anciens = {str(row["id"]): row.get("amount") for row in r.data or []}
     for saisie_id, montant in diff.modifiees:
+        # Le signe d'une saisie est son sens (négatif = retenue sur le net,
+        # positif = versement ou prime) : une correction change le montant.
+        montant = _montant_corrige_meme_sens(anciens.get(saisie_id), montant)
         supabase.table("monthly_inputs").update(
             {"amount": montant, "manual_override": True}
         ).eq("id", saisie_id).execute()
