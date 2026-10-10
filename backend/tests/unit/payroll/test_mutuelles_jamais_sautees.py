@@ -77,3 +77,18 @@ def test_le_calcul_des_cotisations_ne_continue_pas_sans_mutuelle():
     with patch.object(calcul_cotisations, "mutuelles_du_salarie", side_effect=M.MutuelleIllisible("illisible")):
         with pytest.raises(M.MutuelleIllisible):
             calculer_cotisations(ctx, 2500.0, 0.0, 0.0)
+
+
+@pytest.mark.parametrize("inverser", [False, True])
+def test_l_ordre_des_mutuelles_ne_depend_pas_de_la_base(inverser):
+    """La table est lue sans tri : deux mutuelles s'inversaient d'un calcul à
+    l'autre sur le bulletin. Elles sortent triées par (libellé, id)."""
+    lignes = [
+        {"id": "c", "libelle": "Mutuelle option"},
+        {"id": "b", "libelle": "Mutuelle base"},
+        {"id": "a", "libelle": "Mutuelle base"},
+    ]
+    client = _client(SimpleNamespace(data=list(reversed(lignes)) if inverser else lignes))
+    with patch.object(M.database, "get_supabase_admin_client", return_value=client):
+        lues = M.mutuelles_du_salarie(SimpleNamespace(), ["a", "b", "c"])
+    assert [m["id"] for m in lues] == ["a", "b", "c"]
