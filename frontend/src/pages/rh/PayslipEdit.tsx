@@ -45,6 +45,7 @@ import { getEmployeeMonthlyInputs } from '@/api/saisies';
 import { hasRhAccess, useAuth } from '@/contexts/AuthContext';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
 import { cn } from '@/lib/utils';
+import { useEmployeeQuery } from '@/hooks/queries/useEmployeeQuery';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 
 import CorrectionsBulletinPanel from '@/components/payslip-edit/CorrectionsBulletinPanel';
@@ -130,6 +131,7 @@ export default function PayslipEdit() {
   const [initial, setInitial] = useState<EtatCorrections | null>(null);
   const [etat, setEtat] = useState<EtatCorrections | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { data: salarieBulletin } = useEmployeeQuery(payslip?.employee_id);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('corriger');
   const [confirmationValide, setConfirmationValide] = useState(false);
@@ -553,6 +555,7 @@ export default function PayslipEdit() {
               lienPlanning={lienCalendrierDuSalarie(payslip.employee_id, { year: payslip.year, month: payslip.month })}
               lienFiche={`/employees/${encodeURIComponent(payslip.employee_id)}`}
               lienSaisies={lienSaisies}
+              forfaitJours={salarieBulletin?.is_forfait_jour === true}
               onAller={aller}
             />
             <NotesSection

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { modelesSemaineProposes } from '@/lib/forfaitJoursAffichage';
 import { ArrowRight, Copy, Loader2, Save } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,7 @@ export function WeekTemplateForm({
     };
   }, [companyId]);
   const days = JOURS_MODELE_SEMAINE;
+  const modelesProposes = modelesSemaineProposes(savedTemplates, isForfaitJour);
 
   const handleInputChange = (dayKey: number, value: string) => {
     setTemplate(prev => ({ ...prev, [dayKey]: value }));
@@ -162,9 +164,9 @@ export function WeekTemplateForm({
       </CardContent>
       <CardContent className="pt-0 border-t">
         <div className="flex flex-wrap items-end gap-2">
-          {savedTemplates.length > 0 && (
+          {modelesProposes.length > 0 && (
             <div className="flex flex-wrap gap-1">
-              {savedTemplates.map((st) => (
+              {modelesProposes.map((st) => (
                 <Button
                   key={st.name}
                   type="button"

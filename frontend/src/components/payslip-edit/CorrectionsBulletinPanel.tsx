@@ -18,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AjouterPrimeBouton from '@/components/payslip-edit/AjouterPrimeBouton';
+import { PHRASE_FORFAIT_JOURS_SANS_HEURES_SUP } from '@/lib/forfaitJoursAffichage';
 import { pastilleSoumise } from '@/components/saisies/libellesSaisie';
 import {
   heuresDeclarees,
@@ -107,6 +108,8 @@ interface Props {
   lienPlanning: string;
   lienFiche: string;
   lienSaisies: string;
+  /** Salarié au forfait jours : le temps se compte en jours, pas d'heures sup. */
+  forfaitJours?: boolean;
   /** Passe par la garde des corrections non enregistrées avant de quitter l'écran. */
   onAller: (lien: string) => void;
 }
@@ -122,6 +125,7 @@ export default function CorrectionsBulletinPanel({
   lienPlanning,
   lienFiche,
   lienSaisies,
+  forfaitJours = false,
   onAller,
 }: Props) {
   const declarees = heuresDeclarees(payslipData);
@@ -130,6 +134,12 @@ export default function CorrectionsBulletinPanel({
 
   return (
     <div className="space-y-6">
+      {forfaitJours ? (
+        <Alert data-testid="forfait-jours-sans-heures-sup">
+          <Clock className="h-4 w-4" />
+          <AlertDescription>{PHRASE_FORFAIT_JOURS_SANS_HEURES_SUP}</AlertDescription>
+        </Alert>
+      ) : (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -203,6 +213,7 @@ export default function CorrectionsBulletinPanel({
           )}
         </CardContent>
       </Card>
+      )}
 
       <Card>
         <CardHeader>
