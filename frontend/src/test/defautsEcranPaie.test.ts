@@ -54,3 +54,15 @@ describe("préréglages de la carte Organisation du temps", () => {
     expect(texte).not.toMatch(/onClick=\{\(\) => applyPresetMutation\.mutate\(p\.id\)\}/);
   });
 });
+
+describe("onglet Compte d'heures", () => {
+  const texte = lire("features/work-time-tracking/components/HourAccountTab.tsx");
+
+  it("n'affiche plus le statut brut d'un mouvement", () => {
+    expect(texte).not.toContain("{m.status}");
+  });
+
+  it("marque les chiffres de repli comme estimés", () => {
+    expect(texte).toContain("row.estimated");
+  });
+});
