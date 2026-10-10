@@ -186,6 +186,14 @@ describe('lienCalendrierDuSalarie', () => {
   });
 });
 
+describe('lienCalendrierDuSalarie : mois précis', () => {
+  it('ajoute l’année et le mois du bulletin', () => {
+    expect(lienCalendrierDuSalarie('e1', { year: 2026, month: 10 })).toBe(
+      '/employees/e1?tab=calendrier&year=2026&month=10'
+    );
+  });
+});
+
 describe('bandeauAbsencesDuSalarie', () => {
   const base = { employeeId: 'e1', chargement: false, erreur: false };
 
