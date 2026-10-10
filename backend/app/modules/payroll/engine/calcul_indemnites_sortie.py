@@ -430,6 +430,7 @@ def calculer_indemnite_conges_restants(
             is_cdd=is_cdd,
             is_interim=is_interim,
             specificites=employee_data.get("specificites_paie") or {},
+            classification=employee_data.get("classification_conventionnelle"),
         )
 
     params = lire_parametres_conges(baremes)

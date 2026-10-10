@@ -10,6 +10,7 @@ from typing import Any
 
 from app.modules.absences.domain.rules import get_cp_reference_period
 from app.modules.payroll.engine.iccp_arbitrage import lire_parametres_conges
+from app.modules.payroll.engine.motif_recours import prime_precarite_exclue_par_motif
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -237,8 +238,13 @@ def estimer_extras_fin_contrat(
     is_cdd: bool = False,
     is_interim: bool = False,
     specificites: dict | None = None,
+    classification: dict | None = None,
 ) -> tuple[float, float]:
-    """Estime prime de précarité (CDD) et IFM (intérim), aligné sur calcul_brut."""
+    """Estime prime de précarité (CDD) et IFM (intérim), aligné sur calcul_brut.
+
+    Le motif de recours qui exclut l'indemnité de fin de contrat (Code du
+    travail, art. L1243-10, 1° ; voir engine/motif_recours.py) l'exclut ici aussi.
+    """
     if brut_total_contrat <= 0:
         return 0.0, 0.0
 
@@ -247,8 +253,11 @@ def estimer_extras_fin_contrat(
     montant_precarite = 0.0
     montant_ifm = 0.0
 
-    if is_cdd and not spec.get("exclure_prime_precarite") and not spec.get(
-        "cdd_sans_precarite"
+    if (
+        is_cdd
+        and not spec.get("exclure_prime_precarite")
+        and not spec.get("cdd_sans_precarite")
+        and not prime_precarite_exclue_par_motif(classification, spec)
     ):
         prec_cfg = (baremes.get("cdd", {}) or {}).get("precarite", {}) or {}
         if prec_cfg.get("actif") is not False:

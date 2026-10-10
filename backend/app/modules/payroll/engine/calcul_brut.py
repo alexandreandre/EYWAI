@@ -11,6 +11,7 @@ from .iccp_fin_contrat import (
     valeur_jour_maintien,
 )
 from .indemnites_sortie_brut import lignes_indemnites_sortie_soumises
+from .motif_recours import prime_precarite_exclue_par_motif
 from .iccp_arbitrage import lire_parametres_conges
 from .heures_prevues import heures_prevues_sous_contrat, repartir_heures_du_contrat
 from .salary_evolution_brut import (
@@ -332,6 +333,13 @@ def _calculer_prime_precarite_cdd(
 
     spec = contexte.contrat.get("specificites_paie", {}) or {}
     if spec.get("exclure_prime_precarite") or spec.get("cdd_sans_precarite"):
+        return None
+    # Motif de recours de la fiche (saisonnier, vendanges, usage, L1242-3) :
+    # pas d'indemnité de fin de contrat (Code du travail, art. L1243-10, 1°).
+    classification = (contexte.contrat.get("remuneration", {}) or {}).get(
+        "classification_conventionnelle"
+    )
+    if prime_precarite_exclue_par_motif(classification, spec):
         return None
 
     cfg = (contexte.baremes.get("cdd", {}) or {}).get("precarite", {}) or {}
