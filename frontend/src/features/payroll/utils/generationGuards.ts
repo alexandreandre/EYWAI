@@ -28,6 +28,20 @@ export type GenerationRefusalCode =
 export const estForcable = (code: GenerationRefusalCode): boolean =>
   code === 'calendrier_incomplet' || code === 'bulletin_valide';
 
+/**
+ * Refus que « Forcer les refusés » peut relancer. Avec plusieurs refus, les
+ * bulletins validés n'en font jamais partie : on ne régénère pas en masse des
+ * bulletins déjà remis (ancienne version archivée) ; chacun se décide depuis
+ * son écran. Un refus isolé reste forçable, c'est un bulletin à la fois.
+ */
+export function refusForcablesEnGroupe<T extends { code: GenerationRefusalCode }>(
+  refus: T[]
+): T[] {
+  return refus.filter(
+    (r) => estForcable(r.code) && (refus.length === 1 || r.code !== 'bulletin_valide')
+  );
+}
+
 export type RefusalFenetre = {
   debut: string;
   fin: string;

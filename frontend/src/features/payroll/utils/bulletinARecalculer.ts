@@ -210,11 +210,42 @@ function nomDuSalarie(salarie: SalariePourRelance): string {
   return `${salarie.first_name} ${salarie.last_name}`.trim();
 }
 
+const estValide = (ligne: { status?: string | null }): boolean => ligne.status === 'valide';
+
+/**
+ * Un bulletin validé est déjà remis au salarié : il ne se recalcule jamais en
+ * groupe. Son « à recalculer » se décide bulletin par bulletin, sur son écran.
+ */
+export function nomsDesValidesChanges(
+  salaries: SalariePourRelance[],
+  bulletinsParSalarie: Record<string, LigneBulletinPaie[]>,
+  year: number,
+  month: number
+): string[] {
+  const noms: string[] = [];
+  for (const salarie of salaries) {
+    const ligne = (bulletinsParSalarie[salarie.id] ?? []).find(
+      (p) => p.year === year && p.month === month
+    );
+    if (ligne && estPerime(ligne) && estValide(ligne)) noms.push(nomDuSalarie(salarie));
+  }
+  return noms;
+}
+
+export function messageValidesChanges(noms: string[]): string | null {
+  const n = noms.length;
+  if (n === 0) return null;
+  const liste = ` (${noms.join(', ')})`;
+  return n === 1
+    ? `1 bulletin validé a changé depuis sa validation : ouvrez-le pour décider${liste}.`
+    : `${n} bulletins validés ont changé depuis leur validation : ouvrez-les un par un pour décider${liste}.`;
+}
+
 export function jobsDesLignesPerimes(
   salarie: SalariePourRelance,
   lignes: LigneBulletinPaie[]
 ): JobBulletinPerime[] {
-  return lignes.filter(estPerime).map((ligne) => ({
+  return lignes.filter((l) => estPerime(l) && !estValide(l)).map((ligne) => ({
     employeeId: salarie.id,
     employeeName: nomDuSalarie(salarie),
     year: ligne.year,
@@ -234,7 +265,7 @@ export function jobsDesBulletinsPerimes(
     const ligne = (bulletinsParSalarie[salarie.id] ?? []).find(
       (p) => p.year === year && p.month === month
     );
-    if (!ligne || !estPerime(ligne)) continue;
+    if (!ligne || !estPerime(ligne) || estValide(ligne)) continue;
     jobs.push({
       employeeId: salarie.id,
       employeeName: nomDuSalarie(salarie),

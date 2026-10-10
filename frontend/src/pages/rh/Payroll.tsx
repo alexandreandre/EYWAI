@@ -46,6 +46,9 @@ import { messageDeSuppression } from '@/features/payroll/utils/suppressionBullet
 import {
   jobsDesBulletinsPerimes,
   jobsDesLignesPerimes,
+  messageValidesChanges,
+  nomsDesValidesChanges,
+  estPerime,
   montantsDepuisLigne,
   type LigneBulletinPaie,
 } from '@/features/payroll/utils/bulletinARecalculer';
@@ -580,6 +583,24 @@ export default function Payroll() {
     [selectedEmployee, payslipsForYear]
   );
 
+  const messageValidesDuMois = useMemo(
+    () =>
+      messageValidesChanges(
+        nomsDesValidesChanges(employees, payslipsByEmployee, selectedYear, selectedMonth)
+      ),
+    [employees, payslipsByEmployee, selectedYear, selectedMonth]
+  );
+
+  const messageValidesDuSalarie = useMemo(
+    () =>
+      messageValidesChanges(
+        payslipsForYear
+          .filter((p) => estPerime(p) && p.status === 'valide')
+          .map((p) => monthYearLabel(p.month, p.year))
+      ),
+    [payslipsForYear]
+  );
+
   const handleRecalculerPerimesMois = useCallback(() => {
     if (jobsPerimesDuMois.length === 0) return;
     generation.generateJobs(jobsPerimesDuMois);
@@ -833,6 +854,7 @@ export default function Payroll() {
               onGenerateYear={handleGenerateYear}
               perimesCount={jobsPerimesDuSalarie.length}
               onRecalculerPerimes={handleRecalculerPerimesSalarie}
+              messageValides={messageValidesDuSalarie}
               detailLoading={loadingPayslipsInitial}
               loadingEmployees={loadingEmployees}
               progressSlot={progressSlot}
@@ -874,6 +896,7 @@ export default function Payroll() {
               onGenerateMonth={handleGenerateWholeMonth}
               perimesCount={jobsPerimesDuMois.length}
               onRecalculerPerimes={handleRecalculerPerimesMois}
+              messageValides={messageValidesDuMois}
               onDeletePayslip={handleDeletePayslip}
               deletingPayslipId={deletingPayslipId}
               loadingEmployees={loadingEmployees}

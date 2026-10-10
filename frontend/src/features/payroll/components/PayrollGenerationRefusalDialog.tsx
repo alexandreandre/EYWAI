@@ -22,6 +22,7 @@ import type {
 import {
   REFUSAL_DIALOG_LABELS,
   estForcable,
+  refusForcablesEnGroupe,
 } from '@/features/payroll/utils/generationGuards';
 import { aDesJoursAEffacer, lienCalendrierDuSalarie } from '@/features/payroll/utils/heuresSurArret';
 import { monthYearLabel } from '@/features/payroll/utils/payrollMonth';
@@ -68,7 +69,7 @@ export function PayrollGenerationRefusalDialog({
     (r) => r.code === 'heures_sur_jour_d_arret'
   ).length;
   const illisiblesCount = refusals.filter((r) => r.code === 'arrets_illisibles').length;
-  const forcables = refusals.filter((r) => estForcable(r.code));
+  const forcables = refusForcablesEnGroupe(refusals);
 
   const title = single
     ? REFUSAL_DIALOG_LABELS[single.code].title
@@ -230,9 +231,17 @@ export function PayrollGenerationRefusalDialog({
 
         {!single && forcables.length > 0 && (
           <p className="text-xs text-muted-foreground">
-            Forcer génère malgré un calendrier incomplet et régénère les
-            bulletins validés en archivant l’ancienne version. Les heures sur un
+            Forcer génère malgré un calendrier incomplet. Les heures sur un
             jour d’arrêt et les arrêts illisibles ne se forcent pas.
+          </p>
+        )}
+
+        {!single && validatedCount > 0 && (
+          <p className="text-xs text-muted-foreground" data-testid="valides-pas-en-groupe">
+            {validatedCount === 1
+              ? 'Un bulletin validé n’est pas régénéré en groupe'
+              : `${validatedCount} bulletins validés ne sont pas régénérés en groupe`}
+            {' '}: ouvrez chacun depuis son écran pour décider de le régénérer.
           </p>
         )}
 

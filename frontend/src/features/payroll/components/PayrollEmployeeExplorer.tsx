@@ -38,6 +38,8 @@ export type PayrollEmployeeExplorerProps = {
   onGenerateYear: () => void;
   perimesCount?: number;
   onRecalculerPerimes?: () => void;
+  /** Bulletins validés devenus « à recalculer » : dit à part, sans action groupée. */
+  messageValides?: string | null;
   detailLoading?: boolean;
   loadingEmployees: boolean;
   progressSlot?: ReactNode;
@@ -78,6 +80,7 @@ export function PayrollEmployeeExplorer({
   onGenerateYear,
   perimesCount = 0,
   onRecalculerPerimes,
+  messageValides = null,
   detailLoading = false,
   loadingEmployees,
   progressSlot,
@@ -268,6 +271,11 @@ export function PayrollEmployeeExplorer({
           <RefreshCw className="h-3.5 w-3.5" />
           {libelleBoutonRecalculerTout(perimesCount)}
         </Button>
+      )}
+      {messageValides && (
+        <p className="text-xs text-muted-foreground" data-testid="valides-a-recalculer">
+          {messageValides}
+        </p>
       )}
       {missingMonthsCount > 0 && (
         <Button

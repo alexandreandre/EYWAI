@@ -64,6 +64,8 @@ export type PayrollMonthExplorerProps = {
   onGenerateMonth: () => void;
   perimesCount?: number;
   onRecalculerPerimes?: () => void;
+  /** Bulletins validés devenus « à recalculer » : dit à part, sans action groupée. */
+  messageValides?: string | null;
   onDeletePayslip: (payslipId: string, employeeId: string) => void;
   deletingPayslipId: string | null;
   loadingEmployees: boolean;
@@ -100,6 +102,7 @@ export function PayrollMonthExplorer({
   onGenerateMonth,
   perimesCount = 0,
   onRecalculerPerimes,
+  messageValides = null,
   onDeletePayslip,
   deletingPayslipId,
   loadingEmployees,
@@ -220,6 +223,11 @@ export function PayrollMonthExplorer({
           <RefreshCw className="h-3.5 w-3.5" />
           {libelleBoutonRecalculerTout(perimesCount)}
         </Button>
+      )}
+      {messageValides && (
+        <p className="text-xs text-muted-foreground" data-testid="valides-a-recalculer">
+          {messageValides}
+        </p>
       )}
       {missingCount > 0 && (
         <Button

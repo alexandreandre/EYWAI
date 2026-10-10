@@ -16,7 +16,7 @@ import {
   recordGenerationDuration,
 } from '@/features/payroll/utils/payrollMonth';
 import {
-  estForcable,
+  refusForcablesEnGroupe,
   extractGenerationRefusal,
   splitGenerationWarnings,
   type GenerationRefusalCode,
@@ -566,7 +566,7 @@ export function usePayrollGeneration() {
    */
   const forceRefused = useCallback(() => {
     // Les refus d'heures sur un arrêt et d'arrêts illisibles ne se forcent jamais.
-    const forcables = refusedJobs.filter((r) => estForcable(r.code));
+    const forcables = refusForcablesEnGroupe(refusedJobs);
     if (forcables.length === 0) return;
     const jobs = forcables.map(({ job, code }) => ({
       ...job,
