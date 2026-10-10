@@ -242,3 +242,67 @@ def test_demission_sans_compteurs_l_estimation_du_dossier_reste_en_repli():
     ctx.cp_fin_de_contrat = None
     res = calculer_salaire_brut(ctx, [], date(2026, 4, 1), date(2026, 4, 30), [])
     assert _lignes_gain(res)["Indemnité compensatrice de congés payés"] == 999.0
+
+
+# --- Affichage de la ligne de fin de CDD : base et taux de la méthode retenue ---
+
+
+def _ligne_iccp_cdd(ctx):
+    res = calculer_salaire_brut(ctx, [], date(2026, 7, 1), date(2026, 7, 31), [])
+    return next(
+        l for l in res["lignes_composants_brut"]
+        if l.get("libelle") == "Indemnité compensatrice de congés payés (CDD)"
+    )
+
+
+def test_maintien_retenu_la_ligne_affiche_les_jours_et_la_valeur_d_un_jour():
+    """Dixième 73,54 (10 % de 1 000 × 2,78/3,78) contre maintien 273,77 : le
+    maintien l'emporte. La ligne n'imprime ni 10 % ni une base de dixième, mais
+    2,78 jours × la valeur d'un jour, et le montant reste celui du maintien."""
+    ctx = _contexte_feroral()
+    ctx.cp_fin_de_contrat = {
+        "periode_precedente": {"libelle": "2025-2026", "brut": 1000.0, "droits": 3.78, "restants": 2.78},
+    }
+    ligne = _ligne_iccp_cdd(ctx)
+    detail = ctx.detail_iccp_fin_contrat
+    assert [p["methode"] for p in detail["periodes"]] == ["maintien"]
+    assert ligne["gain"] == pytest.approx(273.77, abs=0.001)
+    assert ligne["gain"] == pytest.approx(detail["total"], abs=0.001)
+    assert ligne["taux"] != 0.10
+    assert ligne["quantite"] == pytest.approx(2.78)
+    assert ligne["taux"] == pytest.approx(detail["valeur_jour"], abs=0.001)
+
+
+def test_maintien_retenu_sur_deux_periodes_les_jours_s_additionnent():
+    ctx = _contexte_feroral()
+    ctx.cp_fin_de_contrat = {
+        "periode_precedente": {"libelle": "2025-2026", "brut": 1000.0, "droits": 3.78, "restants": 2.78},
+        "periode_en_cours": {"libelle": "2026-2027", "brut_avant_mois": -1700.0, "droits": 4.16, "restants": 4.16},
+    }
+    ligne = _ligne_iccp_cdd(ctx)
+    detail = ctx.detail_iccp_fin_contrat
+    assert [p["methode"] for p in detail["periodes"]] == ["maintien", "maintien"]
+    assert ligne["gain"] == pytest.approx(detail["total"], abs=0.001)
+    assert ligne["quantite"] == pytest.approx(2.78 + 4.16)
+    assert ligne["taux"] == pytest.approx(detail["valeur_jour"], abs=0.001)
+
+
+def test_dixieme_et_maintien_melanges_ni_base_ni_taux():
+    """Une période au maintien, l'autre au dixième : aucun couple base × taux
+    ne donne le montant ; la ligne n'en imprime pas, la mention détaille."""
+    ctx = _contexte_feroral()
+    ctx.cp_fin_de_contrat["periode_precedente"]["brut"] = 1000.0
+    ligne = _ligne_iccp_cdd(ctx)
+    detail = ctx.detail_iccp_fin_contrat
+    assert [p["methode"] for p in detail["periodes"]] == ["maintien", "dixieme"]
+    assert ligne["gain"] == pytest.approx(273.77 + 459.61, abs=0.001)
+    assert ligne["quantite"] is None
+    assert ligne["taux"] is None
+
+
+def test_dixieme_retenu_partout_la_ligne_garde_le_taux_de_10_pour_cent():
+    """Garde : quand le dixième l'emporte sur chaque période, rien ne change."""
+    ligne = _ligne_iccp_cdd(_contexte_feroral())
+    assert ligne["gain"] == pytest.approx(766.39, abs=0.001)
+    assert ligne["taux"] == pytest.approx(0.10)
+    assert ligne["quantite"] is None

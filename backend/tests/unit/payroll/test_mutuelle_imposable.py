@@ -37,6 +37,10 @@ REMUNERATION_HS = 449.54
 LIGNES_COTISATIONS = [
     {"libelle": "CSG/CRDS non déductible", "montant_salarial": 102.74},
     {"libelle": "CSG/CRDS sur HS non déductible", "montant_salarial": 42.84},
+    # Les lignes de mutuelle que porte le bulletin : la part patronale ne se
+    # réintègre que si elle y est réellement calculée.
+    {"libelle": "Mutuelle Isolé", "coti_id": "mutuelle", "montant_salarial": 29.24, "montant_patronal": 29.23},
+    {"libelle": "Mutuelle Famille", "coti_id": "mutuelle", "montant_salarial": 98.13, "montant_patronal": 0.0},
 ]
 
 ISOLE = {
