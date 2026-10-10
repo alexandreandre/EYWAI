@@ -140,3 +140,33 @@ class TestListHrDeadlineCandidates:
             }
         ]
         assert list_hr_deadline_candidates(employees, ref) == []
+
+
+class TestFinDeStage:
+    """Un stage a une date de fin comme un CDD : son échéance doit aussi être relancée."""
+
+    def _stagiaire(self, ref: date) -> dict:
+        return {
+            "id": "s1",
+            "first_name": "Alice",
+            "last_name": "Martin",
+            "employment_status": "actif",
+            "contract_type": "Stage",
+            "contract_end_date": (ref + timedelta(days=5)).isoformat(),
+        }
+
+    def test_la_fin_d_un_stage_est_relancee_sous_son_propre_nom(self):
+        ref = date(2025, 6, 1)
+        candidats = list_hr_deadline_candidates([self._stagiaire(ref)], ref)
+        assert len(candidats) == 1
+        assert candidats[0].reminder_type == REMINDER_TYPE_CDD  # la table des relances n'admet pas d'autre type
+        assert candidats[0].label.startswith("Fin de stage")
+
+    def test_la_fin_d_un_stage_compte_dans_le_decompte_des_echeances(self):
+        ref = date(2025, 6, 1)
+        assert count_expiring_cdds([self._stagiaire(ref)], ref) == 1
+
+    def test_un_cdi_n_est_toujours_pas_relance(self):
+        ref = date(2025, 6, 1)
+        salarie = {**self._stagiaire(ref), "contract_type": "CDI"}
+        assert list_hr_deadline_candidates([salarie], ref) == []

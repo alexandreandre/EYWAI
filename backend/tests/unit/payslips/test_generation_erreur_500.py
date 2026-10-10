@@ -48,3 +48,17 @@ def test_le_refus_forfait_jour_ne_parle_ni_de_generateur_ni_de_dossier():
     assert "générateur" not in message
     assert "dossier" not in message.lower()
     assert "forfait jour" in message
+
+
+def test_les_deux_refus_pas_au_forfait_jour_disent_la_meme_phrase_et_nomment_la_case():
+    import inspect
+
+    from app.modules.payroll.documents import payslip_generator_forfait
+    from app.modules.payroll.documents.payslip_run_forfait import message_pas_forfait_jour
+
+    message = message_pas_forfait_jour()
+    assert "Forfait jours" in message
+    assert "statut" not in message.lower()
+    source = inspect.getsource(payslip_generator_forfait)
+    assert "message_pas_forfait_jour()" in source
+    assert "corrigez son statut" not in source
