@@ -14,6 +14,8 @@
  */
 import type { PayslipEditRequest, PrimeAjoutee } from '@/api/payslips';
 import type { MonthlyInputCreate } from '@/api/saisies';
+import { deDevant } from './elision';
+import { monthLabel } from './payrollMonth';
 import { estLigneHeuresSupConjoncturelle } from './payslipDerivedLines';
 
 const TOLERANCE = 0.005;
@@ -224,4 +226,15 @@ export function aDesModifications(initial: EtatCorrections, courant: EtatCorrect
 /** Les variables changent : le serveur recalculera le bulletin. */
 export function recalculAttendu(initial: EtatCorrections, courant: EtatCorrections): boolean {
   return Object.keys(requeteDeCorrection(initial, courant, null).corrections).length > 0;
+}
+
+/** « Bulletin d'octobre 2026 — Camille Roussel » : le mois et le salarié, jamais le nom du fichier. */
+export function titreDuBulletin(payslipData: unknown, month: number, year: number): string {
+  const salarie = (payslipData as { en_tete?: { salarie?: Record<string, unknown> } } | null | undefined)
+    ?.en_tete?.salarie;
+  const texte = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  const nom =
+    texte(salarie?.nom_complet) || [texte(salarie?.prenom), texte(salarie?.nom)].filter(Boolean).join(' ');
+  const debut = `Bulletin ${deDevant(monthLabel(month).toLowerCase())} ${year}`;
+  return nom ? `${debut} — ${nom}` : debut;
 }

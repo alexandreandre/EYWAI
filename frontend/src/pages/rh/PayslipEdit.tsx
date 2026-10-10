@@ -80,6 +80,7 @@ import {
   etatInitial,
   recalculAttendu,
   requeteDeCorrection,
+  titreDuBulletin,
   type EtatCorrections,
   type SaisieDuMois,
 } from '@/features/payroll/utils/correctionsBulletin';
@@ -462,7 +463,7 @@ export default function PayslipEdit() {
             Retour
           </Button>
           <div>
-            <h1 className={pageTitleClassName}>Corriger le bulletin - {payslip.name}</h1>
+            <h1 className={pageTitleClassName}>{titreDuBulletin(payslip.payslip_data, payslip.month, payslip.year)}</h1>
             <p className="text-muted-foreground">
               Les corrections deviennent des variables du mois ; le bulletin est recalculé en entier.
             </p>
