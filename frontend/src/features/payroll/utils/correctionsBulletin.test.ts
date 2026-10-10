@@ -213,3 +213,31 @@ describe('titre de l’écran du bulletin', () => {
     expect(titreDuBulletin({}, 8, 2026)).toBe("Bulletin d'août 2026");
   });
 });
+
+
+describe('montantCorrigeDeLaPrime : corriger le montant garde le sens', () => {
+  const prime = (surLeNet?: 'retenue' | 'versement') => ({
+    saisieId: 's', libelle: 'x', montant: surLeNet === 'retenue' ? -200 : 200, soumise: false, surLeNet,
+  });
+
+  it('une retenue reste négative, quel que soit le signe tapé', () => {
+    expect(montantCorrigeDeLaPrime(prime('retenue'), 201)).toBe(-201);
+    expect(montantCorrigeDeLaPrime(prime('retenue'), -201)).toBe(-201);
+  });
+
+  it('un versement reste positif', () => {
+    expect(montantCorrigeDeLaPrime(prime('versement'), -160)).toBe(160);
+  });
+
+  it('une prime garde le montant tapé', () => {
+    expect(montantCorrigeDeLaPrime(prime(), 350)).toBe(350);
+  });
+
+  it('la requête de correction envoie la retenue en négatif', () => {
+    const initial = { ...etatInitial({}, ''), primes: [prime('retenue')] };
+    const courant = { ...initial, primes: [{ ...prime('retenue'), montant: montantCorrigeDeLaPrime(prime('retenue'), 201) }] };
+    expect(requeteDeCorrection(initial, courant, null).corrections.primes_corrigees).toEqual([
+      { saisie_id: 's', amount: -201 },
+    ]);
+  });
+});
