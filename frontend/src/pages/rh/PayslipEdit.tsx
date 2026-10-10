@@ -41,6 +41,7 @@ import {
   validatePayslip,
   type PayslipDetail,
 } from '@/api/payslips';
+import { getEmployeeMonthlyInputs } from '@/api/saisies';
 import { hasRhAccess, useAuth } from '@/contexts/AuthContext';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
 import { cn } from '@/lib/utils';
@@ -75,10 +76,12 @@ import { PayslipTrendTab } from '@/components/payslip/PayslipTrendTab';
 import { PayslipValidateBlockedModal } from '@/components/payslip/PayslipValidateBlockedModal';
 import {
   aDesModifications,
+  avecSaisiesSurLeNet,
   etatInitial,
   recalculAttendu,
   requeteDeCorrection,
   type EtatCorrections,
+  type SaisieDuMois,
 } from '@/features/payroll/utils/correctionsBulletin';
 import { lienVariablesDuMois } from '@/features/payroll/utils/payslipDerivedLines';
 import { bandeauExportsDuMois } from '@/lib/exportsARefaire';
@@ -200,6 +203,32 @@ export default function PayslipEdit() {
     }
     void charger();
   }, [payslipId, navigate, charger]);
+
+  // Les retenues et versements sur le net ne sont pas des lignes du bulletin :
+  // on les lit dans les saisies du mois pour les montrer avec les primes.
+  useEffect(() => {
+    if (!payslip) return;
+    let annule = false;
+    getEmployeeMonthlyInputs(payslip.employee_id, payslip.year, payslip.month)
+      .then((reponse) => {
+        if (annule) return;
+        const saisies = Array.isArray(reponse.data) ? (reponse.data as SaisieDuMois[]) : [];
+        setInitial((i) => (i ? avecSaisiesSurLeNet(i, saisies) : i));
+        setEtat((e) => (e ? avecSaisiesSurLeNet(e, saisies) : e));
+      })
+      .catch(() => {
+        if (annule) return;
+        toast({
+          title: 'Retenues et versements sur le net non chargés',
+          description:
+            'Les primes du mois s’affichent sans eux. Rechargez la page pour les voir et les corriger.',
+          variant: 'destructive',
+        });
+      });
+    return () => {
+      annule = true;
+    };
+  }, [payslip, toast]);
 
   const modifie = initial && etat ? aDesModifications(initial, etat) : false;
   const recalculPrevu = initial && etat ? recalculAttendu(initial, etat) : false;

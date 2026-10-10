@@ -25,6 +25,16 @@ export interface PrimeDuBulletin {
   montant: number;
   /** Imprimée dans le brut (soumise à cotisations) ou parmi les non soumises. */
   soumise: boolean;
+  /** Saisie qui ne touche que le net à payer : retenue (montant négatif) ou versement. */
+  surLeNet?: 'retenue' | 'versement';
+}
+
+/** Une saisie du mois telle que l'API la renvoie (seuls les champs lus ici). */
+export interface SaisieDuMois {
+  id: string;
+  name: string;
+  amount: number;
+  sur_le_net?: boolean | null;
 }
 
 export interface EtatCorrections {
@@ -106,6 +116,28 @@ export function primesDuBulletin(data: unknown): PrimeDuBulletin[] {
         soumise: section === 'calcul_du_brut',
       }))
   );
+}
+
+/**
+ * Les retenues et versements sur le net ne sont pas imprimés comme des lignes
+ * de prime : le bulletin ne les porte pas. On les lit dans les saisies du mois
+ * et on les ajoute aux primes, corrigeables et retirables comme elles.
+ */
+export function avecSaisiesSurLeNet(etat: EtatCorrections, saisies: SaisieDuMois[]): EtatCorrections {
+  const connues = new Set(etat.primes.map((p) => p.saisieId));
+  const nouvelles: PrimeDuBulletin[] = saisies
+    .filter((s) => s.sur_le_net && !connues.has(String(s.id)))
+    .map((s) => {
+      const montant = arrondi(nombre(s.amount) ?? 0);
+      return {
+        saisieId: String(s.id),
+        libelle: s.name || 'Saisie sur le net',
+        montant,
+        soumise: false,
+        surLeNet: montant < 0 ? ('retenue' as const) : ('versement' as const),
+      };
+    });
+  return nouvelles.length ? { ...etat, primes: [...etat.primes, ...nouvelles] } : etat;
 }
 
 /** Une prime choisie dans le sélecteur des primes, prête à être ajoutée au mois. */

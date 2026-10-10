@@ -230,7 +230,13 @@ export default function CorrectionsBulletinPanel({
                   <span className={retiree ? 'line-through text-muted-foreground' : 'font-medium'}>
                     {prime.libelle}
                   </span>
-                  <Badge variant="secondary">{pastilleSoumise(prime.soumise)}</Badge>
+                  <Badge variant="secondary">
+                    {prime.surLeNet === 'retenue'
+                      ? 'Retenue sur le net'
+                      : prime.surLeNet === 'versement'
+                        ? 'Versement sur le net'
+                        : pastilleSoumise(prime.soumise)}
+                  </Badge>
                 </div>
                 {retiree ? (
                   <Button
@@ -248,15 +254,18 @@ export default function CorrectionsBulletinPanel({
                   <div className="flex items-center gap-2">
                     <ChampNombre
                       id={`montant-${prime.saisieId}`}
-                      valeur={prime.montant}
-                      negatifPermis
-                      onValeur={(montant) =>
+                      // Une retenue s'affiche en positif (« 200 € retenus ») et reste
+                      // négative dans la saisie.
+                      valeur={prime.surLeNet === 'retenue' ? Math.abs(prime.montant) : prime.montant}
+                      negatifPermis={!prime.surLeNet}
+                      onValeur={(saisi) => {
+                        const montant = prime.surLeNet === 'retenue' ? -Math.abs(saisi) : saisi;
                         maj({
                           primes: etat.primes.map((p) =>
                             p.saisieId === prime.saisieId ? { ...p, montant } : p
                           ),
-                        })
-                      }
+                        });
+                      }}
                       disabled={disabled}
                       suffixe="€"
                     />
