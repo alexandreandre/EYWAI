@@ -6,7 +6,7 @@ du mois. Urssaf, « Accueillir un stagiaire étudiant » (2026 : plafond horaire
 https://www.urssaf.fr/accueil/employeur/embaucher-gerer-salaries/embaucher/stagiaire-etudiant.html
 
 Le plafond horaire est fixé par arrêté : il vient des barèmes
-(`payroll_config.stage.plafond_horaire_ss`), jamais du plafond mensuel divisé
+(`payroll_config.stage.plafond_horaire_ss`, sinon `payroll_config.pss.horaire`), jamais du plafond mensuel divisé
 par 151,67 h (4 005 / 151,67 × 15 % = 3,96 €/h au lieu de 4,50 €). Sans valeur
 dans les barèmes, aucune franchise n'est devinée : la gratification est cotisée
 en entier et une alerte le dit sur le bulletin.
@@ -28,13 +28,17 @@ def _config_stage(contexte) -> Dict[str, Any]:
 
 
 def plafond_horaire_ss(contexte) -> Optional[float]:
-    """Plafond horaire de la Sécurité sociale du barème, ou None s'il manque."""
-    valeur = _config_stage(contexte).get("plafond_horaire_ss")
-    try:
-        plafond = float(valeur) if valeur is not None else None
-    except (TypeError, ValueError):
-        return None
-    return plafond if plafond and plafond > 0 else None
+    """Plafond horaire de la Sécurité sociale du barème (`stage`, sinon `pss.horaire`,
+    valeur officielle de l'arrêté), ou None s'il manque."""
+    pss = contexte.baremes.get("pss", {}) or {}
+    for valeur in (_config_stage(contexte).get("plafond_horaire_ss"), pss.get("horaire")):
+        try:
+            plafond = float(valeur) if valeur is not None else None
+        except (TypeError, ValueError):
+            continue
+        if plafond and plafond > 0:
+            return plafond
+    return None
 
 
 def plafond_exoneration_stage(

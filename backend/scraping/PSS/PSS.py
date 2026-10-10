@@ -144,16 +144,20 @@ def extract_pss_data(soup: BeautifulSoup) -> dict:
                     horaire = int(val)
                     break
 
-        if annuel is not None and mensuel is not None and journalier is not None:
+        if (
+            annuel is not None
+            and mensuel is not None
+            and journalier is not None
+            and horaire is not None
+        ):
             break
 
     if not annuel:
         raise ValueError("Impossible d'extraire le plafond annuel SS")
 
-    if horaire is None and mensuel is not None:
-        horaire = int(round(float(mensuel) / 151.67))
-    if horaire is None and journalier is not None:
-        horaire = int(round(float(journalier) / 7))
+    # Le plafond horaire est fixé par arrêté (2026 : 30 €) : sans ligne « Heure »
+    # officielle, il reste absent (None) et le contrôle du relevé le signale.
+    # Jamais mensuel / 151,67 ni journalier / 7 : ces calculs donnent 26 € au lieu de 30 €.
 
     return {
         "annuel": annuel,

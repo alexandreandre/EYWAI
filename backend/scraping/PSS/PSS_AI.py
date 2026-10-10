@@ -16,8 +16,10 @@ URL = (
     "plafonds-securite-sociale.html"
 )
 
-# Base mensuelle URSSAF pour le plafond horaire (aligné PSS.py).
-PSS_MONTHLY_HOURS = 151.67
+# Le plafond horaire est une valeur officielle fixée par arrêté (2026 : 30 €), pas
+# mensuel / 151,67. Contrôle de vraisemblance seulement : part du mensuel.
+HORAIRE_PART_MENSUEL_MIN = 0.006
+HORAIRE_PART_MENSUEL_MAX = 0.009
 
 PLAFOND_KEYS = (
     "annuel",
@@ -57,20 +59,28 @@ def _complete_pss_plafonds(raw: dict) -> dict[str, int]:
     quinzaine = _to_int(raw.get("quinzaine")) or (mensuel + 1) // 2
     hebdomadaire = _to_int(raw.get("hebdomadaire")) or int(round(annuel / 52))
     journalier = _to_int(raw.get("journalier")) or int(round(annuel / 218))
-    expected_horaire = int(round(mensuel / PSS_MONTHLY_HOURS))
     horaire = _to_int(raw.get("horaire"))
-    if horaire is None or abs(horaire - expected_horaire) > 2:
-        horaire = expected_horaire
+    vraisemblable = (
+        horaire is not None
+        and HORAIRE_PART_MENSUEL_MIN * mensuel <= horaire <= HORAIRE_PART_MENSUEL_MAX * mensuel
+    )
 
-    return {
+    result = {
         "annuel": annuel,
         "trimestriel": trimestriel,
         "mensuel": mensuel,
         "quinzaine": quinzaine,
         "hebdomadaire": hebdomadaire,
         "journalier": journalier,
-        "horaire": horaire,
     }
+    if vraisemblable:
+        result["horaire"] = horaire
+    else:
+        print(
+            "ATTENTION: plafond horaire SS absent ou invraisemblable, non renseigné (jamais déduit du mensuel).",
+            file=sys.stderr,
+        )
+    return result
 
 
 def main() -> None:
