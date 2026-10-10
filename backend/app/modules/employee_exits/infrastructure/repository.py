@@ -39,7 +39,7 @@ class EmployeeExitRepository(IEmployeeExitRepository):
             .maybe_single()
             .execute()
         )
-        return r.data if r.data else None
+        return r.data if r is not None and r.data else None
 
     def get_with_employee(
         self, exit_id: str, company_id: str, employee_columns: str
@@ -53,7 +53,7 @@ class EmployeeExitRepository(IEmployeeExitRepository):
             .maybe_single()
             .execute()
         )
-        return r.data if r.data else None
+        return r.data if r is not None and r.data else None
 
     def list(
         self,
@@ -132,7 +132,7 @@ class ExitDocumentRepository(IExitDocumentRepository):
             .maybe_single()
             .execute()
         )
-        return r.data if r.data else None
+        return r.data if r is not None and r.data else None
 
     def update(
         self, document_id: str, exit_id: str, company_id: str, data: Dict[str, Any]
@@ -189,7 +189,7 @@ class ExitChecklistRepository(IExitChecklistRepository):
             .maybe_single()
             .execute()
         )
-        return r.data if r.data else None
+        return r.data if r is not None and r.data else None
 
     def add_item(self, data: Dict[str, Any]) -> Dict[str, Any]:
         response = self._sb.table("exit_checklist_items").insert(data).execute()
