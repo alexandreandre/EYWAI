@@ -275,7 +275,7 @@ export default function LeaveSettingsCard() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="default">Défaut (10 j/an)</SelectItem>
+                <SelectItem value="default">Défaut (aucun RTT)</SelectItem>
                 <SelectItem value="fixed">Nombre fixe</SelectItem>
                 <SelectItem value="calendar">Calendrier simple (10 ou 11 j)</SelectItem>
                 <SelectItem value="forfait">Forfait jours cadres</SelectItem>
