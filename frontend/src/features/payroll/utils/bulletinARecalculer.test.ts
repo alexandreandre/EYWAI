@@ -11,6 +11,7 @@ import {
   messageARecalculer,
   montantsDepuisLigne,
   montantsDepuisReponse,
+  toastsDeFinDeRecalcul,
 } from './bulletinARecalculer';
 
 describe('estPerime', () => {
@@ -175,5 +176,48 @@ describe('libellés écran', () => {
   it('le bouton dit quoi relancer, le message de validation dit de recalculer', () => {
     expect(libelleBoutonRecalculerTout(3)).toBe('Recalculer tout ce qui a changé (3)');
     expect(MESSAGE_A_RECALCULER).toMatch(/recalculez avant de valider/i);
+  });
+});
+
+describe('toastsDeFinDeRecalcul', () => {
+  const item = (employeeName: string, net: [number, number]) => ({
+    employeeName,
+    avant: { heures_sup: 0, salaire_brut: 2000, net_a_payer: net[0] },
+    apres: { heures_sup: 0, salaire_brut: 2000, net_a_payer: net[1] },
+  });
+
+  it('rien à dire sans recalcul', () => {
+    expect(toastsDeFinDeRecalcul([])).toEqual([]);
+  });
+
+  it('un recalcul unitaire : le détail, avec le nom du salarié dans le titre', () => {
+    const toasts = toastsDeFinDeRecalcul([item('Camille Test', [1400, 1480])]);
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0].title).toBe('Bulletin de Camille Test recalculé');
+    expect(toasts[0].description).toContain('1 480');
+  });
+
+  it('un lot : un seul message, les noms et le net avant → après', () => {
+    const toasts = toastsDeFinDeRecalcul([
+      item('Camille Test', [1400, 1480]),
+      item('Dominique Essai', [1500, 1500]),
+      item('Claude Exemple', [1600, 1550]),
+    ]);
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0].title).toBe('3 bulletins recalculés');
+    for (const nom of ['Camille Test', 'Dominique Essai', 'Claude Exemple']) {
+      expect(toasts[0].description).toContain(nom);
+    }
+    expect(toasts[0].description).toContain('1 400');
+    expect(toasts[0].description).toContain('1 480');
+    expect(toasts[0].description).toContain('→');
+  });
+
+  it('un lot dont la comparaison manque le dit pour ce salarié', () => {
+    const toasts = toastsDeFinDeRecalcul([
+      item('Camille Test', [1400, 1480]),
+      { employeeName: 'Alix Modèle', avant: null, apres: null },
+    ]);
+    expect(toasts[0].description).toContain('Alix Modèle : comparaison indisponible');
   });
 });
