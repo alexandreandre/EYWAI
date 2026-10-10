@@ -67,6 +67,7 @@ describe('resumeValidationGroupee — un succès se confirme, un refus dit où c
     expect(resumeValidationGroupee({ valides: ['ps-1', 'ps-2'], refus: [] }, noms)).toEqual({
       titre: '2 bulletins validés.',
       refus: [],
+      valides: ['Jeanne Essai', 'Paul Essai'],
     });
     expect(resumeValidationGroupee({ valides: ['ps-1'], refus: [] }, noms).titre).toBe(
       '1 bulletin validé.'
@@ -89,6 +90,18 @@ describe('resumeValidationGroupee — un succès se confirme, un refus dit où c
         raison: 'Alerte à acquitter dans le bulletin : net +14 %.',
       },
     ]);
+  });
+
+  it('les validés sont nommés comme les refusés', () => {
+    const resume = resumeValidationGroupee(
+      {
+        valides: ['ps-1', 'ps-3', 'inconnu'],
+        refus: [{ payslip_id: 'ps-2', raison: 'La mutuelle a changé.' }],
+      },
+      noms
+    );
+    expect(resume.valides).toEqual(['Jeanne Essai', 'Lou Essai', 'Bulletin inconnu']);
+    expect(resume.refus.map((r) => r.nom)).toEqual(['Paul Essai']);
   });
 
   it('rien validé', () => {
