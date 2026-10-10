@@ -31,3 +31,12 @@ describe("synthèse mensuelle du calendrier", () => {
     expect(texte).toMatch(/heures supplémentaires du bulletin se comptent à la semaine/);
   });
 });
+
+describe("mode RTT par défaut", () => {
+  const texte = lire("features/company/components/LeaveSettingsCard.tsx");
+
+  it("ne promet pas 10 j/an : le défaut n'accorde aucun RTT", () => {
+    expect(texte).not.toContain("Défaut (10 j/an)");
+    expect(texte).toContain("Défaut (aucun RTT)");
+  });
+});
