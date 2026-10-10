@@ -23,6 +23,7 @@ from app.modules.payroll.application.compensation_semaines import (
     bornes_du_contrat,
     debut_du_contrat_en_cours,
     option_active,
+    s_applique_au_contrat,
 )
 from app.modules.payroll.application.heures_sur_arret import (
     alerte_heures_ecartees,
@@ -761,8 +762,10 @@ def process_payslip_generation(
         # fenêtre, comme Gaëlle le fait chez Colorplast — semaines négatives
         # comprises. Le manque que les heures sup ne couvrent pas est retenu
         # sur les derniers jours manqués (spec 2026-09-22, qui corrige celle
-        # du 21/09 où rien n'était retenu).
-        if option_active(company_data):
+        # du 21/09 où rien n'était retenu). Jamais pour un temps partiel : ses
+        # heures au-delà du contrat sont des heures complémentaires, que la
+        # compensation payait une seconde fois en heures sup (10/10/2026).
+        if option_active(company_data) and s_applique_au_contrat(duree_hebdo):
             evenements_compenses, compensation_semaines = appliquer_aux_mois(
                 {
                     (year, month): payroll_events_list,

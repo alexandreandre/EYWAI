@@ -41,6 +41,33 @@ def option_active(company_data: Mapping[str, Any] | None) -> bool:
     return reglages.get(CLE_REGLAGE) is True
 
 
+#: Durée légale hebdomadaire (C. trav. art. L3121-27).
+DUREE_LEGALE_HEBDO = 35.0
+
+
+def s_applique_au_contrat(duree_hebdo: Any) -> bool:
+    """L'option ne vaut que pour un contrat à la durée légale ou plus.
+
+    Un temps partiel (durée inférieure à la durée légale, C. trav. art.
+    L3123-1) n'a pas d'heures supplémentaires sous 35 h : au-delà de son
+    contrat, ce sont des heures complémentaires, que l'analyse produit déjà
+    (10 % jusqu'au dixième du contrat, 25 % au-delà). La compensation ne les
+    remplace pas et y ajoutait l'écart de la semaine en heures sup à 25 %
+    jusqu'à 43 h : les mêmes heures étaient payées deux fois (enquête du
+    10/10/2026, +109,47 € de brut sur un contrat de 14 h). Le temps partiel
+    garde donc le décompte normal, semaine par semaine.
+
+    Même seuil que l'analyse (`analyzer.py`), qui ne produit des heures
+    complémentaires que sous 35 h. Durée absente ou illisible : rien ne change.
+    """
+    try:
+        duree = float(duree_hebdo)
+    except (TypeError, ValueError):
+        return True
+    # Au centième, comme l'analyse : 34,99 h y fait des heures complémentaires.
+    return int(duree * 100) >= int(DUREE_LEGALE_HEBDO * 100)
+
+
 def majorations(total: float, duree_hebdo: float) -> tuple[float, float]:
     """(heures à 25 %, heures à 50 %) d'une semaine dont l'écart total est `total`.
 
@@ -477,4 +504,6 @@ __all__ = [
     "ecarts_par_semaine",
     "majorations",
     "mention",
+    "option_active",
+    "s_applique_au_contrat",
 ]
