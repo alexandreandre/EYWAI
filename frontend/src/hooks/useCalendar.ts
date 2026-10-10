@@ -1,7 +1,7 @@
 // src/hooks/useCalendar.ts
 
 import { log } from '@/lib/logger';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type SetStateAction } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import * as calendarApi from '@/api/calendar';
 import { DayData } from '@/components/ScheduleModal';
@@ -20,6 +20,7 @@ import {
 import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 import { avecLeReelEnregistre, joursAuxHeuresRetirees, messageHeuresRetirees } from '@/lib/heuresRetireesAuReel';
 import { accord, pluriel } from '@/lib/pluriel';
+import { modeleSemaineDuSalarie } from '@/lib/modeleSemaine';
 
 type PlannedEventData = calendarApi.PlannedEventData;
 type ActualHoursData = calendarApi.ActualHoursData;
@@ -34,7 +35,12 @@ export type WeekTemplate = {
 export function useCalendar(
   employeeId: string | undefined,
   employeeStatut?: string,
-  options?: { enabled?: boolean; isForfaitJour?: boolean | null },
+  options?: {
+    enabled?: boolean;
+    isForfaitJour?: boolean | null;
+    /** Durée hebdomadaire du contrat : sert au modèle de semaine quand rien n'est prévu. */
+    dureeHebdomadaire?: number | null;
+  },
 ) {
   const fetchEnabled = options?.enabled !== false;
   const isForfaitJourMode = useMemo(
@@ -43,14 +49,21 @@ export function useCalendar(
   );
   const { observedHolidayIds } = useObservedPublicHolidays();
 
-  const getInitialWeekTemplate = (forfaitJour: boolean): WeekTemplate =>
-    forfaitJour
-      ? { 1: '1', 2: '1', 3: '1', 4: '1', 5: '1' }
-      : { 1: '8', 2: '8', 3: '8', 4: '8', 5: '7' };
-
-  const [weekTemplate, setWeekTemplate] = useState<WeekTemplate>(() =>
-    getInitialWeekTemplate(isForfaitJourMode)
+  const [weekTemplate, setWeekTemplateBrut] = useState<WeekTemplate>(() =>
+    modeleSemaineDuSalarie({
+      prevu: [],
+      year: new Date().getFullYear(),
+      month: new Date().getMonth() + 1,
+      dureeHebdo: options?.dureeHebdomadaire,
+      forfaitJour: isForfaitJourMode,
+    })
   );
+  // Tant que la gestionnaire n'a pas touché au modèle, il suit le salarié.
+  const modeleModifie = useRef(false);
+  const setWeekTemplate = useCallback((valeur: SetStateAction<WeekTemplate>) => {
+    modeleModifie.current = true;
+    setWeekTemplateBrut(valeur);
+  }, []);
 
   const { toast } = useToast();
 
@@ -313,8 +326,24 @@ export function useCalendar(
   ]);
 
   useEffect(() => {
-    setWeekTemplate(getInitialWeekTemplate(isForfaitJourMode));
-  }, [isForfaitJourMode]);
+    modeleModifie.current = false;
+  }, [employeeId]);
+
+  // Le modèle de semaine suit le prévu du salarié une fois son mois chargé.
+  useEffect(() => {
+    if (modeleModifie.current || loadedMonthKey === null) return;
+    setWeekTemplateBrut(
+      modeleSemaineDuSalarie({
+        prevu: plannedCalendar,
+        year: selectedDate.year,
+        month: selectedDate.month,
+        dureeHebdo: options?.dureeHebdomadaire,
+        forfaitJour: isForfaitJourMode,
+      })
+    );
+    // Au chargement d'un mois, pas à chaque retouche du prévu.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadedMonthKey, isForfaitJourMode, options?.dureeHebdomadaire]);
 
   useEffect(() => {
     if (!isLoading) {

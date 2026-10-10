@@ -157,6 +157,7 @@ export default function EmployeeDetail() {
   } = useCalendar(employeeId, employeeStatut, {
     enabled: activeTab === "calendrier",
     isForfaitJour: employee?.is_forfait_jour,
+    dureeHebdomadaire: employee?.duree_hebdomadaire ?? null,
   });
 
   const [saisieModalOpen, setSaisieModalOpen] = useState(false);
