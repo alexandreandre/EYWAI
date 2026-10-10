@@ -46,6 +46,7 @@ import { reverseCalculation } from "@/api/simulation";
 import type { BonusType } from "@/api/bonusTypes";
 import { estRoleRh } from '@/lib/rolesRh';
 import { SENS_SAISIE, champsDeLaSaisie, type SensSaisie } from '@/components/saisies/sensSaisie';
+import { chargerCatalogueDePrimes } from '@/components/saisies/catalogueDePrimes';
 import { LIBELLE_SOUMISE_COTISATIONS, LIBELLE_SOUMISE_IMPOT, phraseSaisiePonctuelle } from '@/components/saisies/libellesSaisie';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { accord, pluriel } from '@/lib/pluriel';
@@ -96,6 +97,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
   const { user } = useAuth();
   const [formData, setFormData] = useState(initialState);
   const [primesCatalogue, setPrimesCatalogue] = useState<PrimeFromCatalogue[]>([]);
+  const [catalogueEchec, setCatalogueEchec] = useState<string | null>(null);
   const [bonusTypes, setBonusTypes] = useState<BonusType[]>([]);
   const [isCustomPrime, setIsCustomPrime] = useState(true);
   // Où va le montant : prime (brut), retenue ou versement sur le net.
@@ -115,7 +117,10 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
 
   useEffect(() => {
     // Charger les primes depuis le catalogue (ancien système)
-    saisiesApi.getPrimesCatalogue().then(res => setPrimesCatalogue(res.data || []));
+    chargerCatalogueDePrimes(() => saisiesApi.getPrimesCatalogue()).then(({ primes, echec }) => {
+      setPrimesCatalogue(primes);
+      setCatalogueEchec(echec);
+    });
     // Charger les bonus types depuis la nouvelle table
     bonusTypesApi.getBonusTypes()
       .then(res => setBonusTypes(res.data || []))
@@ -438,6 +443,12 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
         </DialogHeader>
         <div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0">
           
+          {catalogueEchec && (
+            <p role="alert" data-testid="catalogue-primes-indisponible" className="text-sm text-destructive">
+              {catalogueEchec}
+            </p>
+          )}
+
           {/* Masquer le champ "Nom / Type de Saisie" si on est en mode création de prime */}
           {!showCreatePrimeForm && (
             <div className="grid gap-2">
