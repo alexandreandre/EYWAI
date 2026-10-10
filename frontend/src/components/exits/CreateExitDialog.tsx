@@ -25,6 +25,7 @@ import {
   NoticePeriodPreview,
   SimpleEmployee,
 } from '@/api/employeeExits';
+import { messageDepartCree } from '@/features/employee-exits/utils/messageDepartCree';
 import { AlertCircle, Info, Loader2 } from 'lucide-react';
 
 interface CreateExitDialogProps {
@@ -38,7 +39,7 @@ interface CreateExitDialogProps {
 }
 
 export const CONTRAT_ABSENT_MESSAGE =
-  "Contrat non présent dans Martine (repris de l'ancien logiciel) : le départ se crée quand même";
+  "Aucun contrat enregistré dans Martine pour ce collaborateur : le départ se crée quand même.";
 
 function noticeSourceLabel(source: NoticePeriodPreview['source']): string {
   switch (source) {
@@ -287,10 +288,13 @@ export function CreateExitDialog({
         void queryClient.invalidateQueries({ queryKey: queryKeys.employeeExits(companyId) });
       }
 
-      toast({
-        title: 'Succès',
-        description: 'Le processus de départ a été créé avec succès',
-      });
+      toast(
+        messageDepartCree(
+          exitType,
+          lastWorkingDay,
+          selectedEmployee ? `${selectedEmployee.first_name} ${selectedEmployee.last_name}` : undefined
+        )
+      );
 
       resetForm();
       onOpenChange(false);
