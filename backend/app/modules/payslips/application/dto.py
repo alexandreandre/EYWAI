@@ -92,6 +92,10 @@ class PayslipConflictError(Exception):
     """Le bulletin a changé depuis que l'écran l'a lu (→ 409)."""
 
 
+class PayslipDejaValideError(PayslipConflictError):
+    """Validation demandée sur un bulletin déjà validé : rien n'est refait (→ 409)."""
+
+
 class PayslipValidatedError(Exception):
     """Génération refusée : un bulletin validé existe déjà pour la période (→ 409)."""
 

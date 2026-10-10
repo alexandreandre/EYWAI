@@ -768,8 +768,8 @@ def test_ijss_sur_bulletin_valide_archive_et_remet_en_brouillon():
 
 def test_scenario_de_vie_generation_validation_regeneration():
     """Task 6 — la chaîne complète, avec un vrai état partagé simulé :
-    génération → validation (notifie 1 fois) → re-validation (ne renotifie
-    pas) → régénération forcée (archive + brouillon) → re-validation
+    génération → validation (notifie 1 fois) → re-validation (refusée :
+    déjà validé, ne renotifie pas) → régénération forcée (archive + brouillon) → re-validation
     (renotifie : le contenu a changé)."""
     from unittest.mock import MagicMock
 
@@ -873,8 +873,11 @@ def test_scenario_de_vie_generation_validation_regeneration():
     assert store["status"] == "valide"
     assert len(notifications) == 1
 
-    # 3. Re-validation (double clic) : pas de renotification
-    valider()
+    # 3. Re-validation (double clic) : refusée en clair, rien n'est refait
+    from app.modules.payslips.application.dto import PayslipDejaValideError
+
+    with pytest.raises(PayslipDejaValideError):
+        valider()
     assert len(notifications) == 1
 
     # 4. Régénérer sans force : refusé

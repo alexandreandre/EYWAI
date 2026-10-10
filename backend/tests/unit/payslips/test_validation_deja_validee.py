@@ -35,17 +35,11 @@ def _valider(detail, noms):
         patch.object(svc, "_ensure_edit_meta"),
         patch.object(svc, "get_payslip_details", return_value=detail),
         patch.object(svc, "fetch_noms_utilisateurs", return_value=noms),
-        patch.object(svc, "mark_payslip_validated") as marquer,
-        patch.object(svc, "_notify_payslip_available") as notifier,
     ):
         meta.get_payslip_meta.return_value = {"id": "p-1"}
         ctx = MagicMock()
         ctx.user_id = "rh-1"
-        try:
-            svc.validate_payslip_for_user("p-1", ctx)
-        finally:
-            fait = marquer.called or notifier.called
-    return fait
+        svc.validate_payslip_for_user("p-1", ctx)
 
 
 def test_un_bulletin_deja_valide_dit_quand_et_par_qui_sans_rien_refaire():
@@ -66,9 +60,6 @@ def test_sans_nom_lisible_la_phrase_reste_vraie():
 
 
 def test_rien_n_est_refait_ni_notifie():
-    with pytest.raises(svc.PayslipDejaValideError):
-        fait = _valider(_detail(), {"u-1": "Camille Test"})
-    # `_valider` n'atteint pas son `return` : on relit l'effet par un second appel.
     with (
         patch.object(svc, "payslip_meta_reader") as meta,
         patch.object(svc, "_ensure_edit_meta"),

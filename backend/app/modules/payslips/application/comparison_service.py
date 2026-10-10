@@ -10,7 +10,9 @@ from typing import Any, Callable, Iterable
 
 from app.modules.payslips.application.dto import (
     PayslipBadRequestError,
+    PayslipConflictError,
     PayslipCriticalActiveError,
+    PayslipDejaValideError,
     PayslipForbiddenError,
     PayslipNotFoundError,
     UserContext,
@@ -39,6 +41,7 @@ from app.modules.payslips.infrastructure.comparison_queries import (
 )
 from app.core.database import supabase
 from app.core.logging import get_logger
+from app.shared.domain.temps_local import date_heure_en_clair
 from app.modules.payslips.application.commands import (
     _notify_payslip_available,
 )
@@ -269,12 +272,25 @@ def _persist_salarie_notifie_le(payslip_id: str, pd: dict[str, Any]) -> None:
     ).execute()
 
 
+def _phrase_deja_valide(detail: dict[str, Any]) -> str:
+    """« Ce bulletin est déjà validé depuis le … , par … Rien n'a été refait. »"""
+    quand = detail.get("validated_at")
+    par = fetch_noms_utilisateurs([detail.get("validated_by")]).get(
+        str(detail.get("validated_by") or "")
+    )
+    depuis = f" depuis le {date_heure_en_clair(quand)}" if quand else ""
+    auteur = f", par {par}" if par else ""
+    return f"Ce bulletin est déjà validé{depuis}{auteur}. Rien n'a été refait."
+
+
 def validate_payslip_for_user(payslip_id: str, ctx: UserContext) -> None:
     meta = payslip_meta_reader.get_payslip_meta(payslip_id)
     _ensure_edit_meta(meta, ctx)
     detail = get_payslip_details(payslip_id)
     if not detail:
         raise PayslipNotFoundError("Bulletin non trouvé")
+    if detail.get("status") == "valide":
+        raise PayslipDejaValideError(_phrase_deja_valide(detail))
     emp_id = str(detail["employee_id"])
     comp_id = str(detail["company_id"])
     year = int(detail["year"])
@@ -373,7 +389,7 @@ def raison_du_refus(exc: Exception) -> str | None:
         return "Alerte à acquitter dans le bulletin : " + " ".join(messages)
     if isinstance(exc, PayslipNotFoundError):
         return REFUS_INTROUVABLE
-    if isinstance(exc, (PayslipBadRequestError, PayslipForbiddenError)):
+    if isinstance(exc, (PayslipBadRequestError, PayslipForbiddenError, PayslipConflictError)):
         return str(exc)
     return None
 
