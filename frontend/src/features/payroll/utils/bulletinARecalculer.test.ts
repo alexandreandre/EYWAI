@@ -8,6 +8,7 @@ import {
   jobsDesLignesPerimes,
   libelleBoutonRecalculerTout,
   libelleToastRecalcul,
+  infobulleARecalculer,
   messageARecalculer,
   montantsDepuisLigne,
   montantsDepuisReponse,
@@ -250,5 +251,20 @@ describe('messageARecalculer : bulletin déjà validé', () => {
 
   it('un bulletin en brouillon garde « recalculez avant de valider »', () => {
     expect(messageARecalculer({ status: 'brouillon', a_recalculer: true })).toBe(MESSAGE_A_RECALCULER);
+  });
+});
+
+describe('infobulleARecalculer : la pastille dit la même chose que le bandeau', () => {
+  const raison = 'Les variables du mois ont changé depuis le calcul : recalculez avant de valider.';
+
+  it('un bulletin validé : régénérer puis valider de nouveau, pas « recalculez avant de valider »', () => {
+    const texte = infobulleARecalculer({ status: 'valide', a_recalculer: true, raison_a_recalculer: raison });
+    expect(texte).toBe(messageARecalculer({ status: 'valide', a_recalculer: true, raison_a_recalculer: raison }));
+    expect(texte).toContain('régénérez le bulletin');
+    expect(texte).not.toContain('recalculez avant de valider');
+  });
+
+  it('un brouillon garde la phrase du serveur', () => {
+    expect(infobulleARecalculer({ status: 'brouillon', a_recalculer: true, raison_a_recalculer: raison })).toBe(raison);
   });
 });
