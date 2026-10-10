@@ -34,3 +34,39 @@ export function sousTitreSaisies(year: number, month: number, filtreSurUnSalarie
     ? `Saisies ponctuelles de ce salarié pour ${mois}.`
     : `Liste de toutes les saisies ponctuelles pour ${mois}.`;
 }
+
+export type BulletinARecalculer = { employee_id: string; year: number; month: number };
+
+function deMois(year: number, month: number): string {
+  const mois = moisEnToutesLettres(year, month);
+  return /^[aeiouhéèêàâ]/i.test(mois) ? `d'${mois}` : `de ${mois}`;
+}
+
+/**
+ * La phrase ajoutée au message de succès d'une saisie : quels bulletins du mois
+ * deviennent « À recalculer ». `[]` : aucun bulletin, rien à dire. `null` : le
+ * serveur n'a pas pu chercher, on le dit sans affirmer.
+ */
+export function messageBulletinsARecalculer(
+  cibles: BulletinARecalculer[] | null | undefined,
+  nomDe: (employeeId: string) => string,
+): string | null {
+  if (cibles == null) return 'Si un bulletin existe déjà pour ce mois, il est à recalculer.';
+  if (cibles.length === 0) return null;
+  const parMois = new Map<string, BulletinARecalculer[]>();
+  for (const c of cibles) {
+    const cle = `${c.year}-${c.month}`;
+    parMois.set(cle, [...(parMois.get(cle) ?? []), c]);
+  }
+  const phrases = [...parMois.values()].map((groupe) => {
+    const mois = deMois(groupe[0].year, groupe[0].month);
+    if (groupe.length === 1) {
+      return `Le bulletin ${mois} de ${nomDe(groupe[0].employee_id)} est à recalculer.`;
+    }
+    if (groupe.length > 3) return `${groupe.length} bulletins ${mois} sont à recalculer.`;
+    const noms = groupe.map((c) => nomDe(c.employee_id));
+    const liste = `${noms.slice(0, -1).join(', ')} et ${noms[noms.length - 1]}`;
+    return `Les bulletins ${mois} de ${liste} sont à recalculer.`;
+  });
+  return phrases.join(' ');
+}

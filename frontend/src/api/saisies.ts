@@ -40,8 +40,16 @@ export const getPrimesCatalogue = () => {
   return apiClient.get<PrimeFromCatalogue[]>('/api/primes-catalogue');
 };
 
+/**
+ * `bulletins_a_recalculer` : les bulletins du mois que l'écriture rend « À recalculer »
+ * (vide : aucun bulletin ; null : le serveur n'a pas pu le chercher).
+ */
+export interface BulletinsARecalculer {
+  bulletins_a_recalculer?: { employee_id: string; year: number; month: number }[] | null;
+}
+
 export const createMonthlyInputs = (data: MonthlyInputCreate[]) => {
-  return apiClient.post('/api/monthly-inputs', data);
+  return apiClient.post<{ status: string; inserted: number } & BulletinsARecalculer>('/api/monthly-inputs', data);
 };
 
 
@@ -57,7 +65,7 @@ export const getAllMonthlyInputs = (year: number, month: number) => {
  * (la préparation du mois la recréerait) : elle passe à 0 €, `retiree` vaut vrai.
  */
 export const deleteMonthlyInput = (id: string) => {
-  return apiClient.delete<{ status: string; retiree?: boolean }>(`/api/monthly-inputs/${id}`);
+  return apiClient.delete<{ status: string; retiree?: boolean } & BulletinsARecalculer>(`/api/monthly-inputs/${id}`);
 };
 
 /**
@@ -71,7 +79,7 @@ export const updateMonthlyInput = (
   >,
   companyId?: string | null,
 ) => {
-  return apiClient.patch<MonthlyInput>(`/api/monthly-inputs/${id}`, data, enTeteSociete(companyId));
+  return apiClient.patch<MonthlyInput & BulletinsARecalculer>(`/api/monthly-inputs/${id}`, data, enTeteSociete(companyId));
 };
 
 /** Une saisie pour un salarié, dans la société donnée (sinon la société active). */

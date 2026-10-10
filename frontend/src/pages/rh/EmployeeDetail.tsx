@@ -1,5 +1,6 @@
 // src/pages/EmployeeDetail.tsx
 
+import { messageBulletinsARecalculer } from "@/components/saisies/libellesSaisie";
 import { log } from '@/lib/logger';
 import { lazy, Suspense, useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
@@ -476,8 +477,18 @@ export default function EmployeeDetail() {
 
   const handleSaveSaisie = async (data: any[]) => {
     try {
-      await saisiesApi.createMonthlyInputs(data);
-      toast({ title: "Succès", description: `${pluriel(data.length, 'saisie')} ${accord(data.length, 'enregistrée')} avec succès.` });
+      const reponse = await saisiesApi.createMonthlyInputs(data);
+      const aRecalculer = messageBulletinsARecalculer(
+        reponse.data?.bulletins_a_recalculer,
+        () => `${employee?.first_name ?? ""} ${employee?.last_name ?? ""}`.trim() || "ce salarié",
+      );
+      toast({
+        title: "Succès",
+        description: [
+          `${pluriel(data.length, 'saisie')} ${accord(data.length, 'enregistrée')} avec succès.`,
+          aRecalculer,
+        ].filter(Boolean).join(' '),
+      });
       fetchSaisies();
     } catch {
       toast({ title: "Erreur", description: "Échec de l'enregistrement.", variant: "destructive" });

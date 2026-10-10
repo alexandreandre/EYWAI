@@ -23,7 +23,12 @@ import apiClient from '@/api/apiClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPayrollFocusActive } from '@/lib/payrollFocus';
 import { accord, pluriel } from '@/lib/pluriel';
-import { LIBELLE_SOUMISE_COTISATIONS, LIBELLE_SOUMISE_IMPOT, sousTitreSaisies } from './libellesSaisie';
+import {
+  LIBELLE_SOUMISE_COTISATIONS,
+  LIBELLE_SOUMISE_IMPOT,
+  messageBulletinsARecalculer,
+  sousTitreSaisies,
+} from './libellesSaisie';
 
 // --- Types & Interfaces ---
 interface Employee { id: string; first_name: string; last_name: string; job_title: string; }
@@ -90,6 +95,13 @@ export function PrimesTab({
     fetchData(); 
   }, [fetchData]);
 
+  // « Le bulletin d'octobre 2026 de … est à recalculer » : seulement s'il existe.
+  const phraseARecalculer = (cibles: saisiesApi.BulletinsARecalculer['bulletins_a_recalculer']) =>
+    messageBulletinsARecalculer(cibles, (id) => {
+      const emp = employees.find((e) => e.id === id);
+      return emp ? `${emp.first_name} ${emp.last_name}` : 'ce salarié';
+    });
+
   const handleSaveSaisie = async (payloadsFromModal: MonthlyInputCreate[]) => {
     try {
       // On s'assure que chaque saisie envoyée utilise le mois et l'année
@@ -100,9 +112,15 @@ export function PrimesTab({
         month: selectedMonth,
       }));
 
-      await saisiesApi.createMonthlyInputs(correctedPayloads);
+      const reponse = await saisiesApi.createMonthlyInputs(correctedPayloads);
       
-      toast({ title: "Succès", description: `${pluriel(correctedPayloads.length, 'saisie')} ${accord(correctedPayloads.length, 'ajoutée')} avec succès.` });
+      toast({
+        title: "Succès",
+        description: [
+          `${pluriel(correctedPayloads.length, 'saisie')} ${accord(correctedPayloads.length, 'ajoutée')} avec succès.`,
+          phraseARecalculer(reponse.data?.bulletins_a_recalculer),
+        ].filter(Boolean).join(' '),
+      });
       fetchData();
       setModalOpen(false);
     } catch (error) {
@@ -114,14 +132,20 @@ export function PrimesTab({
     if (!confirm("Supprimer cette saisie ?")) return;
     try {
       const reponse = await saisiesApi.deleteMonthlyInput(id);
+      const aRecalculer = phraseARecalculer(reponse.data?.bulletins_a_recalculer);
       toast(
         reponse.data?.retiree
           ? {
               title: "Prime automatique retirée",
-              description:
-                "Elle reste à 0 € pour que la préparation du mois ne la recrée pas. Recalculez le bulletin.",
+              description: [
+                "Elle reste à 0 € pour que la préparation du mois ne la recrée pas.",
+                aRecalculer ?? "Recalculez le bulletin.",
+              ].join(' '),
             }
-          : { title: "Supprimée", description: "La saisie a été supprimée." },
+          : {
+              title: "Supprimée",
+              description: ["La saisie a été supprimée.", aRecalculer].filter(Boolean).join(' '),
+            },
       );
       fetchData();
     } catch (error) {
@@ -139,10 +163,13 @@ export function PrimesTab({
       return;
     }
     try {
-      await saisiesApi.updateMonthlyInput(id, { amount: parsed });
+      const reponse = await saisiesApi.updateMonthlyInput(id, { amount: parsed });
       toast({
         title: "Saisie corrigée",
-        description: "Elle ne sera plus écrasée par la préparation du mois.",
+        description: [
+          "Elle ne sera plus écrasée par la préparation du mois.",
+          phraseARecalculer(reponse.data?.bulletins_a_recalculer),
+        ].filter(Boolean).join(' '),
       });
       setEditingId(null);
       fetchData();
