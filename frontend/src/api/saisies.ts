@@ -26,6 +26,8 @@ export interface MonthlyInput {
   is_taxable: boolean;
   /** Vrai : seul le net à payer bouge (retenue si négatif, versement si positif). */
   sur_le_net?: boolean;
+  /** Quantité en heures (heures sup corrigées depuis le bulletin, paniers…). */
+  payroll_quantity?: number | null;
   /** Id catalogue (ex. "prime_partage_valeur") — déclenche les traitements dédiés du moteur (PPV…). */
   catalog_prime_id?: string | null;
   created_at: string;

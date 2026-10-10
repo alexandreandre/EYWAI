@@ -29,6 +29,7 @@ import { accord, pluriel } from '@/lib/pluriel';
 import {
   LIBELLE_SOUMISE_COTISATIONS,
   LIBELLE_SOUMISE_IMPOT,
+  heuresDeclareesDeLaSaisie,
   messageBulletinsARecalculer,
   sousTitreSaisies,
 } from './libellesSaisie';
@@ -335,12 +336,15 @@ export function PrimesTab({
                 {saisiesAffichees.length > 0 ? (
                   saisiesAffichees.map((input) => {
                     const emp = employees.find(e => e.id === input.employee_id);
+                    const heuresCorrigees = heuresDeclareesDeLaSaisie(input);
                     return (
                       <TableRow key={input.id}>
                         <TableCell>{emp ? `${emp.first_name} ${emp.last_name}` : "Inconnu"}</TableCell>
-                        <TableCell className="font-medium">{input.name}</TableCell>
+                        <TableCell className="font-medium">{heuresCorrigees ? heuresCorrigees.libelle : input.name}</TableCell>
                         <TableCell>
-                          {editingId === input.id ? (
+                          {heuresCorrigees ? (
+                            <span title="À corriger depuis l’onglet « Corriger » du bulletin">{heuresCorrigees.quantite}</span>
+                          ) : editingId === input.id ? (
                             <div className="flex items-center gap-2">
                               <Input
                                 className="h-8 w-28"
@@ -371,14 +375,18 @@ export function PrimesTab({
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={input.sur_le_net ? "outline" : input.is_socially_taxed ? "default" : "secondary"}>
-                            {input.sur_le_net ? 'Sur le net' : input.is_socially_taxed ? 'Oui' : 'Non'}
-                          </Badge>
+                          {heuresCorrigees ? '—' : (
+                            <Badge variant={input.sur_le_net ? "outline" : input.is_socially_taxed ? "default" : "secondary"}>
+                              {input.sur_le_net ? 'Sur le net' : input.is_socially_taxed ? 'Oui' : 'Non'}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={input.is_taxable ? "default" : "secondary"}>
-                            {input.is_taxable ? 'Oui' : 'Non'}
-                          </Badge>
+                          {heuresCorrigees ? '—' : (
+                            <Badge variant={input.is_taxable ? "default" : "secondary"}>
+                              {input.is_taxable ? 'Oui' : 'Non'}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button variant="ghost" size="icon" onClick={() => handleDelete(input.id)} title="Supprimer">

@@ -72,3 +72,24 @@ export function messageBulletinsARecalculer(
   });
   return phrases.join(' ');
 }
+
+const HS_25_CORRIGEES = 'Heures supplémentaires (corrigées au bulletin)';
+const HS_50_CORRIGEES = 'Heures supplémentaires majorées à 50 % (corrigées au bulletin)';
+
+/**
+ * Les heures sup corrigées depuis l'onglet « Corriger » du bulletin sont stockées
+ * comme deux saisies à 0 € dont la quantité est en heures. Sur la page des
+ * primes, on les dit pour ce qu'elles sont : des heures, pas des euros.
+ */
+export function heuresDeclareesDeLaSaisie(saisie: {
+  name: string;
+  payroll_quantity?: number | null;
+}): { libelle: string; quantite: string } | null {
+  const palier = saisie.name === HS_25_CORRIGEES ? 25 : saisie.name === HS_50_CORRIGEES ? 50 : null;
+  if (palier === null) return null;
+  const heures = String(Math.round(Number(saisie.payroll_quantity ?? 0) * 100) / 100).replace('.', ',');
+  return {
+    libelle: `Heures sup. corrigées au bulletin : ${heures} h à ${palier} %`,
+    quantite: `${heures} h`,
+  };
+}
