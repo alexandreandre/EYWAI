@@ -36,7 +36,30 @@ def test_pss_extract_from_fixture():
     assert 40000 <= data["annuel"] <= 60000
     assert data["mensuel"] is not None
     assert data.get("horaire") is not None
-    assert 20 <= data["horaire"] <= 35
+    assert data["horaire"] == 30  # valeur officielle 2026, lue sur la ligne « Heure »
+    assert data["journalier"] == 220
+
+
+def test_pss_sans_ligne_heure_ne_calcule_pas_de_plafond_horaire():
+    pss = _load_module("PSS", "PSS.py", "pss_parser_sans_heure")
+    html = load_scraping_fixture("pss", "urssaf.html")
+    sans_heure = "\n".join(l for l in html.splitlines() if "Heure" not in l)
+    data = pss.extract_pss_data(BeautifulSoup(sans_heure, "html.parser"))
+    assert data["mensuel"] == 4005
+    assert data["horaire"] is None  # ni mensuel / 151,67, ni journalier / 7
+
+
+def test_pss_ai_accepte_le_plafond_horaire_officiel_2026():
+    pss_ai = _load_module("PSS", "PSS_AI.py", "pss_ai_parser")
+    brut = {"annuel": 48060, "mensuel": 4005, "journalier": 220, "horaire": 30}
+    assert pss_ai._complete_pss_plafonds(brut)["horaire"] == 30
+
+
+def test_pss_ai_ne_devine_pas_un_horaire_absent_ou_invraisemblable():
+    pss_ai = _load_module("PSS", "PSS_AI.py", "pss_ai_parser_2")
+    base = {"annuel": 48060, "mensuel": 4005, "journalier": 220}
+    assert "horaire" not in pss_ai._complete_pss_plafonds({**base, "horaire": None})
+    assert "horaire" not in pss_ai._complete_pss_plafonds({**base, "horaire": 90})
 
 
 @patch("requests.get")

@@ -80,3 +80,18 @@ def test_sans_plafond_horaire_officiel_pas_de_franchise_devinee_et_une_alerte():
     # Un second calcul du même bulletin ne double pas l'alerte.
     calculer_cotisations(ctx, 600.0)
     assert len([a for a in ctx.alertes_baremes if a.get("code") == CODE_ALERTE_PLAFOND_HORAIRE_ABSENT]) == 1
+
+
+def test_sans_plafond_dans_stage_le_plafond_horaire_du_pss_sert_de_source():
+    baremes = _baremes_2026(plafond_horaire_ss=None)
+    baremes["pss"]["horaire"] = 30
+    ctx = _stagiaire(600.0, baremes)
+    assert plafond_exoneration_stage(ctx, 1.0) == 4.50
+    calculer_cotisations(ctx, 600.0)
+    assert not any(a.get("code") == CODE_ALERTE_PLAFOND_HORAIRE_ABSENT for a in ctx.alertes_baremes)
+
+
+def test_le_plafond_de_stage_prime_sur_celui_du_pss():
+    baremes = _baremes_2026(plafond_horaire_ss=30.0)
+    baremes["pss"]["horaire"] = 26
+    assert plafond_exoneration_stage(_stagiaire(600.0, baremes), 1.0) == 4.50
