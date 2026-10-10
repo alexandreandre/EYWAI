@@ -23,6 +23,7 @@ import apiClient from '@/api/apiClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPayrollFocusActive } from '@/lib/payrollFocus';
 import { accord, pluriel } from '@/lib/pluriel';
+import { LIBELLE_SOUMISE_COTISATIONS, LIBELLE_SOUMISE_IMPOT, sousTitreSaisies } from './libellesSaisie';
 
 // --- Types & Interfaces ---
 interface Employee { id: string; first_name: string; last_name: string; job_title: string; }
@@ -276,9 +277,7 @@ export function PrimesTab({
         <CardHeader>
           <CardTitle>Saisies enregistrées</CardTitle>
           <CardDescription>
-            {focusEmployeeId
-              ? 'Saisies ponctuelles de ce salarié pour le mois affiché.'
-              : 'Liste de toutes les saisies ponctuelles pour le mois en cours.'}
+            {sousTitreSaisies(selectedYear, selectedMonth, Boolean(focusEmployeeId))}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -291,8 +290,8 @@ export function PrimesTab({
                   <TableHead>Employé</TableHead>
                   <TableHead>Nom</TableHead>
                   <TableHead>Montant</TableHead>
-                  <TableHead>Soumis Cotisations</TableHead>
-                  <TableHead>Soumis Impôt</TableHead>
+                  <TableHead>{LIBELLE_SOUMISE_COTISATIONS}</TableHead>
+                  <TableHead>{LIBELLE_SOUMISE_IMPOT}</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>

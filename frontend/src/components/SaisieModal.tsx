@@ -46,7 +46,7 @@ import { reverseCalculation } from "@/api/simulation";
 import type { BonusType } from "@/api/bonusTypes";
 import { estRoleRh } from '@/lib/rolesRh';
 import { SENS_SAISIE, champsDeLaSaisie, type SensSaisie } from '@/components/saisies/sensSaisie';
-import { phraseSaisiePonctuelle } from '@/components/saisies/libellesSaisie';
+import { LIBELLE_SOUMISE_COTISATIONS, LIBELLE_SOUMISE_IMPOT, phraseSaisiePonctuelle } from '@/components/saisies/libellesSaisie';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { accord, pluriel } from '@/lib/pluriel';
 
@@ -611,7 +611,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                     onCheckedChange={(c) => handleCreatePrimeFormChange("soumise_a_cotisations", !!c)}
                   />
                   <Label htmlFor="prime_soumise_cotisations" className="cursor-pointer text-sm">
-                    Soumise à cotisations
+                    {LIBELLE_SOUMISE_COTISATIONS}
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -621,7 +621,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                     onCheckedChange={(c) => handleCreatePrimeFormChange("soumise_a_impot", !!c)}
                   />
                   <Label htmlFor="prime_soumise_impot" className="cursor-pointer text-sm">
-                    Soumise à impôt
+                    {LIBELLE_SOUMISE_IMPOT}
                   </Label>
                 </div>
               </div>
@@ -669,10 +669,10 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                         : new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(Number(primeForm.montant))}
                     </p>
                     <p className="text-sm">
-                      <span className="font-medium">Soumise à cotisations :</span> {primeForm.soumise_a_cotisations ? 'Oui' : 'Non'}
+                      <span className="font-medium">{LIBELLE_SOUMISE_COTISATIONS} :</span> {primeForm.soumise_a_cotisations ? 'Oui' : 'Non'}
                     </p>
                     <p className="text-sm">
-                      <span className="font-medium">Soumise à impôt :</span> {primeForm.soumise_a_impot ? 'Oui' : 'Non'}
+                      <span className="font-medium">{LIBELLE_SOUMISE_IMPOT} :</span> {primeForm.soumise_a_impot ? 'Oui' : 'Non'}
                     </p>
                   </div>
                 </div>
@@ -757,11 +757,11 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
               <div className="grid grid-cols-2 gap-4 pt-2">
                 <div className="flex items-center space-x-2">
                   <Checkbox id="is_socially_taxed" checked={formData.is_socially_taxed} disabled={!isCustomPrime} onCheckedChange={(c) => setFormData(p => ({ ...p, is_socially_taxed: !!c }))}/>
-                  <Label htmlFor="is_socially_taxed" className={cn("cursor-pointer", !isCustomPrime && "text-muted-foreground")}>Soumise à cotisations</Label>
+                  <Label htmlFor="is_socially_taxed" className={cn("cursor-pointer", !isCustomPrime && "text-muted-foreground")}>{LIBELLE_SOUMISE_COTISATIONS}</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox id="is_taxable" checked={formData.is_taxable} disabled={!isCustomPrime} onCheckedChange={(c) => setFormData(p => ({ ...p, is_taxable: !!c }))}/>
-                  <Label htmlFor="is_taxable" className={cn("cursor-pointer", !isCustomPrime && "text-muted-foreground")}>Soumise à impôt</Label>
+                  <Label htmlFor="is_taxable" className={cn("cursor-pointer", !isCustomPrime && "text-muted-foreground")}>{LIBELLE_SOUMISE_IMPOT}</Label>
                 </div>
               </div>
               )}

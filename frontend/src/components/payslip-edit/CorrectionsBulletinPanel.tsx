@@ -18,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AjouterPrimeBouton from '@/components/payslip-edit/AjouterPrimeBouton';
+import { pastilleSoumise } from '@/components/saisies/libellesSaisie';
 import {
   heuresDeclarees,
   type EtatCorrections,
@@ -229,7 +230,7 @@ export default function CorrectionsBulletinPanel({
                   <span className={retiree ? 'line-through text-muted-foreground' : 'font-medium'}>
                     {prime.libelle}
                   </span>
-                  <Badge variant="secondary">{prime.soumise ? 'Soumise' : 'Non soumise'}</Badge>
+                  <Badge variant="secondary">{pastilleSoumise(prime.soumise)}</Badge>
                 </div>
                 {retiree ? (
                   <Button
@@ -281,7 +282,7 @@ export default function CorrectionsBulletinPanel({
               <div className="flex items-center gap-2">
                 <span className="font-medium">{prime.name}</span>
                 <Badge variant="outline">Ajoutée</Badge>
-                <Badge variant="secondary">{prime.is_socially_taxed ? 'Soumise' : 'Non soumise'}</Badge>
+                <Badge variant="secondary">{prime.sur_le_net ? 'Sur le net' : pastilleSoumise(prime.is_socially_taxed)}</Badge>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm">{euros(prime.amount)}</span>
