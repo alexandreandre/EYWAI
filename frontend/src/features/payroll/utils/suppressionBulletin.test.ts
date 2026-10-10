@@ -19,7 +19,11 @@ describe('messageDeSuppression', () => {
 
 describe('fenetreDeSuppression', () => {
   it('un bulletin en brouillon : la confirmation habituelle, avec le bouton Supprimer', () => {
-    expect(fenetreDeSuppression(false)).toEqual({ titre: 'Supprimer ce bulletin ?', peutSupprimer: true });
+    expect(fenetreDeSuppression(false)).toEqual({
+      titre: 'Supprimer ce bulletin ?',
+      peutSupprimer: true,
+      explication: null,
+    });
   });
 
   it('un bulletin validé : dit d’emblée qu’il ne se supprime pas, et le geste à faire, sans bouton Supprimer', () => {

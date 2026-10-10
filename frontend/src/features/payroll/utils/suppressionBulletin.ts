@@ -16,13 +16,15 @@ export function messageDeSuppression({ dejaSupprime }: { dejaSupprime: boolean }
   };
 }
 
-export type FenetreDeSuppression =
-  | { titre: string; peutSupprimer: true }
-  | { titre: string; peutSupprimer: false; explication: string };
+export interface FenetreDeSuppression {
+  titre: string;
+  peutSupprimer: boolean;
+  explication: string | null;
+}
 
 /** Un bulletin validé est refusé par le serveur : la fenêtre le dit d'emblée et donne le bon geste. */
 export function fenetreDeSuppression(valide: boolean): FenetreDeSuppression {
-  if (!valide) return { titre: 'Supprimer ce bulletin ?', peutSupprimer: true };
+  if (!valide) return { titre: 'Supprimer ce bulletin ?', peutSupprimer: true, explication: null };
   return {
     titre: 'Ce bulletin est validé',
     peutSupprimer: false,
