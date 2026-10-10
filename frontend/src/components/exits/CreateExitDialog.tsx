@@ -39,7 +39,7 @@ interface CreateExitDialogProps {
 }
 
 export const CONTRAT_ABSENT_MESSAGE =
-  "Aucun contrat enregistré dans Martine pour ce collaborateur : le départ se crée quand même.";
+  "Le document du contrat de ce collaborateur n'est pas rangé dans Martine (la fiche peut porter son contrat) : le départ se crée quand même.";
 
 function noticeSourceLabel(source: NoticePeriodPreview['source']): string {
   switch (source) {
