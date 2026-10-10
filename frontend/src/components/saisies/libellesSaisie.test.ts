@@ -82,3 +82,19 @@ describe('messageBulletinsARecalculer', () => {
     expect(messageBulletinsARecalculer(null, nom)).toContain('à recalculer');
   });
 });
+
+describe('messageBulletinsARecalculer : élision devant le nom', () => {
+  const nom = (id: string) => ({ a: 'Élodie Test', b: 'Camille Test', c: 'Hélène Essai' })[id] ?? 'Inconnu';
+  const cible = (employee_id: string) => ({ employee_id, year: 2026, month: 10 });
+
+  it("« d'Élodie Test » et non « de Élodie Test »", () => {
+    expect(messageBulletinsARecalculer([cible('a')], nom)).toBe(
+      "Le bulletin d'octobre 2026 d'Élodie Test est à recalculer.",
+    );
+  });
+  it('dans la liste, seul le premier nom suit « de »', () => {
+    expect(messageBulletinsARecalculer([cible('a'), cible('b')], nom)).toBe(
+      "Les bulletins d'octobre 2026 d'Élodie Test et Camille Test sont à recalculer.",
+    );
+  });
+});

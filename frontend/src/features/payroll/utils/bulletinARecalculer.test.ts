@@ -222,3 +222,9 @@ describe('toastsDeFinDeRecalcul', () => {
     expect(toasts[0].description).toContain('Alix Modèle : recalculé, comparaison indisponible');
   });
 });
+
+describe('libelleToastRecalcul : élision devant le nom', () => {
+  it("dit « Bulletin d'Élodie Test recalculé »", () => {
+    expect(libelleToastRecalcul(null, null, 'Élodie Test').title).toBe("Bulletin d'Élodie Test recalculé");
+  });
+});
