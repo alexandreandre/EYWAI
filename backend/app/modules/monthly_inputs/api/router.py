@@ -18,6 +18,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.core.constants import MESSAGE_ERREUR_INTERNE
 from app.core.logging import get_logger
 from app.core.security import get_current_user
 from app.modules.employees.api.deps import (
@@ -100,7 +101,7 @@ def create_monthly_inputs(
         return reponse
     except Exception as e:
         logger.exception("create_monthly_inputs")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 @router.patch("/api/monthly-inputs/{input_id}")
@@ -123,7 +124,7 @@ def update_monthly_input(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.exception("update_monthly_input")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 @router.delete("/api/monthly-inputs/{input_id}")
@@ -176,7 +177,7 @@ def create_employee_monthly_inputs(
         return reponse
     except Exception as e:
         logger.exception("create_employee_monthly_inputs")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 @router.delete("/api/employees/{employee_id}/monthly-inputs/{input_id}")
@@ -197,7 +198,7 @@ def delete_employee_monthly_input(
         return reponse
     except Exception as e:
         logger.exception("delete_employee_monthly_input")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 @router.get("/api/primes-catalogue")
@@ -208,4 +209,4 @@ def get_primes_catalogue(current_user: User = Depends(get_current_user)):
         return queries.get_primes_catalogue()
     except Exception as e:
         logger.exception("Échec de get_primes_catalogue")
-        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)

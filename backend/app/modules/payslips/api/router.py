@@ -13,7 +13,11 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
-from app.core.constants import HEADER_DEJA_SUPPRIME, MESSAGE_ERREUR_GENERATION
+from app.core.constants import (
+    HEADER_DEJA_SUPPRIME,
+    MESSAGE_ERREUR_GENERATION,
+    MESSAGE_ERREUR_INTERNE,
+)
 from app.core.security import get_current_user
 from app.modules.access_control.application.service import access_control_service
 from app.modules.audit.application.commands import log_audit_event
@@ -204,7 +208,7 @@ def get_payslips_anomalies_route(
         raise
     except Exception as e:
         logger.exception("Échec de get_payslips_anomalies_route")
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE) from e
 
 
 @router.get("/api/payslips/reports-net-negatif")
@@ -291,7 +295,7 @@ def get_my_payslips_route(current_user: User = Depends(get_current_user)):
         )
     except Exception as e:
         logger.exception("Échec de get_my_payslips_route")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 # --- Bulletins d'un employé ---
@@ -311,7 +315,7 @@ def get_employee_payslips_route(
         raise
     except Exception as e:
         logger.exception("Échec de get_employee_payslips_route")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 # --- Suppression ---
@@ -360,7 +364,7 @@ def delete_payslip_route(
         _map_app_errors(e)
     except Exception as e:
         logger.exception("Échec de delete_payslip_route")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 # --- Comparaison N vs N-1 ---
@@ -383,7 +387,7 @@ def get_payslip_comparison_route(
         raise
     except Exception as e:
         logger.exception("Échec de get_payslip_comparison_route")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 @router.get("/api/payslips/{payslip_id}/trend", response_model=TrendResponse)
@@ -400,7 +404,7 @@ def get_payslip_trend_route(
         raise
     except Exception as e:
         logger.exception("Échec de get_payslip_trend_route")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 @router.get("/api/payslips/{payslip_id}/report-net-negatif")
@@ -508,7 +512,7 @@ def acquit_payslip_alert_route(
         raise
     except Exception as e:
         logger.exception("Échec de acquit_payslip_alert_route")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 @router.post("/api/payslips/{payslip_id}/alerts/{rule_id}/ignore")
@@ -536,7 +540,7 @@ def ignore_payslip_alert_route(
         raise
     except Exception as e:
         logger.exception("Échec de ignore_payslip_alert_route")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 def _tracer_la_validation(
@@ -613,7 +617,7 @@ def validate_payslip_route(
         raise
     except Exception as e:
         logger.exception("Échec de validate_payslip_route")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 # --- Détail ---
@@ -631,7 +635,7 @@ def get_payslip_details_route(
         raise
     except Exception as e:
         logger.exception("Échec de get_payslip_details_route")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 # --- Édition ---
@@ -675,7 +679,7 @@ def edit_payslip_route(
         raise
     except Exception as e:
         logger.exception("Échec de edit_payslip_route")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 # --- Aperçu ---
@@ -720,7 +724,7 @@ def preview_payslip_route(
         raise
     except Exception as e:
         logger.exception("Échec de preview_payslip_route")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 # --- Historique ---
@@ -738,7 +742,7 @@ def get_payslip_history_route(
         raise
     except Exception as e:
         logger.exception("Échec de get_payslip_history_route")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 # --- Restauration ---
@@ -779,7 +783,7 @@ def restore_payslip_route(
         raise
     except Exception as e:
         logger.exception("Échec de restore_payslip_route")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 
 # --- Debug storage ---
@@ -805,4 +809,4 @@ def debug_storage_file(
         raise
     except Exception as e:
         logger.exception("Échec de debug_storage_file")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)

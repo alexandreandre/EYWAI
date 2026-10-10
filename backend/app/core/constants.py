@@ -40,3 +40,11 @@ MESSAGE_ERREUR_GENERATION = (
     "Réessayez dans un instant ; si l'erreur revient, signalez-la au support en "
     "indiquant le salarié et le mois."
 )
+
+#: Même principe pour toute autre route (suppression, validation, historique,
+#: édition, catalogue de primes…) : jamais le texte de l'exception à l'écran.
+MESSAGE_ERREUR_INTERNE = (
+    "L'opération n'a pas abouti à cause d'une erreur interne de Martine. "
+    "Réessayez dans un instant ; si l'erreur revient, signalez-la au support en "
+    "indiquant ce que vous faisiez (salarié, mois)."
+)
