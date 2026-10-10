@@ -29,7 +29,8 @@ import {
   invaliderCles,
 } from '@/features/payroll/utils/invalidationsBulletin';
 import {
-  libelleToastRecalcul,
+  toastsDeFinDeRecalcul,
+  type RecalculTermine,
   montantsDepuisReponse,
   type MontantsBulletin,
 } from '@/features/payroll/utils/bulletinARecalculer';
@@ -141,6 +142,8 @@ export function usePayrollGeneration() {
   const estimatedMsRef = useRef(readAverageGenerationMs());
   const queueRef = useRef<PayrollGenerationJob[]>([]);
   const processingRef = useRef(false);
+  // Recalculs terminés du tour en cours, annoncés ensemble à la fin.
+  const recalculsRef = useRef<RecalculTermine[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const logRef = useRef<PayrollGenerationLogEntry[]>([]);
   const companyIdRef = useRef(companyId);
@@ -266,8 +269,11 @@ export function usePayrollGeneration() {
               error: warnings.length > 0 ? warnings.join(' · ') : undefined,
             };
             if (job.montantsAvant) {
-              toast({
-                ...libelleToastRecalcul(job.montantsAvant, montantsDepuisReponse(response)),
+              // Annoncé en fin de tour : un seul message pour tout un lot.
+              recalculsRef.current.push({
+                employeeName: job.employeeName,
+                avant: job.montantsAvant,
+                apres: montantsDepuisReponse(response),
               });
             }
             setFailedJobs((prev) => {
@@ -345,6 +351,10 @@ export function usePayrollGeneration() {
       setCurrentJob(null);
       setArretDemande(false);
       processingRef.current = false;
+      if (abortRef.current || queueRef.current.length === 0) {
+        for (const message of toastsDeFinDeRecalcul(recalculsRef.current)) toast(message);
+        recalculsRef.current = [];
+      }
 
       if (abortRef.current) {
         queueRef.current = [];

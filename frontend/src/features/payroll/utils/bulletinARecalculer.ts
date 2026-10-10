@@ -7,6 +7,8 @@
  * dit ce qui a changé (« La mutuelle a changé… »).
  */
 
+import { accord, pluriel } from '@/lib/pluriel';
+
 import { estBulletinImporte } from './bulletinImporte';
 
 /** Quand le serveur ne sait pas quelle donnée a changé (bulletin d'avant l'empreinte par partie). */
@@ -128,18 +130,56 @@ function fmtEuro(n: number): string {
 
 export function libelleToastRecalcul(
   avant: MontantsBulletin | null | undefined,
-  apres: MontantsBulletin | null | undefined
+  apres: MontantsBulletin | null | undefined,
+  employeeName?: string
 ): { title: string; description: string } {
+  const title = employeeName ? `Bulletin de ${employeeName} recalculé` : 'Bulletin recalculé';
   if (!avant || !apres || !comparaisonPossible(avant, apres)) {
-    return { title: 'Bulletin recalculé', description: MESSAGE_COMPARAISON_INDISPONIBLE };
+    return { title, description: MESSAGE_COMPARAISON_INDISPONIBLE };
   }
   return {
-    title: 'Bulletin recalculé',
+    title,
     description:
       `Heures sup. ${fmtNombre(avant.heures_sup!)} → ${fmtNombre(apres.heures_sup!)}` +
       ` · Brut ${fmtEuro(avant.salaire_brut!)} → ${fmtEuro(apres.salaire_brut!)}` +
       ` · Net ${fmtEuro(avant.net_a_payer!)} → ${fmtEuro(apres.net_a_payer!)}`,
   };
+}
+
+export type RecalculTermine = {
+  employeeName: string;
+  avant: MontantsBulletin | null | undefined;
+  apres: MontantsBulletin | null | undefined;
+};
+
+const NOMBRE_MAX_DE_NOMS_DANS_LA_SYNTHESE = 10;
+
+/**
+ * Ce que l'écran dit à la fin des recalculs : un recalcul unitaire garde son
+ * détail (avec le nom du salarié dans le titre) ; un lot tient en UN message,
+ * avec les noms et le net avant → après.
+ */
+export function toastsDeFinDeRecalcul(
+  recalculs: RecalculTermine[]
+): { title: string; description: string }[] {
+  if (recalculs.length === 0) return [];
+  if (recalculs.length === 1) {
+    const [r] = recalculs;
+    return [libelleToastRecalcul(r.avant, r.apres, r.employeeName)];
+  }
+  const lignes = recalculs.slice(0, NOMBRE_MAX_DE_NOMS_DANS_LA_SYNTHESE).map((r) =>
+    r.avant && r.apres && comparaisonPossible(r.avant, r.apres)
+      ? `${r.employeeName} : net ${fmtEuro(r.avant.net_a_payer!)} → ${fmtEuro(r.apres.net_a_payer!)}`
+      : `${r.employeeName} : ${MESSAGE_COMPARAISON_INDISPONIBLE}`
+  );
+  const reste = recalculs.length - lignes.length;
+  if (reste > 0) lignes.push(`et ${pluriel(reste, 'autre')}`);
+  return [
+    {
+      title: `${pluriel(recalculs.length, 'bulletin')} ${accord(recalculs.length, 'recalculé')}`,
+      description: lignes.join(' · '),
+    },
+  ];
 }
 
 export function libelleBoutonRecalculerTout(n: number): string {

@@ -180,6 +180,7 @@ describe('libellés écran', () => {
 });
 
 describe('toastsDeFinDeRecalcul', () => {
+  const sansInsecables = (texte: string) => texte.replace(/\s/g, ' ');
   const item = (employeeName: string, net: [number, number]) => ({
     employeeName,
     avant: { heures_sup: 0, salaire_brut: 2000, net_a_payer: net[0] },
@@ -194,7 +195,7 @@ describe('toastsDeFinDeRecalcul', () => {
     const toasts = toastsDeFinDeRecalcul([item('Camille Test', [1400, 1480])]);
     expect(toasts).toHaveLength(1);
     expect(toasts[0].title).toBe('Bulletin de Camille Test recalculé');
-    expect(toasts[0].description).toContain('1 480');
+    expect(sansInsecables(toasts[0].description)).toContain('1 480');
   });
 
   it('un lot : un seul message, les noms et le net avant → après', () => {
@@ -208,8 +209,8 @@ describe('toastsDeFinDeRecalcul', () => {
     for (const nom of ['Camille Test', 'Dominique Essai', 'Claude Exemple']) {
       expect(toasts[0].description).toContain(nom);
     }
-    expect(toasts[0].description).toContain('1 400');
-    expect(toasts[0].description).toContain('1 480');
+    expect(sansInsecables(toasts[0].description)).toContain('1 400');
+    expect(sansInsecables(toasts[0].description)).toContain('1 480');
     expect(toasts[0].description).toContain('→');
   });
 
@@ -218,6 +219,6 @@ describe('toastsDeFinDeRecalcul', () => {
       item('Camille Test', [1400, 1480]),
       { employeeName: 'Alix Modèle', avant: null, apres: null },
     ]);
-    expect(toasts[0].description).toContain('Alix Modèle : comparaison indisponible');
+    expect(toasts[0].description).toContain('Alix Modèle : recalculé, comparaison indisponible');
   });
 });
