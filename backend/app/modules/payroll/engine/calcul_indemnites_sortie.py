@@ -353,6 +353,11 @@ def _charger_baremes_paie(supabase_client) -> dict:
     return assembler_baremes(db_baremes, conventions)
 
 
+def _conges_par_periode_a_la_sortie(employee_id, exit_date, supabase_client):
+    """À écrire (H8d)."""
+    return None
+
+
 def calculer_indemnite_conges_restants(
     employee_data: Dict[str, Any], exit_data: Dict[str, Any], supabase_client=None
 ) -> Dict[str, Any]:

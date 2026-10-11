@@ -124,3 +124,18 @@ def test_une_mention_sans_periode_ne_s_imprime_pas():
     )
     assert resultat.mention == ""
     assert resultat.resume()["mention"] == ""
+
+
+def test_repli_un_dossier_estime_par_periode_donne_sa_mention():
+    """Repli sans compteurs au bulletin : c'est l'estimation du dossier qui est
+    versée ; estimée par période, sa mention tient lieu de phrase."""
+    mention = "Indemnité de congés payés de fin de contrat : période 2026-2027, 2 j restants sur 2,5 : … Total 180,00."
+    dossier = {
+        "indemnite_conges": {
+            "montant": 180.0,
+            "details": {"methode_retenue": "par_periode", "mention": mention, "periodes": []},
+        }
+    }
+    brut = [dict(BRUT[0]), {"libelle": "Indemnité compensatrice de congés payés", "gain": 180.0}]
+    bulletin = creer_bulletin_sortie(_contexte(), 2554.55, brut, [], NETS, [], dossier, 2026, 9)
+    assert bulletin["arbitrage_conges"] == mention
