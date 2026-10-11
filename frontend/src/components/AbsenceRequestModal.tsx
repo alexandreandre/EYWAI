@@ -31,6 +31,7 @@ import {
   RH_ONLY_ABSENCE_TYPES,
   formatCongePayeInsufficientMessage,
   formatCongeSansSoldeRh,
+  formatQuantiteFr,
   formatQuotiteJours,
   getAvailableCongePayeDays,
   type EmployeeRequestableAbsenceType,
@@ -89,12 +90,12 @@ function BalanceHint({
     const pendingDays = Math.max(0, rest - available);
     return (
       <div className="space-y-1 text-xs text-muted-foreground">
-        <p>Solde {typeLabel} restant : {rest.toFixed(1)} j</p>
+        <p>Solde {typeLabel} restant : {formatQuantiteFr(rest, 'j')}</p>
         {pendingDays > 0 && (
-          <p>{pendingDays.toFixed(1)} j déjà {accord(pendingDays, 'réservé')} par des demandes en attente.</p>
+          <p>{formatQuantiteFr(pendingDays, 'j')} déjà {accord(pendingDays, 'réservé')} par des demandes en attente.</p>
         )}
         <p className="font-medium text-foreground">
-          Disponible pour une nouvelle demande : {available.toFixed(1)} j
+          Disponible pour une nouvelle demande : {formatQuantiteFr(available, 'j')}
         </p>
       </div>
     );
@@ -102,8 +103,8 @@ function BalanceHint({
 
   return (
     <p className="text-xs text-muted-foreground">
-      Solde {typeLabel} restant : {rest.toFixed(1)}{' '}
-      {absenceType === 'repos_compensateur' ? 'h' : 'j'}
+      Solde {typeLabel} restant :{' '}
+      {formatQuantiteFr(rest, absenceType === 'repos_compensateur' ? 'h' : 'j')}
     </p>
   );
 }

@@ -211,12 +211,19 @@ export function formatCongePayeInsufficientMessage(
   );
 }
 
+/** Quantité au format du bulletin : « 6,24 j » (deux décimales), « 10 j » si entière. */
+export function formatQuantiteFr(n: number, unit: 'j' | 'h' = 'j'): string {
+  const arrondi = Math.round(n * 100) / 100;
+  const texte = Number.isInteger(arrondi) ? String(arrondi) : arrondi.toFixed(2).replace('.', ',');
+  return `${texte} ${unit}`;
+}
+
 export function formatBalanceRemaining(
   remaining: number | string,
   unit: 'j' | 'h' = 'j',
 ): string {
   if (typeof remaining === 'number') {
-    return `${remaining.toFixed(1)} ${unit}`;
+    return formatQuantiteFr(remaining, unit);
   }
   if (remaining === 'N/A') return 'Non applicable';
   if (remaining === 'selon événement') return 'Selon événement';
@@ -254,9 +261,9 @@ export function formatRhLeaveBalanceDetail(
   const unit = balanceUsesHours(balance.type) ? 'h' : 'j';
   const acquired =
     typeof balance.acquired === 'number'
-      ? `${balance.acquired.toFixed(1)} ${unit}`
+      ? formatQuantiteFr(balance.acquired, unit)
       : '—';
-  const taken = `${balance.taken.toFixed(1)} ${unit}`;
+  const taken = formatQuantiteFr(balance.taken, unit);
   const remaining = formatBalanceRemaining(balance.remaining, unit);
   return `Acquis : ${acquired} · Pris : ${taken} · Restant : ${remaining}`;
 }

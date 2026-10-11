@@ -38,6 +38,7 @@ import { companyQueryKey, queryKeys } from '@/lib/queryKeys';
 import {
   balanceUsesHours,
   formatBalanceRemaining,
+  formatQuantiteFr,
   getRhLeaveBalanceShortLabel,
   isRhLeaveBalanceVisible,
 } from '@/lib/employeeAbsencesUtils';
@@ -63,7 +64,7 @@ interface EmployeeDetailLeaveBalancesTabProps {
 function formatAmount(value: number | string | undefined, unit: string): string {
   if (value === undefined || value === 'N/A') return '—';
   if (value === 'selon événement') return 'Selon événement';
-  if (typeof value === 'number') return `${value.toFixed(1)} ${unit}`;
+  if (typeof value === 'number') return formatQuantiteFr(value, unit as 'j' | 'h');
   return String(value);
 }
 
@@ -345,7 +346,7 @@ export function EmployeeDetailLeaveBalancesTab({
                 {typeof adjustBalance?.remaining === 'number' ? (
                   <p className="text-xs text-muted-foreground">
                     Solde affiché actuellement :{' '}
-                    {adjustBalance.remaining.toFixed(1)} j
+                    {formatQuantiteFr(adjustBalance.remaining, 'j')}
                   </p>
                 ) : null}
               </div>
