@@ -302,3 +302,19 @@ export function avertissementSoldeInsuffisantRh(args: {
     `pour ${demandeTexte} ; le repos sera enregistré malgré tout et le solde deviendra négatif.`
   );
 }
+
+/** Libellés des types d'arrêt, ceux que propose la fenêtre de saisie. */
+const LIBELLES_TYPE_ARRET: Record<string, string> = {
+  maladie_simple: 'Maladie simple',
+  accident_travail: 'Accident du travail',
+  maladie_professionnelle: 'Maladie professionnelle',
+  accident_trajet: 'Accident de trajet',
+  mi_temps_therapeutique: 'Mi-temps thérapeutique',
+  ald: 'ALD',
+  rechute_at: 'Rechute AT',
+  arret_exceptionnel: 'Arrêt exceptionnel',
+};
+
+export function libelleTypeArret(code: string): string {
+  return LIBELLES_TYPE_ARRET[code] ?? code;
+}

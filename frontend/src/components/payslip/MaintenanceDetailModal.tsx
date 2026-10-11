@@ -3,6 +3,7 @@
  */
 
 import type { MaintenancePreview } from '@/api/absences';
+import { libelleTypeArret } from '@/lib/employeeAbsencesUtils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { accord } from '@/lib/pluriel';
+import { pluriel } from '@/lib/pluriel';
 
 function alertBannerClass(text: string): string {
   const t = text.toLowerCase();
@@ -72,10 +73,10 @@ export function MaintenanceDetailModal({
             </h3>
             <p>
               <span className="text-muted-foreground">Type d&apos;arrêt : </span>
-              <span className="font-medium">{maintien.type_arret}</span>
+              <span className="font-medium">{libelleTypeArret(maintien.type_arret)}</span>
             </p>
-            <p>Carence SS : {accord(carence.carence_ss_jours, 'jour')}</p>
-            <p>Carence employeur : {accord(carence.carence_employeur_jours, 'jour')}</p>
+            <p>Carence SS : {pluriel(carence.carence_ss_jours, 'jour')}</p>
+            <p>Carence employeur : {pluriel(carence.carence_employeur_jours, 'jour')}</p>
             {carence.est_continuite ? (
               <Badge className="bg-emerald-600 hover:bg-emerald-600">
                 Continuité — pas de nouvelle carence
@@ -124,12 +125,12 @@ export function MaintenanceDetailModal({
               </h3>
               {maintien.prevoyance.seuil_jours != null ? (
                 <p>
-                  Seuil de déclenchement : {accord(maintien.prevoyance.seuil_jours, 'jour')}
+                  Seuil de déclenchement : {pluriel(maintien.prevoyance.seuil_jours, 'jour')}
                   d&apos;arrêt
                 </p>
               ) : null}
               {maintien.prevoyance.franchise_jours != null ? (
-                <p>Franchise : {accord(maintien.prevoyance.franchise_jours, 'jour')}</p>
+                <p>Franchise : {pluriel(maintien.prevoyance.franchise_jours, 'jour')}</p>
               ) : null}
               {maintien.prevoyance.taux_cible != null ? (
                 <p>Taux garanti : {pct(maintien.prevoyance.taux_cible)}</p>
