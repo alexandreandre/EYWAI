@@ -93,7 +93,9 @@ function BreakdownTooltip({ row }: { row: ContingentOverviewRow }) {
     <div className="space-y-1 text-xs">
       <p>Structurelles : {formatHours(row.structural_hours)}</p>
       <p>Payées : {formatHours(row.paid_hours)}</p>
-      <p>Pauses : −{formatHours(row.pause_deduction)}</p>
+      {Math.abs(row.pause_deduction) >= 0.005 && (
+        <p>Pauses : −{formatHours(Math.abs(row.pause_deduction))}</p>
+      )}
       <p>Ajustement : {formatHours(row.manual_adjustment)}</p>
       <p className="font-medium">Comptabilisées : {formatHours(row.consumed_hours)}</p>
     </div>
@@ -341,24 +343,24 @@ export function ContingentHsTab({
                     <TableRow>
                       <TableHead>Salarié</TableHead>
                       <TableHead>Utilisation plafond</TableHead>
-                      <TableHead>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span
-                              data-testid="hs-comptabilisees-entete"
-                              className="inline-flex cursor-help items-center gap-1"
-                            >
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <TableHead
+                            data-testid="hs-comptabilisees-entete"
+                            className="cursor-help"
+                          >
+                            <span className="inline-flex items-center gap-1">
                               HS comptabilisées
                               <Info className="h-3.5 w-3.5 text-muted-foreground" />
                             </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" className="max-w-xs text-xs">
-                            Heures supplémentaires qui comptent dans le contingent annuel :
-                            structurelles et payées, moins les pauses, avec l&apos;ajustement
-                            manuel. Survolez une valeur pour voir le détail.
-                          </TooltipContent>
-                        </Tooltip>
-                      </TableHead>
+                          </TableHead>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-xs text-xs">
+                          Heures supplémentaires qui comptent dans le contingent annuel :
+                          structurelles et payées, moins les pauses, avec l&apos;ajustement
+                          manuel. Survolez une valeur pour voir le détail.
+                        </TooltipContent>
+                      </Tooltip>
                       <TableHead>RCR posées</TableHead>
                       <TableHead>Marge restante</TableHead>
                       <TableHead>Statut</TableHead>
