@@ -14,7 +14,7 @@ describe("Nouveau congé : avertissement de solde avant l'enregistrement", () =>
     ).toBe("Le solde de RTT de Léa est de 10 j pour 11 j demandés ; le congé sera enregistré malgré tout.");
     expect(
       avertissementSoldeInsuffisantRh({ type: "rtt", prenom: "Léa", solde: 0.5, demande: 1 }),
-    ).toBe("Le solde de RTT de Léa est de 0,5 j pour 1 j demandé ; le congé sera enregistré malgré tout.");
+    ).toBe("Le solde de RTT de Léa est de 0,50 j pour 1 j demandé ; le congé sera enregistré malgré tout.");
   });
 
   it("pas d'avertissement quand le solde suffit", () => {

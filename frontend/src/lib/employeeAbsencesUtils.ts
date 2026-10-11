@@ -267,3 +267,38 @@ export function formatRhLeaveBalanceDetail(
   const remaining = formatBalanceRemaining(balance.remaining, unit);
   return `Acquis : ${acquired} · Pris : ${taken} · Restant : ${remaining}`;
 }
+
+/**
+ * Avertissement montré à la RH, dans la fenêtre « Nouveau congé », quand les
+ * jours choisis dépassent le solde RTT ou repos compensateur. Le serveur
+ * enregistre malgré tout (comportement RH) : on le dit avant, pas après.
+ */
+export function avertissementSoldeInsuffisantRh(args: {
+  type: 'rtt' | 'repos_compensateur';
+  prenom: string;
+  solde: number;
+  /** Jours (RTT) ou heures (repos compensateur) demandés. */
+  demande: number;
+  /** Repos compensateur : journées sélectionnées sans heures saisies (journée entière). */
+  joursSansHeures?: number;
+}): string | null {
+  const { type, prenom, solde, demande } = args;
+  const sansHeures = args.joursSansHeures ?? 0;
+  if (type === 'rtt') {
+    if (demande <= solde) return null;
+    return (
+      `Le solde de RTT de ${prenom} est de ${formatQuantiteFr(solde, 'j')} ` +
+      `pour ${formatQuantiteFr(demande, 'j')} ${accord(demande, 'demandé')} ; ` +
+      'le congé sera enregistré malgré tout.'
+    );
+  }
+  if (sansHeures > 0 ? solde > demande : demande <= solde) return null;
+  const demandeTexte =
+    sansHeures > 0
+      ? `${sansHeures} ${accord(sansHeures, 'journée')} ${accord(sansHeures, 'entière')}`
+      : `${formatQuantiteFr(demande, 'h')} ${accord(demande, 'demandée')}`;
+  return (
+    `Le solde de repos compensateur de ${prenom} est de ${formatQuantiteFr(solde, 'h')} ` +
+    `pour ${demandeTexte} ; le repos sera enregistré malgré tout et le solde deviendra négatif.`
+  );
+}

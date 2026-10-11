@@ -34,6 +34,7 @@ import {
   formatQuantiteFr,
   formatQuotiteJours,
   getAvailableCongePayeDays,
+  avertissementSoldeInsuffisantRh,
   type EmployeeRequestableAbsenceType,
 } from "@/lib/employeeAbsencesUtils";
 import { formatPeriodeArret } from "@/lib/arretPeriode";
@@ -555,6 +556,39 @@ export function AbsenceRequestModal({
   const prenomSalarie =
     employees.find((e) => e.id === selectedEmployeeId)?.first_name ?? "le salarié";
 
+  // Avertissement de solde (RH) : affiché dans la fenêtre dès que les jours
+  // choisis dépassent le solde, avant d'enregistrer. Le serveur enregistre
+  // malgré tout pour la RH.
+  const avertissementSolde = (() => {
+    if (!isRhLeave || !selectedEmployeeId) return null;
+    if (absenceType === "rtt") {
+      const reste = soldesPose.find((b) => b.type === "RTT")?.remaining;
+      if (typeof reste !== "number") return null;
+      return avertissementSoldeInsuffisantRh({
+        type: "rtt",
+        prenom: prenomSalarie,
+        solde: reste,
+        demande: quotiteSelectionnee,
+      });
+    }
+    if (absenceType === "repos_compensateur" && selectedDaysCount > 0) {
+      const reste = soldesPose.find((b) => b.type === "Repos compensateur")?.remaining;
+      if (typeof reste !== "number") return null;
+      const heures = (selectedDays ?? []).map((d) =>
+        Number.parseFloat((heuresParJour[format(d, "yyyy-MM-dd")] ?? "").replace(",", ".")),
+      );
+      const saisies = heures.filter((n) => Number.isFinite(n) && n > 0);
+      return avertissementSoldeInsuffisantRh({
+        type: "repos_compensateur",
+        prenom: prenomSalarie,
+        solde: reste,
+        demande: saisies.reduce((a, b) => a + b, 0),
+        joursSansHeures: saisies.length === 0 ? selectedDaysCount : 0,
+      });
+    }
+    return null;
+  })();
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
@@ -612,6 +646,11 @@ export function AbsenceRequestModal({
                 balances={soldesPose}
                 pendingAbsences={pendingAbsences}
               />
+            )}
+            {avertissementSolde && (
+              <p role="alert" className="text-xs font-medium text-destructive">
+                {avertissementSolde}
+              </p>
             )}
             {isRhLeave &&
               absenceType === "recuperation_modulation" &&
