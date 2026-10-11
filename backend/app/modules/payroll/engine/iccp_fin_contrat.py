@@ -106,6 +106,10 @@ class IndemniteFinDeContrat:
 
     @property
     def mention(self) -> str:
+        # Aucune période avec des jours restants : rien à dire. Sans ce garde,
+        # le bulletin imprimait « … de fin de contrat : . Total 0,00. ».
+        if not self.periodes:
+            return ""
         pour_cent = f"{self.taux * 100:g} %"
         morceaux = []
         for d in self.periodes:

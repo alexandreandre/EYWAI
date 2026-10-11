@@ -343,6 +343,18 @@ def detail_indemnite_cp_fin_contrat(contexte) -> Optional[Dict[str, Any]]:
     return detail if isinstance(detail, dict) else None
 
 
+def _iccp_du_brut(details_brut: List[Dict[str, Any]]) -> float:
+    """L'indemnité compensatrice de congés que porte le brut du bulletin."""
+    return round(
+        sum(
+            float(ligne.get("gain") or 0.0)
+            for ligne in details_brut
+            if "compensatrice de congés" in str(ligne.get("libelle") or "").lower()
+        ),
+        2,
+    )
+
+
 def _euros_fr(montant: float) -> str:
     """Montant de note au format du bulletin : 1 234,56 €."""
     return f"{float(montant or 0.0):,.2f} €".replace(",", " ").replace(".", ",")
@@ -866,16 +878,26 @@ def creer_bulletin_sortie(
                 }
             )
 
-    # Indemnité de congés payés (soumise à cotisations)
+    # Indemnité de congés payés (soumise à cotisations). Quand le bulletin l'a
+    # calculée lui-même (règle par période, `detail_iccp_fin_contrat`), c'est
+    # son montant qui est versé : l'estimation du dossier n'est plus qu'une
+    # estimation, ni montant ni phrase ne doivent en venir.
+    detail_du_bulletin = detail_indemnite_cp_fin_contrat(contexte)
     if indemnites_sortie.get("indemnite_conges"):
         ind_conges = indemnites_sortie["indemnite_conges"]
-        if ind_conges.get("montant", 0) > 0:
+        if detail_du_bulletin is not None:
+            montant_conges = _iccp_du_brut(details_brut)
+            calcul_conges = detail_du_bulletin.get("mention") or ""
+        else:
+            montant_conges = float(ind_conges.get("montant", 0) or 0)
+            calcul_conges = ind_conges.get("calcul", "")
+        if montant_conges > 0:
             lignes_indemnites_soumises.append(
                 {
                     "libelle": "Indemnité compensatrice de congés payés",
                     "description": ind_conges.get("description", ""),
-                    "calcul": ind_conges.get("calcul", ""),
-                    "gain": round(ind_conges["montant"], 2),
+                    "calcul": calcul_conges,
+                    "gain": round(montant_conges, 2),
                     "nature": "soumise",
                 }
             )
@@ -949,8 +971,12 @@ def creer_bulletin_sortie(
     bulletin_base["net_a_payer"] = round(net_a_payer_final, 2)
     bulletin_base["is_bulletin_sortie"] = True
 
+    # La phrase d'arbitrage du dossier ne s'écrit que si c'est le dossier qui a
+    # été versé (repli sans compteurs de congés). Sinon le bulletin porte sa
+    # propre mention par période (`indemnite_cp_fin_contrat`) : la phrase du
+    # dossier contredisait la ligne versée (2 337,29 annoncés, 2 867,77 payés).
     ind_conges = indemnites_sortie.get("indemnite_conges") or {}
-    details_iccp = ind_conges.get("details") or {}
+    details_iccp = (ind_conges.get("details") or {}) if detail_du_bulletin is None else {}
     if details_iccp:
         maintien = details_iccp.get("indemnite_maintien", 0) or 0
         dixieme = details_iccp.get("indemnite_dixieme", 0) or 0
