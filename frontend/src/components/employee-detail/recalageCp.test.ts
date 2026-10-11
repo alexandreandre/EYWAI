@@ -68,7 +68,7 @@ describe('erreursRecalageCp', () => {
       'Saisissez le solde CP N (0 s’il est vide).',
     ]);
     expect(erreursRecalageCp({ n1: '27', n: '6,24', note: '   ' })).toEqual([
-      'Dites en commentaire pourquoi vous recalez (il reste dans l’historique).',
+      'Dites en commentaire pourquoi vous recalez (il est enregistré avec le recalage).',
     ]);
   });
 

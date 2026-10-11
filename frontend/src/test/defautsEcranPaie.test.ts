@@ -111,3 +111,9 @@ describe("tableau des soldes de la fiche", () => {
     expect(texte).toContain("formatQuantiteFr");
   });
 });
+
+describe("recalage des congés payés", () => {
+  it("ne promet pas un historique qu'aucun écran n'affiche", () => {
+    expect(lire("components/employee-detail/recalageCp.ts")).not.toContain("dans l’historique");
+  });
+});
