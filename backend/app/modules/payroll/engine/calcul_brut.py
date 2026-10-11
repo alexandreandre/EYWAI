@@ -1,5 +1,6 @@
 # moteur_paie/calcul_brut.py
 
+import re
 from .contexte import ContextePaie
 from . import legal_constants as lc
 import unicodedata
@@ -529,6 +530,43 @@ def base_et_taux_affiches_iccp(resultat: Any) -> tuple[float | None, float | Non
 
 
 LIBELLE_ICCP_DEPART = "Indemnité compensatrice de congés payés"
+
+
+def _est_une_iccp(libelle: Any) -> bool:
+    texte = _sans_accents(str(libelle or "").lower())
+    if "compensatrice" in texte and "conge" in texte:
+        return True
+    if "cp des cdd" in texte:
+        return True
+    return "fin de contrat" in texte and bool(re.search(r"\b(cp|conges?)\b", texte))
+
+
+def _iccp_saisies(primes_saisies: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    return [
+        prime
+        for prime in primes_saisies or []
+        if isinstance(prime, dict) and _est_une_iccp(prime.get("libelle") or prime.get("name"))
+    ]
+
+
+def iccp_saisie_au_mois(primes_saisies: Optional[List[Dict[str, Any]]]) -> bool:
+    """Une indemnité compensatrice de congés saisie comme variable du mois
+    (« Indemnités de fin de contrat (CP) », « Ind.de CP des CDD »…) : elle
+    l'emporte sur le calcul, qui ne s'y ajoute pas. Zone 404, juin 2026 : la
+    saisie de 2 076,60 et le calcul par période de 2 536,23 se cumulaient."""
+    return bool(_iccp_saisies(primes_saisies))
+
+
+def montant_iccp_saisie(primes_saisies: Optional[List[Dict[str, Any]]]) -> float:
+    """Le montant de ces saisies : il n'entre pas dans l'assiette de la prime
+    de précarité (l'indemnité de congés se calcule sur elle, pas l'inverse)."""
+    total = 0.0
+    for prime in _iccp_saisies(primes_saisies):
+        try:
+            total += float(prime.get("montant") or 0.0)
+        except (TypeError, ValueError):
+            continue
+    return round(total, 2)
 
 
 def _calculer_iccp_depart(
@@ -2078,7 +2116,10 @@ def calculer_salaire_brut(
     )
     brut_hors_precarite = total_gains_inter - total_pertes_inter
     ligne_precarite = _calculer_prime_precarite_cdd(
-        contexte, brut_hors_precarite, date_debut_periode, date_fin_periode
+        contexte,
+        brut_hors_precarite - montant_iccp_saisie(primes_saisies),
+        date_debut_periode,
+        date_fin_periode,
     )
     montant_indemnite_fin = 0.0
     if ligne_precarite:
@@ -2093,8 +2134,11 @@ def calculer_salaire_brut(
         lignes_composants_brut.append(ligne_ifm)
         montant_indemnite_fin = ligne_ifm.get("gain", 0.0) or 0.0
 
+    # Une indemnité de congés saisie au mois l'emporte sur le calcul.
+    iccp_saisie = iccp_saisie_au_mois(primes_saisies)
+
     # Indemnité compensatrice de congés payés (1/10e), dernier mois CDD/mission.
-    ligne_iccp = _calculer_iccp_cdd(
+    ligne_iccp = None if iccp_saisie else _calculer_iccp_cdd(
         contexte,
         brut_hors_precarite,
         montant_indemnite_fin,
@@ -2109,7 +2153,7 @@ def calculer_salaire_brut(
 
     # Autres départs : la règle légale par période remplace l'estimation du
     # dossier de départ quand les compteurs sont là.
-    iccp_legale_calculee, ligne_iccp_depart = _calculer_iccp_depart(
+    iccp_legale_calculee, ligne_iccp_depart = (False, None) if iccp_saisie else _calculer_iccp_depart(
         contexte,
         brut_hors_precarite,
         date_debut_periode,
@@ -2123,7 +2167,7 @@ def calculer_salaire_brut(
     # Indemnités du dossier de départ soumises à cotisations (préavis, congés
     # payés) : dans le brut, pas après les cotisations.
     lignes_sortie = lignes_indemnites_sortie_soumises(contexte)
-    if iccp_legale_calculee:
+    if iccp_legale_calculee or iccp_saisie:
         lignes_sortie = [l for l in lignes_sortie if l.get("libelle") != LIBELLE_ICCP_DEPART]
     lignes_composants_brut.extend(lignes_sortie)
 

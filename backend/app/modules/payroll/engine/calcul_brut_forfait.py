@@ -28,6 +28,8 @@ from .calcul_brut import (
     _jour_ferie_est_paye,
     _jours_evenement_conges,
     _libelle_dates_conges,
+    iccp_saisie_au_mois,
+    montant_iccp_saisie,
 )
 
 # Jours ouvrés moyens par mois (261 j / 12) : valorisation d'une journée de
@@ -198,11 +200,19 @@ def _ajouter_lignes_de_fin_de_contrat(
     valeur_jour: float,
     date_debut_periode: date,
     date_fin_periode: date,
+    primes_saisies: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
+    """Une indemnité de congés saisie au mois l'emporte sur le calcul, qui ne
+    s'y ajoute pas, et reste hors de l'assiette de la précarité
+    (calcul_brut.iccp_saisie_au_mois)."""
+    iccp_saisie = iccp_saisie_au_mois(primes_saisies)
     brut_hors_precarite = _brut_des_lignes(lignes, salaire_contractuel)
     montant_fin = 0.0
     ligne_precarite = _calculer_prime_precarite_cdd(
-        contexte, brut_hors_precarite, date_debut_periode, date_fin_periode
+        contexte,
+        brut_hors_precarite - montant_iccp_saisie(primes_saisies),
+        date_debut_periode,
+        date_fin_periode,
     )
     if ligne_precarite:
         lignes.append(ligne_precarite)
@@ -213,7 +223,7 @@ def _ajouter_lignes_de_fin_de_contrat(
     if ligne_ifm:
         lignes.append(ligne_ifm)
         montant_fin = ligne_ifm.get("gain", 0.0) or 0.0
-    ligne_iccp = _calculer_iccp_cdd(
+    ligne_iccp = None if iccp_saisie else _calculer_iccp_cdd(
         contexte,
         brut_hors_precarite,
         montant_fin,
@@ -224,7 +234,7 @@ def _ajouter_lignes_de_fin_de_contrat(
     )
     if ligne_iccp:
         lignes.append(ligne_iccp)
-    iccp_legale_calculee, ligne_iccp_depart = _calculer_iccp_depart(
+    iccp_legale_calculee, ligne_iccp_depart = (False, None) if iccp_saisie else _calculer_iccp_depart(
         contexte,
         brut_hors_precarite,
         date_debut_periode,
@@ -237,7 +247,7 @@ def _ajouter_lignes_de_fin_de_contrat(
     # payés) : dans le brut, pas après les cotisations ; l'indemnité de congés
     # du dossier cède la place à la règle par période quand elle a été calculée.
     lignes_sortie = lignes_indemnites_sortie_soumises(contexte)
-    if iccp_legale_calculee:
+    if iccp_legale_calculee or iccp_saisie:
         lignes_sortie = [l for l in lignes_sortie if l.get("libelle") != LIBELLE_ICCP_DEPART]
     lignes.extend(lignes_sortie)
 
@@ -610,6 +620,7 @@ def calculer_salaire_brut_forfait(
         valeur_jour=salaire_journalier,
         date_debut_periode=date_debut_periode,
         date_fin_periode=date_fin_periode,
+        primes_saisies=primes_saisies,
     )
 
     total_gains = sum(
