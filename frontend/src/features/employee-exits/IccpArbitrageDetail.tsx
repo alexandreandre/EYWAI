@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { AlertTriangle } from 'lucide-react';
 
 import type { IccpDetails } from '@/api/employeeExits';
+import { libelleMethodeIccp, lignesDesPeriodes } from '@/features/employee-exits/utils/iccpLibelles';
 
 function formatCurrency(value: number | undefined | null): string {
   if (value == null || Number.isNaN(value)) return '—';
@@ -10,19 +11,6 @@ function formatCurrency(value: number | undefined | null): string {
     style: 'currency',
     currency: 'EUR',
   }).format(value);
-}
-
-function methodeLabel(methode: string | undefined): string {
-  switch (methode) {
-    case 'maintien':
-      return 'Maintien de salaire';
-    case 'dixieme':
-      return 'Règle du 1/10e';
-    case 'l1243_8':
-      return '10 % du contrat (CDD)';
-    default:
-      return '—';
-  }
 }
 
 export interface IccpArbitrageDetailProps {
@@ -45,6 +33,8 @@ export default function IccpArbitrageDetail({
   const hasArbitrage =
     details &&
     (details.indemnite_maintien != null || details.indemnite_dixieme != null);
+  // Estimation par période (règle du bulletin de sortie) : une ligne par période.
+  const lignesPeriodes = lignesDesPeriodes(details);
 
   return (
     <div className="space-y-3">
@@ -59,11 +49,25 @@ export default function IccpArbitrageDetail({
         </p>
       )}
 
+      {lignesPeriodes.length > 0 && (
+        <div className="rounded-lg border bg-muted/30 p-3 space-y-2 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-muted-foreground">Méthode retenue</span>
+            <Badge variant="secondary">{libelleMethodeIccp(details?.methode_retenue)}</Badge>
+          </div>
+          <ul className="space-y-1">
+            {lignesPeriodes.map((ligne) => (
+              <li key={ligne}>{ligne}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {hasArbitrage && (
         <div className="rounded-lg border bg-muted/30 p-3 space-y-2 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-muted-foreground">Méthode retenue</span>
-            <Badge variant="secondary">{methodeLabel(details?.methode_retenue)}</Badge>
+            <Badge variant="secondary">{libelleMethodeIccp(details?.methode_retenue)}</Badge>
           </div>
           <div className="grid gap-1 sm:grid-cols-2">
             <p>
@@ -74,12 +78,6 @@ export default function IccpArbitrageDetail({
               <span className="text-muted-foreground">1/10e : </span>
               {formatCurrency(details?.indemnite_dixieme)}
             </p>
-            {details?.iccp_l1243_8 != null && details.iccp_l1243_8 > 0 && (
-              <p>
-                <span className="text-muted-foreground">L1243-8 (CDD) : </span>
-                {formatCurrency(details.iccp_l1243_8)}
-              </p>
-            )}
           </div>
           {details?.periode_reference && (
             <p className="text-xs text-muted-foreground">

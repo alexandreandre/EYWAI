@@ -243,7 +243,19 @@ export interface IccpDetails {
   methode_retenue?: string;
   indemnite_maintien?: number;
   indemnite_dixieme?: number;
-  iccp_l1243_8?: number | null;
+  /** Estimation par période (règle du bulletin de sortie). */
+  periodes?: {
+    libelle?: string;
+    brut?: number | null;
+    droits?: number | null;
+    restants?: number | null;
+    dixieme?: number | null;
+    maintien?: number | null;
+    retenu?: number | null;
+    methode?: string;
+  }[];
+  mention?: string;
+  valeur_jour?: number;
   taux_journalier?: number;
   base_reference_dixieme?: number;
   prime_precarite_incluse?: number;

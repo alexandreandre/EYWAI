@@ -982,13 +982,18 @@ def creer_bulletin_sortie(
         dixieme = details_iccp.get("indemnite_dixieme", 0) or 0
         montant = ind_conges.get("montant", 0) or 0
         methode = details_iccp.get("methode_retenue", "maintien")
-        if methode == "dixieme":
+        if methode == "par_periode":
+            # Estimation du dossier faite par période : sa mention dit ce qui
+            # a été versé, période par période.
+            bulletin_base["arbitrage_conges"] = details_iccp.get("mention") or None
+        elif methode == "dixieme":
             bulletin_base["arbitrage_conges"] = (
                 f"L'indemnité compensatrice de congés payés a été calculée selon la "
                 f"règle du 1/10e ({_euros_fr(montant)}), plus favorable que le maintien "
                 f"de salaire ({_euros_fr(maintien)})."
             )
-        elif methode == "l1243_8":
+        elif methode in ("dixieme_global", "l1243_8"):
+            # « l1243_8 » : dossiers calculés avant le 11/10/2026.
             bulletin_base["arbitrage_conges"] = (
                 f"L'indemnité compensatrice de congés payés (CDD) retenue : "
                 f"{_euros_fr(montant)} (règle des 10 % de la rémunération totale du contrat)."

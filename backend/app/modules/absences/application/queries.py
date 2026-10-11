@@ -587,10 +587,18 @@ def _date_de_sortie(employee_id: str) -> date | None:
 
 
 def get_absence_balances_for_payslip(
-    employee_id: str, year: int, month: int, date_fin_prises: date | None = None
+    employee_id: str,
+    year: int,
+    month: int,
+    date_fin_prises: date | None = None,
+    date_de_sortie: date | None = None,
 ) -> dict[str, object] | None:
     """Soldes affichés sur le bulletin : acquis à la fin du mois de paie, congés
-    pris jusqu'à la fin de la fenêtre des variables (`date_fin_prises`)."""
+    pris jusqu'à la fin de la fenêtre des variables (`date_fin_prises`).
+
+    `date_de_sortie` : le dernier jour d'un départ connu de l'appelant (dossier
+    de départ calculé avant que la fiche ne le porte) ; à défaut, celui de la
+    fiche."""
     hire_date = _parse_hire_date(employee_id)
     if not hire_date:
         return None
@@ -599,7 +607,7 @@ def get_absence_balances_for_payslip(
     # Rien ne s'acquiert après la sortie : une fin de CDD au 15/09 acquérait
     # jusqu'au 30/09 (8,33 jours au lieu de ce qui est dû au 15/09), et faussait
     # l'indemnité de congés du solde de tout compte.
-    sortie = _date_de_sortie(employee_id)
+    sortie = date_de_sortie if date_de_sortie is not None else _date_de_sortie(employee_id)
     sortie_dans_le_mois: date | None = None
     if sortie is not None and sortie < ref_date:
         ref_date = sortie

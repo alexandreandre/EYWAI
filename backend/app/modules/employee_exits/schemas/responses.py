@@ -238,12 +238,15 @@ class ChecklistItem(BaseModel):
 
 
 class IccpDetails(BaseModel):
-    """Détail de l'arbitrage ICCP (maintien vs 1/10e)."""
+    """Détail de l'indemnité compensatrice de congés : par période de référence
+    (règle du bulletin de sortie), ou arbitrage global en repli."""
 
     methode_retenue: Optional[str] = None
+    periodes: Optional[List[Dict[str, Any]]] = None
+    mention: Optional[str] = None
+    valeur_jour: Optional[float] = None
     indemnite_maintien: Optional[float] = None
     indemnite_dixieme: Optional[float] = None
-    iccp_l1243_8: Optional[float] = None
     taux_journalier: Optional[float] = None
     base_reference_dixieme: Optional[float] = None
     prime_precarite_incluse: Optional[float] = None

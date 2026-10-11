@@ -11,6 +11,7 @@ from app.core.logging import get_logger, log_payroll_debug
 
 logger = get_logger("modules.payroll.engine.calcul_indemnites_sortie")
 
+from calendar import monthrange
 from typing import Any, Dict, Optional
 from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
@@ -20,11 +21,22 @@ from app.modules.payroll.engine.iccp_arbitrage import (
     arbitrer_iccp_complet,
     lire_parametres_conges,
 )
+from app.modules.payroll.engine.iccp_fin_contrat import (
+    PeriodeConges,
+    indemnite_fin_de_contrat,
+    valeur_jour_maintien,
+)
 from app.modules.payroll.engine.reference_remuneration import (
     calculer_base_reference_dixieme,
-    calculer_iccp_l1243_8,
     estimer_extras_fin_contrat,
+    lire_brut_reference_depuis_cumuls,
     lire_brut_total_contrat,
+)
+from app.modules.payroll.engine.salaire_contractuel import (
+    heures_mensuelles_legales,
+    heures_sup_structurelles_mensuelles,
+    salaire_contractuel_total_hors_hs_mode,
+    salaire_hors_hs_structurelles,
 )
 
 
@@ -353,9 +365,120 @@ def _charger_baremes_paie(supabase_client) -> dict:
     return assembler_baremes(db_baremes, conventions)
 
 
-def _conges_par_periode_a_la_sortie(employee_id, exit_date, supabase_client):
-    """À écrire (H8d)."""
-    return None
+#: Majoration des heures structurelles au-delà de 35 h, pour la valeur d'un
+#: jour au maintien (celle du bulletin à défaut d'un taux société).
+MAJORATION_HS_STRUCTURELLES = 0.25
+
+
+def _cumuls_du_mois_precedent(employee_id: str, exit_date: date, supabase_client) -> dict | None:
+    an, mois = (exit_date.year, exit_date.month - 1) if exit_date.month > 1 else (exit_date.year - 1, 12)
+    lignes = (
+        supabase_client.table("employee_schedules")
+        .select("cumuls")
+        .match({"employee_id": employee_id, "year": an, "month": mois})
+        .execute()
+        .data
+    ) or []
+    return (lignes[0].get("cumuls") if lignes else None) or None
+
+
+def _conges_par_periode_a_la_sortie(
+    employee_id: str, exit_date: date, supabase_client
+) -> Optional[Dict[str, Any]]:
+    """Les compteurs de congés par période au jour de la sortie et la
+    rémunération des périodes, lus comme le bulletin de sortie les lit
+    (`payslip_run_heures.cp_fin_de_contrat`). None sans compteurs : le dossier
+    retombe alors sur l'estimation globale, comme le bulletin sur son repli."""
+    from app.modules.absences.application.queries import get_absence_balances_for_payslip
+    from app.modules.payroll.documents.payslip_run_heures import (
+        _brut_de_la_periode_precedente,
+        periodes_depuis_compteurs,
+    )
+
+    try:
+        compteurs = get_absence_balances_for_payslip(
+            employee_id, exit_date.year, exit_date.month, date_de_sortie=exit_date
+        )
+        cumuls = _cumuls_du_mois_precedent(employee_id, exit_date, supabase_client)
+    except Exception:
+        logger.warning(
+            "Compteurs de congés par période illisibles pour le dossier de départ (%s)",
+            employee_id,
+            exc_info=True,
+        )
+        return None
+    return periodes_depuis_compteurs(
+        compteurs,
+        brut_periode_precedente=_brut_de_la_periode_precedente(employee_id, cumuls),
+        brut_en_cours_avant_mois=lire_brut_reference_depuis_cumuls(cumuls),
+    )
+
+
+def _salaire_habituel_et_taux_horaire(
+    employee_data: Dict[str, Any], salaire_base: float
+) -> tuple[float, float, float]:
+    """(salaire mensuel habituel, taux horaire de base, durée hebdomadaire) :
+    le salaire d'un mois complet, heures structurelles majorées comprises
+    quand la fiche porte un salaire hors heures structurelles."""
+    try:
+        duree = float(employee_data.get("duree_hebdomadaire") or 35.0)
+    except (TypeError, ValueError):
+        duree = 35.0
+    if duree <= 0:
+        duree = 35.0
+    if salaire_base <= 0:
+        return 0.0, 0.0, duree
+    if duree <= 35.0:
+        heures = round(duree * 52 / 12, 2)
+        return salaire_base, salaire_base / heures, duree
+    if salaire_hors_hs_structurelles(employee_data):
+        mensuel = salaire_contractuel_total_hors_hs_mode(
+            salaire_base, duree, MAJORATION_HS_STRUCTURELLES
+        )
+        return mensuel, salaire_base / heures_mensuelles_legales(), duree
+    heures_equivalentes = heures_mensuelles_legales() + heures_sup_structurelles_mensuelles(duree) * (
+        1 + MAJORATION_HS_STRUCTURELLES
+    )
+    return salaire_base, salaire_base / heures_equivalentes, duree
+
+
+def _prorata_du_mois_de_sortie(hire_date: date, exit_date: date) -> float:
+    jours_du_mois = monthrange(exit_date.year, exit_date.month)[1]
+    premier = hire_date.day if (hire_date.year, hire_date.month) == (exit_date.year, exit_date.month) else 1
+    return max(0.0, (exit_date.day - premier + 1) / jours_du_mois)
+
+
+def _iccp_par_periode(
+    periodes_cfg: Dict[str, Any],
+    *,
+    brut_du_mois: float,
+    taux: float,
+    valeur_jour: float,
+):
+    """La règle du bulletin (calcul_brut._iccp_legale_par_periode) : le brut du
+    mois de sortie s'ajoute à la période en cours."""
+    periodes = []
+    precedente = periodes_cfg.get("periode_precedente")
+    if isinstance(precedente, dict):
+        periodes.append(
+            PeriodeConges(
+                libelle=str(precedente.get("libelle") or "période précédente"),
+                brut=None if precedente.get("brut") is None else float(precedente["brut"]),
+                droits=float(precedente.get("droits") or 0.0),
+                restants=float(precedente.get("restants") or 0.0),
+            )
+        )
+    en_cours = periodes_cfg.get("periode_en_cours")
+    if isinstance(en_cours, dict):
+        periodes.append(
+            PeriodeConges(
+                libelle=str(en_cours.get("libelle") or "période en cours"),
+                brut=round(float(en_cours.get("brut_avant_mois") or 0.0) + brut_du_mois, 2),
+                droits=float(en_cours.get("droits") or 0.0),
+                restants=float(en_cours.get("restants") or 0.0),
+            )
+        )
+    return indemnite_fin_de_contrat(periodes, taux=taux, valeur_jour=valeur_jour), periodes
 
 
 def calculer_indemnite_conges_restants(
@@ -398,16 +521,6 @@ def calculer_indemnite_conges_restants(
     cp_pris = 0.0
     alertes: list[str] = []
 
-    if employee_id and supabase_client:
-        solde = get_cp_solde_a_la_sortie(str(employee_id), exit_date, supabase_client)
-        if solde:
-            jours_restants = solde.jours_restants
-            cp_acquis = solde.conges_acquis
-            cp_pris = solde.conges_pris
-            log_payroll_debug(logger, f'    Congés acquis: {cp_acquis} jours')
-            log_payroll_debug(logger, f'    Congés pris: {cp_pris} jours')
-            log_payroll_debug(logger, f'    Solde restant: {jours_restants} jours')
-
     baremes = employee_data.get("baremes") or {}
     if not baremes and supabase_client:
         # Sans barèmes, l'indemnité sortait au légal seul, sans rien dire : une
@@ -440,6 +553,41 @@ def calculer_indemnite_conges_restants(
 
     params = lire_parametres_conges(baremes)
     taux_journalier = salaire_base / params["taux_journalier_diviseur"] if salaire_base > 0 else 0.0
+
+    # La règle du bulletin de sortie : par période de référence, sur les jours
+    # restants, le plus favorable du dixième et du maintien. Le dossier n'en est
+    # qu'une estimation (le brut du mois de sortie n'est pas encore connu) ;
+    # le bulletin la recalcule sur le brut réel.
+    periodes_cfg = (
+        _conges_par_periode_a_la_sortie(str(employee_id), exit_date, supabase_client)
+        if employee_id and supabase_client
+        else None
+    )
+    if periodes_cfg:
+        return _indemnite_conges_par_periode(
+            periodes_cfg,
+            employee_data=employee_data,
+            salaire_base=salaire_base,
+            hire_date=hire_date,
+            exit_date=exit_date,
+            baremes=baremes,
+            params=params,
+            is_cdd=is_cdd,
+            is_interim=is_interim,
+            extras=round(montant_precarite + montant_ifm, 2),
+            alertes=alertes,
+        )
+
+    # Repli : le solde global à la date de sortie et l'arbitrage d'ensemble.
+    if employee_id and supabase_client:
+        solde = get_cp_solde_a_la_sortie(str(employee_id), exit_date, supabase_client)
+        if solde:
+            jours_restants = solde.jours_restants
+            cp_acquis = solde.conges_acquis
+            cp_pris = solde.conges_pris
+            log_payroll_debug(logger, f'    Congés acquis: {cp_acquis} jours')
+            log_payroll_debug(logger, f'    Congés pris: {cp_pris} jours')
+            log_payroll_debug(logger, f'    Solde restant: {jours_restants} jours')
 
     start_month = 6
     company_id = employee_data.get("company_id")
@@ -501,49 +649,40 @@ def calculer_indemnite_conges_restants(
     )
 
     indemnite = arbitrage.montant_final
-    iccp_l1243_8 = None
+    methode_label = "maintien" if arbitrage.methode_retenue == "maintien" else "dixieme"
 
     if (is_cdd or is_interim) and supabase_client and employee_id:
-        brut_l1243 = brut_total_contrat
-        prec_l1243 = montant_precarite
-        ifm_l1243 = montant_ifm
-        if brut_l1243 <= 0:
-            brut_l1243 = max(ref_rem.base_totale - ref_rem.prime_precarite_incluse, 0.0)
-            if prec_l1243 <= 0:
-                prec_l1243 = ref_rem.prime_precarite_incluse
-        iccp_l1243_8 = calculer_iccp_l1243_8(
-            brut_l1243,
-            montant_precarite=prec_l1243,
-            montant_ifm=ifm_l1243,
-        )
-        if iccp_l1243_8 > indemnite:
-            indemnite = iccp_l1243_8
-            arbitrage.methode_retenue = "dixieme"
-
-    methode_label = (
-        "maintien"
-        if arbitrage.methode_retenue == "maintien"
-        else "dixieme"
-    )
-    if iccp_l1243_8 is not None and iccp_l1243_8 >= indemnite and jours_restants == 0:
-        methode_label = "l1243_8"
+        # Repli d'une fin de CDD ou de mission sans compteurs : le dixième de
+        # toute la rémunération du contrat, précarité comprise — le repli du
+        # bulletin (`dixieme_global`). Le plus favorable des deux est retenu.
+        brut_contrat = brut_total_contrat
+        extras = montant_precarite + montant_ifm
+        if brut_contrat <= 0:
+            brut_contrat = max(ref_rem.base_totale - ref_rem.prime_precarite_incluse, 0.0)
+            if extras <= 0:
+                extras = ref_rem.prime_precarite_incluse
+        base_contrat = brut_contrat + max(extras, 0.0)
+        dixieme_contrat = round(base_contrat * params["taux_dixieme"], 2) if base_contrat > 0 else 0.0
+        if dixieme_contrat >= indemnite and dixieme_contrat > 0:
+            indemnite = dixieme_contrat
+            methode_label = "dixieme_global"
 
     log_payroll_debug(logger, f'    Indemnité (maintien): {arbitrage.indemnite_maintien:.2f} €')
     log_payroll_debug(logger, f'    Indemnité (1/10ème): {arbitrage.indemnite_dixieme:.2f} €')
-    if iccp_l1243_8 is not None:
-        log_payroll_debug(logger, f'    Indemnité L1243-8: {iccp_l1243_8:.2f} €')
     log_payroll_debug(logger, f'    Indemnité retenue: {indemnite:.2f} €')
 
+    libelles = {
+        "maintien": "maintien",
+        "dixieme": "1/10ème",
+        "dixieme_global": "1/10ème de la rémunération du contrat",
+    }
     calcul_txt = (
-        f"{jours_restants} jours restants — méthode "
-        f"{'maintien' if methode_label == 'maintien' else '1/10ème' if methode_label == 'dixieme' else 'L1243-8'} "
+        f"{jours_restants} jours restants — méthode {libelles[methode_label]} "
         f"retenue = {indemnite:.2f} € "
         f"(maintien: {arbitrage.indemnite_maintien:.2f} €, "
-        f"1/10ème: {arbitrage.indemnite_dixieme:.2f} €"
+        f"1/10ème: {arbitrage.indemnite_dixieme:.2f} €) — estimation globale, "
+        "compteurs de congés par période indisponibles"
     )
-    if iccp_l1243_8 is not None:
-        calcul_txt += f", L1243-8: {iccp_l1243_8:.2f} €"
-    calcul_txt += ")"
 
     return {
         "montant": round(indemnite, 2),
@@ -555,7 +694,6 @@ def calculer_indemnite_conges_restants(
             "methode_retenue": methode_label,
             "indemnite_maintien": arbitrage.indemnite_maintien,
             "indemnite_dixieme": arbitrage.indemnite_dixieme,
-            "iccp_l1243_8": iccp_l1243_8,
             "taux_journalier": round(taux_journalier, 4),
             "base_reference_dixieme": ref_rem.base_totale,
             "prime_precarite_incluse": ref_rem.prime_precarite_incluse,
@@ -564,6 +702,74 @@ def calculer_indemnite_conges_restants(
             "conges_acquis": cp_acquis,
             "conges_pris": cp_pris,
             "alertes": arbitrage.alertes,
+        },
+    }
+
+
+def _indemnite_conges_par_periode(
+    periodes_cfg: Dict[str, Any],
+    *,
+    employee_data: Dict[str, Any],
+    salaire_base: float,
+    hire_date: date,
+    exit_date: date,
+    baremes: dict,
+    params: Dict[str, float],
+    is_cdd: bool,
+    is_interim: bool,
+    extras: float,
+    alertes: list,
+) -> Dict[str, Any]:
+    """Estimation du dossier par la règle du bulletin (engine/iccp_fin_contrat).
+
+    Brut du mois de sortie estimé au salaire habituel au prorata des jours du
+    mois sous contrat ; précarité ou fin de mission ajoutées au brut de la
+    période en cours, comme au bulletin."""
+    salaire_habituel, taux_horaire, duree = _salaire_habituel_et_taux_horaire(
+        employee_data, salaire_base
+    )
+    brut_mois = round(salaire_habituel * _prorata_du_mois_de_sortie(hire_date, exit_date), 2)
+    if is_cdd or is_interim:
+        cle = "interim" if is_interim else "cdd"
+        cfg = (baremes.get(cle, {}) or {}).get("indemnite_conges", {}) or {}
+        taux = float(cfg.get("taux", 0.10))
+    else:
+        taux = float(params["taux_dixieme"])
+    valeur_jour = (
+        valeur_jour_maintien(taux_horaire, duree, MAJORATION_HS_STRUCTURELLES)
+        if taux_horaire > 0
+        else 0.0
+    )
+    resultat, periodes = _iccp_par_periode(
+        periodes_cfg,
+        brut_du_mois=round(brut_mois + max(extras, 0.0), 2),
+        taux=taux,
+        valeur_jour=valeur_jour,
+    )
+    jours_restants = round(sum(max(p.restants, 0.0) for p in periodes), 2)
+    droits = round(sum(p.droits for p in periodes), 2)
+    resume = resultat.resume()
+    return {
+        "montant": resultat.total,
+        "jours_restants": jours_restants,
+        "salaire_reference": salaire_base,
+        "description": "Indemnité compensatrice de congés payés",
+        "calcul": resultat.mention or "Aucun jour de congé restant.",
+        "details": {
+            "methode_retenue": "par_periode",
+            "periodes": resume["periodes"],
+            "mention": resume["mention"],
+            "taux": taux,
+            "valeur_jour": resume["valeur_jour"],
+            "brut_mois_de_sortie_estime": brut_mois,
+            "prime_precarite_incluse": round(max(extras, 0.0), 2),
+            "source_solde": "absences.get_absence_balances_for_payslip",
+            "conges_acquis": droits,
+            "conges_pris": round(droits - jours_restants, 2),
+            "alertes": list(alertes)
+            + [
+                "Estimation : le bulletin de sortie recalcule l'indemnité sur le brut réel du mois."
+            ],
         },
     }
 

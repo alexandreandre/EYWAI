@@ -242,7 +242,10 @@ def compute_conges_section(
     methode_labels = {
         "maintien": "maintien de salaire",
         "dixieme": "1/10e",
-        "l1243_8": "10 % contrat (CDD)",
+        "par_periode": "par période, le plus favorable du 1/10e et du maintien",
+        "dixieme_global": "1/10e de la rémunération du contrat",
+        # Dossiers calculés avant le 11/10/2026.
+        "l1243_8": "1/10e de la rémunération du contrat",
     }
     cp_acquis = details_conges.get("conges_acquis") if details_conges else None
     cp_pris = details_conges.get("conges_pris") if details_conges else None
