@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { avertissementSoldeInsuffisantRh } from "@/lib/employeeAbsencesUtils";
+import { avertissementSoldeInsuffisantRh, libelleTypeArret, formatQuantiteFr } from "@/lib/employeeAbsencesUtils";
+import { pluriel } from "@/lib/pluriel";
 
 /** Défauts d'écran relevés au rejeu (lot 22). Les gardes lisent le source. */
 const SRC = path.resolve(__dirname, "..");
@@ -50,5 +51,47 @@ describe("Temps de travail & HS : onglet du contingent", () => {
   it("la ligne des pauses n'apparaît que si elle est non nulle", () => {
     expect(t).not.toMatch(/\{" ?\}?<p>Pauses/);
     expect(t).toMatch(/Math\.abs\(row\.pause_deduction\) >= 0\.005 && \( <p>Pauses/);
+  });
+});
+
+describe("Carte Compensation des heures entre semaines", () => {
+  it("dit que l'option ne s'applique pas au temps partiel (heures complémentaires)", () => {
+    const t = lire("features/company/components/CompensationSemainesSettingsCard.tsx");
+    expect(t).toMatch(/temps partiel/);
+    expect(t).toMatch(/heures complémentaires/);
+  });
+});
+
+describe("Page des absences : colonne des soldes", () => {
+  const t = lire("pages/rh/Absences.tsx");
+  it("le libellé dit ce qu'il montre : le solde d'aujourd'hui", () => {
+    expect(t).not.toContain("Solde Restant");
+    expect(t).toContain("<TableHead>Solde aujourd&apos;hui</TableHead>");
+  });
+  it("les soldes s'écrivent à la française (40,50 j), jamais avec un point", () => {
+    expect(t).not.toMatch(/\{remaining\} (j|h)/);
+    expect(t).not.toMatch(/\{balanceAfterApproval\} j/);
+    expect(t).toContain("formatQuantiteFr(remaining");
+    expect(formatQuantiteFr(40.5)).toBe("40,50 j");
+  });
+});
+
+describe("Détail du maintien de salaire", () => {
+  it("affiche le nombre de jours de carence, accordé", () => {
+    expect(pluriel(3, "jour")).toBe("3 jours");
+    expect(pluriel(1, "jour")).toBe("1 jour");
+    expect(pluriel(0, "jour")).toBe("0 jour");
+    for (const f of ["components/payslip/MaintenanceDetailModal.tsx", "components/absences/MaintenancePreviewBlock.tsx"]) {
+      const t = lire(f);
+      expect(t).not.toMatch(/Carence (SS|employeur) : \{accord\(/);
+      expect(t).toMatch(/Carence SS : \{pluriel\(carence\.carence_ss_jours, 'jour'\)\}/);
+      expect(t).toMatch(/Carence employeur : \{pluriel\(carence\.carence_employeur_jours, 'jour'\)\}/);
+    }
+  });
+  it("affiche le type d'arrêt en français, celui de la fenêtre de saisie", () => {
+    expect(libelleTypeArret("maladie_simple")).toBe("Maladie simple");
+    expect(libelleTypeArret("accident_trajet")).toBe("Accident de trajet");
+    expect(libelleTypeArret("code_inconnu")).toBe("code_inconnu");
+    expect(lire("components/payslip/MaintenanceDetailModal.tsx")).toContain("libelleTypeArret(maintien.type_arret)");
   });
 });
