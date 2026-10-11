@@ -336,7 +336,7 @@ def calculer_salaire_brut_forfait(
             retenues_absence_mois += montant_deduction
             lignes_composants_brut.append(
                 {
-                    "libelle": f"Absence injustifiée du {date_absence} ({_format_jours_conges(jours_abs)} jour{'s' if jours_abs > 1 else ''})",
+                    "libelle": f"Absence injustifiée du {date_absence} ({_format_jours_conges(jours_abs)})",
                     "quantite": jours_abs,
                     "taux": round(salaire_journalier_absence, 4),
                     "gain": None,
@@ -354,7 +354,7 @@ def calculer_salaire_brut_forfait(
             retenues_absence_mois += montant_deduction
             lignes_composants_brut.append(
                 {
-                    "libelle": f"Absence non rémunérée du {date_absence} ({_format_jours_conges(jours_abs)} jour{'s' if jours_abs > 1 else ''})",
+                    "libelle": f"Absence non rémunérée du {date_absence} ({_format_jours_conges(jours_abs)})",
                     "quantite": jours_abs,
                     "taux": round(salaire_journalier_absence, 4),
                     "gain": None,
