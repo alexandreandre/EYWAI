@@ -84,10 +84,12 @@ def test_le_maintien_avale_se_signale_heures_et_forfait():
 
 
 def test_la_sortie_illisible_est_signalee_par_les_deux_calculs():
-    for module in (payslip_run_heures, payslip_run_forfait):
-        source = inspect.getsource(module)
-        appel = source.index("= resolve_exit_state_for_payslip(")
-        assert "alertes=contexte.alertes_baremes" in source[appel : appel + 400], module.__name__
+    source = inspect.getsource(payslip_run_heures)
+    appel = source.index("= resolve_exit_state_for_payslip(")
+    assert "alertes=contexte.alertes_baremes" in source[appel : appel + 400]
+    # Le forfait jours pose le départ du mois par la même fonction (annexe B).
+    assert "poser_le_depart_du_mois(" in inspect.getsource(payslip_run_forfait)
+    assert "resolve_exit_state_for_payslip(" not in inspect.getsource(payslip_run_forfait)
 
 
 def test_les_generateurs_gardent_les_acomptes_et_ne_retiennent_plus_les_avances():

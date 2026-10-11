@@ -47,14 +47,13 @@ from app.modules.payroll.engine.contexte import ContextePaie
 from .payslip_run_common import (
     creer_calendrier_etendu,
     definir_periode_de_paie,
-    ecarter_iccp_du_dossier_pour_fin_cdd,
     mettre_a_jour_cumuls,
     prefetch_jours_maintien_prime,
-    resolve_exit_state_for_payslip,
 )
 from .payslip_run_heures import (
     _appliquer_maintien_arret_maladie,
     _extraire_arret_pour_maintien,
+    poser_le_depart_du_mois,
 )
 from app.modules.payroll.infrastructure.salaires_de_reference import (
     poser_salaires_de_reference,
@@ -259,15 +258,18 @@ def run_payslip_generation_forfait(
     contexte.date_debut_periode = date_debut_periode
     contexte.date_fin_periode = date_fin_periode
     if resolved_employee_id:
-        contexte.exit_indemnities, contexte.block_iccp_cdd = resolve_exit_state_for_payslip(
+        # Comme au moteur des heures : indemnités du dossier, et compteurs de
+        # congés pour l'indemnité compensatrice (règle légale par période).
+        poser_le_depart_du_mois(
+            contexte,
             str(resolved_employee_id),
             year,
             month,
-            date_debut_periode=date_debut_periode,
-            date_fin_periode=date_fin_periode,
-            alertes=contexte.alertes_baremes,
+            date_debut_periode,
+            date_fin_periode,
         )
-        ecarter_iccp_du_dossier_pour_fin_cdd(contexte, date_debut_periode, date_fin_periode)
+    else:
+        contexte.cp_fin_de_contrat = None
     logging.info(
         "Période de paie forfait : %s - %s",
         date_debut_periode.strftime("%d/%m/%Y"),

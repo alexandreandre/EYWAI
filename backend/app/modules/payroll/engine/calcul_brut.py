@@ -471,17 +471,22 @@ def _iccp_legale_par_periode(
     taux: float,
     taux_horaire_base: float | None,
     majoration_hs25: float | None,
+    valeur_jour: float | None = None,
 ) -> Any:
     """Règle légale : par période de référence, sur les jours restants, dixième
     contre maintien (engine/iccp_fin_contrat). Le run a posé les compteurs et la
     rémunération des périodes ; le brut du mois de sortie s'ajoute ici à la
-    période en cours. None sans compteurs ou sans taux horaire."""
+    période en cours. None sans compteurs ou sans taux horaire.
+
+    `valeur_jour` : la valeur d'un jour de congé quand elle ne se déduit pas
+    d'un horaire (forfait jours : le salaire / 21,67)."""
     periodes_cfg = getattr(contexte, "cp_fin_de_contrat", None)
-    if not (isinstance(periodes_cfg, dict) and periodes_cfg and taux_horaire_base):
+    if not (isinstance(periodes_cfg, dict) and periodes_cfg and (taux_horaire_base or valeur_jour)):
         return None
-    valeur_jour = valeur_jour_maintien(
-        taux_horaire_base, contexte.duree_hebdo_contrat, float(majoration_hs25 or 0.0)
-    )
+    if valeur_jour is None:
+        valeur_jour = valeur_jour_maintien(
+            taux_horaire_base, contexte.duree_hebdo_contrat, float(majoration_hs25 or 0.0)
+        )
     periodes: List[PeriodeConges] = []
     precedente = periodes_cfg.get("periode_precedente")
     if isinstance(precedente, dict):
@@ -534,6 +539,7 @@ def _calculer_iccp_depart(
     *,
     taux_horaire_base: float | None = None,
     majoration_hs25: float | None = None,
+    valeur_jour: float | None = None,
 ) -> tuple[bool, Dict[str, Any] | None]:
     """Départ autre qu'une fin de CDD ou de mission (démission, licenciement,
     rupture, retraite, fin de période d'essai) : la même règle légale par
@@ -551,7 +557,7 @@ def _calculer_iccp_depart(
     # quelle que soit la cause de la rupture (C. trav. L3141-28).
     taux = lire_parametres_conges(contexte.baremes)["taux_dixieme"]
     resultat = _iccp_legale_par_periode(
-        contexte, brut_du_mois, taux, taux_horaire_base, majoration_hs25
+        contexte, brut_du_mois, taux, taux_horaire_base, majoration_hs25, valeur_jour
     )
     if resultat is None:
         return False, None
@@ -577,6 +583,7 @@ def _calculer_iccp_cdd(
     lignes_brut: List[Dict[str, Any]] | None = None,
     taux_horaire_base: float | None = None,
     majoration_hs25: float | None = None,
+    valeur_jour: float | None = None,
 ) -> Dict[str, Any] | None:
     """Indemnité compensatrice de congés payés (dernier mois), méthode du 1/10e.
 
@@ -621,7 +628,7 @@ def _calculer_iccp_cdd(
     )
     brut_du_mois = salaire_brut_hors_precarite + max(montant_precarite, 0.0)
     resultat = _iccp_legale_par_periode(
-        contexte, brut_du_mois, taux, taux_horaire_base, majoration_hs25
+        contexte, brut_du_mois, taux, taux_horaire_base, majoration_hs25, valeur_jour
     )
     quantite_affichee, taux_affiche = None, taux
     if resultat is not None:

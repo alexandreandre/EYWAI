@@ -19,6 +19,11 @@ from typing import Dict, Any, List, Optional
 from app.shared.domain.employment_rules import is_cadre
 from .calcul_conges import calculer_indemnite_conges
 from .calcul_brut import (
+    LIBELLE_ICCP_DEPART,
+    _calculer_iccp_cdd,
+    _calculer_iccp_depart,
+    _calculer_ifm_interim,
+    _calculer_prime_precarite_cdd,
     _format_jours_conges,
     _jour_ferie_est_paye,
     _jours_evenement_conges,
@@ -175,6 +180,66 @@ def _calculer_deduction_absence_forfait_jour(
         "gain": None,
         "perte": montant_deduction,
     }
+
+
+def _brut_des_lignes(lignes: List[Dict[str, Any]], salaire_contractuel: float) -> float:
+    """Le brut des lignes, comme le total plus bas : retenues plafonnées au
+    salaire du forfait, jamais négatif."""
+    gains = sum(l.get("gain", 0.0) or 0.0 for l in lignes if not l.get("is_sous_total"))
+    pertes = min(sum(l.get("perte", 0.0) or 0.0 for l in lignes), salaire_contractuel)
+    return max(gains - pertes, 0.0)
+
+
+def _ajouter_lignes_de_fin_de_contrat(
+    contexte: ContextePaie,
+    lignes: List[Dict[str, Any]],
+    *,
+    salaire_contractuel: float,
+    valeur_jour: float,
+    date_debut_periode: date,
+    date_fin_periode: date,
+) -> None:
+    brut_hors_precarite = _brut_des_lignes(lignes, salaire_contractuel)
+    montant_fin = 0.0
+    ligne_precarite = _calculer_prime_precarite_cdd(
+        contexte, brut_hors_precarite, date_debut_periode, date_fin_periode
+    )
+    if ligne_precarite:
+        lignes.append(ligne_precarite)
+        montant_fin = ligne_precarite.get("gain", 0.0) or 0.0
+    ligne_ifm = _calculer_ifm_interim(
+        contexte, brut_hors_precarite, date_debut_periode, date_fin_periode
+    )
+    if ligne_ifm:
+        lignes.append(ligne_ifm)
+        montant_fin = ligne_ifm.get("gain", 0.0) or 0.0
+    ligne_iccp = _calculer_iccp_cdd(
+        contexte,
+        brut_hors_precarite,
+        montant_fin,
+        date_debut_periode,
+        date_fin_periode,
+        lignes_brut=lignes,
+        valeur_jour=valeur_jour,
+    )
+    if ligne_iccp:
+        lignes.append(ligne_iccp)
+    iccp_legale_calculee, ligne_iccp_depart = _calculer_iccp_depart(
+        contexte,
+        brut_hors_precarite,
+        date_debut_periode,
+        date_fin_periode,
+        valeur_jour=valeur_jour,
+    )
+    if ligne_iccp_depart:
+        lignes.append(ligne_iccp_depart)
+    # Indemnités du dossier de départ soumises à cotisations (préavis, congés
+    # payés) : dans le brut, pas après les cotisations ; l'indemnité de congés
+    # du dossier cède la place à la règle par période quand elle a été calculée.
+    lignes_sortie = lignes_indemnites_sortie_soumises(contexte)
+    if iccp_legale_calculee:
+        lignes_sortie = [l for l in lignes_sortie if l.get("libelle") != LIBELLE_ICCP_DEPART]
+    lignes.extend(lignes_sortie)
 
 
 def calculer_salaire_brut_forfait(
@@ -535,10 +600,17 @@ def calculer_salaire_brut_forfait(
     for ligne_rappel in lignes_rappel_salaire(contexte):
         lignes_composants_brut.append(ligne_rappel)
 
-    # Calcul du brut total
-    # Indemnités du dossier de départ soumises à cotisations (préavis, congés
-    # payés) : dans le brut, pas après les cotisations.
-    lignes_composants_brut.extend(lignes_indemnites_sortie_soumises(contexte))
+    # Fin de contrat : précarité, fin de mission et indemnité compensatrice de
+    # congés, par les mêmes calculs que le moteur des heures. Un jour de congé
+    # vaut ici le salaire / 21,67, la valeur des congés au forfait.
+    _ajouter_lignes_de_fin_de_contrat(
+        contexte,
+        lignes_composants_brut,
+        salaire_contractuel=salaire_contractuel,
+        valeur_jour=salaire_journalier,
+        date_debut_periode=date_debut_periode,
+        date_fin_periode=date_fin_periode,
+    )
 
     total_gains = sum(
         ligne.get("gain", 0.0) or 0.0
