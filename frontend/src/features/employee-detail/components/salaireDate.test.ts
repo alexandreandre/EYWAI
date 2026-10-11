@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  avertissementSalaireNonDate,
   dateEffetParDefaut,
+  texteSalaireActuel,
   erreursChangementSalaire,
   messageSalaireEnregistre,
   salaireApplique,
@@ -75,5 +77,46 @@ describe('messageSalaireEnregistre', () => {
       'Salaire de base : 2 100,00 € à compter du 01/11/2026. ' +
         'D’ici là, la fiche garde le salaire actuel.',
     );
+  });
+});
+
+/**
+ * Salarié sans historique de salaire (vidéo G, 11/10/2026) : « Changer le
+ * salaire » n'apparaissait pas, et changer le champ de la fiche remplaçait le
+ * salaire sans date ni rappel, sans un mot. Le bouton est proposé aussi sans
+ * historique (la première ligne part du salaire actuel) ; le champ direct dit
+ * ce qu'il fait.
+ */
+describe('salaire sans historique', () => {
+  it('le texte du bouton dit que le changement daté part du salaire actuel', () => {
+    expect(texteSalaireActuel(2100, false)).toBe(
+      'Salaire de base actuel : 2 100,00 €. Aucun historique de salaire : « Changer le salaire » ' +
+        'en ouvre un à partir de ce salaire, avec une date d’effet et le rappel des mois déjà payés.',
+    );
+  });
+
+  it('avec un historique, le texte reste celui de l’historique', () => {
+    expect(texteSalaireActuel(2100, true)).toBe(
+      'Salaire de base actuel : 2 100,00 €. Il suit l’historique des salaires : il se change avec une date d’effet.',
+    );
+  });
+
+  it('un salaire inconnu ne s’écrit pas « NaN »', () => {
+    expect(texteSalaireActuel(null, true)).toBe(
+      'Salaire de base actuel : —. Il suit l’historique des salaires : il se change avec une date d’effet.',
+    );
+  });
+
+  it('changé dans le champ de la fiche, le salaire n’est pas daté et ne fait pas de rappel', () => {
+    expect(avertissementSalaireNonDate(2100, 2200)).toBe(
+      'Changé ici, le salaire n’est pas daté : il remplace 2 100,00 € sur tout bulletin recalculé, ' +
+        'sans rappel des mois déjà payés. Pour une augmentation à une date, utilisez « Changer le salaire ».',
+    );
+  });
+
+  it('rien à dire tant que le champ n’a pas changé', () => {
+    expect(avertissementSalaireNonDate(2100, 2100)).toBeNull();
+    expect(avertissementSalaireNonDate(2100, '')).toBeNull();
+    expect(avertissementSalaireNonDate(null, 2100)).toBeNull();
   });
 });
