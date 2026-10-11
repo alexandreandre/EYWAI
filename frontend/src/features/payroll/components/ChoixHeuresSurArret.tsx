@@ -1,3 +1,4 @@
+import { accord } from '@/lib/pluriel';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -92,7 +93,7 @@ export function ChoixHeuresSurArret({
           .sort((a, b) => a.annee - b.annee || a.mois - b.mois || a.jour - b.jour)
           .map((j) => (
             <li key={`${j.annee}-${j.mois}-${j.jour}`}>
-              {libelleDesJours([j])} : {j.heures.toLocaleString('fr-FR')} h saisies
+              {libelleDesJours([j])} : {j.heures.toLocaleString('fr-FR')} h {accord(j.heures, 'saisie')}
             </li>
           ))}
       </ul>
