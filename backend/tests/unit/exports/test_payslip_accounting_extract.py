@@ -476,3 +476,45 @@ class TestAcompteVerseDecompose:
             extract_elements_hors_brut(payslip), saisies
         )
         assert _par_famille(elements) == {"acompte_verse": -500.0}
+
+
+class TestFraisProfessionnelsSansFamilleConnue:
+    """Une indemnité de frais non soumise a désormais sa ligne au bulletin (D1),
+    au lieu de se fondre dans l'acompte. Son libellé ne dit pas toujours sa
+    famille (« Indemnité panier repas », « Indemnité forfaitaire dep. ») : la
+    ligne, marquée frais professionnels, va au compte des notes de frais plutôt
+    que de rester sans compte."""
+
+    def test_famille_des_notes_de_frais(self):
+        from app.modules.exports.domain.accounting_plan import FAMILLE_NOTE_DE_FRAIS
+        from app.modules.exports.infrastructure.payslip_accounting_extract import (
+            extract_elements_hors_brut,
+        )
+
+        elements = extract_elements_hors_brut(
+            {
+                "synthese_net": {},
+                "primes_non_soumises": [
+                    {
+                        "libelle": "Indemnité forfaitaire dep.",
+                        "montant": 100.0,
+                        "prime_id": "indemnité_forfaitaire_dep.",
+                        "frais_professionnels": True,
+                    }
+                ],
+            }
+        )
+
+        assert [(e["famille"], e["montant"]) for e in elements] == [(FAMILLE_NOTE_DE_FRAIS, 100.0)]
+
+    def test_une_prime_non_soumise_inconnue_reste_a_parametrer(self):
+        from app.modules.exports.domain.accounting_plan import FAMILLE_INCONNUE
+        from app.modules.exports.infrastructure.payslip_accounting_extract import (
+            extract_elements_hors_brut,
+        )
+
+        elements = extract_elements_hors_brut(
+            {"synthese_net": {}, "primes_non_soumises": [{"libelle": "Prime X", "montant": 10.0}]}
+        )
+
+        assert [e["famille"] for e in elements] == [FAMILLE_INCONNUE]
