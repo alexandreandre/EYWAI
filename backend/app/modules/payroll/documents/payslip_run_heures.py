@@ -66,6 +66,8 @@ from .payslip_run_common import (
     resolve_exit_state_for_payslip,
 )
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
+from app.modules.payroll.engine.ppv import classer_ppv, est_une_ppv
+from app.modules.payroll.documents.ppv_donnees import CLE_SAISIES as CLE_SAISIES_PPV
 
 
 def _appliquer_maintien_arret_maladie(
@@ -646,6 +648,15 @@ def run_payslip_generation_heures(
     heures_activite_partielle = 0.0
     catalogue_primes = {p["id"]: p for p in contexte.baremes["primes"]}
     effectif_entreprise = contexte.effectif
+    # PPV : données lues par le générateur (PPV de l'année, rémunération des
+    # 12 mois d'avant, accord d'intéressement). Sans bulletin d'avant, le
+    # salaire du mois tient lieu de rémunération moyenne.
+    donnees_ppv = saisie_du_mois.get(CLE_SAISIES_PPV)
+    if isinstance(donnees_ppv, dict) and donnees_ppv.get("remuneration_mensuelle_moyenne") is None:
+        donnees_ppv["remuneration_mensuelle_moyenne"] = contexte.salaire_base_mensuel
+    # Le Smic des 3 Smic : durée légale, sans heures sup, au prorata d'un temps partiel.
+    heures_mensuelles_ppv = min((contexte.duree_hebdo_contrat * 52) / 12, (lc.DUREE_LEGALE_HEBDO * 52) / 12)
+    lignes_cotisations_ppv: List[Dict[str, Any]] = []
 
     for cle in ["primes", "notes_de_frais", "autres"]:
         for saisie in saisie_du_mois.get(cle, []):
@@ -766,24 +777,28 @@ def run_payslip_generation_heures(
                 },
                 saisie,
             )
-            if prime_id == "prime_partage_valeur":
-                if effectif_entreprise >= 50:
-                    if soumise_cotis:
-                        primes_soumises.append(prime_calculee)
-                    else:
-                        primes_soumises_impot.append(prime_calculee)
-                else:
-                    if soumise_cotis:
-                        primes_soumises.append(prime_calculee)
-                    else:
-                        primes_non_soumises.append(prime_calculee)
+            if not soumise_cotis and est_une_ppv(prime_id, libelle):
+                # PPV, du catalogue ou saisie par son nom : effectif des seuils,
+                # 3 Smic, plafond annuel et nombre de primes (`engine.ppv`).
+                rangee = classer_ppv(
+                    prime_calculee,
+                    effectif=effectif_entreprise,
+                    donnees=donnees_ppv,
+                    smic_horaire=contexte.smic_horaire,
+                    heures_mensuelles=heures_mensuelles_ppv,
+                    annee=year,
+                )
+                primes_non_soumises.extend(rangee.non_soumises)
+                primes_soumises_impot.extend(rangee.soumises_impot)
+                primes_soumises.extend(rangee.soumises)
+                lignes_cotisations_ppv.extend(rangee.lignes_cotisations)
+                contexte.alertes_baremes.extend(rangee.alertes)
+            elif soumise_cotis:
+                primes_soumises.append(prime_calculee)
+            elif soumise_impot_par_defaut:
+                primes_soumises_impot.append(prime_calculee)
             else:
-                if soumise_cotis:
-                    primes_soumises.append(prime_calculee)
-                elif soumise_impot_par_defaut:
-                    primes_soumises_impot.append(prime_calculee)
-                else:
-                    primes_non_soumises.append(prime_calculee)
+                primes_non_soumises.append(prime_calculee)
 
     # --- Participation / intéressement (part numéraire) : régime CSG 9,7 % seule ---
     # Exonéré de cotisations sociales, soumis à CSG/CRDS (6,8 % déductible + 2,9 %
@@ -1115,6 +1130,10 @@ def run_payslip_generation_heures(
                 "is_participation": True,
             }
         )
+
+    # CSG/CRDS (et forfait social) des PPV non exonérées de tout : lignes du
+    # bulletin, hors du total des cotisations du salaire (comme la participation).
+    lignes_cotisations.extend(lignes_cotisations_ppv)
 
     duree_contrat_hebdo = contexte.duree_hebdo_contrat
     jours_ouvrables_du_mois = sum(

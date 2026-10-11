@@ -458,9 +458,10 @@ def indemnites_de_rupture(
 
 
 def _est_ppv(ligne: Dict[str, Any]) -> bool:
-    if str(ligne.get("prime_id") or "") == "prime_partage_valeur":
-        return True
-    return "partage de la valeur" in str(ligne.get("libelle") or "").lower()
+    # Même reconnaissance que le bulletin : par la nature, catalogue ou libellé.
+    from app.modules.payroll.engine.ppv import est_une_ppv
+
+    return est_une_ppv(ligne.get("prime_id"), ligne.get("libelle"))
 
 
 def primes_partage_valeur(payslip_data: Dict[str, Any]) -> List[Tuple[str, float]]:

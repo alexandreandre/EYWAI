@@ -357,6 +357,18 @@ def process_payslip_generation_forfait(
         if reports_nap_negatif:
             saisies_data[CLE_REPORTS_NAP_NEGATIF] = reports_nap_negatif
 
+        # Prime de partage de la valeur : mêmes lectures qu'à l'heure.
+        from app.modules.payroll.documents.ppv_donnees import (
+            CLE_SAISIES as CLE_SAISIES_PPV,
+            donnees_ppv_du_mois,
+        )
+
+        donnees_ppv = donnees_ppv_du_mois(
+            supabase, employee_id, year, month, company_data, saisies_res.data or []
+        )
+        if donnees_ppv is not None:
+            saisies_data[CLE_SAISIES_PPV] = donnees_ppv
+
         # --- ÉTAPE 3 : PRÉPARATION DES FICHIERS TEMPORAIRES ---
         # Un dossier propre à cette génération (voir dossier_de_travail.py).
         employee_path = nouveau_dossier_de_travail(employee_folder_name)

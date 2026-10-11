@@ -217,6 +217,25 @@ def _part_salariale_mutuelle_hors_net_social(contexte: ContextePaie) -> float:
     return round(hors_mns, 2)
 
 
+def _csg_des_primes_imposables(
+    primes_soumises_impot: List[Dict[str, Any]] | None,
+) -> tuple[float, float]:
+    """(CSG déductible, CSG/CRDS totale) portées par des primes hors brut.
+
+    Une prime de partage de la valeur qui n'est pas exonérée de tout (50
+    salariés et plus, ou 3 Smic) reste hors cotisations mais porte CSG/CRDS
+    (cf. `engine.ppv`) : la prime dit ce qu'elle doit, le net imposable en
+    retire la part déductible, le net à payer et le net social la totalité.
+    """
+    deductible = 0.0
+    totale = 0.0
+    for prime in primes_soumises_impot or []:
+        ded = _get_safe_float(prime.get("csg_deductible"))
+        deductible += ded
+        totale += ded + _get_safe_float(prime.get("csg_non_deductible"))
+    return deductible, totale
+
+
 def calculer_montant_net_social(
     contexte: ContextePaie,
     salaire_brut: float,
@@ -263,7 +282,7 @@ def calculer_montant_net_social(
     )
     total_primes_soumises_impot = sum(
         _get_safe_float(p.get("montant")) for p in (primes_soumises_impot or [])
-    )
+    ) - _csg_des_primes_imposables(primes_soumises_impot)[1]
     _, _, net_social_participation = _participation_aggregats(participations)
     mns = (
         _get_safe_float(salaire_brut)
@@ -316,9 +335,9 @@ def _calculer_net_imposable(
     montant_csg_non_deductible = 0.0
     montant_csg_sur_hs = 0.0
     for ligne in lignes_cotisations:
-        # Les lignes CSG de participation sont traitées à part (elles ne
-        # s'appliquent pas au brut de salaire) : ne pas les réintégrer ici.
-        if ligne.get("is_participation"):
+        # Les lignes CSG de participation et de PPV sont traitées à part (elles
+        # ne s'appliquent pas au brut de salaire) : ne pas les réintégrer ici.
+        if ligne.get("is_participation") or ligne.get("is_ppv"):
             continue
         libelle = ligne.get("libelle", "").lower()
         # CSG/CRDS assise sur les heures supplémentaires : elle sert UNIQUEMENT à
@@ -374,6 +393,8 @@ def _calculer_net_imposable(
     for prime in primes_soumises_impot:
         montant_prime = _get_safe_float(prime.get("montant"))
         montant_primes_soumises_impot += montant_prime
+    # CSG déductible d'une PPV soumise à CSG/CRDS : hors de l'imposable.
+    montant_primes_soumises_impot -= _csg_des_primes_imposables(primes_soumises_impot)[0]
 
     # --- Participation / intéressement (part numéraire imposable IR) ---
     imposable_participation, _, _ = _participation_aggregats(participations)
@@ -459,7 +480,7 @@ def montant_net_hs_exonerees(
     taux_csg_deductible = 0.0
     base_csg_hs = 0.0
     for ligne in lignes_cotisations:
-        if ligne.get("is_participation"):
+        if ligne.get("is_participation") or ligne.get("is_ppv"):
             continue
         libelle = str(ligne.get("libelle", "")).lower()
         if "sur hs" in libelle:
@@ -717,6 +738,8 @@ def _calculer_net_a_payer(
     for prime in primes_soumises_impot:
         montant_prime = _get_safe_float(prime.get("montant"))
         montant_primes_soumises_impot += montant_prime
+    # Une PPV soumise à CSG/CRDS est versée nette de sa CSG/CRDS.
+    montant_primes_soumises_impot -= _csg_des_primes_imposables(primes_soumises_impot)[1]
 
     if montant_primes_soumises_impot > 0:
         log_payroll_debug(logger, f"\t+ Primes soumises à l'impôt        : {montant_primes_soumises_impot:10.2f} €")

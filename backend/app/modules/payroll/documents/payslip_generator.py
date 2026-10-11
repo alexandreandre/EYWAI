@@ -972,6 +972,20 @@ def process_payslip_generation(
         if reports_nap_negatif:
             saisies_data[CLE_REPORTS_NAP_NEGATIF] = reports_nap_negatif
 
+        # Prime de partage de la valeur : primes déjà versées dans l'année,
+        # rémunération des 12 mois d'avant, accord d'intéressement. Lu seulement
+        # quand le mois a une PPV (cf. `ppv_donnees`).
+        from app.modules.payroll.documents.ppv_donnees import (
+            CLE_SAISIES as CLE_SAISIES_PPV,
+            donnees_ppv_du_mois,
+        )
+
+        donnees_ppv = donnees_ppv_du_mois(
+            supabase, employee_id, year, month, company_data, saisies_res.data or []
+        )
+        if donnees_ppv is not None:
+            saisies_data[CLE_SAISIES_PPV] = donnees_ppv
+
         previous_cumuls_data = (
             (cumuls_res.data or {}).get("cumuls") if cumuls_res else None
         )
