@@ -66,3 +66,11 @@ describe("onglet Compte d'heures", () => {
     expect(texte).toContain("row.estimated");
   });
 });
+
+describe("pose d'un RTT sans solde par la RH", () => {
+  const texte = lire("components/AbsenceRequestModal.tsx");
+
+  it("montre l'avertissement de solde renvoyé par le serveur", () => {
+    expect(texte).toContain("avertissement");
+  });
+});
