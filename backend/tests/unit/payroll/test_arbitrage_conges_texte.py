@@ -44,7 +44,7 @@ class TestArbitrageDesCongesDuMois:
         )
         assert texte is not None
         assert "maintien de salaire" in texte
-        assert "98.48" in texte
+        assert "98,48 €" in texte
 
     def test_le_dixieme_annonce_le_total_des_deux_parts(self):
         texte = _arbitrage(
@@ -56,7 +56,7 @@ class TestArbitrageDesCongesDuMois:
         )
         assert texte is not None
         assert "1/10ème" in texte
-        assert "125.00" in texte
+        assert "125,00 €" in texte
 
     def test_plusieurs_journees_d_absence_s_additionnent_aussi(self):
         texte = _arbitrage(
@@ -68,7 +68,7 @@ class TestArbitrageDesCongesDuMois:
         )
         assert texte is not None
         assert "maintien de salaire" in texte
-        assert "196.96" in texte
+        assert "196,96 €" in texte
 
 
 class TestIndemniteCompensatriceDeFinDeContrat:
@@ -85,7 +85,7 @@ class TestIndemniteCompensatriceDeFinDeContrat:
         )
         assert texte is not None
         assert "maintien de salaire" in texte
-        assert "876.74" not in texte
+        assert "876,74" not in texte and "876.74" not in texte
 
     def test_seule_elle_ne_declenche_aucune_phrase_d_arbitrage(self):
         # Aucun arbitrage n'a eu lieu : ne rien affirmer. Le bulletin de sortie
