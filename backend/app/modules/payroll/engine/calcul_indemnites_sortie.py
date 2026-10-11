@@ -13,7 +13,7 @@ logger = get_logger("modules.payroll.engine.calcul_indemnites_sortie")
 
 from calendar import monthrange
 from typing import Any, Dict, Optional
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
 from app.modules.payroll.engine.cp_solde_sortie import get_cp_solde_a_la_sortie
@@ -232,6 +232,8 @@ def calculer_indemnite_licenciement(
     anciennete_annees: float,
     salaire_reference: float,
     is_gross_misconduct: bool = False,
+    *,
+    mois_a_la_notification: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Calcule l'indemnité légale de licenciement selon le Code du travail français
@@ -265,7 +267,12 @@ def calculer_indemnite_licenciement(
             "motif": "Faute grave/lourde",
         }
 
-    if anciennete_annees < (8 / 12):  # Moins de 8 mois
+    # Les 8 mois s'apprécient à la notification (service-public F987) ; le
+    # montant, à la fin du préavis (L1234-4).
+    mois_requis = (
+        mois_a_la_notification if mois_a_la_notification is not None else anciennete_annees * 12
+    )
+    if mois_requis < 8:  # Moins de 8 mois
         return {
             "montant": 0.0,
             "anciennete": anciennete_annees,
@@ -307,7 +314,8 @@ def calculer_indemnite_licenciement(
             f" + Tranche 2: {annees_tranche2:.2f} ans × 1/3 mois ({indemnite_tranche2:.2f} €)"
             if annees_tranche2 > 0
             else ""
-        ),
+        )
+        + f", sur un salaire de référence de {salaire_reference:.2f} €",
     }
 
 
@@ -338,12 +346,15 @@ def calculer_indemnite_rupture_conventionnelle(
     """
     log_payroll_debug(logger, '\n  [RUPTURE CONVENTIONNELLE]')
 
-    # Minimum légal = indemnité de licenciement
+    # Minimum légal = indemnité légale de licenciement ; sous 8 mois
+    # d'ancienneté, la même formule au prorata des mois de présence (BOSS,
+    # Indemnités de rupture, § 870 et § 1010 : salaire × 1/4 × mois / 12).
     indemnite_licenciement = calculer_indemnite_licenciement(
-        anciennete_annees, salaire_reference, is_gross_misconduct=False
+        anciennete_annees, salaire_reference, is_gross_misconduct=False, mois_a_la_notification=8
     )
 
     montant_minimum = indemnite_licenciement["montant"]
+    alertes: list[str] = []
     if montant_negocie_saisi is None:
         montant_negocie = montant_minimum
         calcul = f"Minimum légal = {montant_minimum:.2f} € (indemnité de licenciement)"
@@ -353,6 +364,13 @@ def calculer_indemnite_rupture_conventionnelle(
             f"Montant de la convention saisi : {montant_negocie:.2f} € "
             f"(minimum légal estimé : {montant_minimum:.2f} €)"
         )
+        if montant_negocie < montant_minimum:
+            alertes.append(
+                f"Montant de la convention ({montant_negocie:.2f} €) inférieur au minimum légal "
+                f"({montant_minimum:.2f} €) : la convention ne peut pas descendre sous l'indemnité "
+                "légale de licenciement, ni sous l'indemnité conventionnelle si elle est plus "
+                "élevée (BOSS, Indemnités de rupture, § 840 à 860)."
+            )
 
     log_payroll_debug(logger, f'    Minimum légal: {montant_minimum:.2f} € (= indemnité licenciement)')
     log_payroll_debug(logger, f'    Montant négocié: {montant_negocie:.2f} €')
@@ -366,6 +384,7 @@ def calculer_indemnite_rupture_conventionnelle(
         "description": "Indemnité de rupture conventionnelle",
         "calcul": calcul,
         "details_licenciement": indemnite_licenciement,
+        "alertes": alertes,
     }
 
 
@@ -928,6 +947,47 @@ def _regime_social(
     return regime
 
 
+def anciennete_en_mois(debut: date, fin_incluse: date) -> int:
+    """Mois complets de présence, du premier jour au dernier jour inclus
+    (R1234-1 : « proportionnellement au nombre de mois complets »)."""
+    if fin_incluse < debut:
+        return 0
+    delta = relativedelta(fin_incluse + timedelta(days=1), debut)
+    return max(0, delta.years * 12 + delta.months)
+
+
+def _fin_du_contrat(exit_data: Dict[str, Any], dernier_jour: date, notification: date) -> date:
+    """Le contrat finit à la fin du préavis, même non exécuté (L1234-4) ; au
+    plus tôt le dernier jour travaillé. Faute grave : pas de préavis."""
+    if exit_data.get("is_gross_misconduct"):
+        return dernier_jour
+    jours = int(exit_data.get("notice_period_days") or 0)
+    fin_preavis = _date_ou_none(exit_data.get("notice_end_date"))
+    if fin_preavis is None and jours > 0:
+        fin_preavis = notification + timedelta(days=jours)
+    return max(dernier_jour, fin_preavis) if fin_preavis else dernier_jour
+
+
+def _salaire_de_reference_des_bulletins(
+    employee_data: Dict[str, Any], avant_le: date, supabase_client, mois_d_anciennete: Optional[int]
+):
+    """Le salaire de référence de R1234-4 sur les bulletins des 12 mois qui
+    précèdent la notification ; sans bulletin, le salaire habituel du contrat."""
+    salaire_base = _parse_salaire_base(employee_data)
+    habituel, _, _ = _salaire_habituel_et_taux_horaire(employee_data, salaire_base)
+    mois: list = []
+    employee_id = employee_data.get("id")
+    if employee_id and supabase_client is not None:
+        try:
+            mois = lire_mois_de_salaire(str(employee_id), avant_le, supabase_client)
+        except Exception:
+            logger.warning("Bulletins illisibles pour le salaire de référence (%s)", employee_id, exc_info=True)
+            mois = []
+    return calculer_salaire_de_reference(
+        mois, repli_contrat=habituel, mois_d_anciennete=mois_d_anciennete
+    )
+
+
 # ============================================================================
 # FONCTION PRINCIPALE
 # ============================================================================
@@ -979,18 +1039,42 @@ def calculer_indemnites_sortie(
     log_payroll_debug(logger, f"Date d'embauche: {hire_date}")
     log_payroll_debug(logger, f'Date de sortie: {exit_date}')
 
-    # 1. Calculer l'ancienneté
-    anciennete = calculer_anciennete_annees(hire_date, exit_date)
+    # 1 et 2. Ancienneté et salaire de référence.
+    # Licenciement et rupture conventionnelle : ancienneté jusqu'à la fin du
+    # contrat, c'est-à-dire du préavis même non exécuté (L1234-4), en mois
+    # complets (R1234-1) ; les 8 mois du licenciement s'apprécient à la
+    # notification (F987) ; salaire de référence tiré des bulletins bruts, le
+    # plus favorable des 12 ou 3 derniers mois (R1234-4).
+    # L'ancienneté part de la date d'entrée du contrat (`hire_date`) : la
+    # reprise d'ancienneté de la fiche (`seniority_reference_date`,
+    # `prior_service_months`) n'est pas lue, en attendant de savoir si elle
+    # est contractuelle et vaut pour l'indemnité ([H5], décision d'Alexandre ;
+    # `prior_service_months` porte de plus un double compte connu).
+    alertes_reference: list[str] = []
+    mois_a_la_notification: Optional[int] = None
+    fin_du_contrat = exit_date
+    mois_d_anciennete: Optional[int] = None
+    if exit_type in ("licenciement", "rupture_conventionnelle"):
+        notification = _date_ou_none(exit_data.get("exit_request_date")) or exit_date
+        fin_du_contrat = _fin_du_contrat(exit_data, exit_date, notification)
+        mois_d_anciennete = anciennete_en_mois(hire_date, fin_du_contrat)
+        mois_a_la_notification = anciennete_en_mois(hire_date, notification)
+        anciennete = mois_d_anciennete / 12
+        reference = _salaire_de_reference_des_bulletins(
+            employee_data, notification, supabase_client, mois_a_la_notification
+        )
+        salaire_reference = reference.retenu
+        salaire_ref_12 = reference.moyenne_douze_mois
+        salaire_ref_3 = reference.tiers_trois_mois
+        alertes_reference = list(reference.alertes)
+    else:
+        anciennete = calculer_anciennete_annees(hire_date, exit_date)
+        salaire_ref_12 = calculer_salaire_reference_12_mois(employee_data)
+        salaire_ref_3 = calculer_salaire_reference_3_mois(employee_data)
+        salaire_reference = max(salaire_ref_12, salaire_ref_3)
 
-    # 2. Déterminer le salaire de référence
-    salaire_ref_12 = calculer_salaire_reference_12_mois(employee_data)
-    salaire_ref_3 = calculer_salaire_reference_3_mois(employee_data)
-
-    # Prendre le plus avantageux pour le salarié
-    salaire_reference = max(salaire_ref_12, salaire_ref_3)
-
-    log_payroll_debug(logger, f'\nSalaire référence (12 mois): {salaire_ref_12:.2f} €')
-    log_payroll_debug(logger, f'Salaire référence (3 mois): {salaire_ref_3:.2f} €')
+    log_payroll_debug(logger, f'\nSalaire référence (12 mois): {salaire_ref_12} €')
+    log_payroll_debug(logger, f'Salaire référence (3 mois): {salaire_ref_3} €')
     log_payroll_debug(logger, f'Salaire référence retenu: {salaire_reference:.2f} €')
 
     # 3. Indemnité de préavis : due seulement pour une dispense à l'initiative
@@ -1058,13 +1142,18 @@ def calculer_indemnites_sortie(
 
     if exit_type == "licenciement":
         indemnite_licenciement = calculer_indemnite_licenciement(
-            anciennete, salaire_reference, is_gross_misconduct
+            anciennete,
+            salaire_reference,
+            is_gross_misconduct,
+            mois_a_la_notification=mois_a_la_notification,
         )
+        indemnite_licenciement["alertes"] = alertes_reference
 
     elif exit_type == "rupture_conventionnelle":
         indemnite_rupture = calculer_indemnite_rupture_conventionnelle(
             anciennete, salaire_reference, _montant_negocie_saisi(exit_data)
         )
+        indemnite_rupture["alertes"] = alertes_reference + indemnite_rupture.get("alertes", [])
 
     # 6. Régime social des indemnités de rupture (BOSS, Indemnités de rupture) :
     # le bulletin en tire la part au brut, la CSG/CRDS au-delà du minimum et la
@@ -1124,7 +1213,7 @@ def calculer_indemnites_sortie(
     result = {
         "exit_id": exit_data.get("id"),
         "employee_id": employee_data.get("id"),
-        "anciennete_annees": anciennete,
+        "anciennete_annees": round(anciennete, 2),
         "salaire_reference": salaire_reference,
         "indemnite_preavis": indemnite_preavis,
         "indemnite_conges": indemnite_conges,
@@ -1138,6 +1227,8 @@ def calculer_indemnites_sortie(
             "is_gross_misconduct": is_gross_misconduct,
             "salaire_ref_12_mois": salaire_ref_12,
             "salaire_ref_3_mois": salaire_ref_3,
+            "fin_du_contrat": fin_du_contrat.isoformat(),
+            "anciennete_mois": mois_d_anciennete,
         },
     }
 
@@ -1167,6 +1258,7 @@ def calculer_indemnites_sortie(
                 "description", "Indemnité de rupture conventionnelle"
             ),
             "calcul": indemnite_rupture.get("calcul", ""),
+            "alertes": indemnite_rupture.get("alertes", []),
             "details": indemnite_rupture,
         }
         if indemnite_rupture.get("regime_social"):

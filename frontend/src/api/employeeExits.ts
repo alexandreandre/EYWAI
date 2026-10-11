@@ -292,6 +292,8 @@ export interface ExitIndemnityCalculation {
     description: string;
     calcul: string;
     regime_social?: RegimeSocialIndemnite | null;
+    /** Ce qui reste à vérifier : bulletins manquants, arrêt maladie… */
+    alertes?: string[];
   };
   indemnite_rupture_conventionnelle?: {
     montant_negocie: number;
@@ -301,6 +303,8 @@ export interface ExitIndemnityCalculation {
     description: string;
     calcul: string;
     regime_social?: RegimeSocialIndemnite | null;
+    /** Dont « montant inférieur au minimum légal ». */
+    alertes?: string[];
   };
 
   // Totaux

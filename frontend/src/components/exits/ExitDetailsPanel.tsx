@@ -1307,6 +1307,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                           <p className="text-xs text-muted-foreground">
                             {indemnities.indemnite_licenciement.calcul}
                           </p>
+                          <Alertes alertes={indemnities.indemnite_licenciement.alertes} />
                           <RegimeSocial regime={indemnities.indemnite_licenciement.regime_social} />
                         </div>
                       )}
@@ -1329,6 +1330,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                           <p className="text-xs text-muted-foreground">
                             {indemnities.indemnite_rupture_conventionnelle.calcul}
                           </p>
+                          <Alertes alertes={indemnities.indemnite_rupture_conventionnelle.alertes} />
                           <RegimeSocial
                             regime={indemnities.indemnite_rupture_conventionnelle.regime_social}
                           />
@@ -1527,11 +1529,21 @@ function RegimeSocial({ regime }: { regime?: RegimeSocialIndemnite | null }) {
   return (
     <div className="mt-2 space-y-1">
       <p className="text-xs text-muted-foreground">{regime.mention}</p>
-      {(regime.alertes ?? []).map((alerte) => (
-        <p key={alerte} className="text-xs text-amber-700 dark:text-amber-400">
+      <Alertes alertes={regime.alertes} />
+    </div>
+  );
+}
+
+/** Ce que le calcul n'a pas pu trancher : à vérifier avant le bulletin de sortie. */
+function Alertes({ alertes }: { alertes?: string[] }) {
+  if (!alertes?.length) return null;
+  return (
+    <>
+      {alertes.map((alerte) => (
+        <p key={alerte} className="mt-1 text-xs text-amber-700 dark:text-amber-400">
           {alerte}
         </p>
       ))}
-    </div>
+    </>
   );
 }
