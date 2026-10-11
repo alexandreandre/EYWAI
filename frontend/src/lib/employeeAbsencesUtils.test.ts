@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AbsenceBalance } from '@/api/absences';
 import {
   formatCongePayeInsufficientMessage,
+  formatCongeSansSoldeRh,
   formatRhLeaveBalanceDetail,
   getRhLeaveBalanceShortLabel,
   isRhLeaveBalanceVisible,
@@ -41,5 +42,22 @@ describe("formatCongePayeInsufficientMessage : accord en nombre", () => {
   it("singulier pour un jour, pluriel au-delà", () => {
     expect(formatCongePayeInsufficientMessage(1, 1)).toContain("il vous reste 1 jour disponible pour 1 jour demandé.");
     expect(formatCongePayeInsufficientMessage(2, 3)).toContain("il vous reste 2 jours disponibles pour 3 jours demandés.");
+  });
+});
+
+describe('formatCongeSansSoldeRh : le texte parle à la RH', () => {
+  it('nomme le salarié et ne dit pas « votre »', () => {
+    const texte = formatCongeSansSoldeRh('Camille', 2, 3);
+    expect(texte).toContain('Le solde de congés payés de Camille est de 2 jours.');
+    expect(texte).toContain('3 jours demandés');
+    expect(texte).toContain('1 jour excédentaire sera considéré comme congé sans solde');
+    expect(texte).not.toMatch(/votre|vous demandez/i);
+  });
+
+  it('accorde le singulier et la virgule', () => {
+    const texte = formatCongeSansSoldeRh('Camille', 0.5, 1);
+    expect(texte).toContain('est de 0,5 jour.');
+    expect(texte).toContain('1 jour demandé');
+    expect(texte).toContain('0,5 jour excédentaire sera considéré');
   });
 });

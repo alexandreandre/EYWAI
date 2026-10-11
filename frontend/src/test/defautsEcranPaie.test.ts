@@ -83,3 +83,21 @@ describe("tableau du contingent d'heures supplémentaires", () => {
     expect(texte).toContain('data-testid="hs-comptabilisees-entete"');
   });
 });
+
+describe("fenêtre « Nouveau congé » de la page Absences (saisie RH)", () => {
+  const texte = lire("components/AbsenceRequestModal.tsx");
+
+  it("lit les soldes du salarié choisi, pas une liste vide", () => {
+    expect(texte).toContain("soldesPose");
+    expect(texte).toMatch(/isRhLeave \? \(rhBalances \?\? \[\]\) : balances/);
+  });
+
+  it("ne parle plus au salarié dans l'avertissement de la RH", () => {
+    expect(texte).not.toContain("Votre solde de congés payés");
+    expect(texte).toContain("formatCongeSansSoldeRh");
+  });
+
+  it("montre le solde de congés payés au moment de poser", () => {
+    expect(texte).toMatch(/\(isRhLeave \|\| balances\.length > 0\)/);
+  });
+});
