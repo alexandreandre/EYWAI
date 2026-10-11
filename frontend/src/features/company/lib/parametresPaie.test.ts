@@ -6,17 +6,22 @@ import {
   champsNonRelus,
   construireMiseAJour,
   parametresOntChange,
+  repliEffectif,
   resumeParametresPaie,
   saisieInitiale,
 } from './parametresPaie';
 
+const ANNEE = new Date().getFullYear();
+
+/** `effectif` est le nombre de comptes (déclencheur de la base) ; l'effectif
+ * des seuils se saisit par année dans `settings.effectif_seuils`. */
 function societe(champs: Partial<CompanyDetails> = {}): CompanyDetails {
   return {
     effectif: 19,
     taux_at_mp: 3.15,
     paie_jour_de_fin: 4,
     paie_occurrence: -2,
-    settings: { compensation_heures_entre_semaines: true },
+    settings: { compensation_heures_entre_semaines: true, effectif_seuils: { [ANNEE]: 5 } },
     ...champs,
   } as CompanyDetails;
 }
@@ -25,11 +30,12 @@ describe('saisieInitiale', () => {
   it('reprend les valeurs enregistrées', () => {
     const saisie = saisieInitiale(
       societe({
-        effectif: 25,
+        effectif: 19,
         settings: {
           taux_assurance_chomage: 2.95,
           date_paiement: 'dernier_jour_du_mois',
           jour_solidarite: '2026-05-25',
+          effectif_seuils: { [ANNEE]: 25 },
         },
       }),
     );
@@ -43,7 +49,7 @@ describe('saisieInitiale', () => {
 
   it('montre le comportement réel quand rien n’est réglé', () => {
     // Sans réglage, le moteur paie à la date de l'arrêté des variables.
-    expect(saisieInitiale(societe({ effectif: null, settings: undefined }))).toEqual({
+    expect(saisieInitiale(societe({ effectif: 19, settings: undefined }))).toEqual({
       tauxChomage: '',
       effectif: '',
       datePaiement: 'arrete_des_variables',
@@ -115,7 +121,7 @@ describe('construireMiseAJour — effectif', () => {
         effectif: saisi,
       });
       expect(erreurs).toEqual({});
-      expect(corps).toEqual({ effectif: attendu });
+      expect(corps).toEqual({ effectif: attendu, effectif_annee: ANNEE });
     }
   });
 
@@ -142,8 +148,32 @@ describe('construireMiseAJour — effectif', () => {
   });
 
   it('laisse vide un effectif jamais renseigné', () => {
-    const vide = societe({ effectif: null });
+    const vide = societe({ settings: {} });
     expect(construireMiseAJour(vide, saisieInitiale(vide))).toEqual({ corps: {}, erreurs: {} });
+  });
+
+  it('ne prend jamais le nombre de comptes pour l’effectif', () => {
+    // 19 comptes dans Martine, rien de saisi : le champ reste vide.
+    expect(saisieInitiale(societe({ effectif: 19, settings: {} })).effectif).toBe('');
+  });
+});
+
+describe('repliEffectif', () => {
+  it('se tait quand l’année est saisie', () => {
+    expect(repliEffectif(societe(), ANNEE)).toBeNull();
+  });
+
+  it('dit quelle année est reprise', () => {
+    const avant = societe({ settings: { effectif_seuils: { [ANNEE - 1]: 7 } } });
+    expect(repliEffectif(avant, ANNEE)).toBe(
+      `Non saisi pour ${ANNEE} : Martine reprend celui de ${ANNEE - 1} (7).`,
+    );
+  });
+
+  it('dit que le nombre de comptes n’est pas l’effectif légal', () => {
+    expect(repliEffectif(societe({ effectif: 19, settings: {} }), ANNEE)).toBe(
+      `Non saisi pour ${ANNEE} : Martine compte les comptes de la société (19), qui ne sont pas l'effectif légal.`,
+    );
   });
 });
 
@@ -189,11 +219,11 @@ describe('construireMiseAJour — date de paiement et journée de solidarité', 
 describe('construireMiseAJour — rien ne change', () => {
   it('renvoyer les valeurs enregistrées ne produit aucun champ', () => {
     const reglee = societe({
-      effectif: 25,
       settings: {
         taux_assurance_chomage: 2.95,
         date_paiement: 'dernier_jour_du_mois',
         jour_solidarite: '2026-05-25',
+        effectif_seuils: { [ANNEE]: 25 },
       },
     });
     expect(construireMiseAJour(reglee, saisieInitiale(reglee))).toEqual({
@@ -223,28 +253,42 @@ describe('avertissementJourSolidarite', () => {
 describe('champsNonRelus', () => {
   it('ne signale rien quand la base renvoie ce qui a été envoyé', () => {
     const relue = societe({
-      effectif: 21,
-      settings: { taux_assurance_chomage: 2.95, date_paiement: 'dernier_jour_du_mois' },
+      effectif: 19,
+      settings: {
+        taux_assurance_chomage: 2.95,
+        date_paiement: 'dernier_jour_du_mois',
+        effectif_seuils: { [ANNEE]: 21 },
+      },
     });
     expect(
       champsNonRelus(
-        { effectif: 21, taux_assurance_chomage: 2.95, date_paiement: 'dernier_jour_du_mois' },
+        {
+          effectif: 21,
+          effectif_annee: ANNEE,
+          taux_assurance_chomage: 2.95,
+          date_paiement: 'dernier_jour_du_mois',
+        },
         relue,
       ),
     ).toEqual([]);
   });
 
   it('nomme chaque réglage que la base n’a pas gardé', () => {
-    const relue = societe({ effectif: 19, settings: {} });
+    const relue = societe({ effectif: 21, settings: {} });
     expect(
-      champsNonRelus({ effectif: 21, taux_assurance_chomage: 2.95, jour_solidarite: null }, relue),
+      champsNonRelus(
+        { effectif: 21, effectif_annee: ANNEE, taux_assurance_chomage: 2.95, jour_solidarite: null },
+        relue,
+      ),
     ).toEqual(['Effectif retenu pour les seuils', "Taux d'assurance chômage"]);
   });
 });
 
 describe('parametresOntChange', () => {
   it('voit un changement de réglage qui touche le calcul', () => {
-    expect(parametresOntChange(societe(), societe({ effectif: 21 }))).toBe(true);
+    expect(
+      parametresOntChange(societe(), societe({ settings: { effectif_seuils: { [ANNEE]: 21 } } })),
+    ).toBe(true);
     expect(
       parametresOntChange(societe(), societe({ settings: { taux_assurance_chomage: 2.95 } })),
     ).toBe(true);
@@ -254,6 +298,10 @@ describe('parametresOntChange', () => {
   it('ignore une relecture identique', () => {
     expect(parametresOntChange(societe(), societe())).toBe(false);
   });
+
+  it('ignore un compte créé : le nombre de comptes n’entre pas dans le calcul', () => {
+    expect(parametresOntChange(societe(), societe({ effectif: 20 }))).toBe(false);
+  });
 });
 
 describe('resumeParametresPaie', () => {
@@ -261,22 +309,23 @@ describe('resumeParametresPaie', () => {
     expect(
       resumeParametresPaie(
         societe({
-          effectif: 21,
+          effectif: 19,
           settings: {
             taux_assurance_chomage: 2.95,
             date_paiement: 'dernier_jour_du_mois',
             jour_solidarite: '2026-05-25',
+            effectif_seuils: { [ANNEE]: 21 },
           },
         }),
       ),
     ).toBe(
-      'Effectif 21 · chômage 2,95 % · paiement le dernier jour du mois · solidarité le 25/05/2026',
+      `Effectif ${ANNEE} : 21 · chômage 2,95 % · paiement le dernier jour du mois · solidarité le 25/05/2026`,
     );
   });
 
   it('dit ce qui s’applique quand rien n’est réglé', () => {
-    expect(resumeParametresPaie(societe({ effectif: null, settings: {} }))).toBe(
-      "Effectif non renseigné · chômage au taux normal · paiement le jour de l'arrêté des variables · solidarité le lundi de Pentecôte",
+    expect(resumeParametresPaie(societe({ effectif: 19, settings: {} }))).toBe(
+      `Effectif ${ANNEE} non saisi · chômage au taux normal · paiement le jour de l'arrêté des variables · solidarité le lundi de Pentecôte`,
     );
   });
 });
