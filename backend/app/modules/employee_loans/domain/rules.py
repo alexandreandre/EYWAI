@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
-from typing import List
+from typing import Any, Dict, Iterable, List
 
 from app.modules.employee_loans.domain.constants import DECLARATION_2062_THRESHOLD_EUR
 
@@ -115,6 +115,34 @@ def compute_interest_benefit_in_kind(
     actual_monthly = remaining_capital * actual_annual_rate / Decimal("12")
     benefit = legal_monthly - actual_monthly
     return _money(max(Decimal("0"), benefit))
+
+
+def capital_du_au_debut_du_mois(
+    loan: Dict[str, Any],
+    capital_repayments: Iterable[Dict[str, Any]],
+    year: int,
+    month: int,
+) -> Decimal:
+    """Capital restant dû au début du mois (`year`, `month`).
+
+    Nul avant le mois du premier versement du prêt (sa date de début). Sinon le
+    prêt moins le capital remboursé les mois d'avant : l'échéance prélevée sur
+    le bulletin du mois ne baisse pas le capital de ce mois, et un mois
+    régénéré après son prélèvement garde son capital.
+    """
+    debut = date.fromisoformat(str(loan.get("start_date"))[:10])
+    if (year, month) < (debut.year, debut.month):
+        return Decimal("0")
+    rembourse = sum(
+        (
+            Decimal(str(r.get("capital_amount") or 0))
+            for r in capital_repayments
+            if (int(r["year"]), int(r["month"])) < (year, month)
+        ),
+        Decimal("0"),
+    )
+    capital = Decimal(str(loan.get("principal_amount") or 0)) - rembourse
+    return _money(max(Decimal("0"), capital))
 
 
 #: Art. L3251-3 du Code du travail : la retenue pour une avance en espèces

@@ -7,9 +7,13 @@ from typing import Any, Dict, List
 
 from app.core.database import supabase
 from app.modules.employee_loans.domain.constants import DEFAULT_LEGAL_INTEREST_RATE
-from app.modules.employee_loans.domain.rules import compute_interest_benefit_in_kind
+from app.modules.employee_loans.domain.rules import (
+    capital_du_au_debut_du_mois,
+    compute_interest_benefit_in_kind,
+)
 from app.modules.employee_loans.infrastructure.queries import (
     TABLE_EMPLOYEE_LOAN_INSTALLMENTS,
+    TABLE_EMPLOYEE_LOAN_REPAYMENTS,
     TABLE_EMPLOYEE_LOANS,
 )
 
@@ -117,19 +121,56 @@ def get_loans_due_for_period(
     return get_unsettled_installments_for_payroll(employee_id, year, month)
 
 
+#: Prêts versés au salarié : un brouillon ou un prêt annulé ne l'a jamais été.
+STATUTS_PRET_VERSE = ("active", "suspended", "repaid", "defaulted")
+
+
+def get_loans_for_benefit_in_kind(employee_id: str) -> List[Dict[str, Any]]:
+    res = (
+        supabase.table(TABLE_EMPLOYEE_LOANS)
+        .select("id, principal_amount, annual_interest_rate, start_date, status")
+        .eq("employee_id", employee_id)
+        .in_("status", list(STATUTS_PRET_VERSE))
+        .execute()
+    )
+    return res.data or []
+
+
+def get_capital_repayments(loan_ids: List[str]) -> List[Dict[str, Any]]:
+    """Capital remboursé, par prêt et par mois (bulletins et remboursements anticipés)."""
+    if not loan_ids:
+        return []
+    res = (
+        supabase.table(TABLE_EMPLOYEE_LOAN_REPAYMENTS)
+        .select("loan_id, year, month, capital_amount")
+        .in_("loan_id", loan_ids)
+        .execute()
+    )
+    return res.data or []
+
+
 def compute_total_loan_benefit_in_kind(
     employee_id: str, year: int, month: int
 ) -> float:
-    """Somme des avantages en nature (intérêts) pour les prêts actifs."""
+    """Somme des avantages en nature (intérêts) des prêts, pour le mois du bulletin.
+
+    Un prêt ne compte qu'à partir du mois de son premier versement, sur le
+    capital restant dû au début du mois du bulletin — jamais sur celui du jour
+    de la génération (septembre recevait l'avantage d'un prêt du 01/10).
+    """
     legal_rate = get_legal_interest_rate()
+    loans = get_loans_for_benefit_in_kind(employee_id)
+    repayments = get_capital_repayments([str(loan["id"]) for loan in loans])
     total = Decimal("0")
-    for loan in get_active_loans_for_employee(employee_id):
-        remaining = Decimal(str(loan.get("remaining_capital", 0)))
-        actual_rate = Decimal(str(loan.get("annual_interest_rate", 0)))
-        benefit = compute_interest_benefit_in_kind(
-            remaining, legal_rate, actual_rate
+    for loan in loans:
+        capital = capital_du_au_debut_du_mois(
+            loan,
+            [r for r in repayments if str(r.get("loan_id")) == str(loan["id"])],
+            year,
+            month,
         )
-        total += benefit
+        actual_rate = Decimal(str(loan.get("annual_interest_rate", 0)))
+        total += compute_interest_benefit_in_kind(capital, legal_rate, actual_rate)
     return float(total)
 
 
