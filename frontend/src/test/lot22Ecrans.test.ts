@@ -103,3 +103,10 @@ describe("Heures saisies un jour d'arrêt", () => {
     expect(t).toMatch(/accord\(j\.heures, 'saisie'\)/);
   });
 });
+
+describe("Nouveau congé : congé sans solde", () => {
+  it("propose la demi-journée, jour par jour", () => {
+    const t = lire("components/AbsenceRequestModal.tsx");
+    expect(t).toMatch(/typeAvecDemiJournees = absenceType === 'conge_paye' \|\| absenceType === 'rtt' \|\| absenceType === 'jtc' \|\| absenceType === 'sans_solde'/);
+  });
+});
