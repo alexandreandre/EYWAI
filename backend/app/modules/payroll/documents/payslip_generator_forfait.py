@@ -30,6 +30,10 @@ from app.modules.payroll.domain.report_nap_negatif import (
     reports_du_mois,
 )
 from app.modules.payroll.engine.lectures import LectureIndispensable
+from app.modules.payroll.engine.frais_professionnels import (
+    entree_de_note_de_frais,
+    notes_de_frais_dans_le_mns,
+)
 from app.modules.payroll.engine.replis import (
     fermer_collecte,
     fusionner_replis,
@@ -336,15 +340,12 @@ def process_payslip_generation_forfait(
             saisies_data["heures_supplementaires_conjoncturelles_50"] = hs_conj_50
 
         if expense_reports_res.data:
+            # Hors montant net social, sauf réglage de la société (Colorplast, S27).
+            notes_dans_mns = notes_de_frais_dans_le_mns(company_data)
             for expense in expense_reports_res.data:
-                expense_prime_id = f"remb_{expense['type'].lower().replace(' ', '_')}_{expense['date']}"
-                expense_entry = {
-                    "prime_id": expense_prime_id,
-                    "montant": expense["amount"],
-                    "soumise_a_cotisations": False,
-                    "soumise_a_impot": False,
-                }
-                saisies_data["primes"].append(expense_entry)
+                saisies_data["primes"].append(
+                    entree_de_note_de_frais(expense, dans_le_mns=notes_dans_mns)
+                )
 
         # Les avances et acomptes du module « Avances » ne passent pas par le
         # moteur : l'enrichissement d'après enregistrement les retient du net, une

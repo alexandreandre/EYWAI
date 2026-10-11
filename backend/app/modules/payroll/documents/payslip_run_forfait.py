@@ -28,6 +28,7 @@ from app.modules.payroll.engine.calcul_reduction_generale import (
 )
 from app.modules.payroll.engine.lectures import lire_ou_arreter
 from app.modules.payroll.engine.ijss_bulletin import build_rappel_ijss_net_prime
+from app.modules.payroll.engine.frais_professionnels import ligne_de_frais_professionnels
 from app.modules.payroll.engine.exoneration_jei import (
     calculer_exoneration_jei,
     jei_applicable,
@@ -343,6 +344,11 @@ def run_payslip_generation_forfait(
     lignes_cotisations_ppv: List[Dict[str, Any]] = []
     for cle in ["primes", "notes_de_frais", "autres"]:
         for saisie in saisie_du_mois.get(cle, []):
+            # Remboursement de frais professionnels : versé au net, hors montant net social.
+            ligne_frais = ligne_de_frais_professionnels(saisie)
+            if ligne_frais is not None:
+                primes_non_soumises.append(ligne_frais)
+                continue
             prime_id = (
                 saisie.get("prime_id")
                 or saisie.get("libelle", "").replace(" ", "_").lower()

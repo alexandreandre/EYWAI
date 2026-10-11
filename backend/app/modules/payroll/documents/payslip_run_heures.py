@@ -66,6 +66,7 @@ from .payslip_run_common import (
     resolve_exit_state_for_payslip,
 )
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
+from app.modules.payroll.engine.frais_professionnels import ligne_de_frais_professionnels
 from app.modules.payroll.engine.ppv import classer_ppv, est_une_ppv
 from app.modules.payroll.documents.ppv_donnees import CLE_SAISIES as CLE_SAISIES_PPV
 
@@ -660,6 +661,12 @@ def run_payslip_generation_heures(
 
     for cle in ["primes", "notes_de_frais", "autres"]:
         for saisie in saisie_du_mois.get(cle, []):
+            # Remboursement de frais professionnels (note de frais du module,
+            # indemnité forfaitaire) : versé au net, hors montant net social.
+            ligne_frais = ligne_de_frais_professionnels(saisie)
+            if ligne_frais is not None:
+                primes_non_soumises.append(ligne_frais)
+                continue
             prime_id = (
                 saisie.get("prime_id")
                 or saisie.get("libelle", "").replace(" ", "_").lower()

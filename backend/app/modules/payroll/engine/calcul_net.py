@@ -7,6 +7,7 @@ from .exoneration_stage import exoneration_ir_stage
 from . import legal_constants as lc
 from typing import Dict, Any, List
 from app.modules.payroll.engine.mutuelles import mutuelles_du_salarie
+from app.modules.payroll.engine.frais_professionnels import est_un_frais_professionnel
 
 
 logger = get_logger("modules.payroll.engine.calcul_net")
@@ -275,10 +276,16 @@ def calculer_montant_net_social(
     Elle reste en revanche réintégrée au NET IMPOSABLE (avantage taxable, cf.
     `_calculer_net_imposable`).
 
-    Hors PAS et remboursements de frais professionnels réels.
+    Hors PAS et remboursements de frais professionnels : une ligne marquée
+    `frais_professionnels` (note de frais du module, indemnité forfaitaire)
+    est versée au net à payer mais n'entre pas dans le MNS (BOSS, Montant net
+    social, II, A, 1 : « Les remboursements de frais professionnels (au réel ou
+    forfaitaires) dans la limite de chacun de leurs plafonds d'exonération »).
     """
     total_primes_non_soumises = sum(
-        _get_safe_float(p.get("montant")) for p in primes_non_soumises
+        _get_safe_float(p.get("montant"))
+        for p in primes_non_soumises
+        if not est_un_frais_professionnel(p)
     )
     total_primes_soumises_impot = sum(
         _get_safe_float(p.get("montant")) for p in (primes_soumises_impot or [])
