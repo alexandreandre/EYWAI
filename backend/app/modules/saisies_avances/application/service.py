@@ -647,12 +647,34 @@ def enrich_payslip(
             )
 
     for seizure in seizures:
+        net_avant = net_disponible
         if remaining_seizable <= 0 or net_disponible <= 0:
-            break
-        deduction = domain_rules.calculate_seizure_deduction(
-            seizure, base_saisissable, remaining_seizable, dependents_count
-        )
-        deduction = min(deduction, net_disponible)
+            deduction = Decimal("0")
+        else:
+            deduction = domain_rules.calculate_seizure_deduction(
+                seizure, base_saisissable, remaining_seizable, dependents_count
+            )
+            deduction = min(deduction, net_disponible)
+        # Retenue moindre que la somme demandée : le bulletin dit combien,
+        # sur combien et pourquoi (vidéo G, 11/10/2026 : 900 € demandés,
+        # 230,26 € retenus, sans un mot).
+        demande = domain_rules.montant_demande_de_la_saisie(seizure, base_saisissable)
+        if demande is not None and deduction < demande:
+            payslip_json_data.setdefault("alertes_baremes", []).append(
+                {
+                    "code": "saisie_sur_salaire_plafonnee",
+                    "severity": "warning",
+                    "message": domain_rules.message_saisie_plafonnee(
+                        creancier=seizure.get("creditor_name"),
+                        retenu=deduction,
+                        demande=demande,
+                        net_disponible=net_avant,
+                        quotite_du_mois=seizable_amount,
+                        base_saisissable=base_saisissable,
+                        annee=year,
+                    ),
+                }
+            )
         if deduction > 0:
             total_deductions += deduction
             remaining_seizable -= deduction

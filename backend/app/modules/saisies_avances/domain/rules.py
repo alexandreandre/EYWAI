@@ -224,6 +224,52 @@ def calculate_seizure_deduction(
     return seizable_amount
 
 
+def montant_demande_de_la_saisie(
+    seizure: Dict[str, Any], net_salary: Decimal
+) -> Decimal | None:
+    """Ce que la saisie demande ce mois-ci : le montant fixe, le pourcentage du
+    net, le montant posé sur une saisie au barème. None pour une saisie au
+    barème sans montant : elle prend la quotité, c'est sa règle."""
+    mode = seizure.get("calculation_mode", "barème_legal")
+    if mode == "pourcentage":
+        return _centimes(net_salary * Decimal(str(seizure.get("percentage") or 0)) / Decimal("100"))
+    montant = Decimal(str(seizure.get("amount") or 0))
+    if montant > 0:
+        return _centimes(montant)
+    return None
+
+
+def _euros_fr(montant: Decimal) -> str:
+    texte = f"{abs(montant):,.2f}".replace(",", " ").replace(".", ",")
+    return f"{'−' if montant < 0 else ''}{texte} €"
+
+
+def message_saisie_plafonnee(
+    *,
+    creancier: str | None,
+    retenu: Decimal,
+    demande: Decimal,
+    net_disponible: Decimal,
+    quotite_du_mois: Decimal,
+    base_saisissable: Decimal,
+    annee: int,
+) -> str:
+    """Ce que dit le bulletin d'une saisie retenue en partie : combien, sur
+    combien, et pourquoi (le net du mois, ou la quotité saisissable)."""
+    qui = f"Saisie sur salaire ({creancier})" if creancier else "Saisie sur salaire"
+    debut = f"{qui} : {_euros_fr(retenu)} retenus sur {_euros_fr(demande)} demandés."
+    if net_disponible <= 0:
+        raison = "Le net à payer du mois ne permet pas de retenue"
+    elif net_disponible < min(demande, quotite_du_mois):
+        raison = "Le net à payer du mois ne permet pas plus"
+    else:
+        raison = (
+            f"La quotité saisissable du mois est de {_euros_fr(quotite_du_mois)} "
+            f"(barème {annee}, sur un net de {_euros_fr(base_saisissable)})"
+        )
+    return f"{debut} {raison} : le reste n'est pas retenu ce mois-ci."
+
+
 def _jour(valeur: Any) -> date | None:
     """Une date de la base (« 2026-10-06 », horodatage ou `date`), ou None."""
     if valeur is None:
