@@ -161,4 +161,49 @@ def test_le_dossier_dit_ce_que_le_bulletin_de_sortie_a_verse():
             {"libelle": "Ind.de précarité des CDD", "montant": 797.04},
             {"libelle": "Ind.de CP des CDD", "montant": 940.23},
         ],
+        "indemnite_conges": 940.23,
     }
+
+
+def _dossier_avec_bulletin(bulletin):
+    exit_repo = MagicMock()
+    exit_repo.get_with_employee.return_value = {
+        "id": "exit-1", "employee_id": "e1", "last_working_day": "2026-09-11", "exit_type": "fin_cdd",
+    }
+    with (
+        patch.object(queries, "EmployeeExitRepository", return_value=exit_repo),
+        patch.object(queries, "enrich_exit_with_documents_and_checklist"),
+        patch(
+            "app.modules.payroll.solde_de_tout_compte.common.bulletin_de_sortie.bulletin_du_mois_de_sortie",
+            return_value=bulletin,
+        ),
+    ):
+        return queries.get_employee_exit("exit-1", "co-1", supabase_client=MagicMock())
+
+
+def test_l_onglet_indemnites_lit_l_indemnite_de_conges_versee_par_le_moteur():
+    """Le moteur range l'indemnité compensatrice avec les congés : l'onglet
+    affichait l'estimation du dossier (274,59) quand le bulletin versait 164,04."""
+    dossier = _dossier_avec_bulletin({
+        "salaire_brut": 1204.31,
+        "net_a_payer": 927.69,
+        "calcul_du_brut": [
+            {"libelle": "Salaire de base", "gain": 891.15},
+            {"libelle": "Prime de précarité (CDD)", "gain": 149.12},
+        ],
+        "details_conges": [{"libelle": "Indemnité compensatrice de congés payés (CDD)", "gain": 164.04}],
+    })
+    assert dossier["bulletin_de_sortie"]["indemnite_conges"] == 164.04
+    assert {"libelle": "Indemnité compensatrice de congés payés (CDD)", "montant": 164.04} in (
+        dossier["bulletin_de_sortie"]["sommes_de_rupture"]
+    )
+
+
+def test_un_bulletin_sans_indemnite_de_conges_dit_zero():
+    dossier = _dossier_avec_bulletin({
+        "salaire_brut": 2050.70,
+        "net_a_payer": 1625.62,
+        "calcul_du_brut": [{"libelle": "Salaire de base", "gain": 2050.70}],
+        "details_conges": [],
+    })
+    assert dossier["bulletin_de_sortie"]["indemnite_conges"] == 0.0
