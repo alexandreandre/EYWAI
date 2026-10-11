@@ -30,12 +30,28 @@ def est_un_frais_professionnel(ligne: Mapping[str, Any]) -> bool:
     return bool(ligne.get(CLE_FRAIS_PROFESSIONNELS))
 
 
+def libelle_de_note_de_frais(type_de_frais: Any, jour: Any) -> str:
+    """« Note de frais : restaurant du 07/10/2026 », « Indemnités kilométriques du 08/10/2026 »."""
+    texte = str(jour or "")[:10]
+    annee, mois, j = (texte.split("-") + ["", "", ""])[:3]
+    date_fr = f"{j}/{mois}/{annee}" if annee and mois and j else texte
+    nature = str(type_de_frais or "").strip()
+    if nature.lower().startswith("indemnités kilométriques") or nature.lower().startswith(
+        "indemnites kilometriques"
+    ):
+        return f"Indemnités kilométriques du {date_fr}"
+    if not nature or nature.lower() == "autre":
+        return f"Note de frais du {date_fr}"
+    return f"Note de frais : {nature.lower()} du {date_fr}"
+
+
 def entree_de_note_de_frais(
     expense: Mapping[str, Any], *, dans_le_mns: bool
 ) -> dict[str, Any]:
     """Une note de frais validée du module, telle que le générateur la passe au moteur."""
     entree: dict[str, Any] = {
         "prime_id": f"remb_{str(expense['type']).lower().replace(' ', '_')}_{expense['date']}",
+        "libelle": libelle_de_note_de_frais(expense.get("type"), expense.get("date")),
         "montant": expense["amount"],
         "soumise_a_cotisations": False,
         "soumise_a_impot": False,
