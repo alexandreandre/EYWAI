@@ -440,8 +440,12 @@ class SalaryCertificateGenerator:
         table_data = [["Mois", column_label]]
         total_amount = 0.0
         months_used = 0
+        reconstitues: list[str] = []
         for month_info in reference_salary.get("reference_months") or []:
             month_name = f"{month_info.get('month_name', '')} {month_info.get('year', '')}"
+            if month_info.get("has_payslip") is False:
+                month_name = f"{month_name.strip()} (reconstitué)"
+                reconstitues.append(month_name.replace(" (reconstitué)", ""))
             amount = self._safe_float(month_info.get(amount_key, 0))
             total_amount += amount
             if amount:
@@ -483,6 +487,25 @@ class SalaryCertificateGenerator:
                 "d'arrêt ou d'autre absence."
             )
         story.append(Paragraph(mention, mention_style))
+        if reconstitues:
+            liste = ", ".join(reconstitues)
+            if kind == KIND_NET:
+                detail = (
+                    "aucun bulletin n'existe pour ces mois : le salaire net n'est pas connu "
+                    "et figure à 0,00 €. À compléter avant tout envoi à l'Assurance maladie."
+                )
+            else:
+                detail = (
+                    "aucun bulletin n'existe pour ces mois : le montant est le salaire de base "
+                    "de la fiche du salarié, sans primes ni variables, et non un salaire rétabli "
+                    "calculé. À vérifier avant tout envoi à l'Assurance maladie."
+                )
+            story.append(
+                Paragraph(
+                    f"<b>Mois reconstitués faute de bulletin : {liste}</b> — {detail}",
+                    mention_style,
+                )
+            )
 
         average = total_amount / max(months_used, 1) if months_used else 0.0
         story.append(

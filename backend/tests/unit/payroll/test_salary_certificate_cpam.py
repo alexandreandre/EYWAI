@@ -199,7 +199,7 @@ class TestMoisReconstitues:
             KIND_NET, "arret_at", self._reference_avec_mois_sans_bulletin(KIND_NET)
         )
         assert "Juin 2026 (reconstitué)" in texte
-        assert "net non connu" in texte
+        assert "salaire net n'est pas connu" in texte
 
     def test_tous_les_bulletins_presents_aucune_mention(self):
         texte = self._texte(KIND_RETABLI, "arret_maladie", _reference(KIND_RETABLI))
