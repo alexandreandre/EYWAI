@@ -247,6 +247,32 @@ class TestEcritures:
         }
         assert fiche["specificites_paie"]["maintien_regime_apprenti"] is True  # la fiche lue n'est pas modifiée
 
+    def test_les_drapeaux_de_precarite_et_d_iccp_du_contrat_precedent_ne_suivent_pas(self):
+        """Une exclusion de précarité (refus de CDI, rupture à l'initiative du
+        salarié…) tient à un contrat : le suivant repart sans elle. Les drapeaux
+        d'ICCP, que le moteur ne lit plus (une ICCP ne s'exclut pas), aussi."""
+        fiche = {
+            **FICHE,
+            "specificites_paie": {
+                "cdd_sans_precarite": True,
+                "exclure_prime_precarite": True,
+                "cdd_sans_iccp": True,
+                "exclure_iccp": True,
+                "mutuelle": {"adhesion": True},
+            },
+        }
+        _, nouvelle, _ = ecritures(fiche, PRECEDENT, _demande())
+        assert nouvelle["specificites_paie"] == {
+            "cdd_sans_precarite": False,
+            "exclure_prime_precarite": False,
+            "cdd_sans_iccp": False,
+            "exclure_iccp": False,
+            "maintien_regime_apprenti": False,
+            "apprenti_date_effet": None,
+            "mutuelle": {"adhesion": True},
+        }
+        assert fiche["specificites_paie"]["cdd_sans_iccp"] is True  # la fiche lue n'est pas modifiée
+
     def test_sans_drapeau_d_alternance_les_specificites_ne_sont_pas_reecrites(self):
         fiche = {**FICHE, "specificites_paie": {"mutuelle": {"adhesion": True}}}
         _, nouvelle, _ = ecritures(fiche, PRECEDENT, _demande())

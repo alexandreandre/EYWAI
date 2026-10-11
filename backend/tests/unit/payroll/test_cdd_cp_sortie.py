@@ -49,20 +49,57 @@ def test_iccp_absente_si_pas_dernier_mois():
     assert "Prime de précarité (CDD)" not in gains
 
 
-def test_iccp_desactivable_par_flag():
+@pytest.mark.parametrize("drapeau", ["cdd_sans_iccp", "exclure_iccp"])
+def test_une_iccp_ne_s_exclut_pas_par_drapeau(drapeau):
+    """L'indemnité compensatrice de congés est due quelle que soit la cause de
+    la rupture (C. trav. L1242-16, L3141-28) : seule la précarité a des
+    exclusions (L1243-10). Un drapeau posé en base sur une fiche, sans écran,
+    la faisait disparaître du bulletin sans avertissement."""
     ctx = build_test_contexte(
         salaire_base=2200.0,
         type_contrat="CDD",
         date_entree="2025-10-01",
         date_fin_contrat="2026-04-30",
         cumuls={"brut_total": 8800.0},
-        specificites_extra={"cdd_sans_iccp": True},
+        specificites_extra={drapeau: True},
     )
     res = calculer_salaire_brut(ctx, [], date(2026, 4, 1), date(2026, 4, 30), [])
     gains = _lignes_gain(res)
-    assert not any("compensatrice de congés" in k for k in gains)
-    # La précarité reste due.
+    iccp = next((v for k, v in gains.items() if "compensatrice de congés" in k), None)
+    assert iccp == pytest.approx(1210.0, abs=0.05)
     assert "Prime de précarité (CDD)" in gains
+
+
+def test_une_demission_garde_son_iccp_malgre_le_drapeau_d_exclusion():
+    ctx = build_test_contexte(
+        salaire_base=2200.0, type_contrat="CDI", date_entree="2020-01-01",
+        specificites_extra={"exclure_iccp": True},
+    )
+    ctx.exit_indemnities = {"indemnite_preavis": {"montant": 0.0}, "indemnite_conges": {"montant": 999.0}}
+    ctx.depart_du_mois = True
+    ctx.cp_fin_de_contrat = {
+        "periode_precedente": {"libelle": "2024-2025", "brut": 26400.0, "droits": 30.0, "restants": 5.0},
+        "periode_en_cours": {"libelle": "2025-2026", "brut_avant_mois": 22000.0, "droits": 25.0, "restants": 20.0},
+    }
+    res = calculer_salaire_brut(ctx, [], date(2026, 4, 1), date(2026, 4, 30), [])
+    lignes = [l for l in res["lignes_composants_brut"] if "compensatrice de congés" in (l.get("libelle") or "")]
+    assert len(lignes) == 1
+    assert lignes[0]["gain"] == pytest.approx(ctx.detail_iccp_fin_contrat["total"], abs=0.01)
+    assert lignes[0]["gain"] != 999.0
+
+
+def test_la_precarite_reste_excluable_par_drapeau():
+    ctx = build_test_contexte(
+        salaire_base=2200.0,
+        type_contrat="CDD",
+        date_entree="2025-10-01",
+        date_fin_contrat="2026-04-30",
+        cumuls={"brut_total": 8800.0},
+        specificites_extra={"cdd_sans_precarite": True},
+    )
+    gains = _lignes_gain(calculer_salaire_brut(ctx, [], date(2026, 4, 1), date(2026, 4, 30), []))
+    assert "Prime de précarité (CDD)" not in gains
+    assert any("compensatrice de congés" in k for k in gains)
 
 
 def test_iccp_absente_si_sortie_en_attente():
