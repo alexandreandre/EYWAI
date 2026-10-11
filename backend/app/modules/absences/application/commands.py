@@ -20,6 +20,7 @@ from app.modules.absences.domain.enums import (
     IJSS_ELIGIBLE_TYPES,
     type_calendrier_projete,
 )
+from app.modules.absences.domain.nature_arret import incoherence_nature_type_d_arret
 from app.modules.absences.domain.rules import (
     quotite_demi_journees,
     requires_salary_certificate,
@@ -193,6 +194,13 @@ def create_absence_request(
     absence_type = getattr(request_data, "type", None)
     employee_id = getattr(request_data, "employee_id", None)
     event_subtype = getattr(request_data, "event_subtype", None)
+    # Le maintien suit le type d'arrêt, la DSN et l'attestation la nature :
+    # une combinaison qui les fait diverger est refusée avant toute écriture.
+    incoherence = incoherence_nature_type_d_arret(
+        absence_type, getattr(request_data, "arret_type", None)
+    )
+    if incoherence:
+        raise ValueError(incoherence)
     demi_journees_raw = getattr(request_data, "demi_journees", None) or {}
     # Clés normalisées en ISO : c'est la forme stockée (jsonb) et lue partout.
     demi_journees = {
