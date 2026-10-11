@@ -39,3 +39,16 @@ describe("Nouveau congé : avertissement de solde avant l'enregistrement", () =>
     expect(t).toContain("avertissementSoldeInsuffisantRh(");
   });
 });
+
+describe("Temps de travail & HS : onglet du contingent", () => {
+  const t = lire("features/work-time-tracking/components/ContingentHsTab.tsx");
+
+  it("l'info-bulle de l'entête s'ouvre au survol de toute la case", () => {
+    expect(t).toMatch(/<TooltipTrigger asChild> <TableHead[^>]*data-testid="hs-comptabilisees-entete"/);
+  });
+
+  it("la ligne des pauses n'apparaît que si elle est non nulle", () => {
+    expect(t).not.toMatch(/\{" ?\}?<p>Pauses/);
+    expect(t).toMatch(/Math\.abs\(row\.pause_deduction\) >= 0\.005 && \( <p>Pauses/);
+  });
+});
