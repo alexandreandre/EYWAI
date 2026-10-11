@@ -63,6 +63,9 @@ class AbsenceBalance(BaseModel):
     acquired: float
     taken: float
     remaining: float | Literal["N/A", "selon événement"]
+    #: Congés payés repris d'un bulletin importé (« fidèle au bulletin ») : le
+    #: solde ne reçoit plus d'acquisition et le recalage RH est refusé.
+    suit_bulletin: bool = False
 
 
 class AbsenceBalancesResponse(BaseModel):

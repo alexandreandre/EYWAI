@@ -244,6 +244,12 @@ export function EmployeeDetailLeaveBalancesTab({
                           <span title={balance.type}>
                             {getRhLeaveBalanceShortLabel(balance.type)}
                           </span>
+                          {balance.suit_bulletin ? (
+                            <p className="text-xs font-normal text-amber-700 dark:text-amber-400">
+                              Suit les bulletins importés : Martine n’ajoute plus d’acquisition
+                              et le recalage à la main est refusé.
+                            </p>
+                          ) : null}
                           {balance.type !== getRhLeaveBalanceShortLabel(balance.type) ? (
                             <p className="text-xs font-normal text-muted-foreground">
                               {balance.type}
@@ -307,6 +313,7 @@ export function EmployeeDetailLeaveBalancesTab({
         open={recalageCpOpen}
         onOpenChange={setRecalageCpOpen}
         employeeId={employeeId}
+        suitBulletin={visibleBalances.some((b) => b.suit_bulletin)}
         onRecale={handleCpRecales}
       />
 

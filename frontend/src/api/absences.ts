@@ -72,6 +72,8 @@ export interface AbsenceBalance {
   acquired: number;
   taken: number;
   remaining: number | 'N/A' | 'selon événement';
+  /** Congés payés repris d'un bulletin importé : pas d'acquisition ajoutée, recalage refusé. */
+  suit_bulletin?: boolean;
 }
 
 export interface EvenementFamilialEvent {

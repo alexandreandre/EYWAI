@@ -30,6 +30,7 @@ from app.modules.absences.domain.leave_policy import (
     LeavePolicySettings,
 )
 from app.modules.absences.infrastructure.leave_settings_repository import (
+    get_adjustments_by_employees_year,
     get_employee_adjustment,
     get_leave_policy,
     list_company_adjustments_avec_reference,
@@ -562,6 +563,22 @@ def _fin_du_mois(annee: int, mois: int) -> date:
 
 def _jours(valeur: float) -> str:
     return f"{valeur:.2f}".replace(".", ",")
+
+
+def marquer_cp_suivant_le_bulletin(employee_id: str, balances: list[dict]) -> list[dict]:
+    """Signale les lignes de congés payés d'un salarié « fidèle au bulletin ».
+
+    Même lecture que le moteur : l'ajustement applicable à l'année en cours porte
+    le marqueur de l'import d'un bulletin.
+    """
+    ajustement = get_adjustments_by_employees_year([employee_id], date.today().year).get(
+        employee_id
+    )
+    fidele = bool(ajustement and _MARQUEUR_FIDELE in (ajustement.note or ""))
+    return [
+        {**ligne, "suit_bulletin": fidele and str(ligne.get("type", "")).startswith("Congés Payés")}
+        for ligne in balances
+    ]
 
 
 def _refus_de_recalage(

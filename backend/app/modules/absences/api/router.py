@@ -776,6 +776,9 @@ def get_employee_absence_balances_route(
     cid = _require_rh_company_context(current_user)
     try:
         balances = queries.get_employee_absence_balances_for_rh(str(cid), employee_id)
+        balances = leave_settings_commands.marquer_cp_suivant_le_bulletin(
+            employee_id, balances
+        )
         return AbsenceBalancesResponse(balances=balances)
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))

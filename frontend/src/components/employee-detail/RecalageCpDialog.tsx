@@ -31,6 +31,8 @@ interface RecalageCpDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   employeeId: string;
+  /** Congés payés repris d'un bulletin importé : le recalage à la main est refusé. */
+  suitBulletin?: boolean;
   onRecale: (reponse: CpRecalageResponse) => void;
 }
 
@@ -40,7 +42,7 @@ interface RecalageCpDialogProps {
  * aussi, car le mois choisi n'est pas aujourd'hui (le tableau, lui, montre le
  * solde du jour, acquisition du mois en cours comprise).
  */
-export function RecalageCpDialog({ open, onOpenChange, employeeId, onRecale }: RecalageCpDialogProps) {
+export function RecalageCpDialog({ open, onOpenChange, employeeId, suitBulletin = false, onRecale }: RecalageCpDialogProps) {
   const mois = useMemo(() => moisDeRecalage(new Date()), []);
   const [moisChoisi, setMoisChoisi] = useState(mois[0].valeur);
   const [n1, setN1] = useState('');
@@ -93,6 +95,17 @@ export function RecalageCpDialog({ open, onOpenChange, employeeId, onRecale }: R
               compris). Les mois suivants partiront de ces soldes.
             </DialogDescription>
           </DialogHeader>
+
+          {suitBulletin ? (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Les congés payés de ce salarié suivent les bulletins importés : un recalage
+                à la main changerait ce mode de calcul, il est refusé. Pour corriger un
+                solde, demandez à l’administrateur de réimporter le bulletin.
+              </AlertDescription>
+            </Alert>
+          ) : null}
 
           <div className="space-y-2">
             <Label htmlFor="recalage-cp-mois">Soldes à la fin de</Label>
@@ -174,7 +187,7 @@ export function RecalageCpDialog({ open, onOpenChange, employeeId, onRecale }: R
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Annuler
             </Button>
-            <Button type="submit" disabled={recalage.isPending}>
+            <Button type="submit" disabled={recalage.isPending || suitBulletin}>
               {recalage.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
               ) : null}
