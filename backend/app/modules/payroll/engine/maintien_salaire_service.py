@@ -226,11 +226,13 @@ def _calculer_carence(
         motif_ss = f"Carence SS légale : {carence_ss} jour(s)."
 
     # Le délai de carence employeur (7 j) est supprimé de plein droit en cas
-    # d'accident du travail / maladie professionnelle (art. L1226-1 et D1226-3).
+    # d'accident du travail / maladie professionnelle (art. L1226-1 et D1226-3),
+    # « à l'exclusion des accidents de trajet » (D1226-3) : le trajet garde la
+    # carence employeur, même si la Sécurité sociale l'indemnise comme un AT.
     # Il ne s'applique pas non plus aux congés de parentalité (maternité,
     # paternité, adoption) : le maintien couvre l'intégralité du congé dès le
     # 1er jour (art. L1225-17 et s.).
-    if qualification.get("est_at_mp"):
+    if qualification.get("est_at_mp") and arret_type != "accident_trajet":
         carence_emp = 0
         motif_emp = "AT/MP : pas de carence employeur (supprimée de plein droit)."
     elif qualification.get("est_maternite"):
