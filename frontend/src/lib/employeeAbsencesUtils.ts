@@ -174,6 +174,23 @@ export function getAvailableCongePayeDays(
   return Math.max(0, remaining - pendingDays);
 }
 
+/** Avertissement montré à la RH qui pose un congé payé au-delà du solde du salarié. */
+export function formatCongeSansSoldeRh(
+  prenom: string,
+  solde: number,
+  demande: number,
+): string {
+  const excedent = Math.max(0, demande - solde);
+  const jours = (n: number) => `${formatQuotiteJours(n)} ${accord(n, 'jour')}`;
+  return (
+    `Le solde de congés payés de ${prenom} est de ${jours(solde)}. ` +
+    `${jours(demande)} ${accord(demande, 'demandé')}. ` +
+    `${jours(excedent)} ${accord(excedent, 'excédentaire')} ` +
+    `${accord(excedent, 'sera', 'seront')} ${accord(excedent, 'considéré')} comme congé sans solde (non rémunéré). ` +
+    'Confirmez-vous cette saisie ?'
+  );
+}
+
 export function formatCongePayeInsufficientMessage(
   available: number,
   requested: number,

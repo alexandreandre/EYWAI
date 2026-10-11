@@ -98,6 +98,6 @@ describe("fenêtre « Nouveau congé » de la page Absences (saisie RH)", () => 
   });
 
   it("montre le solde de congés payés au moment de poser", () => {
-    expect(texte).toMatch(/\(isRhLeave \|\| balances\.length > 0\)/);
+    expect(texte).toMatch(/!isRhArret && soldesPose\.length > 0 && absenceType/);
   });
 });

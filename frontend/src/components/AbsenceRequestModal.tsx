@@ -30,6 +30,7 @@ import {
   EMPLOYEE_REQUESTABLE_ABSENCE_TYPES,
   RH_ONLY_ABSENCE_TYPES,
   formatCongePayeInsufficientMessage,
+  formatCongeSansSoldeRh,
   formatQuotiteJours,
   getAvailableCongePayeDays,
   type EmployeeRequestableAbsenceType,
@@ -200,6 +201,9 @@ export function AbsenceRequestModal({
     (b) => b.type === "Compte modulation",
   );
   const hasJtcRh = (rhBalances ?? []).some((b) => b.type === "JTC");
+  // Soldes qui jugent la pose d'un congé payé : ceux du salarié choisi pour la
+  // RH, les siens pour un salarié.
+  const soldesPose = isRhLeave ? (rhBalances ?? []) : balances;
 
   // Réinitialiser les états à l'ouverture du modal
   useEffect(() => {
@@ -459,7 +463,13 @@ export function AbsenceRequestModal({
           return;
         }
       } else {
-        const cpBalance = balances.find((b) => b.type === "Congés Payés");
+        if (rhBalances === undefined) {
+          setError(
+            "Les soldes du salarié ne sont pas encore chargés : patientez un instant, puis enregistrez de nouveau.",
+          );
+          return;
+        }
+        const cpBalance = soldesPose.find((b) => b.type === "Congés Payés");
         const cpRestant = typeof cpBalance?.remaining === "number" ? cpBalance.remaining : 0;
         if (nbJours > cpRestant) {
           setConfirmSansSoldeOpen(true);
@@ -539,9 +549,10 @@ export function AbsenceRequestModal({
       ? "Enregistrer le congé"
       : "Soumettre la demande";
 
-  const cpBalance = balances.find((b) => b.type === "Congés Payés");
+  const cpBalance = soldesPose.find((b) => b.type === "Congés Payés");
   const cpRestant = typeof cpBalance?.remaining === "number" ? cpBalance.remaining : 0;
-  const nbJoursSansSolde = Math.max(0, quotiteSelectionnee - cpRestant);
+  const prenomSalarie =
+    employees.find((e) => e.id === selectedEmployeeId)?.first_name ?? "le salarié";
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -594,10 +605,10 @@ export function AbsenceRequestModal({
                 ))}
               </SelectContent>
             </Select>
-            {!isRhMode && balances.length > 0 && absenceType && (
+            {!isRhArret && soldesPose.length > 0 && absenceType && (
               <BalanceHint
                 absenceType={absenceType}
-                balances={balances}
+                balances={soldesPose}
                 pendingAbsences={pendingAbsences}
               />
             )}
@@ -911,9 +922,7 @@ export function AbsenceRequestModal({
           <AlertDialogHeader>
             <AlertDialogTitle>Attention — congé sans solde</AlertDialogTitle>
             <AlertDialogDescription>
-              Votre solde de congés payés est de {formatJours(cpRestant)} jour{cpRestant > 1 ? "s" : ""}. Vous demandez {formatJours(quotiteSelectionnee)} jour{quotiteSelectionnee > 1 ? "s" : ""}.
-              Les {formatJours(nbJoursSansSolde)} jour{nbJoursSansSolde > 1 ? "s" : ""} excédentaire{nbJoursSansSolde > 1 ? "s" : ""} seront considéré{nbJoursSansSolde > 1 ? "s" : ""} comme congé sans solde (non rémunéré).
-              Confirmez-vous cette demande ?
+              {formatCongeSansSoldeRh(prenomSalarie, cpRestant, quotiteSelectionnee)}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
