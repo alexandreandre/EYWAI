@@ -42,6 +42,17 @@ class TestSchemaDemiJournees:
         )
         assert req.demi_journees == {date(2026, 9, 14): "matin"}
 
+    def test_demi_journee_acceptee_pour_sans_solde(self):
+        """Le moteur retient une demi-journée de sans solde (quotité 0,5) : la
+        demande doit pouvoir la porter jusqu'au calendrier."""
+        req = AbsenceRequestCreate(
+            employee_id="emp-1",
+            type="sans_solde",
+            selected_days=[date(2026, 9, 14)],
+            demi_journees={date(2026, 9, 14): "matin"},
+        )
+        assert req.demi_journees == {date(2026, 9, 14): "matin"}
+
     def test_demi_journee_refusee_hors_compteurs_en_jours(self):
         """Événement familial : droits légaux en jours pleins ; le repos
         compensateur se prend en heures (heures_par_jour)."""
