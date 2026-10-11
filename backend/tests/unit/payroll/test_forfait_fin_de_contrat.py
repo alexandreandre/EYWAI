@@ -92,3 +92,69 @@ def test_un_mois_ordinaire_au_forfait_ne_change_pas():
     res = calculer_salaire_brut_forfait(ctx, [], *AVRIL, [])
     assert res["salaire_brut_total"] == 3750.0
     assert list(_gains(res)) == ["Salaire de base (forfait jour)"]
+
+
+# --- Une indemnité de congés saisie au mois l'emporte sur le calcul -----------
+# Zone 404, fin de période d'essai de juin 2026 au forfait : la gestionnaire a
+# saisi « Indemnités de fin de contrat (CP) » 2 076,60 (bulletin du cabinet) ; le
+# moteur ajoutait sa propre indemnité par période (2 536,23) : payée deux fois.
+
+SAISIE_ICCP = {"libelle": "Indemnités de fin de contrat (CP)", "montant": 2076.6, "saisie_id": "s-1"}
+
+
+def _lignes_conges_de_fin(res):
+    return [
+        l for l in res["lignes_composants_brut"]
+        if "compensatrice de congés" in (l.get("libelle") or "") or "(CP)" in (l.get("libelle") or "")
+    ]
+
+
+def test_au_forfait_l_indemnite_de_conges_saisie_remplace_le_calcul():
+    ctx = build_test_contexte(
+        statut="Cadre", salaire_base=3000.0, type_contrat="CDI", date_entree="2026-03-02",
+        specificites_extra={"is_forfait_jour": True},
+    )
+    ctx.depart_du_mois = True
+    ctx.cp_fin_de_contrat = {
+        "periode_en_cours": {"libelle": "2025-2026", "brut_avant_mois": 9000.0, "droits": 10.0, "restants": 10.0},
+    }
+    res = calculer_salaire_brut_forfait(ctx, [], *AVRIL, [dict(SAISIE_ICCP)])
+    assert [(l["libelle"], l["gain"]) for l in _lignes_conges_de_fin(res)] == [
+        ("Indemnités de fin de contrat (CP)", 2076.6)
+    ]
+    assert res["salaire_brut_total"] == pytest.approx(3000.0 + 2076.6, abs=0.01)
+
+
+def test_au_forfait_une_fin_de_cdd_avec_indemnite_saisie_garde_sa_precarite():
+    ctx = _cdd_forfait()
+    res = calculer_salaire_brut_forfait(
+        ctx, [], *AVRIL, [{"libelle": "Ind.de CP des CDD", "montant": 2300.0, "saisie_id": "s-2"}]
+    )
+    gains = _gains(res)
+    assert gains["Prime de précarité (CDD)"] == pytest.approx(2100.0, abs=0.01)
+    assert "Indemnité compensatrice de congés payés (CDD)" not in gains
+    assert gains["Ind.de CP des CDD"] == 2300.0
+
+
+def test_aux_heures_l_indemnite_de_conges_saisie_remplace_aussi_le_calcul():
+    from app.modules.payroll.engine.calcul_brut import calculer_salaire_brut
+
+    ctx = build_test_contexte(salaire_base=2200.0, type_contrat="CDI", date_entree="2020-01-01")
+    ctx.exit_indemnities = {"indemnite_preavis": {"montant": 0.0}, "indemnite_conges": {"montant": 999.0}}
+    ctx.depart_du_mois = True
+    ctx.cp_fin_de_contrat = {
+        "periode_en_cours": {"libelle": "2025-2026", "brut_avant_mois": 22000.0, "droits": 25.0, "restants": 20.0},
+    }
+    saisie = {"libelle": "Indemnité compensatrice de congés payés", "montant": 1800.0, "saisie_id": "s-3"}
+    res = calculer_salaire_brut(ctx, [], *AVRIL, [saisie])
+    lignes = [(l["libelle"], l["gain"]) for l in res["lignes_composants_brut"] if "compensatrice de congés" in (l.get("libelle") or "")]
+    assert lignes == [("Indemnité compensatrice de congés payés", 1800.0)]
+
+
+def test_une_absence_de_conges_saisie_n_est_pas_une_indemnite_de_fin_de_contrat():
+    from app.modules.payroll.engine.calcul_brut import iccp_saisie_au_mois
+
+    assert not iccp_saisie_au_mois([{"libelle": "Abs. Congés s.solde", "montant": -92.31}])
+    assert not iccp_saisie_au_mois([{"libelle": "Indemnité de fin de contrat", "montant": 500.0}])
+    assert iccp_saisie_au_mois([{"libelle": "Indemnités de fin de contrat (CP, rupture)", "montant": 4281.5}])
+    assert iccp_saisie_au_mois([{"libelle": "Ind.de CP des CDD", "montant": 195.97}])
