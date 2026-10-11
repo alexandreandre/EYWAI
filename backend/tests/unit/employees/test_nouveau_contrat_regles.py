@@ -267,8 +267,6 @@ class TestEcritures:
             "exclure_prime_precarite": False,
             "cdd_sans_iccp": False,
             "exclure_iccp": False,
-            "maintien_regime_apprenti": False,
-            "apprenti_date_effet": None,
             "mutuelle": {"adhesion": True},
         }
         assert fiche["specificites_paie"]["cdd_sans_iccp"] is True  # la fiche lue n'est pas modifiée

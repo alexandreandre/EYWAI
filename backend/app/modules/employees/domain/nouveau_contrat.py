@@ -191,15 +191,33 @@ def date_anciennete(
 #: exoneration_alternance._maintien_ancien_regime, contexte.is_apprenti).
 DRAPEAUX_ALTERNANCE = {"maintien_regime_apprenti": False, "apprenti_date_effet": None}
 
+#: Exclusions de fin de contrat propres au contrat rangé : celles de la prime
+#: de précarité (lues par calcul_brut et reference_remuneration) tiennent à ce
+#: contrat ; celles de l'indemnité de congés ne sont plus lues (une ICCP ne
+#: s'exclut pas) mais ne doivent pas survivre au contrat.
+DRAPEAUX_FIN_DE_CONTRAT = {
+    "cdd_sans_precarite": False,
+    "exclure_prime_precarite": False,
+    "cdd_sans_iccp": False,
+    "exclure_iccp": False,
+}
+
+DRAPEAUX_DU_CONTRAT = (DRAPEAUX_ALTERNANCE, DRAPEAUX_FIN_DE_CONTRAT)
+
 
 def _specificites_sans_alternance(specificites: Any) -> dict[str, Any] | None:
-    """Les spécificités de paie, drapeaux d'alternance remis à zéro ; None si
+    """Les spécificités de paie, drapeaux propres au contrat rangé (alternance,
+    exclusions de fin de contrat) remis à zéro, groupe par groupe ; None si
     aucun n'était posé (rien à réécrire)."""
     if not isinstance(specificites, Mapping):
         return None
-    if not any(specificites.get(cle) for cle in DRAPEAUX_ALTERNANCE):
+    remis = {}
+    for groupe in DRAPEAUX_DU_CONTRAT:
+        if any(specificites.get(cle) for cle in groupe):
+            remis.update(groupe)
+    if not remis:
         return None
-    return {**specificites, **DRAPEAUX_ALTERNANCE}
+    return {**specificites, **remis}
 
 
 def ecritures(

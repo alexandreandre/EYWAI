@@ -547,9 +547,8 @@ def _calculer_iccp_depart(
         and contexte.est_dernier_mois_mission(date_debut_periode, date_fin_periode)
     ):
         return False, None
-    spec = contexte.contrat.get("specificites_paie", {}) or {}
-    if spec.get("exclure_iccp"):
-        return False, None
+    # Aucun drapeau ne l'exclut : l'indemnité compensatrice de congés est due
+    # quelle que soit la cause de la rupture (C. trav. L3141-28).
     taux = lire_parametres_conges(contexte.baremes)["taux_dixieme"]
     resultat = _iccp_legale_par_periode(
         contexte, brut_du_mois, taux, taux_horaire_base, majoration_hs25
@@ -584,8 +583,9 @@ def _calculer_iccp_cdd(
     Applicable au CDD et à la mission d'intérim. Base légale : 1/10 de la
     rémunération brute totale du contrat, prime de précarité / IFM comprise.
     Taux dans payroll_config.cdd.indemnite_conges (ou interim.indemnite_conges),
-    défaut 0,10. Désactivable par flag specificites_paie.cdd_sans_iccp.
-
+    défaut 0,10. Aucun drapeau de la fiche ne l'exclut : elle est due quelle
+    que soit la cause de la rupture (C. trav. L1242-16, L3141-28) ; seule la
+    précarité a des exclusions (L1243-10).
     """
     is_cdd_fin = contexte.is_cdd and contexte.est_dernier_mois_cdd(
         date_debut_periode, date_fin_periode
@@ -604,10 +604,6 @@ def _calculer_iccp_cdd(
         return None
 
     if getattr(contexte, "block_iccp_cdd", False):
-        return None
-
-    spec = contexte.contrat.get("specificites_paie", {}) or {}
-    if spec.get("cdd_sans_iccp") or spec.get("exclure_iccp"):
         return None
 
     cle_regime = "interim" if is_interim_fin else "cdd"
