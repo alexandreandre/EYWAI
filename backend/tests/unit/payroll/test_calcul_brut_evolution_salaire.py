@@ -75,7 +75,7 @@ def test_ligne_rappel_salaire():
     assert len(lignes) == 1
     assert lignes[0]["gain"] == 600.0
     assert "Rappel de salaire" in lignes[0]["libelle"]
-    assert "2026-03-01" in lignes[0]["libelle"]
+    assert "01/03/2026" in lignes[0]["libelle"]
 
 
 def test_rappel_inclus_dans_brut_total():
