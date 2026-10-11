@@ -59,6 +59,26 @@ def _heures_evenement_absence(evenement: Dict[str, Any], duree_hebdo: float) -> 
     return float(heures)
 
 
+def _heures_absence_non_remuneree(evenement: Dict[str, Any], duree_hebdo: float) -> float:
+    """Heures retenues pour un jour d'absence non rémunérée (congé sans solde).
+
+    Un jour qui porte ses heures prévues les retient telles quelles. Un jour à
+    0 h — ce qu'écrit la validation d'une demande « sans solde » — retient la
+    durée journalière du CONTRAT (durée hebdomadaire ÷ 5), et sa moitié pour
+    une demi-journée (`quotite_absence`). Sur un contrat de 39 h, 7,8 h, que le
+    prorata du contrat répartit en 7 h de base et 0,8 h structurelle : ce que
+    retient Quadra pour un jour de « Congés sans solde » (Colorplast, août
+    2026 : 4 jours, 28 h et 3,2 h) et ce que le moteur retient déjà pour une
+    journée d'arrêt. La journée légale (7 h) répartie 35/39 ne retenait que
+    6,28 + 0,72 h, et une demi-journée retenait une journée entière.
+    """
+    heures = evenement.get("heures")
+    if heures is None or heures == 0:
+        journee = duree_hebdo / 5.0 if duree_hebdo and duree_hebdo > 0 else 7.0
+        return round(journee * _quotite_absence(evenement), 2)
+    return float(heures)
+
+
 def _periodes_d_arret(
     jours: list[tuple[date, str, float, bool]],
 ) -> list[Dict[str, Any]]:
@@ -128,6 +148,11 @@ def _jours_evenement_conges(evenement: Dict[str, Any]) -> float:
     plus d'un jour de CP par jour calendaire (miroir du plafond forfait,
     cf. calcul_brut_forfait._jours_evenement_absence).
     """
+    return _quotite_absence(evenement)
+
+
+def _quotite_absence(evenement: Dict[str, Any]) -> float:
+    """Fraction de jour d'une absence : 0,5 pour une demi-journée, sinon 1."""
     try:
         quotite = float(evenement.get("quotite_absence") or 1.0)
     except (TypeError, ValueError):
@@ -1451,7 +1476,7 @@ def calculer_salaire_brut(
             )
 
         elif type_ev == "absence_non_remuneree":
-            heures_abs = _heures_evenement_absence(evenement, duree_contrat_hebdo)
+            heures_abs = _heures_absence_non_remuneree(evenement, duree_contrat_hebdo)
             part_hs = 0.0
             if duree_contrat_hebdo > lc.DUREE_LEGALE_HEBDO:
                 # Même prorata du contrat que l'absence injustifiée ci-dessus
