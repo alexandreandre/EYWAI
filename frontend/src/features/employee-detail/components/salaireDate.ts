@@ -65,3 +65,39 @@ export function messageSalaireEnregistre(
     ? `${quoi} Les bulletins concernés passent « À recalculer ».`
     : `${quoi} D’ici là, la fiche garde le salaire actuel.`;
 }
+
+/** Le texte au-dessus de « Changer le salaire », avec ou sans historique daté. */
+export function texteSalaireActuel(
+  salaire: number | null | undefined,
+  avecHistorique: boolean,
+): string {
+  const actuel =
+    salaire !== null && salaire !== undefined && Number.isFinite(Number(salaire)) && Number(salaire) > 0
+      ? euros(Number(salaire))
+      : '—';
+  return avecHistorique
+    ? `Salaire de base actuel : ${actuel}. Il suit l’historique des salaires : il se change avec une date d’effet.`
+    : `Salaire de base actuel : ${actuel}. Aucun historique de salaire : « Changer le salaire » ` +
+        'en ouvre un à partir de ce salaire, avec une date d’effet et le rappel des mois déjà payés.';
+}
+
+/**
+ * Le salaire changé dans le champ de la fiche (salarié sans historique) n'est
+ * pas daté : il remplace l'ancien sur tout bulletin recalculé, sans rappel. Le
+ * dire dès que le champ change.
+ */
+export function avertissementSalaireNonDate(
+  initial: number | null | undefined,
+  courant: number | string | null | undefined,
+): string | null {
+  const avant = Number(initial);
+  const apres = Number(courant);
+  if (!initial || !Number.isFinite(avant) || courant === '' || courant === null || courant === undefined) {
+    return null;
+  }
+  if (!Number.isFinite(apres) || Math.abs(apres - avant) < 0.005) return null;
+  return (
+    `Changé ici, le salaire n’est pas daté : il remplace ${euros(avant)} sur tout bulletin recalculé, ` +
+    'sans rappel des mois déjà payés. Pour une augmentation à une date, utilisez « Changer le salaire ».'
+  );
+}

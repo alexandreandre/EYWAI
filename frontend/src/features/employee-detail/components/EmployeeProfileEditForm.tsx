@@ -1,7 +1,7 @@
 import { Loader2 } from 'lucide-react';
 import { aideCodeDsn } from './aideCodesDsn';
 import type { Control } from 'react-hook-form';
-import { useWatch } from 'react-hook-form';
+import { useFormState, useWatch } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -40,6 +40,7 @@ import { EmployeeContractConfigFormFields } from '@/features/employees/component
 import { getCollectiveAgreementLabel } from '@/lib/employeeDisplayUtils';
 import { BrutPourDureeHint } from '@/components/employees/BrutPourDureeHint';
 import { ChangerSalaire } from '@/features/employee-detail/components/ChangerSalaire';
+import { avertissementSalaireNonDate } from '@/features/employee-detail/components/salaireDate';
 import { Switch } from '@/components/ui/switch';
 import { isApprentissageContract, isCddContract } from '@/constants/contracts';
 import {
@@ -128,6 +129,9 @@ export function EmployeeProfileEditForm({
   const statut = useWatch({ control, name: 'statut' });
   const contractType = useWatch({ control, name: 'contract_type' });
   const salaireBase = useWatch({ control, name: 'salaire_de_base.valeur' });
+  // Le salaire de la fiche à l'ouverture : ce que le champ direct remplacerait.
+  const { defaultValues: valeursInitiales } = useFormState({ control });
+  const salaireInitial = Number(valeursInitiales?.salaire_de_base?.valeur) || null;
   const dureeHebdo = useWatch({ control, name: 'duree_hebdomadaire' });
   const salaireBaseA35h = useWatch({ control, name: 'specificites_paie.salaire_hors_hs_structurelles' });
   const selectedCcId = useWatch({ control, name: 'collective_agreement_id' });
@@ -437,13 +441,17 @@ export function EmployeeProfileEditForm({
       <section className="space-y-3">
         <SectionTitle>Rémunération</SectionTitle>
         <div className="grid gap-3 sm:grid-cols-2">
-          {salaireVerrouille && employeeId && companyId ? (
+          {employeeId && companyId ? (
             <ChangerSalaire
               employeeId={employeeId}
               companyId={companyId}
-              salaireActuel={Number(salaireBase) || null}
+              salaireActuel={
+                Number(salaireVerrouille ? salaireBase : salaireInitial) || null
+              }
+              avecHistorique={salaireVerrouille}
             />
-          ) : (
+          ) : null}
+          {salaireVerrouille && employeeId && companyId ? null : (
           <FormField
             control={control}
             name="salaire_de_base.valeur"
@@ -460,6 +468,11 @@ export function EmployeeProfileEditForm({
                   />
                 </FormControl>
                 <FormMessage />
+                {avertissementSalaireNonDate(salaireInitial, field.value) ? (
+                  <p role="status" className="text-xs text-amber-700">
+                    {avertissementSalaireNonDate(salaireInitial, field.value)}
+                  </p>
+                ) : null}
                 <BrutPourDureeHint salaire={salaireBase} dureeHebdo={dureeHebdo} baseA35h={Boolean(salaireBaseA35h)} />
               </FormItem>
             )}

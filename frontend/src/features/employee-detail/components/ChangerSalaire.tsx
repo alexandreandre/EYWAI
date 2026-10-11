@@ -12,22 +12,33 @@ import {
   erreursChangementSalaire,
   lireMontant,
   messageSalaireEnregistre,
+  texteSalaireActuel,
 } from './salaireDate';
 
 interface ChangerSalaireProps {
   employeeId: string;
   companyId: string;
   salaireActuel: number | null | undefined;
+  /** Faux pour un salarié sans historique : la première ligne part du salaire actuel. */
+  avecHistorique?: boolean;
   /** Appelé après l'enregistrement : relire la fiche et l'historique. */
   onChanged?: () => void;
 }
 
 /**
  * « Changer le salaire » : écrit dans l'historique daté (PUT /salary), seul
- * endroit où le salaire d'un salarié avec historique se modifie. Ce bloc n'est
+ * endroit où le salaire d'un salarié avec historique se modifie. Proposé aussi
+ * sans historique : la première ligne part du salaire actuel (ancien salaire
+ * de la ligne), d'où le rappel des mois déjà payés. Ce bloc n'est
  * pas un formulaire : il vit dans celui du profil, sans l'imbriquer.
  */
-export function ChangerSalaire({ employeeId, companyId, salaireActuel, onChanged }: ChangerSalaireProps) {
+export function ChangerSalaire({
+  employeeId,
+  companyId,
+  salaireActuel,
+  avecHistorique = true,
+  onChanged,
+}: ChangerSalaireProps) {
   const queryClient = useQueryClient();
   const [ouvert, setOuvert] = useState(false);
   const [montant, setMontant] = useState('');
@@ -73,10 +84,7 @@ export function ChangerSalaire({ employeeId, companyId, salaireActuel, onChanged
 
   return (
     <div className="space-y-2 rounded-md border border-dashed p-4 sm:col-span-2">
-      <p className="text-sm">
-        Salaire de base actuel : <strong>{salaireActuel ?? '—'} €</strong>. Il suit l’historique des
-        salaires : il se change avec une date d’effet.
-      </p>
+      <p className="text-sm">{texteSalaireActuel(salaireActuel, avecHistorique)}</p>
       {confirmation && (
         <p role="status" className="flex items-start gap-1.5 text-sm text-green-700">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
