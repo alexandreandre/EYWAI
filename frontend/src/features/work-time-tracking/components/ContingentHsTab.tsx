@@ -341,7 +341,24 @@ export function ContingentHsTab({
                     <TableRow>
                       <TableHead>Salarié</TableHead>
                       <TableHead>Utilisation plafond</TableHead>
-                      <TableHead>HS comptabilisées</TableHead>
+                      <TableHead>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              data-testid="hs-comptabilisees-entete"
+                              className="inline-flex cursor-help items-center gap-1"
+                            >
+                              HS comptabilisées
+                              <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-xs text-xs">
+                            Heures supplémentaires qui comptent dans le contingent annuel :
+                            structurelles et payées, moins les pauses, avec l&apos;ajustement
+                            manuel. Survolez une valeur pour voir le détail.
+                          </TooltipContent>
+                        </Tooltip>
+                      </TableHead>
                       <TableHead>RCR posées</TableHead>
                       <TableHead>Marge restante</TableHead>
                       <TableHead>Statut</TableHead>
@@ -375,7 +392,10 @@ export function ContingentHsTab({
                           <TableCell>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <span className="inline-flex items-center gap-1 tabular-nums">
+                                <span
+                                  data-testid="hs-comptabilisees-info"
+                                  className="flex w-full cursor-help items-center gap-1 tabular-nums"
+                                >
                                   {formatHours(row.consumed_hours)}
                                   <Info className="h-3.5 w-3.5 text-muted-foreground" />
                                 </span>
