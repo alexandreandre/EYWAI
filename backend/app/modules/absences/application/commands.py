@@ -217,6 +217,17 @@ def create_absence_request(
             employee_id, selected_days, demi_journees=demi_journees
         )
 
+    if enforce_conge_paye_balance and absence_type == "rtt":
+        from app.modules.absences.application.queries import rtt_shortfall_message
+
+        refus = rtt_shortfall_message(
+            employee_id, selected_days, demi_journees=demi_journees
+        )
+        if refus:
+            raise ValueError(
+                f"{refus}. Rapprochez-vous de votre direction pour une demande hors solde."
+            )
+
     if absence_type == "evenement_familial":
         if not event_subtype:
             raise ValueError(

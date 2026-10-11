@@ -38,6 +38,8 @@ class AbsenceRequest(BaseModel):
     manager_rejected_at: datetime | None = None
     manager_rejection_reason: str | None = None
     workflow_step: str | None = None
+    # Saisie directe RH acceptée malgré un solde RTT insuffisant : à afficher.
+    avertissement: str | None = None
 
 
 class SimpleEmployee(BaseModel):

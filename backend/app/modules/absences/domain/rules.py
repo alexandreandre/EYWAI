@@ -296,6 +296,25 @@ def quotite_demi_journees(
     return total
 
 
+def message_solde_rtt_insuffisant(available: float, requested: float) -> str | None:
+    """Phrase de refus/avertissement si le solde RTT ne couvre pas la demande, sinon None."""
+    available = max(0.0, float(available))
+    if requested <= available:
+        return None
+
+    def _jours(valeur: float) -> str:
+        nombre = str(int(valeur)) if valeur == int(valeur) else f"{valeur:.1f}".replace(".", ",")
+        return f"{nombre} {accord(valeur, 'jour')}"
+
+    if available <= 0:
+        return "Solde RTT insuffisant : 0 jour"
+    return (
+        f"Solde RTT insuffisant : {_jours(available)} disponible"
+        f"{'s' if available > 1 else ''} pour {_jours(requested)} "
+        f"{accord(requested, 'demandé')}"
+    )
+
+
 def heures_repos_prises(
     requests: list[dict],
     ref_date: date,

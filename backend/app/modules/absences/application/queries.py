@@ -449,6 +449,28 @@ def assert_employee_conge_paye_request_allowed(
     )
 
 
+def rtt_shortfall_message(
+    employee_id: str, selected_days: list, demi_journees: dict | None = None
+) -> str | None:
+    """Phrase « Solde RTT insuffisant » si le solde du jour ne couvre pas la pose."""
+    from app.modules.absences.domain.rules import (
+        message_solde_rtt_insuffisant,
+        quotite_demi_journees,
+    )
+
+    soldes = get_absence_balances_at_date(employee_id, date.today())
+    if not soldes:
+        return None
+    parsed_days = [
+        d if isinstance(d, date) else date.fromisoformat(str(d)[:10])
+        for d in selected_days
+    ]
+    return message_solde_rtt_insuffisant(
+        float((soldes.get("rtt") or {}).get("solde") or 0),
+        quotite_demi_journees(parsed_days, demi_journees),
+    )
+
+
 def get_absence_balances_at_date(
     employee_id: str, ref_date: date
 ) -> dict[str, dict[str, float]] | None:

@@ -344,6 +344,13 @@ def create_absence_request(
         )
         if employee_id != request_data.employee_id:
             request_data = request_data.model_copy(update={"employee_id": employee_id})
+        avertissement = None
+        if is_rh and request_data.type == "rtt":
+            avertissement = queries.rtt_shortfall_message(
+                employee_id,
+                request_data.selected_days,
+                demi_journees=request_data.demi_journees,
+            )
         data = commands.create_absence_request(
             request_data,
             enforce_conge_paye_balance=not is_rh,
@@ -395,6 +402,8 @@ def create_absence_request(
             except Exception:
                 _log.exception("[absences] notifications création ignorées")
         r = _enrich_single_absence_row(dict(data))
+        if avertissement:
+            r["avertissement"] = avertissement
         return r
     except HTTPException:
         raise
