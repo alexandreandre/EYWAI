@@ -261,9 +261,9 @@ export function AbsenceRequestModal({
   const selectedDaysCount = selectedDays?.length ?? 0;
 
   // Quotité demandée en jours : une demi-journée pèse 0,5. Les demi-journées
-  // ne concernent que les congés payés et les RTT.
+  // ne concernent que les congés payés, les RTT, les JTC et les congés sans solde.
   const typeAvecDemiJournees =
-    absenceType === 'conge_paye' || absenceType === 'rtt' || absenceType === 'jtc';
+    absenceType === 'conge_paye' || absenceType === 'rtt' || absenceType === 'jtc' || absenceType === 'sans_solde';
   const demiActives = typeAvecDemiJournees ? demiJournees : {};
   const quotiteSelectionnee = (selectedDays ?? []).reduce(
     (acc, day) => acc + (demiActives[format(day, 'yyyy-MM-dd')] ? 0.5 : 1),
@@ -910,7 +910,9 @@ export function AbsenceRequestModal({
                     );
                   })}
                 <p className="text-xs text-muted-foreground">
-                  Une demi-journée compte 0,5 jour sur le solde et la paie.
+                  {absenceType === 'sans_solde'
+                    ? 'Une demi-journée compte 0,5 jour sur la paie.'
+                    : 'Une demi-journée compte 0,5 jour sur le solde et la paie.'}
                 </p>
               </div>
             )}
