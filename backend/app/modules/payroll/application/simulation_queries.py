@@ -5,8 +5,9 @@ Requêtes et assemblage de contexte pour les simulations de paie (sans accès HT
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from app.shared.domain.effectif_seuils import effectif_retenu
 from app.modules.collective_agreements.application.idcc_resolution import (
@@ -296,6 +297,40 @@ def run_reverse_calculation_for_company(
     )
 
 
+#: Type d'une simulation de bulletin, tel que la contrainte
+#: `simulations_simulation_type_check` l'accepte ('reverse_calculation',
+#: 'payslip_simulation'). Le code écrivait 'payslip' : chaque « Générer le
+#: bulletin » finissait en erreur 500 (vidéo G, 11/10/2026).
+TYPE_SIMULATION_BULLETIN = "payslip_simulation"
+
+
+def nom_de_simulation(nom: Optional[str], maintenant: datetime) -> str:
+    """« Simulation salarié du 11/10/2026 à 19:42:05 » : la table refuse deux
+    simulations de même nom pour le même salarié et le même mois
+    (`unique_simulation_name`)."""
+    base = (nom or "").strip() or "Simulation"
+    return f"{base} du {maintenant:%d/%m/%Y} à {maintenant:%H:%M:%S}"
+
+
+def _nom_deja_pris(exc: Exception) -> bool:
+    texte = str(exc)
+    return "unique_simulation_name" in texte or "23505" in texte
+
+
+def _inserer_simulation(ligne: Dict[str, Any]) -> Optional[str]:
+    """Insère la simulation ; un nom déjà pris (deux clics la même seconde)
+    reçoit un numéro, « … (2) »."""
+    base = ligne["scenario_name"]
+    for numero in range(2, 12):
+        try:
+            return simulation_repository.insert_simulation_row(ligne)
+        except Exception as exc:  # noqa: BLE001 — seule la contrainte de nom se rattrape
+            if not _nom_deja_pris(exc):
+                raise
+            ligne = {**ligne, "scenario_name": f"{base} ({numero})"}
+    return simulation_repository.insert_simulation_row(ligne)
+
+
 def create_payslip_simulation_record(
     company_id: str,
     created_by: str,
@@ -329,14 +364,14 @@ def create_payslip_simulation_record(
         prefill_from_real=prefill_from_real,
     )
     payslip_data = simulation.get("payslip_data", {})
-    sim_id = simulation_repository.insert_simulation_row(
+    sim_id = _inserer_simulation(
         {
             "company_id": company_id,
             "employee_id": employee_id,
             "month": month,
             "year": year,
-            "simulation_type": "payslip",
-            "scenario_name": scenario_name,
+            "simulation_type": TYPE_SIMULATION_BULLETIN,
+            "scenario_name": nom_de_simulation(scenario_name, datetime.now(ZoneInfo("Europe/Paris"))),
             "scenario_data": scenario_data or {},
             "payslip_data": payslip_data,
             "created_by": created_by,
