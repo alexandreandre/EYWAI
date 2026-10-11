@@ -91,7 +91,9 @@ export default function CompensationSemainesSettingsCard() {
               à 25 % puis 50 %), puis les semaines s&apos;additionnent sur la fenêtre des
               variables. Les heures supplémentaires de la fenêtre absorbent d&apos;abord les
               absences ; le manque qu&apos;elles ne couvrent pas est retenu sur les derniers jours
-              manqués. Le bulletin le mentionne.
+              manqués. Le bulletin le mentionne. L&apos;option ne s&apos;applique pas aux salariés à temps
+              partiel : leurs heures au-delà du contrat sont des heures complémentaires, comptées
+              semaine par semaine.
             </span>
           </Label>
         </div>
