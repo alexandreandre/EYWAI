@@ -117,3 +117,18 @@ describe("recalage des congés payés", () => {
     expect(lire("components/employee-detail/recalageCp.ts")).not.toContain("dans l’historique");
   });
 });
+
+describe("mode « fidèle au bulletin » des congés payés", () => {
+  const onglet = lire("components/employee-detail/EmployeeDetailLeaveBalancesTab.tsx");
+  const fenetre = lire("components/employee-detail/RecalageCpDialog.tsx");
+
+  it("la ligne des congés de la fiche dit que le solde suit les bulletins importés", () => {
+    expect(onglet).toContain("suit_bulletin");
+    expect(onglet).toContain("Suit les bulletins importés");
+  });
+
+  it("la fenêtre de recalage dit pourquoi on ne peut pas recaler et quoi faire", () => {
+    expect(fenetre).toContain("suitBulletin");
+    expect(fenetre).toContain("réimporter le bulletin");
+  });
+});
