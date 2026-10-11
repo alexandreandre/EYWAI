@@ -2,7 +2,7 @@
 
 import { log } from '@/lib/logger';
 import { displayNamePrenomNom } from '@/lib/employeeName';
-import { formatQuotiteJours, quotiteJoursDemande } from '@/lib/employeeAbsencesUtils';
+import { formatQuantiteFr, formatQuotiteJours, quotiteJoursDemande } from '@/lib/employeeAbsencesUtils';
 import { RhPageHeader } from '@/components/layout';
 import { useState, useEffect, useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
@@ -277,7 +277,7 @@ export default function AbsencesPage() {
     if (req.type === 'repos_compensateur') {
       return (
         <span className="flex items-center gap-1 text-muted-foreground">
-          <Info className="h-4 w-4" /> {remaining} h
+          <Info className="h-4 w-4" /> {formatQuantiteFr(remaining, 'h')}
         </span>
       );
     }
@@ -291,14 +291,14 @@ export default function AbsencesPage() {
         <Tooltip>
           <TooltipTrigger>
             <span className={`flex items-center gap-1 ${colorClass}`}>
-              <Info className="h-4 w-4" /> {remaining} j
+              <Info className="h-4 w-4" /> {formatQuantiteFr(remaining, 'j')}
             </span>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Solde actuel : {remaining} j</p>
-            <p>Demande : -{requestedDaysCount} j</p>
+            <p>Solde actuel : {formatQuantiteFr(remaining, 'j')}</p>
+            <p>Demande : −{formatQuantiteFr(requestedDaysCount, 'j')}</p>
             <hr className="my-1" />
-            <p className={`font-bold ${colorClass}`}>Solde après validation : {balanceAfterApproval} j</p>
+            <p className={`font-bold ${colorClass}`}>Solde après validation : {formatQuantiteFr(balanceAfterApproval, 'j')}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -420,7 +420,7 @@ export default function AbsencesPage() {
           <TableHead>Employé</TableHead>
           <TableHead>Type</TableHead>
           <TableHead className="min-w-0 max-w-[220px]">Demande</TableHead>
-          <TableHead>Solde Restant</TableHead>
+          <TableHead>Solde aujourd&apos;hui</TableHead>
           <TableHead>Justificatif</TableHead>
           <TableHead>Attestation</TableHead>
           <TableHead className="text-right">Actions</TableHead>
