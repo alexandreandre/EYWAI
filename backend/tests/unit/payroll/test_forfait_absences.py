@@ -104,3 +104,16 @@ def test_entree_en_cours_de_mois_proratisee_en_jours_ouvres():
     cal = [_ev("2026-01-01", "ferie", 0.0)]
     res = _brut(ctx, cal, date(2026, 1, 1), date(2026, 1, 31))
     assert res["salaire_brut_total"] == pytest.approx(round(3000.0 * 6 / 22, 2), abs=0.02)
+
+
+@pytest.mark.parametrize("type_ev,debut_libelle", [
+    ("absence_non_remuneree", "Absence non rémunérée du"),
+    ("absence_injustifiee", "Absence injustifiée du"),
+])
+def test_libelle_d_absence_forfait_ne_repete_pas_l_unite(type_ev, debut_libelle):
+    ctx = _ctx()
+    res = _brut(ctx, [_ev("2026-03-16", type_ev)], date(2026, 3, 1), date(2026, 3, 31))
+    libelles = [l["libelle"] for l in res["lignes_composants_brut"] if l["libelle"].startswith(debut_libelle)]
+    assert libelles, res["lignes_composants_brut"]
+    assert libelles[0].endswith("(1 jour)")
+    assert "jour jour" not in libelles[0]
