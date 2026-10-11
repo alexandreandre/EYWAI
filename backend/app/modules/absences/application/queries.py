@@ -7,6 +7,10 @@ Retourne des dicts / listes de dicts compatibles avec les schémas de réponse A
 
 from __future__ import annotations
 from app.shared.domain.effectif_seuils import effectif_retenu
+from app.shared.seniority_reference import (
+    resolve_date_anciennete_prime,
+    resolve_seniority_reference_date,
+)
 from app.core.logging import get_logger
 
 logger = get_logger("modules.absences.application.queries")
@@ -966,6 +970,7 @@ def _employee_payload_for_contexte(emp: Dict[str, Any]) -> Dict[str, Any]:
         "date_naissance": emp.get("date_naissance") or "",
         "duree_hebdomadaire": float(emp.get("duree_hebdomadaire") or 35),
         "date_entree": emp.get("hire_date") or "",
+        "seniority_reference_date": resolve_seniority_reference_date(emp) or "",
         "salaire_base": salaire_base,
         "taux_prelevement_source": float(emp.get("taux_prelevement_source") or 0),
         "prevoyance": emp.get("prevoyance") or "NON",
@@ -995,7 +1000,11 @@ def compute_subrogation_for_absence(
     parsed_days = sorted(_parse_absence_day(d) for d in days_raw)
     date_debut_arret = parsed_days[0]
     qualification = _qualifier_arret(arret_type)
-    date_entree_raw = (employee_row.get("hire_date") or employee_row.get("date_entree"))
+    # Même ancienneté que le maintien du bulletin : la date d'ancienneté de la
+    # fiche (reprise) d'abord, l'entrée à défaut.
+    date_entree_raw = resolve_date_anciennete_prime(employee_row) or employee_row.get(
+        "date_entree"
+    )
     if isinstance(date_entree_raw, str) and date_entree_raw.strip():
         date_entree = date.fromisoformat(date_entree_raw[:10])
     elif isinstance(date_entree_raw, date):

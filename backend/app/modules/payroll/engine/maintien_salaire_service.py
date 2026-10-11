@@ -25,6 +25,22 @@ def _parse_date(value: Any) -> Optional[date]:
     return None
 
 
+def _date_anciennete(contexte: ContextePaie) -> Optional[date]:
+    """Date d'ancienneté du salarié pour le maintien de salaire.
+
+    La condition d'ancienneté et la durée des tranches (L1226-1, D1226-1 et
+    D1226-2) s'apprécient sur l'ancienneté dans l'entreprise, qu'une
+    convention ou un contrat peut reprendre. Même lecture que la prime
+    d'ancienneté : la date d'ancienneté de la fiche (reprise), à défaut celle
+    de la DSN, à défaut l'entrée au contrat. Jamais `prior_service_months`,
+    qui porte souvent l'ancienneté totale au lieu de la reprise.
+    """
+    from app.shared.seniority_reference import resolve_date_anciennete_from_contrat
+
+    contrat = getattr(contexte, "contrat", None) or {}
+    return _parse_date(resolve_date_anciennete_from_contrat(contrat))
+
+
 def _mois_anciennete(date_entree: date, ref: date) -> int:
     """Nombre de mois entamés entre date_entree et ref (approximation standard RH)."""
     if ref < date_entree:
@@ -1068,8 +1084,7 @@ def compute_jours_avec_maintien_mois(
     if not date_debut_arret:
         return set()
 
-    date_entree_raw = (contexte.contrat or {}).get("contrat", {}).get("date_entree")
-    date_entree = _parse_date(date_entree_raw) or date(2000, 1, 1)
+    date_entree = _date_anciennete(contexte) or date(2000, 1, 1)
     anciennete_mois = _mois_anciennete(date_entree, date_debut_arret)
 
     est_at_mp = bool(qualification.get("est_at_mp"))
@@ -1180,15 +1195,10 @@ def calculer_maintien(
             ijss["ijss_theorique"] = round(override_val, 2)
             ijss["ijss_brut_override"] = True
 
-    date_entree_raw = (
-        (contexte.contrat or {})
-        .get("contrat", {})
-        .get("date_entree")
+    date_anciennete = _date_anciennete(contexte)
+    anciennete_mois = _mois_anciennete(
+        date_anciennete or date(2000, 1, 1), date_debut_arret
     )
-    date_entree = _parse_date(date_entree_raw) or date(
-        2000, 1, 1
-    )
-    anciennete_mois = _mois_anciennete(date_entree, date_debut_arret)
 
     statut = ""
     try:
@@ -1200,7 +1210,7 @@ def calculer_maintien(
     jours_carence_payes = _jours_de_carence_payes_de_l_arret(
         arret,
         settings,
-        date_entree=_parse_date(date_entree_raw),
+        date_entree=date_anciennete,
         date_debut_arret=date_debut_arret,
         date_fin_arret=date_fin_arret or date_debut_arret,
         arret_type=arret_type,
