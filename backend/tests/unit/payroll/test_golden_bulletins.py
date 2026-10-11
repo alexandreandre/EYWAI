@@ -171,7 +171,10 @@ class TestGoldenArretMaladieIjPlafond:
         )
         assert res["ijss_journaliere"] <= 51.0 + 0.01
 
-    def test_ijss_non_plafonnee_si_plafonds_absents(self):
+    def test_sans_bareme_ij_plafonds_le_plafond_legal_de_1_4_smic_s_applique(self):
+        # Depuis le 01/04/2025, le salaire de base des IJ maladie est retenu
+        # dans la limite de 1,4 Smic mensuel (CSS R323-4) : même sans le
+        # barème `ij_plafonds`, l'IJ ne dépasse pas 50 % de ce plafond.
         ctx = build_test_contexte(salaire_base=12000.0)
         ctx.baremes.pop("ij_plafonds", None)
         arret = {
@@ -192,4 +195,8 @@ class TestGoldenArretMaladieIjPlafond:
             arret, qual, carence, ctx2, date(2026, 4, 1), date(2026, 4, 30)
         )
         assert res_avec["ijss_journaliere"] <= 51.0 + 0.01
-        assert res_sans["ijss_journaliere"] > res_avec["ijss_journaliere"]
+        smic_mensuel = 12.31 * 35 * 52 / 12
+        assert res_sans["ijss_journaliere"] == pytest.approx(
+            0.5 * 1.4 * smic_mensuel * 3 / 91.25, abs=0.005
+        )
+        assert res_sans["ijss_journaliere"] >= res_avec["ijss_journaliere"]

@@ -314,6 +314,72 @@ def _ijss_extras_mi_temps_forfait(
     }
 
 
+#: Arrêts depuis cette date : salaire de base des IJ maladie retenu dans la
+#: limite de 1,4 Smic mensuel (décret 2025-160, CSS R323-4).
+DEBUT_PLAFOND_SJB_SMIC = date(2025, 4, 1)
+
+
+def _salaire_journalier_de_base_maladie(
+    arret: Dict[str, Any], salaire_mensuel: float
+) -> float:
+    """Salaire journalier de base des IJ maladie : trois derniers bruts ÷ 91,25.
+
+    Les bruts sont ceux des trois bulletins qui précèdent le mois du début de
+    l'arrêt (`salaires_bruts_reference`, lus par le générateur). Un mois sans
+    bulletin, ou un arrêt sans bruts fournis (aperçu, simulation), compte le
+    salaire de base du contrat : c'est une estimation, que le décompte de la
+    caisse remplace dans le suivi IJSS.
+    """
+    bruts = list(arret.get("salaires_bruts_reference") or [])[:3]
+    bruts += [None] * (3 - len(bruts))
+    total = 0.0
+    for brut in bruts:
+        try:
+            valeur = float(brut) if brut is not None else None
+        except (TypeError, ValueError):
+            valeur = None
+        total += valeur if valeur is not None else salaire_mensuel
+    return total / lc.DIVISEUR_SJB_TROIS_MOIS if total > 0 else 0.0
+
+
+def _smic_horaire_au(contexte: ContextePaie, jour: date) -> Optional[float]:
+    """Smic horaire en vigueur le `jour` (barème `smic` et son historique).
+
+    Même règle que `ContextePaie.smic_horaire`, à une autre date : le palier
+    le plus récent qui précède le jour, sinon la valeur courante.
+    """
+    baremes = getattr(contexte, "baremes", None) or {}
+    smic = baremes.get("smic") if isinstance(baremes, dict) else None
+    if not isinstance(smic, dict):
+        return None
+    applicable: Optional[tuple[date, Any]] = None
+    for palier in smic.get("historique") or []:
+        debut = _parse_date((palier or {}).get("date_debut"))
+        if debut and debut <= jour and (applicable is None or debut > applicable[0]):
+            applicable = (debut, palier.get("cas_general"))
+    valeur = applicable[1] if applicable and applicable[1] else smic.get("cas_general")
+    try:
+        return float(valeur) if valeur else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _plafond_sjb_maladie(contexte: ContextePaie, debut_arret: date) -> Optional[float]:
+    """Plafond du salaire journalier de base des IJ maladie, ou None.
+
+    1,4 Smic mensuel × 3 ÷ 91,25, au Smic du dernier jour du mois civil qui
+    précède le début de l'arrêt, pour les arrêts depuis le 01/04/2025. None
+    avant cette date ou sans barème Smic : l'ancien plafond s'applique.
+    """
+    if debut_arret < DEBUT_PLAFOND_SJB_SMIC:
+        return None
+    smic_horaire = _smic_horaire_au(contexte, debut_arret.replace(day=1) - timedelta(days=1))
+    if not smic_horaire:
+        return None
+    smic_mensuel = smic_horaire * lc.DUREE_LEGALE_HEBDO * 52 / 12
+    return lc.COEFF_PLAFOND_SJB_SMIC * smic_mensuel * 3 / lc.DIVISEUR_SJB_TROIS_MOIS
+
+
 def _calculer_ijss(
     arret: Dict[str, Any],
     qualification: Dict[str, Any],
@@ -344,13 +410,26 @@ def _calculer_ijss(
         return out
 
     salaire_mensuel = float(contexte.salaire_base_mensuel or 0.0)
-    salaire_journalier_base = (
-        salaire_mensuel / lc.DIVISEUR_JOURS_CALENDAIRES if salaire_mensuel else 0.0
+    est_maladie = not qualification.get("est_at_mp") and not qualification.get(
+        "est_maternite"
     )
+    if est_maladie:
+        salaire_journalier_base = _salaire_journalier_de_base_maladie(
+            arret, salaire_mensuel
+        )
+    else:
+        salaire_journalier_base = (
+            salaire_mensuel / lc.DIVISEUR_JOURS_CALENDAIRES if salaire_mensuel else 0.0
+        )
 
+    plafond_smic = (
+        _plafond_sjb_maladie(contexte, date_debut_arret) if est_maladie else None
+    )
     pss_data = contexte.get_bareme_value("pss") if hasattr(contexte, "get_bareme_value") else contexte.baremes.get("pss")
     pss_annuel = _extraire_pss_annuel(pss_data)
-    if pss_annuel is None:
+    if plafond_smic is not None:
+        base_plafonnee = min(salaire_journalier_base, plafond_smic)
+    elif pss_annuel is None:
         plafond_ss_journalier = 0.0
         base_plafonnee = 0.0
     else:

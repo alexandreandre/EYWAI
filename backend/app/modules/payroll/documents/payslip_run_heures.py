@@ -54,6 +54,9 @@ from app.modules.payroll.engine.ijss_bulletin import (
     compute_ijss_csg_lines,
 )
 
+from app.modules.payroll.infrastructure.salaires_de_reference import (
+    poser_salaires_de_reference,
+)
 from .payslip_run_common import (
     creer_calendrier_etendu,
     definir_periode_de_paie,
@@ -987,6 +990,7 @@ def run_payslip_generation_heures(
                     arret_data["arrets_annee"] = arrets_de_l_annee(
                         str(employee_id), year, month
                     )
+                poser_salaires_de_reference(arret_data, employee_id)
                 resultats_maintien = calculer_maintien(
                     arret_data,
                     contexte,

@@ -55,6 +55,9 @@ from .payslip_run_heures import (
     _appliquer_maintien_arret_maladie,
     _extraire_arret_pour_maintien,
 )
+from app.modules.payroll.infrastructure.salaires_de_reference import (
+    poser_salaires_de_reference,
+)
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 
 
@@ -470,6 +473,7 @@ def run_payslip_generation_forfait(
 
                 settings_maintien = get_maintenance_settings(company_id)
                 settings_dict = settings_maintien.model_dump(mode="json")
+                poser_salaires_de_reference(arret_data, resolved_employee_id)
                 resultats_maintien = calculer_maintien(
                     arret_data,
                     contexte,

@@ -11,6 +11,9 @@ from app.shared.seniority_reference import (
     resolve_date_anciennete_prime,
     resolve_seniority_reference_date,
 )
+from app.modules.payroll.infrastructure.salaires_de_reference import (
+    poser_salaires_de_reference,
+)
 from app.core.logging import get_logger
 
 logger = get_logger("modules.absences.application.queries")
@@ -1158,6 +1161,8 @@ def get_absence_maintenance_preview(
         "date_dernier_arret": absence.get("date_dernier_arret"),
         "salaire_periode_reelle": float(absence.get("salaire_periode_reelle") or 0.0),
     }
+    # Mêmes bruts de référence que le bulletin pour l'estimation des IJSS.
+    poser_salaires_de_reference(arret_data, absence.get("employee_id"))
 
     employee_map = _employee_payload_for_contexte(employee_row)
     company_map = _company_payload_for_contexte(company_row)
@@ -1277,6 +1282,8 @@ def get_absence_regularisation_at(
         "date_dernier_arret": absence.get("date_dernier_arret"),
         "salaire_periode_reelle": float(absence.get("salaire_periode_reelle") or 0.0),
     }
+    # Mêmes bruts de référence que le bulletin pour l'estimation des IJSS.
+    poser_salaires_de_reference(arret_data, absence.get("employee_id"))
 
     employee_map = _employee_payload_for_contexte(employee_row)
     company_map = _company_payload_for_contexte(company_row)

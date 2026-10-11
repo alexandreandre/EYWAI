@@ -22,6 +22,11 @@ ANNEE_BASCULE_RGDU = 2026
 
 # Plafonds SS / assiettes
 COEFF_PLAFOND_IJ_PSS = 1.8
+# IJ maladie (CSS R323-4) : salaire journalier de base = trois derniers
+# salaires bruts ÷ 91,25, retenus dans la limite de 1,4 Smic mensuel pour les
+# arrêts depuis le 01/04/2025 (Smic du dernier jour du mois civil précédent).
+DIVISEUR_SJB_TROIS_MOIS = 91.25
+COEFF_PLAFOND_SJB_SMIC = 1.4
 FACTEUR_PLAFOND_TRANCHE_2 = 8
 
 # Seuils SMIC (maintien / allocations)
