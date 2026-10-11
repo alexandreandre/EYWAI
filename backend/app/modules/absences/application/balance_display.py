@@ -96,7 +96,15 @@ def balances_to_api_list(
             }
         )
 
-    repos = _official_balance_row(soldes["repos_compensateur"])
+    # Repos compensateur : les trois chiffres du compteur tels que le bulletin
+    # les imprime. Un repos pris sans crédit reste négatif : on n'invente pas
+    # d'acquis pour boucler le triplet.
+    repos_brut = soldes["repos_compensateur"]
+    repos = {
+        "acquired": round(float(repos_brut.get("acquis") or 0), 2),
+        "taken": round(float(repos_brut.get("pris") or 0), 2),
+        "remaining": round(float(repos_brut.get("solde") or 0), 2),
+    }
     result.append(
         {
             "type": "Repos compensateur",
