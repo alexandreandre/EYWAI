@@ -4,6 +4,8 @@ Constantes structurelles légales (règles de droit stables, non scrapées).
 
 from __future__ import annotations
 
+from datetime import date
+
 # Temps de travail
 DUREE_LEGALE_HEBDO = 35.0
 DIVISEUR_JOURS_CALENDAIRES = 30.42
@@ -27,6 +29,16 @@ COEFF_PLAFOND_IJ_PSS = 1.8
 # arrêts depuis le 01/04/2025 (Smic du dernier jour du mois civil précédent).
 DIVISEUR_SJB_TROIS_MOIS = 91.25
 COEFF_PLAFOND_SJB_SMIC = 1.4
+# IJ accident du travail / maladie professionnelle (CSS R433-2) : salaire
+# journalier de base retenu dans la limite d'une fraction du plafond annuel de
+# la Sécurité sociale, fixée par la date de l'arrêt — 0,834 %, puis 0,226 %
+# (« l'équivalent de 1,8 Smic ») pour les arrêts survenus depuis le 01/11/2026
+# (décret n° 2026-909 du 30/09/2026, art. 1er 2° et art. 3). Paliers
+# (début, taux), du plus ancien au plus récent.
+TAUX_PLAFOND_SJB_AT_MP_PASS: tuple[tuple[date, float], ...] = (
+    (date.min, 0.00834),
+    (date(2026, 11, 1), 0.00226),
+)
 FACTEUR_PLAFOND_TRANCHE_2 = 8
 
 # Seuils SMIC (maintien / allocations)

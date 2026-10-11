@@ -390,6 +390,21 @@ def _plafond_sjb_maladie(contexte: ContextePaie, debut_arret: date) -> Optional[
     return lc.COEFF_PLAFOND_SJB_SMIC * smic_mensuel * 3 / lc.DIVISEUR_SJB_TROIS_MOIS
 
 
+def _plafond_sjb_at_mp(pss_annuel: float, debut_arret: date) -> float:
+    """Plafond du salaire journalier de base des IJ AT/MP (CSS R433-2).
+
+    La fraction du plafond annuel de la Sécurité sociale en vigueur au début
+    de l'arrêt : 0,834 %, puis 0,226 % pour les arrêts survenus depuis le
+    01/11/2026 (décret n° 2026-909). Un arrêt commencé avant garde l'ancien
+    plafond jusqu'à son terme.
+    """
+    taux = lc.TAUX_PLAFOND_SJB_AT_MP_PASS[0][1]
+    for debut, taux_palier in lc.TAUX_PLAFOND_SJB_AT_MP_PASS:
+        if debut_arret >= debut:
+            taux = taux_palier
+    return pss_annuel * taux
+
+
 def _calculer_ijss(
     arret: Dict[str, Any],
     qualification: Dict[str, Any],
@@ -442,6 +457,10 @@ def _calculer_ijss(
     elif pss_annuel is None:
         plafond_ss_journalier = 0.0
         base_plafonnee = 0.0
+    elif qualification.get("est_at_mp"):
+        base_plafonnee = min(
+            salaire_journalier_base, _plafond_sjb_at_mp(pss_annuel, date_debut_arret)
+        )
     else:
         plafond_ss_journalier = pss_annuel / 365.0
         base_plafonnee = min(
