@@ -29,7 +29,9 @@ import { messageDepartCree } from '@/features/employee-exits/utils/messageDepart
 import {
   OPTIONS_PREAVIS,
   PREAVIS_PAR_DEFAUT,
+  libelleSourcePreavis,
   typePreavisApresApercu,
+  typePreavisApresSaisie,
   type TypePreavis,
 } from '@/features/employee-exits/utils/preavis';
 import {
@@ -51,19 +53,6 @@ interface CreateExitDialogProps {
 
 export const CONTRAT_ABSENT_MESSAGE =
   "Le document du contrat de ce collaborateur n'est pas rangé dans Martine (la fiche peut porter son contrat) : le départ se crée quand même.";
-
-function noticeSourceLabel(source: NoticePeriodPreview['source']): string {
-  switch (source) {
-    case 'convention':
-      return 'Convention collective';
-    case 'legal':
-      return 'Droit légal';
-    case 'not_applicable':
-      return 'Non applicable';
-    default:
-      return 'Non déterminé';
-  }
-}
 
 export function CreateExitDialog({
   open,
@@ -245,6 +234,7 @@ export function CreateExitDialog({
   const handleNoticePeriodChange = (value: number) => {
     noticeManuallyEdited.current = true;
     setNoticePeriodDays(value);
+    setNoticeIndemnityType((actuel) => typePreavisApresSaisie(value, actuel));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -461,7 +451,7 @@ export function CreateExitDialog({
                   <AlertTitle>
                     Préavis prévu : {noticePreview.label}
                     <span className="ml-2 font-normal text-muted-foreground">
-                      ({noticeSourceLabel(noticePreview.source)})
+                      ({libelleSourcePreavis(noticePreview.source)})
                     </span>
                   </AlertTitle>
                   <AlertDescription className="space-y-2">
@@ -476,7 +466,7 @@ export function CreateExitDialog({
                     )}
                     {!noticePreview.has_collective_agreement && (
                       <p className="text-sm text-muted-foreground">
-                        Aucune convention collective assignée — minima légaux appliqués.
+                        Aucune convention collective assignée.
                       </p>
                     )}
                     {noticePreview.seniority_months != null && (
@@ -513,8 +503,9 @@ export function CreateExitDialog({
                   onChange={(e) => handleNoticePeriodChange(parseInt(e.target.value, 10) || 0)}
                 />
                 <p className="text-sm text-muted-foreground">
-                  Valeur pré-remplie selon la convention collective ou le droit légal. Ajustez si
-                  nécessaire (dispense, clause contractuelle, etc.).
+                  Valeur proposée par la convention collective ou, pour un licenciement, le Code
+                  du travail. La loi ne fixe pas de préavis de démission : saisissez celui de la
+                  convention, du contrat ou des usages.
                 </p>
               </div>
 

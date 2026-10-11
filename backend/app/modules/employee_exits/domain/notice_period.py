@@ -1,7 +1,16 @@
 """
 Calcul du délai de préavis pour les sorties de salariés.
 
-Priorité : règles conventionnelles extraites (si présentes) → minima légaux (R1234-2 / R1234-3).
+Priorité : règles conventionnelles extraites (si présentes) → loi.
+
+Ce que dit la loi (sources ouvertes le 11/10/2026) :
+- démission : « La loi ne fixe pas la durée du préavis de démission » ; elle
+  vient de la convention ou de l'accord collectif, du contrat, à défaut des
+  usages (service-public.gouv.fr F2883, vérifié le 08/07/2026) ;
+- licenciement : Code du travail L1234-1 (en vigueur depuis le 01/05/2008),
+  un mois de six mois à moins de deux ans d'ancienneté, deux mois au-delà ;
+  sous six mois, la loi, la convention ou les usages. La loi ne distingue pas
+  les cadres : leurs durées plus longues sont conventionnelles.
 Logique pure : aucune I/O.
 """
 
@@ -148,14 +157,30 @@ def _legal_notice_days(
             applicable=False,
         )
 
+    if exit_type == "demission":
+        # Pas de durée légale : à saisir (F2883).
+        return NoticePeriodResult(
+            days=0,
+            source="none",
+            label="Durée à saisir",
+            detail=(
+                "La loi ne fixe pas la durée du préavis de démission : elle vient de la "
+                "convention collective, du contrat de travail ou, à défaut, des usages "
+                "(service-public F2883). Saisissez la durée prévue."
+            ),
+            seniority_months=seniority_months,
+            employee_category=category,
+        )
+
     if seniority_months < 6:
         return NoticePeriodResult(
             days=0,
             source="legal",
             label="Aucun préavis légal minimum",
             detail=(
-                "Ancienneté inférieure à 6 mois : le Code du travail ne fixe pas de délai "
-                "de préavis minimum (sauf dispositions conventionnelles ou contractuelles)."
+                "Ancienneté inférieure à 6 mois : la durée du préavis de licenciement est "
+                "celle de la convention, de l'accord collectif ou, à défaut, des usages "
+                "(Code du travail L1234-1, 1°)."
             ),
             seniority_months=seniority_months,
             employee_category=category,
@@ -164,39 +189,18 @@ def _legal_notice_days(
             ),
         )
 
-    if category == "cadre":
-        if seniority_months < 24:
-            days = _months_to_days(2)
-            detail = (
-                "Cadre, ancienneté de 6 mois à moins de 2 ans : préavis légal de 2 mois "
-                f"({days} jours calendaires)."
-            )
-        else:
-            days = _months_to_days(3)
-            detail = (
-                "Cadre, ancienneté d'au moins 2 ans : préavis légal de 3 mois "
-                f"({days} jours calendaires)."
-            )
-    else:
-        if seniority_months < 24:
-            days = _months_to_days(1)
-            detail = (
-                "Non-cadre, ancienneté de 6 mois à moins de 2 ans : préavis légal de 1 mois "
-                f"({days} jours calendaires)."
-            )
-        else:
-            days = _months_to_days(2)
-            detail = (
-                "Non-cadre, ancienneté d'au moins 2 ans : préavis légal de 2 mois "
-                f"({days} jours calendaires)."
-            )
-
-    exit_label = "démission" if exit_type == "demission" else "licenciement"
+    mois = 1 if seniority_months < 24 else 2
+    days = _months_to_days(mois)
+    tranche = "de 6 mois à moins de 2 ans" if mois == 1 else "d'au moins 2 ans"
     return NoticePeriodResult(
         days=days,
         source="legal",
         label=f"{days} jours",
-        detail=f"Préavis légal pour une {exit_label} — {detail}",
+        detail=(
+            f"Préavis légal de licenciement (Code du travail L1234-1) : ancienneté {tranche}, "
+            f"{mois} mois ({days} jours calendaires). La convention collective peut prévoir "
+            "plus long."
+        ),
         seniority_months=seniority_months,
         employee_category=category,
     )
@@ -303,9 +307,10 @@ def compute_notice_period(
     category, statut_explicit = resolve_employee_category(statut)
     warnings: List[str] = []
 
-    if not statut_explicit:
+    # La loi ne distingue pas les cadres ; seule une convention peut le faire.
+    if not statut_explicit and cc_rules:
         warnings.append(
-            "Statut cadre / non-cadre non renseigné : calcul basé sur les minima non-cadre."
+            "Statut cadre / non-cadre non renseigné : durée conventionnelle des non-cadres retenue."
         )
 
     if hire_date is None:
@@ -362,11 +367,13 @@ def compute_notice_period(
             )
         if collective_agreement_name or collective_agreement_idcc:
             warnings.append(
-                "Aucune règle de préavis extraite pour cette convention — préavis légal appliqué."
+                "Aucune règle de préavis extraite pour cette convention — "
+                + ("durée à saisir." if exit_type == "demission" else "préavis légal appliqué.")
             )
     elif not collective_agreement_name and not collective_agreement_idcc:
         warnings.append(
-            "Aucune convention collective assignée à ce collaborateur — préavis légal appliqué."
+            "Aucune convention collective assignée à ce collaborateur — "
+            + ("durée à saisir." if exit_type == "demission" else "préavis légal appliqué.")
         )
 
     legal = _legal_notice_days(

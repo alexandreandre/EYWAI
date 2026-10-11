@@ -27,3 +27,27 @@ export function typePreavisApresApercu(
   if (!apercu.applicable || apercu.notice_period_days === 0) return 'not_applicable';
   return actuel === 'not_applicable' ? PREAVIS_PAR_DEFAUT : actuel;
 }
+
+/** Après une durée saisie à la main : une durée fait passer « Non applicable »
+ * à « Exécuté » ; aucune durée, « Non applicable ». (La loi ne fixe pas de
+ * préavis de démission : la durée se saisit, F2883.) */
+export function typePreavisApresSaisie(jours: number, actuel: TypePreavis): TypePreavis {
+  if (!jours) return 'not_applicable';
+  return actuel === 'not_applicable' ? PREAVIS_PAR_DEFAUT : actuel;
+}
+
+/** D'où vient la durée proposée. */
+export function libelleSourcePreavis(source: string): string {
+  switch (source) {
+    case 'convention':
+      return 'Convention collective';
+    case 'legal':
+      return 'Code du travail';
+    case 'not_applicable':
+      return 'Non applicable';
+    case 'none':
+      return 'à saisir : convention, contrat ou usage';
+    default:
+      return 'Non déterminé';
+  }
+}
