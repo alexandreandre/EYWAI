@@ -95,3 +95,11 @@ describe("Détail du maintien de salaire", () => {
     expect(lire("components/payslip/MaintenanceDetailModal.tsx")).toContain("libelleTypeArret(maintien.type_arret)");
   });
 });
+
+describe("Heures saisies un jour d'arrêt", () => {
+  it("« saisie » s'accorde avec les heures", () => {
+    const t = lire("features/payroll/components/ChoixHeuresSurArret.tsx");
+    expect(t).not.toMatch(/ h saisies<\/li>/);
+    expect(t).toMatch(/accord\(j\.heures, 'saisie'\)/);
+  });
+});
