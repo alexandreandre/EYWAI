@@ -3,7 +3,9 @@
  * taux d'assurance chômage notifié (bonus-malus), effectif retenu pour les
  * seuils, date de paiement des salaires, journée de solidarité.
  *
- * Le moteur les lit déjà (backend : companies.effectif et companies.settings).
+ * Le moteur les lit dans companies.settings. L'effectif s'y range par année
+ * (`effectif_seuils`) : la colonne companies.effectif n'est que le nombre de
+ * comptes de la société, que tient un déclencheur de la base.
  * Le serveur valide aussi (app/modules/companies/domain/parametres_paie.py) ;
  * ici, on dit à la gestionnaire quoi corriger avant d'envoyer, et on n'envoie
  * que ce qui change : chaque réglage entre dans l'empreinte des bulletins, et
@@ -41,17 +43,35 @@ export type ErreursParametresPaie = Partial<Record<keyof SaisieParametresPaie, s
 
 export type MiseAJourParametresPaie = Pick<
   CompanyDetailsUpdate,
-  'effectif' | 'taux_assurance_chomage' | 'date_paiement' | 'jour_solidarite'
+  'effectif' | 'effectif_annee' | 'taux_assurance_chomage' | 'date_paiement' | 'jour_solidarite'
 >;
 
-const LIBELLES_CHAMPS: Record<keyof MiseAJourParametresPaie, string> = {
+/** L'année dont la carte saisit l'effectif. */
+export function anneeEnCours(): number {
+  return new Date().getFullYear();
+}
+
+/** Les effectifs saisis, par année ; les valeurs illisibles sont ignorées. */
+function effectifsSaisis(company: CompanyDetails): Map<number, number> {
+  const saisis = new Map<number, number>();
+  const brut = company.settings?.effectif_seuils;
+  if (!brut || typeof brut !== 'object') return saisis;
+  for (const [annee, valeur] of Object.entries(brut)) {
+    if (/^\d{4}$/.test(annee) && Number.isInteger(valeur) && valeur >= 0) {
+      saisis.set(Number(annee), valeur);
+    }
+  }
+  return saisis;
+}
+
+const LIBELLES_CHAMPS: Record<Exclude<keyof MiseAJourParametresPaie, 'effectif_annee'>, string> = {
   effectif: 'Effectif retenu pour les seuils',
   taux_assurance_chomage: "Taux d'assurance chômage",
   date_paiement: 'Date de paiement des salaires',
   jour_solidarite: 'Journée de solidarité',
 };
 
-const ORDRE_CHAMPS: (keyof MiseAJourParametresPaie)[] = [
+const ORDRE_CHAMPS: (keyof typeof LIBELLES_CHAMPS)[] = [
   'effectif',
   'taux_assurance_chomage',
   'date_paiement',
@@ -63,10 +83,10 @@ function estDatePaiement(valeur: unknown): valeur is DatePaiement {
 }
 
 /** Valeurs enregistrées, à plat ; `null` quand rien n'est réglé. */
-function enregistres(company: CompanyDetails) {
+function enregistres(company: CompanyDetails, annee: number) {
   const reglages = company.settings ?? {};
   return {
-    effectif: company.effectif ?? null,
+    effectif: effectifsSaisis(company).get(annee) ?? null,
     taux_assurance_chomage: reglages.taux_assurance_chomage ?? null,
     date_paiement: estDatePaiement(reglages.date_paiement) ? reglages.date_paiement : null,
     jour_solidarite: reglages.jour_solidarite ?? null,
@@ -82,8 +102,11 @@ function memeValeur(a: unknown, b: unknown): boolean {
   return false;
 }
 
-export function saisieInitiale(company: CompanyDetails): SaisieParametresPaie {
-  const valeurs = enregistres(company);
+export function saisieInitiale(
+  company: CompanyDetails,
+  annee: number = anneeEnCours(),
+): SaisieParametresPaie {
+  const valeurs = enregistres(company, annee);
   return {
     tauxChomage: valeurs.taux_assurance_chomage != null ? String(valeurs.taux_assurance_chomage) : '',
     effectif: valeurs.effectif != null ? String(valeurs.effectif) : '',
@@ -111,8 +134,9 @@ function lireDate(saisie: string): { annee: number; mois: number; jour: number }
 export function construireMiseAJour(
   company: CompanyDetails,
   saisie: SaisieParametresPaie,
+  annee: number = anneeEnCours(),
 ): { corps: MiseAJourParametresPaie; erreurs: ErreursParametresPaie } {
-  const avant = enregistres(company);
+  const avant = enregistres(company, annee);
   const corps: MiseAJourParametresPaie = {};
   const erreurs: ErreursParametresPaie = {};
 
@@ -141,6 +165,7 @@ export function construireMiseAJour(
     erreurs.effectif = 'Indiquez un nombre entier, 0 ou plus.';
   } else if (!memeValeur(avant.effectif, Number(effectif))) {
     corps.effectif = Number(effectif);
+    corps.effectif_annee = annee;
   }
 
   if (saisie.datePaiement !== (avant.date_paiement ?? DATE_PAIEMENT_PAR_DEFAUT)) {
@@ -168,7 +193,7 @@ export function avertissementJourSolidarite(saisie: string, anneeCourante: numbe
 
 /** Libellés des réglages envoyés que la société relue ne porte pas. */
 export function champsNonRelus(corps: MiseAJourParametresPaie, relue: CompanyDetails): string[] {
-  const apres = enregistres(relue);
+  const apres = enregistres(relue, corps.effectif_annee ?? anneeEnCours());
   return ORDRE_CHAMPS.filter(
     (champ) => champ in corps && !memeValeur(corps[champ] ?? null, apres[champ]),
   ).map((champ) => LIBELLES_CHAMPS[champ]);
@@ -176,10 +201,12 @@ export function champsNonRelus(corps: MiseAJourParametresPaie, relue: CompanyDet
 
 /** Un réglage qui entre dans le calcul a-t-il changé entre deux lectures ? */
 export function parametresOntChange(avant: CompanyDetails, apres: CompanyDetails): boolean {
-  const a = enregistres(avant);
-  const b = enregistres(apres);
+  const a = enregistres(avant, anneeEnCours());
+  const b = enregistres(apres, anneeEnCours());
+  const effectifs = (c: CompanyDetails) => JSON.stringify([...effectifsSaisis(c)].sort());
   return (
     ORDRE_CHAMPS.some((champ) => !memeValeur(a[champ], b[champ])) ||
+    effectifs(avant) !== effectifs(apres) ||
     !memeValeur(avant.taux_at_mp, apres.taux_at_mp) ||
     !memeValeur(avant.paie_jour_de_fin, apres.paie_jour_de_fin) ||
     !memeValeur(avant.paie_occurrence, apres.paie_occurrence)
@@ -187,9 +214,13 @@ export function parametresOntChange(avant: CompanyDetails, apres: CompanyDetails
 }
 
 /** Une ligne lisible de ce qui s'applique, pour confirmer l'enregistrement. */
-export function resumeParametresPaie(company: CompanyDetails): string {
-  const v = enregistres(company);
-  const effectif = v.effectif != null ? `Effectif ${v.effectif}` : 'Effectif non renseigné';
+export function resumeParametresPaie(
+  company: CompanyDetails,
+  annee: number = anneeEnCours(),
+): string {
+  const v = enregistres(company, annee);
+  const effectif =
+    v.effectif != null ? `Effectif ${annee} : ${v.effectif}` : `Effectif ${annee} non saisi`;
   const chomage =
     v.taux_assurance_chomage != null
       ? `chômage ${String(v.taux_assurance_chomage).replace('.', ',')} %`
@@ -202,4 +233,22 @@ export function resumeParametresPaie(company: CompanyDetails): string {
     ? `solidarité le ${String(date.jour).padStart(2, '0')}/${String(date.mois).padStart(2, '0')}/${date.annee}`
     : 'solidarité le lundi de Pentecôte';
   return [effectif, chomage, paiement, solidarite].join(' · ');
+}
+
+/**
+ * Ce que Martine retient quand l'effectif de l'année n'est pas saisi (même
+ * règle que le serveur : la dernière année saisie avant, sinon la plus proche
+ * après, sinon le nombre de comptes) ; null quand l'année est saisie.
+ */
+export function repliEffectif(company: CompanyDetails, annee: number = anneeEnCours()): string | null {
+  const saisis = effectifsSaisis(company);
+  if (saisis.has(annee)) return null;
+  const annees = [...saisis.keys()];
+  const avant = annees.filter((a) => a < annee);
+  const apres = annees.filter((a) => a > annee);
+  const source = avant.length ? Math.max(...avant) : apres.length ? Math.min(...apres) : null;
+  if (source !== null) {
+    return `Non saisi pour ${annee} : Martine reprend celui de ${source} (${saisis.get(source)}).`;
+  }
+  return `Non saisi pour ${annee} : Martine compte les comptes de la société (${company.effectif ?? 0}), qui ne sont pas l'effectif légal.`;
 }

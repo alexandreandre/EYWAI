@@ -31,6 +31,7 @@ import {
   champsNonRelus,
   construireMiseAJour,
   parametresOntChange,
+  repliEffectif,
   resumeParametresPaie,
   saisieInitiale,
   type ErreursParametresPaie,
@@ -252,19 +253,28 @@ export function CompanyPayrollParamsEditCard({
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor="effectif-seuils">Effectif retenu pour les seuils</Label>
+          <Label htmlFor="effectif-seuils">
+            Effectif retenu pour les seuils en {anneeCourante}
+          </Label>
           <Input
             id="effectif-seuils"
             inputMode="numeric"
             value={saisie.effectif}
             onChange={(e) => modifier('effectif', e.target.value)}
-            placeholder="ex. 19"
+            placeholder="ex. 12"
             aria-invalid={Boolean(erreurs.effectif)}
             aria-describedby="effectif-seuils-aide"
           />
           <p id="effectif-seuils-aide" className="text-xs text-muted-foreground">
-            Effectif moyen de l&apos;année précédente. Sert aux seuils de 11, 20 et 50 salariés.
+            Effectif moyen de {anneeCourante - 1}, tel que l&apos;Urssaf le communique (compte
+            rendu des effectifs annuels). Sert aux seuils de 11, 20 et 50 salariés ; Martine ne
+            le recompte pas.
           </p>
+          {repliEffectif(reference, anneeCourante) && saisie.effectif.trim() === '' && (
+            <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+              {repliEffectif(reference, anneeCourante)}
+            </p>
+          )}
           <ErreurChamp id="effectif-seuils-erreur" message={erreurs.effectif} />
         </div>
 

@@ -85,6 +85,8 @@ export interface CompanyDetails {
     date_paiement?: DatePaiement | null;
     /** AAAA-MM-JJ ; absent = lundi de Pentecôte. */
     jour_solidarite?: string | null;
+    /** Effectif retenu pour les seuils, par année (`{"2026": 5}`). */
+    effectif_seuils?: Record<string, number>;
   };
   dsn_sync_mode?: DsnSyncMode | null;
 }
@@ -189,8 +191,10 @@ export type CompanyDetailsUpdate = Partial<
   >
 > & {
   dsn_sync_mode?: DsnSyncMode;
-  /** Effectif retenu pour les seuils ; jamais vidé. */
+  /** Effectif retenu pour les seuils de `effectif_annee` ; jamais vidé. */
   effectif?: number;
+  /** Année de l'effectif envoyé ; absente, l'année en cours. */
+  effectif_annee?: number;
   /** null retire le taux notifié (retour au taux normal). */
   taux_assurance_chomage?: number | null;
   /** null revient au comportement historique. */
