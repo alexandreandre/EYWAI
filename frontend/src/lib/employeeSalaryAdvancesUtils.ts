@@ -1,6 +1,7 @@
 import { CheckCircle, CircleX, Clock, CreditCard } from 'lucide-react';
 import type { AdvanceType, SalaryAdvance, SalaryAdvanceStatus } from '@/api/saisiesAvances';
 import type { AdvanceAvailableAmount } from '@/api/saisiesAvances';
+import { deDevant } from '@/features/payroll/utils/elision';
 
 export const ADVANCE_TYPE_LABELS: Record<AdvanceType, string> = {
   avance_salaire: 'Avance sur salaire',
@@ -133,7 +134,7 @@ export function formatAdvancePlafondSummary(data: AdvanceAvailableAmount): strin
 
   if (advanceType === 'avance_salaire') {
     if (monthLabel) {
-      return `${ratio} du net de ${monthLabel}`;
+      return `${ratio} du net ${deDevant(monthLabel)}`;
     }
     return `${ratio} du salaire net de référence`;
   }
