@@ -82,6 +82,10 @@ class EmployeeExitCreate(BaseModel):
     notice_period_days: int = Field(default=0, ge=0)
     is_gross_misconduct: bool = False  # Faute grave
     notice_indemnity_type: NoticeIndemnityType = "executed"
+    # Départ à la retraite : à l'initiative du salarié (départ volontaire,
+    # L1237-9) ou de l'employeur (mise à la retraite, L1237-7). Rangé dans
+    # `exit_notes.retirement_initiator`, que lisent le calcul, le reçu et la DSN.
+    retirement_initiator: Optional[Literal["employee", "employer"]] = None
 
     class Config:
         json_schema_extra = {

@@ -32,6 +32,11 @@ import {
   typePreavisApresApercu,
   type TypePreavis,
 } from '@/features/employee-exits/utils/preavis';
+import {
+  INITIATIVE_RETRAITE_PAR_DEFAUT,
+  OPTIONS_INITIATIVE_RETRAITE,
+  type InitiativeRetraite,
+} from '@/features/employee-exits/utils/retraite';
 import { AlertCircle, Info, Loader2 } from 'lucide-react';
 
 interface CreateExitDialogProps {
@@ -90,6 +95,9 @@ export function CreateExitDialog({
   const [isGrossMisconduct, setIsGrossMisconduct] = useState(false);
   const [noticeIndemnityType, setNoticeIndemnityType] = useState<TypePreavis>(PREAVIS_PAR_DEFAUT);
   const [exitReason, setExitReason] = useState<string>('');
+  const [initiativeRetraite, setInitiativeRetraite] = useState<InitiativeRetraite>(
+    INITIATIVE_RETRAITE_PAR_DEFAUT
+  );
 
   const selectedEmployee = employees.find((emp) => emp.id === employeeId);
   // Salarié présélectionné (bandeau de la Paie) absent de la liste : le dire,
@@ -111,6 +119,7 @@ export function CreateExitDialog({
     setIsGrossMisconduct(false);
     setNoticeIndemnityType(PREAVIS_PAR_DEFAUT);
     setExitReason('');
+    setInitiativeRetraite(INITIATIVE_RETRAITE_PAR_DEFAUT);
     setNoticePreview(null);
     setNoticePreviewError(null);
     noticeManuallyEdited.current = false;
@@ -280,6 +289,7 @@ export function CreateExitDialog({
         is_gross_misconduct: isGrossMisconduct,
         notice_indemnity_type: noticeIndemnityType,
         exit_reason: exitReason || undefined,
+        ...(exitType === 'depart_retraite' ? { retirement_initiator: initiativeRetraite } : {}),
       };
 
       await createEmployeeExit(data);
@@ -527,6 +537,27 @@ export function CreateExitDialog({
                 </Select>
               </div>
             </>
+          )}
+
+          {exitType === 'depart_retraite' && (
+            <div className="space-y-2">
+              <Label htmlFor="retirement_initiator">Initiative</Label>
+              <Select
+                value={initiativeRetraite}
+                onValueChange={(value: InitiativeRetraite) => setInitiativeRetraite(value)}
+              >
+                <SelectTrigger id="retirement_initiator">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OPTIONS_INITIATIVE_RETRAITE.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
 
           {exitType === 'licenciement' && (

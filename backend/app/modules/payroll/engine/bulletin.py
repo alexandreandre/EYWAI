@@ -980,6 +980,12 @@ def creer_bulletin_sortie(
             "Indemnité de rupture conventionnelle",
             "Indemnité négociée",
         ),
+        (
+            "indemnite_mise_retraite",
+            "montant",
+            "Indemnité de mise à la retraite",
+            "Article L1237-7 du Code du travail",
+        ),
     ):
         ligne = _ligne_indemnite_de_rupture(
             indemnites_sortie.get(cle), champ, libelle, description

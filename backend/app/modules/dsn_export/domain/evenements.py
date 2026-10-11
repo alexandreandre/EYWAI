@@ -367,6 +367,14 @@ def bloc_fin_contrat(
         motif = MOTIF_RUPTURE.get(type_sortie, "")
         if type_sortie == "licenciement" and (sortie or {}).get("is_gross_misconduct"):
             motif = "087"
+        notes = (sortie or {}).get("exit_notes")
+        if (
+            type_sortie == "depart_retraite"
+            and isinstance(notes, dict)
+            and notes.get("retirement_initiator") == "employer"
+        ):
+            # Mise à la retraite par l'employeur (cahier technique 2026.1, 038).
+            motif = MOTIF_RUPTURE["mise_retraite"]
         if type_sortie == "fin_cdd" and apprentissage:
             motif = "081"
     else:

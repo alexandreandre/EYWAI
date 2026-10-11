@@ -22,6 +22,9 @@ from .regime_indemnites_rupture import lignes_brut_parts_soumises
 LIBELLES_SOUMISES = (
     ("indemnite_preavis", "Indemnité compensatrice de préavis"),
     ("indemnite_conges", "Indemnité compensatrice de congés payés"),
+    # Départ volontaire à la retraite : soumise aux cotisations, à la CSG/CRDS
+    # et à l'impôt pour tout son montant (BOSS, Indemnités de rupture, § 1560).
+    ("indemnite_depart_retraite", "Indemnité de départ à la retraite"),
 )
 
 

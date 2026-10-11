@@ -307,6 +307,10 @@ export interface ExitIndemnityCalculation {
     alertes?: string[];
   };
 
+  /** Départ volontaire (D1237-1) ou mise à la retraite (L1237-7). */
+  indemnite_depart_retraite?: IndemniteRetraite;
+  indemnite_mise_retraite?: IndemniteRetraite;
+
   // Totaux
   total_gross_indemnities: number;
   /** Plus calculé : le net est celui du bulletin de sortie. */
@@ -328,6 +332,14 @@ export interface RegimeSocialIndemnite {
   alertes?: string[];
 }
 
+export interface IndemniteRetraite {
+  montant: number;
+  description: string;
+  calcul: string;
+  alertes?: string[];
+  regime_social?: RegimeSocialIndemnite | null;
+}
+
 export interface CreateEmployeeExitRequest {
   employee_id: string;
   exit_type: ExitType;
@@ -337,6 +349,8 @@ export interface CreateEmployeeExitRequest {
   notice_period_days?: number;
   is_gross_misconduct?: boolean;
   notice_indemnity_type?: 'executed' | 'paid' | 'waived' | 'not_applicable';
+  /** Départ à la retraite : salarié (départ volontaire) ou employeur (mise à la retraite). */
+  retirement_initiator?: 'employee' | 'employer';
 }
 
 export interface UpdateEmployeeExitRequest {

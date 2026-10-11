@@ -22,9 +22,10 @@ def build_exit_record(
     notice_end_date: Optional[str],
     exit_reason: Optional[str],
     initiated_by: str,
+    exit_notes: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Construit le payload d'insertion employee_exits (comportement identique au router)."""
-    return {
+    record = {
         "company_id": company_id,
         "employee_id": employee_id,
         "exit_type": exit_type,
@@ -39,6 +40,9 @@ def build_exit_record(
         "exit_reason": exit_reason,
         "initiated_by": initiated_by,
     }
+    if exit_notes:
+        record["exit_notes"] = exit_notes
+    return record
 
 
 def build_document_data_from_exit(

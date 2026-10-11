@@ -50,6 +50,7 @@ import {
   documentTypeLabels,
   PublishExitDocumentsResponse,
   RegimeSocialIndemnite,
+  IndemniteRetraite,
 } from '@/api/employeeExits';
 import {
   CalendarDays,
@@ -1311,6 +1312,28 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                           <RegimeSocial regime={indemnities.indemnite_licenciement.regime_social} />
                         </div>
                       )}
+
+                      {/* Indemnité de départ ou de mise à la retraite */}
+                      {[indemnities.indemnite_depart_retraite, indemnities.indemnite_mise_retraite]
+                        .filter((bloc): bloc is IndemniteRetraite => Boolean(bloc))
+                        .map((bloc) => (
+                          <div key={bloc.description} className="p-4 border rounded-lg">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <p className="font-medium">
+                                  {indemnities.indemnite_mise_retraite === bloc
+                                    ? 'Indemnité de mise à la retraite'
+                                    : 'Indemnité de départ à la retraite'}
+                                </p>
+                                <p className="text-sm text-muted-foreground">{bloc.description}</p>
+                              </div>
+                              <p className="font-bold text-lg">{formatCurrency(bloc.montant)}</p>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{bloc.calcul}</p>
+                            <Alertes alertes={bloc.alertes} />
+                            <RegimeSocial regime={bloc.regime_social} />
+                          </div>
+                        ))}
 
                       {/* Indemnité de rupture conventionnelle */}
                       {exitDetails.exit_type === 'rupture_conventionnelle' &&

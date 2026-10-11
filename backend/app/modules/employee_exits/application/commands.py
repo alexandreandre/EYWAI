@@ -136,6 +136,11 @@ def create_employee_exit(
         notice_end_date=notice_end.isoformat() if notice_end else None,
         exit_reason=exit_data.get("exit_reason"),
         initiated_by=current_user_id,
+        exit_notes=(
+            {"retirement_initiator": exit_data["retirement_initiator"]}
+            if exit_type == "depart_retraite" and exit_data.get("retirement_initiator")
+            else None
+        ),
     )
     exit_repo = EmployeeExitRepository(sb)
     created = exit_repo.create(record)

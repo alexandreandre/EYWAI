@@ -117,7 +117,7 @@ def _evenements_dsn(
         supabase.table("employee_exits")
         .select(
             "employee_id,exit_type,status,last_working_day,exit_request_date,"
-            "exit_reason,is_gross_misconduct"
+            "exit_reason,is_gross_misconduct,exit_notes"
         )
         .eq("company_id", company_id)
         .neq("status", "annulee")

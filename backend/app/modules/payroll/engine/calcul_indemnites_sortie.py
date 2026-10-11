@@ -34,6 +34,7 @@ from app.modules.payroll.engine.preavis import (
 )
 from app.modules.payroll.engine.regime_indemnites_rupture import (
     LICENCIEMENT,
+    MISE_A_LA_RETRAITE,
     RUPTURE_CONVENTIONNELLE,
     ventiler_indemnite_de_rupture,
 )
@@ -988,6 +989,51 @@ def _salaire_de_reference_des_bulletins(
     )
 
 
+ALERTE_MONTANT_CONVENTIONNEL = (
+    "Minimum légal calculé : un montant conventionnel ou contractuel plus élevé n'a pas "
+    "encore de champ de saisie dans Martine (barème de la convention non repris)."
+)
+
+#: Code du travail D1237-1 : (années d'ancienneté minimales, mois de salaire).
+BAREME_DEPART_RETRAITE = ((30, 2.0), (20, 1.5), (15, 1.0), (10, 0.5))
+
+
+def calculer_indemnite_depart_retraite(mois_d_anciennete: int, salaire_reference: float) -> Dict[str, Any]:
+    """Indemnité légale de départ volontaire à la retraite (L1237-9, D1237-1) :
+    un demi-mois de salaire après dix ans, un mois après quinze, un mois et
+    demi après vingt, deux mois après trente. Soumise aux cotisations, à la
+    CSG/CRDS et à l'impôt (BOSS, Indemnités de rupture, § 1560 ; F13965)."""
+    annees = mois_d_anciennete // 12
+    mois_de_salaire = next((m for seuil, m in BAREME_DEPART_RETRAITE if annees >= seuil), 0.0)
+    montant = round(salaire_reference * mois_de_salaire, 2)
+    if mois_de_salaire == 0:
+        calcul = (
+            f"Ancienneté de {annees} ans : moins de dix ans, pas d'indemnité légale de "
+            "départ à la retraite (D1237-1)"
+        )
+    else:
+        calcul = (
+            f"{mois_de_salaire:g} mois de salaire pour {annees} ans d'ancienneté (D1237-1) "
+            f"× {salaire_reference:.2f} € = {montant:.2f} €"
+        )
+    return {
+        "montant": montant,
+        "mois_de_salaire": mois_de_salaire,
+        "anciennete_annees_completes": annees,
+        "salaire_reference": salaire_reference,
+        "description": "Indemnité de départ à la retraite (articles L1237-9 et D1237-1)",
+        "calcul": calcul,
+        "base_calcul": "Légale",
+    }
+
+
+def _initiative_retraite(exit_data: Dict[str, Any]) -> str:
+    """« employer » pour une mise à la retraite, « employee » sinon (départ volontaire)."""
+    notes = exit_data.get("exit_notes") if isinstance(exit_data.get("exit_notes"), dict) else {}
+    initiative = notes.get("retirement_initiator") or exit_data.get("retirement_initiator")
+    return "employer" if initiative == "employer" else "employee"
+
+
 # ============================================================================
 # FONCTION PRINCIPALE
 # ============================================================================
@@ -1054,14 +1100,23 @@ def calculer_indemnites_sortie(
     mois_a_la_notification: Optional[int] = None
     fin_du_contrat = exit_date
     mois_d_anciennete: Optional[int] = None
-    if exit_type in ("licenciement", "rupture_conventionnelle"):
+    mise_a_la_retraite = exit_type == "depart_retraite" and _initiative_retraite(exit_data) == "employer"
+    if exit_type in ("licenciement", "rupture_conventionnelle", "depart_retraite"):
         notification = _date_ou_none(exit_data.get("exit_request_date")) or exit_date
         fin_du_contrat = _fin_du_contrat(exit_data, exit_date, notification)
         mois_d_anciennete = anciennete_en_mois(hire_date, fin_du_contrat)
         mois_a_la_notification = anciennete_en_mois(hire_date, notification)
         anciennete = mois_d_anciennete / 12
+        # Départ volontaire : les mois qui précèdent le départ (F13965) ;
+        # licenciement, rupture et mise à la retraite : ceux qui précèdent la
+        # notification ou la signature (R1234-4, F13965).
+        avant_le = (
+            fin_du_contrat
+            if exit_type == "depart_retraite" and not mise_a_la_retraite
+            else notification
+        )
         reference = _salaire_de_reference_des_bulletins(
-            employee_data, notification, supabase_client, mois_a_la_notification
+            employee_data, avant_le, supabase_client, anciennete_en_mois(hire_date, avant_le)
         )
         salaire_reference = reference.retenu
         salaire_ref_12 = reference.moyenne_douze_mois
@@ -1155,13 +1210,45 @@ def calculer_indemnites_sortie(
         )
         indemnite_rupture["alertes"] = alertes_reference + indemnite_rupture.get("alertes", [])
 
+    indemnite_depart_retraite = None
+    indemnite_mise_retraite = None
+    if exit_type == "depart_retraite":
+        if mise_a_la_retraite:
+            # L1237-7 : au moins l'indemnité légale de licenciement.
+            legale = calculer_indemnite_licenciement(
+                anciennete,
+                salaire_reference,
+                False,
+                mois_a_la_notification=mois_a_la_notification,
+            )
+            indemnite_mise_retraite = {
+                **legale,
+                "description": "Indemnité de mise à la retraite (articles L1237-7 et L1234-9)",
+                "base_calcul": "Légale",
+                "alertes": alertes_reference + [ALERTE_MONTANT_CONVENTIONNEL],
+            }
+        else:
+            indemnite_depart_retraite = calculer_indemnite_depart_retraite(
+                mois_d_anciennete or 0, salaire_reference
+            )
+            indemnite_depart_retraite["alertes"] = alertes_reference + [ALERTE_MONTANT_CONVENTIONNEL]
+
     # 6. Régime social des indemnités de rupture (BOSS, Indemnités de rupture) :
     # le bulletin en tire la part au brut, la CSG/CRDS au-delà du minimum et la
     # contribution patronale de 40 % (engine/regime_indemnites_rupture).
-    if indemnite_licenciement or indemnite_rupture:
+    if indemnite_licenciement or indemnite_rupture or indemnite_mise_retraite:
         pass_annuel, remuneration_n_1, alertes_regime = _donnees_du_regime_social(
             employee_data, exit_date, supabase_client
         )
+        if indemnite_mise_retraite and indemnite_mise_retraite.get("montant", 0) > 0:
+            indemnite_mise_retraite["regime_social"] = _regime_social(
+                MISE_A_LA_RETRAITE,
+                indemnite_mise_retraite["montant"],
+                indemnite_mise_retraite["montant"],
+                remuneration_n_1,
+                pass_annuel,
+                alertes_regime,
+            )
         if indemnite_licenciement and indemnite_licenciement.get("montant", 0) > 0:
             indemnite_licenciement["regime_social"] = _regime_social(
                 LICENCIEMENT,
@@ -1189,6 +1276,10 @@ def calculer_indemnites_sortie(
 
     if indemnite_rupture:
         total_brut += indemnite_rupture.get("montant_negocie", 0)
+
+    for indemnite_retraite in (indemnite_depart_retraite, indemnite_mise_retraite):
+        if indemnite_retraite:
+            total_brut += indemnite_retraite.get("montant", 0)
 
     # Pas de « net » ici : il dépend des cotisations du bulletin de sortie
     # (préavis et congés sont des salaires) et du régime des indemnités de
@@ -1234,6 +1325,13 @@ def calculer_indemnites_sortie(
 
     if indemnite_precarite:
         result["indemnite_precarite"] = indemnite_precarite
+
+    # Départ volontaire (soumis, au brut) ou mise à la retraite (régime des
+    # indemnités de rupture) : clés lues par le bulletin et le reçu.
+    if indemnite_depart_retraite:
+        result["indemnite_depart_retraite"] = indemnite_depart_retraite
+    if indemnite_mise_retraite:
+        result["indemnite_mise_retraite"] = indemnite_mise_retraite
 
     # Ajouter les indemnités spécifiques selon le type
     if indemnite_licenciement:
