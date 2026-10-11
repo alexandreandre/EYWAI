@@ -42,7 +42,9 @@ from app.modules.payroll.engine.baremes_loader import (
     controler_annee_des_baremes,
 )
 from app.modules.payroll.engine.calcul_frais import appliquer_exoneration_note_frais
+from app.modules.payroll.engine.calcul_brut_forfait import bornes_de_la_sortie
 from app.modules.payroll.engine.contexte import ContextePaie
+from app.shared.domain.periode_variables import bornes_mois_civil
 
 from .payslip_run_common import (
     creer_calendrier_etendu,
@@ -62,6 +64,16 @@ from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 from app.modules.payroll.engine import legal_constants as lc
 from app.modules.payroll.engine.ppv import classer_ppv, est_une_ppv
 from app.modules.payroll.documents.ppv_donnees import CLE_SAISIES as CLE_SAISIES_PPV
+
+
+def poser_le_depart_du_forfait(contexte, employee_id: str, year: int, month: int) -> None:
+    """Le départ du bulletin forfait : celui dont le dernier jour tombe dans le
+    mois civil (et non dans la période glissante de la société), comme au
+    moteur des heures, au bandeau de la Paie et au reçu ([H12]). Les bornes
+    restent sur le contexte pour la fin de contrat et le prorata de sortie."""
+    debut_mois, fin_mois = bornes_mois_civil(year, month)
+    contexte.bornes_du_depart = (debut_mois, fin_mois)
+    poser_le_depart_du_mois(contexte, employee_id, year, month, debut_mois, fin_mois)
 
 
 def message_pas_forfait_jour() -> str:
@@ -251,24 +263,18 @@ def run_payslip_generation_forfait(
 
             signaler_repli(contexte, CODE_REPLI_FORFAIT_ANCIENNETE)
 
-    # (déplacé) Rattachement du STC à la PÉRIODE DE PAIE, cf. payslip_run_heures.
+    # La période de la société porte les variables (jours, absences) ; le
+    # départ, lui, appartient au bulletin du mois civil de son dernier jour,
+    # comme au moteur des heures et à l'écran ([H12]).
     date_debut_periode, date_fin_periode = definir_periode_de_paie(
         contexte, year, month
     )
     contexte.date_debut_periode = date_debut_periode
     contexte.date_fin_periode = date_fin_periode
     if resolved_employee_id:
-        # Comme au moteur des heures : indemnités du dossier, et compteurs de
-        # congés pour l'indemnité compensatrice (règle légale par période).
-        poser_le_depart_du_mois(
-            contexte,
-            str(resolved_employee_id),
-            year,
-            month,
-            date_debut_periode,
-            date_fin_periode,
-        )
+        poser_le_depart_du_forfait(contexte, str(resolved_employee_id), year, month)
     else:
+        contexte.bornes_du_depart = bornes_mois_civil(year, month)
         contexte.cp_fin_de_contrat = None
     logging.info(
         "Période de paie forfait : %s - %s",
@@ -533,8 +539,11 @@ def run_payslip_generation_forfait(
 
     # Plafond SS réduit prorata temporis (entrée/sortie, absences non
     # rémunérées) — même règle qu'en mode horaire.
+    # Le mois du départ : plafond au prorata du mois civil, comme le salaire.
     contexte.ratio_plafond_ss = ratio_plafond_periode(
-        calendrier_etendu, date_debut_periode, date_fin_periode, contexte
+        calendrier_etendu,
+        *(bornes_de_la_sortie(contexte) or (date_debut_periode, date_fin_periode)),
+        contexte,
     )
     lignes_cotisations, total_salarial = calculer_cotisations(
         contexte, salaire_brut_calcule, remuneration_hs, total_heures_supp

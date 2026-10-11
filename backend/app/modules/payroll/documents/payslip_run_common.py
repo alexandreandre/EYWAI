@@ -372,13 +372,12 @@ def resolve_exit_state_for_payslip(
     block_iccp_cdd=True si un départ tombe sur ce bulletin mais les indemnités
     n'ont pas encore été calculées (évite un ICCP 10e seul incorrect).
 
-    Rattachement : si les bornes de la PÉRIODE DE PAIE sont fournies, un
-    départ appartient au bulletin dont la période contient le dernier jour
-    travaillé — indispensable pour les sociétés à arrêté glissant (ex. un
-    CDD finissant le 30/06 est payé sur JUILLET quand la fenêtre de juillet
-    commence fin juin ; comparer le mois civil posait le STC sur juin, qui
-    ne couvre pas ces jours). Les périodes se pavant sans recouvrement, le
-    STC n'atterrit que sur UN bulletin. Repli : mois civil.
+    Rattachement : un départ appartient au bulletin dont les bornes passées
+    contiennent le dernier jour travaillé. Les deux moteurs passent les bornes
+    du MOIS CIVIL du bulletin (heures et forfait jours, [H12]) : c'est là que
+    l'écran, le reçu et le contrôle des documents cherchent le bulletin de
+    sortie. Les mois se pavant sans recouvrement, le STC n'atterrit que sur
+    UN bulletin. Sans bornes : mois civil aussi.
 
     Les sorties « transfert » (mutation intra-groupe) sont ignorées : jamais
     de STC ni d'indemnités, et elles ne doivent pas bloquer l'ICCP.

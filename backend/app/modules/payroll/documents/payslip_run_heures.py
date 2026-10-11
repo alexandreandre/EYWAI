@@ -477,9 +477,10 @@ def poser_le_depart_du_mois(
     """Départ rattaché à ce bulletin : indemnités du dossier, et compteurs de
     congés pour l'indemnité compensatrice (règle légale par période).
 
-    Rattachement du STC à la PÉRIODE DE PAIE (fenêtre glissante) : un dernier
-    jour travaillé en toute fin de M-1 appartient au bulletin de M — cf.
-    resolve_exit_state_for_payslip."""
+    Les bornes passées sont celles du MOIS CIVIL du bulletin, aux heures comme
+    au forfait jours (payslip_run_forfait.poser_le_depart_du_forfait) : un
+    départ appartient au bulletin du mois civil de son dernier jour, comme
+    l'écran, le reçu et le contrôle des documents le cherchent ([H12])."""
     contexte.exit_indemnities, contexte.block_iccp_cdd = resolve_exit_state_for_payslip(
         employee_id,
         year,

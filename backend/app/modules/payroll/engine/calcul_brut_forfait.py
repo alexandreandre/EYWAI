@@ -192,6 +192,27 @@ def _brut_des_lignes(lignes: List[Dict[str, Any]], salaire_contractuel: float) -
     return max(gains - pertes, 0.0)
 
 
+def _date_de_sortie(contexte: ContextePaie) -> Optional[date]:
+    contrat = contexte.contrat.get("contrat", {}) or {}
+    try:
+        return date.fromisoformat(
+            str(contrat.get("date_sortie") or contrat.get("date_fin_contrat"))[:10]
+        )
+    except (TypeError, ValueError):
+        return None
+
+
+def bornes_de_la_sortie(contexte: ContextePaie) -> Optional[tuple[date, date]]:
+    """Le mois civil du bulletin quand le contrat finit au plus tard ce mois-là
+    ([H12]) : la sortie s'y paie, avec son prorata, comme au moteur des
+    heures. None hors du moteur forfait (bornes non posées) ou sans sortie."""
+    bornes = getattr(contexte, "bornes_du_depart", None)
+    sortie = _date_de_sortie(contexte)
+    if not bornes or sortie is None or sortie > bornes[1]:
+        return None
+    return bornes
+
+
 def _ajouter_lignes_de_fin_de_contrat(
     contexte: ContextePaie,
     lignes: List[Dict[str, Any]],
@@ -315,10 +336,17 @@ def calculer_salaire_brut_forfait(
     except (TypeError, ValueError):
         date_sortie = None
 
+    # Mois de la sortie : le prorata d'entrée et de sortie se fait sur les jours
+    # ouvrés du mois civil, comme au moteur des heures ([H12]) ; sinon sur la
+    # période de la société.
+    debut_prorata, fin_prorata = bornes_de_la_sortie(contexte) or (
+        date_debut_periode,
+        date_fin_periode,
+    )
     jours_ouvres_mois = [
-        date_debut_periode + timedelta(days=offset)
-        for offset in range((date_fin_periode - date_debut_periode).days + 1)
-        if (date_debut_periode + timedelta(days=offset)).weekday() < 5
+        debut_prorata + timedelta(days=offset)
+        for offset in range((fin_prorata - debut_prorata).days + 1)
+        if (debut_prorata + timedelta(days=offset)).weekday() < 5
     ]
     # Entré dès le premier jour ouvré (hors férié) du mois = présent tout le
     # mois : aucun prorata d'entrée. Un férié chômé avant l'embauche n'est pas
@@ -613,13 +641,20 @@ def calculer_salaire_brut_forfait(
     # Fin de contrat : précarité, fin de mission et indemnité compensatrice de
     # congés, par les mêmes calculs que le moteur des heures. Un jour de congé
     # vaut ici le salaire / 21,67, la valeur des congés au forfait.
+    # Le mois de la fin de contrat est le mois civil du bulletin quand le
+    # moteur forfait l'a posé (`bornes_du_depart`, [H12]) : une fin de CDD au
+    # 25/09 se paie en septembre même si la période de la société finit le 20.
+    debut_fin_contrat, fin_fin_contrat = getattr(contexte, "bornes_du_depart", None) or (
+        date_debut_periode,
+        date_fin_periode,
+    )
     _ajouter_lignes_de_fin_de_contrat(
         contexte,
         lignes_composants_brut,
         salaire_contractuel=salaire_contractuel,
         valeur_jour=salaire_journalier,
-        date_debut_periode=date_debut_periode,
-        date_fin_periode=date_fin_periode,
+        date_debut_periode=debut_fin_contrat,
+        date_fin_periode=fin_fin_contrat,
         primes_saisies=primes_saisies,
     )
 
