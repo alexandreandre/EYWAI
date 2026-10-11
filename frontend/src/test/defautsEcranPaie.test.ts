@@ -74,3 +74,12 @@ describe("pose d'un RTT sans solde par la RH", () => {
     expect(texte).toContain("avertissement");
   });
 });
+
+describe("tableau du contingent d'heures supplémentaires", () => {
+  const texte = lire("features/work-time-tracking/components/ContingentHsTab.tsx");
+
+  it("l'info-bulle de « HS comptabilisées » couvre toute la cellule et l'entête l'explique", () => {
+    expect(texte).toContain('data-testid="hs-comptabilisees-info"');
+    expect(texte).toContain('data-testid="hs-comptabilisees-entete"');
+  });
+});
