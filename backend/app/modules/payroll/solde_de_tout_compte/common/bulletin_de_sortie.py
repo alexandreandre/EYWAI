@@ -179,6 +179,31 @@ def sommes_de_rupture_du_bulletin(payslip_data: Dict[str, Any]) -> List[Dict[str
     return sommes
 
 
+#: Libellés d'indemnité compensatrice de congés payés, moteur ou ancien logiciel.
+_MARQUES_ICCP = (
+    "compensatrice de conges",
+    "cp des cdd",
+    "ind.de cp",
+    "ind. de cp",
+    "indemnite de cp",
+    "indemnite cp",
+)
+
+
+def indemnite_de_conges_du_bulletin(payslip_data: Dict[str, Any]) -> float:
+    """L'indemnité compensatrice de congés versée par le bulletin de sortie
+    (0 s'il n'en verse aucune) : c'est elle que l'onglet « Indemnités » montre,
+    pas l'estimation du dossier."""
+    return round(
+        sum(
+            s["montant"]
+            for s in sommes_de_rupture_du_bulletin(payslip_data)
+            if any(marque in _normalise(s["libelle"]) for marque in _MARQUES_ICCP)
+        ),
+        2,
+    )
+
+
 def generate_solde_depuis_bulletin(
     employee_data: Dict[str, Any],
     company_data: Dict[str, Any],

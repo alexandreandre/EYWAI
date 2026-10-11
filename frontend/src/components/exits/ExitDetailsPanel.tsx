@@ -92,6 +92,10 @@ import { fr } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { downloadBlob, openBlobInNewTab } from '@/lib/downloadBlob';
 import { libelleStatutDepart } from '@/features/employee-exits/utils/statutDepart';
+import {
+  indemniteCongesAffichee,
+  totalBrutDesIndemnites,
+} from '@/features/employee-exits/utils/indemniteConges';
 import { accord, pluriel } from '@/lib/pluriel';
 
 interface ExitDetailsPanelProps {
@@ -638,6 +642,11 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   const checklist = exitDetails.checklist_items || [];
   const documents = exitDetails.documents || [];
   const documentsGrises = documentsDeSortieGrises(exitDetails.bulletin_de_sortie);
+  // Indemnité de congés : celle du bulletin de sortie dès qu'il existe.
+  const congesAffichee = indemniteCongesAffichee(
+    indemnities?.indemnite_conges?.montant,
+    exitDetails.bulletin_de_sortie
+  );
   // Type ou date de départ changés, ou bulletin recalculé après la génération.
   const documentTypesToReview = documentsARevoir(exitDetails.exit_notes, documents);
   const hasDocumentsToReview = documentTypesToReview.length > 0;
@@ -1169,7 +1178,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                   <CardDescription className="text-amber-900">
                     Ce sont ces sommes que reprennent le solde de tout compte et l&apos;attestation
                     France Travail. Le calcul ci-dessous est l&apos;estimation faite à l&apos;ouverture du
-                    dossier.
+                    dossier ; l&apos;indemnité de congés y est celle du bulletin.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-1 text-sm">
@@ -1258,9 +1267,24 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                                 details={indemnities.indemnite_conges.details}
                               />
                             </div>
-                            <p className="font-bold text-lg shrink-0">
-                              {formatCurrency(indemnities.indemnite_conges.montant)}
-                            </p>
+                            <div className="text-right shrink-0">
+                              <p className="font-bold text-lg">
+                                {formatCurrency(congesAffichee.montant ?? 0)}
+                              </p>
+                              {congesAffichee.source === 'bulletin' && (
+                                <p className="text-xs text-muted-foreground">
+                                  Versée au bulletin de {congesAffichee.mois}
+                                  {typeof congesAffichee.estimation === 'number' &&
+                                    congesAffichee.estimation !== congesAffichee.montant && (
+                                      <>
+                                        <br />
+                                        Estimation à l&apos;ouverture :{' '}
+                                        {formatCurrency(congesAffichee.estimation)}
+                                      </>
+                                    )}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1333,18 +1357,19 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                       )}
                     </div>
 
-                    {/* Totaux */}
+                    {/* Total : brut seulement. Le net d'une indemnité dépend de son
+                        régime social, que le dossier ne calcule pas : le bulletin le dit. */}
                     <div className="border-t pt-4 space-y-2">
                       <div className="flex justify-between items-center">
                         <p className="font-medium">Total brut des indemnités</p>
                         <p className="font-bold text-xl">
-                          {formatCurrency(indemnities.total_gross_indemnities)}
-                        </p>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <p className="font-medium">Total net estimé</p>
-                        <p className="font-bold text-xl text-green-600">
-                          {formatCurrency(indemnities.total_net_indemnities)}
+                          {formatCurrency(
+                            totalBrutDesIndemnites(
+                              indemnities.total_gross_indemnities,
+                              indemnities.indemnite_conges?.montant,
+                              exitDetails.bulletin_de_sortie
+                            )
+                          )}
                         </p>
                       </div>
                     </div>

@@ -125,6 +125,8 @@ export interface EmployeeExitWithDetails extends EmployeeExit {
     salaire_brut?: number | null;
     net_a_payer?: number | null;
     sommes_de_rupture: { libelle: string; montant: number }[];
+    /** Indemnité compensatrice de congés versée par ce bulletin (0 s'il n'en verse pas). */
+    indemnite_conges?: number | null;
   } | null;
   documents?: ExitDocument[];
   checklist_items?: ChecklistItem[];

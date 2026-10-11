@@ -261,6 +261,7 @@ def _ce_que_le_bulletin_de_sortie_a_verse(
     """
     from app.modules.payroll.solde_de_tout_compte.common.bulletin_de_sortie import (
         bulletin_du_mois_de_sortie,
+        indemnite_de_conges_du_bulletin,
         sommes_de_rupture_du_bulletin,
     )
 
@@ -280,6 +281,9 @@ def _ce_que_le_bulletin_de_sortie_a_verse(
             {"libelle": s["libelle"], "montant": s["montant"]}
             for s in sommes_de_rupture_du_bulletin(bulletin)
         ],
+        # Ce que le bulletin a versé d'indemnité de congés : l'onglet le montre
+        # à la place de l'estimation faite à l'ouverture du dossier.
+        "indemnite_conges": indemnite_de_conges_du_bulletin(bulletin),
     }
 
 
