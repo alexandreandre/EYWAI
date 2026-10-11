@@ -30,15 +30,23 @@ def _date_anciennete(contexte: ContextePaie) -> Optional[date]:
 
     La condition d'ancienneté et la durée des tranches (L1226-1, D1226-1 et
     D1226-2) s'apprécient sur l'ancienneté dans l'entreprise, qu'une
-    convention ou un contrat peut reprendre. Même lecture que la prime
-    d'ancienneté : la date d'ancienneté de la fiche (reprise), à défaut celle
-    de la DSN, à défaut l'entrée au contrat. Jamais `prior_service_months`,
-    qui porte souvent l'ancienneté totale au lieu de la reprise.
+    convention ou un contrat peut reprendre. Même lecture que les fériés : la
+    plus favorable de l'entrée au contrat et de la date d'ancienneté de la
+    fiche (reprise, à défaut celle de la DSN) — une date postérieure à
+    l'entrée ne retire jamais d'ancienneté. Jamais `prior_service_months`, qui
+    porte souvent l'ancienneté totale au lieu de la reprise.
     """
     from app.shared.seniority_reference import resolve_date_anciennete_from_contrat
 
     contrat = getattr(contexte, "contrat", None) or {}
-    return _parse_date(resolve_date_anciennete_from_contrat(contrat))
+    bloc = contrat.get("contrat") if isinstance(contrat, dict) else None
+    entree = bloc.get("date_entree") if isinstance(bloc, dict) else None
+    ancres = [
+        _parse_date(entree),
+        _parse_date(resolve_date_anciennete_from_contrat(contrat)),
+    ]
+    ancres = [d for d in ancres if d]
+    return min(ancres) if ancres else None
 
 
 def _mois_anciennete(date_entree: date, ref: date) -> int:

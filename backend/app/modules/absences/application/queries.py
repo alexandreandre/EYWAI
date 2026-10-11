@@ -7,10 +7,7 @@ Retourne des dicts / listes de dicts compatibles avec les schémas de réponse A
 
 from __future__ import annotations
 from app.shared.domain.effectif_seuils import effectif_retenu
-from app.shared.seniority_reference import (
-    resolve_date_anciennete_prime,
-    resolve_seniority_reference_date,
-)
+from app.shared.seniority_reference import resolve_seniority_reference_date
 from app.modules.payroll.infrastructure.salaires_de_reference import (
     poser_salaires_de_reference,
 )
@@ -1003,11 +1000,17 @@ def compute_subrogation_for_absence(
     parsed_days = sorted(_parse_absence_day(d) for d in days_raw)
     date_debut_arret = parsed_days[0]
     qualification = _qualifier_arret(arret_type)
-    # Même ancienneté que le maintien du bulletin : la date d'ancienneté de la
-    # fiche (reprise) d'abord, l'entrée à défaut.
-    date_entree_raw = resolve_date_anciennete_prime(employee_row) or employee_row.get(
-        "date_entree"
+    # Même ancienneté que le maintien du bulletin : la plus favorable de
+    # l'entrée et de la date d'ancienneté de la fiche (reprise ou DSN).
+    ancres = sorted(
+        str(d)[:10]
+        for d in (
+            employee_row.get("hire_date") or employee_row.get("date_entree"),
+            resolve_seniority_reference_date(employee_row),
+        )
+        if d
     )
+    date_entree_raw = ancres[0] if ancres else None
     if isinstance(date_entree_raw, str) and date_entree_raw.strip():
         date_entree = date.fromisoformat(date_entree_raw[:10])
     elif isinstance(date_entree_raw, date):
