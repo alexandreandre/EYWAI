@@ -45,6 +45,24 @@ def entree_de_note_de_frais(
     return entree
 
 
+def entree_de_frais_professionnels(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Une saisie du mois qui rembourse des frais (panier, déplacement forfaitaire,
+    « Rbst note de frais »), telle que le générateur la passe au moteur : une
+    ligne à son libellé, jamais fondue dans l'acompte."""
+    nom = str(row.get("name") or "")
+    entree: dict[str, Any] = {
+        "prime_id": row.get("catalog_prime_id") or nom.replace(" ", "_").lower(),
+        "libelle": f"{nom} ({row['export_code']})" if row.get("export_code") else nom,
+        "montant": float(row.get("amount") or 0.0),
+        "soumise_a_cotisations": False,
+        "soumise_a_impot": False,
+        CLE_FRAIS_PROFESSIONNELS: True,
+    }
+    if row.get("id"):
+        entree["saisie_id"] = str(row["id"])
+    return entree
+
+
 def ligne_de_frais_professionnels(saisie: Mapping[str, Any]) -> dict[str, Any] | None:
     """La ligne non soumise d'un remboursement de frais, ou None si ce n'en est pas un.
 

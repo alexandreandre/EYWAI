@@ -41,6 +41,7 @@ from app.modules.payroll.domain.report_nap_negatif import (
 )
 from app.modules.payroll.engine.lectures import LectureIndispensable
 from app.modules.payroll.engine.frais_professionnels import (
+    entree_de_frais_professionnels,
     entree_de_note_de_frais,
     notes_de_frais_dans_le_mns,
 )
@@ -917,10 +918,10 @@ def process_payslip_generation(
                         "soumise_a_impot": False,
                     })
                     continue
-                # Ajout net (signe négatif de l'accumulateur "acompte" = ajout au net
-                # à payer, cf. calcul_net._calculer_net_a_payer) sans passer par le
-                # brut/les cotisations ni le montant net social.
-                net_a_payer_only_correction_total -= float(row["amount"])
+                # Ligne à son libellé, ajoutée au net à payer, hors brut, hors
+                # cotisations et hors montant net social. Elle se fondait dans
+                # l'acompte, sans ligne au bulletin (vidéo G, 11/10/2026, D1).
+                saisies_data["primes"].append(entree_de_frais_professionnels(row))
                 continue
             if _is_ijss_override_input(row):
                 saisies_data["ijss_brut_override"] = abs(float(row["amount"]))

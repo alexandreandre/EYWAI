@@ -142,6 +142,9 @@ _MOTS_FRAIS = (
 
 
 def _est_un_remboursement_de_frais(prime: Dict[str, Any]) -> bool:
+    # Marquée par le générateur : note de frais, panier, déplacement forfaitaire.
+    if prime.get("frais_professionnels"):
+        return True
     prime_id = str(prime.get("prime_id") or "")
     if prime_id.startswith("remb_"):
         return True
