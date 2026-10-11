@@ -793,6 +793,20 @@ def _construire_ligne_avantages_en_nature(
     return None
 
 
+def montant_avantages_en_nature(contexte: ContextePaie) -> float:
+    """Valeur des avantages en nature du mois, telle qu'elle entre au brut.
+
+    Le net à payer la retire ensuite : l'avantage a été fourni en nature, il
+    n'est pas versé en argent. BOSS, Avantages en nature, § 20 (valeur brute au
+    bulletin, cotisée comme le salaire) ; net-entreprises, fiche 827 (« Après
+    détermination du salaire net imposable, il sera déduit du salaire net à
+    verser au salarié »). Même source que la ligne du brut, au forfait jours
+    comme à l'heure, prêt employeur compris.
+    """
+    ligne = _construire_ligne_avantages_en_nature(contexte)
+    return float(ligne["gain"]) if ligne else 0.0
+
+
 def _calculer_prime_anciennete(
     contexte: ContextePaie,
     *,

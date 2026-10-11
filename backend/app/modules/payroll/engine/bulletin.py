@@ -507,6 +507,11 @@ def creer_bulletin_final(
             "acompte_verse", 0.0
         ),  # Montant des avances déduites
     }
+    # Avantages en nature entrés au brut puis retirés du net à payer : la clé
+    # n'est posée que s'il y en a, les autres bulletins gardent leur forme.
+    avantages_en_nature = float(resultats_nets.get("avantages_en_nature") or 0.0)
+    if avantages_en_nature:
+        synthese_net["avantages_en_nature"] = avantages_en_nature
     # Stagiaire : gratification exonérée d'impôt dans la limite du SMIC annuel
     # (CGI art. 81 bis). Clé posée pour le seul stagiaire : le bulletin d'un
     # salarié garde exactement sa forme.

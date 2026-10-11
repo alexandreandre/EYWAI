@@ -391,6 +391,18 @@ def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
         if montant > 0:
             lignes.append(_ligne("hors_brut", libelle, montant_salarial=montant))
 
+    # L'avantage en nature, entré au brut, a été fourni en nature : il sort du
+    # net à payer, et le bulletin le dit (net-entreprises, fiche 827).
+    avantages_en_nature = float(synthese.get("avantages_en_nature") or 0.0)
+    if avantages_en_nature > 0:
+        lignes.append(
+            _ligne(
+                "hors_brut",
+                "Avantages en nature (déduction)",
+                montant_salarial=-avantages_en_nature,
+            )
+        )
+
     # Le report d'un net négatif est compté dans `acompte_verse` : il sort sous
     # son propre libellé, et seul le reste garde « Acomptes et avances ».
     reports = [

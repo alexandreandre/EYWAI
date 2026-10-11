@@ -650,6 +650,7 @@ def _calculer_net_a_payer(
     montant_acompte: float = 0.0,
     primes_soumises_impot: List[Dict[str, Any]] = None,
     participations: List[Dict[str, Any]] | None = None,
+    avantages_en_nature: float = 0.0,
 ) -> tuple[float, float, float]:
     if primes_soumises_impot is None:
         primes_soumises_impot = []
@@ -734,6 +735,13 @@ def _calculer_net_a_payer(
         # qui ne doit toucher QUE le net à payer, jamais le net imposable ni le MNS.
         log_payroll_debug(logger, f'\t- Acompte/régularisation nette      : {montant_acompte:10.2f} €')
         net_a_payer -= montant_acompte
+
+    # L'avantage en nature est entré au brut pour porter cotisations et impôt ;
+    # il a été fourni en nature, il ne se verse pas en argent (BOSS, Avantages
+    # en nature, § 20 ; net-entreprises, fiche 827).
+    if avantages_en_nature:
+        log_payroll_debug(logger, f'\t- Avantages en nature (déduction)   : {avantages_en_nature:10.2f} €')
+        net_a_payer -= avantages_en_nature
     log_payroll_debug(logger, '\t--------------------------------------------')
     log_payroll_debug(logger, f'\t= NET À PAYER                      : {round(net_a_payer, 2):10.2f} €')
     log_payroll_debug(logger, '-----------------------------\n')
@@ -785,6 +793,9 @@ def calculer_net_et_impot(
         participations,
         primes_soumises_impot,
     )
+    from app.modules.payroll.engine.calcul_brut import montant_avantages_en_nature
+
+    avantages_en_nature = montant_avantages_en_nature(contexte)
     net_a_payer, remboursement_transport, indemnite_transport_fixe = _calculer_net_a_payer(
         net_social,
         montant_impot,
@@ -793,6 +804,7 @@ def calculer_net_et_impot(
         montant_acompte,  # <--- AJOUTEZ L'ARGUMENT ICI
         primes_soumises_impot,  # <-- NOUVEAU: Primes soumises à l'impôt
         participations,
+        avantages_en_nature,
     )
     logger.info("INFO: Calcul des nets et de l'impôt terminé.")
     return {
@@ -808,6 +820,8 @@ def calculer_net_et_impot(
         "remboursement_transport": remboursement_transport,
         "indemnite_transport_fixe": indemnite_transport_fixe,
         "acompte_verse": montant_acompte,  # <--- AJOUTEZ CETTE LIGNE
+        # Valeur des avantages en nature retirée du net à payer (entrée au brut).
+        "avantages_en_nature": avantages_en_nature,
         # Montant NET des HS/HC effectivement exonéré d'IR ce mois-ci, après
         # écrêtement au plafond annuel 7 500 € (art. 81 quater CGI) — à
         # cumuler dans `employee_schedules.cumuls.hs_exonerees_ir_cumul`
