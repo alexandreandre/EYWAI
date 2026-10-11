@@ -101,3 +101,13 @@ describe("fenêtre « Nouveau congé » de la page Absences (saisie RH)", () => 
     expect(texte).toMatch(/!isRhArret && soldesPose\.length > 0 && absenceType/);
   });
 });
+
+describe("tableau des soldes de la fiche", () => {
+  const texte = lire("components/employee-detail/EmployeeDetailLeaveBalancesTab.tsx");
+
+  it("n'affiche plus les valeurs en toFixed(1) avec un point", () => {
+    expect(texte).not.toContain("value.toFixed(1)");
+    expect(texte).not.toContain("remaining.toFixed(1)");
+    expect(texte).toContain("formatQuantiteFr");
+  });
+});

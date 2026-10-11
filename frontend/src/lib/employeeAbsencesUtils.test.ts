@@ -3,6 +3,8 @@ import type { AbsenceBalance } from '@/api/absences';
 import {
   formatCongePayeInsufficientMessage,
   formatCongeSansSoldeRh,
+  formatQuantiteFr,
+  formatBalanceRemaining,
   formatRhLeaveBalanceDetail,
   getRhLeaveBalanceShortLabel,
   isRhLeaveBalanceVisible,
@@ -33,7 +35,7 @@ describe('employeeAbsencesUtils — soldes RH', () => {
       remaining: 18.5,
     };
     expect(formatRhLeaveBalanceDetail(balance)).toBe(
-      'Acquis : 25.0 j · Pris : 6.5 j · Restant : 18.5 j',
+      'Acquis : 25 j · Pris : 6,50 j · Restant : 18,50 j',
     );
   });
 });
@@ -59,5 +61,20 @@ describe('formatCongeSansSoldeRh : le texte parle à la RH', () => {
     expect(texte).toContain('est de 0,5 jour.');
     expect(texte).toContain('1 jour demandé');
     expect(texte).toContain('0,5 jour excédentaire sera considéré');
+  });
+});
+
+describe('formatQuantiteFr : format du bulletin', () => {
+  it('deux décimales et virgule quand il y en a, entier sinon', () => {
+    expect(formatQuantiteFr(6.24, 'j')).toBe('6,24 j');
+    expect(formatQuantiteFr(6.2400000001, 'j')).toBe('6,24 j');
+    expect(formatQuantiteFr(10, 'j')).toBe('10 j');
+    expect(formatQuantiteFr(2.5, 'h')).toBe('2,50 h');
+    expect(formatQuantiteFr(0, 'j')).toBe('0 j');
+  });
+
+  it('sert au solde restant du tableau', () => {
+    expect(formatBalanceRemaining(6.24, 'j')).toBe('6,24 j');
+    expect(formatBalanceRemaining('N/A', 'j')).toBe('Non applicable');
   });
 });
