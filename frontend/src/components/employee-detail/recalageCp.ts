@@ -76,7 +76,7 @@ export function erreursRecalageCp(saisie: { n1: string; n: string; note: string 
   if (lireJours(saisie.n1) === null) erreurs.push('Saisissez le solde CP N-1 (0 s’il est vide).');
   if (lireJours(saisie.n) === null) erreurs.push('Saisissez le solde CP N (0 s’il est vide).');
   if (!saisie.note.trim()) {
-    erreurs.push('Dites en commentaire pourquoi vous recalez (il reste dans l’historique).');
+    erreurs.push('Dites en commentaire pourquoi vous recalez (il est enregistré avec le recalage).');
   }
   return erreurs;
 }
