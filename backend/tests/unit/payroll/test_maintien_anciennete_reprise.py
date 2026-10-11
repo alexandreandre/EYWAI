@@ -116,3 +116,28 @@ def test_l_apercu_du_maintien_transmet_la_date_d_anciennete():
         {"hire_date": "2026-03-01", "seniority_reference_date": "2021-03-01"}
     )
     assert payload["seniority_reference_date"] == "2021-03-01"
+
+
+def test_une_date_d_anciennete_posterieure_a_l_entree_ne_reduit_pas_l_anciennete():
+    # Date de la fiche ou de la DSN postérieure à l'entrée (quelques jours
+    # d'écart sur un CDD, ou une saisie à revoir) : l'ancienneté retenue reste
+    # la plus favorable, comme pour les fériés ; jamais moins que l'entrée.
+    ctx = _ctx("2026-08-01")
+    ctx.contrat["contrat"]["date_entree"] = "2021-03-01"
+    r = calculer_maintien(dict(ARRET), ctx, _settings(), *SEPTEMBRE)
+    assert r["anciennete_mois"] == 66
+
+    ctx_dsn = _ctx(None)
+    ctx_dsn.contrat["contrat"]["date_entree"] = "2021-03-01"
+    ctx_dsn.contrat["specificites_paie"] = {"dsn_anciennete": {"date_anciennete": "2026-08-01"}}
+    r = calculer_maintien(dict(ARRET), ctx_dsn, _settings(), *SEPTEMBRE)
+    assert r["anciennete_mois"] == 66
+
+
+def test_la_subrogation_garde_l_entree_si_la_date_d_anciennete_est_posterieure():
+    from app.modules.absences.application.queries import compute_subrogation_for_absence
+
+    absence = {"arret_type": "maladie_simple", "selected_days": ["2026-09-01", "2026-09-30"]}
+    fiche = {"hire_date": "2021-03-01", "seniority_reference_date": "2026-08-01"}
+    reglage = {"subrogation_mode": "when_maintien", "min_seniority_months": 12}
+    assert compute_subrogation_for_absence(absence, fiche, reglage) is True
