@@ -30,47 +30,9 @@ class TestDomainEnums:
 
 
 # --- calculate_seizable_amount ---
-
-
-class TestCalculateSeizableAmount:
-    """Règle : quotité saisissable selon barème français."""
-
-    def test_salaire_inferieur_500_euro_zero_saisissable(self):
-        assert rules.calculate_seizable_amount(Decimal("400")) == Decimal("0")
-        assert rules.calculate_seizable_amount(Decimal("500")) == Decimal("0")
-
-    def test_tranche_500_1000_dix_pourcent(self):
-        # (600 - 500) * 0.10 = 10
-        assert rules.calculate_seizable_amount(Decimal("600")) == Decimal("10")
-        # (1000 - 500) * 0.10 = 50
-        assert rules.calculate_seizable_amount(Decimal("1000")) == Decimal("50")
-
-    def test_tranche_1000_2000_vingt_pourcent(self):
-        # 50 + (1500 - 1000) * 0.20 = 50 + 100 = 150
-        assert rules.calculate_seizable_amount(Decimal("1500")) == Decimal("150")
-        # 50 + (2000 - 1000) * 0.20 = 250
-        assert rules.calculate_seizable_amount(Decimal("2000")) == Decimal("250")
-
-    def test_tranche_superieure_2000_trente_pourcent(self):
-        # 250 + (3000 - 2000) * 0.30 = 550
-        assert rules.calculate_seizable_amount(Decimal("3000")) == Decimal("550")
-
-    def test_minimum_untouchable_un_vingtieme(self):
-        # Salaire 2000 : max saisissable = 2000 - 2000/20 = 1900
-        # Barème donne 250, donc min(250, 1900) = 250
-        assert rules.calculate_seizable_amount(Decimal("2000")) == Decimal("250")
-        # Salaire 500 : barème 0, minimum à conserver 25, donc 0
-        assert rules.calculate_seizable_amount(Decimal("500")) == Decimal("0")
-
-    def test_majoration_par_charge(self):
-        # 400€ + 1 charge (104) = 504 → tranche 2 → (504-500)*0.10 = 0.4
-        # max_seizable = 400 - 20 = 380, donc min(0.4, 380) = 0.4
-        result = rules.calculate_seizable_amount(Decimal("400"), dependents_count=1)
-        assert result == Decimal("0.4")
-        # 0 charge : 400 reste <= 500 → 0
-        assert rules.calculate_seizable_amount(
-            Decimal("400"), dependents_count=0
-        ) == Decimal("0")
+# Le barème légal (sept tranches, personnes à charge, RSA laissé) est couvert par
+# test_quotite_saisissable_legale.py ; le barème « simplifié » qui était testé ici
+# n'était pas la loi (enquête du 11/10/2026, [G12]).
 
 
 # --- apply_priority_order ---

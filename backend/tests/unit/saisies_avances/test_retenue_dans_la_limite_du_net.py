@@ -23,6 +23,8 @@ import pytest
 
 from app.modules.saisies_avances.application import service
 
+from .test_quotite_saisissable_legale import BAREME
+
 pytestmark = pytest.mark.unit
 
 
@@ -55,6 +57,7 @@ def _enrichir(net: float, avances: list, saisies: list | None = None):
     ecritures = MagicMock()
     with (
         patch.object(service, "get_seizures_for_period", return_value=list(saisies or [])),
+        patch.object(service, "get_bareme_quotite_saisissable", return_value=BAREME, create=True),
         patch.object(service, "get_advances_to_repay", return_value=[dict(a) for a in avances]),
         patch.object(service, "get_existing_repayment", return_value=None),
         patch.object(service, "supprimer_deductions_du_bulletin"),
