@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
 import { AlertTriangle } from 'lucide-react';
 import { pluriel } from '@/lib/pluriel';
+import { clotureRttOuverte } from '../lib/clotureRtt';
 
 export function RttYearEndRhSection() {
   const { activeCompany } = useCompany();
@@ -70,6 +71,10 @@ export function RttYearEndRhSection() {
       return next;
     });
   };
+
+  if (!clotureRttOuverte(data?.reminder_active, new Date())) {
+    return null;
+  }
 
   if (!data?.reminder_active && closable.length === 0 && !isLoading) {
     return null;
