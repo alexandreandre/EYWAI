@@ -343,6 +343,11 @@ def detail_indemnite_cp_fin_contrat(contexte) -> Optional[Dict[str, Any]]:
     return detail if isinstance(detail, dict) else None
 
 
+def _euros_fr(montant: float) -> str:
+    """Montant de note au format du bulletin : 1 234,56 €."""
+    return f"{float(montant or 0.0):,.2f} €".replace(",", " ").replace(".", ",")
+
+
 def creer_bulletin_final(
     contexte: ContextePaie,
     salaire_brut: float,
@@ -402,9 +407,9 @@ def creer_bulletin_final(
     # retenue par l'arbitrage.
     if lignes_conges and (indemnite_conges > 0.0 or retenue_conges > 0.0):
         if indemnite_conges > retenue_conges:
-            texte_arbitrage = f"L'indemnité de congés payés a été calculée selon la règle du 1/10ème (soit {indemnite_conges:.2f} €), plus favorable que le maintien de salaire ({retenue_conges:.2f} €)."
+            texte_arbitrage = f"L'indemnité de congés payés a été calculée selon la règle du 1/10ème (soit {_euros_fr(indemnite_conges)}), plus favorable que le maintien de salaire ({_euros_fr(retenue_conges)})."
         else:
-            texte_arbitrage = f"L'indemnité de congés payés a été calculée selon la règle du maintien de salaire ({retenue_conges:.2f} €), plus favorable que la règle du 1/10ème."
+            texte_arbitrage = f"L'indemnité de congés payés a été calculée selon la règle du maintien de salaire ({_euros_fr(retenue_conges)}), plus favorable que la règle du 1/10ème."
 
     # Tri des cotisations en plusieurs blocs pour l'affichage
     bloc_principales = []
@@ -954,19 +959,19 @@ def creer_bulletin_sortie(
         if methode == "dixieme":
             bulletin_base["arbitrage_conges"] = (
                 f"L'indemnité compensatrice de congés payés a été calculée selon la "
-                f"règle du 1/10e ({montant:.2f} €), plus favorable que le maintien "
-                f"de salaire ({maintien:.2f} €)."
+                f"règle du 1/10e ({_euros_fr(montant)}), plus favorable que le maintien "
+                f"de salaire ({_euros_fr(maintien)})."
             )
         elif methode == "l1243_8":
             bulletin_base["arbitrage_conges"] = (
                 f"L'indemnité compensatrice de congés payés (CDD) retenue : "
-                f"{montant:.2f} € (règle des 10 % de la rémunération totale du contrat)."
+                f"{_euros_fr(montant)} (règle des 10 % de la rémunération totale du contrat)."
             )
         else:
             bulletin_base["arbitrage_conges"] = (
                 f"L'indemnité compensatrice de congés payés a été calculée selon le "
-                f"maintien de salaire ({montant:.2f} €), plus favorable que la "
-                f"règle du 1/10e ({dixieme:.2f} €)."
+                f"maintien de salaire ({_euros_fr(montant)}), plus favorable que la "
+                f"règle du 1/10e ({_euros_fr(dixieme)})."
             )
 
     # Ajouter une note explicative
