@@ -81,3 +81,28 @@ class TestBalancesToApiList:
         row = next(r for r in cp_juin if r["type"] == "Congés Payés")
         assert row["remaining"] == pytest.approx(13.5, abs=0.1)
         assert row["acquired"] == row["remaining"]
+
+
+class TestReposCompensateurAffiche:
+    """La fiche dit comme le bulletin : un repos pris sans crédit n'invente pas d'acquis."""
+
+    def test_repos_pris_sans_credit_reste_negatif(self):
+        soldes = compute_absence_balances(date(2024, 1, 8), [], date(2026, 10, 10))
+        soldes["repos_compensateur"] = {"acquis": 0.0, "pris": 2.0, "solde": -2.0}
+
+        rows = balances_to_api_list(soldes)
+        repos = next(r for r in rows if r["type"] == "Repos compensateur")
+
+        assert repos["acquired"] == 0.0
+        assert repos["taken"] == 2.0
+        assert repos["remaining"] == -2.0
+
+    def test_repos_avec_credit_inchange(self):
+        soldes = compute_absence_balances(date(2024, 1, 8), [], date(2026, 10, 10))
+        soldes["repos_compensateur"] = {"acquis": 7.0, "pris": 2.0, "solde": 5.0}
+
+        repos = next(
+            r for r in balances_to_api_list(soldes) if r["type"] == "Repos compensateur"
+        )
+
+        assert (repos["acquired"], repos["taken"], repos["remaining"]) == (7.0, 2.0, 5.0)
