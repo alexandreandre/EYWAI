@@ -139,6 +139,8 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
     from app.modules.exports.domain.accounting_plan import (
         FAMILLE_ACOMPTE_VERSE,
         FAMILLE_AVANCE_PARTICIPATION,
+        FAMILLE_INCONNUE,
+        FAMILLE_NOTE_DE_FRAIS,
         FAMILLE_PARTICIPATION,
         FAMILLE_PARTICIPATION_PEE,
         FAMILLE_TRANSPORT,
@@ -244,9 +246,14 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
             continue
         libelle = str(prime.get("libelle") or "")
         prime_id = prime.get("prime_id")
+        famille = resolve_element_family(libelle, prime_id)
+        if famille == FAMILLE_INCONNUE and prime.get("frais_professionnels"):
+            # Indemnité de frais (panier, déplacement forfaitaire) à sa ligne
+            # depuis le 11/10/2026 : un remboursement de frais, pas un acompte.
+            famille = FAMILLE_NOTE_DE_FRAIS
         elements.append(
             {
-                "famille": resolve_element_family(libelle, prime_id),
+                "famille": famille,
                 "libelle": libelle or "Élément hors brut",
                 "montant": montant,
             }
