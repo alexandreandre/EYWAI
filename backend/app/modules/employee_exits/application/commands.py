@@ -8,7 +8,7 @@ from app.core.logging import get_logger, log_app_debug
 
 logger = get_logger("modules.employee_exits.application.commands")
 
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
@@ -111,6 +111,10 @@ def create_employee_exit(
         "is_gross_misconduct", False
     ):
         exit_request_date = exit_data["exit_request_date"]
+        # La route transmet les dates en texte : « texte + timedelta » faisait
+        # échouer tout départ avec des jours de préavis.
+        if isinstance(exit_request_date, str):
+            exit_request_date = date.fromisoformat(exit_request_date[:10])
         notice_start = exit_request_date
         notice_end = exit_request_date + timedelta(days=exit_data["notice_period_days"])
 
