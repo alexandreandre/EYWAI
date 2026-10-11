@@ -364,7 +364,8 @@ export function AbsenceRequestModal({
           payload.heures_par_jour = heures;
         }
       }
-      await absencesApi.createAbsenceRequest(payload);
+      const reponse = await absencesApi.createAbsenceRequest(payload);
+      const avertissement: string | undefined = reponse?.data?.avertissement ?? undefined;
 
       toast({
         title: "Succès",
@@ -374,6 +375,13 @@ export function AbsenceRequestModal({
             ? "Le congé a été enregistré et validé."
             : "Votre demande d'absence a été soumise.",
       });
+      if (avertissement) {
+        toast({
+          title: "Attention",
+          description: `${avertissement}. Le congé est enregistré malgré tout.`,
+          variant: "destructive",
+        });
+      }
       onSuccess();
       onClose();
       setConfirmSansSoldeOpen(false);
