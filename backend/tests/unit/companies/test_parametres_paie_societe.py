@@ -10,6 +10,7 @@ fusion dans `settings` sans toucher aux autres clés.
 
 from __future__ import annotations
 
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -61,6 +62,18 @@ class TestTauxAssuranceChomage:
 
 
 class TestEffectif:
+    def test_l_annee_accompagne_l_effectif(self):
+        assert CompanyDetailsUpdate(effectif=5, effectif_annee=2026).to_update_dict() == {
+            "effectif": 5,
+            "effectif_annee": 2026,
+        }
+
+    @pytest.mark.parametrize("annee", [1999, 2101, "deux mille", 2026.5])
+    def test_une_annee_invraisemblable_est_refusee(self, annee):
+        with pytest.raises(ValidationError) as exc:
+            CompanyDetailsUpdate(effectif=5, effectif_annee=annee)
+        assert "année" in exc.value.errors()[0]["msg"]
+
     @pytest.mark.parametrize("effectif", [0, 1, 19, 250])
     def test_un_entier_positif_ou_nul_passe(self, effectif):
         assert CompanyDetailsUpdate(effectif=effectif).to_update_dict() == {
@@ -214,15 +227,31 @@ class TestFusionDansSettings:
             }
         )
         ecrit = depot.update_company.call_args[0][1]
-        assert ecrit["effectif"] == 21
+        assert "effectif" not in ecrit
+        assert ecrit["settings"]["effectif_seuils"] == {str(date.today().year): 21}
         assert ecrit["settings"]["taux_assurance_chomage"] == 4.2
         assert ecrit["settings"]["date_paiement"] == "dernier_jour_du_mois"
         assert ecrit["settings"]["jour_solidarite"] == "2026-05-25"
         assert ecrit["settings"]["compensation_heures_entre_semaines"] is True
 
     def test_sans_reglage_de_settings_la_colonne_settings_n_est_pas_reecrite(self):
-        _, depot, _ = _ecrire({"effectif": 21})
-        assert depot.update_company.call_args[0][1] == {"effectif": 21}
+        _, depot, _ = _ecrire({"taux_at_mp": 3.4})
+        assert depot.update_company.call_args[0][1] == {"taux_at_mp": 3.4}
+
+    def test_l_effectif_s_ecrit_pour_son_annee_et_jamais_dans_la_colonne(self):
+        """La colonne `effectif` est le nombre de comptes, tenu par un
+        déclencheur qui écrasait la saisie au compte suivant (Colorplast,
+        30/09/2026) : la saisie va dans settings, datée."""
+        avant = _societe(settings={"effectif_seuils": {"2025": 7}, "x": 1})
+        _, depot, _ = _ecrire({"effectif": 5, "effectif_annee": 2026}, avant=avant)
+        assert depot.update_company.call_args[0][1] == {
+            "settings": {"effectif_seuils": {"2025": 7, "2026": 5}, "x": 1}
+        }
+
+    def test_sans_annee_l_effectif_vaut_pour_l_annee_en_cours(self):
+        _, depot, _ = _ecrire({"effectif": 5})
+        ecrit = depot.update_company.call_args[0][1]
+        assert ecrit["settings"]["effectif_seuils"] == {str(date.today().year): 5}
 
     def test_settings_absent_en_base(self):
         _, depot, _ = _ecrire({"date_paiement": "arrete_des_variables"}, avant=_societe(settings=None))
@@ -231,14 +260,18 @@ class TestFusionDansSettings:
         }
 
     def test_la_valeur_relue_est_renvoyee(self):
-        resultat, _, _ = _ecrire({"effectif": 21, "taux_assurance_chomage": 2.95})
-        assert resultat["effectif"] == 21
+        resultat, _, _ = _ecrire(
+            {"effectif": 21, "effectif_annee": 2026, "taux_assurance_chomage": 2.95}
+        )
+        assert resultat["settings"]["effectif_seuils"] == {"2026": 21}
         assert resultat["settings"]["taux_assurance_chomage"] == 2.95
 
 
 class TestTraceAudit:
     def test_un_changement_laisse_une_trace_avant_apres(self):
-        _, _, audit = _ecrire({"effectif": 21, "taux_assurance_chomage": 2.95})
+        _, _, audit = _ecrire(
+            {"effectif": 21, "effectif_annee": 2026, "taux_assurance_chomage": 2.95}
+        )
         audit.log.assert_called_once()
         args = audit.log.call_args[0]
         assert args[0] == _SOCIETE
@@ -248,7 +281,7 @@ class TestTraceAudit:
         assert args[4] == "company"
         assert args[5] == _SOCIETE
         assert args[6]["changements"] == {
-            "effectif": {"avant": 19, "apres": 21},
+            "effectif_seuils": {"avant": None, "apres": {"2026": 21}},
             "taux_assurance_chomage": {"avant": None, "apres": 2.95},
         }
 
@@ -259,9 +292,17 @@ class TestTraceAudit:
         }
 
     def test_renvoyer_les_memes_valeurs_n_ecrit_rien_et_ne_trace_rien(self):
-        avant = _societe(taux_at_mp="3.15", settings={"date_paiement": "dernier_jour_du_mois"})
+        avant = _societe(
+            taux_at_mp="3.15",
+            settings={"date_paiement": "dernier_jour_du_mois", "effectif_seuils": {"2026": 5}},
+        )
         _, depot, audit = _ecrire(
-            {"effectif": 19, "taux_at_mp": 3.15, "date_paiement": "dernier_jour_du_mois"},
+            {
+                "effectif": 5,
+                "effectif_annee": 2026,
+                "taux_at_mp": 3.15,
+                "date_paiement": "dernier_jour_du_mois",
+            },
             avant=avant,
         )
         depot.update_company.assert_not_called()

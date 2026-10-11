@@ -548,3 +548,43 @@ def test_la_lecture_groupee_relit_les_cumuls_des_calendriers():
     with patch.object(q, "supabase", _Base()):
         q.lire_lectures_salarie("e1", [(2026, 5)])
     assert vues and "cumuls" in vues[0]
+
+
+# --- Effectif retenu pour les seuils : saisi par année, lu par palier ---------
+#
+# Le nombre de comptes de la société (`companies.effectif`, tenu par un
+# déclencheur) changeait l'empreinte à chaque compte créé : tous les brouillons
+# passaient « À recalculer » sans qu'aucun montant ne change (enquête du
+# 10/10/2026). L'empreinte suit désormais l'effectif saisi pour l'année du
+# bulletin, par palier (11, 20, 50) : seul un changement de palier change le
+# bulletin.
+
+
+def _societe_effectif(saisis, comptes=19):
+    return {**COMPANY, "effectif": comptes, "settings": {"effectif_seuils": saisis}}
+
+
+def test_creer_un_compte_ne_fait_plus_passer_a_recalculer():
+    assert empreinte_des_lectures(
+        **_kwargs(company=_societe_effectif({"2026": 5}, comptes=19))
+    ) == empreinte_des_lectures(**_kwargs(company=_societe_effectif({"2026": 5}, comptes=20)))
+
+
+def test_un_effectif_corrige_dans_le_meme_palier_ne_fait_pas_passer_a_recalculer():
+    assert empreinte_des_lectures(
+        **_kwargs(company=_societe_effectif({"2026": 5}))
+    ) == empreinte_des_lectures(**_kwargs(company=_societe_effectif({"2026": 7})))
+
+
+def test_un_effectif_qui_change_de_palier_fait_passer_a_recalculer():
+    assert empreinte_des_lectures(
+        **_kwargs(company=_societe_effectif({"2026": 5}))
+    ) != empreinte_des_lectures(**_kwargs(company=_societe_effectif({"2026": 12})))
+
+
+def test_l_effectif_de_l_annee_saisi_apres_coup_fait_passer_a_recalculer():
+    """Le bulletin porte l'alerte « Effectif 2026 non saisi » : une fois la
+    valeur saisie, il doit se recalculer pour la perdre, même au même palier."""
+    assert empreinte_des_lectures(
+        **_kwargs(company=_societe_effectif({"2025": 5}))
+    ) != empreinte_des_lectures(**_kwargs(company=_societe_effectif({"2025": 5, "2026": 5})))

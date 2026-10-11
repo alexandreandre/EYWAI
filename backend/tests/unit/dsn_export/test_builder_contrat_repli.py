@@ -167,3 +167,21 @@ def test_le_taux_recu_alimente_le_versement():
     versement = fichier.etablissement.individus[0].contrats[0].versements[0]
     assert versement.rubriques["S21.G00.50.007"] == "01"
     assert versement.rubriques["S21.G00.50.008"] == "434000000"
+
+
+def test_le_dispositif_d_apprentissage_suit_l_effectif_saisi_pour_l_annee():
+    """25 comptes dans Martine, mais 5 salariés en moyenne l'an passé : 64."""
+    apprenti = {
+        **SANS_CLASSIFICATION,
+        "contract_type": "Apprentissage",
+        "contract_end_date": "2028-08-31",
+    }
+    societe = {**SOCIETE, "effectif": 25, "settings": {"effectif_seuils": {"2026": 5}}}
+    fichier, _ = build_parsed_dsn_from_payroll(
+        societe,
+        [{"employee": apprenti, "payslip_data": BULLETIN}],
+        "2026-09",
+        settings=DsnSettings(idcc="0292"),
+    )
+    contrat = fichier.etablissement.individus[0].contrats[0].rubriques
+    assert contrat["S21.G00.40.008"] == "64"
