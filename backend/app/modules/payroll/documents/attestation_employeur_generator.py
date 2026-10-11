@@ -23,6 +23,10 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from app.modules.payroll.engine.preavis import (
+    indemnite_compensatrice_due,
+    phrase_execution_preavis,
+)
 from app.modules.payroll.documents.attestation_employeur_salary_history import (
     get_salary_history,
 )
@@ -192,9 +196,9 @@ def _preavis_lines(exit_data: Dict[str, Any]) -> List[str]:
         lines.append(f"Durée du préavis : {notice_days} jours.")
         if notice_end:
             lines.append(f"Fin de préavis : {format_date(notice_end)}.")
-        if notice_indemnity_type == "waived":
-            lines.append("Préavis non exécuté (dispense accordée).")
-        elif notice_indemnity_type == "paid":
+        # Même phrase que le reçu et le certificat (engine/preavis, L1234-5).
+        lines.append(phrase_execution_preavis(notice_indemnity_type))
+        if indemnite_compensatrice_due(notice_indemnity_type):
             indemnities = exit_data.get("calculated_indemnities") or {}
             montant = safe_float(
                 (indemnities.get("indemnite_preavis") or {}).get("montant", 0)
@@ -203,10 +207,6 @@ def _preavis_lines(exit_data: Dict[str, Any]) -> List[str]:
                 lines.append(
                     f"Indemnité compensatrice de préavis : {format_currency(montant)}."
                 )
-            else:
-                lines.append("Préavis non exécuté — indemnité compensatrice due.")
-        else:
-            lines.append("Préavis exécuté ou en cours d'exécution.")
     else:
         lines.append("Aucun préavis applicable.")
     return lines

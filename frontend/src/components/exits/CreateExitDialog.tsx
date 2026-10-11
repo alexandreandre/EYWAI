@@ -26,6 +26,12 @@ import {
   SimpleEmployee,
 } from '@/api/employeeExits';
 import { messageDepartCree } from '@/features/employee-exits/utils/messageDepartCree';
+import {
+  OPTIONS_PREAVIS,
+  PREAVIS_PAR_DEFAUT,
+  typePreavisApresApercu,
+  type TypePreavis,
+} from '@/features/employee-exits/utils/preavis';
 import { AlertCircle, Info, Loader2 } from 'lucide-react';
 
 interface CreateExitDialogProps {
@@ -82,7 +88,7 @@ export function CreateExitDialog({
   const [lastWorkingDay, setLastWorkingDay] = useState<string>('');
   const [noticePeriodDays, setNoticePeriodDays] = useState<number>(0);
   const [isGrossMisconduct, setIsGrossMisconduct] = useState(false);
-  const [noticeIndemnityType, setNoticeIndemnityType] = useState<'paid' | 'waived' | 'not_applicable'>('paid');
+  const [noticeIndemnityType, setNoticeIndemnityType] = useState<TypePreavis>(PREAVIS_PAR_DEFAUT);
   const [exitReason, setExitReason] = useState<string>('');
 
   const selectedEmployee = employees.find((emp) => emp.id === employeeId);
@@ -103,7 +109,7 @@ export function CreateExitDialog({
     setLastWorkingDay('');
     setNoticePeriodDays(0);
     setIsGrossMisconduct(false);
-    setNoticeIndemnityType('paid');
+    setNoticeIndemnityType(PREAVIS_PAR_DEFAUT);
     setExitReason('');
     setNoticePreview(null);
     setNoticePreviewError(null);
@@ -155,11 +161,9 @@ export function CreateExitDialog({
         setNoticePreview(preview);
         if (!noticeManuallyEdited.current) {
           setNoticePeriodDays(preview.notice_period_days);
-          if (!preview.applicable || preview.notice_period_days === 0) {
-            setNoticeIndemnityType('not_applicable');
-          } else if (noticeIndemnityType === 'not_applicable') {
-            setNoticeIndemnityType('paid');
-          }
+          // Un préavis proposé est exécuté par défaut : jamais une indemnité
+          // que la gestionnaire n'a pas choisie (L1234-5, [H1]).
+          setNoticeIndemnityType((actuel) => typePreavisApresApercu(preview, actuel));
         }
       } catch (error: unknown) {
         if (cancelled) return;
@@ -505,20 +509,20 @@ export function CreateExitDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="notice_indemnity_type">Indemnité de préavis</Label>
+                <Label htmlFor="notice_indemnity_type">Exécution du préavis</Label>
                 <Select
                   value={noticeIndemnityType}
-                  onValueChange={(value: 'paid' | 'waived' | 'not_applicable') =>
-                    setNoticeIndemnityType(value)
-                  }
+                  onValueChange={(value: TypePreavis) => setNoticeIndemnityType(value)}
                 >
                   <SelectTrigger id="notice_indemnity_type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="paid">Payée (préavis effectué)</SelectItem>
-                    <SelectItem value="waived">Dispensée (préavis non effectué, payé)</SelectItem>
-                    <SelectItem value="not_applicable">Non applicable</SelectItem>
+                    {OPTIONS_PREAVIS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

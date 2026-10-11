@@ -5,10 +5,7 @@ Case 1: Démission - Solde de tout compte generation
 from typing import Dict, Any
 
 from app.modules.payroll.solde_de_tout_compte.common import socle_commun
-from app.modules.payroll.solde_de_tout_compte.common import pdf_helpers
 from app.modules.payroll.solde_de_tout_compte.common.html_renderer import (
-    amount_row,
-    amounts_section,
     render_solde_tout_compte_html,
 )
 
@@ -32,45 +29,9 @@ def generate_demission_solde(
         )
     )
 
-    # === Préavis (spécifique démission) ===
-    notice_period = exit_data.get("notice_period_days", 0)
-    notice_indemnity_type = exit_data.get("notice_indemnity_type", "not_applicable")
-    indemnite_preavis = indemnities.get("indemnite_preavis", {})
-    montant_preavis = pdf_helpers.safe_float(indemnite_preavis.get("montant", 0))
-    is_gross_misconduct = exit_data.get("is_gross_misconduct", False)
-
-    if notice_period > 0 and not is_gross_misconduct:
-        if notice_indemnity_type == "waived" or montant_preavis == 0:
-            preavis_text = (
-                f"Préavis de {notice_period} jours exécuté — "
-                "salaire inclus dans les rémunérations"
-            )
-        else:
-            preavis_text = f"Préavis de {notice_period} jours — dispense d'exécution"
-    elif is_gross_misconduct:
-        preavis_text = "Aucun préavis (faute grave)"
-    else:
-        preavis_text = (
-            "Aucun préavis"
-            if notice_period == 0
-            else f"Préavis de {notice_period} jours"
-        )
-
-    if notice_indemnity_type == "paid" and montant_preavis > 0:
-        preavis_text_comp = "Dispense d'exécution — indemnité compensatrice"
-    else:
-        preavis_text_comp = "Non applicable (préavis exécuté ou non prévu)"
-
-    preavis_section = amounts_section(
-        "PRÉAVIS",
-        [
-            amount_row("Préavis", preavis_text, None),
-            amount_row(
-                "Indemnité compensatrice de préavis",
-                preavis_text_comp,
-                montant_preavis if montant_preavis > 0 else None,
-            ),
-        ],
+    # === Préavis (même phrase que le certificat et l'attestation) ===
+    preavis_section, montant_preavis, _versee = socle_commun.compute_preavis_section(
+        exit_data, indemnities
     )
 
     # === Congés payés ===

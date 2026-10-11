@@ -318,7 +318,7 @@ export interface CreateEmployeeExitRequest {
   exit_reason?: string;
   notice_period_days?: number;
   is_gross_misconduct?: boolean;
-  notice_indemnity_type?: 'paid' | 'waived' | 'not_applicable';
+  notice_indemnity_type?: 'executed' | 'paid' | 'waived' | 'not_applicable';
 }
 
 export interface UpdateEmployeeExitRequest {
@@ -332,7 +332,7 @@ export interface UpdateEmployeeExitRequest {
   exit_notes?: Record<string, any>;
   notice_period_days?: number;
   is_gross_misconduct?: boolean;
-  notice_indemnity_type?: 'paid' | 'waived' | 'not_applicable';
+  notice_indemnity_type?: 'executed' | 'paid' | 'waived' | 'not_applicable';
   /** Rupture conventionnelle : montant de la convention ; null = minimum légal. */
   montant_negocie?: number | null;
 }

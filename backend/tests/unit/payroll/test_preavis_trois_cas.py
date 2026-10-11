@@ -57,6 +57,9 @@ def _salarie(**extra) -> dict:
         "contract_type": "CDI",
         "duree_hebdomadaire": 39,
         "salaire_de_base": {"valeur": 2374.55},
+        # Fiche à 39 h dont le salaire est la base de 151,67 h, heures
+        # structurelles en plus (présentation des bulletins de Colorplast).
+        "specificites_paie": {"salaire_hors_hs_structurelles": True},
         **extra,
     }
 

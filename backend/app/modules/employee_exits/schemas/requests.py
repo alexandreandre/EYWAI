@@ -51,7 +51,10 @@ DocumentType = Literal[
     "recu_solde_compte",
     "attestation_portabilite_mutuelle",
 ]
-NoticeIndemnityType = Literal["paid", "waived", "not_applicable"]
+# Préavis (Code du travail L1234-5, cf. payroll/engine/preavis) : exécuté,
+# dispense à l'initiative de l'employeur (« paid » : indemnité compensatrice),
+# dispense à la demande du salarié (« waived » : rien), pas de préavis.
+NoticeIndemnityType = Literal["executed", "paid", "waived", "not_applicable"]
 ChecklistCategory = Literal["administratif", "materiel", "acces", "legal", "autre"]
 NotificationType = Literal[
     "status_change",
@@ -78,7 +81,7 @@ class EmployeeExitCreate(BaseModel):
     exit_reason: Optional[str] = None
     notice_period_days: int = Field(default=0, ge=0)
     is_gross_misconduct: bool = False  # Faute grave
-    notice_indemnity_type: NoticeIndemnityType = "paid"
+    notice_indemnity_type: NoticeIndemnityType = "executed"
 
     class Config:
         json_schema_extra = {
@@ -90,7 +93,7 @@ class EmployeeExitCreate(BaseModel):
                 "exit_reason": "Nouvelle opportunité professionnelle",
                 "notice_period_days": 60,
                 "is_gross_misconduct": False,
-                "notice_indemnity_type": "paid",
+                "notice_indemnity_type": "executed",
             }
         }
 

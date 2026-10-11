@@ -26,11 +26,21 @@ from app.modules.payroll.engine.iccp_fin_contrat import (
     indemnite_fin_de_contrat,
     valeur_jour_maintien,
 )
+from app.modules.payroll.engine.preavis import (
+    JOURS_PAR_MOIS,
+    indemnite_compensatrice_due,
+    jours_de_preavis_restants,
+    phrase_execution_preavis,
+)
 from app.modules.payroll.engine.reference_remuneration import (
     calculer_base_reference_dixieme,
     estimer_extras_fin_contrat,
     lire_brut_reference_depuis_cumuls,
     lire_brut_total_contrat,
+)
+from app.modules.payroll.engine.salaire_reference_sortie import (
+    calculer_salaire_de_reference,
+    lire_mois_de_salaire,
 )
 from app.modules.payroll.engine.salaire_contractuel import (
     heures_mensuelles_legales,
@@ -117,48 +127,95 @@ def calculer_salaire_reference_3_mois(employee_data: Dict[str, Any]) -> float:
 
 
 def calculer_indemnite_preavis(
-    salaire_mensuel_brut: float, notice_period_days: int, notice_indemnity_type: str
+    remuneration_mensuelle: float,
+    notice_period_days: int,
+    notice_indemnity_type: str,
+    *,
+    jours_restants: Optional[int] = None,
+    source_remuneration: str = "",
+    is_gross_misconduct: bool = False,
 ) -> Dict[str, Any]:
     """
-    Calcule l'indemnité de préavis
+    Indemnité compensatrice de préavis (Code du travail L1234-5, cf. engine/preavis).
 
-    Formule: (salaire mensuel brut / 30) × nombre de jours de préavis
+    Due seulement quand l'employeur dispense le salarié de son préavis
+    (« paid ») : elle vaut la rémunération qu'il aurait perçue, pour le temps
+    de préavis qui restait après son dernier jour travaillé. Un préavis
+    exécuté (« executed ») est payé avec le salaire du mois ; une dispense
+    demandée par le salarié (« waived ») ne donne rien.
 
     Args:
-        salaire_mensuel_brut: Salaire mensuel brut de référence
-        notice_period_days: Nombre de jours de préavis
-        notice_indemnity_type: 'paid', 'waived', 'not_applicable'
-
-    Returns:
-        Dict contenant le montant et les détails du calcul
+        remuneration_mensuelle: rémunération mensuelle qu'il aurait perçue
+        notice_period_days: durée du préavis, en jours
+        notice_indemnity_type: 'executed', 'paid', 'waived', 'not_applicable'
+        jours_restants: jours de préavis non exécutés (défaut : toute la durée)
+        source_remuneration: d'où vient la rémunération, pour le détail affiché
     """
     log_payroll_debug(logger, '\n  [PRÉAVIS]')
-    log_payroll_debug(logger, f'    Salaire mensuel: {salaire_mensuel_brut:.2f} €')
+    log_payroll_debug(logger, f'    Rémunération mensuelle: {remuneration_mensuelle:.2f} €')
     log_payroll_debug(logger, f'    Jours de préavis: {notice_period_days}')
     log_payroll_debug(logger, f'    Type: {notice_indemnity_type}')
 
-    if notice_indemnity_type != "paid" or notice_period_days == 0:
+    jours = notice_period_days if jours_restants is None else jours_restants
+    if (
+        not indemnite_compensatrice_due(notice_indemnity_type, faute_grave=is_gross_misconduct)
+        or not notice_period_days
+        or jours <= 0
+    ):
         return {
             "montant": 0.0,
             "jours_preavis": notice_period_days,
             "type": notice_indemnity_type,
             "description": "Indemnité de préavis",
-            "calcul": "Non applicable ou dispensé",
+            "calcul": phrase_execution_preavis(
+                notice_indemnity_type if notice_period_days else None
+            ),
         }
 
-    # Calcul: (salaire mensuel brut / 30) × nombre de jours
-    indemnite = (salaire_mensuel_brut / 30) * notice_period_days
-
-    log_payroll_debug(logger, f'    Indemnité: ({salaire_mensuel_brut} / 30) × {notice_period_days} = {indemnite:.2f} €')
-
+    indemnite = round(remuneration_mensuelle / JOURS_PAR_MOIS * jours, 2)
+    log_payroll_debug(logger, f'    Indemnité: ({remuneration_mensuelle} / 30) × {jours} = {indemnite:.2f} €')
+    origine = f" ({source_remuneration})" if source_remuneration else ""
     return {
-        "montant": round(indemnite, 2),
+        "montant": indemnite,
         "jours_preavis": notice_period_days,
-        "salaire_reference": salaire_mensuel_brut,
+        "jours_restants": jours,
+        "salaire_reference": round(remuneration_mensuelle, 2),
         "type": notice_indemnity_type,
-        "description": f"Indemnité compensatrice de préavis ({notice_period_days} jours)",
-        "calcul": f"({salaire_mensuel_brut:.2f} / 30) × {notice_period_days} jours = {indemnite:.2f} €",
+        "description": f"Indemnité compensatrice de préavis ({jours} jours non exécutés)",
+        "calcul": (
+            f"Rémunération qu'il aurait perçue : {remuneration_mensuelle:.2f} € par mois"
+            f"{origine} / 30 × {jours} jours de préavis restant = {indemnite:.2f} €"
+        ),
     }
+
+
+def _remuneration_du_preavis(
+    employee_data: Dict[str, Any], exit_date: date, supabase_client
+) -> tuple[float, str, list[str]]:
+    """La rémunération qu'aurait perçue le salarié pendant son préavis : le
+    tiers des trois derniers mois de bulletins (heures structurelles, heures
+    supplémentaires et primes comprises, primes annuelles à due proportion) ;
+    sans bulletin, le salaire habituel du contrat."""
+    salaire_base = _parse_salaire_base(employee_data)
+    habituel, _, _ = _salaire_habituel_et_taux_horaire(employee_data, salaire_base)
+    mois: list = []
+    employee_id = employee_data.get("id")
+    if employee_id and supabase_client is not None:
+        try:
+            mois = lire_mois_de_salaire(str(employee_id), exit_date, supabase_client, nombre=3)
+        except Exception:
+            logger.warning("Bulletins illisibles pour le préavis (%s)", employee_id, exc_info=True)
+            mois = []
+    # Trois mois suffisent ici : la moyenne de douze mois sert à l'indemnité
+    # de licenciement, pas à ce que le salarié aurait gagné pendant son préavis.
+    reference = calculer_salaire_de_reference(mois, repli_contrat=habituel, mois_d_anciennete=3)
+    if reference.tiers_trois_mois is None:
+        return reference.retenu, "salaire habituel du contrat, aucun bulletin lu", list(reference.alertes)
+    return (
+        reference.tiers_trois_mois,
+        f"tiers des {reference.mois_lus} derniers bulletins",
+        list(reference.alertes),
+    )
 
 
 # ============================================================================
@@ -326,6 +383,19 @@ def _montant_negocie_saisi(exit_data: Dict[str, Any]) -> Optional[float]:
 # ============================================================================
 # CONGÉS PAYÉS RESTANTS
 # ============================================================================
+
+
+def _date_ou_none(valeur: Any) -> Optional[date]:
+    if valeur is None or valeur == "":
+        return None
+    if isinstance(valeur, datetime):
+        return valeur.date()
+    if isinstance(valeur, date):
+        return valeur
+    try:
+        return date.fromisoformat(str(valeur)[:10])
+    except ValueError:
+        return None
 
 
 def _parse_salaire_base(employee_data: Dict[str, Any]) -> float:
@@ -839,10 +909,37 @@ def calculer_indemnites_sortie(
     log_payroll_debug(logger, f'Salaire référence (3 mois): {salaire_ref_3:.2f} €')
     log_payroll_debug(logger, f'Salaire référence retenu: {salaire_reference:.2f} €')
 
-    # 3. Calculer l'indemnité de préavis
-    indemnite_preavis = calculer_indemnite_preavis(
-        salaire_reference, notice_period_days, notice_indemnity_type
-    )
+    # 3. Indemnité de préavis : due seulement pour une dispense à l'initiative
+    # de l'employeur, sur la rémunération qu'il aurait perçue et pour le temps
+    # de préavis restant après le dernier jour travaillé (engine/preavis).
+    alertes_preavis: list[str] = []
+    if indemnite_compensatrice_due(notice_indemnity_type, faute_grave=bool(is_gross_misconduct)) and (
+        notice_period_days or 0
+    ) > 0:
+        remuneration_preavis, source_preavis, alertes_preavis = _remuneration_du_preavis(
+            employee_data, exit_date, supabase_client
+        )
+        indemnite_preavis = calculer_indemnite_preavis(
+            remuneration_preavis,
+            notice_period_days,
+            notice_indemnity_type,
+            jours_restants=jours_de_preavis_restants(
+                jours_de_preavis=notice_period_days,
+                fin_du_preavis=_date_ou_none(exit_data.get("notice_end_date")),
+                dernier_jour_travaille=exit_date,
+            ),
+            source_remuneration=source_preavis,
+            is_gross_misconduct=bool(is_gross_misconduct),
+        )
+        if alertes_preavis:
+            indemnite_preavis["alertes"] = alertes_preavis
+    else:
+        indemnite_preavis = calculer_indemnite_preavis(
+            0.0,
+            notice_period_days or 0,
+            notice_indemnity_type,
+            is_gross_misconduct=bool(is_gross_misconduct),
+        )
 
     # 4. Calculer les congés payés restants
     indemnite_conges = calculer_indemnite_conges_restants(

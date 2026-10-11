@@ -166,9 +166,14 @@ class EmployeeExitDocumentGenerator:
                 preavis_lines.append(
                     f"Fin de préavis : <b>{self._format_date(notice_end)}</b>."
                 )
-            if notice_indemnity_type == "waived":
-                preavis_lines.append("Préavis non exécuté (dispense accordée).")
-            elif notice_indemnity_type == "paid":
+            # Même phrase que le reçu et l'attestation (engine/preavis, L1234-5).
+            from app.modules.payroll.engine.preavis import (
+                indemnite_compensatrice_due,
+                phrase_execution_preavis,
+            )
+
+            preavis_lines.append(phrase_execution_preavis(notice_indemnity_type))
+            if indemnite_compensatrice_due(notice_indemnity_type):
                 indemnities = exit_data.get("calculated_indemnities") or {}
                 montant_preavis = safe_float(
                     (indemnities.get("indemnite_preavis") or {}).get("montant", 0)
@@ -180,12 +185,6 @@ class EmployeeExitDocumentGenerator:
                         f"Indemnité compensatrice de préavis : "
                         f"<b>{format_currency(montant_preavis)}</b>."
                     )
-                else:
-                    preavis_lines.append(
-                        "Préavis non exécuté — indemnité compensatrice de préavis due."
-                    )
-            else:
-                preavis_lines.append("Préavis exécuté ou en cours d'exécution.")
         else:
             preavis_lines.append(
                 "Aucun préavis applicable ou durée de préavis non renseignée."
