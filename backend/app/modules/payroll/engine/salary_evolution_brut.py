@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Dict, List
 
 from .contexte import ContextePaie
@@ -27,6 +28,15 @@ def salaire_contractuel_avec_evolution(
     return salaire_contractuel
 
 
+def _date_fr(valeur: Any) -> str:
+    """« 2026-08-01 » → « 01/08/2026 » ; vide ou illisible → chaîne vide."""
+    texte = str(valeur or "").strip()[:10]
+    try:
+        return date.fromisoformat(texte).strftime("%d/%m/%Y")
+    except ValueError:
+        return ""
+
+
 def lignes_rappel_salaire(contexte: ContextePaie) -> List[Dict[str, Any]]:
     """Ligne distincte de rappel rétroactif (mois antérieurs au bulletin courant)."""
     evo = _evolution_mois(contexte)
@@ -43,10 +53,10 @@ def lignes_rappel_salaire(contexte: ContextePaie) -> List[Dict[str, Any]]:
     if montant_f <= 0:
         return []
 
-    debut = rappel.get("periode_debut") or ""
-    fin = rappel.get("periode_fin") or ""
+    debut = _date_fr(rappel.get("periode_debut"))
+    fin = _date_fr(rappel.get("periode_fin"))
     if debut and fin:
-        libelle = f"Rappel de salaire (période {debut} au {fin})"
+        libelle = f"Rappel de salaire (période du {debut} au {fin})"
     else:
         libelle = "Rappel de salaire"
 

@@ -222,6 +222,30 @@ def _acompte_participation_deja_verse(
     return round(total, 2)
 
 
+def _rappel_par_mois_du_bulletin(contexte) -> Dict[str, Any]:
+    """Ce que ce bulletin rappelle pour chaque mois, quand il verse un rappel.
+
+    Les bulletins suivants le lisent : un mois déjà rappelé ne l'est pas une
+    seconde fois. La clé n'est posée que s'il y a un rappel, les autres
+    bulletins gardent leur forme.
+    """
+    remuneration = contexte.contrat.get("remuneration") or {}
+    evolution = remuneration.get("evolution_salaire_mois")
+    rappel = evolution.get("rappel") if isinstance(evolution, dict) else None
+    par_mois = rappel.get("par_mois") if isinstance(rappel, dict) else None
+    if not isinstance(par_mois, dict):
+        return {}
+    propre: Dict[str, float] = {}
+    for mois_rappele, montant in par_mois.items():
+        try:
+            valeur = round(float(montant or 0.0), 2)
+        except (TypeError, ValueError):
+            continue
+        if valeur > 0:
+            propre[str(mois_rappele)] = valeur
+    return {"rappel_salaire_par_mois": propre} if propre else {}
+
+
 def _salaire_base_mensuel_en_vigueur(contexte) -> float | None:
     """Salaire de base mensuel appliqué en fin de mois (après évolution).
 
@@ -702,6 +726,7 @@ def creer_bulletin_final(
             # Salaire de base mensuel en vigueur à la fin du mois : le rappel
             # de salaire s'en sert pour savoir à quel taux ce mois a été payé.
             "salaire_base_mensuel": _salaire_base_mensuel_en_vigueur(contexte),
+            **_rappel_par_mois_du_bulletin(contexte),
         },
         "structure_cotisations": {
             "bloc_principales": bloc_principales,

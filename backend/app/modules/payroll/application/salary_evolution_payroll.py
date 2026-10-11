@@ -37,9 +37,41 @@ def _lire_bulletins_anterieurs(employee_id: str, company_id: str) -> list[dict[s
     return resp.data or []
 
 
+def _rappels_deja_verses(
+    rows: list[dict[str, Any]], year: int, month: int
+) -> Dict[tuple[int, int], float]:
+    """Ce que les autres bulletins ont déjà rappelé, par mois rappelé.
+
+    Chaque bulletin qui verse un rappel garde sa part par mois
+    (`parametres.rappel_salaire_par_mois`). Le bulletin recalculé ne compte pas
+    la sienne : il la refait.
+    """
+    deja: Dict[tuple[int, int], float] = {}
+    for row in rows:
+        try:
+            cle = (int(row.get("year")), int(row.get("month")))
+        except (TypeError, ValueError):
+            continue
+        if cle == (year, month):
+            continue
+        parametres = row.get("parametres")
+        par_mois = parametres.get("rappel_salaire_par_mois") if isinstance(parametres, dict) else None
+        if not isinstance(par_mois, dict):
+            continue
+        for mois_rappele, montant in par_mois.items():
+            try:
+                annee_r, mois_r = (int(x) for x in str(mois_rappele).split("-", 1))
+                valeur = float(montant or 0.0)
+            except (TypeError, ValueError):
+                continue
+            if valeur > 0:
+                deja[(annee_r, mois_r)] = round(deja.get((annee_r, mois_r), 0.0) + valeur, 2)
+    return deja
+
+
 def _bases_des_bulletins(
     employee_id: str, company_id: str, year: int, month: int, duree_hebdo: Any
-) -> Dict[tuple[int, int], float] | None:
+) -> tuple[Dict[tuple[int, int], float], Dict[tuple[int, int], float]]:
     """Salaire de base mensuel sur lequel chaque bulletin ANTÉRIEUR a été établi.
 
     Sert au rappel de salaire : un mois déjà payé au nouveau taux n'est pas
@@ -51,6 +83,7 @@ def _bases_des_bulletins(
         lambda: _lire_bulletins_anterieurs(employee_id, company_id),
         "Les bulletins précédents du salarié n'ont pas pu être lus",
     )
+    deja = _rappels_deja_verses(rows, year, month)
     heures = heures_base_mensuelles(duree_hebdo)
     bases: Dict[tuple[int, int], float] = {}
     for row in rows:
@@ -66,7 +99,7 @@ def _bases_des_bulletins(
         )
         if base:
             bases[cle] = base
-    return bases
+    return bases, deja
 
 
 def _valeur_salaire(salaire_de_base: Any) -> float:
@@ -114,11 +147,16 @@ def prepare_salary_evolution_for_payslip(
 
     timeline = lire_ou_arreter(lambda: repo.get_salary_history(employee_id, company_id), illisible)
     fallback = _valeur_salaire(emp.get("salaire_de_base"))
-    bases = _bases_des_bulletins(
+    bases, rappels_deja_verses = _bases_des_bulletins(
         employee_id, company_id, year, month, emp.get("duree_hebdomadaire")
     )
     evolution = construire_evolution_salaire_mois(
-        timeline, year, month, fallback, bases_des_bulletins=bases
+        timeline,
+        year,
+        month,
+        fallback,
+        bases_des_bulletins=bases,
+        rappels_deja_verses=rappels_deja_verses,
     )
 
     prorata = evolution.get("prorata")
