@@ -33,6 +33,7 @@ from app.modules.saisies_avances.infrastructure.queries import (
     build_advance_available,
     get_accounting_account,
     get_advances_to_repay,
+    get_bareme_quotite_saisissable,
     get_payment_with_advance,
     get_proof_file_path,
     get_seizures_for_period,
@@ -178,17 +179,27 @@ def get_advance_payments(advance_id: str) -> List[Dict[str, Any]]:
 def calculate_seizable(
     net_salary: Decimal, dependents_count: int = 0
 ) -> SeizableAmountCalculation:
-    """Quotité saisissable pour un salaire donné (règles pures domain)."""
-    seizable = domain_rules.calculate_seizable_amount(net_salary, dependents_count)
-    minimum_untouchable = net_salary / Decimal("20")
-    majoration = Decimal(dependents_count) * Decimal("104.00")
-    adjusted_salary = net_salary + majoration
+    """Quotité saisissable d'un net donné, au barème légal du mois en cours.
+
+    `minimum_untouchable` : le solde toujours laissé au salarié (RSA d'une
+    personne seule). Le barème légal relève les seuils par personne à charge,
+    il ne majore pas le salaire : `adjusted_salary` reste le net.
+    """
+    today = date.today()
+    bareme, _ = domain_rules.resoudre_bareme_quotite(
+        get_bareme_quotite_saisissable(), today.year, today.month
+    )
+    if bareme is None:
+        raise ValidationError(
+            "Le barème de la quotité saisissable n'est pas chargé : contactez le support."
+        )
+    seizable = domain_rules.calculate_seizable_amount(net_salary, dependents_count, bareme)
     return infra_mappers.to_seizable_amount_calculation(
         net_salary=net_salary,
         dependents_count=dependents_count,
-        adjusted_salary=adjusted_salary,
+        adjusted_salary=net_salary,
         seizable_amount=seizable,
-        minimum_untouchable=minimum_untouchable,
+        minimum_untouchable=bareme["solde_insaisissable"],
     )
 
 
@@ -222,6 +233,11 @@ def create_salary_seizure(seizure_data: Any, created_by_id: Any) -> Dict[str, An
         "created_by": created_by_id,
         "status": "active",
     }
+    # Personnes à charge : elles relèvent les seuils du barème légal. Écrites
+    # seulement quand il y en a, pour qu'une saisie sans personne à charge reste
+    # possible avant la migration qui ajoute la colonne.
+    if getattr(seizure_data, "dependents_count", 0):
+        db_data["dependents_count"] = int(seizure_data.dependents_count)
     return seizure_repository.create(db_data)
 
 
@@ -577,7 +593,6 @@ def enrich_payslip(
     Comportement identique au legacy services.saisies_avances_integration.
     """
     net_a_payer = Decimal(str(payslip_json_data.get("net_a_payer", 0)))
-    dependents_count = 0
     # Ce que le net permet de retenir, saisies puis avances : jamais plus que le
     # net, rien sur un net nul ou négatif. Le net négatif reste alors tel quel,
     # et son report au mois suivant reste proposé. Le net était ramené à 0 alors
@@ -585,12 +600,34 @@ def enrich_payslip(
     # différence n'était ni retenue ni reportée (enquête du 11/10/2026, [G8]).
     net_disponible = max(Decimal("0"), net_a_payer)
 
-    # 1. Traitement des saisies
+    # 1. Traitement des saisies : quotité au barème légal de l'année (lu en
+    # base, comme le SMIC), sur la base saisissable (sans frais, acompte non
+    # déduit, avantages en nature compris), seuils relevés par personne à charge.
     seizures = get_seizures_for_period(employee_id, year, month)
     seizures = domain_rules.apply_priority_order(seizures)
-    seizable_amount = domain_rules.calculate_seizable_amount(
-        net_a_payer, dependents_count
+    dependents_count = max(
+        (int(s.get("dependents_count") or 0) for s in seizures), default=0
     )
+    base_saisissable = domain_rules.base_saisissable(payslip_json_data)
+    seizable_amount = Decimal("0")
+    if seizures:
+        bareme, messages = domain_rules.resoudre_bareme_quotite(
+            get_bareme_quotite_saisissable(), year, month
+        )
+        if bareme is not None:
+            seizable_amount = domain_rules.calculate_seizable_amount(
+                base_saisissable, dependents_count, bareme
+            )
+        alertes = payslip_json_data.setdefault("alertes_baremes", [])
+        for message in messages:
+            alertes.append(
+                {
+                    "code": "quotite_saisissable",
+                    "severity": "warning",
+                    "critique": bareme is None,
+                    "message": message,
+                }
+            )
 
     total_deductions = Decimal("0")
     saisies_appliquees: List[Dict[str, Any]] = []
@@ -613,7 +650,7 @@ def enrich_payslip(
         if remaining_seizable <= 0 or net_disponible <= 0:
             break
         deduction = domain_rules.calculate_seizure_deduction(
-            seizure, net_a_payer, remaining_seizable, dependents_count
+            seizure, base_saisissable, remaining_seizable, dependents_count
         )
         deduction = min(deduction, net_disponible)
         if deduction > 0:

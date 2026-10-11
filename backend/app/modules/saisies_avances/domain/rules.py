@@ -6,51 +6,180 @@ Comportement identique à services.saisies_avances_calculator pour les calculs p
 """
 
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Literal, Tuple
 
 AdvanceType = Literal["avance_salaire", "acompte_salaire", "acompte_prime"]
 
 
 # Constantes métier (alignées domain/enums.py et legacy)
-MAJORATION_PAR_CHARGE = Decimal("104.00")
-MINIMUM_UNTOUCHABLE_DIVISOR = 20  # 1/20e du salaire net
 MAX_ADVANCE_DAYS = 10
 MAX_ADVANCE_NET_RATIO = Decimal("0.5")  # Plafond : 50 % du salaire net de référence
 
+_CENTIME = Decimal("0.01")
+
+
+def _centimes(valeur: Decimal) -> Decimal:
+    return valeur.quantize(_CENTIME, rounding=ROUND_HALF_UP)
+
+
+def _fraction(texte: Any) -> Decimal:
+    """« 1/20 », « 2/3 », « 1 » ou 0.05 : la fraction saisissable d'une tranche."""
+    brut = str(texte).strip()
+    if "/" in brut:
+        numerateur, denominateur = brut.split("/", 1)
+        return Decimal(numerateur.strip()) / Decimal(denominateur.strip())
+    return Decimal(brut)
+
+
+def resoudre_bareme_quotite(
+    config: Dict[str, Any] | None, annee: int, mois: int
+) -> Tuple[Dict[str, Any] | None, List[str]]:
+    """Le barème de la quotité saisissable pour le bulletin, et ce qu'il faut en dire.
+
+    `config` est la ligne `payroll_config.quotite_saisissable` : un barème par
+    année (`par_annee`, tranches annuelles et majoration par personne à charge,
+    R3252-2 et R3252-3 du Code du travail) et l'historique du solde laissé au
+    salarié (`solde_insaisissable`, le RSA d'une personne seule, revalorisé
+    chaque 1er avril). Une année nouvelle s'y ajoute sans toucher au code.
+
+    Sans barème pour l'année du bulletin, le plus récent des années d'avant sert,
+    et le message le dit. Sans aucun barème : (None, [message]).
+    """
+    par_annee = (config or {}).get("par_annee") or {}
+    annees = sorted(int(a) for a in par_annee if str(a).isdigit())
+    if not annees:
+        return None, [
+            "Barème de la quotité saisissable absent (payroll_config, clé "
+            "quotite_saisissable) : aucune saisie sur salaire n'est retenue sur ce "
+            "bulletin. Contactez le support."
+        ]
+    messages: List[str] = []
+    anterieures = [a for a in annees if a <= annee]
+    retenue = anterieures[-1] if anterieures else annees[0]
+    if retenue != annee:
+        messages.append(
+            f"Barème de la quotité saisissable {annee} non chargé : celui de "
+            f"{retenue} est appliqué. Vérifiez la retenue avant de valider."
+        )
+    bloc = par_annee.get(str(retenue)) or par_annee.get(retenue) or {}
+    jour = date(annee, mois, 1)
+    solde = None
+    for palier in sorted(
+        (config or {}).get("solde_insaisissable") or [],
+        key=lambda p: str(p.get("date_debut") or ""),
+    ):
+        debut = _jour(palier.get("date_debut"))
+        if debut is not None and debut <= jour:
+            solde = Decimal(str(palier.get("montant_mensuel")))
+    if solde is None:
+        return None, messages + [
+            "Solde insaisissable (RSA d'une personne seule) introuvable pour ce mois "
+            "dans le barème de la quotité saisissable : aucune saisie sur salaire "
+            "n'est retenue sur ce bulletin. Contactez le support."
+        ]
+    return (
+        {
+            "annee": retenue,
+            "tranches": [
+                (
+                    None
+                    if t.get("jusqu_a_annuel") is None
+                    else Decimal(str(t["jusqu_a_annuel"])),
+                    _fraction(t.get("fraction")),
+                )
+                for t in bloc.get("tranches") or []
+            ],
+            "majoration_annuelle": Decimal(
+                str(bloc.get("majoration_annuelle_par_personne_a_charge") or 0)
+            ),
+            "solde_insaisissable": solde,
+        },
+        messages,
+    )
+
 
 def calculate_seizable_amount(
-    net_salary: Decimal, dependents_count: int = 0
+    base: Decimal, dependents_count: int, bareme: Dict[str, Any]
 ) -> Decimal:
+    """Quotité saisissable du mois, au barème légal (L3252-2, R3252-2, R3252-3).
+
+    Chaque seuil annuel est relevé de la majoration par personne à charge, puis
+    ramené au mois ; chaque tranche est prise à sa fraction et arrondie au
+    centime, comme le simulateur justice.fr. Le salarié garde toujours le solde
+    insaisissable (RSA d'une personne seule) : rien n'est saisissable en dessous.
     """
-    Calcule la quotité saisissable selon le barème légal français.
+    if base <= 0:
+        return Decimal("0")
+    personnes = max(0, int(dependents_count or 0))
+    majoration = bareme["majoration_annuelle"] * personnes
+    total = Decimal("0")
+    bas = Decimal("0")
+    for plafond_annuel, fraction in bareme["tranches"]:
+        haut = None if plafond_annuel is None else (plafond_annuel + majoration) / 12
+        if base <= bas:
+            break
+        part = (base if haut is None else min(base, haut)) - bas
+        total += _centimes(part * fraction)
+        if haut is None:
+            break
+        bas = haut
+    plafond = max(Decimal("0"), base - bareme["solde_insaisissable"])
+    return _centimes(max(Decimal("0"), min(total, plafond)))
 
-    Barème simplifié :
-    - Tranche 1: 0 à 500€ → 0%
-    - Tranche 2: 500 à 1000€ → 10%
-    - Tranche 3: 1000 à 2000€ → 20%
-    - Tranche 4: > 2000€ → 30%
-    Le salarié doit conserver au minimum 1/20ème de son salaire net.
+
+_MOTS_FRAIS = (
+    "frais",
+    "rembours",
+    "panier",
+    "repas",
+    "transport",
+    "trajet",
+    "kilom",
+    "déplacement",
+    "deplacement",
+)
+
+
+def _est_un_remboursement_de_frais(prime: Dict[str, Any]) -> bool:
+    prime_id = str(prime.get("prime_id") or "")
+    if prime_id.startswith("remb_"):
+        return True
+    texte = f"{prime_id} {prime.get('libelle') or ''}".lower()
+    return any(mot in texte for mot in _MOTS_FRAIS)
+
+
+def base_saisissable(bulletin: Dict[str, Any]) -> Decimal:
+    """Ce sur quoi se calcule la quotité saisissable (L3252-3 du Code du travail).
+
+    La rémunération, ses accessoires et les avantages en nature, après
+    cotisations et prélèvement à la source, sans les remboursements de frais.
+    On part du net à payer du moteur :
+    - l'acompte retenu y est rajouté (c'est déjà du salaire) ; un ajout sur le
+      net porté en acompte négatif (panier, déplacement, avance versée) en sort ;
+    - l'avantage en nature, retiré du net à payer, y revient ;
+    - le remboursement de transport et les notes de frais en sortent.
     """
-    majoration = Decimal(dependents_count) * MAJORATION_PAR_CHARGE
-    adjusted_salary = net_salary + majoration
+    synthese = bulletin.get("synthese_net") or {}
 
-    if adjusted_salary <= 500:
-        seizable_amount = Decimal("0")
-    elif adjusted_salary <= 1000:
-        seizable_amount = (adjusted_salary - Decimal("500")) * Decimal("0.10")
-    elif adjusted_salary <= 2000:
-        seizable_amount = Decimal("50") + (
-            (adjusted_salary - Decimal("1000")) * Decimal("0.20")
-        )
-    else:
-        seizable_amount = Decimal("250") + (
-            (adjusted_salary - Decimal("2000")) * Decimal("0.30")
-        )
+    def _d(valeur: Any) -> Decimal:
+        try:
+            return Decimal(str(valeur or 0))
+        except Exception:  # noqa: BLE001 — une valeur illisible ne compte pas
+            return Decimal("0")
 
-    minimum_untouchable = net_salary / Decimal(str(MINIMUM_UNTOUCHABLE_DIVISOR))
-    max_seizable = net_salary - minimum_untouchable
-    return max(Decimal("0"), min(seizable_amount, max_seizable))
+    base = _d(bulletin.get("net_a_payer"))
+    base += _d(synthese.get("acompte_verse"))
+    base += _d(synthese.get("avantages_en_nature"))
+    base -= _d(synthese.get("remboursement_transport"))
+    base -= _d(synthese.get("indemnite_transport_fixe"))
+    for prime in bulletin.get("primes_non_soumises") or []:
+        if not isinstance(prime, dict):
+            continue
+        montant = _d(prime.get("montant"))
+        if montant > 0 and _est_un_remboursement_de_frais(prime):
+            base -= montant
+    return _centimes(base)
 
 
 def apply_priority_order(seizures: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -74,17 +203,19 @@ def calculate_seizure_deduction(
     """
     calculation_mode = seizure.get("calculation_mode", "barème_legal")
 
+    # Une saisie au barème n'a pas de montant : la colonne arrive à None, que
+    # `Decimal(str(None))` refusait.
     if calculation_mode == "fixe":
-        amount = Decimal(str(seizure.get("amount", 0)))
+        amount = Decimal(str(seizure.get("amount") or 0))
         return min(amount, seizable_amount)
 
     if calculation_mode == "pourcentage":
-        percentage = Decimal(str(seizure.get("percentage", 0)))
+        percentage = Decimal(str(seizure.get("percentage") or 0))
         amount = net_salary * (percentage / Decimal("100"))
         return min(amount, seizable_amount)
 
     # barème_legal
-    amount = Decimal(str(seizure.get("amount", 0)))
+    amount = Decimal(str(seizure.get("amount") or 0))
     if amount > 0:
         return min(amount, seizable_amount)
     return seizable_amount

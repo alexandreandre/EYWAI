@@ -16,6 +16,8 @@ import pytest
 
 from app.modules.saisies_avances.application import service
 
+from .test_quotite_saisissable_legale import BAREME
+
 pytestmark = pytest.mark.unit
 
 SAISIE = {
@@ -49,6 +51,7 @@ class _Historique:
 def _base(historique: _Historique):
     with (
         patch.object(service, "get_seizures_for_period", return_value=[dict(SAISIE)]),
+        patch.object(service, "get_bareme_quotite_saisissable", return_value=BAREME),
         patch.object(service, "get_advances_to_repay", return_value=[]),
         patch.object(service, "insert_seizure_deduction", side_effect=historique.inserer),
         patch.object(

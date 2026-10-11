@@ -257,6 +257,36 @@ def get_advances_to_repay(
     return result
 
 
+def get_bareme_quotite_saisissable() -> Optional[Dict[str, Any]]:
+    """Le barème national de la quotité saisissable (`payroll_config`).
+
+    Il vit avec les autres barèmes annuels du moteur (SMIC, plafond de la
+    Sécurité sociale) : une ligne active, clé `quotite_saisissable`, sans
+    société. None s'il n'y en a pas.
+    """
+    r = (
+        supabase.table("payroll_config")
+        .select("config_data")
+        .eq("config_key", "quotite_saisissable")
+        .eq("is_active", True)
+        .is_("company_id", "null")
+        .limit(1)
+        .execute()
+    )
+    lignes = r.data or []
+    if not lignes:
+        return None
+    donnees = lignes[0].get("config_data")
+    if isinstance(donnees, str):
+        import json
+
+        try:
+            donnees = json.loads(donnees)
+        except json.JSONDecodeError:
+            return None
+    return donnees if isinstance(donnees, dict) else None
+
+
 def get_reference_net_salary_context(employee_id: str) -> Dict[str, Any]:
     """Salaire net de référence : net_a_payer du dernier bulletin ou salaire_de_base."""
     r = (

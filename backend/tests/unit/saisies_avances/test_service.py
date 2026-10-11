@@ -73,8 +73,13 @@ class TestCalculateSeizable:
     """Service calculate_seizable (règles pures + mapper)."""
 
     def test_returns_seizable_amount_calculation(self):
-        with patch(f"{SERVICE_MODULE}.domain_rules") as rules:
+        with (
+            patch(f"{SERVICE_MODULE}.domain_rules") as rules,
+            patch(f"{SERVICE_MODULE}.get_bareme_quotite_saisissable", return_value={}),
+        ):
             with patch(f"{SERVICE_MODULE}.infra_mappers") as mappers:
+                bareme = {"solde_insaisissable": Decimal("651.69")}
+                rules.resoudre_bareme_quotite.return_value = (bareme, [])
                 rules.calculate_seizable_amount.return_value = Decimal("250")
                 from app.modules.saisies_avances.schemas import (
                     SeizableAmountCalculation,

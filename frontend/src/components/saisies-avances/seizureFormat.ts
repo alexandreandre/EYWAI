@@ -24,3 +24,21 @@ export function libelleMontantSaisie(saisie: SaisieMontant): string {
   }
   return 'Barème légal';
 }
+
+/**
+ * Nombre de personnes à charge saisi dans le formulaire.
+ *
+ * Chacune relève les seuils du barème légal de la quotité saisissable
+ * (R3252-3 du Code du travail) : un entier, jamais négatif ; vide ou illisible,
+ * aucune.
+ */
+export function personnesACharge(texte: string): number {
+  const nombre = Math.floor(Number(texte));
+  return Number.isFinite(nombre) && nombre > 0 ? nombre : 0;
+}
+
+export function libellePersonnesACharge(nombre: number | null | undefined): string {
+  const n = Number(nombre) || 0;
+  if (n <= 0) return 'Aucune';
+  return n === 1 ? '1 personne' : `${n} personnes`;
+}

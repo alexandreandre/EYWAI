@@ -13,6 +13,7 @@ import { Loader2 } from "lucide-react";
 import { createSalarySeizure } from '@/api/saisiesAvances';
 import type { SalarySeizureCreate } from '@/api/saisiesAvances';
 import apiClient from '@/api/apiClient';
+import { personnesACharge } from './seizureFormat';
 
 interface Employee {
   id: string;
@@ -211,6 +212,24 @@ export function SalarySeizureForm({ onClose, onSuccess }: SalarySeizureFormProps
                 onChange={(e) => setFormData({ ...formData, end_date: e.target.value || undefined })}
               />
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="seizure-dependents">Personnes à charge</Label>
+            <Input
+              id="seizure-dependents"
+              type="number"
+              min={0}
+              step={1}
+              value={formData.dependents_count ?? 0}
+              onChange={(e) =>
+                setFormData({ ...formData, dependents_count: personnesACharge(e.target.value) })
+              }
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Chaque personne à charge augmente la part du salaire que la saisie ne peut pas
+              prendre (barème légal).
+            </p>
           </div>
 
           <div>

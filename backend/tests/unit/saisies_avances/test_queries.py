@@ -216,8 +216,13 @@ class TestCalculateSeizable:
     """Query calculate_seizable."""
 
     def test_returns_seizable_calculation(self):
-        with patch(f"{SERVICE_MODULE}.domain_rules") as rules:
+        with (
+            patch(f"{SERVICE_MODULE}.domain_rules") as rules,
+            patch(f"{SERVICE_MODULE}.get_bareme_quotite_saisissable", return_value={}),
+        ):
             with patch(f"{SERVICE_MODULE}.infra_mappers") as mappers:
+                bareme = {"solde_insaisissable": Decimal("651.69")}
+                rules.resoudre_bareme_quotite.return_value = (bareme, [])
                 rules.calculate_seizable_amount.return_value = Decimal("250")
                 from app.modules.saisies_avances.schemas import (
                     SeizableAmountCalculation,
@@ -234,4 +239,4 @@ class TestCalculateSeizable:
                 )
                 result = queries.calculate_seizable(Decimal("2000"), dependents_count=0)
         assert result.seizable_amount == Decimal("250")
-        rules.calculate_seizable_amount.assert_called_once_with(Decimal("2000"), 0)
+        rules.calculate_seizable_amount.assert_called_once_with(Decimal("2000"), 0, bareme)

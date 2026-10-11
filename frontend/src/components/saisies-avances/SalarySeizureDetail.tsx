@@ -3,6 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import type { SalarySeizure } from '@/api/saisiesAvances';
+import { libellePersonnesACharge } from './seizureFormat';
 
 const SEIZURE_TYPE_LABELS: Record<string, string> = {
   'saisie_arret': 'Saisie-arrêt',
@@ -75,6 +76,11 @@ export function SalarySeizureDetail({ seizure, onClose }: SalarySeizureDetailPro
               <p className="text-sm font-medium text-muted-foreground">Priorité</p>
               <p>{seizure.priority}</p>
             </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">Personnes à charge</p>
+            <p>{libellePersonnesACharge(seizure.dependents_count)}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

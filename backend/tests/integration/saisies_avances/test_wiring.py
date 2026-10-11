@@ -64,11 +64,13 @@ class TestWiringCalculateSeizable:
             app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
         data = response.json()
-        # Barème : 1500€ -> tranche 1000-2000 -> 50 + (1500-1000)*0.20 = 150
-        assert float(data["seizable_amount"]) == 150.0
+        # Barème légal 2026 (payroll_config, clé quotite_saisissable), tranche
+        # par tranche : 18,67 + 35,42 + 71,17 + 88,13 + 21,39 = 234,78.
+        assert float(data["seizable_amount"]) == 234.78
         assert data["net_salary"] == 1500 or data["net_salary"] == "1500"
         assert data["dependents_count"] == 0
-        assert float(data["minimum_untouchable"]) == 75.0  # 1500/20
+        # Solde toujours laissé : le RSA d'une personne seule.
+        assert float(data["minimum_untouchable"]) == 651.69
 
 
 class TestWiringGetSalarySeizuresWithAuth:

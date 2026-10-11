@@ -34,6 +34,9 @@ class SalarySeizureCreate(BaseModel):
     priority: int = Field(default=4, ge=1, le=4)
     document_url: Optional[str] = None
     notes: Optional[str] = None
+    # Personnes à charge du salarié : chacune relève les seuils du barème légal
+    # (R3252-3 du Code du travail).
+    dependents_count: int = Field(default=0, ge=0, le=20)
 
 
 class SalarySeizureUpdate(BaseModel):
@@ -45,6 +48,7 @@ class SalarySeizureUpdate(BaseModel):
     percentage: Optional[Decimal] = None
     end_date: Optional[date] = None
     notes: Optional[str] = None
+    dependents_count: Optional[int] = Field(default=None, ge=0, le=20)
 
 
 class SalaryAdvanceCreate(BaseModel):

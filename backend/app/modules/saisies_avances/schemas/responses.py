@@ -40,6 +40,7 @@ class SalarySeizure(BaseModel):
     priority: int
     document_url: Optional[str] = None
     notes: Optional[str] = None
+    dependents_count: int = 0
     created_at: datetime
     updated_at: datetime
     created_by: Optional[str] = None

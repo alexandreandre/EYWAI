@@ -39,6 +39,8 @@ export interface SalarySeizure {
   priority: number;
   document_url?: string;
   notes?: string;
+  /** Personnes à charge : relèvent les seuils du barème légal. */
+  dependents_count?: number;
   created_at: string;
   updated_at: string;
   created_by?: string;
@@ -58,6 +60,7 @@ export interface SalarySeizureCreate {
   priority?: number;
   document_url?: string;
   notes?: string;
+  dependents_count?: number;
 }
 
 export interface SalarySeizureUpdate {
@@ -67,6 +70,7 @@ export interface SalarySeizureUpdate {
   percentage?: number;
   end_date?: string;
   notes?: string;
+  dependents_count?: number;
 }
 
 export interface SalaryAdvance {
