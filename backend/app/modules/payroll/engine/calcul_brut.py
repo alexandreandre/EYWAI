@@ -832,18 +832,79 @@ def _calculer_prime_anciennete(
     return ligne
 
 
+#: Une saisie d'ancienneté qui porte un de ces mots corrige un autre mois : elle
+#: s'ajoute à la prime du mois, elle ne la remplace pas.
+_MOTS_REGULARISATION = ("regul", "rappel", "rattrapage", "reliquat", "complement")
+
+
+def _sans_accents(texte: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFKD", texte) if not unicodedata.combining(c)
+    )
+
+
+def _saisie_prime_anciennete_du_mois(
+    primes_saisies: Optional[List[Dict[str, Any]]],
+) -> Dict[str, Any] | None:
+    """La saisie qui EST la prime d'ancienneté du mois, s'il y en a une.
+
+    Une prime d'ancienneté saisie (reprise d'un bulletin réel) remplace le
+    calcul conventionnel. Une régularisation ou un rappel (« Régul prime
+    ancienneté 01/26 »), ou une reprise négative, corrige un autre mois : elle
+    ne remplace rien (enquête du 11/10/2026, [G4]).
+    """
+    for prime in primes_saisies or []:
+        label = _sans_accents(
+            " ".join(
+                str(prime.get(key) or "") for key in ("prime_id", "libelle", "name")
+            ).lower()
+        )
+        if "anciennet" not in label:
+            continue
+        if any(mot in label for mot in _MOTS_REGULARISATION):
+            continue
+        try:
+            montant = float(prime.get("montant") or 0.0)
+        except (TypeError, ValueError):
+            montant = 0.0
+        if montant <= 0:
+            continue
+        return prime
+    return None
+
+
 def _prime_anciennete_deja_saisie(
     primes_saisies: Optional[List[Dict[str, Any]]],
 ) -> bool:
-    """Une saisie mensuelle explicite remplace le calcul conventionnel automatique."""
-    for prime in primes_saisies or []:
-        label = " ".join(
-            str(prime.get(key) or "")
-            for key in ("prime_id", "libelle", "name")
-        ).lower()
-        if "anciennet" in label:
-            return True
-    return False
+    """La prime du mois est saisie : elle remplace le calcul conventionnel."""
+    return _saisie_prime_anciennete_du_mois(primes_saisies) is not None
+
+
+def _alerte_prime_anciennete_remplacee(
+    contexte: ContextePaie, calculee: Dict[str, Any], saisie: Dict[str, Any]
+) -> None:
+    alertes = getattr(contexte, "alertes_baremes", None)
+    if not isinstance(alertes, list):
+        return
+
+    def _eur(valeur: Any) -> str:
+        try:
+            return f"{float(valeur or 0.0):,.2f}".replace(",", " ").replace(".", ",")
+        except (TypeError, ValueError):
+            return "0,00"
+
+    alertes.append(
+        {
+            "code": "prime_anciennete_remplacee",
+            "severity": "info",
+            "critique": False,
+            "message": (
+                f"Prime d'ancienneté conventionnelle ({_eur(calculee.get('gain'))} €) "
+                f"écartée : la saisie « {saisie.get('libelle') or saisie.get('name') or ''} » "
+                f"({_eur(saisie.get('montant'))} €) la remplace ce mois-ci."
+            ),
+        }
+    )
 
 
 # def _calculer_hs_semaine(heures_travaillees: float, duree_contrat_hebdo: float, regles_majoration: List[Dict]) -> Dict[float, float]:
@@ -1939,16 +2000,20 @@ def calculer_salaire_brut(
             )
 
     # 6. Ajout des primes, avantages et calcul des totaux
-    ligne_prime_anciennete = None
-    if not _prime_anciennete_deja_saisie(primes_saisies):
-        ligne_prime_anciennete = _calculer_prime_anciennete(
-            contexte,
-            calendrier_saisie=calendrier_saisie,
-            date_debut_periode=date_debut_periode,
-            date_fin_periode=date_fin_periode,
-            jours_maintien=jours_maintien,
-            actual_hours_raw=actual_hours_raw,
-        )
+    ligne_prime_anciennete = _calculer_prime_anciennete(
+        contexte,
+        calendrier_saisie=calendrier_saisie,
+        date_debut_periode=date_debut_periode,
+        date_fin_periode=date_fin_periode,
+        jours_maintien=jours_maintien,
+        actual_hours_raw=actual_hours_raw,
+    )
+    # La prime du mois saisie remplace le calcul conventionnel, et le bulletin
+    # le dit ; une régularisation s'ajoute au calcul.
+    saisie_anciennete = _saisie_prime_anciennete_du_mois(primes_saisies)
+    if ligne_prime_anciennete and saisie_anciennete is not None:
+        _alerte_prime_anciennete_remplacee(contexte, ligne_prime_anciennete, saisie_anciennete)
+        ligne_prime_anciennete = None
     if ligne_prime_anciennete:
         lignes_composants_brut.append(ligne_prime_anciennete)
     if primes_saisies:
