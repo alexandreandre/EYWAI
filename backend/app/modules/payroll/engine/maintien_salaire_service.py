@@ -317,7 +317,7 @@ def _ijss_extras_mi_temps_forfait(
 
 
 #: Arrêts depuis cette date : salaire de base des IJ maladie retenu dans la
-#: limite de 1,4 Smic mensuel (décret 2025-160, CSS R323-4).
+#: limite de 1,4 Smic mensuel (CSS R323-4 ; référentiel du dépôt, R05).
 DEBUT_PLAFOND_SJB_SMIC = date(2025, 4, 1)
 
 
