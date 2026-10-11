@@ -55,6 +55,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { tauxAffiche } from "../lib/tauxSociete";
 
 const ANCHOR_TO_SECTION: Record<ComplianceAnchor, PayrollSectionKey> = {
   "convention-collective": "convention-collective",
@@ -65,11 +66,8 @@ const ANCHOR_TO_SECTION: Record<ComplianceAnchor, PayrollSectionKey> = {
   "temps-travail": "temps-travail",
 };
 
-const formatPercentage = (value: number | null | undefined) => {
-  if (value === null || value === undefined) return "N/A";
-  const percent = value > 1 ? value : value * 100;
-  return `${percent.toFixed(2)} %`;
-};
+// Les taux sont enregistrés en points de pourcentage (0.70 = 0,70 %).
+const formatPercentage = tauxAffiche;
 
 function PayrollSectionsToolbar({
   onExpandAll,

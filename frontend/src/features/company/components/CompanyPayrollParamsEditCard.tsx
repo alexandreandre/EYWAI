@@ -38,6 +38,7 @@ import {
   type SaisieParametresPaie,
 } from '@/features/company/lib/parametresPaie';
 import { useSurchargesPeriodeVariables } from '@/features/payroll/hooks/usePeriodeVariables';
+import { lireTauxSaisi, tauxEnSaisie } from '../lib/tauxSociete';
 
 type Erreurs = ErreursParametresPaie & { tauxAtMp?: string };
 
@@ -69,7 +70,7 @@ export function CompanyPayrollParamsEditCard({
   // suit chaque enregistrement. Les champs repartent toujours de là.
   const [reference, setReference] = useState<CompanyDetails>(company);
   const [tauxAtMp, setTauxAtMp] = useState(
-    company.taux_at_mp != null ? String(company.taux_at_mp) : '',
+    tauxEnSaisie(company.taux_at_mp),
   );
   const regimeInitial = regimePeriodePaie(
     reference.paie_jour_de_fin,
@@ -85,7 +86,7 @@ export function CompanyPayrollParamsEditCard({
 
   const repartirDe = (societe: CompanyDetails) => {
     setReference(societe);
-    setTauxAtMp(societe.taux_at_mp != null ? String(societe.taux_at_mp) : '');
+    setTauxAtMp(tauxEnSaisie(societe.taux_at_mp));
     setRegime(regimePeriodePaie(societe.paie_jour_de_fin, societe.paie_occurrence));
     setSaisie(saisieInitiale(societe));
     setErreurs({});
@@ -107,10 +108,10 @@ export function CompanyPayrollParamsEditCard({
 
   const handleSave = async () => {
     const { corps, erreurs: erreursReglages } = construireMiseAJour(reference, saisie);
-    const tauxAtMpNormalise = tauxAtMp.trim().replace(',', '.');
+    const tauxAtMpLu = lireTauxSaisi(tauxAtMp);
     const nouvellesErreurs: Erreurs = { ...erreursReglages };
-    if (tauxAtMpNormalise !== '' && !/^\d+(\.\d+)?$/.test(tauxAtMpNormalise)) {
-      nouvellesErreurs.tauxAtMp = 'Indiquez un nombre, par exemple 3,66.';
+    if ('erreur' in tauxAtMpLu) {
+      nouvellesErreurs.tauxAtMp = tauxAtMpLu.erreur;
     }
     setErreurs(nouvellesErreurs);
     if (Object.keys(nouvellesErreurs).length > 0) {
@@ -125,7 +126,7 @@ export function CompanyPayrollParamsEditCard({
     setSaving(true);
     try {
       const { company_data: relue } = await patchCompanyDetails({
-        taux_at_mp: tauxAtMpNormalise === '' ? undefined : Number(tauxAtMpNormalise),
+        taux_at_mp: 'valeur' in tauxAtMpLu ? tauxAtMpLu.valeur : undefined,
         // Un régime « personnalisé » ou non choisi n'écrase jamais le couple
         // (jour_de_fin, occurrence) existant.
         ...(regime === 'avant_dernier_vendredi' ? PAIRE_AVANT_DERNIER_VENDREDI : {}),
