@@ -1,9 +1,11 @@
 """
 Réglages de paie de la société saisis à l'écran « Paramètres de paie ».
 
-Trois vivent dans `companies.settings` (lus par le moteur via
-payslip_generator), l'effectif est une colonne. Chaque validation renvoie la
-valeur à écrire ou lève ValueError avec une phrase qui dit quoi corriger.
+Tous vivent dans `companies.settings` (lus par le moteur via
+payslip_generator). L'effectif s'y range par année (`effectif_seuils`), jamais
+dans la colonne `effectif`, qui est le nombre de comptes tenu par un
+déclencheur de la base. Chaque validation renvoie la valeur à écrire ou lève
+ValueError avec une phrase qui dit quoi corriger.
 """
 
 from __future__ import annotations
@@ -26,7 +28,12 @@ TAUX_CHOMAGE_MAX = 5.0
 DATES_PAIEMENT: tuple[str, ...] = ("dernier_jour_du_mois", "arrete_des_variables")
 
 #: Réglages rangés dans `companies.settings` ; `None` retire la clé.
-CLES_SETTINGS: tuple[str, ...] = ("taux_assurance_chomage", "date_paiement", "jour_solidarite")
+CLES_SETTINGS: tuple[str, ...] = (
+    "taux_assurance_chomage",
+    "date_paiement",
+    "jour_solidarite",
+    "effectif_seuils",
+)
 
 _DATE_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -68,6 +75,18 @@ def valider_effectif(valeur: Any) -> int:
             raise ValueError(message)
         valeur = int(texte)
     if not isinstance(valeur, int) or valeur < 0:
+        raise ValueError(message)
+    return valeur
+
+
+def valider_annee_effectif(valeur: Any) -> int:
+    """Année de l'effectif saisi : un entier entre 2000 et 2100."""
+    message = "L'année de l'effectif est une année sur quatre chiffres, par exemple 2026."
+    if isinstance(valeur, bool) or valeur is None:
+        raise ValueError(message)
+    if isinstance(valeur, str) and valeur.strip().isdigit():
+        valeur = int(valeur.strip())
+    if not isinstance(valeur, int) or not 2000 <= valeur <= 2100:
         raise ValueError(message)
     return valeur
 

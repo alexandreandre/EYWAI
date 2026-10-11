@@ -11,6 +11,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from app.shared.domain.effectif_seuils import alerte_effectif, effectif_retenu
 from app.modules.collective_agreements.application.idcc_resolution import (
     build_convention_collective_payload,
 )
@@ -757,6 +758,10 @@ def process_payslip_generation(
         alerte_subrogation = alerte_arrets_contradictoires(
             absences_rows, date(year, month, 1), date(year, month, last_day)
         )
+        # L'effectif des seuils de l'année du bulletin, saisi par la
+        # gestionnaire ; jamais le nombre de comptes sans le dire.
+        effectif_de_l_annee = effectif_retenu(company_data, year)
+        alerte_effectif_annee = alerte_effectif(effectif_de_l_annee)
 
         # Option société : les heures se compensent entre semaines sur la
         # fenêtre, comme Gaëlle le fait chez Colorplast — semaines négatives
@@ -1175,7 +1180,7 @@ def process_payslip_generation(
                 },
                 "parametres_paie": {
                     "idcc": company_data.get("idcc"),
-                    "effectif": company_data.get("effectif"),
+                    "effectif": effectif_de_l_annee.valeur,
                     "periode_de_paie": {
                         "jour_de_fin": company_data.get("paie_jour_de_fin", 4),
                         "occurrence": (
@@ -1313,6 +1318,12 @@ def process_payslip_generation(
             payslip_json_data["alertes_baremes"] = [
                 *(payslip_json_data.get("alertes_baremes") or []),
                 alerte_subrogation,
+            ]
+        if alerte_effectif_annee and isinstance(payslip_json_data, dict):
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = [
+                *(payslip_json_data.get("alertes_baremes") or []),
+                alerte_effectif_annee,
             ]
 
         from app.modules.payroll.application.empreinte_entrees_service import (

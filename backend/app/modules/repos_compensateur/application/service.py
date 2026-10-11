@@ -37,7 +37,7 @@ def calculer_credits_repos(
     Calcule les crédits COR pour tous les employés de l'entreprise sur le mois donné.
     Lit les bulletins via infrastructure ; règles COR et extraction HS dans le domain.
     """
-    effectif = get_company_effectif(target_company_id)
+    effectif = get_company_effectif(target_company_id, year)
     taux_cor = get_taux_cor_par_effectif(effectif)
     settings = get_contingent_settings(target_company_id)
     contingent = settings.legal_cor_contingent_hours
@@ -106,7 +106,7 @@ def recalculer_credits_repos_employe(
     Upsert tous les mois (y compris 0). Comportement identique à l'ancien recalc_service.
     """
     try:
-        effectif = get_company_effectif(company_id)
+        effectif = get_company_effectif(company_id, year)
         taux_cor = get_taux_cor_par_effectif(effectif)
         settings = get_contingent_settings(company_id)
         contingent = settings.legal_cor_contingent_hours

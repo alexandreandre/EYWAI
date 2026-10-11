@@ -61,9 +61,9 @@ def test_l_apprenti_garde_le_taux_de_droit_commun():
 
 def test_l_empreinte_ne_change_pas_sans_reglage():
     societe = {"taux_at_mp": 3.15, "settings": {"date_paiement": "fin_de_mois"}}
-    assert "taux_assurance_chomage" not in parametres_societe_pour_empreinte(societe)
+    assert "taux_assurance_chomage" not in parametres_societe_pour_empreinte(societe, 2026)
 
 
 def test_l_empreinte_suit_le_taux_module():
     societe = {"taux_at_mp": 3.15, "settings": {"taux_assurance_chomage": 2.95}}
-    assert parametres_societe_pour_empreinte(societe)["taux_assurance_chomage"] == 2.95
+    assert parametres_societe_pour_empreinte(societe, 2026)["taux_assurance_chomage"] == 2.95

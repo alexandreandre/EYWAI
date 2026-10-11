@@ -48,8 +48,10 @@ CALENDRIERS = {
 }
 
 #: Calculées sur ce code AVANT l'exclusion des deux clés : une fiche qui ne les
-#: porte pas doit les retrouver à l'identique.
-EMPREINTE_GLOBALE_FIGEE = "f4c00e04bd1e65a9ac439ea3cd156234c8d26e74a89e981dab5675f61b665c76"
+#: porte pas doit les retrouver à l'identique. L'empreinte globale a changé une
+#: fois, le 11/10/2026, quand l'effectif y est passé par palier et par année
+#: (`effectif_seuils`) ; la partie « fiche », elle, n'a pas bougé.
+EMPREINTE_GLOBALE_FIGEE = "7670c34404a096b13f042f8931cc01d5066522d8b7240fab58cfe8502cf18a06"
 EMPREINTE_FICHE_FIGEE = "c830b93e0fa8cbacfd398c53b23a40e33f96e7dc909d9ace47a6fad8a340939a"
 
 AFFILIATIONS = [

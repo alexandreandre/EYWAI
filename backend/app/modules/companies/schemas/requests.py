@@ -13,6 +13,7 @@ from pydantic_core import PydanticCustomError
 from app.modules.companies.domain.parametres_paie import (
     CLES_SETTINGS,
     valider_date_paiement,
+    valider_annee_effectif,
     valider_effectif,
     valider_jour_solidarite,
     valider_taux_assurance_chomage,
@@ -140,9 +141,14 @@ class CompanyDetailsUpdate(BaseModel):
     effectif: Optional[int] = Field(
         None,
         description=(
-            "Effectif retenu pour les seuils (11, 20, 50 salariés) : effectif moyen "
-            "de l'année précédente. Entier, 0 ou plus ; jamais vidé."
+            "Effectif retenu pour les seuils (11, 20, 50 salariés) de l'année "
+            "`effectif_annee` : effectif moyen de l'année d'avant. Entier, 0 ou plus ; "
+            "jamais vidé. Rangé dans settings.effectif_seuils, jamais dans la colonne."
         ),
+    )
+    effectif_annee: Optional[int] = Field(
+        None,
+        description="Année de l'effectif saisi ; absente, l'année en cours.",
     )
     taux_assurance_chomage: Optional[float] = Field(
         None,
@@ -170,6 +176,11 @@ class CompanyDetailsUpdate(BaseModel):
     @classmethod
     def _effectif(cls, valeur: Any) -> int:
         return _en_erreur_lisible(valider_effectif, valeur)
+
+    @field_validator("effectif_annee", mode="before")
+    @classmethod
+    def _effectif_annee(cls, valeur: Any) -> int:
+        return _en_erreur_lisible(valider_annee_effectif, valeur)
 
     @field_validator("taux_assurance_chomage", mode="before")
     @classmethod

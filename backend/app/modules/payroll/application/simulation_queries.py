@@ -5,8 +5,10 @@ Requêtes et assemblage de contexte pour les simulations de paie (sans accès HT
 from __future__ import annotations
 
 import json
+from datetime import date
 from typing import Any, Dict, List, Optional
 
+from app.shared.domain.effectif_seuils import effectif_retenu
 from app.modules.collective_agreements.application.idcc_resolution import (
     build_convention_collective_payload,
     company_code_postal,
@@ -219,7 +221,9 @@ def manual_employee_payload(
     }
 
 
-def company_to_payroll_payload(company: Dict[str, Any]) -> Dict[str, Any]:
+def company_to_payroll_payload(
+    company: Dict[str, Any], annee: int | None = None
+) -> Dict[str, Any]:
     cp = company_code_postal(company) or ""
     ville = company.get("adresse_ville") or ""
     if not ville:
@@ -237,9 +241,7 @@ def company_to_payroll_payload(company: Dict[str, Any]) -> Dict[str, Any]:
         },
         "adresse_code_postal": cp,
         "parametres_paie": {
-            "effectif": int(
-                company.get("employee_count") or company.get("effectif") or 0
-            ),
+            "effectif": effectif_retenu(company, annee or date.today().year).valeur,
             "idcc": company.get("idcc") or "",
             # Les taux spécifiques vivent en colonnes à plat sur `companies`
             # (taux_at_mp, taux_vm, taux_fnal) : il n'existe pas de colonne
@@ -319,7 +321,7 @@ def create_payslip_simulation_record(
     )
     simulation = simulation_commands.creer_simulation_bulletin(
         employee_data=employee_payload,
-        company_data=company_to_payroll_payload(company),
+        company_data=company_to_payroll_payload(company, year),
         baremes=baremes,
         month=month,
         year=year,

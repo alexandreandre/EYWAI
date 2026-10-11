@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, Iterable, Mapping, Sequence
 
+from app.shared.domain.effectif_seuils import effectif_retenu, palier_effectif
 from app.modules.payroll.application.compensation_semaines import CLE_REGLAGE
 from app.modules.payroll.application.monthly_specificites import (
     resolve_monthly_specificites,
@@ -248,14 +249,20 @@ def _fenetre_pour_empreinte(
     return {"debut": fenetre.debut.isoformat(), "fin": fenetre.fin.isoformat()}
 
 
-def parametres_societe_pour_empreinte(company: Mapping[str, Any] | None) -> dict[str, Any]:
+def parametres_societe_pour_empreinte(
+    company: Mapping[str, Any] | None, annee: int
+) -> dict[str, Any]:
     societe = company or {}
     reglages = societe.get("settings") or {}
     if not isinstance(reglages, Mapping):
         reglages = {}
+    # L'effectif par palier : seul un seuil franchi change le bulletin. Sa
+    # saisie pour l'année compte aussi (elle retire l'alerte du bulletin).
+    effectif = effectif_retenu(societe, annee)
     parametres = {
         "idcc": societe.get("idcc"),
-        "effectif": societe.get("effectif"),
+        "effectif": palier_effectif(effectif.valeur),
+        "effectif_saisi": effectif.saisi_pour_l_annee,
         "taux_at_mp": societe.get("taux_at_mp"),
         "taux_vm": societe.get("taux_vm"),
         "taux_fnal": societe.get("taux_fnal"),
@@ -295,7 +302,7 @@ def entrees_depuis_lectures(
             "saisies": [_extrait(s, _CLES_SAISIE) for s in saisies],
             "fiche": _fiche(employee),
             "notes_de_frais": _notes_du_mois(notes_de_frais or [], year, month),
-            "parametres_societe": parametres_societe_pour_empreinte(company),
+            "parametres_societe": parametres_societe_pour_empreinte(company, year),
             "fenetre_variables": _fenetre_pour_empreinte(
                 company, year, month, fenetre_variables, surcharges_fenetre
             ),

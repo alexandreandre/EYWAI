@@ -155,7 +155,10 @@ class _Base:
         if table == "companies":
             return {
                 "id": SOCIETE, "siren": "000000000",
-                "settings": {"compensation_heures_entre_semaines": self.compensation},
+                "settings": {
+                    "compensation_heures_entre_semaines": self.compensation,
+                    "effectif_seuils": {"2026": 5},
+                },
             }
         if table == "employee_schedules":
             return None if colonnes == "cumuls" else self.lignes

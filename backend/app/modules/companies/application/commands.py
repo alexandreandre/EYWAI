@@ -7,6 +7,7 @@ Comportement identique à l'ancien routeur api/routers/company.py.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Dict
 
 from app.modules.audit.infrastructure.repository import audit_repository
@@ -22,6 +23,7 @@ from app.modules.employees.domain.trial_period_bareme import (
     validate_trial_period_settings,
 )
 from app.modules.companies.infrastructure.repository import company_repository
+from app.shared.domain.effectif_seuils import CLE_EFFECTIF_SEUILS, effectifs_avec
 
 
 def update_company_settings(
@@ -85,6 +87,17 @@ def update_company_details(
         raise LookupError("Entreprise non trouvée.")
     if not update_data:
         return avant
+
+    update_data = dict(update_data)
+    annee_effectif = update_data.pop("effectif_annee", None)
+    if "effectif" in update_data:
+        # La colonne `effectif` est le nombre de comptes, que réécrit un
+        # déclencheur de la base : l'effectif des seuils se range par année.
+        update_data[CLE_EFFECTIF_SEUILS] = effectifs_avec(
+            avant.get("settings"),
+            annee_effectif or date.today().year,
+            update_data.pop("effectif"),
+        )
 
     colonnes, reglages = separer_reglages(update_data)
     diff = changements(avant, colonnes)

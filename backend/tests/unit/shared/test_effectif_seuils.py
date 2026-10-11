@@ -18,8 +18,8 @@ from __future__ import annotations
 import pytest
 
 from app.shared.domain.effectif_seuils import (
-    CODE_ALERTE_EFFECTIF,
     CLE_EFFECTIF_SEUILS,
+    CODE_ALERTE_EFFECTIF,
     alerte_effectif,
     effectif_retenu,
     effectifs_avec,

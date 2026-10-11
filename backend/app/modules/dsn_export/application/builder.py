@@ -7,6 +7,7 @@ from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.shared.domain.effectif_seuils import effectif_retenu
 from app.modules.dsn_export.domain.settings import (
     DsnSettings,
     normaliser_idcc,
@@ -519,6 +520,7 @@ def _defauts_contrat(
     company: Dict[str, Any],
     employees_data: List[Dict[str, Any]],
     settings: Optional[DsnSettings],
+    annee: int,
 ) -> Dict[str, str]:
     """Ce que l'établissement fixe pour tous ses contrats.
 
@@ -547,10 +549,8 @@ def _defauts_contrat(
     # Dispositif de l'apprentissage (40.008) : 64 sous 11 salariés (ou
     # entreprise artisanale), 65 au-delà pour une entreprise non inscrite au
     # répertoire des métiers.
-    try:
-        effectif = int(company.get("effectif") or len(employees_data))
-    except (TypeError, ValueError):
-        effectif = len(employees_data)
+    # L'effectif saisi pour l'année ; sans saisie ni compte, les salariés déclarés.
+    effectif = effectif_retenu(company, annee).valeur or len(employees_data)
     defauts["dispositif_apprentissage"] = "65" if effectif >= 11 else "64"
     return defauts
 
@@ -1692,7 +1692,7 @@ def build_parsed_dsn_from_payroll(
         or company.get("ops_urssaf")
         or ""
     ).replace(" ", "")
-    defauts_contrat = _defauts_contrat(company, employees_data, parametres)
+    defauts_contrat = _defauts_contrat(company, employees_data, parametres, int(period[:4]))
 
     for row in employees_data:
         employee = row.get("employee") or row

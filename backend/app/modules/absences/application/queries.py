@@ -6,6 +6,7 @@ Retourne des dicts / listes de dicts compatibles avec les schémas de réponse A
 """
 
 from __future__ import annotations
+from app.shared.domain.effectif_seuils import effectif_retenu
 from app.core.logging import get_logger
 
 logger = get_logger("modules.absences.application.queries")
@@ -941,11 +942,7 @@ def _company_payload_for_contexte(company_row: Dict[str, Any]) -> Dict[str, Any]
                 or "",
             },
             "parametres_paie": {
-                "effectif": int(
-                    company_row.get("effectif")
-                    or company_row.get("employee_count")
-                    or 0
-                ),
+                "effectif": effectif_retenu(company_row, date.today().year).valeur,
             },
         }
     }

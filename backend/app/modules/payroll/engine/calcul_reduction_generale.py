@@ -57,7 +57,7 @@ def _calculer_parametre_T(contexte: ContextePaie) -> float:
     )
 
     # 3. Taux variables selon l'entreprise
-    effectif = contexte.entreprise.get("effectif", 0)
+    effectif = contexte.effectif
     fnal_taux = catalogue_cotisations.get("fnal", {}).get("patronal", {})
     if effectif >= lc.SEUIL_EFFECTIF_FNAL:
         taux_a_sommer["fnal"] = fnal_taux.get("taux_50_et_plus", 0.0)

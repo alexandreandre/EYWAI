@@ -7,21 +7,22 @@ Pas de logique métier : lecture Supabase uniquement. Comportement identique au 
 from __future__ import annotations
 
 from app.core.database import supabase
+from app.shared.domain.effectif_seuils import effectif_retenu
 
 
-def get_company_effectif(company_id: str) -> int | None:
-    """Récupère l'effectif de l'entreprise (pour taux COR)."""
+def get_company_effectif(company_id: str, annee: int) -> int | None:
+    """L'effectif des seuils de l'année (pour le taux COR) : celui saisi par la
+    gestionnaire, pas le nombre de comptes de la société."""
     resp = (
         supabase.table("companies")
-        .select("effectif")
+        .select("effectif, settings")
         .eq("id", company_id)
         .single()
         .execute()
     )
     if not resp.data:
         return None
-    val = resp.data.get("effectif")
-    return int(val) if val is not None else None
+    return effectif_retenu(resp.data, annee).valeur
 
 
 def get_employees_for_company(company_id: str) -> list[dict]:
