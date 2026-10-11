@@ -156,3 +156,51 @@ class TestPdfCpam:
         assert "1 400.00" in text
         assert "Salaire rétabli" not in text
         assert "Cerfa" not in text
+
+
+class TestMoisReconstitues:
+    """Un mois sans bulletin est rempli avec le salaire de base de la fiche : le document le dit."""
+
+    @staticmethod
+    def _reference_avec_mois_sans_bulletin(kind: str) -> dict:
+        reference = _reference(kind)
+        sans_bulletin = {
+            "year": 2026,
+            "month": 6,
+            "month_name": "Juin",
+            "salaire_brut": 1900.0,
+            "salaire_retabli": 1900.0,
+            "salaire_net": 0.0,
+            "primes": 0.0,
+            "has_payslip": False,
+        }
+        reference["reference_months"] = [sans_bulletin, *reference["reference_months"]]
+        return reference
+
+    def _texte(self, kind: str, type_absence: str, reference: dict) -> str:
+        pdf = SalaryCertificateGenerator().generate_salary_certificate(
+            _EMPLOYEE,
+            _COMPANY,
+            {"type": type_absence, "selected_days": ["2026-08-17"]},
+            reference,
+        )
+        return " ".join(_pdf_text(pdf).split())
+
+    def test_le_mois_sans_bulletin_est_signale_dans_le_tableau_et_la_mention(self):
+        texte = self._texte(
+            KIND_RETABLI, "arret_maladie", self._reference_avec_mois_sans_bulletin(KIND_RETABLI)
+        )
+        assert "Juin 2026 (reconstitué)" in texte
+        assert "Mois reconstitués faute de bulletin : Juin 2026" in texte
+        assert "salaire de base de la fiche" in texte
+
+    def test_en_net_le_mois_sans_bulletin_dit_que_le_net_est_inconnu(self):
+        texte = self._texte(
+            KIND_NET, "arret_at", self._reference_avec_mois_sans_bulletin(KIND_NET)
+        )
+        assert "Juin 2026 (reconstitué)" in texte
+        assert "net non connu" in texte
+
+    def test_tous_les_bulletins_presents_aucune_mention(self):
+        texte = self._texte(KIND_RETABLI, "arret_maladie", _reference(KIND_RETABLI))
+        assert "reconstitué" not in texte
