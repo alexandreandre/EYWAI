@@ -1397,3 +1397,28 @@ def test_import_ne_materialise_jamais_les_absences(monkeypatch):
         "emp-1", payload, materialiser_absences=False
     )
     assert appels == []
+
+
+def test_demi_journee_de_sans_solde_arrive_au_calendrier_avec_sa_quotite(monkeypatch):
+    """Le jour validé en « sans solde » porte `quotite_absence` 0,5 : c'est ce
+    que le moteur lit pour ne retenir que la moitié de la journée du contrat."""
+    from datetime import date
+
+    existant = [
+        {"jour": j, "type": "travail", "heures_prevues": 7.0} for j in range(1, 6)
+    ]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.update_calendar_from_days(
+        "emp-1",
+        [date(2026, 7, 3), date(2026, 7, 2)],
+        "sans_solde",
+        demi_journees={"2026-07-03": "matin"},
+    )
+
+    jour3 = next(e for e in capture["ecrit"] if e["jour"] == 3)
+    jour2 = next(e for e in capture["ecrit"] if e["jour"] == 2)
+    assert jour3["type"] == "absence_non_remuneree"
+    assert jour3["heures_prevues"] == 0
+    assert jour3["quotite_absence"] == 0.5
+    assert "quotite_absence" not in jour2
