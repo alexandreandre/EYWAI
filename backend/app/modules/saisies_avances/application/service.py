@@ -578,6 +578,12 @@ def enrich_payslip(
     """
     net_a_payer = Decimal(str(payslip_json_data.get("net_a_payer", 0)))
     dependents_count = 0
+    # Ce que le net permet de retenir, saisies puis avances : jamais plus que le
+    # net, rien sur un net nul ou négatif. Le net négatif reste alors tel quel,
+    # et son report au mois suivant reste proposé. Le net était ramené à 0 alors
+    # que l'avance était soldée et la saisie enregistrée en entier : la
+    # différence n'était ni retenue ni reportée (enquête du 11/10/2026, [G8]).
+    net_disponible = max(Decimal("0"), net_a_payer)
 
     # 1. Traitement des saisies
     seizures = get_seizures_for_period(employee_id, year, month)
@@ -604,14 +610,16 @@ def enrich_payslip(
             )
 
     for seizure in seizures:
-        if remaining_seizable <= 0:
+        if remaining_seizable <= 0 or net_disponible <= 0:
             break
         deduction = domain_rules.calculate_seizure_deduction(
             seizure, net_a_payer, remaining_seizable, dependents_count
         )
+        deduction = min(deduction, net_disponible)
         if deduction > 0:
             total_deductions += deduction
             remaining_seizable -= deduction
+            net_disponible -= deduction
             saisies_appliquees.append(
                 {
                     "type": seizure.get("type"),
@@ -676,6 +684,7 @@ def enrich_payslip(
                 total_par_compte[compte] = (
                     total_par_compte.get(compte, Decimal("0")) + repayment_already
                 )
+                net_disponible = max(Decimal("0"), net_disponible - repayment_already)
                 continue
         if advance.get("repayment_mode") == "single":
             repayment_to_use = remaining
@@ -684,8 +693,12 @@ def enrich_payslip(
             repayment_months = advance.get("repayment_months", 1)
             repayment_to_use = approved_amount / Decimal(str(repayment_months))
             repayment_to_use = min(repayment_to_use, remaining)
+        # Le reste dû baisse de ce qui est réellement retenu : ce que le net ne
+        # permet pas reste dû pour les bulletins suivants.
+        repayment_to_use = min(repayment_to_use, net_disponible)
         remaining_after_to_use = remaining - repayment_to_use
         if repayment_to_use > 0:
+            net_disponible -= repayment_to_use
             total_repayments += repayment_to_use
             remboursements_appliques.append(
                 {
@@ -740,13 +753,10 @@ def enrich_payslip(
     # Un acompte saisi en variable du mois (`acompte_verse`) est déjà dans le net
     # du moteur ; il n'empêche plus de retenir l'avance, que l'on marquait
     # remboursée sans la retirer du net.
-    if total_repayments > 0:
-        current_net = Decimal(str(payslip_json_data.get("net_a_payer", 0)))
-        new_net = current_net - total_repayments
-        payslip_json_data["net_a_payer"] = float(max(Decimal("0"), new_net))
-    if total_deductions > 0:
-        current_net = Decimal(str(payslip_json_data.get("net_a_payer", 0)))
-        new_net = current_net - total_deductions
-        payslip_json_data["net_a_payer"] = float(max(Decimal("0"), new_net))
+    # Les retenues sont bornées par le net disponible : le net ne descend pas
+    # sous 0 par elles, et un net négatif n'est pas touché.
+    total_retenu = total_repayments + total_deductions
+    if total_retenu > 0:
+        payslip_json_data["net_a_payer"] = float(net_a_payer - total_retenu)
 
     return payslip_json_data
