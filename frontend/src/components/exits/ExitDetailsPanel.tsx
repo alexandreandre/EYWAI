@@ -49,6 +49,7 @@ import {
   getStatusVariant,
   documentTypeLabels,
   PublishExitDocumentsResponse,
+  RegimeSocialIndemnite,
 } from '@/api/employeeExits';
 import {
   CalendarDays,
@@ -1306,6 +1307,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                           <p className="text-xs text-muted-foreground">
                             {indemnities.indemnite_licenciement.calcul}
                           </p>
+                          <RegimeSocial regime={indemnities.indemnite_licenciement.regime_social} />
                         </div>
                       )}
 
@@ -1327,6 +1329,9 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                           <p className="text-xs text-muted-foreground">
                             {indemnities.indemnite_rupture_conventionnelle.calcul}
                           </p>
+                          <RegimeSocial
+                            regime={indemnities.indemnite_rupture_conventionnelle.regime_social}
+                          />
                           {!isArchived && !isCancelled && (
                             <div className="mt-3 flex items-end gap-2">
                               <div className="flex-1 space-y-1">
@@ -1512,5 +1517,21 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
         </DialogPrimitive.Portal>
       </Dialog>
     </Sheet>
+  );
+}
+
+/** Le régime social calculé d'une indemnité de rupture : limites, CSG/CRDS,
+ * contribution patronale, et ce qu'il reste à vérifier. */
+function RegimeSocial({ regime }: { regime?: RegimeSocialIndemnite | null }) {
+  if (!regime) return null;
+  return (
+    <div className="mt-2 space-y-1">
+      <p className="text-xs text-muted-foreground">{regime.mention}</p>
+      {(regime.alertes ?? []).map((alerte) => (
+        <p key={alerte} className="text-xs text-amber-700 dark:text-amber-400">
+          {alerte}
+        </p>
+      ))}
+    </div>
   );
 }

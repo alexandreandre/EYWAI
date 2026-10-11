@@ -32,6 +32,11 @@ from app.modules.payroll.engine.preavis import (
     jours_de_preavis_restants,
     phrase_execution_preavis,
 )
+from app.modules.payroll.engine.regime_indemnites_rupture import (
+    LICENCIEMENT,
+    RUPTURE_CONVENTIONNELLE,
+    ventiler_indemnite_de_rupture,
+)
 from app.modules.payroll.engine.reference_remuneration import (
     calculer_base_reference_dixieme,
     estimer_extras_fin_contrat,
@@ -844,6 +849,85 @@ def _indemnite_conges_par_periode(
     }
 
 
+def _remuneration_annuelle_n_1(employee_id: str, annee: int, supabase_client) -> Optional[float]:
+    """Rémunération brute de l'année civile précédant la rupture (BOSS,
+    Indemnités de rupture, § 110 à 120) : le cumul de décembre, à défaut la
+    somme des bulletins de l'année ; None si l'année n'est pas dans Martine."""
+    lignes = (
+        supabase_client.table("employee_schedules")
+        .select("cumuls")
+        .match({"employee_id": employee_id, "year": annee - 1, "month": 12})
+        .execute()
+        .data
+    ) or []
+    if lignes:
+        cumuls = (lignes[0].get("cumuls") or {}).get("cumuls") or {}
+        for cle in ("brut_annee_civile", "brut_total"):
+            if cumuls.get(cle) is not None:
+                return round(float(cumuls[cle]), 2)
+    bulletins = (
+        supabase_client.table("payslips")
+        .select("payslip_data")
+        .eq("employee_id", employee_id)
+        .eq("year", annee - 1)
+        .execute()
+        .data
+    ) or []
+    total = sum(
+        float((b.get("payslip_data") or {}).get("salaire_brut") or 0)
+        for b in bulletins
+        if isinstance(b.get("payslip_data"), dict)
+    )
+    return round(total, 2) if bulletins else None
+
+
+def _donnees_du_regime_social(
+    employee_data: Dict[str, Any], exit_date: date, supabase_client
+) -> tuple[float, Optional[float], list[str]]:
+    """(PASS annuel, rémunération de l'année précédente, alertes)."""
+    alertes: list[str] = []
+    baremes = employee_data.get("baremes") or {}
+    if not (baremes.get("pss") or {}).get("annuel") and supabase_client is not None:
+        baremes = _charger_baremes_paie(supabase_client)
+    pass_annuel = float((baremes.get("pss") or {}).get("annuel") or 0.0)
+    remuneration = None
+    employee_id = employee_data.get("id")
+    if employee_id and supabase_client is not None:
+        try:
+            remuneration = _remuneration_annuelle_n_1(str(employee_id), exit_date.year, supabase_client)
+        except Exception:
+            logger.warning("Rémunération de l'année précédente illisible (%s)", employee_id, exc_info=True)
+    if remuneration is None:
+        alertes.append(
+            f"Rémunération de {exit_date.year - 1} absente de Martine : limite d'exonération "
+            "calculée sur le minimum et la moitié de l'indemnité seulement (BOSS, § 130), à vérifier."
+        )
+    return pass_annuel, remuneration, alertes
+
+
+def _regime_social(
+    nature: str,
+    montant: float,
+    minimum: float,
+    remuneration_n_1: Optional[float],
+    pass_annuel: float,
+    alertes: list[str],
+) -> Optional[Dict[str, Any]]:
+    if pass_annuel <= 0:
+        # Sans plafond, pas de limite calculable : le bulletin le dira.
+        return None
+    regime = ventiler_indemnite_de_rupture(
+        nature,
+        montant,
+        minimum=minimum,
+        remuneration_annuelle_n_1=remuneration_n_1,
+        pass_annuel=pass_annuel,
+    ).en_dict()
+    if alertes:
+        regime["alertes"] = list(alertes)
+    return regime
+
+
 # ============================================================================
 # FONCTION PRINCIPALE
 # ============================================================================
@@ -982,7 +1066,33 @@ def calculer_indemnites_sortie(
             anciennete, salaire_reference, _montant_negocie_saisi(exit_data)
         )
 
-    # 6. Calculer les totaux
+    # 6. Régime social des indemnités de rupture (BOSS, Indemnités de rupture) :
+    # le bulletin en tire la part au brut, la CSG/CRDS au-delà du minimum et la
+    # contribution patronale de 40 % (engine/regime_indemnites_rupture).
+    if indemnite_licenciement or indemnite_rupture:
+        pass_annuel, remuneration_n_1, alertes_regime = _donnees_du_regime_social(
+            employee_data, exit_date, supabase_client
+        )
+        if indemnite_licenciement and indemnite_licenciement.get("montant", 0) > 0:
+            indemnite_licenciement["regime_social"] = _regime_social(
+                LICENCIEMENT,
+                indemnite_licenciement["montant"],
+                indemnite_licenciement["montant"],
+                remuneration_n_1,
+                pass_annuel,
+                alertes_regime,
+            )
+        if indemnite_rupture and indemnite_rupture.get("montant_negocie", 0) > 0:
+            indemnite_rupture["regime_social"] = _regime_social(
+                RUPTURE_CONVENTIONNELLE,
+                indemnite_rupture["montant_negocie"],
+                indemnite_rupture["montant_minimum"],
+                remuneration_n_1,
+                pass_annuel,
+                alertes_regime,
+            )
+
+    # 7. Calculer les totaux
     total_brut = indemnite_preavis["montant"] + indemnite_conges["montant"]
 
     if indemnite_licenciement:
@@ -991,11 +1101,10 @@ def calculer_indemnites_sortie(
     if indemnite_rupture:
         total_brut += indemnite_rupture.get("montant_negocie", 0)
 
-    # Calcul du net (simplifié - en réalité, certaines indemnités sont exonérées)
-    # TODO: Appliquer les règles fiscales et sociales spécifiques
-    # - Indemnité de licenciement: exonérée jusqu'à 2× le salaire annuel brut ou 50% de l'indemnité versée
-    # - Indemnité de rupture: exonérée jusqu'à 8 000 €
-    total_net = total_brut  # Temporaire
+    # Pas de « net » ici : il dépend des cotisations du bulletin de sortie
+    # (préavis et congés sont des salaires) et du régime des indemnités de
+    # rupture, que le bulletin applique. Un net égal au brut était faux.
+    total_net = None
 
     log_payroll_debug(logger, f"\n{'=' * 70}")
     log_payroll_debug(logger, 'RÉSUMÉ DES INDEMNITÉS:')
@@ -1009,7 +1118,6 @@ def calculer_indemnites_sortie(
         log_payroll_debug(logger, f"  - Rupture conventionnelle: {indemnite_rupture.get('montant_negocie', 0):.2f} €")
 
     log_payroll_debug(logger, f'\nTOTAL BRUT: {total_brut:.2f} €')
-    log_payroll_debug(logger, f'TOTAL NET (estimé): {total_net:.2f} €')
     log_payroll_debug(logger, f"{'=' * 70}\n")
 
     # Construire le résultat
@@ -1021,7 +1129,7 @@ def calculer_indemnites_sortie(
         "indemnite_preavis": indemnite_preavis,
         "indemnite_conges": indemnite_conges,
         "total_gross_indemnities": round(total_brut, 2),
-        "total_net_indemnities": round(total_net, 2),
+        "total_net_indemnities": total_net,
         "calculation_date": datetime.now().isoformat(),
         "calculation_details": {
             "hire_date": hire_date.isoformat(),
@@ -1061,6 +1169,10 @@ def calculer_indemnites_sortie(
             "calcul": indemnite_rupture.get("calcul", ""),
             "details": indemnite_rupture,
         }
+        if indemnite_rupture.get("regime_social"):
+            result["indemnite_rupture_conventionnelle"]["regime_social"] = indemnite_rupture[
+                "regime_social"
+            ]
     else:
         result["indemnite_rupture_conventionnelle"] = {
             "montant": 0.0,

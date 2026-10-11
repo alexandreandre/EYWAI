@@ -371,16 +371,6 @@ export default function SoldeToutCompteSection({ data, onChange }: SoldeToutComp
                   className="w-40 text-right font-bold"
                 />
               </div>
-              <div className="flex justify-between items-center">
-                <span className="font-medium text-green-600">Total net estimé</span>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={indemnities.total_net_indemnities || 0}
-                  onChange={(e) => updateField('indemnities', 'total_net_indemnities', parseFloat(e.target.value))}
-                  className="w-40 text-right font-bold text-green-600"
-                />
-              </div>
             </div>
           </CardContent>
         </Card>

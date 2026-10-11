@@ -7,13 +7,17 @@ les cotisations, ce qui donnait un net supérieur au brut (salarié 086,
 Colorplast, juillet 2026). Elles entrent donc dans le brut, ici, avant les
 cotisations ; `creer_bulletin_sortie` ne les ajoute plus une seconde fois.
 
-Les indemnités exonérées (licenciement, rupture conventionnelle) restent
-ajoutées après cotisations par le bulletin de sortie.
+Les indemnités de licenciement et de rupture conventionnelle sont ajoutées
+après cotisations par le bulletin de sortie pour leur part exclue des
+cotisations ; la part qui dépasse les limites (régime calculé par le dossier,
+engine/regime_indemnites_rupture) entre ici au brut.
 """
 
 from __future__ import annotations
 
 from typing import Any, Dict, List
+
+from .regime_indemnites_rupture import lignes_brut_parts_soumises
 
 LIBELLES_SOUMISES = (
     ("indemnite_preavis", "Indemnité compensatrice de préavis"),
@@ -47,4 +51,5 @@ def lignes_indemnites_sortie_soumises(contexte: Any) -> List[Dict[str, Any]]:
                 "is_indemnite_sortie": True,
             }
         )
+    lignes.extend(lignes_brut_parts_soumises(dossier))
     return lignes

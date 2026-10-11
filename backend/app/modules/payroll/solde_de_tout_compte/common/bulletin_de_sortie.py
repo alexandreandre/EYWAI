@@ -149,7 +149,9 @@ def lignes_du_bulletin(
             apres_cotisations.append(
                 amount_row(
                     str(ligne.get("libelle") or "Indemnité de rupture"),
-                    "Exonérée de cotisations dans la limite légale",
+                    # Le régime calculé par le bulletin (limites, CSG/CRDS) : la
+                    # « limite légale » n'est écrite que si elle a été calculée.
+                    str(ligne.get("note") or "Versée après cotisations"),
                     montant,
                 )
             )

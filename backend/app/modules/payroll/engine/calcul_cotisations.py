@@ -21,6 +21,10 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Dict, Any, List, Tuple, Optional
 import json
 from .cotisations_rubriques import enrichir_ligne_cotisation
+from .regime_indemnites_rupture import (
+    lignes_cotisations_indemnites_rupture,
+    part_soumise_aux_cotisations,
+)
 from .baremes_loader import resoudre_taux_vm_pour_paie
 from app.shared.domain.employment_rules import is_cadre
 from app.modules.payroll.engine.mutuelles import mutuelles_du_salarie
@@ -616,6 +620,16 @@ def calculer_cotisations(
         brut_cotisable = assiette_stage_residuelle(salaire_brut, plafond_stage)
 
     assiettes = _calculer_assiettes(contexte, brut_cotisable, remuneration_heures_supp)
+    # Part d'une indemnité de rupture soumise aux cotisations : elle est au brut
+    # mais sa CSG/CRDS se calcule sans abattement pour frais professionnels
+    # (BOSS, Indemnités de rupture, § 80) — ligne à part, plus bas.
+    part_rupture_soumise = part_soumise_aux_cotisations(
+        getattr(contexte, "exit_indemnities", None)
+    )
+    if part_rupture_soumise > 0:
+        assiettes["csg_crds_base_normale"] = round(
+            assiettes["csg_crds_base_normale"] - part_rupture_soumise * 0.9825, 2
+        )
     root_key = next(
         (k for k, v in contexte.baremes["cotisations"].items() if isinstance(v, list)),
         "cotisations",
@@ -986,6 +1000,10 @@ def calculer_cotisations(
                     coti_id="mutuelle",
                 )
             )
+
+    # Indemnités de rupture : CSG/CRDS au-delà du minimum et contribution
+    # patronale de 40 % (engine/regime_indemnites_rupture).
+    bulletin_cotisations.extend(lignes_cotisations_indemnites_rupture(contexte))
 
     if ligne_exo_stage is not None:
         bulletin_cotisations.insert(0, ligne_exo_stage)

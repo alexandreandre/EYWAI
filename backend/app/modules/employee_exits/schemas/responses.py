@@ -285,7 +285,9 @@ class ExitIndemnityCalculation(BaseModel):
 
     # Totaux
     total_gross_indemnities: float
-    total_net_indemnities: float
+    # Plus calculé : le net dépend des cotisations et du régime social que
+    # porte le bulletin de sortie (engine/regime_indemnites_rupture).
+    total_net_indemnities: Optional[float] = None
 
     # Métadonnées du calcul
     calculation_date: Optional[datetime] = None

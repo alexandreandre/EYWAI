@@ -59,6 +59,9 @@ COTI_ID_TO_RUBRIQUE: Dict[str, str] = {
     "dialogue_social": "autres_contributions_employeur",
     "versement_mobilite": "autres_contributions_employeur",
     "forfait_social": "autres_contributions_employeur",
+    # Contribution patronale de 40 % sur l'indemnité de rupture conventionnelle
+    # ou de mise à la retraite (CSS L137-12) : engine/regime_indemnites_rupture.
+    "contribution_indemnite_rupture": "autres_contributions_employeur",
     "prevoyance_cadre": "cotisations_statutaires",
     "prevoyance_non_cadre": "cotisations_statutaires",
     "csg_deductible": "csg_deductible",

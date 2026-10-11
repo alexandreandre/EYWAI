@@ -155,6 +155,11 @@ REGLES: Dict[str, Regle] = {
     "assurance_chomage": Regle("040", BASE_CHOMAGE),
     "chomage": Regle("040", BASE_CHOMAGE),
     "ags": Regle("048", BASE_CHOMAGE),
+    # Contribution patronale sur l'indemnité de rupture conventionnelle ou de
+    # mise à la retraite (CSS L137-12, 40 %) : code 093 du cahier technique
+    # 2026.1 (S21.G00.81.001), sur la base 03 avec sa propre assiette, la part
+    # exclue des cotisations — comme les DSN de mars 2026 d'un cabinet.
+    "contribution_indemnite_rupture": Regle("093", BASE_BRUT_DEPLAFONNE),
     # Base 05 — forfait social
     "forfait_social": Regle(CODE_FORFAIT_SOCIAL, BASE_FORFAIT_SOCIAL),
     # Base 31 — prévoyance, santé, retraite supplémentaire

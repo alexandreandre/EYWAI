@@ -34,6 +34,7 @@ Sources ouvertes le 11/10/2026 :
 
 from __future__ import annotations
 
+import copy
 from unittest.mock import patch
 
 import pytest
@@ -44,6 +45,7 @@ from app.modules.payroll.engine.calcul_cotisations import calculer_cotisations
 from app.modules.payroll.engine.calcul_indemnites_sortie import calculer_indemnites_sortie
 from app.modules.payroll.engine.regime_indemnites_rupture import ventiler_indemnite_de_rupture
 from tests.unit.base_en_memoire import BaseEnMemoire
+from tests.unit.payroll.fixtures.baremes_snapshot import baremes_snapshot
 from tests.unit.payroll.helpers import build_test_contexte
 
 pytestmark = pytest.mark.unit
@@ -164,8 +166,23 @@ def test_le_dossier_ventile_l_indemnite_et_ne_dit_plus_un_net_egal_au_brut(_iccp
     assert dossier["total_net_indemnities"] is None
 
 
+def _baremes_de_la_base() -> dict:
+    """Le barème de test, avec la CSG telle que la base la porte : une entrée
+    « csg » à 6,8 % déductible et 2,9 % non déductible (CRDS comprise)."""
+    baremes = copy.deepcopy(baremes_snapshot())
+    cle = next(k for k, v in baremes["cotisations"].items() if isinstance(v, list))
+    lignes = [
+        c for c in baremes["cotisations"][cle] if c.get("id") not in ("csg_deductible", "csg_non_deductible", "crds")
+    ]
+    lignes.append(
+        {"id": "csg", "libelle": "CSG/CRDS", "base": "brut", "salarial": {"deductible": 0.068, "non_deductible": 0.029}}
+    )
+    baremes["cotisations"][cle] = lignes
+    return baremes
+
+
 def _contexte_de_sortie(regime: dict, montant: float):
-    contexte = build_test_contexte(salaire_base=2400.0)
+    contexte = build_test_contexte(salaire_base=2400.0, baremes=_baremes_de_la_base())
     contexte.exit_indemnities = {
         "indemnite_rupture_conventionnelle": {
             "montant": montant,

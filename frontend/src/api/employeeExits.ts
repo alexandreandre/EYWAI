@@ -291,6 +291,7 @@ export interface ExitIndemnityCalculation {
     montant: number;
     description: string;
     calcul: string;
+    regime_social?: RegimeSocialIndemnite | null;
   };
   indemnite_rupture_conventionnelle?: {
     montant_negocie: number;
@@ -299,15 +300,28 @@ export interface ExitIndemnityCalculation {
     montant_negocie_saisi?: number | null;
     description: string;
     calcul: string;
+    regime_social?: RegimeSocialIndemnite | null;
   };
 
   // Totaux
   total_gross_indemnities: number;
-  total_net_indemnities: number;
+  /** Plus calculé : le net est celui du bulletin de sortie. */
+  total_net_indemnities?: number | null;
 
   // Métadonnées
   calculation_date: string;
   calculation_details: Record<string, any>;
+}
+
+/** Régime social d'une indemnité de rupture, calculé par le dossier
+ * (BOSS « Indemnités de rupture ») et appliqué par le bulletin de sortie. */
+export interface RegimeSocialIndemnite {
+  exoneree_cotisations: number;
+  soumise_cotisations: number;
+  assiette_csg_seule: number;
+  contribution_patronale: number;
+  mention: string;
+  alertes?: string[];
 }
 
 export interface CreateEmployeeExitRequest {

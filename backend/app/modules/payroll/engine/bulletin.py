@@ -812,6 +812,66 @@ def creer_bulletin_final(
     return bulletin
 
 
+NOTE_REGIME_NON_CALCULE = (
+    "Régime social non calculé (limites d'exonération, CSG/CRDS au-delà du minimum, "
+    "contribution patronale) : recalculez les indemnités du départ, puis ce bulletin."
+)
+
+
+def _ligne_indemnite_de_rupture(
+    bloc: Any, champ: str, libelle: str, description: str
+) -> Optional[Dict[str, Any]]:
+    """La part d'une indemnité de rupture versée après cotisations."""
+    if not isinstance(bloc, dict):
+        return None
+    montant = float(bloc.get(champ, 0) or 0)
+    if montant <= 0:
+        return None
+    regime = bloc.get("regime_social")
+    if isinstance(regime, dict):
+        apres_cotisations = float(regime.get("exoneree_cotisations") or 0)
+        note = str(regime.get("mention") or "")
+    else:
+        apres_cotisations = montant
+        note = NOTE_REGIME_NON_CALCULE
+    if apres_cotisations <= 0:
+        return None
+    return {
+        "libelle": libelle,
+        "description": bloc.get("description", description),
+        "calcul": bloc.get("calcul", ""),
+        "montant": round(apres_cotisations, 2),
+        "nature": "exoneree",
+        "note": note,
+    }
+
+
+def _alerter_part_soumise_non_imposable(bulletin: Dict[str, Any], dossier: Dict[str, Any]) -> None:
+    """Au-delà de 2 PASS, une part soumise aux cotisations peut rester exonérée
+    d'impôt : le net imposable la compte alors à tort. Rare ; dit, pas calculé."""
+    from app.modules.payroll.engine.regime_indemnites_rupture import regimes_du_dossier
+
+    for regime in regimes_du_dossier(dossier):
+        ecart = round(
+            float(regime.get("soumise_cotisations") or 0) - float(regime.get("imposable") or 0), 2
+        )
+        if ecart > 0:
+            alertes = bulletin.setdefault("alertes_baremes", [])
+            alertes.append(
+                {
+                    "code": "indemnite_rupture_net_imposable",
+                    "critique": False,
+                    "severity": "info",
+                    "message": (
+                        f"Indemnité de rupture : {_euros_fr(ecart)} soumis aux cotisations "
+                        "mais exonérés d'impôt sont comptés dans le net imposable. "
+                        "À corriger à la main avant de valider."
+                    ),
+                    "donnee_non_officielle": False,
+                }
+            )
+
+
 def creer_bulletin_sortie(
     contexte: ContextePaie,
     salaire_brut: float,
@@ -902,37 +962,30 @@ def creer_bulletin_sortie(
                 }
             )
 
-    # Indemnité légale de licenciement (exonérée dans la limite légale)
-    if indemnites_sortie.get("indemnite_licenciement"):
-        ind_lic = indemnites_sortie["indemnite_licenciement"]
-        if ind_lic.get("montant", 0) > 0:
-            lignes_indemnites_exonerees.append(
-                {
-                    "libelle": "Indemnité légale de licenciement",
-                    "description": ind_lic.get(
-                        "description", "Article L1234-9 du Code du travail"
-                    ),
-                    "calcul": ind_lic.get("calcul", ""),
-                    "montant": round(ind_lic["montant"], 2),
-                    "nature": "exoneree",
-                    "note": "Exonérée de cotisations sociales dans la limite légale",
-                }
-            )
-
-    # Indemnité de rupture conventionnelle (exonérée dans la limite légale)
-    if indemnites_sortie.get("indemnite_rupture_conventionnelle"):
-        ind_rc = indemnites_sortie["indemnite_rupture_conventionnelle"]
-        if ind_rc.get("montant_negocie", 0) > 0:
-            lignes_indemnites_exonerees.append(
-                {
-                    "libelle": "Indemnité de rupture conventionnelle",
-                    "description": ind_rc.get("description", "Indemnité négociée"),
-                    "calcul": ind_rc.get("calcul", ""),
-                    "montant": round(ind_rc["montant_negocie"], 2),
-                    "nature": "exoneree",
-                    "note": "Exonérée de cotisations sociales dans la limite légale",
-                }
-            )
+    # Indemnités de licenciement et de rupture conventionnelle : la part exclue
+    # des cotisations s'ajoute au net après cotisations ; la part qui dépasse les
+    # limites est déjà au brut, et la CSG/CRDS au-delà du minimum comme la
+    # contribution patronale sont dans les cotisations
+    # (engine/regime_indemnites_rupture, BOSS « Indemnités de rupture »).
+    for cle, champ, libelle, description in (
+        (
+            "indemnite_licenciement",
+            "montant",
+            "Indemnité légale de licenciement",
+            "Article L1234-9 du Code du travail",
+        ),
+        (
+            "indemnite_rupture_conventionnelle",
+            "montant_negocie",
+            "Indemnité de rupture conventionnelle",
+            "Indemnité négociée",
+        ),
+    ):
+        ligne = _ligne_indemnite_de_rupture(
+            indemnites_sortie.get(cle), champ, libelle, description
+        )
+        if ligne is not None:
+            lignes_indemnites_exonerees.append(ligne)
 
     # Calculer les totaux des indemnités
     total_indemnites_soumises = sum(
@@ -1005,13 +1058,16 @@ def creer_bulletin_sortie(
                 f"règle du 1/10e ({_euros_fr(dixieme)})."
             )
 
-    # Ajouter une note explicative
-    bulletin_base["note_sortie"] = (
+    # Ajouter une note explicative : la limite d'exonération n'est écrite que
+    # quand le dossier l'a calculée.
+    note = (
         "BULLETIN DE SOLDE DE TOUT COMPTE - "
-        "Ce bulletin inclut les indemnités de fin de contrat. "
-        "Les indemnités légales de licenciement et de rupture conventionnelle "
-        "sont exonérées de cotisations sociales dans la limite du montant légal."
+        "Ce bulletin inclut les indemnités de fin de contrat."
     )
+    for ligne in lignes_indemnites_exonerees:
+        note += f" {ligne['libelle']} : {ligne['note']}"
+    bulletin_base["note_sortie"] = note
+    _alerter_part_soumise_non_imposable(bulletin_base, indemnites_sortie)
 
     # Recalculer le coût total employeur
     total_primes_non_soumises = sum(
