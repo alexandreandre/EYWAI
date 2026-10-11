@@ -46,9 +46,37 @@ def _heures_journalieres_contrat(duree_hebdo: float) -> float:
 LIBELLES_ARRET: Dict[str, str] = {
     "arret_maladie": "arrêt maladie",
     "arret_at": "accident du travail",
+    "arret_maladie_pro": "maladie professionnelle",
     "arret_maternite": "congé maternité",
     "arret_paternite": "congé paternité",
 }
+
+#: Nature d'un arrêt d'après son type d'arrêt, quand rien d'autre ne la dit.
+NATURE_DU_TYPE_D_ARRET: Dict[str, str] = {
+    "accident_travail": "arret_at",
+    "accident_trajet": "arret_at",
+    "rechute_at": "arret_at",
+    "maladie_professionnelle": "arret_maladie_pro",
+}
+
+
+def _nature_de_l_arret(evenement: Dict[str, Any]) -> str:
+    """Nature d'un jour d'arrêt, pour le libellé de sa ligne de retenue.
+
+    La validation d'une demande d'arrêt pose tous les jours en `arret_maladie`
+    au calendrier [F16]. La nature se lit donc, dans l'ordre : sur le type de
+    jour quand il la porte (`arret_at` repris de Quadra) ; sur la demande
+    validée d'origine (`source_absence`, seule à dire maternité ou paternité) ;
+    sur le type d'arrêt (accident du travail, de trajet, rechute, maladie
+    professionnelle) ; sinon c'est un arrêt maladie.
+    """
+    type_ev = str(evenement.get("type") or "")
+    if type_ev in LIBELLES_ARRET and type_ev != "arret_maladie":
+        return type_ev
+    source = str(evenement.get("source_absence") or "")
+    if source in LIBELLES_ARRET and source != "arret_maladie":
+        return source
+    return NATURE_DU_TYPE_D_ARRET.get(str(evenement.get("arret_type") or ""), type_ev)
 
 
 def _heures_evenement_absence(evenement: Dict[str, Any], duree_hebdo: float) -> float:
@@ -1699,9 +1727,9 @@ def calculer_salaire_brut(
                     heures_abs / lc.DUREE_LEGALE_HEBDO * 5
                 )
                 jours_absence_legale_arret += heures_abs / lc.DUREE_LEGALE_HEBDO * 5
-            # La retenue s'écrit par période, après la boucle.
+            # La retenue s'écrit par période et par nature, après la boucle.
             jours_d_arret_a_retenir.append(
-                (jour_arret, type_ev, heures_abs, regularisation)
+                (jour_arret, _nature_de_l_arret(evenement), heures_abs, regularisation)
             )
 
     # Une ligne par période d'arrêt, comme le cabinet (« Absence maladie

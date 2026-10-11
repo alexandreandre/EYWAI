@@ -33,6 +33,7 @@ from app.modules.payroll.application.heures_sur_arret import (
 from app.modules.schedules.domain.conflits_arret import (
     alerte_arret_sans_demande,
     alerte_arrets_contradictoires,
+    est_un_arret,
 )
 from app.modules.payroll.domain.report_nap_negatif import (
     CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
@@ -446,7 +447,8 @@ def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> lis
 
     Rend toutes les demandes validées (maladie, RTT, arrêt…), pas seulement
     celles projetées en `conges_payes` : l'empreinte d'entrée et la liste
-    doivent voir le même ensemble.
+    doivent voir le même ensemble. Les jours d'arrêt reçoivent aussi la
+    nature de leur demande (`_stamp_nature_des_arrets`).
     """
     if not employee_id:
         return []
@@ -473,7 +475,38 @@ def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> lis
         src = source_par_date.get(iso)
         if src:
             e["source_absence"] = src
+    _stamp_nature_des_arrets(planned_entries, toutes)
     return toutes
+
+
+def _stamp_nature_des_arrets(planned_entries: list, demandes: list) -> None:
+    """Étiquette chaque jour d'arrêt avec la nature de la demande validée qui
+    le couvre (`source_absence` : arret_at, arret_maternite…).
+
+    La validation pose tous les arrêts en `arret_maladie` au calendrier ; seule
+    la demande dit un congé maternité ou paternité, qui n'a pas de type d'arrêt
+    propre. Le moteur en tire le libellé de la ligne de retenue [F16]. Les
+    jours copiés ici ne sont pas ceux de l'empreinte, lue sur les lignes de
+    la base.
+    """
+    nature_par_date: dict = {}
+    for row in demandes or []:
+        if not est_un_arret(row.get("type")):
+            continue
+        for d in row.get("selected_days") or []:
+            nature_par_date.setdefault(str(d)[:10], row.get("type"))
+    if not nature_par_date:
+        return
+    for e in planned_entries:
+        if not est_un_arret(e.get("type")):
+            continue
+        try:
+            iso = date(int(e["annee"]), int(e["mois"]), int(e["jour"])).isoformat()
+        except (KeyError, TypeError, ValueError):
+            continue
+        nature = nature_par_date.get(iso)
+        if nature:
+            e["source_absence"] = nature
 
 
 def process_payslip_generation(
