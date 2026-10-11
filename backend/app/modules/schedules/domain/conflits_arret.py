@@ -378,6 +378,7 @@ def message_de_refus(prenom: str, conflits: Sequence[JourEnConflit]) -> str:
 
 __all__ = [
     "JourEnConflit",
+    "alerte_arret_sans_demande",
     "TYPES_ABSENCE_NON_TRAVAILLEE",
     "TYPES_NON_OUVRES_D_UN_ARRET",
     "arrets_necessaires",
@@ -453,3 +454,74 @@ def alerte_arrets_contradictoires(
             "juste et corrigez l'autre."
         ),
     }
+
+
+# --- « Arrêt maladie » posé au calendrier sans demande d'arrêt ---
+
+
+def _date_du_jour(entree: Mapping[str, Any]) -> date | None:
+    try:
+        return date(int(entree["annee"]), int(entree["mois"]), int(entree["jour"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def alerte_arret_sans_demande(
+    calendrier_prevu: Iterable[Mapping[str, Any]] | None,
+    absences_validees: Iterable[Mapping[str, Any]] | None,
+    debut: date,
+    fin: date,
+) -> dict[str, Any] | None:
+    """Alerte du bulletin quand un arrêt est posé au calendrier sans demande.
+
+    Le type d'arrêt d'un jour n'est posé que par la validation d'une demande
+    d'arrêt : un jour typé « Arrêt maladie » à la main n'en a pas. Le moteur le
+    retient comme un arrêt (jour ouvré, ou jour de repos qui porte des heures)
+    mais sans maintien, carence payée ni IJSS, et l'arrêt n'existe ni pour
+    l'attestation ni pour la DSN. On le dit, sans créer la demande à la place
+    de la gestionnaire. Un jour couvert par une demande validée n'est pas
+    concerné (une demande sans type d'arrêt relève d'un autre défaut).
+    """
+    couverts: set[date] = set()
+    for absence in absences_validees or []:
+        if not est_un_arret(str(absence.get("type") or "")):
+            continue
+        if str(absence.get("status") or _STATUT_VALIDE) != _STATUT_VALIDE:
+            continue
+        for brut in absence.get("selected_days") or []:
+            try:
+                couverts.add(date.fromisoformat(str(brut)[:10]))
+            except ValueError:
+                continue
+    jours: set[date] = set()
+    for entree in calendrier_prevu or []:
+        if not est_un_arret(str(entree.get("type") or "")) or entree.get("arret_type"):
+            continue
+        jour = _date_du_jour(entree)
+        if jour is None or not (debut <= jour <= fin) or jour in couverts:
+            continue
+        heures = float(entree.get("heures_prevues") or entree.get("heures") or 0)
+        if jour.weekday() >= 5 and not heures:
+            continue
+        jours.add(jour)
+    if not jours:
+        return None
+    tries = sorted(jours)
+    quand = libelle_des_dates((j.year, j.month, j.day) for j in tries)
+    retenue = (
+        "cette journée est retenue" if len(tries) == 1 else "ces journées sont retenues"
+    )
+    return {
+        "code": "arret_sans_demande",
+        "severity": "warning",
+        "critique": False,
+        "jours": [{"annee": j.year, "mois": j.month, "jour": j.day} for j in tries],
+        "message": (
+            f"Arrêt maladie posé au calendrier sans demande d'arrêt {quand} : "
+            f"{retenue} sans maintien de salaire ni IJSS, et l'arrêt manque à "
+            "l'attestation de salaire et à la DSN. Enregistrez l'arrêt dans Congés & "
+            "absences (« + Enregistrer un arrêt », avec son type d'arrêt), puis "
+            "recalculez ce bulletin."
+        ),
+    }
+

@@ -30,7 +30,10 @@ from app.modules.payroll.application.heures_sur_arret import (
     alerte_heures_ecartees,
     ecarter_heures_sur_arret,
 )
-from app.modules.schedules.domain.conflits_arret import alerte_arrets_contradictoires
+from app.modules.schedules.domain.conflits_arret import (
+    alerte_arret_sans_demande,
+    alerte_arrets_contradictoires,
+)
 from app.modules.payroll.domain.report_nap_negatif import (
     CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
     reports_du_mois,
@@ -758,6 +761,14 @@ def process_payslip_generation(
         alerte_subrogation = alerte_arrets_contradictoires(
             absences_rows, date(year, month, 1), date(year, month, last_day)
         )
+        # Un « Arrêt maladie » posé au calendrier sans demande est retenu sans
+        # maintien ni IJSS : on le dit, sans créer la demande à sa place.
+        alerte_arret_sans_type = alerte_arret_sans_demande(
+            planned_data_all_months,
+            absences_rows,
+            date(year, month, 1),
+            date(year, month, last_day),
+        )
         # L'effectif des seuils de l'année du bulletin, saisi par la
         # gestionnaire ; jamais le nombre de comptes sans le dire.
         effectif_de_l_annee = effectif_retenu(company_data, year)
@@ -1318,6 +1329,12 @@ def process_payslip_generation(
             payslip_json_data["alertes_baremes"] = [
                 *(payslip_json_data.get("alertes_baremes") or []),
                 alerte_subrogation,
+            ]
+        if alerte_arret_sans_type and isinstance(payslip_json_data, dict):
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = [
+                *(payslip_json_data.get("alertes_baremes") or []),
+                alerte_arret_sans_type,
             ]
         if alerte_effectif_annee and isinstance(payslip_json_data, dict):
             payslip_json_data = dict(payslip_json_data)
