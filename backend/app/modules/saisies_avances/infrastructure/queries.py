@@ -19,6 +19,7 @@ from app.modules.saisies_avances.domain.enums import DEFAULT_ACCOUNTING_ACCOUNTS
 from app.modules.saisies_avances.domain.rules import (
     MAX_ADVANCE_DAYS,
     MAX_ADVANCE_NET_RATIO,
+    avance_retenable_sur_le_mois,
     compute_available_by_advance_type,
     compute_max_advance_from_net,
     is_employee_right,
@@ -220,7 +221,12 @@ def get_seizures_for_period(
 def get_advances_to_repay(
     employee_id: str, year: int, month: int
 ) -> List[Dict[str, Any]]:
-    """Avances à rembourser (approved/paid, remaining_amount > 0, avec au moins un paiement)."""
+    """Avances à retenir sur le bulletin de ce mois.
+
+    Approuvées ou versées, avec un reste dû et au moins un versement, et versées
+    au plus tard dans le mois du bulletin : une avance versée en octobre ne se
+    retient pas sur septembre (`avance_retenable_sur_le_mois`).
+    """
     r = (
         supabase.table("salary_advances")
         .select("*")
@@ -235,13 +241,19 @@ def get_advances_to_repay(
         advance_id = advance.get("id")
         pay_r = (
             supabase.table("salary_advance_payments")
-            .select("id")
+            .select("id, payment_date")
             .eq("advance_id", advance_id)
+            .order("payment_date")
             .limit(1)
             .execute()
         )
-        if advance.get("status") == "paid" or (pay_r.data and len(pay_r.data) > 0):
-            result.append(advance)
+        versements = pay_r.data or []
+        if not (advance.get("status") == "paid" or versements):
+            continue
+        premier_versement = versements[0].get("payment_date") if versements else None
+        if not avance_retenable_sur_le_mois(advance, year, month, premier_versement):
+            continue
+        result.append(advance)
     return result
 
 

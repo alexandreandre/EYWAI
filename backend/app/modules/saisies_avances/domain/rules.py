@@ -90,6 +90,53 @@ def calculate_seizure_deduction(
     return seizable_amount
 
 
+def _jour(valeur: Any) -> date | None:
+    """Une date de la base (« 2026-10-06 », horodatage ou `date`), ou None."""
+    if valeur is None:
+        return None
+    if isinstance(valeur, date):
+        return valeur
+    texte = str(valeur).strip()[:10]
+    try:
+        return date.fromisoformat(texte)
+    except ValueError:
+        return None
+
+
+def date_de_versement_de_l_avance(
+    advance: Dict[str, Any], premier_versement: Any = None
+) -> date | None:
+    """Le jour où l'avance a été versée au salarié.
+
+    Le premier versement enregistré (avec sa preuve) d'abord, puis la date de
+    versement de l'avance, puis la date de la demande.
+    """
+    for valeur in (
+        premier_versement,
+        advance.get("payment_date"),
+        advance.get("requested_date"),
+    ):
+        jour = _jour(valeur)
+        if jour is not None:
+            return jour
+    return None
+
+
+def avance_retenable_sur_le_mois(
+    advance: Dict[str, Any], annee: int, mois: int, premier_versement: Any = None
+) -> bool:
+    """Une avance se retient sur le bulletin du mois de son versement ou d'après.
+
+    Une avance versée en octobre ne peut pas être retenue sur septembre, ni sur
+    une reprise de janvier (enquête du 11/10/2026, [G7]). Sans aucune date, on
+    garde l'ancienne conduite : retenable.
+    """
+    versement = date_de_versement_de_l_avance(advance, premier_versement)
+    if versement is None:
+        return True
+    return (versement.year, versement.month) <= (annee, mois)
+
+
 def compute_max_advance_from_net(reference_net_salary: Decimal) -> Decimal:
     """Plafond légal interne : 50 % du salaire net de référence."""
     return reference_net_salary * MAX_ADVANCE_NET_RATIO
