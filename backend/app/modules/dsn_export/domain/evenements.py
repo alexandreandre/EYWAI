@@ -427,7 +427,17 @@ def indemnites_de_rupture(
     resultat: Dict[str, List[float]] = {}
     dans_le_brut: Dict[str, bool] = {}
     calcul = payslip_data.get("calcul_du_brut")
-    for ligne in calcul if isinstance(calcul, list) else []:
+    lignes = list(calcul) if isinstance(calcul, list) else []
+    # Le moteur range l'indemnité compensatrice de congés avec les congés
+    # (`details_conges`) : c'est elle qui a été versée, pas l'estimation du
+    # dossier que garde le récapitulatif `indemnites_sortie`.
+    conges = payslip_data.get("details_conges")
+    lignes += [
+        ligne
+        for ligne in (conges if isinstance(conges, list) else [])
+        if isinstance(ligne, dict) and "compensatrice" in str(ligne.get("libelle") or "").lower()
+    ]
+    for ligne in lignes:
         if not isinstance(ligne, dict) or not float(ligne.get("gain") or 0):
             continue
         code = _code_indemnite(str(ligne.get("libelle") or ""), sortie)

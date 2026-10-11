@@ -93,6 +93,20 @@ def bulletin_du_mois_de_sortie(
     return donnees if donnees.get("salaire_brut") is not None else None
 
 
+def indemnites_compensatrices_de_conges(payslip_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Les lignes « Indemnité compensatrice de congés payés … » du bulletin.
+
+    Le moteur les range avec les congés (`details_conges`), pas dans
+    `calcul_du_brut` : sans cette lecture, l'indemnité versée manquait au reçu,
+    à l'attestation France Travail et à la DSN. Les congés du mois (absence et
+    indemnité de congés pris) restent du salaire."""
+    return [
+        ligne
+        for ligne in payslip_data.get("details_conges") or []
+        if isinstance(ligne, dict) and "compensatrice" in _normalise(ligne.get("libelle"))
+    ]
+
+
 def _detail(ligne: Dict[str, Any]) -> str:
     quantite, taux = ligne.get("quantite"), ligne.get("taux")
     if quantite in (None, "") or taux in (None, "", 100):
@@ -109,8 +123,10 @@ def lignes_du_bulletin(
     # Le moteur porte les retenues d'absence (dont l'entrée ou la sortie en
     # cours de mois) dans details_absences ; un bulletin repris les a dans
     # calcul_du_brut et details_absences vide.
-    lignes = list(payslip_data.get("calcul_du_brut") or []) + list(
-        payslip_data.get("details_absences") or []
+    lignes = (
+        list(payslip_data.get("calcul_du_brut") or [])
+        + list(payslip_data.get("details_absences") or [])
+        + indemnites_compensatrices_de_conges(payslip_data)
     )
     for ligne in lignes:
         libelle = str(ligne.get("libelle") or "").strip()
@@ -143,7 +159,10 @@ def lignes_du_bulletin(
 def sommes_de_rupture_du_bulletin(payslip_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Les sommes dues au titre de la rupture, soumises ou non : {libelle, montant, dans_le_brut}."""
     sommes: List[Dict[str, Any]] = []
-    for ligne in payslip_data.get("calcul_du_brut") or []:
+    lignes_du_brut = list(payslip_data.get("calcul_du_brut") or []) + indemnites_compensatrices_de_conges(
+        payslip_data
+    )
+    for ligne in lignes_du_brut:
         libelle = str(ligne.get("libelle") or "").strip()
         if ligne.get("is_sous_total") or not est_une_somme_de_rupture(libelle):
             continue
