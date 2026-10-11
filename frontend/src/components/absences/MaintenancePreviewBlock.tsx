@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { pluriel } from '@/lib/pluriel';
+import { formatTauxFr } from '@/lib/employeeAbsencesUtils';
 
 /** Types d'absence pour lesquels le bloc maintien est pertinent (types principaux arrêt). */
 export const ABSENCE_TYPES_MAINTIEN_PREVIEW = new Set<string>([
@@ -33,9 +34,6 @@ const eur = (n: number | null | undefined) =>
     currency: "EUR",
     maximumFractionDigits: 2,
   }).format(Number(n ?? 0));
-
-const pct = (t: number | null | undefined) =>
-  `${(Number(t ?? 0) * 100).toFixed(1)} %`;
 
 function alertBannerClass(text: string): string {
   const t = text.toLowerCase();
@@ -181,7 +179,7 @@ function MaintenancePreviewBody({
           IJSS
         </h4>
         <p>IJSS estimées : {eur(ijss.ijss_theorique)}</p>
-        <p>Taux appliqué : {pct(ijss.taux_applique)}</p>
+        <p>Taux appliqué : {formatTauxFr(ijss.taux_applique)}</p>
         <p>Jours indemnisés : {ijss.nb_jours_indemnises}</p>
         <p>Salaire journalier de base : {eur(ijss.salaire_journalier_base)}</p>
       </section>
@@ -196,7 +194,7 @@ function MaintenancePreviewBody({
           </div>
         ) : (
           <>
-            <p>Taux de maintien : {pct(maintien.taux_maintien)}</p>
+            <p>Taux de maintien : {formatTauxFr(maintien.taux_maintien)}</p>
             <p>Maintien cible : {eur(maintien.maintien_cible)}</p>
             {data.subrogation_active ? (
               <p>IJSS déduites : {eur(ijss.ijss_theorique)}</p>

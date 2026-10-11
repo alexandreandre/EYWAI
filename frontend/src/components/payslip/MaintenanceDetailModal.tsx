@@ -3,7 +3,7 @@
  */
 
 import type { MaintenancePreview } from '@/api/absences';
-import { libelleTypeArret } from '@/lib/employeeAbsencesUtils';
+import { formatTauxFr, libelleTypeArret } from '@/lib/employeeAbsencesUtils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,9 +40,6 @@ const eur = (n: number | null | undefined) =>
     currency: 'EUR',
     maximumFractionDigits: 2,
   }).format(Number(n ?? 0));
-
-const pct = (t: number | null | undefined) =>
-  `${(Number(t ?? 0) * 100).toFixed(1)} %`;
 
 export interface MaintenanceDetailModalProps {
   open: boolean;
@@ -89,7 +86,7 @@ export function MaintenanceDetailModal({
               IJSS
             </h3>
             <p>Salaire journalier de base : {eur(ijss.salaire_journalier_base)}</p>
-            <p>Taux IJSS appliqué : {pct(ijss.taux_applique)}</p>
+            <p>Taux IJSS appliqué : {formatTauxFr(ijss.taux_applique)}</p>
             <p>Nombre de jours indemnisés : {ijss.nb_jours_indemnises}</p>
             <p>IJSS estimées : {eur(ijss.ijss_theorique)}</p>
           </section>
@@ -104,7 +101,7 @@ export function MaintenanceDetailModal({
               </div>
             ) : (
               <>
-                <p>Taux de maintien : {pct(m.taux_maintien)}</p>
+                <p>Taux de maintien : {formatTauxFr(m.taux_maintien)}</p>
                 <p>Maintien cible : {eur(m.maintien_cible)}</p>
                 {maintien.subrogation_active ? (
                   <p>IJSS déduites : {eur(ijss.ijss_theorique)}</p>
@@ -133,7 +130,7 @@ export function MaintenanceDetailModal({
                 <p>Franchise : {pluriel(maintien.prevoyance.franchise_jours, 'jour')}</p>
               ) : null}
               {maintien.prevoyance.taux_cible != null ? (
-                <p>Taux garanti : {pct(maintien.prevoyance.taux_cible)}</p>
+                <p>Taux garanti : {formatTauxFr(maintien.prevoyance.taux_cible)}</p>
               ) : null}
               {(maintien.prevoyance.montant ?? 0) > 0 ? (
                 <>

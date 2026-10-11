@@ -211,6 +211,16 @@ export function formatCongePayeInsufficientMessage(
   );
 }
 
+/** Taux (0,5 = 50 %) à la française : « 50 % », « 66,66 % », sans décimale inutile. */
+export function formatTauxFr(t: number | null | undefined): string {
+  const valeur = Number(t ?? 0);
+  const pct = Number.isFinite(valeur) ? Math.round(valeur * 10000) / 100 : 0;
+  const texte = Number.isInteger(pct)
+    ? String(pct)
+    : pct.toFixed(2).replace(/0$/, '').replace('.', ',');
+  return `${texte} %`;
+}
+
 /** Quantité au format du bulletin : « 6,24 j » (deux décimales), « 10 j » si entière. */
 export function formatQuantiteFr(n: number, unit: 'j' | 'h' = 'j'): string {
   const arrondi = Math.round(n * 100) / 100;
