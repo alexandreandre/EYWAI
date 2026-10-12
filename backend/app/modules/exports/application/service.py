@@ -13,6 +13,7 @@ from app.modules.exports.infrastructure.storage import (
     create_signed_url,
 )
 from app.modules.exports.domain import rules as domain_rules
+from app.modules.exports.domain.formats_cabinet import nom_fichier_cabinet
 from app.modules.exports.infrastructure.queries import get_user_display_name
 from app.modules.exports.schemas import (
     ExportPreviewRequest,
@@ -159,6 +160,8 @@ def _content_type(extension: str) -> str:
         return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     if extension == "xml":
         return "application/xml"
+    if extension == "txt":
+        return "text/plain"
     return "text/csv"
 
 
@@ -981,16 +984,12 @@ def _generate_cabinet(
         file_content = providers.generate_cabinet_sage_export(
             company_id, request.period, request.employee_ids, request.format
         )
-    period_formatted = request.period.replace("-", "_")
-    type_label = {
-        "export_cabinet_generique": "cabinet_generique",
-        "export_cabinet_quadra": "cabinet_quadra",
-        "export_cabinet_sage": "cabinet_sage",
-    }.get(request.export_type, "cabinet")
-    filename = f"{type_label}_{period_formatted}.{request.format}"
+    filename, extension = nom_fichier_cabinet(
+        request.export_type, request.period, request.format
+    )
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
-        BUCKET, storage_path, file_content, _content_type(request.format)
+        BUCKET, storage_path, file_content, _content_type(extension)
     )
     signed_url = create_signed_url(final_storage_path, 3600)
 
@@ -1025,7 +1024,7 @@ def _generate_cabinet(
                 filename=filename,
                 path=final_storage_path,
                 size=len(file_content),
-                format=request.format,
+                format=extension,
             )
         ],
         report=ExportReport(

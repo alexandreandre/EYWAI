@@ -43,6 +43,7 @@ import {
   Info,
 } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
+import { proposeLeChoixDuFormat } from "@/components/exports/exportFileFormats";
 import { previewExport, generateExport, ExportPreviewResponse, ExportGenerateResponse, ExportType } from "@/api/exports";
 import { fetchEmployeesSummary } from "@/api/employees";
 
@@ -103,27 +104,6 @@ const EXPORT_TYPE_MAP: Record<string, ExportType> = {
   "Récapitulatif des montants": "recapitulatif_montants",
   "recapitulatif-montants": "recapitulatif_montants",
 };
-
-const FILE_FORMAT_EXPORT_TYPES = new Set<ExportType>([
-  "journal_paie",
-  "charges_sociales",
-  "conges_absences",
-  "provision_cp",
-  "notes_frais",
-  "recapitulatif_montants",
-  "od_salaires",
-  "od_charges_sociales",
-  "od_pas",
-  "od_globale",
-  "export_cabinet_generique",
-  "export_cabinet_quadra",
-  "export_cabinet_sage",
-  "acomptes",
-  "saisies",
-  "prets_employeur",
-  "paiement_organismes",
-  "attestations_annexes",
-]);
 
 function resolveApiExportType(exportType: string): ExportType {
   return EXPORT_TYPE_MAP[exportType] || (exportType as ExportType);
@@ -207,7 +187,7 @@ export function ExportCommonModel({
   const { activeCompany } = useCompany();
   const queryClient = useQueryClient();
   const apiExportType = useMemo(() => resolveApiExportType(exportType), [exportType]);
-  const supportsFileFormat = FILE_FORMAT_EXPORT_TYPES.has(apiExportType);
+  const supportsFileFormat = proposeLeChoixDuFormat(apiExportType);
   const [currentStep, setCurrentStep] = useState<ExportStep>("parametrage");
   const [isLoading, setIsLoading] = useState(false);
   const [previewData, setPreviewData] = useState<ExportPreviewResponse | null>(null);
