@@ -115,13 +115,26 @@ describe('jobsDesBulletinsPerimes', () => {
     ]);
   });
 
-  it('un salarié, tous ses mois périmés de l’année', () => {
+  it('un salarié, tous ses mois périmés, du plus ancien au plus récent', () => {
+    // La liste arrive du plus récent au plus ancien ; chaque mois doit partir
+    // des cumuls du précédent déjà recalculé [J7].
     const jobs = jobsDesLignesPerimes(salaries[0], [
       { year: 2026, month: 4, a_recalculer: true, origine: 'calcule' },
       { year: 2026, month: 5, a_recalculer: false, origine: 'calcule' },
       { year: 2025, month: 12, a_recalculer: true, origine: 'calcule' },
     ]);
-    expect(jobs.map((j) => `${j.year}-${j.month}`)).toEqual(['2026-4', '2025-12']);
+    expect(jobs.map((j) => `${j.year}-${j.month}`)).toEqual(['2025-12', '2026-4']);
+  });
+
+  it('six mois périmés dans l’ordre de la liste du salarié : recalculés de janvier à juin', () => {
+    const lignes = [6, 5, 4, 3, 2, 1].map((month) => ({
+      year: 2026,
+      month,
+      a_recalculer: true,
+      origine: 'calcule' as const,
+    }));
+    const jobs = jobsDesLignesPerimes(salaries[0], lignes);
+    expect(jobs.map((j) => j.month)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it('ignore un bulletin d’un autre mois', () => {
