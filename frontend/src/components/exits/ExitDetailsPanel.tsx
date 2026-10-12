@@ -82,6 +82,7 @@ import {
 import { employeeDocumentsPath } from '@/lib/employeeExitDocumentsAccess';
 import {
   MESSAGE_GENERER_DABORD_BULLETIN,
+  documentModifiable,
   documentsARevoir,
   documentsDeSortieGrises,
   messageDocumentsARevoir,
@@ -1184,7 +1185,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
-                          {doc.document_category === 'generated' && (
+                          {doc.document_category === 'generated' && documentModifiable(doc.document_type) && (
                             <Button
                               variant="ghost"
                               size="icon"

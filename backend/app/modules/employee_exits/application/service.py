@@ -64,7 +64,7 @@ DEFAULT_CHECKLIST_ITEMS: List[Dict[str, Any]] = [
     },
     {
         "item_code": "unemployment_certificate",
-        "item_label": "Attestation Pôle Emploi",
+        "item_label": "Attestation France Travail",
         "item_description": "Nécessaire pour les allocations chômage",
         "item_category": "legal",
         "is_required": True,

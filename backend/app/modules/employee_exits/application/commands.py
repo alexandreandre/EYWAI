@@ -420,10 +420,16 @@ def _run_portability_exit_documents(
         ),
     )
 
-    # Sans adhésion à la mutuelle, rien à porter : le bulletin n'y cotise pas.
-    mutuelle = (employee_full_data.get("specificites_paie") or {}).get("mutuelle") or {}
-    if not mutuelle.get("adhesion"):
-        specs = tuple(s for s in specs if s[0] != "attestation_portabilite_mutuelle")
+    # Sans adhésion à la mutuelle ou à la prévoyance, rien à porter : le
+    # bulletin n'y cotise pas ([H14]).
+    specificites = employee_full_data.get("specificites_paie") or {}
+    for regime, doc_type in (
+        ("mutuelle", "attestation_portabilite_mutuelle"),
+        ("prevoyance", "attestation_portabilite_prevoyance"),
+    ):
+        adhesion = specificites.get(regime) if isinstance(specificites.get(regime), dict) else {}
+        if not adhesion.get("adhesion"):
+            specs = tuple(s for s in specs if s[0] != doc_type)
 
     for doc_type_key, gen_method in specs:
         try:

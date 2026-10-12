@@ -72,3 +72,15 @@ export function messageDocumentsARevoir(types: string[]): string {
     'avant publication ou remise au collaborateur.'
   );
 }
+
+/**
+ * Les types de document de sortie qui ont un éditeur (`ExitDocumentEdit`) : le
+ * bouton « Modifier le document » ne s'affiche que pour eux ([H14] : une
+ * attestation de portabilité menait à « L'édition de ce type de document n'est
+ * pas encore supportée. »).
+ */
+export const TYPES_DOCUMENTS_MODIFIABLES = ['certificat_travail', 'attestation_pole_emploi', 'solde_tout_compte'] as const;
+
+export function documentModifiable(documentType: string): boolean {
+  return (TYPES_DOCUMENTS_MODIFIABLES as readonly string[]).includes(documentType);
+}
