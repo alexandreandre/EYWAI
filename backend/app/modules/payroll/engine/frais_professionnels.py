@@ -31,15 +31,14 @@ def est_un_frais_professionnel(ligne: Mapping[str, Any]) -> bool:
 
 
 def libelle_de_note_de_frais(type_de_frais: Any, jour: Any) -> str:
-    """« Note de frais : restaurant du 07/10/2026 », « Indemnités kilométriques du 08/10/2026 »."""
+    """« Note de frais : restaurant du 07/10/2026 », « Note de frais : indemnités
+    kilométriques du 08/10/2026 » : une seule famille de libellés. Les indemnités
+    kilométriques avaient leur propre forme (« Indemnités kilométriques du … »),
+    à côté de « Note de frais : … » sur le même bulletin (rejeu G.5)."""
     texte = str(jour or "")[:10]
     annee, mois, j = (texte.split("-") + ["", "", ""])[:3]
     date_fr = f"{j}/{mois}/{annee}" if annee and mois and j else texte
     nature = str(type_de_frais or "").strip()
-    if nature.lower().startswith("indemnités kilométriques") or nature.lower().startswith(
-        "indemnites kilometriques"
-    ):
-        return f"Indemnités kilométriques du {date_fr}"
     if not nature or nature.lower() == "autre":
         return f"Note de frais du {date_fr}"
     return f"Note de frais : {nature.lower()} du {date_fr}"
