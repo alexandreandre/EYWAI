@@ -78,3 +78,43 @@ def test_les_baremes_territoriaux_ont_le_meme_statut_que_la_metropole():
     """23, 33 et les variantes proratisées sont des barèmes comme le 13."""
     for code in ("13", "23", "33", "17", "27", "37"):
         assert calculer_statut(5.3, code, "2026-08", "2026-08") == STATUT_BAREME
+
+
+class TestLigneDuSuivi:
+    """[B1]/[B3] Le suivi dit ce que le bulletin fera : un `taux: 0` posé par
+    l'écran n'est pas un taux, le salarié est « Manquant » (grille appliquée),
+    pas « À rafraîchir »."""
+
+    def _ligne(self, bloc, historique=None):
+        from unittest.mock import patch
+
+        from app.modules.pas_rates.application import service
+
+        salarie = {
+            "id": "e1",
+            "first_name": "Jeanne",
+            "last_name": "Essai",
+            "specificites_paie": {"prelevement_a_la_source": bloc},
+        }
+        with patch.object(service.repo, "lister_salaries", return_value=[salarie]), patch.object(
+            service.repo, "dernier_taux_par_salarie", return_value=historique or {}
+        ):
+            return service.construire_lignes("soc", reference="2026-10")[0]
+
+    def test_le_bloc_de_la_fenetre_de_creation_est_manquant(self):
+        ligne = self._ligne({"is_personnalise": False, "taux": 0})
+        assert ligne.taux is None
+        assert ligne.statut == STATUT_MANQUANT
+
+    def test_un_zero_transmis_par_la_dgfip_reste_un_taux(self):
+        ligne = self._ligne({"taux": 0, "type_taux": "01", "periode": "2026-09"})
+        assert ligne.taux == 0
+        assert ligne.statut == STATUT_A_JOUR
+
+    def test_la_periode_effacee_du_bloc_se_lit_dans_l_historique(self):
+        ligne = self._ligne(
+            {"taux": 4.3, "type_taux": "01"},
+            {"e1": {"periode": "2026-09", "type_taux": "01", "source": "dsn"}},
+        )
+        assert ligne.periode == "2026-09"
+        assert ligne.statut == STATUT_A_JOUR

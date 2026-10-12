@@ -20,10 +20,15 @@ def _fusionne(taux=12.5, **extra):
     }
 
 
+def _courant(taux=12.5):
+    return {"prelevement_a_la_source": {"taux": taux, "type_taux": "01", "periode": "2026-05"}}
+
+
 def test_saisie_manuelle_efface_la_periode():
     merged = _demarquer_pas_saisi_a_la_main(
         _fusionne(),
         {"prelevement_a_la_source": {"is_personnalise": True, "taux": 12.5}},
+        _courant(taux=9.0),
     )
     assert "periode" not in merged["prelevement_a_la_source"]
     assert merged["prelevement_a_la_source"]["taux"] == 12.5
@@ -63,3 +68,24 @@ def test_bloc_sans_periode_reste_inchange():
         {"prelevement_a_la_source": {"taux": 3.0}},
     )
     assert merged == {"prelevement_a_la_source": {"taux": 3.0}}
+
+
+def test_enregistrer_la_fiche_sans_changer_le_taux_garde_sa_periode():
+    """[B3] Le formulaire renvoyait le taux à chaque enregistrement : la date du
+    taux s'effaçait sans que personne l'ait changé (un cas réel au 12/10/2026),
+    et le rafraîchissement par DSN ne savait plus refuser un taux plus ancien."""
+    merged = _demarquer_pas_saisi_a_la_main(
+        _fusionne(),
+        {"prelevement_a_la_source": {"is_personnalise": True, "taux": 12.5}},
+        _courant(taux=12.5),
+    )
+    assert merged["prelevement_a_la_source"]["periode"] == "2026-05"
+
+
+def test_un_taux_identique_ecrit_autrement_garde_sa_periode():
+    merged = _demarquer_pas_saisi_a_la_main(
+        _fusionne(taux=4.3),
+        {"prelevement_a_la_source": {"is_personnalise": True, "taux": "4.30"}},
+        _courant(taux=4.3),
+    )
+    assert merged["prelevement_a_la_source"]["periode"] == "2026-05"
