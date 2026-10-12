@@ -258,6 +258,7 @@ _PARTIES: dict[str, tuple[str, str]] = {
         "Un réglage de paie de la société a changé",
         "les réglages de paie de la société",
     ),
+    "adresse_societe": ("L'adresse de la société a changé", "l'adresse de la société"),
     "fenetre_variables": (
         "La période des variables a changé",
         "la période des variables",

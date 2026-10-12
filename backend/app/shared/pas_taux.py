@@ -121,3 +121,23 @@ def taux_connu(bloc: Optional[Dict[str, Any]]) -> Optional[float]:
     if transmis or bloc.get("is_personnalise") is True:
         return taux
     return None
+
+
+ZONE_METROPOLE = "metropole"
+ZONE_ANTILLES_REUNION = "guadeloupe_reunion_martinique"
+ZONE_GUYANE_MAYOTTE = "guyane_mayotte"
+
+
+def zone_du_code_postal(code_postal: Any) -> str:
+    """Zone du barème du taux neutre, d'après le code postal de l'établissement.
+
+    Trois zones seulement : métropole, Antilles-Réunion, Guyane-Mayotte.
+    L'Alsace-Moselle n'en est pas une (particularité d'assurance maladie, sans
+    effet sur l'impôt).
+    """
+    departement = str(code_postal or "").strip()[:3]
+    if departement in ("971", "972", "974"):
+        return ZONE_ANTILLES_REUNION
+    if departement in ("973", "976"):
+        return ZONE_GUYANE_MAYOTTE
+    return ZONE_METROPOLE

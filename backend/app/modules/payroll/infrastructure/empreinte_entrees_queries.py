@@ -37,7 +37,7 @@ SAISIE_COLONNES = (
 
 SOCIETE_COLONNES = (
     "id, idcc, effectif, taux_at_mp, taux_vm, taux_fnal, "
-    "paie_jour_de_fin, paie_occurrence, settings"
+    "paie_jour_de_fin, paie_occurrence, settings, adresse_code_postal, adresse_ville"
 )
 
 

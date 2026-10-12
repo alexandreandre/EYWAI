@@ -18,6 +18,8 @@ from datetime import date
 from typing import Any, Iterable, Mapping, Sequence
 
 from app.shared.domain.effectif_seuils import effectif_retenu, palier_effectif
+from app.shared.pas_taux import zone_du_code_postal
+from app.modules.payroll.engine.baremes_loader import SEUIL_EFFECTIF_VERSEMENT_MOBILITE
 from app.modules.payroll.application.compensation_semaines import CLE_REGLAGE
 from app.modules.payroll.application.monthly_specificites import (
     resolve_monthly_specificites,
@@ -539,7 +541,27 @@ def complements_du_mois(
             month=month,
             bornes=bornes,
         ),
+        "adresse_societe": _adresse_societe(company, year),
     }
+
+
+def _adresse_societe(company: Mapping[str, Any] | None, year: int) -> dict[str, Any]:
+    """Ce que le moteur lit de l'adresse de la société ([B8], 12/10/2026).
+
+    Le code postal décide de la zone du barème du prélèvement à la source : on
+    hache la zone, pas le code (déménager dans la même zone ne change rien). La
+    ville décide du versement mobilité, dû à partir de 11 salariés ou quand
+    l'effectif est inconnu (`baremes_loader.resoudre_taux_vm_pour_paie`).
+
+    Partie à part, sans version à gérer : un bulletin calculé avant elle n'en a
+    pas et `parties_changees` ne compare que les parties stockées des deux côtés.
+    """
+    societe = company or {}
+    parties: dict[str, Any] = {"zone_pas": zone_du_code_postal(societe.get("adresse_code_postal"))}
+    effectif = effectif_retenu(societe, year).valeur or 0
+    if effectif <= 0 or effectif >= SEUIL_EFFECTIF_VERSEMENT_MOBILITE:
+        parties["ville_versement_mobilite"] = str(societe.get("adresse_ville") or "").strip().upper()
+    return parties
 
 
 def empreintes_des_parties(
@@ -696,7 +718,9 @@ def _hash_ou_none(valeur: Any) -> str | None:
 #: la nouvelle année) : les suivre périmerait tous les bulletins validés de
 #: l'année close, et les recalculer leur appliquerait les valeurs de l'année
 #: suivante. Seul le filtre change : le contenu haché reste le même.
-_PARTIES_IGNOREES_SI_VALIDE = frozenset({PARTIE_FICHE, "parametres_societe", "reglages_societe"})
+_PARTIES_IGNOREES_SI_VALIDE = frozenset(
+    {PARTIE_FICHE, "parametres_societe", "reglages_societe", "adresse_societe"}
+)
 
 
 def _etats_par_mois(

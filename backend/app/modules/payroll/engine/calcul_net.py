@@ -1,5 +1,5 @@
 from app.core.logging import get_logger, log_payroll_debug
-from app.shared.pas_taux import est_taux_bareme, taux_connu as taux_detenu
+from app.shared.pas_taux import est_taux_bareme, taux_connu as taux_detenu, zone_du_code_postal
 
 from .contexte import ContextePaie
 from .exoneration_alternance import contexte_exoneration_apprenti
@@ -627,12 +627,7 @@ def _zone_pas(contexte: ContextePaie) -> str:
     """
     identification = contexte.entreprise.get("identification") or {}
     adresse = identification.get("adresse") or {}
-    departement = str(adresse.get("code_postal") or "").strip()[:3]
-    if departement in ("971", "972", "974"):
-        return "guadeloupe_reunion_martinique"
-    if departement in ("973", "976"):
-        return "guyane_mayotte"
-    return "metropole"
+    return zone_du_code_postal(adresse.get("code_postal"))
 
 
 def taux_pas_neutre(
