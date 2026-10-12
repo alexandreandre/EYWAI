@@ -66,6 +66,12 @@ describe('création : le minimum suffit', () => {
     ]);
   });
 
+  it('un IBAN à la clé fausse ne bloque pas la création (il s’avertit sous le champ)', () => {
+    expect(
+      erreurs({ coordonnees_bancaires: { iban: 'FR7630001007941234567890186', bic: '' } })
+    ).toEqual([]);
+  });
+
   it('une adresse se donne entière ou pas du tout', () => {
     expect(erreurs({ adresse: { rue: '1 rue de l’Essai', code_postal: '', ville: '' } })).toEqual([
       'adresse.code_postal: Adresse incomplète : rue, code postal et ville, ou rien.',

@@ -41,13 +41,23 @@ describe('le RIB est facultatif pour un salarié payé par chèque ou en espèce
     expect(erreursIban(valeurs)).toEqual(['IBAN vide.']);
   });
 
-  it('un IBAN saisi doit rester juste, quel que soit le mode', () => {
+  it('un IBAN à la clé fausse n’empêche pas d’enregistrer la fiche (il s’avertit)', () => {
     const valeurs = buildDefaultValues(
       fiche({
-        salary_payment_method: 'cheque',
+        salary_payment_method: 'virement',
         coordonnees_bancaires: { iban: 'FR7630001007941234567890186', bic: '' },
       }),
     );
-    expect(erreursIban(valeurs)[0]).toContain('Clé de contrôle');
+    expect(erreursIban(valeurs)).toEqual([]);
+  });
+
+  it('un IBAN mal formé reste refusé, quel que soit le mode', () => {
+    const valeurs = buildDefaultValues(
+      fiche({
+        salary_payment_method: 'cheque',
+        coordonnees_bancaires: { iban: 'FR76 1234', bic: '' },
+      }),
+    );
+    expect(erreursIban(valeurs)).toHaveLength(1);
   });
 });

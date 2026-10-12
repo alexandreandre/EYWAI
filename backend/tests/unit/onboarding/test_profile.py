@@ -90,6 +90,19 @@ class TestMissingPayrollFields:
         emp["coordonnees_bancaires"] = {"iban": "FR761234567890", "bic": "BNPAFRPP"}
         assert "Coordonnées bancaires (RIB)" in missing_payroll_fields(emp)
 
+    @pytest.mark.parametrize(
+        "iban",
+        ["FR7630001007941234567890186", "FR76300010079412"],
+        ids=["cle_fausse", "longueur_du_pays_fausse"],
+    )
+    def test_un_iban_faux_mais_bien_forme_ne_bloque_pas_la_paie(self, iban):
+        """Un mauvais IBAN n'empêche pas de calculer la paie, seulement de faire le
+        virement, dont l'aperçu le bloque (12/10/2026)."""
+        emp = {**_complete_employee(), "employment_status": "actif"}
+        emp["coordonnees_bancaires"] = {"iban": iban}
+        assert "Coordonnées bancaires (RIB)" not in missing_payroll_fields(emp)
+        assert payroll_block_reason(emp) is None
+
 
 class TestPayrollEligibility:
     def test_en_onboarding_is_not_payroll_eligible(self):

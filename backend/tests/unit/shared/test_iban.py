@@ -34,6 +34,15 @@ class TestIbanUtils:
     def test_short_iban_is_invalid(self):
         assert validate_iban("FR761234567890") is False
 
+    def test_bien_forme_ne_regarde_ni_la_cle_ni_la_longueur_du_pays(self):
+        from app.shared.utils.iban import iban_bien_forme
+
+        assert iban_bien_forme("FR7630001007941234567890186") is True
+        assert iban_bien_forme("FR76300010079412") is True
+        assert iban_bien_forme("FR761234567890") is False
+        assert iban_bien_forme("1234567890123456") is False
+        assert iban_bien_forme("") is False
+
 
 class TestIbanCle:
     """Clé de contrôle (mod 97) et longueur propre au pays."""
