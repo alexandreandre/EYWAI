@@ -160,6 +160,69 @@ def compute_loan_repayment_cap(
     return _money(max(Decimal("0"), min(dixieme, net_disponible)))
 
 
+def _euros_fr(montant: Decimal) -> str:
+    texte = f"{abs(montant):,.2f}".replace(",", " ").replace(".", ",")
+    return f"{'−' if montant < 0 else ''}{texte} €"
+
+
+def message_pret_retenu_en_partie(
+    *,
+    motif: str | None,
+    numero: Any,
+    capital_retenu: Decimal,
+    interets_retenus: Decimal,
+    prevu: Decimal,
+    reliquat: Decimal,
+    salaire_exigible: Decimal,
+    net_disponible: Decimal,
+    plafond_restant: Decimal,
+) -> str:
+    """Ce que dit le bulletin d'une échéance de prêt retenue en partie : combien,
+    sur combien, la règle appliquée et ce que devient le reliquat.
+
+    La règle est celle du code, dite telle quelle : le capital retenu est
+    limité au dixième du salaire exigible (L3251-3) et au net encore
+    disponible ; les intérêts suivent au prorata du capital retenu ; l'échéance
+    non soldée est reprise seule au bulletin suivant (une échéance par prêt et
+    par bulletin), ce qui fait glisser les suivantes d'un mois.
+    """
+    qui = f"Prêt employeur ({motif})" if motif else "Prêt employeur"
+    retenu = capital_retenu + interets_retenus
+    debut = (
+        f"{qui} : {_euros_fr(retenu)} retenus sur {_euros_fr(prevu)} prévus "
+        f"pour l'échéance n° {numero}."
+    )
+    dixieme = _money(salaire_exigible * LOAN_REPAYMENT_SALARY_FRACTION)
+    if net_disponible <= 0:
+        raison = "Le net à payer du mois ne permet pas de retenue."
+    elif plafond_restant <= 0:
+        raison = (
+            "Le dixième du salaire exigible (article L3251-3 du Code du travail), "
+            f"{_euros_fr(dixieme)}, est déjà retenu pour un autre prêt."
+        )
+    elif net_disponible < dixieme:
+        raison = "Le net à payer du mois ne permet pas plus."
+    else:
+        part = (
+            f"le dixième de {_euros_fr(salaire_exigible)}"
+            if plafond_restant >= dixieme
+            else f"ce qui reste du dixième de {_euros_fr(salaire_exigible)} après un autre prêt"
+        )
+        raison = (
+            "La retenue est limitée au dixième du salaire exigible (article L3251-3 "
+            f"du Code du travail) : {_euros_fr(capital_retenu)} de capital ({part})"
+        )
+        if interets_retenus > 0:
+            raison += f", plus {_euros_fr(interets_retenus)} d'intérêts au prorata"
+        raison += "."
+    fin = (
+        f"Le reliquat de {_euros_fr(reliquat)} reste dû sur l'échéance n° {numero} : "
+        "il sera retenu seul sur le bulletin suivant, et les échéances suivantes "
+        "glissent d'un mois."
+    )
+    return f"{debut} {raison} {fin}"
+
+
 def compute_repayment_amount(
     due_capital: Decimal,
     remaining_seizable: Decimal,

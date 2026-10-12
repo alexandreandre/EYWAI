@@ -55,6 +55,7 @@ import {
   type EmployeeLoan,
 } from '@/api/employeeLoans';
 import { useToast } from '@/hooks/use-toast';
+import { explicationEcheancePartielle } from './echeancePartielle';
 
 interface EmployeeLoanDetailDrawerProps {
   loan: EmployeeLoan | null;
@@ -417,6 +418,15 @@ export function EmployeeLoanDetailDrawer({
                   </Table>
                 </div>
               )}
+              {(scheduleQuery.data ?? [])
+                .map((row) => explicationEcheancePartielle(row))
+                .filter((texte): texte is string => Boolean(texte))
+                .map((texte) => (
+                  <Alert key={texte} className="mt-2 border-amber-500">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-sm">{texte}</AlertDescription>
+                  </Alert>
+                ))}
             </div>
 
             <div>

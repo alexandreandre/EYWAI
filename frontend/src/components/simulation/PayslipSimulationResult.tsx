@@ -5,6 +5,7 @@
 import React from 'react';
 import { Button } from '../ui/button';
 import { FileText, RefreshCw, Download } from 'lucide-react';
+import { euros, eurosRetenus, pourcent } from './simulationAffichage';
 
 interface PayslipSimulationResultProps {
   result: any;
@@ -35,7 +36,7 @@ export const PayslipSimulationResult: React.FC<PayslipSimulationResultProps> = (
       <div className="flex items-center justify-between pb-4 border-b">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">Résultat de la simulation</h3>
-          <p className="text-sm text-gray-500">ID: {simulation_id}</p>
+          <p className="text-sm text-gray-500">ID : {simulation_id}</p>
         </div>
         <div className="flex gap-2">
           {onDownloadPDF && (
@@ -67,7 +68,7 @@ export const PayslipSimulationResult: React.FC<PayslipSimulationResultProps> = (
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-blue-300">
-            <p className="text-sm font-medium text-gray-700">Période: {payslip.en_tete.periode}</p>
+            <p className="text-sm font-medium text-gray-700">Période : {payslip.en_tete.periode}</p>
           </div>
         </div>
       )}
@@ -77,21 +78,21 @@ export const PayslipSimulationResult: React.FC<PayslipSimulationResultProps> = (
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <p className="text-sm text-gray-500 mb-1">Salaire brut</p>
           <p className="text-2xl font-bold text-gray-900">
-            {payslip.salaire_brut?.toFixed(2) || '0.00'} €
+            {euros(payslip.salaire_brut ?? 0)}
           </p>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <p className="text-sm text-gray-500 mb-1">Net imposable</p>
           <p className="text-2xl font-bold text-blue-600">
-            {payslip.synthese_net?.net_imposable?.toFixed(2) || '0.00'} €
+            {euros(payslip.synthese_net?.net_imposable ?? 0)}
           </p>
         </div>
 
         <div className="bg-white border border-green-200 rounded-lg p-4 bg-green-50">
           <p className="text-sm text-gray-500 mb-1">Net à payer</p>
           <p className="text-2xl font-bold text-green-600">
-            {payslip.net_a_payer?.toFixed(2) || '0.00'} €
+            {euros(payslip.net_a_payer ?? 0)}
           </p>
         </div>
       </div>
@@ -105,8 +106,8 @@ export const PayslipSimulationResult: React.FC<PayslipSimulationResultProps> = (
               <div key={index} className="flex justify-between text-sm">
                 <span className="text-gray-600">{ligne.libelle}</span>
                 <span className="font-medium text-gray-900">
-                  {ligne.gain ? `+${ligne.gain.toFixed(2)}` : ''}
-                  {ligne.perte ? `-${ligne.perte.toFixed(2)}` : ''} €
+                  {ligne.gain ? `+${euros(ligne.gain)}` : ''}
+                  {ligne.perte ? eurosRetenus(ligne.perte) : ''}
                 </span>
               </div>
             ))}
@@ -131,10 +132,10 @@ export const PayslipSimulationResult: React.FC<PayslipSimulationResultProps> = (
                       <span className="text-gray-600">{ligne.libelle}</span>
                       <div className="flex gap-4">
                         <span className="text-gray-500">
-                          Sal: {ligne.montant_salarial?.toFixed(2) || '0.00'} €
+                          Sal. : {euros(ligne.montant_salarial ?? 0)}
                         </span>
                         <span className="text-gray-500">
-                          Pat: {ligne.montant_patronal?.toFixed(2) || '0.00'} €
+                          Pat. : {euros(ligne.montant_patronal ?? 0)}
                         </span>
                       </div>
                     </div>
@@ -149,10 +150,10 @@ export const PayslipSimulationResult: React.FC<PayslipSimulationResultProps> = (
                 <span>Total cotisations</span>
                 <div className="flex gap-4">
                   <span className="text-red-600">
-                    Sal: -{payslip.structure_cotisations.total_salarial?.toFixed(2) || '0.00'} €
+                    Sal. : {eurosRetenus(payslip.structure_cotisations.total_salarial ?? 0)}
                   </span>
                   <span className="text-gray-600">
-                    Pat: {payslip.structure_cotisations.total_patronal?.toFixed(2) || '0.00'} €
+                    Pat. : {euros(payslip.structure_cotisations.total_patronal ?? 0)}
                   </span>
                 </div>
               </div>
@@ -169,24 +170,24 @@ export const PayslipSimulationResult: React.FC<PayslipSimulationResultProps> = (
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Net social avant impôt</span>
               <span className="font-medium text-gray-900">
-                {payslip.synthese_net.net_social_avant_impot?.toFixed(2) || '0.00'} €
+                {euros(payslip.synthese_net.net_social_avant_impot ?? 0)}
               </span>
             </div>
 
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Net imposable</span>
               <span className="font-medium text-gray-900">
-                {payslip.synthese_net.net_imposable?.toFixed(2) || '0.00'} €
+                {euros(payslip.synthese_net.net_imposable ?? 0)}
               </span>
             </div>
 
             {payslip.synthese_net.impot_prelevement_a_la_source && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">
-                  Prélèvement à la source ({payslip.synthese_net.impot_prelevement_a_la_source.taux?.toFixed(1) || '0.0'}%)
+                  Prélèvement à la source ({pourcent(payslip.synthese_net.impot_prelevement_a_la_source.taux ?? 0)})
                 </span>
                 <span className="font-medium text-red-600">
-                  -{payslip.synthese_net.impot_prelevement_a_la_source.montant?.toFixed(2) || '0.00'} €
+                  {eurosRetenus(payslip.synthese_net.impot_prelevement_a_la_source.montant ?? 0)}
                 </span>
               </div>
             )}
@@ -200,7 +201,7 @@ export const PayslipSimulationResult: React.FC<PayslipSimulationResultProps> = (
           <div className="flex justify-between items-center">
             <span className="text-md font-semibold text-gray-900">Coût total employeur</span>
             <span className="text-2xl font-bold text-amber-600">
-              {payslip.pied_de_page.cout_total_employeur.toFixed(2)} €
+              {euros(payslip.pied_de_page.cout_total_employeur)}
             </span>
           </div>
         </div>

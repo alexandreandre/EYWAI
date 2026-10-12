@@ -6,7 +6,7 @@ import React from 'react';
 import { CheckCircle, AlertCircle, TrendingUp, DollarSign, Building } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ReverseCalculationResponse } from '../../api/simulation';
-import { cn } from '../../lib/utils';
+import { euros, eurosRetenus, lignesDetailCotisations } from './simulationAffichage';
 
 interface ReverseCalculationResultProps {
   result: ReverseCalculationResponse;
@@ -19,16 +19,10 @@ export const ReverseCalculationResult: React.FC<ReverseCalculationResultProps> =
   onReset,
   onCreateSimulation,
 }) => {
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(value);
-  };
-
   const cotisationsSalariales =
     result.brut_calcule - (result.bulletin_complet?.synthese_net?.net_social_avant_impot || 0);
   const cotisationsPatronales = result.cout_employeur - result.brut_calcule;
+  const detailCotisations = lignesDetailCotisations(result.bulletin_complet?.structure_cotisations);
 
   return (
     <div className="space-y-6">
@@ -61,9 +55,9 @@ export const ReverseCalculationResult: React.FC<ReverseCalculationResultProps> =
               <DollarSign className="h-4 w-4 mr-1" />
               <span className="text-xs font-medium uppercase">Net obtenu</span>
             </div>
-            <p className="text-2xl font-bold text-blue-900">{formatCurrency(result.net_obtenu)}</p>
+            <p className="text-2xl font-bold text-blue-900">{euros(result.net_obtenu)}</p>
             {Math.abs(result.ecart) > 0.01 && (
-              <p className="text-xs text-blue-600 mt-1">Écart: {formatCurrency(result.ecart)}</p>
+              <p className="text-xs text-blue-600 mt-1">Écart : {euros(result.ecart)}</p>
             )}
           </div>
 
@@ -73,7 +67,7 @@ export const ReverseCalculationResult: React.FC<ReverseCalculationResultProps> =
               <TrendingUp className="h-4 w-4 mr-1" />
               <span className="text-xs font-medium uppercase">Brut nécessaire</span>
             </div>
-            <p className="text-2xl font-bold text-green-900">{formatCurrency(result.brut_calcule)}</p>
+            <p className="text-2xl font-bold text-green-900">{euros(result.brut_calcule)}</p>
           </div>
 
           {/* Coût employeur */}
@@ -82,7 +76,7 @@ export const ReverseCalculationResult: React.FC<ReverseCalculationResultProps> =
               <Building className="h-4 w-4 mr-1" />
               <span className="text-xs font-medium uppercase">Coût employeur</span>
             </div>
-            <p className="text-2xl font-bold text-purple-900">{formatCurrency(result.cout_employeur)}</p>
+            <p className="text-2xl font-bold text-purple-900">{euros(result.cout_employeur)}</p>
           </div>
         </div>
       </div>
@@ -116,27 +110,27 @@ export const ReverseCalculationResult: React.FC<ReverseCalculationResultProps> =
           {/* Détails */}
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-600">Salaire brut:</span>
-              <span className="font-medium">{formatCurrency(result.brut_calcule)}</span>
+              <span className="text-gray-600">Salaire brut :</span>
+              <span className="font-medium">{euros(result.brut_calcule)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Cotisations patronales:</span>
-              <span className="font-medium text-blue-600">{formatCurrency(cotisationsPatronales)}</span>
+              <span className="text-gray-600">Cotisations patronales :</span>
+              <span className="font-medium text-blue-600">{euros(cotisationsPatronales)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Cotisations salariales:</span>
-              <span className="font-medium text-red-600">-{formatCurrency(cotisationsSalariales)}</span>
+              <span className="text-gray-600">Cotisations salariales (hors CSG/CRDS) :</span>
+              <span className="font-medium text-red-600">{eurosRetenus(cotisationsSalariales)}</span>
             </div>
             <div className="flex justify-between font-semibold border-t pt-2">
-              <span className="text-gray-900">Net à payer:</span>
-              <span className="text-green-600">{formatCurrency(result.net_obtenu)}</span>
+              <span className="text-gray-900">Net à payer :</span>
+              <span className="text-green-600">{euros(result.net_obtenu)}</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Tableau détaillé des cotisations */}
-      {result.bulletin_complet?.structure_cotisations && (
+      {detailCotisations.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
           <h4 className="text-md font-semibold text-gray-900 mb-4">Détail des cotisations</h4>
 
@@ -161,22 +155,16 @@ export const ReverseCalculationResult: React.FC<ReverseCalculationResultProps> =
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {result.bulletin_complet.structure_cotisations.bloc_principales?.map(
-                  (ligne: any, index: number) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-4 py-2">{ligne.libelle}</td>
-                      <td className="px-4 py-2 text-right">{formatCurrency(ligne.base || 0)}</td>
-                      <td className="px-4 py-2 text-right">{(ligne.taux_salarial || 0).toFixed(2)}%</td>
-                      <td className="px-4 py-2 text-right text-red-600">
-                        {formatCurrency(ligne.part_salariale || 0)}
-                      </td>
-                      <td className="px-4 py-2 text-right">{(ligne.taux_patronal || 0).toFixed(2)}%</td>
-                      <td className="px-4 py-2 text-right text-blue-600">
-                        {formatCurrency(ligne.part_patronale || 0)}
-                      </td>
-                    </tr>
-                  )
-                )}
+                {detailCotisations.map((ligne, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-4 py-2">{ligne.libelle}</td>
+                    <td className="px-4 py-2 text-right">{ligne.base}</td>
+                    <td className="px-4 py-2 text-right">{ligne.tauxSalarial}</td>
+                    <td className="px-4 py-2 text-right text-red-600">{ligne.partSalariale}</td>
+                    <td className="px-4 py-2 text-right">{ligne.tauxPatronal}</td>
+                    <td className="px-4 py-2 text-right text-blue-600">{ligne.partPatronale}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

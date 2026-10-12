@@ -672,6 +672,9 @@ def enrich_payslip(
                         quotite_du_mois=seizable_amount,
                         base_saisissable=base_saisissable,
                         annee=year,
+                        composition=domain_rules.composition_base_saisissable(
+                            payslip_json_data
+                        ),
                     ),
                 }
             )

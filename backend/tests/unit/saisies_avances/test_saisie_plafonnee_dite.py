@@ -79,7 +79,8 @@ def test_saisie_fixe_plafonnee_a_la_quotite_le_dit():
     assert alerte["message"] == (
         f"Saisie sur salaire (Créancier fictif SARL) : {_euros(quotite)} retenus sur "
         f"900,00 € demandés. La quotité saisissable du mois est de {_euros(quotite)} "
-        f"(barème 2026, sur un net de 1 383,52 €) : le reste n'est pas retenu ce mois-ci."
+        f"(barème 2026, sur le net à payer avant retenues de 1 383,52 €) : le reste "
+        f"n'est pas retenu ce mois-ci."
     )
 
 

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
+
+logger = logging.getLogger(__name__)
 
 BUCKET = "generated_documents"
 _EMPLOYEE_VISIBLE_STATUSES = ("envoye", "signe")
@@ -134,9 +137,12 @@ class SupabaseDocumentsRepository:
         return rows[0]
 
     def delete(self, document_id: str, company_id: str) -> None:
+        """Supprime le document et ses fichiers (PDF, Word) du bucket, comme la
+        suppression d'un document de sortie. Un échec du stockage est journalisé
+        et n'empêche pas la suppression de la ligne."""
         r = (
             supabase.table("generated_documents")
-            .select("id")
+            .select("id, file_url, docx_file_url")
             .eq("id", document_id)
             .eq("company_id", company_id)
             .maybe_single()
@@ -145,6 +151,18 @@ class SupabaseDocumentsRepository:
         row = _data(r)
         if not row:
             raise LookupError("Document introuvable")
+        chemins = [
+            str(row[cle])
+            for cle in ("file_url", "docx_file_url")
+            if row.get(cle) and not str(row[cle]).lower().startswith("http")
+        ]
+        if chemins:
+            try:
+                supabase.storage.from_(BUCKET).remove(chemins)
+            except Exception as exc:  # noqa: BLE001 — la ligne part quand même
+                logger.warning(
+                    "Fichiers du document %s non retirés du stockage : %s", document_id, exc
+                )
         supabase.table("generated_documents").delete().eq("id", document_id).eq(
             "company_id", company_id
         ).execute()
