@@ -125,6 +125,20 @@ def smic_horaire_au_1er_janvier(baremes: dict[str, Any], annee: int) -> float:
     return valeur
 
 
+def smic_de_reference_pour_explication(contexte: Any, annee: int | None) -> float | None:
+    """Le SMIC du 1er janvier que la RGDU retient, pour l'expliquer au bulletin.
+
+    None avant la RGDU (Fillon : SMIC courant) ou sans palier au 1er janvier :
+    l'explication n'affirme rien qu'elle ne sait.
+    """
+    if not annee or int(annee) < lc.ANNEE_BASCULE_RGDU:
+        return None
+    try:
+        return smic_horaire_au_1er_janvier(getattr(contexte, "baremes", None) or {}, int(annee))
+    except Exception:  # noqa: BLE001 — une explication, jamais un échec du bulletin
+        return None
+
+
 def _signaler_cle_dediee_differente(
     contexte: ContextePaie, cle: Any, smic_1er_janvier: float, annee: int
 ) -> None:

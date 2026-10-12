@@ -42,8 +42,13 @@ def poser_explications(
     evenements: Sequence[Mapping[str, Any]] | None = None,
     duree_hebdo: float | None = None,
     reduction_deja: float | None = None,
+    smic_reference_horaire: float | None = None,
 ) -> dict[str, Any]:
-    """Ajoute `explication` sur les lignes d'heures sup, d'absence et de RGDU."""
+    """Ajoute `explication` sur les lignes d'heures sup, d'absence et de RGDU.
+
+    `smic_reference_horaire` : le SMIC du 1er janvier que la réduction générale
+    retient (RGDU) ; l'explication le nomme à côté de celui du pied du bulletin.
+    """
     en_tete = bulletin.get("en_tete") if isinstance(bulletin.get("en_tete"), dict) else {}
     annee = _entier(en_tete.get("annee"))
     mois = _entier(en_tete.get("mois"))
@@ -52,7 +57,9 @@ def poser_explications(
 
     _expliquer_heures_sup(bulletin, evenements, duree_hebdo, annee, mois)
     _expliquer_absences(bulletin)
-    _expliquer_reduction_generale(bulletin, mois, float(reduction_deja or 0.0))
+    _expliquer_reduction_generale(
+        bulletin, annee, mois, float(reduction_deja or 0.0), smic_reference_horaire
+    )
     return bulletin
 
 
@@ -106,12 +113,55 @@ def _expliquer_absences(bulletin: dict[str, Any]) -> None:
             _poser(ligne, _texte_absence(str(ligne.get("libelle") or "")))
 
 
+def _euros_fr(valeur: float) -> str:
+    return f"{valeur:,.2f}".replace(",", " ").replace(".", ",")
+
+
+def _phrase_smic(
+    bulletin: dict[str, Any], annee: int | None, smic_reference: float | None
+) -> str | None:
+    """Les deux SMIC du bulletin, nommés (relevé I.3 du 12/10/2026).
+
+    La réduction générale (RGDU) retient le SMIC du 1er janvier pour toute
+    l'année ; le pied du bulletin imprime celui en vigueur ce mois. Sans
+    phrase, 12,02 € et 12,31 € se lisaient comme une erreur.
+    """
+    if not smic_reference or not annee:
+        return None
+    phrase = (
+        f"Calculée sur le SMIC du 1er janvier {annee} : "
+        f"{_euros_fr(smic_reference)} € de l'heure."
+    )
+    parametres = bulletin.get("parametres") if isinstance(bulletin.get("parametres"), dict) else {}
+    try:
+        pied = float(parametres.get("smic_horaire") or 0.0)
+    except (TypeError, ValueError):
+        pied = 0.0
+    if pied > 0 and abs(pied - smic_reference) >= 0.005:
+        phrase += (
+            f" Le SMIC horaire du pied du bulletin ({_euros_fr(pied)} €) est celui "
+            "en vigueur ce mois."
+        )
+    return phrase
+
+
 def _expliquer_reduction_generale(
-    bulletin: dict[str, Any], mois: int | None, reduction_deja: float
+    bulletin: dict[str, Any],
+    annee: int | None,
+    mois: int | None,
+    reduction_deja: float,
+    smic_reference: float | None = None,
 ) -> None:
-    if mois == 1 or reduction_deja <= 0:
+    regularisation = mois != 1 and reduction_deja > 0
+    smic = _phrase_smic(bulletin, annee, smic_reference)
+    if regularisation and smic:
+        texte = f"Réduction générale : régularisation depuis janvier. {smic}"
+    elif regularisation:
+        texte = "Réduction générale : régularisation depuis janvier"
+    elif smic:
+        texte = f"Réduction générale : {smic[0].lower()}{smic[1:]}"
+    else:
         return
-    texte = "Réduction générale : régularisation depuis janvier"
     for ligne in _lignes_de(
         bulletin.get("structure_cotisations") or {}, "bloc_allegements"
     ):
