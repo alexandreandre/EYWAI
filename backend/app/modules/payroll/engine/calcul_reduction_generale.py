@@ -86,26 +86,14 @@ def _calculer_parametre_T(contexte: ContextePaie) -> float:
 # Dans moteur_paie/calcul_reduction_generale.py
 
 
-class SmicDeReferenceIntrouvable(ValueError):
-    """Pas de SMIC au 1er janvier de l'année du bulletin dans l'historique du SMIC.
-
-    `ValueError` : les générateurs la rendent telle quelle à l'écran (refus 400).
-    """
-
-
 CODE_SMIC_REFERENCE_DIFFERE = "smic_reference_reduction_differe"
+CODE_SMIC_REFERENCE_ABSENT = "smic_reference_reduction_absent"
 
 
-def smic_horaire_au_1er_janvier(baremes: dict[str, Any], annee: int) -> float:
-    """SMIC horaire en vigueur au 1er janvier `annee`, lu dans `smic.historique`.
-
-    Le SMIC est revalorisé chaque 1er janvier : l'historique doit porter un palier
-    daté de ce jour. Sans lui, refus : une valeur d'une autre date (le SMIC
-    courant, ou celui de l'année d'avant) fausserait la réduction en silence.
-    """
+def _paliers_du_smic(baremes: dict[str, Any]) -> list[tuple[date, float]]:
+    """Les paliers lisibles de `smic.historique` : (date d'effet, SMIC horaire)."""
     smic = baremes.get("smic") or {}
-    premier_janvier = date(annee, 1, 1)
-    valeur = None
+    paliers: list[tuple[date, float]] = []
     for palier in (smic.get("historique") if isinstance(smic, dict) else None) or []:
         if not isinstance(palier, dict):
             continue
@@ -114,15 +102,77 @@ def smic_horaire_au_1er_janvier(baremes: dict[str, Any], annee: int) -> float:
             montant = float(palier.get("cas_general") or 0.0)
         except (TypeError, ValueError):
             continue
-        if debut == premier_janvier and montant > 0:
+        if montant > 0:
+            paliers.append((debut, montant))
+    return paliers
+
+
+def smic_horaire_au_1er_janvier(baremes: dict[str, Any], annee: int) -> float | None:
+    """SMIC horaire du palier daté du 1er janvier `annee` dans `smic.historique`.
+
+    Le SMIC est revalorisé chaque 1er janvier : l'historique doit porter un palier
+    daté de ce jour. None s'il n'y est pas : la réduction se calcule alors sur un
+    SMIC de repli, signalé (voir `_smic_de_repli`).
+    """
+    premier_janvier = date(annee, 1, 1)
+    valeur = None
+    for debut, montant in _paliers_du_smic(baremes):
+        if debut == premier_janvier:
             valeur = montant
-    if valeur is None:
-        raise SmicDeReferenceIntrouvable(
-            f"Réduction générale : le SMIC horaire au 1er janvier {annee} manque dans "
-            "l'historique du barème SMIC. La réduction se calcule avec le SMIC de "
-            "cette date : le bulletin n'est pas calculé. Contactez le support."
-        )
     return valeur
+
+
+def _smic_de_repli(baremes: dict[str, Any], annee: int) -> float:
+    """Le SMIC connu le plus proche de celui du 1er janvier `annee`, faute de palier.
+
+    D'abord la clé dédiée du barème de la réduction (`smic_reference_horaire`,
+    mise à jour à la main avec son année), puis le palier en vigueur au 1er
+    janvier (le dernier daté d'avant), puis le SMIC courant. 0 si rien.
+    """
+    config_red = baremes.get("reduction_generale") or {}
+    try:
+        cle = float(config_red.get("smic_reference_horaire") or 0.0)
+    except (TypeError, ValueError):
+        cle = 0.0
+    if cle > 0:
+        return cle
+    premier_janvier = date(annee, 1, 1)
+    anterieurs = [p for p in _paliers_du_smic(baremes) if p[0] < premier_janvier]
+    if anterieurs:
+        return max(anterieurs)[1]
+    smic = baremes.get("smic") or {}
+    try:
+        return float(smic.get("smic_horaire_brut") or smic.get("cas_general") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _ajouter_alerte_unique(contexte: ContextePaie, alerte: dict[str, Any]) -> None:
+    """Ajoute l'alerte au bulletin, une seule fois par code."""
+    alertes = getattr(contexte, "alertes_baremes", None)
+    if not isinstance(alertes, list):
+        alertes = []
+        contexte.alertes_baremes = alertes
+    if any(isinstance(a, dict) and a.get("code") == alerte["code"] for a in alertes):
+        return
+    alertes.append(alerte)
+
+
+def _signaler_smic_de_repli(contexte: ContextePaie, smic_horaire: float, annee: int) -> None:
+    """Alerte : la réduction générale part d'un SMIC de repli, à vérifier."""
+    _ajouter_alerte_unique(
+        contexte,
+        {
+            "code": CODE_SMIC_REFERENCE_ABSENT,
+            "critique": False,
+            "severity": "warning",
+            "message": (
+                f"SMIC du 1er janvier {annee} absent de l'historique : réduction "
+                f"générale calculée sur {_montant_fr(smic_horaire)} € de l'heure, "
+                "à vérifier."
+            ),
+        },
+    )
 
 
 def smic_de_reference_pour_explication(contexte: Any, annee: int | None) -> float | None:
@@ -149,13 +199,8 @@ def _signaler_cle_dediee_differente(
         return
     if round(valeur_cle, 4) == round(smic_1er_janvier, 4):
         return
-    alertes = getattr(contexte, "alertes_baremes", None)
-    if not isinstance(alertes, list):
-        alertes = []
-        contexte.alertes_baremes = alertes
-    if any(isinstance(a, dict) and a.get("code") == CODE_SMIC_REFERENCE_DIFFERE for a in alertes):
-        return
-    alertes.append(
+    _ajouter_alerte_unique(
+        contexte,
         {
             "code": CODE_SMIC_REFERENCE_DIFFERE,
             "critique": False,
@@ -176,9 +221,13 @@ def _smic_horaire_de_reference(contexte: ContextePaie) -> float:
 
     RGDU (>= 2026) : celui du 1er janvier de l'année du bulletin (service-public
     F24542 : « 3 × SMIC calculé pour un an, valeur au 1er janvier 2026 »), lu
-    dans l'historique du SMIC. Plus de repli sur le SMIC courant : il
-    sur-évaluait la réduction [I12]. La clé `smic_reference_horaire` du barème
-    de la réduction n'est plus qu'un contrôle.
+    dans l'historique du SMIC [I12]. La clé `smic_reference_horaire` du barème
+    de la réduction n'est alors qu'un contrôle.
+
+    Sans palier au 1er janvier, pas de refus : janvier 2027 ne doit pas bloquer
+    toute la paie pour une donnée oubliée (12/10/2026). La réduction se calcule
+    sur le SMIC connu le plus proche (`_smic_de_repli`) et une alerte, au
+    bulletin et dans la liste du mois, dit lequel.
 
     Fillon (< 2026) : inchangé, clé dédiée sinon SMIC courant.
     """
@@ -186,6 +235,11 @@ def _smic_horaire_de_reference(contexte: ContextePaie) -> float:
     annee = getattr(contexte, "year", None) or lc.ANNEE_BASCULE_RGDU
     if annee >= lc.ANNEE_BASCULE_RGDU:
         smic_horaire = smic_horaire_au_1er_janvier(contexte.baremes, annee)
+        if smic_horaire is None:
+            smic_horaire = _smic_de_repli(contexte.baremes, annee)
+            if smic_horaire > 0:
+                _signaler_smic_de_repli(contexte, smic_horaire, annee)
+            return smic_horaire
         cle = config_red.get("smic_reference_horaire")
         if cle is not None:
             _signaler_cle_dediee_differente(contexte, cle, smic_horaire, annee)
