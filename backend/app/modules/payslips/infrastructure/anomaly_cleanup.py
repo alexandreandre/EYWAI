@@ -33,14 +33,14 @@ def strip_engine_alerts_from_payslip_data(
 
 
 def trace_des_alertes_moteur(
-    payslip_data: Dict[str, Any], *, quand: str, par: Optional[str]
-) -> Optional[Dict[str, Any]]:
+    payslip_data: dict[str, Any], *, quand: str, par: str | None
+) -> dict[str, Any] | None:
     """Les alertes du moteur d'un bulletin, datées et signées, ou None s'il n'en a pas.
 
     La validation les retire du bulletin (le bandeau « action requise » ne
     s'affiche plus) ; cette trace dit ce qui a été validé malgré elles [J3].
     """
-    trace: Dict[str, Any] = {}
+    trace: dict[str, Any] = {}
     baremes = payslip_data.get("alertes_baremes")
     if isinstance(baremes, list) and baremes:
         trace["alertes_baremes"] = list(baremes)

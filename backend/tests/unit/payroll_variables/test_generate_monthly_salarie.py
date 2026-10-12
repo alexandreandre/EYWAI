@@ -47,13 +47,13 @@ class _Requete:
     def __init__(self, lignes: list[dict[str, Any]]) -> None:
         self.lignes = lignes
 
-    def select(self, *_a, **_k) -> "_Requete":
+    def select(self, *_a, **_k) -> _Requete:
         return self
 
-    def eq(self, cle: str, valeur: Any) -> "_Requete":
+    def eq(self, cle: str, valeur: Any) -> _Requete:
         return _Requete([l for l in self.lignes if l.get(cle) == valeur])
 
-    def in_(self, cle: str, valeurs: list[Any]) -> "_Requete":
+    def in_(self, cle: str, valeurs: list[Any]) -> _Requete:
         return _Requete([l for l in self.lignes if l.get(cle) in valeurs])
 
     def execute(self) -> MagicMock:
@@ -132,9 +132,9 @@ def test_la_generation_d_un_bulletin_ne_genere_que_les_variables_de_son_salarie(
             "app.modules.planning.infrastructure.repository.planning_repository", reglages
         ),
         patch(f"{GM}.generate_monthly_variables") as generer,
+        pytest.raises(HTTPException),
     ):
-        with pytest.raises(HTTPException):
-            gen.process_payslip_generation("emp-2", 2026, 10)
+        gen.process_payslip_generation("emp-2", 2026, 10)
 
     generer.assert_called_once()
     assert generer.call_args.args[:3] == ("comp-1", 2026, 10)
