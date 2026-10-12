@@ -12,15 +12,22 @@ entier dont le net vaudrait 100 € (lot 30).
 
 Le net avance par marches d'arrondi, pas tout à fait régulières : chez
 Colorplast (octobre 2026), 129,27 € et 129,29 € bruts ajoutent tous deux
-100,00 €, 129,28 € ajoute 100,01 €. Le brut rendu est donc défini sans
-ambiguïté : le plus petit centime qui ajoute exactement le net voulu (lot 31).
-Il ne dépend pas du chemin de la recherche.
+100,00 €, 129,28 € ajoute 100,01 €. Le brut rendu est le premier centime qui
+ajoute exactement le net voulu, celui d'en dessous ne l'atteignant pas
+(lot 31) ; s'il n'y en a pas (une marche enjambe le net voulu), le premier
+qui l'atteint ou le dépasse, et la recherche dit qu'elle n'a pas convergé.
 
-La recherche : le bulletin sans la prime, un premier essai qui donne la pente,
-puis la sécante qui part du bulletin sans prime vise ce centime ; le centime
-d'en dessous confirme qu'il est le premier. Quatre bulletins en règle
-générale (trois à cinq au lot 30, qui pouvait s'arrêter sur un centime plus
-haut), trois pour une prime ni soumise ni imposable.
+Sans taux personnalisé, le prélèvement à la source suit la grille du taux
+neutre : quand la prime fait passer le net imposable dans la tranche
+suivante, tout le salaire est prélevé au nouveau taux et le net recule de
+plusieurs euros. Le net voulu peut alors être atteint à deux endroits ; la
+recherche garde celui que la sécante croise, comme au lot 30.
+
+La recherche : le bulletin sans la prime, un premier essai, puis des sécantes
+par les deux derniers essais (par le bulletin sans prime au premier pas, ou
+quand une marche du prélèvement sépare les deux essais), qui visent le
+premier centime atteignant le net voulu ; enfin, au centime, le bord. Quatre à
+sept bulletins, dix au plus ; trois pour une prime ni soumise ni imposable.
 """
 
 from __future__ import annotations
@@ -32,9 +39,16 @@ from typing import Any
 #: Part du brut d'une prime soumise qui reste au net, pour le premier essai
 #: seulement : il ne sert qu'à mesurer la pente.
 PART_NETTE_PREMIER_ESSAI = 0.75
-#: Bulletins calculés au plus, celui sans la prime compris.
-ESSAIS_MAX = 7
+#: Bulletins calculés au plus, celui sans la prime compris. Après le premier,
+#: un bulletin se calcule en mémoire (lecture seule) : quelques centièmes de
+#: seconde.
+ESSAIS_MAX = 10
+#: Bulletins au plus pour les sécantes : il en reste pour trouver le bord.
+ESSAIS_DES_SECANTES = 7
 CENTIME = 0.01
+#: Pente plausible d'une prime (net ajouté par euro brut) ; hors de ces bornes,
+#: une marche du prélèvement sépare les deux essais.
+_PENTE_MIN, _PENTE_MAX = 0.05, 1.05
 #: Un net « atteint » le net voulu au demi-centime près (nets arrondis au centime).
 _DEMI_CENTIME = 0.005
 
@@ -72,9 +86,9 @@ def _pente_du_premier_essai(
     return 1.0 - taux / 100.0 if 0.0 <= taux < 100.0 else PART_NETTE_PREMIER_ESSAI
 
 
-def _premier_centime(net_voulu: float, pente: float) -> float:
-    """Le premier centime où la droite de pente `pente` atteint le net voulu."""
-    return math.ceil(round((net_voulu - _DEMI_CENTIME) / pente * 100, 6)) / 100
+def _premier_centime(brut: float) -> float:
+    """Le centime atteint ou dépassé par `brut`."""
+    return math.ceil(round(brut * 100, 6)) / 100
 
 
 def chercher_brut_de_prime(
@@ -84,12 +98,12 @@ def chercher_brut_de_prime(
     soumise_a_cotisations: bool = True,
     soumise_a_impot: bool = True,
 ) -> dict[str, Any]:
-    """Le plus petit brut, au centime, d'une prime qui ajoute `net_voulu` au net à payer.
+    """Le premier brut, au centime, d'une prime qui ajoute `net_voulu` au net à payer.
 
     `bulletin_avec_prime(montant)` rend le bulletin du mois avec une prime
     brute de `montant` (0 : sans prime). Sans centime exact (une marche
-    enjambe le net voulu), le brut dont le net ajouté est le plus proche,
-    au moins le net voulu à égalité.
+    enjambe le net voulu), le premier qui l'atteint ou le dépasse, avec
+    `convergence` à False ; s'il n'est pas atteint, le plus proche.
     """
     if net_voulu <= 0:
         raise ValueError("Le net voulu pour la prime doit être strictement positif.")
@@ -111,19 +125,32 @@ def chercher_brut_de_prime(
     def atteint(brut: float) -> bool:
         return ajoute(brut) >= net_voulu - _DEMI_CENTIME
 
-    # 1. La sécante qui part du bulletin sans prime vise le premier centime qui
-    #    atteint le net voulu, jusqu'à ce qu'elle vise le centime déjà essayé.
+    def exact(brut: float) -> bool:
+        return abs(ajoute(brut) - net_voulu) < _DEMI_CENTIME
+
+    seuil = net_voulu - _DEMI_CENTIME
+
+    # 1. Sécantes par les deux derniers essais (par le bulletin sans prime au
+    #    premier pas), qui visent le premier centime atteignant le net voulu.
+    precedent = 0.0
     brut = _premier_centime(
-        net_voulu, _pente_du_premier_essai(sans, soumise_a_cotisations, soumise_a_impot)
+        seuil / _pente_du_premier_essai(sans, soumise_a_cotisations, soumise_a_impot)
     )
-    while len(essais) < ESSAIS_MAX:
+    while len(essais) < ESSAIS_DES_SECANTES:
         net = ajoute(brut)
-        if net <= 0:
+        if exact(brut):
             break
-        vise = _premier_centime(net_voulu, net / brut)
-        if vise <= 0 or vise == brut or vise in essais:
+        pente = (net - essais[precedent][0]) / (brut - precedent)
+        if not _PENTE_MIN < pente <= _PENTE_MAX:
+            # Une marche du prélèvement entre les deux essais : la droite qui
+            # part du bulletin sans prime.
+            pente = net / brut
+        if not _PENTE_MIN < pente <= _PENTE_MAX:
             break
-        brut = vise
+        vise = _premier_centime(brut + (seuil - net) / pente)
+        if vise <= 0 or vise in essais:
+            break
+        precedent, brut = brut, vise
 
     # 2. Au centime : le premier brut qui atteint le net voulu, celui d'en
     #    dessous ne l'atteignant pas.
@@ -136,17 +163,27 @@ def chercher_brut_de_prime(
         else:
             brut = round(brut + CENTIME, 2)
 
+    # 3. Ce bord dépasse le net voulu sans l'ajouter exactement : un ou deux
+    #    centimes plus haut peuvent l'ajouter (marches irrégulières).
+    if atteint(brut) and not exact(brut):
+        for centimes in (1, 2):
+            au_dessus = round(brut + centimes * CENTIME, 2)
+            if au_dessus not in essais and len(essais) >= ESSAIS_MAX:
+                break
+            if exact(au_dessus):
+                break
+
     candidats = [b for b in essais if b > 0]
     if not candidats:  # ESSAIS_MAX < 2 : aucun essai de prime
         raise ValueError("Aucun essai de prime n'a été calculé.")
-    brut_trouve = min(
-        candidats,
-        key=lambda b: (
-            round(abs(essais[b][0] - net_voulu), 2),  # le net le plus proche,
-            essais[b][0] < net_voulu - _DEMI_CENTIME,  # au moins le net voulu,
-            b,  # puis le plus petit brut.
-        ),
-    )
+    exacts = [b for b in candidats if exact(b)]
+    atteignants = [b for b in candidats if atteint(b)]
+    if exacts:
+        brut_trouve = min(exacts)
+    elif atteignants:
+        brut_trouve = min(atteignants)
+    else:  # le net voulu n'est pas atteint : le plus proche
+        brut_trouve = min(candidats, key=lambda b: (abs(essais[b][0] - net_voulu), b))
     net_ajoute, cout_ajoute = essais[brut_trouve]
     ecart = round(net_ajoute - net_voulu, 2)
     return {
@@ -155,7 +192,8 @@ def chercher_brut_de_prime(
         "net_obtenu": net_ajoute,
         "ecart": ecart,
         "iterations": len(essais),
-        "convergence": abs(ecart) <= 0.01,
+        # Exactement le net voulu ; sinon la fenêtre dit le net obtenu.
+        "convergence": abs(ecart) < _DEMI_CENTIME,
         "cout_employeur": cout_ajoute,
         "net_a_payer_sans_prime": round(net_sans, 2),
         "net_a_payer_avec_prime": round(net_sans + net_ajoute, 2),
