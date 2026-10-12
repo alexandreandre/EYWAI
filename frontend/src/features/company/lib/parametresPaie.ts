@@ -12,7 +12,13 @@
  * réécrire une valeur par défaut les ferait tous passer « À recalculer ».
  */
 
-import type { CompanyDetails, CompanyDetailsUpdate, DatePaiement } from '@/api/company';
+import type {
+  CompanyDetails,
+  CompanyDetailsUpdate,
+  CompteBancaireSociete,
+  DatePaiement,
+} from '@/api/company';
+import { ibanProblem, normalizeIban } from '@/lib/iban';
 
 /** Bornes du bonus-malus depuis le 1er mai 2025 (taux de référence 4 %). */
 export const TAUX_CHOMAGE_MIN = 2.95;
@@ -37,13 +43,22 @@ export interface SaisieParametresPaie {
   effectif: string;
   datePaiement: DatePaiement;
   jourSolidarite: string;
+  /** Compte qui débite les salaires (donneur d'ordre des remises SEPA). */
+  compteIban: string;
+  compteBic: string;
+  compteTitulaire: string;
 }
 
 export type ErreursParametresPaie = Partial<Record<keyof SaisieParametresPaie, string>>;
 
 export type MiseAJourParametresPaie = Pick<
   CompanyDetailsUpdate,
-  'effectif' | 'effectif_annee' | 'taux_assurance_chomage' | 'date_paiement' | 'jour_solidarite'
+  | 'effectif'
+  | 'effectif_annee'
+  | 'taux_assurance_chomage'
+  | 'date_paiement'
+  | 'jour_solidarite'
+  | 'compte_bancaire'
 >;
 
 /** L'année dont la carte saisit l'effectif. */
@@ -69,14 +84,21 @@ const LIBELLES_CHAMPS: Record<Exclude<keyof MiseAJourParametresPaie, 'effectif_a
   taux_assurance_chomage: "Taux d'assurance chômage",
   date_paiement: 'Date de paiement des salaires',
   jour_solidarite: 'Journée de solidarité',
+  compte_bancaire: 'Compte bancaire de la société',
 };
 
-const ORDRE_CHAMPS: (keyof typeof LIBELLES_CHAMPS)[] = [
+/** Les réglages qui entrent dans le calcul des bulletins. */
+const CHAMPS_DU_CALCUL = [
   'effectif',
   'taux_assurance_chomage',
   'date_paiement',
   'jour_solidarite',
-];
+] as const;
+
+/** Tous les réglages de la carte ; le compte bancaire ne touche à aucun bulletin. */
+const ORDRE_CHAMPS: (keyof typeof LIBELLES_CHAMPS)[] = [...CHAMPS_DU_CALCUL, 'compte_bancaire'];
+
+const BIC = /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/;
 
 function estDatePaiement(valeur: unknown): valeur is DatePaiement {
   return valeur === 'dernier_jour_du_mois' || valeur === 'arrete_des_variables';
@@ -90,11 +112,28 @@ function enregistres(company: CompanyDetails, annee: number) {
     taux_assurance_chomage: reglages.taux_assurance_chomage ?? null,
     date_paiement: estDatePaiement(reglages.date_paiement) ? reglages.date_paiement : null,
     jour_solidarite: reglages.jour_solidarite ?? null,
+    compte_bancaire: compteNormalise(reglages.compte_bancaire),
+  };
+}
+
+/** Compte enregistré, IBAN et BIC sans espaces ; null quand il n'y a pas d'IBAN. */
+function compteNormalise(
+  compte: CompteBancaireSociete | null | undefined,
+): Required<CompteBancaireSociete> | null {
+  const iban = normalizeIban(compte?.iban ?? '');
+  if (!iban) return null;
+  return {
+    iban,
+    bic: (compte?.bic ?? '').replace(/[\s-]/g, '').toUpperCase(),
+    titulaire: (compte?.titulaire ?? '').trim(),
   };
 }
 
 function memeValeur(a: unknown, b: unknown): boolean {
   if (a === b) return true;
+  if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
   if (a === null || a === undefined || b === null || b === undefined) {
     return (a ?? null) === (b ?? null);
   }
@@ -112,6 +151,9 @@ export function saisieInitiale(
     effectif: valeurs.effectif != null ? String(valeurs.effectif) : '',
     datePaiement: valeurs.date_paiement ?? DATE_PAIEMENT_PAR_DEFAUT,
     jourSolidarite: valeurs.jour_solidarite ?? '',
+    compteIban: valeurs.compte_bancaire?.iban ?? '',
+    compteBic: valeurs.compte_bancaire?.bic ?? '',
+    compteTitulaire: valeurs.compte_bancaire?.titulaire ?? '',
   };
 }
 
@@ -181,6 +223,28 @@ export function construireMiseAJour(
     corps.jour_solidarite = jour;
   }
 
+  const compteIban = normalizeIban(saisie.compteIban);
+  const compteBic = saisie.compteBic.replace(/[\s-]/g, '').toUpperCase();
+  const compteTitulaire = saisie.compteTitulaire.trim();
+  if (!compteIban && !compteBic && !compteTitulaire) {
+    if (avant.compte_bancaire != null) corps.compte_bancaire = null;
+  } else {
+    const problemeIban = compteIban
+      ? ibanProblem(compteIban)
+      : "L'IBAN du compte est obligatoire. Pour retirer le compte, videz aussi le BIC et le titulaire.";
+    if (problemeIban) erreurs.compteIban = problemeIban;
+    if (compteBic && !BIC.test(compteBic)) {
+      erreurs.compteBic = 'BIC invalide : 8 ou 11 caractères, par exemple BNPAFRPP.';
+    }
+    if (compteTitulaire.length > 70) {
+      erreurs.compteTitulaire = 'Le titulaire tient en 70 caractères au plus (limite du fichier SEPA).';
+    }
+    if (!problemeIban && !erreurs.compteBic && !erreurs.compteTitulaire) {
+      const compte = { iban: compteIban, bic: compteBic, titulaire: compteTitulaire };
+      if (!memeValeur(avant.compte_bancaire, compte)) corps.compte_bancaire = compte;
+    }
+  }
+
   return { corps, erreurs };
 }
 
@@ -205,7 +269,7 @@ export function parametresOntChange(avant: CompanyDetails, apres: CompanyDetails
   const b = enregistres(apres, anneeEnCours());
   const effectifs = (c: CompanyDetails) => JSON.stringify([...effectifsSaisis(c)].sort());
   return (
-    ORDRE_CHAMPS.some((champ) => !memeValeur(a[champ], b[champ])) ||
+    CHAMPS_DU_CALCUL.some((champ) => !memeValeur(a[champ], b[champ])) ||
     effectifs(avant) !== effectifs(apres) ||
     !memeValeur(avant.taux_at_mp, apres.taux_at_mp) ||
     !memeValeur(avant.paie_jour_de_fin, apres.paie_jour_de_fin) ||

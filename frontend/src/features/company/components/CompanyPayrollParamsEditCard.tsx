@@ -168,7 +168,7 @@ export function CompanyPayrollParamsEditCard({
       <p className="text-xs text-muted-foreground">
         Ces champs peuvent aussi être préremplis par un import DSN. Saisie manuelle en filet de
         sécurité. Changer un de ces réglages fait passer les bulletins déjà calculés « À
-        recalculer ».
+        recalculer », sauf le compte bancaire de la société, qui ne touche à aucun bulletin.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
@@ -320,6 +320,56 @@ export function CompanyPayrollParamsEditCard({
           ) : null}
           <ErreurChamp id="jour-solidarite-erreur" message={erreurs.jourSolidarite} />
         </div>
+
+        <fieldset className="space-y-2 sm:col-span-2">
+          <legend className="text-sm font-medium">Compte bancaire de la société</legend>
+          <Aide>
+            Le compte qui débite les salaires : il figure comme donneur d&apos;ordre dans les
+            fichiers de virement (salaires et acomptes). Sans lui, l&apos;aperçu du virement est
+            bloqué. Videz les trois champs pour le retirer.
+          </Aide>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1 sm:col-span-2">
+              <Label htmlFor="compte-iban">IBAN du compte</Label>
+              <Input
+                id="compte-iban"
+                value={saisie.compteIban}
+                onChange={(e) => modifier('compteIban', e.target.value)}
+                placeholder="FR76 …"
+                autoComplete="off"
+                aria-invalid={Boolean(erreurs.compteIban)}
+                aria-describedby={erreurs.compteIban ? 'compte-iban-erreur' : undefined}
+              />
+              <ErreurChamp id="compte-iban-erreur" message={erreurs.compteIban} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="compte-bic">BIC (facultatif)</Label>
+              <Input
+                id="compte-bic"
+                value={saisie.compteBic}
+                onChange={(e) => modifier('compteBic', e.target.value)}
+                placeholder="BNPAFRPP"
+                autoComplete="off"
+                aria-invalid={Boolean(erreurs.compteBic)}
+                aria-describedby={erreurs.compteBic ? 'compte-bic-erreur' : undefined}
+              />
+              <ErreurChamp id="compte-bic-erreur" message={erreurs.compteBic} />
+            </div>
+            <div className="space-y-1 sm:col-span-3">
+              <Label htmlFor="compte-titulaire">Titulaire du compte</Label>
+              <Input
+                id="compte-titulaire"
+                value={saisie.compteTitulaire}
+                onChange={(e) => modifier('compteTitulaire', e.target.value)}
+                placeholder="Vide : le nom de la société"
+                maxLength={70}
+                aria-invalid={Boolean(erreurs.compteTitulaire)}
+                aria-describedby={erreurs.compteTitulaire ? 'compte-titulaire-erreur' : undefined}
+              />
+              <ErreurChamp id="compte-titulaire-erreur" message={erreurs.compteTitulaire} />
+            </div>
+          </div>
+        </fieldset>
       </div>
       <Button type="button" size="sm" onClick={() => void handleSave()} disabled={saving}>
         {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}

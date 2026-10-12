@@ -67,7 +67,10 @@ describe('saisieInitiale', () => {
 describe('compte bancaire de la société', () => {
   const IBAN = 'FR7630001007941234567890185';
   const avecCompte = societe({
-    settings: { compte_bancaire: { iban: IBAN, bic: 'BNPAFRPP', titulaire: 'SAS Exemple' } },
+    settings: {
+      effectif_seuils: { [ANNEE]: 5 },
+      compte_bancaire: { iban: IBAN, bic: 'BNPAFRPP', titulaire: 'SAS Exemple' },
+    },
   });
   const sansCompte = societe();
 
@@ -142,7 +145,10 @@ describe('compte bancaire de la société', () => {
       compteIban: IBAN,
     });
     expect(champsNonRelus(corps, sansCompte)).toEqual(['Compte bancaire de la société']);
-    expect(champsNonRelus(corps, avecCompte)).toEqual([]);
+    const relue = societe({
+      settings: { effectif_seuils: { [ANNEE]: 5 }, compte_bancaire: { iban: IBAN } },
+    });
+    expect(champsNonRelus(corps, relue)).toEqual([]);
   });
 });
 

@@ -87,8 +87,17 @@ export interface CompanyDetails {
     jour_solidarite?: string | null;
     /** Effectif retenu pour les seuils, par année (`{"2026": 5}`). */
     effectif_seuils?: Record<string, number>;
+    /** Compte qui débite les salaires : donneur d'ordre des remises SEPA. */
+    compte_bancaire?: CompteBancaireSociete | null;
   };
   dsn_sync_mode?: DsnSyncMode | null;
+}
+
+/** Compte bancaire de la société (`settings.compte_bancaire`). BIC et titulaire peuvent être vides. */
+export interface CompteBancaireSociete {
+  iban: string;
+  bic?: string;
+  titulaire?: string;
 }
 
 /** Valeurs de `settings.date_paiement` connues du moteur de paie. */
@@ -201,6 +210,8 @@ export type CompanyDetailsUpdate = Partial<
   date_paiement?: DatePaiement | null;
   /** null retire la date. */
   jour_solidarite?: string | null;
+  /** Compte qui débite les salaires ; null le retire. */
+  compte_bancaire?: CompteBancaireSociete | null;
 };
 
 export async function fetchCompanyDetails(): Promise<CompanyDetailsPayload> {
