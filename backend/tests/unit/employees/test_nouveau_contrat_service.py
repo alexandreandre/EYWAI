@@ -105,7 +105,7 @@ def base(monkeypatch):
     b.periodes = []
     b.salaires = []
 
-    def ranger(employee_id, company_id, payload):
+    def ranger(employee_id, company_id, payload, fiche=None):
         b.journal.append(("periode", payload.contract_type, payload.date_debut.isoformat(), payload.date_fin.isoformat()))
         ligne = {"id": "periode-1", "contract_type": payload.contract_type,
                  "date_debut": payload.date_debut.isoformat(), "date_fin": payload.date_fin.isoformat()}
