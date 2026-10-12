@@ -34,6 +34,24 @@ describe('indemnité de congés de l’onglet Indemnités', () => {
     expect(totalBrutDesIndemnites(2500, 274.59, { mois: '09/2026', indemnite_conges: 164.04 })).toBe(2389.45);
   });
 
+  it('avec le bulletin de sortie, le calcul affiché est celui du bulletin', () => {
+    // Démission (relevé du 12/10/2026) : l’onglet disait « 1/10e 580,10 € »
+    // (estimation) quand le bulletin imprimait « dixième 588,00 ».
+    const calcul = 'période 2026-2027 : dixième 588,00 (10 % de 5 880,00) ou maintien 1 865,82 → 1 865,82.';
+    expect(
+      indemniteCongesAffichee(1865.82, { mois: '10/2026', indemnite_conges: 1865.82, calcul_conges: calcul })
+    ).toEqual({ montant: 1865.82, source: 'bulletin', mois: '10/2026', estimation: 1865.82, calcul });
+    expect(indemniteCongesAffichee(1865.82, null)).toEqual({ montant: 1865.82, source: 'estimation' });
+  });
+
+  it('l’onglet montre le calcul du bulletin à la place du détail de l’estimation', () => {
+    const source = readFileSync(
+      path.resolve(__dirname, '../../../components/exits/ExitDetailsPanel.tsx'),
+      'utf-8'
+    );
+    expect(source).toContain('congesAffichee.calcul');
+  });
+
   it('l’onglet n’écrit plus « Total net estimé »', () => {
     const source = readFileSync(
       path.resolve(__dirname, '../../../components/exits/ExitDetailsPanel.tsx'),

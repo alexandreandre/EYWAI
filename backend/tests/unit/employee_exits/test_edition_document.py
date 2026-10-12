@@ -162,7 +162,42 @@ def test_le_dossier_dit_ce_que_le_bulletin_de_sortie_a_verse():
             {"libelle": "Ind.de CP des CDD", "montant": 940.23},
         ],
         "indemnite_conges": 940.23,
+        "calcul_conges": None,
     }
+
+
+def test_l_onglet_indemnites_lit_le_calcul_des_conges_du_bulletin():
+    """Démission (relevé du 12/10/2026, vidéo H) : l'onglet montrait le dixième
+    de l'estimation (580,10 sur 5 800,97) quand le bulletin versait sur 5 880,00
+    (588,00). Une fois le bulletin généré, l'onglet lit sa phrase."""
+    mention = (
+        "Indemnité de congés payés de fin de contrat : période 2026-2027, 16,5 j restants "
+        "sur 16,5 : dixième 588,00 (10 % de 5 880,00 × 16,5/16,5) ou maintien 1 865,82 "
+        "(16,5 j × 113,08) → 1 865,82. Total 1 865,82."
+    )
+    dossier = _dossier_avec_bulletin({
+        "salaire_brut": 4315.82,
+        "net_a_payer": 3300.0,
+        "calcul_du_brut": [{"libelle": "Salaire de base", "gain": 2450.0}],
+        "details_conges": [
+            {"libelle": "Indemnité compensatrice de congés payés", "gain": 1865.82},
+        ],
+        "indemnite_cp_fin_contrat": {"total": 1865.82, "mention": mention},
+    })
+    assert dossier["bulletin_de_sortie"]["calcul_conges"] == mention
+
+
+def test_sans_phrase_par_periode_l_onglet_lit_l_arbitrage_imprime():
+    dossier = _dossier_avec_bulletin({
+        "salaire_brut": 2000.0,
+        "net_a_payer": 1500.0,
+        "calcul_du_brut": [],
+        "details_conges": [],
+        "arbitrage_conges": "L'indemnité compensatrice de congés payés a été calculée selon le maintien.",
+    })
+    assert dossier["bulletin_de_sortie"]["calcul_conges"] == (
+        "L'indemnité compensatrice de congés payés a été calculée selon le maintien."
+    )
 
 
 def _dossier_avec_bulletin(bulletin):
