@@ -26,7 +26,7 @@ import {
 } from "@/features/employees/components/EmployeesTableRow";
 import { salariesAvecNouveauEnTete } from "@/features/employees/utils/creationSalarie";
 import { pluriel } from '@/lib/pluriel';
-import { TITRE_ECHEANCES, messageEcheances } from '@/lib/libelleEcheances';
+import { TITRE_ECHEANCES, lignesTitresExpires, messageEcheances } from '@/lib/libelleEcheances';
 
 export default function Employees() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -206,6 +206,23 @@ export default function Employees() {
             {deadlineCandidatesQuery.isLoading
               ? "Chargement des échéances…"
               : messageEcheances(contractDeadlineIds?.size ?? 0)}
+            {lignesTitresExpires(deadlineCandidatesQuery.data).length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {lignesTitresExpires(deadlineCandidatesQuery.data).map((ligne) => (
+                  <li key={ligne.employee_id} className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-red-700">{ligne.texte}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 shrink-0"
+                      onClick={() => navigate(`/employees/${ligne.employee_id}`)}
+                    >
+                      Fiche
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       )}

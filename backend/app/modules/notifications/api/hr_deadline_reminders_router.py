@@ -9,7 +9,7 @@ from app.modules.notifications.application.hr_deadline_reminders import (
     fetch_employees_for_hr_deadline_reminders,
     send_hr_deadline_reminders,
 )
-from app.modules.employees.domain.deadline_reminders import list_hr_deadline_candidates
+from app.modules.employees.domain.deadline_reminders import echeances_a_suivre
 from app.modules.users.schemas.responses import User
 
 router = APIRouter(prefix="/api/hr-deadline-reminders", tags=["HR Deadline Reminders"])
@@ -36,9 +36,10 @@ def _company_id_rh(current_user: User = Depends(get_current_user)) -> str:
 def list_hr_deadline_candidates_endpoint(
     company_id: str = Depends(_company_id_rh),
 ):
-    """Salariés avec échéance CDD, période d'essai ou titre de séjour dans les fenêtres de relance."""
+    """Salariés avec échéance CDD, période d'essai ou titre de séjour dans les fenêtres
+    de relance, plus les titres de séjour déjà expirés, en tête ([D6-4])."""
     employees = fetch_employees_for_hr_deadline_reminders(company_id)
-    candidates = list_hr_deadline_candidates(employees)
+    candidates = echeances_a_suivre(employees)
     return [
         {
             "employee_id": c.employee_id,

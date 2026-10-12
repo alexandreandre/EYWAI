@@ -161,6 +161,42 @@ def list_hr_deadline_candidates(
     return candidates
 
 
+def echeances_a_suivre(
+    employees: List[Dict[str, Any]],
+    reference_date: Optional[date] = None,
+) -> List[DeadlineCandidate]:
+    """Le filtre « Échéances » : les relances, plus les titres de séjour déjà expirés.
+
+    Dès le lendemain de son expiration, un titre sortait de la fenêtre de 0 à 30
+    jours, donc du filtre : en mode paie, plus rien ne le montrait ([D6-4],
+    12/10/2026). Il y reste, en tête. Les relances par e-mail
+    (`list_hr_deadline_candidates`) ne changent pas : les étendre aux titres
+    expirés est une décision à prendre.
+    """
+    ref = reference_date or date.today()
+    candidats = list_hr_deadline_candidates(employees, ref)
+    for emp in employees:
+        if not _relance_le_titre(emp.get("employment_status")):
+            continue
+        echeance = _residence_deadline(emp)
+        employee_id = str(emp.get("id") or "").strip()
+        if echeance is None or not employee_id or echeance >= ref:
+            continue
+        first_name, last_name = _employee_name(emp)
+        candidats.append(
+            DeadlineCandidate(
+                employee_id=employee_id,
+                reminder_type=REMINDER_TYPE_RESIDENCE,
+                deadline=echeance,
+                days_remaining=days_until(echeance, ref),
+                label=f"Titre de séjour expiré le {echeance.strftime('%d/%m/%Y')}",
+                first_name=first_name,
+                last_name=last_name,
+            )
+        )
+    return sorted(candidats, key=lambda c: (c.days_remaining, c.last_name, c.first_name))
+
+
 def count_expiring_cdds(
     employees: List[Dict[str, Any]],
     reference_date: Optional[date] = None,
