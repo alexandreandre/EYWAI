@@ -1,6 +1,12 @@
 import type { ExportPreviewResponse, ExportType } from "@/api/exports";
 
-const EMPTY_DATA_PATTERN = /aucun(e)?\s|aucune\s|pas de\s|pas d'/i;
+/**
+ * Un message de vide du serveur commence par « Aucun », « Aucune » ou « Pas de ».
+ * Ancré en début de message : cherché n'importe où, il masquait le message
+ * « DSN pas encore déposable… » (« …qui ne figurent sur aucun bulletin… ») et
+ * l'aperçu affichait à la place « Pas de salarié à inclure dans la DSN » [I1].
+ */
+const EMPTY_DATA_PATTERN = /^\s*(aucune?\s|pas de\s|pas d['’])/i;
 
 const EMPTY_EXPORT_LABELS: Partial<Record<ExportType, string>> = {
   notes_frais: "note de frais",
