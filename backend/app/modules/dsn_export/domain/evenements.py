@@ -35,6 +35,8 @@ MOTIF_ARRET = {
     "arret_at": "06",
 }
 MOTIF_ACCIDENT_TRAJET = "04"
+#: Adoption, saisie sous la nature maternité ou paternité (cahier technique 2026.1).
+MOTIF_ADOPTION = "09"
 #: Accident et maladie professionnelle : le jour de l'accident est
 #: travaillé (60.002). Leur date (60.012) relève du signalement d'arrêt.
 MOTIFS_ACCIDENT = {"04", "05", "06"}
@@ -133,6 +135,8 @@ def _motif_arret(absence: Dict[str, Any]) -> Optional[str]:
     motif = MOTIF_ARRET.get(str(absence.get("type") or ""))
     if motif == "06" and "trajet" in str(absence.get("arret_type") or ""):
         return MOTIF_ACCIDENT_TRAJET
+    if motif in ("02", "03") and str(absence.get("arret_type") or "") == "adoption":
+        return MOTIF_ADOPTION
     return motif
 
 
