@@ -14,6 +14,24 @@ export function documentsDeSortieGrises(
 }
 
 /**
+ * [D3] Clôturer avant le bulletin de sortie ne bloque rien : le bulletin reste à
+ * générer dans la Paie jusqu'à la date de sortie. La fenêtre de clôture le dit
+ * (rien n'était dit, relevé du 12/10/2026).
+ */
+export function avertissementClotureSansBulletin(
+  bulletinDeSortie: { mois?: string } | null | undefined,
+  lastWorkingDay: string | null | undefined
+): string | null {
+  if (bulletinDeSortie != null) return null;
+  const jour = (lastWorkingDay ?? '').slice(0, 10);
+  const mois = /^\d{4}-\d{2}-\d{2}$/.test(jour) ? ` de ${jour.slice(5, 7)}/${jour.slice(0, 4)}` : '';
+  return (
+    `Le bulletin de sortie${mois} n’est pas encore généré. Vous pouvez clôturer : ` +
+    'il restera à générer dans la Paie, avant un éventuel nouveau contrat.'
+  );
+}
+
+/**
  * Notes du départ qui mettent des documents générés « à revoir » : type ou date
  * de départ changés, et bulletin recalculé après leur génération (le solde de
  * tout compte et l'attestation France Travail en reprennent les montants). Un

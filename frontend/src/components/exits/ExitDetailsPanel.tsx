@@ -82,6 +82,7 @@ import {
 import { employeeDocumentsPath } from '@/lib/employeeExitDocumentsAccess';
 import {
   MESSAGE_GENERER_DABORD_BULLETIN,
+  avertissementClotureSansBulletin,
   documentModifiable,
   documentsARevoir,
   documentsDeSortieGrises,
@@ -1560,6 +1561,22 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                 <span>
                   Le dernier jour travaillé ({formatDate(exitDetails.last_working_day)})
                   n'est pas encore passé. Vous pouvez tout de même clôturer, mais vérifiez la date.
+                </span>
+              </div>
+            </div>
+          )}
+          {avertissementClotureSansBulletin(
+            exitDetails.bulletin_de_sortie,
+            exitDetails.last_working_day
+          ) && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  {avertissementClotureSansBulletin(
+                    exitDetails.bulletin_de_sortie,
+                    exitDetails.last_working_day
+                  )}
                 </span>
               </div>
             </div>

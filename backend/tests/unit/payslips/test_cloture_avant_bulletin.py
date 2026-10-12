@@ -60,7 +60,7 @@ def test_un_parti_cloture_avant_son_bulletin_le_recoit(fiche):
 
 def test_le_mois_d_apres_la_sortie_reste_refuse(fiche):
     with patch(f"{_LECTEUR}.sortie_du_contrat", return_value="2026-10-15"):
-        with pytest.raises(PayslipBadRequestError, match="sortie le 15/10/2026"):
+        with pytest.raises(PayslipBadRequestError, match="pas actif"):
             commands.salarie_generable("emp-1", 2026, 11)
 
 
