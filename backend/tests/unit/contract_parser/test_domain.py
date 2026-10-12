@@ -49,7 +49,7 @@ class TestExtractionResult:
     def test_is_frozen(self):
         """ExtractionResult est immutable (frozen dataclass) : réassignation interdite."""
         result = ExtractionResult(
-            extracted_data={"iban": "FR7612345678901234567890123"},
+            extracted_data={"iban": "FR7630001007941234567890185"},
             confidence="medium",
             warnings=[],
         )

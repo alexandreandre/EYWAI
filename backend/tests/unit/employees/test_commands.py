@@ -59,7 +59,7 @@ def _minimal_employee_data():
         "nationalite": "Française",
         "adresse": {"rue": "1 rue Test", "ville": "Paris", "code_postal": "75001"},
         "coordonnees_bancaires": {
-            "iban": "FR7612345678901234567890123",
+            "iban": "FR7630001007941234567890185",
             "bic": "BNPAFRPP",
         },
         "hire_date": "2024-01-01",
@@ -222,7 +222,7 @@ def test_update_employee_merges_specificites_paie(mock_emp_repo):
             "nir": "1850574001234",
             "date_naissance": "1985-05-01",
             "adresse": {"rue": "1 rue Test"},
-            "coordonnees_bancaires": {"iban": "FR7612345678901234567890123"},
+            "coordonnees_bancaires": {"iban": "FR7630001007941234567890185"},
             "salaire_de_base": {"valeur": 2500},
         },
         {
@@ -235,7 +235,7 @@ def test_update_employee_merges_specificites_paie(mock_emp_repo):
             "nir": "1850574001234",
             "date_naissance": "1985-05-01",
             "adresse": {"rue": "1 rue Test"},
-            "coordonnees_bancaires": {"iban": "FR7612345678901234567890123"},
+            "coordonnees_bancaires": {"iban": "FR7630001007941234567890185"},
             "salaire_de_base": {"valeur": 2500},
         },
     ]
@@ -269,7 +269,7 @@ def test_update_employee_success_returns_updated_data(mock_emp_repo):
         "first_name": "Jean",
         "last_name": "Dupont",
         "phone_number": "+33600000000",
-        "coordonnees_bancaires": {"iban": "FR7612345678901234567890123", "bic": "BNPAFRPP"},
+        "coordonnees_bancaires": {"iban": "FR7630001007941234567890185", "bic": "BNPAFRPP"},
         "employment_status": "actif",
         "nir": "1850574001234",
         "date_naissance": "1985-05-01",
@@ -304,7 +304,7 @@ def test_update_employee_completes_onboarding_and_activates(
         "nir": "1850574001234",
         "date_naissance": "1985-05-01",
         "adresse": {"rue": "1 rue Test", "ville": "Paris"},
-        "coordonnees_bancaires": {"iban": "FR7612345678901234567890123"},
+        "coordonnees_bancaires": {"iban": "FR7630001007941234567890185"},
         "salaire_de_base": {"valeur": 2500},
     }
     activated_employee = {
@@ -324,7 +324,7 @@ def test_update_employee_completes_onboarding_and_activates(
             "nir": "1850574001234",
             "date_naissance": "1985-05-01",
             "adresse": {"rue": "1 rue Test", "ville": "Paris"},
-            "coordonnees_bancaires": {"iban": "FR7612345678901234567890123"},
+            "coordonnees_bancaires": {"iban": "FR7630001007941234567890185"},
             "salaire_de_base": {"valeur": 2500},
         },
     )
@@ -344,7 +344,7 @@ def test_update_employee_contract_and_specificites_paie(mock_emp_repo):
         "nir": "1850574001234",
         "date_naissance": "1985-05-01",
         "adresse": {"rue": "1 rue Test", "ville": "Paris"},
-        "coordonnees_bancaires": {"iban": "FR7612345678901234567890123"},
+        "coordonnees_bancaires": {"iban": "FR7630001007941234567890185"},
         "salaire_de_base": {"valeur": 2500},
         "specificites_paie": {"is_alsace_moselle": False},
     }

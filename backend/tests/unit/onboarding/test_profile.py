@@ -18,7 +18,7 @@ def _complete_employee():
         "nir": "1850574001234",
         "date_naissance": date(1985, 5, 1),
         "adresse": {"voie": "1 rue de la Paix", "ville": "Paris"},
-        "coordonnees_bancaires": {"iban": "FR7612345678901234567890123"},
+        "coordonnees_bancaires": {"iban": "FR7630001007941234567890185"},
         "salaire_de_base": {"montant": 2500},
     }
 

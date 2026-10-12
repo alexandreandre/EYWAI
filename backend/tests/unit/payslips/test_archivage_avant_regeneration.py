@@ -28,7 +28,7 @@ EMPLOYEE = {
     "nir": "1850574001234",
     "date_naissance": "1985-05-01",
     "adresse": {"ville": "Paris"},
-    "coordonnees_bancaires": {"iban": "FR7612345678901234567890123"},
+    "coordonnees_bancaires": {"iban": "FR7630001007941234567890185"},
     "salaire_de_base": {"montant": 2500},
     "statut": "Non-Cadre",
     "is_forfait_jour": False,

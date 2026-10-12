@@ -2,7 +2,6 @@
 # Migré depuis services/exports/paiement_salaires.py. Export Paiement des salaires.
 
 import json
-import re
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -14,15 +13,10 @@ from app.shared.domain.pluriel import accord, pluriel
 
 
 def validate_iban(iban: str) -> bool:
-    """Valide le format d'un IBAN"""
-    if not iban:
-        return False
-    iban_clean = iban.replace(" ", "").replace("-", "").upper()
-    if len(iban_clean) < 15 or len(iban_clean) > 34:
-        return False
-    if not re.match(r"^[A-Z]{2}[0-9]{2}[A-Z0-9]+$", iban_clean):
-        return False
-    return True
+    """Valide un IBAN (format, longueur du pays, clé mod 97)."""
+    from app.shared.utils.iban import validate_iban as _validate
+
+    return _validate(iban)
 
 
 def mask_iban(iban: str) -> str:
