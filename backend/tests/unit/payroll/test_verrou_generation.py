@@ -94,20 +94,30 @@ def test_le_verrou_vit_tant_que_la_generation_tourne(monkeypatch, verrous_de_gen
     génération, 12/10/2026 : 42 s sans une requête, puis 409 pendant 5 minutes).
     Le verrou est donc court et prolongé tant que la génération tourne : mort
     avec elle, il libère le bulletin en une minute."""
+    import threading
     import time
 
-    prolongations = []
+    # Déterministe sous charge (lot 38) : on attend la première prolongation au
+    # lieu de parier sur 0,1 s de sommeil, et une prolongation lancée juste avant
+    # la fin (`_prolonger` qui traîne) doit être finie quand le bloc rend la main.
+    premiere = threading.Event()
+    etat = {"dans_le_bloc": True}
+    prolongations: list[tuple[str, bool]] = []
+
+    def prolonger(params):
+        premiere.set()
+        time.sleep(0.05)  # une requête de prolongation qui traîne
+        prolongations.append((params["p_jeton"], etat["dans_le_bloc"]))
+
     monkeypatch.setattr(verrou_generation, "INTERVALLE_PROLONGATION_SECONDES", 0.01)
-    monkeypatch.setattr(
-        verrou_generation, "_prolonger", lambda params: prolongations.append(params["p_jeton"])
-    )
+    monkeypatch.setattr(verrou_generation, "_prolonger", prolonger)
     with verrou_de_generation("e1", 2026, 8):
-        time.sleep(0.1)
-    assert prolongations, "le verrou n'a pas été prolongé pendant la génération"
-    assert len(set(prolongations)) == 1
-    apres = len(prolongations)
-    time.sleep(0.05)
-    assert len(prolongations) == apres, "le verrou est encore prolongé après la génération"
+        assert premiere.wait(10), "le verrou n'a pas été prolongé pendant la génération"
+    etat["dans_le_bloc"] = False
+    time.sleep(0.2)
+    assert prolongations
+    assert len({jeton for jeton, _ in prolongations}) == 1
+    assert all(dans for _, dans in prolongations), "le verrou est encore prolongé après la génération"
     assert verrous_de_generation.tenus == {}
 
 
