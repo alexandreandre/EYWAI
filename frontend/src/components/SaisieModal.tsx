@@ -48,7 +48,12 @@ import type { BonusType } from "@/api/bonusTypes";
 import { estRoleRh } from '@/lib/rolesRh';
 import { SENS_SAISIE, champsDeLaSaisie, type SensSaisie } from '@/components/saisies/sensSaisie';
 import { chargerCatalogueDePrimes } from '@/components/saisies/catalogueDePrimes';
-import { phraseBrutDeLaPrime, requeteBrutDeLaPrime } from '@/components/saisies/brutDeLaPrime';
+import {
+  explicationAffichee,
+  phraseBrutDeLaPrime,
+  requeteBrutDeLaPrime,
+  type CalculBrutDeLaPrime,
+} from '@/components/saisies/brutDeLaPrime';
 import { getUserErrorMessage } from '@/lib/errorMessages';
 import { LIBELLE_SOUMISE_COTISATIONS, LIBELLE_SOUMISE_IMPOT, phraseSaisiePonctuelle } from '@/components/saisies/libellesSaisie';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -113,8 +118,9 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
   const [isCalculating, setIsCalculating] = useState(false);
   const [isReverseCalculating, setIsReverseCalculating] = useState(false);
   const [netTarget, setNetTarget] = useState<number | "">("");
-  // Ce que le brut proposé représente, tant que le montant n'a pas été retouché.
-  const [brutDeLaPrime, setBrutDeLaPrime] = useState<string | null>(null);
+  // Ce que le brut proposé représente : affiché tant que le montant et les
+  // cases de la prime sont ceux du calcul (`explicationAffichee`).
+  const [brutDeLaPrime, setBrutDeLaPrime] = useState<CalculBrutDeLaPrime | null>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
 
@@ -152,6 +158,8 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
       setCatalogPrimeId(null);
       setShowCreatePrimeForm(false);
       setIsCalculating(false);
+      setBrutDeLaPrime(null);
+      setNetTarget("");
       if (employeeScopeId) {
         setFormData(prev => ({ ...prev, selectedEmployees: [employeeScopeId] }));
       }
@@ -199,7 +207,12 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
         ...p,
         amount: Math.round(result.brut_calcule * 100) / 100,
       }));
-      setBrutDeLaPrime(phraseBrutDeLaPrime(result));
+      setBrutDeLaPrime({
+        texte: phraseBrutDeLaPrime(result),
+        montant: Math.round(result.brut_calcule * 100) / 100,
+        soumiseACotisations: formData.is_socially_taxed,
+        soumiseAImpot: formData.is_taxable,
+      });
       toast({
         title: "Brut de la prime calculé",
         description: `Montant brut proposé : ${result.brut_calcule.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}`,
@@ -717,10 +730,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                 <Input
                   type="number"
                   value={formData.amount}
-                  onChange={e => {
-                    setBrutDeLaPrime(null);
-                    setFormData(p => ({ ...p, amount: e.target.value ? parseFloat(e.target.value) : '' }));
-                  }}
+                  onChange={e => setFormData(p => ({ ...p, amount: e.target.value ? parseFloat(e.target.value) : '' }))}
                   disabled={isCalculating || (selectedBonusTypeId && bonusTypes.find(bt => bt.id === selectedBonusTypeId)?.type === "selon_heures")}
                 />
                 <div className="flex flex-col gap-2 rounded-md border border-dashed p-3 sm:flex-row sm:items-end">
@@ -751,8 +761,10 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                     {isReverseCalculating ? "Calcul…" : "Calculer le brut de la prime"}
                   </Button>
                 </div>
-                {brutDeLaPrime && (
-                  <p className="text-xs text-muted-foreground">{brutDeLaPrime}</p>
+                {explicationAffichee(brutDeLaPrime, formData) && (
+                  <p className="text-xs text-muted-foreground">
+                    {explicationAffichee(brutDeLaPrime, formData)}
+                  </p>
                 )}
                 {selectedBonusTypeId && bonusTypes.find(bt => bt.id === selectedBonusTypeId)?.type === "selon_heures" && (
                   <p className="text-xs text-muted-foreground">

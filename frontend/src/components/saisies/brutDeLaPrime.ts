@@ -76,3 +76,27 @@ export function phraseBrutDeLaPrime(resultat: ResultatPrime): string {
     `enregistrées). Coût pour l’employeur : ${FORMAT_EUROS.format(cout)}.`
   );
 }
+
+/** Un calcul du brut de la prime : sa phrase, et le montant et les cases qu'elle décrit. */
+export type CalculBrutDeLaPrime = {
+  texte: string;
+  montant: number;
+  soumiseACotisations: boolean;
+  soumiseAImpot: boolean;
+};
+
+/**
+ * La phrase à afficher sous le champ : celle du calcul tant que le montant et
+ * les cases « soumise » de la prime sont ceux qu'elle décrit ; null sinon.
+ */
+export function explicationAffichee(
+  calcul: CalculBrutDeLaPrime | null,
+  saisie: { amount: number | ''; is_socially_taxed: boolean; is_taxable: boolean }
+): string | null {
+  if (!calcul || saisie.amount === '') return null;
+  const memeMontant = Math.abs(Number(saisie.amount) - calcul.montant) < 0.005;
+  const memesCases =
+    saisie.is_socially_taxed === calcul.soumiseACotisations &&
+    saisie.is_taxable === calcul.soumiseAImpot;
+  return memeMontant && memesCases ? calcul.texte : null;
+}
