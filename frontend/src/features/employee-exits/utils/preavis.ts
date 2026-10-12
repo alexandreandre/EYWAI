@@ -51,3 +51,15 @@ export function libelleSourcePreavis(source: string): string {
       return 'Non déterminé';
   }
 }
+
+/** Les départs dont l'écran saisit la durée et l'exécution du préavis : la
+ * démission, le licenciement, le départ et la mise à la retraite (L1237-6 et
+ * L1237-10 renvoient au préavis du licenciement, L1234-1). */
+export function preavisASaisir(exitType: string): boolean {
+  return (
+    exitType === 'demission' ||
+    exitType === 'licenciement' ||
+    exitType === 'depart_retraite' ||
+    exitType === 'fin_periode_essai'
+  );
+}

@@ -30,6 +30,7 @@ import {
   OPTIONS_PREAVIS,
   PREAVIS_PAR_DEFAUT,
   libelleSourcePreavis,
+  preavisASaisir,
   typePreavisApresApercu,
   typePreavisApresSaisie,
   type TypePreavis,
@@ -234,12 +235,7 @@ export function CreateExitDialog({
     if (value !== 'licenciement') {
       setIsGrossMisconduct(false);
     }
-    if (
-      value === 'rupture_conventionnelle' ||
-      value === 'depart_retraite' ||
-      value === 'fin_cdd' ||
-      value === 'transfert'
-    ) {
+    if (!preavisASaisir(value)) {
       setNoticePeriodDays(0);
       setNoticeIndemnityType('not_applicable');
     }
@@ -341,8 +337,7 @@ export function CreateExitDialog({
     }
   };
 
-  const showNoticeSection =
-    exitType === 'demission' || exitType === 'licenciement' || exitType === 'fin_periode_essai';
+  const showNoticeSection = preavisASaisir(exitType);
 
   const noticeDateWarning =
     noticePreview?.applicable &&
@@ -527,9 +522,9 @@ export function CreateExitDialog({
                   onChange={(e) => handleNoticePeriodChange(parseInt(e.target.value, 10) || 0)}
                 />
                 <p className="text-sm text-muted-foreground">
-                  Valeur proposée par la convention collective ou, pour un licenciement, le Code
-                  du travail. La loi ne fixe pas de préavis de démission : saisissez celui de la
-                  convention, du contrat ou des usages.
+                  Valeur proposée par la convention collective ou, pour un licenciement, un
+                  départ ou une mise à la retraite, le Code du travail. La loi ne fixe pas de
+                  préavis de démission : saisissez celui de la convention, du contrat ou des usages.
                 </p>
               </div>
 

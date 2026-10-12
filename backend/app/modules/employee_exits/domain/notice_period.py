@@ -10,7 +10,10 @@ Ce que dit la loi (sources ouvertes le 11/10/2026) :
 - licenciement : Code du travail L1234-1 (en vigueur depuis le 01/05/2008),
   un mois de six mois à moins de deux ans d'ancienneté, deux mois au-delà ;
   sous six mois, la loi, la convention ou les usages. La loi ne distingue pas
-  les cadres : leurs durées plus longues sont conventionnelles.
+  les cadres : leurs durées plus longues sont conventionnelles ;
+- départ et mise à la retraite : Code du travail L1237-10 et L1237-6 (en
+  vigueur depuis le 01/05/2008), le préavis « dont la durée est déterminée
+  conformément à l'article L. 1234-1 » : celui du licenciement.
 Logique pure : aucune I/O.
 """
 
@@ -96,14 +99,14 @@ def _legal_notice_days(
             applicable=False,
         )
 
-    if exit_type in ("rupture_conventionnelle", "depart_retraite"):
+    if exit_type == "rupture_conventionnelle":
         return NoticePeriodResult(
             days=0,
             source="not_applicable",
             label="Préavis non applicable",
             detail=(
-                "La rupture conventionnelle et le départ à la retraite ne prévoient pas "
-                "de préavis standard — la date de fin est fixée d'un commun accord."
+                "La rupture conventionnelle ne prévoit pas de préavis : la date de fin est "
+                "fixée dans la convention."
             ),
             applicable=False,
         )
@@ -148,7 +151,7 @@ def _legal_notice_days(
             applicable=False,
         )
 
-    if exit_type not in ("demission", "licenciement"):
+    if exit_type not in ("demission", "licenciement", "depart_retraite"):
         return NoticePeriodResult(
             days=0,
             source="none",
@@ -172,15 +175,20 @@ def _legal_notice_days(
             employee_category=category,
         )
 
+    # Départ ou mise à la retraite : le préavis du licenciement (L1237-6, L1237-10).
+    retraite = exit_type == "depart_retraite"
+    objet = "de départ ou de mise à la retraite" if retraite else "de licenciement"
+    renvoi = "Code du travail L1237-6 et L1237-10, renvoyant à L1234-1" if retraite else "Code du travail L1234-1"
+
     if seniority_months < 6:
         return NoticePeriodResult(
             days=0,
             source="legal",
             label="Aucun préavis légal minimum",
             detail=(
-                "Ancienneté inférieure à 6 mois : la durée du préavis de licenciement est "
+                f"Ancienneté inférieure à 6 mois : la durée du préavis {objet} est "
                 "celle de la convention, de l'accord collectif ou, à défaut, des usages "
-                "(Code du travail L1234-1, 1°)."
+                f"({renvoi}, 1°)."
             ),
             seniority_months=seniority_months,
             employee_category=category,
@@ -197,7 +205,7 @@ def _legal_notice_days(
         source="legal",
         label=f"{days} jours",
         detail=(
-            f"Préavis légal de licenciement (Code du travail L1234-1) : ancienneté {tranche}, "
+            f"Préavis légal {objet} ({renvoi}) : ancienneté {tranche}, "
             f"{mois} mois ({days} jours calendaires). La convention collective peut prévoir "
             "plus long."
         ),
@@ -257,6 +265,8 @@ def _convention_notice_days(
     exit_key_map = {
         "demission": ("demission", "demission_salarie", "salarie"),
         "licenciement": ("licenciement", "licenciement_employeur", "employeur"),
+        # L1237-6 et L1237-10 : le préavis du licenciement.
+        "depart_retraite": ("depart_retraite", "retraite", "licenciement", "licenciement_employeur", "employeur"),
     }
     keys = exit_key_map.get(exit_type)
     if not keys:
