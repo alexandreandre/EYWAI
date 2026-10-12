@@ -469,6 +469,30 @@ class TestDeleteAdvancePayment:
         assert result == {"success": True}
         pay_repo.delete.assert_called_once_with("pay-1")
 
+    def test_delete_retire_la_preuve_et_remet_l_avance_a_verser(self):
+        """Le seul versement supprimé : la preuve quitte le stockage, l'avance
+        redevient « À verser » (reste à verser = montant approuvé)."""
+        payment_with_advance = {
+            "id": "pay-1",
+            "advance_id": "adv-1",
+            "proof_file_path": "user-1/preuve.pdf",
+            "advance": {"id": "adv-1", "approved_amount": 300, "remaining_amount": 300},
+        }
+        with patch(
+            f"{SERVICE_MODULE}.get_payment_with_advance",
+            return_value=payment_with_advance,
+        ), patch(f"{SERVICE_MODULE}.advance_payment_repository") as pay_repo, patch(
+            f"{SERVICE_MODULE}.advance_repository"
+        ) as adv_repo, patch(f"{SERVICE_MODULE}.advance_payment_storage") as stockage:
+            pay_repo.get_total_paid_by_advance_id.return_value = Decimal("0")
+            commands.delete_advance_payment("pay-1")
+
+        stockage.remove.assert_called_once_with("user-1/preuve.pdf")
+        pay_repo.delete.assert_called_once_with("pay-1")
+        adv_repo.update.assert_called_once_with(
+            "adv-1", {"status": "approved", "payment_date": None, "payment_method": None}
+        )
+
     def test_delete_advance_payment_not_found_raises(self):
         with patch(f"{SERVICE_MODULE}.get_payment_with_advance", return_value=None):
             with pytest.raises(Exception) as exc_info:

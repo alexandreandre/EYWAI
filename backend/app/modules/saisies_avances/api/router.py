@@ -164,7 +164,19 @@ def _require_payment_scope(
     payment = queries.get_payment_with_advance(payment_id)
     if not payment:
         raise HTTPException(status_code=404, detail="Paiement non trouvé.")
-    advance = payment.get("salary_advances") or payment.get("advance") or {}
+    # La jointure du paiement ne porte ni la société ni le salarié de l'avance :
+    # l'avance se relit par son id, comme pour `_require_advance_scope`. Lue
+    # dans la jointure, la société était vide et tout versement répondait 404
+    # (suppression et preuve impossibles, rejeu G.2 du 11/10/2026).
+    advance_id = str(
+        payment.get("advance_id") or (payment.get("advance") or {}).get("id") or ""
+    )
+    if not advance_id:
+        raise HTTPException(status_code=404, detail="Paiement non trouvé.")
+    try:
+        advance = queries.get_salary_advance(advance_id) or {}
+    except SaisiesAvancesError:
+        raise HTTPException(status_code=404, detail="Paiement non trouvé.")
     if str(advance.get("company_id") or "") != str(company_id):
         raise HTTPException(status_code=404, detail="Paiement non trouvé.")
     _require_advance_employee_access(
