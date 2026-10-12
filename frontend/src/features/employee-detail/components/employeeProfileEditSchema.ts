@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { needsContractEndDate } from '@/constants/contracts';
 import { FORMAT_PCS_ESE } from '@/constants/dsnFiche';
-import { bicFieldSchema, ibanFieldSchema } from '@/lib/ibanSchema';
+import { ibanProblem } from '@/lib/iban';
+import { bicFieldSchema } from '@/lib/ibanSchema';
 import { isEmployeeCadre } from '@/lib/mutuelleUtils';
 import { MESSAGE_SALAIRE_TROP_ELEVE, SALAIRE_MENSUEL_MAXIMUM } from '@/lib/salaireVraisemblable';
 
@@ -29,7 +30,8 @@ export const employeeProfileEditSchema = z
       ville: z.string().min(2, { message: 'Ville requise.' }),
     }),
     coordonnees_bancaires: z.object({
-      iban: ibanFieldSchema,
+      // Facultatif pour un salarié payé par chèque ou en espèces (voir plus bas).
+      iban: z.string(),
       bic: bicFieldSchema,
     }),
     hire_date: z.string().refine((d) => d && !Number.isNaN(Date.parse(d)), {
@@ -124,6 +126,19 @@ export const employeeProfileEditSchema = z
     residence_permit_number: z.string().optional(),
   })
   .superRefine((data, ctx) => {
+    // Pas de RIB à exiger hors virement ; un IBAN saisi doit rester juste.
+    const sansVirement =
+      data.salary_payment_method === 'cheque' || data.salary_payment_method === 'especes';
+    if (!(sansVirement && !data.coordonnees_bancaires.iban.trim())) {
+      const probleme = ibanProblem(data.coordonnees_bancaires.iban);
+      if (probleme) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: probleme,
+          path: ['coordonnees_bancaires', 'iban'],
+        });
+      }
+    }
     if (needsContractEndDate(data.contract_type) && !data.contract_end_date?.trim()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

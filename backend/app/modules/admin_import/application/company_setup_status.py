@@ -12,7 +12,11 @@ from app.modules.dsn_import.application.coverage import (
     count_timeline_coverage,
     is_dsn_coverage_complete,
 )
-from app.modules.onboarding.domain.profile import is_profile_complete, missing_payroll_fields
+from app.modules.onboarding.domain.profile import (
+    is_profile_complete,
+    missing_payroll_fields,
+    paye_sans_virement,
+)
 from app.modules.admin_import.application.payroll_export_teams import (
     mod_moi_team_mapping_info,
 )
@@ -44,7 +48,8 @@ def _employees_stats(company_id: str) -> Dict[str, Any]:
         .table("employees")
         .select(
             "id, employment_status, "
-            "coordonnees_bancaires, nir, date_naissance, adresse, salaire_de_base"
+            "coordonnees_bancaires, nir, date_naissance, adresse, salaire_de_base, "
+            "salary_payment_method"
         )
         .eq("company_id", company_id)
         .execute()
@@ -65,7 +70,7 @@ def _employees_stats(company_id: str) -> Dict[str, Any]:
             enriched["missing_payroll_fields"] = missing_payroll_fields(enriched)
         if enriched.get("profile_complete"):
             complete += 1
-        if not has_valid_iban(emp.get("coordonnees_bancaires")):
+        if not paye_sans_virement(emp) and not has_valid_iban(emp.get("coordonnees_bancaires")):
             missing_rib += 1
     pct = round(100.0 * complete / total, 1) if total else 0.0
     return {
