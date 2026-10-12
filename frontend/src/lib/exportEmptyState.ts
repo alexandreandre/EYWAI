@@ -85,7 +85,9 @@ export function getEmptyExportAlertMessage(
   const subject = EMPTY_EXPORT_LABELS[exportType];
 
   if (subject) {
-    return `Pas de ${subject} pour ${periodLabel}.`;
+    // « Pas d'acompte à virer », pas « Pas de acompte » (relevé I.2).
+    const pasDe = /^[aeiouyhàâäéèêëîïôöùûüœæ]/i.test(subject) ? "Pas d'" : "Pas de ";
+    return `${pasDe}${subject} pour ${periodLabel}.`;
   }
 
   const emptyWarning = preview.warnings.find(isEmptyDataMessage);

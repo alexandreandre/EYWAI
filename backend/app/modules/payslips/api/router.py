@@ -270,6 +270,7 @@ def generate_payslip_route(
             "salaire_brut": result.salaire_brut,
             "net_a_payer": result.net_a_payer,
             "heures_sup": result.heures_sup,
+            "mois_suivant_a_recalculer": result.mois_suivant_a_recalculer,
         }
     except HTTPException:
         raise

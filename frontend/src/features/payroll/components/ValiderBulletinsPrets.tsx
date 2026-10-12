@@ -37,6 +37,8 @@ type Props = {
   nomParBulletin: Readonly<Record<string, string>>;
   companyId: string | null | undefined;
   titreMois: string;
+  /** Mois précédent à recalculer pour certains salariés : dit sans bloquer. */
+  avertissement?: string | null;
   disabled?: boolean;
   /** Recharge les bulletins du mois, réussite ou échec. */
   onTermine: () => Promise<void> | void;
@@ -48,6 +50,7 @@ export function ValiderBulletinsPrets({
   nomParBulletin,
   companyId,
   titreMois,
+  avertissement = null,
   disabled = false,
   onTermine,
 }: Props) {
@@ -110,6 +113,11 @@ export function ValiderBulletinsPrets({
               précédent. Chaque salarié verra son bulletin dans son espace et en sera prévenu. Les
               bulletins à revoir ne sont pas validés : ouvrez-les un par un.
             </AlertDialogDescription>
+            {avertissement ? (
+              <p className="text-sm text-amber-700" data-testid="validation-mois-precedent">
+                {avertissement}
+              </p>
+            ) : null}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>

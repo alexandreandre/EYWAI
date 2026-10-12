@@ -953,8 +953,9 @@ def _generate_od(
         "generated_by": user_id,
     }
     export_id = commands.record_export_history(export_record)
+    nombre_salaries = int(od_totals.get("employees_count") or 0)
     totals_export = ExportTotals(
-        employees_count=0, total_amount=od_totals["total_debit"]
+        employees_count=nombre_salaries, total_amount=od_totals["total_debit"]
     )
 
     return ExportGenerateResponse(
@@ -975,7 +976,7 @@ def _generate_od(
             period=request.period,
             generated_at=datetime.now(),
             generated_by=user_name,
-            employees_count=0,
+            employees_count=nombre_salaries,
             totals=totals_export,
             anomalies=[ExportAnomaly(**a) for a in anomalies_list],
             warnings=warnings_list,

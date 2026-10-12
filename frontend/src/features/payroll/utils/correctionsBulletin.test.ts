@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   aDesModifications,
   avecSaisiesSurLeNet,
+  descriptionHeuresSupDuMois,
+  MESSAGE_AUCUNE_PRIME,
+  saisiesApresLeCalcul,
   titreDuBulletin,
   etatInitial,
   heuresDeclarees,
@@ -262,5 +265,64 @@ describe('montantCorrigeDeLaPrime : corriger le montant garde le sens', () => {
     expect(requeteDeCorrection(initial, courant, null).corrections.primes_corrigees).toEqual([
       { saisie_id: 's', amount: -201 },
     ]);
+  });
+});
+
+describe('descriptionHeuresSupDuMois : les heures déclarées ne remplacent pas les structurelles', () => {
+  it('un 39 h : les structurelles du contrat restent payées en plus des heures déclarées', () => {
+    const texte = descriptionHeuresSupDuMois(bulletin);
+    expect(texte).toContain('au-delà de l’horaire du contrat');
+    expect(texte).toContain('remplacent celles du planning');
+    expect(texte).toContain('Les 17,33 h structurelles du contrat restent payées en plus.');
+  });
+
+  it('un 35 h : pas de phrase sur des structurelles qu’il n’a pas', () => {
+    const texte = descriptionHeuresSupDuMois({ calcul_du_brut: [base, hs25] });
+    expect(texte).not.toContain('structurelles');
+    expect(texte).toContain('remplacent celles du planning');
+  });
+
+  it('une réduction des structurelles pour absence n’est pas comptée comme des heures', () => {
+    const reduction = { libelle: 'Réduction HS structurelles (jours d\'absence)', quantite: 3.9, perte: 70 };
+    const texte = descriptionHeuresSupDuMois({ calcul_du_brut: [base, structurelles, reduction] });
+    expect(texte).toContain('Les 17,33 h structurelles');
+  });
+});
+
+describe('saisiesApresLeCalcul : une prime saisie après le calcul n’est pas « aucune prime »', () => {
+  const calculeLe = '2026-10-12T16:52:00Z';
+  const etat = etatInitial(bulletin, null);
+  const prime300 = {
+    id: 's-300',
+    name: 'Prime exceptionnelle',
+    amount: 300,
+    created_at: '2026-10-12T17:05:00Z',
+    updated_at: '2026-10-12T17:05:00Z',
+  };
+
+  it('la prime saisie depuis le calcul est montrée, pas encore sur le bulletin', () => {
+    expect(saisiesApresLeCalcul([prime300], calculeLe, etat)).toEqual([
+      { saisieId: 's-300', libelle: 'Prime exceptionnelle', montant: 300 },
+    ]);
+  });
+
+  it('une saisie modifiée depuis le calcul compte aussi', () => {
+    const modifiee = { ...prime300, created_at: '2026-10-01T08:00:00Z' };
+    expect(saisiesApresLeCalcul([modifiee], calculeLe, etat)).toHaveLength(1);
+  });
+
+  it('ce qui précède le calcul, ce qui est déjà sur le bulletin et les heures corrigées ne s’y mettent pas', () => {
+    const ancienne = { ...prime300, created_at: '2026-10-01T08:00:00Z', updated_at: '2026-10-01T08:00:00Z' };
+    const surLeBulletin = { ...prime300, id: 's-1' };
+    const heures = { ...prime300, id: 's-hs', name: 'Heures supplémentaires (corrigées au bulletin)' };
+    expect(saisiesApresLeCalcul([ancienne, surLeBulletin, heures], calculeLe, etat)).toEqual([]);
+  });
+
+  it('sans date de calcul, rien n’est deviné', () => {
+    expect(saisiesApresLeCalcul([prime300], null, etat)).toEqual([]);
+  });
+
+  it('le message vide parle du bulletin, pas des saisies du mois', () => {
+    expect(MESSAGE_AUCUNE_PRIME).toBe('Aucune prime sur ce bulletin.');
   });
 });

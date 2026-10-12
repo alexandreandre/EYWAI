@@ -66,7 +66,7 @@ def test_r10_et_r11_ecrivent_les_euros_avec_une_virgule():
 def test_r07_dit_la_difference_en_lignes_pas_en_pourcentage():
     alertes = _alertes(_bulletin([_BASE, _PRIME]), _bulletin([_BASE]))
     r07 = alertes["R07"]
-    assert "1 ligne de plus que le mois de référence" in r07["message"]
+    assert "1 ligne nouvelle ce mois, absente du bulletin de référence" in r07["message"]
     assert "Prime exceptionnelle" in r07["message"]
     assert r07["unite"] == "nombre"
 
@@ -74,9 +74,24 @@ def test_r07_dit_la_difference_en_lignes_pas_en_pourcentage():
 def test_r07_accorde_le_pluriel():
     deux = {"libelle": "Prime de caisse", "quantite": 1.0, "taux": None, "gain": 50.0, "perte": None}
     alertes = _alertes(_bulletin([_BASE, _PRIME, deux]), _bulletin([_BASE]))
-    assert "2 lignes de plus que le mois de référence" in alertes["R07"]["message"]
+    assert "2 lignes nouvelles ce mois, absentes du bulletin de référence" in alertes["R07"]["message"]
 
 
 def test_r06_dit_la_difference_en_lignes():
     alertes = _alertes(_bulletin([_BASE]), _bulletin([_BASE, _PRIME]))
-    assert "1 ligne de moins que le mois de référence" in alertes["R06"]["message"]
+    assert "1 ligne absente ce mois, présente sur le bulletin de référence" in alertes["R06"]["message"]
+
+
+def test_une_ligne_remplacee_par_une_autre_ne_dit_pas_une_ligne_de_moins():
+    """Relevé J.1 : « 1 ligne de moins : Prime exceptionnelle » quand le tableau
+    montre 2 lignes de chaque côté (la prime remplacée par une autre)."""
+    rattrapage = {"libelle": "Prime de rattrapage", "quantite": 1.0, "taux": None, "gain": 150.0, "perte": None}
+    alertes = _alertes(_bulletin([_BASE, rattrapage]), _bulletin([_BASE, _PRIME]))
+    assert alertes["R06"]["message"] == (
+        "1 ligne absente ce mois, présente sur le bulletin de référence : Prime exceptionnelle."
+    )
+    assert alertes["R07"]["message"] == (
+        "1 ligne nouvelle ce mois, absente du bulletin de référence : Prime de rattrapage."
+    )
+    assert "de moins" not in alertes["R06"]["message"]
+    assert "de plus" not in alertes["R07"]["message"]

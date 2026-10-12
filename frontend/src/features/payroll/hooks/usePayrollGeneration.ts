@@ -29,6 +29,7 @@ import {
   invaliderCles,
 } from '@/features/payroll/utils/invalidationsBulletin';
 import {
+  jobDeLaSuite,
   toastsDeFinDeRecalcul,
   type RecalculTermine,
   montantsDepuisReponse,
@@ -272,9 +273,31 @@ export function usePayrollGeneration() {
               // Annoncé en fin de tour : un seul message pour tout un lot.
               recalculsRef.current.push({
                 employeeName: job.employeeName,
+                year: job.year,
+                month: job.month,
                 avant: job.montantsAvant,
                 apres: montantsDepuisReponse(response),
               });
+            }
+            // Le mois suivant part des cumuls qui viennent de changer : il est
+            // recalculé dans le même geste, de proche en proche.
+            const suite = jobDeLaSuite(job, response.mois_suivant_a_recalculer);
+            if (suite) {
+              const cle = payrollJobKey(suite);
+              if (!queueRef.current.some((j) => payrollJobKey(j) === cle)) {
+                // Déjà recalculé dans ce tour : il l'avait été sur les anciens
+                // cumuls, il repart ; son ancienne ligne du suivi est remplacée.
+                const dejaFait = logRef.current.some((e) => e.id === cle);
+                if (dejaFait) {
+                  logRef.current = logRef.current.filter((e) => e.id !== cle);
+                  completedCountRef.current = Math.max(0, completedCountRef.current - 1);
+                } else {
+                  totalRef.current += 1;
+                  setTotalJobs(totalRef.current);
+                }
+                queueRef.current.push(suite);
+                setQueuedJobs([...queueRef.current]);
+              }
             }
             setFailedJobs((prev) => {
               const next = { ...prev };

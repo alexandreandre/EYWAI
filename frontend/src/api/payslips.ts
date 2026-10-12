@@ -258,6 +258,8 @@ export interface PayslipDetail {
   manual_edit_lock_until?: string | null;
   /** Dernière mise à jour, renvoyée avec une correction (refusée si elle a changé). */
   updated_at?: string | null;
+  /** Date du dernier calcul : les saisies d'après ne sont pas encore sur le bulletin. */
+  generated_at?: string | null;
   /** Le mois précédent a changé depuis le calcul : phrase à afficher, sinon null. */
   a_regenerer?: string | null;
   /** true = à recalculer ; false = à jour ; null = inconnu (pas d'empreinte). */
@@ -547,6 +549,14 @@ export const generatePayslip = async (
   salaire_brut?: number | null;
   net_a_payer?: number | null;
   heures_sup?: number | null;
+  /** Brouillon du mois suivant qui part des cumuls que ce recalcul a changés. */
+  mois_suivant_a_recalculer?: {
+    year: number;
+    month: number;
+    heures_sup?: number | null;
+    salaire_brut?: number | null;
+    net_a_payer?: number | null;
+  } | null;
 }> => {
   const response = await apiClient.post('/api/actions/generate-payslip', data, {
     signal,

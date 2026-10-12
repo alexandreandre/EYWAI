@@ -14,7 +14,7 @@ import { dateEnClair, dateHeureEnClair } from '@/components/payslip/comparaisonA
 import { pageTitleClassName } from '@/components/layout';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Eye, History, Loader2, Save, Undo2 } from 'lucide-react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -36,6 +36,7 @@ import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 import {
   editPayslip,
+  getEmployeePayslips,
   getPayslipDetails,
   isPayslipBlocMaintienPresent,
   validatePayslip,
@@ -45,6 +46,11 @@ import { getEmployeeMonthlyInputs } from '@/api/saisies';
 import { hasRhAccess, useAuth } from '@/contexts/AuthContext';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
 import { cn } from '@/lib/utils';
+import { queryKeys } from '@/lib/queryKeys';
+import {
+  avertissementMoisPrecedent,
+  moisPrecedentARecalculer,
+} from '@/features/payroll/utils/validationMoisPrecedent';
 import { useEmployeeQuery } from '@/hooks/queries/useEmployeeQuery';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 
@@ -80,6 +86,7 @@ import {
   aDesModifications,
   avecSaisiesSurLeNet,
   etatInitial,
+  saisiesApresLeCalcul,
   recalculAttendu,
   repasseEnBrouillon,
   requeteDeCorrection,
@@ -136,6 +143,9 @@ export default function PayslipEdit() {
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('corriger');
   const [confirmationValide, setConfirmationValide] = useState(false);
+  const [saisiesDuMois, setSaisiesDuMois] = useState<SaisieDuMois[]>([]);
+  // Le mois précédent à recalculer : la validation le dit avant de partir.
+  const [avertissementValidation, setAvertissementValidation] = useState<string | null>(null);
   const [validateModalOpen, setValidateModalOpen] = useState(false);
   const [validateBusy, setValidateBusy] = useState(false);
   // Refus « heures sur un jour d'arrêt » du recalcul d'après une correction :
@@ -220,6 +230,7 @@ export default function PayslipEdit() {
         const saisies = Array.isArray(reponse.data) ? (reponse.data as SaisieDuMois[]) : [];
         setInitial((i) => (i ? avecSaisiesSurLeNet(i, saisies) : i));
         setEtat((e) => (e ? avecSaisiesSurLeNet(e, saisies) : e));
+        setSaisiesDuMois(saisies);
       })
       .catch(() => {
         if (annule) return;
@@ -234,6 +245,15 @@ export default function PayslipEdit() {
       annule = true;
     };
   }, [payslip, toast]);
+
+  // Les bulletins du salarié (liste en cache de la Paie) : l'état « à
+  // recalculer » du mois précédent, que la validation annonce.
+  const bulletinsDuSalarie = useQuery({
+    queryKey: queryKeys.employeePayslips(companyId, payslip?.employee_id),
+    queryFn: () => getEmployeePayslips(payslip!.employee_id),
+    enabled: Boolean(companyId && payslip?.employee_id),
+    staleTime: 30_000,
+  });
 
   const modifie = initial && etat ? aDesModifications(initial, etat) : false;
   const recalculPrevu = initial && etat ? recalculAttendu(initial, etat) : false;
@@ -343,6 +363,15 @@ export default function PayslipEdit() {
     } finally {
       setValidateBusy(false);
     }
+  };
+
+  /** Sans bloquer : un mois précédent à recalculer est dit avant de valider. */
+  const demanderValidation = () => {
+    if (!payslip) return;
+    const avant = moisPrecedentARecalculer(bulletinsDuSalarie.data, payslip.year, payslip.month);
+    if (avant) {
+      setAvertissementValidation(avertissementMoisPrecedent(avant, payslip.year, payslip.month));
+    } else void valider();
   };
 
   if (isLoading) {
@@ -488,7 +517,7 @@ export default function PayslipEdit() {
             <Button
               type="button"
               className="bg-sky-600 text-white hover:bg-sky-700"
-              onClick={() => void valider()}
+              onClick={demanderValidation}
               disabled={validateBusy || validationBloquee}
               title={
                 validationBloquee
@@ -559,6 +588,7 @@ export default function PayslipEdit() {
               lienFiche={`/employees/${encodeURIComponent(payslip.employee_id)}`}
               lienSaisies={lienSaisies}
               forfaitJours={salarieBulletin?.is_forfait_jour === true}
+              saisiesApresCalcul={saisiesApresLeCalcul(saisiesDuMois, payslip.generated_at, etat)}
               onAller={aller}
             />
             <NotesSection
@@ -625,6 +655,31 @@ export default function PayslipEdit() {
           />
         </TabsContent>
       </Tabs>
+
+      <AlertDialog
+        open={avertissementValidation !== null}
+        onOpenChange={(open) => !open && setAvertissementValidation(null)}
+      >
+        <AlertDialogContent data-testid="validation-mois-precedent">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Valider ce bulletin ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {avertissementValidation} Recalculez-le d’abord, ou validez quand même.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setAvertissementValidation(null);
+                void valider();
+              }}
+            >
+              Valider quand même
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmationValide} onOpenChange={setConfirmationValide}>
         <AlertDialogContent>

@@ -207,3 +207,36 @@ class TestFecConforme:
         assert rows[0]["CompteLib"] == "Salaires"
         assert {r["CompteLib"] for r in rows if r["CompteNum"] == "421000"} == {"Net à payer"}
         assert rows[2]["EcritureLib"] == "Régularisations du net Septembre 2026"
+
+
+
+class TestFecCompteLesCollaborateurs:
+    """Relevé I.1 : l'aperçu du FEC disait « Collaborateurs concernés 0 » pour
+    deux bulletins lus. Le grand livre compte les salariés de ses bulletins."""
+
+    def test_le_fec_reprend_le_compte_du_grand_livre(self, monkeypatch):
+        from app.modules.exports.infrastructure import export_fec
+
+        monkeypatch.setattr(
+            export_fec,
+            "build_payroll_ledger",
+            lambda *a, **k: (
+                [{**ECRITURE_NET, "compte_comptable": "421000", "credit": 0.0}],
+                {"equilibre": True, "anomalies": [], "employees_count": 2, "total_debit": 0.0},
+                {},
+            ),
+        )
+        _, totaux, _ = export_fec.build_fec_rows("societe", "2026-10")
+        assert totaux["employees_count"] == 2
+
+    def test_le_grand_livre_compte_les_salaries_de_ses_bulletins(self, monkeypatch):
+        from app.modules.exports.infrastructure import payroll_ledger
+
+        monkeypatch.setattr(
+            payroll_ledger,
+            "get_payslip_data_for_od",
+            lambda *a, **k: ([], {"employees_count": 2}),
+        )
+        monkeypatch.setattr(payroll_ledger, "get_accounting_mappings", lambda *a, **k: {})
+        _, totaux, _ = payroll_ledger.build_payroll_ledger("societe", "2026-10")
+        assert totaux["employees_count"] == 2

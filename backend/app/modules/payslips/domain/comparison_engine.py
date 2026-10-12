@@ -5,9 +5,10 @@ Moteur de comparaison N vs N-1 sur payslip_data (pur domaine, sans I/O).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Literal, Optional
 
-from app.shared.domain.pluriel import pluriel
+from app.shared.domain.pluriel import accord, pluriel
 
 AlertLevel = Literal["CRITIQUE", "AVERTISSEMENT", "INFO"]
 
@@ -67,8 +68,14 @@ def _to_float(v: Any) -> float:
 
 
 def _pct_fr(valeur: float) -> str:
-    """« 14,0 % » : virgule décimale et espace avant le signe, comme partout à l'écran."""
-    return f"{valeur:.1f}".replace(".", ",") + " %"
+    """« 14,0 % » : virgule décimale et espace avant le signe, comme partout à l'écran.
+
+    Arrondi comme le tableau de l'écran (`toFixed(1)`) : sur la valeur exacte du
+    nombre, la demie vers le haut. `f"{6.25:.1f}"` donnait « 6,2 % » quand le
+    tableau disait « 6,3 % » (relevé J.1).
+    """
+    arrondi = Decimal(valeur).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+    return f"{arrondi}".replace(".", ",") + " %"
 
 
 def _nombre_fr(valeur: float, decimales: int = 2) -> str:
@@ -398,13 +405,17 @@ def compute_comparison(
         lib_n1 = _libelles_brut(bulletin_n1.get("calcul_du_brut") if bulletin_n1 else None)
         missing = sorted(lib_n1 - lib_n)
         new_ones = sorted(lib_n - lib_n1)
+        # Une ligne absente n'est pas « une ligne de moins » : une prime remplacée
+        # par une autre laisse autant de lignes de chaque côté (relevé J.1).
         if missing:
+            n = len(missing)
             alerts.append(
                 PayslipAlert(
                     rule_id="R06",
                     level="AVERTISSEMENT",
                     message=(
-                        f"{pluriel(len(missing), 'ligne')} de moins que le mois de référence : "
+                        f"{pluriel(n, 'ligne')} {accord(n, 'absente')} ce mois, "
+                        f"{accord(n, 'présente')} sur le bulletin de référence : "
                         + ", ".join(missing)
                         + "."
                     ),
@@ -415,12 +426,14 @@ def compute_comparison(
                 )
             )
         if new_ones:
+            n = len(new_ones)
             alerts.append(
                 PayslipAlert(
                     rule_id="R07",
                     level="INFO",
                     message=(
-                        f"{pluriel(len(new_ones), 'ligne')} de plus que le mois de référence : "
+                        f"{pluriel(n, 'ligne')} {accord(n, 'nouvelle')} ce mois, "
+                        f"{accord(n, 'absente')} du bulletin de référence : "
                         + ", ".join(new_ones)
                         + "."
                     ),

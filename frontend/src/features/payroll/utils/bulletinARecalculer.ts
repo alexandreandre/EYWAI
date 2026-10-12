@@ -10,6 +10,7 @@
 import { accord, pluriel } from '@/lib/pluriel';
 
 import { estBulletinImporte } from './bulletinImporte';
+import { monthLabel } from './payrollMonth';
 
 /** Quand le serveur ne sait pas quelle donnée a changé (bulletin d'avant l'empreinte par partie). */
 export const MESSAGE_A_RECALCULER =
@@ -168,9 +169,17 @@ export function libelleToastRecalcul(
 
 export type RecalculTermine = {
   employeeName: string;
+  /** Le mois du bulletin : dit quand un lot recalcule plusieurs mois. */
+  year?: number;
+  month?: number;
   avant: MontantsBulletin | null | undefined;
   apres: MontantsBulletin | null | undefined;
 };
+
+function nomDansLeLot(r: RecalculTermine, plusieursMois: boolean): string {
+  if (!plusieursMois || r.year == null || r.month == null) return r.employeeName;
+  return `${r.employeeName} (${monthLabel(r.month).toLowerCase()} ${r.year})`;
+}
 
 const NOMBRE_MAX_DE_NOMS_DANS_LA_SYNTHESE = 10;
 
@@ -187,10 +196,12 @@ export function toastsDeFinDeRecalcul(
     const [r] = recalculs;
     return [libelleToastRecalcul(r.avant, r.apres, r.employeeName)];
   }
+  const plusieursMois =
+    new Set(recalculs.filter((r) => r.month != null).map((r) => `${r.year}-${r.month}`)).size > 1;
   const lignes = recalculs.slice(0, NOMBRE_MAX_DE_NOMS_DANS_LA_SYNTHESE).map((r) =>
     r.avant && r.apres && comparaisonPossible(r.avant, r.apres)
-      ? `${r.employeeName} : net ${fmtEuro(r.avant.net_a_payer!)} → ${fmtEuro(r.apres.net_a_payer!)}`
-      : `${r.employeeName} : ${MESSAGE_COMPARAISON_INDISPONIBLE}`
+      ? `${nomDansLeLot(r, plusieursMois)} : net ${fmtEuro(r.avant.net_a_payer!)} → ${fmtEuro(r.apres.net_a_payer!)}`
+      : `${nomDansLeLot(r, plusieursMois)} : ${MESSAGE_COMPARAISON_INDISPONIBLE}`
   );
   const reste = recalculs.length - lignes.length;
   if (reste > 0) lignes.push(`et ${pluriel(reste, 'autre')}`);
@@ -284,4 +295,50 @@ export function jobsDesBulletinsPerimes(
     });
   }
   return jobs;
+}
+
+/** Le brouillon du mois suivant que le serveur nomme après un recalcul. */
+export type MoisSuivantARecalculer = {
+  year: number;
+  month: number;
+  heures_sup?: number | null;
+  salaire_brut?: number | null;
+  net_a_payer?: number | null;
+};
+
+/**
+ * Le recalcul suit la chaîne des cumuls : le mois suivant part des cumuls de
+ * celui qu'on vient de recalculer. Le serveur le nomme quand ils ont changé
+ * depuis son calcul (un brouillon ; un validé n'est que signalé) ; la file le
+ * recalcule dans le même geste. Il fallait un clic par mois (relevé J.1).
+ *
+ * Le forçage du mois recalculé (calendrier incomplet, bulletin validé) ne
+ * passe jamais au suivant.
+ */
+export function jobDeLaSuite(
+  job: { employeeId: string; employeeName: string; year: number; month: number },
+  suite: MoisSuivantARecalculer | null | undefined
+): JobBulletinPerime | null {
+  if (!suite) return null;
+  const attendu = job.month === 12 ? [job.year + 1, 1] : [job.year, job.month + 1];
+  if (suite.year !== attendu[0] || suite.month !== attendu[1]) return null;
+  return {
+    employeeId: job.employeeId,
+    employeeName: job.employeeName,
+    year: suite.year,
+    month: suite.month,
+    montantsAvant: montantsDepuisLigne(suite),
+  };
+}
+
+/**
+ * Hors de la file (régénération depuis l'écran du bulletin) : le mois suivant
+ * n'est pas recalculé d'office, la phrase le nomme.
+ */
+export function phraseSuiteARecalculer(
+  suite: MoisSuivantARecalculer | null | undefined
+): string | null {
+  if (!suite) return null;
+  const mois = `${monthLabel(suite.month).toLowerCase()} ${suite.year}`;
+  return `Le bulletin ${deDevant(mois)} part des cumuls de celui-ci, qui ont changé : il est à recalculer (« Recalculer tout ce qui a changé » dans la Paie).`;
 }

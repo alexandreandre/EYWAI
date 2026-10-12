@@ -103,3 +103,27 @@ describe("aperçu DSN non déposable [I1]", () => {
     expect(isEmptyDataMessage("Cotisation sans code : aucun organisme rattaché")).toBe(false);
   });
 });
+
+describe("exportEmptyState : élision devant une voyelle", () => {
+  it("« Pas d'acompte à virer », pas « Pas de acompte »", () => {
+    const vide = basePreview({ export_type: "virement_acomptes" });
+    expect(getEmptyExportAlertMessage(vide, "virement_acomptes", "2026-10")).toBe(
+      "Pas d'acompte à virer pour Octobre 2026.",
+    );
+  });
+
+  it("« Pas d'écriture… » et « Pas d'absence… »", () => {
+    expect(getEmptyExportAlertMessage(basePreview({ export_type: "od_salaires" }), "od_salaires", "2026-10")).toBe(
+      "Pas d'écriture salaire pour Octobre 2026.",
+    );
+    expect(
+      getEmptyExportAlertMessage(basePreview({ export_type: "conges_absences" }), "conges_absences", "2026-10"),
+    ).toBe("Pas d'absence validée pour Octobre 2026.");
+  });
+
+  it("devant une consonne, rien ne change", () => {
+    expect(getEmptyExportAlertMessage(basePreview(), "notes_frais", "2026-10")).toBe(
+      "Pas de note de frais pour Octobre 2026.",
+    );
+  });
+});

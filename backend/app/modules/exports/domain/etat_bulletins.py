@@ -45,9 +45,11 @@ def avertissements_etat_bulletins(
             "l'export reprend aussi les brouillons."
         )
     if a_recalculer:
+        # « 1 bulletin à recalculer : ses données… », pas « leurs » (relevé I.1).
+        ses, son = ("leurs", "leur") if a_recalculer > 1 else ("ses", "son")
         phrases.append(
-            f"{pluriel(a_recalculer, 'bulletin')} à recalculer : leurs données ont changé "
-            "depuis le calcul, l'export reprend le dernier calcul."
+            f"{pluriel(a_recalculer, 'bulletin')} à recalculer : {ses} données ont changé "
+            f"depuis le calcul, l'export reprend {son} dernier calcul."
         )
     if non_verifies:
         phrases.append(

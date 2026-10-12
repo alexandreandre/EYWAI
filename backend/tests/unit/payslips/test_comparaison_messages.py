@@ -54,3 +54,22 @@ def test_r02_r04_ecrivent_les_pourcentages_a_la_francaise():
     assert messages["R02"] == "Variation du salaire brut de 3,0 % (seuil d'avertissement 1–5 %)."
     assert messages["R04"] == "Le net à payer a varié de 8,0 % (seuil d'avertissement 5–10 %)."
 
+
+
+def test_r01_arrondit_comme_le_tableau():
+    """Relevé J.1 : R01 disait « 6,2 % » quand le tableau disait « 6,3 % » pour
+    2 250 € contre 2 400 € (−6,25 %). L'écran arrondit la demie vers le haut
+    (`toFixed`) : le message aussi."""
+    messages = _messages(_bulletin(2250.0, 1723.04, 480.0), _bulletin(2400.0, 1823.47, 480.0))
+    assert messages["R01"] == "Le salaire brut a varié de 6,3 % par rapport au dernier bulletin validé."
+
+
+def test_l_arrondi_suit_la_valeur_exacte_comme_l_ecran():
+    from app.modules.payslips.domain.comparison_engine import _pct_fr
+
+    assert _pct_fr(6.25) == "6,3 %"
+    assert _pct_fr(0.05) == "0,1 %"
+    # 1,45 n'est pas représentable : sa valeur exacte est un peu en dessous,
+    # `toFixed(1)` donne 1,4 ; le message aussi.
+    assert _pct_fr(1.45) == "1,4 %"
+    assert _pct_fr(14.0) == "14,0 %"

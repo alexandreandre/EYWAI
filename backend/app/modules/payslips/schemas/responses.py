@@ -106,6 +106,9 @@ class PayslipDetail(BaseModel):
     #: Dernière mise à jour : l'écran la renvoie avec une correction, qui est
     #: refusée si le bulletin a changé entre-temps.
     updated_at: datetime | None = None
+    #: Date du dernier calcul : l'onglet « Corriger » montre les saisies du mois
+    #: enregistrées depuis, pas encore sur le bulletin.
+    generated_at: datetime | None = None
     period_edit_locked: bool = False
     manual_edit_locked: bool = False
     manual_edit_lock_reason: str | None = None

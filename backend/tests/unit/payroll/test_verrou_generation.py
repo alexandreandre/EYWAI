@@ -56,7 +56,7 @@ def test_base_indisponible_la_paie_continue_sans_verrou(monkeypatch):
     appels = []
 
     def en_panne(nom, params):
-        appels.append(nom)
+        appels.append((nom, params["p_jeton"]))
         raise ConnectionError("base injoignable")
 
     monkeypatch.setattr(verrou_generation, "_rpc", en_panne)
@@ -64,8 +64,67 @@ def test_base_indisponible_la_paie_continue_sans_verrou(monkeypatch):
     with verrou_de_generation("e1", 2026, 8):
         passe = True
     assert passe
-    # Rien à rendre : le verrou n'a jamais été pris.
+    # La réponse s'est perdue, pas forcément la prise : le verrou a pu être posé
+    # en base. Il est rendu à la fin, avec le même jeton (sans effet s'il n'y
+    # est pas). Avant, il restait posé 5 minutes.
+    assert [nom for nom, _ in appels] == [
+        "prendre_verrou_generation_bulletin",
+        "rendre_verrou_generation_bulletin",
+    ]
+    assert appels[0][1] == appels[1][1]
+
+
+def test_en_lecture_seule_rien_n_est_parti_rien_a_rendre(monkeypatch):
+    from app.core.lecture_seule import EcritureEnLectureSeule
+
+    appels = []
+
+    def refuse(nom, params):
+        appels.append(nom)
+        raise EcritureEnLectureSeule("écriture refusée")
+
+    monkeypatch.setattr(verrou_generation, "_rpc", refuse)
+    with verrou_de_generation("e1", 2026, 8):
+        pass
     assert appels == ["prendre_verrou_generation_bulletin"]
+
+
+def test_le_verrou_vit_tant_que_la_generation_tourne(monkeypatch, verrous_de_generation):
+    """Un processus arrêté net ne rend pas son verrou (instance tombée en pleine
+    génération, 12/10/2026 : 42 s sans une requête, puis 409 pendant 5 minutes).
+    Le verrou est donc court et prolongé tant que la génération tourne : mort
+    avec elle, il libère le bulletin en une minute."""
+    import time
+
+    prolongations = []
+    monkeypatch.setattr(verrou_generation, "INTERVALLE_PROLONGATION_SECONDES", 0.01)
+    monkeypatch.setattr(
+        verrou_generation, "_prolonger", lambda params: prolongations.append(params["p_jeton"])
+    )
+    with verrou_de_generation("e1", 2026, 8):
+        time.sleep(0.1)
+    assert prolongations, "le verrou n'a pas été prolongé pendant la génération"
+    assert len(set(prolongations)) == 1
+    apres = len(prolongations)
+    time.sleep(0.05)
+    assert len(prolongations) == apres, "le verrou est encore prolongé après la génération"
+    assert verrous_de_generation.tenus == {}
+
+
+def test_un_verrou_pris_ailleurs_n_est_pas_prolonge(monkeypatch, verrous_de_generation):
+    prolongations = []
+    monkeypatch.setattr(verrou_generation, "INTERVALLE_PROLONGATION_SECONDES", 0.01)
+    monkeypatch.setattr(verrou_generation, "_prolonger", lambda params: prolongations.append(1))
+
+    def en_panne(nom, params):
+        raise ConnectionError("base injoignable")
+
+    monkeypatch.setattr(verrou_generation, "_rpc", en_panne)
+    import time
+
+    with verrou_de_generation("e1", 2026, 8):
+        time.sleep(0.05)
+    assert prolongations == []
 
 
 def test_le_refus_devient_un_409_lisible():
@@ -170,11 +229,15 @@ def test_un_autre_mois_se_prend_normalement(verrous_de_generation):
             assert len(verrous_de_generation.tenus) == 2
 
 
-def test_un_verrou_abandonne_ne_bloque_que_cinq_minutes():
+def test_un_verrou_abandonne_ne_bloque_qu_une_minute():
     """Une génération coupée net (instance arrêtée) ne rend pas son verrou :
-    il bloquait 15 minutes avec « réessayez dans quelques instants » (recette
-    du 02/10/2026). Un bulletin se calcule en une quinzaine de secondes."""
-    assert verrou_generation.DUREE_SECONDES == 300
+    il bloquait 15 minutes (recette du 02/10/2026), puis 5 minutes (relevé J.1
+    du 12/10/2026). Prolongé tant que la génération vit, il peut être court ;
+    une génération qui ne finit jamais ne le garde pas au-delà de la durée
+    maximale d'une génération."""
+    assert verrou_generation.DUREE_SECONDES == 60
+    assert verrou_generation.INTERVALLE_PROLONGATION_SECONDES <= verrou_generation.DUREE_SECONDES / 3
+    assert verrou_generation.PROLONGATION_MAX_SECONDES == 300
     message = str(GenerationDejaEnCours())
     assert "déjà en cours" in message
-    assert "5 minutes" in message
+    assert "Réessayez dans une minute." in message
