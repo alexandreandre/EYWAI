@@ -96,7 +96,7 @@ class TestCumulManquant:
     def test_premier_bulletin_d_un_salarie_part_de_zero_sans_bascule(self):
         with patch("app.shared.reprise_paie.lire_bascule", return_value=None), patch(
             "app.shared.reprise_paie._un_bulletin_existe_avant", return_value=False
-        ):
+        ), patch("app.shared.reprise_paie.historique_de_paie_avant_martine", return_value=None):
             assert raison_de_cumul_manquant("soc", "emp", 2026, 5, False) is None
 
     def test_sans_bascule_un_bulletin_anterieur_rend_le_cumul_obligatoire(self):
@@ -192,3 +192,116 @@ class TestPremierBulletinApresLaBascule:
         assert raison_de_cumul_manquant(
             None, "emp", 2026, 10, False, bascule=bascule, date_entree=date(2026, 10, 1)
         ) is None
+
+
+class TestHistoriqueAvantMartineSansReprise:
+    """[B12] Une société dont la paie se faisait ailleurs (DSN importées, bulletins
+    repris), sans bascule ni solde d'ouverture : son premier bulletin partait de
+    zéro, sans un mot. Cartol, Mont-Blanc et LEWIS, 206 salariés actifs au 12/10.
+    Rejoué sur septembre de Colorplast, un départ à zéro fausse la réduction
+    générale de 7 à 266 € par salarié et ampute une fin de CDD de 776 € nets."""
+
+    HISTORIQUE = "DSN importées de 01/2026 à 06/2026"
+
+    def _raison(self, *, date_entree=None, historique=HISTORIQUE, bulletin_avant=False):
+        with patch("app.shared.reprise_paie.lire_bascule", return_value=None), patch(
+            "app.shared.reprise_paie._un_bulletin_existe_avant", return_value=bulletin_avant
+        ), patch(
+            "app.shared.reprise_paie.historique_de_paie_avant_martine", return_value=historique
+        ):
+            return raison_de_cumul_manquant(
+                "soc", "emp", 2026, 10, False, date_entree=date_entree
+            )
+
+    def test_le_premier_bulletin_est_refuse_et_le_message_dit_quoi_faire(self):
+        raison = self._raison(date_entree=date(2019, 3, 4))
+        assert raison is not None
+        assert "avant Martine" in raison
+        assert self.HISTORIQUE in raison
+        assert "09/2026" in raison
+        assert "solde d'ouverture" in raison
+        assert "bascule" in raison
+
+    def test_sans_date_d_entree_lisible_la_garde_reste_entiere(self):
+        assert self._raison(date_entree=None) is not None
+
+    def test_une_embauche_posterieure_au_mois_precedent_part_de_zero(self):
+        """Embauché en octobre : rien à reprendre, l'ancien logiciel ne l'a jamais payé."""
+        assert self._raison(date_entree=date(2026, 10, 1)) is None
+
+    def test_une_societe_sans_historique_part_de_zero_comme_avant(self):
+        assert self._raison(date_entree=date(2019, 3, 4), historique=None) is None
+
+    def test_une_chaine_rompue_garde_son_propre_message(self):
+        raison = self._raison(date_entree=date(2019, 3, 4), bulletin_avant=True)
+        assert raison is not None and "chaîne des cumuls est rompue" in raison
+
+    def test_une_societe_avec_bascule_garde_ses_messages(self):
+        """Colorplast et Comitech : la bascule décide, l'historique n'ajoute rien."""
+        with patch(
+            "app.shared.reprise_paie.historique_de_paie_avant_martine", return_value=self.HISTORIQUE
+        ):
+            raison = raison_de_cumul_manquant(
+                "soc", "emp", 2026, 9, False, bascule=Bascule(2026, 8, "bulletins", "Quadra"),
+                date_entree=date(2019, 3, 4),
+            )
+        assert raison is not None and "Le solde d'ouverture de la reprise (08/2026)" in raison
+        assert "avant Martine" not in raison
+
+
+class TestLectureDeLHistoriqueAvantMartine:
+    def _faux(self, *, siren="534386495", lots=(), importes=()):
+        """Un faux client qui répond selon la table interrogée."""
+        from unittest.mock import MagicMock
+
+        def table(nom):
+            t = MagicMock()
+            chaine = t.select.return_value
+            for _ in range(4):
+                chaine.eq.return_value = chaine
+                chaine.in_.return_value = chaine
+                chaine.order.return_value = chaine
+                chaine.limit.return_value = chaine
+            donnees = {
+                "companies": [{"siren": siren}] if siren else [],
+                "dsn_import_batches": list(lots),
+                "payslips": list(importes),
+            }[nom]
+            chaine.execute.return_value.data = donnees
+            return t
+
+        faux = MagicMock()
+        faux.table.side_effect = table
+        return faux
+
+    def test_des_lots_dsn_valides_sont_un_historique(self):
+        from app.shared.reprise_paie import historique_de_paie_avant_martine
+
+        lots = [
+            {"period_min": "2026-01", "period_max": "2026-03"},
+            {"period_min": "2026-04", "period_max": "2026-06"},
+        ]
+        with patch("app.shared.reprise_paie.supabase", self._faux(lots=lots)):
+            assert historique_de_paie_avant_martine("soc") == "DSN importées de 01/2026 à 06/2026"
+
+    def test_des_bulletins_repris_sont_un_historique(self):
+        from app.shared.reprise_paie import historique_de_paie_avant_martine
+
+        with patch(
+            "app.shared.reprise_paie.supabase",
+            self._faux(importes=[{"year": 2026, "month": 8}]),
+        ):
+            assert historique_de_paie_avant_martine("soc") == "bulletins repris de l'ancien logiciel"
+
+    def test_ni_lot_ni_bulletin_repris_pas_d_historique(self):
+        from app.shared.reprise_paie import historique_de_paie_avant_martine
+
+        with patch("app.shared.reprise_paie.supabase", self._faux()):
+            assert historique_de_paie_avant_martine("soc") is None
+
+    def test_une_base_injoignable_ne_bloque_pas_la_paie(self):
+        from app.shared.reprise_paie import historique_de_paie_avant_martine
+
+        with patch("app.shared.reprise_paie.supabase") as faux:
+            faux.table.side_effect = RuntimeError("table absente")
+            assert historique_de_paie_avant_martine("soc") is None
