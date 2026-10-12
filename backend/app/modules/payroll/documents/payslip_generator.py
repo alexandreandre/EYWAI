@@ -580,7 +580,8 @@ def process_payslip_generation(
                 str(company_id)
             )
             # Jamais en bac à sable : la génération des variables écrit les
-            # saisies du mois, et le bac à sable ne doit rien écrire.
+            # saisies du mois, et le bac à sable ne doit rien écrire. Celles du
+            # seul salarié du bulletin : les autres ne changent pas [J8].
             if bac_a_sable is None and planning_settings and planning_settings.get(
                 "auto_generate_payroll_variables_before_payslip"
             ):
@@ -588,7 +589,13 @@ def process_payslip_generation(
                     generate_monthly_variables,
                 )
 
-                generate_monthly_variables(str(company_id), year, month, dry_run=False)
+                generate_monthly_variables(
+                    str(company_id),
+                    year,
+                    month,
+                    dry_run=False,
+                    employee_id=str(employee_id),
+                )
         except Exception as auto_var_exc:
             logger.warning(
                 "Génération auto variables paie ignorée: %s", auto_var_exc

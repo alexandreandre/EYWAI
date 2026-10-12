@@ -419,9 +419,15 @@ def generate_monthly_variables(
     month: int,
     *,
     dry_run: bool = False,
+    employee_id: str | None = None,
 ) -> dict[str, Any]:
+    """Variables automatiques du mois, pour les salariés actifs de la société.
+
+    Avec `employee_id`, pour ce seul salarié : la génération de son bulletin ne
+    doit pas réécrire les variables du mois des autres [J8].
+    """
     rules = [r for r in repo.list_rules(company_id) if r.get("enabled")]
-    emp_resp = (
+    requete = (
         supabase.table("employees")
         .select(
             "id, first_name, last_name, statut, specificites_paie, "
@@ -429,8 +435,10 @@ def generate_monthly_variables(
         )
         .eq("company_id", company_id)
         .in_("employment_status", ["actif", "active"])
-        .execute()
     )
+    if employee_id:
+        requete = requete.eq("id", str(employee_id))
+    emp_resp = requete.execute()
     employees = emp_resp.data or []
     preview: list[dict[str, Any]] = []
     written = 0
