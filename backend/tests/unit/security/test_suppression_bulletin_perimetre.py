@@ -109,6 +109,7 @@ class TestGenerationBulletinPerimetre:
                         "salaire_brut": 0,
                         "net_a_payer": 0,
                         "heures_sup": 0,
+                        "mois_suivant_a_recalculer": None,
                     },
                 )()
                 reponse = TestClient(app).post(
