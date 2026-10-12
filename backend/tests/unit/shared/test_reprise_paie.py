@@ -96,7 +96,7 @@ class TestCumulManquant:
     def test_premier_bulletin_d_un_salarie_part_de_zero_sans_bascule(self):
         with patch("app.shared.reprise_paie.lire_bascule", return_value=None), patch(
             "app.shared.reprise_paie._un_bulletin_existe_avant", return_value=False
-        ), patch("app.shared.reprise_paie.historique_de_paie_avant_martine", return_value=None):
+        ), patch("app.shared.reprise_paie.historique_du_salarie_avant_martine", return_value=None):
             assert raison_de_cumul_manquant("soc", "emp", 2026, 5, False) is None
 
     def test_sans_bascule_un_bulletin_anterieur_rend_le_cumul_obligatoire(self):
@@ -195,51 +195,71 @@ class TestPremierBulletinApresLaBascule:
 
 
 class TestHistoriqueAvantMartineSansReprise:
-    """[B12] Une société dont la paie se faisait ailleurs (DSN importées, bulletins
-    repris), sans bascule ni solde d'ouverture : son premier bulletin partait de
-    zéro, sans un mot. Cartol, Mont-Blanc et LEWIS, 206 salariés actifs au 12/10.
-    Rejoué sur septembre de Colorplast, un départ à zéro fausse la réduction
-    générale de 7 à 266 € par salarié et ampute une fin de CDD de 776 € nets."""
+    """[B12] Un salarié payé avant Martine (il figure dans les DSN importées, ou
+    ses bulletins de l'ancien logiciel sont repris), sans bascule ni solde
+    d'ouverture : son premier bulletin partait de zéro, sans un mot. Cartol,
+    Mont-Blanc et LEWIS au 12/10/2026. Rejoué sur septembre de Colorplast, un
+    départ à zéro fausse la réduction générale de 7 à 266 € par salarié et
+    ampute une fin de CDD de 776 € nets.
+
+    La garde regarde le salarié, pas la société : un personnage créé dans
+    Martine, sans trace dans les DSN, part de zéro comme avant, même embauché
+    depuis longtemps (correction du 12/10/2026)."""
 
     HISTORIQUE = "DSN importées de 01/2026 à 06/2026"
 
-    def _raison(self, *, date_entree=None, historique=HISTORIQUE, bulletin_avant=False):
+    def _raison(
+        self, *, date_entree=date(2019, 3, 4), historique=HISTORIQUE,
+        bulletin_avant=False, bulletin_martine_dans_l_annee=False,
+    ):
         with patch("app.shared.reprise_paie.lire_bascule", return_value=None), patch(
             "app.shared.reprise_paie._un_bulletin_existe_avant", return_value=bulletin_avant
         ), patch(
-            "app.shared.reprise_paie.historique_de_paie_avant_martine", return_value=historique
-        ):
-            return raison_de_cumul_manquant(
+            "app.shared.reprise_paie._bulletin_martine_avant_dans_l_annee",
+            return_value=bulletin_martine_dans_l_annee,
+        ), patch(
+            "app.shared.reprise_paie.historique_du_salarie_avant_martine", return_value=historique
+        ) as lecture:
+            raison = raison_de_cumul_manquant(
                 "soc", "emp", 2026, 10, False, date_entree=date_entree
             )
+        self.lecture = lecture
+        return raison
 
-    def test_le_premier_bulletin_est_refuse_et_le_message_dit_quoi_faire(self):
-        raison = self._raison(date_entree=date(2019, 3, 4))
+    def test_un_salarie_paye_avant_martine_est_refuse_et_le_message_dit_quoi_faire(self):
+        raison = self._raison()
         assert raison is not None
         assert "avant Martine" in raison
         assert self.HISTORIQUE in raison
         assert "09/2026" in raison
         assert "solde d'ouverture" in raison
         assert "bascule" in raison
+        self.lecture.assert_called_once_with("soc", "emp", 2026, 10)
 
-    def test_sans_date_d_entree_lisible_la_garde_reste_entiere(self):
+    def test_un_personnage_cree_dans_martine_sans_trace_dsn_part_de_zero(self):
+        """Embauché en 2021, créé à l'écran ou par l'API, absent des DSN : il passe."""
+        assert self._raison(date_entree=date(2021, 5, 17), historique=None) is None
+
+    def test_sans_date_d_entree_mais_sans_trace_dsn_il_passe(self):
+        assert self._raison(date_entree=None, historique=None) is None
+
+    def test_sans_date_d_entree_avec_trace_dsn_il_est_refuse(self):
         assert self._raison(date_entree=None) is not None
 
     def test_une_embauche_posterieure_au_mois_precedent_part_de_zero(self):
-        """Embauché en octobre : rien à reprendre, l'ancien logiciel ne l'a jamais payé."""
         assert self._raison(date_entree=date(2026, 10, 1)) is None
 
-    def test_une_societe_sans_historique_part_de_zero_comme_avant(self):
-        assert self._raison(date_entree=date(2019, 3, 4), historique=None) is None
+    def test_un_bulletin_martine_plus_tot_dans_l_annee_ecarte_cette_regle(self):
+        assert self._raison(bulletin_martine_dans_l_annee=True) is None
 
     def test_une_chaine_rompue_garde_son_propre_message(self):
-        raison = self._raison(date_entree=date(2019, 3, 4), bulletin_avant=True)
+        raison = self._raison(bulletin_avant=True)
         assert raison is not None and "chaîne des cumuls est rompue" in raison
 
     def test_une_societe_avec_bascule_garde_ses_messages(self):
         """Colorplast et Comitech : la bascule décide, l'historique n'ajoute rien."""
         with patch(
-            "app.shared.reprise_paie.historique_de_paie_avant_martine", return_value=self.HISTORIQUE
+            "app.shared.reprise_paie.historique_du_salarie_avant_martine", return_value=self.HISTORIQUE
         ):
             raison = raison_de_cumul_manquant(
                 "soc", "emp", 2026, 9, False, bascule=Bascule(2026, 8, "bulletins", "Quadra"),
@@ -249,59 +269,64 @@ class TestHistoriqueAvantMartineSansReprise:
         assert "avant Martine" not in raison
 
 
-class TestLectureDeLHistoriqueAvantMartine:
-    def _faux(self, *, siren="534386495", lots=(), importes=()):
-        """Un faux client qui répond selon la table interrogée."""
+class TestLectureDeLHistoriqueDuSalarie:
+    """Ce qui rattache un salarié à la paie d'avant Martine, pour les mois de
+    l'année qui précèdent le bulletin."""
+
+    def _faux(self, *, items=(), lots=(), importes=()):
         from unittest.mock import MagicMock
 
         def table(nom):
             t = MagicMock()
             chaine = t.select.return_value
-            for _ in range(4):
-                chaine.eq.return_value = chaine
-                chaine.in_.return_value = chaine
-                chaine.order.return_value = chaine
-                chaine.limit.return_value = chaine
-            donnees = {
-                "companies": [{"siren": siren}] if siren else [],
+            for methode in ("eq", "in_", "lt", "lte", "gte", "order", "limit"):
+                getattr(chaine, methode).return_value = chaine
+            chaine.execute.return_value.data = {
+                "dsn_import_items": list(items),
                 "dsn_import_batches": list(lots),
                 "payslips": list(importes),
             }[nom]
-            chaine.execute.return_value.data = donnees
             return t
 
         faux = MagicMock()
         faux.table.side_effect = table
         return faux
 
-    def test_des_lots_dsn_valides_sont_un_historique(self):
-        from app.shared.reprise_paie import historique_de_paie_avant_martine
+    def _lire(self, mois=10, **donnees):
+        from app.shared.reprise_paie import historique_du_salarie_avant_martine
 
-        lots = [
-            {"period_min": "2026-01", "period_max": "2026-03"},
-            {"period_min": "2026-04", "period_max": "2026-06"},
-        ]
-        with patch("app.shared.reprise_paie.supabase", self._faux(lots=lots)):
-            assert historique_de_paie_avant_martine("soc") == "DSN importées de 01/2026 à 06/2026"
+        with patch("app.shared.reprise_paie.supabase", self._faux(**donnees)):
+            return historique_du_salarie_avant_martine("soc", "emp", 2026, mois)
 
-    def test_des_bulletins_repris_sont_un_historique(self):
-        from app.shared.reprise_paie import historique_de_paie_avant_martine
+    ITEMS = [{"batch_id": "l1"}, {"batch_id": "l2"}]
+    LOTS = [
+        {"id": "l1", "period_min": "2026-01", "period_max": "2026-03"},
+        {"id": "l2", "period_min": "2026-04", "period_max": "2026-06"},
+    ]
 
-        with patch(
-            "app.shared.reprise_paie.supabase",
-            self._faux(importes=[{"year": 2026, "month": 8}]),
-        ):
-            assert historique_de_paie_avant_martine("soc") == "bulletins repris de l'ancien logiciel"
+    def test_present_dans_les_dsn_importees_de_l_annee(self):
+        assert self._lire(items=self.ITEMS, lots=self.LOTS) == "DSN importées de 01/2026 à 06/2026"
 
-    def test_ni_lot_ni_bulletin_repris_pas_d_historique(self):
-        from app.shared.reprise_paie import historique_de_paie_avant_martine
+    def test_seuls_les_mois_d_avant_le_bulletin_comptent(self):
+        assert self._lire(mois=3, items=self.ITEMS, lots=self.LOTS) == "DSN importées de 01/2026 à 02/2026"
 
-        with patch("app.shared.reprise_paie.supabase", self._faux()):
-            assert historique_de_paie_avant_martine("soc") is None
+    def test_en_janvier_rien_ne_precede_dans_l_annee(self):
+        """Les cumuls repartent avec l'année : un bulletin de janvier n'a rien à reprendre."""
+        assert self._lire(mois=1, items=self.ITEMS, lots=self.LOTS) is None
+
+    def test_des_dsn_d_une_autre_annee_ne_comptent_pas(self):
+        lots = [{"id": "l1", "period_min": "2025-01", "period_max": "2025-12"}]
+        assert self._lire(items=[{"batch_id": "l1"}], lots=lots) is None
+
+    def test_des_bulletins_repris_plus_tot_dans_l_annee(self):
+        assert self._lire(importes=[{"year": 2026, "month": 8}]) == "bulletins repris de l'ancien logiciel"
+
+    def test_ni_dsn_ni_bulletin_repris(self):
+        assert self._lire() is None
 
     def test_une_base_injoignable_ne_bloque_pas_la_paie(self):
-        from app.shared.reprise_paie import historique_de_paie_avant_martine
+        from app.shared.reprise_paie import historique_du_salarie_avant_martine
 
         with patch("app.shared.reprise_paie.supabase") as faux:
             faux.table.side_effect = RuntimeError("table absente")
-            assert historique_de_paie_avant_martine("soc") is None
+            assert historique_du_salarie_avant_martine("soc", "emp", 2026, 10) is None
