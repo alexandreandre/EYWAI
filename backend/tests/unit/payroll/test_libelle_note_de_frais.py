@@ -26,7 +26,11 @@ pytestmark = pytest.mark.unit
         ("Hôtel", "2026-10-07", "Note de frais : hôtel du 07/10/2026"),
         ("Fournitures", "2026-07-31", "Note de frais : fournitures du 31/07/2026"),
         ("Transport", "2026-10-07", "Note de frais : transport du 07/10/2026"),
-        ("Indemnités kilométriques", "2026-10-08", "Indemnités kilométriques du 08/10/2026"),
+        (
+            "Indemnités kilométriques",
+            "2026-10-08",
+            "Note de frais : indemnités kilométriques du 08/10/2026",
+        ),
         ("Autre", "2026-10-07", "Note de frais du 07/10/2026"),
     ],
 )
@@ -49,4 +53,15 @@ def test_aussi_quand_la_note_reste_dans_le_montant_net_social():
 
     entree = entree_de_note_de_frais(note, dans_le_mns=True)
 
-    assert entree["libelle"] == "Indemnités kilométriques du 30/09/2026"
+    assert entree["libelle"] == "Note de frais : indemnités kilométriques du 30/09/2026"
+
+
+@pytest.mark.parametrize(
+    "type_de_frais",
+    ["Restaurant", "Hôtel", "Transport", "Indemnités kilométriques", "Autre", "", None],
+)
+def test_une_seule_famille_de_libelles(type_de_frais):
+    """Rejeu G.5 (11/10/2026) : « Note de frais : restaurant du 07/10/2026 » et
+    « Indemnités kilométriques du 08/10/2026 » sur le même bulletin. Toutes les
+    notes du module se lisent « Note de frais … »."""
+    assert libelle_de_note_de_frais(type_de_frais, "2026-10-08").startswith("Note de frais")
