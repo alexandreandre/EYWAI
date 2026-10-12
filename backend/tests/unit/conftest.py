@@ -68,3 +68,12 @@ def aucun_arret_valide_lu_en_base(monkeypatch) -> None:
     from app.modules.schedules.infrastructure.arrets_valides import arrets_valides_reader
 
     monkeypatch.setattr(arrets_valides_reader, "par_salarie", lambda *a, **k: {})
+
+
+@pytest.fixture(autouse=True)
+def aucun_mois_suivant_lu_en_base(monkeypatch) -> None:
+    """Après une génération, le mois suivant se lit en base (`suite_du_bulletin`) :
+    en test, aucun, sauf doublure explicite."""
+    from app.modules.payslips.application import commands
+
+    monkeypatch.setattr(commands, "mois_suivant_a_recalculer", lambda *a, **k: None)

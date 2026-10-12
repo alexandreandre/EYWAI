@@ -36,6 +36,11 @@ from app.modules.payslips.domain.historique import (
     prochaine_version,
 )
 from app.modules.payslips.application import effets_du_bulletin as effets
+from app.modules.payslips.application.suite_du_bulletin import (
+    CODE_MOIS_SUIVANT_VALIDE,
+    mois_suivant_a_recalculer,
+    phrase_mois_suivant_valide,
+)
 from app.modules.payslips.domain.rules import is_forfait_jour
 from app.modules.payslips.infrastructure.providers import (
     payslip_generator_provider,
@@ -601,6 +606,25 @@ def _generer_sous_verrou(
             }
         )
 
+    # Les cumuls de ce mois ont pu changer : le mois suivant qui en part est
+    # nommé (brouillon, recalculé dans le même geste par l'écran) ou signalé
+    # (validé, jamais recalculé sans la RH).
+    suite = None
+    if str(result.get("status") or "") == "success":
+        mois_suivant = mois_suivant_a_recalculer(cmd.employee_id, cmd.year, cmd.month)
+        if mois_suivant and mois_suivant.valide:
+            warnings.append(
+                {
+                    "code": CODE_MOIS_SUIVANT_VALIDE,
+                    "severity": "info",
+                    "message": phrase_mois_suivant_valide(
+                        mois_suivant.year, mois_suivant.month
+                    ),
+                }
+            )
+        elif mois_suivant:
+            suite = mois_suivant.en_reponse()
+
     return GeneratePayslipResult(
         status=result["status"],
         message=result["message"],
@@ -610,6 +634,7 @@ def _generer_sous_verrou(
         salaire_brut=result.get("salaire_brut"),
         net_a_payer=result.get("net_a_payer"),
         heures_sup=result.get("heures_sup"),
+        mois_suivant_a_recalculer=suite,
     )
 
 

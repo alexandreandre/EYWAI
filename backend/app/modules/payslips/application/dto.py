@@ -160,6 +160,10 @@ class GeneratePayslipResult:
     salaire_brut: float | None = None
     net_a_payer: float | None = None
     heures_sup: float | None = None
+    #: Le brouillon du mois suivant, quand il part des cumuls que ce recalcul
+    #: vient de changer : `{year, month, heures_sup, salaire_brut, net_a_payer}`.
+    #: L'écran le recalcule dans le même geste.
+    mois_suivant_a_recalculer: dict[str, Any] | None = None
 
 
 @dataclass

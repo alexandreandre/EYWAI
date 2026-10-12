@@ -13,6 +13,7 @@ import {
   infobulleARecalculer,
   jobDeLaSuite,
   messageARecalculer,
+  phraseSuiteARecalculer,
   montantsDepuisLigne,
   montantsDepuisReponse,
   toastsDeFinDeRecalcul,
@@ -375,5 +376,15 @@ describe('toastsDeFinDeRecalcul : un lot qui suit la chaîne', () => {
     expect(toast.title).toBe('2 bulletins recalculés');
     expect(toast.description).toContain('Mathis Exemple (septembre 2026) : net');
     expect(toast.description).toContain('Mathis Exemple (octobre 2026) : net');
+  });
+});
+
+describe('phraseSuiteARecalculer : l’écran du bulletin nomme le mois suivant', () => {
+  it('élide devant octobre et dit quoi faire', () => {
+    expect(phraseSuiteARecalculer({ year: 2026, month: 10 })).toBe(
+      'Le bulletin d’octobre 2026 part des cumuls de celui-ci, qui ont changé : il est à recalculer (« Recalculer tout ce qui a changé » dans la Paie).'.replace('’', "'")
+    );
+    expect(phraseSuiteARecalculer({ year: 2027, month: 1 })).toContain('Le bulletin de janvier 2027');
+    expect(phraseSuiteARecalculer(null)).toBeNull();
   });
 });

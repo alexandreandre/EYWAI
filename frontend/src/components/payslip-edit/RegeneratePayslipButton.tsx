@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { generatePayslip } from '@/api/payslips';
+import { phraseSuiteARecalculer } from '@/features/payroll/utils/bulletinARecalculer';
 import { getPayrollGenerationErrorMessage } from '@/lib/errorMessages';
 import { BlocPeriodeVariables } from '@/features/payroll/components/BlocPeriodeVariables';
 import { JoursASaisirListe } from '@/features/payroll/components/JoursASaisirListe';
@@ -147,7 +148,8 @@ export default function RegeneratePayslipButton({
       fermerRefus();
 
       const { messages, infos } = splitGenerationWarnings(issue.reponse.warnings);
-      toast(messageApresRegeneration(issue, [...messages, ...infos]));
+      const suite = phraseSuiteARecalculer(issue.reponse.mois_suivant_a_recalculer);
+      toast(messageApresRegeneration(issue, [...messages, ...infos, ...(suite ? [suite] : [])]));
     } finally {
       setEnCours(false);
     }

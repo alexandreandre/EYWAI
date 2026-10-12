@@ -547,6 +547,14 @@ export const generatePayslip = async (
   salaire_brut?: number | null;
   net_a_payer?: number | null;
   heures_sup?: number | null;
+  /** Brouillon du mois suivant qui part des cumuls que ce recalcul a changés. */
+  mois_suivant_a_recalculer?: {
+    year: number;
+    month: number;
+    heures_sup?: number | null;
+    salaire_brut?: number | null;
+    net_a_payer?: number | null;
+  } | null;
 }> => {
   const response = await apiClient.post('/api/actions/generate-payslip', data, {
     signal,
