@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   extractGenerationRefusal,
   estForcable,
+  forcageDuRefus,
   refusForcablesEnGroupe,
+  REFUSAL_DIALOG_LABELS,
   splitGenerationWarnings,
 } from './generationGuards';
 
@@ -240,5 +242,41 @@ describe('refusForcablesEnGroupe : jamais de régénération en masse de bulleti
       refus('arrets_illisibles'),
     ]);
     expect(forcables.map((r) => r.code)).toEqual(['calendrier_incomplet']);
+  });
+});
+
+describe('refus reprise_non_posee : générer quand même, en partant de cumuls à zéro', () => {
+  const message =
+    'La paie de cette société se faisait avant Martine (DSN importées de 01/2026 à 06/2026)… ' +
+    'Sinon, le bulletin peut être généré quand même en partant de cumuls à zéro : il portera une alerte.';
+
+  it('reconnaît le 422 reprise_non_posee avec son message', () => {
+    expect(extractGenerationRefusal(httpError(422, { code: 'reprise_non_posee', message }))).toEqual({
+      code: 'reprise_non_posee',
+      message,
+    });
+  });
+
+  it('se force, seul ou en groupe, par son propre drapeau', () => {
+    expect(estForcable('reprise_non_posee')).toBe(true);
+    const forcables = refusForcablesEnGroupe([
+      { code: 'reprise_non_posee' as const, job: { employeeId: 'a' } },
+      { code: 'calendrier_incomplet' as const, job: { employeeId: 'b' } },
+    ]);
+    expect(forcables.map((r) => r.code)).toEqual(['reprise_non_posee', 'calendrier_incomplet']);
+    expect(forcageDuRefus('reprise_non_posee')).toEqual({ partir_de_cumuls_a_zero: true });
+  });
+
+  it('le bouton dit ce qu’il fait', () => {
+    expect(REFUSAL_DIALOG_LABELS.reprise_non_posee.actionLabel).toBe(
+      'Générer quand même, en partant de cumuls à zéro'
+    );
+  });
+
+  it('chaque refus forçable a son drapeau, les autres aucun', () => {
+    expect(forcageDuRefus('calendrier_incomplet')).toEqual({ force_calendrier_incomplet: true });
+    expect(forcageDuRefus('bulletin_valide')).toEqual({ regenerer_bulletin_valide: true });
+    expect(forcageDuRefus('heures_sur_jour_d_arret')).toEqual({});
+    expect(forcageDuRefus('arrets_illisibles')).toEqual({});
   });
 });
