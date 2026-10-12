@@ -48,6 +48,13 @@ import type { BonusType } from "@/api/bonusTypes";
 import { estRoleRh } from '@/lib/rolesRh';
 import { SENS_SAISIE, champsDeLaSaisie, type SensSaisie } from '@/components/saisies/sensSaisie';
 import { chargerCatalogueDePrimes } from '@/components/saisies/catalogueDePrimes';
+import {
+  explicationAffichee,
+  phraseBrutDeLaPrime,
+  requeteBrutDeLaPrime,
+  type CalculBrutDeLaPrime,
+} from '@/components/saisies/brutDeLaPrime';
+import { getUserErrorMessage } from '@/lib/errorMessages';
 import { LIBELLE_SOUMISE_COTISATIONS, LIBELLE_SOUMISE_IMPOT, phraseSaisiePonctuelle } from '@/components/saisies/libellesSaisie';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { accord, pluriel } from '@/lib/pluriel';
@@ -111,6 +118,9 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
   const [isCalculating, setIsCalculating] = useState(false);
   const [isReverseCalculating, setIsReverseCalculating] = useState(false);
   const [netTarget, setNetTarget] = useState<number | "">("");
+  // Ce que le brut proposé représente : affiché tant que le montant et les
+  // cases de la prime sont ceux du calcul (`explicationAffichee`).
+  const [brutDeLaPrime, setBrutDeLaPrime] = useState<CalculBrutDeLaPrime | null>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
 
@@ -148,6 +158,8 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
       setCatalogPrimeId(null);
       setShowCreatePrimeForm(false);
       setIsCalculating(false);
+      setBrutDeLaPrime(null);
+      setNetTarget("");
       if (employeeScopeId) {
         setFormData(prev => ({ ...prev, selectedEmployees: [employeeScopeId] }));
       }
@@ -160,16 +172,16 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
       (formData.selectedEmployees.length === 1 ? formData.selectedEmployees[0] : null);
     if (!targetEmployeeId) {
       toast({
-        title: "Employé requis",
-        description: "Sélectionnez un seul employé pour le calcul net → brut.",
+        title: "Salarié requis",
+        description: "Sélectionnez un seul salarié : le brut de la prime se calcule sur son bulletin du mois.",
         variant: "destructive",
       });
       return;
     }
     if (!netTarget || Number(netTarget) <= 0) {
       toast({
-        title: "Net cible invalide",
-        description: "Indiquez un montant net cible positif.",
+        title: "Net voulu invalide",
+        description: "Indiquez le net voulu pour la prime, supérieur à zéro.",
         variant: "destructive",
       });
       return;
@@ -177,27 +189,42 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
     const payYear = year ?? new Date().getFullYear();
     const payMonth = month ?? new Date().getMonth() + 1;
     setIsReverseCalculating(true);
+    setBrutDeLaPrime(null);
     try {
-      const result = await reverseCalculation({
-        employee_id: targetEmployeeId,
-        net_target: Number(netTarget),
-        net_type: "net_a_payer",
-        month: payMonth,
-        year: payYear,
-      });
+      // Le brut d'une PRIME qui ajoute ce net au bulletin du mois du salarié,
+      // pas celui d'un bulletin entier dont le net vaudrait ce montant.
+      const result = await reverseCalculation(
+        requeteBrutDeLaPrime({
+          employeeId: targetEmployeeId,
+          netVoulu: Number(netTarget),
+          month: payMonth,
+          year: payYear,
+          soumiseACotisations: formData.is_socially_taxed,
+          soumiseAImpot: formData.is_taxable,
+        })
+      );
       setFormData((p) => ({
         ...p,
         amount: Math.round(result.brut_calcule * 100) / 100,
       }));
+      setBrutDeLaPrime({
+        texte: phraseBrutDeLaPrime(result),
+        montant: Math.round(result.brut_calcule * 100) / 100,
+        soumiseACotisations: formData.is_socially_taxed,
+        soumiseAImpot: formData.is_taxable,
+      });
       toast({
-        title: "Brut calculé",
-        description: `Montant brut estimé : ${result.brut_calcule.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}`,
+        title: "Brut de la prime calculé",
+        description: `Montant brut proposé : ${result.brut_calcule.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}`,
       });
     } catch (error) {
       log.error("Erreur calcul net → brut:", error);
       toast({
         title: "Erreur",
-        description: "Impossible de calculer le brut depuis le net cible.",
+        description: getUserErrorMessage(
+          error,
+          "Impossible de calculer le brut de la prime depuis le net voulu.",
+        ),
         variant: "destructive",
       });
     } finally {
@@ -709,7 +736,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                 <div className="flex flex-col gap-2 rounded-md border border-dashed p-3 sm:flex-row sm:items-end">
                   <div className="grid flex-1 gap-1.5">
                     <Label htmlFor="net_target" className="text-xs text-muted-foreground">
-                      Net cible (€) — calcul inverse
+                      Net voulu pour la prime (€)
                     </Label>
                     <Input
                       id="net_target"
@@ -717,9 +744,10 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                       min="0"
                       step="0.01"
                       value={netTarget}
-                      onChange={(e) =>
-                        setNetTarget(e.target.value ? parseFloat(e.target.value) : "")
-                      }
+                      onChange={(e) => {
+                        setBrutDeLaPrime(null);
+                        setNetTarget(e.target.value ? parseFloat(e.target.value) : "");
+                      }}
                       placeholder="Ex. 100"
                     />
                   </div>
@@ -730,9 +758,14 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                     disabled={isReverseCalculating}
                     onClick={handleReverseNetToBrut}
                   >
-                    {isReverseCalculating ? "Calcul…" : "Calculer le brut depuis net"}
+                    {isReverseCalculating ? "Calcul…" : "Calculer le brut de la prime"}
                   </Button>
                 </div>
+                {explicationAffichee(brutDeLaPrime, formData) && (
+                  <p className="text-xs text-muted-foreground">
+                    {explicationAffichee(brutDeLaPrime, formData)}
+                  </p>
+                )}
                 {selectedBonusTypeId && bonusTypes.find(bt => bt.id === selectedBonusTypeId)?.type === "selon_heures" && (
                   <p className="text-xs text-muted-foreground">
                     Le montant est calculé automatiquement selon les heures faites.

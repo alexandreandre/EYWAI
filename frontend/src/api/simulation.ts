@@ -69,6 +69,14 @@ export interface ReverseCalculationRequest {
   month: number;
   year: number;
   options?: ScenarioParams;
+  /**
+   * « bulletin_entier » (par défaut) : le brut d'un bulletin dont le net vaut la
+   * cible ; « prime » : le brut d'une prime qui ajoute la cible au net du
+   * bulletin du mois du salarié (fenêtre des primes).
+   */
+  mode?: 'bulletin_entier' | 'prime';
+  prime_soumise_a_cotisations?: boolean;
+  prime_soumise_a_impot?: boolean;
 }
 
 export interface ReverseCalculationResponse {
@@ -79,6 +87,16 @@ export interface ReverseCalculationResponse {
   convergence: boolean;
   bulletin_complet: any;
   cout_employeur: number;
+  /** Période du calcul (celle de l'écran). */
+  month?: number;
+  year?: number;
+  /** Contrat retenu ; `type_contrat_par_defaut` : l'écran ne l'a pas donné (un CDI). */
+  type_contrat?: string;
+  type_contrat_par_defaut?: boolean;
+  /** Mode « prime » : nets du bulletin du mois sans et avec la prime. */
+  mode?: 'bulletin_entier' | 'prime';
+  net_a_payer_sans_prime?: number;
+  net_a_payer_avec_prime?: number;
 }
 
 export interface SimulationCreateRequest {

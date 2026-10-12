@@ -5,7 +5,7 @@ Le router simulation appelle ce module, pas engine ni documents directement.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 def run_reverse_calculation(
@@ -17,11 +17,14 @@ def run_reverse_calculation(
     net_target: float,
     net_type: str,
     options: Dict[str, Any],
+    month: Optional[int] = None,
+    year: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Calcul inverse : détermine le brut nécessaire pour obtenir un net cible.
-    Délègue à engine.calcul_inverse.calculer_brut_depuis_net.
-    Retourne un dict compatible avec ReverseCalculationResponse (brut_calcule, net_obtenu, ecart, iterations, convergence, bulletin_complet, cout_employeur).
+    Délègue à engine.calcul_inverse.calculer_brut_depuis_net, sur la période
+    donnée (à défaut, le mois en cours).
+    Retourne un dict compatible avec ReverseCalculationResponse (brut_calcule, net_obtenu, ecart, iterations, convergence, bulletin_complet, cout_employeur, month, year, type_contrat, type_contrat_par_defaut).
     """
     from app.modules.payroll.engine.calcul_inverse import (
         calculer_brut_depuis_net,
@@ -39,6 +42,8 @@ def run_reverse_calculation(
             calendrier=calendrier,
             saisies=saisies,
             options=options,
+            month=month,
+            year=year,
         )
     except (CalculInverseError, NonConvergenceError) as e:
         raise ValueError(str(e)) from e

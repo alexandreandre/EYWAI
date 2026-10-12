@@ -55,7 +55,11 @@ import {
   type EmployeeLoan,
 } from '@/api/employeeLoans';
 import { useToast } from '@/hooks/use-toast';
-import { explicationEcheancePartielle } from './echeancePartielle';
+import {
+  explicationEcheancePartielle,
+  legendePeriodesDecalees,
+  periodesDesEcheances,
+} from './echeancePartielle';
 
 interface EmployeeLoanDetailDrawerProps {
   loan: EmployeeLoan | null;
@@ -112,6 +116,14 @@ export function EmployeeLoanDetailDrawer({
   });
 
   if (!loan) return null;
+
+  // Le premier bulletin qui pourra retenir chaque échéance : après une retenue
+  // partielle, les suivantes glissent (rejeu G.3).
+  const periodesEcheances = periodesDesEcheances(
+    scheduleQuery.data ?? [],
+    repaymentsQuery.data ?? [],
+  );
+  const legendePeriodes = legendePeriodesDecalees(periodesEcheances);
 
   const handleDownloadContract = async () => {
     setContractLoading(true);
@@ -372,11 +384,16 @@ export function EmployeeLoanDetailDrawer({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(scheduleQuery.data ?? []).map((row) => (
+                      {(scheduleQuery.data ?? []).map((row, index) => (
                         <TableRow key={row.installment_number}>
                           <TableCell>{row.installment_number}</TableCell>
                           <TableCell>
-                            {String(row.month).padStart(2, '0')}/{row.year}
+                            {periodesEcheances[index]?.periode}
+                            {periodesEcheances[index]?.prevue && (
+                              <div className="text-xs text-muted-foreground">
+                                prévue {periodesEcheances[index].prevue}
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell>{formatEuro(row.capital_part)}</TableCell>
                           <TableCell>{formatEuro(row.interest_part)}</TableCell>
@@ -417,6 +434,9 @@ export function EmployeeLoanDetailDrawer({
                     </TableBody>
                   </Table>
                 </div>
+              )}
+              {legendePeriodes && (
+                <p className="mt-1 text-xs text-muted-foreground">{legendePeriodes}</p>
               )}
               {(scheduleQuery.data ?? [])
                 .map((row) => explicationEcheancePartielle(row))

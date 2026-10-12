@@ -1,12 +1,32 @@
 """
 Module de calcul inverse : détermination du brut nécessaire pour un net cible
-Utilise une recherche dichotomique pour converger vers le brut exact
+Utilise une recherche dichotomique pour converger vers le brut exact.
+
+Chaque essai est un bulletin du moteur complet, celui du bulletin d'essai
+(`run_simulation_bulletin_pipeline`) : période choisie à l'écran, barèmes
+chargés (refusés s'ils sont d'une année passée, comme pour un bulletin),
+contribution CPF des seuls CDD, réduction générale (rejeu G.9, 11/10/2026).
 """
 
-from typing import Dict, Any, Optional, Literal
+import copy
+from datetime import datetime
+from typing import Dict, Any, Optional, Literal, Tuple
+from zoneinfo import ZoneInfo
 import logging
 
+from app.modules.payroll.engine.baremes_loader import controler_annee_des_baremes
+
 logger = logging.getLogger(__name__)
+
+#: Le contrat retenu quand ni l'écran ni la fiche n'en donnent : l'écran du
+#: calcul inverse ne demande pas le type de contrat, et la réponse le dit.
+TYPE_CONTRAT_PAR_DEFAUT = "CDI"
+
+
+def _periode(month: Optional[int], year: Optional[int]) -> Tuple[int, int]:
+    """La période demandée ; à défaut, le mois en cours (heure de Paris)."""
+    maintenant = datetime.now(ZoneInfo("Europe/Paris"))
+    return int(month or maintenant.month), int(year or maintenant.year)
 
 
 class CalculInverseError(Exception):
@@ -60,6 +80,9 @@ def calculer_brut_depuis_net(
     options: Optional[Dict[str, Any]] = None,
     tolerance: float = 1.0,
     max_iterations: int = 25,
+    *,
+    month: Optional[int] = None,
+    year: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Calcule le brut nécessaire pour obtenir un net cible via recherche dichotomique
@@ -75,6 +98,7 @@ def calculer_brut_depuis_net(
         options: Options supplémentaires pour la simulation
         tolerance: Tolérance d'écart acceptable (en euros)
         max_iterations: Nombre maximum d'itérations
+        month, year: Période du calcul (celle de l'écran) ; à défaut, le mois en cours
 
     Returns:
         Dict contenant:
@@ -85,10 +109,15 @@ def calculer_brut_depuis_net(
             - bulletin_complet: Bulletin de paie complet
             - cout_employeur: Coût total employeur
             - convergence: True si convergence atteinte
+            - month, year: Période du calcul
+            - type_contrat: Contrat retenu ; type_contrat_par_defaut: True s'il
+              n'était pas donné (un CDI)
 
     Raises:
         CalculInverseError: Si les paramètres sont invalides
         NonConvergenceError: Si l'algorithme ne converge pas
+        BaremesDUneAnneePassee: Si les barèmes chargés sont d'une année
+            antérieure à la période (même refus que pour un bulletin)
     """
     # Validation des entrées
     if net_cible <= 0:
@@ -96,6 +125,19 @@ def calculer_brut_depuis_net(
 
     if type_net not in ["net_a_payer", "net_imposable"]:
         raise CalculInverseError(f"Type de net invalide: {type_net}")
+
+    month, year = _periode(month, year)
+    # Barèmes d'une année passée : refus, comme pour un bulletin.
+    controler_annee_des_baremes(baremes or {}, year)
+
+    type_contrat = str(
+        employee_data.get("type_contrat") or employee_data.get("contract_type") or ""
+    ).strip()
+    type_contrat_par_defaut = not type_contrat
+    employee_data = {
+        **employee_data,
+        "type_contrat": type_contrat or TYPE_CONTRAT_PAR_DEFAUT,
+    }
 
     # Récupération du statut et du taux PAS
     statut = employee_data.get("statut", "Non-cadre")
@@ -115,6 +157,8 @@ def calculer_brut_depuis_net(
 
     meilleur_resultat = None
     meilleur_ecart = float("inf")
+    # Un seul contexte construit, copié à chaque essai (barèmes partagés).
+    contexte_de_base = _contexte_de_base(employee_data, company_data, baremes)
 
     for iteration in range(1, max_iterations + 1):
         # Estimation du brut (milieu de l'intervalle)
@@ -134,6 +178,9 @@ def calculer_brut_depuis_net(
                 calendrier,
                 saisies,
                 options,
+                month=month,
+                year=year,
+                contexte_de_base=contexte_de_base,
             )
 
             # Extraction du net selon le type demandé
@@ -149,13 +196,20 @@ def calculer_brut_depuis_net(
             if ecart_abs < meilleur_ecart:
                 meilleur_ecart = ecart_abs
                 meilleur_resultat = {
-                    "brut_calcule": brut_estime,
+                    # Le brut du bulletin : le salaire de base cherché, plus ce
+                    # que le moteur y ajoute (heures supplémentaires d'un
+                    # horaire au-delà de 35 h).
+                    "brut_calcule": float(bulletin.get("salaire_brut") or brut_estime),
                     "net_obtenu": net_obtenu,
                     "ecart": ecart,
                     "iterations": iteration,
                     "bulletin_complet": bulletin,
                     "cout_employeur": _calculer_cout_employeur(bulletin),
                     "convergence": ecart_abs < tolerance,
+                    "month": month,
+                    "year": year,
+                    "type_contrat": employee_data["type_contrat"],
+                    "type_contrat_par_defaut": type_contrat_par_defaut,
                 }
 
             # Vérification de la convergence
@@ -196,6 +250,18 @@ def calculer_brut_depuis_net(
         )
 
 
+def _contexte_de_base(
+    employee_data: Dict[str, Any],
+    company_data: Dict[str, Any],
+    baremes: Dict[str, Any],
+) -> Any:
+    """Le contexte du moteur pour ce salarié, construit une fois (comme celui
+    du bulletin d'essai)."""
+    from .contexte import ChargerContexte
+
+    return ChargerContexte(employee_data, company_data, baremes)
+
+
 def _calculer_bulletin_avec_brut_override(
     brut_force: float,
     employee_data: Dict[str, Any],
@@ -204,43 +270,43 @@ def _calculer_bulletin_avec_brut_override(
     calendrier: Dict[str, Any],
     saisies: Dict[str, Any],
     options: Optional[Dict[str, Any]] = None,
+    *,
+    month: int,
+    year: int,
+    contexte_de_base: Any = None,
 ) -> Dict[str, Any]:
     """
-    Calcule un bulletin complet en forçant un brut spécifique
-
-    Utilise la fonction de simulation avec les taux réels de la base de données.
+    Calcule un bulletin complet pour un salaire de base donné, avec le moteur
+    du bulletin d'essai : cotisations selon le contrat (la contribution CPF
+    des seuls CDD), réduction générale, période et barèmes de l'année.
 
     Args:
-        brut_force: Brut à atteindre
-        employee_data: Données employé
+        brut_force: Salaire de base essayé
+        employee_data: Données employé (type de contrat déjà résolu)
         company_data: Données entreprise
         baremes: Barèmes chargés depuis la base de données
-        calendrier: Calendrier (non utilisé dans cette version simplifiée)
-        saisies: Saisies (non utilisé dans cette version simplifiée)
+        calendrier: Non utilisé (mois complet travaillé, comme le bulletin d'essai)
+        saisies: Non utilisé
         options: Options supplémentaires
+        month, year: Période du bulletin
+        contexte_de_base: Contexte déjà construit pour ce salarié, copié ici
 
     Returns:
-        Bulletin de paie avec taux réels
+        Bulletin de paie du moteur
     """
-    options = options or {}
+    from .simulation_pipeline import run_simulation_bulletin_pipeline
 
-    # Importer la fonction de calcul détaillé depuis simulation
-    from .simulation import _creer_bulletin_simplifie
-
-    # Préparer les paramètres du scénario avec le brut forcé
-    scenario_params = {"salaire_base_override": brut_force}
-
-    # Appeler la fonction qui utilise les taux réels
-    bulletin = _creer_bulletin_simplifie(
-        employee_data,
-        company_data,
-        scenario_params,
-        month=1,  # Non utilisé pour le calcul inverse, mais requis
-        year=2025,  # Non utilisé pour le calcul inverse, mais requis
-        baremes=baremes,
+    if contexte_de_base is None:
+        contexte_de_base = _contexte_de_base(employee_data, company_data, baremes)
+    # Chaque essai part d'une copie neuve (le moteur pose des alertes et des
+    # détails sur le contexte) ; les barèmes, lus seulement, sont partagés.
+    contexte = copy.deepcopy(
+        contexte_de_base, {id(contexte_de_base.baremes): contexte_de_base.baremes}
     )
-
-    return bulletin
+    contexte.contrat.setdefault("remuneration", {})["salaire_de_base"] = {
+        "valeur": float(brut_force)
+    }
+    return run_simulation_bulletin_pipeline(contexte, month=month, year=year)
 
 
 def _extraire_net_du_bulletin(bulletin: Dict[str, Any], type_net: str) -> float:

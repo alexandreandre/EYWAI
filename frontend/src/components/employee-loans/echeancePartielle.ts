@@ -44,3 +44,82 @@ export function explicationEcheancePartielle(echeance: Echeance): string | null 
     "bulletin suivant, et les échéances suivantes glissent d'un mois."
   );
 }
+
+type EcheanceDuTableau = Echeance & { id?: string };
+
+type RetenueSurBulletin = {
+  installment_id?: string | null;
+  year: number;
+  month: number;
+};
+
+/** La période d'une ligne du tableau ; `prevue` : celle de l'échéancier, si elle a glissé. */
+export type PeriodeEcheance = { periode: string; prevue: string | null };
+
+const indexMois = (year: number, month: number) => year * 12 + (month - 1);
+
+const libellePeriode = (index: number) =>
+  `${String((index % 12) + 1).padStart(2, '0')}/${Math.floor(index / 12)}`;
+
+/**
+ * Pour chaque échéance, dans l'ordre reçu, le premier bulletin qui pourra la
+ * retenir. La règle est celle de la paie (`get_unsettled_installments_for_payroll`) :
+ * un bulletin retient au plus une échéance par prêt, la plus ancienne non
+ * soldée, et jamais avant sa période. Une échéance retenue en partie reprend
+ * donc son reliquat seule au bulletin suivant, et les suivantes glissent.
+ * Les échéances payées ou ignorées gardent leur période.
+ */
+export function periodesDesEcheances(
+  echeances: EcheanceDuTableau[],
+  retenues: RetenueSurBulletin[]
+): PeriodeEcheance[] {
+  const ordre = [...echeances].sort((a, b) => a.installment_number - b.installment_number);
+  const parNumero = new Map<number, PeriodeEcheance>();
+  let dernierBulletin: number | null = null;
+  const occuper = (index: number) => {
+    dernierBulletin = dernierBulletin === null ? index : Math.max(dernierBulletin, index);
+  };
+  for (const echeance of ordre) {
+    const propre = indexMois(echeance.year, echeance.month);
+    const sansGlissement = { periode: libellePeriode(propre), prevue: null };
+    const bulletins = retenues
+      .filter((r) => echeance.id && r.installment_id === echeance.id)
+      .map((r) => indexMois(r.year, r.month));
+    const derniereRetenue = bulletins.length ? Math.max(...bulletins) : null;
+    if (echeance.status === 'skipped') {
+      parNumero.set(echeance.installment_number, sansGlissement);
+    } else if (echeance.status === 'paid') {
+      occuper(derniereRetenue ?? propre);
+      parNumero.set(echeance.installment_number, sansGlissement);
+    } else if (estEcheancePartielle(echeance)) {
+      // Le reliquat est repris seul au bulletin qui suit la dernière retenue.
+      occuper((derniereRetenue ?? propre) + 1);
+      parNumero.set(echeance.installment_number, sansGlissement);
+    } else {
+      const premier: number =
+        dernierBulletin === null ? propre : Math.max(propre, dernierBulletin + 1);
+      occuper(premier);
+      parNumero.set(echeance.installment_number, {
+        periode: libellePeriode(premier),
+        prevue: premier === propre ? null : libellePeriode(propre),
+      });
+    }
+  }
+  return echeances.map(
+    (e) =>
+      parNumero.get(e.installment_number) ?? {
+        periode: libellePeriode(indexMois(e.year, e.month)),
+        prevue: null,
+      }
+  );
+}
+
+/** La légende du tableau quand une période a glissé ; null sinon. */
+export function legendePeriodesDecalees(periodes: PeriodeEcheance[]): string | null {
+  if (!periodes.some((p) => p.prevue)) return null;
+  return (
+    "Un bulletin ne retient qu'une échéance par prêt : quand une échéance est retenue " +
+    'en partie, les suivantes glissent. La période affichée est celle du premier ' +
+    "bulletin qui pourra les retenir ; « prévue » rappelle la date de l'échéancier."
+  );
+}

@@ -44,7 +44,11 @@ from app.modules.payroll.documents.dossier_de_travail import (
     nouveau_dossier_de_travail,
     supprimer_dossier_de_travail,
 )
-from app.modules.payroll.documents.bac_a_sable import BacASable, cumuls_de_depart
+from app.modules.payroll.documents.bac_a_sable import (
+    BacASable,
+    cumuls_de_depart,
+    saisies_du_mois,
+)
 from app.modules.payroll.documents.pdf_du_bulletin import (
     chemin_enregistre,
     chemin_horodate,
@@ -215,6 +219,9 @@ def process_payslip_generation_forfait(
             .match({"employee_id": employee_id, "year": year, "month": month})
             .execute()
         )
+        # Bac à sable : des saisies qui n'existent qu'en mémoire s'ajoutent à
+        # celles du mois (hors bac à sable, rien ne change).
+        saisies_res.data = saisies_du_mois(saisies_res.data, bac_a_sable)
 
         # --- ÉTAPE 2 : PRÉPARATION DES DONNÉES ---
         db_data_map = {(row["year"], row["month"]): row for row in schedule_res.data}
