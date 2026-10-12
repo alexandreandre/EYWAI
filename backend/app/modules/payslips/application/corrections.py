@@ -295,7 +295,11 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
 
     recalcule, erreur, refus = False, None, None
     with verrou_de_generation(periode["employee_id"], periode["year"], periode["month"]):
-        if bulletin.get("status") == "valide":
+        # Une note interne seule ne change pas le bulletin remis : il reste
+        # validé [J1]. Un montant ou la note du PDF, si.
+        if bulletin.get("status") == "valide" and (
+            corrections.change_des_variables or note_pdf_changee
+        ):
             # D'abord : le salarié ne doit jamais voir comme validé un contenu
             # qui ne l'a pas été.
             _set_payslip_status_brouillon(cmd.payslip_id)

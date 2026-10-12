@@ -238,6 +238,16 @@ export function recalculAttendu(initial: EtatCorrections, courant: EtatCorrectio
   return Object.keys(requeteDeCorrection(initial, courant, null).corrections).length > 0;
 }
 
+/**
+ * Un bulletin validé repasse en brouillon si le document remis change : une
+ * variable (donc un montant) ou la note du PDF. Une note interne seule le
+ * laisse validé [J1].
+ */
+export function repasseEnBrouillon(initial: EtatCorrections, courant: EtatCorrections): boolean {
+  const requete = requeteDeCorrection(initial, courant, null);
+  return Object.keys(requete.corrections).length > 0 || requete.pdf_notes !== undefined;
+}
+
 /** « Bulletin d'octobre 2026 — Camille Roussel » : le mois et le salarié, jamais le nom du fichier. */
 export function titreDuBulletin(payslipData: unknown, month: number, year: number): string {
   const salarie = (payslipData as { en_tete?: { salarie?: Record<string, unknown> } } | null | undefined)

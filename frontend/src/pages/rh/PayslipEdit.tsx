@@ -81,6 +81,7 @@ import {
   avecSaisiesSurLeNet,
   etatInitial,
   recalculAttendu,
+  repasseEnBrouillon,
   requeteDeCorrection,
   titreDuBulletin,
   type EtatCorrections,
@@ -314,8 +315,10 @@ export default function PayslipEdit() {
   };
 
   const demanderEnregistrement = () => {
-    if (payslip?.status === 'valide') setConfirmationValide(true);
-    else void enregistrer();
+    // Une note interne seule laisse le bulletin validé : rien à confirmer [J1].
+    if (payslip?.status === 'valide' && initial && etat && repasseEnBrouillon(initial, etat)) {
+      setConfirmationValide(true);
+    } else void enregistrer();
   };
 
   const valider = async () => {
