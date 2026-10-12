@@ -132,12 +132,11 @@ describe('titres-restaurant : valeur du titre et part patronale ([B5], 12/10/202
 });
 
 describe('titre de séjour à la création ([D6-1], 12/10/2026)', () => {
-  // L’étoile rouge disait « requise », le schéma ne l’exigeait pas : la fiche
-  // créée sans date ne pouvait plus être enregistrée ensuite.
-  it('soumis à titre de séjour sans date : refusé, comme sur la fiche', () => {
-    expect(erreurs({ is_subject_to_residence_permit: true, residence_permit_expiry_date: '' })).toContain(
-      "residence_permit_expiry_date: Date d'expiration du titre de séjour requise.",
-    );
+  // Alerte plutôt que refus (12/10/2026) : la date manquante ne fausse aucun
+  // montant, et un titre sans date se dit « À compléter » partout (badge,
+  // carte, filtre, export, échéances). Le salarié se crée, sa paie se fait.
+  it('soumis à titre de séjour sans date : accepté, le titre sera « À compléter »', () => {
+    expect(erreurs({ is_subject_to_residence_permit: true, residence_permit_expiry_date: '' })).toEqual([]);
   });
 
   it('avec sa date, ou non soumis : accepté', () => {
