@@ -93,3 +93,33 @@ describe('filterTasksToPayrollFocus', () => {
     expect(input).toHaveLength(2);
   });
 });
+
+describe('tâche « Échéances » ([D6-6], 12/10/2026)', () => {
+  // La tâche menait au bandeau qui cite les titres de séjour, sans les compter ;
+  // en mode paie, la tâche « Titres de séjour » est retirée : un titre expiré
+  // n'allumait rien à l'accueil.
+  it('s’appelle « Échéances »', () => {
+    const items = buildRhPendingTasks({ ...emptyInput, expiringContracts: 1 });
+    expect(items.find((i) => i.id === 'contracts')?.label).toBe('Échéances');
+  });
+
+  it('en mode paie, compte les titres expirés ou à renouveler', () => {
+    const items = filterTasksToPayrollFocus(
+      buildRhPendingTasks({ ...emptyInput, expiringContracts: 1, residenceExpire: 2, residenceRenew: 1, residenceMissing: 4 }),
+    );
+    const echeances = items.find((i) => i.id === 'contracts');
+    expect(echeances?.count).toBe(4);
+    expect(items.some((i) => i.id === 'residence')).toBe(false);
+  });
+
+  it('en mode paie, un titre expiré seul allume la tâche', () => {
+    const items = filterTasksToPayrollFocus(buildRhPendingTasks({ ...emptyInput, residenceExpire: 1 }));
+    expect(items.find((i) => i.id === 'contracts')?.count).toBe(1);
+  });
+
+  it('hors mode paie, la tâche « Titres de séjour » garde les titres : rien n’est compté deux fois', () => {
+    const items = buildRhPendingTasks({ ...emptyInput, expiringContracts: 1, residenceExpire: 2 });
+    expect(items.find((i) => i.id === 'contracts')?.count).toBe(1);
+    expect(items.find((i) => i.id === 'residence')?.count).toBe(2);
+  });
+});
