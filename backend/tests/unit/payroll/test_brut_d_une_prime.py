@@ -152,6 +152,8 @@ def bac(monkeypatch):
         return {"payslip_data": _salarie_39h(montant)}
 
     monkeypatch.setattr(providers.payslip_generator_provider, "generate_en_bac_a_sable", generer)
+    # Les lectures préchargées en parallèle (lot 31) : sans objet ici.
+    monkeypatch.setattr(sq, "_precharger_le_bulletin_du_mois", lambda *_a: [], raising=False)
     monkeypatch.setattr(sq, "load_company", lambda _cid: {"id": "soc"})
     monkeypatch.setattr(
         sq, "load_employee", lambda eid, cid: {"id": eid, "company_id": cid}
@@ -192,7 +194,9 @@ def test_le_mode_prime_calcule_sur_le_bulletin_du_salarie_en_bac_a_sable(bac):
     # prélèvement du mois partent du vrai passé du salarié.
     assert all(a["cumuls"]["mois"] == (2026, 9) for a in bac)
     assert bac[0]["saisies"] == []
-    (prime,) = bac[-1]["saisies"]
+    # La prime proposée a été essayée (le dernier essai peut être le centime
+    # d'en dessous, qui confirme qu'elle est la première : lot 31).
+    (prime,) = next(a["saisies"] for a in bac if a["saisies"] and a["saisies"][0]["amount"] == r["brut_calcule"])
     assert prime["amount"] == pytest.approx(r["brut_calcule"])
     assert prime["is_socially_taxed"] is True
     assert prime["is_taxable"] is False
