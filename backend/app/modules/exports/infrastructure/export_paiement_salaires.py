@@ -206,7 +206,10 @@ def preview_paiement_salaires(
     excluded_employee_ids: Optional[List[str]] = None,
     execution_date: Optional[str] = None,
     payment_label: Optional[str] = None,
+    bank_format: str = "sepa",
 ) -> Dict[str, Any]:
+    from app.modules.exports.infrastructure.export_sepa import missing_bic_warning
+
     data, totals, anomalies, warnings = get_paiement_salaires_data(
         company_id,
         period,
@@ -217,6 +220,13 @@ def preview_paiement_salaires(
     )
     if totals["virements_count"] == 0:
         warnings.append("Aucun virement à générer pour cette période")
+    if bank_format == "csv":
+        warnings.append("Fichier CSV — transmission manuelle à la banque.")
+    else:
+        bic_warning = missing_bic_warning(data)
+        if bic_warning:
+            warnings.append(bic_warning)
+        warnings.append("Format SEPA pain.001.001.03 — transmission manuelle à la banque.")
     if not charger_compte_societe(company_id):
         anomalies = anomalies + [anomalie_compte_manquant()]
     return {

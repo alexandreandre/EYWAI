@@ -89,6 +89,7 @@ class TestPreviewExport:
                     ["emp-2"],
                     "2025-02-28",
                     "Salaire fév",
+                    "sepa",
                 )
 
     def test_od_type_preview_returns_totals_from_total_debit(self):

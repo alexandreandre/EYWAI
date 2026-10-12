@@ -147,6 +147,7 @@ def preview_paiement_salaires(
     excluded_employee_ids: Optional[List[str]],
     execution_date: Optional[str],
     payment_label: Optional[str],
+    bank_format: str = "sepa",
 ) -> Dict[str, Any]:
     return _preview_paiement_salaires(
         company_id,
@@ -155,6 +156,7 @@ def preview_paiement_salaires(
         excluded_employee_ids,
         execution_date,
         payment_label,
+        bank_format,
     )
 
 

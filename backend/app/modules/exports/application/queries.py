@@ -69,6 +69,7 @@ def _preview_export_brut(
             request.excluded_employee_ids,
             request.execution_date,
             request.payment_label,
+            (request.filters or {}).get("bank_format", "sepa"),
         )
         return ExportPreviewResponse(
             export_type=request.export_type,
