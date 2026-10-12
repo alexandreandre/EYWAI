@@ -269,6 +269,84 @@ class TestHistoriqueAvantMartineSansReprise:
         assert "avant Martine" not in raison
 
 
+class TestGenererQuandMemeEnPartantDeZero:
+    """[B12] Le refus reste le défaut, mais il a une sortie explicite (12/10/2026) :
+    « Générer quand même, en partant de cumuls à zéro ». Seule la reprise non posée
+    se force ; une chaîne rompue ou un solde d'ouverture absent après une bascule
+    ne se forcent pas (le cumul existe ailleurs, il faut le refaire)."""
+
+    def _raison(self, **kwargs):
+        return TestHistoriqueAvantMartineSansReprise()._raison(**kwargs)
+
+    def test_la_reprise_non_posee_est_une_raison_qui_se_force(self):
+        from app.shared.reprise_paie import RepriseNonPosee
+
+        raison = self._raison()
+        assert isinstance(raison, RepriseNonPosee)
+        assert raison.code == "reprise_non_posee"
+        assert (
+            "Sinon, le bulletin peut être généré quand même en partant de cumuls à "
+            "zéro : il portera une alerte." in raison
+        )
+
+    def test_une_chaine_rompue_ne_se_force_pas(self):
+        from app.shared.reprise_paie import RepriseNonPosee
+
+        raison = self._raison(bulletin_avant=True)
+        assert raison is not None and not isinstance(raison, RepriseNonPosee)
+
+    def test_un_solde_d_ouverture_absent_apres_la_bascule_ne_se_force_pas(self):
+        from app.shared.reprise_paie import RepriseNonPosee
+
+        raison = raison_de_cumul_manquant(
+            "soc", "emp", 2026, 7, False, bascule=BASCULE_JUIN, date_entree=date(2019, 3, 4)
+        )
+        assert raison is not None and not isinstance(raison, RepriseNonPosee)
+
+    def test_le_detail_http_du_refus_porte_son_code_seulement_pour_la_reprise(self):
+        from app.shared.reprise_paie import detail_du_refus
+
+        reprise = self._raison()
+        assert detail_du_refus(reprise) == {"code": "reprise_non_posee", "message": str(reprise)}
+        chaine = self._raison(bulletin_avant=True)
+        assert detail_du_refus(chaine) == chaine
+
+    def test_la_trace_dit_qui_et_quand(self):
+        from datetime import datetime, timezone
+
+        from app.shared.reprise_paie import trace_depart_a_zero
+
+        quand = datetime(2026, 10, 12, 18, 5, tzinfo=timezone.utc)
+        assert trace_depart_a_zero("user-rh-1", "RH Essai", quand) == {
+            "par": "RH Essai",
+            "par_id": "user-rh-1",
+            "le": "2026-10-12T18:05:00+00:00",
+        }
+
+    def test_l_alerte_du_bulletin_dit_qui_quand_et_ce_qui_peut_etre_faux(self):
+        from app.shared.reprise_paie import alerte_depart_a_zero
+
+        alerte = alerte_depart_a_zero(
+            {"par": "RH Essai", "par_id": "user-rh-1", "le": "2026-10-12T18:05:00+00:00"}
+        )
+        assert alerte["code"] == "cumuls_partis_de_zero"
+        assert alerte["severity"] == "warning" and alerte["critique"] is False
+        assert alerte["message"] == (
+            "Bulletin calculé en partant de cumuls à zéro (choix de RH Essai, le "
+            "12/10/2026 à 20 h 05) : la reprise de paie de ce collaborateur n'est pas "
+            "posée, ni bascule ni solde d'ouverture. Réduction générale, tranches "
+            "Agirc-Arrco, plafond des heures supplémentaires et indemnités de fin de "
+            "contrat ignorent ce qu'il a été payé avant Martine. À vérifier avant de "
+            "valider ce bulletin."
+        )
+
+    def test_sans_nom_l_alerte_ne_l_invente_pas(self):
+        from app.shared.reprise_paie import alerte_depart_a_zero
+
+        alerte = alerte_depart_a_zero({"par": None, "par_id": None, "le": "2026-10-12T08:00:00+00:00"})
+        assert "(choix d'une personne non identifiée, le 12/10/2026 à 10 h 00)" in alerte["message"]
+
+
 class TestLectureDeLHistoriqueDuSalarie:
     """Ce qui rattache un salarié à la paie d'avant Martine, pour les mois de
     l'année qui précèdent le bulletin."""
