@@ -40,6 +40,8 @@ import { PrevoyanceAffiliationFields } from '@/features/employees/components/Pre
 import { EmployeeContractConfigFormFields } from '@/features/employees/components/EmployeeContractConfigFields';
 import { getCollectiveAgreementLabel } from '@/lib/employeeDisplayUtils';
 import { BrutPourDureeHint } from '@/components/employees/BrutPourDureeHint';
+import { useMajorationHs } from "@/hooks/queries/useMajorationHs";
+import { texteMajoration } from "@/lib/brutDureeHebdo";
 import { ChangerSalaire } from '@/features/employee-detail/components/ChangerSalaire';
 import { avertissementSalaireNonDate } from '@/features/employee-detail/components/salaireDate';
 import { Switch } from '@/components/ui/switch';
@@ -127,6 +129,7 @@ export function EmployeeProfileEditForm({
   salaireVerrouille = false,
   employeeId,
 }: EmployeeProfileEditFormProps) {
+  const majorationHs = useMajorationHs();
   const statut = useWatch({ control, name: 'statut' });
   const contractType = useWatch({ control, name: 'contract_type' });
   const salaireBase = useWatch({ control, name: 'salaire_de_base.valeur' });
@@ -487,7 +490,7 @@ export function EmployeeProfileEditForm({
                   <div className="space-y-1">
                     <FormLabel>Salaire saisi pour 35 h</FormLabel>
                     <p className="text-xs text-muted-foreground">
-                      Activé : les heures au-delà de 35 h sont payées en plus, majorées de 25 %. Désactivé :
+                      Activé : les heures au-delà de 35 h sont payées en plus, {texteMajoration(majorationHs)}. Désactivé :
                       le montant saisi couvre toute la durée du contrat. Change le prochain bulletin calculé.
                     </p>
                   </div>

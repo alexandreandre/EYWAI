@@ -18,6 +18,8 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, PlusCircle, Loader2, Upload, FileText, Trash2 } from "lucide-react";
 import { BrutPourDureeHint } from "@/components/employees/BrutPourDureeHint";
+import { useMajorationHs } from "@/hooks/queries/useMajorationHs";
+import { texteMajoration } from "@/lib/brutDureeHebdo";
 import { getValeursEmbauche, type NouveauSalarieCree } from "@/api/employees";
 import { NouveauSalarieRecap } from "@/features/employees/components/NouveauSalarieRecap";
 import { signalerErreurEcran } from "@/api/clientErrors";
@@ -102,6 +104,7 @@ function defaultTrialSettings(contractType: string) {
 
 export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   const companyId = useActiveCompanyId();
+  const majorationHs = useMajorationHs();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [confirmerFermeture, setConfirmerFermeture] = useState(false);
   const nePasConfirmerFermeture = useRef(false);
@@ -1394,7 +1397,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                 <div className="space-y-1">
                                   <FormLabel>Salaire saisi pour 35 h</FormLabel>
                                   <p className="text-xs text-muted-foreground">
-                                    Activé : les heures au-delà de 35 h sont payées en plus, majorées de 25 %.
+                                    Activé : les heures au-delà de 35 h sont payées en plus, {texteMajoration(majorationHs)}.
                                     Désactivé : le montant saisi couvre toute la durée du contrat. Proposé comme
                                     pour la plupart des salariés de la société.
                                   </p>
