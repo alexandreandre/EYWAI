@@ -147,6 +147,24 @@ def test_la_prolongation_continue_l_arret_initial():
     assert blocs[0]["S21.G00.60.010"] == "13042026"
 
 
+def test_adoption_declaree_en_motif_09_quel_que_soit_le_conge_saisi():
+    """Cahier technique DSN 2026.1, S21.G00.60.001 : « 09 - adoption ». Un
+    congé d'adoption saisi sous la nature maternité ou paternité garde ce motif."""
+    for type_absence in ("arret_maternite", "arret_paternite"):
+        blocs = blocs_arret(
+            [_arret(type_absence, "2026-10-05", "2026-10-30", arret_type="adoption")],
+            date(2026, 10, 1),
+            date(2026, 10, 31),
+        )
+        assert [b["S21.G00.60.001"] for b in blocs] == ["09"], type_absence
+    blocs = blocs_arret(
+        [_arret("arret_paternite", "2026-10-05", "2026-10-30")],
+        date(2026, 10, 1),
+        date(2026, 10, 31),
+    )
+    assert [b["S21.G00.60.001"] for b in blocs] == ["03"]
+
+
 def test_accident_du_travail_jour_travaille_sans_date_de_l_accident():
     """CT 60.002 : le jour de l'accident est travaillé. La date de l'accident
     (60.012) est interdite en DSN mensuelle (DSN-VAL, CST-04) : elle ne se
