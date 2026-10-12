@@ -8,6 +8,7 @@ Retourne des dicts / listes de dicts compatibles avec les schémas de réponse A
 from __future__ import annotations
 from app.shared.domain.effectif_seuils import effectif_retenu
 from app.shared.seniority_reference import resolve_seniority_reference_date
+from app.modules.payroll.infrastructure.arrets_connus import arrets_connus_du_salarie
 from app.modules.payroll.infrastructure.salaires_de_reference import (
     poser_salaires_de_reference,
 )
@@ -1172,6 +1173,17 @@ def get_absence_maintenance_preview(
         "date_dernier_arret": absence.get("date_dernier_arret"),
         "salaire_periode_reelle": float(absence.get("salaire_periode_reelle") or 0.0),
     }
+    # Mêmes arrêts connus que le bulletin : une prolongation n'y a pas de
+    # nouvelle carence, et la carence payée de l'année s'y lit aussi.
+    arrets_connus = arrets_connus_du_salarie(
+        str(absence["employee_id"]), date_fin_periode.year, date_fin_periode.month
+    )
+    arret_data["arrets_connus"] = arrets_connus
+    if settings_dict.get("paid_waiting_days_per_year"):
+        debut_annee = date(date_debut_periode.year, 1, 1).isoformat()
+        arret_data["arrets_annee"] = [
+            a for a in arrets_connus if str(a.get("fin") or "") >= debut_annee
+        ]
     # Mêmes bruts de référence que le bulletin pour l'estimation des IJSS.
     poser_salaires_de_reference(arret_data, absence.get("employee_id"))
 

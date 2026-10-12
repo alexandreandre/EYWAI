@@ -51,16 +51,19 @@ def salaires_bruts_de_reference(
 
 
 def poser_salaires_de_reference(arret_data: dict[str, Any], employee_id: Any) -> None:
-    """Pose sur l'arrêt les bruts des trois mois qui précèdent son début.
+    """Pose sur l'arrêt les bruts des trois mois qui précèdent son début (celui
+    de l'arrêt qu'il prolonge, s'il en prolonge un).
 
     Si la lecture échoue, l'estimation des IJSS retombe sur le salaire de base
     du contrat, et le journal le dit.
     """
     if not employee_id or arret_data.get("salaires_bruts_reference") is not None:
         return
-    try:
-        debut = date.fromisoformat(str(arret_data.get("date_debut"))[:10])
-    except ValueError:
+    # Prolongation : les bruts sont ceux d'avant l'arrêt prolongé.
+    from app.modules.payroll.engine.prolongation_arret import debut_de_l_arret_prolonge
+
+    debut = debut_de_l_arret_prolonge(arret_data)
+    if debut is None:
         return
     try:
         arret_data["salaires_bruts_reference"] = salaires_bruts_de_reference(

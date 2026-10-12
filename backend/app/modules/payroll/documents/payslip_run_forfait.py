@@ -55,6 +55,7 @@ from .payslip_run_common import (
 from .payslip_run_heures import (
     _appliquer_maintien_arret_maladie,
     _extraire_arret_pour_maintien,
+    poser_les_arrets_connus,
     poser_le_depart_du_mois,
 )
 from app.modules.payroll.infrastructure.salaires_de_reference import (
@@ -464,6 +465,7 @@ def run_payslip_generation_forfait(
     arret_prefetch = _extraire_arret_pour_maintien(
         calendrier_etendu, contexte, date_debut_periode, date_fin_periode
     )
+    poser_les_arrets_connus(arret_prefetch, company_id, resolved_employee_id, year, month)
     jours_maintien = prefetch_jours_maintien_prime(
         company_id=company_id,
         contexte=contexte,

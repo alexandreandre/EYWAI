@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from .contexte import ContextePaie
 from . import legal_constants as lc
+from .prolongation_arret import chainer_arret
 
 # --- Dates & utilitaires ---
 
@@ -434,6 +435,11 @@ def _calculer_ijss(
         out.update(_ijss_extras_mi_temps_forfait(arret, arret_type, contexte))
         return out
 
+    # Prolongation : le rang des jours (seuils J29 et J31) et le plafond se lisent
+    # depuis le début de l'arrêt prolongé.
+    jours_deja = _jours_deja_en_arret(arret)
+    debut_reference = _parse_date(arret.get("date_debut_chaine")) or date_debut_arret
+
     salaire_mensuel = float(contexte.salaire_base_mensuel or 0.0)
     est_maladie = not qualification.get("est_at_mp") and not qualification.get(
         "est_maternite"
@@ -448,7 +454,7 @@ def _calculer_ijss(
         )
 
     plafond_smic = (
-        _plafond_sjb_maladie(contexte, date_debut_arret) if est_maladie else None
+        _plafond_sjb_maladie(contexte, debut_reference) if est_maladie else None
     )
     pss_data = contexte.get_bareme_value("pss") if hasattr(contexte, "get_bareme_value") else contexte.baremes.get("pss")
     pss_annuel = _extraire_pss_annuel(pss_data)
@@ -459,7 +465,7 @@ def _calculer_ijss(
         base_plafonnee = 0.0
     elif qualification.get("est_at_mp"):
         base_plafonnee = min(
-            salaire_journalier_base, _plafond_sjb_at_mp(pss_annuel, date_debut_arret)
+            salaire_journalier_base, _plafond_sjb_at_mp(pss_annuel, debut_reference)
         )
     else:
         plafond_ss_journalier = pss_annuel / 365.0
@@ -507,7 +513,7 @@ def _calculer_ijss(
             if offset >= carence_ss:
                 # Jour calendaire de l'arrêt (1 = 1er jour) : sert aux seuils
                 # AT/MP (J29) et majoration maladie 3 enfants (J31).
-                jour_arret_calendaire = offset + 1
+                jour_arret_calendaire = jours_deja + offset + 1
                 taux_j = _taux_ijss_pour_jour_arret(
                     arret_type, jour_arret_calendaire, nombre_enfants
                 )
@@ -721,7 +727,11 @@ def _calculer_maintien_employeur(
 
     # Délai de carence employeur : les premiers jours de l'arrêt ne sont pas
     # maintenus (sauf AT/MP ou suppression conventionnelle → carence = 0).
+    # Prolongation : le rang se compte depuis le début de l'arrêt prolongé, et
+    # sa carence (celle de l'arrêt, pas ce qu'il en reste) s'y applique.
     carence_emp = int(carence.get("carence_employeur_jours") or 0)
+    carence_emp_arret = int(carence.get("carence_employeur_jours_arret", carence_emp) or 0)
+    jours_deja = _jours_deja_en_arret(arret)
 
     # Durée conventionnelle : durée custom si paramétrée, sinon durée légale.
     custom_d = int(settings.get("custom_duration_days") or 0)
@@ -788,8 +798,8 @@ def _calculer_maintien_employeur(
             continue
         if maintien_base_ouvree and (inter_d + timedelta(days=k)).weekday() >= 5:
             continue  # mode jours ouvrés : week-ends non maintenus
-        jour_arret = offset + k + 1  # rang calendaire dans l'arrêt
-        jour_maintien = jour_arret - carence_emp  # rang après carence employeur
+        jour_arret = jours_deja + offset + k + 1  # rang calendaire dans l'arrêt
+        jour_maintien = jour_arret - carence_emp_arret  # rang après carence employeur
         if jour_maintien < 1:
             continue  # jour couvert par la carence employeur : pas de maintien
 
@@ -921,6 +931,7 @@ def _calculer_prevoyance_complement(
     date_fin_arret: date,
     date_debut_periode: date,
     date_fin_periode: date,
+    jours_deja_en_arret: int = 0,
 ) -> Dict[str, Any]:
     """
     Complément de prévoyance (relais), paramétré par l'entreprise via les settings :
@@ -989,7 +1000,7 @@ def _calculer_prevoyance_complement(
     while d <= date_fin_arret:
         offset = (d - date_debut_arret).days
         if inter_d <= d <= inter_f:
-            jour_arret = offset + 1
+            jour_arret = jours_deja_en_arret + offset + 1
             if jour_arret >= max(1, franchise):
                 # IJSS du jour
                 if offset >= carence_ss:
@@ -1074,20 +1085,30 @@ def _jours_de_carence_payes_de_l_arret(
     if jours_par_an <= 0 or est_cadre:
         return frozenset()
     courant = ArretDeLAnnee(date_debut_arret, date_fin_arret, arret_type)
-    arrets = [courant]
+    arrets: list[ArretDeLAnnee] = []
     for autre in arret.get("arrets_annee") or []:
         debut = _parse_date((autre or {}).get("debut"))
         fin = _parse_date((autre or {}).get("fin")) or debut
-        if debut is None or (debut, fin) == (courant.debut, courant.fin):
+        if debut is None:
             continue
         arrets.append(ArretDeLAnnee(debut, fin, str(autre.get("type") or "maladie")))
+    # L'arrêt calculé s'ajoute s'il n'est pas déjà lu aux calendriers. Ses jours
+    # payés sont ceux du plan qui tombent dans ses dates : un arrêt du bulletin
+    # qui en réunit plusieurs (demandes qui se recouvrent) garde leur carence.
+    if not any(a.debut <= courant.fin and courant.debut <= a.fin for a in arrets):
+        arrets.append(courant)
     plan = jours_de_carence_payes(
         arrets,
         jours_par_an=jours_par_an,
         date_entree=date_entree,
         anciennete_min_mois=int(settings.get("paid_waiting_min_seniority_months") or 12),
     )
-    return frozenset(plan.get(courant, []))
+    return frozenset(
+        jour
+        for jours in plan.values()
+        for jour in jours
+        if courant.debut <= jour <= courant.fin
+    )
 
 
 def resolve_subrogation_active(
@@ -1170,6 +1191,178 @@ def _valeur_de_jours_ouvres(
     )
 
 
+# --- Prolongation et arrêts du mois ---
+
+
+def _jours_deja_en_arret(arret: Dict[str, Any]) -> int:
+    try:
+        return max(0, int(arret.get("jours_deja_en_arret") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _poser_la_chaine(
+    arret: Dict[str, Any], debut: date, fin: Optional[date], arret_type: str
+) -> Dict[str, Any]:
+    """L'arrêt, avec le début de l'arrêt qu'il prolonge et ses jours déjà passés.
+
+    Lu dans `arrets_connus` (les arrêts du salarié lus aux calendriers, comme au
+    bulletin, ou par l'aperçu de la demande) ; sans eux, l'arrêt est seul.
+    """
+    if arret.get("jours_deja_en_arret") is not None or not arret.get("arrets_connus"):
+        return arret
+    debut_chaine, jours_deja = chainer_arret(
+        debut, fin or debut, arret_type, arret.get("arrets_connus") or []
+    )
+    if debut_chaine is None:
+        return arret
+    return {
+        **arret,
+        "date_debut_chaine": debut_chaine.isoformat(),
+        "jours_deja_en_arret": jours_deja,
+    }
+
+
+def _jours_fr(n: int) -> str:
+    return f"{n} jour{'s' if n > 1 else ''}"
+
+
+def _carence_d_une_prolongation(
+    carence: Dict[str, Any], jours_deja: int, debut_chaine: date
+) -> Dict[str, Any]:
+    """Ce qu'il reste de la carence de l'arrêt prolongé : rien, le plus souvent."""
+    ss = int(carence.get("carence_ss_jours") or 0)
+    emp = int(carence.get("carence_employeur_jours") or 0)
+    reste_ss, reste_emp = max(0, ss - jours_deja), max(0, emp - jours_deja)
+    debut = debut_chaine.strftime("%d/%m/%Y")
+    if reste_ss or reste_emp:
+        restes = []
+        if reste_ss:
+            restes.append(f"{_jours_fr(reste_ss)} de Sécurité sociale")
+        if reste_emp:
+            restes.append(f"{_jours_fr(reste_emp)} employeur")
+        motif = (
+            f"Prolongation de l'arrêt commencé le {debut} : sa carence se poursuit "
+            f"({', '.join(restes)})."
+        )
+    else:
+        motif = f"Prolongation de l'arrêt commencé le {debut} : pas de nouvelle carence."
+    return {
+        **carence,
+        "carence_ss_jours": reste_ss,
+        "carence_employeur_jours": reste_emp,
+        "carence_employeur_jours_arret": emp,
+        "jours_deja_en_arret": jours_deja,
+        "prolongation_de": debut_chaine.isoformat(),
+        "motif_carence": motif,
+        "est_continuite": True,
+    }
+
+
+def _arret_du_segment(arret: Dict[str, Any], segment: Dict[str, Any]) -> Dict[str, Any]:
+    sous = {**arret, **segment}
+    sous.pop("arrets_du_mois", None)
+    return sous
+
+
+def _calculer_maintien_des_arrets_du_mois(
+    arret: Dict[str, Any],
+    segments: List[Dict[str, Any]],
+    contexte: ContextePaie,
+    settings: Dict[str, Any],
+    date_debut_periode: date,
+    date_fin_periode: date,
+) -> Dict[str, Any]:
+    """Plusieurs arrêts dans la période : chacun se calcule seul, puis s'additionne.
+
+    Avant, ils étaient fusionnés du premier jour du premier au dernier jour du
+    dernier : les jours travaillés entre eux comptaient comme jours d'arrêt, et
+    la carence payée était perdue ([F11-bis], enquête F du 10/10/2026). Un
+    relevé d'IJSS saisi pour le mois (`ijss_brut_override`) vaut pour le mois
+    entier : il est porté par le premier arrêt, les autres à zéro.
+    """
+    override = arret.get("ijss_brut_override")
+    resultats: List[Dict[str, Any]] = []
+    for rang, segment in enumerate(segments):
+        sous = _arret_du_segment(arret, segment)
+        if override is not None:
+            sous["ijss_brut_override"] = override if rang == 0 else 0.0
+        resultats.append(
+            calculer_maintien(sous, contexte, settings, date_debut_periode, date_fin_periode)
+        )
+
+    def _somme(bloc: str, cle: str) -> float:
+        return round(sum(float((r.get(bloc) or {}).get(cle) or 0.0) for r in resultats), 2)
+
+    def _somme_entiere(bloc: str, cle: str) -> int:
+        return sum(int((r.get(bloc) or {}).get(cle) or 0) for r in resultats)
+
+    fusion: Dict[str, Any] = {**resultats[0]}
+    ijss = dict(resultats[0].get("ijss") or {})
+    ijss["ijss_theorique"] = _somme("ijss", "ijss_theorique")
+    ijss["nb_jours_indemnises"] = _somme_entiere("ijss", "nb_jours_indemnises")
+    ijss["ijss_journaliere"] = (
+        round(ijss["ijss_theorique"] / ijss["nb_jours_indemnises"], 4)
+        if ijss["nb_jours_indemnises"]
+        else 0.0
+    )
+    if any((r.get("ijss") or {}).get("ijss_brut_override") for r in resultats):
+        ijss["ijss_brut_override"] = True
+    maintien = dict(resultats[0].get("maintien") or {})
+    for cle in ("maintien_cible", "maintien_verse", "complement_employeur"):
+        maintien[cle] = _somme("maintien", cle)
+    maintien["nb_jours_maintien"] = _somme_entiere("maintien", "nb_jours_maintien")
+    maintien["maintien_applicable"] = any(
+        (r.get("maintien") or {}).get("maintien_applicable", True) for r in resultats
+    )
+    carence = dict(resultats[0].get("carence") or {})
+    carence["carence_ss_jours"] = _somme_entiere("carence", "carence_ss_jours")
+    carence["carence_employeur_jours"] = _somme_entiere("carence", "carence_employeur_jours")
+    carence["motif_carence"] = " ".join(
+        str((r.get("carence") or {}).get("motif_carence") or "").strip() for r in resultats
+    ).strip()
+    dates_payees = sorted(
+        d for r in resultats for d in (r.get("carence") or {}).get("carence_payee_dates") or []
+    )
+    if dates_payees:
+        carence["carence_payee_dates"] = dates_payees
+        carence["carence_payee_jours"] = len(dates_payees)
+    prevoyance = dict(resultats[0].get("prevoyance") or {})
+    prevoyance["montant"] = _somme("prevoyance", "montant")
+    prevoyance["nb_jours"] = _somme_entiere("prevoyance", "nb_jours")
+    prevoyance["prevoyance_declenchee"] = any(
+        (r.get("prevoyance") or {}).get("prevoyance_declenchee") for r in resultats
+    )
+    alertes: List[str] = []
+    for r in resultats:
+        for alerte in r.get("alertes") or []:
+            if alerte not in alertes:
+                alertes.append(alerte)
+    fusion.update(
+        {
+            "ijss": ijss,
+            "maintien": maintien,
+            "carence": carence,
+            "prevoyance": prevoyance,
+            "alertes": alertes,
+            "subrogation_active": any(r.get("subrogation_active") for r in resultats),
+            "nb_jours_arret_total": max(int(r.get("nb_jours_arret_total") or 0) for r in resultats),
+            "arrets_du_mois": [
+                {
+                    "date_debut": s.get("date_debut"),
+                    "date_fin": s.get("date_fin"),
+                    "arret_type": s.get("arret_type"),
+                    "ijss_theorique": (r.get("ijss") or {}).get("ijss_theorique"),
+                    "maintien_verse": (r.get("maintien") or {}).get("maintien_verse"),
+                    "motif_carence": (r.get("carence") or {}).get("motif_carence"),
+                }
+                for s, r in zip(segments, resultats)
+            ],
+        }
+    )
+    return fusion
+
+
 # --- Point d'entrée ---
 
 
@@ -1184,6 +1377,16 @@ def compute_jours_avec_maintien_mois(
     Jours du mois (numéro 1–31) où l'arrêt maladie/AT bénéficie d'un maintien employeur.
     Utilisé pour le prorata de la prime d'ancienneté.
     """
+    segments = arret.get("arrets_du_mois") or []
+    if len(segments) > 1:
+        jours: set[int] = set()
+        for segment in segments:
+            jours |= compute_jours_avec_maintien_mois(
+                _arret_du_segment(arret, segment), contexte, settings,
+                date_debut_periode, date_fin_periode,
+            )
+        return jours
+
     arret_type = str(arret.get("arret_type") or "maladie_simple")
     qualification = _qualifier_arret(arret_type)
 
@@ -1191,9 +1394,13 @@ def compute_jours_avec_maintien_mois(
     date_fin_arret = _parse_date(arret.get("date_fin")) or date_debut_arret
     if not date_debut_arret:
         return set()
+    arret = _poser_la_chaine(arret, date_debut_arret, date_fin_arret, arret_type)
+    jours_deja = _jours_deja_en_arret(arret)
 
     date_entree = _date_anciennete(contexte) or date(2000, 1, 1)
-    anciennete_mois = _mois_anciennete(date_entree, date_debut_arret)
+    anciennete_mois = _mois_anciennete(
+        date_entree, _parse_date(arret.get("date_debut_chaine")) or date_debut_arret
+    )
 
     est_at_mp = bool(qualification.get("est_at_mp"))
     min_senior = _min_seniority_months_for_arret(settings, est_at_mp)
@@ -1225,7 +1432,7 @@ def compute_jours_avec_maintien_mois(
 
     for k in range(jours_intersection):
         jour_cal = inter_d + timedelta(days=k)
-        jour_arret = offset + k + 1
+        jour_arret = jours_deja + offset + k + 1
         jour_maintien = jour_arret - carence_emp
         if jour_maintien < 1:
             continue
@@ -1265,6 +1472,12 @@ def calculer_maintien(
     # Réglages société qui s'imposent à chaque arrêt, quelle que soit sa
     # saisie : subrogation « jamais » (IJSS versées au salarié, hors bulletin)
     # et maintien en jours ouvrés (7 h + quote-part d'heures sup structurelles).
+    segments = arret.get("arrets_du_mois") or []
+    if len(segments) > 1:
+        return _calculer_maintien_des_arrets_du_mois(
+            arret, segments, contexte, settings, date_debut_periode, date_fin_periode
+        )
+
     if settings.get("subrogation_mode") == "never" and arret.get("subrogation_active"):
         arret = {**arret, "subrogation_active": False}
     if settings.get("maintain_working_days") and not arret.get("maintien_base_ouvree"):
@@ -1277,11 +1490,17 @@ def calculer_maintien(
     date_fin_arret = _parse_date(arret.get("date_fin")) or date_debut_arret
     if not date_debut_arret:
         date_debut_arret = date_debut_periode
+    # Prolongation d'un arrêt connu : pas de nouvelle carence, rang continué.
+    arret = _poser_la_chaine(arret, date_debut_arret, date_fin_arret, arret_type)
+    jours_deja = _jours_deja_en_arret(arret)
+    debut_chaine = _parse_date(arret.get("date_debut_chaine")) or date_debut_arret
 
     historique = list(arret.get("historique_arrets_annee") or [])
     carence = _calculer_carence(
         arret, qualification, settings, date_debut_arret, historique
     )
+    if jours_deja:
+        carence = _carence_d_une_prolongation(carence, jours_deja, debut_chaine)
 
     ijss = _calculer_ijss(
         arret,
@@ -1305,7 +1524,7 @@ def calculer_maintien(
 
     date_anciennete = _date_anciennete(contexte)
     anciennete_mois = _mois_anciennete(
-        date_anciennete or date(2000, 1, 1), date_debut_arret
+        date_anciennete or date(2000, 1, 1), debut_chaine
     )
 
     statut = ""
@@ -1376,7 +1595,7 @@ def calculer_maintien(
             jours_carence_payes=jours_carence_payes,
         )
 
-    nb_jours_arret_total = _compter_jours_calendaires(
+    nb_jours_arret_total = jours_deja + _compter_jours_calendaires(
         date_debut_arret, date_fin_arret or date_debut_arret
     )
 
@@ -1398,7 +1617,11 @@ def calculer_maintien(
             else contexte.baremes.get("ij_plafonds")
         ),
         carence_ss=int(carence.get("carence_ss_jours") or 0),
-        carence_emp=int(maintien.get("carence_employeur_jours") or 0),
+        carence_emp=int(
+            carence.get("carence_employeur_jours_arret")
+            if carence.get("carence_employeur_jours_arret") is not None
+            else maintien.get("carence_employeur_jours") or 0
+        ),
         duree_par_taux=int(maintien.get("duree_par_taux_jours") or 0),
         cap_conv=(
             int(settings.get("custom_duration_days") or 0)
@@ -1411,6 +1634,7 @@ def calculer_maintien(
         date_fin_arret=date_fin_arret or date_debut_arret,
         date_debut_periode=date_debut_periode,
         date_fin_periode=date_fin_periode,
+        jours_deja_en_arret=jours_deja,
     )
 
     alertes: List[str] = []

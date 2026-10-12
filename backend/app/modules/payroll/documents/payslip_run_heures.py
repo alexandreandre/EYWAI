@@ -54,6 +54,7 @@ from app.modules.payroll.engine.ijss_bulletin import (
     compute_ijss_csg_lines,
 )
 
+from app.modules.payroll.infrastructure.arrets_connus import arrets_connus_du_salarie
 from app.modules.payroll.infrastructure.salaires_de_reference import (
     poser_salaires_de_reference,
 )
@@ -140,30 +141,11 @@ def _appliquer_maintien_arret_maladie(
     return lignes_csg_ijss, ijss_imposables, brut_modifie
 
 
-def _extraire_arret_pour_maintien(
-    calendrier_etendu: List[Dict[str, Any]],
-    contexte: ContextePaie,
-    date_debut_periode: date,
-    date_fin_periode: date,
-) -> Dict[str, Any] | None:
-    """Construit le dict `arret` attendu par calculer_maintien si un arrêt typé est présent."""
-    candidats: list[tuple[date, Dict[str, Any]]] = []
-    for ev in calendrier_etendu:
-        dc = ev.get("date_complete")
-        if not dc:
-            continue
-        d = date.fromisoformat(str(dc)[:10])
-        if not (date_debut_periode <= d <= date_fin_periode):
-            continue
-        porte_arret = ev.get("type") == "arret_maladie" or ev.get(
-            "date_debut_arret_reel"
-        ) or ev.get("date_fin_arret_reel")
-        if not porte_arret or not ev.get("arret_type"):
-            continue
-        candidats.append((d, ev))
-    if not candidats:
-        return None
-    candidats.sort(key=lambda x: x[0])
+def _arret_de_jours_candidats(
+    candidats: list[tuple[date, Dict[str, Any]]], contexte: ContextePaie
+) -> Dict[str, Any]:
+    """Le dict `arret` de calculer_maintien pour des jours d'un même arrêt."""
+    candidats = sorted(candidats, key=lambda x: x[0])
     first_ev = candidats[0][1]
     first_d, last_d = candidats[0][0], candidats[-1][0]
     temps_travail = (
@@ -184,17 +166,16 @@ def _extraire_arret_pour_maintien(
     # prime donc sur le dernier jour typé. Le moteur borne ses montants à
     # l'intersection arrêt×période (_intersection_dates) : seuls rang de jour,
     # franchises et décompte total deviennent calendaires.
-    date_fin_reel = next(
-        (ev.get("date_fin_arret_reel") for _, ev in candidats
-         if ev.get("date_fin_arret_reel")),
-        None,
-    )
+    fins_reelles = [
+        str(ev.get("date_fin_arret_reel"))[:10] for _, ev in candidats
+        if ev.get("date_fin_arret_reel")
+    ]
     date_fin = last_d.isoformat()
-    if date_fin_reel and str(date_fin_reel)[:10] > date_fin:
-        date_fin = str(date_fin_reel)[:10]
+    if fins_reelles and max(fins_reelles) > date_fin:
+        date_fin = max(fins_reelles)
     return {
         "arret_type": first_ev["arret_type"],
-        "date_debut": date_debut_reel or first_d.isoformat(),
+        "date_debut": str(date_debut_reel)[:10] if date_debut_reel else first_d.isoformat(),
         "date_fin": date_fin,
         "subrogation_active": bool(first_ev.get("subrogation_active", True)),
         "nombre_enfants": int(first_ev.get("nombre_enfants") or 0),
@@ -213,6 +194,90 @@ def _extraire_arret_pour_maintien(
         "salaire_periode_reelle": float(first_ev.get("salaire_periode_reelle") or 0.0),
         "maintien_base_ouvree": bool(first_ev.get("maintien_base_ouvree")),
     }
+
+
+def _regrouper_par_arret(
+    candidats: list[tuple[date, Dict[str, Any]]],
+) -> list[list[tuple[date, Dict[str, Any]]]]:
+    """Les jours d'arrêt du mois, arrêt par arrêt.
+
+    Chaque demande validée pose ses bornes (`date_debut_arret_reel`, `…fin…`)
+    sur ses jours : deux bornes différentes, deux arrêts. Des demandes qui se
+    recouvrent sont un même arrêt. Un jour sans bornes (calendrier ancien) :
+    tous les jours du mois restent un seul arrêt, comme avant.
+    """
+    if any(not ev.get("date_debut_arret_reel") for _, ev in candidats):
+        return [candidats]
+    groupes: dict[tuple[str, str], list[tuple[date, Dict[str, Any]]]] = {}
+    for d, ev in candidats:
+        debut = str(ev.get("date_debut_arret_reel"))[:10]
+        fin = str(ev.get("date_fin_arret_reel") or debut)[:10]
+        groupes.setdefault((debut, max(fin, d.isoformat())), []).append((d, ev))
+    arrets: list[tuple[str, str, list[tuple[date, Dict[str, Any]]]]] = []
+    for (debut, fin), jours in sorted(groupes.items()):
+        if arrets and debut <= arrets[-1][1]:
+            d0, f0, j0 = arrets[-1]
+            arrets[-1] = (d0, max(f0, fin), j0 + jours)
+        else:
+            arrets.append((debut, fin, jours))
+    return [jours for _, _, jours in arrets]
+
+
+def _extraire_arret_pour_maintien(
+    calendrier_etendu: List[Dict[str, Any]],
+    contexte: ContextePaie,
+    date_debut_periode: date,
+    date_fin_periode: date,
+) -> Dict[str, Any] | None:
+    """Construit le dict `arret` attendu par calculer_maintien si un arrêt typé est présent.
+
+    Plusieurs arrêts dans le mois : le dict du premier, et `arrets_du_mois`, un
+    dict par arrêt, que calculer_maintien calcule chacun seul ([F11-bis]).
+    """
+    candidats: list[tuple[date, Dict[str, Any]]] = []
+    for ev in calendrier_etendu:
+        dc = ev.get("date_complete")
+        if not dc:
+            continue
+        d = date.fromisoformat(str(dc)[:10])
+        if not (date_debut_periode <= d <= date_fin_periode):
+            continue
+        porte_arret = ev.get("type") == "arret_maladie" or ev.get(
+            "date_debut_arret_reel"
+        ) or ev.get("date_fin_arret_reel")
+        if not porte_arret or not ev.get("arret_type"):
+            continue
+        candidats.append((d, ev))
+    if not candidats:
+        return None
+    arrets = [_arret_de_jours_candidats(jours, contexte) for jours in _regrouper_par_arret(candidats)]
+    if len(arrets) == 1:
+        return arrets[0]
+    return {**arrets[0], "arrets_du_mois": arrets}
+
+
+def poser_les_arrets_connus(
+    arret: Dict[str, Any] | None,
+    company_id: str | None,
+    employee_id: str | None,
+    year: int,
+    month: int,
+) -> None:
+    """Les arrêts du salarié lus aux calendriers, pour chaîner une prolongation.
+
+    Le pliant « Maintien & subrogation » lit les mêmes : bulletin et aperçu
+    disent la même chose d'une prolongation.
+    """
+    if not arret or not company_id or not employee_id:
+        return
+    try:
+        arret["arrets_connus"] = arrets_connus_du_salarie(str(employee_id), year, month)
+    except Exception:
+        logging.warning(
+            "Arrêts du salarié %s non lus : une prolongation se calcule comme un nouvel arrêt",
+            employee_id,
+            exc_info=True,
+        )
 
 
 def arrets_de_l_annee(employee_id: str, year: int, month: int) -> list[dict[str, str]]:
@@ -839,6 +904,7 @@ def run_payslip_generation_heures(
     arret_prefetch = _extraire_arret_pour_maintien(
         calendrier_etendu, contexte, date_debut_periode, date_fin_periode
     )
+    poser_les_arrets_connus(arret_prefetch, company_id, employee_id, year, month)
     if company_id:
         from app.modules.modulation.application.payroll_hook import (
             compute_pay_smoothing_gain,
