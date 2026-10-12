@@ -83,8 +83,10 @@ def calculer_statut(
 ) -> str:
     """Statut d'un taux, du plus alarmant au plus rassurant.
 
-    L'absence de taux passe avant tout le reste : c'est le seul cas où le bulletin
-    prélève 0 % sans que personne l'ait décidé. Le barème vient ensuite : la paie
+    L'absence de taux passe avant tout le reste : le bulletin applique alors la
+    grille par défaut en attendant le premier retour de la DGFiP, et c'est le
+    seul cas qui demande un geste (déposer la DSN ou le compte rendu métier qui
+    porte le taux). Le barème vient ensuite : la paie
     est juste — le moteur recalcule la grille chaque mois — mais la DGFiP n'a pas
     encore renvoyé de taux personnalisé, et l'ancienneté du taux stocké n'a alors
     aucun sens à être reprochée aux RH.

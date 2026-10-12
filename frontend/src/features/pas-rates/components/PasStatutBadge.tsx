@@ -10,29 +10,15 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { PasStatut } from "@/api/pasRates";
+import { AIDE_STATUT_PAS } from "@/features/pas-rates/lib/statutsPas";
 
 type Variant = "success" | "warning" | "danger" | "secondary";
 
 const PRESENTATION: Record<PasStatut, { variant: Variant; aide: string }> = {
-  a_jour: {
-    variant: "success",
-    aide: "Taux transmis par la DGFiP, reçu récemment.",
-  },
-  bareme: {
-    variant: "secondary",
-    aide:
-      "La DGFiP n'a pas encore transmis de taux personnalisé : c'est le barème par défaut qui s'applique. Il ne se périme pas — le moteur le recalcule à chaque paie sur la rémunération du mois, et le taux affiché ici est celui de la dernière DSN.",
-  },
-  a_rafraichir: {
-    variant: "warning",
-    aide:
-      "Ce taux date de plus de deux mois, ou sa période d'origine est inconnue. Déposez la dernière DSN ou le dernier compte rendu métier pour le rafraîchir.",
-  },
-  manquant: {
-    variant: "danger",
-    aide:
-      "Aucun taux connu : le bulletin prélève 0 % sans que personne l'ait décidé.",
-  },
+  a_jour: { variant: "success", aide: AIDE_STATUT_PAS.a_jour },
+  bareme: { variant: "secondary", aide: AIDE_STATUT_PAS.bareme },
+  a_rafraichir: { variant: "warning", aide: AIDE_STATUT_PAS.a_rafraichir },
+  manquant: { variant: "danger", aide: AIDE_STATUT_PAS.manquant },
 };
 
 interface PasStatutBadgeProps {

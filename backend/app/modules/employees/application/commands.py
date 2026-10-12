@@ -707,20 +707,39 @@ def _merge_json_dicts(
     return merged
 
 
+def _taux_float(valeur: Any) -> float | None:
+    try:
+        return None if valeur in (None, "") else float(valeur)
+    except (TypeError, ValueError):
+        return None
+
+
 def _demarquer_pas_saisi_a_la_main(
-    merged: Dict[str, Any], incoming: Dict[str, Any]
+    merged: Dict[str, Any],
+    incoming: Dict[str, Any],
+    courant: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """Un taux PAS saisi à la main n'hérite pas de la date du fichier précédent.
 
     La période dit de quel mois vient le taux, et le suivi des taux s'en sert
     pour juger sa fraîcheur. Sans cette remise à zéro, un taux corrigé au
     clavier garderait la date du dernier dépôt et passerait pour à jour.
+
+    Seulement si le taux change ([B3], 12/10/2026) : le formulaire de fiche
+    renvoyait le taux à chaque enregistrement, et la date s'effaçait sans que
+    personne y ait touché. Sans date, le rafraîchissement par DSN ne sait plus
+    refuser un taux plus ancien que celui détenu.
     """
     pas_entrant = incoming.get("prelevement_a_la_source")
     if not isinstance(pas_entrant, dict) or "taux" not in pas_entrant:
         return merged
     if pas_entrant.get("periode"):
         return merged
+    pas_courant = (courant or {}).get("prelevement_a_la_source")
+    if isinstance(pas_courant, dict):
+        avant, apres = _taux_float(pas_courant.get("taux")), _taux_float(pas_entrant.get("taux"))
+        if avant is not None and apres is not None and abs(avant - apres) < 0.0005:
+            return merged
 
     pas_fusionne = merged.get("prelevement_a_la_source")
     if not isinstance(pas_fusionne, dict) or "periode" not in pas_fusionne:
@@ -759,7 +778,7 @@ def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, 
         if not isinstance(incoming_spec, dict):
             incoming_spec = {}
         update_data["specificites_paie"] = _demarquer_pas_saisi_a_la_main(
-            _merge_json_dicts(current_spec, incoming_spec), incoming_spec
+            _merge_json_dicts(current_spec, incoming_spec), incoming_spec, current_spec
         )
 
     if "coordonnees_bancaires" in update_data:

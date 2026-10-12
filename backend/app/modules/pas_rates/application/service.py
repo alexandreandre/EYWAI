@@ -15,6 +15,7 @@ from app.modules.pas_rates.domain.model import (
     type_label,
 )
 from app.modules.pas_rates.infrastructure import repository as repo
+from app.shared import pas_taux
 
 
 def _bloc_pas(salarie: Dict[str, Any]) -> Dict[str, Any]:
@@ -50,7 +51,9 @@ def construire_lignes(
         bloc = _bloc_pas(salarie)
         derniere = historique.get(employee_id) or {}
 
-        taux = _taux_float(bloc.get("taux"))
+        # Le taux que le bulletin appliquera : un `taux: 0` posé par défaut par un
+        # formulaire n'en est pas un, la grille s'applique ([B1]).
+        taux = pas_taux.taux_connu(bloc)
         type_taux = bloc.get("type_taux") or derniere.get("type_taux") or None
         # La période vient de l'historique quand il existe ; sinon du bloc, qu'on
         # a commencé à dater. Un taux hérité des anciens imports n'en a aucune :

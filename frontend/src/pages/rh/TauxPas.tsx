@@ -42,6 +42,8 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { PasImportDialog } from "@/features/pas-rates/components/PasImportDialog";
+import { PasStatutBadge } from "@/features/pas-rates/components/PasStatutBadge";
+import { resumeCompteursPas } from "@/features/pas-rates/lib/statutsPas";
 import {
   exportPasRates,
   getPasRates,
@@ -220,6 +222,12 @@ export default function TauxPas() {
           </div>
         </CardHeader>
         <CardContent>
+          {data && lignes.length > 0 && resumeCompteursPas(data.compteurs) ? (
+            <p className="mb-4 text-sm text-muted-foreground">
+              {lignes.length.toLocaleString("fr-FR")} salarié{lignes.length > 1 ? "s" : ""} :{" "}
+              {resumeCompteursPas(data.compteurs)}
+            </p>
+          ) : null}
           {isLoading ? (
             <SharkFinLoader label="Chargement des taux…" />
           ) : isError ? (
@@ -252,10 +260,11 @@ export default function TauxPas() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[30%]">Collaborateur</TableHead>
-                  <TableHead className="w-[16%]">Taux</TableHead>
-                  <TableHead className="w-[26%]">Origine</TableHead>
-                  <TableHead className="w-[18%]">Période du taux</TableHead>
+                  <TableHead className="w-[26%]">Collaborateur</TableHead>
+                  <TableHead className="w-[12%]">Taux</TableHead>
+                  <TableHead className="w-[14%]">Statut</TableHead>
+                  <TableHead className="w-[22%]">Origine</TableHead>
+                  <TableHead className="w-[16%]">Période du taux</TableHead>
                   <TableHead className="w-[10%]" />
                 </TableRow>
               </TableHeader>
@@ -278,6 +287,9 @@ export default function TauxPas() {
                     </TableCell>
                     <TableCell className="font-semibold tabular-nums">
                       {formatTaux(ligne.taux)}
+                    </TableCell>
+                    <TableCell>
+                      <PasStatutBadge statut={ligne.statut} libelle={ligne.statut_libelle} />
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {ligne.type_libelle}

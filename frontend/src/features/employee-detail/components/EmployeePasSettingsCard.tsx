@@ -1,7 +1,10 @@
+import { useQuery } from '@tanstack/react-query';
 import { Percent } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Employee } from '@/features/employee-detail/types';
+import { getPasHistorique } from '@/api/pasRates';
+import { periodeDuTaux } from '@/features/pas-rates/lib/statutsPas';
 import { libelleTauxFiche } from '@/lib/tauxPasFiche';
 
 interface EmployeePasSettingsCardProps {
@@ -52,8 +55,20 @@ function periodeLibelle(periode: string | null): string | null {
  * main — la saisie manuelle a été retirée à la demande de la déclarante
  * (07/09/2026). Le dépannage reste possible côté admin/API si nécessaire.
  */
-export function EmployeePasSettingsCard({ employee }: EmployeePasSettingsCardProps) {
-  const current = readPasSettings(employee);
+export function EmployeePasSettingsCard({ employeeId, employee }: EmployeePasSettingsCardProps) {
+  const pasDeLaFiche = readPasSettings(employee);
+  // La date du taux se lit dans l'historique daté, comme sur la page des taux :
+  // celle du bloc a pu être effacée par un enregistrement de fiche ([B3]).
+  const { data: historique } = useQuery({
+    queryKey: ['pas-historique', employeeId],
+    queryFn: async () => (await getPasHistorique(employeeId)).data,
+    enabled: Boolean(employeeId),
+    staleTime: 60_000,
+  });
+  const current = {
+    ...pasDeLaFiche,
+    periode: periodeDuTaux({ periode: pasDeLaFiche.periode }, historique),
+  };
 
   return (
     <Card>
