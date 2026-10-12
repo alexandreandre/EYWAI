@@ -895,3 +895,41 @@ class TestNoteIndemniteCpFinContrat:
         bulletin = bulletin_avec_cotisations()
         bulletin["indemnite_cp_fin_contrat"] = None
         assert not [l for l in construire_vue_bulletin(bulletin)["lignes"] if l["type"] == "note"]
+
+
+class TestPartExonereeDesIndemnitesDeRupture:
+    """Rupture conventionnelle de 5 000 € (relevé du 12/10/2026, vidéo H) : la
+    part soumise (2 500 €) est au brut, la part exonérée (2 500 €) s'ajoute au
+    net après cotisations sans aucune ligne imprimée. Le bulletin ne disait pas
+    d'où venait le net."""
+
+    def _bulletin(self):
+        bulletin = bulletin_avec_cotisations()
+        bulletin["indemnites_sortie"] = {
+            "lignes_soumises": [],
+            "lignes_exonerees": [
+                {
+                    "libelle": "Indemnité de rupture conventionnelle",
+                    "montant": 2500.0,
+                    "nature": "exoneree",
+                    "note": "Exonérée de cotisations dans la limite de 2 500,00 €.",
+                }
+            ],
+            "total_exonerees": 2500.0,
+        }
+        return bulletin
+
+    def test_la_part_exoneree_est_imprimee_apres_le_net_imposable(self):
+        lignes = construire_vue_bulletin(self._bulletin())["lignes"]
+        libelles = [l["libelle"] for l in lignes]
+        libelle = "Indemnité de rupture conventionnelle (part exonérée de cotisations)"
+        assert libelle in libelles
+        ligne = lignes[libelles.index(libelle)]
+        assert ligne["type"] == "hors_brut"
+        assert ligne["montant_salarial"] == 2500.0
+        assert libelles.index(libelle) > libelles.index("NET IMPOSABLE")
+
+    def test_aucun_montant_ne_change(self):
+        avant = construire_vue_bulletin(bulletin_avec_cotisations())
+        apres = construire_vue_bulletin(self._bulletin())
+        assert apres["pied"] == avant["pied"]
