@@ -79,6 +79,12 @@ export interface ReverseCalculationResponse {
   convergence: boolean;
   bulletin_complet: any;
   cout_employeur: number;
+  /** Période du calcul (celle de l'écran). */
+  month?: number;
+  year?: number;
+  /** Contrat retenu ; `type_contrat_par_defaut` : l'écran ne l'a pas donné (un CDI). */
+  type_contrat?: string;
+  type_contrat_par_defaut?: boolean;
 }
 
 export interface SimulationCreateRequest {

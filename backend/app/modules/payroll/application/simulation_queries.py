@@ -276,7 +276,13 @@ def run_reverse_calculation_for_company(
     net_target: float,
     net_type: str,
     options: Dict[str, Any],
+    month: Optional[int] = None,
+    year: Optional[int] = None,
 ) -> Dict[str, Any]:
+    """Calcul inverse sur la période choisie à l'écran (à défaut, le mois en cours)."""
+    if not month or not year:
+        maintenant = datetime.now(ZoneInfo("Europe/Paris"))
+        month, year = month or maintenant.month, year or maintenant.year
     company = load_company(company_id)
     baremes = load_baremes()
     options = _apply_cc_minimum_override(
@@ -287,13 +293,15 @@ def run_reverse_calculation_for_company(
     employee_payload = resolve_employee_payload(company_id, employee_id, options or {})
     return simulation_commands.run_reverse_calculation(
         employee_data=employee_payload,
-        company_data=company_to_payroll_payload(company),
+        company_data=company_to_payroll_payload(company, year),
         baremes=baremes,
         calendrier={},
         saisies={},
         net_target=net_target,
         net_type=net_type,
         options=options or {},
+        month=month,
+        year=year,
     )
 
 

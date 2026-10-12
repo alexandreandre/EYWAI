@@ -6,7 +6,12 @@ import React from 'react';
 import { CheckCircle, AlertCircle, TrendingUp, DollarSign, Building } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ReverseCalculationResponse } from '../../api/simulation';
-import { euros, eurosRetenus, lignesDetailCotisations } from './simulationAffichage';
+import {
+  euros,
+  eurosRetenus,
+  lignesDetailCotisations,
+  phraseCalculInverse,
+} from './simulationAffichage';
 
 interface ReverseCalculationResultProps {
   result: ReverseCalculationResponse;
@@ -19,10 +24,11 @@ export const ReverseCalculationResult: React.FC<ReverseCalculationResultProps> =
   onReset,
   onCreateSimulation,
 }) => {
-  const cotisationsSalariales =
-    result.brut_calcule - (result.bulletin_complet?.synthese_net?.net_social_avant_impot || 0);
+  // Le total du moteur : toutes les retenues salariales, CSG et CRDS comprises.
+  const cotisationsSalariales = result.bulletin_complet?.structure_cotisations?.total_salarial;
   const cotisationsPatronales = result.cout_employeur - result.brut_calcule;
   const detailCotisations = lignesDetailCotisations(result.bulletin_complet?.structure_cotisations);
+  const hypotheses = phraseCalculInverse(result);
 
   return (
     <div className="space-y-6">
@@ -34,6 +40,7 @@ export const ReverseCalculationResult: React.FC<ReverseCalculationResultProps> =
             <p className="text-sm text-gray-500 mt-1">
               Convergence en {result.iterations} itération{result.iterations > 1 ? 's' : ''}
             </p>
+            {hypotheses && <p className="text-sm text-gray-600 mt-1">{hypotheses}</p>}
           </div>
           {result.convergence ? (
             <div className="flex items-center text-green-600">
@@ -118,7 +125,7 @@ export const ReverseCalculationResult: React.FC<ReverseCalculationResultProps> =
               <span className="font-medium text-blue-600">{euros(cotisationsPatronales)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Cotisations salariales (hors CSG/CRDS) :</span>
+              <span className="text-gray-600">Cotisations salariales (CSG et CRDS comprises) :</span>
               <span className="font-medium text-red-600">{eurosRetenus(cotisationsSalariales)}</span>
             </div>
             <div className="flex justify-between font-semibold border-t pt-2">

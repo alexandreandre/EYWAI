@@ -94,6 +94,8 @@ def reverse_calculation(
             net_target=body.net_target,
             net_type=body.net_type,
             options=body.options or {},
+            month=body.month,
+            year=body.year,
         )
     except HTTPException:
         raise

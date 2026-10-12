@@ -78,15 +78,16 @@ function cote(taux: unknown, montant: unknown): [string, string] {
 }
 
 /**
- * Les lignes du « Détail des cotisations » : cotisations principales, CSG et
- * CRDS, puis contributions patronales. Les taux du moteur sont des fractions
- * (0,0315), les parts sont `montant_salarial` et `montant_patronal`.
+ * Les lignes du « Détail des cotisations » : cotisations principales,
+ * allègements (réduction générale), CSG et CRDS, puis contributions
+ * patronales. Les taux du moteur sont des fractions (0,0315), les parts sont
+ * `montant_salarial` et `montant_patronal`.
  */
 export function lignesDetailCotisations(structure: unknown): LigneDetailCotisation[] {
   if (!structure || typeof structure !== 'object') return [];
   const s = structure as Record<string, unknown>;
   const autres = s.bloc_autres_contributions as { lignes?: unknown } | undefined;
-  const blocs = [s.bloc_principales, s.bloc_csg_non_deductible, autres?.lignes];
+  const blocs = [s.bloc_principales, s.bloc_allegements, s.bloc_csg_non_deductible, autres?.lignes];
   const lignes: LigneBrute[] = blocs.flatMap((b) => (Array.isArray(b) ? b : []));
   return lignes.map((l) => {
     const [tauxSalarial, partSalariale] = cote(l.taux_salarial, l.montant_salarial);
@@ -100,4 +101,41 @@ export function lignesDetailCotisations(structure: unknown): LigneDetailCotisati
       partPatronale,
     };
   });
+}
+
+const MOIS = [
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre',
+];
+
+type HypothesesCalculInverse = {
+  month?: number;
+  year?: number;
+  type_contrat?: string;
+  type_contrat_par_defaut?: boolean;
+};
+
+/**
+ * Ce sur quoi le calcul inverse a compté : « Calcul sur octobre 2026, pour un
+ * CDI (type de contrat retenu par défaut). » ; null sans période.
+ */
+export function phraseCalculInverse(resultat: HypothesesCalculInverse): string | null {
+  const { month, year, type_contrat: contrat, type_contrat_par_defaut: parDefaut } = resultat;
+  if (!month || !year || !MOIS[month - 1]) return null;
+  const periode = `Calcul sur ${MOIS[month - 1]} ${year}`;
+  if (!contrat) return `${periode}.`;
+  const pourQui = ['CDI', 'CDD'].includes(contrat.toUpperCase())
+    ? `pour un ${contrat.toUpperCase()}`
+    : `pour le contrat « ${contrat} »`;
+  return `${periode}, ${pourQui}${parDefaut ? ' (type de contrat retenu par défaut)' : ''}.`;
 }
