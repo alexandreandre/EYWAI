@@ -151,6 +151,15 @@ export const createEmployeeFormSchema = z.object({
     }),
   }),
 }).superRefine((data, ctx) => {
+  // L'étoile rouge le disait, la fiche l'exige : un salarié soumis sans date ne
+  // pouvait plus être enregistré depuis sa fiche ([D6-1], 12/10/2026).
+  if (data.is_subject_to_residence_permit && !data.residence_permit_expiry_date?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Date d'expiration du titre de séjour requise.",
+      path: ["residence_permit_expiry_date"],
+    });
+  }
   const { rue, code_postal, ville } = data.adresse;
   const remplis = [rue, code_postal, ville].filter((v) => v?.trim()).length;
   if (remplis > 0 && remplis < 3) {
