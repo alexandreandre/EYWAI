@@ -915,9 +915,9 @@ export function EmployeeProfileEditForm({
         </div>
       </section>
 
-      {/* En mode paie, montré quand le salarié y est soumis : sa date
-          d'expiration est exigée, et un champ masqué bloquait l'enregistrement. */}
-      {(!payrollFocus || isResidencePermit) && (
+      {/* Montré aussi en mode paie, case décochée : la section n'apparaissait
+          que si la case était déjà cochée, et personne ne pouvait la cocher
+          ([D6-5], 12/10/2026). Les champs du titre suivent la case. */}
       <section className="space-y-3">
         <SectionTitle>Titre de séjour</SectionTitle>
         <FormField
@@ -970,7 +970,6 @@ export function EmployeeProfileEditForm({
           </div>
         )}
       </section>
-      )}
     </div>
   );
 }
