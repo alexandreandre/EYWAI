@@ -31,6 +31,20 @@ from app.modules.exports.schemas import (
 BUCKET = "exports"
 
 
+def _horodater(nom: str, instant: int | None = None) -> str:
+    """« virement_salaires_2026_06.csv » → « virement_salaires_2026_06_1781258400.csv ».
+
+    Un nom fixé par la seule période faisait écraser, en dépôt `upsert`, le
+    fichier d'un export par celui de l'export suivant du même mois [I16].
+    `instant` commun aux fichiers d'un même export.
+    """
+    horodatage = int(time.time()) if instant is None else instant
+    base, point, extension = nom.rpartition(".")
+    if not point:
+        return f"{nom}_{horodatage}"
+    return f"{base}_{horodatage}.{extension}"
+
+
 def _assert_can_generate(company_id: str, request: ExportGenerateRequest) -> None:
     """Vérifie via preview que la génération est autorisée (sauf DSN : accept_warnings)."""
     if request.export_type == "dsn_mensuelle":
@@ -173,8 +187,7 @@ def _generate_journal_paie(
     )
     period_formatted = request.period.replace("-", "_")
     extension = request.format
-    timestamp = int(time.time())
-    filename = f"journal_paie_{period_formatted}_{timestamp}.{extension}"
+    filename = _horodater(f"journal_paie_{period_formatted}.{extension}")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
         BUCKET, storage_path, file_content, _content_type(extension)
@@ -260,7 +273,7 @@ def _generate_charges_sociales(
     )
     period_formatted = request.period.replace("-", "_")
     extension = request.format
-    filename = f"charges_sociales_{period_formatted}.{extension}"
+    filename = _horodater(f"charges_sociales_{period_formatted}.{extension}")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
         BUCKET, storage_path, file_content, _content_type(extension)
@@ -349,7 +362,7 @@ def _generate_notes_frais(
     )
     period_formatted = request.period.replace("-", "_")
     extension = request.format
-    filename = f"notes_frais_{cabinet_format}_{period_formatted}.{extension}"
+    filename = _horodater(f"notes_frais_{cabinet_format}_{period_formatted}.{extension}")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
         BUCKET, storage_path, file_content, _content_type(extension)
@@ -435,7 +448,7 @@ def _generate_conges_absences(
     )
     period_formatted = request.period.replace("-", "_")
     extension = request.format
-    filename = f"conges_absences_{period_formatted}.{extension}"
+    filename = _horodater(f"conges_absences_{period_formatted}.{extension}")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
         BUCKET, storage_path, file_content, _content_type(extension)
@@ -515,7 +528,7 @@ def _generate_provision_cp(
     )
     period_formatted = request.period.replace("-", "_")
     extension = request.format
-    filename = f"provision_cp_{period_formatted}.{extension}"
+    filename = _horodater(f"provision_cp_{period_formatted}.{extension}")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
         BUCKET, storage_path, file_content, _content_type(extension)
@@ -600,7 +613,7 @@ def _generate_recapitulatif_montants(
     )
     period_formatted = request.period.replace("-", "_")
     extension = request.format
-    filename = f"recapitulatif_montants_{period_formatted}.{extension}"
+    filename = _horodater(f"recapitulatif_montants_{period_formatted}.{extension}")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
         BUCKET, storage_path, file_content, _content_type(extension)
@@ -679,8 +692,11 @@ def _generate_acomptes(
 
     period_formatted = request.period.replace("-", "_")
     extension = request.format
-    list_filename = f"acomptes_liste_{period_formatted}.{extension}"
-    ecritures_filename = f"acomptes_ecritures_{period_formatted}.{extension}"
+    instant = int(time.time())
+    list_filename = _horodater(f"acomptes_liste_{period_formatted}.{extension}", instant)
+    ecritures_filename = _horodater(
+        f"acomptes_ecritures_{period_formatted}.{extension}", instant
+    )
     list_storage_path = f"exports/{company_id}/{request.export_type}/{list_filename}"
     ecritures_storage_path = (
         f"exports/{company_id}/{request.export_type}/{ecritures_filename}"
@@ -773,8 +789,11 @@ def _generate_saisies(
 
     period_formatted = request.period.replace("-", "_")
     extension = request.format
-    list_filename = f"saisies_liste_{period_formatted}.{extension}"
-    ecritures_filename = f"saisies_ecritures_{period_formatted}.{extension}"
+    instant = int(time.time())
+    list_filename = _horodater(f"saisies_liste_{period_formatted}.{extension}", instant)
+    ecritures_filename = _horodater(
+        f"saisies_ecritures_{period_formatted}.{extension}", instant
+    )
     list_storage_path = f"exports/{company_id}/{request.export_type}/{list_filename}"
     ecritures_storage_path = (
         f"exports/{company_id}/{request.export_type}/{ecritures_filename}"
@@ -889,7 +908,7 @@ def _generate_od(
         "od_pas": "od_pas",
         "od_globale": "od_globale",
     }.get(request.export_type, "od")
-    filename = f"{type_label}_{period_formatted}.{request.format}"
+    filename = _horodater(f"{type_label}_{period_formatted}.{request.format}")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
         BUCKET, storage_path, file_content, _content_type(request.format)
@@ -987,7 +1006,7 @@ def _generate_cabinet(
         "export_cabinet_quadra": "cabinet_quadra",
         "export_cabinet_sage": "cabinet_sage",
     }.get(request.export_type, "cabinet")
-    filename = f"{type_label}_{period_formatted}.{request.format}"
+    filename = _horodater(f"{type_label}_{period_formatted}.{request.format}")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
         BUCKET, storage_path, file_content, _content_type(request.format)
@@ -1072,7 +1091,7 @@ def _generate_dsn(
         dsn_xml_content = dsn_xml_content.encode("utf-8")
 
     period_formatted = request.period.replace("-", "_")
-    filename = f"dsn_mensuelle_{period_formatted}.dsn"
+    filename = _horodater(f"dsn_mensuelle_{period_formatted}.dsn")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
         BUCKET, storage_path, dsn_xml_content, "text/plain; charset=iso-8859-15"
@@ -1204,7 +1223,7 @@ def _generate_fec(
         company_id, request.period, request.employee_ids
     )
     period_formatted = request.period.replace("-", "_")
-    filename = f"fec_{period_formatted}.txt"
+    filename = _horodater(f"fec_{period_formatted}.txt")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
         BUCKET, storage_path, file_content, "text/plain; charset=utf-8"
@@ -1267,7 +1286,7 @@ def _generate_prets_employeur(
         company_id, request.period, request.format
     )
     period_formatted = request.period.replace("-", "_")
-    filename = f"prets_employeur_{period_formatted}.{request.format}"
+    filename = _horodater(f"prets_employeur_{period_formatted}.{request.format}")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
         BUCKET, storage_path, file_content, _content_type(request.format)
@@ -1332,7 +1351,7 @@ def _generate_paiement_organismes(
         company_id, request.period, request.employee_ids, request.format
     )
     period_formatted = request.period.replace("-", "_")
-    filename = f"paiement_organismes_{period_formatted}.{request.format}"
+    filename = _horodater(f"paiement_organismes_{period_formatted}.{request.format}")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
         BUCKET, storage_path, file_content, _content_type(request.format)
@@ -1397,7 +1416,7 @@ def _generate_attestations(
         company_id, request.period, request.employee_ids, request.format
     )
     period_formatted = request.period.replace("-", "_")
-    filename = f"attestations_{period_formatted}.{request.format}"
+    filename = _horodater(f"attestations_{period_formatted}.{request.format}")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
         BUCKET, storage_path, file_content, _content_type(request.format)
@@ -1458,6 +1477,7 @@ def _generate_virement_salaires(
     bank_format = (
         request.filters.get("bank_format", "sepa") if request.filters else "sepa"
     )
+    instant = int(time.time())
     file_content = providers.generate_paiement_salaires_export(
         company_id,
         request.period,
@@ -1476,7 +1496,9 @@ def _generate_virement_salaires(
             request.execution_date,
             request.payment_label,
         )
-        bank_filename = f"virement_salaires_bancaire_{request.period.replace('-', '_')}.csv"
+        bank_filename = _horodater(
+            f"virement_salaires_bancaire_{request.period.replace('-', '_')}.csv", instant
+        )
         bank_content_type = "text/csv"
     else:
         bank_file_content = providers.generate_sepa_bank_file(
@@ -1487,10 +1509,12 @@ def _generate_virement_salaires(
             request.execution_date,
             request.payment_label,
         )
-        bank_filename = f"virement_salaires_sepa_{request.period.replace('-', '_')}.xml"
+        bank_filename = _horodater(
+            f"virement_salaires_sepa_{request.period.replace('-', '_')}.xml", instant
+        )
         bank_content_type = "application/xml"
     period_formatted = request.period.replace("-", "_")
-    filename = f"virement_salaires_{period_formatted}.{request.format}"
+    filename = _horodater(f"virement_salaires_{period_formatted}.{request.format}", instant)
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     bank_storage_path = f"exports/{company_id}/{request.export_type}/{bank_filename}"
     final_storage_path = upload_export_file(
@@ -1604,6 +1628,7 @@ def _generate_virement_acomptes(
         request.format,
     )
     period_formatted = request.period.replace("-", "_")
+    instant = int(time.time())
 
     if bank_format == "csv":
         bank_file_content = providers.generate_virement_acomptes_bank_file(
@@ -1615,7 +1640,7 @@ def _generate_virement_acomptes(
             request.payment_label,
             filters,
         )
-        bank_filename = f"virement_acomptes_bancaire_{period_formatted}.csv"
+        bank_filename = _horodater(f"virement_acomptes_bancaire_{period_formatted}.csv", instant)
         bank_content_type = "text/csv"
         bank_extension = "csv"
     else:
@@ -1628,11 +1653,11 @@ def _generate_virement_acomptes(
             request.payment_label,
             filters,
         )
-        bank_filename = f"virement_acomptes_sepa_{period_formatted}.xml"
+        bank_filename = _horodater(f"virement_acomptes_sepa_{period_formatted}.xml", instant)
         bank_content_type = "application/xml"
         bank_extension = "xml"
 
-    filename = f"virement_acomptes_{period_formatted}.{request.format}"
+    filename = _horodater(f"virement_acomptes_{period_formatted}.{request.format}", instant)
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     bank_storage_path = f"exports/{company_id}/{request.export_type}/{bank_filename}"
     final_storage_path = upload_export_file(

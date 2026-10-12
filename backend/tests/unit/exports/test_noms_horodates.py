@@ -68,7 +68,7 @@ def test_le_nom_affiche_est_celui_du_fichier_depose_et_porte_l_horodatage():
 def test_tous_les_noms_de_fichier_d_export_sont_horodates():
     """Garde : aucun nom de fichier d'export n'est plus fixé par la seule période."""
     source = Path(export_service.__file__).read_text(encoding="utf-8")
-    affectations = re.findall(r"^\s*(\w*filename) = (.+)$", source, re.M)
+    affectations = re.findall(r"^\s*(\w*filename) = (.+)$", source, re.MULTILINE)
     assert affectations, "noms de fichier introuvables dans le service"
     non_horodates = [
         f"{nom} = {valeur}"
