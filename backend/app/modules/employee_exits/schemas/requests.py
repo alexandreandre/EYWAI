@@ -86,6 +86,11 @@ class EmployeeExitCreate(BaseModel):
     # L1237-9) ou de l'employeur (mise à la retraite, L1237-7). Rangé dans
     # `exit_notes.retirement_initiator`, que lisent le calcul, le reçu et la DSN.
     retirement_initiator: Optional[Literal["employee", "employer"]] = None
+    # Licenciement, départ ou mise à la retraite : indemnité prévue par la
+    # convention collective de branche (ou un accord professionnel ou
+    # interprofessionnel). Rangée dans `exit_notes.indemnite_conventionnelle` ;
+    # la plus haute du légal et de ce montant est versée.
+    indemnite_conventionnelle: Optional[float] = Field(default=None, ge=0)
 
     class Config:
         json_schema_extra = {
@@ -119,6 +124,9 @@ class EmployeeExitUpdate(BaseModel):
     # Rupture conventionnelle : montant de la convention (None = minimum
     # légal). Rangé dans le dossier d'indemnités, pas dans une colonne.
     montant_negocie: Optional[float] = Field(default=None, ge=0)
+    # Licenciement, départ ou mise à la retraite : montant conventionnel
+    # (None = minimum légal). Rangé dans `exit_notes`, le dossier est recalculé.
+    indemnite_conventionnelle: Optional[float] = Field(default=None, ge=0)
 
 
 # ============================================================================

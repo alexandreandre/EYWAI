@@ -836,14 +836,19 @@ def _ligne_indemnite_de_rupture(
         note = NOTE_REGIME_NON_CALCULE
     if apres_cotisations <= 0:
         return None
-    return {
-        "libelle": libelle,
+    ligne = {
+        # Indemnité conventionnelle versée : son libellé, et sa part légale
+        # pour la DSN (007 légale, 021 conventionnelle supplémentaire).
+        "libelle": str(bloc.get("libelle_bulletin") or libelle),
         "description": bloc.get("description", description),
         "calcul": bloc.get("calcul", ""),
         "montant": round(apres_cotisations, 2),
         "nature": "exoneree",
         "note": note,
     }
+    if bloc.get("base_calcul") == "Conventionnelle" and bloc.get("montant_legal") is not None:
+        ligne["part_legale"] = round(float(bloc.get("montant_legal") or 0.0), 2)
+    return ligne
 
 
 def _alerter_part_soumise_non_imposable(bulletin: Dict[str, Any], dossier: Dict[str, Any]) -> None:

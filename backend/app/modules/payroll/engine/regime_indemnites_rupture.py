@@ -68,6 +68,11 @@ _LIBELLES = {
     RUPTURE_CONVENTIONNELLE: "Indemnité de rupture conventionnelle",
     MISE_A_LA_RETRAITE: "Indemnité de mise à la retraite",
 }
+#: Quand l'indemnité conventionnelle saisie est versée (DSN 021 et 004).
+_LIBELLES_CONVENTIONNELS = {
+    LICENCIEMENT: "Indemnité conventionnelle de licenciement",
+    MISE_A_LA_RETRAITE: "Indemnité conventionnelle de mise à la retraite",
+}
 
 
 def _euros(valeur: float) -> str:
@@ -193,7 +198,12 @@ def lignes_brut_parts_soumises(dossier: Any) -> List[Dict[str, Any]]:
         soumise = round(float(regime.get("soumise_cotisations") or 0), 2)
         if soumise <= 0:
             continue
-        libelle = _LIBELLES.get(str(regime.get("nature")), "Indemnité de rupture")
+        nature = str(regime.get("nature"))
+        libelle = (
+            _LIBELLES_CONVENTIONNELS.get(nature)
+            if regime.get("conventionnelle")
+            else None
+        ) or _LIBELLES.get(nature, "Indemnité de rupture")
         lignes.append(
             {
                 "libelle": f"{libelle} (part soumise à cotisations)",

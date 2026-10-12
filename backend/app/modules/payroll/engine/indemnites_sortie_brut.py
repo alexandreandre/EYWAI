@@ -46,7 +46,8 @@ def lignes_indemnites_sortie_soumises(contexte: Any) -> List[Dict[str, Any]]:
             continue
         lignes.append(
             {
-                "libelle": libelle,
+                # Indemnité conventionnelle versée : son libellé (DSN 006).
+                "libelle": str(indemnite.get("libelle_bulletin") or libelle),
                 "quantite": None,
                 "taux": None,
                 "gain": round(montant, 2),

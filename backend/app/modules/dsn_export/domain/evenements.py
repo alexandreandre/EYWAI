@@ -71,6 +71,16 @@ INDEMNITES_RUPTURE: List[Tuple[Tuple[str, ...], str]] = [
     (("compensatrice de préavis", "compensatrice de preavis"), "023"),
     (("rupture conventionnelle",), "001"),
     (("légale de licenciement", "legale de licenciement"), "007"),
+    # Licenciement conventionnel (« conv » → 021) et part soumise d'une
+    # indemnité de licenciement.
+    (
+        (
+            "conventionnelle de licenciement",
+            "indemnité de licenciement",
+            "indemnite de licenciement",
+        ),
+        "007",
+    ),
     (("départ à la retraite", "depart a la retraite", "départ en retraite", "depart en retraite"), "005"),
     (("mise à la retraite", "mise a la retraite"), "003"),
 ]
@@ -461,9 +471,21 @@ def indemnites_de_rupture(
                 dans_le_brut[code] = True
         for ligne in indemnites_sortie.get("lignes_exonerees") or []:
             code = _code_indemnite(str(ligne.get("libelle") or ""), True)
-            if code and float(ligne.get("montant") or 0):
-                resultat.setdefault(code, []).append(float(ligne["montant"]))
-                dans_le_brut.setdefault(code, False)
+            montant = round(float(ligne.get("montant") or 0), 2)
+            if not (code and montant):
+                continue
+            # Indemnité conventionnelle de licenciement : la part légale en 007,
+            # le supplément conventionnel en 021 (cahier technique 2026.1).
+            part_legale = float(ligne.get("part_legale") or 0)
+            if code == CODE_CONVENTIONNEL["007"] and part_legale > 0:
+                legale = round(min(part_legale, montant), 2)
+                resultat.setdefault("007", []).append(legale)
+                dans_le_brut.setdefault("007", False)
+                montant = round(montant - legale, 2)
+                if montant <= 0:
+                    continue
+            resultat.setdefault(code, []).append(montant)
+            dans_le_brut.setdefault(code, False)
     return [
         (code, round(sum(montants), 2), dans_le_brut.get(code, False))
         for code, montants in sorted(resultat.items())

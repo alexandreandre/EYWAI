@@ -39,6 +39,12 @@ import {
   OPTIONS_INITIATIVE_RETRAITE,
   type InitiativeRetraite,
 } from '@/features/employee-exits/utils/retraite';
+import {
+  LIBELLE_INDEMNITE_CONVENTIONNELLE,
+  aideIndemniteConventionnelle,
+  indemniteConventionnelleSaisissable,
+} from '@/features/employee-exits/utils/indemniteConventionnelle';
+import { lireMontantNegocie } from '@/features/employee-exits/utils/montantNegocie';
 import { AlertCircle, Info, Loader2 } from 'lucide-react';
 
 interface CreateExitDialogProps {
@@ -87,6 +93,7 @@ export function CreateExitDialog({
   const [initiativeRetraite, setInitiativeRetraite] = useState<InitiativeRetraite>(
     INITIATIVE_RETRAITE_PAR_DEFAUT
   );
+  const [indemniteConventionnelle, setIndemniteConventionnelle] = useState<string>('');
 
   const selectedEmployee = employees.find((emp) => emp.id === employeeId);
   // Salarié présélectionné (bandeau de la Paie) absent de la liste : le dire,
@@ -109,6 +116,7 @@ export function CreateExitDialog({
     setNoticeIndemnityType(PREAVIS_PAR_DEFAUT);
     setExitReason('');
     setInitiativeRetraite(INITIATIVE_RETRAITE_PAR_DEFAUT);
+    setIndemniteConventionnelle('');
     setNoticePreview(null);
     setNoticePreviewError(null);
     noticeManuallyEdited.current = false;
@@ -267,6 +275,14 @@ export function CreateExitDialog({
       return;
     }
 
+    const conventionnelle = indemniteConventionnelleSaisissable(exitType)
+      ? lireMontantNegocie(indemniteConventionnelle)
+      : { valeur: null };
+    if ('erreur' in conventionnelle) {
+      toast({ title: 'Indemnité conventionnelle', description: conventionnelle.erreur, variant: 'destructive' });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -280,6 +296,7 @@ export function CreateExitDialog({
         notice_indemnity_type: noticeIndemnityType,
         exit_reason: exitReason || undefined,
         ...(exitType === 'depart_retraite' ? { retirement_initiator: initiativeRetraite } : {}),
+        ...(conventionnelle.valeur !== null ? { indemnite_conventionnelle: conventionnelle.valeur } : {}),
       };
 
       await createEmployeeExit(data);
@@ -548,6 +565,22 @@ export function CreateExitDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {indemniteConventionnelleSaisissable(exitType) && (
+            <div className="space-y-2">
+              <Label htmlFor="indemnite_conventionnelle">{LIBELLE_INDEMNITE_CONVENTIONNELLE}</Label>
+              <Input
+                id="indemnite_conventionnelle"
+                inputMode="decimal"
+                placeholder="Vide : minimum légal"
+                value={indemniteConventionnelle}
+                onChange={(e) => setIndemniteConventionnelle(e.target.value)}
+              />
+              <p className="text-sm text-muted-foreground">
+                {aideIndemniteConventionnelle(exitType, initiativeRetraite)}
+              </p>
             </div>
           )}
 

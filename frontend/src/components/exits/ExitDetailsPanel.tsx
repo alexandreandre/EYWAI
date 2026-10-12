@@ -5,6 +5,10 @@
 
 import IccpArbitrageDetail from '@/features/employee-exits/IccpArbitrageDetail';
 import { lireMontantNegocie } from '@/features/employee-exits/utils/montantNegocie';
+import {
+  LIBELLE_INDEMNITE_CONVENTIONNELLE,
+  aideIndemniteConventionnelle,
+} from '@/features/employee-exits/utils/indemniteConventionnelle';
 import { log } from '@/lib/logger';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -376,6 +380,33 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       });
     } finally {
       setSavingMontantNegocie(false);
+    }
+  };
+
+  /** Montant de la convention de branche (licenciement, départ ou mise à la
+   * retraite) : rangé dans le départ, le dossier est recalculé. */
+  const handleIndemniteConventionnelleSave = async (valeur: number | null) => {
+    if (!exitId) return;
+    try {
+      const updated = await updateEmployeeExit(exitId, { indemnite_conventionnelle: valeur });
+      setExitDetails((current) => (current ? { ...current, ...updated } : current));
+      setIndemnities((updated.calculated_indemnities as ExitIndemnityCalculation | undefined) ?? null);
+      toast({
+        title: 'Indemnité conventionnelle enregistrée',
+        description:
+          valeur === null
+            ? "Le minimum légal s'applique. Recalculez le bulletin de sortie pour le porter au bulletin."
+            : 'Les indemnités sont recalculées. Recalculez le bulletin de sortie pour le porter au bulletin.',
+      });
+      fetchExitDetails();
+      onUpdate?.();
+    } catch (error: any) {
+      log.error("Erreur lors de l'enregistrement de l'indemnité conventionnelle:", error);
+      toast({
+        title: 'Indemnité conventionnelle non enregistrée',
+        description: error.response?.data?.detail || "Impossible d'enregistrer l'indemnité conventionnelle",
+        variant: 'destructive',
+      });
     }
   };
 
@@ -1296,7 +1327,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                         <div className="p-4 border rounded-lg bg-blue-50 dark:bg-blue-950">
                           <div className="flex justify-between items-start mb-2">
                             <div>
-                              <p className="font-medium">Indemnité légale de licenciement</p>
+                              <p className="font-medium">Indemnité de licenciement</p>
                               <p className="text-sm text-muted-foreground">
                                 {indemnities.indemnite_licenciement.description}
                               </p>
@@ -1310,6 +1341,13 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                           </p>
                           <Alertes alertes={indemnities.indemnite_licenciement.alertes} />
                           <RegimeSocial regime={indemnities.indemnite_licenciement.regime_social} />
+                          {exitDetails.exit_type === 'licenciement' && !isArchived && !isCancelled && (
+                            <SaisieIndemniteConventionnelle
+                              aide={aideIndemniteConventionnelle('licenciement')}
+                              valeurInitiale={exitDetails.exit_notes?.indemnite_conventionnelle}
+                              onSave={handleIndemniteConventionnelleSave}
+                            />
+                          )}
                         </div>
                       )}
 
@@ -1332,6 +1370,16 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                             <p className="text-xs text-muted-foreground">{bloc.calcul}</p>
                             <Alertes alertes={bloc.alertes} />
                             <RegimeSocial regime={bloc.regime_social} />
+                            {!isArchived && !isCancelled && (
+                              <SaisieIndemniteConventionnelle
+                                aide={aideIndemniteConventionnelle(
+                                  'depart_retraite',
+                                  indemnities.indemnite_mise_retraite === bloc ? 'employer' : 'employee'
+                                )}
+                                valeurInitiale={exitDetails.exit_notes?.indemnite_conventionnelle}
+                                onSave={handleIndemniteConventionnelleSave}
+                              />
+                            )}
                           </div>
                         ))}
 
@@ -1553,6 +1601,60 @@ function RegimeSocial({ regime }: { regime?: RegimeSocialIndemnite | null }) {
     <div className="mt-2 space-y-1">
       <p className="text-xs text-muted-foreground">{regime.mention}</p>
       <Alertes alertes={regime.alertes} />
+    </div>
+  );
+}
+
+/** Le montant de la convention de branche, saisi dans l'onglet : vide = minimum légal. */
+function SaisieIndemniteConventionnelle({
+  aide,
+  valeurInitiale,
+  onSave,
+}: {
+  aide: string;
+  valeurInitiale?: number | null;
+  onSave: (valeur: number | null) => Promise<void>;
+}) {
+  const { toast } = useToast();
+  const [brouillon, setBrouillon] = useState('');
+  const [enregistrement, setEnregistrement] = useState(false);
+  useEffect(() => {
+    setBrouillon(valeurInitiale == null ? '' : String(valeurInitiale).replace('.', ','));
+  }, [valeurInitiale]);
+
+  const enregistrer = async () => {
+    const lecture = lireMontantNegocie(brouillon);
+    if ('erreur' in lecture) {
+      toast({ title: 'Indemnité conventionnelle', description: lecture.erreur, variant: 'destructive' });
+      return;
+    }
+    setEnregistrement(true);
+    try {
+      await onSave(lecture.valeur);
+    } finally {
+      setEnregistrement(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 space-y-1">
+      <div className="flex items-end gap-2">
+        <div className="flex-1 space-y-1">
+          <Label htmlFor="indemnite-conventionnelle">{LIBELLE_INDEMNITE_CONVENTIONNELLE}</Label>
+          <Input
+            id="indemnite-conventionnelle"
+            inputMode="decimal"
+            value={brouillon}
+            onChange={(e) => setBrouillon(e.target.value)}
+            placeholder="Vide : minimum légal"
+          />
+        </div>
+        <Button variant="outline" onClick={enregistrer} disabled={enregistrement}>
+          {enregistrement && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Enregistrer
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">{aide}</p>
     </div>
   );
 }

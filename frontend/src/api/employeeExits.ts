@@ -291,6 +291,9 @@ export interface ExitIndemnityCalculation {
     montant: number;
     description: string;
     calcul: string;
+    /** Minimum légal ; le montant versé est le plus élevé du légal et du conventionnel saisi. */
+    montant_legal?: number;
+    base_calcul?: 'Légale' | 'Conventionnelle';
     regime_social?: RegimeSocialIndemnite | null;
     /** Ce qui reste à vérifier : bulletins manquants, arrêt maladie… */
     alertes?: string[];
@@ -336,6 +339,8 @@ export interface IndemniteRetraite {
   montant: number;
   description: string;
   calcul: string;
+  montant_legal?: number;
+  base_calcul?: 'Légale' | 'Conventionnelle';
   alertes?: string[];
   regime_social?: RegimeSocialIndemnite | null;
 }
@@ -351,6 +356,8 @@ export interface CreateEmployeeExitRequest {
   notice_indemnity_type?: 'executed' | 'paid' | 'waived' | 'not_applicable';
   /** Départ à la retraite : salarié (départ volontaire) ou employeur (mise à la retraite). */
   retirement_initiator?: 'employee' | 'employer';
+  /** Licenciement, départ ou mise à la retraite : montant de la convention de branche. */
+  indemnite_conventionnelle?: number | null;
 }
 
 export interface UpdateEmployeeExitRequest {
@@ -367,6 +374,8 @@ export interface UpdateEmployeeExitRequest {
   notice_indemnity_type?: 'executed' | 'paid' | 'waived' | 'not_applicable';
   /** Rupture conventionnelle : montant de la convention ; null = minimum légal. */
   montant_negocie?: number | null;
+  /** Licenciement, départ ou mise à la retraite : montant conventionnel ; null = minimum légal. */
+  indemnite_conventionnelle?: number | null;
 }
 
 export interface StatusUpdateRequest {

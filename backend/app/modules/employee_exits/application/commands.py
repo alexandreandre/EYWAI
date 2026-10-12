@@ -76,6 +76,24 @@ EDITABLE_EXIT_TYPES = frozenset(
 )
 
 
+#: Types de départ qui versent une indemnité légale à laquelle une indemnité
+#: conventionnelle plus favorable peut se substituer (BOSS, Indemnités de
+#: rupture, § 280, § 1550, § 1630).
+TYPES_AVEC_INDEMNITE_CONVENTIONNELLE = frozenset({"licenciement", "depart_retraite"})
+
+
+def notes_du_dossier_a_la_creation(exit_type: str, exit_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Ce que la saisie du départ range dans `exit_notes`, que lisent le
+    calcul, le reçu et la DSN."""
+    notes: Dict[str, Any] = {}
+    if exit_type == "depart_retraite" and exit_data.get("retirement_initiator"):
+        notes["retirement_initiator"] = exit_data["retirement_initiator"]
+    conventionnelle = exit_data.get("indemnite_conventionnelle")
+    if exit_type in TYPES_AVEC_INDEMNITE_CONVENTIONNELLE and conventionnelle is not None:
+        notes["indemnite_conventionnelle"] = round(float(conventionnelle), 2)
+    return notes or None
+
+
 def create_employee_exit(
     exit_data: Dict[str, Any],
     company_id: str,
@@ -136,11 +154,7 @@ def create_employee_exit(
         notice_end_date=notice_end.isoformat() if notice_end else None,
         exit_reason=exit_data.get("exit_reason"),
         initiated_by=current_user_id,
-        exit_notes=(
-            {"retirement_initiator": exit_data["retirement_initiator"]}
-            if exit_type == "depart_retraite" and exit_data.get("retirement_initiator")
-            else None
-        ),
+        exit_notes=notes_du_dossier_a_la_creation(exit_type, exit_data),
     )
     exit_repo = EmployeeExitRepository(sb)
     created = exit_repo.create(record)
@@ -648,6 +662,7 @@ def update_employee_exit(
     # qui le range dans `calculated_indemnities` (relu par le bulletin de
     # sortie, et suivi par son empreinte : le bulletin passe « À recalculer »).
     montant_negocie_saisi = "montant_negocie" in update_data
+    saisie_du_dossier = montant_negocie_saisi
     if montant_negocie_saisi and (
         new_exit_type or existing.get("exit_type")
     ) != "rupture_conventionnelle":
@@ -655,13 +670,30 @@ def update_employee_exit(
             400, "Le montant négocié ne concerne qu'une rupture conventionnelle."
         )
 
+    # Montant conventionnel : rangé dans `exit_notes`, le dossier est recalculé.
+    if "indemnite_conventionnelle" in update_data:
+        if (new_exit_type or existing.get("exit_type")) not in TYPES_AVEC_INDEMNITE_CONVENTIONNELLE:
+            raise EmployeeExitApplicationError(
+                400,
+                "L'indemnité conventionnelle ne concerne qu'un licenciement, un départ ou une "
+                "mise à la retraite.",
+            )
+        notes = dict(existing.get("exit_notes") or {}) if isinstance(existing.get("exit_notes"), dict) else {}
+        valeur = update_data.pop("indemnite_conventionnelle")
+        if valeur is None:
+            notes.pop("indemnite_conventionnelle", None)
+        else:
+            notes["indemnite_conventionnelle"] = round(float(valeur), 2)
+        update_data["exit_notes"] = notes
+        saisie_du_dossier = True
+
     new_last_working_day = update_data.get("last_working_day")
     last_working_day_changed = bool(
         new_last_working_day
         and str(new_last_working_day)[:10] != str(existing.get("last_working_day") or "")[:10]
     )
 
-    if montant_negocie_saisi and not (exit_type_changed or last_working_day_changed):
+    if saisie_du_dossier and not (exit_type_changed or last_working_day_changed):
         employee_id = str(existing.get("employee_id") or "")
         employee_full = get_employee_full(employee_id, sb) if employee_id else {}
         try:
@@ -669,10 +701,12 @@ def update_employee_exit(
                 employee_full or {}, {**existing, **update_data}, sb
             )
         except Exception as exc:
+            quoi = "Le montant négocié n'est pas enregistré" if montant_negocie_saisi else (
+                "La saisie n'est pas enregistrée"
+            )
             raise EmployeeExitApplicationError(
                 500,
-                "Le montant négocié n'est pas enregistré : le calcul des "
-                f"indemnités a échoué ({exc}).",
+                f"{quoi} : le calcul des indemnités a échoué ({exc}).",
             )
         update_data["calculated_indemnities"] = indemnities
         update_data["remaining_vacation_days"] = indemnities.get(
@@ -683,7 +717,8 @@ def update_employee_exit(
 
     if exit_type_changed or last_working_day_changed:
         now = datetime.now(timezone.utc).isoformat()
-        exit_notes = existing.get("exit_notes") or {}
+        # Une saisie du même envoi (montant conventionnel…) est déjà rangée.
+        exit_notes = update_data.get("exit_notes") or existing.get("exit_notes") or {}
         if not isinstance(exit_notes, dict):
             exit_notes = {}
 

@@ -56,6 +56,16 @@ from app.modules.payroll.engine.salaire_contractuel import (
 )
 
 
+def _euros(valeur: float) -> str:
+    """12712.27 → « 12 712,27 € » (texte visible)."""
+    return f"{float(valeur):,.2f} €".replace(",", " ").replace(".", ",")
+
+
+def _nombre(valeur: float) -> str:
+    """1.66 → « 1,66 »."""
+    return f"{float(valeur):.2f}".replace(".", ",")
+
+
 # ============================================================================
 # CALCULS DE BASE
 # ============================================================================
@@ -310,13 +320,13 @@ def calculer_indemnite_licenciement(
         "tranche2_annees": annees_tranche2,
         "tranche2_montant": round(indemnite_tranche2, 2),
         "description": "Indemnité légale de licenciement (Article L1234-9)",
-        "calcul": f"Tranche 1: {annees_tranche1:.2f} ans × 1/4 mois ({indemnite_tranche1:.2f} €)"
+        "calcul": f"Tranche 1 : {_nombre(annees_tranche1)} ans × 1/4 de mois ({_euros(indemnite_tranche1)})"
         + (
-            f" + Tranche 2: {annees_tranche2:.2f} ans × 1/3 mois ({indemnite_tranche2:.2f} €)"
+            f" + tranche 2 : {_nombre(annees_tranche2)} ans × 1/3 de mois ({_euros(indemnite_tranche2)})"
             if annees_tranche2 > 0
             else ""
         )
-        + f", sur un salaire de référence de {salaire_reference:.2f} €",
+        + f", sur un salaire de référence de {_euros(salaire_reference)}",
     }
 
 
@@ -932,7 +942,12 @@ def _regime_social(
     remuneration_n_1: Optional[float],
     pass_annuel: float,
     alertes: list[str],
+    *,
+    conventionnelle: bool = False,
 ) -> Optional[Dict[str, Any]]:
+    """`minimum` : le montant légal, ou le montant conventionnel de branche
+    quand il est versé (seuil de la CSG/CRDS et troisième critère des limites
+    d'exonération, BOSS § 80, 300, 360, 1640, 1650)."""
     if pass_annuel <= 0:
         # Sans plafond, pas de limite calculable : le bulletin le dira.
         return None
@@ -943,6 +958,7 @@ def _regime_social(
         remuneration_annuelle_n_1=remuneration_n_1,
         pass_annuel=pass_annuel,
     ).en_dict()
+    regime["conventionnelle"] = bool(conventionnelle)
     if alertes:
         regime["alertes"] = list(alertes)
     return regime
@@ -990,9 +1006,65 @@ def _salaire_de_reference_des_bulletins(
 
 
 ALERTE_MONTANT_CONVENTIONNEL = (
-    "Minimum légal calculé : un montant conventionnel ou contractuel plus élevé n'a pas "
-    "encore de champ de saisie dans Martine (barème de la convention non repris)."
+    "Minimum légal versé : si la convention collective de branche prévoit un montant "
+    "conventionnel plus élevé, saisissez-le dans « Indemnité conventionnelle » ; le plus "
+    "élevé des deux est versé."
 )
+
+
+def _indemnite_conventionnelle_saisie(exit_data: Dict[str, Any]) -> Optional[float]:
+    """Le montant conventionnel saisi sur le départ (`exit_notes`), ou None."""
+    notes = exit_data.get("exit_notes") if isinstance(exit_data.get("exit_notes"), dict) else {}
+    valeur = notes.get("indemnite_conventionnelle")
+    if valeur in (None, ""):
+        return None
+    try:
+        return round(float(valeur), 2)
+    except (TypeError, ValueError):
+        return None
+
+
+def _retenir_le_plus_eleve(
+    bloc: Dict[str, Any],
+    conventionnelle: Optional[float],
+    *,
+    libelle: str,
+    description: str,
+) -> Dict[str, Any]:
+    """L'indemnité légale ou l'indemnité conventionnelle saisie, la plus élevée :
+    elles ne se cumulent pas (BOSS, Indemnités de rupture, § 280, § 1550,
+    § 1630). Le montant conventionnel est celui de la convention collective de
+    branche : le régime social le retient comme minimum conventionnel."""
+    bloc = dict(bloc)
+    legal = round(float(bloc.get("montant") or 0.0), 2)
+    bloc["montant_legal"] = legal
+    alertes = list(bloc.get("alertes") or [])
+    if conventionnelle is None:
+        bloc["alertes"] = alertes + [ALERTE_MONTANT_CONVENTIONNEL]
+        return bloc
+    bloc["montant_conventionnel"] = conventionnelle
+    if conventionnelle > legal:
+        bloc.update(
+            {
+                "montant": conventionnelle,
+                "base_calcul": "Conventionnelle",
+                "description": description,
+                "libelle_bulletin": libelle,
+                "calcul": (
+                    f"Indemnité conventionnelle saisie : {_euros(conventionnelle)}, plus élevée "
+                    f"que le minimum légal de {_euros(legal)} ({bloc.get('calcul') or ''}) : "
+                    "l'indemnité conventionnelle est versée."
+                ),
+            }
+        )
+    else:
+        bloc["base_calcul"] = "Légale"
+        bloc["calcul"] = (
+            f"{bloc.get('calcul') or ''}. Indemnité conventionnelle saisie ({_euros(conventionnelle)}) "
+            "pas plus élevée que le minimum légal : le minimum légal est versé."
+        )
+    bloc["alertes"] = alertes
+    return bloc
 
 #: Code du travail D1237-1 : (années d'ancienneté minimales, mois de salaire).
 BAREME_DEPART_RETRAITE = ((30, 2.0), (20, 1.5), (15, 1.0), (10, 0.5))
@@ -1012,9 +1084,10 @@ def calculer_indemnite_depart_retraite(mois_d_anciennete: int, salaire_reference
             "départ à la retraite (D1237-1)"
         )
     else:
+        mois_fr = f"{mois_de_salaire:g}".replace(".", ",")
         calcul = (
-            f"{mois_de_salaire:g} mois de salaire pour {annees} ans d'ancienneté (D1237-1) "
-            f"× {salaire_reference:.2f} € = {montant:.2f} €"
+            f"{mois_fr} mois de salaire pour {annees} ans d'ancienneté (D1237-1) "
+            f"× {_euros(salaire_reference)} = {_euros(montant)}"
         )
     return {
         "montant": montant,
@@ -1195,6 +1268,7 @@ def calculer_indemnites_sortie(
             "versee_au_bulletin": True,
         }
 
+    conventionnelle = _indemnite_conventionnelle_saisie(exit_data)
     if exit_type == "licenciement":
         indemnite_licenciement = calculer_indemnite_licenciement(
             anciennete,
@@ -1203,6 +1277,18 @@ def calculer_indemnites_sortie(
             mois_a_la_notification=mois_a_la_notification,
         )
         indemnite_licenciement["alertes"] = alertes_reference
+        if is_gross_misconduct:
+            if conventionnelle:
+                indemnite_licenciement["alertes"] = alertes_reference + [
+                    "Faute grave ou lourde : l'indemnité conventionnelle saisie n'est pas versée."
+                ]
+        else:
+            indemnite_licenciement = _retenir_le_plus_eleve(
+                indemnite_licenciement,
+                conventionnelle,
+                libelle="Indemnité conventionnelle de licenciement",
+                description="Indemnité conventionnelle de licenciement (convention collective de branche)",
+            )
 
     elif exit_type == "rupture_conventionnelle":
         indemnite_rupture = calculer_indemnite_rupture_conventionnelle(
@@ -1221,17 +1307,28 @@ def calculer_indemnites_sortie(
                 False,
                 mois_a_la_notification=mois_a_la_notification,
             )
-            indemnite_mise_retraite = {
-                **legale,
-                "description": "Indemnité de mise à la retraite (articles L1237-7 et L1234-9)",
-                "base_calcul": "Légale",
-                "alertes": alertes_reference + [ALERTE_MONTANT_CONVENTIONNEL],
-            }
+            indemnite_mise_retraite = _retenir_le_plus_eleve(
+                {
+                    **legale,
+                    "description": "Indemnité de mise à la retraite (articles L1237-7 et L1234-9)",
+                    "base_calcul": "Légale",
+                    "alertes": list(alertes_reference),
+                },
+                conventionnelle,
+                libelle="Indemnité conventionnelle de mise à la retraite",
+                description="Indemnité conventionnelle de mise à la retraite (convention collective de branche)",
+            )
         else:
             indemnite_depart_retraite = calculer_indemnite_depart_retraite(
                 mois_d_anciennete or 0, salaire_reference
             )
-            indemnite_depart_retraite["alertes"] = alertes_reference + [ALERTE_MONTANT_CONVENTIONNEL]
+            indemnite_depart_retraite["alertes"] = list(alertes_reference)
+            indemnite_depart_retraite = _retenir_le_plus_eleve(
+                indemnite_depart_retraite,
+                conventionnelle,
+                libelle="Indemnité conventionnelle de départ à la retraite",
+                description="Indemnité conventionnelle de départ à la retraite (convention collective de branche)",
+            )
 
     # 6. Régime social des indemnités de rupture (BOSS, Indemnités de rupture) :
     # le bulletin en tire la part au brut, la CSG/CRDS au-delà du minimum et la
@@ -1240,6 +1337,8 @@ def calculer_indemnites_sortie(
         pass_annuel, remuneration_n_1, alertes_regime = _donnees_du_regime_social(
             employee_data, exit_date, supabase_client
         )
+        # Le montant versé (légal ou conventionnel de branche) est le minimum
+        # du régime : seuil de la CSG/CRDS et troisième critère des limites.
         if indemnite_mise_retraite and indemnite_mise_retraite.get("montant", 0) > 0:
             indemnite_mise_retraite["regime_social"] = _regime_social(
                 MISE_A_LA_RETRAITE,
@@ -1248,6 +1347,7 @@ def calculer_indemnites_sortie(
                 remuneration_n_1,
                 pass_annuel,
                 alertes_regime,
+                conventionnelle=indemnite_mise_retraite.get("base_calcul") == "Conventionnelle",
             )
         if indemnite_licenciement and indemnite_licenciement.get("montant", 0) > 0:
             indemnite_licenciement["regime_social"] = _regime_social(
@@ -1257,6 +1357,7 @@ def calculer_indemnites_sortie(
                 remuneration_n_1,
                 pass_annuel,
                 alertes_regime,
+                conventionnelle=indemnite_licenciement.get("base_calcul") == "Conventionnelle",
             )
         if indemnite_rupture and indemnite_rupture.get("montant_negocie", 0) > 0:
             indemnite_rupture["regime_social"] = _regime_social(
