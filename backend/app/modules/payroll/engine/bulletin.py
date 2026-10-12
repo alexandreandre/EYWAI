@@ -851,32 +851,6 @@ def _ligne_indemnite_de_rupture(
     return ligne
 
 
-def _alerter_part_soumise_non_imposable(bulletin: Dict[str, Any], dossier: Dict[str, Any]) -> None:
-    """Au-delà de 2 PASS, une part soumise aux cotisations peut rester exonérée
-    d'impôt : le net imposable la compte alors à tort. Rare ; dit, pas calculé."""
-    from app.modules.payroll.engine.regime_indemnites_rupture import regimes_du_dossier
-
-    for regime in regimes_du_dossier(dossier):
-        ecart = round(
-            float(regime.get("soumise_cotisations") or 0) - float(regime.get("imposable") or 0), 2
-        )
-        if ecart > 0:
-            alertes = bulletin.setdefault("alertes_baremes", [])
-            alertes.append(
-                {
-                    "code": "indemnite_rupture_net_imposable",
-                    "critique": False,
-                    "severity": "info",
-                    "message": (
-                        f"Indemnité de rupture : {_euros_fr(ecart)} soumis aux cotisations "
-                        "mais exonérés d'impôt sont comptés dans le net imposable. "
-                        "À corriger à la main avant de valider."
-                    ),
-                    "donnee_non_officielle": False,
-                }
-            )
-
-
 def creer_bulletin_sortie(
     contexte: ContextePaie,
     salaire_brut: float,
@@ -1088,7 +1062,6 @@ def creer_bulletin_sortie(
     for ligne in lignes_indemnites_exonerees:
         note += f" {ligne['libelle']} : {ligne['note']}"
     bulletin_base["note_sortie"] = note
-    _alerter_part_soumise_non_imposable(bulletin_base, indemnites_sortie)
 
     # Recalculer le coût total employeur
     total_primes_non_soumises = sum(

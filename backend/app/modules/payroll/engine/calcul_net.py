@@ -406,8 +406,19 @@ def _calculer_net_imposable(
     # --- Participation / intéressement (part numéraire imposable IR) ---
     imposable_participation, _, _ = _participation_aggregats(participations)
 
+    # Indemnités de rupture : le brut porte leur part soumise aux cotisations, le
+    # net imposable leur part imposable (CGI 80 duodecies, BOSS « Indemnités de
+    # rupture » § 50, 60, 940) ; les cotisations et la CSG déductible de la part
+    # soumise restent déduites (BOFIP BOI-RSA-BASE-30-30, § 100).
+    from app.modules.payroll.engine.regime_indemnites_rupture import ecart_imposable_et_soumis
+
+    ecart_rupture = ecart_imposable_et_soumis(getattr(contexte, "exit_indemnities", None))
+
     net_imposable_final = (
-        net_imposable_apres_hs + montant_primes_soumises_impot + imposable_participation
+        net_imposable_apres_hs
+        + montant_primes_soumises_impot
+        + imposable_participation
+        + ecart_rupture
     )
 
     # Le bloc de debug détaillé

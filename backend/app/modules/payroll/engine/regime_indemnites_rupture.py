@@ -35,7 +35,11 @@ Ce que le moteur en fait :
   légal ou conventionnel) porte une CSG/CRDS sans abattement, entièrement non
   déductible (elle est hors du revenu imposable) ;
 - la contribution patronale de 40 % est une ligne patronale (DSN 093, base 03) ;
-- la part exclue des cotisations est ajoutée au net après cotisations.
+- la part exclue des cotisations est ajoutée au net après cotisations et au
+  montant net social (BOSS, Montant net social, II, A, 1) ;
+- le net imposable prend la part imposable, pas la part soumise aux
+  cotisations (`ecart_imposable_et_soumis`) ; la CSG de la part imposable ou
+  soumise aux cotisations est déductible (BOFIP BOI-RSA-BASE-30-30, § 100).
 
 Rupture conventionnelle d'un salarié en droit de bénéficier d'une pension de
 retraite d'un régime légalement obligatoire (case du dossier) : imposable dès
@@ -208,6 +212,31 @@ def part_soumise_aux_cotisations(dossier: Any) -> float:
     return round(sum(float(r.get("soumise_cotisations") or 0) for r in regimes_du_dossier(dossier)), 2)
 
 
+def ecart_imposable_et_soumis(dossier: Any) -> float:
+    """Ce que le net imposable doit ajouter (ou retirer) au brut pour les
+    indemnités de rupture : le brut porte la part soumise aux cotisations, le
+    net imposable la part imposable (CGI 80 duodecies). Positif pour une
+    rupture conventionnelle d'un salarié qui peut liquider sa retraite,
+    négatif au-delà de 2 PASS (part soumise mais exonérée d'impôt)."""
+    return round(
+        sum(
+            float(r.get("imposable") or 0) - float(r.get("soumise_cotisations") or 0)
+            for r in regimes_du_dossier(dossier)
+        ),
+        2,
+    )
+
+
+def _assiette_csg_deductible(regime: Dict[str, Any]) -> float:
+    """La part soumise à la CSG/CRDS dont la CSG est déductible : la part
+    imposable et la part exonérée d'impôt mais soumise aux cotisations (BOFIP
+    BOI-RSA-BASE-30-30, § 100). Seule la CSG de la part exonérée d'impôt et de
+    cotisations ne se déduit pas."""
+    soumise = float(regime.get("soumise_cotisations") or 0)
+    assiette_csg = soumise + float(regime.get("assiette_csg_seule") or 0)
+    return round(min(assiette_csg, max(float(regime.get("imposable") or 0), soumise)), 2)
+
+
 def lignes_brut_parts_soumises(dossier: Any) -> List[Dict[str, Any]]:
     """Lignes du brut : la part de chaque indemnité qui dépasse les limites."""
     lignes = []
@@ -260,8 +289,17 @@ def lignes_cotisations_indemnites_rupture(contexte: Any) -> List[Dict[str, Any]]
     if not regimes:
         return []
     deductible, non_deductible = _taux_csg(contexte)
-    soumise = round(sum(float(r.get("soumise_cotisations") or 0) for r in regimes), 2)
-    csg_seule = round(sum(float(r.get("assiette_csg_seule") or 0) for r in regimes), 2)
+    # CSG déductible : part imposable ou soumise aux cotisations ; le reste de
+    # l'assiette (exonéré d'impôt et de cotisations) en entier non déductible.
+    assiette_deductible = round(sum(_assiette_csg_deductible(r) for r in regimes), 2)
+    assiette_csg = round(
+        sum(
+            float(r.get("soumise_cotisations") or 0) + float(r.get("assiette_csg_seule") or 0)
+            for r in regimes
+        ),
+        2,
+    )
+    csg_seule = round(assiette_csg - assiette_deductible, 2)
     lignes: List[Dict[str, Any]] = []
 
     def salariale(libelle: str, base: float, taux: float, coti_id: str) -> None:
@@ -281,9 +319,12 @@ def lignes_cotisations_indemnites_rupture(contexte: Any) -> List[Dict[str, Any]]
                 )
             )
 
-    salariale("CSG déductible sur indemnité de rupture", soumise, deductible, "csg_deductible")
+    salariale("CSG déductible sur indemnité de rupture", assiette_deductible, deductible, "csg_deductible")
     salariale(
-        "CSG/CRDS non déductible sur indemnité de rupture", soumise, non_deductible, "csg_non_deductible"
+        "CSG/CRDS non déductible sur indemnité de rupture",
+        assiette_deductible,
+        non_deductible,
+        "csg_non_deductible",
     )
     salariale(
         "CSG/CRDS non déductible sur indemnité de rupture non imposable",
