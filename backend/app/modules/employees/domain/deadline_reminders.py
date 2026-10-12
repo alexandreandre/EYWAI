@@ -41,6 +41,13 @@ def is_active_for_reminder(employment_status: Any) -> bool:
     return str(employment_status or "actif").strip().lower() == "actif"
 
 
+def _relance_le_titre(employment_status: Any) -> bool:
+    """Le titre de séjour d'un salarié « en sortie » se relance aussi : il travaille
+    encore jusqu'à son départ ([D6-3], 12/10/2026). Fins de CDD et périodes
+    d'essai restent réservées aux actifs."""
+    return str(employment_status or "actif").strip().lower() in ("actif", "en_sortie")
+
+
 def days_until(deadline: date, reference_date: date) -> int:
     return (deadline - reference_date).days
 
@@ -103,7 +110,8 @@ def _iter_candidates_for_employee(
     emp: Dict[str, Any],
     reference_date: date,
 ) -> List[DeadlineCandidate]:
-    if not is_active_for_reminder(emp.get("employment_status")):
+    actif = is_active_for_reminder(emp.get("employment_status"))
+    if not actif and not _relance_le_titre(emp.get("employment_status")):
         return []
 
     employee_id = str(emp.get("id") or "").strip()
@@ -120,6 +128,8 @@ def _iter_candidates_for_employee(
     )
     for reminder_type, deadline, max_days in checks:
         if deadline is None:
+            continue
+        if not actif and reminder_type != REMINDER_TYPE_RESIDENCE:
             continue
         if not is_in_reminder_window(deadline, max_days, reference_date):
             continue

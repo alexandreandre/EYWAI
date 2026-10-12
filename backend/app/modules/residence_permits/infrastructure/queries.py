@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import List
 
 from app.core.database import get_supabase_client
+from app.modules.residence_permits.domain.rules import STATUTS_SUIVIS
 
 
 def _get_client():
@@ -18,7 +19,7 @@ def _get_client():
 
 def fetch_employees_for_residence_permits_list(company_id: str) -> List[dict]:
     """
-    Employés soumis au titre de séjour, actifs ou en_sortie, pour la liste titres de séjour.
+    Employés soumis au titre de séjour, actifs, en sortie ou en onboarding, pour la liste titres de séjour.
     Colonnes : id, first_name, last_name, is_subject_to_residence_permit,
     residence_permit_expiry_date, residence_permit_type, residence_permit_number, employment_status.
     """
@@ -31,7 +32,7 @@ def fetch_employees_for_residence_permits_list(company_id: str) -> List[dict]:
         )
         .eq("company_id", company_id)
         .eq("is_subject_to_residence_permit", True)
-        .in_("employment_status", ["actif", "en_sortie"])
+        .in_("employment_status", list(STATUTS_SUIVIS))
         .order("last_name")
         .execute()
     )
@@ -63,7 +64,7 @@ def fetch_employees_for_residence_permits_export(
         .select(EXPORT_COLUMNS)
         .eq("company_id", company_id)
         .eq("is_subject_to_residence_permit", True)
-        .in_("employment_status", ["actif", "en_sortie"])
+        .in_("employment_status", list(STATUTS_SUIVIS))
         .in_("id", list(employee_ids))
         .execute()
     )

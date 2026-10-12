@@ -17,6 +17,11 @@ from app.modules.residence_permits.domain.enums import ResidencePermitStatus
 # Seuil d'anticipation en jours (relance RH J-30)
 ANTICIPATION_THRESHOLD_DAYS = 30
 
+#: Statuts d'emploi dont le titre de séjour est suivi. Une fiche créée au
+#: minimum est « en onboarding » : son titre n'était suivi par personne tant
+#: qu'elle restait incomplète ([D6-3], 12/10/2026).
+STATUTS_SUIVIS = ("actif", "en_sortie", "en_onboarding")
+
 
 def calculate_residence_permit_status(
     is_subject_to_residence_permit: bool,
@@ -46,7 +51,7 @@ def calculate_residence_permit_status(
         }
 
     # CAS 2: Employé soumis mais statut d'emploi exclu du suivi (legacy renvoie la date telle quelle)
-    if employment_status not in ("actif", "en_sortie"):
+    if employment_status not in STATUTS_SUIVIS:
         return {
             "is_subject_to_residence_permit": True,
             "residence_permit_status": None,

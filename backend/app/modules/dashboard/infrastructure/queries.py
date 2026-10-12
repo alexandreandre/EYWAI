@@ -108,7 +108,10 @@ def get_pending_expense_reports_count(company_id: str) -> int:
 
 
 def fetch_employees_for_residence_permit_stats(company_id: str) -> List[dict]:
-    """Employés soumis au titre de séjour, actifs ou en_sortie (pour stats)."""
+    """Employés soumis au titre de séjour suivis par la liste (pour stats) :
+    actifs, en sortie ou en onboarding, comme la page des titres ([D6-3])."""
+    from app.modules.residence_permits.domain.rules import STATUTS_SUIVIS
+
     client = _get_client()
     resp = (
         client.table("employees")
@@ -118,7 +121,7 @@ def fetch_employees_for_residence_permit_stats(company_id: str) -> List[dict]:
         )
         .eq("company_id", company_id)
         .eq("is_subject_to_residence_permit", True)
-        .in_("employment_status", ["actif", "en_sortie"])
+        .in_("employment_status", list(STATUTS_SUIVIS))
         .execute()
     )
     return list(resp.data or [])
