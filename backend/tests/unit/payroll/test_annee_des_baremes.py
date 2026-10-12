@@ -9,9 +9,12 @@ cotisations n'en portent pas ; le PAS porte `periode` (« mensuel_2026 »), mais
 sa grille peut légitimement rester celle de l'année d'avant (loi de finances
 tardive) : il n'est pas contrôlé.
 
-- Barèmes d'une année antérieure au bulletin : refus, message pour la
-  gestionnaire (janvier 2027 calculé avec le SMIC, le PASS et la réduction de
-  2026, sinon).
+- Barèmes d'une année antérieure au bulletin : le bulletin se calcule avec le
+  dernier barème connu, et une alerte le dit au bulletin et dans la liste du
+  mois (12/10/2026, cap « alerte avec sortie manuelle ») : janvier 2027 ne
+  doit pas se bloquer parce que le barème de la réduction générale, saisi à la
+  main, n'a pas encore été remis à jour. Le calcul inverse (simulation, sans
+  alerte à l'écran) garde le refus : son chiffre serait faux en silence.
 - Barèmes d'une année postérieure : alerte sur le bulletin, sans le bloquer
   (décembre se corrige souvent en janvier).
 """
@@ -57,20 +60,47 @@ class TestAnneeDesBaremes:
     def test_un_bulletin_2026_avec_les_baremes_2026_ne_dit_rien(self):
         assert controler_annee_des_baremes(_baremes(), 2026) == []
 
-    def test_janvier_2027_avec_les_baremes_2026_est_refuse(self):
-        with pytest.raises(BaremesDUneAnneePassee) as refus:
-            controler_annee_des_baremes(_baremes(), 2027)
-        message = str(refus.value)
-        assert "Les barèmes 2027 ne sont pas encore chargés" in message
-        assert "contactez le support" in message
-        assert "SMIC 2026" in message and "réduction générale 2026" in message
+    def test_janvier_2027_avec_les_baremes_2026_se_calcule_avec_une_alerte(self):
+        alertes = controler_annee_des_baremes(_baremes(), 2027)
+        assert [a["message"] for a in alertes] == [
+            "Barème 2026 du SMIC appliqué en 2027 : à régulariser dès la parution "
+            "du nouveau.",
+            "Barème 2026 de la réduction générale appliqué en 2027 : à régulariser "
+            "dès la parution du nouveau.",
+        ]
+        for alerte in alertes:
+            # Visible, mais ne bloque ni le calcul ni la validation.
+            assert alerte["severity"] == "warning"
+            assert alerte["critique"] is False
 
-    def test_une_reduction_generale_restee_en_2026_suffit_a_refuser(self):
-        # La synchro met le SMIC à jour, pas le SMIC de référence de la réduction.
+    def test_une_reduction_generale_restee_en_2026_n_alerte_que_sur_elle(self):
+        # La synchro met le SMIC à jour, pas le barème de la réduction.
+        alertes = controler_annee_des_baremes(_baremes(smic=2027), 2027)
+        assert len(alertes) == 1
+        assert alertes[0]["message"] == (
+            "Barème 2026 de la réduction générale appliqué en 2027 : à régulariser "
+            "dès la parution du nouveau."
+        )
+
+    def test_l_alerte_se_voit_dans_la_liste_du_mois(self):
+        from app.modules.payslips.infrastructure.payslip_list_meta import (
+            payslip_list_meta,
+        )
+
+        alertes = controler_annee_des_baremes(_baremes(smic=2027), 2027)
+        ligne = payslip_list_meta({"alertes_baremes": alertes})
+        assert alertes[0]["message"] in ligne["warnings"]
+
+    def test_le_calcul_inverse_garde_le_refus(self):
+        from app.modules.payroll.engine.baremes_loader import (
+            refuser_baremes_d_une_annee_passee,
+        )
+
         with pytest.raises(BaremesDUneAnneePassee) as refus:
-            controler_annee_des_baremes(_baremes(smic=2027), 2027)
+            refuser_baremes_d_une_annee_passee(_baremes(smic=2027), 2027)
         assert "réduction générale 2026" in str(refus.value)
         assert "SMIC 2027" not in str(refus.value)
+        refuser_baremes_d_une_annee_passee(_baremes(smic=2027, reduction=2027), 2027)
 
     def test_le_refus_s_affiche_comme_les_autres_refus_de_generation(self):
         # Les générateurs rendent une ValueError telle quelle à l'écran (400).
@@ -112,23 +142,50 @@ def _dossier_salarie(tmp_path: Path, mois: int) -> Path:
     return dossier
 
 
-class TestLesDeuxCalculsRefusent:
-    def test_le_bulletin_aux_heures(self, tmp_path):
-        from app.modules.payroll.documents.payslip_run_heures import (
-            run_payslip_generation_heures,
+def _alertes_annee_passee(bulletin: dict) -> list[str]:
+    return [
+        a["message"]
+        for a in bulletin.get("alertes_baremes") or []
+        if "appliqué en 2027" in str(a.get("message"))
+    ]
+
+
+def _dossier_calculable(tmp_path: Path, *, forfait: bool) -> Path:
+    dossier = _dossier_salarie(tmp_path, 1)
+    contrat = json.loads((dossier / "contrat.json").read_text(encoding="utf-8"))
+    contrat["salarie"]["adresse"] = {"code_postal": "39100"}
+    if forfait:
+        contrat["contrat"].update({"is_forfait_jour": True, "statut": "Cadre"})
+    (dossier / "contrat.json").write_text(json.dumps(contrat), encoding="utf-8")
+    entreprise = json.loads((dossier / "entreprise.json").read_text(encoding="utf-8"))
+    entreprise["entreprise"].setdefault("identification", {})["adresse"] = {"code_postal": "39100"}
+    (dossier / "entreprise.json").write_text(json.dumps(entreprise), encoding="utf-8")
+    return dossier
+
+
+class TestLesDeuxCalculsSeFontAvecUneAlerte:
+    @pytest.fixture(autouse=True)
+    def _hors_ligne(self, monkeypatch):
+        import httpx
+
+        def reseau_interdit(*_a, **_k):
+            raise AssertionError("appel réseau pendant un test unitaire")
+
+        monkeypatch.setattr(httpx.Client, "send", reseau_interdit)
+
+    @pytest.mark.parametrize("forfait", [False, True], ids=["aux_heures", "au_forfait_jours"])
+    def test_janvier_2027_aux_baremes_2026(self, tmp_path, forfait):
+        from app.core.paths import payroll_engine_root
+        from app.modules.payroll.documents import payslip_run_forfait, payslip_run_heures
+
+        calculer = (
+            payslip_run_forfait.run_payslip_generation_forfait
+            if forfait
+            else payslip_run_heures.run_payslip_generation_heures
         )
-
-        dossier = _dossier_salarie(tmp_path, 1)
-        with pytest.raises(BaremesDUneAnneePassee):
-            run_payslip_generation_heures(
-                dossier, 2027, 1, tmp_path, baremes_override=_baremes(), persister=False
-            )
-
-    def test_le_bulletin_au_forfait_jours(self, tmp_path):
-        from app.modules.payroll.documents.payslip_run_forfait import (
-            run_payslip_generation_forfait,
+        bulletin = calculer(
+            _dossier_calculable(tmp_path, forfait=forfait), 2027, 1, payroll_engine_root(),
+            baremes_override=_baremes(), persister=False,
         )
-
-        dossier = _dossier_salarie(tmp_path, 1)
-        with pytest.raises(BaremesDUneAnneePassee):
-            run_payslip_generation_forfait(dossier, 2027, 1, tmp_path, baremes_override=_baremes())
+        assert bulletin["salaire_brut"] > 0
+        assert len(_alertes_annee_passee(bulletin)) == 2
