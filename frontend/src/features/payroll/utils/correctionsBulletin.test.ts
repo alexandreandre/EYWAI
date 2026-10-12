@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   aDesModifications,
   avecSaisiesSurLeNet,
+  descriptionHeuresSupDuMois,
   titreDuBulletin,
   etatInitial,
   heuresDeclarees,
@@ -262,5 +263,26 @@ describe('montantCorrigeDeLaPrime : corriger le montant garde le sens', () => {
     expect(requeteDeCorrection(initial, courant, null).corrections.primes_corrigees).toEqual([
       { saisie_id: 's', amount: -201 },
     ]);
+  });
+});
+
+describe('descriptionHeuresSupDuMois : les heures déclarées ne remplacent pas les structurelles', () => {
+  it('un 39 h : les structurelles du contrat restent payées en plus des heures déclarées', () => {
+    const texte = descriptionHeuresSupDuMois(bulletin);
+    expect(texte).toContain('au-delà de l’horaire du contrat');
+    expect(texte).toContain('remplacent celles du planning');
+    expect(texte).toContain('Les 17,33 h structurelles du contrat restent payées en plus.');
+  });
+
+  it('un 35 h : pas de phrase sur des structurelles qu’il n’a pas', () => {
+    const texte = descriptionHeuresSupDuMois({ calcul_du_brut: [base, hs25] });
+    expect(texte).not.toContain('structurelles');
+    expect(texte).toContain('remplacent celles du planning');
+  });
+
+  it('une réduction des structurelles pour absence n’est pas comptée comme des heures', () => {
+    const reduction = { libelle: 'Réduction HS structurelles (jours d\'absence)', quantite: 3.9, perte: 70 };
+    const texte = descriptionHeuresSupDuMois({ calcul_du_brut: [base, structurelles, reduction] });
+    expect(texte).toContain('Les 17,33 h structurelles');
   });
 });
