@@ -1035,6 +1035,16 @@ def creer_bulletin_sortie(
     bulletin_base["net_a_payer"] = round(net_a_payer_final, 2)
     bulletin_base["is_bulletin_sortie"] = True
 
+    # Montant net social : « les indemnités de rupture de toute nature », quel
+    # que soit leur assujettissement (BOSS, Montant net social, II, A, 1 et
+    # question 20). La part versée après cotisations s'y ajoute ; sa CSG/CRDS
+    # au-delà du minimum est déjà dans les cotisations salariales déduites.
+    synthese = bulletin_base.get("synthese_net")
+    if total_indemnites_exonerees and isinstance(synthese, dict):
+        for cle in ("montant_net_social", "net_social_avant_impot"):
+            if synthese.get(cle) is not None:
+                synthese[cle] = round(float(synthese[cle]) + total_indemnites_exonerees, 2)
+
     # La phrase d'arbitrage du dossier ne s'écrit que si c'est le dossier qui a
     # été versé (repli sans compteurs de congés). Sinon le bulletin porte sa
     # propre mention par période (`indemnite_cp_fin_contrat`) : la phrase du
