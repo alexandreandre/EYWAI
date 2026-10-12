@@ -200,3 +200,41 @@ class TestTitreDeSejourEnSortie:
             contract_end_date=(self.REF + timedelta(days=5)).isoformat(),
         )
         assert list_hr_deadline_candidates([salarie], self.REF) == []
+
+
+class TestTitreExpireDansLeSuivi:
+    """[D6-4] Dès le lendemain de son expiration, un titre sortait du filtre
+    « Échéances » : en mode paie, plus rien ne le montrait. Il reste dans le suivi,
+    en tête ; les relances par e-mail, elles, ne changent pas (décision à prendre)."""
+
+    REF = date(2026, 10, 12)
+
+    def _salarie(self, expire_le, statut="actif"):
+        return {
+            "id": "e1",
+            "first_name": "Jeanne",
+            "last_name": "Essai",
+            "employment_status": statut,
+            "is_subject_to_residence_permit": True,
+            "residence_permit_expiry_date": expire_le.isoformat(),
+        }
+
+    def test_un_titre_expire_reste_dans_le_suivi_et_se_dit_expire(self):
+        from app.modules.employees.domain.deadline_reminders import echeances_a_suivre
+
+        candidats = echeances_a_suivre([self._salarie(date(2026, 4, 20))], self.REF)
+        assert len(candidats) == 1
+        assert candidats[0].reminder_type == REMINDER_TYPE_RESIDENCE
+        assert candidats[0].days_remaining < 0
+        assert candidats[0].label == "Titre de séjour expiré le 20/04/2026"
+
+    def test_les_titres_expires_passent_en_tete(self):
+        from app.modules.employees.domain.deadline_reminders import echeances_a_suivre
+
+        bientot = {**self._salarie(self.REF + timedelta(days=3)), "id": "e2"}
+        expire = self._salarie(date(2026, 9, 2))
+        candidats = echeances_a_suivre([bientot, expire], self.REF)
+        assert [c.employee_id for c in candidats] == ["e1", "e2"]
+
+    def test_les_relances_par_e_mail_ne_changent_pas(self):
+        assert list_hr_deadline_candidates([self._salarie(date(2026, 4, 20))], self.REF) == []
