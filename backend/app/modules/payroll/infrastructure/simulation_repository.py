@@ -41,6 +41,19 @@ def fetch_active_payroll_config_rows() -> List[Dict[str, Any]]:
     return response.data or []
 
 
+def fetch_cumuls_du_mois(employee_id: str, year: int, month: int) -> Optional[Dict[str, Any]]:
+    """Le bloc `employee_schedules.cumuls` d'un mois (lecture seule) ; None s'il manque."""
+    rows = (
+        supabase.table("employee_schedules")
+        .select("cumuls")
+        .match({"employee_id": employee_id, "year": year, "month": month})
+        .execute()
+        .data
+        or []
+    )
+    return (rows[0].get("cumuls") if rows else None) or None
+
+
 def fetch_convention_collective_rules() -> Dict[str, Any]:
     """Règles CC indexées idcc_{idcc} (aligné sur ContextePaie)."""
     try:

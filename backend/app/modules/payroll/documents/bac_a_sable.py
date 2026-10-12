@@ -26,9 +26,24 @@ class BacASable:
     `cumuls_precedents` : le bloc `employee_schedules.cumuls` du mois d'avant,
     tel que le générateur l'aurait lu ; None = départ à zéro, comme pour le
     tout premier bulletin d'un salarié.
+
+    `saisies_en_plus` : des lignes `monthly_inputs` qui n'existent qu'en
+    mémoire, ajoutées aux saisies du mois lues en base (le brut d'une prime
+    pour un net voulu essaie ainsi une prime sans l'enregistrer).
     """
 
     cumuls_precedents: dict | None = None
+    saisies_en_plus: tuple = ()
+
+
+def saisies_du_mois(lues: list | None, bac: BacASable | None) -> list:
+    """Les saisies du mois lues en base, plus celles du bac à sable s'il y en a.
+
+    Hors bac à sable, les saisies lues telles quelles."""
+    saisies = list(lues or [])
+    if bac is not None and bac.saisies_en_plus:
+        saisies.extend(dict(ligne) for ligne in bac.saisies_en_plus)
+    return saisies
 
 
 def cumuls_de_depart(bac: BacASable, year: int) -> dict:

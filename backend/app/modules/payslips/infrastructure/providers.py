@@ -51,13 +51,18 @@ class PayslipGeneratorProvider:
         year: int,
         month: int,
         cumuls_precedents: dict | None = None,
+        saisies_en_plus: tuple = (),
     ) -> dict[str, Any]:
         """Calcule le bulletin sans rien écrire (audit, rejeu, contrôle).
 
         Les cumuls précédents viennent de l'appelant ; le résultat porte
         `payslip_data` et `cumuls` au lieu d'un identifiant et d'une URL.
+        `saisies_en_plus` : des saisies du mois qui n'existent qu'en mémoire.
         """
-        bac = BacASable(cumuls_precedents=cumuls_precedents)
+        bac = BacASable(
+            cumuls_precedents=cumuls_precedents,
+            saisies_en_plus=tuple(saisies_en_plus),
+        )
         statut = employee_statut_reader.get_employee_statut(employee_id)
         if is_forfait_jour(statut):
             return process_payslip_generation_forfait(

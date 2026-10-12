@@ -8,7 +8,7 @@ import { phraseBrutDeLaPrime, requeteBrutDeLaPrime } from './brutDeLaPrime';
 // demande désormais le mode « prime » : le brut qui ajoute ce net au bulletin
 // du mois du salarié. Et elle dit ce que le brut proposé représente.
 
-const espaces = (texte: string | null) => (texte ?? '').replace(/[  ]/g, ' ');
+const espaces = (texte: string | null) => (texte ?? '').replace(/[\u00a0\u202f]/g, ' ');
 
 describe('la fenêtre des primes demande le brut d’une prime, pas d’un bulletin', () => {
   it('envoie le mode « prime », le mois du bulletin et les cases de la prime', () => {

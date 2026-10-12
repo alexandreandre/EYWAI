@@ -278,11 +278,30 @@ def run_reverse_calculation_for_company(
     options: Dict[str, Any],
     month: Optional[int] = None,
     year: Optional[int] = None,
+    mode: str = "bulletin_entier",
+    prime_soumise_a_cotisations: bool = True,
+    prime_soumise_a_impot: bool = True,
 ) -> Dict[str, Any]:
-    """Calcul inverse sur la période choisie à l'écran (à défaut, le mois en cours)."""
+    """Calcul inverse sur la période choisie à l'écran (à défaut, le mois en cours).
+
+    `mode="bulletin_entier"` (onglet « Calcul Inverse ») : le brut d'un bulletin
+    dont le net vaut la cible. `mode="prime"` (fenêtre des primes) : le brut
+    d'une prime qui ajoute la cible au net à payer du bulletin du mois du
+    salarié (voir `prime_nette`).
+    """
     if not month or not year:
         maintenant = datetime.now(ZoneInfo("Europe/Paris"))
         month, year = month or maintenant.month, year or maintenant.year
+    if mode == "prime":
+        return brut_d_une_prime_du_salarie(
+            company_id=company_id,
+            employee_id=employee_id,
+            net_voulu=net_target,
+            month=month,
+            year=year,
+            soumise_a_cotisations=prime_soumise_a_cotisations,
+            soumise_a_impot=prime_soumise_a_impot,
+        )
     company = load_company(company_id)
     baremes = load_baremes()
     options = _apply_cc_minimum_override(
@@ -303,6 +322,61 @@ def run_reverse_calculation_for_company(
         month=month,
         year=year,
     )
+
+
+#: Libellé de la prime essayée en bac à sable (jamais enregistrée).
+LIBELLE_PRIME_ESSAYEE = "Prime (calcul du brut)"
+
+
+def brut_d_une_prime_du_salarie(
+    *,
+    company_id: str,
+    employee_id: Optional[str],
+    net_voulu: float,
+    month: int,
+    year: int,
+    soumise_a_cotisations: bool = True,
+    soumise_a_impot: bool = True,
+) -> Dict[str, Any]:
+    """Le brut d'une prime qui ajoute `net_voulu` au net à payer du mois.
+
+    Chaque essai est le bulletin du mois du salarié calculé en bac à sable
+    (rien n'est écrit), avec ses saisies du mois, plus la prime essayée en
+    mémoire, et les cumuls du mois d'avant lus en base.
+    """
+    if not employee_id:
+        raise ValueError(
+            "Choisissez un salarié : le brut d'une prime se calcule sur son bulletin du mois."
+        )
+    load_employee(employee_id, company_id)  # le salarié est bien de la société active
+    from app.modules.payroll.application.prime_nette import chercher_brut_de_prime
+    from app.modules.payslips.infrastructure.providers import payslip_generator_provider
+
+    mois_avant, annee_avant = (month - 1, year) if month > 1 else (12, year - 1)
+    cumuls = simulation_repository.fetch_cumuls_du_mois(employee_id, annee_avant, mois_avant)
+
+    def bulletin_avec_prime(montant: float) -> Dict[str, Any]:
+        saisies = ()
+        if montant:
+            saisies = (
+                {
+                    "employee_id": employee_id,
+                    "year": year,
+                    "month": month,
+                    "name": LIBELLE_PRIME_ESSAYEE,
+                    "amount": round(float(montant), 2),
+                    "sur_le_net": False,
+                    "is_socially_taxed": bool(soumise_a_cotisations),
+                    "is_taxable": bool(soumise_a_impot),
+                },
+            )
+        resultat = payslip_generator_provider.generate_en_bac_a_sable(
+            employee_id, year, month, cumuls, saisies_en_plus=saisies
+        )
+        return (resultat or {}).get("payslip_data") or {}
+
+    resultat = chercher_brut_de_prime(net_voulu, bulletin_avec_prime)
+    return {**resultat, "month": month, "year": year}
 
 
 #: Type d'une simulation de bulletin, tel que la contrainte

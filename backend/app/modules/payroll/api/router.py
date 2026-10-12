@@ -30,6 +30,12 @@ class ReverseCalculationRequest(BaseModel):
     month: int = Field(ge=1, le=12)
     year: int = Field(ge=2020, le=2100)
     options: Dict[str, Any] = Field(default_factory=dict)
+    # « bulletin_entier » : le brut d'un bulletin dont le net vaut la cible
+    # (onglet « Calcul Inverse ») ; « prime » : le brut d'une prime qui ajoute
+    # la cible au net du bulletin du mois du salarié (fenêtre des primes).
+    mode: Literal["bulletin_entier", "prime"] = "bulletin_entier"
+    prime_soumise_a_cotisations: bool = True
+    prime_soumise_a_impot: bool = True
 
 
 class SimulationCreateRequest(BaseModel):
@@ -96,6 +102,9 @@ def reverse_calculation(
             options=body.options or {},
             month=body.month,
             year=body.year,
+            mode=body.mode,
+            prime_soumise_a_cotisations=body.prime_soumise_a_cotisations,
+            prime_soumise_a_impot=body.prime_soumise_a_impot,
         )
     except HTTPException:
         raise
