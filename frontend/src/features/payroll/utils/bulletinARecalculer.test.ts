@@ -11,6 +11,7 @@ import {
   nomsDesValidesChanges,
   libelleToastRecalcul,
   infobulleARecalculer,
+  jobDeLaSuite,
   messageARecalculer,
   montantsDepuisLigne,
   montantsDepuisReponse,
@@ -314,5 +315,65 @@ describe('bulletins validés « à recalculer » : jamais recalculés en groupe'
       '2 bulletins validés ont changé depuis leur validation : ouvrez-les un par un pour décider (A B, C D).'
     );
     expect(messageValidesChanges([])).toBeNull();
+  });
+});
+
+describe('jobDeLaSuite : le recalcul suit la chaîne des cumuls', () => {
+  const septembre = {
+    employeeId: 'e1',
+    employeeName: 'Mathis Exemple',
+    year: 2026,
+    month: 9,
+    montantsAvant: { heures_sup: 17.33, salaire_brut: 2450, net_a_payer: 1932 },
+  };
+
+  it('le brouillon suivant nommé par le serveur part dans le même geste, avec ses montants d’avant', () => {
+    expect(
+      jobDeLaSuite(septembre, {
+        year: 2026,
+        month: 10,
+        heures_sup: 17.33,
+        salaire_brut: 2450,
+        net_a_payer: 1932,
+      })
+    ).toEqual({
+      employeeId: 'e1',
+      employeeName: 'Mathis Exemple',
+      year: 2026,
+      month: 10,
+      montantsAvant: { heures_sup: 17.33, salaire_brut: 2450, net_a_payer: 1932 },
+    });
+  });
+
+  it('rien à suivre : pas de job', () => {
+    expect(jobDeLaSuite(septembre, null)).toBeNull();
+    expect(jobDeLaSuite(septembre, undefined)).toBeNull();
+  });
+
+  it('un mois qui ne suit pas celui recalculé est refusé', () => {
+    expect(jobDeLaSuite(septembre, { year: 2026, month: 9 })).toBeNull();
+    expect(jobDeLaSuite(septembre, { year: 2026, month: 8 })).toBeNull();
+  });
+
+  it('le forçage du mois recalculé ne passe jamais à la suite', () => {
+    const force = { ...septembre, regenererBulletinValide: true, forceCalendrierIncomplet: true };
+    const suite = jobDeLaSuite(force, { year: 2026, month: 10 });
+    expect(suite).not.toBeNull();
+    expect(suite).not.toHaveProperty('regenererBulletinValide');
+    expect(suite).not.toHaveProperty('forceCalendrierIncomplet');
+  });
+});
+
+describe('toastsDeFinDeRecalcul : un lot qui suit la chaîne', () => {
+  it('le même salarié sur deux mois : chaque ligne dit son mois', () => {
+    const avant = { heures_sup: 0, salaire_brut: 2000, net_a_payer: 1500 };
+    const apres = { heures_sup: 0, salaire_brut: 2300, net_a_payer: 1700 };
+    const [toast] = toastsDeFinDeRecalcul([
+      { employeeName: 'Mathis Exemple', year: 2026, month: 9, avant, apres },
+      { employeeName: 'Mathis Exemple', year: 2026, month: 10, avant, apres },
+    ]);
+    expect(toast.title).toBe('2 bulletins recalculés');
+    expect(toast.description).toContain('Mathis Exemple (septembre 2026) : net');
+    expect(toast.description).toContain('Mathis Exemple (octobre 2026) : net');
   });
 });
