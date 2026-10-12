@@ -547,6 +547,11 @@ def _calculer_ijss(
 
 # --- Bloc 4 : maintien employeur ---
 
+MOTIF_PARENTALITE_SANS_MAINTIEN = (
+    "Pas de maintien de salaire pendant les congés de maternité, de paternité "
+    "et d'adoption : réglage de la société."
+)
+
 
 def duree_maintien_par_taux(anciennete_mois: int) -> int:
     """
@@ -754,6 +759,24 @@ def _calculer_maintien_employeur(
     # conventionnelle (métallurgie : ≥ 1 an) est déjà appliquée en amont via le
     # seuil `min_seniority_months` (return anticipé si non éligible).
     # Réf. : Code du travail L1225-17 et s. ; CCN métallurgie IDCC 3248 art. 92.
+    if bool(qualification.get("est_maternite")) and not settings.get(
+        "maintain_parental_leave"
+    ):
+        return {
+            "maintien_applicable": False,
+            "taux_maintien": 0.0,
+            "maintien_cible": 0.0,
+            "maintien_verse": 0.0,
+            "nb_jours_maintien": 0,
+            "complement_employeur": 0.0,
+            "conflit_convention": False,
+            "motif_non_maintien": MOTIF_PARENTALITE_SANS_MAINTIEN,
+            "proratisation_temps_partiel": False,
+            "carence_employeur_jours": 0,
+            "duree_par_taux_jours": 0,
+            "duree_maintien_legale_jours": 0,
+            "est_maternite": True,
+        }
     if bool(qualification.get("est_maternite")):
         jours_maintien_mat = 0
         for k in range(jours_intersection):
@@ -1407,6 +1430,8 @@ def compute_jours_avec_maintien_mois(
     no_seniority = bool(settings.get("no_seniority_condition"))
     if not no_seniority and anciennete_mois < min_senior:
         return set()
+    if qualification.get("est_maternite") and not settings.get("maintain_parental_leave"):
+        return set()
 
     inter_d, inter_f = _intersection_dates(
         date_debut_arret, date_fin_arret or date_debut_arret,
@@ -1575,9 +1600,12 @@ def calculer_maintien(
     # d'IJSS au net et un complément employeur négatif. La maternité garde son
     # régime (maintien à 100 %, calculé à part).
     subrogation_demandee = bool(arret.get("subrogation_active"))
+    parentalite_maintenue = bool(qualification.get("est_maternite")) and bool(
+        settings.get("maintain_parental_leave")
+    )
     if (
         subrogation_demandee
-        and not qualification.get("est_maternite")
+        and not parentalite_maintenue
         and float(maintien.get("maintien_cible") or 0.0) <= 0.0
     ):
         arret = {**arret, "subrogation_active": False}
@@ -1640,7 +1668,9 @@ def calculer_maintien(
     alertes: List[str] = []
     if not maintien.get("maintien_applicable", True):
         alertes.append(
-            "Ancienneté insuffisante pour le maintien légal"
+            MOTIF_PARENTALITE_SANS_MAINTIEN
+            if maintien.get("est_maternite")
+            else "Ancienneté insuffisante pour le maintien légal"
         )
     duree_legale = int(maintien.get("duree_maintien_legale_jours") or 0)
     if duree_legale and nb_jours_arret_total > duree_legale:

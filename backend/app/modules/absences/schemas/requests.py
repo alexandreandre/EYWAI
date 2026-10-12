@@ -37,6 +37,11 @@ ArretType = Literal[
     "ald",
     "rechute_at",
     "arret_exceptionnel",
+    # Congés de parentalité (congé maternité, congé paternité) : sans carence,
+    # maintien selon le réglage de la société (éteint par défaut).
+    "maternite",
+    "paternite",
+    "adoption",
 ]
 
 # Liste canonique du domaine (arrêts avec attestation / IJSS) : le front

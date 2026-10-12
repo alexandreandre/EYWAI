@@ -21,7 +21,10 @@ export type ArretType =
   | 'mi_temps_therapeutique'
   | 'ald'
   | 'rechute_at'
-  | 'arret_exceptionnel';
+  | 'arret_exceptionnel'
+  | 'maternite'
+  | 'paternite'
+  | 'adoption';
 
 // Interface principale, mise à jour pour utiliser 'selected_days'
 export interface AbsenceRequest {

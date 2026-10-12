@@ -26,6 +26,9 @@ export interface MaintenanceSettings {
   paid_waiting_min_seniority_months: number;
   /** Maintien en jours ouvrés : 7 h + heures sup structurelles, IJSS hors bulletin. */
   maintain_working_days: boolean;
+  /** Maintien à 100 % pendant les congés de maternité, de paternité et
+   * d'adoption (convention) ; éteint par défaut. */
+  maintain_parental_leave: boolean;
   created_at: string | null;
   updated_at: string | null;
 }

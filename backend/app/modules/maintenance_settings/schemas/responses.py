@@ -38,5 +38,9 @@ class MaintenanceSettings(BaseModel):
     #: Maintien en jours ouvrés : 7 h + quote-part d'heures sup structurelles,
     #: week-ends non maintenus, IJSS hors bulletin.
     maintain_working_days: bool = False
+    #: Maintien pendant les congés de maternité, de paternité et d'adoption :
+    #: 100 % dès le premier jour. Pas une obligation légale (convention) : éteint
+    #: par défaut, ces congés sont retenus et les IJ versées au salarié.
+    maintain_parental_leave: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

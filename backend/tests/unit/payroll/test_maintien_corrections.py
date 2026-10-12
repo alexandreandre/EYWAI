@@ -109,9 +109,11 @@ class TestCarenceEmployeur:
 
 
 class TestCongeMaternite:
-    """Régime de parentalité : maintien 100 % inconditionnel, sans barème
-    dégressif D1226-1 (propre à la maladie) ni carence. Réf. Code du travail
-    L1225-17 et s. ; CCN métallurgie IDCC 3248 art. 92 (maintien 100 %)."""
+    """Régime de parentalité : maintien 100 %, sans barème dégressif D1226-1
+    (propre à la maladie) ni carence, quand la société l'a réglé
+    (`maintain_parental_leave`, éteint par défaut depuis le 12/10/2026 : ce
+    maintien relève de la convention). Réf. Code du travail L1225-17 et s. ;
+    CCN métallurgie IDCC 3248 art. 92 (maintien 100 %)."""
 
     def test_qualification_maternite(self):
         q = _qualifier_arret("maternite")
@@ -143,7 +145,9 @@ class TestCongeMaternite:
             "salaire_periode_reelle": 0.0,
         }
         ctx = _ctx(salaire_mensuel=1870.83)
-        r = calculer_maintien(arret, ctx, _settings(), p_debut, p_fin)
+        r = calculer_maintien(
+            arret, ctx, _settings(maintain_parental_leave=True), p_debut, p_fin
+        )
         m = r["maintien"]
         assert m["maintien_applicable"] is True
         assert m["taux_maintien"] == pytest.approx(1.0)
@@ -166,7 +170,10 @@ class TestCongeMaternite:
             "salaire_periode_reelle": 0.0,
         }
         ctx = _ctx(salaire_mensuel=1870.83, date_entree="2010-01-01")
-        mat = calculer_maintien({**base, "arret_type": "maternite"}, ctx, _settings(), p_debut, p_fin)
+        mat = calculer_maintien(
+            {**base, "arret_type": "maternite"}, ctx,
+            _settings(maintain_parental_leave=True), p_debut, p_fin,
+        )
         assert mat["maintien"]["taux_maintien"] == pytest.approx(1.0)
 
 

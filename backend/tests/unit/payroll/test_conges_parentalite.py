@@ -83,6 +83,7 @@ def test_sans_reglage_le_conge_n_a_pas_de_maintien_et_les_ij_vont_au_salarie(arr
         "et d'adoption : réglage de la société."
     )
     assert r["subrogation_active"] is False
+    assert "Ancienneté insuffisante pour le maintien légal" not in r["alertes"]
     # Pas de carence : indemnités journalières dès le premier jour.
     assert r["carence"]["carence_ss_jours"] == 0
     assert r["ijss"]["nb_jours_indemnises"] == 24

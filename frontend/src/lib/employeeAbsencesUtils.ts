@@ -323,8 +323,37 @@ const LIBELLES_TYPE_ARRET: Record<string, string> = {
   ald: 'ALD',
   rechute_at: 'Rechute AT',
   arret_exceptionnel: 'Arrêt exceptionnel',
+  maternite: 'Maternité',
+  paternite: "Paternité et accueil de l'enfant",
+  adoption: 'Adoption',
 };
 
 export function libelleTypeArret(code: string): string {
   return LIBELLES_TYPE_ARRET[code] ?? code;
+}
+
+const TYPES_ARRET_MALADIE = [
+  'maladie_simple',
+  'accident_travail',
+  'maladie_professionnelle',
+  'accident_trajet',
+  'mi_temps_therapeutique',
+  'ald',
+  'rechute_at',
+  'arret_exceptionnel',
+] as const;
+
+/** Types d'arrêt proposés pour un type d'absence : un congé maternité ou
+ * paternité a les siens (sans carence ; maintien selon le réglage de la
+ * société), un arrêt les types de la maladie et de l'accident. */
+export function typesArretProposes(
+  absenceType: string
+): { value: string; label: string }[] {
+  const codes: readonly string[] =
+    absenceType === 'arret_maternite'
+      ? ['maternite', 'adoption']
+      : absenceType === 'arret_paternite'
+        ? ['paternite', 'adoption']
+        : TYPES_ARRET_MALADIE;
+  return codes.map((value) => ({ value, label: libelleTypeArret(value) }));
 }

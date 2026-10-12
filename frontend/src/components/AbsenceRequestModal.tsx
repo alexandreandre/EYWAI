@@ -35,6 +35,7 @@ import {
   formatQuotiteJours,
   getAvailableCongePayeDays,
   avertissementSoldeInsuffisantRh,
+  typesArretProposes,
   type EmployeeRequestableAbsenceType,
 } from "@/lib/employeeAbsencesUtils";
 import { formatPeriodeArret } from "@/lib/arretPeriode";
@@ -242,7 +243,15 @@ export function AbsenceRequestModal({
     if (!isArretPrincipalType(absenceType)) {
       setArretType("");
       setArretRange(undefined);
+      return;
     }
+    // Un type d'arrêt d'un autre type d'absence (maladie → congé maternité) ne
+    // se garde pas.
+    setArretType((courant) =>
+      courant && !typesArretProposes(absenceType).some((t) => t.value === courant)
+        ? ""
+        : courant
+    );
   }, [absenceType]);
 
 
@@ -687,14 +696,11 @@ export function AbsenceRequestModal({
                   <SelectValue placeholder="Sélectionner le type d'arrêt…" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="maladie_simple">Maladie simple</SelectItem>
-                  <SelectItem value="accident_travail">Accident du travail</SelectItem>
-                  <SelectItem value="maladie_professionnelle">Maladie professionnelle</SelectItem>
-                  <SelectItem value="accident_trajet">Accident de trajet</SelectItem>
-                  <SelectItem value="mi_temps_therapeutique">Mi-temps thérapeutique</SelectItem>
-                  <SelectItem value="ald">ALD</SelectItem>
-                  <SelectItem value="rechute_at">Rechute AT</SelectItem>
-                  <SelectItem value="arret_exceptionnel">Arrêt exceptionnel</SelectItem>
+                  {typesArretProposes(absenceType).map((t) => (
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -52,6 +52,7 @@ function toUpdatePayload(form: MaintenanceSettings): MaintenanceSettingsUpdate {
     paid_waiting_days_per_year: form.paid_waiting_days_per_year,
     paid_waiting_min_seniority_months: form.paid_waiting_min_seniority_months,
     maintain_working_days: form.maintain_working_days,
+    maintain_parental_leave: form.maintain_parental_leave,
   };
 }
 
@@ -340,6 +341,27 @@ export default function MaintenanceSettingsCard() {
                 checked={form.maintain_working_days}
                 onCheckedChange={(v) =>
                   setForm((p) => (p ? { ...p, maintain_working_days: v } : p))
+                }
+                disabled={readOnly}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+              <div>
+                <Label htmlFor="maintain_parental_leave">
+                  Maintien pendant les congés de maternité, de paternité et d’adoption
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Éteint : le congé est retenu, sans maintien, et la caisse verse les indemnités
+                  journalières au salarié. Allumé : le salaire est maintenu à 100 % dès le premier
+                  jour, sous la condition d’ancienneté du maintien. À activer seulement si la
+                  convention ou un accord le prévoit.
+                </p>
+              </div>
+              <Switch
+                id="maintain_parental_leave"
+                checked={form.maintain_parental_leave}
+                onCheckedChange={(v) =>
+                  setForm((p) => (p ? { ...p, maintain_parental_leave: v } : p))
                 }
                 disabled={readOnly}
               />
