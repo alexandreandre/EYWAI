@@ -32,11 +32,11 @@ def _documents_demandes(specificites_paie):
 
 
 def test_sans_adhesion_pas_d_attestation_mutuelle():
-    demandes = _documents_demandes({"mutuelle": {"adhesion": False}})
+    demandes = _documents_demandes({"mutuelle": {"adhesion": False}, "prevoyance": {"adhesion": True}})
     assert "attestation_portabilite_mutuelle" not in demandes
     assert "attestation_portabilite_prevoyance" in demandes
 
 
 def test_avec_adhesion_les_deux_attestations():
-    demandes = _documents_demandes({"mutuelle": {"adhesion": True}})
+    demandes = _documents_demandes({"mutuelle": {"adhesion": True}, "prevoyance": {"adhesion": True}})
     assert demandes == ["attestation_portabilite_mutuelle", "attestation_portabilite_prevoyance"]
