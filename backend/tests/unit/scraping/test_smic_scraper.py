@@ -89,3 +89,108 @@ def test_payload_signatures_match_on_fixture():
     sig = _extract_sig(payload)
     assert sig["cas_general"] == 12.31
     assert sig["jeune_17_ans"] == 11.08
+
+
+# --- Mise à jour du barème : l'historique se garde (janvier 2027) -----------
+#
+# Avant le 12/10/2026, `_build` réécrivait le barème en entier, sans
+# `historique` : un nouveau SMIC validé effaçait les paliers de 2026, et la
+# réduction générale (qui lit le SMIC du 1er janvier dans l'historique) comme le
+# SMIC d'un mois passé retombaient sur un repli.
+
+_BAREME_2026 = {
+    "annee": 2026,
+    "historique": [
+        {"date_debut": "2026-01-01", "cas_general": 12.02},
+        {"date_debut": "2026-06-01", "cas_general": 12.31},
+    ],
+    "cas_general": 12.31,
+    "jeune_17_ans": 11.08,
+    "smic_horaire_brut": 12.31,
+    "smic_mensuel_brut": 1867.02,
+    "jeune_moins_17_ans": 9.85,
+}
+
+
+def _payload(cas_general, j17, jm17, mensuel, annee, effet):
+    return {
+        "sections": {
+            "cas_general": cas_general,
+            "smic_horaire_brut": cas_general,
+            "jeune_17_ans": j17,
+            "jeune_moins_17_ans": jm17,
+            "smic_mensuel_brut": mensuel,
+            "annee": annee,
+            "effective_from": effet,
+        }
+    }
+
+
+def test_un_nouveau_smic_garde_l_historique_et_ajoute_son_palier_date(monkeypatch):
+    import copy
+
+    from scraping.SMIC.spec import _build
+
+    monkeypatch.setattr("core.year_utils.current_year", lambda: 2027)
+    sig = _extract_sig(_payload(12.5, 11.25, 10.0, 1895.83, 2027, "2027-01-01"))
+    courant = {"config_data": copy.deepcopy(_BAREME_2026)}
+
+    nouveau = _build(sig, courant)
+
+    assert nouveau["historique"] == [
+        {"date_debut": "2026-01-01", "cas_general": 12.02},
+        {"date_debut": "2026-06-01", "cas_general": 12.31},
+        {"date_debut": "2027-01-01", "cas_general": 12.5},
+    ]
+    assert nouveau["annee"] == 2027
+    assert nouveau["cas_general"] == 12.5
+    assert "effective_from" not in nouveau
+    # Le barème courant n'est pas modifié en place.
+    assert courant["config_data"] == _BAREME_2026
+
+
+def test_le_smic_de_reference_de_la_nouvelle_annee_est_pose_au_1er_janvier(monkeypatch):
+    from app.modules.payroll.engine.calcul_reduction_generale import (
+        smic_horaire_au_1er_janvier,
+    )
+    from scraping.SMIC.spec import _build
+
+    monkeypatch.setattr("core.year_utils.current_year", lambda: 2027)
+    sig = _extract_sig(_payload(12.5, 11.25, 10.0, 1895.83, 2027, "2027-01-01"))
+    nouveau = _build(sig, {"config_data": dict(_BAREME_2026)})
+
+    baremes = {"smic": nouveau}
+    assert smic_horaire_au_1er_janvier(baremes, 2027) == 12.5
+    assert smic_horaire_au_1er_janvier(baremes, 2026) == 12.02
+
+
+def test_sans_date_d_effet_le_smic_d_une_annee_nouvelle_est_date_du_1er_janvier(monkeypatch):
+    # La source IA peut ne pas rendre la date d'effet.
+    from scraping.SMIC.spec import _build
+
+    monkeypatch.setattr("core.year_utils.current_year", lambda: 2027)
+    sig = _extract_sig(_payload(12.5, 11.25, 10.0, 1895.83, 2027, None))
+    nouveau = _build(sig, {"config_data": dict(_BAREME_2026)})
+
+    assert nouveau["historique"][-1] == {"date_debut": "2027-01-01", "cas_general": 12.5}
+
+
+def test_un_smic_inchange_ne_modifie_pas_le_bareme(monkeypatch):
+    # Sinon chaque relevé déposerait une revue humaine « à valider » pour rien.
+    from scraping.SMIC.spec import _build
+
+    monkeypatch.setattr("core.year_utils.current_year", lambda: 2026)
+    sig = _extract_sig(_payload(12.31, 11.08, 9.85, 1867.02, 2026, "2026-06-01"))
+
+    assert _build(sig, {"config_data": dict(_BAREME_2026)}) == _BAREME_2026
+
+
+def test_un_premier_bareme_sans_historique_en_ouvre_un(monkeypatch):
+    from scraping.SMIC.spec import _build
+
+    monkeypatch.setattr("core.year_utils.current_year", lambda: 2026)
+    sig = _extract_sig(_payload(12.31, 11.08, 9.85, 1867.02, 2026, "2026-06-01"))
+
+    assert _build(sig, None)["historique"] == [
+        {"date_debut": "2026-06-01", "cas_general": 12.31}
+    ]
