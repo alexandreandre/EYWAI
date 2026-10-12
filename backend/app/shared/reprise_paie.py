@@ -178,6 +178,72 @@ def _date_entree(employee_id: str) -> date | None:
         return None
 
 
+def _mois_lisible(periode: str) -> str:
+    """« 2026-06 » → « 06/2026 » ; une valeur illisible est rendue telle quelle."""
+    texte = str(periode or "")
+    if len(texte) == 7 and texte[4] == "-":
+        return f"{texte[5:7]}/{texte[:4]}"
+    return texte
+
+
+def historique_de_paie_avant_martine(company_id: str | None) -> str | None:
+    """Ce qui montre que la paie de la société se faisait ailleurs avant Martine.
+
+    Deux traces : des lots d'import DSN validés pour son SIREN, ou des bulletins
+    repris de l'ancien logiciel. Rend une courte description (« DSN importées de
+    01/2026 à 06/2026 »), ou None s'il n'y a ni l'une ni l'autre.
+
+    Les cumuls que l'import DSN calcule ne vont pas en base : ils sont écrits sur
+    le disque du serveur, que la paie ne relit pas (enquête du 12/10/2026, [B12]).
+    Une société importée par DSN n'a donc aucun solde d'ouverture tant qu'on ne
+    le pose pas avec sa bascule.
+
+    Une base injoignable ne bloque pas la paie : la garde reste celle d'avant.
+    """
+    if not company_id:
+        return None
+    try:
+        societe = (
+            supabase.table("companies").select("siren").eq("id", str(company_id))
+            .limit(1).execute()
+        )
+        siren = str(((getattr(societe, "data", None) or [{}])[0] or {}).get("siren") or "").strip()
+        if siren:
+            lots = (
+                supabase.table("dsn_import_batches")
+                .select("period_min, period_max")
+                .eq("siren", siren)
+                .eq("status", "committed")
+                .execute()
+            )
+            lignes = [l for l in (getattr(lots, "data", None) or []) if isinstance(l, dict)]
+            if lignes:
+                debuts = sorted(str(l.get("period_min") or "") for l in lignes if l.get("period_min"))
+                fins = sorted(str(l.get("period_max") or "") for l in lignes if l.get("period_max"))
+                if debuts and fins:
+                    return (
+                        f"DSN importées de {_mois_lisible(debuts[0])} à "
+                        f"{_mois_lisible(fins[-1])}"
+                    )
+                return "DSN importées"
+        repris = (
+            supabase.table("payslips")
+            .select("year, month")
+            .eq("company_id", str(company_id))
+            .eq("origine", ORIGINE_IMPORTE)
+            .limit(1)
+            .execute()
+        )
+        if getattr(repris, "data", None):
+            return "bulletins repris de l'ancien logiciel"
+    except Exception:  # noqa: BLE001 - base injoignable : la garde reste celle d'avant
+        logger.warning(
+            "Historique de paie avant Martine illisible pour la société %s.", company_id
+        )
+        return None
+    return None
+
+
 def raison_de_cumul_manquant(
     company_id: str | None,
     employee_id: str,
@@ -189,12 +255,15 @@ def raison_de_cumul_manquant(
 ) -> str | None:
     """Erreur dure quand le cumul du mois précédent manque alors qu'il devrait exister.
 
-    Trois cas donnent un blocage, et un seul est légitime :
+    Quatre cas donnent un blocage :
     - le mois précédent est celui de la bascule → le solde d'ouverture n'a pas été importé ;
     - le mois précédent est postérieur à la bascule → la chaîne est rompue ;
-    - pas de bascule, mais un bulletin existe déjà à ce mois ou avant → chaîne rompue.
+    - pas de bascule, mais un bulletin existe déjà à ce mois ou avant → chaîne rompue ;
+    - pas de bascule, mais la société était payée ailleurs avant Martine (DSN
+      importées, bulletins repris) → son premier bulletin partirait de zéro ([B12]).
 
-    Le cas légitime est le tout premier bulletin d'un salarié : rien à chaîner.
+    Le cas légitime est le tout premier bulletin d'un salarié embauché après le
+    mois précédent : rien à chaîner, l'ancien logiciel ne l'a jamais payé.
     """
     if cumul_trouve:
         return None
@@ -227,4 +296,17 @@ def raison_de_cumul_manquant(
             f"{precedent} mais leurs cumuls sont introuvables. Régénérez {precedent} "
             f"avant {mois:02d}/{annee:04d}."
         )
+    if bascule is None:
+        historique = historique_de_paie_avant_martine(company_id)
+        if historique:
+            return (
+                f"La paie de cette société se faisait avant Martine ({historique}), "
+                f"mais sa reprise n'est pas posée : ni date de bascule, ni solde "
+                f"d'ouverture de ce collaborateur à fin {precedent}. Calculé ainsi, son "
+                f"bulletin de {mois:02d}/{annee:04d} partirait de zéro : réduction "
+                f"générale, tranches Agirc-Arrco, plafond des heures supplémentaires et "
+                f"indemnités de fin de contrat seraient faux. Faites poser la bascule et "
+                f"importer le solde d'ouverture (cumuls de l'ancien logiciel à fin "
+                f"{precedent}) avant de générer ce bulletin."
+            )
     return None
