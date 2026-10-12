@@ -44,13 +44,13 @@ import {
 } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { proposeLeChoixDuFormat } from "@/components/exports/exportFileFormats";
-import { previewExport, generateExport, ExportPreviewResponse, ExportGenerateResponse, ExportType } from "@/api/exports";
+import { regroupementsProposes, type OdRegroupement } from "@/components/exports/odRegroupements";
+import { getAccountingMappings, previewExport, generateExport, ExportPreviewResponse, ExportGenerateResponse, ExportType } from "@/api/exports";
 import { fetchEmployeesSummary } from "@/api/employees";
 
 export type ExportStep = "parametrage" | "previsualisation" | "generation";
 export type ExportFileFormat = "csv" | "xlsx";
 export type NotesFraisCabinetFormat = "generique" | "quadra" | "sage";
-export type OdRegroupement = "global" | "par_etablissement" | "par_analytique";
 export type BankFileFormat = "sepa" | "csv";
 export type AcompteMode = "a_verser" | "verses";
 
@@ -226,6 +226,17 @@ export function ExportCommonModel({
     enabled: Boolean(activeCompany?.company_id),
   });
 
+  // Seuls les regroupements qui changent l'OD sont proposés.
+  const { data: mappingsComptables } = useQuery({
+    queryKey: ["accounting-mappings", selectedCompany],
+    queryFn: () => getAccountingMappings(selectedCompany),
+    enabled: OD_EXPORT_TYPES.has(apiExportType) && Boolean(selectedCompany),
+  });
+  const regroupements = regroupementsProposes(mappingsComptables?.mappings);
+  const regroupementRetenu: OdRegroupement = regroupements.some((r) => r.value === odRegroupement)
+    ? odRegroupement
+    : "global";
+
   const resolvedEmployeeIds = useMemo(() => {
     if (selectedScope === "all") return undefined;
     return selectedEmployeeIds.length > 0 ? selectedEmployeeIds : undefined;
@@ -237,7 +248,7 @@ export function ExportCommonModel({
       filters.cabinet_format = cabinetFormat;
     }
     if (OD_EXPORT_TYPES.has(apiExportType)) {
-      filters.regroupement = odRegroupement;
+      filters.regroupement = regroupementRetenu;
     }
     if (apiExportType === "virement_salaires") {
       filters.bank_format = bankFileFormat;
@@ -376,7 +387,7 @@ export function ExportCommonModel({
       paymentLabel,
       selectedScope,
       selectedEmployeeIds,
-      odRegroupement,
+      regroupementRetenu,
       cabinetFormat,
       bankFileFormat,
       dsnType,
@@ -710,16 +721,18 @@ export function ExportCommonModel({
               <div className="space-y-2 max-w-xs">
                 <Label htmlFor="od-regroupement">Regroupement comptable</Label>
                 <Select
-                  value={odRegroupement}
+                  value={regroupementRetenu}
                   onValueChange={(v) => setOdRegroupement(v as OdRegroupement)}
                 >
                   <SelectTrigger id="od-regroupement">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="global">Global</SelectItem>
-                    <SelectItem value="par_etablissement">Par établissement</SelectItem>
-                    <SelectItem value="par_analytique">Par analytique</SelectItem>
+                    {regroupements.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
