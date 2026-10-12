@@ -14,6 +14,7 @@ from app.modules.companies.domain.parametres_paie import (
     CLES_SETTINGS,
     valider_date_paiement,
     valider_annee_effectif,
+    valider_compte_bancaire,
     valider_effectif,
     valider_jour_solidarite,
     valider_taux_assurance_chomage,
@@ -171,6 +172,19 @@ class CompanyDetailsUpdate(BaseModel):
             "null retire la clé (le moteur prend le lundi de Pentecôte)."
         ),
     )
+
+    compte_bancaire: Optional[Dict[str, Any]] = Field(
+        None,
+        description=(
+            "settings.compte_bancaire : {iban, bic, titulaire}, le compte qui débite "
+            "les salaires (donneur d'ordre des remises SEPA). null retire la clé."
+        ),
+    )
+
+    @field_validator("compte_bancaire", mode="before")
+    @classmethod
+    def _compte_bancaire(cls, valeur: Any) -> Optional[Dict[str, str]]:
+        return _en_erreur_lisible(valider_compte_bancaire, valeur)
 
     @field_validator("effectif", mode="before")
     @classmethod

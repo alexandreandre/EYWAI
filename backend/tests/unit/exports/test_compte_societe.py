@@ -42,14 +42,13 @@ class TestLectureDuCompte:
         societe = {"company_name": "Exemple", "settings": {"compte_bancaire": COMPTE}}
         assert compte_depuis_societe(societe) == COMPTE
 
-    def test_titulaire_par_defaut_la_raison_sociale(self):
+    def test_titulaire_par_defaut_le_nom_de_la_societe(self):
         societe = {
             "company_name": "Exemple",
-            "raison_sociale": "EXEMPLE SAS",
             "settings": {"compte_bancaire": {"iban": IBAN_SOCIETE}},
         }
         compte = compte_depuis_societe(societe)
-        assert compte["titulaire"] == "EXEMPLE SAS"
+        assert compte["titulaire"] == "Exemple"
         assert compte["bic"] == ""
 
     def test_absent(self):

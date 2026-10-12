@@ -3,6 +3,10 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.database import supabase
+from app.modules.exports.infrastructure.compte_societe import (
+    anomalie_compte_manquant,
+    charger_compte_societe,
+)
 from app.modules.payroll.domain.report_nap_negatif import avertissement_virement_ecarte
 from app.modules.payroll.engine.controles_convention import NET_SUPERIEUR_BRUT_MESSAGE
 from app.shared.utils.export import format_period, generate_csv, generate_xlsx
@@ -213,6 +217,8 @@ def preview_paiement_salaires(
     )
     if totals["virements_count"] == 0:
         warnings.append("Aucun virement à générer pour cette période")
+    if not charger_compte_societe(company_id):
+        anomalies = anomalies + [anomalie_compte_manquant()]
     return {
         "employees_count": totals["virements_count"],
         "totals": {
