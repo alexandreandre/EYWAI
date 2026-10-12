@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
-from app.shared.utils.iban import has_valid_iban
+from app.shared.utils.iban import extract_iban, iban_bien_forme
 
 # Champs essentiels pour finaliser la paie d'un salarié fraîchement embauché.
 # Tuple (clé colonne employees, libellé affiché côté RH).
@@ -61,7 +61,9 @@ def _is_payroll_field_missing(key: str, employee: Dict[str, Any]) -> bool:
         # Un salarié payé par chèque ou en espèces n'a pas besoin de RIB.
         if paye_sans_virement(employee):
             return False
-        return not has_valid_iban(employee.get(key))
+        # Un IBAN bien formé suffit à la paie : sa clé ou sa longueur fausse
+        # bloquent le virement (aperçu), pas le calcul du bulletin.
+        return not iban_bien_forme(extract_iban(employee.get(key)))
     return _is_blank(employee.get(key))
 
 

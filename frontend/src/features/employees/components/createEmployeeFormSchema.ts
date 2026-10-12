@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { titresRestaurantSchema } from '@/lib/titresRestaurant';
-import { bicFieldSchema, ibanFieldSchema } from "@/lib/ibanSchema";
+import { ibanBienForme } from "@/lib/iban";
+import { bicFieldSchema } from "@/lib/ibanSchema";
 import { isEmployeeCadre } from "@/lib/mutuelleUtils";
 import { needsContractEndDate } from "@/constants/contracts";
 import { MESSAGE_SALAIRE_TROP_ELEVE, SALAIRE_MENSUEL_MAXIMUM } from '@/lib/salaireVraisemblable';
@@ -43,7 +44,8 @@ export const createEmployeeFormSchema = z.object({
       .string()
       .optional()
       .default("")
-      .refine((v) => !v.replace(/\s/g, "") || ibanFieldSchema.safeParse(v).success, { message: "IBAN invalide." }),
+      // Bien formé suffit : une clé fausse s'avertit sous le champ, le virement la bloque.
+      .refine((v) => !v.replace(/\s/g, "") || ibanBienForme(v), { message: "IBAN invalide." }),
     bic: bicFieldSchema,
   }),
 

@@ -1,4 +1,5 @@
 import { log } from '@/lib/logger';
+import { AvertissementIban } from '@/components/employees/AvertissementIban';
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1237,7 +1238,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                         <FormField control={form.control} name="adresse.ville" render={({ field }) => (<FormItem><FormLabel>Ville</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                       </div>
                       <h3 className="font-semibold pt-4">Coordonnées bancaires</h3>
-                      <FormField control={form.control} name="coordonnees_bancaires.iban" render={({ field }) => (<FormItem><FormLabel>IBAN</FormLabel><FormControl><Input placeholder="FR76..." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name="coordonnees_bancaires.iban" render={({ field }) => (<FormItem><FormLabel>IBAN</FormLabel><FormControl><Input placeholder="FR76..." {...field} /></FormControl><FormMessage /><AvertissementIban iban={field.value} /></FormItem>)} />
                       <FormField control={form.control} name="coordonnees_bancaires.bic" render={({ field }) => (<FormItem><FormLabel>BIC</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField
                         control={form.control}

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { titresRestaurantSchema } from '@/lib/titresRestaurant';
 import { needsContractEndDate } from '@/constants/contracts';
 import { FORMAT_PCS_ESE } from '@/constants/dsnFiche';
-import { ibanProblem } from '@/lib/iban';
+import { ibanBienForme, ibanProblem } from '@/lib/iban';
 import { bicFieldSchema } from '@/lib/ibanSchema';
 import { isEmployeeCadre } from '@/lib/mutuelleUtils';
 import { MESSAGE_SALAIRE_TROP_ELEVE, SALAIRE_MENSUEL_MAXIMUM } from '@/lib/salaireVraisemblable';
@@ -120,11 +120,14 @@ export const employeeProfileEditSchema = z
     residence_permit_number: z.string().optional(),
   })
   .superRefine((data, ctx) => {
-    // Pas de RIB à exiger hors virement ; un IBAN saisi doit rester juste.
+    // Pas de RIB à exiger hors virement ; un IBAN saisi doit être bien formé. Sa clé
+    // ou sa longueur fausse ne bloquent pas la fiche : le formulaire l'avertit et
+    // le virement le bloque (avertissementIban).
     const sansVirement =
       data.salary_payment_method === 'cheque' || data.salary_payment_method === 'especes';
-    if (!(sansVirement && !data.coordonnees_bancaires.iban.trim())) {
-      const probleme = ibanProblem(data.coordonnees_bancaires.iban);
+    const iban = data.coordonnees_bancaires.iban;
+    if (!(sansVirement && !iban.trim()) && !ibanBienForme(iban)) {
+      const probleme = ibanProblem(iban);
       if (probleme) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

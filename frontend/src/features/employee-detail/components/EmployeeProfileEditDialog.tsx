@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { Form } from '@/components/ui/form';
 import { toast } from '@/components/ui/use-toast';
+import { avertissementIban } from '@/lib/iban';
 import { EmployeeProfileEditForm } from '@/features/employee-detail/components/EmployeeProfileEditForm';
 import {
   buildDefaultValues,
@@ -137,7 +138,7 @@ export function EmployeeProfileEditDialog({
   const saveMutation = useMutation({
     mutationFn: (values: EmployeeProfileEditFormValues) =>
       updateEmployee(employeeId, buildUpdatePayload(values, employee, { salaireVerrouille: salaireFige })),
-    onSuccess: (updated) => {
+    onSuccess: (updated, values) => {
       onSuccess(updated);
       if (companyId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.onboardingHubDashboard(companyId) });
@@ -151,7 +152,15 @@ export function EmployeeProfileEditDialog({
       onOpenChange(false);
       const nowComplete =
         updated.profile_complete !== false && !(updated.missing_payroll_fields?.length);
-      if (variant === 'onboarding' && nowComplete) {
+      // Une clé d'IBAN fausse n'empêche pas d'enregistrer : le message le redit
+      // (un seul message à la fois à l'écran, celui-ci passe devant).
+      const avertissement = avertissementIban(
+        values.coordonnees_bancaires.iban,
+        values.salary_payment_method,
+      );
+      if (avertissement) {
+        toast({ title: 'Fiche enregistrée, IBAN à vérifier', description: avertissement, variant: 'warning' });
+      } else if (variant === 'onboarding' && nowComplete) {
         toast({
           title: 'Fiche complétée',
           description: wasOnboarding

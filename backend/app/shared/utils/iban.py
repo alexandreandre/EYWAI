@@ -68,6 +68,19 @@ def validate_iban(iban: str) -> bool:
     return iban_problem(iban) is None
 
 
+def iban_bien_forme(iban: str) -> bool:
+    """Un IBAN est renseigné et bien formé : pays, clé, 15 à 34 caractères.
+
+    Ni la clé (mod 97) ni la longueur propre au pays : un IBAN faux mais bien
+    formé n'empêche pas de calculer la paie, seulement de faire le virement
+    (`validate_iban`, à l'aperçu du virement).
+    """
+    iban_clean = normalize_iban(iban)
+    return bool(
+        15 <= len(iban_clean) <= 34 and re.match(r"^[A-Z]{2}[0-9]{2}[A-Z0-9]+$", iban_clean)
+    )
+
+
 def parse_coordonnees_bancaires(raw: Any) -> Dict[str, Any]:
     """Parse coordonnees_bancaires depuis la DB (dict, chaîne JSON ou null)."""
     if raw is None:

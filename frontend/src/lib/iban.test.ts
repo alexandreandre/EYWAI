@@ -41,6 +41,11 @@ describe('un IBAN faux mais bien formé avertit sans bloquer', () => {
     );
   });
 
+  it('rien à dire pour un salarié payé sans virement', () => {
+    expect(avertissementIban('FR7630001007941234567890186', 'cheque')).toBeNull();
+    expect(avertissementIban('FR7630001007941234567890186', 'virement')).not.toBeNull();
+  });
+
   it('rien à dire pour un IBAN juste, vide ou mal formé (ce dernier est refusé)', () => {
     expect(avertissementIban('FR7630001007941234567890185')).toBeNull();
     expect(avertissementIban('')).toBeNull();

@@ -37,6 +37,7 @@ import {
   filterMutuellesForEmployee,
 } from '@/lib/mutuelleUtils';
 import { PrevoyanceAffiliationFields } from '@/features/employees/components/PrevoyanceAffiliationFields';
+import { AvertissementIban } from '@/components/employees/AvertissementIban';
 import { EmployeeContractConfigFormFields } from '@/features/employees/components/EmployeeContractConfigFields';
 import { getCollectiveAgreementLabel } from '@/lib/employeeDisplayUtils';
 import { BrutPourDureeHint } from '@/components/employees/BrutPourDureeHint';
@@ -133,6 +134,7 @@ export function EmployeeProfileEditForm({
   const statut = useWatch({ control, name: 'statut' });
   const contractType = useWatch({ control, name: 'contract_type' });
   const salaireBase = useWatch({ control, name: 'salaire_de_base.valeur' });
+  const modePaiement = useWatch({ control, name: 'salary_payment_method' });
   // Le salaire de la fiche à l'ouverture : ce que le champ direct remplacerait.
   const { defaultValues: valeursInitiales } = useFormState({ control });
   const salaireInitial = Number(valeursInitiales?.salaire_de_base?.valeur) || null;
@@ -330,6 +332,7 @@ export function EmployeeProfileEditForm({
                 <FormLabel>IBAN</FormLabel>
                 <FormControl><Input {...field} /></FormControl>
                 <FormMessage />
+                <AvertissementIban iban={field.value} modePaiement={modePaiement} />
               </FormItem>
             )}
           />

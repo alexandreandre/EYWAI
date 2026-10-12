@@ -48,3 +48,26 @@ export function ibanProblem(value: string): string | null {
 export function isValidIban(value: string): boolean {
   return ibanProblem(value) === null;
 }
+
+/**
+ * Un IBAN renseigné et bien formé : pays, clé, 15 à 34 caractères. Ni la clé
+ * (mod 97) ni la longueur propre au pays : faux mais bien formé, il s'enregistre
+ * sur la fiche avec un avertissement (12/10/2026) ; c'est le virement qui le
+ * bloque.
+ */
+export function ibanBienForme(value: string): boolean {
+  const iban = normalizeIban(value);
+  return iban.length >= 15 && iban.length <= 34 && /^[A-Z]{2}[0-9]{2}[A-Z0-9]+$/.test(iban);
+}
+
+/**
+ * Ce que la fiche dit d'un IBAN bien formé mais faux ; null s'il n'y a rien à
+ * dire (IBAN juste, vide ou mal formé, ou salarié payé sans virement).
+ */
+export function avertissementIban(value: string, modePaiement?: string | null): string | null {
+  if (modePaiement === 'cheque' || modePaiement === 'especes') return null;
+  if (!ibanBienForme(value)) return null;
+  const probleme = ibanProblem(value);
+  if (!probleme) return null;
+  return `${probleme} La fiche s'enregistre, mais le virement des salaires restera bloqué tant que cet IBAN n’est pas corrigé.`;
+}
