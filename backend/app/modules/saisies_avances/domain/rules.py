@@ -9,6 +9,10 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Literal, Tuple
 
+from app.modules.payroll.domain.report_nap_negatif import (
+    CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
+)
+
 AdvanceType = Literal["avance_salaire", "acompte_salaire", "acompte_prime"]
 
 
@@ -152,6 +156,62 @@ def _est_un_remboursement_de_frais(prime: Dict[str, Any]) -> bool:
     return any(mot in texte for mot in _MOTS_FRAIS)
 
 
+def composition_base_saisissable(
+    bulletin: Dict[str, Any],
+) -> Tuple[Decimal, List[Tuple[str, Decimal]]]:
+    """Le net à payer avant retenues, et ce qui s'y ajoute ou s'en retire pour
+    faire la base saisissable (L3252-3 du Code du travail) : chaque élément
+    nommé, avec son signe. Voir `base_saisissable`."""
+    synthese = bulletin.get("synthese_net") or {}
+
+    def _d(valeur: Any) -> Decimal:
+        try:
+            return Decimal(str(valeur or 0))
+        except Exception:  # noqa: BLE001 — une valeur illisible ne compte pas
+            return Decimal("0")
+
+    net = _centimes(_d(bulletin.get("net_a_payer")))
+    elements: List[Tuple[str, Decimal]] = []
+    acompte = _d(synthese.get("acompte_verse"))
+    # Le report d'un net négatif est retenu par le moteur comme un acompte :
+    # il est nommé à part.
+    reports = sum(
+        (
+            max(Decimal("0"), _d(r.get("montant")))
+            for r in bulletin.get(CLE_REPORTS_NAP_NEGATIF) or []
+            if isinstance(r, dict)
+        ),
+        Decimal("0"),
+    )
+    if reports > 0:
+        elements.append(("report de net négatif retenu", reports))
+        acompte -= reports
+    if acompte > 0:
+        # Acompte versé et autres retenues portées sur le net : déjà du salaire.
+        elements.append(("acomptes et retenues sur le net", acompte))
+    elif acompte < 0:
+        # Un ajout sur le net porté en acompte négatif (panier, déplacement).
+        elements.append(("ajouts au net", acompte))
+    avantages = _d(synthese.get("avantages_en_nature"))
+    if avantages:
+        elements.append(("avantages en nature", avantages))
+    transport = _d(synthese.get("remboursement_transport")) + _d(
+        synthese.get("indemnite_transport_fixe")
+    )
+    if transport:
+        elements.append(("frais de transport", -transport))
+    frais = Decimal("0")
+    for prime in bulletin.get("primes_non_soumises") or []:
+        if not isinstance(prime, dict):
+            continue
+        montant = _d(prime.get("montant"))
+        if montant > 0 and _est_un_remboursement_de_frais(prime):
+            frais += montant
+    if frais:
+        elements.append(("remboursements de frais", -frais))
+    return net, [(libelle, _centimes(montant)) for libelle, montant in elements]
+
+
 def base_saisissable(bulletin: Dict[str, Any]) -> Decimal:
     """Ce sur quoi se calcule la quotité saisissable (L3252-3 du Code du travail).
 
@@ -163,26 +223,8 @@ def base_saisissable(bulletin: Dict[str, Any]) -> Decimal:
     - l'avantage en nature, retiré du net à payer, y revient ;
     - le remboursement de transport et les notes de frais en sortent.
     """
-    synthese = bulletin.get("synthese_net") or {}
-
-    def _d(valeur: Any) -> Decimal:
-        try:
-            return Decimal(str(valeur or 0))
-        except Exception:  # noqa: BLE001 — une valeur illisible ne compte pas
-            return Decimal("0")
-
-    base = _d(bulletin.get("net_a_payer"))
-    base += _d(synthese.get("acompte_verse"))
-    base += _d(synthese.get("avantages_en_nature"))
-    base -= _d(synthese.get("remboursement_transport"))
-    base -= _d(synthese.get("indemnite_transport_fixe"))
-    for prime in bulletin.get("primes_non_soumises") or []:
-        if not isinstance(prime, dict):
-            continue
-        montant = _d(prime.get("montant"))
-        if montant > 0 and _est_un_remboursement_de_frais(prime):
-            base -= montant
-    return _centimes(base)
+    net, elements = composition_base_saisissable(bulletin)
+    return _centimes(net + sum((m for _l, m in elements), Decimal("0")))
 
 
 def apply_priority_order(seizures: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -244,6 +286,29 @@ def _euros_fr(montant: Decimal) -> str:
     return f"{'−' if montant < 0 else ''}{texte} €"
 
 
+def _base_en_clair(
+    base_saisissable: Decimal,
+    composition: Tuple[Decimal, List[Tuple[str, Decimal]]] | None,
+) -> str:
+    """« sur le net à payer avant retenues de 1 483,89 € », ou la base et ce
+    qui la fait quand elle n'est pas ce net : « sur une base saisissable de
+    1 486,45 € : net à payer avant retenues 1 483,52 € + avantages en nature
+    2,93 € »."""
+    if composition is None:
+        return f"sur une base saisissable de {_euros_fr(base_saisissable)}"
+    net, elements = composition
+    if not elements:
+        return f"sur le net à payer avant retenues de {_euros_fr(net)}"
+    detail = "".join(
+        f" {'+' if montant >= 0 else '−'} {libelle} {_euros_fr(abs(montant))}"
+        for libelle, montant in elements
+    )
+    return (
+        f"sur une base saisissable de {_euros_fr(base_saisissable)} : "
+        f"net à payer avant retenues {_euros_fr(net)}{detail}"
+    )
+
+
 def message_saisie_plafonnee(
     *,
     creancier: str | None,
@@ -253,9 +318,14 @@ def message_saisie_plafonnee(
     quotite_du_mois: Decimal,
     base_saisissable: Decimal,
     annee: int,
+    composition: Tuple[Decimal, List[Tuple[str, Decimal]]] | None = None,
 ) -> str:
     """Ce que dit le bulletin d'une saisie retenue en partie : combien, sur
-    combien, et pourquoi (le net du mois, ou la quotité saisissable)."""
+    combien, et pourquoi (le net du mois, ou la quotité saisissable et sa base).
+
+    La base est dite telle qu'elle est calculée : « sur un net de » laissait
+    croire au net affiché, alors que la base ajoute l'avantage en nature et
+    l'acompte et retire les frais (rejeu G.4 du 11/10/2026)."""
     qui = f"Saisie sur salaire ({creancier})" if creancier else "Saisie sur salaire"
     debut = f"{qui} : {_euros_fr(retenu)} retenus sur {_euros_fr(demande)} demandés."
     if net_disponible <= 0:
@@ -265,7 +335,7 @@ def message_saisie_plafonnee(
     else:
         raison = (
             f"La quotité saisissable du mois est de {_euros_fr(quotite_du_mois)} "
-            f"(barème {annee}, sur un net de {_euros_fr(base_saisissable)})"
+            f"(barème {annee}, {_base_en_clair(base_saisissable, composition)})"
         )
     return f"{debut} {raison} : le reste n'est pas retenu ce mois-ci."
 

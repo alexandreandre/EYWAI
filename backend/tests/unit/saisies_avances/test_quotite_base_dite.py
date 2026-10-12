@@ -122,6 +122,18 @@ def test_les_frais_et_l_acompte_sont_nommes():
         bulletin
     )
     assert _message(bulletin).endswith(
-        "1 300,00 € + acompte déjà versé 300,00 € − frais de transport 40,00 € "
+        "1 300,00 € + acomptes et retenues sur le net 300,00 € − frais de transport 40,00 € "
         "− remboursements de frais 42,00 €) : le reste n'est pas retenu ce mois-ci."
     )
+
+
+def test_le_report_d_un_net_negatif_est_nomme_a_part():
+    net, elements = rules.composition_base_saisissable(
+        {
+            "net_a_payer": 920.94,
+            "synthese_net": {"acompte_verse": 801.25},
+            "reports_nap_negatif": [{"nom": "Report NAP négatif 10/2026", "montant": 801.25}],
+        }
+    )
+    assert net == Decimal("920.94")
+    assert elements == [("report de net négatif retenu", Decimal("801.25"))]
