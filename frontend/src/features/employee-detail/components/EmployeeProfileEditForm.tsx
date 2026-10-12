@@ -628,8 +628,8 @@ export function EmployeeProfileEditForm({
                   <FormItem>
                     <MutuelleSelectionField
                       mutuelles={availableMutuelles}
-                      value={field.value?.[0] ?? null}
-                      onChange={(id) => field.onChange([id])}
+                      values={field.value ?? []}
+                      onChangeValues={(ids) => field.onChange(ids)}
                       employeeStatut={statut}
                       companyOrganismeLabel={companyOrganismeLabel}
                       loading={loadingMutuelles}

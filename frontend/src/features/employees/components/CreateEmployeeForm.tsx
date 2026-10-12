@@ -1668,8 +1668,8 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                       <FormLabel>Sélectionner la formule de mutuelle</FormLabel>
                                       <MutuelleSelectionField
                                         mutuelles={availableMutuelles}
-                                        value={field.value?.[0] ?? null}
-                                        onChange={(id) => field.onChange([id])}
+                                        values={field.value ?? []}
+                                        onChangeValues={(ids) => field.onChange(ids)}
                                         employeeStatut={employeeStatut}
                                         companyOrganismeLabel={companyOrganismeLabel}
                                         loading={loadingMutuelles}

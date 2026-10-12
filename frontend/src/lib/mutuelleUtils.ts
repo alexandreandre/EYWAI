@@ -124,3 +124,19 @@ export function listMutuellePackFilters(
   }
   return filters;
 }
+
+/** Choix « Aucune formule » de la liste à cases : il vide la liste. */
+export const AUCUNE_FORMULE = '__aucune_formule__';
+
+/**
+ * Coche ou décoche une formule sans toucher aux autres ([B17], 12/10/2026).
+ *
+ * Une fiche peut porter plusieurs formules : la base « isolé » et l'option
+ * « famille », par exemple. Le choix unique remplaçait toute la liste et
+ * effaçait l'option sans un mot.
+ */
+export function basculerFormule(ids: readonly string[], id: string, coche: boolean): string[] {
+  if (id === AUCUNE_FORMULE) return coche ? [] : [...ids];
+  if (coche) return ids.includes(id) ? [...ids] : [...ids, id];
+  return ids.filter((x) => x !== id);
+}
