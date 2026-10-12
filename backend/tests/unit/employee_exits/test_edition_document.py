@@ -207,3 +207,57 @@ def test_un_bulletin_sans_indemnite_de_conges_dit_zero():
         "details_conges": [],
     })
     assert dossier["bulletin_de_sortie"]["indemnite_conges"] == 0.0
+
+
+def test_les_lignes_ajoutees_au_certificat_sont_imprimees():
+    """« Informations supplémentaires » : la ligne ajoutée à l'éditeur était
+    enregistrée (version 2) mais absente du PDF régénéré (relevé du 12/10/2026,
+    vidéo H) : le générateur ne la recevait pas."""
+    import io
+
+    from PyPDF2 import PdfReader
+
+    from app.shared.compat.employee_exit_document_generator import (
+        get_employee_exit_document_generator,
+    )
+
+    doc_repo = MagicMock()
+    doc_repo.get_by_id.return_value = _document()
+    exit_repo = MagicMock()
+    exit_repo.get_by_id.return_value = {
+        "id": "exit-1", "employee_id": "e1", "exit_type": "fin_cdd", "last_working_day": "2026-10-15",
+    }
+    stockage = MagicMock()
+    with (
+        patch.object(commands, "ExitDocumentRepository", return_value=doc_repo),
+        patch.object(commands, "EmployeeExitRepository", return_value=exit_repo),
+        patch.object(commands, "get_exit_storage_provider", return_value=stockage),
+        patch.object(
+            commands, "get_exit_document_generator",
+            side_effect=get_employee_exit_document_generator,
+        ),
+        patch.object(
+            commands, "get_employee_full",
+            return_value={"first_name": "Jeanne", "last_name": "Essai", "hire_date": "2026-07-01"},
+        ),
+        patch.object(commands, "get_company_by_id", return_value={"company_name": "Société QA"}),
+    ):
+        commands.edit_exit_document(
+            "exit-1", "doc-1", "co-1",
+            {
+                "document_data": {
+                    "additional_info": [
+                        {"label": "Mention ajoutée", "value": "Prime fictive de test",
+                         "description": "Versée en octobre"},
+                    ]
+                },
+                "changes_summary": "Ligne ajoutée",
+            },
+            "rh-1",
+            supabase_client=MagicMock(),
+        )
+    pdf = stockage.upload.call_args.args[1]
+    texte = " ".join(page.extract_text() for page in PdfReader(io.BytesIO(pdf)).pages)
+    assert "Mention ajoutée" in texte
+    assert "Prime fictive de test" in texte
+    assert "Versée en octobre" in texte
