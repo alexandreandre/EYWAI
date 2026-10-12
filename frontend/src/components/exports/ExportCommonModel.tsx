@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { proposeLeChoixDuFormat } from "@/components/exports/exportFileFormats";
+import { anneesProposees, optionsDeMois } from "@/components/exports/periodesExport";
 import { regroupementsProposes, type OdRegroupement } from "@/components/exports/odRegroupements";
 import { getAccountingMappings, previewExport, generateExport, ExportPreviewResponse, ExportGenerateResponse, ExportType } from "@/api/exports";
 import { fetchEmployeesSummary } from "@/api/employees";
@@ -200,6 +201,8 @@ export function ExportCommonModel({
   
   // État pour le paramétrage
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
+  // null : les mois récents ; sinon une année plus ancienne choisie à part.
+  const [anneePeriode, setAnneePeriode] = useState<number | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<string>(activeCompany?.company_id || "");
   const [selectedScope, setSelectedScope] = useState<"all" | "selection">("all");
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
@@ -275,22 +278,9 @@ export function ExportCommonModel({
     return filters;
   };
 
-  // Générer les options de mois
-  const generateMonthOptions = () => {
-    const options = [];
-    const now = new Date();
-    for (let i = -12; i <= 2; i++) {
-      const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const value = `${year}-${month}`;
-      const label = date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-      options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
-    }
-    return options;
-  };
-
-  const monthOptions = generateMonthOptions();
+  // Mois récents, ou les douze mois d'une année plus ancienne.
+  const monthOptions = optionsDeMois(new Date(), anneePeriode);
+  const anneesDisponibles = anneesProposees(new Date());
 
   const emptyExportMessage = useMemo(() => {
     if (!previewData) return null;
@@ -450,13 +440,8 @@ export function ExportCommonModel({
       setCurrentStep("generation");
       refreshExportsPageQueries(queryClient, selectedCompany);
 
-      // Télécharger automatiquement les fichiers
-      if (response.download_urls && Object.keys(response.download_urls).length > 0) {
-        // Pour les virements, télécharger tous les fichiers
-        Object.values(response.download_urls).forEach((url) => {
-          window.open(url, '_blank');
-        });
-      }
+      // Les fichiers se téléchargent par les liens du rapport (étape suivante) :
+      // pas de fenêtres surgissantes, que les navigateurs bloquent.
     } catch (err: any) {
       setError(err.response?.data?.detail || "Erreur lors de la génération");
     } finally {
@@ -539,6 +524,25 @@ export function ExportCommonModel({
                     {monthOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={anneePeriode === null ? "recents" : String(anneePeriode)}
+                  onValueChange={(v) => {
+                    setAnneePeriode(v === "recents" ? null : Number(v));
+                    setSelectedPeriod("");
+                  }}
+                >
+                  <SelectTrigger id="period-annee" aria-label="Année de la période">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="recents">Mois récents</SelectItem>
+                    {anneesDisponibles.map((annee) => (
+                      <SelectItem key={annee} value={String(annee)}>
+                        {`Toute l'année ${annee}`}
                       </SelectItem>
                     ))}
                   </SelectContent>
