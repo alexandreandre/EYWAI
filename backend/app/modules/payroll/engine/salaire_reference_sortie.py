@@ -101,6 +101,10 @@ _MOIS_FR = (
 )
 
 
+def _euros(valeur: float) -> str:
+    return f"{float(valeur):,.2f} €".replace(",", " ").replace(".", ",")
+
+
 def _mois_fr(mois: MoisDeSalaire) -> str:
     return f"{_MOIS_FR[mois.mois - 1]} {mois.annee}"
 
@@ -168,12 +172,29 @@ def calculer_salaire_de_reference(
             f"de {_mois_fr(debut)} à {_mois_fr(fin)}" if debut != fin else f"en {_mois_fr(debut)}"
         )
         if not avant:
-            return _repli_contrat(
-                repli_contrat,
-                f"Arrêt maladie {periode} dans les mois de référence et aucun bulletin dans "
-                "Martine avant l'arrêt : salaire de référence pris au salaire habituel du "
-                "contrat, à vérifier (Cass. soc., 23 mai 2017, n° 15-22.223).",
+            # Les mois d'avant l'arrêt ne sont pas dans Martine (ancien logiciel) :
+            # le plus favorable du salaire habituel du contrat et des bulletins
+            # disponibles, pour ne pas faire baisser la référence faute d'historique.
+            disponibles = calculer_salaire_de_reference(
+                mois, repli_contrat=repli_contrat, mois_d_anciennete=mois_d_anciennete, avant_l_arret=False
             )
+            alerte = (
+                f"Arrêt maladie {periode} dans les mois de référence et aucun bulletin dans "
+                "Martine avant l'arrêt : salaire de référence pris au plus favorable du salaire "
+                f"habituel du contrat ({_euros(repli_contrat)}) et des bulletins disponibles "
+                f"({_euros(disponibles.retenu)}), à vérifier (Cass. soc., 23 mai 2017, n° 15-22.223)."
+            )
+            if disponibles.retenu >= repli_contrat:
+                autres = tuple(a for a in disponibles.alertes if not a.startswith("Arrêt maladie dans les derniers"))
+                return SalaireDeReference(
+                    disponibles.retenu,
+                    disponibles.formule,
+                    disponibles.moyenne_douze_mois,
+                    disponibles.tiers_trois_mois,
+                    disponibles.mois_lus,
+                    autres + (alerte,),
+                )
+            return _repli_contrat(repli_contrat, alerte)
         mois_exclus = len([m for m in tries if (m.annee, m.mois) >= (debut.annee, debut.mois)])
         derniers = avant[-12:]
         phrase_arret = (
