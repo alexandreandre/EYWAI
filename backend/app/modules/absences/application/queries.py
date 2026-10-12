@@ -1173,6 +1173,8 @@ def get_absence_maintenance_preview(
         "date_dernier_arret": absence.get("date_dernier_arret"),
         "salaire_periode_reelle": float(absence.get("salaire_periode_reelle") or 0.0),
     }
+    if absence.get("date_accident"):
+        arret_data["date_accident"] = absence.get("date_accident")
     # Mêmes arrêts connus que le bulletin : une prolongation n'y a pas de
     # nouvelle carence, et la carence payée de l'année s'y lit aussi.
     arrets_connus = arrets_connus_du_salarie(

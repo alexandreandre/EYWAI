@@ -193,6 +193,11 @@ def _arret_de_jours_candidats(
         "date_dernier_arret": first_ev.get("date_dernier_arret"),
         "salaire_periode_reelle": float(first_ev.get("salaire_periode_reelle") or 0.0),
         "maintien_base_ouvree": bool(first_ev.get("maintien_base_ouvree")),
+        # Date de l'accident, quand elle est saisie : elle choisit le plafond
+        # des IJ d'accident du travail (décret n° 2026-909).
+        "date_accident": next(
+            (ev.get("date_accident") for _, ev in candidats if ev.get("date_accident")), None
+        ),
     }
 
 

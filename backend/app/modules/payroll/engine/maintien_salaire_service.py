@@ -124,6 +124,48 @@ def plafond_ij_pour(
     return None
 
 
+def plafonds_ij_au(
+    ij_plafonds: Optional[Dict[str, Any]], jour: Optional[date]
+) -> Optional[Dict[str, Any]]:
+    """Les plafonds d'IJ en vigueur pour un accident ou un arrêt du `jour`.
+
+    Le barème porte ses paliers (`historique` : date d'effet et montants) :
+    le dernier qui a pris effet au plus tard ce jour s'applique, le premier
+    pour un jour d'avant. Le décret n° 2026-909 abaisse le plafond des IJ
+    d'accident du travail pour les arrêts survenus à compter du 01/11/2026 :
+    un arrêt d'octobre garde l'ancien, même après la mise à jour du barème.
+    Sans paliers, le barème se lit tel quel.
+    """
+    if not isinstance(ij_plafonds, dict):
+        return ij_plafonds
+    paliers = []
+    for palier in ij_plafonds.get("historique") or []:
+        debut = _parse_date((palier or {}).get("date_debut")) if isinstance(palier, dict) else None
+        if debut is not None:
+            paliers.append((debut, palier))
+    if not paliers or jour is None:
+        return ij_plafonds
+    paliers.sort(key=lambda p: p[0])
+    applicable = paliers[0][1]
+    for debut, palier in paliers:
+        if debut <= jour:
+            applicable = palier
+    return {**ij_plafonds, **{k: v for k, v in applicable.items() if k != "date_debut"}}
+
+
+def date_de_reference_des_plafonds(
+    arret: Dict[str, Any], est_at_mp: bool, debut_arret: date
+) -> date:
+    """La date qui choisit le plafond : celle de l'accident quand elle est
+    saisie (accident du travail, maladie professionnelle), sinon le début de
+    l'arrêt, celui de l'arrêt prolongé pour une prolongation."""
+    if est_at_mp:
+        accident = _parse_date(arret.get("date_accident"))
+        if accident is not None:
+            return accident
+    return _parse_date(arret.get("date_debut_chaine")) or debut_arret
+
+
 # --- Bloc 1 : qualification ---
 
 
@@ -439,6 +481,10 @@ def _calculer_ijss(
     # depuis le début de l'arrêt prolongé.
     jours_deja = _jours_deja_en_arret(arret)
     debut_reference = _parse_date(arret.get("date_debut_chaine")) or date_debut_arret
+    # Plafonds : à la date de l'accident quand elle est saisie, sinon au début.
+    date_plafonds = date_de_reference_des_plafonds(
+        arret, bool(qualification.get("est_at_mp")), date_debut_arret
+    )
 
     salaire_mensuel = float(contexte.salaire_base_mensuel or 0.0)
     est_maladie = not qualification.get("est_at_mp") and not qualification.get(
@@ -465,7 +511,7 @@ def _calculer_ijss(
         base_plafonnee = 0.0
     elif qualification.get("est_at_mp"):
         base_plafonnee = min(
-            salaire_journalier_base, _plafond_sjb_at_mp(pss_annuel, debut_reference)
+            salaire_journalier_base, _plafond_sjb_at_mp(pss_annuel, date_plafonds)
         )
     else:
         plafond_ss_journalier = pss_annuel / 365.0
@@ -474,10 +520,13 @@ def _calculer_ijss(
             plafond_ss_journalier * lc.COEFF_PLAFOND_IJ_PSS,
         )
 
-    ij_plafonds = (
-        contexte.get_bareme_value("ij_plafonds")
-        if hasattr(contexte, "get_bareme_value")
-        else contexte.baremes.get("ij_plafonds")
+    ij_plafonds = plafonds_ij_au(
+        (
+            contexte.get_bareme_value("ij_plafonds")
+            if hasattr(contexte, "get_bareme_value")
+            else contexte.baremes.get("ij_plafonds")
+        ),
+        date_plafonds,
     )
 
     carence_ss = int(carence.get("carence_ss_jours") or 0)
@@ -1639,10 +1688,15 @@ def calculer_maintien(
             else 0.0
         ),
         base_plafonnee=float(ijss.get("base_plafonnee") or 0.0),
-        ij_plafonds=(
-            contexte.get_bareme_value("ij_plafonds")
-            if hasattr(contexte, "get_bareme_value")
-            else contexte.baremes.get("ij_plafonds")
+        ij_plafonds=plafonds_ij_au(
+            (
+                contexte.get_bareme_value("ij_plafonds")
+                if hasattr(contexte, "get_bareme_value")
+                else contexte.baremes.get("ij_plafonds")
+            ),
+            date_de_reference_des_plafonds(
+                arret, bool(qualification.get("est_at_mp")), date_debut_arret
+            ),
         ),
         carence_ss=int(carence.get("carence_ss_jours") or 0),
         carence_emp=int(

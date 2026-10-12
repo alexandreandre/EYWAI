@@ -166,6 +166,20 @@ def _ij_equal(a: dict, b: dict) -> bool:
     return True
 
 
+def _ij_build(sig: dict, current_row: Optional[dict]) -> dict:
+    """Les montants relevés, et les paliers datés du barème gardés.
+
+    Le moteur lit les plafonds à leur palier (date de l'accident ou début de
+    l'arrêt) : réécrire le barème sans eux plafonnerait un arrêt d'octobre
+    2026 au montant du décret n° 2026-909 (arrêts dès le 01/11/2026).
+    """
+    courant = (current_row or {}).get("config_data") or {}
+    nouveau = dict(sig)
+    if isinstance(courant, dict) and courant.get("historique"):
+        nouveau["historique"] = courant["historique"]
+    return nouveau
+
+
 SPEC_IJ_MALADIE = RateSpec(
     scraper_name="IJmaladie",
     config_key="ij_plafonds",
@@ -176,7 +190,7 @@ SPEC_IJ_MALADIE = RateSpec(
     extract_signature=_ij_extract,
     signatures_equal=_ij_equal,
     validate_signature=validate_ij_plafonds,
-    build_config_data=lambda sig, _c: sig,
+    build_config_data=lambda sig, courant: _ij_build(sig, courant),
     persistence_mode=PersistenceMode.FULL,
     primary_label="IJmaladie.py",
     script_timeout=180,
