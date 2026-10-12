@@ -53,7 +53,11 @@ from app.modules.notifications.application.employee_document_alerts import (
 )
 from app.modules.employees.application.service import enrich_employee_with_exit_context
 from app.shared.domain.employment_rules import payslip_employment_period_block_reason
-from app.shared.reprise_paie import raison_de_blocage_avant_bascule
+from app.shared.reprise_paie import (
+    CLE_DEPART_A_ZERO,
+    raison_de_blocage_avant_bascule,
+    trace_depart_a_zero,
+)
 
 if TYPE_CHECKING:
     from app.modules.schedules.domain.periode_a_saisir import PeriodeASaisir
@@ -409,6 +413,25 @@ def _conserver_avertissements_forces(
     ).eq("id", payslip_id).execute()
 
 
+def _depart_a_zero(
+    cmd: GeneratePayslipInput, bulletin_existant: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    """Choix « Générer quand même, en partant de cumuls à zéro » ([B12]), ou None.
+
+    Fait à l'écran : signé et daté maintenant. Déjà fait pour ce bulletin : sa
+    trace d'origine est reprise, pour qu'une correction, une régénération ou un
+    recalcul en chaîne ne reposent pas la question. Le générateur ne s'en sert
+    que si la reprise de ce collaborateur n'est toujours pas posée.
+    """
+    if cmd.partir_de_cumuls_a_zero:
+        return trace_depart_a_zero(
+            cmd.requested_by, cmd.requested_by_name, datetime.now(timezone.utc)
+        )
+    donnees = (bulletin_existant or {}).get("payslip_data")
+    trace = donnees.get(CLE_DEPART_A_ZERO) if isinstance(donnees, dict) else None
+    return dict(trace) if isinstance(trace, dict) else None
+
+
 def _reset_payslip_flags_after_regeneration(payslip_id: str) -> None:
     """Après régénération forcée : le bulletin redevient un brouillon.
 
@@ -567,17 +590,21 @@ def _generer_sous_verrou(
     )
 
     statut = employee_statut_reader.get_employee_statut(cmd.employee_id)
+    depart_a_zero = _depart_a_zero(cmd, bulletin_existant)
+    extra = {"depart_a_zero": depart_a_zero} if depart_a_zero else {}
     if is_forfait_jour(statut):
         result = payslip_generator_provider.generate_forfait(
             employee_id=cmd.employee_id,
             year=cmd.year,
             month=cmd.month,
+            **extra,
         )
     else:
         result = payslip_generator_provider.generate_heures(
             employee_id=cmd.employee_id,
             year=cmd.year,
             month=cmd.month,
+            **extra,
         )
 
     # Lot 3 : plus AUCUNE notification à la génération — le salarié n'est

@@ -25,7 +25,9 @@ from __future__ import annotations
 
 from calendar import monthrange
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
+from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.core.database import supabase
 from app.core.logging import get_logger
@@ -35,6 +37,62 @@ logger = get_logger(__name__)
 #: Origine d'un bulletin. « importe » = repris de l'ancien logiciel, jamais recalculé.
 ORIGINE_CALCULE = "calcule"
 ORIGINE_IMPORTE = "importe"
+
+#: Alerte d'un bulletin généré, faute de reprise posée, en partant de cumuls à zéro.
+CODE_DEPART_A_ZERO = "cumuls_partis_de_zero"
+#: Clé de `payslip_data` qui garde ce choix : qui, quand.
+CLE_DEPART_A_ZERO = "depart_a_zero_force"
+
+
+class RepriseNonPosee(str):
+    """Raison de refus [B12] : salarié payé avant Martine, reprise non posée.
+
+    La seule raison de cumul manquant qui se force : l'écran propose « Générer
+    quand même, en partant de cumuls à zéro » (`partir_de_cumuls_a_zero`). Une
+    chaîne rompue ou un solde d'ouverture absent après une bascule ne se forcent
+    pas : le cumul existe ailleurs, il faut le refaire.
+    """
+
+    code = "reprise_non_posee"
+
+
+def detail_du_refus(raison: str) -> str | dict[str, str]:
+    """Le `detail` HTTP du refus : `{code, message}` pour la reprise non posée (que
+    l'écran sait forcer), le texte seul pour les autres."""
+    if isinstance(raison, RepriseNonPosee):
+        return {"code": RepriseNonPosee.code, "message": str(raison)}
+    return raison
+
+
+def trace_depart_a_zero(
+    par_id: str | None, par_nom: str | None, quand: datetime
+) -> dict[str, Any]:
+    """Ce que le bulletin garde du choix « en partant de cumuls à zéro »."""
+    return {"par": par_nom or None, "par_id": par_id or None, "le": quand.isoformat()}
+
+
+def alerte_depart_a_zero(trace: dict[str, Any]) -> dict[str, Any]:
+    """L'alerte du bulletin généré en partant de cumuls à zéro : qui, quand, et ce
+    qui peut être faux."""
+    qui = str(trace.get("par") or "").strip()
+    choix = f"choix de {qui}" if qui else "choix d'une personne non identifiée"
+    try:
+        le = datetime.fromisoformat(str(trace.get("le"))).astimezone(ZoneInfo("Europe/Paris"))
+        choix += f", le {le:%d/%m/%Y} à {le.hour} h {le.minute:02d}"
+    except (TypeError, ValueError):
+        pass
+    return {
+        "code": CODE_DEPART_A_ZERO,
+        "critique": False,
+        "severity": "warning",
+        "message": (
+            f"Bulletin calculé en partant de cumuls à zéro ({choix}) : la reprise de "
+            "paie de ce collaborateur n'est pas posée, ni bascule ni solde "
+            "d'ouverture. Réduction générale, tranches Agirc-Arrco, plafond des "
+            "heures supplémentaires et indemnités de fin de contrat ignorent ce qu'il "
+            "a été payé avant Martine. À vérifier avant de valider ce bulletin."
+        ),
+    }
 
 
 def rang_du_mois(annee: int, mois: int) -> int:
@@ -307,6 +365,8 @@ def raison_de_cumul_manquant(
 
     Le cas légitime est le tout premier bulletin d'un salarié embauché après le
     mois précédent : rien à chaîner, l'ancien logiciel ne l'a jamais payé.
+
+    Le dernier cas rend une `RepriseNonPosee`, la seule raison qui se force.
     """
     if cumul_trouve:
         return None
@@ -342,7 +402,7 @@ def raison_de_cumul_manquant(
     if bascule is None and not _bulletin_martine_avant_dans_l_annee(employee_id, annee, mois):
         historique = historique_du_salarie_avant_martine(company_id, employee_id, annee, mois)
         if historique:
-            return (
+            return RepriseNonPosee(
                 f"La paie de cette société se faisait avant Martine ({historique}), "
                 f"mais sa reprise n'est pas posée : ni date de bascule, ni solde "
                 f"d'ouverture de ce collaborateur à fin {precedent}. Calculé ainsi, son "
@@ -350,6 +410,8 @@ def raison_de_cumul_manquant(
                 f"générale, tranches Agirc-Arrco, plafond des heures supplémentaires et "
                 f"indemnités de fin de contrat seraient faux. Faites poser la bascule et "
                 f"importer le solde d'ouverture (cumuls de l'ancien logiciel à fin "
-                f"{precedent}) avant de générer ce bulletin."
+                f"{precedent}) avant de générer ce bulletin. Sinon, le bulletin peut "
+                f"être généré quand même en partant de cumuls à zéro : il portera une "
+                f"alerte."
             )
     return None

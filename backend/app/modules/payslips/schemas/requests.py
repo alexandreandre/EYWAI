@@ -19,6 +19,8 @@ class PayslipRequest(BaseModel):
     Les overrides sont explicites et jamais le défaut :
     - force_calendrier_incomplet : générer malgré un calendrier `a_saisir` (422 sinon).
     - regenerer_bulletin_valide : écraser un bulletin validé, avec archivage (409 sinon).
+    - partir_de_cumuls_a_zero : reprise non posée, générer en partant de cumuls à
+      zéro (422 `reprise_non_posee` sinon) ; le bulletin garde qui et quand.
     """
 
     employee_id: str
@@ -26,6 +28,7 @@ class PayslipRequest(BaseModel):
     month: int
     force_calendrier_incomplet: bool = False
     regenerer_bulletin_valide: bool = False
+    partir_de_cumuls_a_zero: bool = False
 
 
 class HeuresSupCorrigees(BaseModel):

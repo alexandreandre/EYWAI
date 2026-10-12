@@ -18,7 +18,13 @@ from app.modules.collective_agreements.application.idcc_resolution import (
 from app.core.constants import MESSAGE_ERREUR_GENERATION
 from app.core.database import supabase
 from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
-from app.shared.reprise_paie import raison_de_cumul_manquant
+from app.shared.reprise_paie import (
+    CLE_DEPART_A_ZERO,
+    RepriseNonPosee,
+    alerte_depart_a_zero,
+    detail_du_refus,
+    raison_de_cumul_manquant,
+)
 from app.modules.payroll.application.compensation_semaines import (
     appliquer_aux_mois,
     bornes_du_contrat,
@@ -526,6 +532,7 @@ def process_payslip_generation(
     ijss_brut_override: float | None = None,
     ijss_tracking_meta: dict | None = None,
     bac_a_sable: BacASable | None = None,
+    depart_a_zero: dict | None = None,
 ):
     """
     Workflow de génération de paie "juste à temps", 100% basé sur la BDD,
@@ -533,7 +540,12 @@ def process_payslip_generation(
 
     En bac à sable (`bac_a_sable`), le passé vient de l'appelant et rien n'est
     persisté : le bulletin calculé et ses cumuls sont rendus dans le résultat.
+
+    `depart_a_zero` (qui, quand) : la RH a choisi « Générer quand même, en
+    partant de cumuls à zéro » pour une reprise non posée ([B12]) ; le bulletin
+    part de zéro, porte une alerte et garde ce choix.
     """
+    alerte_depart_zero = None
     files_to_cleanup = []
     dirs_to_cleanup = []
     dossier_de_travail: Path | None = None
@@ -1056,8 +1068,10 @@ def process_payslip_generation(
             raison = raison_de_cumul_manquant(
                 str(company_id), employee_id, year, month, cumul_trouve=False
             )
+            if raison and not (isinstance(raison, RepriseNonPosee) and depart_a_zero):
+                raise HTTPException(status_code=422, detail=detail_du_refus(raison))
             if raison:
-                raise HTTPException(status_code=422, detail=raison)
+                alerte_depart_zero = alerte_depart_a_zero(depart_a_zero)
             previous_cumuls_data = cumuls_de_depart(BacASable(), year)
         # Premier mois d'un contrat : les cumuls du mois d'avant sont ceux d'un
         # autre contrat (réembauche, CDD successifs). La réduction générale,
@@ -1404,6 +1418,13 @@ def process_payslip_generation(
                 *(payslip_json_data.get("alertes_baremes") or []),
                 alerte_effectif_annee,
             ]
+        if alerte_depart_zero and isinstance(payslip_json_data, dict):
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = [
+                *(payslip_json_data.get("alertes_baremes") or []),
+                alerte_depart_zero,
+            ]
+            payslip_json_data[CLE_DEPART_A_ZERO] = dict(depart_a_zero)
 
         from app.modules.payroll.application.empreinte_entrees_service import (
             poser_empreinte_depuis_lectures,

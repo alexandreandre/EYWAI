@@ -28,21 +28,24 @@ class PayslipGeneratorProvider:
         return self.generate_heures(employee_id, year, month)
 
     def generate_heures(
-        self, employee_id: str, year: int, month: int
+        self, employee_id: str, year: int, month: int, depart_a_zero: dict | None = None
     ) -> dict[str, Any]:
+        """`depart_a_zero` : choix « en partant de cumuls à zéro » (qui, quand)."""
         return process_payslip_generation(
             employee_id=employee_id,
             year=year,
             month=month,
+            depart_a_zero=depart_a_zero,
         )
 
     def generate_forfait(
-        self, employee_id: str, year: int, month: int
+        self, employee_id: str, year: int, month: int, depart_a_zero: dict | None = None
     ) -> dict[str, Any]:
         return process_payslip_generation_forfait(
             employee_id=employee_id,
             year=year,
             month=month,
+            depart_a_zero=depart_a_zero,
         )
 
     def generate_en_bac_a_sable(

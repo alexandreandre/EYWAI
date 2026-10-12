@@ -98,4 +98,4 @@ def test_le_generateur_forfait_offre_la_meme_sortie():
     source = inspect.getsource(pgf.process_payslip_generation_forfait)
     assert "detail_du_refus(raison)" in source
     assert "alerte_depart_a_zero(depart_a_zero)" in source
-    assert '"depart_a_zero_force"' in source
+    assert "payslip_json_data[CLE_DEPART_A_ZERO] = dict(depart_a_zero)" in source

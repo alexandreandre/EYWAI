@@ -24,7 +24,13 @@ from typing import Any, Dict
 
 from fastapi import HTTPException
 
-from app.shared.reprise_paie import raison_de_cumul_manquant
+from app.shared.reprise_paie import (
+    CLE_DEPART_A_ZERO,
+    RepriseNonPosee,
+    alerte_depart_a_zero,
+    detail_du_refus,
+    raison_de_cumul_manquant,
+)
 from app.modules.payroll.domain.report_nap_negatif import (
     CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
     reports_du_mois,
@@ -111,14 +117,16 @@ def process_payslip_generation_forfait(
     ijss_brut_override: float | None = None,
     ijss_tracking_meta: dict | None = None,
     bac_a_sable: BacASable | None = None,
+    depart_a_zero: dict | None = None,
 ):
     """
     Génère une fiche de paie pour un employé en forfait jour.
     En bac à sable, le passé vient de l'appelant et rien n'est persisté.
 
     Cette fonction est similaire à process_payslip_generation mais utilise
-    les modules spécifiques au forfait jour.
+    les modules spécifiques au forfait jour (même sortie `depart_a_zero`).
     """
+    alerte_depart_zero = None
     files_to_cleanup = []
     dirs_to_cleanup = []
     dossier_de_travail: Path | None = None
@@ -608,8 +616,10 @@ def process_payslip_generation_forfait(
             raison = raison_de_cumul_manquant(
                 str(company_id), employee_id, year, month, cumul_trouve=False
             )
+            if raison and not (isinstance(raison, RepriseNonPosee) and depart_a_zero):
+                raise HTTPException(status_code=422, detail=detail_du_refus(raison))
             if raison:
-                raise HTTPException(status_code=422, detail=raison)
+                alerte_depart_zero = alerte_depart_a_zero(depart_a_zero)
             previous_cumuls_data = {"cumuls": {}, "periode": {}}
         # Premier mois d'un contrat : même règle que le chemin heures.
         previous_cumuls_data = cumuls_precedents_du_contrat(
@@ -658,6 +668,13 @@ def process_payslip_generation_forfait(
                 *(payslip_json_data.get("alertes_baremes") or []),
                 alerte_effectif_annee,
             ]
+        if alerte_depart_zero and isinstance(payslip_json_data, dict):
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = [
+                *(payslip_json_data.get("alertes_baremes") or []),
+                alerte_depart_zero,
+            ]
+            payslip_json_data[CLE_DEPART_A_ZERO] = dict(depart_a_zero)
 
         from app.modules.payroll.application.empreinte_entrees_service import (
             poser_empreinte_depuis_lectures,

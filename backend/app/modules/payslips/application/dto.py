@@ -128,8 +128,9 @@ class UserContext:
 class GeneratePayslipInput:
     """Entrée pour la génération d'un bulletin.
 
-    Les overrides (`force_calendrier_incomplet`, `regenerer_bulletin_valide`)
-    sont explicites et tracés ; le défaut est toujours le refus.
+    Les overrides (`force_calendrier_incomplet`, `regenerer_bulletin_valide`,
+    `partir_de_cumuls_a_zero`) sont explicites et tracés ; le défaut est
+    toujours le refus.
     """
 
     employee_id: str
@@ -137,6 +138,8 @@ class GeneratePayslipInput:
     month: int
     force_calendrier_incomplet: bool = False
     regenerer_bulletin_valide: bool = False
+    #: Reprise non posée ([B12]) : générer quand même, en partant de cumuls à zéro.
+    partir_de_cumuls_a_zero: bool = False
     requested_by: str | None = None
     requested_by_name: str | None = None
     #: Ce qui a été changé avant cette régénération (correction au bulletin,

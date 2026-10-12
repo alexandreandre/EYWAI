@@ -12,26 +12,40 @@ from typing import Any
 
 
 def process_payslip_generation(
-    employee_id: str, year: int, month: int, *, bac_a_sable: Any = None
+    employee_id: str,
+    year: int,
+    month: int,
+    *,
+    bac_a_sable: Any = None,
+    depart_a_zero: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Délègue à app.modules.payroll.documents.payslip_generator (comportement identique)."""
     from app.modules.payroll.documents.payslip_generator import (
         process_payslip_generation as _impl,
     )
 
-    extra = {"bac_a_sable": bac_a_sable} if bac_a_sable is not None else {}
+    extra: dict[str, Any] = {"bac_a_sable": bac_a_sable} if bac_a_sable is not None else {}
+    if depart_a_zero:
+        extra["depart_a_zero"] = depart_a_zero
     return _impl(employee_id=employee_id, year=year, month=month, **extra)
 
 
 def process_payslip_generation_forfait(
-    employee_id: str, year: int, month: int, *, bac_a_sable: Any = None
+    employee_id: str,
+    year: int,
+    month: int,
+    *,
+    bac_a_sable: Any = None,
+    depart_a_zero: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Délègue à app.modules.payroll.documents.payslip_generator_forfait (comportement identique)."""
     from app.modules.payroll.documents.payslip_generator_forfait import (
         process_payslip_generation_forfait as _impl,
     )
 
-    extra = {"bac_a_sable": bac_a_sable} if bac_a_sable is not None else {}
+    extra: dict[str, Any] = {"bac_a_sable": bac_a_sable} if bac_a_sable is not None else {}
+    if depart_a_zero:
+        extra["depart_a_zero"] = depart_a_zero
     return _impl(employee_id=employee_id, year=year, month=month, **extra)
 
 
