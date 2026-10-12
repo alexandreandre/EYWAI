@@ -47,8 +47,20 @@ def _is_blank(value: Any) -> bool:
     return False
 
 
+#: Modes de paiement du salaire sans virement : aucun RIB à exiger.
+_MODES_SANS_VIREMENT = frozenset({"cheque", "especes"})
+
+
+def paye_sans_virement(employee: Dict[str, Any]) -> bool:
+    mode = str(employee.get("salary_payment_method") or "").strip().lower().replace("è", "e")
+    return mode in _MODES_SANS_VIREMENT
+
+
 def _is_payroll_field_missing(key: str, employee: Dict[str, Any]) -> bool:
     if key == "coordonnees_bancaires":
+        # Un salarié payé par chèque ou en espèces n'a pas besoin de RIB.
+        if paye_sans_virement(employee):
+            return False
         return not has_valid_iban(employee.get(key))
     return _is_blank(employee.get(key))
 

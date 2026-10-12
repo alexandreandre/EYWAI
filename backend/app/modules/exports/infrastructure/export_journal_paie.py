@@ -6,6 +6,7 @@ from app.modules.exports.domain.controle_comptable import (
     conseil_bulletin_incoherent,
     residu_du_bulletin,
 )
+from app.modules.exports.domain.etat_bulletins import MESSAGE_AUCUN_BULLETIN
 from app.modules.exports.infrastructure.export_ecritures_comptables import (
     ligne_od_du_bulletin,
 )
@@ -192,7 +193,7 @@ def preview_journal_paie(
         anomalies.append(
             {
                 "type": "error",
-                "message": "Aucun bulletin de paie validé pour cette période",
+                "message": MESSAGE_AUCUN_BULLETIN,
                 "severity": "blocking",
             }
         )

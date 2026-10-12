@@ -19,6 +19,11 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.database import supabase
+from app.modules.exports.infrastructure.compte_societe import (
+    anomalie_compte_manquant,
+    charger_compte_societe,
+    donneur_d_ordre,
+)
 from app.modules.saisies_avances.domain.rules import advance_type_label
 from app.shared.utils.export import format_period, generate_csv, generate_xlsx
 from app.shared.utils.iban import (
@@ -525,6 +530,11 @@ def preview_virement_acomptes(
     if bic_warning:
         warnings.append(bic_warning)
 
+    if mode == MODE_A_VERSER and not charger_compte_societe(company_id):
+        # Le relevé des acomptes déjà versés n'est pas un ordre de paiement :
+        # seul le fichier à transmettre a besoin du compte à débiter.
+        anomalies = anomalies + [anomalie_compte_manquant()]
+
     blocking = [a for a in anomalies if a.get("severity") == "blocking"]
     return {
         "employees_count": totals["employees_count"],
@@ -607,12 +617,20 @@ def generate_virement_acomptes_sepa(
     execution_date: Optional[str] = None,
     payment_label: Optional[str] = None,
     filters: Optional[Dict[str, Any]] = None,
-    debtor_name: str = "Entreprise",
-    debtor_iban: str = "",
-    debtor_bic: str = "",
+    debtor_name: Optional[str] = None,
+    debtor_iban: Optional[str] = None,
+    debtor_bic: Optional[str] = None,
 ) -> bytes:
-    """Remise SEPA pain.001.001.03 — campagne distincte de celle des salaires."""
+    """Remise SEPA pain.001.001.03 — campagne distincte de celle des salaires,
+    débitée du compte de la société."""
     from app.modules.exports.infrastructure.export_sepa import build_pain001
+
+    debtor_name, debtor_iban, debtor_bic = donneur_d_ordre(
+        charger_compte_societe(company_id) if not debtor_iban else None,
+        debtor_name,
+        debtor_iban,
+        debtor_bic,
+    )
 
     rows, _, _, _ = get_virement_acomptes_data(
         company_id,

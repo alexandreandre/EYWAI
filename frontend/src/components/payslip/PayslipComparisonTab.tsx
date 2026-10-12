@@ -26,6 +26,10 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  MESSAGE_AUCUN_BULLETIN_VALIDE,
+  sousTitreComparaisonValidee,
+} from '@/features/payroll/utils/comparaisonMoisDernier';
+import {
   Table,
   TableBody,
   TableCell,
@@ -225,7 +229,7 @@ export function PayslipComparisonTab({
               : ''}
           </h2>
           <p className="text-sm text-muted-foreground">
-            Analyse automatique par rapport au dernier bulletin validé.
+            {sousTitreComparaisonValidee(result.month_n1, result.year_n1)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -267,7 +271,7 @@ export function PayslipComparisonTab({
       {result.bulletin_n1_id == null ? (
         <Card className="border-sky-200 bg-sky-50/60 dark:bg-sky-950/20">
           <CardContent className="py-4 text-sm">
-            Aucun bulletin validé avant ce mois : la comparaison n’est pas possible pour ce salarié.
+            {MESSAGE_AUCUN_BULLETIN_VALIDE}
           </CardContent>
         </Card>
       ) : null}

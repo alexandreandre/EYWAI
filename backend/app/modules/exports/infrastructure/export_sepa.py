@@ -10,6 +10,11 @@ from app.modules.exports.infrastructure.export_paiement_salaires import (
     get_paiement_salaires_data,
     validate_iban,
 )
+from app.modules.exports.infrastructure.compte_societe import (
+    anomalie_compte_manquant,
+    charger_compte_societe,
+    donneur_d_ordre,
+)
 from app.shared.utils.export import format_period
 
 NS = "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"
@@ -167,11 +172,17 @@ def generate_sepa_pain001(
     excluded_employee_ids: Optional[List[str]] = None,
     execution_date: Optional[str] = None,
     payment_label: Optional[str] = None,
-    debtor_name: str = "Entreprise",
-    debtor_iban: str = "",
-    debtor_bic: str = "",
+    debtor_name: Optional[str] = None,
+    debtor_iban: Optional[str] = None,
+    debtor_bic: Optional[str] = None,
 ) -> bytes:
-    """Remise SEPA des virements de salaires."""
+    """Remise SEPA des virements de salaires, débitée du compte de la société."""
+    debtor_name, debtor_iban, debtor_bic = donneur_d_ordre(
+        charger_compte_societe(company_id) if not debtor_iban else None,
+        debtor_name,
+        debtor_iban,
+        debtor_bic,
+    )
     data, _, _, _ = get_paiement_salaires_data(
         company_id,
         period,
@@ -206,6 +217,9 @@ def preview_sepa(
     blocking = [a for a in anomalies if a.get("severity") == "blocking"]
     employees_count = totals.get("employees_count", totals.get("virements_count", 0))
     bic_warning = missing_bic_warning(data)
+    if not charger_compte_societe(company_id):
+        anomalies = anomalies + [anomalie_compte_manquant()]
+        blocking = blocking + [anomalies[-1]]
     return {
         "employees_count": employees_count,
         "totals": {

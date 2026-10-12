@@ -486,10 +486,15 @@ def check_dsn_data(
                     "employee_name": employee_name,
                 }
             )
-        specificites = employee.get("specificites_paie", {})
+        # La fiche du mois (adhésion datée comprise), comme le reste de l'export ;
+        # un `null` en base vaut « pas de mutuelle », pas une erreur.
+        annee_dsn, mois_dsn = map(int, period.split("-"))
+        specificites = resolve_monthly_specificites(
+            employee.get("specificites_paie"), annee_dsn, mois_dsn
+        )
         if isinstance(specificites, dict):
-            mutuelle = specificites.get("mutuelle", {})
-            prevoyance = specificites.get("prevoyance", {})
+            mutuelle = specificites.get("mutuelle") or {}
+            prevoyance = specificites.get("prevoyance") or {}
             if contract_type in ["CDI", "CDD"] and not mutuelle.get("adhesion"):
                 warnings.append(
                     f"Salarié {employee_name} : mutuelle absente alors que contrat actif"

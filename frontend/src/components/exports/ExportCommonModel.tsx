@@ -43,13 +43,15 @@ import {
   Info,
 } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
-import { previewExport, generateExport, ExportPreviewResponse, ExportGenerateResponse, ExportType } from "@/api/exports";
+import { proposeLeChoixDuFormat } from "@/components/exports/exportFileFormats";
+import { anneesProposees, optionsDeMois } from "@/components/exports/periodesExport";
+import { regroupementsProposes, type OdRegroupement } from "@/components/exports/odRegroupements";
+import { getAccountingMappings, previewExport, generateExport, ExportPreviewResponse, ExportGenerateResponse, ExportType } from "@/api/exports";
 import { fetchEmployeesSummary } from "@/api/employees";
 
 export type ExportStep = "parametrage" | "previsualisation" | "generation";
 export type ExportFileFormat = "csv" | "xlsx";
 export type NotesFraisCabinetFormat = "generique" | "quadra" | "sage";
-export type OdRegroupement = "global" | "par_etablissement" | "par_analytique";
 export type BankFileFormat = "sepa" | "csv";
 export type AcompteMode = "a_verser" | "verses";
 
@@ -103,27 +105,6 @@ const EXPORT_TYPE_MAP: Record<string, ExportType> = {
   "Récapitulatif des montants": "recapitulatif_montants",
   "recapitulatif-montants": "recapitulatif_montants",
 };
-
-const FILE_FORMAT_EXPORT_TYPES = new Set<ExportType>([
-  "journal_paie",
-  "charges_sociales",
-  "conges_absences",
-  "provision_cp",
-  "notes_frais",
-  "recapitulatif_montants",
-  "od_salaires",
-  "od_charges_sociales",
-  "od_pas",
-  "od_globale",
-  "export_cabinet_generique",
-  "export_cabinet_quadra",
-  "export_cabinet_sage",
-  "acomptes",
-  "saisies",
-  "prets_employeur",
-  "paiement_organismes",
-  "attestations_annexes",
-]);
 
 function resolveApiExportType(exportType: string): ExportType {
   return EXPORT_TYPE_MAP[exportType] || (exportType as ExportType);
@@ -207,7 +188,7 @@ export function ExportCommonModel({
   const { activeCompany } = useCompany();
   const queryClient = useQueryClient();
   const apiExportType = useMemo(() => resolveApiExportType(exportType), [exportType]);
-  const supportsFileFormat = FILE_FORMAT_EXPORT_TYPES.has(apiExportType);
+  const supportsFileFormat = proposeLeChoixDuFormat(apiExportType);
   const [currentStep, setCurrentStep] = useState<ExportStep>("parametrage");
   const [isLoading, setIsLoading] = useState(false);
   const [previewData, setPreviewData] = useState<ExportPreviewResponse | null>(null);
@@ -220,6 +201,8 @@ export function ExportCommonModel({
   
   // État pour le paramétrage
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
+  // null : les mois récents ; sinon une année plus ancienne choisie à part.
+  const [anneePeriode, setAnneePeriode] = useState<number | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<string>(activeCompany?.company_id || "");
   const [selectedScope, setSelectedScope] = useState<"all" | "selection">("all");
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
@@ -246,6 +229,17 @@ export function ExportCommonModel({
     enabled: Boolean(activeCompany?.company_id),
   });
 
+  // Seuls les regroupements qui changent l'OD sont proposés.
+  const { data: mappingsComptables } = useQuery({
+    queryKey: ["accounting-mappings", selectedCompany],
+    queryFn: () => getAccountingMappings(selectedCompany),
+    enabled: OD_EXPORT_TYPES.has(apiExportType) && Boolean(selectedCompany),
+  });
+  const regroupements = regroupementsProposes(mappingsComptables?.mappings);
+  const regroupementRetenu: OdRegroupement = regroupements.some((r) => r.value === odRegroupement)
+    ? odRegroupement
+    : "global";
+
   const resolvedEmployeeIds = useMemo(() => {
     if (selectedScope === "all") return undefined;
     return selectedEmployeeIds.length > 0 ? selectedEmployeeIds : undefined;
@@ -257,7 +251,7 @@ export function ExportCommonModel({
       filters.cabinet_format = cabinetFormat;
     }
     if (OD_EXPORT_TYPES.has(apiExportType)) {
-      filters.regroupement = odRegroupement;
+      filters.regroupement = regroupementRetenu;
     }
     if (apiExportType === "virement_salaires") {
       filters.bank_format = bankFileFormat;
@@ -284,22 +278,9 @@ export function ExportCommonModel({
     return filters;
   };
 
-  // Générer les options de mois
-  const generateMonthOptions = () => {
-    const options = [];
-    const now = new Date();
-    for (let i = -12; i <= 2; i++) {
-      const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const value = `${year}-${month}`;
-      const label = date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-      options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
-    }
-    return options;
-  };
-
-  const monthOptions = generateMonthOptions();
+  // Mois récents, ou les douze mois d'une année plus ancienne.
+  const monthOptions = optionsDeMois(new Date(), anneePeriode);
+  const anneesDisponibles = anneesProposees(new Date());
 
   const emptyExportMessage = useMemo(() => {
     if (!previewData) return null;
@@ -396,7 +377,7 @@ export function ExportCommonModel({
       paymentLabel,
       selectedScope,
       selectedEmployeeIds,
-      odRegroupement,
+      regroupementRetenu,
       cabinetFormat,
       bankFileFormat,
       dsnType,
@@ -459,13 +440,8 @@ export function ExportCommonModel({
       setCurrentStep("generation");
       refreshExportsPageQueries(queryClient, selectedCompany);
 
-      // Télécharger automatiquement les fichiers
-      if (response.download_urls && Object.keys(response.download_urls).length > 0) {
-        // Pour les virements, télécharger tous les fichiers
-        Object.values(response.download_urls).forEach((url) => {
-          window.open(url, '_blank');
-        });
-      }
+      // Les fichiers se téléchargent par les liens du rapport (étape suivante) :
+      // pas de fenêtres surgissantes, que les navigateurs bloquent.
     } catch (err: any) {
       setError(err.response?.data?.detail || "Erreur lors de la génération");
     } finally {
@@ -548,6 +524,25 @@ export function ExportCommonModel({
                     {monthOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={anneePeriode === null ? "recents" : String(anneePeriode)}
+                  onValueChange={(v) => {
+                    setAnneePeriode(v === "recents" ? null : Number(v));
+                    setSelectedPeriod("");
+                  }}
+                >
+                  <SelectTrigger id="period-annee" aria-label="Année de la période">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="recents">Mois récents</SelectItem>
+                    {anneesDisponibles.map((annee) => (
+                      <SelectItem key={annee} value={String(annee)}>
+                        {`Toute l'année ${annee}`}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -730,16 +725,18 @@ export function ExportCommonModel({
               <div className="space-y-2 max-w-xs">
                 <Label htmlFor="od-regroupement">Regroupement comptable</Label>
                 <Select
-                  value={odRegroupement}
+                  value={regroupementRetenu}
                   onValueChange={(v) => setOdRegroupement(v as OdRegroupement)}
                 >
                   <SelectTrigger id="od-regroupement">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="global">Global</SelectItem>
-                    <SelectItem value="par_etablissement">Par établissement</SelectItem>
-                    <SelectItem value="par_analytique">Par analytique</SelectItem>
+                    {regroupements.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

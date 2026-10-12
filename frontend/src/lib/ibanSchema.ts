@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { isValidIban } from '@/lib/iban';
+import { ibanProblem } from '@/lib/iban';
 
-export const ibanFieldSchema = z
-  .string()
-  .min(15, { message: 'IBAN invalide.' })
-  .refine(isValidIban, { message: 'IBAN invalide.' });
+export const ibanFieldSchema = z.string().superRefine((value, ctx) => {
+  const problem = ibanProblem(value);
+  if (problem) ctx.addIssue({ code: 'custom', message: problem });
+});
 
 export const bicFieldSchema = z
   .string()

@@ -202,6 +202,6 @@ class TestCaissesCommeLOdDePaie:
         )
 
         detail, _, _ = module._aggregate_charges(self.BULLETIN)
-        lignes = _build_payment_rows(detail, "2026-09")
+        lignes = _build_payment_rows(detail, "2026-09", effectif=12)
         urssaf = round(sum(r["Total à payer"] for r in lignes if r["Organisme"] == "URSSAF"), 2)
         assert urssaf == 260.0

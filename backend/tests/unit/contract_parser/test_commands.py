@@ -96,7 +96,7 @@ class TestExtractRibFromPdf:
         )
         mock_llm.extract_rib.return_value = _make_parsed(
             extracted_data={
-                "iban": "FR7612345678901234567890123",
+                "iban": "FR7630001007941234567890185",
                 "bic": "SOGEFRPP",
                 "titulaire": "Jean Dupont",
             },
@@ -104,7 +104,7 @@ class TestExtractRibFromPdf:
             warnings=[],
         )
         result = extract_rib_from_pdf(b"rib.pdf bytes")
-        assert result.extracted_data["iban"] == "FR7612345678901234567890123"
+        assert result.extracted_data["iban"] == "FR7630001007941234567890185"
         assert result.extracted_data["bic"] == "SOGEFRPP"
         mock_llm.extract_rib.assert_called_once()
 

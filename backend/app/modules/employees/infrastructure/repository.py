@@ -175,7 +175,8 @@ class EmployeeRepository(IEmployeeRepository):
         )
         if payroll_ready_only:
             select_cols += (
-                ", nir, date_naissance, adresse, coordonnees_bancaires, salaire_de_base"
+                ", nir, date_naissance, adresse, coordonnees_bancaires, salaire_de_base, "
+                "salary_payment_method"
             )
         response = (
             supabase.table("employees")

@@ -3,6 +3,11 @@ from typing import Optional
 
 from app.modules.exports.application.a_refaire import ids_des_exports_a_refaire
 from app.modules.exports.domain import rules as domain_rules
+from app.modules.exports.domain.etat_bulletins import (
+    EXPORTS_LUS_SUR_BULLETINS,
+    avertissements_etat_bulletins,
+)
+from app.modules.exports.infrastructure.etat_bulletins import lire_etat_bulletins
 from app.modules.exports.infrastructure import providers
 from app.modules.exports.infrastructure import queries as infra_queries
 from app.modules.exports.infrastructure import mappers
@@ -20,10 +25,25 @@ from app.modules.exports.schemas import (
 def preview_export(
     company_id: str, request: ExportPreviewRequest
 ) -> ExportPreviewResponse:
+    """Prévisualise un export sans générer de fichier.
+
+    Les exports lisent aussi les brouillons : l'aperçu dit combien de bulletins ne
+    sont pas validés et combien sont à recalculer. Ce qui est exporté ne change pas.
     """
-    Prévisualise un export sans générer de fichier.
-    Comportement identique à l'ancien router POST /preview.
-    """
+    apercu = _preview_export_brut(company_id, request)
+    if request.export_type in EXPORTS_LUS_SUR_BULLETINS:
+        company_id = request.company_id or company_id
+        phrases = avertissements_etat_bulletins(
+            *lire_etat_bulletins(company_id, request.period, request.employee_ids)
+        )
+        if phrases:
+            apercu.warnings = list(apercu.warnings or []) + phrases
+    return apercu
+
+
+def _preview_export_brut(
+    company_id: str, request: ExportPreviewRequest
+) -> ExportPreviewResponse:
     company_id = request.company_id or company_id
     if not domain_rules.is_supported_export_type_for_preview(request.export_type):
         raise ValueError(f"Type d'export '{request.export_type}' non implémenté")
@@ -49,6 +69,7 @@ def preview_export(
             request.excluded_employee_ids,
             request.execution_date,
             request.payment_label,
+            (request.filters or {}).get("bank_format", "sepa"),
         )
         return ExportPreviewResponse(
             export_type=request.export_type,

@@ -223,7 +223,7 @@ class TestContractParserExtractRibWithAuth:
 
         fake_result = ExtractionResultDto(
             extracted_data={
-                "iban": "FR7612345678901234567890123",
+                "iban": "FR7630001007941234567890185",
                 "bic": "SOGEFRPP",
             },
             confidence="high",
@@ -244,7 +244,7 @@ class TestContractParserExtractRibWithAuth:
                 )
             assert response.status_code == 200
             data = response.json()
-            assert data["extracted_data"]["iban"] == "FR7612345678901234567890123"
+            assert data["extracted_data"]["iban"] == "FR7630001007941234567890185"
             assert data["extracted_data"]["bic"] == "SOGEFRPP"
         finally:
             app.dependency_overrides.pop(get_current_user, None)

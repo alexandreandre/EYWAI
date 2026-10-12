@@ -71,7 +71,7 @@ class ExportFileInfo(BaseModel):
     filename: str
     path: str
     size: int
-    format: Literal["csv", "xlsx", "zip", "xml"]
+    format: Literal["csv", "xlsx", "zip", "xml", "txt"]
 
 
 class ExportReport(BaseModel):

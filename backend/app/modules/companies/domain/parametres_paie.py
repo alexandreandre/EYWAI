@@ -16,6 +16,8 @@ from collections.abc import Mapping
 from datetime import date
 from typing import Any
 
+from app.shared.utils.iban import iban_problem, normalize_iban
+
 #: Bornes du bonus-malus assurance chômage depuis le 1er mai 2025 (taux de
 #: référence 4 %) : plancher 2,95 %, plafond 5 %. Inchangées pour la
 #: modulation du 1er septembre 2025 au 28 février 2026 comme pour celle du
@@ -33,6 +35,7 @@ CLES_SETTINGS: tuple[str, ...] = (
     "date_paiement",
     "jour_solidarite",
     "effectif_seuils",
+    "compte_bancaire",
 )
 
 _DATE_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -115,6 +118,44 @@ def valider_jour_solidarite(valeur: Any) -> str | None:
         return date.fromisoformat(valeur.strip()).isoformat()
     except ValueError:
         raise ValueError(message) from None
+
+
+_BIC = re.compile(r"^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$")
+
+#: Longueur maximale du nom du donneur d'ordre dans un fichier SEPA (pain.001).
+TITULAIRE_MAX = 70
+
+
+def valider_compte_bancaire(valeur: Any) -> dict[str, str] | None:
+    """Compte qui débite les salaires : {iban, bic, titulaire}. None le retire.
+
+    Seul l'IBAN est obligatoire (clé mod 97 et longueur du pays contrôlées) ;
+    le BIC n'est plus exigé depuis 2016 et le titulaire, absent, est le nom de la
+    société au moment de remettre le fichier.
+    """
+    if valeur is None:
+        return None
+    if not isinstance(valeur, Mapping):
+        raise ValueError("Le compte bancaire de la société est un IBAN, un BIC et un titulaire.")
+    iban = normalize_iban(str(valeur.get("iban") or ""))
+    if not iban:
+        raise ValueError(
+            "L'IBAN du compte de la société est obligatoire. "
+            "Pour retirer le compte, videz aussi le BIC et le titulaire."
+        )
+    probleme = iban_problem(iban)
+    if probleme:
+        raise ValueError(probleme)
+    bic = re.sub(r"[\s-]", "", str(valeur.get("bic") or "")).upper()
+    if bic and not _BIC.match(bic):
+        raise ValueError("BIC invalide : 8 ou 11 caractères, par exemple BNPAFRPP.")
+    titulaire = str(valeur.get("titulaire") or "").strip()
+    if len(titulaire) > TITULAIRE_MAX:
+        raise ValueError(
+            f"Le titulaire du compte tient en {TITULAIRE_MAX} caractères au plus "
+            "(limite du fichier SEPA)."
+        )
+    return {"iban": iban, "bic": bic, "titulaire": titulaire}
 
 
 def separer_reglages(update: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:

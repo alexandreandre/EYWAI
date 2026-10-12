@@ -56,12 +56,15 @@ def build_fec_rows(
     employee_ids: Optional[List[str]] = None,
     date_ecriture: Optional[str] = None,
     company_siret: str = "",
+    refuser_si_desequilibre: bool = True,
 ) -> Tuple[List[Dict[str, str]], Dict[str, Any], Optional[Dict[str, Any]]]:
     ecritures_raw, od_totals, _ = build_payroll_ledger(
         company_id, period, employee_ids, date_ecriture, scope="full"
     )
     # Un FEC déséquilibré est rejeté à l'import : autant refuser de le produire.
-    assert_ledger_balanced(od_totals)
+    # L'aperçu le demande sans refus pour lister ce qui déséquilibre.
+    if refuser_si_desequilibre:
+        assert_ledger_balanced(od_totals)
     ecritures = ledger_to_od_export_rows(ecritures_raw)
     # CompteLib est l'intitulé du compte, le même sur toutes ses lignes : celui
     # de sa première ligne dans l'OD (« Net à payer » pour le 421).
@@ -109,6 +112,8 @@ def build_fec_rows(
         "total_amount": od_totals.get("total_debit", 0),
         "lines_count": len(rows),
         "equilibre": od_totals.get("equilibre", False),
+        "ecart": od_totals.get("ecart", 0),
+        "anomalies_ledger": od_totals.get("anomalies") or [],
     }
     return rows, totals, od_totals.get("balance_debug")
 
@@ -135,7 +140,9 @@ def preview_fec(
     period: str,
     employee_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    rows, totals, balance_debug = build_fec_rows(company_id, period, employee_ids)
+    rows, totals, balance_debug = build_fec_rows(
+        company_id, period, employee_ids, refuser_si_desequilibre=False
+    )
     anomalies: List[Dict[str, Any]] = []
     warnings: List[str] = []
     if not rows:
@@ -144,10 +151,22 @@ def preview_fec(
         anomalies.append(
             {
                 "type": "error",
-                "message": "Écritures non équilibrées — FEC invalide",
+                "message": (
+                    "Écritures non équilibrées — FEC invalide : écart de "
+                    f"{totals.get('ecart', 0)} €"
+                ),
                 "severity": "blocking",
             }
         )
+        # Ce qui la déséquilibre : bulletin à reprendre ou compte à paramétrer.
+        for anomalie in totals.get("anomalies_ledger") or []:
+            anomalies.append(
+                {
+                    "type": "error",
+                    "message": f"{anomalie.get('label', '')} : {anomalie.get('detail', '')}",
+                    "severity": "blocking",
+                }
+            )
     return {
         "employees_count": totals.get("employees_count", 0),
         "totals": totals,

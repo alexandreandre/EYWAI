@@ -33,3 +33,31 @@ class TestIbanUtils:
 
     def test_short_iban_is_invalid(self):
         assert validate_iban("FR761234567890") is False
+
+
+class TestIbanCle:
+    """Clé de contrôle (mod 97) et longueur propre au pays."""
+
+    def test_iban_connu_valide(self):
+        assert validate_iban("FR14 2004 1010 0505 0001 3M02 606") is True
+        assert validate_iban("DE89370400440532013000") is True
+
+    def test_cle_fausse_refusee(self):
+        # même IBAN avec un chiffre changé
+        assert validate_iban("FR7630001007941234567890186") is False
+
+    def test_iban_francais_de_17_caracteres_refuse(self):
+        assert validate_iban("FR76300010079412") is False
+
+    def test_longueur_du_pays_exigee(self):
+        # clé juste, mais un IBAN allemand compte 22 caractères
+        assert validate_iban("DE44500105175407324931") is True
+        assert validate_iban("DE8937040044053201300") is False
+
+    def test_motif_donne_la_raison(self):
+        from app.shared.utils.iban import iban_problem
+
+        assert iban_problem("FR7630001007941234567890185") is None
+        assert "27" in iban_problem("FR76300010079412")
+        assert "clé" in iban_problem("FR7630001007941234567890186").lower()
+        assert iban_problem("") is not None

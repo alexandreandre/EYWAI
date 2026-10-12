@@ -8,7 +8,20 @@ Comportement identique à l'ancien schemas.employee (NewFullEmployee, UpdateEmpl
 from datetime import date
 from typing import Any, Dict
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
+
+from app.shared.utils.iban import iban_problem
+
+
+def _controler_coordonnees_bancaires(value: Dict[str, Any] | None) -> Dict[str, Any] | None:
+    """Refuse un IBAN renseigné dont la clé ou la longueur est fausse."""
+    if isinstance(value, dict):
+        iban = value.get("iban") or value.get("IBAN")
+        if isinstance(iban, str) and iban.strip():
+            problem = iban_problem(iban)
+            if problem:
+                raise ValueError(problem)
+    return value
 
 
 class NewFullEmployee(BaseModel):
@@ -26,6 +39,12 @@ class NewFullEmployee(BaseModel):
     nationalite: str | None = None
     adresse: Dict[str, Any] | None = None
     coordonnees_bancaires: Dict[str, Any] | None = None
+
+    @field_validator("coordonnees_bancaires")
+    @classmethod
+    def _iban_controle(cls, value):
+        return _controler_coordonnees_bancaires(value)
+
     # Titre de séjour (optionnel)
     is_subject_to_residence_permit: bool | None = None
     residence_permit_expiry_date: date | None = None
@@ -81,6 +100,12 @@ class UpdateEmployee(BaseModel):
     nationalite: str | None = None
     adresse: Dict[str, Any] | None = None
     coordonnees_bancaires: Dict[str, Any] | None = None
+
+    @field_validator("coordonnees_bancaires")
+    @classmethod
+    def _iban_controle(cls, value):
+        return _controler_coordonnees_bancaires(value)
+
     salaire_de_base: Dict[str, Any] | None = None
     contract_end_date: date | None = None
     date_debut_execution: date | None = None
