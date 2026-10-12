@@ -283,7 +283,9 @@ def _remuneration_du_preavis(
             mois = []
     # Trois mois suffisent ici : la moyenne de douze mois sert à l'indemnité
     # de licenciement, pas à ce que le salarié aurait gagné pendant son préavis.
-    reference = calculer_salaire_de_reference(mois, repli_contrat=habituel, mois_d_anciennete=3)
+    reference = calculer_salaire_de_reference(
+        mois, repli_contrat=habituel, mois_d_anciennete=3, avant_l_arret=False
+    )
     if reference.tiers_trois_mois is None:
         return reference.retenu, "salaire habituel du contrat, aucun bulletin lu", list(reference.alertes)
     return (
@@ -1066,7 +1068,8 @@ def _salaire_de_reference_des_bulletins(
     employee_id = employee_data.get("id")
     if employee_id and supabase_client is not None:
         try:
-            mois = lire_mois_de_salaire(str(employee_id), avant_le, supabase_client)
+            # Vingt-quatre mois : un arrêt maladie fait prendre les douze qui le précèdent.
+            mois = lire_mois_de_salaire(str(employee_id), avant_le, supabase_client, nombre=24)
         except Exception:
             logger.warning("Bulletins illisibles pour le salaire de référence (%s)", employee_id, exc_info=True)
             mois = []
@@ -1276,6 +1279,7 @@ def calculer_indemnites_sortie(
     # est contractuelle et vaut pour l'indemnité ([H5], décision d'Alexandre ;
     # `prior_service_months` porte de plus un double compte connu).
     alertes_reference: list[str] = []
+    phrase_arret: Optional[str] = None
     mois_a_la_notification: Optional[int] = None
     fin_du_contrat = exit_date
     mois_d_anciennete: Optional[int] = None
@@ -1301,6 +1305,7 @@ def calculer_indemnites_sortie(
         salaire_ref_12 = reference.moyenne_douze_mois
         salaire_ref_3 = reference.tiers_trois_mois
         alertes_reference = list(reference.alertes)
+        phrase_arret = reference.arret
     else:
         anciennete = calculer_anciennete_annees(hire_date, exit_date)
         salaire_ref_12 = calculer_salaire_reference_12_mois(employee_data)
@@ -1443,6 +1448,14 @@ def calculer_indemnites_sortie(
                 libelle="Indemnité conventionnelle de départ à la retraite",
                 description="Indemnité conventionnelle de départ à la retraite (convention collective de branche)",
             )
+
+    # Arrêt maladie dans les mois de référence : le détail de chaque indemnité
+    # calculée sur le salaire de référence le dit (Cass. soc., 23 mai 2017).
+    if phrase_arret:
+        for bloc in (indemnite_licenciement, indemnite_rupture, indemnite_mise_retraite, indemnite_depart_retraite):
+            if isinstance(bloc, dict):
+                bloc["calcul"] = f"{bloc.get('calcul') or ''}. {phrase_arret}".lstrip(". ")
+                bloc["salaire_reference_avant_arret"] = True
 
     # 6. Régime social des indemnités de rupture (BOSS, Indemnités de rupture) :
     # le bulletin en tire la part au brut, la CSG/CRDS au-delà du minimum et la

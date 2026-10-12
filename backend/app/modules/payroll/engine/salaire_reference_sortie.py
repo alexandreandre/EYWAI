@@ -17,7 +17,16 @@ licenciement » ; « Si une prime annuelle a été perçue, il faut ajouter 1/12
 du montant de la prime à chacun des 3 derniers mois de référence » ;
 « Lorsque le salarié a été en arrêt de travail pour maladie […] le salaire de
 référence à prendre en compte est celui des 12 ou des 3 derniers mois
-précédant l'arrêt ». Ce dernier cas n'est pas calculé : il est signalé.
+précédant l'arrêt ».
+
+Cour de cassation, chambre sociale, 23 mai 2017, n° 15-22.223, publié au
+bulletin (Légifrance JURITEXT000034813531, ouvert le 11/10/2026) : « le
+salaire de référence à prendre en considération pour le calcul de l'indemnité
+légale ou conventionnelle de licenciement est, selon la formule la plus
+avantageuse pour le salarié, celui des douze ou des trois derniers mois
+précédant l'arrêt de travail pour maladie ». Quand les mois de référence
+contiennent un arrêt, ce sont les mois qui précèdent l'arrêt le plus récent
+qui servent, et le détail de l'indemnité le dit (`arret`).
 
 Les primes « de caractère annuel ou exceptionnel » sont reconnues à leur
 libellé (13e mois, prime annuelle, exceptionnelle, de bilan, de fin d'année,
@@ -71,6 +80,8 @@ class SalaireDeReference:
     tiers_trois_mois: Optional[float]
     mois_lus: int
     alertes: Tuple[str, ...] = field(default_factory=tuple)
+    #: Arrêt maladie dans les mois de référence : la phrase qui le dit.
+    arret: Optional[str] = None
 
     def phrase(self) -> str:
         if self.formule == "contrat":
@@ -84,27 +95,90 @@ class SalaireDeReference:
         return f"{douze}, {trois} : {retenue} retenu, le plus favorable (R1234-4)"
 
 
+_MOIS_FR = (
+    "janvier", "février", "mars", "avril", "mai", "juin",
+    "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+)
+
+
+def _mois_fr(mois: MoisDeSalaire) -> str:
+    return f"{_MOIS_FR[mois.mois - 1]} {mois.annee}"
+
+
+def _suivant(annee: int, mois: int) -> Tuple[int, int]:
+    return (annee, mois + 1) if mois < 12 else (annee + 1, 1)
+
+
+def _arret_le_plus_recent(derniers: Sequence[MoisDeSalaire]) -> Optional[Tuple[MoisDeSalaire, MoisDeSalaire]]:
+    """(premier mois, dernier mois) de l'arrêt le plus récent : les mois d'arrêt
+    consécutifs qui finissent au dernier mois d'arrêt des mois de référence."""
+    arrets = [m for m in derniers if m.arret_maladie]
+    if not arrets:
+        return None
+    fin = arrets[-1]
+    debut = fin
+    for precedent in reversed(arrets[:-1]):
+        if _suivant(precedent.annee, precedent.mois) != (debut.annee, debut.mois):
+            break
+        debut = precedent
+    return debut, fin
+
+
+def _repli_contrat(repli_contrat: float, alerte: str) -> SalaireDeReference:
+    return SalaireDeReference(
+        retenu=round(max(repli_contrat, 0.0), 2),
+        formule="contrat",
+        moyenne_douze_mois=None,
+        tiers_trois_mois=None,
+        mois_lus=0,
+        alertes=(alerte,),
+    )
+
+
 def calculer_salaire_de_reference(
     mois: Sequence[MoisDeSalaire],
     *,
     repli_contrat: float,
     mois_d_anciennete: Optional[int] = None,
+    avant_l_arret: bool = True,
 ) -> SalaireDeReference:
     """Le plus favorable de la moyenne des douze derniers mois et du tiers des
     trois derniers (primes annuelles à due proportion). Sans bulletin : le
-    salaire habituel du contrat, signalé."""
-    derniers = sorted(mois)[-12:]
+    salaire habituel du contrat, signalé.
+
+    `avant_l_arret` : un arrêt maladie dans les douze mois fait prendre les
+    mois qui précèdent l'arrêt le plus récent (Cass. soc., 23 mai 2017,
+    n° 15-22.223). False pour la rémunération d'un préavis, qui n'est pas un
+    salaire de référence d'indemnité de licenciement : l'arrêt y est signalé."""
+    tries = sorted(mois)
+    derniers = tries[-12:]
     if not derniers:
-        return SalaireDeReference(
-            retenu=round(max(repli_contrat, 0.0), 2),
-            formule="contrat",
-            moyenne_douze_mois=None,
-            tiers_trois_mois=None,
-            mois_lus=0,
-            alertes=(
-                "Aucun bulletin dans Martine avant le départ : salaire de référence "
-                "pris au salaire habituel du contrat, à vérifier.",
-            ),
+        return _repli_contrat(
+            repli_contrat,
+            "Aucun bulletin dans Martine avant le départ : salaire de référence "
+            "pris au salaire habituel du contrat, à vérifier.",
+        )
+    phrase_arret: Optional[str] = None
+    mois_exclus = 0
+    arret = _arret_le_plus_recent(derniers) if avant_l_arret else None
+    if arret is not None:
+        debut, fin = arret
+        avant = [m for m in tries if (m.annee, m.mois) < (debut.annee, debut.mois)]
+        periode = (
+            f"de {_mois_fr(debut)} à {_mois_fr(fin)}" if debut != fin else f"en {_mois_fr(debut)}"
+        )
+        if not avant:
+            return _repli_contrat(
+                repli_contrat,
+                f"Arrêt maladie {periode} dans les mois de référence et aucun bulletin dans "
+                "Martine avant l'arrêt : salaire de référence pris au salaire habituel du "
+                "contrat, à vérifier (Cass. soc., 23 mai 2017, n° 15-22.223).",
+            )
+        mois_exclus = len([m for m in tries if (m.annee, m.mois) >= (debut.annee, debut.mois)])
+        derniers = avant[-12:]
+        phrase_arret = (
+            f"Salaire de référence calculé sur les {len(derniers)} mois qui précèdent l'arrêt "
+            f"maladie {periode} (Cass. soc., 23 mai 2017, n° 15-22.223)."
         )
     moyenne = round(sum(m.brut for m in derniers) / len(derniers), 2)
     trois = derniers[-3:]
@@ -113,20 +187,25 @@ def calculer_salaire_de_reference(
     )
     tiers = round(total_trois / len(trois), 2)
     alertes: List[str] = []
-    attendus = 12 if mois_d_anciennete is None else min(12, max(mois_d_anciennete, 0))
+    anciennete = None if mois_d_anciennete is None else mois_d_anciennete - mois_exclus
+    attendus = 12 if anciennete is None else min(12, max(anciennete, 0))
     if len(derniers) < attendus:
         alertes.append(
             f"Salaire de référence lu sur {len(derniers)} bulletins : les mois "
             "précédents ne sont pas dans Martine (ancien logiciel), à vérifier."
         )
-    if any(m.arret_maladie for m in derniers):
+    if not avant_l_arret and any(m.arret_maladie for m in derniers):
         alertes.append(
-            "Arrêt maladie dans les mois de référence : la référence est alors celle "
-            "des mois précédant l'arrêt (service-public F987), à vérifier."
+            "Arrêt maladie dans les derniers mois : la rémunération que le salarié aurait "
+            "perçue est à vérifier."
         )
     if tiers > moyenne:
-        return SalaireDeReference(tiers, "trois_mois", moyenne, tiers, len(derniers), tuple(alertes))
-    return SalaireDeReference(moyenne, "douze_mois", moyenne, tiers, len(derniers), tuple(alertes))
+        return SalaireDeReference(
+            tiers, "trois_mois", moyenne, tiers, len(derniers), tuple(alertes), phrase_arret
+        )
+    return SalaireDeReference(
+        moyenne, "douze_mois", moyenne, tiers, len(derniers), tuple(alertes), phrase_arret
+    )
 
 
 def mois_de_salaire_du_bulletin(annee: int, mois: int, payslip_data: dict) -> MoisDeSalaire:
