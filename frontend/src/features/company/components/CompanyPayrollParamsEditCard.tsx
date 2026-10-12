@@ -30,9 +30,8 @@ import {
   avertissementJourSolidarite,
   champsNonRelus,
   construireMiseAJour,
-  parametresOntChange,
+  messageApresEnregistrement,
   repliEffectif,
-  resumeParametresPaie,
   saisieInitiale,
   type ErreursParametresPaie,
   type SaisieParametresPaie,
@@ -141,13 +140,8 @@ export function CompanyPayrollParamsEditCard({
           variant: 'destructive',
         });
       } else {
-        const recalcul = parametresOntChange(reference, relue)
-          ? ' Les bulletins déjà calculés passent « À recalculer ».'
-          : '';
-        toast({
-          title: 'Paramètres paie enregistrés',
-          description: `${resumeParametresPaie(relue)}.${recalcul}`,
-        });
+        const message = messageApresEnregistrement(reference, relue);
+        toast({ title: message.titre, description: message.description });
       }
       repartirDe(relue);
       onSaved?.();
@@ -167,8 +161,9 @@ export function CompanyPayrollParamsEditCard({
       <p className="text-sm font-medium">Compléter les paramètres paie</p>
       <p className="text-xs text-muted-foreground">
         Ces champs peuvent aussi être préremplis par un import DSN. Saisie manuelle en filet de
-        sécurité. Changer un de ces réglages fait passer les bulletins déjà calculés « À
-        recalculer », sauf le compte bancaire de la société, qui ne touche à aucun bulletin.
+        sécurité. Changer un de ces réglages fait passer les brouillons déjà calculés « À
+        recalculer » (un bulletin validé n&apos;est pas touché), sauf le compte bancaire de la
+        société, qui ne touche à aucun bulletin.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">

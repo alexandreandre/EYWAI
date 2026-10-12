@@ -445,7 +445,7 @@ describe('message après « Enregistrer » ([B10], 12/10/2026)', () => {
   it('le compte bancaire seul : enregistré, aucun bulletin à recalculer', () => {
     const avant = societe();
     const apres = societe({
-      settings: { compensation_heures_entre_semaines: true, effectif_seuils: { [ANNEE]: 5 }, compte_bancaire: { iban: 'FR7630001007941234567890185' } },
+      settings: { effectif_seuils: { [ANNEE]: 5 }, compte_bancaire: { iban: 'FR7630001007941234567890185' } },
     });
     const message = messageApresEnregistrement(avant, apres);
     expect(message.titre).toBe('Paramètres paie enregistrés');

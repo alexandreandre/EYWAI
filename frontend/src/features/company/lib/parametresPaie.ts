@@ -277,6 +277,32 @@ export function parametresOntChange(avant: CompanyDetails, apres: CompanyDetails
   );
 }
 
+/** Phrase ajoutée quand un réglage du calcul a changé : vraie pour les brouillons seulement. */
+export const PHRASE_A_RECALCULER =
+  'Les brouillons déjà calculés passent « À recalculer » ; un bulletin validé n’est pas touché.';
+
+/**
+ * Le message qui suit « Enregistrer » ([B10], 12/10/2026). Le serveur n'écrit
+ * rien quand rien ne change, et l'écran affichait quand même « Paramètres paie
+ * enregistrés ». Un bulletin validé ignore les réglages de la société : seuls
+ * les brouillons passent « À recalculer ».
+ */
+export function messageApresEnregistrement(
+  avant: CompanyDetails,
+  relue: CompanyDetails,
+): { titre: string; description: string } {
+  const resume = `${resumeParametresPaie(relue)}.`;
+  if (parametresOntChange(avant, relue)) {
+    return { titre: 'Paramètres paie enregistrés', description: `${resume} ${PHRASE_A_RECALCULER}` };
+  }
+  const compteAvant = enregistres(avant, anneeEnCours()).compte_bancaire;
+  const compteApres = enregistres(relue, anneeEnCours()).compte_bancaire;
+  if (!memeValeur(compteAvant, compteApres)) {
+    return { titre: 'Paramètres paie enregistrés', description: resume };
+  }
+  return { titre: 'Aucun changement à enregistrer', description: `Les réglages restent : ${resume}` };
+}
+
 /** Une ligne lisible de ce qui s'applique, pour confirmer l'enregistrement. */
 export function resumeParametresPaie(
   company: CompanyDetails,
