@@ -1320,13 +1320,21 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex-1 pr-4">
                               <p className="font-medium">Indemnité de congés payés</p>
-                              <IccpArbitrageDetail
-                                montant={indemnities.indemnite_conges.montant}
-                                joursRestants={indemnities.indemnite_conges.jours_restants}
-                                calcul={indemnities.indemnite_conges.calcul}
-                                description={indemnities.indemnite_conges.description}
-                                details={indemnities.indemnite_conges.details}
-                              />
+                              {/* Bulletin généré : son calcul, pas celui de l'estimation
+                                  (un autre dixième, relevé du 12/10/2026). */}
+                              {congesAffichee.calcul ? (
+                                <p className="text-sm text-muted-foreground">
+                                  Calcul imprimé au bulletin de {congesAffichee.mois} : «&nbsp;{congesAffichee.calcul}&nbsp;»
+                                </p>
+                              ) : (
+                                <IccpArbitrageDetail
+                                  montant={indemnities.indemnite_conges.montant}
+                                  joursRestants={indemnities.indemnite_conges.jours_restants}
+                                  calcul={indemnities.indemnite_conges.calcul}
+                                  description={indemnities.indemnite_conges.description}
+                                  details={indemnities.indemnite_conges.details}
+                                />
+                              )}
                             </div>
                             <div className="text-right shrink-0">
                               <p className="font-bold text-lg">
