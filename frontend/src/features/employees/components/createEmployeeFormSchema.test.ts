@@ -124,3 +124,18 @@ describe('titres-restaurant : valeur du titre et part patronale ([B5], 12/10/202
     );
   });
 });
+
+describe('titre de séjour à la création ([D6-1], 12/10/2026)', () => {
+  // L’étoile rouge disait « requise », le schéma ne l’exigeait pas : la fiche
+  // créée sans date ne pouvait plus être enregistrée ensuite.
+  it('soumis à titre de séjour sans date : refusé, comme sur la fiche', () => {
+    expect(erreurs({ is_subject_to_residence_permit: true, residence_permit_expiry_date: '' })).toContain(
+      "residence_permit_expiry_date: Date d'expiration du titre de séjour requise.",
+    );
+  });
+
+  it('avec sa date, ou non soumis : accepté', () => {
+    expect(erreurs({ is_subject_to_residence_permit: true, residence_permit_expiry_date: '2027-03-31' })).toEqual([]);
+    expect(erreurs({ is_subject_to_residence_permit: false, residence_permit_expiry_date: '' })).toEqual([]);
+  });
+});
