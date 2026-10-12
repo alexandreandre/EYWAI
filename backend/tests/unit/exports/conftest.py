@@ -17,3 +17,12 @@ def compte_societe_renseigne(monkeypatch):
             f"app.modules.exports.infrastructure.{module}.charger_compte_societe",
             lambda company_id: COMPTE_SOCIETE_DE_TEST,
         )
+
+
+@pytest.fixture(autouse=True)
+def bulletins_valides_et_a_jour(monkeypatch):
+    """L'aperçu ne lit pas l'état des bulletins en base : tous validés et à jour."""
+    monkeypatch.setattr(
+        "app.modules.exports.application.queries.lire_etat_bulletins",
+        lambda *args, **kwargs: (0, 0, 0),
+    )

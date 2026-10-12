@@ -648,7 +648,7 @@ function DispatchWizardDialog({ open, channel, period, companyId, onClose, onDon
                 <AlertTitle>Aucune donnée pour cette période</AlertTitle>
                 <AlertDescription>
                   {channel === "compta"
-                    ? "Aucun bulletin de paie validé n'a été trouvé pour cette période. Générez la paie avant de transmettre à la comptabilité."
+                    ? "Aucun bulletin de paie n'a été trouvé pour cette période. Générez la paie avant de transmettre à la comptabilité."
                     : "Aucun virement à générer pour cette période. Vérifiez que la paie est générée et que les salariés ont un IBAN valide."}
                 </AlertDescription>
               </Alert>

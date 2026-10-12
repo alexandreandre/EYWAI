@@ -117,3 +117,44 @@ class TestApercuDesExports:
     def test_rien_ajoute_quand_tout_est_valide(self):
         reponse, _ = self._apercu("journal_paie", (0, 0, 0))
         assert reponse.warnings == ["déjà là"]
+
+
+class TestLectureDeLEtat:
+    """Compte les non-validés et les « à recalculer » ; un repris n'est jamais à recalculer."""
+
+    def _lire(self, bulletins, etats, **kwargs):
+        from types import SimpleNamespace
+
+        from app.modules.exports.infrastructure import etat_bulletins
+
+        def etat(employee_id, year, month):
+            valeur = etats[employee_id]
+            if isinstance(valeur, Exception):
+                raise valeur
+            return None if valeur is None else SimpleNamespace(a_recalculer=valeur)
+
+        with patch.object(etat_bulletins, "_bulletins_du_mois", return_value=bulletins), patch(
+            "app.modules.payroll.application.empreinte_entrees_service.etat_dans_la_chaine",
+            side_effect=etat,
+        ):
+            return etat_bulletins.lire_etat_bulletins("co-1", "2026-09", **kwargs)
+
+    def test_compte_brouillons_et_perimes(self):
+        bulletins = [
+            {"employee_id": "a", "status": "valide"},
+            {"employee_id": "b", "status": "brouillon"},
+            {"employee_id": "c", "status": "brouillon"},
+        ]
+        assert self._lire(bulletins, {"a": False, "b": True, "c": False}) == (2, 1, 0)
+
+    def test_un_bulletin_repris_n_est_pas_a_recalculer(self):
+        bulletins = [{"employee_id": "a", "status": "brouillon", "origine": "importe"}]
+        assert self._lire(bulletins, {"a": True}) == (1, 0, 0)
+
+    def test_un_etat_illisible_est_dit_non_verifie(self):
+        bulletins = [{"employee_id": "a", "status": "valide"}]
+        assert self._lire(bulletins, {"a": ValueError("x")}) == (0, 0, 1)
+
+    def test_etat_inconnu_n_est_pas_a_recalculer(self):
+        bulletins = [{"employee_id": "a", "status": "valide"}]
+        assert self._lire(bulletins, {"a": None}) == (0, 0, 0)

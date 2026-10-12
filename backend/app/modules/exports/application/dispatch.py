@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Literal, Optional, cast
 from app.core.database import supabase
 
 from app.modules.exports.application import service as export_service
+from app.modules.exports.domain.etat_bulletins import MESSAGE_AUCUN_BULLETIN
 from app.modules.exports.application.notifications import notify_export_recipients
 from app.modules.exports.application.scheduled_exports import _get_channel_schedule_row
 from app.modules.exports.infrastructure import mappers
@@ -221,7 +222,7 @@ def _synthetic_blocking_anomaly(
             message = "Virement salaires non générable pour cette période"
     elif export_type == "journal_paie":
         if preview.employees_count == 0:
-            message = "Aucun bulletin de paie validé pour cette période"
+            message = MESSAGE_AUCUN_BULLETIN
         else:
             message = "Journal de paie non générable pour cette période"
     elif export_type == "od_globale":

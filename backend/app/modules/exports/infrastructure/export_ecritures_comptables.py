@@ -5,6 +5,7 @@ logger = get_logger("modules.exports.infrastructure.export_ecritures_comptables"
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from app.core.database import supabase
+from app.modules.exports.domain.etat_bulletins import MESSAGE_AUCUN_BULLETIN
 from app.modules.exports.infrastructure.payslip_accounting_extract import (
     extract_cotisations_from_payslip,
     extract_elements_hors_brut,
@@ -444,7 +445,7 @@ def preview_od(
         anomalies.append(
             {
                 "type": "error",
-                "message": "Aucun bulletin de paie validé pour cette période",
+                "message": MESSAGE_AUCUN_BULLETIN,
                 "severity": "blocking",
             }
         )
