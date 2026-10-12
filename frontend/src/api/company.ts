@@ -1,6 +1,7 @@
 import apiClient from "@/api/apiClient";
 import { downloadBlob } from '@/lib/downloadBlob';
 import type { DsnCoverage, DsnSyncMode } from '@/api/dsnImport';
+import type { ReprisePaie } from '@/features/dsn-import/lib/bascule';
 import type { FrenchPublicHolidayId } from '@/lib/frenchPublicHolidays';
 
 import type { PayrollSource } from '@/features/dashboard/types';
@@ -91,6 +92,8 @@ export interface CompanyDetails {
     compte_bancaire?: CompteBancaireSociete | null;
   };
   dsn_sync_mode?: DsnSyncMode | null;
+  /** Bascule de reprise (`company_payroll_takeover`), lue seulement ; null sans reprise. */
+  reprise_paie?: ReprisePaie | null;
 }
 
 /** Compte bancaire de la société (`settings.compte_bancaire`). BIC et titulaire peuvent être vides. */

@@ -15,6 +15,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { DsnCoverageTimeline, dsnStatusLabel, dsnStatusVariant } from './DsnCoverageTimeline';
 import { Badge } from '@/components/ui/badge';
+import { libelleBascule } from '@/features/dsn-import/lib/bascule';
 
 const MODE_LABELS: Record<DsnSyncMode, string> = {
   external: 'Paie hors Martine (Cegid, etc.)',
@@ -84,6 +85,11 @@ export function DsnSyncModeCard({ company, coverage, readOnly = false, onUpdated
         {readOnly && (
           <p className="text-sm text-muted-foreground">{MODE_LABELS[mode] ?? mode}</p>
         )}
+
+        <div className="space-y-1 rounded-lg border p-3">
+          <p className="text-sm font-medium">Reprise de la paie</p>
+          <p className="text-sm text-muted-foreground">{libelleBascule(company.reprise_paie)}</p>
+        </div>
 
         {coverage && (
           <div className="space-y-3 rounded-lg border bg-muted/20 p-3">

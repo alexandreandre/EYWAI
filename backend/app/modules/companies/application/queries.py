@@ -31,6 +31,7 @@ from app.modules.companies.infrastructure.queries import (
     fetch_company_with_employees_and_payslips,
 )
 from app.modules.companies.infrastructure.repository import company_repository
+from app.shared.reprise_paie import lire_bascule
 
 
 def get_company_details_and_kpis(
@@ -60,7 +61,27 @@ def get_company_details_and_kpis(
         dsn_sync_mode=dsn_sync_mode,
     )
     kpis = compute_company_kpis(employees, payroll_series)
+    company_data["reprise_paie"] = _reprise_pour_affichage(company_id)
     return CompanyDetailsWithKpisDto(company_data=company_data, kpis=kpis)
+
+
+def _reprise_pour_affichage(company_id: str) -> dict | None:
+    """La bascule de reprise, lisible par l'écran « Déclarations » ([B13]).
+
+    « Source de paie » est un réglage d'alertes DSN, pas l'état de la reprise :
+    il disait « Reprise en cours » chez des sociétés sans bascule. La bascule
+    réelle (`company_payroll_takeover`) n'était visible nulle part.
+    """
+    bascule = lire_bascule(company_id)
+    if bascule is None:
+        return None
+    annee, mois = bascule.premier_mois_calcule
+    return {
+        "dernier_mois_repris": f"{bascule.annee:04d}-{bascule.mois:02d}",
+        "premier_mois_calcule": f"{annee:04d}-{mois:02d}",
+        "logiciel_precedent": bascule.logiciel_precedent,
+        "source": bascule.source,
+    }
 
 
 def get_company_overview(company_id: str, current_user: Any) -> CompanyOverviewDto:
