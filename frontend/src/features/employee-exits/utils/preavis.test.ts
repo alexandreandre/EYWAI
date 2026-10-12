@@ -3,6 +3,7 @@ import {
   OPTIONS_PREAVIS,
   PREAVIS_PAR_DEFAUT,
   libelleSourcePreavis,
+  preavisASaisir,
   typePreavisApresApercu,
   typePreavisApresSaisie,
 } from './preavis';
@@ -56,5 +57,21 @@ describe('préavis saisi à la main', () => {
     expect(libelleSourcePreavis('none')).toBe('à saisir : convention, contrat ou usage');
     expect(libelleSourcePreavis('legal')).toBe('Code du travail');
     expect(libelleSourcePreavis('convention')).toBe('Convention collective');
+  });
+});
+
+// Code du travail L1237-6 et L1237-10 (ouverts le 11/10/2026) : le départ et la
+// mise à la retraite ont le préavis du licenciement (L1234-1).
+describe('préavis : quels départs le saisissent', () => {
+  it('démission, licenciement, départ ou mise à la retraite', () => {
+    expect(preavisASaisir('demission')).toBe(true);
+    expect(preavisASaisir('licenciement')).toBe(true);
+    expect(preavisASaisir('depart_retraite')).toBe(true);
+  });
+
+  it('ni la rupture conventionnelle, ni la fin de CDD, ni le transfert', () => {
+    expect(preavisASaisir('rupture_conventionnelle')).toBe(false);
+    expect(preavisASaisir('fin_cdd')).toBe(false);
+    expect(preavisASaisir('transfert')).toBe(false);
   });
 });
