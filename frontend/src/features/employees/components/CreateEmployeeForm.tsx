@@ -43,6 +43,7 @@ import {
   pastillesParOnglet,
   raisonEchecCreation,
   saisieNonEnregistree,
+  prelevementPourEnvoi,
   texteDuBoutonCreation,
 } from "@/features/employees/utils/creationSalarie";
 import {
@@ -731,6 +732,8 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
     periode_essai: values.has_periode_essai ? values.periode_essai : null,
     specificites_paie: {
       ...values.specificites_paie,
+      // Case décochée : aucun bloc, le bulletin applique la grille par défaut.
+      prelevement_a_la_source: prelevementPourEnvoi(values.specificites_paie.prelevement_a_la_source),
       // On met à jour la section mutuelle pour inclure "adhesion"
       mutuelle: {
         adhesion: (values.specificites_paie.mutuelle.mutuelle_type_ids?.length || 0) > 0 || (values.specificites_paie.mutuelle.lignes_specifiques?.length || 0) > 0,

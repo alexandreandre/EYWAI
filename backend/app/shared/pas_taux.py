@@ -29,7 +29,7 @@ versement, ce qui confirme la lecture.
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 TYPE_PERSONNALISE = "01"
 
@@ -87,3 +87,37 @@ def libelle_type(type_taux: Optional[str]) -> str:
     if not code:
         return "Origine inconnue"
     return LIBELLES.get(code, f"Type {code}")
+
+
+def taux_connu(bloc: Optional[Dict[str, Any]]) -> Optional[float]:
+    """Le taux que l'on détient pour ce salarié, ou None si l'on n'en a aucun.
+
+    Un taux se détient de deux façons seulement :
+    - **transmis** par la DGFiP — DSN ou compte rendu métier : il porte un type
+      de taux, un identifiant ou la période d'où il vient ;
+    - **saisi à la main**, case « personnalisé » cochée (`is_personnalise`).
+
+    Un `taux` sans rien de cela n'est pas un taux : c'est la valeur par défaut
+    d'un formulaire. La fenêtre de création envoyait `{is_personnalise: false,
+    taux: 0}` case décochée, et la fiche renvoyait `taux: 0` à chaque
+    enregistrement d'une fiche sans taux (12/10/2026, [B1]) : lu comme un taux
+    personnalisé, ce 0 dispensait le salarié de tout prélèvement. Un 0 % transmis
+    par la DGFiP, lui, reste un taux.
+    """
+    if not isinstance(bloc, dict):
+        return None
+    brut = bloc.get("taux")
+    if brut is None or brut == "":
+        return None
+    try:
+        taux = float(brut)
+    except (TypeError, ValueError):
+        return None
+    transmis = bool(
+        normaliser(bloc.get("type_taux"))
+        or str(bloc.get("identifiant_taux") or "").strip()
+        or str(bloc.get("periode") or "").strip()
+    )
+    if transmis or bloc.get("is_personnalise") is True:
+        return taux
+    return None

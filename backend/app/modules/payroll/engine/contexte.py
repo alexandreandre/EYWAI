@@ -80,8 +80,11 @@ def ChargerContexte(
             "saisie_du_mois": {},
             "specificites_paie": {
                 "prevoyance": employee_data.get("prevoyance", "NON"),
+                # La simulation applique le taux qu'on lui donne : un taux choisi,
+                # donc « personnalisé » au sens de `pas_taux.taux_connu`.
                 "prelevement_a_la_source": {
-                    "taux": float(employee_data.get("taux_prelevement_source", 0))
+                    "taux": float(employee_data.get("taux_prelevement_source", 0)),
+                    "is_personnalise": True,
                 },
                 "mutuelle": employee_data.get("mutuelle") or {},
                 "titres_restaurant": employee_data.get("titres_restaurant") or {},

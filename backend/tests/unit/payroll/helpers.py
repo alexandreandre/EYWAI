@@ -86,7 +86,7 @@ def build_test_contexte(
         },
         "specificites_paie": {
             "prevoyance": "NON",
-            "prelevement_a_la_source": {"taux": taux_pas},
+            "prelevement_a_la_source": {"taux": taux_pas, "type_taux": "01"},
             "is_alsace_moselle": False,
             "maintien_regime_apprenti": maintien_regime_apprenti,
             **(specificites_extra or {}),

@@ -317,7 +317,12 @@ export function buildUpdatePayload(
       : null,
     specificites_paie: {
       ...existingSpec,
-      prelevement_a_la_source: values.specificites_paie.prelevement_a_la_source,
+      // Le taux ne part que case cochée : une fiche sans taux recevait `taux: 0`
+      // à chaque enregistrement, et ce 0 dispensait le salarié de tout
+      // prélèvement ([B1], 12/10/2026). Décochée, la grille par défaut s'applique.
+      prelevement_a_la_source: values.specificites_paie.prelevement_a_la_source.is_personnalise
+        ? { is_personnalise: true, taux: values.specificites_paie.prelevement_a_la_source.taux }
+        : { is_personnalise: false },
       transport: values.specificites_paie.transport,
       titres_restaurant: values.specificites_paie.titres_restaurant,
       mutuelle: {

@@ -353,3 +353,16 @@ export function payloadJournalEcran(brut: {
     pile: sansDonneesPersonnelles(pile),
   };
 }
+
+/**
+ * Le bloc de prélèvement à la source à envoyer à la création : seulement si la
+ * case « Appliquer un taux personnalisé » est cochée. Case décochée, la fenêtre
+ * envoyait `{is_personnalise: false, taux: 0}` et le salarié n'était prélevé de
+ * rien ; sans bloc, le bulletin applique la grille par défaut ([B1], 12/10/2026).
+ */
+export function prelevementPourEnvoi(
+  bloc: { is_personnalise?: boolean; taux?: number } | null | undefined,
+): { is_personnalise: true; taux: number } | undefined {
+  if (!bloc?.is_personnalise) return undefined;
+  return { is_personnalise: true, taux: Number(bloc.taux ?? 0) };
+}

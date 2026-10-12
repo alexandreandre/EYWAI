@@ -1,5 +1,5 @@
 from app.core.logging import get_logger, log_payroll_debug
-from app.shared.pas_taux import est_taux_bareme
+from app.shared.pas_taux import est_taux_bareme, taux_connu as taux_detenu
 
 from .contexte import ContextePaie
 from .exoneration_alternance import contexte_exoneration_apprenti
@@ -590,11 +590,15 @@ def taux_pas_du_mois(contexte: ContextePaie, base_pas: float) -> float:
 
     Un taux personnalisé transmis par la DGFiP est en revanche appliqué tel quel,
     y compris s'il vaut 0 % : c'est un taux, pas une absence de taux.
+
+    « Aucun taux connu » comprend le `taux: 0` qu'un formulaire pose par défaut,
+    sans type, sans identifiant, sans période et case « personnalisé » décochée
+    (`app.shared.pas_taux.taux_connu`, [B1]).
     """
     bloc_pas = contexte.contrat.get("specificites_paie", {}).get(
         "prelevement_a_la_source", {}
     )
-    taux_connu = bloc_pas.get("taux")
+    taux_connu = taux_detenu(bloc_pas)
     if taux_connu is None or est_taux_bareme(bloc_pas.get("type_taux")):
         return taux_pas_neutre(
             contexte.baremes.get("pas") or [], base_pas, _zone_pas(contexte)

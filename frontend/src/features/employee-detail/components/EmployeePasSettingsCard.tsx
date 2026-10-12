@@ -2,6 +2,7 @@ import { Percent } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Employee } from '@/features/employee-detail/types';
+import { libelleTauxFiche } from '@/lib/tauxPasFiche';
 
 interface EmployeePasSettingsCardProps {
   employeeId: string;
@@ -12,11 +13,8 @@ interface EmployeePasSettingsCardProps {
 
 function readPasSettings(employee: Employee) {
   const pas = employee.specificites_paie?.prelevement_a_la_source;
-  const taux = typeof pas?.taux === 'number' ? pas.taux : 0;
-  const isPersonnalise = pas?.is_personnalise ?? taux > 0;
   return {
-    isPersonnalise,
-    taux,
+    libelle: libelleTauxFiche(pas),
     typeTaux: pas?.type_taux ?? null,
     periode: pas?.periode ?? null,
   };
@@ -71,9 +69,7 @@ export function EmployeePasSettingsCard({ employee }: EmployeePasSettingsCardPro
       <CardContent className="space-y-4">
         <div className="space-y-1 rounded-md border bg-muted/30 p-3 text-sm">
           <p className="font-medium tabular-nums">
-            {current.isPersonnalise || current.taux > 0
-              ? `${current.taux} %`
-              : 'Aucun taux connu — 0 % appliqué'}
+            {current.libelle}
           </p>
           {origineLibelle(current.typeTaux) ? (
             <p className="text-muted-foreground">{origineLibelle(current.typeTaux)}</p>
@@ -91,8 +87,9 @@ export function EmployeePasSettingsCard({ employee }: EmployeePasSettingsCardPro
         </div>
         <p className="text-sm text-muted-foreground">
           Ce taux n&apos;est pas modifiable à la main : il est mis à jour par les
-          retours DGFiP (compte rendu métier). Sans taux connu, 0&nbsp;% est
-          appliqué en attendant le premier retour.
+          retours DGFiP (compte rendu métier). Sans taux connu, le bulletin applique
+          la grille par défaut, calculée chaque mois sur la rémunération, en attendant
+          le premier retour.
         </p>
       </CardContent>
     </Card>

@@ -1,5 +1,6 @@
 import { FlaskConical, HeartHandshake, Percent, Umbrella } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { formaterTaux, tauxConnu } from '@/lib/tauxPasFiche';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -28,7 +29,8 @@ export function EmployeeProfilePayBenefitsGrid({
   profile,
   onEditProfile,
 }: EmployeeProfilePayBenefitsGridProps) {
-  const pasTaux = profile.specificites_paie?.prelevement_a_la_source?.taux;
+  // Même règle que le bulletin : un 0 posé par défaut n'est pas un taux ([B1]).
+  const pasTaux = tauxConnu(profile.specificites_paie?.prelevement_a_la_source);
   const mutuelleAdhesion = profile.specificites_paie?.mutuelle?.adhesion ?? false;
   const prevoyanceAdhesion = profile.specificites_paie?.prevoyance?.adhesion ?? false;
   const jeiEligible =
@@ -57,7 +59,7 @@ export function EmployeeProfilePayBenefitsGrid({
         <CardContent>
           <Label>Taux d&apos;imposition</Label>
           <p className="text-2xl font-bold tabular-nums">
-            {pasTaux != null ? `${pasTaux}%` : 'Non communiqué'}
+            {pasTaux != null ? formaterTaux(pasTaux) : 'Non communiqué'}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
             Ce taux est transmis par l&apos;administration fiscale.
