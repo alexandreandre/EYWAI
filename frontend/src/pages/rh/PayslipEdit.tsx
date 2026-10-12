@@ -86,6 +86,7 @@ import {
   aDesModifications,
   avecSaisiesSurLeNet,
   etatInitial,
+  saisiesApresLeCalcul,
   recalculAttendu,
   repasseEnBrouillon,
   requeteDeCorrection,
@@ -142,6 +143,7 @@ export default function PayslipEdit() {
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('corriger');
   const [confirmationValide, setConfirmationValide] = useState(false);
+  const [saisiesDuMois, setSaisiesDuMois] = useState<SaisieDuMois[]>([]);
   // Le mois précédent à recalculer : la validation le dit avant de partir.
   const [avertissementValidation, setAvertissementValidation] = useState<string | null>(null);
   const [validateModalOpen, setValidateModalOpen] = useState(false);
@@ -228,6 +230,7 @@ export default function PayslipEdit() {
         const saisies = Array.isArray(reponse.data) ? (reponse.data as SaisieDuMois[]) : [];
         setInitial((i) => (i ? avecSaisiesSurLeNet(i, saisies) : i));
         setEtat((e) => (e ? avecSaisiesSurLeNet(e, saisies) : e));
+        setSaisiesDuMois(saisies);
       })
       .catch(() => {
         if (annule) return;
@@ -585,6 +588,7 @@ export default function PayslipEdit() {
               lienFiche={`/employees/${encodeURIComponent(payslip.employee_id)}`}
               lienSaisies={lienSaisies}
               forfaitJours={salarieBulletin?.is_forfait_jour === true}
+              saisiesApresCalcul={saisiesApresLeCalcul(saisiesDuMois, payslip.generated_at, etat)}
               onAller={aller}
             />
             <NotesSection

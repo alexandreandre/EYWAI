@@ -258,6 +258,8 @@ export interface PayslipDetail {
   manual_edit_lock_until?: string | null;
   /** Dernière mise à jour, renvoyée avec une correction (refusée si elle a changé). */
   updated_at?: string | null;
+  /** Date du dernier calcul : les saisies d'après ne sont pas encore sur le bulletin. */
+  generated_at?: string | null;
   /** Le mois précédent a changé depuis le calcul : phrase à afficher, sinon null. */
   a_regenerer?: string | null;
   /** true = à recalculer ; false = à jour ; null = inconnu (pas d'empreinte). */

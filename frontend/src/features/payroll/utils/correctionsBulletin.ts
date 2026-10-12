@@ -37,6 +37,57 @@ export interface SaisieDuMois {
   name: string;
   amount: number;
   sur_le_net?: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/** Une saisie du mois enregistrée après le dernier calcul : pas encore sur le bulletin. */
+export interface SaisieApresCalcul {
+  saisieId: string;
+  libelle: string;
+  montant: number;
+}
+
+/** Le bulletin ne porte aucune prime : il ne dit rien des saisies d'après son calcul. */
+export const MESSAGE_AUCUNE_PRIME = 'Aucune prime sur ce bulletin.';
+
+const HEURES_CORRIGEES_AU_BULLETIN = /\(corrigées au bulletin\)$/;
+
+function instant(texte: string | null | undefined): number | null {
+  if (!texte) return null;
+  const t = Date.parse(texte);
+  return Number.isFinite(t) ? t : null;
+}
+
+/**
+ * Les saisies du mois enregistrées (ou modifiées) après le dernier calcul.
+ *
+ * L'onglet lit les primes sur les lignes du bulletin : une prime de 300 €
+ * saisie après coup n'y était pas, et l'écran disait « Aucune prime saisie
+ * pour ce mois » (relevé J.1). Elles sont montrées à part, jusqu'au recalcul.
+ * Les heures sup corrigées depuis le bulletin ont leur propre carte. Sans date
+ * de calcul, rien n'est deviné.
+ */
+export function saisiesApresLeCalcul(
+  saisies: SaisieDuMois[],
+  calculeLe: string | null | undefined,
+  etat: EtatCorrections
+): SaisieApresCalcul[] {
+  const calcul = instant(calculeLe);
+  if (calcul === null) return [];
+  const connues = new Set(etat.primes.map((p) => p.saisieId));
+  return saisies
+    .filter((s) => !connues.has(String(s.id)))
+    .filter((s) => !HEURES_CORRIGEES_AU_BULLETIN.test(s.name ?? ''))
+    .filter((s) => {
+      const depuis = Math.max(instant(s.created_at) ?? -Infinity, instant(s.updated_at) ?? -Infinity);
+      return depuis > calcul;
+    })
+    .map((s) => ({
+      saisieId: String(s.id),
+      libelle: s.name || 'Saisie du mois',
+      montant: arrondi(nombre(s.amount) ?? 0),
+    }));
 }
 
 export interface EtatCorrections {

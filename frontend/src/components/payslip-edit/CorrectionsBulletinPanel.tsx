@@ -23,8 +23,10 @@ import { pastilleSoumise } from '@/components/saisies/libellesSaisie';
 import {
   descriptionHeuresSupDuMois,
   heuresDeclarees,
+  MESSAGE_AUCUNE_PRIME,
   type EtatCorrections,
   montantCorrigeDeLaPrime,
+  type SaisieApresCalcul,
 } from '@/features/payroll/utils/correctionsBulletin';
 
 function texteDe(valeur: number): string {
@@ -111,6 +113,8 @@ interface Props {
   lienSaisies: string;
   /** Salarié au forfait jours : le temps se compte en jours, pas d'heures sup. */
   forfaitJours?: boolean;
+  /** Saisies du mois enregistrées après le dernier calcul : pas encore sur le bulletin. */
+  saisiesApresCalcul?: SaisieApresCalcul[];
   /** Passe par la garde des corrections non enregistrées avant de quitter l'écran. */
   onAller: (lien: string) => void;
 }
@@ -127,6 +131,7 @@ export default function CorrectionsBulletinPanel({
   lienFiche,
   lienSaisies,
   forfaitJours = false,
+  saisiesApresCalcul = [],
   onAller,
 }: Props) {
   const declarees = heuresDeclarees(payslipData);
@@ -226,7 +231,25 @@ export default function CorrectionsBulletinPanel({
         </CardHeader>
         <CardContent className="space-y-3">
           {etat.primes.length === 0 && etat.primesAjoutees.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucune prime saisie pour ce mois.</p>
+            <p className="text-sm text-muted-foreground">{MESSAGE_AUCUNE_PRIME}</p>
+          ) : null}
+          {saisiesApresCalcul.length > 0 ? (
+            <Alert data-testid="saisies-apres-calcul">
+              <AlertDescription className="space-y-1">
+                <p>
+                  {saisiesApresCalcul.length > 1
+                    ? 'Saisies du mois enregistrées après le calcul, pas encore sur le bulletin : régénérez-le pour les y prendre.'
+                    : 'Saisie du mois enregistrée après le calcul, pas encore sur le bulletin : régénérez-le pour l’y prendre.'}
+                </p>
+                <ul className="list-disc pl-5">
+                  {saisiesApresCalcul.map((saisie) => (
+                    <li key={saisie.saisieId}>
+                      {saisie.libelle} — {euros(saisie.montant)}
+                    </li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
           ) : null}
           {etat.primes.map((prime) => {
             const retiree = retirees.has(prime.saisieId);
