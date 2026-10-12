@@ -560,14 +560,12 @@ export default function AbsencesPage() {
                       </Tooltip>
                     </TooltipProvider>
                   )}
-                  {!isPayrollFocusActive(user) && (
-                    <Button variant="outline" size="sm" asChild>
-                      <Link to="/suivi-ijss">
-                        <ExternalLink className="mr-2 h-4 w-4" />
-                        Suivi IJSS
-                      </Link>
-                    </Button>
-                  )}
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/suivi-ijss">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Suivi IJSS
+                    </Link>
+                  </Button>
                 </div>
                   )}
                 </div>

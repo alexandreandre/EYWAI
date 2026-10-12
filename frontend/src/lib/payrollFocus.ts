@@ -10,12 +10,16 @@
 
 import { isPlatformAdmin, type PlatformAdminUser } from '@/lib/platformAdmin';
 
-/** Les 16 entrées de menu conservées en mode paie. */
+/** Les 18 entrées de menu conservées en mode paie. */
 export const PAYROLL_FOCUS_NAV_URLS: readonly string[] = [
   '/',
   '/employees',
   '/schedules',
   '/leaves',
+  // Suivi IJSS / CPAM : l'alerte d'un bulletin en arrêt subrogé y renvoie
+  // (« validez le montant CPAM dans Suivi IJSS avant clôture paie ») ; la
+  // page restait fermée en mode paie (12/10).
+  '/suivi-ijss',
   '/suivi-temps-travail',
   '/expenses',
   '/saisies',
