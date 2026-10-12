@@ -74,6 +74,8 @@ const calculInverse = {
           montant_patronal: 0,
         },
       ],
+      // Le total du moteur, CSG et CRDS comprises (268,28 + 156,54 + 66,76 + 11,51).
+      total_salarial: 503.09,
     },
   },
 };
@@ -110,9 +112,93 @@ describe('calcul inverse : le détail des cotisations dit les vrais taux et mont
   it('écrit l’écart et les cotisations salariales à la française', () => {
     const t = texte(html);
     expect(t).toContain('Écart : −0,32 €');
-    expect(t).toContain('−268,28 €');
+    expect(t).toMatch(/Cotisations salariales \(CSG et CRDS comprises\) :\|+−503,09 €/);
     expect(t).not.toMatch(/\d\.\d\d/);
     expect(t).not.toMatch(/[^ ]:/);
+  });
+});
+
+// Rejeu G.9, suite : le calcul inverse passe désormais par le moteur du
+// bulletin. Sa réponse dit la période et le type de contrat retenus (un CDI
+// quand l'écran n'en demande pas), et le détail porte la réduction générale.
+const calculInverseMoteur = {
+  brut_calcule: 2343.05,
+  net_obtenu: 1800.2,
+  ecart: 0.2,
+  iterations: 6,
+  convergence: true,
+  cout_employeur: 3001.12,
+  month: 10,
+  year: 2026,
+  type_contrat: 'CDI',
+  type_contrat_par_defaut: true,
+  bulletin_complet: {
+    en_tete: { periode: 'Octobre 2026' },
+    synthese_net: { net_social_avant_impot: 1838.8 },
+    structure_cotisations: {
+      bloc_principales: [
+        {
+          libelle: 'Sécurité sociale Vieillesse plafonnée',
+          base: 2343.05,
+          taux_salarial: 0.069,
+          montant_salarial: 161.67,
+          taux_patronal: 0.0855,
+          montant_patronal: 200.33,
+        },
+      ],
+      bloc_allegements: [
+        {
+          libelle: 'Réduction générale de cotisations patronales',
+          base: 2343.05,
+          taux_salarial: null,
+          montant_salarial: 0,
+          taux_patronal: 0.1,
+          montant_patronal: -234.31,
+        },
+      ],
+      bloc_autres_contributions: { lignes: [], total: 0 },
+      bloc_csg_non_deductible: [],
+      total_salarial: 504.25,
+      total_patronal: 658.07,
+    },
+  },
+};
+
+describe('calcul inverse : la période, le contrat et la réduction générale', () => {
+  const html = renderToStaticMarkup(
+    createElement(ReverseCalculationResult, { result: calculInverseMoteur as never })
+  );
+  const t = texte(html);
+
+  it('porte la ligne de réduction générale dans le détail des cotisations', () => {
+    expect(ligneDuTableau(html, 'Réduction générale')).toEqual([
+      'Réduction générale de cotisations patronales',
+      '2 343,05 €',
+      '—',
+      '—',
+      '10,00 %',
+      '−234,31 €',
+    ]);
+  });
+
+  it('dit la période du calcul et le contrat retenu par défaut', () => {
+    expect(t).toContain('Calcul sur octobre 2026, pour un CDI (type de contrat retenu par défaut).');
+  });
+
+  it('ne parle pas de défaut quand le contrat est connu', () => {
+    const cdd = texte(
+      renderToStaticMarkup(
+        createElement(ReverseCalculationResult, {
+          result: { ...calculInverseMoteur, type_contrat: 'CDD', type_contrat_par_defaut: false } as never,
+        })
+      )
+    );
+    expect(cdd).toContain('Calcul sur octobre 2026, pour un CDD.');
+    expect(cdd).not.toContain('par défaut');
+  });
+
+  it('lit les cotisations salariales dans le total du moteur', () => {
+    expect(t).toMatch(/Cotisations salariales \(CSG et CRDS comprises\) :\|+−504,25 €/);
   });
 });
 
