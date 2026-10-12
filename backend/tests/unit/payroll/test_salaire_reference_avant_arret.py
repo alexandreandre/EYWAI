@@ -65,6 +65,21 @@ def test_sans_bulletin_avant_l_arret_le_salaire_du_contrat_est_pris_et_signale()
     assert any("avant l'arrêt" in a for a in reference.alertes)
 
 
+def test_sans_bulletin_avant_l_arret_la_reference_ne_baisse_pas_sous_les_bulletins_disponibles():
+    """Rejeu d'un départ réel de juin 2026 : arrêt en janvier, premier mois repris
+    dans Martine ; retomber sur le salaire du contrat (plus bas que le brut des
+    bulletins, heures structurelles et primes comprises) faisait baisser
+    l'indemnité de 700 €. Les mois d'avant l'arrêt manquent : le plus favorable
+    du contrat et des bulletins disponibles, signalé à vérifier."""
+    mois = [MoisDeSalaire(2026, 1, 1500.0, arret_maladie=True)] + [
+        MoisDeSalaire(2026, m, 3000.0) for m in range(2, 6)
+    ]
+    reference = calculer_salaire_de_reference(mois, repli_contrat=2500.0)
+
+    assert reference.retenu == 3000.0
+    assert any("avant l'arrêt" in a and "à vérifier" in a for a in reference.alertes)
+
+
 def _base() -> BaseEnMemoire:
     lignes = []
     for a, m in _mois((2025, 1), (2026, 9)):
