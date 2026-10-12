@@ -118,3 +118,15 @@ class TestLigneDuSuivi:
         )
         assert ligne.periode == "2026-09"
         assert ligne.statut == STATUT_A_JOUR
+
+
+def test_un_taux_saisi_au_crayon_se_dit_saisie_manuelle():
+    """[B2] Le crayon de la page écrit le type 01 : l'origine disait « Taux
+    personnalisé DGFiP » alors que personne à la DGFiP ne l'avait transmis."""
+    from app.modules.pas_rates.domain.model import TauxSalarie
+
+    ligne = TauxSalarie("e1", "Essai", "Jeanne", taux=4.0, type_taux="01", source="manuel")
+    assert ligne.type_libelle == "Saisie manuelle"
+    assert TauxSalarie("e2", "Essai", "Paul", taux=4.0, type_taux="01", source="dsn").type_libelle == (
+        "Taux personnalisé DGFiP"
+    )

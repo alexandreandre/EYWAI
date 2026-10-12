@@ -301,25 +301,23 @@ describe('salaire verrouillé par l’historique', () => {
   });
 });
 
-describe('prélèvement à la source à l’enregistrement de la fiche ([B1], 12/10/2026)', () => {
+describe('prélèvement à la source à l’enregistrement de la fiche ([B1], [B2], 12/10/2026)', () => {
+  // Le taux se saisit sur la page « Taux de prélèvement à la source » (crayon,
+  // daté, avec son origine) ; la fiche ne l’envoie plus du tout.
   it('une fiche sans taux ne reçoit pas de taux à 0 % en l’enregistrant', () => {
     const employee: Employee = { ...baseEmployee, specificites_paie: {} };
     const payload = buildUpdatePayload(buildDefaultValues(employee), employee);
-    const pas = payload.specificites_paie?.prelevement_a_la_source as Record<string, unknown> | undefined;
-    expect(pas === undefined || !('taux' in pas)).toBe(true);
+    expect(payload.specificites_paie?.prelevement_a_la_source).toBeUndefined();
   });
 
-  it('case cochée, le taux saisi est envoyé', () => {
-    const employee: Employee = { ...baseEmployee, specificites_paie: {} };
-    const defaults = buildDefaultValues(employee);
-    const values: EmployeeProfileEditFormValues = {
-      ...defaults,
+  it('le taux d’une fiche n’est ni renvoyé ni réécrit par l’enregistrement', () => {
+    const employee: Employee = {
+      ...baseEmployee,
       specificites_paie: {
-        ...defaults.specificites_paie,
-        prelevement_a_la_source: { is_personnalise: true, taux: 4.3 },
+        prelevement_a_la_source: { taux: 4.3, type_taux: '01', periode: '2026-09' },
       },
     };
-    const payload = buildUpdatePayload(values, employee);
-    expect(payload.specificites_paie?.prelevement_a_la_source).toEqual({ is_personnalise: true, taux: 4.3 });
+    const payload = buildUpdatePayload(buildDefaultValues(employee), employee);
+    expect(payload.specificites_paie?.prelevement_a_la_source).toBeUndefined();
   });
 });
