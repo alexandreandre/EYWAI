@@ -57,7 +57,24 @@ def ensure_config_data(val: Any) -> Any:
 
 
 def charger_db_baremes(supabase) -> Dict[str, Any]:
-    """Lit payroll_config actif et retourne config_key -> config_data."""
+    """Lit payroll_config actif et retourne config_key -> config_data.
+
+    Dans un calcul en lecture seule (le brut d'une prime rejoue le bulletin
+    plusieurs fois, lot 31), les 4 Mo de barèmes ne se décodent qu'une fois.
+    """
+    from app.core.lecture_seule import lire_une_fois
+
+    return lire_une_fois(
+        (
+            "payroll_config",
+            getattr(supabase, "supabase_url", None),
+            getattr(supabase, "supabase_key", None),
+        ),
+        lambda: _lire_db_baremes(supabase),
+    )
+
+
+def _lire_db_baremes(supabase) -> dict[str, Any]:
     configs = (
         supabase.table("payroll_config")
         .select("config_key, config_data")

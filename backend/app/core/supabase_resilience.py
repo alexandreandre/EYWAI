@@ -8,6 +8,8 @@ from typing import Callable, TypeVar
 
 import httpx
 
+from app.core.lecture_seule import ClientHttpSupabase
+
 _TRANSIENT_ERRNOS = frozenset({errno.EAGAIN, errno.EWOULDBLOCK, 35, 11})
 _TRANSIENT_HTTP_STATUSES = frozenset({429, 502, 503, 504, 520, 521, 522, 523, 524})
 _TRANSIENT_MARKERS = (
@@ -57,8 +59,10 @@ def create_supabase_httpx_client() -> httpx.Client:
     Client HTTP partagé pour Supabase.
 
     HTTP/2 désactivé : évite des ReadError [Errno 35] sous charge locale (macOS + httpcore).
+    Dans un calcul en lecture seule (`app.core.lecture_seule`), il garde les
+    lectures et refuse les écritures ; ailleurs, c'est un `httpx.Client`.
     """
-    return httpx.Client(http2=False, timeout=60.0)
+    return ClientHttpSupabase(http2=False, timeout=60.0)
 
 
 def execute_with_retry(

@@ -4,11 +4,14 @@ Requêtes et assemblage de contexte pour les simulations de paie (sans accès HT
 
 from __future__ import annotations
 
+import contextvars
 import json
+import threading
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
+from app.core.logging import get_logger
 from app.shared.domain.effectif_seuils import effectif_retenu
 from app.modules.collective_agreements.application.idcc_resolution import (
     build_convention_collective_payload,
@@ -22,6 +25,8 @@ from app.modules.payroll.engine.baremes_loader import (
     ensure_config_data,
 )
 from app.modules.payroll.infrastructure import simulation_repository
+
+logger = get_logger("modules.payroll.application.simulation_queries")
 
 
 def parse_json_dict(value: Any) -> Dict[str, Any]:
@@ -340,20 +345,21 @@ def brut_d_une_prime_du_salarie(
 ) -> Dict[str, Any]:
     """Le brut d'une prime qui ajoute `net_voulu` au net à payer du mois.
 
-    Chaque essai est le bulletin du mois du salarié calculé en bac à sable
-    (rien n'est écrit), avec ses saisies du mois, plus la prime essayée en
-    mémoire, et les cumuls du mois d'avant lus en base.
+    Chaque essai est le bulletin du mois du salarié calculé en bac à sable,
+    avec ses saisies du mois, plus la prime essayée en mémoire, et les cumuls
+    du mois d'avant lus en base. Toute la recherche se fait en lecture seule
+    (lot 31) : la base est lue au premier bulletin, les essais suivants se
+    calculent en mémoire sur les mêmes données, et rien n'est écrit.
     """
     if not employee_id:
         raise ValueError(
             "Choisissez un salarié : le brut d'une prime se calcule sur son bulletin du mois."
         )
-    load_employee(employee_id, company_id)  # le salarié est bien de la société active
+    from app.core.lecture_seule import lecture_seule
     from app.modules.payroll.application.prime_nette import chercher_brut_de_prime
     from app.modules.payslips.infrastructure.providers import payslip_generator_provider
 
     mois_avant, annee_avant = (month - 1, year) if month > 1 else (12, year - 1)
-    cumuls = simulation_repository.fetch_cumuls_du_mois(employee_id, annee_avant, mois_avant)
 
     def bulletin_avec_prime(montant: float) -> Dict[str, Any]:
         saisies = ()
@@ -375,8 +381,71 @@ def brut_d_une_prime_du_salarie(
         )
         return (resultat or {}).get("payslip_data") or {}
 
-    resultat = chercher_brut_de_prime(net_voulu, bulletin_avec_prime)
+    with lecture_seule():
+        load_employee(employee_id, company_id)  # le salarié est bien de la société active
+        prechargement = _precharger_le_bulletin_du_mois(employee_id, year, month)
+        try:
+            cumuls = simulation_repository.fetch_cumuls_du_mois(
+                employee_id, annee_avant, mois_avant
+            )
+            resultat = chercher_brut_de_prime(
+                net_voulu,
+                bulletin_avec_prime,
+                soumise_a_cotisations=soumise_a_cotisations,
+                soumise_a_impot=soumise_a_impot,
+            )
+        finally:
+            # Rien ne survit au bloc ; d'ordinaire, ces fils ont fini bien avant.
+            for fil in prechargement:
+                fil.join(timeout=ATTENTE_DU_PRECHARGEMENT_S)
     return {**resultat, "month": month, "year": year}
+
+
+#: Au plus, l'attente d'un fil de préchargement après la recherche.
+ATTENTE_DU_PRECHARGEMENT_S = 5.0
+
+
+def _precharger_le_bulletin_du_mois(
+    employee_id: str, year: int, month: int
+) -> list[threading.Thread]:
+    """Lance, en parallèle du premier bulletin, des lectures qui ne dépendent
+    pas du calcul : les soldes de congés du pied de page (une quinzaine de
+    lectures) et les barèmes (dont les 4 Mo de `payroll_config`).
+
+    Chaque fil lit dans la même lecture seule (`copy_context`) : le premier
+    bulletin retrouve ces réponses en mémoire au lieu de les attendre l'une
+    après l'autre. Un échec ne change rien au calcul, qui relit alors.
+    """
+    from app.core.database import get_supabase_admin_client
+    from app.modules.absences.application import queries as absences
+    from app.modules.payroll.engine import baremes_loader
+
+    def soldes_de_conges() -> None:
+        absences.get_absence_balances_for_payslip(employee_id, year, month)
+
+    def baremes() -> None:
+        client = get_supabase_admin_client()
+        baremes_loader.charger_db_baremes(client)
+        baremes_loader.charger_conventions_collectives(client)
+
+    fils = []
+    for lire in (soldes_de_conges, baremes):
+        fil = threading.Thread(
+            target=contextvars.copy_context().run,
+            args=(_lire_sans_bloquer, lire),
+            name="prechargement-bulletin",
+            daemon=True,
+        )
+        fil.start()
+        fils.append(fil)
+    return fils
+
+
+def _lire_sans_bloquer(lire) -> None:
+    try:
+        lire()
+    except Exception:  # noqa: BLE001 — le calcul relira ce qui manque
+        logger.debug("Préchargement du bulletin incomplet", exc_info=True)
 
 
 #: Type d'une simulation de bulletin, tel que la contrainte

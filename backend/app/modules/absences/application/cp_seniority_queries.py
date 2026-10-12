@@ -6,6 +6,7 @@ from datetime import date
 from typing import Any
 
 from app.core.database import supabase
+from app.core.lecture_seule import ecritures_permises
 from app.modules.absences.domain.cp_seniority import (
     CpSenioritySettings,
     EmployeeCpSeniorityContext,
@@ -206,7 +207,10 @@ def compute_and_persist_grant(
     policy: LeavePolicySettings | None = None,
 ) -> dict[str, Any]:
     grant = compute_cp_seniority_grant(settings, ctx, ref_date, policy=policy)
-    if settings.is_active:
+    # Dans un calcul en lecture seule (le brut d'une prime, lot 31), le droit
+    # est calculé de même mais pas enregistré : le pied du bulletin à blanc
+    # l'écrivait à chaque essai.
+    if settings.is_active and ecritures_permises():
         repo.upsert_cp_seniority_grant(
             company_id,
             employee_id,
