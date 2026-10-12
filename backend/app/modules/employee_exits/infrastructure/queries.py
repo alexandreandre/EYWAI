@@ -198,3 +198,35 @@ def update_employee_document(
     if not resp.data:
         return None
     return resp.data[0] if isinstance(resp.data, list) else resp.data
+
+
+def get_active_trial_period(employee_id: str, supabase_client: Any = None) -> Optional[Dict[str, Any]]:
+    """La période d'essai en cours du salarié (une seule par salarié)."""
+    sb = supabase_client or supabase
+    r = (
+        sb.table("trial_periods")
+        .select("id, status, end_date")
+        .eq("employee_id", employee_id)
+        .eq("status", "en_cours")
+        .limit(1)
+        .execute()
+    )
+    rows = r.data or []
+    return rows[0] if rows else None
+
+
+def set_trial_period_status(
+    trial_period_id: str, status: str, *, from_status: str, supabase_client: Any = None
+) -> None:
+    """Passe une période d'essai d'un statut à l'autre (« rompue » par un départ
+    de fin de période d'essai, « en_cours » quand ce départ est supprimé)."""
+    from datetime import datetime, timezone
+
+    sb = supabase_client or supabase
+    (
+        sb.table("trial_periods")
+        .update({"status": status, "updated_at": datetime.now(timezone.utc).isoformat()})
+        .eq("id", trial_period_id)
+        .eq("status", from_status)
+        .execute()
+    )

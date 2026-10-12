@@ -233,7 +233,7 @@ def _jours_fr(valeur: float) -> str:
 
 
 def poser_les_conges_du_preavis(
-    bloc: Dict[str, Any], employee_data: Dict[str, Any], dernier_jour: date
+    bloc: Dict[str, Any], employee_data: Dict[str, Any], dernier_jour: date, *, article: str = "L1234-5"
 ) -> Dict[str, Any]:
     """Préavis (ou délai de prévenance) non exécuté et indemnisé : les congés que
     le salarié aurait acquis jusqu'à sa fin théorique, et l'indemnité, comptés
@@ -259,7 +259,7 @@ def poser_les_conges_du_preavis(
     bloc["calcul"] = (
         f"{bloc.get('calcul') or ''}. Congés acquis pendant ce temps non exécuté : "
         f"{_jours_fr(total)} jours, indemnisés avec les congés payés, et l'indemnité entre dans "
-        "l'assiette du dixième (L1234-5)."
+        f"l'assiette du dixième ({article})."
     )
     return bloc
 
@@ -1260,6 +1260,97 @@ def alertes_age_de_la_retraite(
     ]
 
 
+def _indemnite_delai_prevenance(
+    employee_data: Dict[str, Any],
+    exit_data: Dict[str, Any],
+    hire_date: date,
+    dernier_jour: date,
+    supabase_client,
+) -> Dict[str, Any]:
+    """Fin de période d'essai : le délai de prévenance légal (L1221-25 si
+    l'employeur rompt, L1221-26 si le salarié rompt) et, quand l'employeur ne
+    le respecte pas, l'indemnité compensatrice : les salaires qu'il aurait
+    perçus jusqu'à l'expiration du délai, congés payés compris (L1221-25)."""
+    from app.modules.employee_exits.domain.delai_prevenance import delai_de_prevenance
+
+    notes = _notes(exit_data)
+    initiative = notes.get("probation_ended_by")
+    notification = _date_ou_none(exit_data.get("exit_request_date")) or dernier_jour
+    alertes: list[str] = []
+    fin_essai = _date_ou_none(notes.get("trial_period_end_date"))
+    if fin_essai and notification > fin_essai:
+        alertes.append(
+            f"Rupture notifiée le {notification:%d/%m/%Y}, après la fin de la période d'essai "
+            f"enregistrée ({fin_essai:%d/%m/%Y}) : ce n'est plus une rupture de période d'essai, "
+            "à vérifier."
+        )
+    bloc: Dict[str, Any] = {
+        "montant": 0.0,
+        "description": "Indemnité compensatrice de délai de prévenance (période d'essai)",
+        "alertes": alertes,
+    }
+    if initiative not in ("employer", "employee"):
+        bloc["calcul"] = "Initiative de la rupture non saisie : délai de prévenance non calculé."
+        bloc["alertes"] = alertes + [
+            "Saisissez qui a pris l'initiative de la rupture, l'employeur ou le salarié : le délai "
+            "de prévenance en dépend (L1221-25, L1221-26)."
+        ]
+        return bloc
+    delai = delai_de_prevenance(initiative, hire_date, notification)
+    accordes = delai.jours_accordes(dernier_jour)
+    manquants = delai.jours_non_respectes(dernier_jour)
+    qui = "l'employeur" if initiative == "employer" else "le salarié"
+    calcul = (
+        f"Rupture par {qui} notifiée le {notification:%d/%m/%Y}, après {delai.jours_de_presence} "
+        f"jours de présence : délai de prévenance de {delai.libelle} ({delai.article}), jusqu'au "
+        f"{delai.fin:%d/%m/%Y} ; {accordes} jours jusqu'au dernier jour travaillé."
+    )
+    bloc.update(
+        {
+            "initiative": initiative,
+            "jours_requis": delai.jours,
+            "jours_accordes": accordes,
+            "jours_non_respectes": manquants,
+            "respecte": manquants == 0,
+            "libelle_delai": delai.libelle,
+            "article": delai.article,
+            "fin_du_delai": delai.fin.isoformat(),
+        }
+    )
+    if initiative == "employer" and manquants > 0:
+        if exit_data.get("is_gross_misconduct"):
+            bloc["calcul"] = f"{calcul} Délai non respecté, mais faute grave : pas d'indemnité (L1221-25)."
+            return bloc
+        remuneration, source, alertes_remuneration = _remuneration_du_preavis(
+            employee_data, dernier_jour, supabase_client
+        )
+        montant = round(remuneration / JOURS_PAR_MOIS * manquants, 2)
+        bloc.update(
+            {
+                "montant": montant,
+                "jours_restants": manquants,
+                "salaire_reference": round(remuneration, 2),
+                "calcul": (
+                    f"{calcul} Délai non respecté de {manquants} jours : indemnité compensatrice "
+                    f"due (L1221-25), {_euros(remuneration)} par mois ({source}) / 30 × "
+                    f"{manquants} jours = {_euros(montant)}"
+                ),
+            }
+        )
+        bloc["alertes"] = alertes + alertes_remuneration
+        return poser_les_conges_du_preavis(bloc, employee_data, dernier_jour, article="L1221-25")
+    if initiative == "employer":
+        bloc["calcul"] = f"{calcul} Délai respecté : pas d'indemnité compensatrice."
+    elif manquants > 0:
+        bloc["calcul"] = (
+            f"{calcul} Délai non respecté par le salarié : l'employeur ne lui doit pas d'indemnité "
+            "de prévenance."
+        )
+    else:
+        bloc["calcul"] = f"{calcul} Rupture par le salarié : pas d'indemnité de prévenance."
+    return bloc
+
+
 def _initiative_retraite(exit_data: Dict[str, Any]) -> str:
     """« employer » pour une mise à la retraite, « employee » sinon (départ volontaire)."""
     notes = exit_data.get("exit_notes") if isinstance(exit_data.get("exit_notes"), dict) else {}
@@ -1400,12 +1491,20 @@ def calculer_indemnites_sortie(
             is_gross_misconduct=bool(is_gross_misconduct),
         )
 
+    # 3 bis. Fin de période d'essai : délai de prévenance (L1221-25, L1221-26).
+    indemnite_delai_prevenance = (
+        _indemnite_delai_prevenance(employee_data, exit_data, hire_date, exit_date, supabase_client)
+        if exit_type == "fin_periode_essai"
+        else None
+    )
+
     # 4. Calculer les congés payés restants
     indemnite_conges = calculer_indemnite_conges_restants(
         employee_data,
         exit_data,
         supabase_client,
-        conges_du_preavis=indemnite_preavis.get("conges_du_preavis"),
+        conges_du_preavis=list(indemnite_preavis.get("conges_du_preavis") or [])
+        + list((indemnite_delai_prevenance or {}).get("conges_du_preavis") or []),
     )
 
     # 5. Calculer l'indemnité spécifique selon le type de sortie
@@ -1557,6 +1656,8 @@ def calculer_indemnites_sortie(
 
     # 7. Calculer les totaux
     total_brut = indemnite_preavis["montant"] + indemnite_conges["montant"]
+    if indemnite_delai_prevenance:
+        total_brut += float(indemnite_delai_prevenance.get("montant") or 0.0)
 
     if indemnite_licenciement:
         total_brut += indemnite_licenciement["montant"]
@@ -1612,6 +1713,9 @@ def calculer_indemnites_sortie(
 
     if indemnite_precarite:
         result["indemnite_precarite"] = indemnite_precarite
+    if indemnite_delai_prevenance is not None:
+        # Lu par le bulletin (ligne soumise, congés du délai) et par le reçu.
+        result["indemnite_delai_prevenance"] = indemnite_delai_prevenance
 
     # Départ volontaire (soumis, au brut) ou mise à la retraite (régime des
     # indemnités de rupture) : clés lues par le bulletin et le reçu.

@@ -1379,6 +1379,27 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                         </div>
                       )}
 
+                      {/* Fin de période d'essai : délai de prévenance */}
+                      {indemnities.indemnite_delai_prevenance && (
+                        <div className="p-4 border rounded-lg">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <p className="font-medium">Délai de prévenance</p>
+                              <p className="text-sm text-muted-foreground">
+                                {indemnities.indemnite_delai_prevenance.description}
+                              </p>
+                            </div>
+                            <p className="font-bold text-lg">
+                              {formatCurrency(indemnities.indemnite_delai_prevenance.montant)}
+                            </p>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {indemnities.indemnite_delai_prevenance.calcul}
+                          </p>
+                          <Alertes alertes={indemnities.indemnite_delai_prevenance.alertes} />
+                        </div>
+                      )}
+
                       {/* Indemnité de départ ou de mise à la retraite */}
                       {[indemnities.indemnite_depart_retraite, indemnities.indemnite_mise_retraite]
                         .filter((bloc): bloc is IndemniteRetraite => Boolean(bloc))

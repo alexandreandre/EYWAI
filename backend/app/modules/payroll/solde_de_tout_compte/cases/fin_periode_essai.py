@@ -42,6 +42,15 @@ def generate_fin_periode_essai_solde(
     if notice_period_respected is None:
         notice_period_respected = exit_data.get("notice_period_respected")
 
+    # Le dossier calcule le délai de prévenance (L1221-25, L1221-26) : ses
+    # valeurs priment sur des notes saisies à la main.
+    delai = indemnities.get("indemnite_delai_prevenance") if isinstance(indemnities, dict) else None
+    if isinstance(delai, dict) and delai.get("jours_requis") is not None:
+        probation_ended_by = delai.get("initiative") or probation_ended_by
+        notice_period_required = delai.get("jours_requis")
+        notice_period_given = delai.get("jours_accordes")
+        notice_period_respected = delai.get("respecte")
+
     notice_compensation_due = exit_notes.get(
         "notice_compensation_due"
     ) or exit_data.get("notice_compensation_due")

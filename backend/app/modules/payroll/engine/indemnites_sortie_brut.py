@@ -25,6 +25,9 @@ LIBELLES_SOUMISES = (
     # Départ volontaire à la retraite : soumise aux cotisations, à la CSG/CRDS
     # et à l'impôt pour tout son montant (BOSS, Indemnités de rupture, § 1560).
     ("indemnite_depart_retraite", "Indemnité de départ à la retraite"),
+    # Fin de période d'essai, délai de prévenance non respecté par l'employeur :
+    # les salaires qu'il aurait perçus (L1221-25), DSN 017.
+    ("indemnite_delai_prevenance", "Indemnité compensatrice de délai de prévenance"),
 )
 
 

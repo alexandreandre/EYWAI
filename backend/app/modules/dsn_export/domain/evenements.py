@@ -66,6 +66,10 @@ MOTIFS_AVEC_ENGAGEMENT = {"011", "012", "014", "015", "020", "025", "087", "088"
 #: Indemnités de rupture (S21.G00.52, codes 001 à 025) : elles ne
 #: s'ajoutent pas au salaire brut chômage (002).
 INDEMNITES_RUPTURE: List[Tuple[Tuple[str, ...], str]] = [
+    # Rupture de période d'essai, délai de prévenance non respecté (cahier
+    # technique 2026.1 : « 017 - Dommages et intérêts dus [...] à une rupture de
+    # période d'essai (délai de prévenance) »).
+    (("délai de prévenance", "delai de prevenance"), "017"),
     (("précarité", "precarite"), "011"),
     (("compensatrice de congés", "compensatrice de conges", "ind.de cp des cdd", "indemnité de cp des cdd"), "020"),
     (("compensatrice de préavis", "compensatrice de preavis"), "023"),
@@ -385,6 +389,13 @@ def bloc_fin_contrat(
         ):
             # Mise à la retraite par l'employeur (cahier technique 2026.1, 038).
             motif = MOTIF_RUPTURE["mise_retraite"]
+        if (
+            type_sortie == "fin_periode_essai"
+            and isinstance(notes, dict)
+            and notes.get("probation_ended_by") == "employee"
+        ):
+            # Fin de période d'essai à l'initiative du salarié (cahier technique 2026.1, 035).
+            motif = "035"
         if type_sortie == "fin_cdd" and apprentissage:
             motif = "081"
     else:

@@ -314,6 +314,17 @@ export interface ExitIndemnityCalculation {
   indemnite_depart_retraite?: IndemniteRetraite;
   indemnite_mise_retraite?: IndemniteRetraite;
 
+  /** Fin de période d'essai : délai de prévenance (L1221-25, L1221-26). */
+  indemnite_delai_prevenance?: {
+    montant: number;
+    description: string;
+    calcul: string;
+    jours_requis?: number;
+    jours_accordes?: number;
+    respecte?: boolean;
+    alertes?: string[];
+  };
+
   // Totaux
   total_gross_indemnities: number;
   /** Plus calculé : le net est celui du bulletin de sortie. */
@@ -360,6 +371,8 @@ export interface CreateEmployeeExitRequest {
   indemnite_conventionnelle?: number | null;
   /** Rupture conventionnelle : le salarié peut liquider une pension de retraite de base. */
   pension_liquidable?: boolean;
+  /** Fin de période d'essai : qui rompt (délai de prévenance L1221-25 ou L1221-26). */
+  probation_ended_by?: 'employer' | 'employee';
 }
 
 export interface UpdateEmployeeExitRequest {

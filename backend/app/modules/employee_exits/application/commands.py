@@ -31,6 +31,8 @@ from app.modules.employee_exits.application.queries import (
     _stored_edit_history,
 )
 from app.modules.employee_exits.infrastructure.queries import (
+    get_active_trial_period,
+    set_trial_period_status,
     get_employee_by_id,
     get_company_by_id,
     get_employee_full,
@@ -93,6 +95,8 @@ def notes_du_dossier_a_la_creation(exit_type: str, exit_data: Dict[str, Any]) ->
         notes["indemnite_conventionnelle"] = round(float(conventionnelle), 2)
     if exit_type == "rupture_conventionnelle" and exit_data.get("pension_liquidable"):
         notes["pension_liquidable"] = True
+    if exit_type == "fin_periode_essai" and exit_data.get("probation_ended_by"):
+        notes["probation_ended_by"] = exit_data["probation_ended_by"]
     return notes or None
 
 
@@ -138,6 +142,18 @@ def create_employee_exit(
         notice_start = exit_request_date
         notice_end = exit_request_date + timedelta(days=exit_data["notice_period_days"])
 
+    exit_notes = notes_du_dossier_a_la_creation(exit_type, exit_data)
+    # Fin de période d'essai : la période suivie passe « rompue » ([H13]).
+    periode_d_essai = (
+        get_active_trial_period(employee_id, sb) if exit_type == "fin_periode_essai" else None
+    )
+    if periode_d_essai:
+        exit_notes = {
+            **(exit_notes or {}),
+            "trial_period_id": periode_d_essai["id"],
+            "trial_period_end_date": periode_d_essai.get("end_date"),
+        }
+
     record = build_exit_record(
         company_id=company_id,
         employee_id=employee_id,
@@ -156,12 +172,14 @@ def create_employee_exit(
         notice_end_date=notice_end.isoformat() if notice_end else None,
         exit_reason=exit_data.get("exit_reason"),
         initiated_by=current_user_id,
-        exit_notes=notes_du_dossier_a_la_creation(exit_type, exit_data),
+        exit_notes=exit_notes,
     )
     exit_repo = EmployeeExitRepository(sb)
     created = exit_repo.create(record)
     exit_id = created["id"]
     logger.info(f'✓ Sortie créée: {exit_id} (statut: {initial_status})')
+    if periode_d_essai:
+        set_trial_period_status(periode_d_essai["id"], "rompue", from_status="en_cours", supabase_client=sb)
 
     update_employee_employment_status(employee_id, "en_sortie", exit_id, sb)
     logger.info(f"✓ Employé {employee['first_name']} {employee['last_name']} marqué 'en_sortie'")
@@ -247,6 +265,18 @@ def create_reconciliation_exit(
 
     exit_type_norm = exit_type
     initial_status = get_initial_status(exit_type_norm)
+    exit_notes = notes_du_dossier_a_la_creation(exit_type, exit_data)
+    # Fin de période d'essai : la période suivie passe « rompue » ([H13]).
+    periode_d_essai = (
+        get_active_trial_period(employee_id, sb) if exit_type == "fin_periode_essai" else None
+    )
+    if periode_d_essai:
+        exit_notes = {
+            **(exit_notes or {}),
+            "trial_period_id": periode_d_essai["id"],
+            "trial_period_end_date": periode_d_essai.get("end_date"),
+        }
+
     record = build_exit_record(
         company_id=company_id,
         employee_id=employee_id,
@@ -917,6 +947,12 @@ def delete_employee_exit(
             logger.warning(f'⚠ Erreur suppression bucket: {e}')
     exit_repo.delete(exit_id, company_id)
     update_employee_employment_status(str(employee_id), "actif", None, sb)
+    # La période d'essai rompue par ce départ redevient en cours.
+    notes = existing.get("exit_notes") if isinstance(existing.get("exit_notes"), dict) else {}
+    if existing.get("exit_type") == "fin_periode_essai" and notes.get("trial_period_id"):
+        set_trial_period_status(
+            str(notes["trial_period_id"]), "en_cours", from_status="rompue", supabase_client=sb
+        )
     logger.info(f'✓ Sortie {exit_id} supprimée')
 
 

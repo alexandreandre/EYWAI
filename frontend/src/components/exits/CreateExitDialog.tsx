@@ -50,6 +50,11 @@ import {
   AIDE_PENSION_LIQUIDABLE,
   LIBELLE_PENSION_LIQUIDABLE,
 } from '@/features/employee-exits/utils/pensionLiquidable';
+import {
+  AIDE_DELAI_PREVENANCE,
+  OPTIONS_INITIATIVE_ESSAI,
+  type InitiativeEssai,
+} from '@/features/employee-exits/utils/periodeEssai';
 import { AlertCircle, Info, Loader2 } from 'lucide-react';
 
 interface CreateExitDialogProps {
@@ -100,6 +105,7 @@ export function CreateExitDialog({
   );
   const [indemniteConventionnelle, setIndemniteConventionnelle] = useState<string>('');
   const [pensionLiquidable, setPensionLiquidable] = useState(false);
+  const [initiativeEssai, setInitiativeEssai] = useState<InitiativeEssai | ''>('');
 
   const selectedEmployee = employees.find((emp) => emp.id === employeeId);
   // Salarié présélectionné (bandeau de la Paie) absent de la liste : le dire,
@@ -124,6 +130,7 @@ export function CreateExitDialog({
     setInitiativeRetraite(INITIATIVE_RETRAITE_PAR_DEFAUT);
     setIndemniteConventionnelle('');
     setPensionLiquidable(false);
+    setInitiativeEssai('');
     setNoticePreview(null);
     setNoticePreviewError(null);
     noticeManuallyEdited.current = false;
@@ -277,6 +284,15 @@ export function CreateExitDialog({
       return;
     }
 
+    if (exitType === 'fin_periode_essai' && !initiativeEssai) {
+      toast({
+        title: 'Erreur',
+        description: "Indiquez qui rompt la période d'essai : le délai de prévenance en dépend.",
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const conventionnelle = indemniteConventionnelleSaisissable(exitType)
       ? lireMontantNegocie(indemniteConventionnelle)
       : { valeur: null };
@@ -300,6 +316,7 @@ export function CreateExitDialog({
         ...(exitType === 'depart_retraite' ? { retirement_initiator: initiativeRetraite } : {}),
         ...(conventionnelle.valeur !== null ? { indemnite_conventionnelle: conventionnelle.valeur } : {}),
         ...(exitType === 'rupture_conventionnelle' && pensionLiquidable ? { pension_liquidable: true } : {}),
+        ...(exitType === 'fin_periode_essai' && initiativeEssai ? { probation_ended_by: initiativeEssai } : {}),
       };
 
       await createEmployeeExit(data);
@@ -423,7 +440,11 @@ export function CreateExitDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="exit_request_date">Date de demande/notification *</Label>
+            <Label htmlFor="exit_request_date">
+              {exitType === 'fin_periode_essai'
+                ? 'Date de notification de la rupture *'
+                : 'Date de demande/notification *'}
+            </Label>
             <Input
               id="exit_request_date"
               type="date"
@@ -547,6 +568,28 @@ export function CreateExitDialog({
                 </Select>
               </div>
             </>
+          )}
+
+          {exitType === 'fin_periode_essai' && (
+            <div className="space-y-2">
+              <Label htmlFor="probation_ended_by">Rupture à l&apos;initiative de *</Label>
+              <Select
+                value={initiativeEssai}
+                onValueChange={(value: InitiativeEssai) => setInitiativeEssai(value)}
+              >
+                <SelectTrigger id="probation_ended_by">
+                  <SelectValue placeholder="Choisir" />
+                </SelectTrigger>
+                <SelectContent>
+                  {OPTIONS_INITIATIVE_ESSAI.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">{AIDE_DELAI_PREVENANCE}</p>
+            </div>
           )}
 
           {exitType === 'depart_retraite' && (

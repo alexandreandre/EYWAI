@@ -94,6 +94,10 @@ class EmployeeExitCreate(BaseModel):
     # Rupture conventionnelle : le salarié peut liquider une pension de retraite
     # de base (indemnité imposable dès le premier euro, BOSS § 940).
     pension_liquidable: Optional[bool] = None
+    # Fin de période d'essai : qui rompt (délai de prévenance L1221-25 si
+    # l'employeur, L1221-26 si le salarié ; DSN 034 ou 035). Rangé dans
+    # `exit_notes.probation_ended_by`, que lisent le calcul, le reçu et la DSN.
+    probation_ended_by: Optional[Literal["employer", "employee"]] = None
 
     class Config:
         json_schema_extra = {
