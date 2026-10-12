@@ -16,3 +16,13 @@ describe("un seul mot pour un titre sans date ([D6-2], 12/10/2026)", () => {
     });
   }
 });
+
+describe("la case « Soumis à titre de séjour » en mode paie ([D6-5], 12/10/2026)", () => {
+  // La section n'apparaissait que case déjà cochée : en mode paie, impossible de la cocher.
+  const texte = lire("features/employee-detail/components/EmployeeProfileEditForm.tsx");
+
+  it("la section n'est plus conditionnée au mode paie", () => {
+    expect(texte).not.toContain("(!payrollFocus || isResidencePermit) &&");
+    expect(texte).toContain("Soumis à titre de séjour");
+  });
+});
