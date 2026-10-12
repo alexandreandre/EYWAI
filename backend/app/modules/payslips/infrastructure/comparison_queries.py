@@ -191,6 +191,7 @@ def mark_payslip_validated(payslip_id: str, user_id: str) -> dict[str, Any]:
 
     from app.modules.payslips.infrastructure.anomaly_cleanup import (
         strip_engine_alerts_from_payslip_data,
+        trace_des_alertes_moteur,
     )
 
     now = datetime.now(timezone.utc).isoformat()
@@ -209,6 +210,11 @@ def mark_payslip_validated(payslip_id: str, user_id: str) -> dict[str, Any]:
     pdata = current.data.get("payslip_data") if current and current.data else None
     if isinstance(pdata, dict):
         cleaned = strip_engine_alerts_from_payslip_data(pdata)
+        # Retirées du bulletin, gardées en trace : ce qui a été validé malgré
+        # elles reste lisible [J3]. La validation n'est pas bloquée.
+        trace = trace_des_alertes_moteur(pdata, quand=now, par=user_id)
+        if trace:
+            cleaned["alertes_a_la_validation"] = trace
         if cleaned != pdata:
             payload["payslip_data"] = cleaned
 
