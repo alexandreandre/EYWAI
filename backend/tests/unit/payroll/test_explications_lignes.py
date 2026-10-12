@@ -292,3 +292,68 @@ def test_les_montants_restent_identiques():
     assert sans_explication(pose) == avant
     assert pose["salaire_brut"] == 1999.99
     assert pose["net_a_payer"] == 1500.01
+
+
+# --- Deux SMIC sur le bulletin : chacun nommé ----------------------------------
+#
+# Relevé I.3 du 12/10/2026 : 12,31 € au pied (« SMIC horaire »), 12,02 € dans la
+# réduction (SMIC du 1er janvier, que la RGDU 2026 retient pour toute l'année),
+# sans que rien ne dise lequel est lequel.
+
+
+def _reduction(mois: int, smic_pied: float = 12.31) -> dict:
+    ligne = {
+        "libelle": "Réduction générale de cotisations patronales",
+        "coti_id": "reduction_generale",
+        "montant_patronal": -581.91,
+        "base": 2100.0,
+    }
+    return _bulletin(
+        en_tete={"annee": 2026, "mois": mois},
+        parametres={"smic_horaire": smic_pied},
+        structure_cotisations={"bloc_allegements": [ligne]},
+        cotisations_officielles=[{"code": "exonerations", "libelle": "EXO", "lignes": [dict(ligne)]}],
+    )
+
+
+SMIC_NOMMES = (
+    "Calculée sur le SMIC du 1er janvier 2026 : 12,02 € de l'heure. "
+    "Le SMIC horaire du pied du bulletin (12,31 €) est celui en vigueur ce mois."
+)
+
+
+def test_la_reduction_nomme_son_smic_et_celui_du_pied():
+    pose = poser_explications(_reduction(10), reduction_deja=0.0, smic_reference_horaire=12.02)
+    attendu = f"Réduction générale : {SMIC_NOMMES[0].lower()}{SMIC_NOMMES[1:]}"
+    assert pose["structure_cotisations"]["bloc_allegements"][0]["explication"] == attendu
+    assert pose["cotisations_officielles"][0]["lignes"][0]["explication"] == attendu
+
+
+def test_regularisation_et_smic_de_reference():
+    pose = poser_explications(_reduction(10), reduction_deja=581.91, smic_reference_horaire=12.02)
+    assert pose["structure_cotisations"]["bloc_allegements"][0]["explication"] == (
+        f"Réduction générale : régularisation depuis janvier. {SMIC_NOMMES}"
+    )
+
+
+def test_un_seul_smic_pas_de_phrase_sur_le_pied():
+    pose = poser_explications(
+        _reduction(1, smic_pied=12.02), reduction_deja=0.0, smic_reference_horaire=12.02
+    )
+    assert pose["structure_cotisations"]["bloc_allegements"][0]["explication"] == (
+        "Réduction générale : calculée sur le SMIC du 1er janvier 2026 : 12,02 € de l'heure."
+    )
+
+
+def test_le_moteur_donne_le_smic_du_1er_janvier_pour_la_rgdu():
+    from types import SimpleNamespace
+
+    from app.modules.payroll.engine.calcul_reduction_generale import (
+        smic_de_reference_pour_explication,
+    )
+
+    baremes = {"smic": {"historique": [{"date_debut": "2026-01-01", "cas_general": 12.02}]}}
+    assert smic_de_reference_pour_explication(SimpleNamespace(baremes=baremes), 2026) == 12.02
+    # Fillon (avant 2026) ou historique sans 1er janvier : rien n'est affirmé.
+    assert smic_de_reference_pour_explication(SimpleNamespace(baremes=baremes), 2025) is None
+    assert smic_de_reference_pour_explication(SimpleNamespace(baremes={}), 2026) is None
