@@ -4,7 +4,7 @@ import { Percent } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Employee } from '@/features/employee-detail/types';
 import { getPasHistorique } from '@/api/pasRates';
-import { periodeDuTaux } from '@/features/pas-rates/lib/statutsPas';
+import { origineDuTaux, periodeDuTaux } from '@/features/pas-rates/lib/statutsPas';
 import { libelleTauxFiche } from '@/lib/tauxPasFiche';
 
 interface EmployeePasSettingsCardProps {
@@ -21,21 +21,6 @@ function readPasSettings(employee: Employee) {
     typeTaux: pas?.type_taux ?? null,
     periode: pas?.periode ?? null,
   };
-}
-
-/**
- * D'où vient le taux appliqué.
- *
- * La nomenclature DSN distingue le taux personnalisé que la DGFiP transmet
- * (01) du barème appliqué en attendant sa réponse (13). La distinction compte :
- * un salarié au barème n'est pas mal paramétré, il attend son premier compte
- * rendu métier.
- */
-function origineLibelle(typeTaux: string | null): string | null {
-  if (!typeTaux) return null;
-  if (typeTaux === '01') return 'Taux transmis par la DGFiP';
-  if (typeTaux === '13') return 'Taux barème, en attente du taux DGFiP';
-  return `Type de taux ${typeTaux}`;
 }
 
 function periodeLibelle(periode: string | null): string | null {
@@ -68,6 +53,7 @@ export function EmployeePasSettingsCard({ employeeId, employee }: EmployeePasSet
   const current = {
     ...pasDeLaFiche,
     periode: periodeDuTaux({ periode: pasDeLaFiche.periode }, historique),
+    origine: origineDuTaux(pasDeLaFiche.typeTaux, historique),
   };
 
   return (
@@ -86,9 +72,7 @@ export function EmployeePasSettingsCard({ employeeId, employee }: EmployeePasSet
           <p className="font-medium tabular-nums">
             {current.libelle}
           </p>
-          {origineLibelle(current.typeTaux) ? (
-            <p className="text-muted-foreground">{origineLibelle(current.typeTaux)}</p>
-          ) : null}
+          {current.origine ? <p className="text-muted-foreground">{current.origine}</p> : null}
           {periodeLibelle(current.periode) ? (
             <p className="text-xs text-muted-foreground">
               {periodeLibelle(current.periode)}

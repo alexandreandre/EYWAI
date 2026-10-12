@@ -45,3 +45,23 @@ export function periodeDuTaux(
     .sort();
   return periodes.at(-1) ?? bloc?.periode ?? null;
 }
+
+/**
+ * D'où vient le taux, dit sur la fiche. Le crayon de la page des taux écrit un
+ * type 01 : sans l'historique, un taux tapé au clavier se présentait comme
+ * transmis par la DGFiP ([B2], 12/10/2026).
+ */
+export function origineDuTaux(
+  typeTaux: string | null | undefined,
+  historique: { periode?: string | null; source?: string | null }[] | null | undefined,
+): string | null {
+  const dernier = [...(historique ?? [])]
+    .filter((l) => typeof l.periode === 'string' && l.periode)
+    .sort((a, b) => String(a.periode).localeCompare(String(b.periode)))
+    .at(-1);
+  if (dernier?.source === 'manuel') return 'Saisie manuelle';
+  if (!typeTaux) return null;
+  if (typeTaux === '01') return 'Taux transmis par la DGFiP';
+  if (typeTaux === '13') return 'Taux barème, en attente du taux DGFiP';
+  return `Type de taux ${typeTaux}`;
+}
