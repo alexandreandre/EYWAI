@@ -592,3 +592,58 @@ def test_les_lectures_des_bulletins_rendent_leur_statut():
     from app.modules.payroll.infrastructure import empreinte_entrees_queries as q
 
     assert "status" in q._EMPREINTES_DES_BULLETINS
+
+
+# --- Adresse de la société ([B8], 12/10/2026) -----------------------------------
+#
+# Le moteur lit le code postal (zone du barème du prélèvement à la source) et la
+# ville (versement mobilité, à partir de 11 salariés) ; l'empreinte ne lisait ni
+# l'un ni l'autre. Partie nouvelle : un bulletin calculé avant elle n'en a pas et
+# ne passe pas « À recalculer » pour autant.
+
+
+def _societe(code_postal="69100", ville="VILLEURBANNE", effectif=5):
+    return {
+        **COMPANY,
+        "adresse_code_postal": code_postal,
+        "adresse_ville": ville,
+        "settings": {**COMPANY["settings"], "effectif_seuils": {"2026": effectif}},
+    }
+
+
+def _adresse_change(avant, apres):
+    a = _du_mois(company=avant).get("adresse_societe")
+    b = _du_mois(company=apres).get("adresse_societe")
+    assert a is not None and b is not None
+    return empreinte_partie(a) != empreinte_partie(b)
+
+
+def test_un_code_postal_d_une_autre_zone_du_pas_perime_le_bulletin():
+    assert _adresse_change(_societe(code_postal="69100"), _societe(code_postal="97200"))
+
+
+def test_un_code_postal_de_la_meme_zone_ne_perime_rien():
+    assert not _adresse_change(_societe(code_postal="69100"), _societe(code_postal="75001"))
+
+
+def test_la_ville_compte_a_partir_de_11_salaries():
+    assert _adresse_change(_societe(ville="LYON", effectif=12), _societe(ville="BRON", effectif=12))
+
+
+def test_la_ville_ne_compte_pas_sous_11_salaries():
+    assert not _adresse_change(_societe(ville="LYON", effectif=5), _societe(ville="BRON", effectif=5))
+
+
+def test_un_bulletin_calcule_avant_cette_partie_n_est_pas_perime():
+    from app.modules.payroll.domain.empreinte_entrees import parties_changees
+
+    actuelles = {"mutuelle": "h1", "adresse_societe": "h2"}
+    assert parties_changees({"mutuelle": "h1"}, actuelles) == ()
+
+
+def test_l_adresse_se_nomme_quand_elle_perime_le_bulletin():
+    from app.modules.payroll.domain.empreinte_entrees import message_a_recalculer
+
+    assert message_a_recalculer(("adresse_societe",)) == (
+        "L'adresse de la société a changé depuis le calcul : recalculez avant de valider."
+    )
