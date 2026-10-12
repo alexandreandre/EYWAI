@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AIDE_STATUT_PAS, periodeDuTaux, resumeCompteursPas } from '@/features/pas-rates/lib/statutsPas';
+import { AIDE_STATUT_PAS, origineDuTaux, periodeDuTaux, resumeCompteursPas } from '@/features/pas-rates/lib/statutsPas';
 
 describe('statut et compteurs des taux sur la page ([B3], 12/10/2026)', () => {
   it('résume les compteurs du plus alarmant au plus rassurant, sans les zéros', () => {
@@ -37,5 +37,20 @@ describe('période du taux sur la fiche ([B3])', () => {
   it('sans historique, la date du bloc ; sans rien, aucune', () => {
     expect(periodeDuTaux({ taux: 4.3, periode: '2026-03' }, [])).toBe('2026-03');
     expect(periodeDuTaux({ taux: 4.3 }, undefined)).toBeNull();
+  });
+});
+
+describe('origine du taux sur la fiche ([B2], 12/10/2026)', () => {
+  // Le crayon de la page écrit un type 01 : la fiche le présentait comme transmis par la DGFiP.
+  it('un taux tapé au crayon se dit « Saisie manuelle »', () => {
+    expect(origineDuTaux('01', [{ periode: '2026-09', source: 'dsn' }, { periode: '2026-10', source: 'manuel' }])).toBe(
+      'Saisie manuelle',
+    );
+  });
+
+  it('sinon, l’origine du type de taux', () => {
+    expect(origineDuTaux('01', [{ periode: '2026-09', source: 'dsn' }])).toBe('Taux transmis par la DGFiP');
+    expect(origineDuTaux('13', [])).toBe('Taux barème, en attente du taux DGFiP');
+    expect(origineDuTaux(null, undefined)).toBeNull();
   });
 });
