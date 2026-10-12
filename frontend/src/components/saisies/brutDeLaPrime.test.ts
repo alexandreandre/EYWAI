@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { phraseBrutDeLaPrime, requeteBrutDeLaPrime } from './brutDeLaPrime';
+import {
+  explicationAffichee,
+  phraseBrutDeLaPrime,
+  requeteBrutDeLaPrime,
+} from './brutDeLaPrime';
 
 // Lot 30 : la fenêtre des primes envoyait le net voulu POUR LA PRIME au calcul
 // inverse d'un bulletin entier (127,60 € proposés pour 100 € nets, quel que
@@ -68,5 +72,27 @@ describe('la fenêtre dit ce que le brut proposé représente', () => {
     expect(espaces(phraseBrutDeLaPrime({ ...resultat, month: 5 }))).toContain(
       'net à payer de mai 2026'
     );
+  });
+});
+
+describe('la phrase ne survit pas à ce qu’elle décrit', () => {
+  const calcul = {
+    texte: 'Une prime de 129,27 € bruts ajoute 100,00 €…',
+    montant: 129.27,
+    soumiseACotisations: true,
+    soumiseAImpot: true,
+  };
+  const saisie = { amount: 129.27, is_socially_taxed: true, is_taxable: true };
+
+  it('reste tant que le montant et les cases sont ceux du calcul', () => {
+    expect(explicationAffichee(calcul, saisie)).toBe(calcul.texte);
+  });
+
+  it('s’efface si le montant est retouché, si une case change, ou sans calcul', () => {
+    expect(explicationAffichee(calcul, { ...saisie, amount: 130 })).toBeNull();
+    expect(explicationAffichee(calcul, { ...saisie, amount: '' })).toBeNull();
+    expect(explicationAffichee(calcul, { ...saisie, is_taxable: false })).toBeNull();
+    expect(explicationAffichee(calcul, { ...saisie, is_socially_taxed: false })).toBeNull();
+    expect(explicationAffichee(null, saisie)).toBeNull();
   });
 });
