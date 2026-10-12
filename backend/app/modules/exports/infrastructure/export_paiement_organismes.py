@@ -7,10 +7,15 @@ from typing import Any, Dict, List, Optional
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 
+from app.core.database import supabase
 from app.modules.exports.infrastructure.export_charges_sociales import (
     get_charges_sociales_data,
 )
+from app.shared.domain.effectif_seuils import effectif_retenu
 from app.shared.utils.export import generate_csv
+
+#: Seuil de l'échéance Urssaf : sous 50 salariés, les cotisations de M se paient le 15 de M+1.
+SEUIL_ECHEANCE_MENSUELLE = 50
 
 HEADERS = [
     "Organisme",
@@ -24,12 +29,39 @@ HEADERS = [
 ]
 
 
+def _charger_societe(company_id: str) -> Dict[str, Any]:
+    """Effectif et réglages de la société (lecture seule)."""
+    reponse = (
+        supabase.table("companies")
+        .select("effectif, settings")
+        .eq("id", company_id)
+        .execute()
+    )
+    lignes = reponse.data or []
+    return lignes[0] if lignes else {}
+
+
+def _effectif_des_seuils(company_id: str, period: str) -> int:
+    """L'effectif des seuils de l'année de la période (saisi dans les paramètres de paie)."""
+    annee = int(period.split("-")[0])
+    return effectif_retenu(_charger_societe(company_id), annee).valeur
+
+
+def _echeance(period: str, effectif: int) -> str:
+    """Sous 50 salariés : le 15 du mois suivant. À 50 et plus : inchangée (le 15 du
+    mois de paie), en attendant la décision sur le 5 ou le 15 de M+1."""
+    year, month = map(int, period.split("-"))
+    if effectif < SEUIL_ECHEANCE_MENSUELLE:
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+    return f"{year}-{month:02d}-15"
+
+
 def _build_payment_rows(
     detail_rows: List[Dict[str, Any]],
     period: str,
+    effectif: int,
 ) -> List[Dict[str, Any]]:
-    year, month = map(int, period.split("-"))
-    echeance = f"{year}-{month:02d}-15"
+    echeance = _echeance(period, effectif)
     rows: List[Dict[str, Any]] = []
     for item in detail_rows:
         total = float(item.get("Total cotisations", 0) or 0)
@@ -61,8 +93,14 @@ def preview_paiement_organismes(
     detail_rows, summary_rows, totals = get_charges_sociales_data(
         company_id, period, employee_ids
     )
-    payment_rows = _build_payment_rows(detail_rows, period)
+    effectif = _effectif_des_seuils(company_id, period)
+    payment_rows = _build_payment_rows(detail_rows, period, effectif)
     warnings: List[str] = []
+    if effectif >= SEUIL_ECHEANCE_MENSUELLE:
+        warnings.append(
+            "Société de 50 salariés ou plus : l'échéance (le 15 du mois de paie) est à "
+            "confirmer, la date dépend de la date de paiement des salaires."
+        )
     if not payment_rows:
         warnings.append("Aucune cotisation à payer pour cette période.")
     return {
@@ -88,7 +126,7 @@ def generate_paiement_organismes_export(
     detail_rows, _, _ = get_charges_sociales_data(
         company_id, period, employee_ids
     )
-    rows = _build_payment_rows(detail_rows, period)
+    rows = _build_payment_rows(detail_rows, period, _effectif_des_seuils(company_id, period))
     if file_format == "xlsx":
         wb = Workbook()
         ws = wb.active
