@@ -45,18 +45,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
 import { accord, pluriel } from '@/lib/pluriel';
+import { REGLES_SANS_MONTANT, RULE_TYPE_LABELS } from '@/features/company/lib/reglesVariables';
 
-const RULE_TYPE_LABELS: Record<string, string> = {
-  fixed_monthly: 'Montant fixe mensuel',
-  per_astreinte_week: 'Par semaine d\'astreinte (simple)',
-  per_astreinte_week_tiered: 'Astreinte hebdo (Noël / pont)',
-  per_astreinte_weekend_majoration: 'Majoration astreinte WE',
-  per_shift_type: 'Par type de poste',
-  per_modulation_payout: 'Prime liquidation modulation',
-  per_night_hour: 'Par heure de nuit',
-  per_astreinte_weekend_km: 'Indemnité km astreinte',
-  per_week_without_absence: 'Par semaine sans absence',
-};
 
 const DEFAULT_ASTREINTE_TIERED: AstreinteWeekTieredConditions = {
   amount_normal: 176.18,
@@ -179,7 +169,7 @@ export default function PayrollVariableRulesCard() {
   const isTiered = draft.rule_type === 'per_astreinte_week_tiered';
   const isWeekendMaj = draft.rule_type === 'per_astreinte_weekend_majoration';
   const isPresenceWeek = draft.rule_type === 'per_week_without_absence';
-  const noAmountRule = isAstreinteKm || isTiered || isWeekendMaj;
+  const noAmountRule = REGLES_SANS_MONTANT.has(draft.rule_type);
   const astreinteConditions = (draft.conditions ?? {}) as AstreinteKmRuleConditions;
   const tieredConditions = (draft.conditions ?? {}) as AstreinteWeekTieredConditions;
   const weekendMajConditions = (draft.conditions ?? {}) as AstreinteWeekendMajorationConditions;
@@ -503,6 +493,10 @@ export default function PayrollVariableRulesCard() {
                     conditions = { ...DEFAULT_ASTREINTE_WEEKEND_MAJ };
                     generation_mode = 'suggest';
                     amount = null;
+                  } else if (rt === 'transport_domicile_travail') {
+                    // Le montant vient de la fiche de chaque bénéficiaire.
+                    conditions = {};
+                    amount = null;
                   } else if (rt === 'per_week_without_absence') {
                     conditions = { absence_types: [], amount_per_week: 6 };
                     generation_mode = 'auto';
@@ -527,7 +521,9 @@ export default function PayrollVariableRulesCard() {
             </div>
             <div className="space-y-2">
               <Label>
-                {noAmountRule
+                {draft.rule_type === 'transport_domicile_travail'
+                  ? 'Montant (celui de la fiche de chaque salarié)'
+                  : noAmountRule
                   ? 'Montant (calculé auto)'
                   : isPresenceWeek
                     ? 'Montant hebdomadaire (€)'
@@ -537,7 +533,13 @@ export default function PayrollVariableRulesCard() {
                 type="number"
                 disabled={noAmountRule}
                 value={noAmountRule ? '' : (draft.amount ?? 0)}
-                placeholder={noAmountRule ? 'Voir conditions ci-dessous' : undefined}
+                placeholder={
+                  draft.rule_type === 'transport_domicile_travail'
+                    ? 'Indemnité de trajet de la fiche'
+                    : noAmountRule
+                      ? 'Voir conditions ci-dessous'
+                      : undefined
+                }
                 onChange={(e) =>
                   setDraft({ ...draft, amount: Number(e.target.value) || 0 })
                 }

@@ -59,6 +59,7 @@ import {
 import { mutuelleTypesApi, MutuelleType } from "@/api/mutuelleTypes";
 import { getPscSettings } from "@/api/pscSettings";
 import { MutuelleSelectionField } from "@/components/mutuelle/MutuelleSelectionField";
+import { AIDE_INDEMNITE_TRAJET, LIBELLE_INDEMNITE_TRAJET } from "@/features/company/lib/reglesVariables";
 import { filterMutuellesForEmployee, isEmployeeCadre } from "@/lib/mutuelleUtils";
 import { PrevoyanceAffiliationFields } from "@/features/employees/components/PrevoyanceAffiliationFields";
 import * as collectiveAgreementsApi from "@/api/collectiveAgreements";
@@ -1625,11 +1626,9 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                               name="specificites_paie.transport.indemnite_mensuelle_nette"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel>Indemnité transport contractuelle (€ net/mois)</FormLabel>
+                                  <FormLabel>{LIBELLE_INDEMNITE_TRAJET}</FormLabel>
                                   <FormControl><Input type="number" step="any" {...field} /></FormControl>
-                                  <p className="text-xs text-muted-foreground">
-                                    Montant fixe au contrat, versé en net chaque mois.
-                                  </p>
+                                  <p className="text-xs text-muted-foreground">{AIDE_INDEMNITE_TRAJET}</p>
                                 </FormItem>
                               )}
                             />

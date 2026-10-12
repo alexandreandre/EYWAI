@@ -32,6 +32,7 @@ import { normalizeNir } from '@/features/employee-detail/components/employeeProf
 import type { EmployeeProfileEditFormValues } from '@/features/employee-detail/components/employeeProfileEditSchema';
 import { queryKeys } from '@/lib/queryKeys';
 import { MutuelleSelectionField } from '@/components/mutuelle/MutuelleSelectionField';
+import { AIDE_INDEMNITE_TRAJET, LIBELLE_INDEMNITE_TRAJET } from '@/features/company/lib/reglesVariables';
 import {
   filterMutuellesForEmployee,
 } from '@/lib/mutuelleUtils';
@@ -772,7 +773,7 @@ export function EmployeeProfileEditForm({
               name="specificites_paie.transport.indemnite_mensuelle_nette"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Indemnité trajet domicile-travail (€ net/mois)</FormLabel>
+                  <FormLabel>{LIBELLE_INDEMNITE_TRAJET}</FormLabel>
                   <FormControl>
                     <Input
                       {...field}
@@ -782,10 +783,7 @@ export function EmployeeProfileEditForm({
                       onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
                     />
                   </FormControl>
-                  <p className="text-xs text-muted-foreground">
-                    Montant prévu à l'avenant. Proposé chaque mois dans Saisies &gt; Primes,
-                    proratisé à l'entrée et à la sortie, retiré en cas d'absence sur tout le mois.
-                  </p>
+                  <p className="text-xs text-muted-foreground">{AIDE_INDEMNITE_TRAJET}</p>
                   <FormMessage />
                 </FormItem>
               )}

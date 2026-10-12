@@ -9,7 +9,8 @@ export type PayrollVariableRuleType =
   | 'per_astreinte_weekend_km'
   | 'per_astreinte_week_tiered'
   | 'per_astreinte_weekend_majoration'
-  | 'per_week_without_absence';
+  | 'per_week_without_absence'
+  | 'transport_domicile_travail';
 
 export interface PresenceWeekRuleConditions {
   amount_per_week?: number;
