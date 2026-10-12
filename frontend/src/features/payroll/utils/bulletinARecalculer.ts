@@ -241,11 +241,20 @@ export function messageValidesChanges(noms: string[]): string | null {
     : `${n} bulletins validés ont changé depuis leur validation : ouvrez-les un par un pour décider${liste}.`;
 }
 
+/**
+ * Les mois périmés d'un salarié, du plus ancien au plus récent : la file les
+ * traite dans cet ordre, et chaque mois part des cumuls du précédent déjà
+ * recalculé. Dans l'ordre de la liste (du plus récent au plus ancien), il
+ * fallait un clic par mois [J7].
+ */
 export function jobsDesLignesPerimes(
   salarie: SalariePourRelance,
   lignes: LigneBulletinPaie[]
 ): JobBulletinPerime[] {
-  return lignes.filter((l) => estPerime(l) && !estValide(l)).map((ligne) => ({
+  const chronologiques = lignes
+    .filter((l) => estPerime(l) && !estValide(l))
+    .sort((a, b) => a.year - b.year || a.month - b.month);
+  return chronologiques.map((ligne) => ({
     employeeId: salarie.id,
     employeeName: nomDuSalarie(salarie),
     year: ligne.year,
