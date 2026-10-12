@@ -5,7 +5,8 @@ Génère : certificat de travail, attestation Pôle Emploi, solde de tout compte
 
 import io
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict, List, Optional
+from xml.sax.saxutils import escape
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
@@ -63,6 +64,25 @@ EXIT_TYPE_LABELS = {
 }
 
 
+def _lignes_ajoutees(lignes: Any) -> List[str]:
+    """Les lignes « Informations supplémentaires » de l'éditeur, prêtes à imprimer
+    (texte saisi échappé : ReportLab lit le balisage)."""
+    rendues: List[str] = []
+    for ligne in lignes if isinstance(lignes, list) else []:
+        if not isinstance(ligne, dict):
+            continue
+        libelle = escape(str(ligne.get("label") or "").strip())
+        valeur = escape(str(ligne.get("value") or "").strip())
+        description = escape(str(ligne.get("description") or "").strip())
+        if not (libelle or valeur or description):
+            continue
+        texte = f"<b>{libelle} :</b> {valeur}" if libelle else valeur
+        if description:
+            texte += f" ({description})"
+        rendues.append(texte)
+    return rendues
+
+
 class EmployeeExitDocumentGenerator:
     """Générateur de documents PDF pour les sorties de salariés"""
 
@@ -83,9 +103,13 @@ class EmployeeExitDocumentGenerator:
         employee_data: Dict[str, Any],
         company_data: Dict[str, Any],
         exit_data: Dict[str, Any],
+        informations_supplementaires: Optional[List[Dict[str, Any]]] = None,
     ) -> bytes:
         """
         Génère un certificat de travail conforme à l'article L1234-19 du Code du travail.
+
+        `informations_supplementaires` : les lignes ajoutées à l'éditeur
+        (libellé, valeur, description), imprimées avant la formule de délivrance.
 
         Mentions obligatoires :
         - Identité employeur et salarié
@@ -223,6 +247,15 @@ class EmployeeExitDocumentGenerator:
                 )
             )
         story.append(Spacer(1, 0.6 * cm))
+
+        lignes_ajoutees = _lignes_ajoutees(informations_supplementaires)
+        if lignes_ajoutees:
+            story.append(
+                Paragraph("<b>Informations complémentaires :</b>", self.styles["CorpsTexte"])
+            )
+            for ligne in lignes_ajoutees:
+                story.append(Paragraph(ligne, self.styles["CorpsTexte"]))
+            story.append(Spacer(1, 0.6 * cm))
 
         texte_mention = """
         Le présent certificat est délivré à la demande de l'intéressé(e)

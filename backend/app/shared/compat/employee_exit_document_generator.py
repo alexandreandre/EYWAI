@@ -6,7 +6,7 @@ Utilisé par app.modules.employee_exits pour obtenir une implémentation de
 IExitDocumentGenerator.
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from app.modules.employee_exits.domain.interfaces import IExitDocumentGenerator
 
@@ -32,9 +32,13 @@ class _ExitDocumentGeneratorAdapter(IExitDocumentGenerator):
         employee_data: Dict[str, Any],
         company_data: Dict[str, Any],
         exit_data: Dict[str, Any],
+        informations_supplementaires: Optional[List[Dict[str, Any]]] = None,
     ) -> bytes:
         return self._generator.generate_certificat_travail(
-            employee_data, company_data, exit_data
+            employee_data,
+            company_data,
+            exit_data,
+            informations_supplementaires=informations_supplementaires,
         )
 
     def generate_attestation_pole_emploi(

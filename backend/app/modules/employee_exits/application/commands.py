@@ -1260,8 +1260,13 @@ def edit_exit_document(
     gen_company = {**company_data, **merged_data.get("company", {})}
     gen_exit = {**exit_data, **merged_data.get("exit", {})}
     if document_type == "certificat_travail":
+        # Les lignes « Informations supplémentaires » de l'éditeur : enregistrées
+        # sans être imprimées jusqu'au 12/10/2026.
         pdf_bytes = generator.generate_certificat_travail(
-            gen_employee, gen_company, gen_exit
+            gen_employee,
+            gen_company,
+            gen_exit,
+            informations_supplementaires=merged_data.get("additional_info"),
         )
     elif document_type == "attestation_pole_emploi":
         pdf_bytes = generator.generate_attestation_pole_emploi(
