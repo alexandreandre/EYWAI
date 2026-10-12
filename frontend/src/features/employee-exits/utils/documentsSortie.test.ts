@@ -1,11 +1,40 @@
 import { describe, expect, it } from 'vitest';
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import {
   MESSAGE_GENERER_DABORD_BULLETIN,
+  avertissementClotureSansBulletin,
   documentsARevoir,
   documentsDeSortieGrises,
   messageDocumentsARevoir,
 } from './documentsSortie';
+
+/**
+ * [D3] Clôturer avant le bulletin de sortie : la clôture avertit, sans bloquer
+ * (relevé du 12/10/2026 : rien n'était dit, et le bulletin devenait impossible).
+ */
+describe('clôture d’un départ sans bulletin de sortie', () => {
+  it('avertit quand le bulletin du mois de sortie n’est pas généré', () => {
+    expect(avertissementClotureSansBulletin(null, '2026-10-15')).toBe(
+      'Le bulletin de sortie de 10/2026 n’est pas encore généré. Vous pouvez clôturer : ' +
+        'il restera à générer dans la Paie, avant un éventuel nouveau contrat.'
+    );
+  });
+
+  it('ne dit rien quand il existe', () => {
+    expect(avertissementClotureSansBulletin({ mois: '10/2026' }, '2026-10-15')).toBeNull();
+  });
+
+  it('la fenêtre de clôture l’affiche', () => {
+    const source = readFileSync(
+      path.resolve(__dirname, '../../../components/exits/ExitDetailsPanel.tsx'),
+      'utf-8'
+    );
+    expect(source).toContain('avertissementClotureSansBulletin(');
+  });
+});
 
 describe('documents de sortie tant que le bulletin manque', () => {
   it('sans bulletin du mois de sortie : grisés, avec la mention', () => {
