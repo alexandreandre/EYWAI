@@ -67,10 +67,6 @@ export const employeeProfileEditSchema = z
       }),
     team_id: z.string().optional(),
     specificites_paie: z.object({
-      prelevement_a_la_source: z.object({
-        is_personnalise: z.boolean(),
-        taux: z.coerce.number().min(0).max(100).optional(),
-      }),
       transport: z.object({
         abonnement_mensuel_total: z.coerce.number().min(0),
         indemnite_mensuelle_nette: z.coerce.number().min(0).optional().default(0),

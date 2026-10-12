@@ -130,7 +130,6 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
     adhesion?: boolean;
     lignes_specifiques?: EmployeeProfileEditFormValues['specificites_paie']['prevoyance']['lignes_specifiques'];
   } | undefined;
-  const pas = spec.prelevement_a_la_source as { is_personnalise?: boolean; taux?: number } | undefined;
   const transport = spec.transport as {
     abonnement_mensuel_total?: number;
     indemnite_mensuelle_nette?: number;
@@ -189,10 +188,6 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
     code_pcs: lirePcs(employee),
     team_id: employee.team_id ?? '',
     specificites_paie: {
-      prelevement_a_la_source: {
-        is_personnalise: pas?.is_personnalise ?? false,
-        taux: pas?.taux ?? 0,
-      },
       transport: {
         abonnement_mensuel_total: transport?.abonnement_mensuel_total ?? 0,
         indemnite_mensuelle_nette: transport?.indemnite_mensuelle_nette ?? 0,
@@ -267,7 +262,11 @@ export function buildUpdatePayload(
   employee: Employee,
   options: { salaireVerrouille?: boolean } = {},
 ): UpdateEmployeePayload {
-  const existingSpec = employee.specificites_paie ?? {};
+  // Le taux de prélèvement ne passe plus par la fiche ([B1], [B2], 12/10/2026) :
+  // il se saisit, daté, sur la page « Taux de prélèvement à la source ». Le
+  // renvoyer d'ici posait `taux: 0` sur une fiche qui n'en avait pas.
+  const { prelevement_a_la_source: _tauxPasNonRenvoye, ...existingSpec } =
+    employee.specificites_paie ?? {};
   const mutuelleIds = values.specificites_paie.mutuelle.mutuelle_type_ids ?? [];
 
   const payload: UpdateEmployeePayload = {
@@ -317,12 +316,6 @@ export function buildUpdatePayload(
       : null,
     specificites_paie: {
       ...existingSpec,
-      // Le taux ne part que case cochée : une fiche sans taux recevait `taux: 0`
-      // à chaque enregistrement, et ce 0 dispensait le salarié de tout
-      // prélèvement ([B1], 12/10/2026). Décochée, la grille par défaut s'applique.
-      prelevement_a_la_source: values.specificites_paie.prelevement_a_la_source.is_personnalise
-        ? { is_personnalise: true, taux: values.specificites_paie.prelevement_a_la_source.taux }
-        : { is_personnalise: false },
       transport: values.specificites_paie.transport,
       titres_restaurant: values.specificites_paie.titres_restaurant,
       mutuelle: {

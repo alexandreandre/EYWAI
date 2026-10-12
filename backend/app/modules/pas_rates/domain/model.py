@@ -31,6 +31,10 @@ TYPE_BAREME = pas_taux.TYPE_BAREME_METROPOLE
 
 TYPE_LABELS: Dict[str, str] = dict(pas_taux.LIBELLES)
 
+# Origine d'un taux saisi au crayon de la page (historique `employee_pas_rates`).
+SOURCE_MANUELLE = "manuel"
+LIBELLE_SAISIE_MANUELLE = "Saisie manuelle"
+
 # Statuts affichés aux RH.
 STATUT_A_JOUR = "a_jour"
 STATUT_BAREME = "bareme"
@@ -120,6 +124,10 @@ class TauxSalarie:
 
     @property
     def type_libelle(self) -> str:
+        # Le crayon de la page écrit un type 01 : sans cette distinction, un taux
+        # tapé au clavier se présentait comme transmis par la DGFiP ([B2]).
+        if (self.source or "").strip().lower() == SOURCE_MANUELLE:
+            return LIBELLE_SAISIE_MANUELLE
         return type_label(self.type_taux)
 
     @property

@@ -135,7 +135,6 @@ export function EmployeeProfileEditForm({
   const dureeHebdo = useWatch({ control, name: 'duree_hebdomadaire' });
   const salaireBaseA35h = useWatch({ control, name: 'specificites_paie.salaire_hors_hs_structurelles' });
   const selectedCcId = useWatch({ control, name: 'collective_agreement_id' });
-  const isPasPerso = useWatch({ control, name: 'specificites_paie.prelevement_a_la_source.is_personnalise' });
   const isResidencePermit = useWatch({ control, name: 'is_subject_to_residence_permit' });
   const filteredMutuelles = filterMutuellesForEmployee(availableMutuelles, statut);
   const companyId = useActiveCompanyId();
@@ -867,40 +866,10 @@ export function EmployeeProfileEditForm({
             </div>
           )}
 
-          <FormField
-            control={control}
-            name="specificites_paie.prelevement_a_la_source.is_personnalise"
-            render={({ field }) => (
-              <FormItem className="flex items-center gap-2 space-y-0">
-                <FormControl>
-                  <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                </FormControl>
-                <FormLabel className="font-normal">Prélèvement à la source personnalisé</FormLabel>
-              </FormItem>
-            )}
-          />
-          {isPasPerso && (
-            <FormField
-              control={control}
-              name="specificites_paie.prelevement_a_la_source.taux"
-              render={({ field }) => (
-                <FormItem className="max-w-xs">
-                  <FormLabel>Taux PAS (%)</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      type="number"
-                      min={0}
-                      max={100}
-                      step="0.01"
-                      onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
+          <p className="text-xs text-muted-foreground">
+            Le taux de prélèvement à la source ne se saisit pas ici : il vient des retours de la
+            DGFiP et se suit sur la page « Taux de prélèvement à la source ».
+          </p>
         </div>
       </section>
 
