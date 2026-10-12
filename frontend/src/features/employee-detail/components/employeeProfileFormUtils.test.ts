@@ -321,3 +321,28 @@ describe('prélèvement à la source à l’enregistrement de la fiche ([B1], [B
     expect(payload.specificites_paie?.prelevement_a_la_source).toBeUndefined();
   });
 });
+
+describe('titres-restaurant sur la fiche ([B5], 12/10/2026)', () => {
+  it('la valeur du titre et la part patronale font l’aller-retour', () => {
+    const employee: Employee = {
+      ...baseEmployee,
+      specificites_paie: {
+        titres_restaurant: { beneficie: true, nombre_par_mois: 20, valeur_faciale: 9, part_patronale: 5.4 },
+      },
+    };
+    const values = buildDefaultValues(employee);
+    expect(values.specificites_paie.titres_restaurant).toEqual({
+      beneficie: true,
+      nombre_par_mois: 20,
+      valeur_faciale: 9,
+      part_patronale: 5.4,
+    });
+    const payload = buildUpdatePayload(values, employee);
+    expect(payload.specificites_paie?.titres_restaurant).toEqual({
+      beneficie: true,
+      nombre_par_mois: 20,
+      valeur_faciale: 9,
+      part_patronale: 5.4,
+    });
+  });
+});

@@ -97,3 +97,30 @@ describe('création : salaire saisi en base 35 h', () => {
     expect(res.success && res.data.specificites_paie.salaire_hors_hs_structurelles).toBe(true);
   });
 });
+
+describe('titres-restaurant : valeur du titre et part patronale ([B5], 12/10/2026)', () => {
+  // Le moteur retient (valeur du titre − part patronale) × nombre ; sans ces deux
+  // champs à l’écran, la case n’avait aucun effet sur le bulletin.
+  const avecTitres = (titres: Record<string, unknown>) => ({
+    specificites_paie: {
+      ...MINIMAL.specificites_paie,
+      titres_restaurant: { beneficie: true, nombre_par_mois: 20, ...titres },
+    },
+  });
+
+  it('accepte la valeur du titre et la part patronale', () => {
+    expect(erreurs(avecTitres({ valeur_faciale: 9, part_patronale: 5.4 }))).toEqual([]);
+  });
+
+  it('refuse une part patronale plus grande que la valeur du titre', () => {
+    expect(erreurs(avecTitres({ valeur_faciale: 9, part_patronale: 10 }))).toContain(
+      'specificites_paie.titres_restaurant.part_patronale: La part patronale ne peut pas dépasser la valeur du titre.',
+    );
+  });
+
+  it('des titres sans valeur sont refusés : ils ne retiendraient rien', () => {
+    expect(erreurs(avecTitres({ valeur_faciale: 0, part_patronale: 0 }))).toContain(
+      'specificites_paie.titres_restaurant.valeur_faciale: Indiquez la valeur d’un titre (en euros).',
+    );
+  });
+});
