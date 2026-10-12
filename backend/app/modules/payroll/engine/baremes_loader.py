@@ -335,9 +335,10 @@ def _ajouter_alerte(
 
 
 class BaremesDUneAnneePassee(ValueError):
-    """Les barèmes chargés sont d'une année antérieure à celle du bulletin.
+    """Les barèmes chargés sont d'une année antérieure à la période calculée.
 
-    `ValueError` : les générateurs la rendent telle quelle à l'écran (refus 400).
+    Ne refuse plus que le calcul inverse (`refuser_baremes_d_une_annee_passee`) :
+    un bulletin se calcule, avec une alerte. `ValueError` : rendue à l'écran.
     """
 
 
@@ -345,25 +346,23 @@ class BaremesDUneAnneePassee(ValueError):
 #: n'a pas de date d'effet. La synchro du SMIC pose `annee` à chaque écriture ;
 #: celle de la réduction générale ne touche ni `annee` ni
 #: `smic_reference_horaire`, qui se mettent à jour ensemble, à la main.
-_BAREMES_DATES = (("smic", "SMIC"), ("reduction_generale", "réduction générale"))
+#: (clé, libellé court, complément du nom « barème … »)
+_BAREMES_DATES = (
+    ("smic", "SMIC", "du SMIC"),
+    ("reduction_generale", "réduction générale", "de la réduction générale"),
+)
 
 CODE_BAREMES_ANNEE_SUIVANTE = "baremes_d_une_annee_suivante"
+CODE_BAREME_ANNEE_PASSEE = "bareme_d_une_annee_passee"
 
 
-def controler_annee_des_baremes(
+def _annees_des_baremes(
     baremes: Dict[str, Any], annee_du_bulletin: int
-) -> List[Dict[str, Any]]:
-    """Refuse des barèmes d'une année antérieure au bulletin ; signale ceux d'après.
-
-    Janvier 2027 calculé avec les barèmes de 2026 prendrait en silence le SMIC,
-    le plafond et la réduction générale de 2026 : refus. Un bulletin de 2026
-    recalculé en janvier 2027 avec les barèmes de 2027 se calcule (décembre se
-    corrige souvent en janvier), avec une alerte sur le bulletin. Un barème sans
-    `annee` n'est pas contrôlé.
-    """
-    anterieurs: List[str] = []
-    posterieurs: List[str] = []
-    for cle, libelle in _BAREMES_DATES:
+) -> tuple[list[tuple[str, str, str, int]], list[tuple[str, str, str, int]]]:
+    """Les barèmes datés d'avant et d'après l'année du bulletin."""
+    anterieurs: list[tuple[str, str, str, int]] = []
+    posterieurs: list[tuple[str, str, str, int]] = []
+    for cle, libelle, complement in _BAREMES_DATES:
         bloc = baremes.get(cle)
         if not isinstance(bloc, dict):
             continue
@@ -372,29 +371,72 @@ def controler_annee_des_baremes(
         except (TypeError, ValueError):
             continue
         if annee < annee_du_bulletin:
-            anterieurs.append(f"{libelle} {annee}")
+            anterieurs.append((cle, libelle, complement, annee))
         elif annee > annee_du_bulletin:
-            posterieurs.append(f"{libelle} {annee}")
-    if anterieurs:
-        raise BaremesDUneAnneePassee(
-            f"Les barèmes {annee_du_bulletin} ne sont pas encore chargés "
-            f"(chargés : {', '.join(anterieurs)}). Le bulletin n'est pas calculé : "
-            "contactez le support."
-        )
-    if not posterieurs:
-        return []
-    return [
+            posterieurs.append((cle, libelle, complement, annee))
+    return anterieurs, posterieurs
+
+
+def controler_annee_des_baremes(
+    baremes: Dict[str, Any], annee_du_bulletin: int
+) -> List[Dict[str, Any]]:
+    """Signale les barèmes datés d'une autre année que le bulletin, sans bloquer.
+
+    Janvier 2027 avec les barèmes de 2026 (barème de la réduction générale
+    saisi à la main, pas encore remis à jour) : le bulletin se calcule avec le
+    dernier barème connu, et une alerte par barème le dit, au bulletin et dans
+    la liste du mois, pour régulariser dès la parution du nouveau (12/10/2026 :
+    aucune paie ne se bloque au 1er janvier). Avant, c'était un refus de tout
+    bulletin. Un bulletin de 2026 recalculé avec les barèmes de 2027 se calcule
+    aussi (décembre se corrige souvent en janvier), avec une alerte. Un barème
+    sans `annee` n'est pas contrôlé.
+    """
+    anterieurs, posterieurs = _annees_des_baremes(baremes, annee_du_bulletin)
+    alertes: List[Dict[str, Any]] = [
         {
-            "code": CODE_BAREMES_ANNEE_SUIVANTE,
+            "code": CODE_BAREME_ANNEE_PASSEE,
+            "config_key": cle,
             "critique": False,
             "severity": "warning",
             "message": (
-                f"Bulletin de {annee_du_bulletin} calculé avec les barèmes d'une année "
-                f"suivante ({', '.join(posterieurs)}) : vérifiez les montants avant de "
-                "le valider."
+                f"Barème {annee} {complement} appliqué en {annee_du_bulletin} : "
+                "à régulariser dès la parution du nouveau."
             ),
         }
+        for cle, _libelle, complement, annee in anterieurs
     ]
+    if posterieurs:
+        alertes.append(
+            {
+                "code": CODE_BAREMES_ANNEE_SUIVANTE,
+                "critique": False,
+                "severity": "warning",
+                "message": (
+                    f"Bulletin de {annee_du_bulletin} calculé avec les barèmes d'une "
+                    "année suivante ("
+                    + ", ".join(f"{libelle} {annee}" for _c, libelle, _x, annee in posterieurs)
+                    + ") : vérifiez les montants avant de le valider."
+                ),
+            }
+        )
+    return alertes
+
+
+def refuser_baremes_d_une_annee_passee(
+    baremes: Dict[str, Any], annee: int
+) -> None:
+    """Refus du calcul inverse avec des barèmes d'une année passée.
+
+    Le calcul inverse est une simulation qui n'affiche pas d'alerte : son
+    résultat, tiré des barèmes de l'année d'avant, serait faux en silence.
+    """
+    anterieurs, _ = _annees_des_baremes(baremes, annee)
+    if anterieurs:
+        raise BaremesDUneAnneePassee(
+            f"Les barèmes {annee} ne sont pas encore chargés (chargés : "
+            + ", ".join(f"{libelle} {a}" for _c, libelle, _x, a in anterieurs)
+            + "). Le calcul n'est pas fait : contactez le support."
+        )
 
 
 def controler_integrite_baremes(baremes: Dict[str, Any]) -> List[Dict[str, Any]]:

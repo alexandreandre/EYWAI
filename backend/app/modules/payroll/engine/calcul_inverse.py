@@ -4,7 +4,7 @@ Utilise une recherche dichotomique pour converger vers le brut exact.
 
 Chaque essai est un bulletin du moteur complet, celui du bulletin d'essai
 (`run_simulation_bulletin_pipeline`) : période choisie à l'écran, barèmes
-chargés (refusés s'ils sont d'une année passée, comme pour un bulletin),
+chargés (refusés s'ils sont d'une année passée : la simulation n'affiche pas d'alerte),
 contribution CPF des seuls CDD, réduction générale (rejeu G.9, 11/10/2026).
 """
 
@@ -14,7 +14,7 @@ from typing import Dict, Any, Optional, Literal, Tuple
 from zoneinfo import ZoneInfo
 import logging
 
-from app.modules.payroll.engine.baremes_loader import controler_annee_des_baremes
+from app.modules.payroll.engine.baremes_loader import refuser_baremes_d_une_annee_passee
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ def calculer_brut_depuis_net(
         CalculInverseError: Si les paramètres sont invalides
         NonConvergenceError: Si l'algorithme ne converge pas
         BaremesDUneAnneePassee: Si les barèmes chargés sont d'une année
-            antérieure à la période (même refus que pour un bulletin)
+            antérieure à la période (le bulletin, lui, se calcule avec une alerte)
     """
     # Validation des entrées
     if net_cible <= 0:
@@ -127,8 +127,9 @@ def calculer_brut_depuis_net(
         raise CalculInverseError(f"Type de net invalide: {type_net}")
 
     month, year = _periode(month, year)
-    # Barèmes d'une année passée : refus, comme pour un bulletin.
-    controler_annee_des_baremes(baremes or {}, year)
+    # Barèmes d'une année passée : refus (le bulletin, lui, se calcule avec une
+    # alerte ; la simulation n'en affiche pas, son chiffre serait faux en silence).
+    refuser_baremes_d_une_annee_passee(baremes or {}, year)
 
     type_contrat = str(
         employee_data.get("type_contrat") or employee_data.get("contract_type") or ""
