@@ -13,6 +13,7 @@ from .iccp_fin_contrat import (
     valeur_jour_maintien,
 )
 from .indemnites_sortie_brut import lignes_indemnites_sortie_soumises
+from .preavis import ajouter_les_conges_du_preavis, conges_du_preavis_du_dossier
 from .motif_recours import prime_precarite_exclue_par_motif
 from .iccp_arbitrage import lire_parametres_conges
 from .heures_prevues import heures_prevues_sous_contrat, repartir_heures_du_contrat
@@ -509,6 +510,12 @@ def _iccp_legale_par_periode(
                 restants=float(en_cours.get("restants") or 0.0),
             )
         )
+    # Préavis dispensé par l'employeur (ou délai de prévenance non respecté) :
+    # les congés acquis jusqu'à sa fin théorique et l'indemnité, dans leur
+    # période (L1234-5, engine/preavis).
+    periodes = ajouter_les_conges_du_preavis(
+        periodes, conges_du_preavis_du_dossier(getattr(contexte, "exit_indemnities", None))
+    )
     return indemnite_fin_de_contrat(periodes, taux=taux, valeur_jour=valeur_jour)
 
 

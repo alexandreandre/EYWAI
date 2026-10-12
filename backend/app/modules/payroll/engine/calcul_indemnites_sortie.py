@@ -28,6 +28,8 @@ from app.modules.payroll.engine.iccp_fin_contrat import (
 )
 from app.modules.payroll.engine.preavis import (
     JOURS_PAR_MOIS,
+    ajouter_les_conges_du_preavis,
+    conges_du_preavis_non_execute,
     indemnite_compensatrice_due,
     jours_de_preavis_restants,
     phrase_execution_preavis,
@@ -199,10 +201,67 @@ def calculer_indemnite_preavis(
         "type": notice_indemnity_type,
         "description": f"Indemnité compensatrice de préavis ({jours} jours non exécutés)",
         "calcul": (
-            f"Rémunération qu'il aurait perçue : {remuneration_mensuelle:.2f} € par mois"
-            f"{origine} / 30 × {jours} jours de préavis restant = {indemnite:.2f} €"
+            f"Rémunération qu'il aurait perçue : {_euros(remuneration_mensuelle)} par mois"
+            f"{origine} / 30 × {jours} jours de préavis restant = {_euros(indemnite)}"
         ),
     }
+
+
+def _rythme_des_conges(employee_data: Dict[str, Any]) -> tuple[float, int]:
+    """(jours acquis par mois, mois de début de la période de référence) de la
+    société ; à défaut 2,5 jours ouvrables et juin, les valeurs par défaut de
+    la politique de congés (absences.domain.leave_policy)."""
+    company_id = employee_data.get("company_id")
+    if company_id:
+        try:
+            from app.modules.absences.infrastructure.leave_settings_repository import (
+                get_leave_policy,
+            )
+
+            politique = get_leave_policy(str(company_id))
+            return (
+                float(politique.cp_acquisition_days_per_month),
+                int(politique.cp_reference_period_start_month),
+            )
+        except Exception:
+            logger.warning("Politique de congés illisible (%s)", company_id, exc_info=True)
+    return 2.5, 6
+
+
+def _jours_fr(valeur: float) -> str:
+    return f"{float(valeur):g}".replace(".", ",")
+
+
+def poser_les_conges_du_preavis(
+    bloc: Dict[str, Any], employee_data: Dict[str, Any], dernier_jour: date
+) -> Dict[str, Any]:
+    """Préavis (ou délai de prévenance) non exécuté et indemnisé : les congés que
+    le salarié aurait acquis jusqu'à sa fin théorique, et l'indemnité, comptés
+    dans l'indemnité de congés de la sortie (L1234-5 : « indemnité de congés
+    payés comprise » ; L1221-25 pour le délai de prévenance)."""
+    montant = float(bloc.get("montant") or 0.0)
+    jours = int(bloc.get("jours_restants") or 0)
+    if montant <= 0 or jours <= 0:
+        return bloc
+    acquisition, debut_periode = _rythme_des_conges(employee_data)
+    parts = conges_du_preavis_non_execute(
+        dernier_jour_travaille=dernier_jour,
+        fin_du_preavis=dernier_jour + timedelta(days=jours),
+        indemnite=montant,
+        acquisition_par_mois=acquisition,
+        mois_debut_periode=debut_periode,
+    )
+    if not parts:
+        return bloc
+    total = round(sum(p.jours for p in parts), 2)
+    bloc = dict(bloc)
+    bloc["conges_du_preavis"] = [p.en_dict() for p in parts]
+    bloc["calcul"] = (
+        f"{bloc.get('calcul') or ''}. Congés acquis pendant ce temps non exécuté : "
+        f"{_jours_fr(total)} jours, indemnisés avec les congés payés, et l'indemnité entre dans "
+        "l'assiette du dixième (L1234-5)."
+    )
+    return bloc
 
 
 def _remuneration_du_preavis(
@@ -559,6 +618,7 @@ def _iccp_par_periode(
     brut_du_mois: float,
     taux: float,
     valeur_jour: float,
+    conges_du_preavis: Optional[list] = None,
 ):
     """La règle du bulletin (calcul_brut._iccp_legale_par_periode) : le brut du
     mois de sortie s'ajoute à la période en cours."""
@@ -583,11 +643,16 @@ def _iccp_par_periode(
                 restants=float(en_cours.get("restants") or 0.0),
             )
         )
+    periodes = ajouter_les_conges_du_preavis(periodes, conges_du_preavis or [])
     return indemnite_fin_de_contrat(periodes, taux=taux, valeur_jour=valeur_jour), periodes
 
 
 def calculer_indemnite_conges_restants(
-    employee_data: Dict[str, Any], exit_data: Dict[str, Any], supabase_client=None
+    employee_data: Dict[str, Any],
+    exit_data: Dict[str, Any],
+    supabase_client=None,
+    *,
+    conges_du_preavis: Optional[list] = None,
 ) -> Dict[str, Any]:
     """
     Calcule l'indemnité compensatrice de congés payés restants avec arbitrage
@@ -681,6 +746,7 @@ def calculer_indemnite_conges_restants(
             is_interim=is_interim,
             extras=round(montant_precarite + montant_ifm, 2),
             alertes=alertes,
+            conges_du_preavis=conges_du_preavis,
         )
 
     # Repli : le solde global à la date de sortie et l'arbitrage d'ensemble.
@@ -824,6 +890,7 @@ def _indemnite_conges_par_periode(
     is_interim: bool,
     extras: float,
     alertes: list,
+    conges_du_preavis: Optional[list] = None,
 ) -> Dict[str, Any]:
     """Estimation du dossier par la règle du bulletin (engine/iccp_fin_contrat).
 
@@ -850,6 +917,7 @@ def _indemnite_conges_par_periode(
         brut_du_mois=round(brut_mois + max(extras, 0.0), 2),
         taux=taux,
         valeur_jour=valeur_jour,
+        conges_du_preavis=conges_du_preavis,
     )
     jours_restants = round(sum(max(p.restants, 0.0) for p in periodes), 2)
     droits = round(sum(p.droits for p in periodes), 2)
@@ -1229,6 +1297,7 @@ def calculer_indemnites_sortie(
         )
         if alertes_preavis:
             indemnite_preavis["alertes"] = alertes_preavis
+        indemnite_preavis = poser_les_conges_du_preavis(indemnite_preavis, employee_data, exit_date)
     else:
         indemnite_preavis = calculer_indemnite_preavis(
             0.0,
@@ -1239,7 +1308,10 @@ def calculer_indemnites_sortie(
 
     # 4. Calculer les congés payés restants
     indemnite_conges = calculer_indemnite_conges_restants(
-        employee_data, exit_data, supabase_client
+        employee_data,
+        exit_data,
+        supabase_client,
+        conges_du_preavis=indemnite_preavis.get("conges_du_preavis"),
     )
 
     # 5. Calculer l'indemnité spécifique selon le type de sortie
