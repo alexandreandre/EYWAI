@@ -6,7 +6,10 @@ import { lireJoursEnConflit, type JourEnConflit } from './heuresSurArret';
  *
  * Le backend refuse la génération avec un `detail` structuré `{ code, message }` :
  *   - 422 `calendrier_incomplet` → se force en repostant `force_calendrier_incomplet` ;
- *   - 409 `bulletin_valide`      → se force en repostant `regenerer_bulletin_valide`.
+ *   - 409 `bulletin_valide`      → se force en repostant `regenerer_bulletin_valide` ;
+ *   - 422 `reprise_non_posee`    → se force en repostant `partir_de_cumuls_a_zero`
+ *     (salarié payé avant Martine, ni bascule ni solde d'ouverture : le bulletin
+ *     part de cumuls à zéro et porte une alerte).
  * Une génération forcée répond alors avec des `warnings` `{ code, message }`
  * (`calendrier_incomplet_force`, `bulletin_valide_regenere`).
  *
@@ -18,15 +21,31 @@ export type GenerationRefusalCode =
   | 'calendrier_incomplet'
   | 'bulletin_valide'
   | 'heures_sur_jour_d_arret'
-  | 'arrets_illisibles';
+  | 'arrets_illisibles'
+  | 'reprise_non_posee';
+
+/** Ce que l'API attend pour forcer un refus (`generatePayslip`). */
+export type ForcageGeneration = {
+  force_calendrier_incomplet?: boolean;
+  regenerer_bulletin_valide?: boolean;
+  partir_de_cumuls_a_zero?: boolean;
+};
+
+/** Le drapeau qui force ce refus ; rien pour un refus qui ne se force pas. */
+export function forcageDuRefus(code: GenerationRefusalCode): ForcageGeneration {
+  if (code === 'calendrier_incomplet') return { force_calendrier_incomplet: true };
+  if (code === 'bulletin_valide') return { regenerer_bulletin_valide: true };
+  if (code === 'reprise_non_posee') return { partir_de_cumuls_a_zero: true };
+  return {};
+}
 
 /**
- * Les deux refus de calendrier/bulletin se forcent d'un clic explicite. Les deux
- * autres, jamais : `heures_sur_jour_d_arret` ne se règle que par une correction,
- * `arrets_illisibles` que par un nouvel essai.
+ * Calendrier incomplet, bulletin validé et reprise non posée se forcent d'un
+ * clic explicite. Les deux autres, jamais : `heures_sur_jour_d_arret` ne se
+ * règle que par une correction, `arrets_illisibles` que par un nouvel essai.
  */
 export const estForcable = (code: GenerationRefusalCode): boolean =>
-  code === 'calendrier_incomplet' || code === 'bulletin_valide';
+  Object.keys(forcageDuRefus(code)).length > 0;
 
 /**
  * Refus que « Forcer les refusés » peut relancer. Avec plusieurs refus, les
@@ -109,6 +128,8 @@ const REFUSAL_FALLBACK_MESSAGES: Record<GenerationRefusalCode, string> = {
     'Des heures sont saisies un jour d’arrêt ou d’absence : corrigez-les avant de générer le bulletin.',
   arrets_illisibles:
     'Les arrêts du salarié n’ont pas pu être lus, donc rien n’a été calculé. Réessayez dans un instant.',
+  reprise_non_posee:
+    'Ce collaborateur était payé avant Martine, mais sa reprise n’est pas posée : son bulletin partirait de cumuls à zéro.',
 };
 
 /** Libellés des dialogues de refus (titre, action de forçage, libellé court). */
@@ -136,11 +157,16 @@ export const REFUSAL_DIALOG_LABELS: Record<
     actionLabel: 'Réessayer',
     shortLabel: 'arrêts illisibles',
   },
+  reprise_non_posee: {
+    title: 'Reprise de paie non posée',
+    actionLabel: 'Générer quand même, en partant de cumuls à zéro',
+    shortLabel: 'reprise non posée',
+  },
 };
 
 /**
- * Extrait un refus structuré (422 `calendrier_incomplet` / `heures_sur_jour_d_arret`,
- * 409 `bulletin_valide`, 503 `arrets_illisibles`)
+ * Extrait un refus structuré (422 `calendrier_incomplet` / `heures_sur_jour_d_arret`
+ * / `reprise_non_posee`, 409 `bulletin_valide`, 503 `arrets_illisibles`)
  * d'une erreur HTTP. Renvoie `null` pour toute autre erreur — y compris un
  * backend ancien qui répond sans code structuré — afin de laisser la gestion
  * d'erreur générique s'appliquer.
@@ -166,6 +192,8 @@ export function extractGenerationRefusal(error: unknown): GenerationRefusal | nu
     refusalCode = 'heures_sur_jour_d_arret';
   } else if (status === 503 && code === 'arrets_illisibles') {
     refusalCode = 'arrets_illisibles';
+  } else if (status === 422 && code === 'reprise_non_posee') {
+    refusalCode = 'reprise_non_posee';
   }
   if (!refusalCode) return null;
 

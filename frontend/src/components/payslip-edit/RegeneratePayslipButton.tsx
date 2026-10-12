@@ -47,19 +47,16 @@ import {
 import {
   estForcable,
   extractGenerationRefusal,
+  forcageDuRefus,
   splitGenerationWarnings,
   REFUSAL_DIALOG_LABELS,
+  type ForcageGeneration,
   type GenerationRefusal,
 } from '@/features/payroll/utils/generationGuards';
 import {
   messageApresRegeneration,
   regenererPuisRecharger,
 } from '@/features/payroll/utils/regenerationBulletin';
-
-type ForcageGeneration = {
-  force_calendrier_incomplet?: boolean;
-  regenerer_bulletin_valide?: boolean;
-};
 
 interface RegeneratePayslipButtonProps {
   employeeId: string;
@@ -178,11 +175,6 @@ export default function RegeneratePayslipButton({
     });
   };
 
-  const forcageDuRefus = (): ForcageGeneration =>
-    refus?.code === 'calendrier_incomplet'
-      ? { force_calendrier_incomplet: true }
-      : { regenerer_bulletin_valide: true };
-
   return (
     <>
       <Button
@@ -298,7 +290,7 @@ export default function RegeneratePayslipButton({
                 onClick={(e) => {
                   e.preventDefault();
                   // Forçable : on reposte avec le forçage. Arrêts illisibles : simple nouvel essai.
-                  void lancer(estForcable(refus.code) ? forcageDuRefus() : {});
+                  void lancer(estForcable(refus.code) ? forcageDuRefus(refus.code) : {});
                 }}
               >
                 {REFUSAL_DIALOG_LABELS[refus.code].actionLabel}

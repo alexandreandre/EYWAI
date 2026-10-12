@@ -525,8 +525,9 @@ export type PayslipGenerationWarning =
  * Génère un nouveau bulletin de paie.
  *
  * Sans flag, le backend refuse avec un `detail` structuré `{ code, message }` :
- * 422 `calendrier_incomplet` ou 409 `bulletin_valide`. Les flags de forçage ne
- * doivent être envoyés qu'après une confirmation explicite de l'utilisateur.
+ * 422 `calendrier_incomplet` ou `reprise_non_posee`, ou 409 `bulletin_valide`.
+ * Les flags de forçage ne doivent être envoyés qu'après une confirmation
+ * explicite de l'utilisateur.
  */
 export const generatePayslip = async (
   data: {
@@ -537,6 +538,8 @@ export const generatePayslip = async (
     force_calendrier_incomplet?: boolean;
     /** Régénère un bulletin validé en l'archivant (sinon 409 `bulletin_valide`). */
     regenerer_bulletin_valide?: boolean;
+    /** Reprise non posée : part de cumuls à zéro, avec une alerte (sinon 422 `reprise_non_posee`). */
+    partir_de_cumuls_a_zero?: boolean;
   },
   signal?: AbortSignal,
   companyId?: string | null

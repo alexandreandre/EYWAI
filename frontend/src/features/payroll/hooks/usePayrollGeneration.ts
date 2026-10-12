@@ -53,6 +53,8 @@ export type PayrollGenerationJob = {
   forceCalendrierIncomplet?: boolean;
   /** Reposte avec `regenerer_bulletin_valide` (après refus 409 confirmé). */
   regenererBulletinValide?: boolean;
+  /** Reposte avec `partir_de_cumuls_a_zero` (après refus 422 reprise_non_posee confirmé). */
+  partirDeCumulsAZero?: boolean;
   /** Montants lus sur la ligne avant le recalcul : le toast compare avant → après. */
   montantsAvant?: MontantsBulletin;
 };
@@ -237,6 +239,7 @@ export function usePayrollGeneration() {
               ...(job.regenererBulletinValide
                 ? { regenerer_bulletin_valide: true }
                 : {}),
+              ...(job.partirDeCumulsAZero ? { partir_de_cumuls_a_zero: true } : {}),
             },
             controller.signal,
             companyId
@@ -597,6 +600,7 @@ export function usePayrollGeneration() {
         job.forceCalendrierIncomplet || code === 'calendrier_incomplet',
       regenererBulletinValide:
         job.regenererBulletinValide || code === 'bulletin_valide',
+      partirDeCumulsAZero: job.partirDeCumulsAZero || code === 'reprise_non_posee',
     }));
     enqueueJobs(jobs);
   }, [refusedJobs, enqueueJobs]);

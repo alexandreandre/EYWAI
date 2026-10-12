@@ -69,6 +69,7 @@ export function PayrollGenerationRefusalDialog({
     (r) => r.code === 'heures_sur_jour_d_arret'
   ).length;
   const illisiblesCount = refusals.filter((r) => r.code === 'arrets_illisibles').length;
+  const repriseCount = refusals.filter((r) => r.code === 'reprise_non_posee').length;
   const forcables = refusForcablesEnGroupe(refusals);
 
   const title = single
@@ -121,7 +122,8 @@ export function PayrollGenerationRefusalDialog({
               {generatedCount} généré{generatedCount !== 1 ? 's' : ''},{' '}
               {refusals.length} refusés (calendrier incomplet : {calendarCount},
               bulletin validé : {validatedCount}, heures sur un jour d’arrêt :{' '}
-              {heuresCount}, arrêts illisibles : {illisiblesCount}).
+              {heuresCount}, arrêts illisibles : {illisiblesCount}
+              {repriseCount > 0 ? `, reprise non posée : ${repriseCount}` : ''}).
             </AlertDialogDescription>
           )}
         </AlertDialogHeader>
@@ -231,8 +233,12 @@ export function PayrollGenerationRefusalDialog({
 
         {!single && forcables.length > 0 && (
           <p className="text-xs text-muted-foreground">
-            Forcer génère malgré un calendrier incomplet. Les heures sur un
-            jour d’arrêt et les arrêts illisibles ne se forcent pas.
+            Forcer génère malgré un calendrier incomplet
+            {repriseCount > 0
+              ? ' et, pour une reprise non posée, en partant de cumuls à zéro (le bulletin porte une alerte)'
+              : ''}
+            . Les heures sur un jour d’arrêt et les arrêts illisibles ne se
+            forcent pas.
           </p>
         )}
 
