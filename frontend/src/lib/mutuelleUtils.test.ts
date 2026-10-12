@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  AUCUNE_FORMULE,
+  basculerFormule,
   cleanMutuelleLibelle,
   formatMutuelleOptionTitle,
   isEmployeeCadre,
@@ -55,5 +57,26 @@ describe('mutuelleUtils libellés', () => {
       { id: 'a', libelle: 'A', montant_salarial: 10, pack_couverture: 'isole' },
     ] as MutuelleType[];
     expect(sortMutuellesForSelection(items).map((m) => m.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('plusieurs formules de mutuelle sur une fiche ([B17], 12/10/2026)', () => {
+  // Neuf fiches actives portent une formule « isolé » et l’option « famille »
+  // (98 € par mois à la charge du salarié). Un clic sur une autre formule
+  // remplaçait toute la liste et effaçait l’option.
+  it('cocher une formule garde les autres', () => {
+    expect(basculerFormule(['isole', 'famille'], 'autre', true)).toEqual(['isole', 'famille', 'autre']);
+  });
+
+  it('décocher une formule ne retire qu’elle', () => {
+    expect(basculerFormule(['isole', 'famille'], 'famille', false)).toEqual(['isole']);
+  });
+
+  it('cocher une formule déjà là ne la double pas', () => {
+    expect(basculerFormule(['isole', 'famille'], 'isole', true)).toEqual(['isole', 'famille']);
+  });
+
+  it('« Aucune formule » vide la liste', () => {
+    expect(basculerFormule(['isole', 'famille'], AUCUNE_FORMULE, true)).toEqual([]);
   });
 });
