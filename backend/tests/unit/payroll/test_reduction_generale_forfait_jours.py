@@ -42,7 +42,15 @@ def _contexte_2026(mois: int, cumuls: dict | None = None):
     ctx = build_test_contexte(statut="Cadre", salaire_base=3750.0, effectif=25)
     ctx.year = 2026
     ctx.month = mois
-    # SMIC de référence figé à 12,02 € pour toute l'année 2026 (décret 2026-509).
+    # SMIC de référence figé à 12,02 € pour toute l'année 2026 (décret 2026-509) :
+    # celui du 1er janvier, lu dans l'historique du SMIC comme en base [I12].
+    ctx.baremes["smic"] = {
+        **ctx.baremes["smic"],
+        "historique": [
+            {"date_debut": "2026-01-01", "cas_general": 12.02},
+            {"date_debut": "2026-06-01", "cas_general": 12.31},
+        ],
+    }
     ctx.baremes["reduction_generale"]["smic_reference_horaire"] = 12.02
     ctx.cumuls = {"cumuls": cumuls or {}}
     return ctx

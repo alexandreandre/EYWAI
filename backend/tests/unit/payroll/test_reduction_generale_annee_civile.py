@@ -50,6 +50,15 @@ HEURES = 169.0
 def _contexte(cumuls: dict, year: int, month: int):
     contexte = build_test_contexte(cumuls=cumuls, effectif=19)
     contexte.baremes["reduction_generale"] = dict(RGDU_2026)
+    # La réduction lit le SMIC du 1er janvier de l'année du bulletin [I12]. Même
+    # valeur en 2027, pour ne mesurer que la remise à zéro de janvier.
+    contexte.baremes["smic"] = {
+        **contexte.baremes["smic"],
+        "historique": [
+            {"date_debut": "2026-01-01", "cas_general": 12.02},
+            {"date_debut": "2027-01-01", "cas_general": 12.02},
+        ],
+    }
     contexte.year = year
     contexte.month = month
     return contexte

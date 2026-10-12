@@ -94,6 +94,11 @@ def baremes_snapshot() -> Dict[str, Any]:
             "cas_general": 12.31,
             "smic_horaire_brut": 12.31,
             "smic_mensuel_brut": 1867.02,
+            # La réduction générale lit le SMIC du 1er janvier dans l'historique
+            # [I12]. Ce palier garde les montants de référence de ces tests,
+            # calculés sur 12,31 € ; la base porte 12,02 € au 01/01/2026 et
+            # 12,31 € au 01/06/2026 (voir test_reduction_generale_smic_reference).
+            "historique": [{"date_debut": "2026-01-01", "cas_general": 12.31}],
         },
         "pss": {"mensuel": 4005.0, "annuel": 48060.0},
         "frais_pro": {

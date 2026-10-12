@@ -1,6 +1,9 @@
 # moteur_paie/calcul_reduction_generale.py
 
 from __future__ import annotations
+
+from datetime import date
+
 from app.core.logging import get_logger, log_payroll_debug
 
 from .cotisations_rubriques import enrichir_ligne_cotisation
@@ -83,6 +86,105 @@ def _calculer_parametre_T(contexte: ContextePaie) -> float:
 # Dans moteur_paie/calcul_reduction_generale.py
 
 
+class SmicDeReferenceIntrouvable(ValueError):
+    """Pas de SMIC au 1er janvier de l'année du bulletin dans l'historique du SMIC.
+
+    `ValueError` : les générateurs la rendent telle quelle à l'écran (refus 400).
+    """
+
+
+CODE_SMIC_REFERENCE_DIFFERE = "smic_reference_reduction_differe"
+
+
+def smic_horaire_au_1er_janvier(baremes: dict[str, Any], annee: int) -> float:
+    """SMIC horaire en vigueur au 1er janvier `annee`, lu dans `smic.historique`.
+
+    Le SMIC est revalorisé chaque 1er janvier : l'historique doit porter un palier
+    daté de ce jour. Sans lui, refus : une valeur d'une autre date (le SMIC
+    courant, ou celui de l'année d'avant) fausserait la réduction en silence.
+    """
+    smic = baremes.get("smic") or {}
+    premier_janvier = date(annee, 1, 1)
+    valeur = None
+    for palier in (smic.get("historique") if isinstance(smic, dict) else None) or []:
+        if not isinstance(palier, dict):
+            continue
+        try:
+            debut = date.fromisoformat(str(palier.get("date_debut"))[:10])
+            montant = float(palier.get("cas_general") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if debut == premier_janvier and montant > 0:
+            valeur = montant
+    if valeur is None:
+        raise SmicDeReferenceIntrouvable(
+            f"Réduction générale : le SMIC horaire au 1er janvier {annee} manque dans "
+            "l'historique du barème SMIC. La réduction se calcule avec le SMIC de "
+            "cette date : le bulletin n'est pas calculé. Contactez le support."
+        )
+    return valeur
+
+
+def _signaler_cle_dediee_differente(
+    contexte: ContextePaie, cle: Any, smic_1er_janvier: float, annee: int
+) -> None:
+    """Alerte (une par bulletin) si `smic_reference_horaire` diffère de l'historique."""
+    try:
+        valeur_cle = float(cle)
+    except (TypeError, ValueError):
+        return
+    if round(valeur_cle, 4) == round(smic_1er_janvier, 4):
+        return
+    alertes = getattr(contexte, "alertes_baremes", None)
+    if not isinstance(alertes, list):
+        alertes = []
+        contexte.alertes_baremes = alertes
+    if any(isinstance(a, dict) and a.get("code") == CODE_SMIC_REFERENCE_DIFFERE for a in alertes):
+        return
+    alertes.append(
+        {
+            "code": CODE_SMIC_REFERENCE_DIFFERE,
+            "critique": False,
+            "severity": "warning",
+            "message": (
+                "Réduction générale : le SMIC de référence saisi dans son barème "
+                f"({_montant_fr(valeur_cle)} €) diffère du SMIC au 1er janvier {annee} "
+                f"de l'historique du SMIC ({_montant_fr(smic_1er_janvier)} €). "
+                f"Martine retient {_montant_fr(smic_1er_janvier)} €. "
+                "À vérifier avant de valider ce bulletin."
+            ),
+        }
+    )
+
+
+def _smic_horaire_de_reference(contexte: ContextePaie) -> float:
+    """SMIC horaire de référence de la réduction générale du bulletin.
+
+    RGDU (>= 2026) : celui du 1er janvier de l'année du bulletin (service-public
+    F24542 : « 3 × SMIC calculé pour un an, valeur au 1er janvier 2026 »), lu
+    dans l'historique du SMIC. Plus de repli sur le SMIC courant : il
+    sur-évaluait la réduction [I12]. La clé `smic_reference_horaire` du barème
+    de la réduction n'est plus qu'un contrôle.
+
+    Fillon (< 2026) : inchangé, clé dédiée sinon SMIC courant.
+    """
+    config_red = contexte.baremes.get("reduction_generale", {}) or {}
+    annee = getattr(contexte, "year", None) or lc.ANNEE_BASCULE_RGDU
+    if annee >= lc.ANNEE_BASCULE_RGDU:
+        smic_horaire = smic_horaire_au_1er_janvier(contexte.baremes, annee)
+        cle = config_red.get("smic_reference_horaire")
+        if cle is not None:
+            _signaler_cle_dediee_differente(contexte, cle, smic_horaire, annee)
+        return smic_horaire
+    smic_data = contexte.baremes.get("smic", {}) or {}
+    return float(
+        config_red.get("smic_reference_horaire")
+        or smic_data.get("smic_horaire_brut")
+        or smic_data.get("cas_general")
+        or 0.0
+    )
+
+
 def _calculer_smic_de_reference_cumule(
     contexte: ContextePaie, heures_remunerees_cumulees: float
 ) -> float:
@@ -95,18 +197,9 @@ def _calculer_smic_de_reference_cumule(
     temps partiel (pas de dénominateur `duree_hebdo`, qui faussait le taux
     horaire effectif pour les contrats ≠ 35 h).
 
-    Le SMIC horaire de référence est **gelé** (LFSS 2025) : on lit une valeur
-    dédiée `smic_reference_horaire` dans la config réduction si présente, sinon
-    on retombe sur le SMIC horaire courant du barème.
+    Le SMIC horaire de référence : voir `_smic_horaire_de_reference`.
     """
-    config_red = contexte.baremes.get("reduction_generale", {}) or {}
-    smic_data = contexte.baremes.get("smic", {}) or {}
-    smic_horaire = float(
-        config_red.get("smic_reference_horaire")
-        or smic_data.get("smic_horaire_brut")
-        or smic_data.get("cas_general")
-        or 0.0
-    )
+    smic_horaire = _smic_horaire_de_reference(contexte)
     if smic_horaire <= 0:
         raise ValueError("SMIC horaire de référence introuvable pour la réduction.")
 
