@@ -186,51 +186,67 @@ def _mois_lisible(periode: str) -> str:
     return texte
 
 
-def historique_de_paie_avant_martine(company_id: str | None) -> str | None:
-    """Ce qui montre que la paie de la société se faisait ailleurs avant Martine.
+def historique_du_salarie_avant_martine(
+    company_id: str | None, employee_id: str, annee: int, mois: int
+) -> str | None:
+    """Ce qui montre que ce salarié était payé ailleurs, plus tôt dans l'année.
 
-    Deux traces : des lots d'import DSN validés pour son SIREN, ou des bulletins
-    repris de l'ancien logiciel. Rend une courte description (« DSN importées de
-    01/2026 à 06/2026 »), ou None s'il n'y a ni l'une ni l'autre.
+    Deux traces, pour les mois de l'année qui précèdent le bulletin : un import
+    DSN validé qui l'a créé ou mis à jour, ou un bulletin repris de l'ancien
+    logiciel. Rend une courte description (« DSN importées de 01/2026 à
+    06/2026 »), ou None.
+
+    La garde regarde le salarié, pas la société : un salarié créé dans Martine,
+    absent des DSN importées, part de zéro comme avant, même embauché depuis
+    longtemps (les personnages du tournage chez MAJI, 12/10/2026). En janvier,
+    rien ne précède dans l'année : les cumuls repartent avec elle.
 
     Les cumuls que l'import DSN calcule ne vont pas en base : ils sont écrits sur
     le disque du serveur, que la paie ne relit pas (enquête du 12/10/2026, [B12]).
-    Une société importée par DSN n'a donc aucun solde d'ouverture tant qu'on ne
-    le pose pas avec sa bascule.
+    Un salarié repris par DSN n'a donc aucun solde d'ouverture tant qu'on ne le
+    pose pas avec la bascule de sa société.
 
     Une base injoignable ne bloque pas la paie : la garde reste celle d'avant.
     """
-    if not company_id:
+    if not employee_id or mois <= 1:
         return None
+    debut_annee, fin_avant = f"{annee:04d}-01", f"{annee:04d}-{mois - 1:02d}"
     try:
-        societe = (
-            supabase.table("companies").select("siren").eq("id", str(company_id))
-            .limit(1).execute()
+        items = (
+            supabase.table("dsn_import_items")
+            .select("batch_id")
+            .eq("item_type", "employee")
+            .eq("target_id", str(employee_id))
+            .eq("status", "committed")
+            .execute()
         )
-        siren = str(((getattr(societe, "data", None) or [{}])[0] or {}).get("siren") or "").strip()
-        if siren:
+        lots_ids = sorted(
+            {str(i.get("batch_id")) for i in (getattr(items, "data", None) or []) if i.get("batch_id")}
+        )
+        if lots_ids:
             lots = (
                 supabase.table("dsn_import_batches")
-                .select("period_min, period_max")
-                .eq("siren", siren)
+                .select("id, period_min, period_max")
+                .in_("id", lots_ids)
                 .eq("status", "committed")
                 .execute()
             )
-            lignes = [l for l in (getattr(lots, "data", None) or []) if isinstance(l, dict)]
-            if lignes:
-                debuts = sorted(str(l.get("period_min") or "") for l in lignes if l.get("period_min"))
-                fins = sorted(str(l.get("period_max") or "") for l in lignes if l.get("period_max"))
-                if debuts and fins:
-                    return (
-                        f"DSN importées de {_mois_lisible(debuts[0])} à "
-                        f"{_mois_lisible(fins[-1])}"
-                    )
-                return "DSN importées"
+            debuts, fins = [], []
+            for lot in getattr(lots, "data", None) or []:
+                bas = max(str(lot.get("period_min") or ""), debut_annee)
+                haut = min(str(lot.get("period_max") or ""), fin_avant)
+                if lot.get("period_min") and lot.get("period_max") and bas <= haut:
+                    debuts.append(bas)
+                    fins.append(haut)
+            if debuts:
+                return f"DSN importées de {_mois_lisible(min(debuts))} à {_mois_lisible(max(fins))}"
         repris = (
             supabase.table("payslips")
             .select("year, month")
-            .eq("company_id", str(company_id))
+            .eq("employee_id", str(employee_id))
             .eq("origine", ORIGINE_IMPORTE)
+            .eq("year", annee)
+            .lt("month", mois)
             .limit(1)
             .execute()
         )
@@ -238,10 +254,35 @@ def historique_de_paie_avant_martine(company_id: str | None) -> str | None:
             return "bulletins repris de l'ancien logiciel"
     except Exception:  # noqa: BLE001 - base injoignable : la garde reste celle d'avant
         logger.warning(
-            "Historique de paie avant Martine illisible pour la société %s.", company_id
+            "Historique de paie avant Martine illisible pour le salarié %s (société %s).",
+            employee_id,
+            company_id,
         )
         return None
     return None
+
+
+def _bulletin_martine_avant_dans_l_annee(employee_id: str, annee: int, mois: int) -> bool:
+    """Martine a-t-elle déjà calculé un bulletin de ce salarié plus tôt dans l'année ?
+
+    Alors la chaîne de Martine a commencé : c'est la garde de chaîne rompue qui
+    juge, pas celle de la reprise. Base injoignable : non (la garde de chaîne
+    rompue reste en place)."""
+    try:
+        res = (
+            supabase.table("payslips")
+            .select("month, origine")
+            .eq("employee_id", str(employee_id))
+            .eq("year", annee)
+            .lt("month", mois)
+            .execute()
+        )
+    except Exception:  # noqa: BLE001
+        return False
+    return any(
+        str(l.get("origine") or ORIGINE_CALCULE) != ORIGINE_IMPORTE
+        for l in (getattr(res, "data", None) or [])
+    )
 
 
 def raison_de_cumul_manquant(
@@ -259,8 +300,10 @@ def raison_de_cumul_manquant(
     - le mois précédent est celui de la bascule → le solde d'ouverture n'a pas été importé ;
     - le mois précédent est postérieur à la bascule → la chaîne est rompue ;
     - pas de bascule, mais un bulletin existe déjà à ce mois ou avant → chaîne rompue ;
-    - pas de bascule, mais la société était payée ailleurs avant Martine (DSN
-      importées, bulletins repris) → son premier bulletin partirait de zéro ([B12]).
+    - pas de bascule, pas de bulletin Martine plus tôt dans l'année, mais le
+      salarié était payé ailleurs plus tôt dans l'année (il figure dans les DSN
+      importées, ou ses bulletins de l'ancien logiciel sont repris) → son premier
+      bulletin partirait de zéro ([B12]).
 
     Le cas légitime est le tout premier bulletin d'un salarié embauché après le
     mois précédent : rien à chaîner, l'ancien logiciel ne l'a jamais payé.
@@ -296,8 +339,8 @@ def raison_de_cumul_manquant(
             f"{precedent} mais leurs cumuls sont introuvables. Régénérez {precedent} "
             f"avant {mois:02d}/{annee:04d}."
         )
-    if bascule is None:
-        historique = historique_de_paie_avant_martine(company_id)
+    if bascule is None and not _bulletin_martine_avant_dans_l_annee(employee_id, annee, mois):
+        historique = historique_du_salarie_avant_martine(company_id, employee_id, annee, mois)
         if historique:
             return (
                 f"La paie de cette société se faisait avant Martine ({historique}), "
