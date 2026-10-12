@@ -1209,6 +1209,57 @@ def _alerte_pension_liquidable(
     ]
 
 
+def alertes_age_de_la_retraite(
+    employee_data: Dict[str, Any], *, mise_a_la_retraite: bool, a_la_date: date
+) -> list[str]:
+    """L'âge du salarié au départ ou à la mise à la retraite : signalé, jamais
+    bloquant (BOSS, Indemnités de rupture, § 1540, 1590 à 1610 ; L1237-5 ;
+    CSS L161-17-2)."""
+    from app.modules.payroll.engine.age_retraite import (
+        AGE_MISE_A_LA_RETRAITE_D_OFFICE,
+        AGE_TAUX_PLEIN,
+        a_atteint_l_age_legal,
+        age_en_annees,
+        age_legal_de_depart,
+        date_de_l_age_legal,
+        lire_date_de_naissance,
+    )
+
+    naissance = lire_date_de_naissance(employee_data)
+    if naissance is None:
+        return [
+            "Date de naissance absente de la fiche : l'âge requis pour un départ ou une mise "
+            "à la retraite n'a pas pu être vérifié."
+        ]
+    if mise_a_la_retraite:
+        age = age_en_annees(naissance, a_la_date)
+        if age >= AGE_MISE_A_LA_RETRAITE_D_OFFICE:
+            return []
+        if age < AGE_TAUX_PLEIN:
+            return [
+                f"Mise à la retraite d'un salarié de {age} ans : avant {AGE_TAUX_PLEIN} ans, l'âge "
+                "du taux plein (1° de l'article L. 351-8 du code de la sécurité sociale), elle "
+                "n'est pas possible ; la rupture serait un licenciement (BOSS, Indemnités de "
+                "rupture, § 1600 et 1610)."
+            ]
+        return [
+            f"Mise à la retraite d'un salarié de {age} ans : avant {AGE_MISE_A_LA_RETRAITE_D_OFFICE} "
+            "ans, elle demande son accord exprès ; l'employeur l'interroge par écrit avant chaque "
+            "anniversaire et ne peut pas le mettre à la retraite dans l'année qui suit un refus "
+            "(Code du travail L1237-5 ; BOSS, Indemnités de rupture, § 1600)."
+        ]
+    if a_atteint_l_age_legal(naissance, a_la_date):
+        return []
+    return [
+        f"Départ à la retraite avant l'âge légal de la génération du salarié "
+        f"({age_legal_de_depart(naissance).libelle}, atteint le "
+        f"{date_de_l_age_legal(naissance).strftime('%d/%m/%Y')}, CSS L161-17-2) : un départ "
+        "volontaire n'est possible qu'à l'âge où il peut liquider sa pension (BOSS, Indemnités "
+        "de rupture, § 1540). Vérifiez une retraite anticipée (carrière longue, handicap, "
+        "incapacité permanente, inaptitude, amiante : service-public F14043)."
+    ]
+
+
 def _initiative_retraite(exit_data: Dict[str, Any]) -> str:
     """« employer » pour une mise à la retraite, « employee » sinon (départ volontaire)."""
     notes = exit_data.get("exit_notes") if isinstance(exit_data.get("exit_notes"), dict) else {}
@@ -1431,7 +1482,12 @@ def calculer_indemnites_sortie(
                     **legale,
                     "description": "Indemnité de mise à la retraite (articles L1237-7 et L1234-9)",
                     "base_calcul": "Légale",
-                    "alertes": list(alertes_reference),
+                    "alertes": alertes_age_de_la_retraite(
+                        employee_data,
+                        mise_a_la_retraite=True,
+                        a_la_date=_date_ou_none(exit_data.get("exit_request_date")) or exit_date,
+                    )
+                    + list(alertes_reference),
                 },
                 conventionnelle,
                 libelle="Indemnité conventionnelle de mise à la retraite",
@@ -1441,7 +1497,9 @@ def calculer_indemnites_sortie(
             indemnite_depart_retraite = calculer_indemnite_depart_retraite(
                 mois_d_anciennete or 0, salaire_reference
             )
-            indemnite_depart_retraite["alertes"] = list(alertes_reference)
+            indemnite_depart_retraite["alertes"] = alertes_age_de_la_retraite(
+                employee_data, mise_a_la_retraite=False, a_la_date=fin_du_contrat
+            ) + list(alertes_reference)
             indemnite_depart_retraite = _retenir_le_plus_eleve(
                 indemnite_depart_retraite,
                 conventionnelle,
