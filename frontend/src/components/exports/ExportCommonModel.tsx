@@ -4,6 +4,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getEmptyExportAlertMessage, isEmptyDataMessage } from "@/lib/exportEmptyState";
+import { lignesTotauxDeControle, montantDeLApercu } from "@/components/exports/totauxApercu";
 import {
   EXPORTS_REFETCH_INTERVAL_MS,
   refreshExportsPageQueries,
@@ -112,13 +113,6 @@ function resolveApiExportType(exportType: string): ExportType {
 
 function formatEuro(amount: number): string {
   return amount.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
-}
-
-function hasCotisationsTotals(totals: ExportPreviewResponse["totals"]): boolean {
-  return (
-    totals.total_cotisations_salariales != null ||
-    totals.total_cotisations_patronales != null
-  );
 }
 
 function defaultExportFormat(exportType: string): ExportFileFormat {
@@ -286,6 +280,12 @@ export function ExportCommonModel({
     if (!previewData) return null;
     return getEmptyExportAlertMessage(previewData, apiExportType, selectedPeriod);
   }, [previewData, apiExportType, selectedPeriod]);
+
+  // Le montant propre à l'export (écritures, net, montant à virer…) et ses
+  // totaux de contrôle ; la coche verte seulement sans anomalie bloquante.
+  const montantApercu = previewData ? montantDeLApercu(apiExportType, previewData.totals) : null;
+  const lignesDeControle = previewData ? lignesTotauxDeControle(apiExportType, previewData.totals) : [];
+  const apercuSansBlocage = !previewData?.anomalies.some((a) => a.severity === "blocking");
 
   const blockingAnomalies = useMemo(() => {
     if (!previewData) return [];
@@ -917,93 +917,37 @@ export function ExportCommonModel({
                     <p className="text-sm text-muted-foreground">Période</p>
                     <p className="text-2xl font-bold">{selectedPeriod}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Montant total</p>
-                    <p className="text-2xl font-bold">
-                      {previewData.totals.total_net_a_payer?.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' }) || 
-                       previewData.totals.total_amount?.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' }) || 
-                       "N/A"}
-                    </p>
-                  </div>
+                  {montantApercu ? (
+                    <div>
+                      <p className="text-sm text-muted-foreground">{montantApercu.libelle}</p>
+                      <p className="text-2xl font-bold">{montantApercu.texte}</p>
+                    </div>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Totaux de contrôle */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-green-600" />
-                  Totaux de contrôle
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  {apiExportType === "acomptes" || apiExportType === "saisies" ? (
-                    <>
-                      {apiExportType === "acomptes" && previewData.totals.total_versements != null && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Total versements :</span>
-                          <span className="font-medium">
-                            {formatEuro(previewData.totals.total_versements)}
-                          </span>
-                        </div>
-                      )}
-                      {apiExportType === "acomptes" && previewData.totals.total_remboursements != null && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Total remboursements :</span>
-                          <span className="font-medium">
-                            {formatEuro(previewData.totals.total_remboursements)}
-                          </span>
-                        </div>
-                      )}
-                      {apiExportType === "saisies" && previewData.totals.total_prelevements != null && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Total prélèvements :</span>
-                          <span className="font-medium">
-                            {formatEuro(previewData.totals.total_prelevements)}
-                          </span>
-                        </div>
-                      )}
-                      {previewData.totals.operations_count != null && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Opérations :</span>
-                          <span className="font-medium">{previewData.totals.operations_count}</span>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {previewData.totals.total_brut != null && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Total brut :</span>
-                          <span className="font-medium">{formatEuro(previewData.totals.total_brut)}</span>
-                        </div>
-                      )}
-                      {hasCotisationsTotals(previewData.totals) && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Total cotisations :</span>
-                          <span className="font-medium">
-                            {formatEuro(
-                              (previewData.totals.total_cotisations_salariales ?? 0) +
-                                (previewData.totals.total_cotisations_patronales ?? 0),
-                            )}
-                          </span>
-                        </div>
-                      )}
-                      {previewData.totals.total_net_a_payer != null && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Total net :</span>
-                          <span className="font-medium">
-                            {formatEuro(previewData.totals.total_net_a_payer)}
-                          </span>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            {/* Totaux de contrôle : jamais un cadre vide ; la coche verte, seulement sans blocage */}
+            {lignesDeControle.length > 0 ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    {apercuSansBlocage ? <CheckCircle2 className="h-5 w-5 text-green-600" /> : null}
+                    Totaux de contrôle
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 text-sm">
+                    {lignesDeControle.map((ligne) => (
+                      <div key={ligne.libelle} className="flex justify-between">
+                        <span className="text-muted-foreground">{ligne.libelle} :</span>
+                        <span className="font-medium">{ligne.texte}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
 
             {previewData.details?.organismes && previewData.details.organismes.length > 0 ? (
               <Card>

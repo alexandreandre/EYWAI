@@ -108,7 +108,7 @@ def build_fec_rows(
         )
 
     totals = {
-        "employees_count": 0,
+        "employees_count": int(od_totals.get("employees_count") or 0),
         "total_amount": od_totals.get("total_debit", 0),
         "lines_count": len(rows),
         "equilibre": od_totals.get("equilibre", False),

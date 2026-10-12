@@ -803,6 +803,8 @@ def build_payroll_ledger(
         "ecart": ecart,
         "anomalies": anomalies,
         "balance_debug": balance_debug,
+        # Les salariés des bulletins lus : le FEC et l'OD le disaient à 0.
+        "employees_count": int((totals or {}).get("employees_count") or 0),
     }
     return ecritures, od_totals, mappings
 
