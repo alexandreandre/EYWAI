@@ -576,7 +576,11 @@ export default function PayslipEdit() {
               Détail du maintien de salaire
             </Button>
           ) : null}
-          <ComparaisonMoisDernier comparaison={payslip.comparaison_mois_dernier} />
+          <ComparaisonMoisDernier
+            comparaison={payslip.comparaison_mois_dernier}
+            annee={payslip.year}
+            mois={payslip.month}
+          />
           <LignesExpliquees payslipData={payslip.payslip_data} />
           {/* Clé : l'aperçu se refait après chaque rechargement du bulletin. */}
           <PayslipPreviewFrame

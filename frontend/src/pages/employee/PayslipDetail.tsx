@@ -80,7 +80,11 @@ export default function EmployeePayslipDetail() {
       {/* Les alertes de contrôle de la comparaison N-1 sont un outil de la RH :
           le salarié n'a que « ce qui a changé » et la tendance. */}
       <div className="space-y-4">
-        <ComparaisonMoisDernier comparaison={payslip.comparaison_mois_dernier} />
+        <ComparaisonMoisDernier
+          comparaison={payslip.comparaison_mois_dernier}
+          annee={payslip.year}
+          mois={payslip.month}
+        />
         <PayslipTrendTab
           payslipId={payslip.id}
           referenceYear={payslip.year}
