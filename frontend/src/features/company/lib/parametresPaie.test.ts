@@ -44,6 +44,9 @@ describe('saisieInitiale', () => {
       effectif: '25',
       datePaiement: 'dernier_jour_du_mois',
       jourSolidarite: '2026-05-25',
+      compteIban: '',
+      compteBic: '',
+      compteTitulaire: '',
     });
   });
 
@@ -54,7 +57,92 @@ describe('saisieInitiale', () => {
       effectif: '',
       datePaiement: 'arrete_des_variables',
       jourSolidarite: '',
+      compteIban: '',
+      compteBic: '',
+      compteTitulaire: '',
     });
+  });
+});
+
+describe('compte bancaire de la société', () => {
+  const IBAN = 'FR7630001007941234567890185';
+  const avecCompte = societe({
+    settings: { compte_bancaire: { iban: IBAN, bic: 'BNPAFRPP', titulaire: 'SAS Exemple' } },
+  });
+  const sansCompte = societe();
+
+  it('se relit dans la saisie', () => {
+    expect(saisieInitiale(avecCompte)).toMatchObject({
+      compteIban: IBAN,
+      compteBic: 'BNPAFRPP',
+      compteTitulaire: 'SAS Exemple',
+    });
+  });
+
+  it('s’envoie normalisé quand l’IBAN est juste', () => {
+    const { corps, erreurs } = construireMiseAJour(sansCompte, {
+      ...saisieInitiale(sansCompte),
+      compteIban: 'fr76 3000 1007 9412 3456 7890 185',
+      compteBic: 'bnpa frpp',
+      compteTitulaire: ' SAS Exemple ',
+    });
+    expect(erreurs).toEqual({});
+    expect(corps.compte_bancaire).toEqual({ iban: IBAN, bic: 'BNPAFRPP', titulaire: 'SAS Exemple' });
+  });
+
+  it('refuse une clé fausse en disant pourquoi, sans rien envoyer', () => {
+    const { corps, erreurs } = construireMiseAJour(sansCompte, {
+      ...saisieInitiale(sansCompte),
+      compteIban: 'FR7630001007941234567890186',
+    });
+    expect(erreurs.compteIban).toContain('Clé de contrôle');
+    expect(corps.compte_bancaire).toBeUndefined();
+  });
+
+  it('refuse un BIC incomplet', () => {
+    const { erreurs } = construireMiseAJour(sansCompte, {
+      ...saisieInitiale(sansCompte),
+      compteIban: IBAN,
+      compteBic: 'BNPA',
+    });
+    expect(erreurs.compteBic).toBe('BIC invalide : 8 ou 11 caractères, par exemple BNPAFRPP.');
+  });
+
+  it('exige l’IBAN dès qu’un autre champ du compte est rempli', () => {
+    const { erreurs } = construireMiseAJour(sansCompte, {
+      ...saisieInitiale(sansCompte),
+      compteTitulaire: 'SAS Exemple',
+    });
+    expect(erreurs.compteIban).toContain('obligatoire');
+  });
+
+  it('retire le compte quand les trois champs sont vidés', () => {
+    const { corps, erreurs } = construireMiseAJour(avecCompte, {
+      ...saisieInitiale(avecCompte),
+      compteIban: '',
+      compteBic: '',
+      compteTitulaire: '',
+    });
+    expect(erreurs).toEqual({});
+    expect(corps.compte_bancaire).toBeNull();
+  });
+
+  it('n’envoie rien quand rien ne change, espaces compris', () => {
+    const saisie = { ...saisieInitiale(avecCompte), compteIban: 'FR76 3000 1007 9412 3456 7890 185' };
+    expect(construireMiseAJour(avecCompte, saisie)).toEqual({ corps: {}, erreurs: {} });
+  });
+
+  it('ne fait pas passer les bulletins « À recalculer »', () => {
+    expect(parametresOntChange(sansCompte, avecCompte)).toBe(false);
+  });
+
+  it('nomme le compte quand la base ne l’a pas gardé', () => {
+    const { corps } = construireMiseAJour(sansCompte, {
+      ...saisieInitiale(sansCompte),
+      compteIban: IBAN,
+    });
+    expect(champsNonRelus(corps, sansCompte)).toEqual(['Compte bancaire de la société']);
+    expect(champsNonRelus(corps, avecCompte)).toEqual([]);
   });
 });
 
