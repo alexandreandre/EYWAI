@@ -37,11 +37,12 @@ Ce que le moteur en fait :
 - la contribution patronale de 40 % est une ligne patronale (DSN 093, base 03) ;
 - la part exclue des cotisations est ajoutée au net après cotisations.
 
-Limites connues, dites au bulletin plutôt que calculées : un salarié qui peut
-liquider sa retraite et signe une rupture conventionnelle (indemnité imposable
-dès le premier euro) ; une part soumise aux cotisations mais non imposable
-(au-delà de 2 PASS) qui resterait dans le net imposable ; le montant net social
-de la part exonérée.
+Rupture conventionnelle d'un salarié en droit de bénéficier d'une pension de
+retraite d'un régime légalement obligatoire (case du dossier) : imposable dès
+le premier euro (BOSS § 940) ; cotisations, CSG/CRDS et contribution de 40 %
+inchangées, la limite sociale restant celle des a) et b) du 6° de l'article
+80 duodecies du CGI (§ 60 : « y compris lorsqu'elles sont soumises à l'impôt
+sur le revenu » ; § 890 : distinction du régime social supprimée en 2023).
 """
 
 from __future__ import annotations
@@ -95,6 +96,8 @@ class RegimeIndemniteRupture:
     contribution_patronale: float
     taux_contribution_patronale: float
     imposable: float
+    #: Rupture conventionnelle d'un salarié qui peut liquider sa retraite.
+    pension_de_retraite: bool = False
 
     def mention(self) -> str:
         morceaux = []
@@ -113,6 +116,11 @@ class RegimeIndemniteRupture:
             morceaux.append(
                 f"contribution patronale de 40 % : {_euros(self.contribution_patronale)}"
             )
+        if self.pension_de_retraite:
+            morceaux.append(
+                "imposable dès le premier euro, le salarié pouvant bénéficier d'une pension "
+                "de retraite"
+            )
         return " ; ".join(morceaux) + " (BOSS, Indemnités de rupture)."
 
     def en_dict(self) -> Dict[str, Any]:
@@ -128,8 +136,13 @@ def ventiler_indemnite_de_rupture(
     minimum: float,
     remuneration_annuelle_n_1: Optional[float],
     pass_annuel: float,
+    pension_de_retraite: bool = False,
 ) -> RegimeIndemniteRupture:
-    """Parts exonérées et soumises d'une indemnité de rupture (fonction pure)."""
+    """Parts exonérées et soumises d'une indemnité de rupture (fonction pure).
+
+    `pension_de_retraite` (rupture conventionnelle seulement) : imposable dès
+    le premier euro ; la limite sociale reste calculée sur les a) et b) du 6°
+    de l'article 80 duodecies (BOSS § 60, 890, 940)."""
     montant = round(max(float(montant or 0.0), 0.0), 2)
     minimum = round(max(float(minimum or 0.0), 0.0), 2)
     pass_annuel = float(pass_annuel or 0.0)
@@ -145,6 +158,9 @@ def ventiler_indemnite_de_rupture(
     else:
         exoneree_cotisations = round(min(exoneree_impot, 2 * pass_annuel), 2)
     exoneree_csg = round(min(minimum, exoneree_cotisations), 2)
+    pension = bool(pension_de_retraite) and nature == RUPTURE_CONVENTIONNELLE
+    if pension:
+        exoneree_impot = 0.0
     taux = (
         TAUX_CONTRIBUTION_PATRONALE
         if nature in (RUPTURE_CONVENTIONNELLE, MISE_A_LA_RETRAITE)
@@ -166,6 +182,7 @@ def ventiler_indemnite_de_rupture(
         contribution_patronale=round(exoneree_cotisations * taux, 2),
         taux_contribution_patronale=taux,
         imposable=round(montant - exoneree_impot, 2),
+        pension_de_retraite=pension,
     )
 
 

@@ -45,6 +45,10 @@ import {
   indemniteConventionnelleSaisissable,
 } from '@/features/employee-exits/utils/indemniteConventionnelle';
 import { lireMontantNegocie } from '@/features/employee-exits/utils/montantNegocie';
+import {
+  AIDE_PENSION_LIQUIDABLE,
+  LIBELLE_PENSION_LIQUIDABLE,
+} from '@/features/employee-exits/utils/pensionLiquidable';
 import { AlertCircle, Info, Loader2 } from 'lucide-react';
 
 interface CreateExitDialogProps {
@@ -94,6 +98,7 @@ export function CreateExitDialog({
     INITIATIVE_RETRAITE_PAR_DEFAUT
   );
   const [indemniteConventionnelle, setIndemniteConventionnelle] = useState<string>('');
+  const [pensionLiquidable, setPensionLiquidable] = useState(false);
 
   const selectedEmployee = employees.find((emp) => emp.id === employeeId);
   // Salarié présélectionné (bandeau de la Paie) absent de la liste : le dire,
@@ -117,6 +122,7 @@ export function CreateExitDialog({
     setExitReason('');
     setInitiativeRetraite(INITIATIVE_RETRAITE_PAR_DEFAUT);
     setIndemniteConventionnelle('');
+    setPensionLiquidable(false);
     setNoticePreview(null);
     setNoticePreviewError(null);
     noticeManuallyEdited.current = false;
@@ -297,6 +303,7 @@ export function CreateExitDialog({
         exit_reason: exitReason || undefined,
         ...(exitType === 'depart_retraite' ? { retirement_initiator: initiativeRetraite } : {}),
         ...(conventionnelle.valeur !== null ? { indemnite_conventionnelle: conventionnelle.valeur } : {}),
+        ...(exitType === 'rupture_conventionnelle' && pensionLiquidable ? { pension_liquidable: true } : {}),
       };
 
       await createEmployeeExit(data);
@@ -581,6 +588,22 @@ export function CreateExitDialog({
               <p className="text-sm text-muted-foreground">
                 {aideIndemniteConventionnelle(exitType, initiativeRetraite)}
               </p>
+            </div>
+          )}
+
+          {exitType === 'rupture_conventionnelle' && (
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="pension_liquidable"
+                  checked={pensionLiquidable}
+                  onCheckedChange={(checked) => setPensionLiquidable(checked === true)}
+                />
+                <Label htmlFor="pension_liquidable" className="cursor-pointer">
+                  {LIBELLE_PENSION_LIQUIDABLE}
+                </Label>
+              </div>
+              <p className="text-sm text-muted-foreground">{AIDE_PENSION_LIQUIDABLE}</p>
             </div>
           )}
 

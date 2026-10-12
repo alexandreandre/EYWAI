@@ -91,6 +91,9 @@ class EmployeeExitCreate(BaseModel):
     # interprofessionnel). Rangée dans `exit_notes.indemnite_conventionnelle` ;
     # la plus haute du légal et de ce montant est versée.
     indemnite_conventionnelle: Optional[float] = Field(default=None, ge=0)
+    # Rupture conventionnelle : le salarié peut liquider une pension de retraite
+    # de base (indemnité imposable dès le premier euro, BOSS § 940).
+    pension_liquidable: Optional[bool] = None
 
     class Config:
         json_schema_extra = {
@@ -127,6 +130,8 @@ class EmployeeExitUpdate(BaseModel):
     # Licenciement, départ ou mise à la retraite : montant conventionnel
     # (None = minimum légal). Rangé dans `exit_notes`, le dossier est recalculé.
     indemnite_conventionnelle: Optional[float] = Field(default=None, ge=0)
+    # Rupture conventionnelle : case « peut liquider une pension de retraite ».
+    pension_liquidable: Optional[bool] = None
 
 
 # ============================================================================

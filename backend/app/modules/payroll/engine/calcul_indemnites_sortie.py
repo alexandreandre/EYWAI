@@ -1012,6 +1012,7 @@ def _regime_social(
     alertes: list[str],
     *,
     conventionnelle: bool = False,
+    pension_de_retraite: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """`minimum` : le montant légal, ou le montant conventionnel de branche
     quand il est versé (seuil de la CSG/CRDS et troisième critère des limites
@@ -1025,6 +1026,7 @@ def _regime_social(
         minimum=minimum,
         remuneration_annuelle_n_1=remuneration_n_1,
         pass_annuel=pass_annuel,
+        pension_de_retraite=pension_de_retraite,
     ).en_dict()
     regime["conventionnelle"] = bool(conventionnelle)
     if alertes:
@@ -1166,6 +1168,42 @@ def calculer_indemnite_depart_retraite(mois_d_anciennete: int, salaire_reference
         "calcul": calcul,
         "base_calcul": "Légale",
     }
+
+
+def _notes(exit_data: Dict[str, Any]) -> Dict[str, Any]:
+    notes = exit_data.get("exit_notes")
+    return notes if isinstance(notes, dict) else {}
+
+
+def _pension_liquidable(exit_data: Dict[str, Any]) -> bool:
+    """Case du dossier : le salarié peut liquider une pension de retraite de base."""
+    return bool(_notes(exit_data).get("pension_liquidable"))
+
+
+def _alerte_pension_liquidable(
+    employee_data: Dict[str, Any], exit_data: Dict[str, Any], fin_du_contrat: date
+) -> list[str]:
+    """À l'âge légal de sa génération, le salarié peut liquider sa pension :
+    l'indemnité de rupture conventionnelle est alors imposable dès le premier
+    euro (BOSS, Indemnités de rupture, § 940). Signalé, la case reste à cocher."""
+    from app.modules.payroll.engine.age_retraite import (
+        a_atteint_l_age_legal,
+        age_legal_de_depart,
+        lire_date_de_naissance,
+    )
+
+    naissance = lire_date_de_naissance(employee_data)
+    if naissance is None or _pension_liquidable(exit_data):
+        return []
+    if not a_atteint_l_age_legal(naissance, fin_du_contrat):
+        return []
+    return [
+        f"Le salarié a l'âge légal de départ à la retraite de sa génération "
+        f"({age_legal_de_depart(naissance).libelle}, CSS L161-17-2) : s'il peut liquider une "
+        "pension de retraite de base, cochez la case du dossier ; l'indemnité est alors "
+        "imposable dès le premier euro, ses cotisations, sa CSG/CRDS et la contribution de "
+        "40 % ne changent pas (BOSS, Indemnités de rupture, § 60, 890 et 940)."
+    ]
 
 
 def _initiative_retraite(exit_data: Dict[str, Any]) -> str:
@@ -1366,7 +1404,11 @@ def calculer_indemnites_sortie(
         indemnite_rupture = calculer_indemnite_rupture_conventionnelle(
             anciennete, salaire_reference, _montant_negocie_saisi(exit_data)
         )
-        indemnite_rupture["alertes"] = alertes_reference + indemnite_rupture.get("alertes", [])
+        indemnite_rupture["alertes"] = (
+            alertes_reference
+            + indemnite_rupture.get("alertes", [])
+            + _alerte_pension_liquidable(employee_data, exit_data, fin_du_contrat)
+        )
 
     indemnite_depart_retraite = None
     indemnite_mise_retraite = None
@@ -1439,6 +1481,7 @@ def calculer_indemnites_sortie(
                 remuneration_n_1,
                 pass_annuel,
                 alertes_regime,
+                pension_de_retraite=_pension_liquidable(exit_data),
             )
 
     # 7. Calculer les totaux

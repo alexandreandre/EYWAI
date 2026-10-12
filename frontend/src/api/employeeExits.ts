@@ -358,6 +358,8 @@ export interface CreateEmployeeExitRequest {
   retirement_initiator?: 'employee' | 'employer';
   /** Licenciement, départ ou mise à la retraite : montant de la convention de branche. */
   indemnite_conventionnelle?: number | null;
+  /** Rupture conventionnelle : le salarié peut liquider une pension de retraite de base. */
+  pension_liquidable?: boolean;
 }
 
 export interface UpdateEmployeeExitRequest {
@@ -376,6 +378,8 @@ export interface UpdateEmployeeExitRequest {
   montant_negocie?: number | null;
   /** Licenciement, départ ou mise à la retraite : montant conventionnel ; null = minimum légal. */
   indemnite_conventionnelle?: number | null;
+  /** Rupture conventionnelle : le salarié peut liquider une pension de retraite de base. */
+  pension_liquidable?: boolean;
 }
 
 export interface StatusUpdateRequest {

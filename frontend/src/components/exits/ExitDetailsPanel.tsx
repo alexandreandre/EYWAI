@@ -9,6 +9,10 @@ import {
   LIBELLE_INDEMNITE_CONVENTIONNELLE,
   aideIndemniteConventionnelle,
 } from '@/features/employee-exits/utils/indemniteConventionnelle';
+import {
+  AIDE_PENSION_LIQUIDABLE,
+  LIBELLE_PENSION_LIQUIDABLE,
+} from '@/features/employee-exits/utils/pensionLiquidable';
 import { log } from '@/lib/logger';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -405,6 +409,29 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       toast({
         title: 'Indemnité conventionnelle non enregistrée',
         description: error.response?.data?.detail || "Impossible d'enregistrer l'indemnité conventionnelle",
+        variant: 'destructive',
+      });
+    }
+  };
+
+  /** Rupture conventionnelle : « le salarié peut liquider sa retraite ». */
+  const handlePensionLiquidableChange = async (valeur: boolean) => {
+    if (!exitId) return;
+    try {
+      const updated = await updateEmployeeExit(exitId, { pension_liquidable: valeur });
+      setExitDetails((current) => (current ? { ...current, ...updated } : current));
+      setIndemnities((updated.calculated_indemnities as ExitIndemnityCalculation | undefined) ?? null);
+      toast({
+        title: valeur ? 'Indemnité imposable dès le premier euro' : 'Limites fiscales rétablies',
+        description: 'Les indemnités sont recalculées. Recalculez le bulletin de sortie pour le porter au bulletin.',
+      });
+      fetchExitDetails();
+      onUpdate?.();
+    } catch (error: any) {
+      log.error('Erreur lors de la mise à jour de la case retraite:', error);
+      toast({
+        title: 'Case non enregistrée',
+        description: error.response?.data?.detail || "Impossible d'enregistrer la case",
         variant: 'destructive',
       });
     }
@@ -1405,6 +1432,20 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                           <RegimeSocial
                             regime={indemnities.indemnite_rupture_conventionnelle.regime_social}
                           />
+                          <div className="mt-3 space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id="pension-liquidable"
+                                checked={Boolean(exitDetails.exit_notes?.pension_liquidable)}
+                                disabled={isArchived || isCancelled}
+                                onCheckedChange={(checked) => handlePensionLiquidableChange(checked === true)}
+                              />
+                              <Label htmlFor="pension-liquidable" className="cursor-pointer text-sm">
+                                {LIBELLE_PENSION_LIQUIDABLE}
+                              </Label>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{AIDE_PENSION_LIQUIDABLE}</p>
+                          </div>
                           {!isArchived && !isCancelled && (
                             <div className="mt-3 flex items-end gap-2">
                               <div className="flex-1 space-y-1">

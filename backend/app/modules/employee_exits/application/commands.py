@@ -91,6 +91,8 @@ def notes_du_dossier_a_la_creation(exit_type: str, exit_data: Dict[str, Any]) ->
     conventionnelle = exit_data.get("indemnite_conventionnelle")
     if exit_type in TYPES_AVEC_INDEMNITE_CONVENTIONNELLE and conventionnelle is not None:
         notes["indemnite_conventionnelle"] = round(float(conventionnelle), 2)
+    if exit_type == "rupture_conventionnelle" and exit_data.get("pension_liquidable"):
+        notes["pension_liquidable"] = True
     return notes or None
 
 
@@ -684,6 +686,20 @@ def update_employee_exit(
             notes.pop("indemnite_conventionnelle", None)
         else:
             notes["indemnite_conventionnelle"] = round(float(valeur), 2)
+        update_data["exit_notes"] = notes
+        saisie_du_dossier = True
+
+    # Rupture conventionnelle : « le salarié peut liquider sa retraite ».
+    if "pension_liquidable" in update_data:
+        if (new_exit_type or existing.get("exit_type")) != "rupture_conventionnelle":
+            raise EmployeeExitApplicationError(
+                400, "La case « peut liquider sa retraite » ne concerne qu'une rupture conventionnelle."
+            )
+        notes = dict(update_data.get("exit_notes") or existing.get("exit_notes") or {})
+        if update_data.pop("pension_liquidable"):
+            notes["pension_liquidable"] = True
+        else:
+            notes.pop("pension_liquidable", None)
         update_data["exit_notes"] = notes
         saisie_du_dossier = True
 
