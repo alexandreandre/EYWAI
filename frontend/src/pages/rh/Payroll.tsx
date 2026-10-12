@@ -75,6 +75,7 @@ import {
   type VuePaie,
 } from '@/features/payroll/utils/vuePaieUrl';
 import { estPretAValider } from '@/features/payroll/utils/validationGroupee';
+import { avertissementMoisPrecedentGroupe } from '@/features/payroll/utils/validationMoisPrecedent';
 import { ValiderBulletinsPrets } from '@/features/payroll/components/ValiderBulletinsPrets';
 import {
   ecartAvecMoisPrecedent,
@@ -461,6 +462,18 @@ export default function Payroll() {
         .filter((row) => row.pret && row.state.payslip)
         .map((row) => row.state.payslip!.id),
     [monthEmployeeStates]
+  );
+  // Prêts à valider, mais partis des cumuls d'un mois précédent à recalculer.
+  const avertissementValidation = useMemo(
+    () =>
+      avertissementMoisPrecedentGroupe(
+        monthEmployeeStates
+          .filter((row) => row.pret && row.state.payslip && estPerime(row.payslipPrecedent))
+          .map((row) => employeeDisplayName(row.employee)),
+        selectedYear,
+        selectedMonth
+      ),
+    [monthEmployeeStates, selectedYear, selectedMonth]
   );
   const nomParBulletin = useMemo(() => {
     const noms: Record<string, string> = {};
@@ -909,6 +922,7 @@ export default function Payroll() {
                 <ValiderBulletinsPrets
                   idsPrets={loadingMonthData ? [] : idsPretsAValider}
                   nomParBulletin={nomParBulletin}
+                  avertissement={avertissementValidation}
                   companyId={companyId}
                   titreMois={monthYearLabel(selectedMonth, selectedYear)}
                   disabled={generation.phase === 'running'}
