@@ -21,6 +21,7 @@ import AjouterPrimeBouton from '@/components/payslip-edit/AjouterPrimeBouton';
 import { PHRASE_FORFAIT_JOURS_SANS_HEURES_SUP } from '@/lib/forfaitJoursAffichage';
 import { pastilleSoumise } from '@/components/saisies/libellesSaisie';
 import {
+  descriptionHeuresSupDuMois,
   heuresDeclarees,
   type EtatCorrections,
   montantCorrigeDeLaPrime,
@@ -146,10 +147,7 @@ export default function CorrectionsBulletinPanel({
             <Clock className="h-5 w-5" />
             Heures supplémentaires du mois
           </CardTitle>
-          <CardDescription>
-            Déclarées ici, elles remplacent celles du planning pour ce bulletin, même à zéro.
-            À l’enregistrement, le bulletin est recalculé en entier.
-          </CardDescription>
+          <CardDescription>{descriptionHeuresSupDuMois(payslipData)}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {declarees && !etat.revenirAuPlanning ? (

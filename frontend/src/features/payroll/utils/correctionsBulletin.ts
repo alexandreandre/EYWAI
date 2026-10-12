@@ -107,6 +107,35 @@ export function heuresDeclarees(data: unknown): HeuresDeclarees | null {
   };
 }
 
+const HEURES_STRUCTURELLES = /^heures suppl\.? structurelles/i;
+
+function heuresFr(valeur: number): string {
+  return `${arrondi(valeur)}`.replace('.', ',');
+}
+
+/**
+ * Ce que la carte « Heures supplémentaires du mois » dit des heures déclarées.
+ *
+ * Le moteur ne remplace que les heures au-delà de l'horaire du contrat (celles
+ * que donne le planning) ; les heures structurelles d'un contrat à 39 h sont
+ * payées chaque mois et restent. Pour un 39 h, 20 h déclarées faisaient lire
+ * « 17,33 h → 37,33 h » sous une carte qui disait seulement « elles
+ * remplacent » (relevé J.1) : la phrase nomme les structurelles qui restent.
+ */
+export function descriptionHeuresSupDuMois(data: unknown): string {
+  const structurelles = lignesDe(data, 'calcul_du_brut')
+    .filter((l) => typeof l.libelle === 'string' && HEURES_STRUCTURELLES.test(l.libelle))
+    .reduce((total, l) => total + (nombre(l.quantite) ?? 0), 0);
+  const phrases = [
+    'Les heures au-delà de l’horaire du contrat. Déclarées ici, elles remplacent celles du planning pour ce bulletin, même à zéro.',
+  ];
+  if (structurelles > 0) {
+    phrases.push(`Les ${heuresFr(structurelles)} h structurelles du contrat restent payées en plus.`);
+  }
+  phrases.push('À l’enregistrement, le bulletin est recalculé en entier.');
+  return phrases.join(' ');
+}
+
 export function primesDuBulletin(data: unknown): PrimeDuBulletin[] {
   return SECTIONS_PRIMES.flatMap((section) =>
     lignesDe(data, section)
