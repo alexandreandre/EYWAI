@@ -169,13 +169,8 @@ export const employeeProfileEditSchema = z
         }
       });
     }
-    if (data.is_subject_to_residence_permit && !data.residence_permit_expiry_date?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Date d'expiration du titre de séjour requise.",
-        path: ['residence_permit_expiry_date'],
-      });
-    }
+    // Titre de séjour sans date : la fiche s'enregistre, le titre se dit
+    // « À compléter » partout (alerte plutôt que refus, 12/10/2026).
   });
 
 export type EmployeeProfileEditFormValues = z.infer<typeof employeeProfileEditSchema>;

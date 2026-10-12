@@ -1187,10 +1187,13 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                               name="residence_permit_expiry_date"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel>Date d'expiration du titre de séjour <span className="text-red-500">*</span></FormLabel>
+                                  <FormLabel>Date d'expiration du titre de séjour</FormLabel>
                                   <FormControl>
                                     <Input type="date" {...field} />
                                   </FormControl>
+                                  <p className="text-xs text-muted-foreground">
+                                    Sans date, le titre est signalé « À compléter » jusqu'à ce qu'elle soit saisie.
+                                  </p>
                                   <FormMessage />
                                 </FormItem>
                               )}
