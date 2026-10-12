@@ -104,12 +104,24 @@ function toFile(modulePath: string): string {
   return `${base}.tsx`;
 }
 
+/**
+ * Sans limite de durée : la première importation d'une page transforme tout son
+ * graphe de modules, ce qui prend 2 à 3 s sur une machine libre et dépassait les
+ * 5 s par défaut quand elle est chargée (EmployeeDetail : 5 004 ms, 12/10/2026).
+ * Ce que le test vérifie ne change pas : le fichier existe et le module se charge.
+ */
+const SANS_LIMITE_DE_DUREE = 0;
+
 describe('lazyPages module paths', () => {
   for (const modulePath of PAGE_MODULE_PATHS) {
-    it(`resolves ${modulePath}`, async () => {
-      const file = toFile(modulePath);
-      expect(fs.existsSync(file), `missing file for ${modulePath}: ${file}`).toBe(true);
-      await expect(import(modulePath)).resolves.toBeDefined();
-    });
+    it(
+      `resolves ${modulePath}`,
+      async () => {
+        const file = toFile(modulePath);
+        expect(fs.existsSync(file), `missing file for ${modulePath}: ${file}`).toBe(true);
+        await expect(import(modulePath)).resolves.toBeDefined();
+      },
+      SANS_LIMITE_DE_DUREE
+    );
   }
 });
