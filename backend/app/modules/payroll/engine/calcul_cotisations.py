@@ -573,6 +573,46 @@ def _calculer_une_ligne(
     )
 
 
+
+def alerte_prevoyance_cadre(
+    cadre: bool, adhesion: bool, lignes: Any
+) -> Optional[Dict[str, Any]]:
+    """Un cadre dont le bulletin ne portera aucune prévoyance ([B4], 12/10/2026).
+
+    Pour un non-cadre adhérent sans ligne, le barème national s'applique. Pour
+    un cadre, le moteur ne pose que les lignes de sa fiche : sans ligne, ou sans
+    adhésion, aucune cotisation de prévoyance, et rien ne le disait. L'alerte
+    n'arrête pas le calcul : refuser la génération reste une décision à prendre.
+    """
+    if not cadre:
+        return None
+    if adhesion and not lignes:
+        return {
+            "code": "prevoyance_cadre_sans_ligne",
+            "critique": False,
+            "severity": "info",
+            "message": (
+                "Prévoyance cadre cochée sur la fiche, mais sans ligne : ce bulletin "
+                "ne porte aucune cotisation de prévoyance. Saisissez les lignes du "
+                "contrat de prévoyance sur la fiche, puis recalculez."
+            ),
+            "donnee_non_officielle": False,
+        }
+    if not adhesion:
+        return {
+            "code": "prevoyance_cadre_absente",
+            "critique": False,
+            "severity": "info",
+            "message": (
+                "Salarié cadre sans adhésion de prévoyance sur sa fiche : ce bulletin "
+                "ne porte aucune cotisation de prévoyance. Vérifiez son affiliation, "
+                "cochez la prévoyance et saisissez les lignes du contrat de prévoyance, "
+                "puis recalculez."
+            ),
+            "donnee_non_officielle": False,
+        }
+    return None
+
 def calculer_cotisations(
     contexte: ContextePaie,
     salaire_brut: float,
@@ -1016,6 +1056,18 @@ def calculer_cotisations(
     adhesion_prevoyance = prevoyance_spec.get("adhesion", False)
     log_payroll_debug(logger, f'  -> Statut du salarié: {contexte.statut_salarie}')
     log_payroll_debug(logger, f'  -> Adhésion prévoyance détectée dans le contrat: {adhesion_prevoyance}')
+
+    alerte_prevoyance = alerte_prevoyance_cadre(
+        is_cadre(contexte.statut_salarie),
+        bool(adhesion_prevoyance),
+        prevoyance_spec.get("lignes_specifiques"),
+    )
+    if alerte_prevoyance is not None and isinstance(contexte.alertes_baremes, list):
+        if not any(
+            isinstance(a, dict) and a.get("code") == alerte_prevoyance["code"]
+            for a in contexte.alertes_baremes
+        ):
+            contexte.alertes_baremes.append(alerte_prevoyance)
 
     if adhesion_prevoyance and is_cadre(contexte.statut_salarie):
         logger.info('  -> ✅ Branche CADRE sélectionnée.')

@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { aideLignesPrevoyance } from '@/features/employees/utils/prevoyance';
 import { isEmployeeCadre } from '@/lib/mutuelleUtils';
 
 type PrevoyanceAffiliationFieldsProps<T extends FieldValues> = {
@@ -87,9 +88,9 @@ export function PrevoyanceAffiliationFields<T extends FieldValues>({
             </Button>
           </div>
 
-          {!cadre && (lignes?.length ?? 0) === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Sans ligne saisie, le barème national s&apos;applique au bulletin.
+          {aideLignesPrevoyance(cadre, lignes?.length ?? 0) ? (
+            <p className={cadre ? 'text-xs text-amber-700' : 'text-xs text-muted-foreground'}>
+              {aideLignesPrevoyance(cadre, lignes?.length ?? 0)}
             </p>
           ) : null}
 
