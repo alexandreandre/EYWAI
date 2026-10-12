@@ -300,3 +300,26 @@ describe('salaire verrouillé par l’historique', () => {
     ).toEqual({ valeur: 3500 });
   });
 });
+
+describe('prélèvement à la source à l’enregistrement de la fiche ([B1], 12/10/2026)', () => {
+  it('une fiche sans taux ne reçoit pas de taux à 0 % en l’enregistrant', () => {
+    const employee: Employee = { ...baseEmployee, specificites_paie: {} };
+    const payload = buildUpdatePayload(buildDefaultValues(employee), employee);
+    const pas = payload.specificites_paie?.prelevement_a_la_source as Record<string, unknown> | undefined;
+    expect(pas === undefined || !('taux' in pas)).toBe(true);
+  });
+
+  it('case cochée, le taux saisi est envoyé', () => {
+    const employee: Employee = { ...baseEmployee, specificites_paie: {} };
+    const defaults = buildDefaultValues(employee);
+    const values: EmployeeProfileEditFormValues = {
+      ...defaults,
+      specificites_paie: {
+        ...defaults.specificites_paie,
+        prelevement_a_la_source: { is_personnalise: true, taux: 4.3 },
+      },
+    };
+    const payload = buildUpdatePayload(values, employee);
+    expect(payload.specificites_paie?.prelevement_a_la_source).toEqual({ is_personnalise: true, taux: 4.3 });
+  });
+});

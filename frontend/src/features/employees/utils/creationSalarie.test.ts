@@ -16,6 +16,7 @@ import {
   mettreEnTeteDeListe,
   NOM_DES_ONGLETS,
   payloadJournalEcran,
+  prelevementPourEnvoi,
   pastillesParOnglet,
   raisonEchecCreation,
   saisieNonEnregistree,
@@ -249,5 +250,17 @@ describe('journal des erreurs de l’écran', () => {
     });
     expect(p.pile.split('\n').length).toBeLessThanOrEqual(20);
     expect(Object.keys(p).sort()).toEqual(['action', 'ecran', 'message', 'pile']);
+  });
+});
+
+describe('prélèvement à la source à la création ([B1], 12/10/2026)', () => {
+  it('case décochée : aucun taux envoyé, la grille par défaut s’appliquera', () => {
+    const envoi = prelevementPourEnvoi({ is_personnalise: false, taux: 0 });
+    expect(envoi).toBeUndefined();
+  });
+
+  it('case cochée : le taux saisi est envoyé, 0 % compris', () => {
+    expect(prelevementPourEnvoi({ is_personnalise: true, taux: 4.3 })).toEqual({ is_personnalise: true, taux: 4.3 });
+    expect(prelevementPourEnvoi({ is_personnalise: true, taux: 0 })).toEqual({ is_personnalise: true, taux: 0 });
   });
 });
