@@ -16,14 +16,14 @@ export function documentsDeSortieGrises(
 /**
  * Notes du départ qui mettent des documents générés « à revoir » : type ou date
  * de départ changés, et bulletin recalculé après leur génération (le solde de
- * tout compte et l'attestation employeur en reprennent les montants). Un
+ * tout compte et l'attestation France Travail en reprennent les montants). Un
  * document régénéré après la note n'est plus à revoir.
  */
 const NOTES_DE_REVUE = ['exit_type_change', 'last_working_day_change', 'bulletin_recalcule'] as const;
 
 const LIBELLES_DOCUMENTS: Record<string, string> = {
   certificat_travail: 'Certificat de travail',
-  attestation_pole_emploi: 'Attestation employeur',
+  attestation_pole_emploi: 'Attestation France Travail',
   solde_tout_compte: 'Solde de tout compte',
 };
 

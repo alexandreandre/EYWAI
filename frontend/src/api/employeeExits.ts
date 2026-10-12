@@ -788,7 +788,7 @@ export const documentTypeLabels: Record<DocumentType, string> = {
   justificatif_autre: 'Autre justificatif',
   // Documents auto-générés
   certificat_travail: 'Certificat de travail',
-  attestation_pole_emploi: 'Attestation employeur',
+  attestation_pole_emploi: 'Attestation France Travail',
   solde_tout_compte: 'Solde de tout compte',
   recu_solde_compte: 'Reçu pour solde de tout compte',
   attestation_portabilite_mutuelle: 'Attestation de portabilité mutuelle',

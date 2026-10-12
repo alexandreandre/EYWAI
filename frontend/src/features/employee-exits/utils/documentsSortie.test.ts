@@ -73,7 +73,7 @@ describe('documents de sortie à revoir', () => {
   it('le message nomme les documents à régénérer', () => {
     expect(messageDocumentsARevoir(['solde_tout_compte', 'attestation_pole_emploi'])).toBe(
       'Le départ ou un bulletin a changé après leur génération : régénérez Solde de tout compte, ' +
-        'Attestation employeur avant publication ou remise au collaborateur.'
+        'Attestation France Travail avant publication ou remise au collaborateur.'
     );
   });
 });

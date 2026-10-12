@@ -121,7 +121,7 @@ const GENERATABLE_DOCUMENTS: {
   label: string;
 }[] = [
   { type: 'certificat_travail', label: 'Certificat de travail' },
-  { type: 'attestation_pole_emploi', label: 'Attestation employeur' },
+  { type: 'attestation_pole_emploi', label: 'Attestation France Travail' },
   { type: 'solde_tout_compte', label: 'Solde de tout compte' },
 ];
 
@@ -1157,8 +1157,8 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                 {documents.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">
                     {documentsGrises
-                      ? 'Aucun document pour le moment. Les pièces officielles (certificat de travail, attestation employeur, solde de tout compte) se génèrent une fois le bulletin de sortie fait ; « Téléverser » reste possible pour vos propres fichiers.'
-                      : 'Aucun document pour le moment. Utilisez « Générer un document » pour produire les pièces officielles (certificat de travail, attestation employeur, solde de tout compte), ou « Téléverser » pour ajouter vos propres fichiers.'}
+                      ? 'Aucun document pour le moment. Les pièces officielles (certificat de travail, attestation France Travail, solde de tout compte) se génèrent une fois le bulletin de sortie fait ; « Téléverser » reste possible pour vos propres fichiers.'
+                      : 'Aucun document pour le moment. Utilisez « Générer un document » pour produire les pièces officielles (certificat de travail, attestation France Travail, solde de tout compte), ou « Téléverser » pour ajouter vos propres fichiers.'}
                   </p>
                 ) : (
                   <div className="space-y-2">
