@@ -346,8 +346,13 @@ def generate_od_globale(
     employee_ids: Optional[List[str]] = None,
     date_ecriture: Optional[str] = None,
     regroupement: str = "global",
+    refuser_si_desequilibre: bool = True,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, Any]]:
-    """OD complète unifiée via le registre paie (sans double comptabilisation)."""
+    """OD complète unifiée via le registre paie (sans double comptabilisation).
+
+    La génération refuse un déséquilibre (`LedgerImbalanceError`) ; l'aperçu le
+    demande sans refus pour le lister en anomalies, comme les OD partielles.
+    """
     from app.modules.exports.infrastructure.payroll_ledger import (
         assert_ledger_balanced,
         build_payroll_ledger,
@@ -364,7 +369,8 @@ def generate_od_globale(
     )
     # Les scopes partiels (salaires, charges, PAS) ne s'équilibrent pas seuls :
     # seule l'OD complète doit l'être.
-    assert_ledger_balanced(od_totals)
+    if refuser_si_desequilibre:
+        assert_ledger_balanced(od_totals)
     return ledger_to_od_export_rows(ecritures), od_totals, mappings
 
 
@@ -393,7 +399,12 @@ def preview_od(
         )
     elif od_type == "od_globale":
         ecritures, od_totals, mappings = generate_od_globale(
-            company_id, period, employee_ids, date_ecriture, regroupement
+            company_id,
+            period,
+            employee_ids,
+            date_ecriture,
+            regroupement,
+            refuser_si_desequilibre=False,
         )
     else:
         return {

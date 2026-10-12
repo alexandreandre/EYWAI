@@ -36,6 +36,7 @@ ECRITURE = {
     "libelle": "Salaires",
     "debit": 1000.0,
     "credit": 0.0,
+    "periode_paie": "2026-09",
 }
 
 
