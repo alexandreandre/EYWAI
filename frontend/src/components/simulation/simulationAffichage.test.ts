@@ -15,7 +15,7 @@ import { PayslipSimulationResult } from './PayslipSimulationResult';
 function texte(html: string): string {
   return html
     .replace(/<[^>]+>/g, '|')
-    .replace(/[  ]/g, ' ')
+    .replace(/[\u00a0\u202f]/g, ' ')
     .replace(/&#x27;/g, "'");
 }
 
