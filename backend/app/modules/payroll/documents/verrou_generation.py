@@ -46,6 +46,8 @@ INTERVALLE_PROLONGATION_SECONDES = 20.0
 # Une génération bloquée sans fin ne garde pas le bulletin plus longtemps que
 # la durée qu'on donnait au verrou avant : il n'est plus prolongé au-delà.
 PROLONGATION_MAX_SECONDES = 300
+# À la fin, le temps laissé à une prolongation en cours pour finir.
+ATTENTE_FIN_PROLONGATION_SECONDES = 10.0
 
 
 class GenerationDejaEnCours(ValueError):
@@ -147,18 +149,25 @@ def verrou_de_generation(employee_id: str, year: int, month: int) -> Iterator[No
     if pris is False:
         raise GenerationDejaEnCours()
     fini = threading.Event()
+    prolongateur: threading.Thread | None = None
     if pris:
-        threading.Thread(
+        prolongateur = threading.Thread(
             target=_prolonger_tant_que,
             args=(params, fini),
             name="prolonger-verrou-generation",
             daemon=True,
-        ).start()
+        )
+        prolongateur.start()
     jeton_contexte = _TENUS.set(tenus | {cle})
     try:
         yield
     finally:
         fini.set()
+        # Une prolongation partie juste avant la fin se termine avant le rendu :
+        # rien ne repousse le verrou une fois la génération finie. Attente
+        # bornée : une prolongation bloquée n'empêche pas de répondre.
+        if prolongateur is not None:
+            prolongateur.join(timeout=ATTENTE_FIN_PROLONGATION_SECONDES)
         _TENUS.reset(jeton_contexte)
         # Pris, ou peut-être pris (la réponse s'est perdue) : rendu avec notre
         # jeton, qui ne supprime que le verrou de cette génération.
