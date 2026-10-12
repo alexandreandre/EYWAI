@@ -47,7 +47,7 @@ export function ResidencePermitCard({ stats, loading }: ResidencePermitCardProps
             <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-200">
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-gray-500"></div>
-                <span className="text-sm font-medium text-gray-900">À renseigner</span>
+                <span className="text-sm font-medium text-gray-900">À compléter</span>
               </div>
               <span className="text-lg font-bold text-gray-700">{displayStats.total_a_renseigner}</span>
             </div>

@@ -105,14 +105,14 @@ function getStatusConfig(status: string | null | undefined): {
 
     case "to_complete":
       return {
-        label: "À renseigner",
+        label: "À compléter",
         className: "bg-gray-100 text-gray-700 border-gray-200",
       };
 
     default:
       // Fallback sûr en cas de statut inconnu
       return {
-        label: "À renseigner",
+        label: "À compléter",
         className: "bg-gray-100 text-gray-700 border-gray-200",
       };
   }
