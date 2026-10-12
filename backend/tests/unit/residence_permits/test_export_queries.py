@@ -52,7 +52,7 @@ def test_reprend_les_bornes_de_la_route_liste(table):
     assert ("is_subject_to_residence_permit", True) in [
         c.args for c in table.eq.call_args_list
     ]
-    assert ("employment_status", ["actif", "en_sortie"]) in [
+    assert ("employment_status", ["actif", "en_sortie", "en_onboarding"]) in [
         c.args for c in table.in_.call_args_list
     ]
 
@@ -81,3 +81,16 @@ def test_retourne_une_liste_vide_si_aucune_donnee(table):
     table.execute.return_value = MagicMock(data=None)
 
     assert fetch_employees_for_residence_permits_export(COMPANY_ID, ["emp-1"]) == []
+
+
+def test_la_liste_suit_aussi_les_fiches_en_onboarding(table):
+    """[D6-3] Une fiche créée au minimum est « en onboarding » : son titre de
+    séjour n'était suivi par personne tant qu'elle restait incomplète."""
+    from app.modules.residence_permits.infrastructure.queries import (
+        fetch_employees_for_residence_permits_list,
+    )
+
+    fetch_employees_for_residence_permits_list(COMPANY_ID)
+    assert ("employment_status", ["actif", "en_sortie", "en_onboarding"]) in [
+        c.args for c in table.in_.call_args_list
+    ]

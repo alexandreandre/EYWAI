@@ -212,3 +212,16 @@ class TestAnticipationThreshold:
     def test_threshold_value(self):
         """Seuil d'anticipation à 30 jours (relance RH J-30)."""
         assert ANTICIPATION_THRESHOLD_DAYS == 30
+
+
+class TestFicheEnOnboarding:
+    """[D6-3] Le titre d'une fiche « en onboarding » a un statut, comme les autres."""
+
+    def test_un_titre_expire_d_une_fiche_en_onboarding_est_expire(self):
+        result = calculate_residence_permit_status(
+            is_subject_to_residence_permit=True,
+            residence_permit_expiry_date=date(2026, 9, 1),
+            employment_status="en_onboarding",
+            reference_date=date(2026, 10, 12),
+        )
+        assert result["residence_permit_status"] == "expired"

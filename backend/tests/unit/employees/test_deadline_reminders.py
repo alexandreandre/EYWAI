@@ -170,3 +170,33 @@ class TestFinDeStage:
         ref = date(2025, 6, 1)
         salarie = {**self._stagiaire(ref), "contract_type": "CDI"}
         assert list_hr_deadline_candidates([salarie], ref) == []
+
+
+class TestTitreDeSejourEnSortie:
+    """[D6-3] Un salarié « en sortie » est listé avec son titre, mais n'était jamais relancé."""
+
+    REF = date(2026, 10, 12)
+
+    def _salarie(self, statut, **extra):
+        return {
+            "id": "e1",
+            "first_name": "Jeanne",
+            "last_name": "Essai",
+            "employment_status": statut,
+            "is_subject_to_residence_permit": True,
+            "residence_permit_expiry_date": (self.REF + timedelta(days=20)).isoformat(),
+            **extra,
+        }
+
+    def test_le_titre_d_un_salarie_en_sortie_est_relance(self):
+        candidats = list_hr_deadline_candidates([self._salarie("en_sortie")], self.REF)
+        assert [c.reminder_type for c in candidats] == [REMINDER_TYPE_RESIDENCE]
+
+    def test_la_fin_de_cdd_d_un_salarie_en_sortie_ne_l_est_toujours_pas(self):
+        salarie = self._salarie(
+            "en_sortie",
+            is_subject_to_residence_permit=False,
+            contract_type="CDD",
+            contract_end_date=(self.REF + timedelta(days=5)).isoformat(),
+        )
+        assert list_hr_deadline_candidates([salarie], self.REF) == []
