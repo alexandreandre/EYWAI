@@ -8,6 +8,7 @@ import {
   montantCorrigeDeLaPrime,
   quantitesHeuresSup,
   recalculAttendu,
+  repasseEnBrouillon,
   requeteDeCorrection,
   type EtatCorrections,
 } from './correctionsBulletin';
@@ -128,6 +129,27 @@ describe('requête de correction', () => {
 
   it('le résumé seul ne suffit pas à enregistrer', () => {
     expect(aDesModifications(initial, avec(initial, { resume: 'Rien' }))).toBe(false);
+  });
+});
+
+describe('bulletin validé : ce qui le repasse en brouillon [J1]', () => {
+  const initial = etatInitial(bulletin, 'Note');
+
+  it('une note interne seule le laisse validé : pas de confirmation', () => {
+    expect(repasseEnBrouillon(initial, avec(initial, { noteInterne: 'Vu avec la salariée' }))).toBe(
+      false
+    );
+  });
+
+  it('un montant corrigé le repasse en brouillon, note interne ou non', () => {
+    expect(repasseEnBrouillon(initial, avec(initial, { hs25: 4 }))).toBe(true);
+    expect(repasseEnBrouillon(initial, avec(initial, { hs25: 4, noteInterne: 'Heures du 12' }))).toBe(
+      true
+    );
+  });
+
+  it('la note du PDF change le document remis : brouillon', () => {
+    expect(repasseEnBrouillon(initial, avec(initial, { pdfNotes: 'Nouvelle note' }))).toBe(true);
   });
 });
 

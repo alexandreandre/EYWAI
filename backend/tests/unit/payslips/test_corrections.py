@@ -275,6 +275,34 @@ def test_un_bulletin_valide_repasse_en_brouillon_avant_les_variables(base):
     assert ordre == ["brouillon", "recalcul"]
 
 
+def test_une_note_interne_sur_un_bulletin_valide_le_laisse_valide(base):
+    """[J1] Le bulletin remis ne change pas : il reste validé, et visible du salarié."""
+    base.etat["bulletin"]["status"] = "valide"
+    with patch.object(mod, "_set_payslip_status_brouillon") as brouillon:
+        _corriger(internal_note="Vu avec la salariée")
+    brouillon.assert_not_called()
+    (maj,) = base.de("payslips", "update")
+    assert maj[2]["internal_notes"][0]["content"] == "Vu avec la salariée"
+
+
+def test_un_montant_corrige_avec_une_note_interne_repasse_toujours_en_brouillon(base):
+    base.etat["bulletin"]["status"] = "valide"
+    with patch.object(mod, "_set_payslip_status_brouillon") as brouillon:
+        _corriger(CorrectionsBulletin(heures_sup=(4.0, 0.0)), internal_note="Heures du 12")
+    brouillon.assert_called_once_with("ps-1")
+
+
+def test_une_note_du_pdf_sur_un_bulletin_valide_le_repasse_en_brouillon(base):
+    """Le document remis change : en attendant la décision, revalidation exigée."""
+    base.etat["bulletin"]["status"] = "valide"
+    with (
+        patch.object(mod, "_set_payslip_status_brouillon") as brouillon,
+        patch.object(mod, "archiver_version"),
+    ):
+        _corriger(pdf_notes="Prime versée en septembre")
+    brouillon.assert_called_once_with("ps-1")
+
+
 # --- Échec du recalcul ---
 
 
