@@ -366,6 +366,25 @@ def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
             )
         )
 
+    # Indemnités de rupture (licenciement, rupture conventionnelle, mise à la
+    # retraite) : la part exclue des cotisations s'ajoute au net après elles. Sans
+    # cette ligne, le bulletin ne disait pas d'où venait le net (rupture de
+    # 5 000 € : 2 500 € au brut, 2 500 € nulle part, relevé du 12/10/2026).
+    for indemnite in (bulletin.get("indemnites_sortie") or {}).get("lignes_exonerees") or []:
+        if not isinstance(indemnite, dict):
+            continue
+        montant = float(indemnite.get("montant") or 0.0)
+        if montant == 0:
+            continue
+        libelle = str(indemnite.get("libelle") or "Indemnité de rupture")
+        lignes.append(
+            _ligne(
+                "hors_brut",
+                f"{libelle} (part exonérée de cotisations)",
+                montant_salarial=montant,
+            )
+        )
+
     # Volontairement agrégé : le détail des notes de frais reste dans l'appli.
     notes_de_frais = [
         note for note in bulletin.get("notes_de_frais") or [] if isinstance(note, dict)
