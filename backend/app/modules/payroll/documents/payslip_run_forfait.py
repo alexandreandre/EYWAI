@@ -183,10 +183,12 @@ def run_payslip_generation_forfait(
     baremes_override: dict | None = None,
     company_id: str | None = None,
     employee_id: str | None = None,
+    persister: bool = True,
 ) -> dict:
     """
     Génère un bulletin forfait jour en processus (sans subprocess).
     Retourne le bulletin_final (dict). Écrit cumuls et PDF sous employee_path.
+    `persister=False` (bac à sable) : même calcul, sans impression du PDF.
     """
     employee_folder_name = employee_path.name
     chemin_saisie = employee_path / "saisies" / f"{month:02d}.json"
@@ -720,17 +722,19 @@ def run_payslip_generation_forfait(
     if saisie_du_mois.get(CLE_BULLETIN):
         bulletin_final[CLE_BULLETIN] = saisie_du_mois[CLE_BULLETIN]
 
-    templates_dir = engine_root / "templates"
-    env = Environment(loader=FileSystemLoader(str(templates_dir)))
-    template = env.get_template("template_bulletin.html")
-    html_genere = template.render(vue=construire_vue_bulletin(bulletin_final))
+    # En bac à sable, pas d'impression : le PDF serait jeté sans être lu (lot 31).
+    if persister:
+        templates_dir = engine_root / "templates"
+        env = Environment(loader=FileSystemLoader(str(templates_dir)))
+        template = env.get_template("template_bulletin.html")
+        html_genere = template.render(vue=construire_vue_bulletin(bulletin_final))
 
-    pdf_filename = (
-        employee_path
-        / "bulletins"
-        / f"Bulletin_{employee_folder_name}_{month:02d}-{year}_FORFAIT.pdf"
-    )
-    pdf_filename.parent.mkdir(parents=True, exist_ok=True)
-    HTML(string=html_genere, base_url=str(engine_root)).write_pdf(pdf_filename)
+        pdf_filename = (
+            employee_path
+            / "bulletins"
+            / f"Bulletin_{employee_folder_name}_{month:02d}-{year}_FORFAIT.pdf"
+        )
+        pdf_filename.parent.mkdir(parents=True, exist_ok=True)
+        HTML(string=html_genere, base_url=str(engine_root)).write_pdf(pdf_filename)
 
     return bulletin_final

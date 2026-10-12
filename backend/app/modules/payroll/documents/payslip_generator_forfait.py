@@ -639,6 +639,7 @@ def process_payslip_generation_forfait(
             engine_root,
             company_id=str(company_id),
             employee_id=str(employee_id),
+            persister=bac_a_sable is None,
         )
 
         if ijss_tracking_meta:

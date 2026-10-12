@@ -510,7 +510,8 @@ def run_payslip_generation_heures(
     """
     Génère un bulletin heures en processus (sans subprocess).
     `persister=False` (bac à sable) : même calcul, mais aucun mouvement de
-    modulation ou de CET n'est créé ni finalisé, aucun compteur synchronisé.
+    modulation ou de CET n'est créé ni finalisé, aucun compteur synchronisé,
+    et le bulletin n'est pas imprimé en PDF.
     Lit les JSON préparés sous employee_path et engine_root, appelle le moteur app.modules.payroll.engine,
     écrit cumuls et PDF, retourne le bulletin_final (dict).
     """
@@ -1330,18 +1331,21 @@ def run_payslip_generation_heures(
     if saisie_du_mois.get(CLE_BULLETIN):
         bulletin_final[CLE_BULLETIN] = saisie_du_mois[CLE_BULLETIN]
 
-    templates_dir = engine_root / "templates"
-    env = Environment(loader=FileSystemLoader(str(templates_dir)))
-    template = env.get_template("template_bulletin.html")
-    html_genere = template.render(vue=construire_vue_bulletin(bulletin_final))
+    # En bac à sable, pas d'impression : le PDF serait jeté sans être lu, et
+    # il coûtait la moitié d'un essai du brut d'une prime (lot 31).
+    if persister:
+        templates_dir = engine_root / "templates"
+        env = Environment(loader=FileSystemLoader(str(templates_dir)))
+        template = env.get_template("template_bulletin.html")
+        html_genere = template.render(vue=construire_vue_bulletin(bulletin_final))
 
-    pdf_filename = (
-        employee_path
-        / "bulletins"
-        / f"Bulletin_{employee_folder_name}_{month:02d}-{year}.pdf"
-    )
-    pdf_filename.parent.mkdir(parents=True, exist_ok=True)
-    HTML(string=html_genere, base_url=str(engine_root)).write_pdf(pdf_filename)
+        pdf_filename = (
+            employee_path
+            / "bulletins"
+            / f"Bulletin_{employee_folder_name}_{month:02d}-{year}.pdf"
+        )
+        pdf_filename.parent.mkdir(parents=True, exist_ok=True)
+        HTML(string=html_genere, base_url=str(engine_root)).write_pdf(pdf_filename)
 
     if employee_id and persister:
         from app.modules.cet.application.payroll_hook import (
