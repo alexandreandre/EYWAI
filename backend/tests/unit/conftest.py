@@ -34,6 +34,8 @@ def verrous_de_generation(monkeypatch) -> VerrousEnMemoire:
     """Le verrou de génération passe par la base : en test, il reste en mémoire."""
     faux = VerrousEnMemoire()
     monkeypatch.setattr(verrou_generation, "_rpc", faux)
+    # Prolongé en base pendant une longue génération : en test, rien ne part.
+    monkeypatch.setattr(verrou_generation, "_prolonger", lambda params: None, raising=False)
     return faux
 
 
