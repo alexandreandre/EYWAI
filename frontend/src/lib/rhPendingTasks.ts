@@ -45,6 +45,11 @@ export interface RhPendingTaskItem {
   hint: string;
   /** Route sidebar associée (agrégation des pastilles nav). */
   sidebarPath?: string;
+  /**
+   * Tâche « Titres de séjour » : ses titres expirés ou à renouveler, repris par
+   * « Échéances » quand le mode paie retire la tâche ([D6-6]).
+   */
+  titresAEcheance?: number;
 }
 
 export interface RhPendingTasksInput {
@@ -106,6 +111,15 @@ function itemOrNull(
   return { id, label, count, href, icon, hint, sidebarPath };
 }
 
+const LIBELLE_TACHE_ECHEANCES = 'Échéances';
+
+function avecTitresAEcheance(
+  item: RhPendingTaskItem | null,
+  titres: number,
+): RhPendingTaskItem | null {
+  return item && titres > 0 ? { ...item, titresAEcheance: titres } : item;
+}
+
 /** Construit la file des actions RH à traiter (alignée sur les pastilles sidebar). */
 export function buildRhPendingTasks(input: RhPendingTasksInput): RhPendingTaskItem[] {
   const leavesCount = input.pendingAbsences + input.rttClosable;
@@ -159,19 +173,23 @@ export function buildRhPendingTasks(input: RhPendingTasksInput): RhPendingTaskIt
       'Visites à planifier ou en retard',
       '/medical-follow-up',
     ),
-    residence: itemOrNull(
-      'residence',
-      residenceTotal,
-      'Titres de séjour',
-      '/residence-permits',
-      FileWarning,
-      'Échéances à surveiller',
-      '/residence-permits',
+    residence: avecTitresAEcheance(
+      itemOrNull(
+        'residence',
+        residenceTotal,
+        'Titres de séjour',
+        '/residence-permits',
+        FileWarning,
+        'Échéances à surveiller',
+        '/residence-permits',
+      ),
+      input.residenceExpire + input.residenceRenew,
     ),
+    // « Échéances », comme le bandeau qu'elle ouvre ([D6-6], 12/10/2026).
     contracts: itemOrNull(
       'contracts',
       contractsTotal,
-      "Contrats & périodes d'essai",
+      LIBELLE_TACHE_ECHEANCES,
       '/employees?alert=deadlines',
       UserPlus,
       "Fin de CDD ou période d'essai sous 15 jours",
@@ -280,7 +298,33 @@ export function sumRhPendingActions(items: RhPendingTaskItem[]): number {
 export function filterTasksToPayrollFocus(
   items: RhPendingTaskItem[],
 ): RhPendingTaskItem[] {
-  return items.filter((item) => isPayrollFocusAllowed(item.href));
+  // La tâche « Titres de séjour » mène à un écran retiré du mode paie : ses
+  // titres expirés ou à renouveler passent dans « Échéances », dont le bandeau
+  // les liste. Sinon un titre expiré n'allumait rien à l'accueil ([D6-6]).
+  const titres = items
+    .filter((item) => !isPayrollFocusAllowed(item.href))
+    .reduce((acc, item) => acc + (item.titresAEcheance ?? 0), 0);
+  const gardes = items.filter((item) => isPayrollFocusAllowed(item.href));
+  if (titres <= 0) return gardes;
+  const hint = "Fins de CDD, périodes d'essai, titres de séjour à renouveler ou expirés";
+  const echeances = gardes.find((item) => item.id === 'contracts');
+  if (echeances) {
+    return gardes.map((item) =>
+      item.id === 'contracts' ? { ...item, count: item.count + titres, hint } : item,
+    );
+  }
+  const position = items.findIndex((item) => item.titresAEcheance);
+  const avant = items.slice(0, position).filter((item) => isPayrollFocusAllowed(item.href)).length;
+  const tache: RhPendingTaskItem = {
+    id: 'contracts',
+    label: LIBELLE_TACHE_ECHEANCES,
+    count: titres,
+    href: '/employees?alert=deadlines',
+    icon: UserPlus,
+    hint,
+    sidebarPath: '/employees',
+  };
+  return [...gardes.slice(0, avant), tache, ...gardes.slice(avant)];
 }
 
 /** Mappe les items vers les compteurs sidebar (par route). */
