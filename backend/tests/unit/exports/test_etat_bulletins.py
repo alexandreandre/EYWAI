@@ -29,14 +29,15 @@ class TestPhrases:
         assert avertissements_etat_bulletins(12, 3, 0) == [
             "12 bulletins non validés : l'export reprend aussi les brouillons.",
             "3 bulletins à recalculer : leurs données ont changé depuis le calcul, "
-            "l'export reprend le dernier calcul.",
+            "l'export reprend leur dernier calcul.",
         ]
 
     def test_au_singulier(self):
+        """Relevé I.1 : « 1 bulletin à recalculer : leurs données… »."""
         assert avertissements_etat_bulletins(1, 1, 0) == [
             "1 bulletin non validé : l'export reprend aussi les brouillons.",
-            "1 bulletin à recalculer : leurs données ont changé depuis le calcul, "
-            "l'export reprend le dernier calcul.",
+            "1 bulletin à recalculer : ses données ont changé depuis le calcul, "
+            "l'export reprend son dernier calcul.",
         ]
 
     def test_un_etat_non_verifie_est_dit(self):
