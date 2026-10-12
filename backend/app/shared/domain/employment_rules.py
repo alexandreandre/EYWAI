@@ -78,8 +78,9 @@ def premier_mois_du_contrat(employee: Mapping[str, Any], year: int, month: int) 
 def mois_du_contrat_en_cours(employee: Mapping[str, Any], year: int, month: int) -> bool:
     """Faux pour un mois d'avant le début du contrat en cours (date inconnue : vrai).
 
-    Ce mois appartient à un contrat terminé : son bulletin ne se recalcule plus
-    (la garde de présence refuse un mois d'avant l'entrée de la fiche).
+    Ce mois appartient à un contrat terminé : il n'est pas signalé « à
+    recalculer » ; il se recalcule sur demande, sur la fiche rangée avec ce
+    contrat (`contrat_du_mois.fiche_du_mois`).
     """
     start = _parse_employment_date(
         employee.get("date_debut_execution") or employee.get("hire_date")

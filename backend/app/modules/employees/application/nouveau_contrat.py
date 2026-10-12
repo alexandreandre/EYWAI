@@ -30,6 +30,7 @@ from app.modules.employees.domain.nouveau_contrat import (
     contrat_precedent,
     date_anciennete,
     ecritures,
+    fiche_rangee,
     message_de_succes,
     premier_jour_possible,
     raison_du_refus,
@@ -219,6 +220,7 @@ def creer(
                 date_debut=periode["date_debut"],
                 date_fin=periode["date_fin"],
             ),
+            fiche=fiche_rangee(fiche, nouvelle_fiche),
         )
     except Exception as exc:  # l'état laissé est dit dans le message
         logger.exception("Nouveau contrat : rangement du contrat précédent impossible")

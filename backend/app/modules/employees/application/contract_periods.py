@@ -8,6 +8,9 @@ from typing import Any
 from pydantic import BaseModel, Field, model_validator
 
 from app.core.database import supabase
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class ContractPeriodMissing(LookupError):
@@ -42,21 +45,36 @@ def list_contract_periods(employee_id: str, company_id: str) -> list[dict[str, A
 
 
 def add_contract_period(
-    employee_id: str, company_id: str, payload: ContractPeriodIn
+    employee_id: str,
+    company_id: str,
+    payload: ContractPeriodIn,
+    fiche: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    res = (
-        supabase.table("employee_contract_periods")
-        .insert(
-            {
-                "employee_id": employee_id,
-                "company_id": company_id,
-                "contract_type": payload.contract_type,
-                "date_debut": payload.date_debut.isoformat(),
-                "date_fin": payload.date_fin.isoformat(),
-            }
-        )
-        .execute()
-    )
+    """Range un contrat passé ; `fiche` : les champs de la fiche qu'il avait
+    (« Nouveau contrat »), sur lesquels ses mois se recalculent."""
+    ligne = {
+        "employee_id": employee_id,
+        "company_id": company_id,
+        "contract_type": payload.contract_type,
+        "date_debut": payload.date_debut.isoformat(),
+        "date_fin": payload.date_fin.isoformat(),
+    }
+    if fiche is not None:
+        try:
+            res = (
+                supabase.table("employee_contract_periods")
+                .insert({**ligne, "fiche": fiche})
+                .execute()
+            )
+        except Exception as exc:
+            # Colonne pas encore en base (migration du 13/10/2026) : le contrat
+            # se range sans sa fiche ; ses mois restent alors refusés, comme avant.
+            if "fiche" not in str(exc):
+                raise
+            logger.warning("Contrat passé rangé sans sa fiche : colonne absente (%s).", exc)
+            fiche = None
+    if fiche is None:
+        res = supabase.table("employee_contract_periods").insert(ligne).execute()
     rows = list(res.data or [])
     if not rows:
         raise RuntimeError("Le contrat n'a pas été enregistré.")

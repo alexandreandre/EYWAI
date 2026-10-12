@@ -80,6 +80,7 @@ def aucun_depart_ni_contrat_passe_lu_en_base(monkeypatch) -> None:
     from app.modules.employees.application.contrat_du_mois import lecteur_contrats
 
     monkeypatch.setattr(lecteur_contrats, "sortie_du_contrat", lambda *a, **k: None)
+    monkeypatch.setattr(lecteur_contrats, "contrat_passe_du_mois", lambda *a, **k: None)
 
 
 @pytest.fixture(autouse=True)

@@ -87,6 +87,7 @@ from app.shared.domain.employment_rules import (
     is_forfait_jour,
     payslip_employment_period_block_reason,
 )
+from app.modules.employees.application.contrat_du_mois import fiche_du_mois
 from app.modules.payroll.application.salary_evolution_payroll import (
     prepare_salary_evolution_for_payslip,
 )
@@ -574,6 +575,9 @@ def process_payslip_generation(
         if not employee_data:
             raise HTTPException(status_code=404, detail="Employé non trouvé.")
 
+        # Un mois d'un contrat rangé par « Nouveau contrat » se calcule sur la
+        # fiche que ce contrat avait (type, entrée, fin, durée…) [D4].
+        employee_data = fiche_du_mois(employee_data, year, month)
         employee_data = {
             **employee_data,
             "exit_last_working_day": resolve_date_sortie(employee_data),

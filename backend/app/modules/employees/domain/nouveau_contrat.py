@@ -2,9 +2,10 @@
 
 Règles pures, sans base. Spécification : docs/superpowers/specs/2026-10-03-nouveau-contrat-design.md.
 
-Le contrat précédent est rangé dans les contrats passés ; la fiche porte le
-nouveau contrat et redevient active. Les mois qu'il couvre deviennent payables
-par la seule date d'entrée de la fiche : aucune autre règle de paie ne change.
+Le contrat précédent est rangé dans les contrats passés, avec les champs de la
+fiche qu'il avait ; la fiche porte le nouveau contrat et redevient active. Les
+mois qu'il couvre deviennent payables par la seule date d'entrée de la fiche ;
+ceux du contrat rangé restent corrigeables sur sa fiche rangée.
 """
 
 from __future__ import annotations
@@ -264,6 +265,23 @@ def ecritures(
             "effective_date": demande.date_debut.isoformat(),
         }
     return periode, nouvelle_fiche, salaire
+
+
+#: Ni le statut ni le départ ne sont ceux d'un contrat : le mois d'un contrat
+#: rangé se calcule « parti », sans départ en cours.
+_HORS_FICHE_RANGEE = ("employment_status", "current_exit_id")
+
+
+def fiche_rangee(fiche: Mapping[str, Any], nouvelle_fiche: Mapping[str, Any]) -> dict[str, Any]:
+    """Ce que le contrat rangé avait sur la fiche : les champs que le nouveau remplace.
+
+    Un mois de ce contrat se recalcule sur eux (type, entrée, fin, durée, poste,
+    ancienneté, spécificités de paie) : la fiche décrit désormais le nouveau
+    contrat, et ces mois restaient sans correction possible [D4].
+    """
+    return {
+        cle: fiche.get(cle) for cle in nouvelle_fiche if cle not in _HORS_FICHE_RANGEE
+    }
 
 
 def message_de_succes(precedent: ContratPrecedent, demande: Demande) -> str:

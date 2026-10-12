@@ -52,7 +52,10 @@ from app.modules.notifications.application.employee_document_alerts import (
     notify_employee_new_document,
 )
 from app.modules.employees.application.service import enrich_employee_with_exit_context
-from app.modules.employees.application.contrat_du_mois import sortie_du_contrat_en_cours
+from app.modules.employees.application.contrat_du_mois import (
+    fiche_du_mois,
+    sortie_du_contrat_en_cours,
+)
 from app.shared.domain.employment_rules import payslip_employment_period_block_reason
 from app.shared.reprise_paie import (
     CLE_DEPART_A_ZERO,
@@ -525,6 +528,8 @@ def salarie_generable(employee_id: str, year: int, month: int) -> dict[str, Any]
     if not employee:
         raise PayslipNotFoundError("Employé non trouvé.")
     employee = enrich_employee_with_exit_context(employee)
+    # Un mois d'un contrat rangé par « Nouveau contrat » : la fiche de ce contrat [D4].
+    employee = fiche_du_mois(employee, year, month)
     if not employee.get("exit_last_working_day"):
         # Départ clôturé : `current_exit_id` est effacé, la sortie se lit sur
         # le départ du contrat en cours [D3].
