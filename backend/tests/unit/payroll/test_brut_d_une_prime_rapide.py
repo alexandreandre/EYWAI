@@ -157,8 +157,11 @@ def test_une_prime_imposable_seulement_part_du_taux_du_prelevement():
     assert len(bulletins.montants) <= 4
 
 
-def test_sans_centime_exact_le_brut_donne_au_moins_le_net_voulu():
-    # Une marche de deux centimes enjambe le net voulu.
+def test_sans_centime_exact_le_plus_petit_brut_qui_depasse_le_net_voulu_et_le_dit():
+    # Une marche de deux centimes enjambe le net voulu : aucun brut au centime
+    # n'ajoute 100,00 €. Le brut rendu est le premier qui l'atteint ou le
+    # dépasse, et la recherche dit qu'elle n'a pas convergé (la fenêtre écrit
+    # alors « 100,01 € (100,00 € voulus) »).
     def net_ajoute(montant: float) -> float:
         net = round(montant * 0.7736, 2)
         return 100.01 if net == 100.0 else net
@@ -167,7 +170,58 @@ def test_sans_centime_exact_le_brut_donne_au_moins_le_net_voulu():
 
     assert r["net_obtenu"] == pytest.approx(100.01)
     assert r["ecart"] == pytest.approx(0.01)
+    assert r["convergence"] is False
+    assert net_ajoute(round(r["brut_calcule"] - 0.01, 2)) < 100.0
+
+
+# --- La grille du prélèvement à la source ---------------------------------
+#
+# Régression mesurée sur le site de test après le lot 31 (MAJI, CDI de 35 h à
+# 2 100 €, sans taux personnalisé, octobre 2026) : 500 € nets donnaient
+# 760,32 € pour 499,98 € ajoutés, sans convergence ; le lot 30 donnait
+# 760,34 € pour 500,00 €. Sans taux personnalisé, le prélèvement suit la grille
+# du taux neutre : quand la prime fait passer le net imposable dans la tranche
+# suivante, tout le salaire est prélevé au nouveau taux et le net à payer recule
+# de plusieurs euros. La droite qui part du bulletin sans prime n'a plus la
+# pente du bulletin près de la réponse : la recherche s'en approchait trop
+# lentement et s'arrêtait à court d'essais.
+
+GRILLE_DU_TAUX_NEUTRE = [
+    (1620, 0.0), (1683, 0.005), (1791, 0.013), (1911, 0.021), (2042, 0.029),
+    (2151, 0.035), (2294, 0.041), (2714, 0.053), (3107, 0.075), (10**9, 0.099),
+]
+
+
+def _net_a_la_grille(prime: float) -> float:
+    brut = 2100.0 + prime
+    imposable = round(brut * 0.8155, 2)
+    taux = next(t for borne, t in GRILLE_DU_TAUX_NEUTRE if imposable < borne)
+    return round(round(brut * 0.7807 - 30.0, 2) - round(imposable * taux, 2), 2)
+
+
+def _ajoute_a_la_grille(prime: float) -> float:
+    return round(_net_a_la_grille(round(prime, 2)) - _net_a_la_grille(0.0), 2)
+
+
+@pytest.mark.parametrize(
+    "net_voulu", [37.5, 100.0, 300.0, 480.0, 500.0, 505.0, 510.0, 520.0, 700.0, 1234.56]
+)
+def test_a_la_grille_du_prelevement_le_brut_ajoute_exactement_le_net_voulu(net_voulu):
+    bulletins = _Bulletins(_ajoute_a_la_grille)
+
+    r = chercher_brut_de_prime(net_voulu, bulletins)
+
+    assert r["net_obtenu"] == pytest.approx(net_voulu)
     assert r["convergence"] is True
+    # Le premier centime qui l'atteint, là où la recherche croise le net voulu.
+    assert _ajoute_a_la_grille(round(r["brut_calcule"] - 0.01, 2)) < net_voulu
+    assert len(bulletins.montants) <= 10
+
+
+def test_a_la_grille_les_reponses_du_lot_30_restent_celles_du_lot_31():
+    # Mêmes réponses que le lot 30 là où il s'arrêtait sur le premier centime.
+    for net_voulu, brut in ((500.0, 770.87), (510.0, 784.44), (520.0, 798.0), (300.0, 448.94)):
+        assert chercher_brut_de_prime(net_voulu, _Bulletins(_ajoute_a_la_grille))["brut_calcule"] == brut
 
 
 # --- Le mode « prime » de la route ----------------------------------------
