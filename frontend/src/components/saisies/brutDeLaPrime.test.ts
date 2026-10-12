@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   explicationAffichee,
+  messageDuCalculEnCours,
   phraseBrutDeLaPrime,
   requeteBrutDeLaPrime,
+  verrouDuCalcul,
 } from './brutDeLaPrime';
 
 // Lot 30 : la fenêtre des primes envoyait le net voulu POUR LA PRIME au calcul
@@ -94,5 +96,36 @@ describe('la phrase ne survit pas à ce qu’elle décrit', () => {
     expect(explicationAffichee(calcul, { ...saisie, is_taxable: false })).toBeNull();
     expect(explicationAffichee(calcul, { ...saisie, is_socially_taxed: false })).toBeNull();
     expect(explicationAffichee(null, saisie)).toBeNull();
+  });
+});
+
+// Lot 31 : le calcul prend quelques secondes (16,7 s mesurées au lot 30). La
+// fenêtre dit ce qu'elle fait pendant l'attente, et un second clic ne relance
+// pas un calcul déjà parti.
+describe('pendant le calcul, la fenêtre dit ce qu’elle fait et ne se relance pas', () => {
+  it('dit sur quel bulletin elle calcule', () => {
+    expect(espaces(messageDuCalculEnCours(10, 2026))).toBe(
+      'Calcul sur le bulletin d’octobre 2026 de ce salarié…'
+    );
+    expect(espaces(messageDuCalculEnCours(5, 2026))).toBe(
+      'Calcul sur le bulletin de mai 2026 de ce salarié…'
+    );
+  });
+
+  it('un second clic pendant le calcul ne relance rien', () => {
+    const verrou = verrouDuCalcul();
+
+    expect(verrou.prendre()).toBe(true);
+    expect(verrou.prendre()).toBe(false);
+    expect(verrou.prendre()).toBe(false);
+  });
+
+  it('le calcul fini, réussi ou non, le bouton relance', () => {
+    const verrou = verrouDuCalcul();
+
+    verrou.prendre();
+    verrou.rendre();
+
+    expect(verrou.prendre()).toBe(true);
   });
 });
