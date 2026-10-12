@@ -9,6 +9,12 @@ Avant : le moteur lisait `reduction_generale.smic_reference_horaire` et, si la
 clé manquait, retombait en silence sur le SMIC courant (12,31 € depuis juin) :
 coefficient plus haut, réduction sur-évaluée. Le SMIC du 1er janvier se lit
 désormais dans l'historique du barème SMIC, à l'année du bulletin.
+
+Sans palier au 1er janvier de l'année, le bulletin n'est plus refusé (12/10/2026,
+cap « alerte avec sortie manuelle ») : janvier 2027 ne doit pas bloquer toute la
+paie pour une donnée oubliée. La réduction se calcule sur le SMIC connu le plus
+proche — la clé dédiée du barème, sinon le palier en vigueur au 1er janvier, sinon
+le SMIC courant — et une alerte le dit, au bulletin comme dans la liste du mois.
 """
 
 from __future__ import annotations
@@ -63,21 +69,55 @@ def test_la_reduction_de_septembre_se_calcule_sur_12_02_et_non_12_31():
     assert red["taux_patronal"] == red_attendue["taux_patronal"]
 
 
-def test_sans_smic_au_1er_janvier_de_l_annee_le_calcul_est_refuse():
-    # Janvier 2027 : l'historique s'arrête à juin 2026.
+def _alertes_smic_absent(ctx) -> list[dict]:
+    return [a for a in ctx.alertes_baremes if a.get("code") == "smic_reference_reduction_absent"]
+
+
+def test_janvier_2027_sans_palier_se_calcule_sur_la_cle_dediee_avec_une_alerte():
+    # Janvier 2027 : l'historique s'arrête à juin 2026 ; la clé du barème dit 12,02 €.
     ctx = _contexte(year=2027, month=1, cle=12.02)
-    with pytest.raises(ValueError) as refus:
-        calculer_reduction_generale(ctx, 2100.0, 151.67)
-    message = str(refus.value)
-    assert "1er janvier 2027" in message
-    assert "SMIC" in message
-    assert "n'est pas calculé" in message
+    red = calculer_reduction_generale(ctx, 2100.0, 151.67)
+    attendu = calculer_reduction_generale(_contexte(cle=12.02), 2100.0, 151.67)
+
+    assert red["montant_patronal"] == attendu["montant_patronal"]
+    alertes = _alertes_smic_absent(ctx)
+    assert len(alertes) == 1, "une seule alerte par bulletin"
+    assert alertes[0]["message"] == (
+        "SMIC du 1er janvier 2027 absent de l'historique : réduction générale "
+        "calculée sur 12,02 € de l'heure, à vérifier."
+    )
+    assert alertes[0]["severity"] == "warning" and not alertes[0]["critique"]
+    assert "smic_reference_reduction_differe" not in _codes(ctx)
 
 
-def test_sans_historique_le_calcul_est_refuse():
+def test_sans_cle_dediee_le_palier_en_vigueur_au_1er_janvier_sert_de_repli():
+    ctx = _contexte(year=2027, month=1)
+    assert _calculer_smic_de_reference_cumule(ctx, 151.67) == round(12.31 * 151.67, 2)
+    assert "12,31 € de l'heure" in _alertes_smic_absent(ctx)[0]["message"]
+
+
+def test_sans_historique_ni_cle_le_smic_courant_sert_de_repli():
     ctx = _contexte(historique=[])
-    with pytest.raises(ValueError, match="1er janvier 2026"):
-        calculer_reduction_generale(ctx, 2100.0, 151.67)
+    assert _calculer_smic_de_reference_cumule(ctx, 151.67) == round(12.31 * 151.67, 2)
+    assert _alertes_smic_absent(ctx)[0]["message"] == (
+        "SMIC du 1er janvier 2026 absent de l'historique : réduction générale "
+        "calculée sur 12,31 € de l'heure, à vérifier."
+    )
+
+
+def test_l_alerte_du_smic_absent_se_voit_dans_la_liste_du_mois():
+    from app.modules.payslips.infrastructure.payslip_list_meta import payslip_list_meta
+
+    ctx = _contexte(year=2027, month=1, cle=12.02)
+    calculer_reduction_generale(ctx, 2100.0, 151.67)
+    ligne = payslip_list_meta({"alertes_baremes": ctx.alertes_baremes})
+    assert _alertes_smic_absent(ctx)[0]["message"] in ligne["warnings"]
+
+
+def test_avec_le_palier_du_1er_janvier_aucune_alerte_de_repli():
+    ctx = _contexte(cle=12.02)
+    calculer_reduction_generale(ctx, 2100.0, 151.67)
+    assert "smic_reference_reduction_absent" not in _codes(ctx)
 
 
 def test_une_cle_dediee_differente_de_l_historique_est_signalee_et_l_historique_l_emporte():
