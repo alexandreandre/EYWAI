@@ -8,9 +8,16 @@ import {
 } from './payrollFocus';
 
 describe('PAYROLL_FOCUS_NAV_URLS', () => {
-  it('contient exactement 17 entrées, sans doublon', () => {
-    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(17);
-    expect(new Set(PAYROLL_FOCUS_NAV_URLS).size).toBe(17);
+  it('contient exactement 18 entrées, sans doublon', () => {
+    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(18);
+    expect(new Set(PAYROLL_FOCUS_NAV_URLS).size).toBe(18);
+  });
+
+  it('ouvre le Suivi IJSS, où renvoie l’alerte d’un bulletin en arrêt', () => {
+    // « IJSS théoriques sur ce bulletin — validez le montant CPAM dans Suivi
+    // IJSS avant clôture paie » : la page restait fermée en mode paie (12/10).
+    expect(PAYROLL_FOCUS_NAV_URLS).toContain('/suivi-ijss');
+    expect(isPayrollFocusAllowed('/suivi-ijss')).toBe(true);
   });
 });
 
@@ -191,13 +198,13 @@ describe('restrictToPayrollFocus', () => {
     expect(restrictToPayrollFocus('gestion', gestionGroups)).toEqual([]);
   });
 
-  it('écarte du parcours paie Analytics, IJSS et CET, mais garde les prêts employeur', () => {
+  it('écarte du parcours paie Analytics et CET, mais garde les prêts employeur et le Suivi IJSS', () => {
     const out = restrictToPayrollFocus('paie', paieGroups);
     expect(urlsOf(out)).not.toContain('/analytics-paie');
-    expect(urlsOf(out)).not.toContain('/suivi-ijss');
+    expect(urlsOf(out)).toContain('/suivi-ijss');
     expect(urlsOf(out)).not.toContain('/suivi-cet');
     expect(urlsOf(out)).toContain('/employee-loans');
-    expect(urlsOf(out)).toHaveLength(13);
+    expect(urlsOf(out)).toHaveLength(14);
   });
 
   it('conserve les métadonnées de groupe', () => {
@@ -217,7 +224,7 @@ describe('restrictToPayrollFocus', () => {
     expect(urlsOf(paieGroups)).toHaveLength(before);
   });
 
-  it('produit exactement les 17 URL du périmètre, toutes sections confondues', () => {
+  it('produit exactement les 18 URL du périmètre, toutes sections confondues', () => {
     const all = [
       '/',
       ...urlsOf(restrictToPayrollFocus('team', teamGroups)),
@@ -242,7 +249,7 @@ describe('routes du circuit de validation manager', () => {
     for (const url of ['/approvals', '/leave-requests', '/cet-requests']) {
       expect(PAYROLL_FOCUS_NAV_URLS).not.toContain(url);
     }
-    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(17);
+    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(18);
   });
 
   it('garde bloqués les modules hors paie, y compris pour les directeurs', () => {

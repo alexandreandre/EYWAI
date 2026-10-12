@@ -58,3 +58,11 @@ describe("Réglage du maintien pendant les congés de parentalité", () => {
     expect(lire("api/maintenanceSettings.ts")).toContain("maintain_parental_leave: boolean;");
   });
 });
+
+describe("Suivi IJSS en mode paie", () => {
+  it("la page Absences montre le lien « Suivi IJSS » en mode paie aussi", () => {
+    const t = lire("pages/rh/Absences.tsx");
+    expect(t).toContain('<Link to="/suivi-ijss">');
+    expect(t).not.toMatch(/isPayrollFocusActive\(user\) && \( <Button variant="outline" size="sm" asChild> <Link to="\/suivi-ijss">/);
+  });
+});
