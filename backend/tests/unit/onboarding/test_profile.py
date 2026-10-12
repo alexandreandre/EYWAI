@@ -40,6 +40,28 @@ class TestMissingPayrollFields:
         assert len(missing) == len(PAYROLL_REQUIRED_FIELDS)
         assert is_profile_complete(emp) is False
 
+    @pytest.mark.parametrize("mode", ["cheque", "especes", "chèque", "espèces", " Cheque "])
+    def test_payé_par_cheque_ou_especes_le_rib_est_facultatif(self, mode):
+        emp = _complete_employee()
+        emp["coordonnees_bancaires"] = None
+        emp["salary_payment_method"] = mode
+        assert missing_payroll_fields(emp) == []
+        assert is_profile_complete(emp) is True
+
+    @pytest.mark.parametrize("mode", ["virement", None, ""])
+    def test_payé_par_virement_ou_sans_mode_le_rib_reste_exige(self, mode):
+        emp = _complete_employee()
+        emp["coordonnees_bancaires"] = {}
+        emp["salary_payment_method"] = mode
+        assert missing_payroll_fields(emp) == ["Coordonnées bancaires (RIB)"]
+
+    def test_le_mode_de_paiement_ne_dispense_que_du_rib(self):
+        emp = _complete_employee()
+        emp["salary_payment_method"] = "cheque"
+        emp["coordonnees_bancaires"] = None
+        emp["nir"] = ""
+        assert missing_payroll_fields(emp) == ["Numéro de sécurité sociale"]
+
     def test_blank_values_count_as_missing(self):
         emp = _complete_employee()
         emp["nir"] = ""
