@@ -100,3 +100,27 @@ export function explicationAffichee(
     saisie.is_taxable === calcul.soumiseAImpot;
   return memeMontant && memesCases ? calcul.texte : null;
 }
+
+/** Ce que la fenêtre dit pendant le calcul (lot 31) : « Calcul sur le bulletin d’octobre 2026 de ce salarié… ». */
+export function messageDuCalculEnCours(month: number, year: number): string {
+  return `Calcul sur le bulletin ${duMois(month, year)} de ce salarié…`;
+}
+
+/**
+ * Un seul calcul à la fois : un second clic pendant le calcul ne relance rien.
+ * `prendre()` dit si le calcul peut partir ; `rendre()` le libère, qu'il ait
+ * réussi ou non.
+ */
+export function verrouDuCalcul(): { prendre: () => boolean; rendre: () => void } {
+  let enCours = false;
+  return {
+    prendre: () => {
+      if (enCours) return false;
+      enCours = true;
+      return true;
+    },
+    rendre: () => {
+      enCours = false;
+    },
+  };
+}

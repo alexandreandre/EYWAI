@@ -1,7 +1,7 @@
 // src/components/SaisieModal.tsx (VERSION FINALE ET DÉFINITIVE)
 
 import { log } from '@/lib/logger';
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -50,8 +50,10 @@ import { SENS_SAISIE, champsDeLaSaisie, type SensSaisie } from '@/components/sai
 import { chargerCatalogueDePrimes } from '@/components/saisies/catalogueDePrimes';
 import {
   explicationAffichee,
+  messageDuCalculEnCours,
   phraseBrutDeLaPrime,
   requeteBrutDeLaPrime,
+  verrouDuCalcul,
   type CalculBrutDeLaPrime,
 } from '@/components/saisies/brutDeLaPrime';
 import { getUserErrorMessage } from '@/lib/errorMessages';
@@ -121,6 +123,8 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
   // Ce que le brut proposé représente : affiché tant que le montant et les
   // cases de la prime sont ceux du calcul (`explicationAffichee`).
   const [brutDeLaPrime, setBrutDeLaPrime] = useState<CalculBrutDeLaPrime | null>(null);
+  // Un seul calcul du brut à la fois : un second clic ne relance rien (lot 31).
+  const verrouDuBrut = useRef(verrouDuCalcul());
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
 
@@ -188,6 +192,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
     }
     const payYear = year ?? new Date().getFullYear();
     const payMonth = month ?? new Date().getMonth() + 1;
+    if (!verrouDuBrut.current.prendre()) return;
     setIsReverseCalculating(true);
     setBrutDeLaPrime(null);
     try {
@@ -228,6 +233,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
         variant: "destructive",
       });
     } finally {
+      verrouDuBrut.current.rendre();
       setIsReverseCalculating(false);
     }
   };
@@ -761,6 +767,14 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                     {isReverseCalculating ? "Calcul…" : "Calculer le brut de la prime"}
                   </Button>
                 </div>
+                {isReverseCalculating && (
+                  <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
+                    {messageDuCalculEnCours(
+                      month ?? new Date().getMonth() + 1,
+                      year ?? new Date().getFullYear()
+                    )}
+                  </p>
+                )}
                 {explicationAffichee(brutDeLaPrime, formData) && (
                   <p className="text-xs text-muted-foreground">
                     {explicationAffichee(brutDeLaPrime, formData)}
