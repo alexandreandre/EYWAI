@@ -114,3 +114,36 @@ class TestGetCompanySettings:
             )
         assert result.medical_follow_up_enabled is False
         assert result.settings == {}
+
+
+class TestRepriseDansLesDetails:
+    """[B13] La bascule de reprise n'était visible nulle part : « Reprise en
+    cours » s'affichait chez des sociétés sans bascule, et Comitech, reprise au
+    31/08, affichait « Paie hors Martine »."""
+
+    def _details(self, bascule):
+        from app.shared.reprise_paie import Bascule  # noqa: F401
+
+        with patch(
+            f"{MODULE_QUERIES}.fetch_company_with_employees_and_payslips",
+            return_value={"company_data": {"id": "c1"}, "employees": [], "payslips": []},
+        ), patch(
+            "app.modules.payroll.application.payroll_kpi_queries.resolve_company_payroll_series",
+            return_value=[],
+        ), patch(f"{MODULE_QUERIES}.lire_bascule", return_value=bascule):
+            return queries.get_company_details_and_kpis(company_id="c1", current_user=MagicMock())
+
+    def test_la_bascule_est_rendue_avec_le_premier_mois_calcule(self):
+        from app.shared.reprise_paie import Bascule
+
+        result = self._details(Bascule(2026, 8, "bulletins", "Quadra"))
+        assert result.company_data["reprise_paie"] == {
+            "dernier_mois_repris": "2026-08",
+            "premier_mois_calcule": "2026-09",
+            "logiciel_precedent": "Quadra",
+            "source": "bulletins",
+        }
+
+    def test_sans_bascule_la_reprise_est_vide(self):
+        result = self._details(None)
+        assert result.company_data["reprise_paie"] is None
