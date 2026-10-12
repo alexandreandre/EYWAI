@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { titresRestaurantSchema } from '@/lib/titresRestaurant';
 import { needsContractEndDate } from '@/constants/contracts';
 import { FORMAT_PCS_ESE } from '@/constants/dsnFiche';
 import { ibanProblem } from '@/lib/iban';
@@ -72,10 +73,7 @@ export const employeeProfileEditSchema = z
         indemnite_mensuelle_nette: z.coerce.number().min(0).optional().default(0),
         indemnite_date_effet: z.string().nullable().optional(),
       }),
-      titres_restaurant: z.object({
-        beneficie: z.boolean(),
-        nombre_par_mois: z.coerce.number().int().min(0),
-      }),
+      titres_restaurant: titresRestaurantSchema,
       mutuelle: z.object({
         mutuelle_type_ids: z.array(z.string()).optional(),
       }),

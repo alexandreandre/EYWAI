@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { titresRestaurantSchema } from '@/lib/titresRestaurant';
 import { bicFieldSchema, ibanFieldSchema } from "@/lib/ibanSchema";
 import { isEmployeeCadre } from "@/lib/mutuelleUtils";
 import { needsContractEndDate } from "@/constants/contracts";
@@ -121,10 +122,7 @@ export const createEmployeeFormSchema = z.object({
       abonnement_mensuel_total: z.coerce.number().min(0),
       indemnite_mensuelle_nette: z.coerce.number().min(0).optional().default(0),
     }),
-    titres_restaurant: z.object({
-      beneficie: z.boolean(),
-      nombre_par_mois: z.coerce.number().int().min(0),
-    }),
+    titres_restaurant: titresRestaurantSchema,
     mutuelle: z.object({
       mutuelle_type_ids: z.array(z.string()).optional(),
       // Rétrocompatibilité : garder lignes_specifiques pour les anciens employés

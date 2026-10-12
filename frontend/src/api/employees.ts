@@ -66,7 +66,7 @@ export type UpdateEmployeePayload = {
       taux?: number;
     };
     transport?: { abonnement_mensuel_total?: number; indemnite_mensuelle_nette?: number };
-    titres_restaurant?: { beneficie?: boolean; nombre_par_mois?: number };
+    titres_restaurant?: { beneficie?: boolean; nombre_par_mois?: number; valeur_faciale?: number; part_patronale?: number };
     mutuelle?: {
       adhesion?: boolean;
       mutuelle_type_ids?: string[];

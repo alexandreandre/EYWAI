@@ -112,7 +112,7 @@ export interface Employee {
       indemnite_mensuelle_nette?: number;
       indemnite_date_effet?: string | null;
     };
-    titres_restaurant?: { beneficie?: boolean; nombre_par_mois?: number };
+    titres_restaurant?: { beneficie?: boolean; nombre_par_mois?: number; valeur_faciale?: number; part_patronale?: number };
     personnel_rd_eligible_jei?: boolean;
     mandataire_rd?: boolean;
     mutuelle?: {

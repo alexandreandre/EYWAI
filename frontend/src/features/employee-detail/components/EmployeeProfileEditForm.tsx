@@ -706,6 +706,47 @@ export function EmployeeProfileEditForm({
             />
             <FormField
               control={control}
+              name="specificites_paie.titres_restaurant.valeur_faciale"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Valeur d’un titre (€)</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name="specificites_paie.titres_restaurant.part_patronale"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Part patronale par titre (€)</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Le bulletin retient du net la part salariale : (valeur − part patronale) × nombre.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
               name="specificites_paie.transport.abonnement_mensuel_total"
               render={({ field }) => (
                 <FormItem>

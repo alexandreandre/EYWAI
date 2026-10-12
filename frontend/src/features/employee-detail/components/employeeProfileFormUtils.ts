@@ -1,3 +1,4 @@
+import { titresPourEnvoi } from '@/lib/titresRestaurant';
 import type { UpdateEmployeePayload } from '@/api/employees';
 import type { Employee } from '@/features/employee-detail/types';
 import type { EmployeeProfileEditFormValues } from '@/features/employee-detail/components/employeeProfileEditSchema';
@@ -141,7 +142,9 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
     vehicle_cv?: number;
     vehicle_type?: 'voitures' | 'motocyclettes' | 'cyclomoteurs';
   } | undefined;
-  const tr = spec.titres_restaurant as { beneficie?: boolean; nombre_par_mois?: number } | undefined;
+  const tr = spec.titres_restaurant as
+    | { beneficie?: boolean; nombre_par_mois?: number; valeur_faciale?: number; part_patronale?: number }
+    | undefined;
   const classification = (employee as Employee & { classification_conventionnelle?: EmployeeProfileEditFormValues['classification_conventionnelle'] }).classification_conventionnelle;
   const reprise = lireRepriseDsn(spec.dsn_reprise);
 
@@ -196,6 +199,8 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       titres_restaurant: {
         beneficie: tr?.beneficie ?? true,
         nombre_par_mois: tr?.nombre_par_mois ?? 0,
+        valeur_faciale: tr?.valeur_faciale ?? 0,
+        part_patronale: tr?.part_patronale ?? 0,
       },
       mutuelle: {
         mutuelle_type_ids: mutuelle?.mutuelle_type_ids ?? [],
@@ -317,7 +322,10 @@ export function buildUpdatePayload(
     specificites_paie: {
       ...existingSpec,
       transport: values.specificites_paie.transport,
-      titres_restaurant: values.specificites_paie.titres_restaurant,
+      titres_restaurant: titresPourEnvoi(
+        values.specificites_paie.titres_restaurant,
+        existingSpec.titres_restaurant as Record<string, unknown> | undefined,
+      ),
       mutuelle: {
         ...(existingSpec.mutuelle as object),
         adhesion: mutuelleIds.length > 0,

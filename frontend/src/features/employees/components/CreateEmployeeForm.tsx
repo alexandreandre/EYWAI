@@ -214,6 +214,8 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
         titres_restaurant: {
           beneficie: true,
           nombre_par_mois: 0,
+          valeur_faciale: 0,
+          part_patronale: 0,
         },
         mutuelle: {
           mutuelle_type_ids: [],
@@ -1638,6 +1640,31 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                 <FormItem>
                                   <FormLabel>Nombre de titres-restaurant par mois</FormLabel>
                                   <FormControl><Input type="number" step="any" {...field} /></FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="specificites_paie.titres_restaurant.valeur_faciale"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Valeur d’un titre (€)</FormLabel>
+                                  <FormControl><Input type="number" step="any" min={0} {...field} /></FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="specificites_paie.titres_restaurant.part_patronale"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Part patronale par titre (€)</FormLabel>
+                                  <FormControl><Input type="number" step="any" min={0} {...field} /></FormControl>
+                                  <p className="text-xs text-muted-foreground">
+                                    Le bulletin retient du net la part salariale : (valeur − part patronale) × nombre.
+                                  </p>
+                                  <FormMessage />
                                 </FormItem>
                               )}
                             />
