@@ -5,6 +5,7 @@ import {
   avertissementJourSolidarite,
   champsNonRelus,
   construireMiseAJour,
+  messageApresEnregistrement,
   parametresOntChange,
   repliEffectif,
   resumeParametresPaie,
@@ -421,5 +422,33 @@ describe('resumeParametresPaie', () => {
     expect(resumeParametresPaie(societe({ effectif: 19, settings: {} }))).toBe(
       `Effectif ${ANNEE} non saisi · chômage au taux normal · paiement le jour de l'arrêté des variables · solidarité le lundi de Pentecôte`,
     );
+  });
+});
+
+
+describe('message après « Enregistrer » ([B10], 12/10/2026)', () => {
+  it('rien de changé : il le dit, au lieu de « Paramètres paie enregistrés »', () => {
+    const avant = societe();
+    expect(messageApresEnregistrement(avant, societe()).titre).toBe('Aucun changement à enregistrer');
+  });
+
+  it('un réglage du calcul : les brouillons passent « À recalculer », un validé n’est pas touché', () => {
+    const avant = societe();
+    const apres = societe({ taux_at_mp: 2.5 });
+    const message = messageApresEnregistrement(avant, apres);
+    expect(message.titre).toBe('Paramètres paie enregistrés');
+    expect(message.description).toContain(
+      'Les brouillons déjà calculés passent « À recalculer » ; un bulletin validé n’est pas touché.',
+    );
+  });
+
+  it('le compte bancaire seul : enregistré, aucun bulletin à recalculer', () => {
+    const avant = societe();
+    const apres = societe({
+      settings: { compensation_heures_entre_semaines: true, effectif_seuils: { [ANNEE]: 5 }, compte_bancaire: { iban: 'FR7630001007941234567890185' } },
+    });
+    const message = messageApresEnregistrement(avant, apres);
+    expect(message.titre).toBe('Paramètres paie enregistrés');
+    expect(message.description).not.toContain('À recalculer');
   });
 });
