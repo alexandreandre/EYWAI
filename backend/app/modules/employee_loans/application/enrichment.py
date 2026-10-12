@@ -13,14 +13,17 @@ from app.modules.payroll.domain.report_nap_negatif import (
 )
 
 from app.modules.employee_loans.domain.rules import (
+    capital_du_au_debut_du_mois,
     compute_installment_remaining,
     compute_interest_benefit_in_kind,
     compute_interest_paid,
     compute_loan_repayment_cap,
     compute_repayment_amount,
     is_installment_settled,
+    message_pret_retenu_en_partie,
 )
 from app.modules.employee_loans.infrastructure.payroll_queries import (
+    get_capital_repayments,
     get_legal_interest_rate,
     get_suspended_loans_with_pending_installment,
     get_unsettled_installments_for_payroll,
@@ -61,6 +64,8 @@ def enrich_payslip_loans(
     """
     Applique les retenues de remboursement de prêt sur le net à payer.
     Reprend la plus ancienne échéance non soldée ; plafonné au dixième du salaire (art. L3251-3).
+    Une échéance retenue en partie, ou pas du tout, le dit au bulletin
+    (`alertes_baremes`) : combien, sur combien, la règle et le reliquat.
     """
     process_suspended_loan_installments(employee_id, year, month)
 
@@ -91,6 +96,33 @@ def enrich_payslip_loans(
     total_an = Decimal("0")
     remboursements: List[Dict[str, Any]] = []
 
+    def _alerter(
+        loan: Dict[str, Any],
+        installment: Dict[str, Any],
+        capital: Decimal,
+        interets: Decimal,
+        prevu: Decimal,
+        reliquat: Decimal,
+        plafond_restant: Decimal,
+    ) -> None:
+        payslip_json_data.setdefault("alertes_baremes", []).append(
+            {
+                "code": CODE_ALERTE_RETENUE_PARTIELLE,
+                "severity": "warning",
+                "message": message_pret_retenu_en_partie(
+                    motif=loan.get("reason"),
+                    numero=installment.get("installment_number"),
+                    capital_retenu=capital,
+                    interets_retenus=interets,
+                    prevu=prevu,
+                    reliquat=reliquat,
+                    salaire_exigible=salaire_exigible,
+                    net_disponible=net_a_payer,
+                    plafond_restant=plafond_restant,
+                ),
+            }
+        )
+
     for item in loans_due:
         loan = item
         installment = item.get("installment") or {}
@@ -118,9 +150,6 @@ def enrich_payslip_loans(
                 )
                 continue
 
-        if seizable_remaining <= 0:
-            break
-
         capital_part = Decimal(str(installment.get("capital_part", 0)))
         interest_part = Decimal(str(installment.get("interest_part", 0)))
         capital_paid_so_far = Decimal(str(installment.get("capital_paid") or 0))
@@ -133,6 +162,17 @@ def enrich_payslip_loans(
             capital_paid_so_far,
             interest_paid_so_far,
         )
+
+        if seizable_remaining <= 0:
+            # Plus rien à retenir ce mois-ci (net nul, ou dixième déjà pris par
+            # un autre prêt) : l'échéance reste due, et le bulletin le dit.
+            if due_capital > 0 or due_interest > 0:
+                du = _money(due_capital + due_interest)
+                _alerter(
+                    loan, installment, Decimal("0"), Decimal("0"), du, du,
+                    seizable_remaining,
+                )
+            continue
 
         if due_capital <= 0 and due_interest <= 0:
             if inst_id:
@@ -151,14 +191,18 @@ def enrich_payslip_loans(
             due_capital, due_interest, capital_paid_this
         )
 
+        # L'avantage en nature du mois : l'intérêt épargné sur le capital dû au
+        # début du mois, comme la ligne « Avantages en nature » du brut
+        # (`compute_total_loan_benefit_in_kind`). Il ne dépend pas de ce que le
+        # bulletin a pu retenir : réduit au prorata du capital retenu, il
+        # valait 4,10 € quand la ligne imprimée disait 5,04 € (rejeu G.3).
         an_amount = compute_interest_benefit_in_kind(
-            remaining_capital,
+            _capital_du_au_debut_du_mois(loan, remaining_capital, year, month),
             legal_rate,
             Decimal(str(loan.get("annual_interest_rate", 0))),
         )
-        if capital_paid_this < due_capital and due_capital > 0:
-            an_amount = _money_proportional(an_amount, capital_paid_this, due_capital)
 
+        plafond_avant = seizable_remaining
         seizable_remaining -= capital_paid_this + interest_paid_this
         total_capital += capital_paid_this
         total_interest += interest_paid_this
@@ -177,6 +221,22 @@ def enrich_payslip_loans(
             new_interest_paid,
         )
         reliquat_apres = _money(reliquat_capital + reliquat_interest)
+        solde = (
+            is_installment_settled(
+                capital_part, interest_part, new_capital_paid, new_interest_paid
+            )
+            or remaining_after <= 0
+        )
+        if not solde and reliquat_apres > 0:
+            _alerter(
+                loan,
+                installment,
+                capital_paid_this,
+                interest_paid_this,
+                _money(due_capital + due_interest),
+                reliquat_apres,
+                plafond_avant,
+            )
 
         remboursements.append(
             _build_remboursement_entry(
@@ -257,6 +317,23 @@ def enrich_payslip_loans(
     return payslip_json_data
 
 
+CODE_ALERTE_RETENUE_PARTIELLE = "pret_employeur_retenue_partielle"
+
+
+def _capital_du_au_debut_du_mois(
+    loan: Dict[str, Any], remaining_capital: Decimal, year: int, month: int
+) -> Decimal:
+    """Le capital dû au début du mois du bulletin, comme pour la ligne du brut ;
+    à défaut de date de début, le capital restant du prêt."""
+    if not loan.get("start_date") or loan.get("principal_amount") is None:
+        return remaining_capital
+    try:
+        remboursements = get_capital_repayments([str(loan["id"])])
+        return capital_du_au_debut_du_mois(loan, remboursements, year, month)
+    except Exception:  # noqa: BLE001 — l'avantage retombe sur le capital restant
+        return remaining_capital
+
+
 def _build_remboursement_entry(
     loan: Dict[str, Any],
     installment: Dict[str, Any],
@@ -284,11 +361,3 @@ def _money(value: Decimal) -> Decimal:
     from decimal import ROUND_HALF_UP
 
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-
-def _money_proportional(amount: Decimal, paid: Decimal, due: Decimal) -> Decimal:
-    if due <= 0 or paid <= 0:
-        return Decimal("0.00")
-    if paid >= due:
-        return amount
-    return _money(amount * paid / due)
