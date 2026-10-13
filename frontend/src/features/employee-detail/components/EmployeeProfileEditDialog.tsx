@@ -234,6 +234,11 @@ export function EmployeeProfileEditDialog({
               payrollFocus={payrollFocus}
               salaireVerrouille={salaireFige}
               employeeId={employeeId}
+              titreSejour={{
+                is_subject_to_residence_permit: employee.is_subject_to_residence_permit,
+                residence_permit_status: employee.residence_permit_status,
+                residence_permit_expiry_date: employee.residence_permit_expiry_date,
+              }}
             />
 
             <DialogFooter className="gap-2 sm:gap-0">

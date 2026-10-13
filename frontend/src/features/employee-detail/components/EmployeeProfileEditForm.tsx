@@ -53,6 +53,10 @@ import {
   NIVEAUX_DIPLOME_PREPARE,
   type CodeDsn,
 } from '@/constants/dsnFiche';
+import {
+  libelleStatutTitre,
+  type TitreSejourConnu,
+} from '@/features/employee-detail/components/libelleTitreSejour';
 
 interface EmployeeProfileEditFormProps {
   control: Control<EmployeeProfileEditFormValues>;
@@ -66,6 +70,8 @@ interface EmployeeProfileEditFormProps {
   /** Historique de salaire présent : le salaire se change avec une date d'effet. */
   salaireVerrouille?: boolean;
   employeeId?: string;
+  /** Statut déjà calculé par le serveur. La fiche ne le recalcule pas. */
+  titreSejour?: TitreSejourConnu | null;
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -130,6 +136,7 @@ export function EmployeeProfileEditForm({
   payrollFocus = false,
   salaireVerrouille = false,
   employeeId,
+  titreSejour = null,
 }: EmployeeProfileEditFormProps) {
   const majorationHs = useMajorationHs();
   const statut = useWatch({ control, name: 'statut' });
@@ -146,6 +153,7 @@ export function EmployeeProfileEditForm({
   const salaireBaseA35h = useWatch({ control, name: 'specificites_paie.salaire_hors_hs_structurelles' });
   const selectedCcId = useWatch({ control, name: 'collective_agreement_id' });
   const isResidencePermit = useWatch({ control, name: 'is_subject_to_residence_permit' });
+  const statutTitre = libelleStatutTitre(titreSejour ?? {});
   const filteredMutuelles = filterMutuellesForEmployee(availableMutuelles, statut);
   const companyId = useActiveCompanyId();
   const { data: jeiSettings } = useQuery({
@@ -942,6 +950,11 @@ export function EmployeeProfileEditForm({
             </FormItem>
           )}
         />
+        {isResidencePermit && statutTitre ? (
+          <p className="text-sm text-muted-foreground" data-testid="titre-sejour-statut">
+            {statutTitre}
+          </p>
+        ) : null}
         {isResidencePermit && (
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField
