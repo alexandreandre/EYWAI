@@ -347,23 +347,30 @@ def message_a_recalculer(parties: tuple[str, ...] | list[str] | None) -> str:
 #
 # Choix du 12/10/2026 (rejeu final A et C2) : poser le calendrier du mois suivant
 # change l'empreinte d'un bulletin validé sans que son calcul change. Martine le
-# recalcule d'abord au bac à sable, sans rien écrire, et compare au centime ce
-# que le moteur calcule : le brut et ses lignes, les cotisations, le net, le coût
-# employeur, et les cumuls du mois. Textes, dates, empreintes et soldes de congés
-# du pied ne sont pas des montants. Les retenues posées après le moteur (avances,
-# saisies, prêts) sont rajoutées au net enregistré : le bac à sable ne les a pas.
+# recalcule d'abord au bac à sable, sans rien écrire, et compare au centime les
+# montants du bulletin : chaque ligne du brut et des cotisations (gain, retenue,
+# parts salariale et patronale), le brut, le net, le net imposable, l'impôt, les
+# totaux de cotisations et le coût employeur ; puis les cumuls du mois.
+#
+# Ne sont pas des montants du bulletin : textes, dates, empreintes, taux et bases
+# (ils changent les montants s'ils comptent), soldes de congés du pied, et ce que
+# le moteur n'écrivait pas lors du calcul — un champ ou un cumul ajouté depuis,
+# une ligne à 0 € (mesure du 13/10 sur les bulletins réels : SMIC de référence,
+# brut de l'année civile, net des heures sup exonérées). Les retenues posées
+# après le moteur (avances, saisies, prêts) sont rajoutées au net enregistré : le
+# bac à sable ne les a pas.
 
-#: Ce que le moteur calcule, comparé au centime.
-_BLOCS_AU_CENTIME = (
-    "salaire_brut",
+#: Les blocs dont chaque ligne porte des montants.
+_BLOCS_DE_LIGNES = (
     "calcul_du_brut",
     "structure_cotisations",
-    "synthese_net",
     "primes_non_soumises",
     "revenus_hors_brut_imposables",
     "indemnite_cp_fin_contrat",
-    "total_exonerations",
 )
+
+#: Les montants d'une ligne.
+_MONTANTS_DE_LIGNE = frozenset({"gain", "perte", "montant", "montant_salarial", "montant_patronal"})
 
 #: Retenues posées sur le net après le moteur, et leur total.
 _RETENUES_APRES_LE_MOTEUR = (
@@ -374,6 +381,8 @@ _RETENUES_APRES_LE_MOTEUR = (
 
 _DEBUT_ECART = "Martine l'a recalculé sans rien enregistrer : "
 
+_ZERO = Decimal("0.00")
+
 
 def _centimes(valeur: Any) -> Decimal | None:
     if isinstance(valeur, bool) or not isinstance(valeur, (int, float, Decimal)):
@@ -381,21 +390,30 @@ def _centimes(valeur: Any) -> Decimal | None:
     return Decimal(str(valeur)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def _montants(valeur: Any, chemin: str, sortie: Counter) -> None:
-    """Chaque montant, au centime, avec son chemin (libellé des lignes compris) :
-    l'ordre des lignes ne compte pas, leur contenu si."""
-    centimes = _centimes(valeur)
-    if centimes is not None:
-        sortie[(chemin, centimes)] += 1
-        return
+def _sous(valeur: Any, *cles: str) -> Any:
+    for cle in cles:
+        if not isinstance(valeur, Mapping):
+            return None
+        valeur = valeur.get(cle)
+    return valeur
+
+
+def _montants_des_lignes(valeur: Any, chemin: str, sortie: Counter) -> None:
+    """Chaque montant non nul d'une ligne, au centime, avec le libellé de sa ligne :
+    l'ordre des lignes ne compte pas, leur montant si."""
     if isinstance(valeur, Mapping):
         libelle = valeur.get("libelle")
         base = f"{chemin}[{libelle}]" if isinstance(libelle, str) else chemin
         for cle, sous in valeur.items():
-            _montants(sous, f"{base}.{cle}", sortie)
+            if cle in _MONTANTS_DE_LIGNE:
+                centimes = _centimes(sous)
+                if centimes:
+                    sortie[(f"{base}.{cle}", centimes)] += 1
+            else:
+                _montants_des_lignes(sous, f"{base}.{cle}", sortie)
     elif isinstance(valeur, list):
         for sous in valeur:
-            _montants(sous, chemin, sortie)
+            _montants_des_lignes(sous, chemin, sortie)
 
 
 def _net_du_moteur(payslip_data: Mapping[str, Any]) -> Decimal | None:
@@ -403,21 +421,44 @@ def _net_du_moteur(payslip_data: Mapping[str, Any]) -> Decimal | None:
     if net is None:
         return None
     for bloc, total in _RETENUES_APRES_LE_MOTEUR:
-        retenue = payslip_data.get(bloc)
-        if isinstance(retenue, Mapping):
-            net += _centimes(retenue.get(total)) or Decimal("0")
+        net += _centimes(_sous(payslip_data, bloc, total)) or _ZERO
     return net
 
 
 def _empreinte_au_centime(payslip_data: Mapping[str, Any]) -> Counter:
     sortie: Counter = Counter()
-    for bloc in _BLOCS_AU_CENTIME:
-        _montants(payslip_data.get(bloc), bloc, sortie)
-    pied = payslip_data.get("pied_de_page")
-    if isinstance(pied, Mapping):
-        _montants(pied.get("cout_total_employeur"), "cout_total_employeur", sortie)
-    sortie[("net_du_moteur", _net_du_moteur(payslip_data))] += 1
+    for bloc in _BLOCS_DE_LIGNES:
+        _montants_des_lignes(payslip_data.get(bloc), bloc, sortie)
+    totaux = {
+        "salaire_brut": payslip_data.get("salaire_brut"),
+        "net_du_moteur": _net_du_moteur(payslip_data),
+        "net_imposable": _sous(payslip_data, "synthese_net", "net_imposable"),
+        "impot": _sous(payslip_data, "synthese_net", "impot_prelevement_a_la_source", "montant"),
+        "total_salarial": _sous(payslip_data, "structure_cotisations", "total_salarial"),
+        "total_patronal": _sous(payslip_data, "structure_cotisations", "total_patronal"),
+        "cout_total_employeur": _sous(payslip_data, "pied_de_page", "cout_total_employeur"),
+    }
+    for nom, valeur in totaux.items():
+        sortie[(nom, _centimes(valeur) or _ZERO)] += 1
     return sortie
+
+
+def _a_plat(valeur: Any, chemin: str = "") -> dict[str, Decimal]:
+    centimes = _centimes(valeur)
+    if centimes is not None:
+        return {chemin: centimes}
+    plat: dict[str, Decimal] = {}
+    if isinstance(valeur, Mapping):
+        for cle, sous in valeur.items():
+            plat.update(_a_plat(sous, f"{chemin}.{cle}"))
+    return plat
+
+
+def _cumuls_differents(stockes: Any, recalcules: Any) -> bool:
+    """Un cumul présent des deux côtés qui change ; un cumul ajouté au moteur depuis
+    le calcul ne compte pas."""
+    avant, apres = _a_plat(stockes), _a_plat(recalcules)
+    return any(avant[cle] != apres[cle] for cle in avant.keys() & apres.keys())
 
 
 def _euros(valeur: Decimal) -> str:
@@ -437,13 +478,11 @@ def ecart_au_centime(
     Les cumuls ne se comparent que si l'appelant donne les deux.
     """
     memes_montants = _empreinte_au_centime(stocke) == _empreinte_au_centime(recalcule)
-    memes_cumuls = True
-    if cumuls_stockes is not None and cumuls_recalcules is not None:
-        avant: Counter = Counter()
-        apres: Counter = Counter()
-        _montants(cumuls_stockes, "cumuls", avant)
-        _montants(cumuls_recalcules, "cumuls", apres)
-        memes_cumuls = avant == apres
+    memes_cumuls = (
+        cumuls_stockes is None
+        or cumuls_recalcules is None
+        or not _cumuls_differents(cumuls_stockes, cumuls_recalcules)
+    )
     if memes_montants and memes_cumuls:
         return None
     brut_avant, brut_apres = _centimes(stocke.get("salaire_brut")), _centimes(recalcule.get("salaire_brut"))
