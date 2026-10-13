@@ -28,7 +28,8 @@ describe('AIDE_MAINTIEN_REGIME_APPRENTI', () => {
 });
 
 describe('CONTRACT_TYPES', () => {
-  it('reste la liste de référence des sept types de la fiche', () => {
-    expect(CONTRACT_TYPES).toHaveLength(7);
+  it('reste la liste de référence des six types de la fiche, sans l’intérim', () => {
+    expect(CONTRACT_TYPES).toHaveLength(6);
+    expect(CONTRACT_TYPES as readonly string[]).not.toContain('Intérim');
   });
 });
