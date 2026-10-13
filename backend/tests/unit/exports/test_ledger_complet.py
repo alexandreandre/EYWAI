@@ -161,10 +161,12 @@ class TestOdComplete:
             "641000": (4200.0, 0.0),  # brut
             "421000": (0.0, 5031.54),  # net à payer
             "442000": (0.0, 50.0),  # PAS
-            "645100": (144.8, 0.0),  # URSSAF : 210 + 84 − 150 de réduction générale + 0,80 de forfait social
-            "431000": (0.0, 426.4),  # URSSAF : part salariale 281,60 + patronale nette 144,80
-            "645300": (180.0, 0.0),
-            "437200": (0.0, 300.0),
+            # Réduction générale de 150 ventilée comme la DSN (décision du 12/10) :
+            # 22,65 à la retraite complémentaire (6,01 / 39,81), 127,35 à l'URSSAF.
+            "645100": (167.45, 0.0),  # URSSAF : 210 + 84 − 127,35 + 0,80 de forfait social
+            "431000": (0.0, 449.05),  # URSSAF : part salariale 281,60 + patronale nette 167,45
+            "645300": (157.35, 0.0),  # retraite : 180 − 22,65
+            "437200": (0.0, 277.35),
             "645242": (30.0, 0.0),
             "437020": (0.0, 60.0),
             "645241": (10.0, 0.0),
