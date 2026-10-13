@@ -186,3 +186,52 @@ def test_status_label_distinguishes_partial_from_total_failure():
     assert panel_actions(NOW, enabled=True, runs=[_run("partial")]) == (True, True)
     assert run_button_label([_run("partial")]) == "Réessayer les sources en échec"
     assert panel_actions(NOW, enabled=True, runs=[_run("succeeded")]) == (False, True)
+
+
+def test_the_page_receives_the_failed_source_names():
+    from unittest.mock import patch
+
+    from app.modules.rates.application import monthly as monthly_app
+
+    row = {
+        "id": "run-1",
+        "status": "partial",
+        "started_at": "2026-10-01T05:00:00+00:00",
+        "jobs": [
+            {
+                "source_key": "SMIC",
+                "source_name": "SMIC",
+                "status": "completed",
+                "success": True,
+            },
+            {
+                "source_key": "PAS",
+                "source_name": "Prélèvement à la source",
+                "status": "failed",
+                "success": False,
+            },
+        ],
+    }
+
+    class _Store:
+        def get_auto_enabled(self):
+            return True
+
+        def list_month(self, key):
+            return [row]
+
+    class _Repo:
+        def get_job(self, job_id):
+            return None
+
+    with (
+        patch.object(monthly_app, "get_sync_run_store", return_value=_Store()),
+        patch.object(monthly_app, "ScrapingRepository", _Repo),
+    ):
+        state = monthly_app.get_monthly_rates_state(
+            now=datetime(2026, 10, 1, 6, 0, tzinfo=timezone.utc)
+        )
+    assert "Prélèvement à la source" in state["status_label"]
+    assert "certaines sources" not in state["status_label"]
+    assert state["show_run"] is True
+    assert state["run_button_label"] == "Réessayer les sources en échec"
