@@ -6,6 +6,7 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { previewPayslip } from '@/api/payslips';
+import { cadreDApercu } from './apercuBulletin';
 
 interface PayslipPreviewFrameProps {
   payslipId: string;
@@ -14,7 +15,10 @@ interface PayslipPreviewFrameProps {
 }
 
 export default function PayslipPreviewFrame({ payslipId, pdfNotes }: PayslipPreviewFrameProps) {
-  const [html, setHtml] = useState<string>('');
+  const [apercu, setApercu] = useState<{ html: string; version: number }>({
+    html: '',
+    version: 0,
+  });
   const [erreur, setErreur] = useState<string>('');
   const [chargement, setChargement] = useState<boolean>(false);
 
@@ -22,7 +26,8 @@ export default function PayslipPreviewFrame({ payslipId, pdfNotes }: PayslipPrev
     setChargement(true);
     setErreur('');
     try {
-      setHtml(await previewPayslip(payslipId, pdfNotes));
+      const html = await previewPayslip(payslipId, pdfNotes);
+      setApercu((avant) => ({ html, version: avant.version + 1 }));
     } catch {
       setErreur('Aperçu indisponible pour le moment.');
     } finally {
@@ -36,6 +41,8 @@ export default function PayslipPreviewFrame({ payslipId, pdfNotes }: PayslipPrev
     // le bouton, pour ne pas appeler le serveur à chaque frappe.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const cadre = cadreDApercu(apercu.html, apercu.version);
 
   return (
     <div className="space-y-4">
@@ -56,12 +63,19 @@ export default function PayslipPreviewFrame({ payslipId, pdfNotes }: PayslipPrev
         </Alert>
       )}
 
-      <iframe
-        title="Aperçu du bulletin"
-        srcDoc={html}
-        sandbox=""
-        className="h-[1200px] w-full rounded-md border bg-white"
-      />
+      {cadre ? (
+        <iframe
+          key={cadre.cle}
+          title="Aperçu du bulletin"
+          srcDoc={cadre.srcDoc}
+          sandbox=""
+          className="h-[1200px] w-full rounded-md border bg-white"
+        />
+      ) : !erreur ? (
+        <p className="rounded-md border bg-muted/30 p-6 text-sm text-muted-foreground">
+          Aperçu en cours de chargement…
+        </p>
+      ) : null}
     </div>
   );
 }

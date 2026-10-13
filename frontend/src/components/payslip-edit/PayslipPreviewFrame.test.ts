@@ -2,7 +2,8 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import PayslipPreviewFrame, { cadreDApercu } from './PayslipPreviewFrame';
+import PayslipPreviewFrame from './PayslipPreviewFrame';
+import { cadreDApercu } from './apercuBulletin';
 
 /**
  * Le cadre d'aperçu ne doit jamais changer de contenu sur place : chaque
