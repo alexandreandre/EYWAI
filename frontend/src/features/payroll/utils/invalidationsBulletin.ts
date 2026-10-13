@@ -59,9 +59,27 @@ function estUneListeDeBulletins(queryKey: QueryKey, companyId: string | undefine
   return queryKey.length === liste.length && liste.every((segment, i) => queryKey[i] === segment);
 }
 
-/** Invalide ces clés ; rend la main une fois les requêtes affichées rechargées. */
+/**
+ * Le report d'un net négatif se relit même hors écran.
+ *
+ * Pendant « Recalculer », la ligne passe « En cours » et démonte le bouton.
+ * Une invalidation des seules requêtes encore affichées laisse alors
+ * « Reporter … » sur un net déjà redevenu positif, jusqu'au rechargement.
+ */
+function relitMemeInactif(queryKey: QueryKey): boolean {
+  return queryKey.some((segment) => segment === 'report-net-negatif');
+}
+
+/** Invalide ces clés ; rend la main une fois les requêtes rechargées. */
 export async function invaliderCles(queryClient: QueryClient, cles: readonly QueryKey[]): Promise<void> {
-  await Promise.all(cles.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
+  await Promise.all(
+    cles.map((queryKey) =>
+      queryClient.invalidateQueries({
+        queryKey,
+        ...(relitMemeInactif(queryKey) ? { refetchType: 'all' as const } : {}),
+      })
+    )
+  );
 }
 
 /**

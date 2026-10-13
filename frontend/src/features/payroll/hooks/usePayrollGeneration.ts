@@ -377,6 +377,13 @@ export function usePayrollGeneration() {
       }
     } finally {
       stopTick();
+      // La carte est encore « En cours » (bouton démonté). On relit le report
+      // avant de la réafficher, sinon « Reporter » reste sur l'ancien net.
+      const interrompu = abortRef.current;
+      const lotTermine = !interrompu && queueRef.current.length === 0;
+      if (lotTermine || interrompu) {
+        await invaliderCles(queryClient, [queryKeys.reportNetNegatifTous(companyId)]);
+      }
       setCurrentJob(null);
       setArretDemande(false);
       processingRef.current = false;
