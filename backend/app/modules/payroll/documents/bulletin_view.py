@@ -11,7 +11,6 @@ from __future__ import annotations
 import calendar
 from typing import Any, Dict, List, Optional
 
-from app.shared.domain.temps_local import date_heure_en_clair
 from app.modules.payroll.domain.report_nap_negatif import (
     CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
 )
@@ -691,13 +690,6 @@ def construire_pied(bulletin: Dict[str, Any]) -> Dict[str, Any]:
     salarie = ((bulletin.get("en_tete") or {}).get("salarie")) or {}
     mentions = ((bulletin.get("pied_de_page") or {}).get("mentions_legales")) or {}
 
-    rectification = ""
-    if bulletin.get("manually_edited"):
-        edite_le = bulletin.get("edited_at")
-        rectification = (
-            f"Bulletin rectifié le {date_heure_en_clair(edite_le)}" if edite_le else "Bulletin rectifié"
-        )
-
     return {
         "montant_net_social": synthese.get("montant_net_social"),
         "net_avant_impot": synthese.get("net_social_avant_impot"),
@@ -723,7 +715,6 @@ def construire_pied(bulletin: Dict[str, Any]) -> Dict[str, Any]:
             if texte
         ],
         "note": bulletin.get("pdf_notes") or "",
-        "rectification": rectification,
     }
 
 
