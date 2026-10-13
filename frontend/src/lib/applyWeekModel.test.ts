@@ -29,17 +29,18 @@ describe('weekNumberForMonthDay', () => {
 });
 
 describe('buildActualEntriesFromWeekConfig', () => {
-  it('pose les heures faites du lundi au vendredi, 0 le week-end', () => {
+  it('pose les heures faites du lundi au vendredi, rien le week-end', () => {
     const days = buildActualEntriesFromWeekConfig(2026, 8, week, false);
     expect(days.find((d) => d.jour === 3)).toEqual({
       jour: 3,
       type: 'travail',
       heures_faites: 7,
     });
+    // Rejeu C1 du 12/10 : « 0h / – » au lieu de « – / – » le week-end.
     expect(days.find((d) => d.jour === 1)).toEqual({
       jour: 1,
       type: 'weekend',
-      heures_faites: 0,
+      heures_faites: null,
     });
     expect(days.find((d) => d.jour === 31)).toEqual({
       jour: 31,
@@ -49,13 +50,13 @@ describe('buildActualEntriesFromWeekConfig', () => {
     expect(days).toHaveLength(31);
   });
 
-  it('normalise le forfait jour en 1 / 0', () => {
+  it('normalise le forfait jour : 1 un jour travaillé, rien un jour non travaillé', () => {
     const days = buildActualEntriesFromWeekConfig(2026, 8, week, true);
     expect(days.find((d) => d.jour === 3)?.heures_faites).toBe(1);
-    expect(days.find((d) => d.jour === 1)?.heures_faites).toBe(0);
+    expect(days.find((d) => d.jour === 1)?.heures_faites).toBeNull();
   });
 
-  it('pose 0 heure sur un jour non travaillé même si le champ heures est remplis', () => {
+  it('n’écrit rien sur un jour non travaillé, même si le champ heures est rempli', () => {
     const congeWeek: ApplyModelWeekConfig = {
       ...week,
       monday: { type: 'conge', hours: 8 },
@@ -64,7 +65,17 @@ describe('buildActualEntriesFromWeekConfig', () => {
     expect(days.find((d) => d.jour === 3)).toEqual({
       jour: 3,
       type: 'conge',
-      heures_faites: 0,
+      heures_faites: null,
+    });
+  });
+
+  it('garde tel quel le réel déjà saisi un jour non travaillé', () => {
+    const existing = [{ jour: 1, type: 'weekend', heures_faites: 4 }];
+    const days = buildActualEntriesFromWeekConfig(2026, 8, week, false, { existing });
+    expect(days.find((d) => d.jour === 1)).toEqual({
+      jour: 1,
+      type: 'weekend',
+      heures_faites: 4,
     });
   });
 
