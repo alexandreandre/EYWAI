@@ -142,6 +142,52 @@ def _pss_de_la_periode(contexte) -> float:
     return round(plein * ratio, 2)
 
 
+def _jours_fr(valeur: float) -> str:
+    """« 2 j », « 0,5 j », « 1,25 j » : au plus deux décimales, virgule."""
+    texte = f"{round(float(valeur), 2):.2f}".rstrip("0").rstrip(".")
+    return f"{texte.replace('.', ',')} j"
+
+
+def alertes_des_compteurs_de_conges(
+    solde_conges: Optional[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Les alertes que les compteurs du bulletin appellent.
+
+    Congé payé ou RTT posé au-delà du solde (décision du 12/10/2026) : payé en
+    entier, décompté, le solde passe en négatif. On ne retient rien : on le dit,
+    la gestionnaire pose un congé sans solde si l'excédent ne doit pas être payé.
+    """
+    if not isinstance(solde_conges, dict):
+        return []
+    alertes: List[Dict[str, Any]] = []
+    for cle, code, quoi, solde_de in (
+        ("conges_payes", "conge_au_dela_du_solde", "Congés payés pris", "de congés payés"),
+        ("rtt", "rtt_au_dela_du_solde", "RTT pris", "de RTT"),
+    ):
+        compteur = solde_conges.get(cle)
+        if not isinstance(compteur, dict):
+            continue
+        depassement = float(compteur.get("depassement") or 0.0)
+        if depassement <= 0:
+            continue
+        paye, si_ils, devaient = (
+            ("payés", "S'ils", "devaient") if depassement >= 2 else ("payé", "S'il", "devait")
+        )
+        alertes.append(
+            {
+                "code": code,
+                "severity": "warning",
+                "critique": False,
+                "message": (
+                    f"{quoi} au-delà du solde : {_jours_fr(depassement)} {paye} en "
+                    f"entier, le solde {solde_de} est négatif d'autant. {si_ils} ne "
+                    f"{devaient} pas être {paye}, posez un congé sans solde à la place."
+                ),
+            }
+        )
+    return alertes
+
+
 def build_solde_conges_pied_de_page(
     employee_id: Optional[str], annee: int, mois: int, date_fin_variables: Any = None
 ) -> Optional[Dict[str, Any]]:
@@ -657,6 +703,11 @@ def creer_bulletin_final(
     date_debut_variables = getattr(contexte, "date_debut_variables", None)
     date_fin_variables = getattr(contexte, "date_fin_variables", None)
 
+    solde_conges = build_solde_conges_pied_de_page(
+        _extraire_employee_id(contexte), annee, mois, date_fin_variables
+    )
+    alertes_baremes.extend(alertes_des_compteurs_de_conges(solde_conges))
+
     bulletin = {
         "en_tete": {
             "periode": periode_formatee,
@@ -779,9 +830,7 @@ def creer_bulletin_final(
             ),
             "total_exonerations": total_exonerations,
             "total_allegements_patronaux": allegements_patronaux,
-            "solde_conges": build_solde_conges_pied_de_page(
-                _extraire_employee_id(contexte), annee, mois, date_fin_variables
-            ),
+            "solde_conges": solde_conges,
             "mentions_legales": {
                 "conservation": "Ce bulletin de paie doit être conservé sans limitation de durée.",
                 "information": "Pour en savoir plus : www.service-public.fr",

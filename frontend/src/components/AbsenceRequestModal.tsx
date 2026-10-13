@@ -465,7 +465,8 @@ export function AbsenceRequestModal({
       }
     }
 
-    // Congés payés : blocage salarié si solde insuffisant ; RH peut confirmer du sans solde
+    // Congés payés : blocage salarié si solde insuffisant ; la RH confirme un congé
+    // payé au-delà du solde (payé en entier, solde négatif — décision du 12/10)
     if (absenceType === "conge_paye") {
       const nbJours = quotiteSelectionnee;
       if (effectiveMode === "employee") {
@@ -968,7 +969,7 @@ export function AbsenceRequestModal({
       <AlertDialog open={confirmSansSoldeOpen} onOpenChange={setConfirmSansSoldeOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Attention — congé sans solde</AlertDialogTitle>
+            <AlertDialogTitle>Attention — congé au-delà du solde</AlertDialogTitle>
             <AlertDialogDescription>
               {formatCongeSansSoldeRh(prenomSalarie, cpRestant, quotiteSelectionnee)}
             </AlertDialogDescription>

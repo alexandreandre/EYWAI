@@ -787,6 +787,11 @@ def compute_cp_balances_for_bulletin(
     current["periode"] = (
         f"{current_start.strftime('%d/%m/%Y')} – {current_end.strftime('%d/%m/%Y')}"
     )
+    # Congés pris au-delà des droits : payés en entier, le solde imprimé reste
+    # à 0 et le bulletin garde de combien il est passé en négatif (alerte).
+    depassement = round(-float(periods["n_remaining_brut"]), 2)
+    if depassement > 0:
+        current["depassement"] = depassement
     previous = dict(periods["periode_precedente"])
     previous["periode"] = (
         f"{prev_start.strftime('%d/%m/%Y')} – {prev_end.strftime('%d/%m/%Y')}"
@@ -843,7 +848,11 @@ def compute_rtt_balance(
     rtt_solde = round(
         rtt_acquis + adjustment.rtt_opening_balance - effective_pris, 2
     )
-    return _balance(rtt_acquis, effective_pris, solde=max(0.0, rtt_solde))
+    soldes = _balance(rtt_acquis, effective_pris, solde=max(0.0, rtt_solde))
+    if rtt_solde < 0:
+        # RTT posés au-delà du solde : payés, le bulletin le signale.
+        soldes["depassement"] = round(-rtt_solde, 2)
+    return soldes
 
 
 def compute_jtc_balance(

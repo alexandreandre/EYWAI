@@ -43,7 +43,7 @@ export interface AbsenceRequest {
   attachment_url: string | null;
   filename: string | null;
   event_subtype?: string | null;
-  /** Pour conge_paye: nombre de jours payés, pas de 0,5 (reste = congé sans solde). */
+  /** Pour conge_paye : jours décomptés du solde (la demande entière depuis le 12/10 ; plus faible sur d'anciennes demandes). */
   jours_payes?: number | null;
   /** Demi-journées de CP : {"2026-09-14": "matin"} — jour absent = jour plein. */
   demi_journees?: Record<string, 'matin' | 'apres_midi'> | null;

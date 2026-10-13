@@ -7,11 +7,10 @@ Utilise domain (règles) et infrastructure (repository, providers, queries).
 
 from __future__ import annotations
 from app.core.logging import get_logger
-from app.shared.domain.pluriel import accord, pluriel
+from app.shared.domain.pluriel import pluriel
 
 logger = get_logger("modules.absences.application.commands")
 
-import math
 from datetime import date
 from typing import Any
 
@@ -326,19 +325,16 @@ def update_absence_request_status(
         precheck_modulation = _verifier_modulation_recovery(req_before)
 
     if status == "validated" and req_before.get("type") == "conge_paye":
-        # Solde = celui AFFICHÉ à la RH (report N-1, ajustements, ancienneté,
-        # CET compris) : l'ancien calcul maison (acquis période courante − pris)
-        # marquait « sans solde » des jours couverts par le report (retour
-        # Gaëlle 03/09). La colonne jours_payes est numérique depuis la
-        # migration demi-journées ; on paie par pas de 0,5 jour — un solde à
-        # 10,33 paie au plus 10,5… non : 10,0 ou 10,5 ≤ solde, donc 10,0.
-        available = get_cp_solde_restant(req_before["employee_id"])
-        requested = quotite_demi_journees(
+        # Décision du 12/10/2026 : un congé posé au-delà du solde reste payé
+        # en entier (le bulletin paie chaque jour posé) et se décompte du
+        # solde, qui passe en négatif ; le bulletin le signale. La gestionnaire
+        # pose elle-même un congé sans solde si l'excédent ne doit pas être
+        # payé. `jours_payes` vaut donc la demande entière, demi-journées
+        # comprises ; les demandes d'avant gardent leur valeur.
+        update_dict["jours_payes"] = quotite_demi_journees(
             req_before.get("selected_days") or [],
             req_before.get("demi_journees"),
         )
-        payable = math.floor(float(available) * 2) / 2
-        update_dict["jours_payes"] = min(requested, payable)
 
     if subrogation_active is not None:
         update_dict["subrogation_active"] = bool(subrogation_active)
@@ -794,22 +790,24 @@ def create_absences_from_planning(
                 "comment": f"{PLANNING_SOURCE_COMMENT} ({day:%d/%m/%Y})",
             }
             if request_type == "conge_paye":
-                # Même règle qu'à la validation RH : payé par pas de 0,5 dans
-                # la limite du solde, le dépassement devient du sans-solde.
-                payable = max(0.0, math.floor(disponible * 2) / 2)
-                db_data["jours_payes"] = min(1.0, payable)
-                disponible -= 1.0
-                if db_data["jours_payes"] < 1.0:
+                # Même règle qu'à la validation RH (décision du 12/10/2026) :
+                # le jour est payé en entier et décompté, même au-delà du
+                # solde ; la saisie le dit, sans promettre de sans solde.
+                db_data["jours_payes"] = 1.0
+                if disponible < 1.0:
                     warnings.append(
                         {
                             "jour": int(jour),
                             "code": "cp_au_dela_du_solde",
                             "detail": (
-                                f"CP du {day:%d/%m} posé au-delà du solde : "
-                                f"{db_data['jours_payes']:.1f} j {accord(db_data['jours_payes'], 'payé')} sur 1."
+                                f"CP du {day:%d/%m} posé au-delà du solde : il est payé "
+                                "en entier et le solde de congés passe en négatif. "
+                                "S'il ne doit pas être payé, posez un congé sans "
+                                "solde à la place."
                             ),
                         }
                     )
+                disponible -= 1.0
             created = absence_repository.create(db_data)
             couverts_par_type.setdefault(calendar_type, set()).add(iso)
             try:
