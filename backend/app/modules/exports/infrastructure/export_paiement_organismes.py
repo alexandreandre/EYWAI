@@ -14,7 +14,8 @@ from app.modules.exports.infrastructure.export_charges_sociales import (
 from app.shared.domain.effectif_seuils import effectif_retenu
 from app.shared.utils.export import generate_csv
 
-#: Seuil de l'échéance Urssaf : sous 50 salariés, les cotisations de M se paient le 15 de M+1.
+#: Seuil de l'échéance Urssaf : sous 50 salariés, les cotisations de M se paient
+#: le 15 de M+1 ; à partir de 50, le 5 de M+1 (décision du 12/10/2026).
 SEUIL_ECHEANCE_MENSUELLE = 50
 
 HEADERS = [
@@ -48,12 +49,12 @@ def _effectif_des_seuils(company_id: str, period: str) -> int:
 
 
 def _echeance(period: str, effectif: int) -> str:
-    """Sous 50 salariés : le 15 du mois suivant. À 50 et plus : inchangée (le 15 du
-    mois de paie), en attendant la décision sur le 5 ou le 15 de M+1."""
+    """Le 15 du mois suivant sous 50 salariés, le 5 du mois suivant à partir de 50
+    (salaires payés dans le mois, service-public F34059)."""
     year, month = map(int, period.split("-"))
-    if effectif < SEUIL_ECHEANCE_MENSUELLE:
-        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
-    return f"{year}-{month:02d}-15"
+    year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+    jour = 15 if effectif < SEUIL_ECHEANCE_MENSUELLE else 5
+    return f"{year}-{month:02d}-{jour:02d}"
 
 
 def _build_payment_rows(
@@ -96,11 +97,6 @@ def preview_paiement_organismes(
     effectif = _effectif_des_seuils(company_id, period)
     payment_rows = _build_payment_rows(detail_rows, period, effectif)
     warnings: List[str] = []
-    if effectif >= SEUIL_ECHEANCE_MENSUELLE:
-        warnings.append(
-            "Société de 50 salariés ou plus : l'échéance (le 15 du mois de paie) est à "
-            "confirmer, la date dépend de la date de paiement des salaires."
-        )
     if not payment_rows:
         warnings.append("Aucune cotisation à payer pour cette période.")
     return {
