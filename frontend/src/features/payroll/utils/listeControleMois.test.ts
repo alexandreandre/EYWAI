@@ -412,6 +412,42 @@ describe('« c’est fini » : bulletins validés, DSN et export comptable faits
   });
 });
 
+describe('« DSN déposée hors de Martine » : l’étape marquée faite à la main (décision du 12/10)', () => {
+  const MARQUE = exportFait('dsn_hors_martine', {
+    generated_at: '2026-10-12T16:30:00Z',
+    generated_by_name: 'Claire Dupuis',
+  });
+
+  it('la marque à la main fait l’étape, et dit qui et quand', () => {
+    const declarations = etape(
+      listeControleDuMois(entree({ exportsDuMois: OK([MARQUE]) })),
+      ETAPE_DECLARATIONS
+    );
+    expect(declarations.etat).toBe('fait');
+    expect(declarations.detail).toBe(
+      'Marquée faite à la main par Claire Dupuis le 12/10/2026 : DSN déposée hors de Martine.'
+    );
+  });
+
+  it('un bulletin recalculé après la marque ne la défait pas : la DSN est faite ailleurs', () => {
+    const declarations = etape(
+      listeControleDuMois(entree({ exportsDuMois: OK([{ ...MARQUE, a_refaire: true }]) })),
+      ETAPE_DECLARATIONS
+    );
+    expect(declarations.etat).toBe('fait');
+  });
+
+  it('sans nom connu, la marque reste tracée par sa date', () => {
+    const declarations = etape(
+      listeControleDuMois(entree({ exportsDuMois: OK([{ ...MARQUE, generated_by_name: null }]) })),
+      ETAPE_DECLARATIONS
+    );
+    expect(declarations.detail).toBe(
+      'Marquée faite à la main le 12/10/2026 : DSN déposée hors de Martine.'
+    );
+  });
+});
+
 describe('actions en attente', () => {
   it('chaque étape non cochée devient une ligne : quoi, où cliquer, ce qu’elle doit voir', () => {
     const resultat = listeControleDuMois(
