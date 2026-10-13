@@ -124,6 +124,13 @@ export function buildActualEntriesFromWeekConfig(
 
     const dayKey = DAY_KEYS[pythonWeekday(year, month, day)];
     const dayConfig = weekConfig[dayKey];
+    if (!isWorkDay(dayConfig.type)) {
+      // Un jour non travaillé n'a pas d'heures faites : rien n'est écrit
+      // (« 0h » s'affichait le week-end, rejeu C1 du 12/10), le réel déjà
+      // saisi ce jour-là reste tel quel.
+      entries.push(existing ?? { jour: day, type: dayConfig.type, heures_faites: null });
+      continue;
+    }
     entries.push({
       jour: day,
       type: dayConfig.type,
