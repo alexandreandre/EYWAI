@@ -109,7 +109,8 @@ class TestRefus:
 
     def test_avant_la_fin_du_precedent(self):
         assert _refus(demande=_demande(date_debut=date(2026, 5, 31))) == (
-            "Le nouveau contrat doit commencer après la fin du précédent (31/05/2026)."
+            "Le nouveau contrat doit commencer après la fin du précédent (31/05/2026). "
+            "Il peut commencer le 01/06/2026 au plus tôt."
         )
 
     def test_le_meme_mois_que_la_fin_du_precedent(self):

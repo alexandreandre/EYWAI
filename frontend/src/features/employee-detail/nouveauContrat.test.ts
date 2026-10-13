@@ -72,7 +72,7 @@ describe('erreurDuFormulaire', () => {
 
   it('pas avant le premier jour possible', () => {
     expect(erreurDuFormulaire({ ...rempli(), dateDebut: '2026-05-20' }, APERCU)).toBe(
-      'Le nouveau contrat peut commencer le 01/06/2026 au plus tôt (le précédent se termine le 31/05/2026).',
+      "Le nouveau contrat peut commencer le 01/06/2026 au plus tôt : le précédent se termine le 31/05/2026 et Martine ne fait qu'un bulletin par mois.",
     );
   });
 

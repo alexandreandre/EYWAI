@@ -29,3 +29,20 @@ describe('Fin de CDD : « Prime de précarité non due » se saisit à l’écra
     expect(t).toContain('precarite_non_due?: MotifPrecariteNonDue | null;');
   });
 });
+
+describe('« Nouveau contrat » : une date de début trop tôt reçoit le message de Martine', () => {
+  it('le formulaire ne laisse pas le navigateur refuser seul la date (attribut min)', () => {
+    const t = lire('components/employee-detail/NouveauContratDialog.tsx');
+    expect(t).toContain('<form id="nouveau-contrat" noValidate onSubmit={soumettre}');
+  });
+});
+
+describe('Départs : nombres accordés (« 1 jour », « 2 jours »)', () => {
+  it('le préavis du dossier, l’avertissement de la création et le solde de congés', () => {
+    expect(lire('components/exits/ExitDetailsPanel.tsx')).toContain(
+      "{pluriel(exitDetails.notice_period_days ?? 0, 'jour')}"
+    );
+    expect(lire('components/exits/CreateExitDialog.tsx')).toContain("(${pluriel(noticePeriodDays, 'jour')})");
+    expect(lire('features/employee-exits/IccpArbitrageDetail.tsx')).toContain("{pluriel(joursRestants, 'jour')}");
+  });
+});
