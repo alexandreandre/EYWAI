@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { AlertTriangle, UserRoundPlus } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -6,30 +5,22 @@ import { Button } from '@/components/ui/button';
 import { isProfileIncomplete } from '@/features/employee-detail/components/employeeProfileFormUtils';
 import type { Employee } from '@/features/employee-detail/types';
 
-const SESSION_AUTO_OPEN_KEY = (employeeId: string) =>
-  `onboarding-completion-auto-opened:${employeeId}`;
-
 export interface EmployeeOnboardingCompletionProps {
   employeeId: string;
   employee: Employee;
   onOpenEdit: () => void;
 }
 
+/**
+ * Le bandeau d'une fiche à compléter. Il n'ouvre jamais la fenêtre de lui-même
+ * (rejeu final I.2, 13/10) : seul « Compléter la fiche » la fait ouvrir.
+ */
 export function EmployeeOnboardingCompletion({
-  employeeId,
   employee,
   onOpenEdit,
 }: EmployeeOnboardingCompletionProps) {
   const incomplete = isProfileIncomplete(employee);
   const missingFields = employee.missing_payroll_fields ?? [];
-
-  useEffect(() => {
-    if (!incomplete) return;
-    const key = SESSION_AUTO_OPEN_KEY(employeeId);
-    if (sessionStorage.getItem(key)) return;
-    sessionStorage.setItem(key, '1');
-    onOpenEdit();
-  }, [employeeId, incomplete, onOpenEdit]);
 
   if (!incomplete) return null;
 
