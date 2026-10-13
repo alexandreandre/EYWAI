@@ -495,3 +495,15 @@ def test_une_ligne_qui_change_de_montant_reste_un_ecart():
         },
     }
     assert ecart_au_centime(BULLETIN, recalcule) is not None
+
+
+def test_une_ligne_renommee_au_meme_montant_n_est_pas_un_ecart():
+    """Mesure du 13/10 (Colorplast, septembre) : « remb indemnités kilométriques
+    2026-09-30 » devenu « Note de frais : indemnités kilométriques du 30/09/2026 »,
+    627,30 € des deux côtés. Un libellé n'est pas un montant."""
+    enregistre = {**BULLETIN, "primes_non_soumises": [{"libelle": "remb indemnités kilométriques", "montant": 627.3}]}
+    recalcule = {
+        **BULLETIN,
+        "primes_non_soumises": [{"libelle": "Note de frais : indemnités kilométriques", "montant": 627.3}],
+    }
+    assert ecart_au_centime(enregistre, recalcule) is None
