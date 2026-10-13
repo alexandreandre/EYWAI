@@ -235,3 +235,36 @@ def test_the_page_receives_the_failed_source_names():
     assert "certaines sources" not in state["status_label"]
     assert state["show_run"] is True
     assert state["run_button_label"] == "Réessayer les sources en échec"
+
+
+def test_partial_phrase_agrees_in_number():
+    un = describe_monthly_status(
+        NOW,
+        enabled=True,
+        runs=[
+            StoredMonthlyRun(
+                "run-1",
+                "partial",
+                NOW,
+                frozenset({"SMIC"}),
+                ("PAS",),
+            )
+        ],
+    )
+    assert un == "Mise à jour partielle : PAS n'a pas abouti. Les autres taux sont à jour."
+    deux = describe_monthly_status(
+        NOW,
+        enabled=True,
+        runs=[
+            StoredMonthlyRun(
+                "run-1",
+                "partial",
+                NOW,
+                frozenset(),
+                ("PAS", "CDD"),
+            )
+        ],
+    )
+    assert deux == (
+        "Mise à jour partielle : PAS et CDD n'ont pas abouti. Les autres taux sont à jour."
+    )

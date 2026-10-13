@@ -174,28 +174,37 @@ def _snapshots(rows: List[Dict[str, Any]], now: datetime) -> List[StoredMonthlyR
     snapshots: List[StoredMonthlyRun] = []
     for row in rows:
         succeeded: set[str] = set()
+        failed: list[str] = []
+        seen_failed: set[str] = set()
         for job in row.get("jobs") or []:
             source_key = job.get("source_key")
-            if not source_key:
+            label = str(job.get("source_name") or source_key or "").strip()
+            if not source_key and not label:
                 continue
-            if _job_succeeded(job):
-                succeeded.add(source_key)
+            ok = _job_succeeded(job)
+            if not ok:
+                job_id = job.get("job_id")
+                if job_id:
+                    try:
+                        live = repo.get_job(str(job_id))
+                    except Exception:
+                        live = None
+                    if live and live.get("status") == "completed" and live.get("success") is True:
+                        ok = True
+            if ok:
+                if source_key:
+                    succeeded.add(source_key)
                 continue
-            job_id = job.get("job_id")
-            if not job_id:
-                continue
-            try:
-                live = repo.get_job(str(job_id))
-            except Exception:
-                live = None
-            if live and live.get("status") == "completed" and live.get("success") is True:
-                succeeded.add(source_key)
+            if label and label not in seen_failed:
+                seen_failed.add(label)
+                failed.append(label)
         snapshots.append(
             StoredMonthlyRun(
                 id=str(row["id"]),
                 status=str(row.get("status") or ""),
                 started_at=_parse_started(row.get("started_at"), now),
                 succeeded_source_keys=frozenset(succeeded),
+                failed_source_names=tuple(failed),
             )
         )
     return snapshots

@@ -38,6 +38,7 @@ class StoredMonthlyRun:
     status: str
     started_at: datetime
     succeeded_source_keys: frozenset[str]
+    failed_source_names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -146,6 +147,12 @@ def describe_monthly_status(
     if latest and latest.status == "succeeded":
         return "Mise à jour du mois effectuée."
     if latest and latest.status == "partial":
+        names = tuple(name for name in latest.failed_source_names if name.strip())
+        if names:
+            return (
+                "Mise à jour partielle : "
+                f"{_phrase_echecs(names)}. Les autres taux sont à jour."
+            )
         return (
             "Mise à jour partielle : certaines sources n'ont pas abouti. "
             "Les autres taux sont à jour."
@@ -202,6 +209,14 @@ def _latest_finished_success(runs: Sequence[StoredMonthlyRun]) -> Optional[Store
     if not finished:
         return None
     return _most_recent(finished)
+
+
+def _phrase_echecs(names: Sequence[str]) -> str:
+    if len(names) == 1:
+        return f"{names[0]} n'a pas abouti"
+    if len(names) == 2:
+        return f"{names[0]} et {names[1]} n'ont pas abouti"
+    return f"{', '.join(names[:-1])} et {names[-1]} n'ont pas abouti"
 
 
 def _latest(runs: Sequence[StoredMonthlyRun]) -> Optional[StoredMonthlyRun]:
