@@ -341,6 +341,44 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
     return elements
 
 
+#: Ligne comptable de la part retraite complémentaire de la réduction générale.
+COTI_ID_REDUCTION_RETRAITE = "reduction_generale_retraite"
+
+
+def ventiler_reduction_generale(lignes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Ventile la réduction générale comme la DSN : Urssaf (018) et retraite
+    complémentaire (106), avec la fonction de la DSN (décision du 12/10/2026).
+
+    Pour l'OD, les charges par caisse et le paiement des organismes ; la DSN
+    garde ses propres lignes. Le total des charges ne change pas.
+    """
+    from app.modules.dsn_export.domain.cotisation_mapping import (
+        part_retraite_complementaire_de_la_reduction,
+    )
+
+    sortie: List[Dict[str, Any]] = []
+    for ligne in lignes:
+        if not isinstance(ligne, dict) or str(ligne.get("coti_id") or "") != "reduction_generale":
+            sortie.append(ligne)
+            continue
+        patronal = float(ligne.get("montant_patronal", 0) or 0)
+        part = part_retraite_complementaire_de_la_reduction(patronal, lignes)
+        if not part:
+            sortie.append(ligne)
+            continue
+        sortie.append({**ligne, "montant_patronal": round(patronal - part, 2)})
+        sortie.append(
+            {
+                "coti_id": COTI_ID_REDUCTION_RETRAITE,
+                "libelle": "Réduction générale, part retraite complémentaire",
+                "base": ligne.get("base"),
+                "montant_salarial": 0.0,
+                "montant_patronal": part,
+            }
+        )
+    return sortie
+
+
 def extract_cotisations_from_payslip(
     payslip_data: Dict[str, Any],
 ) -> Tuple[float, float, List[Dict[str, Any]], Dict[str, Any]]:

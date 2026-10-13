@@ -11,6 +11,7 @@ from app.modules.exports.infrastructure.payslip_accounting_extract import (
     extract_elements_hors_brut,
     extract_pas_amount,
     merge_monthly_inputs_hors_brut,
+    ventiler_reduction_generale,
 )
 from app.shared.utils.export import format_period, generate_csv, generate_xlsx
 
@@ -128,6 +129,7 @@ def ligne_od_du_bulletin(
     cotisations_salariales, cotisations_patronales, cotisations_list, _ = (
         extract_cotisations_from_payslip(payslip_data)
     )
+    cotisations_list = ventiler_reduction_generale(cotisations_list)
     elements = merge_monthly_inputs_hors_brut(
         extract_elements_hors_brut(payslip_data), saisies_du_salarie
     )

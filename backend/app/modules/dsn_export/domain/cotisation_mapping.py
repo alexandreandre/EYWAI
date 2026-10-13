@@ -355,6 +355,22 @@ def _fnal(assiette: float, montant: float, taux: float) -> List[LigneDsn]:
     return [LigneDsn("049", base, assiette, montant, taux)]
 
 
+def _part_retraite(montant: float, tmax: float) -> float:
+    """Fraction 6,01 / T de la réduction, imputée sur la retraite complémentaire."""
+    if tmax <= 0:
+        return 0.0
+    return round(montant * POINTS_RETRAITE_COMPLEMENTAIRE / tmax, 2)
+
+
+def part_retraite_complementaire_de_la_reduction(
+    montant: float, lignes: List[Dict[str, Any]]
+) -> float:
+    """La part de la réduction générale d'un bulletin que la DSN déclare en
+    `106` (retraite complémentaire), T lu sur le FNAL de ses lignes. Une seule
+    source du partage : la comptabilité ventile la réduction avec elle."""
+    return _part_retraite(montant, _tmax_applicable([l for l in lignes if isinstance(l, dict)]))
+
+
 def _reduction_generale(assiette: float, montant: float, tmax: float) -> List[LigneDsn]:
     """Ventile la réduction entre sécurité sociale (`018`) et retraite (`106`).
 
@@ -365,7 +381,7 @@ def _reduction_generale(assiette: float, montant: float, tmax: float) -> List[Li
     """
     if tmax <= 0:
         return [LigneDsn(CODE_REDUCTION_GENERALE, BASE_BRUT_DEPLAFONNE, assiette, montant, 0.0)]
-    part_retraite = round(montant * POINTS_RETRAITE_COMPLEMENTAIRE / tmax, 2)
+    part_retraite = _part_retraite(montant, tmax)
     return [
         LigneDsn(
             CODE_REDUCTION_GENERALE,

@@ -74,6 +74,9 @@ COTI_TO_ORGANISME: Dict[str, str] = {
     "autres_contributions": ORGANISME_URSSAF,
     # Allègements et exonérations : même organisme, montant négatif
     "reduction_generale": ORGANISME_URSSAF,
+    # Part de la réduction générale que la DSN déclare en 106 (6,01 / T),
+    # ventilée par l'OD (décision du 12/10/2026).
+    "reduction_generale_retraite": ORGANISME_RETRAITE,
     "deduction_hs_patronale": ORGANISME_URSSAF,
     "reduction_hs_salariale": ORGANISME_URSSAF,
     "exoneration_apprenti_salariale": ORGANISME_URSSAF,
