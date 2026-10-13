@@ -145,8 +145,12 @@ const exportTypeLabels: Record<string, string> = {
   export_cabinet_quadra: "Export format Quadra",
   export_cabinet_sage: "Export format Sage",
   acomptes: "Acomptes & avances",
+  fec: "FEC",
+  saisies: "Saisies sur salaire",
+  prets_employeur: "Prêts employeur",
   // Déclarations
   dsn_mensuelle: "DSN mensuelle",
+  "attestations-annexes": "Attestations & annexes",
   // Paiements
   "virement-salaires": "Virement salaires",
   "virement-acomptes": "Virement acomptes",
@@ -154,10 +158,12 @@ const exportTypeLabels: Record<string, string> = {
   virement_salaires: "Virement salaires",
   virement_acomptes: "Virement acomptes",
   recapitulatif_montants: "Récapitulatif des montants",
+  "paiement-organismes": "Paiement organismes",
   // Exports RH
   "charges-sociales": "Charges sociales par caisse",
   "conges-absences": "Congés payés / Absences",
   "notes-frais": "Notes de frais",
+  "provision-cp": "Provision congés payés",
   charges_sociales: "Charges sociales par caisse",
   conges_absences: "Congés payés / Absences",
   notes_frais: "Notes de frais",
