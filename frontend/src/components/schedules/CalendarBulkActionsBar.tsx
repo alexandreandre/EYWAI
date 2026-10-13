@@ -12,6 +12,7 @@ import {
   ScanLine,
 } from 'lucide-react';
 import * as calendarApi from '@/api/calendar';
+import type { PlannedEventData } from '@/api/calendar';
 import { useCompany } from '@/contexts/CompanyContext';
 import { runWithConcurrency } from '@/lib/concurrency';
 import { useToast } from '@/components/ui/use-toast';
@@ -23,8 +24,8 @@ import {
   type PlannedSnapshot,
 } from '@/lib/calendarBulkUndo';
 import { completerReelDepuisPrevu, messageReelDepuisPrevu } from '@/lib/reelDepuisPrevu';
-import { NON_COPYABLE_DAY_TYPES } from '@/lib/calendarTypes';
-import { accord, pluriel } from '@/lib/pluriel';
+import { copierMoisPrecedent, noteJoursGardes } from '@/lib/copieMoisPrecedent';
+import { pluriel } from '@/lib/pluriel';
 
 interface CalendarBulkActionsBarProps {
   selectedCount: number;
@@ -94,9 +95,15 @@ export function CalendarBulkActionsBar({
       prevYear -= 1;
     }
 
+    const moisSource = new Date(prevYear, prevMonth - 1).toLocaleString('fr-FR', {
+      month: 'long',
+      year: 'numeric',
+    });
+
     try {
       const snapshots: PlannedSnapshot[] = [];
-      let preservedCount = 0;
+      let feriesGardes = 0;
+      let absencesGardees = 0;
       let requalifiedCount = 0;
       const tasks = selectedEmployeeIds.map((id) => async () => {
         const [prevRes, currentPlannedRes] = await Promise.all([
@@ -104,39 +111,31 @@ export function CalendarBulkActionsBar({
           calendarApi.getPlannedCalendar(id, year, month),
         ]);
         const prevData = prevRes.data.calendrier_prevu ?? [];
-        const currentData = currentPlannedRes.data.calendrier_prevu ?? [];
+        const currentData: PlannedEventData[] = currentPlannedRes.data.calendrier_prevu ?? [];
         snapshots.push({ id, planned: currentData });
-        const daysInMonth = new Date(year, month, 0).getDate();
+        // Le mois copié tel que l'écran le montre : les jours enregistrés, et
+        // pour les autres le planning par défaut (fériés de la société compris).
+        const parDefaut = overviewRows.find((r) => r.employee.id === id)?.planned ?? [];
+        const cible = [
+          ...currentData,
+          ...parDefaut.filter((p) => !currentData.some((c) => c.jour === p.jour)),
+        ];
+        // Chaque jour reçoit le jour type du même jour de la semaine ; les
+        // fériés et les absences du mois copié restent tels quels (les CP/RTT
+        // du mois source ne sont jamais recopiés : ce seraient de NOUVELLES
+        // demandes validées).
+        const copie = copierMoisPrecedent({
+          source: prevData,
+          anneeSource: prevYear,
+          moisSource: prevMonth,
+          cible,
+          annee: year,
+          mois: month,
+        });
+        feriesGardes += copie.feriesGardes;
+        absencesGardees += copie.absencesGardees;
 
-        const merged = [];
-        for (let jour = 1; jour <= daysInMonth; jour++) {
-          const fromPrev = prevData.find(
-            (p: { jour: number }) => p.jour === jour
-          );
-          const existing = currentData.find(
-            (p: { jour: number; origine?: string | null }) => p.jour === jour
-          );
-          // Un jour du mois cible issu d'une absence validée n'est jamais
-          // recouvert par la copie : il reste tel quel.
-          if (existing?.origine === 'absence') {
-            preservedCount += 1;
-            merged.push(existing);
-            continue;
-          }
-          // Les CP/RTT du mois source viennent de demandes validées : les
-          // recopier créerait autant de NOUVELLES demandes validées.
-          const copiable =
-            fromPrev && !NON_COPYABLE_DAY_TYPES.has(fromPrev.type)
-              ? fromPrev
-              : null;
-          merged.push(
-            copiable
-              ? { ...copiable, jour }
-              : existing ?? { jour, type: 'travail', heures_prevues: null }
-          );
-        }
-
-        const res = await calendarApi.updatePlannedCalendar(id, year, month, merged);
+        const res = await calendarApi.updatePlannedCalendar(id, year, month, copie.jours);
         // Défensif : `warnings` est absent tant que le backend ne le renvoie pas.
         requalifiedCount += (res.data?.warnings ?? []).filter(
           (w) => w.code === 'absence_validee_requalifiee'
@@ -144,14 +143,11 @@ export function CalendarBulkActionsBar({
       });
 
       await runWithConcurrency(tasks, 5);
-      const preservedNote =
-        preservedCount > 0
-          ? ` ${pluriel(preservedCount, 'jour')} d'absence validée ${accord(preservedCount, 'conservé')}.`
-          : '';
+      const noteGardes = noteJoursGardes(feriesGardes, absencesGardees);
       if (requalifiedCount > 0) {
         toast({
           title: 'Mois précédent copié — absences requalifiées',
-          description: `Ce changement requalifie ${pluriel(requalifiedCount, 'jour')} d'absence validée.${preservedNote}`,
+          description: `Ce changement requalifie ${pluriel(requalifiedCount, 'jour')} d'absence validée.${noteGardes}`,
           variant: 'warning',
           action: undoToastAction(() =>
             restorePlannedSnapshots(snapshots, year, month)
@@ -160,7 +156,7 @@ export function CalendarBulkActionsBar({
       } else {
         toast({
           title: 'Mois précédent copié',
-          description: `Planning copié pour ${pourEmployes(selectedEmployeeIds.length)}.${preservedNote}`,
+          description: `Planning copié pour ${pourEmployes(selectedEmployeeIds.length)} : chaque jour reprend le même jour de la semaine de ${moisSource}.${noteGardes}`,
           action: undoToastAction(() =>
             restorePlannedSnapshots(snapshots, year, month)
           ),

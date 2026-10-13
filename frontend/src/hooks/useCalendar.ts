@@ -12,14 +12,13 @@ import {
   computeMonthCompletionStatus,
   moisPrecedent,
 } from '@/lib/calendarStats';
-import { NON_COPYABLE_DAY_TYPES } from '@/lib/calendarTypes';
 import {
   planningWarningsToast,
   summarizePlanningWarnings,
 } from '@/lib/planningAbsenceWarnings';
 import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 import { avecLeReelEnregistre, joursAuxHeuresRetirees, messageHeuresRetirees } from '@/lib/heuresRetireesAuReel';
-import { accord, pluriel } from '@/lib/pluriel';
+import { copierMoisPrecedent, noteJoursGardes } from '@/lib/copieMoisPrecedent';
 import { modeleSemaineDuSalarie } from '@/lib/modeleSemaine';
 import { valeurModelePourLeJour } from '@/lib/weekTemplateDays';
 
@@ -565,25 +564,27 @@ export function useCalendar(
       const prevData: PlannedEventData[] = res.data.calendrier_prevu ?? [];
       const daysInMonth = new Date(selectedDate.year, selectedDate.month, 0).getDate();
 
-      // Un jour du mois cible issu d'une absence validée n'est jamais
-      // recouvert par la copie : il reste tel quel.
-      const preservedCount = plannedCalendar.filter(
-        (day) => day.jour <= daysInMonth && day.origine === 'absence'
-      ).length;
+      // Chaque jour reçoit le jour type du même jour de la semaine au mois
+      // précédent ; les fériés et les absences du mois affiché restent tels
+      // quels (les CP/RTT du mois source ne sont jamais recopiés : ce seraient
+      // de NOUVELLES demandes validées).
+      const copie = copierMoisPrecedent({
+        source: prevData,
+        anneeSource: prevYear,
+        moisSource: prevMonth,
+        cible: plannedCalendar,
+        annee: selectedDate.year,
+        mois: selectedDate.month,
+      });
       setPlannedCalendar((prev) =>
         prev.map((day) => {
           if (day.jour > daysInMonth) return day;
-          if (day.origine === 'absence') return day;
-          const fromPrev = prevData.find((p) => p.jour === day.jour);
-          if (!fromPrev) return day;
-          // Les CP/RTT du mois source viennent de demandes validées : les
-          // recopier créerait autant de NOUVELLES demandes validées. Le jour
-          // cible garde son état (généralement travail).
-          if (NON_COPYABLE_DAY_TYPES.has(fromPrev.type)) return day;
+          const copieDuJour = copie.jours.find((j) => j.jour === day.jour);
+          if (!copieDuJour || copieDuJour === day) return day;
           return {
             ...day,
-            type: fromPrev.type,
-            heures_prevues: fromPrev.heures_prevues,
+            type: copieDuJour.type,
+            heures_prevues: copieDuJour.heures_prevues,
           };
         })
       );
@@ -591,10 +592,8 @@ export function useCalendar(
       toast({
         title: 'Mois précédent copié',
         description:
-          `Planning de ${new Date(prevYear, prevMonth - 1).toLocaleString('fr-FR', { month: 'long', year: 'numeric' })} appliqué au mois courant.` +
-          (preservedCount > 0
-            ? ` ${pluriel(preservedCount, 'jour')} d'absence validée ${accord(preservedCount, 'conservé')}.`
-            : ''),
+          `Chaque jour reprend le même jour de la semaine de ${new Date(prevYear, prevMonth - 1).toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}.` +
+          noteJoursGardes(copie.feriesGardes, copie.absencesGardees),
       });
     } catch (error) {
       log.error(error);
