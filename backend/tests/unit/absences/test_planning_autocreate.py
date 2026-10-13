@@ -155,11 +155,11 @@ class TestCreateAbsencesFromPlanning:
         assert harnais["crees"][0]["jours_payes"] == 1.0
         assert not any(w["code"] == "cp_au_dela_du_solde" for w in warnings)
 
-    def test_cp_futur_nest_pas_reintegre(self, harnais):
+    def test_cp_futur_au_dela_du_solde_est_paye_et_signale(self, harnais):
         """Un jour FUTUR n'est jamais compté comme pris par le solde affiché
         (count_absence_days_taken s'arrête à aujourd'hui) : pas de
-        réintégration, sinon un CP posé pour demain à solde nul serait payé
-        plein."""
+        réintégration. À solde nul, le jour reste payé en entier (décision du
+        12/10) et la saisie le signale, sans promettre de sans solde."""
         from datetime import date
 
         harnais["solde"] = 0.0
@@ -171,13 +171,16 @@ class TestCreateAbsencesFromPlanning:
             jours_par_type={"conges_payes": [14]},
             aujourd_hui=date(2026, 9, 1),
         )
-        assert harnais["crees"][0]["jours_payes"] == 0.0
-        assert any(w["code"] == "cp_au_dela_du_solde" for w in warnings)
+        assert harnais["crees"][0]["jours_payes"] == 1.0
+        avertissement = next(w for w in warnings if w["code"] == "cp_au_dela_du_solde")
+        assert "payé en entier" in avertissement["detail"]
+        assert "congé sans solde" in avertissement["detail"]
+        assert "0.5" not in avertissement["detail"]
 
-    def test_solde_insuffisant_clampe_jours_payes_et_previent(self, harnais):
+    def test_solde_insuffisant_paie_le_jour_et_previent(self, harnais):
         from datetime import date
 
-        # Jour passé — solde affiché −0,4 après saisie = 0,6 réel : 0,5 payé.
+        # Jour passé — solde affiché −0,4 après saisie = 0,6 réel : payé quand même.
         harnais["solde"] = -0.4
         warnings = commands.create_absences_from_planning(
             "emp-1",
@@ -187,12 +190,12 @@ class TestCreateAbsencesFromPlanning:
             jours_par_type={"conges_payes": [14]},
             aujourd_hui=date(2026, 9, 20),
         )
-        assert harnais["crees"][0]["jours_payes"] == 0.5
+        assert harnais["crees"][0]["jours_payes"] == 1.0
         assert any(w["code"] == "cp_au_dela_du_solde" for w in warnings)
 
-    def test_rafale_epuise_le_solde_jour_apres_jour(self, harnais):
-        """Deux jours passés posés d'un coup : le solde se décrémente
-        localement, chaque journée est payée sur ce qui reste (0,5 puis 0)."""
+    def test_rafale_au_dela_du_solde_paie_chaque_jour(self, harnais):
+        """Deux jours passés posés d'un coup pour 0,8 j de solde réel : les deux
+        journées sont payées, et chacune est signalée au-delà du solde."""
         from datetime import date
 
         harnais["solde"] = -1.2  # réel avant saisie : 0,8 pour 2 jours
@@ -205,7 +208,7 @@ class TestCreateAbsencesFromPlanning:
             aujourd_hui=date(2026, 9, 20),
         )
         payes = [c["jours_payes"] for c in harnais["crees"]]
-        assert payes == [0.5, 0.0]
+        assert payes == [1.0, 1.0]
         assert (
             sum(1 for w in warnings if w["code"] == "cp_au_dela_du_solde") == 2
         )

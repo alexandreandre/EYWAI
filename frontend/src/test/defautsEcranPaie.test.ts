@@ -97,6 +97,11 @@ describe("fenêtre « Nouveau congé » de la page Absences (saisie RH)", () => 
     expect(texte).toContain("formatCongeSansSoldeRh");
   });
 
+  it("ne titre plus « congé sans solde » un congé payé au-delà du solde (décision du 12/10)", () => {
+    expect(texte).not.toContain("Attention — congé sans solde");
+    expect(texte).toContain("Attention — congé au-delà du solde");
+  });
+
   it("montre le solde de congés payés au moment de poser", () => {
     expect(texte).toMatch(/!isRhArret && soldesPose\.length > 0 && absenceType/);
   });

@@ -311,13 +311,13 @@ class TestUpdateAbsenceRequestStatus:
                         )
             return repo.update.call_args[0][1]
 
-    def test_jours_payes_par_pas_de_demi_journee(self):
-        """La colonne jours_payes est numérique (migration demi-journées) : le
-        22P02 du 03/09 (float dans une colonne integer) ne peut plus se
-        produire. Le paiement se fait par pas de 0,5 jour : demande > solde
-        entier → solde payé tel quel."""
+    def test_un_conge_au_dela_du_solde_est_paye_en_entier(self):
+        """Décision du 12/10 : un congé posé au-delà du solde reste payé en
+        entier (le bulletin le paie déjà) et se décompte du solde, qui passe en
+        négatif. La gestionnaire pose elle-même un sans solde si elle le veut ;
+        l'alerte du bulletin le lui dit."""
         call_update = self._valider_cp(nb_jours_demandes=15, solde_restant=10.0)
-        assert call_update["jours_payes"] == 10.0
+        assert call_update["jours_payes"] == 15
 
     def test_jours_payes_utilise_le_solde_affiche(self):
         """Le solde retenu est celui AFFICHÉ à la RH (report N-1 compris) :
@@ -325,14 +325,13 @@ class TestUpdateAbsenceRequestStatus:
         call_update = self._valider_cp(nb_jours_demandes=15, solde_restant=24.96)
         assert call_update["jours_payes"] == 15
 
-    def test_jours_payes_plancher_au_demi_jour(self):
-        """Un solde fractionnaire insuffisant est planché au 0,5 le plus
-        proche par en dessous : 10,5 j pour 15 demandés → 10,5 payés ;
-        10,33 j → 10,0 (on ne paie jamais une fraction hors pas de 0,5)."""
+    def test_un_solde_fractionnaire_ne_retranche_rien(self):
+        """Plus de plancher au demi-jour sur le solde : 10,5 ou 10,33 j de solde
+        pour 15 demandés, les 15 jours sont payés."""
         call_update = self._valider_cp(nb_jours_demandes=15, solde_restant=10.5)
-        assert call_update["jours_payes"] == 10.5
+        assert call_update["jours_payes"] == 15
         call_update = self._valider_cp(nb_jours_demandes=15, solde_restant=10.33)
-        assert call_update["jours_payes"] == 10.0
+        assert call_update["jours_payes"] == 15
 
     def test_jours_payes_pondere_les_demi_journees(self):
         """3 jours dont un posé « matin » = 2,5 jours payés quand le solde

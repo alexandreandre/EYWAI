@@ -52,15 +52,22 @@ describe('formatCongeSansSoldeRh : le texte parle à la RH', () => {
     const texte = formatCongeSansSoldeRh('Camille', 2, 3);
     expect(texte).toContain('Le solde de congés payés de Camille est de 2 jours.');
     expect(texte).toContain('3 jours demandés');
-    expect(texte).toContain('1 jour excédentaire sera considéré comme congé sans solde');
     expect(texte).not.toMatch(/votre|vous demandez/i);
+  });
+
+  it('dit que l’excédent est payé, sans promettre de sans solde (décision du 12/10)', () => {
+    const texte = formatCongeSansSoldeRh('Camille', 2, 4);
+    expect(texte).toContain('2 jours au-delà du solde seront payés en entier');
+    expect(texte).toContain('le solde passera en négatif');
+    expect(texte).toContain('posez plutôt un congé sans solde');
+    expect(texte).not.toMatch(/considérés? comme congé sans solde|non rémunéré/);
   });
 
   it('accorde le singulier et la virgule', () => {
     const texte = formatCongeSansSoldeRh('Camille', 0.5, 1);
     expect(texte).toContain('est de 0,5 jour.');
     expect(texte).toContain('1 jour demandé');
-    expect(texte).toContain('0,5 jour excédentaire sera considéré');
+    expect(texte).toContain('0,5 jour au-delà du solde sera payé en entier');
   });
 });
 
