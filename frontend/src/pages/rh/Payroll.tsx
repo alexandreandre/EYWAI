@@ -782,6 +782,11 @@ export default function Payroll() {
         onDismiss={generation.dismiss}
         onCancel={generation.cancel}
         arretDemande={generation.arretDemande}
+        onVoirRefus={
+          generation.refusedJobs.length > 0
+            ? () => setRefusalDialogDismissed(false)
+            : undefined
+        }
       />
     ) : null;
 

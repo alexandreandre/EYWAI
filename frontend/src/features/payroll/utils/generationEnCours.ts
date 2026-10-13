@@ -49,6 +49,24 @@ export function libelleCompteurGeneration(faits: number, total: number): string 
   return `${faits} ${accord(faits, 'bulletin')} ${accord(faits, 'traité')} sur ${total}`;
 }
 
+/**
+ * Ce que la barre dit une fois la génération finie : les bulletins générés,
+ * refusés (garde de la paie : calendrier incomplet, heures sur un arrêt…) et
+ * en échec, comptés à part. « 1 bulletin traité sur 1 » se lisait comme un
+ * succès pour une génération refusée (rejeu C1/C2 du 12/10).
+ */
+export function bilanDeGeneration(
+  journal: readonly { status: 'success' | 'warning' | 'error'; refus?: boolean }[]
+): string {
+  const generes = journal.filter((e) => e.status !== 'error').length;
+  const refuses = journal.filter((e) => e.status === 'error' && e.refus).length;
+  const echecs = journal.filter((e) => e.status === 'error' && !e.refus).length;
+  const parties = [`${generes} ${accord(generes, 'bulletin')} ${accord(generes, 'généré')}`];
+  if (refuses > 0) parties.push(`${refuses} ${accord(refuses, 'refusé')}`);
+  if (echecs > 0) parties.push(`${echecs} en échec`);
+  return parties.join(', ');
+}
+
 export function questionQuitterGeneration(faits: number, total: number): string {
   const restants = Math.max(0, total - faits);
   return (

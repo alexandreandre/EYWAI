@@ -6,7 +6,11 @@ import type {
   PayrollGenerationLogEntry,
   PayrollGenerationPhase,
 } from '@/features/payroll/hooks/usePayrollGeneration';
-import { libelleCompteurGeneration, texteFinDeSuivi } from '@/features/payroll/utils/generationEnCours';
+import {
+  bilanDeGeneration,
+  libelleCompteurGeneration,
+  texteFinDeSuivi,
+} from '@/features/payroll/utils/generationEnCours';
 import { monthYearLabel } from '@/features/payroll/utils/payrollMonth';
 
 type PayrollProgressBarProps = {
@@ -23,6 +27,8 @@ type PayrollProgressBarProps = {
   arretDemande?: boolean;
   /** La fenêtre se ferme toute seule après une génération sans alerte (Mode Groupé). */
   fermetureAutomatique?: boolean;
+  /** Rouvre la fenêtre du refus (ce qu'il faut corriger, forcer ou effacer). */
+  onVoirRefus?: () => void;
   className?: string;
 };
 
@@ -38,6 +44,7 @@ export function PayrollProgressBar({
   onCancel,
   arretDemande = false,
   fermetureAutomatique = false,
+  onVoirRefus,
   className,
 }: PayrollProgressBarProps) {
   if (phase === 'idle') return null;
@@ -46,6 +53,7 @@ export function PayrollProgressBar({
   const canDismiss = phase === 'done' && onDismiss;
   const showCounter = totalJobs > 0;
   const texteFin = texteFinDeSuivi(log, fermetureAutomatique);
+  const refuses = log.filter((e) => e.status === 'error' && e.refus).length;
 
   return (
     <div
@@ -61,10 +69,28 @@ export function PayrollProgressBar({
           <p className="text-sm font-medium text-foreground">
             {phase === 'running' ? 'Génération en cours…' : 'Génération terminée'}
           </p>
-          {showCounter && (
+          {phase === 'done' && log.length > 0 ? (
             <p className="text-xs text-muted-foreground tabular-nums">
-              {libelleCompteurGeneration(completedCount, totalJobs)}
+              {bilanDeGeneration(log)}
+              {refuses > 0 && onVoirRefus ? (
+                <>
+                  {' · '}
+                  <button
+                    type="button"
+                    onClick={onVoirRefus}
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    {refuses > 1 ? 'Voir les refus' : 'Voir le refus'}
+                  </button>
+                </>
+              ) : null}
             </p>
+          ) : (
+            showCounter && (
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {libelleCompteurGeneration(completedCount, totalJobs)}
+              </p>
+            )
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">

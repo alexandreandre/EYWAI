@@ -78,6 +78,8 @@ export type PayrollGenerationLogEntry = {
   month: number;
   status: 'success' | 'warning' | 'error';
   error?: string;
+  /** Refus d'une garde de la paie (pas un échec) : la barre le compte « refusé ». */
+  refus?: boolean;
   warnings?: string[];
   /** Points à arbitrer : le bulletin est bon, la RH a une décision à prendre. */
   infos?: string[];
@@ -344,6 +346,7 @@ export function usePayrollGeneration() {
             month: job.month,
             status: 'error',
             error: errorMessage,
+            ...(structuredRefusal ? { refus: true } : {}),
           };
           setFailedJobs((prev) => ({ ...prev, [payrollJobKey(job)]: errorMessage }));
         } finally {

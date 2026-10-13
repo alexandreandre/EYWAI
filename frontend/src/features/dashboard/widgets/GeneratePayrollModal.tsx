@@ -476,6 +476,11 @@ export function GeneratePayrollModal({
                   onCancel={generation.cancel}
                   arretDemande={generation.arretDemande}
                   fermetureAutomatique
+                  onVoirRefus={
+                    generation.refusedJobs.length > 0
+                      ? () => setRefusalDialogDismissed(false)
+                      : undefined
+                  }
                 />
               </div>
             )}
