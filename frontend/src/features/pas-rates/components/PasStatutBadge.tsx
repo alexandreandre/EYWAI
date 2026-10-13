@@ -18,7 +18,7 @@ const PRESENTATION: Record<PasStatut, { variant: Variant; aide: string }> = {
   a_jour: { variant: "success", aide: AIDE_STATUT_PAS.a_jour },
   bareme: { variant: "secondary", aide: AIDE_STATUT_PAS.bareme },
   a_rafraichir: { variant: "warning", aide: AIDE_STATUT_PAS.a_rafraichir },
-  manquant: { variant: "danger", aide: AIDE_STATUT_PAS.manquant },
+  manquant: { variant: "secondary", aide: AIDE_STATUT_PAS.manquant },
 };
 
 interface PasStatutBadgeProps {

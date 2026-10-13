@@ -14,13 +14,13 @@ export const AIDE_STATUT_PAS: Record<PasStatut, string> = {
 };
 
 const ORDRE: { statut: PasStatut; singulier: string; pluriel: string }[] = [
-  { statut: 'manquant', singulier: 'manquant', pluriel: 'manquants' },
+  { statut: 'manquant', singulier: 'à la grille par défaut', pluriel: 'à la grille par défaut' },
   { statut: 'a_rafraichir', singulier: 'à rafraîchir', pluriel: 'à rafraîchir' },
   { statut: 'bareme', singulier: 'au barème par défaut', pluriel: 'au barème par défaut' },
   { statut: 'a_jour', singulier: 'à jour', pluriel: 'à jour' },
 ];
 
-/** « 2 manquants · 1 au barème par défaut · 3 à jour », du plus alarmant au plus rassurant. */
+/** « 2 à la grille par défaut · 1 au barème par défaut · 3 à jour », du plus alarmant au plus rassurant. */
 export function resumeCompteursPas(compteurs: Record<string, number> | null | undefined): string {
   return ORDRE.filter(({ statut }) => (compteurs?.[statut] ?? 0) > 0)
     .map(({ statut, singulier, pluriel }) => {

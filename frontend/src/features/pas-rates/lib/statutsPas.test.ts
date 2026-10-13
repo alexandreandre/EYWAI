@@ -6,11 +6,11 @@ describe('statut et compteurs des taux sur la page ([B3], 12/10/2026)', () => {
   it('résume les compteurs du plus alarmant au plus rassurant, sans les zéros', () => {
     expect(
       resumeCompteursPas({ total: 6, a_jour: 3, bareme: 1, a_rafraichir: 0, manquant: 2 }),
-    ).toBe('2 manquants · 1 au barème par défaut · 3 à jour');
+    ).toBe('2 à la grille par défaut · 1 au barème par défaut · 3 à jour');
   });
 
   it('un seul compteur au singulier', () => {
-    expect(resumeCompteursPas({ total: 1, manquant: 1 })).toBe('1 manquant');
+    expect(resumeCompteursPas({ total: 1, manquant: 1 })).toBe('1 à la grille par défaut');
     expect(resumeCompteursPas({ total: 1, a_rafraichir: 1 })).toBe('1 à rafraîchir');
   });
 

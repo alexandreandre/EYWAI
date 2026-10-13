@@ -34,6 +34,8 @@ TYPE_LABELS: Dict[str, str] = dict(pas_taux.LIBELLES)
 # Origine d'un taux saisi au crayon de la page (historique `employee_pas_rates`).
 SOURCE_MANUELLE = "manuel"
 LIBELLE_SAISIE_MANUELLE = "Saisie manuelle"
+# Même phrase que la fiche (`LIBELLE_SANS_TAUX`) : pas de taux connu, la grille s'applique.
+LIBELLE_SANS_TAUX = "Aucun taux connu — grille par défaut appliquée"
 
 # Statuts affichés aux RH.
 STATUT_A_JOUR = "a_jour"
@@ -45,7 +47,7 @@ STATUT_LABELS: Dict[str, str] = {
     STATUT_A_JOUR: "À jour",
     STATUT_BAREME: "Barème par défaut",
     STATUT_A_RAFRAICHIR: "À rafraîchir",
-    STATUT_MANQUANT: "Manquant",
+    STATUT_MANQUANT: "Grille par défaut",
 }
 
 # Au-delà, le taux en base a de bonnes chances d'avoir été remplacé par la DGFiP :
@@ -124,6 +126,12 @@ class TauxSalarie:
 
     @property
     def type_libelle(self) -> str:
+        # Sans taux, la fiche dit déjà que la grille s'applique. « Origine inconnue »
+        # contredisait cette phrase. On lit le taux, pas le statut par défaut
+        # du dataclass (un taux saisi au crayon porte encore ce défaut tant
+        # que le suivi n'a pas recalculé le statut).
+        if self.taux is None:
+            return LIBELLE_SANS_TAUX
         # Le crayon de la page écrit un type 01 : sans cette distinction, un taux
         # tapé au clavier se présentait comme transmis par la DGFiP ([B2]).
         if (self.source or "").strip().lower() == SOURCE_MANUELLE:
