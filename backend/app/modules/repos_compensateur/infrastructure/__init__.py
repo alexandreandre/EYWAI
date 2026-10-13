@@ -11,6 +11,7 @@ from app.modules.repos_compensateur.infrastructure.queries import (
 from app.modules.repos_compensateur.infrastructure.repository import (
     get_jours_by_employee_year,
     upsert_credit,
+    upsert_credits,
 )
 from app.modules.repos_compensateur.infrastructure.settings_repository import (
     get_contingent_settings,
@@ -24,4 +25,5 @@ __all__ = [
     "get_jours_by_employee_year",
     "get_validated_repos_requests",
     "upsert_credit",
+    "upsert_credits",
 ]

@@ -566,13 +566,19 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
       PayslipHeuresSurArretError (422), sans forçage possible ;
     - calendrier du mois `a_saisir` → PayslipCalendarIncompleteError (422),
       sauf `force_calendrier_incomplet` explicite (tracé, warning en réponse).
-    """
-    employee = salarie_generable(cmd.employee_id, cmd.year, cmd.month)
 
-    # Une seule génération à la fois pour ce salarié et ce mois : tout ce qui
-    # écrit (archive, calcul, bulletin, cumuls) se fait sous le verrou.
-    with verrou_de_generation(cmd.employee_id, cmd.year, cmd.month):
-        return _generer_sous_verrou(cmd, employee)
+    Lectures partagées (lot 43) : une même lecture ne part qu'une fois tant que
+    rien n'est écrit ; chaque écriture part et vide la mémoire.
+    """
+    from app.core.lecture_seule import lectures_partagees
+
+    with lectures_partagees():
+        employee = salarie_generable(cmd.employee_id, cmd.year, cmd.month)
+
+        # Une seule génération à la fois pour ce salarié et ce mois : tout ce qui
+        # écrit (archive, calcul, bulletin, cumuls) se fait sous le verrou.
+        with verrou_de_generation(cmd.employee_id, cmd.year, cmd.month):
+            return _generer_sous_verrou(cmd, employee)
 
 
 def _generer_sous_verrou(

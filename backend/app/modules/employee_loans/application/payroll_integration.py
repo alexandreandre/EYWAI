@@ -20,6 +20,9 @@ class PdfRegenConfig:
     year: int
     storage_path: str
     pdf_name_suffix: str = ""
+    #: Le HTML du PDF que le moteur vient d'imprimer et de déposer à
+    #: `storage_path` (lot 43) : le même à imprimer, rien n'est réimprimé.
+    html_imprime: Optional[str] = None
 
 
 def inject_loan_benefit_in_kind(
@@ -128,7 +131,12 @@ def _regenerate_and_upload_pdf(
             config.month,
             config.year,
             pdf_name_suffix=config.pdf_name_suffix,
+            html_deja_imprime=config.html_imprime,
         )
+        if enriched_pdf_path is None:
+            # L'enrichissement n'a rien changé à imprimer : le PDF du moteur,
+            # déjà déposé à ce chemin, est le même document.
+            return
 
         with open(enriched_pdf_path, "rb") as f:
             supabase.storage.from_("payslips").upload(

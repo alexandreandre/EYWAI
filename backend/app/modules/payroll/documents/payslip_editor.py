@@ -34,6 +34,68 @@ def cumuls_pour_le_rendu(
     return cumuls_en_base
 
 
+def html_du_bulletin_a_imprimer(
+    payslip_data: Dict[str, Any],
+    employee_id: str,
+    month: int,
+    year: int,
+    pdf_notes: Optional[str] = None,
+    manually_edited: bool = False,
+    edited_at: Optional[datetime] = None,
+) -> str:
+    """Le HTML que `regenerate_pdf_from_data` imprime pour ces données."""
+    template_dir = payroll_engine_templates()
+    env = Environment(loader=FileSystemLoader(str(template_dir)))
+    template = env.get_template("template_bulletin.html")
+
+    cumuls_data = None
+    try:
+        cumuls_res = (
+            supabase.table("employee_schedules")
+            .select("cumuls")
+            .match({"employee_id": employee_id, "year": year, "month": month})
+            .maybe_single()
+            .execute()
+        )
+
+        if cumuls_res and cumuls_res.data:
+            cumuls_data = cumuls_res.data.get("cumuls")
+    except Exception as e:
+        logger.warning(f"Impossible de récupérer les cumuls: {str(e)}")
+
+    from app.modules.payroll.engine import bulletin as moteur_bulletin
+
+    pied_de_page = dict(payslip_data.get("pied_de_page") or {})
+    # Une réimpression (note, correction) imprime les compteurs du bulletin
+    # tel qu'il a été calculé : les recalculer ici changeait les compteurs
+    # d'un bulletin déjà remis dès que le calcul des congés évoluait. Seul un
+    # bulletin qui n'en a pas les calcule.
+    if not pied_de_page.get("solde_conges"):
+        solde_conges = moteur_bulletin.build_solde_conges_pied_de_page(
+            employee_id,
+            year,
+            month,
+            (payslip_data.get("en_tete") or {}).get("date_fin_variables"),
+        )
+        if solde_conges:
+            pied_de_page["solde_conges"] = solde_conges
+
+    template_data = {
+        **payslip_data,
+        "pied_de_page": pied_de_page,
+        "pdf_notes": pdf_notes,
+        "manually_edited": manually_edited,
+        "edited_at": edited_at.strftime("%d/%m/%Y à %H:%M") if edited_at else None,
+        "cumuls": cumuls_pour_le_rendu(payslip_data, cumuls_data),
+    }
+
+    from app.modules.payroll.documents.bulletin_view import (
+        construire_vue_bulletin,
+    )
+
+    return template.render(vue=construire_vue_bulletin(template_data))
+
+
 def regenerate_pdf_from_data(
     payslip_data: Dict[str, Any],
     employee_id: str,
@@ -45,7 +107,8 @@ def regenerate_pdf_from_data(
     manually_edited: bool = False,
     edited_at: Optional[datetime] = None,
     pdf_name_suffix: str = "",
-) -> Path:
+    html_deja_imprime: Optional[str] = None,
+) -> Optional[Path]:
     """
     Régénère un PDF de bulletin à partir de données JSON modifiées.
 
@@ -59,61 +122,25 @@ def regenerate_pdf_from_data(
         pdf_notes: Notes à afficher sur le PDF
         manually_edited: Indicateur de modification manuelle
         edited_at: Date de la dernière modification
+        html_deja_imprime: Le HTML du PDF déjà imprimé (lot 43). S'il est celui
+            à imprimer, rien n'est imprimé et la fonction rend None.
 
     Returns:
-        Path: Chemin vers le PDF généré
+        Path: Chemin vers le PDF généré (None : le PDF déjà imprimé est le même)
     """
     try:
-        template_dir = payroll_engine_templates()
-        env = Environment(loader=FileSystemLoader(str(template_dir)))
-        template = env.get_template("template_bulletin.html")
-
-        cumuls_data = None
-        try:
-            cumuls_res = (
-                supabase.table("employee_schedules")
-                .select("cumuls")
-                .match({"employee_id": employee_id, "year": year, "month": month})
-                .maybe_single()
-                .execute()
-            )
-
-            if cumuls_res and cumuls_res.data:
-                cumuls_data = cumuls_res.data.get("cumuls")
-        except Exception as e:
-            logger.warning(f"Impossible de récupérer les cumuls: {str(e)}")
-
-        from app.modules.payroll.engine import bulletin as moteur_bulletin
-
-        pied_de_page = dict(payslip_data.get("pied_de_page") or {})
-        # Une réimpression (note, correction) imprime les compteurs du bulletin
-        # tel qu'il a été calculé : les recalculer ici changeait les compteurs
-        # d'un bulletin déjà remis dès que le calcul des congés évoluait. Seul un
-        # bulletin qui n'en a pas les calcule.
-        if not pied_de_page.get("solde_conges"):
-            solde_conges = moteur_bulletin.build_solde_conges_pied_de_page(
-                employee_id,
-                year,
-                month,
-                (payslip_data.get("en_tete") or {}).get("date_fin_variables"),
-            )
-            if solde_conges:
-                pied_de_page["solde_conges"] = solde_conges
-
-        template_data = {
-            **payslip_data,
-            "pied_de_page": pied_de_page,
-            "pdf_notes": pdf_notes,
-            "manually_edited": manually_edited,
-            "edited_at": edited_at.strftime("%d/%m/%Y à %H:%M") if edited_at else None,
-            "cumuls": cumuls_pour_le_rendu(payslip_data, cumuls_data),
-        }
-
-        from app.modules.payroll.documents.bulletin_view import (
-            construire_vue_bulletin,
+        html_content = html_du_bulletin_a_imprimer(
+            payslip_data,
+            employee_id,
+            month,
+            year,
+            pdf_notes=pdf_notes,
+            manually_edited=manually_edited,
+            edited_at=edited_at,
         )
-
-        html_content = template.render(vue=construire_vue_bulletin(template_data))
+        if html_deja_imprime is not None and html_content == html_deja_imprime:
+            logger.info("PDF inchangé : le bulletin déjà imprimé est le même, rien à réimprimer.")
+            return None
 
         employee_path = payroll_engine_employee_bulletins(employee_folder_name)
         employee_path.mkdir(parents=True, exist_ok=True)

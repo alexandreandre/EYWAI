@@ -25,6 +25,7 @@ from app.modules.repos_compensateur.infrastructure import (
     get_contingent_settings,
     get_employees_for_company,
     upsert_credit,
+    upsert_credits,
 )
 
 
@@ -103,7 +104,7 @@ def recalculer_credits_repos_employe(
 ) -> int:
     """
     Recalcule les crédits COR pour un employé sur toute l'année.
-    Upsert tous les mois (y compris 0). Comportement identique à l'ancien recalc_service.
+    Upsert tous les mois (y compris 0), en une requête ; rend le nombre de mois écrits.
     """
     try:
         effectif = get_company_effectif(company_id, year)
@@ -118,7 +119,7 @@ def recalculer_credits_repos_employe(
         bulletins_mois = bulletins_par_employe.get(employee_id, {})
         cumuls = cumuler_heures_hs_annee(bulletins_mois)
 
-        credits_upserted = 0
+        credits: list[ReposCredit] = []
         for month in range(1, 13):
             cumul_mois = cumuls.get(month, 0.0)
             cumul_precedent = cumuls.get(month - 1, 0.0) if month > 1 else 0.0
@@ -130,19 +131,21 @@ def recalculer_credits_repos_employe(
                 taux_cor=taux_cor,
             )
             jours = heures_vers_jours(heures_cor, hours_per_day)
-            credit = ReposCredit(
-                employee_id=employee_id,
-                company_id=company_id,
-                year=year,
-                month=month,
-                source="cor",
-                heures=heures_cor,
-                jours=jours,
+            credits.append(
+                ReposCredit(
+                    employee_id=employee_id,
+                    company_id=company_id,
+                    year=year,
+                    month=month,
+                    source="cor",
+                    heures=heures_cor,
+                    jours=jours,
+                )
             )
-            if upsert_credit(credit):
-                credits_upserted += 1
 
-        return credits_upserted
+        # Les 12 mois en une écriture (lot 43) : appelé à chaque génération de
+        # bulletin, il en coûtait douze allers-retours.
+        return len(credits) if upsert_credits(credits) else 0
     except Exception as e:
         logger.warning(f'[WARNING] recalculer_credits_repos_employe failed: {e}')
         return 0

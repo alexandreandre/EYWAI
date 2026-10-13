@@ -188,7 +188,7 @@ class TestRecalculerCreditsReposEmploye:
     """Service recalculer_credits_repos_employe."""
 
     def test_returns_number_of_upserts(self):
-        """Retourne le nombre de mois pour lesquels upsert_credit a retourné True."""
+        """Retourne le nombre de mois écrits : les 12, en une écriture (lot 43)."""
         bulletins = {}
         for m in range(1, 13):
             bulletins[m] = (
@@ -213,7 +213,7 @@ class TestRecalculerCreditsReposEmploye:
                 return_value={"emp-1": bulletins},
             ),
             patch(
-                "app.modules.repos_compensateur.application.service.upsert_credit",
+                "app.modules.repos_compensateur.application.service.upsert_credits",
                 return_value=True,
             ),
         ):

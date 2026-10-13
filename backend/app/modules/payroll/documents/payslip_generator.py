@@ -1517,6 +1517,8 @@ def process_payslip_generation(
         pdf_remplace = chemin_enregistre(supabase, str(company_id), employee_id, year, month)
         storage_path = chemin_horodate(str(company_id), employee_id, pdf_name)
         files_to_cleanup.append(local_pdf_path)
+        # Le HTML imprimé, gardé à côté du PDF par le moteur (lot 43).
+        files_to_cleanup.append(local_pdf_path.with_suffix(".html"))
 
         with open(local_pdf_path, "rb") as f:
             supabase.storage.from_("payslips").upload(
@@ -1558,6 +1560,7 @@ def process_payslip_generation(
                 PdfRegenConfig,
                 enrich_payslip_after_upsert,
             )
+            from app.modules.payroll.documents.pdf_du_bulletin import html_imprime
 
             final_payslip_data = enrich_payslip_after_upsert(
                 payslip_json_data,
@@ -1572,6 +1575,7 @@ def process_payslip_generation(
                     month=month,
                     year=year,
                     storage_path=storage_path,
+                    html_imprime=html_imprime(local_pdf_path),
                 ),
             )
             retirer_pdf_remplace(supabase, pdf_remplace, storage_path)

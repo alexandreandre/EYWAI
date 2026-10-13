@@ -31,6 +31,30 @@ def upsert_credit(credit: ReposCredit) -> bool:
         return False
 
 
+def upsert_credits(credits: list[ReposCredit]) -> bool:
+    """Upsert de plusieurs lignes en une requête (les 12 mois d'un salarié, lot 43).
+
+    Mêmes lignes et même clé de conflit que `upsert_credit`, ligne par ligne :
+    un aller-retour vers la base au lieu de douze. True si l'écriture a réussi
+    (rien à écrire compte pour une réussite), False sinon (log warning).
+    """
+    if not credits:
+        return True
+    try:
+        supabase.table("repos_compensateur_credits").upsert(
+            [credit_to_row(credit) for credit in credits],
+            on_conflict="employee_id,year,month,source",
+        ).execute()
+        return True
+    except Exception as err:
+        premier = credits[0]
+        logger.warning(
+            f"[WARNING] Upsert repos_credits failed for {premier.employee_id} {premier.year} "
+            f"({len(credits)} mois): {err}"
+        )
+        return False
+
+
 def get_jours_by_employee_year(employee_ids: list[str], year: int) -> dict[str, float]:
     """
     Somme des jours repos_compensateur_credits par employee_id pour l'année.

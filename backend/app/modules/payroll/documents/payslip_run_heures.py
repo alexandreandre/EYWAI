@@ -10,7 +10,6 @@ from typing import Any, Dict, List
 import calendar
 import re
 from jinja2 import Environment, FileSystemLoader
-from weasyprint import HTML
 
 from app.modules.payroll.engine.bulletin import creer_bulletin_final, creer_bulletin_sortie
 from app.modules.payroll.engine.calcul_brut import (
@@ -1431,7 +1430,11 @@ def run_payslip_generation_heures(
             / f"Bulletin_{employee_folder_name}_{month:02d}-{year}.pdf"
         )
         pdf_filename.parent.mkdir(parents=True, exist_ok=True)
-        HTML(string=html_genere, base_url=str(engine_root)).write_pdf(pdf_filename)
+        # Le HTML imprimé est gardé à côté du PDF : l'enrichissement ne réimprime
+        # que si le bulletin à imprimer a changé (lot 43).
+        from app.modules.payroll.documents.pdf_du_bulletin import imprimer_le_bulletin
+
+        imprimer_le_bulletin(html_genere, pdf_filename, base_url=str(engine_root))
 
     if employee_id and persister:
         from app.modules.cet.application.payroll_hook import (

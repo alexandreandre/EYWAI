@@ -9,7 +9,6 @@ from typing import Any, Dict, List
 
 import calendar
 from jinja2 import Environment, FileSystemLoader
-from weasyprint import HTML
 
 from app.modules.payroll.engine.analyser_jours_forfait import (
     analyser_jours_forfait_du_mois,
@@ -737,6 +736,10 @@ def run_payslip_generation_forfait(
             / f"Bulletin_{employee_folder_name}_{month:02d}-{year}_FORFAIT.pdf"
         )
         pdf_filename.parent.mkdir(parents=True, exist_ok=True)
-        HTML(string=html_genere, base_url=str(engine_root)).write_pdf(pdf_filename)
+        # Le HTML imprimé est gardé à côté du PDF : l'enrichissement ne réimprime
+        # que si le bulletin à imprimer a changé (lot 43).
+        from app.modules.payroll.documents.pdf_du_bulletin import imprimer_le_bulletin
+
+        imprimer_le_bulletin(html_genere, pdf_filename, base_url=str(engine_root))
 
     return bulletin_final

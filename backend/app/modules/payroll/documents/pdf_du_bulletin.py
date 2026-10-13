@@ -17,7 +17,10 @@ from __future__ import annotations
 import logging
 import re
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
+
+from weasyprint import HTML
 
 logger = logging.getLogger(__name__)
 
@@ -93,3 +96,38 @@ def retirer_pdf_remplace(client: Any, ancien: str | None, nouveau: str) -> None:
         client.storage.from_(BUCKET).remove([ancien])
     except Exception:
         logger.warning("PDF remplacé non retiré du stockage : %s", ancien, exc_info=True)
+
+
+# --- Le HTML imprimé, gardé à côté du PDF (lot 43) ---------------------------------
+#
+# Le moteur imprime le bulletin, puis l'enrichissement (avances, saisies, prêts)
+# le réimprimait toujours, même quand rien n'avait changé : une impression de
+# trop à chaque génération. Le HTML de la première impression est gardé à côté
+# du PDF ; la seconde n'a lieu que si le HTML à imprimer diffère (le gabarit
+# n'appelle aucune ressource extérieure : même HTML, même document).
+
+
+def _chemin_du_html(chemin_pdf: Path) -> Path:
+    return Path(chemin_pdf).with_suffix(".html")
+
+
+def imprimer_le_bulletin(html: str, chemin_pdf: Path, *, base_url: str | None = None) -> None:
+    """Imprime le PDF et garde à côté le HTML imprimé (`html_imprime`).
+
+    Un HTML d'une impression précédente est d'abord retiré : celui qui reste
+    est toujours celui du PDF qui est à côté.
+    """
+    a_cote = _chemin_du_html(chemin_pdf)
+    a_cote.unlink(missing_ok=True)
+    HTML(string=html, base_url=base_url).write_pdf(chemin_pdf)
+    a_cote.write_text(html, encoding="utf-8")
+
+
+def html_imprime(chemin_pdf: Path) -> str | None:
+    """Le HTML du PDF imprimé à ce chemin, ou None (pas de PDF, HTML non gardé)."""
+    if not Path(chemin_pdf).exists():
+        return None
+    try:
+        return _chemin_du_html(chemin_pdf).read_text(encoding="utf-8")
+    except OSError:
+        return None

@@ -18,7 +18,7 @@ import httpx
 import pytest
 
 from app.core.paths import payroll_engine_root
-from app.modules.payroll.documents import payslip_run_forfait, payslip_run_heures
+from app.modules.payroll.documents import pdf_du_bulletin, payslip_run_forfait, payslip_run_heures
 from tests.unit.payroll.test_annee_des_baremes import _baremes, _dossier_salarie
 
 pytestmark = pytest.mark.unit
@@ -52,8 +52,8 @@ def impressions(monkeypatch) -> list[str]:
         raise AssertionError("appel réseau pendant un test unitaire")
 
     monkeypatch.setattr(httpx.Client, "send", reseau_interdit)
-    monkeypatch.setattr(payslip_run_heures, "HTML", _Imprimeur)
-    monkeypatch.setattr(payslip_run_forfait, "HTML", _Imprimeur)
+    # Le moteur imprime par `pdf_du_bulletin.imprimer_le_bulletin` (lot 43).
+    monkeypatch.setattr(pdf_du_bulletin, "HTML", _Imprimeur)
     return journal
 
 

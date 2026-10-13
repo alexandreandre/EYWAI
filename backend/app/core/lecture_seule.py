@@ -20,6 +20,13 @@ Dans un bloc `with lecture_seule():`
 La mémoire vit le temps du bloc, dans le contexte de la requête : deux
 requêtes simultanées ne la partagent pas, et rien n'en reste après. Hors du
 bloc, le client se comporte exactement comme `httpx.Client`.
+
+`lectures_partagees()` (lot 43) sert la génération d'un bulletin, qui écrit :
+une même lecture ne part qu'une fois tant que rien n'a été écrit ; toute
+écriture part, puis vide la mémoire, et les lectures suivantes repartent vers
+la base. Une génération relisait 22 fois une donnée déjà lue (la fiche, la
+société, les périodes des variables…), autant d'allers-retours pour rien.
+Dans un bloc `lecture_seule()` ouvert à l'intérieur, la lecture seule décide.
 """
 
 from __future__ import annotations
@@ -65,6 +72,7 @@ class LecturesGardees:
 
 
 _EN_COURS: ContextVar[LecturesGardees | None] = ContextVar("lecture_seule", default=None)
+_PARTAGEES: ContextVar[LecturesGardees | None] = ContextVar("lectures_partagees", default=None)
 
 
 @contextmanager
@@ -76,6 +84,22 @@ def lecture_seule() -> Iterator[LecturesGardees]:
         yield lectures
     finally:
         _EN_COURS.reset(jeton)
+
+
+@contextmanager
+def lectures_partagees() -> Iterator[LecturesGardees]:
+    """Le temps du bloc : une même lecture part une fois tant que rien n'est écrit."""
+    lectures = LecturesGardees()
+    jeton = _PARTAGEES.set(lectures)
+    try:
+        yield lectures
+    finally:
+        _PARTAGEES.reset(jeton)
+
+
+def lectures_partagees_en_cours() -> LecturesGardees | None:
+    """Les lectures du bloc `lectures_partagees()` en cours, ou None."""
+    return _PARTAGEES.get()
 
 
 def lecture_seule_en_cours() -> LecturesGardees | None:
@@ -129,18 +153,35 @@ def _cle(request: httpx.Request) -> tuple:
 class ClientHttpSupabase(httpx.Client):
     """Le client HTTP partagé de Supabase (tables et stockage).
 
-    Hors lecture seule, il envoie chaque requête telle quelle. En lecture
-    seule, il garde les lectures et refuse les écritures.
+    Hors des blocs, il envoie chaque requête telle quelle. En lecture seule, il
+    garde les lectures et refuse les écritures. En lectures partagées, il garde
+    les lectures jusqu'à la première écriture, qui part et vide la mémoire.
     """
 
     def send(self, request: httpx.Request, **kwargs) -> httpx.Response:  # type: ignore[override]
         lectures = _EN_COURS.get()
         if lectures is None:
-            return super().send(request, **kwargs)
+            partagees = _PARTAGEES.get()
+            if partagees is None:
+                return super().send(request, **kwargs)
+            if request.method not in METHODES_DE_LECTURE:
+                try:
+                    return super().send(request, **kwargs)
+                finally:
+                    # Après l'écriture, partie ou non : rien de ce qui a été
+                    # lu avant ne vaut plus.
+                    with partagees.verrou:
+                        partagees.reponses.clear()
+            return self._lire_en_gardant(partagees, request, **kwargs)
         if request.method not in METHODES_DE_LECTURE:
             raise EcritureEnLectureSeule(
                 f"Écriture refusée : calcul en lecture seule ({request.method} {request.url.path})."
             )
+        return self._lire_en_gardant(lectures, request, **kwargs)
+
+    def _lire_en_gardant(
+        self, lectures: LecturesGardees, request: httpx.Request, **kwargs
+    ) -> httpx.Response:
         cle = _cle(request)
         with lectures.verrou:
             gardee = lectures.reponses.get(cle)
