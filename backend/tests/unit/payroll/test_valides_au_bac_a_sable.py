@@ -455,3 +455,43 @@ def test_une_lecture_ne_lance_que_quelques_bacs_a_sable_les_plus_recents_d_abord
         annoter_a_recalculer("e1", lignes)
     mois_verifies = [appel.args[2] for appel in verifier.call_args_list]
     assert mois_verifies == [6, 5, 4][: service.BAC_A_SABLE_PAR_LECTURE]
+
+
+def test_un_champ_ajoute_au_moteur_depuis_le_calcul_n_est_pas_un_ecart():
+    """Mesure du 13/10 sur les bulletins réels : un bulletin calculé en septembre,
+    recalculé aujourd'hui, porte des champs que le moteur n'écrivait pas alors (SMIC
+    de référence de la réduction générale, cumul du brut de l'année civile, net des
+    heures sup exonérées à 0). Ce ne sont pas des montants du bulletin qui changent."""
+    recalcule = {
+        **BULLETIN,
+        "structure_cotisations": {
+            **BULLETIN["structure_cotisations"],
+            "bloc_allegements": [{"libelle": "Réduction générale", "smic_reference_mois": 1789.54}],
+        },
+        "synthese_net": {**BULLETIN["synthese_net"], "montant_net_hs_exonerees": 0.0},
+        "calcul_du_brut": [
+            *BULLETIN["calcul_du_brut"],
+            {"libelle": "Heures supplémentaires à 25 %", "gain": 0.0, "quantite": 0.0},
+        ],
+    }
+    cumuls_recalcules = {"cumuls": {**CUMULS_MAI["cumuls"], "brut_annee_civile": 10000.0, "hs_exonerees": 0.0}}
+    assert (
+        ecart_au_centime(
+            BULLETIN, recalcule, cumuls_stockes=CUMULS_MAI, cumuls_recalcules=cumuls_recalcules
+        )
+        is None
+    )
+
+
+def test_une_ligne_qui_change_de_montant_reste_un_ecart():
+    recalcule = {
+        **BULLETIN,
+        "structure_cotisations": {
+            **BULLETIN["structure_cotisations"],
+            "bloc_principales": [
+                {"libelle": "Maladie", "montant_salarial": 0.0, "montant_patronal": 140.0},
+                {"libelle": "Vieillesse", "montant_salarial": 138.0, "montant_patronal": 171.5},
+            ],
+        },
+    }
+    assert ecart_au_centime(BULLETIN, recalcule) is not None
