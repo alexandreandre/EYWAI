@@ -90,3 +90,37 @@ def test_chaque_motif_officiel_devient_le_type_de_depart_le_plus_proche(motif, t
 @pytest.mark.parametrize("motif", ["39", " 039 ", "0390"])
 def test_le_motif_est_lu_sur_trois_chiffres(motif):
     assert map_exit_motif(motif) == "depart_retraite"
+
+
+@pytest.mark.parametrize("motif", ["066", "085", "098", "099"])
+def test_un_motif_sans_equivalent_devient_autre_motif_et_non_demission(motif):
+    assert map_exit_motif(motif) == "autre_motif"
+
+
+def test_autre_motif_garde_le_code_dsn_d_origine_dans_la_charge_utile():
+    from types import SimpleNamespace
+
+    from app.modules.dsn_import.domain.dsn_absence_exit_mapping import (
+        build_exit_payload_from_fin_contrat,
+    )
+
+    fin = SimpleNamespace(motif="066", date_fin="2026-09-30", date_notification="")
+    charge = build_exit_payload_from_fin_contrat(
+        fin, siret="12345678900011", nir="1850701123456", employee_label="Essai Jeanne"
+    )
+    assert charge["exit_type"] == "autre_motif"
+    assert charge["motif_dsn"] == "066"
+
+
+def test_autre_motif_est_un_type_de_depart_complet():
+    from typing import get_args
+
+    from app.modules.employee_exits.domain import rules
+    from app.modules.employee_exits.domain.enums import ExitType as ExitTypeDomaine
+    from app.modules.employee_exits.schemas.requests import ExitType as ExitTypeApi
+
+    assert "autre_motif" in get_args(ExitTypeDomaine)
+    assert "autre_motif" in get_args(ExitTypeApi)
+    assert rules.get_initial_status("autre_motif") == "demission_effective"
+    assert rules.get_valid_status_transitions("autre_motif", "demission_effective") == ["archivee"]
+    assert rules.get_reconciliation_archive_chain("autre_motif") == ["archivee"]

@@ -22,6 +22,7 @@ _INITIAL_STATUS: dict[str, str] = {
     "fin_periode_essai": "demission_effective",
     "fin_cdd": "demission_effective",
     "transfert": "demission_effective",
+    "autre_motif": "demission_effective",
 }
 
 # Map (exit_type, current_status) -> liste des statuts cibles autorisés
@@ -67,6 +68,10 @@ _TRANSITIONS: dict[str, dict[str, List[str]]] = {
         "demission_effective": ["archivee"],
         "archivee": [],
     },
+    "autre_motif": {
+        "demission_effective": ["archivee"],
+        "archivee": [],
+    },
 }
 
 
@@ -94,6 +99,7 @@ _RECONCILIATION_ARCHIVE_CHAIN: dict[str, List[str]] = {
     "fin_periode_essai": ["archivee"],
     "fin_cdd": ["archivee"],
     "transfert": ["archivee"],
+    "autre_motif": ["archivee"],
 }
 
 

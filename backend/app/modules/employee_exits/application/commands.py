@@ -74,6 +74,7 @@ EDITABLE_EXIT_TYPES = frozenset(
         "fin_periode_essai",
         "fin_cdd",
         "transfert",
+        "autre_motif",
     }
 )
 

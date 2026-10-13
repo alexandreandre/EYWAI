@@ -742,7 +742,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                 <div className="flex flex-col gap-2 rounded-md border border-dashed p-3 sm:flex-row sm:items-end">
                   <div className="grid flex-1 gap-1.5">
                     <Label htmlFor="net_target" className="text-xs text-muted-foreground">
-                      Net voulu pour la prime (€)
+                      Net voulu pour la prime, avant impôt sur le revenu (€)
                     </Label>
                     <Input
                       id="net_target"

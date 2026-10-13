@@ -2,7 +2,7 @@
  * Le brut d'une prime pour un net voulu, dans la fenêtre des primes (lot 30).
  *
  * La fenêtre demande le mode « prime » du calcul inverse : le brut qui ajoute
- * le net voulu au net à payer du bulletin du mois du salarié (son salaire et
+ * le net voulu au net à payer avant impôt sur le revenu du bulletin du mois du salarié (son salaire et
  * ses saisies), et non le brut d'un bulletin entier dont le net vaudrait ce
  * montant. Elle dit ensuite ce que le brut proposé représente.
  */
@@ -71,9 +71,10 @@ export function phraseBrutDeLaPrime(resultat: ResultatPrime): string {
     : `${FORMAT_EUROS.format(net)} (${FORMAT_EUROS.format(voulu)} voulus)`;
   const mois = resultat.month && resultat.year ? ` ${duMois(resultat.month, resultat.year)}` : '';
   return (
-    `Une prime de ${FORMAT_EUROS.format(brut)} bruts ajoute ${ajoute} au net à payer${mois} ` +
+    `Une prime de ${FORMAT_EUROS.format(brut)} bruts ajoute ${ajoute} au net à payer avant impôt sur le revenu${mois} ` +
     'de ce salarié : calcul sur son bulletin du mois (son salaire et les saisies déjà ' +
-    `enregistrées). Coût pour l’employeur : ${FORMAT_EUROS.format(cout)}.`
+    `enregistrées). Coût pour l’employeur : ${FORMAT_EUROS.format(cout)}. ` +
+    'Le net visé est avant impôt sur le revenu : le taux personnel du salarié n’y entre pas.'
   );
 }
 

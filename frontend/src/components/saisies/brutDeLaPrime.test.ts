@@ -53,9 +53,10 @@ describe('la fenêtre dit ce que le brut proposé représente', () => {
 
   it('le net ajouté au bulletin du mois, sur quoi il est calculé, et le coût', () => {
     expect(espaces(phraseBrutDeLaPrime(resultat))).toBe(
-      'Une prime de 127,73 € bruts ajoute 100,00 € au net à payer d’octobre 2026 de ce ' +
+      'Une prime de 127,73 € bruts ajoute 100,00 € au net à payer avant impôt sur le revenu d’octobre 2026 de ce ' +
         'salarié : calcul sur son bulletin du mois (son salaire et les saisies déjà ' +
-        'enregistrées). Coût pour l’employeur : 150,72 €.'
+        'enregistrées). Coût pour l’employeur : 150,72 €. Le net visé est avant impôt sur le revenu : ' +
+        'le taux personnel du salarié n’y entre pas.'
     );
   });
 
@@ -64,15 +65,15 @@ describe('la fenêtre dit ce que le brut proposé représente', () => {
       espaces(
         phraseBrutDeLaPrime({ ...resultat, net_obtenu: 99.97, ecart: -0.03, convergence: false })
       )
-    ).toContain('ajoute 99,97 € (100,00 € voulus) au net à payer');
+    ).toContain('ajoute 99,97 € (100,00 € voulus) au net à payer avant impôt');
   });
 
   it('écrit « d’avril » et « de mai »', () => {
     expect(espaces(phraseBrutDeLaPrime({ ...resultat, month: 4 }))).toContain(
-      'net à payer d’avril 2026'
+      'avant impôt sur le revenu d’avril 2026'
     );
     expect(espaces(phraseBrutDeLaPrime({ ...resultat, month: 5 }))).toContain(
-      'net à payer de mai 2026'
+      'avant impôt sur le revenu de mai 2026'
     );
   });
 });

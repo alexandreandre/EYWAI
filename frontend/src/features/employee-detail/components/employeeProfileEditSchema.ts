@@ -23,8 +23,8 @@ export const employeeProfileEditSchema = z
     date_naissance: z.string().refine((d) => d && !Number.isNaN(Date.parse(d)), {
       message: 'Date de naissance requise.',
     }),
-    lieu_naissance: z.string().min(2, { message: 'Lieu de naissance requis.' }),
-    nationalite: z.string().min(2, { message: 'Nationalité requise.' }),
+    lieu_naissance: z.string().optional().default(''),
+    nationalite: z.string().optional().default(''),
     adresse: z.object({
       rue: z.string().min(2, { message: 'Rue requise.' }),
       code_postal: z.string().min(5, { message: 'Code postal requis.' }),

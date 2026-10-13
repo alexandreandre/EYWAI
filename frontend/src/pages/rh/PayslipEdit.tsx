@@ -71,6 +71,7 @@ import {
 import { invaliderApresBulletin } from '@/features/payroll/utils/invalidationsBulletin';
 import { rechargementsDuBulletin } from '@/features/payroll/utils/rechargementBulletin';
 import HistoryPanel from '@/components/payslip-edit/HistoryPanel';
+import { ONGLET_D_OUVERTURE } from '@/components/payslip-edit/ongletsBulletin';
 import NotesSection from '@/components/payslip-edit/NotesSection';
 import PayslipPreviewFrame from '@/components/payslip-edit/PayslipPreviewFrame';
 import RegeneratePayslipButton from '@/components/payslip-edit/RegeneratePayslipButton';
@@ -141,7 +142,7 @@ export default function PayslipEdit() {
   const [isLoading, setIsLoading] = useState(true);
   const { data: salarieBulletin } = useEmployeeQuery(payslip?.employee_id);
   const [isSaving, setIsSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState('corriger');
+  const [activeTab, setActiveTab] = useState(ONGLET_D_OUVERTURE);
   const [confirmationValide, setConfirmationValide] = useState(false);
   const [saisiesDuMois, setSaisiesDuMois] = useState<SaisieDuMois[]>([]);
   // Le mois précédent à recalculer : la validation le dit avant de partir.

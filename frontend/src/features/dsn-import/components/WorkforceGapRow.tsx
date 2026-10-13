@@ -48,6 +48,7 @@ const EXIT_TYPES: { value: ExitType; label: string }[] = [
   { value: 'fin_periode_essai', label: exitTypeLabels.fin_periode_essai },
   { value: 'fin_cdd', label: exitTypeLabels.fin_cdd },
   { value: 'transfert', label: exitTypeLabels.transfert },
+  { value: 'autre_motif', label: exitTypeLabels.autre_motif },
 ];
 
 const MONTHS_FR = [

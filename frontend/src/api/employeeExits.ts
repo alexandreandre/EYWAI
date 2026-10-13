@@ -9,7 +9,7 @@ import apiClient from './apiClient';
 // TYPES
 // ============================================================================
 
-export type ExitType = 'demission' | 'rupture_conventionnelle' | 'licenciement' | 'depart_retraite' | 'fin_periode_essai' | 'fin_cdd' | 'transfert';
+export type ExitType = 'demission' | 'rupture_conventionnelle' | 'licenciement' | 'depart_retraite' | 'fin_periode_essai' | 'fin_cdd' | 'transfert' | 'autre_motif';
 
 export type ExitStatus =
   // Démission
@@ -756,6 +756,7 @@ export const exitTypeLabels: Record<ExitType, string> = {
   fin_periode_essai: 'Fin de période d\'essai',
   fin_cdd: 'Fin de CDD',
   transfert: 'Transfert intra-groupe',
+  autre_motif: 'Autre motif',
 };
 
 export const statusLabels: Record<ExitStatus, string> = {

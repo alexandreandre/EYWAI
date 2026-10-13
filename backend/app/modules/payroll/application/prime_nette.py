@@ -3,10 +3,11 @@
 La fenêtre des primes demande « combien de brut pour que la prime rapporte
 100 € nets ? ». La réponse est marginale : le brut X tel que
 
-    net à payer (bulletin du mois avec la prime X)
-  − net à payer (bulletin du mois sans elle)  = net voulu,
+    net à payer avant impôt (bulletin du mois avec la prime X)
+  − net à payer avant impôt (bulletin du mois sans elle)  = net voulu,
 
-chaque bulletin étant celui du salarié (salaire, saisies du mois, cumuls),
+« avant impôt » : avant le prélèvement à la source, dont le taux est personnel
+au salarié (12/10). Chaque bulletin étant celui du salarié (salaire, saisies du mois, cumuls),
 calculé en bac à sable par l'appelant. Ce n'est pas le brut d'un bulletin
 entier dont le net vaudrait 100 € (lot 30).
 
@@ -54,6 +55,11 @@ _DEMI_CENTIME = 0.005
 
 
 def _net(bulletin: Mapping[str, Any]) -> float:
+    """Le net à payer avant impôt sur le revenu : il ne dépend pas du taux
+    personnel du salarié (à défaut, le net à payer)."""
+    avant_impot = (bulletin.get("synthese_net") or {}).get("net_social_avant_impot")
+    if avant_impot is not None:
+        return float(avant_impot)
     return float(bulletin.get("net_a_payer") or 0.0)
 
 

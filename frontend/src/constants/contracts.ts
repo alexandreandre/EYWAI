@@ -11,7 +11,6 @@
 export const CONTRACT_TYPES = [
   'CDI',
   'CDD',
-  'Intérim',
   'Apprentissage',
   'Contrat de professionnalisation',
   'Stage',
@@ -92,7 +91,6 @@ export function normalizeContractType(value: string | null | undefined): string 
   if (v.includes('apprentissage')) return 'Apprentissage';
   if (v.includes('professionnalisation')) return 'Contrat de professionnalisation';
   if (v.includes('stage')) return 'Stage';
-  if (v.includes('intérim') || v.includes('interim')) return 'Intérim';
   if (v.includes('portage')) return 'Portage salarial';
   if (v.includes('cdd') && !v.includes('cdi')) return 'CDD';
   if (v.includes('cdi')) return 'CDI';

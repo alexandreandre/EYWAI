@@ -193,11 +193,6 @@ export function PayrollPayslipRow({
           {ecartAffiche}
         </span>
       )}
-      {payslip?.manually_edited && (
-        <Badge variant="secondary" className="text-xs">
-          Modifié
-        </Badge>
-      )}
     </>
   );
 
