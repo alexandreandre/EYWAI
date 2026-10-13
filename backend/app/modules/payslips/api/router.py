@@ -452,7 +452,7 @@ def _exiger_regle_connue(rule_id: str) -> None:
     if rule_id not in REGLES_CONNUES:
         raise HTTPException(
             status_code=422,
-            detail=f"Règle d'alerte inconnue : « {rule_id} ». Les règles vont de R01 à R12.",
+            detail=f"Règle d'alerte inconnue : « {rule_id} ». Les règles vont de R01 à R10, plus R12.",
         )
 
 

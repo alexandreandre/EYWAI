@@ -12,9 +12,9 @@ from app.shared.domain.pluriel import accord, pluriel
 
 AlertLevel = Literal["CRITIQUE", "AVERTISSEMENT", "INFO"]
 
-#: Les règles que le moteur de comparaison sait produire (R01 à R12) : seules
+#: Les règles que le moteur de comparaison sait produire (R01 à R10 et R12, R11 est retirée) : seules
 #: celles-là peuvent être acquittées ou ignorées.
-REGLES_CONNUES = frozenset(f"R{n:02d}" for n in range(1, 13))
+REGLES_CONNUES = frozenset(f"R{n:02d}" for n in range(1, 13) if n != 11)
 
 
 @dataclass
@@ -233,7 +233,7 @@ def compute_comparison(
     employee_context: Dict[str, Any] | None = None,
 ) -> ComparisonResult:
     """
-    Compare les payslip_data N et N-1 et applique les règles R01–R12.
+    Compare les payslip_data N et N-1 et applique les règles R01–R10 et R12 (R11 retirée).
 
     Métadonnées attendues dans employee_context :
     - bulletin_n_id, month_n, year_n (obligatoires)
@@ -241,7 +241,6 @@ def compute_comparison(
     - is_forfait_jour: bool
     - has_contract_change: bool
     - monthly_contract_hours: float (défaut 151.67)
-    - has_declared_advance: bool — si False explicite avec acompte > 0 → R11
     - recent_nets_asc: liste [net_n-3, net_n-2, net_n-1, net_n] pour R10
     """
     ctx = employee_context or {}
@@ -502,23 +501,6 @@ def compute_comparison(
                     delta_pct=_pct_change(nets[0], nets[3]),
                 )
             )
-
-    # R11 — acompte sans avance déclarée (clé explicite uniquement)
-    if vn["acompte_verse"] > 0 and ctx.get("has_declared_advance") is False:
-        alerts.append(
-            PayslipAlert(
-                rule_id="R11",
-                level="CRITIQUE",
-                message=(
-                    f"Acompte déduit ({_nombre_fr(vn['acompte_verse'])} €) "
-                    "sans avance déclarée côté dossier."
-                ),
-                field="synthese_net.acompte_verse",
-                value_n=vn["acompte_verse"],
-                value_n1=v1["acompte_verse"] if v1 else 0.0,
-                delta_pct=0.0,
-            )
-        )
 
     alerts_status = bulletin_n.get("alerts_status")
     _apply_alerts_status_from_bulletin(alerts, alerts_status)

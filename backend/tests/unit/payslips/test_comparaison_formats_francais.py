@@ -56,11 +56,9 @@ def test_r08_ecrit_les_heures_avec_une_virgule():
     assert "(151,67 h)" in message
 
 
-def test_r10_et_r11_ecrivent_les_euros_avec_une_virgule():
-    n = _bulletin([_BASE], synthese_net={"acompte_verse": 150.5})
-    alertes = _alertes(n, _bulletin([_BASE]), recent_nets_asc=[1900.0, 1800.0, 1700.5, 1600.25], has_declared_advance=False)
+def test_r10_ecrit_les_euros_avec_une_virgule():
+    alertes = _alertes(_bulletin([_BASE]), _bulletin([_BASE]), recent_nets_asc=[1900.0, 1800.0, 1700.5, 1600.25])
     assert "1 900,00 → 1 800,00 → 1 700,50 → 1 600,25 €" in alertes["R10"]["message"]
-    assert "(150,50 €)" in alertes["R11"]["message"]
 
 
 def test_r07_dit_la_difference_en_lignes_pas_en_pourcentage():
