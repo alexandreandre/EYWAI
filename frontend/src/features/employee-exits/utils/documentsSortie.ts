@@ -102,3 +102,28 @@ export const TYPES_DOCUMENTS_MODIFIABLES = ['certificat_travail', 'attestation_p
 export function documentModifiable(documentType: string): boolean {
   return (TYPES_DOCUMENTS_MODIFIABLES as readonly string[]).includes(documentType);
 }
+
+/**
+ * Régénérer un document remplace sa version générée et jamais envoyée au
+ * collaborateur (`_remplacer_les_versions_precedentes` côté serveur). Les ajouts
+ * faits avec « Modifier le document » (historique `_edit_history` rangé dans
+ * `generation_data`) disparaîtraient : on le dit avant de régénérer. La version
+ * envoyée au collaborateur, elle, est gardée.
+ */
+export const MESSAGE_AJOUTS_PERDUS = 'Vos ajouts au document seront perdus';
+
+type DocumentRemplace = {
+  document_type: string;
+  document_category?: string | null;
+  published_to_employee?: boolean | null;
+  generation_data?: Record<string, unknown> | null;
+};
+
+export function regenerationEffaceDesAjouts(documents: DocumentRemplace[], documentType: string): boolean {
+  return documents.some((doc) => {
+    if (doc.document_type !== documentType) return false;
+    if (doc.document_category !== 'generated' || doc.published_to_employee) return false;
+    const historique = doc.generation_data?._edit_history;
+    return Array.isArray(historique) && historique.length > 0;
+  });
+}

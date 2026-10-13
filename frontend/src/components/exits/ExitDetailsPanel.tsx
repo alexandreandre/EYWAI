@@ -89,13 +89,25 @@ import {
 } from 'lucide-react';
 import { employeeDocumentsPath } from '@/lib/employeeExitDocumentsAccess';
 import {
+  MESSAGE_AJOUTS_PERDUS,
   MESSAGE_GENERER_DABORD_BULLETIN,
   avertissementClotureSansBulletin,
   documentModifiable,
   documentsARevoir,
   documentsDeSortieGrises,
   messageDocumentsARevoir,
+  regenerationEffaceDesAjouts,
 } from '@/features/employee-exits/utils/documentsSortie';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
 import {
   Dialog,
@@ -125,8 +137,10 @@ interface ExitDetailsPanelProps {
   onUpdate?: () => void;
 }
 
+type DocumentGenerable = 'certificat_travail' | 'attestation_pole_emploi' | 'solde_tout_compte';
+
 const GENERATABLE_DOCUMENTS: {
-  type: 'certificat_travail' | 'attestation_pole_emploi' | 'solde_tout_compte';
+  type: DocumentGenerable;
   label: string;
 }[] = [
   { type: 'certificat_travail', label: 'Certificat de travail' },
@@ -163,6 +177,8 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   const [indemnities, setIndemnities] = useState<ExitIndemnityCalculation | null>(null);
   const [calculatingIndemnities, setCalculatingIndemnities] = useState(false);
   const [generatingDocument, setGeneratingDocument] = useState<string | null>(null);
+  // Régénération d'un document modifié à la main : en attente de confirmation.
+  const [regenerationAConfirmer, setRegenerationAConfirmer] = useState<DocumentGenerable | null>(null);
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishingDocuments, setPublishingDocuments] = useState(false);
@@ -532,7 +548,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
     }
   };
 
-  const handleGenerateDocument = async (documentType: 'certificat_travail' | 'attestation_pole_emploi' | 'solde_tout_compte') => {
+  const handleGenerateDocument = async (documentType: DocumentGenerable) => {
     if (!exitId) return;
 
     setGeneratingDocument(documentType);
@@ -1134,7 +1150,11 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                         <DropdownMenuItem
                           key={type}
                           disabled={documentsGrises || generatingDocument !== null}
-                          onClick={() => handleGenerateDocument(type)}
+                          onClick={() =>
+                            regenerationEffaceDesAjouts(documents, type)
+                              ? setRegenerationAConfirmer(type)
+                              : handleGenerateDocument(type)
+                          }
                         >
                           {generatingDocument === type ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1624,6 +1644,36 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       </SheetContent>
 
       {/* Modal de confirmation de clôture / archivage */}
+      {/* Régénérer remplace la version modifiée à la main : le dire avant. */}
+      <AlertDialog
+        open={regenerationAConfirmer !== null}
+        onOpenChange={(ouvert) => {
+          if (!ouvert) setRegenerationAConfirmer(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{MESSAGE_AJOUTS_PERDUS}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ce document a été modifié avec « Modifier le document ». La régénération repart des
+              données du départ et du bulletin de sortie : vos ajouts seront à refaire.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const type = regenerationAConfirmer;
+                setRegenerationAConfirmer(null);
+                if (type) void handleGenerateDocument(type);
+              }}
+            >
+              Régénérer quand même
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Dialog open={showArchiveModal} onOpenChange={setShowArchiveModal}>
         <DialogContent className="z-[100]">
           <DialogHeader>
