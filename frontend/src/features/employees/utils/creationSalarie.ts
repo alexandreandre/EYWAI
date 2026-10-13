@@ -188,7 +188,7 @@ export function raisonEchecCreation(error: unknown): string {
   }
   if (!err?.response) {
     return bandeauNonEnregistre(
-      "la requête n'est pas partie. Vérifiez les champs en rouge, puis réessayez.",
+      "la requête n'est pas partie. Vérifiez la connexion, puis réessayez.",
     );
   }
   if (status === 401 || status === 403) {
