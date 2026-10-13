@@ -159,3 +159,20 @@ class TestLectureDeLEtat:
     def test_etat_inconnu_n_est_pas_a_recalculer(self):
         bulletins = [{"employee_id": "a", "status": "valide"}]
         assert self._lire(bulletins, {"a": None}) == (0, 0, 0)
+
+
+def test_un_valide_en_verification_au_bac_a_sable_est_dit_non_verifie():
+    """Lot 42 : le verdict du validé n'est pas encore là, on ne le compte ni à jour
+    ni « à recalculer »."""
+    from types import SimpleNamespace
+
+    from app.modules.exports.infrastructure import etat_bulletins
+
+    en_verification = SimpleNamespace(a_recalculer=None, verification_en_cours=True)
+    with patch.object(
+        etat_bulletins, "_bulletins_du_mois", return_value=[{"employee_id": "a", "status": "valide"}]
+    ), patch(
+        "app.modules.payroll.application.empreinte_entrees_service.etat_dans_la_chaine",
+        return_value=en_verification,
+    ):
+        assert etat_bulletins.lire_etat_bulletins("co-1", "2026-09") == (0, 0, 1)
