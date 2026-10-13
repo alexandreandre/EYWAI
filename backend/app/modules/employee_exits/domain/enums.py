@@ -19,6 +19,9 @@ ExitType = Literal[
     # Mutation intra-groupe : sortie purement administrative — jamais de STC,
     # d'indemnités ni de documents (solde CP et ancienneté conservés).
     "transfert",
+    # Motif de rupture de la DSN sans équivalent (066, 085, 098, 099…) : le
+    # code d'origine reste dans « Import DSN (0xx) », que la DSN réémet.
+    "autre_motif",
 ]
 ExitStatus = Literal[
     "demission_recue",

@@ -143,6 +143,7 @@ const EXIT_TYPE_OPTIONS: { value: ExitType; label: string }[] = [
   { value: 'fin_periode_essai', label: "Fin de période d'essai" },
   { value: 'fin_cdd', label: 'Fin de CDD' },
   { value: 'transfert', label: 'Transfert intra-groupe' },
+  { value: 'autre_motif', label: 'Autre motif' },
 ];
 
 export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetailsPanelProps) {

@@ -22,6 +22,7 @@ ExitType = Literal[
     "fin_periode_essai",
     "fin_cdd",
     "transfert",
+    "autre_motif",
 ]
 ExitStatus = Literal[
     "demission_recue",

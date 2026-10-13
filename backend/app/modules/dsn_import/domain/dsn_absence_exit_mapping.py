@@ -87,8 +87,17 @@ ARRET_MOTIF_MAP: Dict[str, Tuple[str, Optional[str]]] = {
 
 
 def map_exit_motif(motif: str) -> str:
-    code = (motif or "").strip().zfill(3)[:3]
-    return EXIT_MOTIF_MAP.get(code, "demission")
+    """Le type de départ d'un motif de rupture DSN.
+
+    Un motif renseigné sans équivalent (066, 085, 098, 099…) devient « Autre
+    motif » et non une démission : son code reste dans « Import DSN (0xx) ».
+    Sans motif du tout, on garde la démission.
+    """
+    brut = (motif or "").strip()
+    if not brut:
+        return "demission"
+    code = brut.zfill(3)[:3]
+    return EXIT_MOTIF_MAP.get(code, "autre_motif")
 
 
 def map_suspension_to_absence(motif: str) -> str:
