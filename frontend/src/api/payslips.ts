@@ -164,6 +164,8 @@ export interface PayslipInfo {
   a_recalculer?: boolean | null;
   /** Ce qui a changé, dit simplement (« La mutuelle a changé… ») ; null si rien. */
   raison_a_recalculer?: string | null;
+  /** Validé aux données changées, recalculé sans rien enregistrer : verdict attendu dans quelques secondes. */
+  a_verifier?: boolean | null;
   salaire_brut?: number | null;
   heures_sup?: number | null;
   /** « valide » une fois validé par la RH ; « brouillon » ou absent sinon. */
@@ -266,6 +268,8 @@ export interface PayslipDetail {
   a_recalculer?: boolean | null;
   /** Ce qui a changé dans ses entrées (« La mutuelle a changé… ») ; null si rien. */
   raison_a_recalculer?: string | null;
+  /** Validé aux données changées, recalculé sans rien enregistrer : verdict attendu dans quelques secondes. */
+  a_verifier?: boolean | null;
   /** Brut, net, heures sup et absences vs le bulletin du mois précédent. */
   comparaison_mois_dernier?: {
     present?: boolean;

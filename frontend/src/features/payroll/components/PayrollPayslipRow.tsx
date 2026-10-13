@@ -19,6 +19,7 @@ import { DocumentFileRow, DownloadLinkButton, ViewLinkButton } from '@/component
 import type { PayslipInfo } from '@/api/payslips';
 import { MOTIF_BULLETIN_IMPORTE, estBulletinImporte } from '@/features/payroll/utils/bulletinImporte';
 import { estPerime, infobulleARecalculer } from '@/features/payroll/utils/bulletinARecalculer';
+import { INFOBULLE_EN_VERIFICATION, enVerification } from '@/features/payroll/utils/validesEnVerification';
 import {
   hasNetSuperieurBrutWarning,
   PayslipNetBrutInlineLabel,
@@ -94,6 +95,7 @@ export function PayrollPayslipRow({
   // grisées, le motif au survol (demande d'Alexandre, 21/09).
   const importe = estBulletinImporte(payslip);
   const perime = estPerime(payslip);
+  const verification = enVerification(payslip);
   const companyId = useActiveCompanyId();
   const generationEnCours = useGenerationEnCours();
   const motifGeneration = generationEnCours ? 'Génération en cours : patientez' : undefined;
@@ -163,6 +165,21 @@ export function PayrollPayslipRow({
           {infobulleARecalculer(payslip) ? (
             <TooltipContent className="max-w-xs">{infobulleARecalculer(payslip)}</TooltipContent>
           ) : null}
+        </Tooltip>
+      )}
+      {verification && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge
+              variant="outline"
+              className="border-sky-200 bg-sky-50 text-sky-800"
+              data-testid="badge-verification"
+              tabIndex={0}
+            >
+              Vérification…
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">{INFOBULLE_EN_VERIFICATION}</TooltipContent>
         </Tooltip>
       )}
       {state.status === 'success' && pointsAArbitrer.length > 0 && (

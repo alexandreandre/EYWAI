@@ -98,6 +98,11 @@ import {
 import { lienVariablesDuMois } from '@/features/payroll/utils/payslipDerivedLines';
 import { bandeauExportsDuMois } from '@/lib/exportsARefaire';
 import { estPerime, messageARecalculer } from '@/features/payroll/utils/bulletinARecalculer';
+import {
+  MESSAGE_EN_VERIFICATION,
+  delaiAvantRelecture,
+  enVerification,
+} from '@/features/payroll/utils/validesEnVerification';
 
 const QUESTION_ABANDON = 'Vos corrections ne sont pas enregistrées. Les abandonner ?';
 
@@ -257,6 +262,16 @@ export default function PayslipEdit() {
   });
 
   const modifie = initial && etat ? aDesModifications(initial, etat) : false;
+
+  // Validé aux données changées : Martine le recalcule sans rien enregistrer,
+  // hors de la requête. L'écran se relit jusqu'au verdict, jamais pendant une
+  // correction en cours (la relecture l'effacerait).
+  const delaiRelecture = delaiAvantRelecture(payslip, modifie);
+  useEffect(() => {
+    if (delaiRelecture === null) return;
+    const minuteur = window.setTimeout(() => void recharger(), delaiRelecture);
+    return () => window.clearTimeout(minuteur);
+  }, [delaiRelecture, payslip, recharger]);
   const recalculPrevu = initial && etat ? recalculAttendu(initial, etat) : false;
 
   useEffect(() => {
@@ -441,6 +456,13 @@ export default function PayslipEdit() {
         <Alert data-testid="a-regenerer">
           <AlertTitle>À régénérer</AlertTitle>
           <AlertDescription>{payslip.a_regenerer}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {enVerification(payslip) ? (
+        <Alert data-testid="en-verification">
+          <AlertTitle>Vérification en cours</AlertTitle>
+          <AlertDescription>{MESSAGE_EN_VERIFICATION}</AlertDescription>
         </Alert>
       ) : null}
 

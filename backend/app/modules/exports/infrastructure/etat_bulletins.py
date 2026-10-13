@@ -39,6 +39,10 @@ def _bulletins_du_mois(
     return []
 
 
+class _EnVerification(Exception):
+    """Le verdict du bac à sable n'est pas encore là."""
+
+
 def lire_etat_bulletins(
     company_id: str,
     period: str,
@@ -65,6 +69,9 @@ def lire_etat_bulletins(
 
     def etat_de(employee_id: str) -> bool | None:
         etat = empreinte_entrees_service.etat_dans_la_chaine(employee_id, year, month)
+        if etat is not None and getattr(etat, "verification_en_cours", False):
+            # Validé recalculé au bac à sable, verdict pas encore là : non vérifié.
+            raise _EnVerification
         return None if etat is None else etat.a_recalculer
 
     # Chaque salarié coûte une dizaine de lectures : en parallèle, et sous un
@@ -82,6 +89,8 @@ def lire_etat_bulletins(
             try:
                 if future.result() is True:
                     a_recalculer += 1
+            except _EnVerification:
+                non_verifies += 1
             except Exception:  # noqa: BLE001 — un salarié illisible n'empêche pas l'aperçu
                 logger.warning("État « à recalculer » illisible pour un bulletin", exc_info=True)
                 non_verifies += 1

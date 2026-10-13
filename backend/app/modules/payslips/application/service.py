@@ -172,11 +172,9 @@ def _etats_du_bulletin(
         )
     except Exception:  # noqa: BLE001 — un détail illisible n'empêche pas d'ouvrir le bulletin
         etat = None
-    if etat is not None and etat.bulletin_mis_a_jour_le:
-        # Validé recalculé au bac à sable, identique : ses empreintes viennent
-        # d'être reposées. Le détail rendu porte la nouvelle date, sinon la
-        # correction suivante se croirait en conflit (« modifié entre-temps »).
-        detail["updated_at"] = etat.bulletin_mis_a_jour_le
+    # Validé aux données changées, recalculé au bac à sable hors de la requête :
+    # le détail le dit « à vérifier » le temps du calcul.
+    detail["a_verifier"] = bool(etat is not None and etat.verification_en_cours)
     try:
         message = signal_a_regenerer(
             detail,

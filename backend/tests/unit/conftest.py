@@ -105,4 +105,6 @@ def aucun_bac_a_sable_a_la_lecture(monkeypatch) -> None:
     monkeypatch.setattr(service, "lire_bulletin_enregistre", lambda *_a, **_k: None)
     monkeypatch.setattr(service, "_calculer_au_bac_a_sable", _jamais)
     monkeypatch.setattr(service, "poser_empreintes_verifiees", lambda *_a, **_k: None)
+    # Hors de la requête en vrai ; en test, jouée sur place, sans fil.
+    monkeypatch.setattr(service, "_lancer_en_arriere_plan", lambda tache: tache())
     service.oublier_les_verdicts()

@@ -33,6 +33,8 @@ class PayslipInfo(BaseModel):
     a_recalculer: bool | None = None
     #: Ce qui a changé, dit simplement (« La mutuelle a changé… ») ; None si rien.
     raison_a_recalculer: str | None = None
+    #: Validé aux données changées, recalculé au bac à sable : verdict en attente.
+    a_verifier: bool | None = None
     salaire_brut: float | None = None
     heures_sup: float | None = None
     #: « valide » ou « brouillon » ; la paie du mois montre « Validé » sur la ligne.
@@ -121,6 +123,8 @@ class PayslipDetail(BaseModel):
     #: Ce qui a changé dans ses entrées (« La mutuelle a changé… ») ; None si
     #: rien — le mois d'avant se dit par `a_regenerer`.
     raison_a_recalculer: str | None = None
+    #: Validé aux données changées, recalculé au bac à sable : verdict en attente.
+    a_verifier: bool | None = None
     #: Brut, net, heures sup et absences vs le bulletin du mois précédent.
     comparaison_mois_dernier: dict[str, Any] | None = None
     #: Exports déjà faits pour le mois (type, libellé, date) : à refaire après

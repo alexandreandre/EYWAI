@@ -29,6 +29,7 @@ import {
   phraseInterruption,
 } from '@/features/payroll/utils/generationEnCours';
 import { PayrollProgressBar } from '@/features/payroll/components/PayrollProgressBar';
+import { intervalleDeRelecture } from '@/features/payroll/utils/validesEnVerification';
 import { PayrollGenerationRefusalDialog } from '@/features/payroll/components/PayrollGenerationRefusalDialog';
 import {
   usePayrollGeneration,
@@ -322,6 +323,9 @@ export default function Payroll() {
       queryFn: () => getEmployeePayslips(emp.id),
       enabled: Boolean(companyId && employees.length > 0),
       staleTime: 30_000,
+      // Un validé en vérification au bac à sable : relu jusqu'au verdict.
+      refetchInterval: (query: { state: { data?: unknown } }) =>
+        intervalleDeRelecture(query.state.data as { a_verifier?: boolean | null }[] | undefined),
     })),
   });
 

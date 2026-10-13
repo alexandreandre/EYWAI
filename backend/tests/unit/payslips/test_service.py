@@ -392,7 +392,7 @@ def test_le_detail_dit_qu_un_valide_est_en_verification():
     }
     cible = "app.modules.payroll.application.empreinte_entrees_service.etat_dans_la_chaine"
     etat = EtatDuBulletin(
-        entrees_changees=True, cumuls_precedents_changes=False, verification_en_cours=True
+        entrees_changees=None, cumuls_precedents_changes=False, verification_en_cours=True
     )
     with patch(cible, return_value=etat):
         assert service._etats_du_bulletin(detail) == (None, None, None)
