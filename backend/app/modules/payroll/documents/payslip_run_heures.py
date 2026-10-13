@@ -455,7 +455,12 @@ def periodes_depuis_compteurs(
 def _brut_de_la_periode_precedente(employee_id: str, cumuls: dict | None) -> float | None:
     """La rémunération brute de la période de référence précédente : le
     `brut_reference_n_1` des cumuls du dernier mois de cette période ; à défaut
-    la somme des bruts des bulletins de la période ; sinon inconnue."""
+    la somme des bruts des bulletins de la période ; sinon inconnue.
+
+    Quand l'ancien logiciel a payé le dernier mois de la période (bulletin
+    importé), ses bulletins font foi : le cumul de ce mois est celui d'un rejeu
+    de Martine, que la reprise ne réécrit pas (CDD de Comitech : 2 072,64 € au
+    cumul de mai contre 1 966,83 € au bulletin de Quadra)."""
     from app.core.database import supabase
 
     nested = (cumuls or {}).get("cumuls", cumuls) if isinstance(cumuls, dict) else {}
@@ -467,28 +472,38 @@ def _brut_de_la_periode_precedente(employee_id: str, cumuls: dict | None) -> flo
     fin_precedente = debut - timedelta(days=1)
     debut_precedente = date(debut.year - 1, debut.month, debut.day)
     try:
-        rows = (
-            supabase.table("employee_schedules")
-            .select("cumuls")
-            .match({"employee_id": employee_id, "year": fin_precedente.year, "month": fin_precedente.month})
-            .execute()
-            .data
-        ) or []
-        if rows:
-            c = ((rows[0].get("cumuls") or {}).get("cumuls")) or {}
-            fin_txt = str(c.get("brut_reference_period_end") or "")
-            valeur = c.get("brut_reference_n_1")
-            if valeur is not None and fin_txt and date.fromisoformat(fin_txt) <= fin_precedente:
-                return round(float(valeur), 2)
         bulletins = (
             supabase.table("payslips")
-            .select("year, month, payslip_data")
+            .select("year, month, origine, payslip_data")
             .eq("employee_id", employee_id)
             .gte("year", debut_precedente.year)
             .lte("year", fin_precedente.year)
             .execute()
             .data
         ) or []
+        dernier_mois_repris = any(
+            (int(b["year"]), int(b["month"])) == (fin_precedente.year, fin_precedente.month)
+            and b.get("origine") == "importe"
+            for b in bulletins
+        )
+        rows = (
+            []
+            if dernier_mois_repris
+            else (
+                supabase.table("employee_schedules")
+                .select("cumuls")
+                .match({"employee_id": employee_id, "year": fin_precedente.year, "month": fin_precedente.month})
+                .execute()
+                .data
+            )
+            or []
+        )
+        if rows:
+            c = ((rows[0].get("cumuls") or {}).get("cumuls")) or {}
+            fin_txt = str(c.get("brut_reference_period_end") or "")
+            valeur = c.get("brut_reference_n_1")
+            if valeur is not None and fin_txt and date.fromisoformat(fin_txt) <= fin_precedente:
+                return round(float(valeur), 2)
         total = 0.0
         trouve = False
         for b in bulletins:
