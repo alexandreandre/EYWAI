@@ -93,6 +93,22 @@ def bulletin_du_mois_de_sortie(
     return donnees if donnees.get("salaire_brut") is not None else None
 
 
+#: Alertes du bulletin de sortie que la génération du reçu redit à la gestionnaire.
+CODES_ALERTES_DU_RECU = ("rtt_jtc_non_payes_au_depart",)
+
+
+def alertes_du_recu(payslip_data: Optional[Dict[str, Any]]) -> List[str]:
+    """Les alertes du bulletin de sortie qui valent pour le reçu (RTT et JTC
+    non pris, « Néant » : à vérifier selon l'accord, décision du 12/10/2026)."""
+    if not isinstance(payslip_data, dict):
+        return []
+    return [
+        str(a.get("message"))
+        for a in payslip_data.get("alertes_baremes") or []
+        if isinstance(a, dict) and a.get("code") in CODES_ALERTES_DU_RECU and a.get("message")
+    ]
+
+
 def indemnites_compensatrices_de_conges(payslip_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Les lignes « Indemnité compensatrice de congés payés … » du bulletin.
 

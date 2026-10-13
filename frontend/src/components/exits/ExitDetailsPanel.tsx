@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { useToast } from '@/hooks/use-toast';
+import { toastDeGeneration } from '@/features/employee-exits/utils/alertesDuRecu';
 import {
   getEmployeeExit,
   updateChecklistItem,
@@ -502,12 +503,9 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
 
     setGeneratingDocument(documentType);
     try {
-      await generateExitDocument(exitId, documentType);
+      const reponse = await generateExitDocument(exitId, documentType);
 
-      toast({
-        title: 'Succès',
-        description: 'Document généré avec succès',
-      });
+      toast(toastDeGeneration(reponse));
 
       fetchExitDetails();
     } catch (error: any) {

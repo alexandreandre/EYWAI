@@ -150,16 +150,41 @@ def _jours_fr(valeur: float) -> str:
 
 def alertes_des_compteurs_de_conges(
     solde_conges: Optional[Dict[str, Any]],
+    *,
+    bulletin_de_sortie: bool = False,
 ) -> List[Dict[str, Any]]:
-    """Les alertes que les compteurs du bulletin appellent.
+    """Les alertes que les compteurs du bulletin appellent (décisions du 12/10/2026).
 
-    Congé payé ou RTT posé au-delà du solde (décision du 12/10/2026) : payé en
-    entier, décompté, le solde passe en négatif. On ne retient rien : on le dit,
-    la gestionnaire pose un congé sans solde si l'excédent ne doit pas être payé.
+    Congé payé ou RTT posé au-delà du solde : payé en entier, décompté, le
+    solde passe en négatif. On ne retient rien : on le dit, la gestionnaire pose
+    un congé sans solde si l'excédent ne doit pas être payé.
+
+    Au départ, les RTT et JTC non pris restent « Néant » (ni payés ni retenus) :
+    selon l'accord de la société, ils se paient ou se perdent. On le dit.
     """
     if not isinstance(solde_conges, dict):
         return []
     alertes: List[Dict[str, Any]] = []
+    if bulletin_de_sortie:
+        restes = []
+        for cle, nom in (("rtt", "RTT"), ("jtc", "JTC")):
+            compteur = solde_conges.get(cle)
+            solde = float(compteur.get("solde") or 0.0) if isinstance(compteur, dict) else 0.0
+            if solde > 0:
+                restes.append(f"{_jours_fr(solde)} de {nom}")
+        if restes:
+            alertes.append(
+                {
+                    "code": "rtt_jtc_non_payes_au_depart",
+                    "severity": "warning",
+                    "critique": False,
+                    "message": (
+                        f"Départ : {' et '.join(restes)} non pris, ni payés ni retenus "
+                        "(« Néant » sur le bulletin et sur le reçu), à vérifier selon "
+                        "l'accord de la société : paiement ou perte des jours non pris."
+                    ),
+                }
+            )
     for cle, code, quoi, solde_de in (
         ("conges_payes", "conge_au_dela_du_solde", "Congés payés pris", "de congés payés"),
         ("rtt", "rtt_au_dela_du_solde", "RTT pris", "de RTT"),
@@ -186,6 +211,22 @@ def alertes_des_compteurs_de_conges(
             }
         )
     return alertes
+
+
+def _est_bulletin_de_sortie(contexte: Any, annee: int, mois: int) -> bool:
+    """Départ rattaché au bulletin, dernier mois d'un CDD ou d'une mission."""
+    if getattr(contexte, "depart_du_mois", False) is True:
+        return True
+    debut = date(annee, mois, 1)
+    fin = date(annee, mois, calendar.monthrange(annee, mois)[1])
+    for nom in ("est_dernier_mois_cdd", "est_dernier_mois_mission"):
+        test = getattr(contexte, nom, None)
+        try:
+            if callable(test) and test(debut, fin) is True:
+                return True
+        except Exception:  # noqa: BLE001 — une date de fin illisible n'est pas un départ
+            continue
+    return False
 
 
 def build_solde_conges_pied_de_page(
@@ -706,7 +747,11 @@ def creer_bulletin_final(
     solde_conges = build_solde_conges_pied_de_page(
         _extraire_employee_id(contexte), annee, mois, date_fin_variables
     )
-    alertes_baremes.extend(alertes_des_compteurs_de_conges(solde_conges))
+    alertes_baremes.extend(
+        alertes_des_compteurs_de_conges(
+            solde_conges, bulletin_de_sortie=_est_bulletin_de_sortie(contexte, annee, mois)
+        )
+    )
 
     bulletin = {
         "en_tete": {

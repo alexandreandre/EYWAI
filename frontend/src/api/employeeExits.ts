@@ -598,7 +598,7 @@ export async function getExitDocuments(exitId: string): Promise<ExitDocument[]> 
 export async function generateExitDocument(
   exitId: string,
   documentType: 'certificat_travail' | 'attestation_pole_emploi' | 'solde_tout_compte'
-): Promise<{ success: boolean; message: string; document_type: string }> {
+): Promise<{ success: boolean; message: string; document_type: string; alertes?: string[] }> {
   const response = await apiClient.post(`/api/employee-exits/${exitId}/documents/generate/${documentType}`);
   return response.data;
 }

@@ -1026,6 +1026,7 @@ def generate_exit_document(
             400, f"Type de document non générable automatiquement: {document_type}"
         )
     sb = supabase_client or supabase
+    alertes: list[str] = []
     exit_repo = EmployeeExitRepository(sb)
     doc_repo = ExitDocumentRepository(sb)
     generator = get_exit_document_generator()
@@ -1069,12 +1070,13 @@ def generate_exit_document(
         # indemnités du dossier ne servent qu'à l'estimation, faute de bulletin
         # (départs clos par la réconciliation DSN, qui ne les calcule pas).
         from app.modules.payroll.solde_de_tout_compte.common.bulletin_de_sortie import (
+            alertes_du_recu,
             bulletin_du_mois_de_sortie,
         )
 
-        if not indemnities and bulletin_du_mois_de_sortie(
-            employee_data.get("id"), exit_data, sb
-        ) is None:
+        bulletin_de_sortie = bulletin_du_mois_de_sortie(employee_data.get("id"), exit_data, sb)
+        alertes = alertes_du_recu(bulletin_de_sortie)
+        if not indemnities and bulletin_de_sortie is None:
             raise EmployeeExitApplicationError(
                 400,
                 "Les indemnités doivent être calculées avant de générer le solde de tout compte. Veuillez d'abord calculer les indemnités dans l'onglet 'Indemnités'.",
@@ -1112,6 +1114,9 @@ def generate_exit_document(
         "document_type": document_type,
         "document_id": created["id"],
         "filename": filename,
+        # Ce que la gestionnaire doit vérifier sur ce document (reçu : RTT et
+        # JTC non pris au départ).
+        "alertes": alertes,
     }
 
 
