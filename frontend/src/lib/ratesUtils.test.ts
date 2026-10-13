@@ -124,6 +124,7 @@ describe('ratesUtils', () => {
     expect(getCategoryTitle('heures_supp')).toBe('Heures supplémentaires');
     expect(getCategoryTitle('primes')).toBe('Primes');
     expect(getCategoryTitle('pas')).toBe('Prélèvement à la source (PAS)');
+    expect(getCategoryTitle('cdd')).toBe('CDD');
   });
 
   it('formatPayrollPercent convertit les taux décimaux paie', () => {
