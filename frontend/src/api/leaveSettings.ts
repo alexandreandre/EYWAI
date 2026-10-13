@@ -205,7 +205,7 @@ export async function updateEmployeeLeaveAdjustment(
 // CP volontairement exclus : leur recalage passe par la reprise d'un
 // bulletin (mécanique d'import), pas par une inversion cible→écart — côté
 // RH, par `recalerSoldesCp`.
-export type CompteurAjustable = 'rtt' | 'jtc';
+export type CompteurAjustable = 'rtt' | 'jtc' | 'repos_compensateur';
 
 export interface CpRecalagePayload {
   year: number;

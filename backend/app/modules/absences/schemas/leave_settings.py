@@ -47,15 +47,16 @@ class EmployeeRttSoldeUpdate(BaseModel):
 class EmployeeLeaveSoldeUpdate(BaseModel):
     """Saisie RH d'un solde AFFICHÉ cible pour un compteur (converti en écart).
 
-    Volontairement limité à RTT et JTC : l'inversion cible→écart des CP est
+    Limité à RTT, JTC et repos compensateur : l'inversion cible→écart des CP est
     piégeuse (bascule N→N-1 du 1er juin, mode « fidèle au bulletin », CP pris
     au planning, ancienneté) — le recalage des CP passe par la reprise
     d'un bulletin (apply_cp_solde_import), qui gère tout ça correctement ;
     côté RH, par `EmployeeCpRecalage` (N-1 et N à la fin d'un mois).
     """
 
-    compteur: Literal["rtt", "jtc"]
-    solde_cible: float = Field(..., ge=0, le=200)
+    #: Le repos compensateur se saisit en heures (décision du 12/10/2026).
+    compteur: Literal["rtt", "jtc", "repos_compensateur"]
+    solde_cible: float = Field(..., ge=0, le=1000)
     note: Optional[str] = Field(None, max_length=2000)
 
 

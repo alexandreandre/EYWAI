@@ -57,6 +57,8 @@ from app.modules.absences.schemas.leave_settings_responses import (
     LeaveSettingsResponse,
     RttYearEndCloseResult,
 )
+from app.modules.repos_compensateur.domain.entities import ReposCredit
+from app.modules.repos_compensateur.infrastructure.repository import upsert_credit
 from app.shared.reprise_paie import lire_bascule, rang_du_mois
 
 
@@ -356,13 +358,15 @@ def _note_conservant_marqueur(
     solde_cible: float,
     note_utilisateur: str | None,
     ancienne_note: str | None,
+    unite: str = "j",
 ) -> str:
     """Note d'audit APPOSÉE APRÈS l'ancienne : « Import CP bulletin » est du
     code (il ancre le calcul « fidèle au bulletin » sur le mois cité, cf.
     rules._bulletin_import_reference_date) — l'ancienne note reste donc en
     tête, intacte, pour ne pas changer le mode de calcul CP/RTT du salarié."""
     aujourd_hui = date.today().strftime("%d/%m/%Y")
-    partie = f"Ajustement manuel RH du {aujourd_hui} ({compteur} → {solde_cible} j)"
+    cible = f"{float(solde_cible):g}".replace(".", ",")
+    partie = f"Ajustement manuel RH du {aujourd_hui} ({compteur} → {cible} {unite})"
     if note_utilisateur:
         partie += f" : {note_utilisateur}"
     ancienne = (ancienne_note or "").strip()
@@ -394,10 +398,15 @@ def apply_leave_solde_manual(
         return apply_rtt_solde_manual(
             company_id, employee_id, year, rtt_solde=solde_cible, note=note
         )
+    if compteur == "repos_compensateur":
+        return apply_repos_solde_manual(
+            company_id, employee_id, year, solde_cible=solde_cible, note=note
+        )
     if compteur != "jtc":
         raise ValueError(
-            "Seuls les compteurs RTT et JTC sont ajustables ici ; le recalage "
-            "des CP passe par la reprise d'un bulletin (compteurs importés)."
+            "Seuls les compteurs RTT, JTC et repos compensateur sont ajustables "
+            "ici ; le recalage des CP passe par la reprise d'un bulletin "
+            "(compteurs importés)."
         )
 
     _ensure_employee_in_company(employee_id, company_id)
@@ -415,6 +424,83 @@ def apply_leave_solde_manual(
         payload["note"] = _note_conservant_marqueur(
             compteur, solde_cible, note, ajustement_actuel.note
         )
+    row = upsert_employee_adjustment(company_id, employee_id, year, payload)
+    return _adjustment_response_from_row(employee_id, year, row)
+
+
+def _solde_repos_affiche(employee_id: str) -> float:
+    """Le solde de repos compensateur (heures) tel que la fiche l'affiche."""
+    from app.modules.absences.application.queries import get_my_absence_balances
+
+    for ligne in get_my_absence_balances(employee_id):
+        if ligne.get("type") == "Repos compensateur":
+            try:
+                return float(ligne.get("remaining") or 0.0)
+            except (TypeError, ValueError):
+                return 0.0
+    return 0.0
+
+
+def _correction_repos_du_mois(employee_id: str, year: int, month: int) -> float:
+    """Les heures d'une correction manuelle déjà posée ce mois-ci."""
+    r = (
+        supabase.table("repos_compensateur_credits")
+        .select("heures")
+        .match({"employee_id": employee_id, "year": year, "month": month, "source": "manual"})
+        .execute()
+    )
+    return round(sum(float(x.get("heures") or 0.0) for x in (r.data or [])), 2)
+
+
+def _heures_par_jour_de_repos(employee_id: str) -> float:
+    from app.modules.absences.application.queries import _hours_per_rest_day_for_employee
+
+    return float(_hours_per_rest_day_for_employee(employee_id) or 0.0)
+
+
+def apply_repos_solde_manual(
+    company_id: str,
+    employee_id: str,
+    year: int,
+    *,
+    solde_cible: float,
+    note: str | None = None,
+) -> EmployeeLeaveAdjustmentResponse:
+    """Corrige le compteur de repos compensateur (heures) au solde voulu.
+
+    Comme pour les RTT et les JTC (décision du 12/10/2026) : l'écart avec le
+    solde affiché devient un crédit « manual » du mois en cours, que le bulletin
+    lit avec les autres crédits de l'année ; une seconde correction du même mois
+    remplace la première. Le motif reste dans la note du salarié, toujours.
+    """
+    _ensure_employee_in_company(employee_id, company_id)
+    aujourd_hui = date.today()
+    mois = aujourd_hui.month if year == aujourd_hui.year else 12
+    deja = _correction_repos_du_mois(employee_id, year, mois)
+    heures = round(float(solde_cible) - (_solde_repos_affiche(employee_id) - deja), 2)
+    par_jour = _heures_par_jour_de_repos(employee_id)
+    credit = ReposCredit(
+        employee_id=employee_id,
+        company_id=company_id,
+        year=year,
+        month=mois,
+        source="manual",
+        heures=heures,
+        jours=round(heures / par_jour, 2) if par_jour else 0.0,
+    )
+    if not upsert_credit(credit):
+        raise ValueError(
+            "La correction du repos compensateur n'a pas été enregistrée : réessayez."
+        )
+    payload = {
+        "note": _note_conservant_marqueur(
+            "repos compensateur",
+            solde_cible,
+            note,
+            get_employee_adjustment(employee_id, year).note,
+            unite="h",
+        )
+    }
     row = upsert_employee_adjustment(company_id, employee_id, year, payload)
     return _adjustment_response_from_row(employee_id, year, row)
 

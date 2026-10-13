@@ -4,7 +4,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { AlertCircle, CalendarDays, Loader2, Palmtree, Pencil } from 'lucide-react';
 import {
   updateEmployeeLeaveSolde,
-  type CompteurAjustable,
   type CpRecalageResponse,
 } from '@/api/leaveSettings';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -44,6 +43,7 @@ import {
 } from '@/lib/employeeAbsencesUtils';
 import { cn } from '@/lib/utils';
 
+import { compteurAjustable } from './compteursAjustables';
 import { RecalageCpDialog } from './RecalageCpDialog';
 import { estLigneCp, messageRecalageCp } from './recalageCp';
 
@@ -51,10 +51,6 @@ const EVENEMENT_FAMILIAL_TYPE = 'Événement familial';
 
 /** Compteurs dont le solde AFFICHÉ est ajustable par la RH (converti en
  * écart d'ouverture côté serveur, même mécanique que la reprise). */
-const COMPTEURS_AJUSTABLES: Record<string, CompteurAjustable> = {
-  RTT: 'rtt',
-  JTC: 'jtc',
-};
 
 interface EmployeeDetailLeaveBalancesTabProps {
   employeeId: string;
@@ -69,7 +65,8 @@ function formatAmount(value: number | string | undefined, unit: string): string 
 }
 
 function formatSoldeDraft(value: number | null): string {
-  return value == null ? '' : value.toFixed(1);
+  // Au centième : un compteur en heures (7,75 h) ne s'arrondit pas en silence.
+  return value == null ? '' : String(Math.round(value * 100) / 100);
 }
 
 export function EmployeeDetailLeaveBalancesTab({
@@ -86,7 +83,7 @@ export function EmployeeDetailLeaveBalancesTab({
     balancesQuery.data?.filter(isRhLeaveBalanceVisible) ?? [];
   const currentYear = new Date().getFullYear();
 
-  // Dialogue générique « Ajuster le solde » (RTT / JTC) ; les CP ont le leur.
+  // Dialogue générique « Ajuster le solde » (RTT, JTC, repos compensateur) ; les CP ont le leur.
   const [adjustType, setAdjustType] = useState<string | null>(null);
   const [recalageCpOpen, setRecalageCpOpen] = useState(false);
   const [adjustSolde, setAdjustSolde] = useState('');
@@ -95,7 +92,9 @@ export function EmployeeDetailLeaveBalancesTab({
   const adjustBalance = adjustType
     ? visibleBalances.find((balance) => balance.type === adjustType)
     : undefined;
-  const adjustCompteur = adjustType ? COMPTEURS_AJUSTABLES[adjustType] : undefined;
+  const ajustement = adjustType ? compteurAjustable(adjustType) : undefined;
+  const adjustCompteur = ajustement?.compteur;
+  const adjustUnite = ajustement?.unite ?? 'j';
 
   useEffect(() => {
     if (!adjustType) return;
@@ -235,7 +234,7 @@ export function EmployeeDetailLeaveBalancesTab({
                     const unit = balanceUsesHours(balance.type) ? 'h' : 'j';
                     const isFamilial = balance.type === EVENEMENT_FAMILIAL_TYPE;
                     const remainingDisplay = formatBalanceRemaining(balance.remaining, unit);
-                    const ajustable = balance.type in COMPTEURS_AJUSTABLES;
+                    const ajustable = compteurAjustable(balance.type) !== undefined;
                     const recalable = estLigneCp(balance.type);
 
                     return (
@@ -337,13 +336,13 @@ export function EmployeeDetailLeaveBalancesTab({
             <div className="grid gap-4">
               <div className="space-y-2">
                 <Label htmlFor="employee-solde-cible">
-                  Solde restant souhaité (j)
+                  Solde restant souhaité ({adjustUnite})
                 </Label>
                 <Input
                   id="employee-solde-cible"
                   type="number"
                   min={0}
-                  step={0.5}
+                  step={adjustUnite === 'h' ? 0.25 : 0.5}
                   inputMode="decimal"
                   value={adjustSolde}
                   onChange={(event) => setAdjustSolde(event.target.value)}
@@ -353,14 +352,14 @@ export function EmployeeDetailLeaveBalancesTab({
                 {typeof adjustBalance?.remaining === 'number' ? (
                   <p className="text-xs text-muted-foreground">
                     Solde affiché actuellement :{' '}
-                    {formatQuantiteFr(adjustBalance.remaining, 'j')}
+                    {formatQuantiteFr(adjustBalance.remaining, adjustUnite)}
                   </p>
                 ) : null}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="employee-solde-note">Note</Label>
+              <Label htmlFor="employee-solde-note">Motif</Label>
               <Textarea
                 id="employee-solde-note"
                 value={adjustNote}
@@ -372,7 +371,7 @@ export function EmployeeDetailLeaveBalancesTab({
 
             {soldeInvalid ? (
               <p className="text-sm text-destructive">
-                Saisissez un nombre de jours positif ou nul.
+                Saisissez un nombre {adjustUnite === 'h' ? 'd’heures' : 'de jours'} positif ou nul.
               </p>
             ) : null}
 
