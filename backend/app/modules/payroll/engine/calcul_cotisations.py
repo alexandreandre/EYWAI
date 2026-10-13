@@ -613,6 +613,58 @@ def alerte_prevoyance_cadre(
         }
     return None
 
+
+# Au-delà, un taux de prévoyance est presque sûrement saisi en % au lieu d'une
+# fraction ([D1], 13/10/2026). Les fiches réelles plafonnent à 4,69 % salarial,
+# 2,5 % patronal et 8 % de forfait social.
+SEUILS_TAUX_PREVOYANCE = (
+    ("salarial", 0.10, "salarial"),
+    ("patronal", 0.10, "patronal"),
+    ("forfait_social", 0.20, "forfait social"),
+)
+
+
+def _pourcent_fr(fraction: float) -> str:
+    entier, _, decimales = f"{round(fraction * 100, 4):.4f}".partition(".")
+    entier = f"{int(entier):,}".replace(",", " ")
+    decimales = decimales.rstrip("0")
+    return f"{entier},{decimales}" if decimales else entier
+
+
+def alertes_taux_prevoyance(lignes: Any) -> List[Dict[str, Any]]:
+    """Une alerte par ligne de prévoyance dont un taux est improbable ([D1]).
+
+    Le bulletin se calcule quand même : l'alerte dit quoi vérifier sur la fiche.
+    """
+    alertes: List[Dict[str, Any]] = []
+    for ligne in lignes if isinstance(lignes, list) else []:
+        if not isinstance(ligne, dict):
+            continue
+        parts = []
+        for cle, seuil, nom in SEUILS_TAUX_PREVOYANCE:
+            try:
+                taux = float(ligne.get(cle) or 0.0)
+            except (TypeError, ValueError):
+                continue
+            if taux > seuil:
+                parts.append(f"{_pourcent_fr(taux)} % ({nom})")
+        if not parts:
+            continue
+        taux_txt = parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " et " + parts[-1]
+        libelle = str(ligne.get("libelle") or "").strip() or "sans libellé"
+        alertes.append({
+            "code": "prevoyance_taux_improbable",
+            "critique": False,
+            "severity": "warning",
+            "message": (
+                f"Taux de prévoyance de {taux_txt} sur la ligne « {libelle} » : "
+                "vérifiez la saisie sur la fiche."
+            ),
+            "donnee_non_officielle": False,
+        })
+    return alertes
+
+
 def calculer_cotisations(
     contexte: ContextePaie,
     salaire_brut: float,
@@ -1068,6 +1120,12 @@ def calculer_cotisations(
             for a in contexte.alertes_baremes
         ):
             contexte.alertes_baremes.append(alerte_prevoyance)
+
+    # Lignes de la fiche, cadre comme non-cadre : un taux saisi en % se signale.
+    if adhesion_prevoyance and isinstance(contexte.alertes_baremes, list):
+        for alerte in alertes_taux_prevoyance(prevoyance_spec.get("lignes_specifiques")):
+            if alerte not in contexte.alertes_baremes:
+                contexte.alertes_baremes.append(alerte)
 
     if adhesion_prevoyance and is_cadre(contexte.statut_salarie):
         logger.info('  -> ✅ Branche CADRE sélectionnée.')

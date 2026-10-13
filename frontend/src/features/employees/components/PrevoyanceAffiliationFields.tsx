@@ -1,4 +1,5 @@
 import { PlusCircle, Trash2 } from 'lucide-react';
+import { type ComponentProps, forwardRef, useEffect, useRef, useState } from 'react';
 import {
   type ArrayPath,
   type Control,
@@ -18,7 +19,11 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { aideLignesPrevoyance } from '@/features/employees/utils/prevoyance';
+import {
+  aideLignesPrevoyance,
+  fractionDuTexteTaux,
+  texteDuTauxPrevoyance,
+} from '@/features/employees/utils/prevoyance';
 import { isEmployeeCadre } from '@/lib/mutuelleUtils';
 
 type PrevoyanceAffiliationFieldsProps<T extends FieldValues> = {
@@ -26,6 +31,49 @@ type PrevoyanceAffiliationFieldsProps<T extends FieldValues> = {
   namePrefix: Path<T>;
   statut?: string | null;
 };
+
+type ChampTauxPourcentProps = Omit<ComponentProps<typeof Input>, 'value' | 'onChange'> & {
+  value: unknown;
+  onChange: (valeur: number | string) => void;
+};
+
+/**
+ * Un taux de prévoyance : saisi et affiché en %, stocké en fraction comme le
+ * moteur le lit ([D1], 13/10/2026). Tant que la saisie ne change pas, la valeur
+ * du formulaire reste celle de la fiche, au chiffre près.
+ */
+const ChampTauxPourcent = forwardRef<HTMLInputElement, ChampTauxPourcentProps>(
+  function ChampTauxPourcent({ value, onChange, ...props }, ref) {
+    const [texte, setTexte] = useState(() => texteDuTauxPrevoyance(value));
+    const derniere = useRef<unknown>(value);
+
+    // Valeur posée hors de la saisie (formulaire rechargé, contrat lu) : on l'affiche.
+    useEffect(() => {
+      if (value !== derniere.current) {
+        derniere.current = value;
+        setTexte(texteDuTauxPrevoyance(value));
+      }
+    }, [value]);
+
+    return (
+      <Input
+        {...props}
+        ref={ref}
+        inputMode="decimal"
+        value={texte}
+        onChange={(e) => {
+          const saisie = e.target.value;
+          // Une saisie qui n'est pas un nombre reste telle quelle : le schéma la
+          // refuse sous le champ, au lieu d'enregistrer 0 sans le dire.
+          const valeur = fractionDuTexteTaux(saisie) ?? saisie;
+          derniere.current = valeur;
+          setTexte(saisie);
+          onChange(valeur);
+        }}
+      />
+    );
+  },
+);
 
 export function PrevoyanceAffiliationFields<T extends FieldValues>({
   control,
@@ -129,7 +177,7 @@ export function PrevoyanceAffiliationFields<T extends FieldValues>({
                     <FormItem>
                       <FormLabel>Taux salarial (%)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="any" {...salarialField} />
+                        <ChampTauxPourcent {...salarialField} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -142,7 +190,7 @@ export function PrevoyanceAffiliationFields<T extends FieldValues>({
                     <FormItem>
                       <FormLabel>Taux patronal (%)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="any" {...patronalField} />
+                        <ChampTauxPourcent {...patronalField} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -155,7 +203,7 @@ export function PrevoyanceAffiliationFields<T extends FieldValues>({
                     <FormItem>
                       <FormLabel>Forfait social (%)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="any" {...fsField} />
+                        <ChampTauxPourcent {...fsField} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

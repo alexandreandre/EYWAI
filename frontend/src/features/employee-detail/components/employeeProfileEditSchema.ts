@@ -5,6 +5,7 @@ import { FORMAT_PCS_ESE } from '@/constants/dsnFiche';
 import { ibanBienForme, ibanProblem } from '@/lib/iban';
 import { bicFieldSchema } from '@/lib/ibanSchema';
 import { isEmployeeCadre } from '@/lib/mutuelleUtils';
+import { TAUX_PREVOYANCE_INVALIDE } from '@/features/employees/utils/prevoyance';
 import { MESSAGE_SALAIRE_TROP_ELEVE, SALAIRE_MENSUEL_MAXIMUM } from '@/lib/salaireVraisemblable';
 
 export const employeeProfileEditSchema = z
@@ -84,9 +85,9 @@ export const employeeProfileEditSchema = z
             z.object({
               id: z.string(),
               libelle: z.string().min(2, { message: 'Libellé requis.' }),
-              salarial: z.coerce.number(),
-              patronal: z.coerce.number(),
-              forfait_social: z.coerce.number(),
+              salarial: z.coerce.number({ invalid_type_error: TAUX_PREVOYANCE_INVALIDE }),
+              patronal: z.coerce.number({ invalid_type_error: TAUX_PREVOYANCE_INVALIDE }),
+              forfait_social: z.coerce.number({ invalid_type_error: TAUX_PREVOYANCE_INVALIDE }),
             }),
           )
           .optional()
