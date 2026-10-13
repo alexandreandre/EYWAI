@@ -1417,7 +1417,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                       {exitDetails.exit_type === 'fin_cdd' && (
                         <div className="p-4 border rounded-lg">
                           <p className="font-medium">Prime de précarité</p>
-                          {indemnities.indemnite_precarite?.calcul && (
+                          {indemnities.indemnite_precarite?.non_due && indemnities.indemnite_precarite.calcul && (
                             <p className="text-sm text-muted-foreground">
                               {indemnities.indemnite_precarite.calcul}
                             </p>
