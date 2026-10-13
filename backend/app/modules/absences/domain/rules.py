@@ -119,12 +119,37 @@ def _fraction_du_mois_de_sortie(
     return min(1.0, jours / (20 if en_ouvres else 24))
 
 
+def _fraction_du_mois_d_entree(entree: date) -> float:
+    """Part du mois d'entrée qui ouvre droit à congés, comme Quadra : les jours
+    calendaires de l'entrée à la fin du mois, sur 30 (entrée le 14/09 : 17/30)."""
+    if entree.day == 1:
+        return 1.0
+    dernier = calendar.monthrange(entree.year, entree.month)[1]
+    return min(1.0, (dernier - entree.day + 1) / 30)
+
+
+def _prorata_du_mois_d_entree(
+    hire_date: date, adjustment: EmployeeLeaveAdjustment
+) -> bool:
+    """Vrai si le mois d'entrée s'acquiert au prorata.
+
+    Une reprise de soldes datée après l'entrée a déjà calé le compteur sur
+    l'ancien logiciel : changer l'acquis d'avant la reprise changerait le solde
+    repris. Sans date, un écart d'ouverture vaut calage aussi.
+    """
+    reference = adjustment.cp_opening_reference_date
+    if reference is not None:
+        return hire_date > reference
+    return not (adjustment.cp_n_opening_balance or adjustment.cp_n1_opening_balance)
+
+
 def calculate_acquired_cp(
     hire_date: date,
     ref_date: date,
     *,
     policy: LeavePolicySettings | None = None,
     date_de_sortie: date | None = None,
+    prorata_mois_d_entree: bool = False,
 ) -> float:
     policy = policy or DEFAULT_LEAVE_POLICY
     period_start, period_end = get_cp_reference_period(
@@ -134,9 +159,22 @@ def calculate_acquired_cp(
     months_worked: float = _months_worked_in_period(
         hire_date, period_start, acquisition_end
     )
+    sortie_ce_mois = (
+        date_de_sortie is not None and acquisition_end == date_de_sortie and months_worked > 0
+    )
+    # Le mois d'entrée n'acquiert que sa part (décision du 12/10/2026, comme
+    # Quadra) ; entré et sorti le même mois, le prorata de sortie, qui part de
+    # l'entrée, suffit.
+    if (
+        prorata_mois_d_entree
+        and months_worked > 0
+        and period_start <= hire_date
+        and not (sortie_ce_mois and (hire_date.year, hire_date.month) == (date_de_sortie.year, date_de_sortie.month))
+    ):
+        months_worked = months_worked - 1 + _fraction_du_mois_d_entree(hire_date)
     # Le mois de sortie n'acquiert que sa part travaillée : une fin de CDD le
     # 15/09 comptait tout septembre dans l'indemnité de congés.
-    if date_de_sortie is not None and acquisition_end == date_de_sortie and months_worked > 0:
+    if sortie_ce_mois:
         months_worked = months_worked - 1 + _fraction_du_mois_de_sortie(
             max(hire_date, period_start), date_de_sortie, policy
         )
@@ -155,11 +193,14 @@ def calculate_acquired_cp_for_period(
     *,
     policy: LeavePolicySettings | None = None,
     periode_close: bool = True,
+    prorata_mois_d_entree: bool = False,
 ) -> float:
     """Acquis sur une période complète — close par défaut, donc arrondie à
     l'entier supérieur quelle que soit l'unité."""
     policy = policy or DEFAULT_LEAVE_POLICY
     months_worked = _months_worked_in_period(hire_date, period_start, period_end)
+    if prorata_mois_d_entree and months_worked > 0 and period_start <= hire_date:
+        months_worked = months_worked - 1 + _fraction_du_mois_d_entree(hire_date)
     return _acquired_cp_from_months(
         months_worked,
         policy.cp_acquisition_rate_internal,
@@ -616,7 +657,11 @@ def _resolve_cp_adjustment_for_ref_date(
         ref_date, start_month=start_month
     )
     prev_acquis = calculate_acquired_cp_for_period(
-        hire_date, prev_start, prev_end, policy=policy
+        hire_date,
+        prev_start,
+        prev_end,
+        policy=policy,
+        prorata_mois_d_entree=_prorata_du_mois_d_entree(hire_date, adjustment),
     )
     prev_supp = _supplemental_cp_for_period_end(
         prev_end,
@@ -657,6 +702,9 @@ def compute_cp_period_balances(
     n'acquiert que sa part travaillée."""
     policy = policy or DEFAULT_LEAVE_POLICY
     adjustment = adjustment or EmployeeLeaveAdjustment.empty()
+    # Décidé sur l'ajustement saisi, avant le roulement de période qui le remet
+    # à zéro : sinon un compteur repris serait proratisé l'année suivante.
+    prorata_entree = _prorata_du_mois_d_entree(hire_date, adjustment)
     if not _skip_adjustment_roll:
         adjustment = _resolve_cp_adjustment_for_ref_date(
             ref_date,
@@ -677,7 +725,7 @@ def compute_cp_period_balances(
     )
 
     prev_acquis = calculate_acquired_cp_for_period(
-        hire_date, prev_start, prev_end, policy=policy
+        hire_date, prev_start, prev_end, policy=policy, prorata_mois_d_entree=prorata_entree
     )
     prev_supp = _supplemental_cp_for_period_end(
         prev_end,
@@ -697,7 +745,11 @@ def compute_cp_period_balances(
     n1_available = _apply_cp_carryover_cap(max(0.0, n1_raw), policy)
 
     current_acquis = calculate_acquired_cp(
-        hire_date, ref_date, policy=policy, date_de_sortie=date_de_sortie
+        hire_date,
+        ref_date,
+        policy=policy,
+        date_de_sortie=date_de_sortie,
+        prorata_mois_d_entree=prorata_entree,
     )
     current_supp = _supplemental_cp_for_period_end(
         current_end,
