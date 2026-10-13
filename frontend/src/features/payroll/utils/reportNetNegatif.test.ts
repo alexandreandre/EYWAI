@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
-import { invaliderApresBulletin } from '@/features/payroll/utils/invalidationsBulletin';
+import {
+  clesAutourDesBulletins,
+  invaliderApresBulletin,
+  invaliderCles,
+} from '@/features/payroll/utils/invalidationsBulletin';
 import {
   clesApresReport,
   executerReport,
@@ -200,6 +204,36 @@ describe('invalidations après un report', () => {
     const { isPersistableQueryKey } = await import('@/lib/queryCachePersistence');
     expect(isPersistableQueryKey(queryKeys.reportNetNegatif('co-1', 'ps-9'))).toBe(false);
     expect(isPersistableQueryKey(queryKeys.reportsNetNegatifDuMois('co-1', 2026, 9))).toBe(false);
+  });
+
+  it('une carte démontée pendant le recalcul relit le report avant de se réafficher', async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 5 * 60 * 1000 } },
+    });
+    let lectures = 0;
+    const cle = queryKeys.reportNetNegatif('co-1', 'ps-9');
+    const positif: EtatReportNetNegatif = {
+      ...SANS_REPORT,
+      net_a_payer: 2717.84,
+      montant_a_reporter: 0,
+    };
+    const options = {
+      queryKey: cle,
+      queryFn: async () => (lectures++ === 0 ? SANS_REPORT : positif),
+      staleTime: 30_000,
+    };
+    const vue = new QueryObserver(client, options);
+    const arret = vue.subscribe(() => undefined);
+    await vue.refetch();
+    expect(vueDuReport(client.getQueryData(cle)!).bouton).toBe('Reporter 115,43 € sur octobre 2026');
+    // La ligne passe « En cours » : le bouton n’est plus à l’écran.
+    arret();
+
+    await invaliderCles(client, clesAutourDesBulletins('co-1'));
+
+    const apres = client.getQueryData<EtatReportNetNegatif>(cle)!;
+    expect(vueDuReport(apres).visible).toBe(false);
+    expect(vueDuReport(apres).bouton).toBeNull();
   });
 
   it('une régénération recharge aussi les reports groupés du mois', async () => {
