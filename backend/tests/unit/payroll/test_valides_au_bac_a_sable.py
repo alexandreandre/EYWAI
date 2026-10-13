@@ -253,11 +253,8 @@ def test_un_meme_etat_n_est_verifie_qu_une_fois(arriere_plan):
 # --- Ce qui n'est pas vérifié au bac à sable --------------------------------------
 
 
-def test_un_brouillon_n_est_pas_verifie(arriere_plan):
-    ligne, _, _ = _lire(_lectures(calendriers=JUIN_POSE), _mai(status="brouillon"), verdict=None)
-    assert arriere_plan.taches == []
-    assert ligne["a_recalculer"] is True
-    assert ligne["a_verifier"] is False
+# Un brouillon : voir `test_brouillons_au_bac_a_sable.py` (lot 43). Seul un
+# changement hors du mois et de sa fenêtre le fait vérifier au bac à sable.
 
 
 def test_un_valide_a_jour_n_est_pas_verifie(arriere_plan):

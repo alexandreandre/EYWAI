@@ -104,6 +104,12 @@ describe('estARevoir — ce que montre « Seulement à revoir »', () => {
     expect(estARevoir({ ...ok, bulletin: bulletin({ net_a_payer: -40 }) })).toBe(true);
   });
 
+  it('un brouillon en vérification au bac à sable : à revoir le temps du verdict (lot 43)', () => {
+    expect(estARevoir({ ...ok, bulletin: bulletin({ a_verifier: true }) })).toBe(true);
+    // Un validé n'est plus à revoir, même en vérification.
+    expect(estARevoir({ ...ok, bulletin: bulletin({ a_verifier: true, status: 'valide' }) })).toBe(false);
+  });
+
   it('écart fort avec le mois précédent : à revoir', () => {
     const fort = ecartAvecMoisPrecedent(bulletin({ net_a_payer: 1800 }), AOUT);
     expect(estARevoir({ ...ok, ecart: fort })).toBe(true);
