@@ -504,9 +504,10 @@ def controle_salaire_apprenti(contexte, salaire_brut: float) -> List[Dict[str, A
 def controle_heures_complementaires(contexte) -> List[Dict[str, Any]]:
     """Signale des heures complémentaires au-delà de la limite d'un temps partiel.
 
-    Limite : 1/10 de la durée du contrat (art. L3123-20 du Code du travail) ; un
-    accord peut la porter à 1/3, ce qu'aucun réglage ne porte encore : le
-    message le dit. Non bloquant.
+    Limite : 1/10 de la durée hebdomadaire ou mensuelle prévue au contrat
+    (service-public.fr, fiche F32428, ouverte le 12/10/2026). Un accord peut
+    prévoir autrement : aucun réglage ne le porte, le message invite à vérifier.
+    Non bloquant.
     """
     heures = getattr(contexte, "heures_complementaires_mois", None)
     try:
@@ -525,8 +526,8 @@ def controle_heures_complementaires(contexte) -> List[Dict[str, Any]]:
             critique=False,
             message=(
                 f"Heures complémentaires : {_euros_fr(heures)} h ce mois, au-delà de la limite de "
-                f"{_euros_fr(limite)} h (un dixième de la durée du contrat ; un accord peut "
-                "la porter au tiers, à vérifier)."
+                f"{_euros_fr(limite)} h (un dixième de la durée du contrat, sauf accord "
+                "qui prévoit autrement : à vérifier)."
             ),
         )
     ]

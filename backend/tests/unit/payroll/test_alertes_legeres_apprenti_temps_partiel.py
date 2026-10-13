@@ -4,7 +4,7 @@ heures complémentaires au-delà de la limite d'un temps partiel.
 Barème des apprentis : service-public.fr, fiche F2918 (pourcentage du SMIC selon
 l'âge et l'année d'apprentissage ; les majorations d'âge jouent le 1er du mois
 suivant l'anniversaire). Limite des heures complémentaires : 1/10 de la durée
-du contrat (article L3123-20 du Code du travail), un accord peut la porter à 1/3.
+du contrat (service-public.fr, fiche F32428), sauf accord qui prévoit autrement.
 """
 
 from __future__ import annotations
