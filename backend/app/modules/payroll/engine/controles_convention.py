@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Dict, List, Optional
 
 from app.modules.collective_agreements.application.idcc_resolution import (
@@ -410,6 +411,122 @@ def controle_plafond_transport(
                 f"Indemnité de transport : {_eur(cumul_annuel)} € versés en {annee} "
                 f"pour {_eur(plafond)} € exonérables, excédent {_eur(exces)} € "
                 "à arbitrer (bulletin inchangé)."
+            ),
+        )
+    ]
+
+
+def _euros_fr(valeur: float) -> str:
+    return f"{valeur:,.2f}".replace(",", " ").replace(".", ",")
+
+
+def _date_iso(valeur: Any) -> Optional[date]:
+    if isinstance(valeur, date):
+        return valeur
+    try:
+        return date.fromisoformat(str(valeur or "")[:10])
+    except ValueError:
+        return None
+
+
+#: Rémunération minimale d'un apprenti, en % du SMIC, par année d'apprentissage
+#: puis tranche d'âge (service-public.fr, fiche F2918).
+_POURCENTAGE_SMIC_APPRENTI = {
+    1: {"moins_18": 27, "18_20": 43, "21_25": 53, "26_plus": 100},
+    2: {"moins_18": 39, "18_20": 51, "21_25": 61, "26_plus": 100},
+    3: {"moins_18": 55, "18_20": 67, "21_25": 78, "26_plus": 100},
+}
+
+
+def controle_salaire_apprenti(contexte, salaire_brut: float) -> List[Dict[str, Any]]:
+    """Signale un salaire d'apprenti sous le minimum légal (non bloquant).
+
+    Pourcentage du SMIC selon l'âge et l'année d'apprentissage ; la tranche
+    d'âge change le 1er du mois suivant l'anniversaire. Il manque une donnée
+    (naissance, début du contrat, période, salaire) : on ne dit rien.
+    """
+    if not getattr(contexte, "is_apprenti", False):
+        return []
+    naissance = _date_iso(getattr(contexte, "date_naissance", ""))
+    debut = _date_iso(getattr(contexte, "date_debut_execution", ""))
+    fin_periode = _date_iso(getattr(contexte, "date_fin_periode", None))
+    if not (naissance and debut and fin_periode):
+        return []
+    remuneration = (getattr(contexte, "contrat", {}) or {}).get("remuneration", {}) or {}
+    salaire_base = remuneration.get("salaire_de_base") or {}
+    brut = salaire_base.get("valeur") if isinstance(salaire_base, dict) else salaire_base
+    try:
+        salaire = float(brut)
+    except (TypeError, ValueError):
+        return []
+    if salaire <= 0:
+        return []
+
+    premier = fin_periode.replace(day=1)
+    if premier < debut:
+        return []
+    age = premier.year - naissance.year - ((premier.month, premier.day) < (naissance.month, naissance.day))
+    annees = premier.year - debut.year - ((premier.month, premier.day) < (debut.month, debut.day))
+    annee = min(annees + 1, 3)
+    if age < 18:
+        tranche = "moins_18"
+    elif age < 21:
+        tranche = "18_20"
+    elif age < 26:
+        tranche = "21_25"
+    else:
+        tranche = "26_plus"
+    pourcentage = _POURCENTAGE_SMIC_APPRENTI[annee][tranche]
+
+    try:
+        smic = float(contexte.smic_mensuel_proratise())
+    except (AttributeError, TypeError, ValueError):
+        return []
+    if smic <= 0:
+        return []
+    minimum = round(smic * pourcentage / 100.0, 2)
+    if salaire >= minimum - 0.005:
+        return []
+    return [
+        _alert(
+            code="apprenti_salaire_sous_minimum_legal",
+            critique=False,
+            message=(
+                f"Salaire de l'apprenti ({_euros_fr(salaire)} €) sous le minimum légal : "
+                f"{pourcentage} % du SMIC, soit {_euros_fr(minimum)} € "
+                f"(année {annee} d'apprentissage, tranche d'âge de {age} ans). "
+                "Un accord ou la convention peut fixer plus ; à vérifier sur le contrat."
+            ),
+        )
+    ]
+
+
+def controle_heures_complementaires(contexte) -> List[Dict[str, Any]]:
+    """Signale des heures complémentaires au-delà de la limite d'un temps partiel.
+
+    Limite : 1/10 de la durée du contrat (art. L3123-20 du Code du travail) ; un
+    accord peut la porter à 1/3, ce qu'aucun réglage ne porte encore : le
+    message le dit. Non bloquant.
+    """
+    heures = getattr(contexte, "heures_complementaires_mois", None)
+    try:
+        heures = float(heures)
+        duree = float(getattr(contexte, "duree_hebdo_contrat", 0) or 0)
+    except (TypeError, ValueError):
+        return []
+    if not 0 < duree < 35 or heures <= 0:
+        return []
+    limite = round(duree * 52 / 12 / 10, 2)
+    if heures <= limite + 0.005:
+        return []
+    return [
+        _alert(
+            code="temps_partiel_heures_complementaires_limite",
+            critique=False,
+            message=(
+                f"Heures complémentaires : {_euros_fr(heures)} h ce mois, au-delà de la limite de "
+                f"{_euros_fr(limite)} h (un dixième de la durée du contrat ; un accord peut "
+                "la porter au tiers, à vérifier)."
             ),
         )
     ]
