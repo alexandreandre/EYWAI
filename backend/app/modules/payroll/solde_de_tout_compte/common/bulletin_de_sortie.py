@@ -19,6 +19,8 @@ import unicodedata
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.modules.payroll.engine.precarite_non_due import mention_du_depart
+
 from .html_renderer import amount_row, amounts_section, render_solde_tout_compte_html
 from .pdf_helpers import safe_float
 
@@ -248,6 +250,11 @@ def generate_solde_depuis_bulletin(
     exit_type = str(exit_data.get("exit_type") or "")
     sortie = _date(exit_data.get("last_working_day"))
     mois = f"{sortie.month:02d}/{sortie.year}" if sortie else ""
+    mention = f"Sommes versées avec le bulletin de paie de {mois}."
+    # Fin de CDD : la prime de précarité absente du bulletin, et pourquoi.
+    precarite_non_due = mention_du_depart(exit_data)
+    if precarite_non_due:
+        mention = f"{mention} {precarite_non_due}"
     return render_solde_tout_compte_html(
         employee_data,
         company_data,
@@ -259,6 +266,6 @@ def generate_solde_depuis_bulletin(
         # cotisations − net payé (impôt à la source et retenues compris).
         total_cotisations=round(brut + verse_apres - net, 2),
         total_net=net,
-        specific_mention=f"Sommes versées avec le bulletin de paie de {mois}.",
+        specific_mention=mention,
         sommes_apres_cotisations=verse_apres or None,
     )

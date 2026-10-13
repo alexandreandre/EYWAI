@@ -282,6 +282,8 @@ class ExitIndemnityCalculation(BaseModel):
     indemnite_conges: Optional[IndemnityDetail] = None
     indemnite_licenciement: Optional[IndemnityDetail] = None
     indemnite_rupture_conventionnelle: Optional[IndemnityDetail] = None
+    # Fin de CDD : rappel de la prime versée au bulletin, ou « non due » et son motif.
+    indemnite_precarite: Optional[Dict[str, Any]] = None
 
     # Totaux
     total_gross_indemnities: float

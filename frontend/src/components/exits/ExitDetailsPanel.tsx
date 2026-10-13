@@ -13,6 +13,13 @@ import {
   AIDE_PENSION_LIQUIDABLE,
   LIBELLE_PENSION_LIQUIDABLE,
 } from '@/features/employee-exits/utils/pensionLiquidable';
+import {
+  AIDE_PRECARITE_NON_DUE,
+  LIBELLE_PRECARITE_NON_DUE,
+  OPTIONS_MOTIF_PRECARITE_NON_DUE,
+  motifPrecariteNonDue,
+  type MotifPrecariteNonDue,
+} from '@/features/employee-exits/utils/precariteNonDue';
 import { log } from '@/lib/logger';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -170,6 +177,8 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   const [savingLastWorkingDay, setSavingLastWorkingDay] = useState(false);
   const [draftMontantNegocie, setDraftMontantNegocie] = useState('');
   const [savingMontantNegocie, setSavingMontantNegocie] = useState(false);
+  // Case « Prime de précarité non due » cochée, motif pas encore choisi.
+  const [precariteCochee, setPrecariteCochee] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingUploadType, setPendingUploadType] = useState<string>('justificatif_autre');
 
@@ -436,6 +445,30 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       toast({
         title: 'Case non enregistrée',
         description: error.response?.data?.detail || "Impossible d'enregistrer la case",
+        variant: 'destructive',
+      });
+    }
+  };
+
+  /** Fin de CDD : « Prime de précarité non due » et son motif ; null = due. */
+  const handlePrecariteNonDueSave = async (motif: MotifPrecariteNonDue | null) => {
+    if (!exitId) return;
+    try {
+      const updated = await updateEmployeeExit(exitId, { precarite_non_due: motif });
+      setExitDetails((current) => (current ? { ...current, ...updated } : current));
+      setIndemnities((updated.calculated_indemnities as ExitIndemnityCalculation | undefined) ?? null);
+      setPrecariteCochee(false);
+      toast({
+        title: motif ? 'Prime de précarité non due' : 'Prime de précarité due',
+        description: 'Les indemnités sont recalculées. Recalculez le bulletin de sortie pour le porter au bulletin.',
+      });
+      fetchExitDetails();
+      onUpdate?.();
+    } catch (error: any) {
+      log.error('Erreur lors de la mise à jour de la prime de précarité:', error);
+      toast({
+        title: 'Choix non enregistré',
+        description: error.response?.data?.detail || "Impossible d'enregistrer le choix",
         variant: 'destructive',
       });
     }
@@ -1354,6 +1387,54 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                                 </p>
                               )}
                             </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Fin de CDD : prime de précarité, ou non due et pourquoi */}
+                      {exitDetails.exit_type === 'fin_cdd' && (
+                        <div className="p-4 border rounded-lg">
+                          <p className="font-medium">Prime de précarité</p>
+                          {indemnities.indemnite_precarite?.calcul && (
+                            <p className="text-sm text-muted-foreground">
+                              {indemnities.indemnite_precarite.calcul}
+                            </p>
+                          )}
+                          <div className="mt-3 space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id="precarite-non-due"
+                                checked={precariteCochee || motifPrecariteNonDue(exitDetails.exit_notes) !== null}
+                                disabled={isArchived || isCancelled}
+                                onCheckedChange={(checked) => {
+                                  if (checked === true) setPrecariteCochee(true);
+                                  else if (motifPrecariteNonDue(exitDetails.exit_notes)) void handlePrecariteNonDueSave(null);
+                                  else setPrecariteCochee(false);
+                                }}
+                              />
+                              <Label htmlFor="precarite-non-due" className="cursor-pointer text-sm">
+                                {LIBELLE_PRECARITE_NON_DUE}
+                              </Label>
+                            </div>
+                            {(precariteCochee || motifPrecariteNonDue(exitDetails.exit_notes) !== null) && (
+                              <Select
+                                value={motifPrecariteNonDue(exitDetails.exit_notes) ?? ''}
+                                disabled={isArchived || isCancelled}
+                                onValueChange={(motif) => void handlePrecariteNonDueSave(motif as MotifPrecariteNonDue)}
+                              >
+                                <SelectTrigger id="precarite-non-due-motif" aria-label="Motif">
+                                  <SelectValue placeholder="Choisissez le motif" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {OPTIONS_MOTIF_PRECARITE_NON_DUE.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                            <p className="text-xs text-muted-foreground">{AIDE_PRECARITE_NON_DUE}</p>
                           </div>
                         </div>
                       )}

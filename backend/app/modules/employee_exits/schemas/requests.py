@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from app.modules.payroll.engine.precarite_non_due import MotifPrecariteNonDue
+
 
 # ============================================================================
 # TYPES LITTÉRAUX (partagés avec responses)
@@ -99,6 +101,10 @@ class EmployeeExitCreate(BaseModel):
     # l'employeur, L1221-26 si le salarié ; DSN 034 ou 035). Rangé dans
     # `exit_notes.probation_ended_by`, que lisent le calcul, le reçu et la DSN.
     probation_ended_by: Optional[Literal["employer", "employee"]] = None
+    # Fin de CDD : « Prime de précarité non due » et son motif (fiche F40,
+    # L1243-8, L1243-10). Rangé dans `exit_notes.precarite_non_due` ; le bulletin
+    # de sortie n'en verse pas, le reçu et l'attestation France Travail le disent.
+    precarite_non_due: Optional[MotifPrecariteNonDue] = None
 
     class Config:
         json_schema_extra = {
@@ -137,6 +143,9 @@ class EmployeeExitUpdate(BaseModel):
     indemnite_conventionnelle: Optional[float] = Field(default=None, ge=0)
     # Rupture conventionnelle : case « peut liquider une pension de retraite ».
     pension_liquidable: Optional[bool] = None
+    # Fin de CDD : motif de la prime de précarité non due (None = due). Rangé
+    # dans `exit_notes`, le dossier est recalculé.
+    precarite_non_due: Optional[MotifPrecariteNonDue] = None
 
 
 # ============================================================================

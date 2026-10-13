@@ -98,6 +98,8 @@ def notes_du_dossier_a_la_creation(exit_type: str, exit_data: Dict[str, Any]) ->
         notes["pension_liquidable"] = True
     if exit_type == "fin_periode_essai" and exit_data.get("probation_ended_by"):
         notes["probation_ended_by"] = exit_data["probation_ended_by"]
+    if exit_type == "fin_cdd" and exit_data.get("precarite_non_due"):
+        notes["precarite_non_due"] = exit_data["precarite_non_due"]
     return notes or None
 
 
@@ -737,6 +739,21 @@ def update_employee_exit(
             notes["pension_liquidable"] = True
         else:
             notes.pop("pension_liquidable", None)
+        update_data["exit_notes"] = notes
+        saisie_du_dossier = True
+
+    # Fin de CDD : « Prime de précarité non due » et son motif (None = due).
+    if "precarite_non_due" in update_data:
+        if (new_exit_type or existing.get("exit_type")) != "fin_cdd":
+            raise EmployeeExitApplicationError(
+                400, "La prime de précarité ne concerne qu'une fin de CDD."
+            )
+        notes = dict(update_data.get("exit_notes") or existing.get("exit_notes") or {})
+        motif = update_data.pop("precarite_non_due")
+        if motif:
+            notes["precarite_non_due"] = motif
+        else:
+            notes.pop("precarite_non_due", None)
         update_data["exit_notes"] = notes
         saisie_du_dossier = True
 

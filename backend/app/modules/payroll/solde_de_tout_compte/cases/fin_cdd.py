@@ -10,6 +10,7 @@ maintien / 1/10e / L1243-8).
 
 from typing import Any, Dict
 
+from app.modules.payroll.engine.precarite_non_due import mention_du_depart
 from app.modules.payroll.solde_de_tout_compte.common import pdf_helpers, socle_commun
 from app.modules.payroll.solde_de_tout_compte.common.html_renderer import (
     amount_row,
@@ -40,17 +41,20 @@ def generate_fin_cdd_solde(
     # === Indemnité de fin de contrat (précarité) — informative ===
     indemnite_precarite = indemnities.get("indemnite_precarite") or {}
     montant_precarite = pdf_helpers.safe_float(indemnite_precarite.get("montant", 0))
+    # « Prime de précarité non due » saisie au départ : la ligne dit pourquoi.
+    precarite_non_due = mention_du_depart(exit_data)
     precarite_section = amounts_section(
         "INDEMNITÉ DE FIN DE CONTRAT",
         [
             amount_row(
                 "Indemnité de fin de contrat (art. L1243-8)",
-                (
+                precarite_non_due
+                or (
                     "10 % des rémunérations brutes du contrat — versée sur le "
                     "bulletin du dernier mois du CDD (rappel informatif, non "
                     "cumulée aux totaux ci-dessous)"
                 ),
-                montant_precarite if montant_precarite > 0 else None,
+                None if precarite_non_due or montant_precarite <= 0 else montant_precarite,
             ),
         ],
     )
@@ -83,8 +87,12 @@ def generate_fin_cdd_solde(
         total_cotisations=total_cotisations_final,
         total_net=total_net_final,
         specific_mention=(
-            "Fin du contrat à durée déterminée à son terme (art. L1243-8 : "
-            "l'indemnité de fin de contrat est versée avec le bulletin du "
-            "dernier mois du contrat)."
+            f"Fin du contrat à durée déterminée. {precarite_non_due}"
+            if precarite_non_due
+            else (
+                "Fin du contrat à durée déterminée à son terme (art. L1243-8 : "
+                "l'indemnité de fin de contrat est versée avec le bulletin du "
+                "dernier mois du contrat)."
+            )
         ),
     )

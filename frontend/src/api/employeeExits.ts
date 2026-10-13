@@ -4,6 +4,7 @@
  */
 
 import apiClient from './apiClient';
+import type { MotifPrecariteNonDue } from '@/features/employee-exits/utils/precariteNonDue';
 
 // ============================================================================
 // TYPES
@@ -327,6 +328,15 @@ export interface ExitIndemnityCalculation {
     alertes?: string[];
   };
 
+  /** Fin de CDD : la prime de précarité, versée au bulletin de sortie (rappel), ou non due et pourquoi. */
+  indemnite_precarite?: {
+    montant: number;
+    description?: string;
+    calcul?: string;
+    non_due?: boolean;
+    motif?: MotifPrecariteNonDue;
+  };
+
   // Totaux
   total_gross_indemnities: number;
   /** Plus calculé : le net est celui du bulletin de sortie. */
@@ -375,6 +385,8 @@ export interface CreateEmployeeExitRequest {
   pension_liquidable?: boolean;
   /** Fin de période d'essai : qui rompt (délai de prévenance L1221-25 ou L1221-26). */
   probation_ended_by?: 'employer' | 'employee';
+  /** Fin de CDD : la prime de précarité n'est pas due, pour ce motif (fiche F40, L1243-10). */
+  precarite_non_due?: MotifPrecariteNonDue;
 }
 
 export interface UpdateEmployeeExitRequest {
@@ -395,6 +407,8 @@ export interface UpdateEmployeeExitRequest {
   indemnite_conventionnelle?: number | null;
   /** Rupture conventionnelle : le salarié peut liquider une pension de retraite de base. */
   pension_liquidable?: boolean;
+  /** Fin de CDD : motif de la prime de précarité non due ; null = due. */
+  precarite_non_due?: MotifPrecariteNonDue | null;
 }
 
 export interface StatusUpdateRequest {

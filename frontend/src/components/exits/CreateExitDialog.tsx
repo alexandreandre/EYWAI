@@ -55,6 +55,13 @@ import {
   OPTIONS_INITIATIVE_ESSAI,
   type InitiativeEssai,
 } from '@/features/employee-exits/utils/periodeEssai';
+import {
+  AIDE_PRECARITE_NON_DUE,
+  LIBELLE_PRECARITE_NON_DUE,
+  MESSAGE_MOTIF_PRECARITE_MANQUANT,
+  OPTIONS_MOTIF_PRECARITE_NON_DUE,
+  type MotifPrecariteNonDue,
+} from '@/features/employee-exits/utils/precariteNonDue';
 import { AlertCircle, Info, Loader2 } from 'lucide-react';
 
 interface CreateExitDialogProps {
@@ -106,6 +113,8 @@ export function CreateExitDialog({
   const [indemniteConventionnelle, setIndemniteConventionnelle] = useState<string>('');
   const [pensionLiquidable, setPensionLiquidable] = useState(false);
   const [initiativeEssai, setInitiativeEssai] = useState<InitiativeEssai | ''>('');
+  const [precariteNonDue, setPrecariteNonDue] = useState(false);
+  const [motifPrecarite, setMotifPrecarite] = useState<MotifPrecariteNonDue | ''>('');
 
   const selectedEmployee = employees.find((emp) => emp.id === employeeId);
   // Salarié présélectionné (bandeau de la Paie) absent de la liste : le dire,
@@ -131,6 +140,8 @@ export function CreateExitDialog({
     setIndemniteConventionnelle('');
     setPensionLiquidable(false);
     setInitiativeEssai('');
+    setPrecariteNonDue(false);
+    setMotifPrecarite('');
     setNoticePreview(null);
     setNoticePreviewError(null);
     noticeManuallyEdited.current = false;
@@ -293,6 +304,11 @@ export function CreateExitDialog({
       return;
     }
 
+    if (exitType === 'fin_cdd' && precariteNonDue && !motifPrecarite) {
+      toast({ title: LIBELLE_PRECARITE_NON_DUE, description: MESSAGE_MOTIF_PRECARITE_MANQUANT, variant: 'destructive' });
+      return;
+    }
+
     const conventionnelle = indemniteConventionnelleSaisissable(exitType)
       ? lireMontantNegocie(indemniteConventionnelle)
       : { valeur: null };
@@ -317,6 +333,7 @@ export function CreateExitDialog({
         ...(conventionnelle.valeur !== null ? { indemnite_conventionnelle: conventionnelle.valeur } : {}),
         ...(exitType === 'rupture_conventionnelle' && pensionLiquidable ? { pension_liquidable: true } : {}),
         ...(exitType === 'fin_periode_essai' && initiativeEssai ? { probation_ended_by: initiativeEssai } : {}),
+        ...(exitType === 'fin_cdd' && precariteNonDue && motifPrecarite ? { precarite_non_due: motifPrecarite } : {}),
       };
 
       await createEmployeeExit(data);
@@ -642,6 +659,39 @@ export function CreateExitDialog({
                 </Label>
               </div>
               <p className="text-sm text-muted-foreground">{AIDE_PENSION_LIQUIDABLE}</p>
+            </div>
+          )}
+
+          {exitType === 'fin_cdd' && (
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="precarite_non_due"
+                  checked={precariteNonDue}
+                  onCheckedChange={(checked) => setPrecariteNonDue(checked === true)}
+                />
+                <Label htmlFor="precarite_non_due" className="cursor-pointer">
+                  {LIBELLE_PRECARITE_NON_DUE}
+                </Label>
+              </div>
+              {precariteNonDue && (
+                <Select
+                  value={motifPrecarite}
+                  onValueChange={(value) => setMotifPrecarite(value as MotifPrecariteNonDue)}
+                >
+                  <SelectTrigger id="precarite_non_due_motif" aria-label="Motif">
+                    <SelectValue placeholder="Choisissez le motif" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OPTIONS_MOTIF_PRECARITE_NON_DUE.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <p className="text-sm text-muted-foreground">{AIDE_PRECARITE_NON_DUE}</p>
             </div>
           )}
 

@@ -10,7 +10,9 @@ describe('Fin de CDD : « Prime de précarité non due » se saisit à l’écra
     const t = lire('components/exits/CreateExitDialog.tsx');
     expect(t).toContain('LIBELLE_PRECARITE_NON_DUE');
     expect(t).toContain('OPTIONS_MOTIF_PRECARITE_NON_DUE');
-    expect(t).toContain("exitType === 'fin_cdd' && precariteNonDue ? { precarite_non_due: motifPrecarite }");
+    expect(t).toContain(
+      "exitType === 'fin_cdd' && precariteNonDue && motifPrecarite ? { precarite_non_due: motifPrecarite }"
+    );
     expect(t).toContain('MESSAGE_MOTIF_PRECARITE_MANQUANT');
   });
 

@@ -15,6 +15,7 @@ from .iccp_fin_contrat import (
 from .indemnites_sortie_brut import lignes_indemnites_sortie_soumises
 from .preavis import ajouter_les_conges_du_preavis, conges_du_preavis_du_dossier
 from .motif_recours import prime_precarite_exclue_par_motif
+from .precarite_non_due import precarite_non_due_au_dossier
 from .iccp_arbitrage import lire_parametres_conges
 from .heures_prevues import heures_prevues_sous_contrat, repartir_heures_du_contrat
 from .salary_evolution_brut import (
@@ -400,6 +401,9 @@ def _calculer_prime_precarite_cdd(
         "classification_conventionnelle"
     )
     if prime_precarite_exclue_par_motif(classification, spec):
+        return None
+    # « Prime de précarité non due » saisie au départ (dossier du mois de sortie).
+    if precarite_non_due_au_dossier(getattr(contexte, "exit_indemnities", None)):
         return None
 
     cfg = (contexte.baremes.get("cdd", {}) or {}).get("precarite", {}) or {}

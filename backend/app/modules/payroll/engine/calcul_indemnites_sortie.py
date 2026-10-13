@@ -40,6 +40,10 @@ from app.modules.payroll.engine.regime_indemnites_rupture import (
     RUPTURE_CONVENTIONNELLE,
     ventiler_indemnite_de_rupture,
 )
+from app.modules.payroll.engine.precarite_non_due import (
+    mention_precarite_non_due,
+    motif_precarite_non_due,
+)
 from app.modules.payroll.engine.reference_remuneration import (
     calculer_base_reference_dixieme,
     estimer_extras_fin_contrat,
@@ -1404,6 +1408,21 @@ def calculer_indemnites_sortie(
     notice_indemnity_type = exit_data.get("notice_indemnity_type", "not_applicable")
     is_gross_misconduct = exit_data.get("is_gross_misconduct", False)
 
+    # Fin de CDD : « Prime de précarité non due » saisie au départ. La prime ne
+    # s'estime pas, et l'indemnité de congés s'estime sans elle (même drapeau que
+    # celui de la fiche).
+    motif_non_due = (
+        motif_precarite_non_due(exit_data.get("exit_notes")) if exit_type == "fin_cdd" else None
+    )
+    if motif_non_due:
+        employee_data = {
+            **employee_data,
+            "specificites_paie": {
+                **(employee_data.get("specificites_paie") or {}),
+                "exclure_prime_precarite": True,
+            },
+        }
+
     log_payroll_debug(logger, f"\nEmployé: {employee_data.get('first_name')} {employee_data.get('last_name')}")
     log_payroll_debug(logger, f'Type de sortie: {exit_type}')
     log_payroll_debug(logger, f"Date d'embauche: {hire_date}")
@@ -1532,6 +1551,17 @@ def calculer_indemnites_sortie(
             ),
             "versee_au_bulletin": True,
         }
+        if motif_non_due:
+            # Le bulletin de sortie lit ce bloc et ne verse pas la prime.
+            indemnite_precarite.update(
+                {
+                    "montant": 0.0,
+                    "calcul": mention_precarite_non_due(motif_non_due),
+                    "versee_au_bulletin": False,
+                    "non_due": True,
+                    "motif": motif_non_due,
+                }
+            )
 
     conventionnelle = _indemnite_conventionnelle_saisie(exit_data)
     if exit_type == "licenciement":

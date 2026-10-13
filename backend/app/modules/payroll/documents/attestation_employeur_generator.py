@@ -23,6 +23,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from app.modules.payroll.engine.precarite_non_due import mention_du_depart
 from app.modules.payroll.engine.preavis import (
     indemnite_compensatrice_due,
     phrase_execution_preavis,
@@ -459,6 +460,11 @@ def build_attestation_employeur_pdf(
         )
     )
     story.append(indemnity_table)
+    # Fin de CDD : la prime de précarité absente, et pourquoi.
+    precarite_non_due = mention_du_depart(exit_data)
+    if precarite_non_due:
+        story.append(Spacer(1, 0.15 * cm))
+        story.append(Paragraph(precarite_non_due, styles["CorpsTexte"]))
 
     # 8. Préavis
     story.append(Spacer(1, 0.3 * cm))
