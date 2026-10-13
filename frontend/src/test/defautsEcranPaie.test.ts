@@ -137,3 +137,19 @@ describe("mode « fidèle au bulletin » des congés payés", () => {
     expect(fenetre).toContain("réimporter le bulletin");
   });
 });
+
+describe("liste de contrôle : « DSN déposée hors de Martine » (décision du 12/10)", () => {
+  it("l'étape DSN propose la marque à la main, branchée sur l'historique des exports", () => {
+    const liste = lire("features/payroll/components/ListeControleMois.tsx");
+    expect(liste).toContain("Marquer faite : DSN déposée hors de Martine");
+    const page = lire("pages/rh/Payroll.tsx");
+    expect(page).toContain("marquerDsnHorsMartine(periodeExports)");
+    expect(page).toContain("onMarquerDsnHorsMartine=");
+  });
+
+  it("l'historique ne propose pas de télécharger une marque sans fichier", () => {
+    const historique = lire("components/exports/ExportHistory.tsx");
+    expect(historique).toContain('dsn_hors_martine: "DSN déposée hors de Martine"');
+    expect(historique).toContain("item.files_count === 0");
+  });
+});
