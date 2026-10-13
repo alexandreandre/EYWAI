@@ -9,6 +9,8 @@ de rendu. Le rendu PDF est assuré par ``html_renderer`` (format avocat).
 from datetime import datetime, date
 from typing import Any, Dict, Optional, Tuple
 
+from app.shared.domain.pluriel import accord, pluriel
+
 from .html_renderer import amount_row, amounts_section
 from .pdf_helpers import format_currency, safe_float
 
@@ -176,8 +178,8 @@ def compute_remunerations_section(
         detail_salaire = _NEANT
     else:
         detail_salaire = (
-            f"Base : {format_currency(base_mensuelle)} / {jours_mois} jours "
-            f"× {jours_trav} jours travaillés"
+            f"Base : {format_currency(base_mensuelle)} / {pluriel(jours_mois, 'jour')} "
+            f"× {pluriel(jours_trav, 'jour travaillé', 'jours travaillés')}"
         )
 
     rows.append(amount_row("Salaire du dernier mois", detail_salaire, brut_salaire))
@@ -252,7 +254,10 @@ def compute_conges_section(
     ind_maintien = details_conges.get("indemnite_maintien") if details_conges else None
     ind_dixieme = details_conges.get("indemnite_dixieme") if details_conges else None
 
-    detail_conges_text = f"{jours_restants:.2f} jours restants"
+    detail_conges_text = (
+        f"{jours_restants:.2f}".replace(".", ",")
+        + f" {accord(jours_restants, 'jour restant', 'jours restants')}"
+    )
     if cp_acquis is not None and cp_pris is not None:
         detail_conges_text += f" ({cp_acquis:.0f} acquis − {cp_pris:.0f} pris)"
     detail_conges_text += f" — Méthode : {methode_labels.get(methode, methode)}"
@@ -328,7 +333,7 @@ def compute_preavis_section(
     elif jours <= 0:
         texte = "Aucun préavis"
     else:
-        texte = f"Préavis de {jours} jours. {phrase_execution_preavis(type_preavis)}"
+        texte = f"Préavis de {pluriel(jours, 'jour')}. {phrase_execution_preavis(type_preavis)}"
     section = amounts_section(
         "PRÉAVIS",
         [

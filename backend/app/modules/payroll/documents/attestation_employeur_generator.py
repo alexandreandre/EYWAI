@@ -24,6 +24,7 @@ from reportlab.platypus import (
 )
 
 from app.modules.payroll.engine.precarite_non_due import mention_du_depart
+from app.shared.domain.pluriel import pluriel
 from app.modules.payroll.engine.preavis import (
     indemnite_compensatrice_due,
     phrase_execution_preavis,
@@ -194,7 +195,7 @@ def _preavis_lines(exit_data: Dict[str, Any]) -> List[str]:
     notice_indemnity_type = exit_data.get("notice_indemnity_type", "not_applicable")
 
     if notice_days and int(notice_days) > 0:
-        lines.append(f"Durée du préavis : {notice_days} jours.")
+        lines.append(f"Durée du préavis : {pluriel(int(notice_days), 'jour')}.")
         if notice_end:
             lines.append(f"Fin de préavis : {format_date(notice_end)}.")
         # Même phrase que le reçu et le certificat (engine/preavis, L1234-5).

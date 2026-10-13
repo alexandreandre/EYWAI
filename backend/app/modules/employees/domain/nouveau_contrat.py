@@ -156,7 +156,8 @@ def raison_du_refus(
     if demande.date_debut <= precedent.fin:
         return (
             "Le nouveau contrat doit commencer après la fin du précédent "
-            f"({_jj_mm_aaaa(precedent.fin)})."
+            f"({_jj_mm_aaaa(precedent.fin)}). Il peut commencer le "
+            f"{_jj_mm_aaaa(premier_jour_possible(precedent))} au plus tôt."
         )
     if _rang(demande.date_debut) <= _rang(precedent.fin):
         return (

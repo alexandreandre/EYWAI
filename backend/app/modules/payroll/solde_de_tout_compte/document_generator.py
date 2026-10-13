@@ -13,6 +13,7 @@ from reportlab.lib.units import cm
 from reportlab.lib.enums import TA_CENTER
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib import colors
+from app.shared.domain.pluriel import pluriel
 
 # Import shared helpers
 from app.modules.payroll.solde_de_tout_compte.common import pdf_helpers
@@ -184,7 +185,7 @@ class EmployeeExitDocumentGenerator:
         preavis_lines = []
         if notice_days and int(notice_days) > 0:
             preavis_lines.append(
-                f"Durée du préavis : <b>{notice_days} jours</b>."
+                f"Durée du préavis : <b>{pluriel(int(notice_days), 'jour')}</b>."
             )
             if notice_end:
                 preavis_lines.append(

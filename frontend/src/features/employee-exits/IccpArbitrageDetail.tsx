@@ -4,6 +4,7 @@ import { AlertTriangle } from 'lucide-react';
 
 import type { IccpDetails } from '@/api/employeeExits';
 import { libelleMethodeIccp, lignesDesPeriodes } from '@/features/employee-exits/utils/iccpLibelles';
+import { pluriel } from '@/lib/pluriel';
 
 function formatCurrency(value: number | undefined | null): string {
   if (value == null || Number.isNaN(value)) return '—';
@@ -45,7 +46,7 @@ export default function IccpArbitrageDetail({
       {joursRestants != null && (
         <p className="text-sm">
           <span className="text-muted-foreground">Solde CP restant : </span>
-          <span className="font-medium">{joursRestants.toFixed(2)} jours</span>
+          <span className="font-medium">{pluriel(joursRestants, 'jour')}</span>
         </p>
       )}
 

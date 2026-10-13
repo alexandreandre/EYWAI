@@ -12,6 +12,7 @@ from datetime import date, datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
+from app.shared.domain.pluriel import accord, pluriel
 
 from app.modules.employee_exits.application.dto import (
     EmployeeExitApplicationError,
@@ -902,7 +903,8 @@ def update_exit_status(
             if days < 15:
                 raise EmployeeExitApplicationError(
                     400,
-                    f"Période de rétractation de 15 jours non respectée (seulement {days} jours écoulés)",
+                    "Période de rétractation de 15 jours non respectée (seulement "
+                    f"{pluriel(days, 'jour')} {accord(days, 'écoulé')})",
                 )
     update_payload = {"status": new_status}
     if new_status in ("rupture_validee", "licenciement_notifie"):

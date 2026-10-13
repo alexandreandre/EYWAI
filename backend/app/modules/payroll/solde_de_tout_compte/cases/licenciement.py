@@ -4,6 +4,8 @@ Case 3: Licenciement - Solde de tout compte generation
 
 from typing import Dict, Any
 
+from app.shared.domain.pluriel import accord
+
 from app.modules.payroll.solde_de_tout_compte.common import socle_commun
 from app.modules.payroll.solde_de_tout_compte.common import pdf_helpers
 from app.modules.payroll.solde_de_tout_compte.common.html_renderer import (
@@ -52,7 +54,9 @@ def generate_licenciement_solde(
     elif indemnite_licenciement.get("motif") == "Ancienneté < 8 mois":
         base_retenue = "Non applicable (ancienneté insuffisante)"
 
-    detail_licenciement = f"Ancienneté : {anciennete:.2f} ans"
+    detail_licenciement = (
+        "Ancienneté : " + f"{anciennete:.2f}".replace(".", ",") + f" {accord(anciennete, 'an')}"
+    )
     if salaire_ref > 0:
         detail_licenciement += (
             f" | Salaire de référence : {pdf_helpers.format_currency(salaire_ref)}"

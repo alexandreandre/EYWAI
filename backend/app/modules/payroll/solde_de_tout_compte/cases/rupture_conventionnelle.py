@@ -4,6 +4,8 @@ Case 2: Rupture Conventionnelle - Solde de tout compte generation
 
 from typing import Dict, Any
 
+from app.shared.domain.pluriel import accord
+
 from app.modules.payroll.solde_de_tout_compte.common import socle_commun
 from app.modules.payroll.solde_de_tout_compte.common import pdf_helpers
 from app.modules.payroll.solde_de_tout_compte.common.html_renderer import (
@@ -39,7 +41,9 @@ def generate_rupture_conventionnelle_solde(
     anciennete = pdf_helpers.safe_float(indemnities.get("anciennete_annees", 0))
     salaire_ref = pdf_helpers.safe_float(indemnities.get("salaire_reference", 0))
 
-    detail_rupture = f"Ancienneté : {anciennete:.2f} ans"
+    detail_rupture = (
+        "Ancienneté : " + f"{anciennete:.2f}".replace(".", ",") + f" {accord(anciennete, 'an')}"
+    )
     if salaire_ref > 0:
         detail_rupture += (
             f" | Salaire de référence : {pdf_helpers.format_currency(salaire_ref)}"

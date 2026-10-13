@@ -25,6 +25,8 @@ from typing import Any, Dict, List, Literal, Optional
 
 from dateutil.relativedelta import relativedelta
 
+from app.shared.domain.pluriel import accord, pluriel
+
 NoticeSource = Literal["legal", "convention", "none", "not_applicable"]
 EmployeeCategory = Literal["cadre", "non_cadre"]
 
@@ -203,10 +205,11 @@ def _legal_notice_days(
     return NoticePeriodResult(
         days=days,
         source="legal",
-        label=f"{days} jours",
+        label=pluriel(days, "jour"),
         detail=(
             f"Préavis légal {objet} ({renvoi}) : ancienneté {tranche}, "
-            f"{mois} mois ({days} jours calendaires). La convention collective peut prévoir "
+            f"{mois} mois ({pluriel(days, 'jour')} {accord(days, 'calendaire')}). "
+            "La convention collective peut prévoir "
             "plus long."
         ),
         seniority_months=seniority_months,
@@ -364,7 +367,7 @@ def compute_notice_period(
             return NoticePeriodResult(
                 days=conv_days,
                 source="convention",
-                label=f"{conv_days} jours",
+                label=pluriel(conv_days, "jour"),
                 detail=(
                     f"Préavis conventionnel selon {cc_label}{idcc_part} "
                     f"pour une ancienneté de {seniority_months} mois."

@@ -60,6 +60,7 @@ from app.modules.payroll.engine.salaire_contractuel import (
     salaire_contractuel_total_hors_hs_mode,
     salaire_hors_hs_structurelles,
 )
+from app.shared.domain.pluriel import accord, pluriel
 
 
 def _euros(valeur: float) -> str:
@@ -203,10 +204,12 @@ def calculer_indemnite_preavis(
         "jours_restants": jours,
         "salaire_reference": round(remuneration_mensuelle, 2),
         "type": notice_indemnity_type,
-        "description": f"Indemnité compensatrice de préavis ({jours} jours non exécutés)",
+        "description": (
+            f"Indemnité compensatrice de préavis ({pluriel(jours, 'jour')} non {accord(jours, 'exécuté')})"
+        ),
         "calcul": (
             f"Rémunération qu'il aurait perçue : {_euros(remuneration_mensuelle)} par mois"
-            f"{origine} / 30 × {jours} jours de préavis restant = {_euros(indemnite)}"
+            f"{origine} / 30 × {pluriel(jours, 'jour')} de préavis restant = {_euros(indemnite)}"
         ),
     }
 
@@ -262,7 +265,7 @@ def poser_les_conges_du_preavis(
     bloc["conges_du_preavis"] = [p.en_dict() for p in parts]
     bloc["calcul"] = (
         f"{bloc.get('calcul') or ''}. Congés acquis pendant ce temps non exécuté : "
-        f"{_jours_fr(total)} jours, indemnisés avec les congés payés, et l'indemnité entre dans "
+        f"{_jours_fr(total)} {accord(total, 'jour')}, indemnisés avec les congés payés, et l'indemnité entre dans "
         f"l'assiette du dixième ({article})."
     )
     return bloc
@@ -385,9 +388,11 @@ def calculer_indemnite_licenciement(
         "tranche2_annees": annees_tranche2,
         "tranche2_montant": round(indemnite_tranche2, 2),
         "description": "Indemnité légale de licenciement (Article L1234-9)",
-        "calcul": f"Tranche 1 : {_nombre(annees_tranche1)} ans × 1/4 de mois ({_euros(indemnite_tranche1)})"
+        "calcul": f"Tranche 1 : {_nombre(annees_tranche1)} {accord(annees_tranche1, 'an')} × 1/4 de mois "
+        f"({_euros(indemnite_tranche1)})"
         + (
-            f" + tranche 2 : {_nombre(annees_tranche2)} ans × 1/3 de mois ({_euros(indemnite_tranche2)})"
+            f" + tranche 2 : {_nombre(annees_tranche2)} {accord(annees_tranche2, 'an')} × 1/3 de mois "
+            f"({_euros(indemnite_tranche2)})"
             if annees_tranche2 > 0
             else ""
         )
@@ -854,7 +859,8 @@ def calculer_indemnite_conges_restants(
         "dixieme_global": "1/10ème de la rémunération du contrat",
     }
     calcul_txt = (
-        f"{jours_restants} jours restants — méthode {libelles[methode_label]} "
+        f"{_jours_fr(jours_restants)} {accord(jours_restants, 'jour restant', 'jours restants')} — "
+        f"méthode {libelles[methode_label]} "
         f"retenue = {indemnite:.2f} € "
         f"(maintien: {arbitrage.indemnite_maintien:.2f} €, "
         f"1/10ème: {arbitrage.indemnite_dixieme:.2f} €) — estimation globale, "
@@ -1157,13 +1163,13 @@ def calculer_indemnite_depart_retraite(mois_d_anciennete: int, salaire_reference
     montant = round(salaire_reference * mois_de_salaire, 2)
     if mois_de_salaire == 0:
         calcul = (
-            f"Ancienneté de {annees} ans : moins de dix ans, pas d'indemnité légale de "
+            f"Ancienneté de {pluriel(annees, 'an')} : moins de dix ans, pas d'indemnité légale de "
             "départ à la retraite (D1237-1)"
         )
     else:
         mois_fr = f"{mois_de_salaire:g}".replace(".", ",")
         calcul = (
-            f"{mois_fr} mois de salaire pour {annees} ans d'ancienneté (D1237-1) "
+            f"{mois_fr} mois de salaire pour {pluriel(annees, 'an')} d'ancienneté (D1237-1) "
             f"× {_euros(salaire_reference)} = {_euros(montant)}"
         )
     return {
@@ -1305,9 +1311,10 @@ def _indemnite_delai_prevenance(
     manquants = delai.jours_non_respectes(dernier_jour)
     qui = "l'employeur" if initiative == "employer" else "le salarié"
     calcul = (
-        f"Rupture par {qui} notifiée le {notification:%d/%m/%Y}, après {delai.jours_de_presence} "
-        f"jours de présence : délai de prévenance de {delai.libelle} ({delai.article}), jusqu'au "
-        f"{delai.fin:%d/%m/%Y} ; {accordes} jours jusqu'au dernier jour travaillé."
+        f"Rupture par {qui} notifiée le {notification:%d/%m/%Y}, après "
+        f"{pluriel(delai.jours_de_presence, 'jour')} de présence : délai de prévenance de "
+        f"{delai.libelle} ({delai.article}), jusqu'au {delai.fin:%d/%m/%Y} ; "
+        f"{pluriel(accordes, 'jour')} jusqu'au dernier jour travaillé."
     )
     bloc.update(
         {
@@ -1335,9 +1342,9 @@ def _indemnite_delai_prevenance(
                 "jours_restants": manquants,
                 "salaire_reference": round(remuneration, 2),
                 "calcul": (
-                    f"{calcul} Délai non respecté de {manquants} jours : indemnité compensatrice "
+                    f"{calcul} Délai non respecté de {pluriel(manquants, 'jour')} : indemnité compensatrice "
                     f"due (L1221-25), {_euros(remuneration)} par mois ({source}) / 30 × "
-                    f"{manquants} jours = {_euros(montant)}"
+                    f"{pluriel(manquants, 'jour')} = {_euros(montant)}"
                 ),
             }
         )

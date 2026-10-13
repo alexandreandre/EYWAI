@@ -98,6 +98,9 @@ export function NouveauContratDialog({
     setForm((f) => (f ? { ...f, [cle]: valeur } : f));
   }
 
+  // Le formulaire est en noValidate : une date de début trop tôt reçoit le message
+  // de Martine (pourquoi, et la date possible), pas un refus muet du navigateur
+  // sur l'attribut min du champ.
   function soumettre(event: FormEvent) {
     event.preventDefault();
     if (!form || !apercu.data) return;
@@ -137,7 +140,7 @@ export function NouveauContratDialog({
             {data.raison}
           </p>
         ) : data && form ? (
-          <form id="nouveau-contrat" onSubmit={soumettre} className="grid gap-3 sm:grid-cols-2">
+          <form id="nouveau-contrat" noValidate onSubmit={soumettre} className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor="nc-debut">Date de début</Label>
               <Input

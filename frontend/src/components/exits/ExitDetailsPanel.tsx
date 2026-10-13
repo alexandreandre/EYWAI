@@ -480,11 +480,13 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       });
       fetchExitDetails();
       onUpdate?.();
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.error('Erreur lors de la mise à jour de la prime de précarité:', error);
       toast({
         title: 'Choix non enregistré',
-        description: error.response?.data?.detail || "Impossible d'enregistrer le choix",
+        description:
+          (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+          "Impossible d'enregistrer le choix",
         variant: 'destructive',
       });
     }
@@ -955,7 +957,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
               )}
               <div>
                 <Label className="text-muted-foreground">Préavis</Label>
-                <p className="font-medium">{exitDetails.notice_period_days} jours</p>
+                <p className="font-medium">{pluriel(exitDetails.notice_period_days ?? 0, 'jour')}</p>
               </div>
             </div>
             {exitDetails.exit_reason && (

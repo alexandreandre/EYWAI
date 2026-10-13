@@ -3,6 +3,7 @@
  */
 
 import { log } from '@/lib/logger';
+import { pluriel } from '@/lib/pluriel';
 import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
@@ -383,7 +384,7 @@ export function CreateExitDialog({
       minEndDate.setDate(minEndDate.getDate() + noticePeriodDays);
       return new Date(lastWorkingDay) < minEndDate;
     })()
-      ? `Le dernier jour travaillé est antérieur à la fin théorique du préavis (${noticePeriodDays} jours). Vérifiez les dates ou indiquez une dispense.`
+      ? `Le dernier jour travaillé est antérieur à la fin théorique du préavis (${pluriel(noticePeriodDays, 'jour')}). Vérifiez les dates ou indiquez une dispense.`
       : null;
 
   return (

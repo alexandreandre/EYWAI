@@ -57,7 +57,7 @@ export function erreurDuFormulaire(
   if (!form.dateDebut) return 'Indiquez la date de début du nouveau contrat.';
   const premier = apercu.premier_jour_possible;
   if (premier && form.dateDebut < premier) {
-    return `Le nouveau contrat peut commencer le ${jjmmaaaa(premier)} au plus tôt (le précédent se termine le ${jjmmaaaa(apercu.contrat_precedent?.date_fin)}).`;
+    return `Le nouveau contrat peut commencer le ${jjmmaaaa(premier)} au plus tôt : le précédent se termine le ${jjmmaaaa(apercu.contrat_precedent?.date_fin)} et Martine ne fait qu'un bulletin par mois.`;
   }
   if (estUnCdd(form.typeContrat) && !form.dateFin) return 'Indiquez la date de fin du CDD.';
   if (avecDateDeFin(form.typeContrat) && form.dateFin && form.dateFin < form.dateDebut) {

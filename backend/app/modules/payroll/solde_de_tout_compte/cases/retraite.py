@@ -4,6 +4,8 @@ Case 4: Départ/Mise à la retraite - Solde de tout compte generation
 
 from typing import Dict, Any
 
+from app.shared.domain.pluriel import accord
+
 from app.modules.payroll.solde_de_tout_compte.common import socle_commun
 from app.modules.payroll.solde_de_tout_compte.common import pdf_helpers
 from app.modules.payroll.solde_de_tout_compte.common.html_renderer import (
@@ -67,7 +69,9 @@ def generate_retraite_solde(
     elif indemnite_retraite.get("conventionnelle"):
         base_retenue = "Conventionnelle"
 
-    detail_retraite = f"Ancienneté : {anciennete:.2f} ans"
+    detail_retraite = (
+        "Ancienneté : " + f"{anciennete:.2f}".replace(".", ",") + f" {accord(anciennete, 'an')}"
+    )
     if salaire_ref > 0:
         detail_retraite += (
             f" | Salaire de référence : {pdf_helpers.format_currency(salaire_ref)}"
