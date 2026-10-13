@@ -219,7 +219,7 @@ def _lire_surcharges_fenetre(
 
 
 _EMPREINTES_DES_BULLETINS = (
-    "year, month, status, "
+    "id, year, month, status, "
     "empreinte_entrees:payslip_data->parametres->>empreinte_entrees, "
     "empreinte_cumuls_precedents:payslip_data->parametres->>empreinte_cumuls_precedents, "
     "empreinte_complementaire:payslip_data->parametres->empreinte_complementaire"
@@ -248,6 +248,57 @@ def lire_empreintes_des_bulletins(employee_id: str) -> list[dict[str, Any]]:
             continue
         return list((resp.data if resp else None) or [])
     return []
+
+
+def lire_bulletin_enregistre(employee_id: str, year: int, month: int) -> dict[str, Any] | None:
+    """Le bulletin enregistré du mois (id, statut, données), ou None."""
+    resp = (
+        supabase.table("payslips")
+        .select("id, status, payslip_data")
+        .match({"employee_id": str(employee_id), "year": int(year), "month": int(month)})
+        .limit(1)
+        .execute()
+    )
+    lignes = (resp.data if resp else None) or []
+    return lignes[0] if lignes else None
+
+
+def poser_empreintes_verifiees(
+    payslip_id: str, parametres: Mapping[str, Any], empreinte_lue: str | None
+) -> str | None:
+    """Pose de nouvelles empreintes sur un bulletin validé, rien d'autre.
+
+    Relu juste avant d'écrire : un bulletin recalculé entre-temps (empreinte
+    d'entrée différente de celle lue) ou qui n'est plus validé n'est pas touché.
+    Rend la date de mise à jour posée par la base (`updated_at`), ou None si rien
+    n'est écrit.
+    """
+    resp = (
+        supabase.table("payslips")
+        .select("status, payslip_data")
+        .eq("id", payslip_id)
+        .limit(1)
+        .execute()
+    )
+    lignes = (resp.data if resp else None) or []
+    if not lignes or lignes[0].get("status") != "valide":
+        return None
+    donnees = lignes[0].get("payslip_data")
+    if not isinstance(donnees, Mapping):
+        return None
+    actuels = donnees.get("parametres") if isinstance(donnees.get("parametres"), Mapping) else {}
+    if actuels.get("empreinte_entrees") != empreinte_lue:
+        return None
+    nouvelles = {**donnees, "parametres": {**actuels, **parametres}}
+    ecrit = (
+        supabase.table("payslips")
+        .update({"payslip_data": nouvelles})
+        .eq("id", payslip_id)
+        .eq("status", "valide")
+        .execute()
+    )
+    rendues = (ecrit.data if ecrit else None) or []
+    return str(rendues[0].get("updated_at")) if rendues and rendues[0].get("updated_at") else None
 
 
 def lire_lectures_salarie(

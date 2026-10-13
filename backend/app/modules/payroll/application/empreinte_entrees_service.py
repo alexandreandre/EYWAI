@@ -11,9 +11,11 @@ sont relus, après le calcul, par les mêmes lectures que la liste.
 from __future__ import annotations
 
 import calendar
+import hashlib
 import json
 import logging
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -29,6 +31,7 @@ from app.modules.payroll.domain.empreinte_entrees import (
     PARTIE_FICHE,
     a_recalculer,
     construire_entrees,
+    ecart_au_centime,
     empreinte,
     empreinte_complementaire_valide,
     empreinte_cumuls,
@@ -44,9 +47,11 @@ from app.modules.payroll.domain.empreinte_entrees import (
 from app.modules.payroll.infrastructure.empreinte_entrees_queries import (
     Complements,
     LecturesEmpreinte,
+    lire_bulletin_enregistre,
     lire_complements,
     lire_empreintes_des_bulletins,
     lire_lectures_salarie,
+    poser_empreintes_verifiees,
 )
 from app.shared.domain.employment_rules import (
     is_forfait_jour,
@@ -680,6 +685,12 @@ class EtatDuBulletin:
     #: Les parties changées (mutuelle, fiche, planning…) quand le bulletin porte
     #: l'empreinte complémentaire ; None pour un bulletin d'avant elle.
     parties_changees: tuple[str, ...] | None = None
+    #: Validé recalculé au bac à sable et différent : ce qui change (« le net à
+    #: payer passerait de … à … »).
+    ecart_au_bac_a_sable: str | None = None
+    #: Validé recalculé au bac à sable et identique : la date (`updated_at`) de
+    #: l'écriture de ses nouvelles empreintes, si elle a eu lieu.
+    bulletin_mis_a_jour_le: str | None = None
 
     @property
     def a_recalculer(self) -> bool | None:
@@ -693,7 +704,10 @@ class EtatDuBulletin:
         changé… ») ; le message général s'il ne sait pas quoi ; None sinon."""
         if self.entrees_changees is not True:
             return None
-        return message_a_recalculer(self.parties_changees)
+        message = message_a_recalculer(self.parties_changees)
+        if self.ecart_au_bac_a_sable:
+            return f"{message} {self.ecart_au_bac_a_sable}"
+        return message
 
     def raison_du_badge(self, periode: tuple[int, int]) -> str | None:
         """Tout ce qui met le bulletin « À recalculer » : ses entrées, puis la
@@ -809,6 +823,212 @@ def _parties_du_mois(
     return entrees, empreintes_des_parties(entrees, du_mois)
 
 
+# --- Un validé dont l'empreinte change : recalculé d'abord au bac à sable ----------
+#
+# Choix du 12/10/2026 (rejeu final A et C2) : poser le calendrier du mois suivant
+# faisait passer « À recalculer » un bulletin validé dont le calcul ne change pas
+# (l'empreinte hache M-1, M et M+1 entiers). Avant de le dire, Martine le
+# recalcule au bac à sable, en lecture seule (rien ne peut être écrit). Identique
+# au centime : ses empreintes sont reposées, sans rien dire. Sinon : « À
+# recalculer », en disant ce qui change. Le bac à sable en échec ne dit rien :
+# la règle d'avant reste (« À recalculer »).
+#
+# Seuls ses ENTRÉES changées sont vérifiées ainsi : un mois d'avant recalculé
+# depuis (cumuls de départ changés, cascade) est la chaîne de paie, il reste « À
+# recalculer ». Un même état n'est recalculé qu'une fois par processus.
+
+
+@dataclass(frozen=True)
+class VerdictBacASable:
+    """Le validé recalculé au bac à sable, face au bulletin enregistré."""
+
+    identique: bool
+    #: Ce qui change, s'il change.
+    ecart: str | None = None
+
+
+#: Au plus, les bacs à sable lancés par une lecture (les plus récents d'abord) :
+#: une mutuelle modifiée peut changer l'empreinte de tous les validés de l'année.
+#: Les autres restent « À recalculer » pour cette lecture, et passent aux suivantes.
+BAC_A_SABLE_PAR_LECTURE = 3
+
+_VERDICTS: dict[str, VerdictBacASable | None] = {}
+_VERROU_VERDICTS = threading.Lock()
+#: Au-delà, la mémoire des verdicts repart de zéro (chaque état garde sa clé).
+_VERDICTS_MAX = 2000
+
+
+def oublier_les_verdicts() -> None:
+    """Vide la mémoire des verdicts (tests)."""
+    with _VERROU_VERDICTS:
+        _VERDICTS.clear()
+
+
+def _cle_de_verdict(*morceaux: Any) -> str:
+    texte = json.dumps(morceaux, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(texte.encode("utf-8")).hexdigest()
+
+
+def _calculer_au_bac_a_sable(
+    employee_id: str, year: int, month: int, cumuls_precedents: Any
+) -> dict[str, Any]:
+    from app.modules.payslips.infrastructure.providers import payslip_generator_provider
+
+    return payslip_generator_provider.generate_en_bac_a_sable(
+        employee_id, year, month, cumuls_precedents
+    )
+
+
+def verifier_valide_au_bac_a_sable(
+    employee_id: str,
+    year: int,
+    month: int,
+    *,
+    cumuls_precedents: Any,
+    cumuls_du_mois: Any,
+) -> VerdictBacASable | None:
+    """Recalcule le bulletin au bac à sable, en lecture seule, et le compare au
+    centime à celui enregistré (montants et cumuls du mois). None si on ne peut
+    pas savoir : bulletin illisible, bac à sable refusé ou en échec."""
+    from app.core.lecture_seule import lecture_seule
+
+    try:
+        enregistre = lire_bulletin_enregistre(employee_id, year, month)
+        donnees = (enregistre or {}).get("payslip_data")
+        if not isinstance(donnees, Mapping):
+            return None
+        with lecture_seule():
+            resultat = _calculer_au_bac_a_sable(employee_id, year, month, cumuls_precedents)
+        recalcule = (resultat or {}).get("payslip_data")
+        if not isinstance(recalcule, Mapping):
+            return None
+        ecart = ecart_au_centime(
+            donnees,
+            recalcule,
+            cumuls_stockes=cumuls_du_mois,
+            cumuls_recalcules=(resultat or {}).get("cumuls"),
+        )
+    except Exception:  # noqa: BLE001 — sans verdict, la règle d'avant s'applique
+        logger.warning(
+            "Bulletin validé %s %02d/%s non recalculé au bac à sable",
+            employee_id,
+            month,
+            year,
+            exc_info=True,
+        )
+        return None
+    return VerdictBacASable(identique=ecart is None, ecart=ecart)
+
+
+def _a_verifier(ligne: Mapping[str, Any], etat: EtatDuBulletin | None) -> bool:
+    return (
+        etat is not None
+        and str(ligne.get("status") or "") == "valide"
+        and str(ligne.get("origine") or "calcule") != "importe"
+        and etat.entrees_changees is True
+        and etat.cascade_depuis is None
+    )
+
+
+def _verifier_les_valides(
+    employee_id: str,
+    lignes: Iterable[Mapping[str, Any]],
+    etats: dict[tuple[int, int], EtatDuBulletin],
+    lectures: LecturesEmpreinte | None,
+    *,
+    seulement: tuple[int, int] | None = None,
+) -> dict[tuple[int, int], EtatDuBulletin]:
+    """Les validés aux entrées changées, recalculés au bac à sable avant d'être
+    dits « À recalculer » (voir plus haut)."""
+    if lectures is None:
+        return etats
+    from app.core.lecture_seule import ecritures_permises
+
+    candidats: list[tuple[tuple[int, int], Mapping[str, Any]]] = []
+    for ligne in lignes:
+        try:
+            periode = (int(ligne["year"]), int(ligne["month"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if seulement is not None and periode != seulement:
+            continue
+        if _a_verifier(ligne, etats.get(periode)):
+            candidats.append((periode, ligne))
+    lances = 0
+    for periode, ligne in sorted(candidats, key=lambda c: c[0], reverse=True):
+        etat = etats[periode]
+        annee, mois = periode
+        try:
+            _entrees, actuelles = _parties_du_mois(lectures, annee, mois)
+        except (KeyError, TypeError, ValueError):
+            continue
+        stockees = empreinte_complementaire_valide(ligne.get("empreinte_complementaire")) or {}
+        cumuls_precedents = (lectures.calendriers.get(mois_de_la_fenetre(annee, mois)[0]) or {}).get(
+            "cumuls"
+        )
+        cumuls_du_mois = (lectures.calendriers.get(periode) or {}).get("cumuls")
+        cle = _cle_de_verdict(
+            employee_id,
+            periode,
+            ligne.get("empreinte_entrees"),
+            stockees,
+            etat.empreinte_actuelle,
+            actuelles,
+            empreinte_cumuls(cumuls_precedents),
+            empreinte_cumuls(cumuls_du_mois),
+        )
+        with _VERROU_VERDICTS:
+            connu = cle in _VERDICTS
+            verdict = _VERDICTS.get(cle)
+        if not connu:
+            if lances >= BAC_A_SABLE_PAR_LECTURE:
+                continue
+            lances += 1
+            verdict = verifier_valide_au_bac_a_sable(
+                employee_id,
+                annee,
+                mois,
+                cumuls_precedents=cumuls_precedents,
+                cumuls_du_mois=cumuls_du_mois,
+            )
+            with _VERROU_VERDICTS:
+                if len(_VERDICTS) >= _VERDICTS_MAX:
+                    _VERDICTS.clear()
+                _VERDICTS[cle] = verdict
+        if verdict is None:
+            continue
+        if not verdict.identique:
+            etats[periode] = replace(etat, ecart_au_bac_a_sable=verdict.ecart)
+            continue
+        mis_a_jour_le = None
+        if ecritures_permises() and ligne.get("id"):
+            # Les parties qu'un validé ignore (fiche, réglages société) gardent
+            # leur empreinte d'origine : rien n'est dit sur elles.
+            parties = {
+                **stockees,
+                **{
+                    nom: valeur
+                    for nom, valeur in actuelles.items()
+                    if not (nom in _PARTIES_IGNOREES_SI_VALIDE and nom in stockees)
+                },
+            }
+            try:
+                mis_a_jour_le = poser_empreintes_verifiees(
+                    str(ligne["id"]),
+                    {"empreinte_entrees": etat.empreinte_actuelle, "empreinte_complementaire": parties},
+                    _hash_ou_none(ligne.get("empreinte_entrees")),
+                )
+            except Exception:  # noqa: BLE001 — le verdict reste juste, l'écriture se refera
+                logger.warning("Empreintes du validé %s non reposées", ligne.get("id"), exc_info=True)
+        etats[periode] = replace(
+            etat,
+            entrees_changees=False,
+            parties_changees=(),
+            bulletin_mis_a_jour_le=mis_a_jour_le,
+        )
+    return etats
+
+
 #: Assez loin pour une correction tardive ; la chaîne s'arrête de toute façon
 #: au premier mois repris ou sans bulletin.
 MOIS_DE_CHAINE = 24
@@ -832,7 +1052,9 @@ def etat_dans_la_chaine(employee_id: str, year: int, month: int) -> EtatDuBullet
     lectures = lire_lectures_salarie(employee_id, periodes)
     if lectures is None:
         return None
-    return _etats_par_mois(lectures, lignes).get((year, month))
+    etats = _etats_par_mois(lectures, lignes)
+    etats = _verifier_les_valides(employee_id, lignes, etats, lectures, seulement=(year, month))
+    return etats.get((year, month))
 
 
 def annoter_a_recalculer(employee_id: str, lignes: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -852,6 +1074,7 @@ def annoter_a_recalculer(employee_id: str, lignes: list[dict[str, Any]]) -> list
         etats = _etats_par_mois(lectures, lignes)
     except (KeyError, TypeError, ValueError):
         etats = {}
+    etats = _verifier_les_valides(employee_id, lignes, etats, lectures)
     annotées: list[dict[str, Any]] = []
     for ligne in lignes:
         copie = dict(ligne)

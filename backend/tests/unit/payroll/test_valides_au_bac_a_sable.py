@@ -369,3 +369,89 @@ def test_une_cotisation_ou_un_cumul_qui_change_est_dit_aussi():
         )
         == attendu
     )
+
+
+# --- L'écriture des empreintes : rien d'autre, et seulement sur le bulletin lu -------
+
+
+class _Payslips:
+    """La table `payslips` d'un seul bulletin, en mémoire."""
+
+    def __init__(self, ligne):
+        self.ligne = ligne
+        self.ecrit = None
+        self._maj = None
+
+    def table(self, nom):
+        assert nom == "payslips"
+        return self
+
+    def select(self, *_a, **_k):
+        self._maj = None
+        return self
+
+    def update(self, valeurs):
+        self._maj = valeurs
+        return self
+
+    def eq(self, *_a, **_k):
+        return self
+
+    def limit(self, *_a, **_k):
+        return self
+
+    def execute(self):
+        from types import SimpleNamespace
+
+        if self._maj is not None:
+            self.ecrit = self._maj
+            return SimpleNamespace(data=[{**self.ligne, **self._maj, "updated_at": "T1"}])
+        return SimpleNamespace(data=[self.ligne])
+
+
+def _poser(ligne, empreinte_lue="a"):
+    from app.modules.payroll.infrastructure import empreinte_entrees_queries as q
+
+    base = _Payslips(ligne)
+    with patch.object(q, "supabase", base):
+        rendu = q.poser_empreintes_verifiees("b-1", {"empreinte_entrees": "b"}, empreinte_lue)
+    return rendu, base.ecrit
+
+
+def test_poser_les_empreintes_ne_touche_que_les_parametres():
+    ligne = {
+        "status": "valide",
+        "payslip_data": {"net_a_payer": 1500.0, "parametres": {"empreinte_entrees": "a", "smic_horaire": 12.02}},
+    }
+    rendu, ecrit = _poser(ligne)
+    assert rendu == "T1"
+    assert ecrit == {
+        "payslip_data": {
+            "net_a_payer": 1500.0,
+            "parametres": {"empreinte_entrees": "b", "smic_horaire": 12.02},
+        }
+    }
+
+
+def test_un_bulletin_recalcule_ou_plus_valide_entre_temps_n_est_pas_touche():
+    recalcule = {"status": "valide", "payslip_data": {"parametres": {"empreinte_entrees": "z"}}}
+    assert _poser(recalcule) == (None, None)
+    brouillon = {"status": "brouillon", "payslip_data": {"parametres": {"empreinte_entrees": "a"}}}
+    assert _poser(brouillon) == (None, None)
+
+
+def test_une_lecture_ne_lance_que_quelques_bacs_a_sable_les_plus_recents_d_abord():
+    """Une mutuelle modifiée change l'empreinte de tous les validés de l'année :
+    une lecture en vérifie quelques-uns, les autres restent « À recalculer »."""
+    lignes = []
+    for mois in range(1, 7):
+        lignes.append({**_mai(), "id": f"b-{mois}", "month": mois})
+    lectures = _lectures(calendriers=JUIN_POSE)
+    with (
+        patch(f"{SERVICE}.lire_lectures_salarie", return_value=lectures),
+        patch(f"{SERVICE}._a_verifier", return_value=True),
+        patch(f"{SERVICE}.verifier_valide_au_bac_a_sable", return_value=None) as verifier,
+    ):
+        annoter_a_recalculer("e1", lignes)
+    mois_verifies = [appel.args[2] for appel in verifier.call_args_list]
+    assert mois_verifies == [6, 5, 4][: service.BAC_A_SABLE_PAR_LECTURE]

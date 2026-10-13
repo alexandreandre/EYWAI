@@ -90,3 +90,19 @@ def aucun_mois_suivant_lu_en_base(monkeypatch) -> None:
     from app.modules.payslips.application import commands
 
     monkeypatch.setattr(commands, "mois_suivant_a_recalculer", lambda *a, **k: None)
+
+
+@pytest.fixture(autouse=True)
+def aucun_bac_a_sable_a_la_lecture(monkeypatch) -> None:
+    """Un validé dont l'empreinte change est recalculé au bac à sable à la lecture :
+    en test, ni bulletin relu, ni moteur lancé, ni empreinte écrite. Les tests de
+    cette règle remplacent ces fonctions eux-mêmes."""
+    from app.modules.payroll.application import empreinte_entrees_service as service
+
+    def _jamais(*_a, **_k):
+        raise RuntimeError("bac à sable non lancé en test unitaire")
+
+    monkeypatch.setattr(service, "lire_bulletin_enregistre", lambda *_a, **_k: None)
+    monkeypatch.setattr(service, "_calculer_au_bac_a_sable", _jamais)
+    monkeypatch.setattr(service, "poser_empreintes_verifiees", lambda *_a, **_k: None)
+    service.oublier_les_verdicts()
