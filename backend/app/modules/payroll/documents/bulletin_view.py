@@ -242,6 +242,15 @@ def construire_compteurs(bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         )
 
     notes: List[str] = []
+    # Reprise ou recalage : le solde ne se retrouve plus par « acquis − pris ».
+    # La clé n'existe que sur les bulletins calculés depuis le 12/10/2026.
+    for titre, cle in (("CP N-1", "conges_payes_periode_precedente"), ("CP N", "conges_payes")):
+        compteur = solde.get(cle) if isinstance(solde.get(cle), dict) else {}
+        ajustement = float(compteur.get("ajustement") or 0.0)
+        if abs(ajustement) >= 0.01:
+            signe = "+" if ajustement > 0 else "−"
+            valeur = f"{abs(ajustement):.2f}".replace(".", ",")
+            notes.append(f"{titre} : solde dont ajustement de {signe}{valeur} j (reprise ou recalage)")
     fractionnement = solde.get("fractionnement") or {}
     if float(fractionnement.get("jours_acquis") or 0) > 0:
         libelle = fractionnement.get("libelle") or "Jours de fractionnement"

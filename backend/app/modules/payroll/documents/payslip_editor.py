@@ -83,17 +83,22 @@ def regenerate_pdf_from_data(
         except Exception as e:
             logger.warning(f"Impossible de récupérer les cumuls: {str(e)}")
 
-        from app.modules.payroll.engine.bulletin import build_solde_conges_pied_de_page
+        from app.modules.payroll.engine import bulletin as moteur_bulletin
 
         pied_de_page = dict(payslip_data.get("pied_de_page") or {})
-        solde_conges = build_solde_conges_pied_de_page(
-            employee_id,
-            year,
-            month,
-            (payslip_data.get("en_tete") or {}).get("date_fin_variables"),
-        )
-        if solde_conges:
-            pied_de_page["solde_conges"] = solde_conges
+        # Une réimpression (note, correction) imprime les compteurs du bulletin
+        # tel qu'il a été calculé : les recalculer ici changeait les compteurs
+        # d'un bulletin déjà remis dès que le calcul des congés évoluait. Seul un
+        # bulletin qui n'en a pas les calcule.
+        if not pied_de_page.get("solde_conges"):
+            solde_conges = moteur_bulletin.build_solde_conges_pied_de_page(
+                employee_id,
+                year,
+                month,
+                (payslip_data.get("en_tete") or {}).get("date_fin_variables"),
+            )
+            if solde_conges:
+                pied_de_page["solde_conges"] = solde_conges
 
         template_data = {
             **payslip_data,

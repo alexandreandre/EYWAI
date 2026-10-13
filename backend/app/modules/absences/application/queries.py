@@ -34,6 +34,7 @@ from app.modules.absences.domain.rules import (
     compute_absence_balances,
     compute_cp_balances_for_bulletin,
     count_absence_days_taken,
+    poser_les_ajustements_des_compteurs,
     requires_salary_certificate,
     resolve_rtt_annual_base,
     validate_conge_paye_request_days,
@@ -692,7 +693,7 @@ def get_absence_balances_for_payslip(
                     f"Forfait annuel ajusté : {forfait_adj:.0f} j "
                     f"({base:.0f} − {cp_seniority_days:.0f} CP ancienneté)"
                 )
-    return balances
+    return poser_les_ajustements_des_compteurs(balances)
 
 
 def get_my_absence_balances(employee_id: str) -> List[dict]:

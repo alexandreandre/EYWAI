@@ -855,6 +855,27 @@ def compute_cp_balances_for_bulletin(
     }
 
 
+def poser_les_ajustements_des_compteurs(balances: dict) -> dict:
+    """Pose, sur les compteurs CP du bulletin, l'écart entre le solde et
+    « acquis − pris » quand une reprise ou un recalage l'a créé (décision du
+    12/10/2026). Aucun solde ne change ; le dépassement d'un congé posé
+    au-delà du solde a sa propre alerte et n'est pas un ajustement."""
+    for cle in ("conges_payes", "conges_payes_periode_precedente"):
+        compteur = balances.get(cle)
+        if not isinstance(compteur, dict):
+            continue
+        ecart = round(
+            float(compteur.get("solde") or 0.0)
+            - float(compteur.get("acquis") or 0.0)
+            + float(compteur.get("pris") or 0.0)
+            - float(compteur.get("depassement") or 0.0),
+            2,
+        )
+        if abs(ecart) >= 0.01:
+            balances[cle] = {**compteur, "ajustement": ecart}
+    return balances
+
+
 def compute_rtt_balance(
     hire_date: date,
     validated_requests: list[dict],
