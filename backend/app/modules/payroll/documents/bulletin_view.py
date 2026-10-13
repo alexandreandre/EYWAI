@@ -669,15 +669,34 @@ def _est_stagiaire(bulletin: Dict[str, Any]) -> bool:
     return "stage" in str(salarie.get("type_contrat") or "").lower()
 
 
+def _base_exoneree_apprenti(bulletin: Dict[str, Any]) -> Optional[float]:
+    """La part du brut d'un apprenti exonérée de cotisations salariales (base
+    de la ligne « Exonération cotisations salariales apprenti »), ou None."""
+    structure = bulletin.get("structure_cotisations") or {}
+    for cle in ("bloc_allegements", "bloc_principales"):
+        for ligne in structure.get(cle) or []:
+            if isinstance(ligne, dict) and ligne.get("coti_id") == "exoneration_apprenti_salariale":
+                return float(ligne.get("base") or 0.0)
+    return None
+
+
 def _evolution_remuneration(bulletin: Dict[str, Any]) -> float:
     """Un stagiaire n'a jamais cotisé à l'assurance chômage ni à la maladie
     salariale, ni avant ni après leur suppression : la mention vaut 0, au lieu
-    du repli sur le brut quand le bulletin ne porte pas de CSG."""
+    du repli sur le brut quand le bulletin ne porte pas de CSG.
+
+    Un apprenti ne cotise que sur la part de son salaire au-delà du plafond
+    d'exonération, et sa CSG ne porte que sur elle : la mention se calcule sur
+    cette assiette, sans repli sur le brut (décision du 12/10/2026)."""
     if _est_stagiaire(bulletin):
         return 0.0
-    return calculer_evolution_remuneration(
-        float(bulletin.get("salaire_brut") or 0.0), _base_csg(bulletin)
-    )
+    brut = float(bulletin.get("salaire_brut") or 0.0)
+    base_exoneree = _base_exoneree_apprenti(bulletin)
+    if base_exoneree is not None:
+        cotisable = max(0.0, brut - base_exoneree)
+        montant = cotisable * TAUX_COTISATIONS_SUPPRIMEES - _base_csg(bulletin) * TAUX_HAUSSE_CSG
+        return round(max(0.0, montant), 2)
+    return calculer_evolution_remuneration(brut, _base_csg(bulletin))
 
 
 def _base_csg(bulletin: Dict[str, Any]) -> float:
