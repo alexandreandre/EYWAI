@@ -77,6 +77,7 @@ import {
 const Requis = () => <span className="text-red-500" aria-hidden> *</span>;
 import { EmployeeContractConfigFormFields } from "@/features/employees/components/EmployeeContractConfigFields";
 import { isAlternanceContract, isStageContract } from "@/constants/contracts";
+import { avertissementNaissanceDsn } from "@/features/employees/utils/avertissementNaissanceDsn";
 import {
   resolveDefaultCollectiveAgreementId,
   sortAffiliatedCompanyAgreements,
@@ -365,6 +366,10 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   });
 
   const employeeStatut = form.watch("statut");
+  const avertissementNaissance = avertissementNaissanceDsn({
+    lieu_naissance: form.watch("lieu_naissance"),
+    nationalite: form.watch("nationalite"),
+  });
   const filteredMutuelles = filterMutuellesForEmployee(availableMutuelles, employeeStatut);
 
   // La mutuelle obligatoire suit la catégorie (cadre / non-cadre), tant que
@@ -1233,7 +1238,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                       <FormField control={form.control} name="nir" render={({ field }) => (<FormItem><FormLabel>N° de Sécurité Sociale</FormLabel><FormControl><Input placeholder="ex: 1850701123456" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name="date_naissance" render={({ field }) => (<FormItem><FormLabel>Date de naissance</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name="lieu_naissance" render={({ field }) => (<FormItem><FormLabel>Lieu de naissance</FormLabel><FormControl><Input placeholder="ex: 75001 Paris" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name="nationalite" render={({ field }) => (<FormItem><FormLabel>Nationalité</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name="nationalite" render={({ field }) => (<FormItem><FormLabel>Nationalité</FormLabel><FormControl><Input {...field} /></FormControl>{avertissementNaissance && (<p className="text-xs text-amber-700 dark:text-amber-400">{avertissementNaissance}</p>)}<FormMessage /></FormItem>)} />
                       <h3 className="font-semibold pt-4">Adresse</h3>
                       <FormField control={form.control} name="adresse.rue" render={({ field }) => (<FormItem><FormLabel>Rue</FormLabel><FormControl><Input placeholder="1 Rue de la Paix" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

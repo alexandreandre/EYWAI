@@ -2,6 +2,7 @@ import { Loader2 } from 'lucide-react';
 import { aideCodeDsn } from './aideCodesDsn';
 import type { Control } from 'react-hook-form';
 import { useFormState, useWatch } from 'react-hook-form';
+import { avertissementNaissanceDsn } from '@/features/employees/utils/avertissementNaissanceDsn';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -132,6 +133,9 @@ export function EmployeeProfileEditForm({
 }: EmployeeProfileEditFormProps) {
   const majorationHs = useMajorationHs();
   const statut = useWatch({ control, name: 'statut' });
+  const lieuNaissance = useWatch({ control, name: 'lieu_naissance' });
+  const nationalite = useWatch({ control, name: 'nationalite' });
+  const avertissementNaissance = avertissementNaissanceDsn({ lieu_naissance: lieuNaissance, nationalite });
   const contractType = useWatch({ control, name: 'contract_type' });
   const salaireBase = useWatch({ control, name: 'salaire_de_base.valeur' });
   const modePaiement = useWatch({ control, name: 'salary_payment_method' });
@@ -259,6 +263,9 @@ export function EmployeeProfileEditForm({
               <FormItem className="sm:col-span-2">
                 <FormLabel>Nationalité</FormLabel>
                 <FormControl><Input {...field} /></FormControl>
+                {avertissementNaissance && (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">{avertissementNaissance}</p>
+                )}
                 <FormMessage />
               </FormItem>
             )}
