@@ -348,8 +348,9 @@ def message_a_recalculer(parties: tuple[str, ...] | list[str] | None) -> str:
 # Choix du 12/10/2026 (rejeu final A et C2) : poser le calendrier du mois suivant
 # change l'empreinte d'un bulletin validé sans que son calcul change. Martine le
 # recalcule d'abord au bac à sable, sans rien écrire, et compare au centime les
-# montants du bulletin : chaque ligne du brut et des cotisations (gain, retenue,
-# parts salariale et patronale), le brut, le net, le net imposable, l'impôt, les
+# montants du bulletin : les montants des lignes de chaque bloc du brut et des
+# cotisations (gain, retenue, parts salariale et patronale ; libellés et ordre
+# des lignes à part), le brut, le net, le net imposable, l'impôt, les
 # totaux de cotisations et le coût employeur ; puis les cumuls du mois.
 #
 # Ne sont pas des montants du bulletin : textes, dates, empreintes, taux et bases
@@ -399,18 +400,17 @@ def _sous(valeur: Any, *cles: str) -> Any:
 
 
 def _montants_des_lignes(valeur: Any, chemin: str, sortie: Counter) -> None:
-    """Chaque montant non nul d'une ligne, au centime, avec le libellé de sa ligne :
-    l'ordre des lignes ne compte pas, leur montant si."""
+    """Chaque montant non nul d'une ligne, au centime, avec son bloc : l'ordre des
+    lignes et leur libellé ne comptent pas (une note de frais renommée au même
+    montant, mesure du 13/10), leurs montants si."""
     if isinstance(valeur, Mapping):
-        libelle = valeur.get("libelle")
-        base = f"{chemin}[{libelle}]" if isinstance(libelle, str) else chemin
         for cle, sous in valeur.items():
             if cle in _MONTANTS_DE_LIGNE:
                 centimes = _centimes(sous)
                 if centimes:
-                    sortie[(f"{base}.{cle}", centimes)] += 1
+                    sortie[(f"{chemin}.{cle}", centimes)] += 1
             else:
-                _montants_des_lignes(sous, f"{base}.{cle}", sortie)
+                _montants_des_lignes(sous, f"{chemin}.{cle}", sortie)
     elif isinstance(valeur, list):
         for sous in valeur:
             _montants_des_lignes(sous, chemin, sortie)
