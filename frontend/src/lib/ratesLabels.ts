@@ -193,6 +193,7 @@ const ACRONYMS = new Set([
   'urssaf',
   'km',
   'id',
+  'cdd',
 ]);
 
 const WORD_LABELS: Record<string, string> = {
