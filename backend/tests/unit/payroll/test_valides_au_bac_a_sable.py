@@ -132,40 +132,82 @@ def _verdicts_oublies():
     service.oublier_les_verdicts()
 
 
-def _annoter(lectures, ligne, *, verdict, ecrit="2026-10-13T08:00:00+00:00"):
+class _ArrierePlan:
+    """Les vérifications lancées hors de la requête, gardées pour être jouées à la main."""
+
+    def __init__(self):
+        self.taches = []
+
+    def __call__(self, tache):
+        self.taches.append(tache)
+
+    def jouer(self):
+        taches, self.taches = self.taches, []
+        for tache in taches:
+            tache()
+
+
+@pytest.fixture
+def arriere_plan():
+    fond = _ArrierePlan()
+    with patch(f"{SERVICE}._lancer_en_arriere_plan", fond):
+        yield fond
+
+
+def _lire(lectures, ligne, *, verdict):
+    """Une lecture de la liste : la requête rend tout de suite, le bac à sable attend."""
     with (
         patch(f"{SERVICE}.lire_lectures_salarie", return_value=lectures),
         patch(f"{SERVICE}.verifier_valide_au_bac_a_sable", return_value=verdict) as verifier,
-        patch(f"{SERVICE}.poser_empreintes_verifiees", return_value=ecrit) as poser,
+        patch(f"{SERVICE}.poser_empreintes_verifiees", return_value="T1") as poser,
     ):
         annotee = annoter_a_recalculer("e1", [dict(ligne)])[0]
     return annotee, verifier, poser
 
 
+def _lire_puis_verifier(arriere_plan, lectures, ligne, *, verdict):
+    """La liste lue, la vérification jouée hors de la requête, la liste relue."""
+    avant, verifier, _ = _lire(lectures, ligne, verdict=verdict)
+    verifier.assert_not_called()
+    with (
+        patch(f"{SERVICE}.verifier_valide_au_bac_a_sable", return_value=verdict) as verifier,
+        patch(f"{SERVICE}.poser_empreintes_verifiees", return_value="T1") as poser,
+    ):
+        arriere_plan.jouer()
+    apres, verifier_ensuite, _ = _lire(lectures, ligne, verdict=verdict)
+    verifier_ensuite.assert_not_called()
+    return avant, apres, verifier, poser
+
+
 # --- Le cas du rejeu : le mois suivant posé après la validation -----------------
 
 
-def test_sans_le_bac_a_sable_le_valide_passerait_a_recalculer():
-    """La règle d'avant, gardée quand Martine ne peut pas savoir (bac à sable en échec)."""
-    ligne, verifier, poser = _annoter(_lectures(calendriers=JUIN_POSE), _mai(), verdict=None)
-    verifier.assert_called_once()
-    assert ligne["a_recalculer"] is True
-    assert ligne["raison_a_recalculer"].startswith("Le planning a changé")
-    poser.assert_not_called()
-
-
-def test_identique_au_centime_l_empreinte_est_remise_a_jour_sans_rien_dire():
-    ligne, verifier, poser = _annoter(
+def test_la_liste_rend_tout_de_suite_et_dit_que_la_verification_est_en_cours(arriere_plan):
+    """Aucun bac à sable dans la requête : la liste s'affiche sans attendre, et le
+    validé n'est ni « À recalculer » (on ne le sait pas) ni à jour : « à vérifier »."""
+    ligne, verifier, poser = _lire(
         _lectures(calendriers=JUIN_POSE), _mai(), verdict=VerdictBacASable(identique=True)
     )
-    assert ligne["a_recalculer"] is False
+    verifier.assert_not_called()
+    poser.assert_not_called()
+    assert ligne["a_verifier"] is True
+    assert ligne["a_recalculer"] is None
     assert ligne["raison_a_recalculer"] is None
+    assert len(arriere_plan.taches) == 1
+
+
+def test_identique_au_centime_le_valide_est_a_jour_et_ses_empreintes_reposees(arriere_plan):
+    _, apres, verifier, poser = _lire_puis_verifier(
+        arriere_plan, _lectures(calendriers=JUIN_POSE), _mai(), verdict=VerdictBacASable(identique=True)
+    )
+    assert apres["a_verifier"] is False
+    assert apres["a_recalculer"] is False
+    assert apres["raison_a_recalculer"] is None
     # Le bac à sable part des cumuls d'avril, ceux que mai a lus.
-    _, kwargs = verifier.call_args
     assert verifier.call_args.args[:3] == ("e1", 2026, 5)
-    assert kwargs["cumuls_precedents"] == CUMULS_AVRIL
-    assert kwargs["cumuls_du_mois"] == CUMULS_MAI
-    # Les empreintes posées sont celles d'aujourd'hui.
+    assert verifier.call_args.kwargs["cumuls_precedents"] == CUMULS_AVRIL
+    assert verifier.call_args.kwargs["cumuls_du_mois"] == CUMULS_MAI
+    # Les empreintes posées hors de la requête sont celles d'aujourd'hui.
     poser.assert_called_once()
     payslip_id, parametres, empreinte_lue = poser.call_args.args
     assert payslip_id == "b-mai"
@@ -174,75 +216,88 @@ def test_identique_au_centime_l_empreinte_est_remise_a_jour_sans_rien_dire():
     assert parametres["empreinte_complementaire"]["calendriers"] != _mai()["empreinte_complementaire"]["calendriers"]
 
 
-def test_different_au_centime_il_reste_a_recalculer_en_disant_ce_qui_change():
+def test_different_au_centime_il_passe_a_recalculer_en_disant_ce_qui_change(arriere_plan):
     ecart = "Martine l'a recalculé sans rien enregistrer : le net à payer passerait de 1 500,00 € à 1 510,00 €."
-    ligne, _, poser = _annoter(
+    _, apres, _, poser = _lire_puis_verifier(
+        arriere_plan,
         _lectures(calendriers=JUIN_POSE),
         _mai(),
         verdict=VerdictBacASable(identique=False, ecart=ecart),
     )
-    assert ligne["a_recalculer"] is True
-    assert ligne["raison_a_recalculer"].startswith("Le planning a changé")
-    assert ligne["raison_a_recalculer"].endswith(ecart)
+    assert apres["a_verifier"] is False
+    assert apres["a_recalculer"] is True
+    assert apres["raison_a_recalculer"].startswith("Le planning a changé")
+    assert apres["raison_a_recalculer"].endswith(ecart)
     poser.assert_not_called()
 
 
-def test_un_meme_etat_n_est_recalcule_qu_une_fois():
+def test_sans_verdict_la_regle_d_avant_reprend(arriere_plan):
+    """Bac à sable en échec : « À recalculer », comme avant le lot 42."""
+    _, apres, _, poser = _lire_puis_verifier(
+        arriere_plan, _lectures(calendriers=JUIN_POSE), _mai(), verdict=None
+    )
+    assert apres["a_verifier"] is False
+    assert apres["a_recalculer"] is True
+    assert apres["raison_a_recalculer"].startswith("Le planning a changé")
+    poser.assert_not_called()
+
+
+def test_un_meme_etat_n_est_verifie_qu_une_fois(arriere_plan):
     lectures = _lectures(calendriers=JUIN_POSE)
     verdict = VerdictBacASable(identique=False, ecart="Martine l'a recalculé : le brut change.")
-    with (
-        patch(f"{SERVICE}.lire_lectures_salarie", return_value=lectures),
-        patch(f"{SERVICE}.verifier_valide_au_bac_a_sable", return_value=verdict) as verifier,
-        patch(f"{SERVICE}.poser_empreintes_verifiees"),
-    ):
-        premiere = annoter_a_recalculer("e1", [_mai()])[0]
-        seconde = annoter_a_recalculer("e1", [_mai()])[0]
-    verifier.assert_called_once()
-    assert premiere["raison_a_recalculer"] == seconde["raison_a_recalculer"]
+    _lire(lectures, _mai(), verdict=verdict)
+    _lire(lectures, _mai(), verdict=verdict)
+    assert len(arriere_plan.taches) == 1
 
 
-# --- Ce qui n'est pas recalculé au bac à sable ----------------------------------
+# --- Ce qui n'est pas vérifié au bac à sable --------------------------------------
 
 
-def test_un_brouillon_n_est_pas_recalcule_au_bac_a_sable():
-    ligne, verifier, _ = _annoter(
-        _lectures(calendriers=JUIN_POSE), _mai(status="brouillon"), verdict=VerdictBacASable(True)
-    )
-    verifier.assert_not_called()
+def test_un_brouillon_n_est_pas_verifie(arriere_plan):
+    ligne, _, _ = _lire(_lectures(calendriers=JUIN_POSE), _mai(status="brouillon"), verdict=None)
+    assert arriere_plan.taches == []
     assert ligne["a_recalculer"] is True
+    assert ligne["a_verifier"] is False
 
 
-def test_un_valide_a_jour_n_est_pas_recalcule():
-    ligne, verifier, _ = _annoter(_lectures(), _mai(), verdict=VerdictBacASable(True))
-    verifier.assert_not_called()
+def test_un_valide_a_jour_n_est_pas_verifie(arriere_plan):
+    ligne, _, _ = _lire(_lectures(), _mai(), verdict=None)
+    assert arriere_plan.taches == []
     assert ligne["a_recalculer"] is False
 
 
-def test_un_valide_dont_le_mois_d_avant_a_ete_recalcule_reste_a_recalculer():
+def test_un_valide_dont_le_mois_d_avant_a_ete_recalcule_reste_a_recalculer(arriere_plan):
     """Ses cumuls de départ ont changé : c'est la chaîne, pas une entrée du mois."""
     avril_recalcule = {
         **JUIN_POSE,
         (2026, 4): {**CALENDRIERS[(2026, 4)], "cumuls": {"cumuls": {"brut_total": 8100.0}}},
     }
-    ligne, verifier, _ = _annoter(
-        _lectures(calendriers=avril_recalcule), _mai(), verdict=VerdictBacASable(True)
-    )
-    verifier.assert_not_called()
+    ligne, _, _ = _lire(_lectures(calendriers=avril_recalcule), _mai(), verdict=None)
+    assert arriere_plan.taches == []
     assert ligne["a_recalculer"] is True
 
 
-def test_l_etat_dans_la_chaine_suit_la_meme_regle():
+def test_l_ecran_du_bulletin_suit_la_meme_regle_sans_rien_ecrire(arriere_plan):
+    """Ouvert pendant la vérification, le bulletin la dit en cours ; son verdict
+    est gardé, mais l'écran du bulletin n'écrit rien (une écriture changerait la
+    date du bulletin ouvert et ferait refuser sa correction pour conflit)."""
     lignes = [_mai()]
     with (
         patch.object(service, "lire_empreintes_des_bulletins", return_value=lignes),
         patch.object(service, "lire_lectures_salarie", return_value=_lectures(calendriers=JUIN_POSE)),
-        patch.object(service, "verifier_valide_au_bac_a_sable", return_value=VerdictBacASable(True)),
-        patch.object(service, "poser_empreintes_verifiees", return_value="2026-10-13T08:00:00+00:00"),
     ):
-        etat = service.etat_dans_la_chaine("e1", 2026, 5)
-    assert etat.a_recalculer is False
-    # L'écran du bulletin garde la date de la dernière écriture (pas de faux conflit).
-    assert etat.bulletin_mis_a_jour_le == "2026-10-13T08:00:00+00:00"
+        pendant = service.etat_dans_la_chaine("e1", 2026, 5)
+        with (
+            patch.object(service, "verifier_valide_au_bac_a_sable", return_value=VerdictBacASable(True)),
+            patch.object(service, "poser_empreintes_verifiees") as poser,
+        ):
+            arriere_plan.jouer()
+        apres = service.etat_dans_la_chaine("e1", 2026, 5)
+    assert pendant.verification_en_cours is True
+    assert pendant.a_recalculer is None
+    assert apres.verification_en_cours is False
+    assert apres.a_recalculer is False
+    poser.assert_not_called()
 
 
 # --- Le recalcul au bac à sable : rien n'est écrit ---------------------------------
@@ -438,23 +493,6 @@ def test_un_bulletin_recalcule_ou_plus_valide_entre_temps_n_est_pas_touche():
     assert _poser(recalcule) == (None, None)
     brouillon = {"status": "brouillon", "payslip_data": {"parametres": {"empreinte_entrees": "a"}}}
     assert _poser(brouillon) == (None, None)
-
-
-def test_une_lecture_ne_lance_que_quelques_bacs_a_sable_les_plus_recents_d_abord():
-    """Une mutuelle modifiée change l'empreinte de tous les validés de l'année :
-    une lecture en vérifie quelques-uns, les autres restent « À recalculer »."""
-    lignes = []
-    for mois in range(1, 7):
-        lignes.append({**_mai(), "id": f"b-{mois}", "month": mois})
-    lectures = _lectures(calendriers=JUIN_POSE)
-    with (
-        patch(f"{SERVICE}.lire_lectures_salarie", return_value=lectures),
-        patch(f"{SERVICE}._a_verifier", return_value=True),
-        patch(f"{SERVICE}.verifier_valide_au_bac_a_sable", return_value=None) as verifier,
-    ):
-        annoter_a_recalculer("e1", lignes)
-    mois_verifies = [appel.args[2] for appel in verifier.call_args_list]
-    assert mois_verifies == [6, 5, 4][: service.BAC_A_SABLE_PAR_LECTURE]
 
 
 def test_un_champ_ajoute_au_moteur_depuis_le_calcul_n_est_pas_un_ecart():

@@ -380,27 +380,23 @@ def test_le_detail_dit_ce_qui_a_change():
         )
 
 
-def test_le_detail_garde_la_date_d_ecriture_quand_l_empreinte_du_valide_est_reposee():
-    """Recalculé au bac à sable et identique, le validé reçoit ses nouvelles
-    empreintes pendant la lecture : le détail rendu porte la nouvelle date, sinon
-    la correction suivante se croirait en conflit (« modifié entre-temps »)."""
+def test_le_detail_dit_qu_un_valide_est_en_verification():
+    """Une donnée du validé a changé : Martine le recalcule au bac à sable hors de
+    la requête. Pendant ce temps le détail ne dit ni « À recalculer » ni « à jour »."""
     from app.modules.payroll.application.empreinte_entrees_service import EtatDuBulletin
     from app.modules.payslips.application import service
 
     detail = {
         "id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2026,
         "month": 9, "status": "valide", "origine": "calcule", "payslip_data": {},
-        "updated_at": "2026-10-01T10:00:00+00:00",
     }
     cible = "app.modules.payroll.application.empreinte_entrees_service.etat_dans_la_chaine"
     etat = EtatDuBulletin(
-        entrees_changees=False,
-        cumuls_precedents_changes=False,
-        bulletin_mis_a_jour_le="2026-10-13T08:00:00+00:00",
+        entrees_changees=True, cumuls_precedents_changes=False, verification_en_cours=True
     )
     with patch(cible, return_value=etat):
-        assert service._etats_du_bulletin(detail) == (False, None, None)
-    assert detail["updated_at"] == "2026-10-13T08:00:00+00:00"
+        assert service._etats_du_bulletin(detail) == (None, None, None)
+    assert detail["a_verifier"] is True
 
 
 class TestGetPayslipHistoryForUser:
