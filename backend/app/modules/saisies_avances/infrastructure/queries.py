@@ -218,6 +218,19 @@ def get_seizures_for_period(
     return r.data or []
 
 
+def get_retenues_sur_le_net_du_mois(
+    employee_id: str, year: int, month: int
+) -> List[Dict[str, Any]]:
+    """Les variables du mois (saisies « sur le net » comprises) du salarié."""
+    r = (
+        supabase.table("monthly_inputs")
+        .select("name, description, amount, sur_le_net")
+        .match({"employee_id": employee_id, "year": year, "month": month})
+        .execute()
+    )
+    return (r.data if r else None) or []
+
+
 def get_advances_to_repay(
     employee_id: str, year: int, month: int
 ) -> List[Dict[str, Any]]:

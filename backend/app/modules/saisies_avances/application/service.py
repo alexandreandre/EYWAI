@@ -36,6 +36,7 @@ from app.modules.saisies_avances.infrastructure.queries import (
     get_bareme_quotite_saisissable,
     get_payment_with_advance,
     get_proof_file_path,
+    get_retenues_sur_le_net_du_mois,
     get_seizures_for_period,
     list_advances_with_employee_and_remaining_to_pay,
     list_salary_advance_repayments_by_payslip,
@@ -704,6 +705,40 @@ def enrich_payslip(
                     )
                 except Exception:
                     pass
+
+    # 1 bis. Saisies entrées en variables « sur le net » : le moteur les a déjà
+    # retirées du net, rien ne les plafonne. Au-delà de la quotité saisissable
+    # du mois (une fois les saisies du module retenues), le bulletin le dit et
+    # le montant reste retenu tel quel (décision du 12/10/2026).
+    try:
+        saisies_variables = domain_rules.saisies_en_variables(
+            get_retenues_sur_le_net_du_mois(employee_id, year, month)
+        )
+    except Exception:  # noqa: BLE001 — une alerte en moins, jamais un bulletin en moins
+        logger.warning("Variables du mois illisibles pour la quotité saisissable", exc_info=True)
+        saisies_variables = []
+    if saisies_variables:
+        bareme_variables, _ = domain_rules.resoudre_bareme_quotite(
+            get_bareme_quotite_saisissable(), year, month
+        )
+        if bareme_variables is not None:
+            quotite_restante = (
+                domain_rules.calculate_seizable_amount(
+                    base_saisissable, dependents_count, bareme_variables
+                )
+                - total_deductions
+            )
+            if sum((m for _n, m in saisies_variables), Decimal("0")) > quotite_restante:
+                payslip_json_data.setdefault("alertes_baremes", []).append(
+                    {
+                        "code": "saisie_en_variable_au_dela_de_la_quotite",
+                        "severity": "warning",
+                        "critique": False,
+                        "message": domain_rules.message_saisie_en_variable_au_dela(
+                            saisies_variables, quotite_restante, year
+                        ),
+                    }
+                )
 
     # 2. Traitement des avances à rembourser. Le moteur ne les connaît pas : elles
     # ne sortent du net qu'ici, une fois. (Le générateur heures les retirait

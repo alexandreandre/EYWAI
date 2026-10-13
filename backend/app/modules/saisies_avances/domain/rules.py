@@ -340,6 +340,40 @@ def message_saisie_plafonnee(
     return f"{debut} {raison} : le reste n'est pas retenu ce mois-ci."
 
 
+def saisies_en_variables(variables: List[Dict[str, Any]]) -> List[Tuple[str, Decimal]]:
+    """Les saisies sur salaire entrées en variables du mois : une retenue (montant
+    négatif) dont le libellé dit « saisie », comme le moteur les reconnaît pour
+    les retirer du net. (nom, montant retenu en positif)."""
+    saisies: List[Tuple[str, Decimal]] = []
+    for variable in variables:
+        if not isinstance(variable, dict):
+            continue
+        libelle = " ".join(str(variable.get(k) or "") for k in ("name", "description"))
+        try:
+            montant = Decimal(str(variable.get("amount") or 0))
+        except Exception:  # noqa: BLE001 — un montant illisible ne compte pas
+            continue
+        if montant < 0 and "saisie" in libelle.lower():
+            saisies.append((str(variable.get("name") or "Saisie").strip(), _centimes(-montant)))
+    return saisies
+
+
+def message_saisie_en_variable_au_dela(
+    saisies: List[Tuple[str, Decimal]], quotite_restante: Decimal, annee: int
+) -> str:
+    """Ce que dit le bulletin d'une saisie entrée en variable au-delà de la
+    quotité saisissable (décision du 12/10/2026 : alerte, sans plafond)."""
+    noms = ", ".join(f"« {nom} »" for nom, _m in saisies)
+    total = sum((m for _n, m in saisies), Decimal("0"))
+    variable = "Saisie sur salaire entrée en variable" if len(saisies) == 1 else "Saisies sur salaire entrées en variables"
+    return (
+        f"{variable} {noms} : {_euros_fr(total)} retenus sur le net, au-delà de la "
+        f"quotité saisissable du mois ({_euros_fr(max(Decimal('0'), quotite_restante))}, "
+        f"barème {annee}). Le montant est retenu tel quel : vérifiez-le sur la "
+        "notification du créancier."
+    )
+
+
 def _jour(valeur: Any) -> date | None:
     """Une date de la base (« 2026-10-06 », horodatage ou `date`), ou None."""
     if valeur is None:
