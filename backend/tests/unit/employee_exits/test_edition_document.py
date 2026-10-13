@@ -162,7 +162,42 @@ def test_le_dossier_dit_ce_que_le_bulletin_de_sortie_a_verse():
             {"libelle": "Ind.de CP des CDD", "montant": 940.23},
         ],
         "indemnite_conges": 940.23,
+        "calcul_conges": None,
     }
+
+
+def test_l_onglet_indemnites_lit_le_calcul_des_conges_du_bulletin():
+    """Démission (relevé du 12/10/2026, vidéo H) : l'onglet montrait le dixième
+    de l'estimation (580,10 sur 5 800,97) quand le bulletin versait sur 5 880,00
+    (588,00). Une fois le bulletin généré, l'onglet lit sa phrase."""
+    mention = (
+        "Indemnité de congés payés de fin de contrat : période 2026-2027, 16,5 j restants "
+        "sur 16,5 : dixième 588,00 (10 % de 5 880,00 × 16,5/16,5) ou maintien 1 865,82 "
+        "(16,5 j × 113,08) → 1 865,82. Total 1 865,82."
+    )
+    dossier = _dossier_avec_bulletin({
+        "salaire_brut": 4315.82,
+        "net_a_payer": 3300.0,
+        "calcul_du_brut": [{"libelle": "Salaire de base", "gain": 2450.0}],
+        "details_conges": [
+            {"libelle": "Indemnité compensatrice de congés payés", "gain": 1865.82},
+        ],
+        "indemnite_cp_fin_contrat": {"total": 1865.82, "mention": mention},
+    })
+    assert dossier["bulletin_de_sortie"]["calcul_conges"] == mention
+
+
+def test_sans_phrase_par_periode_l_onglet_lit_l_arbitrage_imprime():
+    dossier = _dossier_avec_bulletin({
+        "salaire_brut": 2000.0,
+        "net_a_payer": 1500.0,
+        "calcul_du_brut": [],
+        "details_conges": [],
+        "arbitrage_conges": "L'indemnité compensatrice de congés payés a été calculée selon le maintien.",
+    })
+    assert dossier["bulletin_de_sortie"]["calcul_conges"] == (
+        "L'indemnité compensatrice de congés payés a été calculée selon le maintien."
+    )
 
 
 def _dossier_avec_bulletin(bulletin):
@@ -207,3 +242,57 @@ def test_un_bulletin_sans_indemnite_de_conges_dit_zero():
         "details_conges": [],
     })
     assert dossier["bulletin_de_sortie"]["indemnite_conges"] == 0.0
+
+
+def test_les_lignes_ajoutees_au_certificat_sont_imprimees():
+    """« Informations supplémentaires » : la ligne ajoutée à l'éditeur était
+    enregistrée (version 2) mais absente du PDF régénéré (relevé du 12/10/2026,
+    vidéo H) : le générateur ne la recevait pas."""
+    import io
+
+    from PyPDF2 import PdfReader
+
+    from app.shared.compat.employee_exit_document_generator import (
+        get_employee_exit_document_generator,
+    )
+
+    doc_repo = MagicMock()
+    doc_repo.get_by_id.return_value = _document()
+    exit_repo = MagicMock()
+    exit_repo.get_by_id.return_value = {
+        "id": "exit-1", "employee_id": "e1", "exit_type": "fin_cdd", "last_working_day": "2026-10-15",
+    }
+    stockage = MagicMock()
+    with (
+        patch.object(commands, "ExitDocumentRepository", return_value=doc_repo),
+        patch.object(commands, "EmployeeExitRepository", return_value=exit_repo),
+        patch.object(commands, "get_exit_storage_provider", return_value=stockage),
+        patch.object(
+            commands, "get_exit_document_generator",
+            side_effect=get_employee_exit_document_generator,
+        ),
+        patch.object(
+            commands, "get_employee_full",
+            return_value={"first_name": "Jeanne", "last_name": "Essai", "hire_date": "2026-07-01"},
+        ),
+        patch.object(commands, "get_company_by_id", return_value={"company_name": "Société QA"}),
+    ):
+        commands.edit_exit_document(
+            "exit-1", "doc-1", "co-1",
+            {
+                "document_data": {
+                    "additional_info": [
+                        {"label": "Mention ajoutée", "value": "Prime fictive de test",
+                         "description": "Versée en octobre"},
+                    ]
+                },
+                "changes_summary": "Ligne ajoutée",
+            },
+            "rh-1",
+            supabase_client=MagicMock(),
+        )
+    pdf = stockage.upload.call_args.args[1]
+    texte = " ".join(page.extract_text() for page in PdfReader(io.BytesIO(pdf)).pages)
+    assert "Mention ajoutée" in texte
+    assert "Prime fictive de test" in texte
+    assert "Versée en octobre" in texte

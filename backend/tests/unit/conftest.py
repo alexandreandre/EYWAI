@@ -73,6 +73,17 @@ def aucun_arret_valide_lu_en_base(monkeypatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def aucun_depart_ni_contrat_passe_lu_en_base(monkeypatch) -> None:
+    """La sortie d'un salarié parti se lit sur son départ (`employee_exits`) : en
+    test, aucune, sauf doublure explicite (`patch(...lecteur_contrats...)`) ou
+    instance neuve de `LecteurContrats` sur une base en mémoire."""
+    from app.modules.employees.application.contrat_du_mois import lecteur_contrats
+
+    monkeypatch.setattr(lecteur_contrats, "sortie_du_contrat", lambda *a, **k: None)
+    monkeypatch.setattr(lecteur_contrats, "contrat_passe_du_mois", lambda *a, **k: None)
+
+
+@pytest.fixture(autouse=True)
 def aucun_mois_suivant_lu_en_base(monkeypatch) -> None:
     """Après une génération, le mois suivant se lit en base (`suite_du_bulletin`) :
     en test, aucun, sauf doublure explicite."""

@@ -125,13 +125,13 @@ class PortabilityDocumentGenerator:
         <b>Durée du maintien :</b> égale à la durée du dernier contrat de travail,
         dans la limite de douze mois à compter de la fin du contrat.
         <br/><br/>
-        <b>Conditions :</b> le maintien des garanties est subordonné au paiement
-        des cotisations par le bénéficiaire, dans les conditions fixées par
-        l'organisme assureur et la réglementation en vigueur.
+        <b>Conditions :</b> le maintien des garanties est accordé à titre gratuit
+        (article L.911-8 du Code de la sécurité sociale), tant que le bénéficiaire
+        est pris en charge par l'assurance chômage.
         <br/><br/>
-        <b>Démarches :</b> le bénéficiaire doit informer <b>{org}</b>
-        de sa situation dans un délai de dix jours à compter de la fin du contrat
-        de travail, et produire les justificatifs demandés.
+        <b>Démarches :</b> le bénéficiaire justifie auprès de <b>{org}</b>,
+        à l'ouverture et au cours de la période de maintien, de sa prise en charge
+        par l'assurance chômage.
         """
         story.append(Paragraph(corps, styles["CorpsPorta"]))
         story.append(Spacer(1, 1 * cm))

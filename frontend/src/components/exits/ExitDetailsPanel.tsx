@@ -82,6 +82,7 @@ import {
 import { employeeDocumentsPath } from '@/lib/employeeExitDocumentsAccess';
 import {
   MESSAGE_GENERER_DABORD_BULLETIN,
+  avertissementClotureSansBulletin,
   documentModifiable,
   documentsARevoir,
   documentsDeSortieGrises,
@@ -121,7 +122,7 @@ const GENERATABLE_DOCUMENTS: {
   label: string;
 }[] = [
   { type: 'certificat_travail', label: 'Certificat de travail' },
-  { type: 'attestation_pole_emploi', label: 'Attestation employeur' },
+  { type: 'attestation_pole_emploi', label: 'Attestation France Travail' },
   { type: 'solde_tout_compte', label: 'Solde de tout compte' },
 ];
 
@@ -1157,8 +1158,8 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                 {documents.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">
                     {documentsGrises
-                      ? 'Aucun document pour le moment. Les pièces officielles (certificat de travail, attestation employeur, solde de tout compte) se génèrent une fois le bulletin de sortie fait ; « Téléverser » reste possible pour vos propres fichiers.'
-                      : 'Aucun document pour le moment. Utilisez « Générer un document » pour produire les pièces officielles (certificat de travail, attestation employeur, solde de tout compte), ou « Téléverser » pour ajouter vos propres fichiers.'}
+                      ? 'Aucun document pour le moment. Les pièces officielles (certificat de travail, attestation France Travail, solde de tout compte) se génèrent une fois le bulletin de sortie fait ; « Téléverser » reste possible pour vos propres fichiers.'
+                      : 'Aucun document pour le moment. Utilisez « Générer un document » pour produire les pièces officielles (certificat de travail, attestation France Travail, solde de tout compte), ou « Téléverser » pour ajouter vos propres fichiers.'}
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -1320,13 +1321,21 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex-1 pr-4">
                               <p className="font-medium">Indemnité de congés payés</p>
-                              <IccpArbitrageDetail
-                                montant={indemnities.indemnite_conges.montant}
-                                joursRestants={indemnities.indemnite_conges.jours_restants}
-                                calcul={indemnities.indemnite_conges.calcul}
-                                description={indemnities.indemnite_conges.description}
-                                details={indemnities.indemnite_conges.details}
-                              />
+                              {/* Bulletin généré : son calcul, pas celui de l'estimation
+                                  (un autre dixième, relevé du 12/10/2026). */}
+                              {congesAffichee.calcul ? (
+                                <p className="text-sm text-muted-foreground">
+                                  Calcul imprimé au bulletin de {congesAffichee.mois} : «&nbsp;{congesAffichee.calcul}&nbsp;»
+                                </p>
+                              ) : (
+                                <IccpArbitrageDetail
+                                  montant={indemnities.indemnite_conges.montant}
+                                  joursRestants={indemnities.indemnite_conges.jours_restants}
+                                  calcul={indemnities.indemnite_conges.calcul}
+                                  description={indemnities.indemnite_conges.description}
+                                  details={indemnities.indemnite_conges.details}
+                                />
+                              )}
                             </div>
                             <div className="text-right shrink-0">
                               <p className="font-bold text-lg">
@@ -1552,6 +1561,22 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                 <span>
                   Le dernier jour travaillé ({formatDate(exitDetails.last_working_day)})
                   n'est pas encore passé. Vous pouvez tout de même clôturer, mais vérifiez la date.
+                </span>
+              </div>
+            </div>
+          )}
+          {avertissementClotureSansBulletin(
+            exitDetails.bulletin_de_sortie,
+            exitDetails.last_working_day
+          ) && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  {avertissementClotureSansBulletin(
+                    exitDetails.bulletin_de_sortie,
+                    exitDetails.last_working_day
+                  )}
                 </span>
               </div>
             </div>

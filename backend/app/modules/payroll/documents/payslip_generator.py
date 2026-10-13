@@ -87,6 +87,7 @@ from app.shared.domain.employment_rules import (
     is_forfait_jour,
     payslip_employment_period_block_reason,
 )
+from app.modules.employees.application.contrat_du_mois import fiche_du_mois
 from app.modules.payroll.application.salary_evolution_payroll import (
     prepare_salary_evolution_for_payslip,
 )
@@ -376,7 +377,15 @@ def resolve_date_sortie(employee_data: dict) -> Any:
     contract_end = employee_data.get("contract_end_date")
     exit_id = employee_data.get("current_exit_id")
     if not exit_id:
-        return contract_end
+        # Départ clôturé (`current_exit_id` effacé) : la sortie se lit sur le
+        # départ du contrat en cours, sinon le dernier mois d'un CDI se payait
+        # entier [D3].
+        from app.modules.employees.application.contrat_du_mois import (
+            sortie_du_contrat_en_cours,
+        )
+
+        sortie = sortie_du_contrat_en_cours(employee_data)
+        return _earliest_employment_end(contract_end, sortie) if sortie else contract_end
     try:
         exit_res = (
             supabase.table("employee_exits")
@@ -566,6 +575,9 @@ def process_payslip_generation(
         if not employee_data:
             raise HTTPException(status_code=404, detail="Employé non trouvé.")
 
+        # Un mois d'un contrat rangé par « Nouveau contrat » se calcule sur la
+        # fiche que ce contrat avait (type, entrée, fin, durée…) [D4].
+        employee_data = fiche_du_mois(employee_data, year, month)
         employee_data = {
             **employee_data,
             "exit_last_working_day": resolve_date_sortie(employee_data),

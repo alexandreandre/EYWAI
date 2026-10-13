@@ -105,7 +105,7 @@ def build_document_data_from_exit(
 
 DOCUMENT_NAME_MAP = {
     "certificat_travail": "Certificat de travail",
-    "attestation_pole_emploi": "Attestation employeur",
+    "attestation_pole_emploi": "Attestation France Travail",
     "solde_tout_compte": "Solde de tout compte",
     "attestation_portabilite_mutuelle": "Attestation de portabilité mutuelle",
     "attestation_portabilite_prevoyance": "Attestation de portabilité prévoyance",

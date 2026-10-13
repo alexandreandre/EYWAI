@@ -284,7 +284,19 @@ def _ce_que_le_bulletin_de_sortie_a_verse(
         # Ce que le bulletin a versé d'indemnité de congés : l'onglet le montre
         # à la place de l'estimation faite à l'ouverture du dossier.
         "indemnite_conges": indemnite_de_conges_du_bulletin(bulletin),
+        # Et le calcul que le bulletin imprime (dixième contre maintien, par
+        # période) : l'onglet montrait celui de l'estimation, d'un autre dixième.
+        "calcul_conges": _calcul_des_conges_du_bulletin(bulletin),
     }
+
+
+def _calcul_des_conges_du_bulletin(bulletin: Dict[str, Any]) -> Optional[str]:
+    """La phrase d'indemnité de congés imprimée par le bulletin, ou None."""
+    fin_contrat = bulletin.get("indemnite_cp_fin_contrat")
+    if isinstance(fin_contrat, dict) and fin_contrat.get("mention"):
+        return str(fin_contrat["mention"])
+    arbitrage = bulletin.get("arbitrage_conges")
+    return str(arbitrage) if arbitrage else None
 
 
 def calculate_exit_indemnities(

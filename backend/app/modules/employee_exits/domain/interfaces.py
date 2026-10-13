@@ -137,8 +137,10 @@ class IExitDocumentGenerator(ABC):
         employee_data: Dict[str, Any],
         company_data: Dict[str, Any],
         exit_data: Dict[str, Any],
+        informations_supplementaires: Optional[List[Dict[str, Any]]] = None,
     ) -> bytes:
-        """Génère le certificat de travail (Article L1234-19)."""
+        """Génère le certificat de travail (Article L1234-19), avec les lignes
+        ajoutées à l'éditeur (« Informations supplémentaires »)."""
         ...
 
     @abstractmethod

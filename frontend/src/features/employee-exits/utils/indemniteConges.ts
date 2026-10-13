@@ -5,13 +5,18 @@
  * l'attestation France Travail et la DSN. L'onglet montre donc la même.
  */
 
-export type BulletinDeSortieConges = { mois: string; indemnite_conges?: number | null } | null | undefined;
+export type BulletinDeSortieConges =
+  | { mois: string; indemnite_conges?: number | null; calcul_conges?: string | null }
+  | null
+  | undefined;
 
 export interface IndemniteCongesAffichee {
   montant: number | null;
   source: 'bulletin' | 'estimation';
   mois?: string;
   estimation?: number | null;
+  /** Le calcul imprimé par le bulletin (dixième contre maintien, par période). */
+  calcul?: string;
 }
 
 export function indemniteCongesAffichee(
@@ -24,6 +29,7 @@ export function indemniteCongesAffichee(
       source: 'bulletin',
       mois: bulletin.mois,
       estimation: estimation ?? null,
+      ...(bulletin.calcul_conges ? { calcul: bulletin.calcul_conges } : {}),
     };
   }
   return { montant: estimation ?? null, source: 'estimation' };

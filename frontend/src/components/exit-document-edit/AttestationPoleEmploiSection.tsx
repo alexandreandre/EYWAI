@@ -312,7 +312,7 @@ export default function AttestationPoleEmploiSection({ data, onChange }: Attesta
 
       <DynamicLineList
         title="Informations complémentaires"
-        description="Informations supplémentaires pour l'attestation employeur"
+        description="Informations supplémentaires pour l'attestation France Travail"
         category="additional_info"
         fields={[
           {
@@ -344,7 +344,7 @@ export default function AttestationPoleEmploiSection({ data, onChange }: Attesta
       <Card className="bg-muted/40 border-muted">
         <CardContent className="pt-6">
           <p className="text-sm text-muted-foreground">
-            L&apos;attestation employeur doit être remise au collaborateur dans les 5 jours ouvrés
+            L&apos;attestation France Travail doit être remise au collaborateur dans les 5 jours ouvrés
             suivant la fin du contrat. La version faisant foi auprès de France Travail est transmise
             via la DSN (signalement fin de contrat).
           </p>

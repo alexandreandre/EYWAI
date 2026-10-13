@@ -745,7 +745,8 @@ def _etats_par_mois(
             continue
         annee, mois = periode
         if not mois_du_contrat_en_cours(lectures.employee, annee, mois):
-            # Un ancien contrat : son bulletin ne se recalcule plus, rien à dire.
+            # Un ancien contrat : son bulletin ne se recalcule que sur demande
+            # (sur la fiche rangée avec lui), rien à signaler.
             etats[periode] = EtatDuBulletin()
             continue
         #: Validé : une fiche ou un réglage de la société modifiés depuis (ils

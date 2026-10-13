@@ -1260,8 +1260,13 @@ def edit_exit_document(
     gen_company = {**company_data, **merged_data.get("company", {})}
     gen_exit = {**exit_data, **merged_data.get("exit", {})}
     if document_type == "certificat_travail":
+        # Les lignes « Informations supplémentaires » de l'éditeur : enregistrées
+        # sans être imprimées jusqu'au 12/10/2026.
         pdf_bytes = generator.generate_certificat_travail(
-            gen_employee, gen_company, gen_exit
+            gen_employee,
+            gen_company,
+            gen_exit,
+            informations_supplementaires=merged_data.get("additional_info"),
         )
     elif document_type == "attestation_pole_emploi":
         pdf_bytes = generator.generate_attestation_pole_emploi(
@@ -1354,9 +1359,11 @@ def publish_exit_documents(
     """
     Publie des documents de sortie vers employee_documents (section autres).
     document_ids=None => tous les documents générés. Gère idempotence et force_update.
-    """
-    from uuid import UUID
 
+    Identifiants rendus en chaînes, comme le modèle de réponse les attend : des
+    UUID faisaient échouer la réponse en 500 après la copie des documents
+    (relevé du 12/10/2026). Le document du départ est marqué publié.
+    """
     sb = supabase_client or supabase
     exit_repo = EmployeeExitRepository(sb)
     doc_repo = ExitDocumentRepository(sb)
@@ -1378,7 +1385,7 @@ def publish_exit_documents(
     total_published = total_updated = total_failed = total_already_published = 0
     for doc in documents:
         doc_status = {
-            "exit_document_id": UUID(doc["id"]),
+            "exit_document_id": str(doc["id"]),
             "document_type": doc["document_type"],
             "filename": doc["filename"],
             "status": "failed",
@@ -1401,7 +1408,7 @@ def publish_exit_documents(
             )
             if existing and not force_update:
                 doc_status["status"] = "already_published"
-                doc_status["employee_document_id"] = UUID(existing["id"])
+                doc_status["employee_document_id"] = str(existing["id"])
                 doc_status["published_at"] = (
                     datetime.fromisoformat(
                         existing["published_at"].replace("Z", "+00:00")
@@ -1497,22 +1504,34 @@ def publish_exit_documents(
                 status,
                 sb,
             )
+            publie_le = datetime.now(timezone.utc)
+            doc_repo.update(
+                str(doc["id"]),
+                exit_id,
+                company_id,
+                {
+                    "published_to_employee": True,
+                    "published_at": publie_le.isoformat(),
+                    "published_by": current_user_id,
+                    "updated_at": publie_le.isoformat(),
+                },
+            )
             try:
                 url = storage.create_signed_url(dest_path, 3600, download=True)
                 doc_status["url"] = url
             except Exception:
                 doc_status["url"] = None
             doc_status["status"] = status
-            doc_status["employee_document_id"] = UUID(employee_doc_id)
-            doc_status["published_at"] = datetime.now(timezone.utc)
+            doc_status["employee_document_id"] = str(employee_doc_id)
+            doc_status["published_at"] = publie_le
             published_docs.append(doc_status)
         except Exception as e:
             doc_status["error_message"] = str(e)
             published_docs.append(doc_status)
             total_failed += 1
     return {
-        "exit_id": UUID(exit_id),
-        "employee_id": UUID(employee_id),
+        "exit_id": str(exit_id),
+        "employee_id": str(employee_id),
         "success": total_failed == 0,
         "documents": published_docs,
         "total_published": total_published,

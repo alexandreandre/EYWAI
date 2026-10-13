@@ -38,7 +38,9 @@ Le départ archivé, les bulletins, les cumuls et les absences restent intacts.
 
 ## Mois payables
 
-Ils suivent la fiche : un mois est payable s'il chevauche le nouveau contrat. Les mois entre deux contrats ne le sont pas. Les mois de l'ancien contrat ne se recalculent plus, puisque la fiche décrit désormais le nouveau. Aucune règle de paie n'est ajoutée pour cela : la date d'entrée suffit.
+Ils suivent la fiche : un mois est payable s'il chevauche le nouveau contrat. Les mois entre deux contrats ne le sont pas. Aucune règle de paie n'est ajoutée pour cela : la date d'entrée suffit.
+
+Mise à jour du 13/10/2026 (relevé de la vidéo H, [D4]) : les mois de l'ancien contrat restent corrigeables. Le contrat rangé garde les champs de la fiche qu'il avait (ceux que « Nouveau contrat » remplace, colonne `employee_contract_periods.fiche`) ; régénérer un de ses bulletins le recalcule sur eux, « parti », sa sortie lue sur son départ archivé. Un contrat passé saisi à la main n'a pas cette fiche : ses mois restent refusés.
 
 ## Ancienneté
 
