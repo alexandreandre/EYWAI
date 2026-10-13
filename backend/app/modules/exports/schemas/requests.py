@@ -27,6 +27,9 @@ ExportType = Literal[
     "virement_salaires",
     "virement_acomptes",
     "recapitulatif_montants",
+    # Marque à la main de la liste de contrôle du mois : la DSN est déposée
+    # depuis l'ancien logiciel (décision du 12/10/2026). Aucun fichier.
+    "dsn_hors_martine",
 ]
 
 

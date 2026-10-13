@@ -25,7 +25,9 @@ export type ExportType =
   | "dsn_mensuelle"
   | "virement_salaires"
   | "virement_acomptes"
-  | "recapitulatif_montants";
+  | "recapitulatif_montants"
+  // Marque à la main de la liste de contrôle : DSN déposée depuis l'ancien logiciel.
+  | "dsn_hors_martine";
 
 export type ExportStatus = "previewed" | "generated" | "cancelled" | "replaced";
 
@@ -176,6 +178,15 @@ export async function getExportHistory(
   
   const response = await apiClient.get(`/api/exports/history?${params.toString()}`);
   return response.data;
+}
+
+/**
+ * Marque faite à la main l'étape « DSN et export comptable faits » du mois : la
+ * DSN est déposée hors de Martine (décision du 12/10). L'historique des exports
+ * garde qui et quand ; aucun fichier.
+ */
+export async function marquerDsnHorsMartine(period: string, note?: string): Promise<void> {
+  await apiClient.post('/api/exports/dsn-hors-martine', { period, note: note ?? null });
 }
 
 export interface ExportFileDownloadInfo {

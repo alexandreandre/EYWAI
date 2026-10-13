@@ -7,7 +7,9 @@ import {
   Loader2,
 } from 'lucide-react';
 import { ControleIndisponible } from '@/features/payroll/components/ControleIndisponible';
+import { Button } from '@/components/ui/button';
 import {
+  ETAPE_DECLARATIONS,
   phraseListeControle,
   type ListeControleMois as Liste,
 } from '@/features/payroll/utils/listeControleMois';
@@ -20,6 +22,9 @@ type Props = {
   preflightEnErreur?: boolean;
   onRetryPreflight?: () => void;
   isRetrying?: boolean;
+  /** Marque à la main l'étape DSN : déposée depuis l'ancien logiciel (décision du 12/10). */
+  onMarquerDsnHorsMartine?: () => void;
+  marquageDsnEnCours?: boolean;
 };
 
 export function ListeControleMois({
@@ -29,6 +34,8 @@ export function ListeControleMois({
   preflightEnErreur = false,
   onRetryPreflight,
   isRetrying = false,
+  onMarquerDsnHorsMartine,
+  marquageDsnEnCours = false,
 }: Props) {
   return (
     <section
@@ -98,6 +105,24 @@ export function ListeControleMois({
                 <div className="min-w-0">
                   <p className="text-sm font-medium leading-tight">{etape.libelle}</p>
                   <p className="text-xs text-muted-foreground">{etape.detail}</p>
+                  {etape.id === ETAPE_DECLARATIONS &&
+                  etape.etat === 'a_faire' &&
+                  onMarquerDsnHorsMartine ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-1.5 h-7 text-xs"
+                      disabled={marquageDsnEnCours}
+                      onClick={onMarquerDsnHorsMartine}
+                      data-testid="dsn-hors-martine"
+                    >
+                      {marquageDsnEnCours ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
+                      ) : null}
+                      Marquer faite : DSN déposée hors de Martine
+                    </Button>
+                  ) : null}
                   {etape.etat === 'fait' ? (
                     <span className="sr-only">Fait</span>
                   ) : etape.etat === 'a_confirmer' ? (

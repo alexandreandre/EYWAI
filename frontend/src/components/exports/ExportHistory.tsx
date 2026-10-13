@@ -34,6 +34,7 @@ const exportTypeLabels: Record<string, string> = {
   export_cabinet_sage: "Export format Sage",
   // Déclarations
   dsn_mensuelle: "DSN mensuelle",
+  dsn_hors_martine: "DSN déposée hors de Martine",
   // Paiements
   virement_salaires: "Virement salaires",
   virement_acomptes: "Virement acomptes",
@@ -215,11 +216,17 @@ export function ExportHistory({ exportType, hideHeader = false }: ExportHistoryP
                       variant="ghost"
                       size="icon"
                       onClick={() => handleDownload(item.id, item.export_type, item.period)}
-                      disabled={downloadingIds.has(item.id) || item.status !== "generated"}
+                      disabled={
+                        downloadingIds.has(item.id) ||
+                        item.status !== "generated" ||
+                        item.files_count === 0
+                      }
                       title={
-                        item.files_count > 1
-                          ? `Télécharger ${item.files_count} fichiers`
-                          : "Télécharger l'export"
+                        item.files_count === 0
+                          ? "Marque faite à la main, sans fichier"
+                          : item.files_count > 1
+                            ? `Télécharger ${item.files_count} fichiers`
+                            : "Télécharger l'export"
                       }
                     >
                       {downloadingIds.has(item.id) ? (

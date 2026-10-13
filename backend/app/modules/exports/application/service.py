@@ -86,6 +86,31 @@ def preview_export(
     return queries.preview_export(company_id, request)
 
 
+def marquer_dsn_hors_martine(
+    company_id: str, user_id: str, period: str, note: Optional[str] = None
+) -> Dict[str, str]:
+    """Marque à la main l'étape « DSN et export comptable faits » du mois : la
+    DSN est déposée hors de Martine (décision du 12/10/2026). L'historique des
+    exports garde qui, quand et pour quel mois ; aucun fichier."""
+    try:
+        datetime.strptime(str(period), "%Y-%m")
+    except ValueError:
+        raise ValueError("Le mois doit s'écrire AAAA-MM.") from None
+    note_propre = (note or "").strip()
+    record: ExportRecordForInsert = {
+        "company_id": company_id,
+        "export_type": "dsn_hors_martine",
+        "period": period,
+        "parameters": {"note": note_propre} if note_propre else {},
+        "file_paths": [],
+        "report": {},
+        "status": "generated",
+        "generated_by": user_id,
+    }
+    export_id = commands.record_export_history(record)
+    return {"export_id": export_id, "period": period}
+
+
 def get_export_history(
     company_id: str,
     export_type: Optional[str] = None,

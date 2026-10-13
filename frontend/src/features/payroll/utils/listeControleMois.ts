@@ -43,6 +43,8 @@ export const TYPES_EXPORT_COMPTABLE: readonly string[] = [
   'fec',
 ];
 export const TYPE_EXPORT_DSN = 'dsn_mensuelle';
+/** Marque à la main : la DSN est déposée depuis l'ancien logiciel (décision du 12/10). */
+export const TYPE_DSN_HORS_MARTINE = 'dsn_hors_martine';
 
 export const MESSAGE_ABSENCES_A_CONFIRMER =
   'Le logiciel ne peut pas vérifier que toutes les absences du mois sont saisies. Confirmez-le vous-même dans Congés & absences.';
@@ -89,6 +91,7 @@ export type ExportPourControle = {
   status: string;
   generated_at: string;
   a_refaire?: boolean;
+  generated_by_name?: string | null;
 };
 
 export type EntreeListeControle = {
@@ -306,10 +309,30 @@ function etatExport(
   return [...derniers.values()].some((e) => e.a_refaire) ? 'a_refaire' : 'fait';
 }
 
+/** « 12/10/2026 » : la date de Paris d'un horodatage de l'historique. */
+function dateFr(horodatage: string): string {
+  const d = new Date(horodatage);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' });
+}
+
 function etapeDeclarations(
   lecture: Lecture<readonly ExportPourControle[]>
 ): { etat: EtatEtape; detail: string } {
   return etatDepuisLecture(lecture, (exports) => {
+    // Marquée faite à la main (DSN déposée hors de Martine) : l'étape est faite,
+    // tracée par qui et quand ; un recalcul ne la défait pas.
+    const marque = exports
+      .filter((e) => e.status === 'generated' && e.export_type === TYPE_DSN_HORS_MARTINE)
+      .sort((a, b) => (a.generated_at < b.generated_at ? 1 : -1))[0];
+    if (marque) {
+      const qui = marque.generated_by_name?.trim();
+      const le = dateFr(marque.generated_at);
+      return {
+        etat: 'fait',
+        detail: `Marquée faite à la main${qui ? ` par ${qui}` : ''}${le ? ` le ${le}` : ''} : DSN déposée hors de Martine.`,
+      };
+    }
     const dsn = etatExport(exports, [TYPE_EXPORT_DSN]);
     const compta = etatExport(exports, TYPES_EXPORT_COMPTABLE);
     if (dsn === 'fait' && compta === 'fait') {

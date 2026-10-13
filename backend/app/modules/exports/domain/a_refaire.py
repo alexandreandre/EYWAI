@@ -21,7 +21,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 #: Exports qui ne lisent aucun bulletin : un bulletin recalculé ne les rend pas faux.
-EXPORTS_HORS_BULLETINS = frozenset({"conges_absences", "notes_frais", "virement_acomptes"})
+#: « DSN déposée hors de Martine » : une marque à la main, pas un fichier tiré des
+#: bulletins ; un recalcul ne la rend pas « à refaire ».
+EXPORTS_HORS_BULLETINS = frozenset(
+    {"conges_absences", "notes_frais", "virement_acomptes", "dsn_hors_martine"}
+)
 
 
 def instant(valeur: Any) -> datetime | None:

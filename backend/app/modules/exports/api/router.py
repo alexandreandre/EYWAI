@@ -3,6 +3,7 @@
 from typing import List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from app.core.security import get_current_user
 from app.modules.access_control.application.service import access_control_service
@@ -134,6 +135,37 @@ def generate_export(
     except Exception as e:
         logger.exception("Échec de generate_export")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class DsnHorsMartineRequest(BaseModel):
+    """Mois (AAAA-MM) dont la DSN a été déposée depuis l'ancien logiciel."""
+
+    period: str
+    note: Optional[str] = None
+
+
+@router.post("/dsn-hors-martine")
+def marquer_dsn_hors_martine(
+    request: DsnHorsMartineRequest,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    """Marque faite à la main l'étape « DSN et export comptable faits » du mois."""
+    try:
+        _require_exports_company_access(current_user, company_id)
+        return export_service.marquer_dsn_hors_martine(
+            company_id, current_user.id, request.period, request.note
+        )
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except Exception:
+        logger.exception("Échec de marquer_dsn_hors_martine")
+        raise HTTPException(
+            status_code=500,
+            detail="La marque « DSN déposée hors de Martine » n'a pas été enregistrée : réessayez.",
+        )
 
 
 @router.get("/history", response_model=ExportHistoryResponse)

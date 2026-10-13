@@ -1,7 +1,7 @@
 import { isPresentDuringMonth } from '@/lib/employmentStatus';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RhPageHeader } from '@/components/layout';
 import { PageFetchIndicator } from '@/components/skeletons/PageFetchIndicator';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -9,7 +9,7 @@ import { usePayrollEmployeesQuery, type EmployeeListItem } from '@/hooks/queries
 import { useEmployeePayslipsQuery } from '@/hooks/queries/useEmployeePayslipsQuery';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { deletePayslip, getEmployeePayslips, type PayslipInfo } from '@/api/payslips';
-import { getExportHistory } from '@/api/exports';
+import { getExportHistory, marquerDsnHorsMartine } from '@/api/exports';
 import { queryKeys } from '@/lib/queryKeys';
 import { showErrorToast } from '@/lib/errorMessages';
 import { toast } from '@/hooks/use-toast';
@@ -704,6 +704,25 @@ export default function Payroll() {
     enabled: Boolean(companyId),
     staleTime: 30_000,
   });
+  // « DSN déposée hors de Martine » : l'étape se marque faite à la main, tracée
+  // à l'historique des exports (décision du 12/10).
+  const marquageDsnMutation = useMutation({
+    mutationFn: () => marquerDsnHorsMartine(periodeExports),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['export-history', companyId] });
+      toast({
+        title: 'Étape marquée faite',
+        description: `DSN de ${monthYearLabel(selectedMonth, selectedYear)} déposée hors de Martine : la marque est gardée dans l’historique des exports.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'Marque non enregistrée',
+        description: 'L’étape DSN n’a pas été marquée faite. Réessayez.',
+        variant: 'destructive',
+      });
+    },
+  });
   const lectureExports = useMemo((): Lecture<readonly ExportPourControle[]> => {
     if (exportsDuMoisQuery.isError && exportsDuMoisQuery.data === undefined) return { statut: 'erreur' };
     if (exportsDuMoisQuery.data === undefined) return { statut: 'chargement' };
@@ -839,6 +858,8 @@ export default function Payroll() {
           void preflightQuery.refetch();
         }}
         isRetrying={preflightQuery.isFetching}
+        onMarquerDsnHorsMartine={() => marquageDsnMutation.mutate()}
+        marquageDsnEnCours={marquageDsnMutation.isPending}
       />
 
       <div className="space-y-3">

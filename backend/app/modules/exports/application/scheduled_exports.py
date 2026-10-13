@@ -56,6 +56,7 @@ EXPORT_TYPE_LABELS: Dict[str, str] = {
     "attestations_annexes": "Attestations & annexes",
     "fec": "FEC",
     "dsn_mensuelle": "DSN mensuelle",
+    "dsn_hors_martine": "DSN déposée hors de Martine",
 }
 
 FREQUENCY_LABELS = {
