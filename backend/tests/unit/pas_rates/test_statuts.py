@@ -106,6 +106,13 @@ class TestLigneDuSuivi:
         assert ligne.taux is None
         assert ligne.statut == STATUT_MANQUANT
 
+    def test_sans_taux_la_page_dit_la_meme_chose_que_la_fiche(self):
+        """Un salarié sans taux n'est pas « Manquant » / « Origine inconnue » :
+        la fiche dit déjà que la grille par défaut s'applique."""
+        ligne = self._ligne({"is_personnalise": False, "taux": 0})
+        assert ligne.statut_libelle == "Grille par défaut"
+        assert ligne.type_libelle == "Aucun taux connu — grille par défaut appliquée"
+
     def test_un_zero_transmis_par_la_dgfip_reste_un_taux(self):
         ligne = self._ligne({"taux": 0, "type_taux": "01", "periode": "2026-09"})
         assert ligne.taux == 0
