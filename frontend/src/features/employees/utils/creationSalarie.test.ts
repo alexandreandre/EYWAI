@@ -159,6 +159,19 @@ describe('garde-fous d’écran', () => {
     );
   });
 
+  it('une requête sans réponse parle de la connexion, pas des champs en rouge', () => {
+    const reseau = raisonEchecCreation({ message: 'Network Error' });
+    expect(reseau).toBe(
+      "Salarié NON enregistré : la requête n'est pas partie. Vérifiez la connexion, puis réessayez.",
+    );
+    expect(reseau).not.toMatch(/champs en rouge/);
+    const champs = raisonEchecCreation({
+      response: { status: 422, data: { field_errors: { last_name: 'Nom trop court' } } },
+    });
+    expect(champs).toBe('Salarié NON enregistré : Nom trop court');
+    expect(champs).not.toMatch(/connexion/);
+  });
+
   it('un échec dit que le salarié n’est pas enregistré, jamais le générique seul', () => {
     expect(bandeauNonEnregistre('le nom est trop court')).toBe(
       'Salarié NON enregistré : le nom est trop court',
