@@ -9,6 +9,7 @@
 
 import { estBulletinImporte } from './bulletinImporte';
 import { estPerime } from './bulletinARecalculer';
+import { enVerification } from './validesEnVerification';
 import { monthLabel } from './payrollMonth';
 
 /** Au-delà, l'écart du net avec le mois précédent est mis en orange (comme R03 côté serveur). */
@@ -25,6 +26,8 @@ export type BulletinPourRevue = {
   status?: string | null;
   origine?: string | null;
   a_recalculer?: boolean | null;
+  /** Recalculé au bac à sable, verdict pas encore là (lots 42 et 43). */
+  a_verifier?: boolean | null;
   warnings?: string[] | null;
   /** Règles de comparaison (R03, R09…) que la RH a acquittées ou ignorées sur ce bulletin. */
   alertes_acquittees?: string[] | null;
@@ -142,12 +145,21 @@ export function motifsAlerte(ligne: LigneDuMois): string[] {
   return motifs;
 }
 
-/** Sans bulletin, en échec, à recalculer, en alerte ou en écart fort. Un bulletin validé n'est plus à revoir. */
+/**
+ * Sans bulletin, en échec, à recalculer, en vérification au bac à sable (le
+ * verdict arrive en quelques secondes), en alerte ou en écart fort. Un bulletin
+ * validé n'est plus à revoir.
+ */
 export function estARevoir(ligne: LigneDuMois): boolean {
   if (ligne.statut === 'idle' || ligne.statut === 'error') return true;
   if (ligne.statut !== 'success' || !ligne.bulletin) return false;
   if (ligne.bulletin.status === 'valide') return false;
-  return estPerime(ligne.bulletin) || aUneAlerte(ligne) || Boolean(ligne.ecart?.fort);
+  return (
+    estPerime(ligne.bulletin) ||
+    enVerification(ligne.bulletin) ||
+    aUneAlerte(ligne) ||
+    Boolean(ligne.ecart?.fort)
+  );
 }
 
 /** Validé, ou repris de l'ancien logiciel (il a été payé). */

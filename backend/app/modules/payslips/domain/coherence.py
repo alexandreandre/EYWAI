@@ -23,17 +23,31 @@ MESSAGE_RECALCUL_EN_ATTENTE = (
 )
 
 
+#: Un brouillon recalculé au bac à sable, le verdict pas encore là (lot 43) : la
+#: validation attend quelques secondes, au lieu de valider un bulletin peut-être faux.
+MESSAGE_VERIFICATION_EN_COURS = (
+    "Martine vérifie encore ce bulletin : le planning a changé depuis son calcul, et "
+    "elle le recalcule sans rien enregistrer pour savoir si un montant change. "
+    "Réessayez dans quelques secondes."
+)
+
+
 def raisons_de_ne_pas_valider(
     payslip_data: dict[str, Any] | None,
     raison_a_recalculer: str | None = None,
+    *,
+    verification_en_cours: bool = False,
 ) -> list[str]:
-    """Recalcul en attente, ou entrées changées depuis le calcul (`raison_a_recalculer`,
-    la phrase qui dit quoi — None quand rien n'a changé ou qu'on ne sait pas)."""
+    """Recalcul en attente, entrées changées depuis le calcul (`raison_a_recalculer`,
+    la phrase qui dit quoi — None quand rien n'a changé ou qu'on ne sait pas), ou
+    vérification au bac à sable en cours."""
     raisons: list[str] = []
     if isinstance(payslip_data, dict) and payslip_data.get("recalcul_en_attente"):
         raisons.append(MESSAGE_RECALCUL_EN_ATTENTE)
     if raison_a_recalculer:
         raisons.append(raison_a_recalculer)
+    if verification_en_cours:
+        raisons.append(MESSAGE_VERIFICATION_EN_COURS)
     return raisons
 
 

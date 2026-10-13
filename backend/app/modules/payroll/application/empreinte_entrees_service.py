@@ -570,12 +570,65 @@ def _adresse_societe(company: Mapping[str, Any] | None, year: int) -> dict[str, 
     return parties
 
 
+#: Le planning que le calcul du mois lit à coup sûr (lot 43) : le prévu du mois
+#: civil et de la fenêtre des variables (arrêts, congés, fériés, horaire), le réel
+#: de la fenêtre (heures, absences injustifiées) et les absences qui y touchent.
+#: Ce qui change hors d'elle (le mois suivant posé, la semaine à cheval, les
+#: pointages d'après la fenêtre) ne change que rarement le calcul : un brouillon
+#: est alors recalculé au bac à sable avant de dire « À recalculer », comme un
+#: validé (voir `_a_verifier`). Partie à part, sans version à gérer : un bulletin
+#: calculé avant elle n'en a pas, et `parties_changees` ne la compare pas.
+PARTIE_PLANNING_DU_MOIS = "planning_du_mois"
+
+#: Les parties qu'un changement du planning d'à côté fait bouger.
+_PARTIES_DU_PLANNING = frozenset({"calendriers", "absences"})
+
+
+def planning_du_mois(entrees: Mapping[str, Any], year: int, month: int) -> dict[str, Any]:
+    """La partie `planning_du_mois`, tirée des entrées canoniques de l'empreinte."""
+    debut_mois = date(year, month, 1)
+    fin_mois = date(year, month, calendar.monthrange(year, month)[1])
+    fenetre = entrees.get("fenetre_variables") or {}
+    f_debut = _jour(fenetre.get("debut")) or debut_mois
+    f_fin = _jour(fenetre.get("fin")) or fin_mois
+    debut, fin = min(debut_mois, f_debut).isoformat(), max(fin_mois, f_fin).isoformat()
+    fenetre_debut, fenetre_fin = f_debut.isoformat(), f_fin.isoformat()
+    prevu: list[Any] = []
+    reel: list[Any] = []
+    for cle in sorted(entrees.get("calendriers") or {}):
+        bloc = (entrees.get("calendriers") or {}).get(cle) or {}
+        try:
+            annee, mois = int(str(cle)[:4]), int(str(cle)[5:7])
+        except ValueError:
+            continue
+        for entree in bloc.get("prevu") or []:
+            iso = _iso_jour(entree, annee, mois) if isinstance(entree, Mapping) else None
+            if iso and debut <= iso <= fin:
+                prevu.append(entree)
+        for entree in bloc.get("reel") or []:
+            iso = _iso_jour(entree, annee, mois) if isinstance(entree, Mapping) else None
+            if iso and fenetre_debut <= iso <= fenetre_fin:
+                reel.append(entree)
+    absences = [
+        absence
+        for absence in entrees.get("absences") or []
+        if any(debut <= str(jour)[:10] <= fin for jour in (absence.get("selected_days") or []))
+    ]
+    return {"prevu": prevu, "reel": reel, "absences": absences}
+
+
 def empreintes_des_parties(
-    entrees: Mapping[str, Any], complements: Mapping[str, Any] | None
+    entrees: Mapping[str, Any],
+    complements: Mapping[str, Any] | None,
+    *,
+    mois: tuple[int, int] | None = None,
 ) -> dict[str, str]:
-    """Un hash par partie : celles de l'empreinte d'entrée, puis les compléments."""
+    """Un hash par partie : celles de l'empreinte d'entrée, puis les compléments,
+    puis (le mois donné) le planning que le calcul du mois lit à coup sûr."""
     parties = dict(entrees)
     parties.update(complements or {})
+    if mois is not None:
+        parties[PARTIE_PLANNING_DU_MOIS] = planning_du_mois(entrees, *mois)
     return {nom: empreinte_partie(valeur) for nom, valeur in parties.items()}
 
 
@@ -627,7 +680,10 @@ def poser_empreinte_complementaire_depuis_lectures(
         company=kwargs.get("company"),
         calendriers=kwargs["calendriers"],
     )
-    return poser_empreinte_complementaire(payslip_data, empreintes_des_parties(entrees, du_mois))
+    return poser_empreinte_complementaire(
+        payslip_data,
+        empreintes_des_parties(entrees, du_mois, mois=(kwargs["year"], kwargs["month"])),
+    )
 
 
 def _entrees_depuis_cache(lectures: LecturesEmpreinte, year: int, month: int) -> dict[str, Any]:
@@ -692,6 +748,9 @@ class EtatDuBulletin:
     #: Validé aux entrées changées dont le recalcul au bac à sable tourne hors de
     #: la requête : ni « À recalculer » ni à jour tant que le verdict n'est pas là.
     verification_en_cours: bool = False
+    #: Seuls le planning ou les absences hors du mois et de sa fenêtre ont changé
+    #: (`planning_du_mois` identique) : un brouillon est vérifié au bac à sable.
+    seulement_hors_du_mois: bool = False
 
     @property
     def a_recalculer(self) -> bool | None:
@@ -781,6 +840,7 @@ def _etats_par_mois(
             precedent = etats.get(mois_de_la_fenetre(annee, mois)[0])
             cascade = precedent.cascade_depuis if precedent else None
         stockees = empreinte_complementaire_valide(ligne.get("empreinte_complementaire"))
+        hors_du_mois = False
         if stockees is not None:
             # Calculé avec l'empreinte complémentaire : elle seule décide, partie
             # par partie (elle contient celles de l'empreinte d'entrée).
@@ -788,6 +848,12 @@ def _etats_par_mois(
             if valide:
                 changees = tuple(p for p in changees if p not in _PARTIES_IGNOREES_SI_VALIDE)
             entrees_changees: bool | None = bool(changees)
+            hors_du_mois = (
+                bool(changees)
+                and PARTIE_PLANNING_DU_MOIS in stockees
+                and PARTIE_PLANNING_DU_MOIS in parties
+                and set(changees) <= _PARTIES_DU_PLANNING
+            )
         else:
             # Bulletin d'avant elle : l'empreinte d'entrée seule, comme avant.
             changees = None
@@ -803,6 +869,7 @@ def _etats_par_mois(
             cumuls_precedents_changes=propres,
             cascade_depuis=cascade,
             parties_changees=changees,
+            seulement_hors_du_mois=hors_du_mois,
         )
     return etats
 
@@ -821,7 +888,7 @@ def _parties_du_mois(
         company=lectures.company,
         calendriers=lectures.calendriers,
     )
-    return entrees, empreintes_des_parties(entrees, du_mois)
+    return entrees, empreintes_des_parties(entrees, du_mois, mois=(year, month))
 
 
 # --- Un validé dont l'empreinte change : recalculé d'abord au bac à sable ----------
@@ -842,6 +909,14 @@ def _parties_du_mois(
 # Seules ses ENTRÉES changées sont vérifiées ainsi : un mois d'avant recalculé
 # depuis (cumuls de départ changés, cascade) est la chaîne de paie, il reste « À
 # recalculer ». Un même état n'est vérifié qu'une fois par processus.
+#
+# Lot 43 (rejeu final C3, 13/10) : un BROUILLON passait aussi « À recalculer »
+# quand on posait le mois suivant. Il est vérifié de même, mais seulement quand
+# le changement est hors du mois et de sa fenêtre (`planning_du_mois` identique,
+# seuls le planning ou les absences d'à côté ont bougé). Un changement du mois
+# lui-même — le cas courant, la gestionnaire corrige son mois — le rend « À
+# recalculer » tout de suite, sans bac à sable. Pendant la vérification, sa
+# validation attend le verdict (`raisons_de_ne_pas_valider`).
 
 
 @dataclass(frozen=True)
@@ -941,7 +1016,7 @@ def verifier_valide_au_bac_a_sable(
 def _a_verifier(ligne: Mapping[str, Any], etat: EtatDuBulletin | None) -> bool:
     return (
         etat is not None
-        and str(ligne.get("status") or "") == "valide"
+        and (str(ligne.get("status") or "") == "valide" or etat.seulement_hors_du_mois)
         and str(ligne.get("origine") or "calcule") != "importe"
         and etat.entrees_changees is True
         and etat.cascade_depuis is None
@@ -955,7 +1030,7 @@ def _verifier_puis_garder(
     mois: int,
     cumuls_precedents: Any,
     cumuls_du_mois: Any,
-    ecriture: tuple[str, dict[str, Any], str | None] | None,
+    ecriture: tuple[str, dict[str, Any], str | None, str] | None,
 ) -> None:
     """La vérification hors de la requête : le verdict, puis (identique, depuis la
     liste) les empreintes d'aujourd'hui reposées sur le bulletin."""
@@ -972,10 +1047,11 @@ def _verifier_puis_garder(
                 _VERDICTS.clear()
             _VERDICTS[cle] = verdict
         if verdict is not None and verdict.identique and ecriture is not None:
+            payslip_id, parametres, empreinte_lue, statut = ecriture
             try:
-                poser_empreintes_verifiees(*ecriture)
+                poser_empreintes_verifiees(payslip_id, parametres, empreinte_lue, statut=statut)
             except Exception:  # noqa: BLE001 — le verdict reste juste, gardé en mémoire
-                logger.warning("Empreintes du validé %s non reposées", ecriture[0], exc_info=True)
+                logger.warning("Empreintes du bulletin %s non reposées", payslip_id, exc_info=True)
     finally:
         with _VERROU_VERDICTS:
             _EN_COURS.discard(cle)
@@ -1051,6 +1127,7 @@ def _verifier_les_valides(
                         str(ligne["id"]),
                         {"empreinte_entrees": etat.empreinte_actuelle, "empreinte_complementaire": parties},
                         _hash_ou_none(ligne.get("empreinte_entrees")),
+                        str(ligne.get("status") or ""),
                     )
                 arguments = (cle, employee_id, annee, mois, cumuls_precedents, cumuls_du_mois, ecriture)
                 try:

@@ -70,7 +70,8 @@ def lire_etat_bulletins(
     def etat_de(employee_id: str) -> bool | None:
         etat = empreinte_entrees_service.etat_dans_la_chaine(employee_id, year, month)
         if etat is not None and getattr(etat, "verification_en_cours", False):
-            # Validé recalculé au bac à sable, verdict pas encore là : non vérifié.
+            # Recalculé au bac à sable (validé, ou brouillon depuis le lot 43), verdict
+            # pas encore là : non vérifié.
             raise _EnVerification
         return None if etat is None else etat.a_recalculer
 

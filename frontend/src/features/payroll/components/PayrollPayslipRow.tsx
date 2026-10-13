@@ -19,7 +19,7 @@ import { DocumentFileRow, DownloadLinkButton, ViewLinkButton } from '@/component
 import type { PayslipInfo } from '@/api/payslips';
 import { MOTIF_BULLETIN_IMPORTE, estBulletinImporte } from '@/features/payroll/utils/bulletinImporte';
 import { estPerime, infobulleARecalculer } from '@/features/payroll/utils/bulletinARecalculer';
-import { INFOBULLE_EN_VERIFICATION, enVerification } from '@/features/payroll/utils/validesEnVerification';
+import { enVerification, infobulleEnVerification } from '@/features/payroll/utils/validesEnVerification';
 import {
   hasNetSuperieurBrutWarning,
   PayslipNetBrutInlineLabel,
@@ -179,7 +179,7 @@ export function PayrollPayslipRow({
               Vérification…
             </Badge>
           </TooltipTrigger>
-          <TooltipContent className="max-w-xs">{INFOBULLE_EN_VERIFICATION}</TooltipContent>
+          <TooltipContent className="max-w-xs">{infobulleEnVerification(payslip)}</TooltipContent>
         </Tooltip>
       )}
       {state.status === 'success' && pointsAArbitrer.length > 0 && (

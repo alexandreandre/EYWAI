@@ -300,7 +300,11 @@ def validate_payslip_for_user(payslip_id: str, ctx: UserContext) -> None:
         pd = {}
 
     etat = _etat_actuel_du_bulletin(detail)
-    raisons = raisons_de_ne_pas_valider(pd, getattr(etat, "raison_a_recalculer", None))
+    raisons = raisons_de_ne_pas_valider(
+        pd,
+        getattr(etat, "raison_a_recalculer", None),
+        verification_en_cours=bool(getattr(etat, "verification_en_cours", False)),
+    )
     signal = signal_a_regenerer(
         detail,
         getattr(etat, "cumuls_precedents_changes", None),

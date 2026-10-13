@@ -264,24 +264,30 @@ def lire_bulletin_enregistre(employee_id: str, year: int, month: int) -> dict[st
 
 
 def poser_empreintes_verifiees(
-    payslip_id: str, parametres: Mapping[str, Any], empreinte_lue: str | None
+    payslip_id: str,
+    parametres: Mapping[str, Any],
+    empreinte_lue: str | None,
+    *,
+    statut: str = "valide",
 ) -> str | None:
-    """Pose de nouvelles empreintes sur un bulletin validé, rien d'autre.
+    """Pose de nouvelles empreintes sur un bulletin vérifié au bac à sable, rien d'autre.
 
     Relu juste avant d'écrire : un bulletin recalculé entre-temps (empreinte
-    d'entrée différente de celle lue) ou qui n'est plus validé n'est pas touché.
-    Rend la date de mise à jour posée par la base (`updated_at`), ou None si rien
-    n'est écrit.
+    d'entrée différente de celle lue) ou qui n'a plus le statut de la
+    vérification (`statut` : validé, ou brouillon depuis le lot 43) n'est pas
+    touché. L'écriture exige aussi la date de mise à jour relue : un bulletin
+    recalculé entre la relecture et l'écriture n'est pas écrasé. Rend la date de
+    mise à jour posée par la base (`updated_at`), ou None si rien n'est écrit.
     """
     resp = (
         supabase.table("payslips")
-        .select("status, payslip_data")
+        .select("status, payslip_data, updated_at")
         .eq("id", payslip_id)
         .limit(1)
         .execute()
     )
     lignes = (resp.data if resp else None) or []
-    if not lignes or lignes[0].get("status") != "valide":
+    if not lignes or lignes[0].get("status") != statut:
         return None
     donnees = lignes[0].get("payslip_data")
     if not isinstance(donnees, Mapping):
@@ -290,13 +296,15 @@ def poser_empreintes_verifiees(
     if actuels.get("empreinte_entrees") != empreinte_lue:
         return None
     nouvelles = {**donnees, "parametres": {**actuels, **parametres}}
-    ecrit = (
+    ecriture = (
         supabase.table("payslips")
         .update({"payslip_data": nouvelles})
         .eq("id", payslip_id)
-        .eq("status", "valide")
-        .execute()
+        .eq("status", statut)
     )
+    if lignes[0].get("updated_at"):
+        ecriture = ecriture.eq("updated_at", lignes[0]["updated_at"])
+    ecrit = ecriture.execute()
     rendues = (ecrit.data if ecrit else None) or []
     return str(rendues[0].get("updated_at")) if rendues and rendues[0].get("updated_at") else None
 

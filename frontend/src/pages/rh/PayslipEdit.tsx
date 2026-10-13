@@ -99,7 +99,7 @@ import { lienVariablesDuMois } from '@/features/payroll/utils/payslipDerivedLine
 import { bandeauExportsDuMois } from '@/lib/exportsARefaire';
 import { estPerime, messageARecalculer } from '@/features/payroll/utils/bulletinARecalculer';
 import {
-  MESSAGE_EN_VERIFICATION,
+  messageEnVerification,
   delaiAvantRelecture,
   enVerification,
 } from '@/features/payroll/utils/validesEnVerification';
@@ -422,8 +422,9 @@ export default function PayslipEdit() {
   const statut = payslip.status ?? 'brouillon';
   const recalculEnAttente = payslip.payslip_data?.recalcul_en_attente ?? null;
   const bandeauExports = bandeauExportsDuMois(payslip.exports_du_mois ?? [], dateCourte);
+  // Un brouillon en vérification au bac à sable attend son verdict (lot 43).
   const validationBloquee = Boolean(
-    recalculEnAttente || payslip.a_regenerer || estPerime(payslip)
+    recalculEnAttente || payslip.a_regenerer || estPerime(payslip) || enVerification(payslip)
   );
   // Ce qui a changé depuis le calcul, dit simplement (« La mutuelle a changé… »).
   const aRecalculer = messageARecalculer(payslip);
@@ -462,7 +463,7 @@ export default function PayslipEdit() {
       {enVerification(payslip) ? (
         <Alert data-testid="en-verification">
           <AlertTitle>Vérification en cours</AlertTitle>
-          <AlertDescription>{MESSAGE_EN_VERIFICATION}</AlertDescription>
+          <AlertDescription>{messageEnVerification(payslip)}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -544,7 +545,10 @@ export default function PayslipEdit() {
               disabled={validateBusy || validationBloquee}
               title={
                 validationBloquee
-                  ? (aRecalculer ?? 'Régénérez le bulletin avant de le valider')
+                  ? (aRecalculer ??
+                    (enVerification(payslip)
+                      ? messageEnVerification(payslip)
+                      : 'Régénérez le bulletin avant de le valider'))
                   : undefined
               }
             >
