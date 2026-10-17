@@ -260,3 +260,77 @@ def test_ouverture_a_l_heure_inchangee():
     lus = {m: {"M": _mensuel()} for m in range(6, 9)}
     lus[8]["M"].droite = {"cumul_bruts": 7094.94, "cumul_heures": 455.01}
     assert solde_d_ouverture(lus, 8, "M")["cumuls"]["heures_remunerees"] == 455.01
+
+
+# ---------------------------------------------------------------------------
+# Point de départ de la réduction générale : les mois où Quadra n'en a appliqué aucune
+# ---------------------------------------------------------------------------
+#
+# Comitech, janvier 2026 : aucun des 17 bulletins Quadra n'a de ligne de réduction
+# générale, et la régularisation de Quadra part de février. L'ouverture garde le
+# brut et les heures imprimés depuis janvier (cumuls du bulletin), et dit à part
+# ce que la réduction doit laisser de côté (décision du 17/10/2026).
+
+
+def _sans_reduction(b: Bulletin) -> Bulletin:
+    b.lignes = [lg for lg in b.lignes if "EXO., ECRET" not in lg.libelle]
+    return b
+
+
+def _annee(janvier_sans_reduction: bool, entree_en_mars: bool = False) -> dict:
+    lus = {}
+    for m in range(1, 9):
+        lus[m] = {"M": _mensuel()}
+        if not entree_en_mars or m >= 3:
+            lus[m]["N"] = _mensuel()
+    if janvier_sans_reduction:
+        for b in lus[1].values():
+            _sans_reduction(b)
+    lus[1]["M"].droite = {"cumul_bruts": 2364.98, "cumul_heures": 168.99}
+    lus[8]["M"].droite = {"cumul_bruts": 18919.84, "cumul_heures": 1351.92}
+    lus[8]["N"].droite = {"cumul_bruts": 18919.84, "cumul_heures": 1351.92}
+    return lus
+
+
+def test_ouverture_sans_reduction_en_janvier_chez_quadra():
+    from scripts.reprise_comitech import solde_d_ouverture
+
+    cumuls = solde_d_ouverture(_annee(janvier_sans_reduction=True), 8, "M")["cumuls"]
+    assert cumuls["reduction_generale_depuis_mois"] == 2
+    assert cumuls["brut_hors_reduction_generale"] == 2364.98
+    assert cumuls["heures_hors_reduction_generale"] == 168.99
+    # Les cumuls imprimés restent ceux de Quadra, janvier compris.
+    assert cumuls["brut_total"] == 18919.84
+    assert cumuls["heures_remunerees"] == 1351.92
+    # La réduction déjà appliquée : février à août.
+    assert cumuls["reduction_generale_patronale"] == round(-592.27 * 7, 2)
+
+
+def test_entre_apres_janvier_rien_a_laisser_de_cote():
+    from scripts.reprise_comitech import solde_d_ouverture
+
+    lus = _annee(janvier_sans_reduction=True, entree_en_mars=True)
+    cumuls = solde_d_ouverture(lus, 8, "N")["cumuls"]
+    for cle in ("reduction_generale_depuis_mois", "brut_hors_reduction_generale",
+                "heures_hors_reduction_generale"):
+        assert cle not in cumuls
+
+
+def test_reduction_des_janvier_aucun_point_de_depart():
+    """Colorplast : réduction juste dès janvier, l'ouverture ne change pas."""
+    from scripts.reprise_comitech import solde_d_ouverture
+
+    cumuls = solde_d_ouverture(_annee(janvier_sans_reduction=False), 8, "M")["cumuls"]
+    assert "reduction_generale_depuis_mois" not in cumuls
+    assert "brut_hors_reduction_generale" not in cumuls
+
+
+def test_aucune_reduction_de_l_annee_aucun_point_de_depart():
+    """Rien n'a jamais été appliqué : pas de point de départ à inventer."""
+    from scripts.reprise_comitech import point_de_depart_de_la_reduction
+
+    lus = _annee(janvier_sans_reduction=False)
+    for mois in lus.values():
+        for b in mois.values():
+            _sans_reduction(b)
+    assert point_de_depart_de_la_reduction(lus, 8, "M") == {}

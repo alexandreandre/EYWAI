@@ -357,3 +357,55 @@ def test_le_moteur_donne_le_smic_du_1er_janvier_pour_la_rgdu():
     # Fillon (avant 2026) ou historique sans 1er janvier : rien n'est affirmé.
     assert smic_de_reference_pour_explication(SimpleNamespace(baremes=baremes), 2025) is None
     assert smic_de_reference_pour_explication(SimpleNamespace(baremes={}), 2026) is None
+
+
+# --- Point de départ de la réduction posé par une reprise ---------------------
+#
+# Comitech, 2026 : l'ancien logiciel n'a appliqué aucune réduction en janvier et
+# régularise depuis février ; Martine suit (décision du 17/10/2026). La ligne le
+# dit, sans alerte.
+
+DEPART_FEVRIER = (
+    "Réduction générale : régularisée depuis février, comme l'ancien logiciel ; "
+    "janvier n'a pas eu de réduction."
+)
+
+
+def test_la_reduction_reprise_dit_depuis_quand_elle_est_regularisee():
+    pose = poser_explications(
+        _reduction(9), reduction_deja=4464.70, smic_reference_horaire=12.02, depart_reduction=2
+    )
+    attendu = f"{DEPART_FEVRIER} {SMIC_NOMMES}"
+    assert pose["structure_cotisations"]["bloc_allegements"][0]["explication"] == attendu
+    assert pose["cotisations_officielles"][0]["lignes"][0]["explication"] == attendu
+    assert "alertes_baremes" not in pose
+
+
+def test_plusieurs_mois_sans_reduction_sont_nommes():
+    pose = poser_explications(_reduction(9), reduction_deja=100.0, depart_reduction=4)
+    assert pose["structure_cotisations"]["bloc_allegements"][0]["explication"] == (
+        "Réduction générale : régularisée depuis avril, comme l'ancien logiciel ; "
+        "janvier, février et mars n'ont pas eu de réduction."
+    )
+
+
+def test_le_point_de_depart_se_lit_dans_les_cumuls_du_mois_precedent():
+    from app.modules.payroll.domain.explications_lignes import (
+        depart_reduction_pour_explication,
+    )
+
+    cumuls = {"cumuls": {"reduction_generale_depuis_mois": 2}}
+    assert depart_reduction_pour_explication(9, cumuls) == 2
+    # Janvier : l'année recommence, la reprise ne compte plus.
+    assert depart_reduction_pour_explication(1, cumuls) is None
+    assert depart_reduction_pour_explication(9, {"cumuls": {}}) is None
+    assert depart_reduction_pour_explication(9, None) is None
+    # Un départ en janvier n'exclut aucun mois : rien à dire.
+    assert depart_reduction_pour_explication(9, {"cumuls": {"reduction_generale_depuis_mois": 1}}) is None
+
+
+def test_sans_point_de_depart_la_phrase_reste_celle_de_janvier():
+    pose = poser_explications(_reduction(9), reduction_deja=581.91, depart_reduction=None)
+    assert pose["structure_cotisations"]["bloc_allegements"][0]["explication"] == (
+        "Réduction générale : régularisation depuis janvier"
+    )
