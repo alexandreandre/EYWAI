@@ -12,6 +12,7 @@
  * Ici : peut-on envoyer, quel message, quel onglet, quel bouton. Sans React.
  */
 import { createEmployeeFormSchema } from '@/features/employees/components/createEmployeeFormSchema';
+import { fractionDuTexteTaux } from '@/features/employees/utils/prevoyance';
 import {
   erreursDansLOrdre,
   libelleDErreur,
@@ -256,9 +257,41 @@ function fusionnerObjet(actuel: Dictionnaire, extrait: Dictionnaire): Dictionnai
   return result;
 }
 
+const TAUX_PREVOYANCE = ['salarial', 'patronal', 'forfait_social'] as const;
+
+/**
+ * Le contrat et le questionnaire PDF donnent les taux de prévoyance en % (le prompt
+ * les demande ainsi) ; la fiche les stocke en fraction ([D1], 13/10/2026). Un taux
+ * illisible reste tel quel : le formulaire le refuse sous le champ.
+ */
+function prevoyanceExtraiteEnFraction(extrait: Dictionnaire): Dictionnaire {
+  const spec = extrait.specificites_paie as Dictionnaire | undefined;
+  const prevoyance = spec?.prevoyance as Dictionnaire | undefined;
+  const lignes = prevoyance?.lignes_specifiques;
+  if (!Array.isArray(lignes)) return extrait;
+  const converties = lignes.map((ligne) => {
+    if (!ligne || typeof ligne !== 'object') return ligne;
+    const copie = { ...(ligne as Dictionnaire) };
+    for (const cle of TAUX_PREVOYANCE) {
+      const brut = copie[cle];
+      if (typeof brut !== 'number' && typeof brut !== 'string') continue;
+      const fraction = fractionDuTexteTaux(String(brut));
+      if (fraction !== null) copie[cle] = fraction;
+    }
+    return copie;
+  });
+  return {
+    ...extrait,
+    specificites_paie: { ...spec, prevoyance: { ...prevoyance, lignes_specifiques: converties } },
+  };
+}
+
 export function fusionnerExtractionContrat<T>(actuel: T, extrait: unknown): T {
   if (!extrait || typeof extrait !== 'object' || Array.isArray(extrait)) return actuel;
-  return fusionnerObjet(actuel as Dictionnaire, extrait as Dictionnaire) as T;
+  return fusionnerObjet(
+    actuel as Dictionnaire,
+    prevoyanceExtraiteEnFraction(extrait as Dictionnaire),
+  ) as T;
 }
 
 export function mentionsListeSalarie(manquants: string[] | null | undefined): string[] {
