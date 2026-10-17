@@ -5,9 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import {
-  formatProfileCurrency,
+  formatPartSalariale,
   getFirstSocialLine,
-  getSocialLineAmount,
   type EmployeeProfileData,
 } from '@/lib/employeeProfileUtils';
 import { PACK_COUVERTURE_LABELS } from '@/lib/mutuelleUtils';
@@ -40,12 +39,8 @@ export function EmployeeProfilePayBenefitsGrid({
   const mutuelleLine = getFirstSocialLine(profile, 'mutuelle');
   const prevoyanceLine = getFirstSocialLine(profile, 'prevoyance');
   const mutuellePack = profile.specificites_paie?.mutuelle?.pack_couverture;
-  const mutuelleAmount = mutuelleLine
-    ? formatProfileCurrency(getSocialLineAmount(mutuelleLine, 'mutuelle'))
-    : null;
-  const prevoyanceAmount = prevoyanceLine
-    ? formatProfileCurrency(getSocialLineAmount(prevoyanceLine, 'prevoyance'))
-    : null;
+  const mutuelleAmount = mutuelleLine ? formatPartSalariale(mutuelleLine, 'mutuelle') : null;
+  const prevoyanceTaux = prevoyanceLine ? formatPartSalariale(prevoyanceLine, 'prevoyance') : null;
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -112,10 +107,10 @@ export function EmployeeProfilePayBenefitsGrid({
               ? prevoyanceLine?.libelle || 'Affilié'
               : 'Non affilié'}
           </p>
-          {prevoyanceAmount ? (
+          {prevoyanceTaux ? (
             <>
-              <Label>Part salariale</Label>
-              <p className="font-semibold tabular-nums">{prevoyanceAmount}</p>
+              <Label>Taux salarial</Label>
+              <p className="font-semibold tabular-nums">{prevoyanceTaux}</p>
             </>
           ) : null}
         </CardContent>

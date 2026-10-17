@@ -12,8 +12,8 @@ import {
 
 describe('part salariale affichée dans l’espace salarié', () => {
   it('la prévoyance est un taux stocké en fraction : 0,0078 se lit « 0,78 % », jamais « 0,01 € »', () => {
-    expect(formatPartSalariale({ salarial: 0.0078 }, 'prevoyance')).toBe('0,78 %');
-    expect(formatPartSalariale({ salarial: 0.046865 }, 'prevoyance')).toBe('4,6865 %');
+    expect(formatPartSalariale({ salarial: 0.0078 }, 'prevoyance')).toBe('0,78\u00a0%');
+    expect(formatPartSalariale({ salarial: 0.046865 }, 'prevoyance')).toBe('4,6865\u00a0%');
   });
 
   it('la mutuelle reste un montant en euros', () => {

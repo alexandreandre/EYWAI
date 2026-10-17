@@ -122,9 +122,15 @@ export function getFirstSocialLine(
   return lines && lines.length > 0 ? lines[0] : null;
 }
 
-export function getSocialLineAmount(line: EmployeeSocialLine, type: 'mutuelle' | 'prevoyance'): number | undefined {
-  if (type === 'mutuelle') return line.montant_salarial;
-  return line.salarial;
+/** Part salariale lisible : la mutuelle est un montant, la prévoyance un taux stocké en fraction. */
+export function formatPartSalariale(
+  line: Pick<EmployeeSocialLine, 'montant_salarial' | 'salarial'>,
+  type: 'mutuelle' | 'prevoyance'
+): string | null {
+  if (type === 'mutuelle') return formatProfileCurrency(line.montant_salarial);
+  if (line.salarial == null) return null;
+  const pourcentage = Math.round(line.salarial * 100 * 1e6) / 1e6;
+  return `${pourcentage.toLocaleString('fr-FR', { maximumFractionDigits: 4 })}\u00a0%`;
 }
 
 export function isProfileNotFoundError(error: unknown): boolean {
