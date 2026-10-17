@@ -461,7 +461,8 @@ def point_de_depart_de_la_reduction(lus: dict[int, dict], bascule: int, matricul
     imprimés depuis janvier, et dit à part ce que la réduction laisse hors de sa
     base (`calcul_reduction_generale.CLES_POINT_DE_DEPART_REDUCTION`). Rien si la
     réduction commence au premier mois repris, si Quadra n'en a appliqué aucune de
-    l'année, ou si le salarié n'était pas là avant le point de départ.
+    l'année, ou si le salarié n'était pas là avant le point de départ. Les heures
+    posées à la fin sont celles de `base_de_la_reduction`.
     """
     mois = [m for m in sorted(lus) if m <= bascule]
     avec_reduction = [
@@ -481,6 +482,65 @@ def point_de_depart_de_la_reduction(lus: dict[int, dict], bascule: int, matricul
     }
 
 
+#: Réduction générale 2026, moins de 50 salariés (Comitech) : Tmin, Tdelta, P, plafond,
+#: et SMIC horaire du 1er janvier 2026 que la RGDU retient toute l'année.
+_RGDU_TMIN, _RGDU_TDELTA, _RGDU_P, _RGDU_TMAX = 0.02, 0.3781, 1.75, 0.3981
+_SMIC_HORAIRE_RGDU = 12.02
+
+
+def smic_retrouve_de_la_reduction(brut: float, deja: float) -> tuple[float | None, str | None]:
+    """Le SMIC cumulé que suppose une réduction cumulée `deja` sur `brut`, ou (None, raison).
+
+    Inversion de la formule de la réduction générale : coefficient = réduction ÷ brut,
+    SMIC = brut/3 × (1 + 2 × ((coef − 0,02)/0,3781)^(1/1,75)). Le coefficient de Quadra a
+    4 décimales et la réduction en centimes le redonne à l'arrondi près (21,17 € sur
+    53,18 € = 0,39808 : c'est le plafond 0,3981) : seul un coefficient strictement entre
+    0,02 et 0,3981 à 4 décimales dit combien d'heures Quadra a retenues.
+    """
+    if brut <= 0 or deja <= 0:
+        return None, "aucune réduction"
+    coef = deja / brut
+    if not _RGDU_TMIN < round(coef, 4) < _RGDU_TMAX:
+        etat = "plafonné" if round(coef, 4) >= _RGDU_TMAX else "au plancher ou nul"
+        return None, f"coefficient {coef:.5f} {etat}, hors de ]0,02 ; 0,3981["
+    return brut / 3 * (1 + 2 * ((coef - _RGDU_TMIN) / _RGDU_TDELTA) ** (1 / _RGDU_P)), None
+
+
+def base_de_la_reduction(lus: dict[int, dict], bascule: int, matricule: str, cumuls: dict) -> dict:
+    """Les clés qui font repartir la réduction de Martine de la base de Quadra.
+
+    `cumuls` : ceux de l'ouverture (brut et heures imprimés, réduction appliquée).
+    Deux écarts entre ces cumuls et la base de Quadra (décision du 17/10/2026) :
+    - les mois de tête sans réduction (`point_de_depart_de_la_reduction`) ;
+    - les heures : le « Cumul heures » imprimé n'est pas la base de SMIC que Quadra a
+      retenue (arrêt payé en maintien). Elles sont retrouvées en inversant la formule
+      sur sa réduction cumulée, contrôlé au 17/10 à moins de 0,3 h du SMIC de ses DSN
+      de février à juin.
+    `heures_hors_reduction_generale` = heures imprimées − heures retrouvées, négatif quand
+    Quadra en a retenu plus (voir `calcul_reduction_generale.CLES_POINT_DE_DEPART_REDUCTION`).
+    Rend {"cles", "heures_imprimees", "heures_retrouvees", "raison"} : les clés à poser,
+    et de quoi les relire.
+    """
+    depart = point_de_depart_de_la_reduction(lus, bascule, matricule)
+    heures = float(cumuls.get("heures_remunerees") or 0.0)
+    brut_base = round(float(cumuls.get("brut_total") or 0.0)
+                      - float(depart.get("brut_hors_reduction_generale") or 0.0), 2)
+    heures_imprimees = round(heures - float(depart.get("heures_hors_reduction_generale") or 0.0), 2)
+    deja = abs(float(cumuls.get("reduction_generale_patronale") or 0.0))
+    smic, raison = smic_retrouve_de_la_reduction(brut_base, deja)
+    heures_retrouvees = round(smic / _SMIC_HORAIRE_RGDU, 2) if smic else None
+
+    cles = {k: v for k, v in depart.items() if k != "heures_hors_reduction_generale"}
+    if heures_retrouvees is not None:
+        hors = round(heures - heures_retrouvees, 2)
+        if cles or abs(hors) >= 0.005:
+            cles["heures_hors_reduction_generale"] = hors
+    elif "heures_hors_reduction_generale" in depart:
+        cles["heures_hors_reduction_generale"] = depart["heures_hors_reduction_generale"]
+    return {"cles": cles, "heures_imprimees": heures_imprimees,
+            "heures_retrouvees": heures_retrouvees, "raison": raison}
+
+
 def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dict:
     mois_presents = [m for m in sorted(lus) if m <= bascule and matricule in lus[m]]
     dernier = lus[bascule][matricule]
@@ -496,7 +556,7 @@ def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dic
     net_hs_exo = float(dernier.net.get("net_hs_exo_cumul") or 0.0)
     tranche_2 = round(max(0.0, brut - plafonds), 2)
     base_cp, debut_cp, fin_cp = base_du_dixieme(lus, ANNEE, bascule, matricule, _brut_du_mois)
-    return {
+    solde = {
         "controle_somme_des_bruts": round(bruts, 2),
         "cumuls": {
             "brut_total": brut,
@@ -516,7 +576,6 @@ def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dic
             "brut_reference_n_1": base_cp,
             "brut_reference_period_start": debut_cp.isoformat(),
             "brut_reference_period_end": fin_cp.isoformat(),
-            **point_de_depart_de_la_reduction(lus, bascule, matricule),
         },
         "periode": {"annee_en_cours": ANNEE, "dernier_mois_calcule": bascule},
         "reprise": {
@@ -527,6 +586,12 @@ def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dic
             "fait_foi": True,
         },
     }
+    # Base de la réduction de Quadra (point de départ, heures de SMIC retenues) : les
+    # clés vont dans les cumuls écrits ; le détail reste ici, pour être relu.
+    base = base_de_la_reduction(lus, bascule, matricule, solde["cumuls"])
+    solde["cumuls"].update(base["cles"])
+    solde["base_de_la_reduction"] = base
+    return solde
 
 
 def solde_du_contrat_qui_continue(soldes: list[tuple[str, dict]]) -> dict:
