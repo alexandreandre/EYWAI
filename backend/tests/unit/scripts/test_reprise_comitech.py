@@ -288,8 +288,23 @@ def _annee(janvier_sans_reduction: bool, entree_en_mars: bool = False) -> dict:
             _sans_reduction(b)
     lus[1]["M"].droite = {"cumul_bruts": 2364.98, "cumul_heures": 168.99}
     lus[8]["M"].droite = {"cumul_bruts": 18919.84, "cumul_heures": 1351.92}
-    lus[8]["N"].droite = {"cumul_bruts": 18919.84, "cumul_heures": 1351.92}
+    lus[8]["N"].droite = (
+        {"cumul_bruts": 14189.88, "cumul_heures": 1013.94} if entree_en_mars
+        else {"cumul_bruts": 18919.84, "cumul_heures": 1351.92}
+    )
     return lus
+
+
+def _reduction_de_martine_a_fin_aout(cumuls: dict) -> float:
+    """Ce que la régularisation de Martine trouve due à fin août sur la base posée."""
+    from app.modules.payroll.engine.calcul_reduction_generale import calculer_coefficient_rgdu
+
+    brut = cumuls["brut_total"] - cumuls.get("brut_hors_reduction_generale", 0.0)
+    heures = cumuls["heures_remunerees"] - cumuls.get("heures_hors_reduction_generale", 0.0)
+    coefficient, _ = calculer_coefficient_rgdu(
+        brut, round(12.02 * heures, 2), tmin=0.02, tdelta=0.3781, p=1.75
+    )
+    return round(brut * coefficient, 2)
 
 
 def test_ouverture_sans_reduction_en_janvier_chez_quadra():
@@ -298,7 +313,11 @@ def test_ouverture_sans_reduction_en_janvier_chez_quadra():
     cumuls = solde_d_ouverture(_annee(janvier_sans_reduction=True), 8, "M")["cumuls"]
     assert cumuls["reduction_generale_depuis_mois"] == 2
     assert cumuls["brut_hors_reduction_generale"] == 2364.98
-    assert cumuls["heures_hors_reduction_generale"] == 168.99
+    # Heures de SMIC que Quadra a retenues de février à août, retrouvées en inversant
+    # la formule sur sa réduction : 1 150,98 h, contre 1 182,93 h imprimées.
+    assert cumuls["heures_hors_reduction_generale"] == round(1351.92 - 1150.98, 2)
+    # Sur cette base, la régularisation de Martine retrouve la réduction de Quadra.
+    assert _reduction_de_martine_a_fin_aout(cumuls) == pytest.approx(592.27 * 7, abs=1.0)
     # Les cumuls imprimés restent ceux de Quadra, janvier compris.
     assert cumuls["brut_total"] == 18919.84
     assert cumuls["heures_remunerees"] == 1351.92
@@ -306,14 +325,56 @@ def test_ouverture_sans_reduction_en_janvier_chez_quadra():
     assert cumuls["reduction_generale_patronale"] == round(-592.27 * 7, 2)
 
 
-def test_entre_apres_janvier_rien_a_laisser_de_cote():
+def test_entre_apres_janvier_pas_de_point_de_depart_mais_les_heures_de_quadra():
     from scripts.reprise_comitech import solde_d_ouverture
 
     lus = _annee(janvier_sans_reduction=True, entree_en_mars=True)
     cumuls = solde_d_ouverture(lus, 8, "N")["cumuls"]
-    for cle in ("reduction_generale_depuis_mois", "brut_hors_reduction_generale",
-                "heures_hors_reduction_generale"):
-        assert cle not in cumuls
+    assert "reduction_generale_depuis_mois" not in cumuls
+    assert "brut_hors_reduction_generale" not in cumuls
+    assert cumuls["heures_hors_reduction_generale"] == round(1013.94 - 986.56, 2)
+    assert _reduction_de_martine_a_fin_aout(cumuls) == pytest.approx(592.27 * 6, abs=1.0)
+
+
+def test_quadra_a_retenu_plus_d_heures_que_le_cumul_imprime_la_cle_est_negative():
+    """Arrêt payé en maintien : la réduction de Quadra suppose plus d'heures de SMIC
+    que le « Cumul heures » imprimé. La base de Martine les reprend."""
+    from scripts.reprise_comitech import solde_d_ouverture
+
+    lus = {m: {"M": _mensuel()} for m in range(6, 9)}
+    lus[8]["M"].droite = {"cumul_bruts": 7094.94, "cumul_heures": 400.0}
+    cumuls = solde_d_ouverture(lus, 8, "M")["cumuls"]
+    assert cumuls["heures_remunerees"] == 400.0
+    assert cumuls["heures_hors_reduction_generale"] < 0
+    assert _reduction_de_martine_a_fin_aout(cumuls) == pytest.approx(592.27 * 3, abs=1.0)
+
+
+def test_coefficient_plafonne_les_heures_imprimees_sont_gardees():
+    """21,17 € sur 53,18 € : 0,39808, soit le plafond 0,3981 à quatre décimales.
+    Tout nombre d'heures au-delà donne le plafond : rien à retrouver."""
+    from scripts.reprise_comitech import smic_retrouve_de_la_reduction
+
+    smic, raison = smic_retrouve_de_la_reduction(53.18, 21.17)
+    assert smic is None and "plafonné" in raison
+    assert smic_retrouve_de_la_reduction(5000.0, 99.0)[0] is None  # 0,0198 : plancher
+    assert smic_retrouve_de_la_reduction(5000.0, 0.0)[0] is None
+    smic, raison = smic_retrouve_de_la_reduction(16554.86, 4145.89)
+    assert raison is None and round(smic / 12.02, 2) == 1150.98
+
+
+def test_coefficient_plafonne_avec_point_de_depart_garde_les_heures_de_janvier():
+    from scripts.reprise_comitech import base_de_la_reduction
+
+    lus = _annee(janvier_sans_reduction=True)
+    cumuls = {"brut_total": 2418.16, "heures_remunerees": 176.79,
+              "reduction_generale_patronale": -21.17}
+    base = base_de_la_reduction(lus, 8, "M", cumuls)
+    assert base["cles"] == {
+        "reduction_generale_depuis_mois": 2,
+        "brut_hors_reduction_generale": 2364.98,
+        "heures_hors_reduction_generale": 168.99,
+    }
+    assert base["heures_retrouvees"] is None and "plafonné" in base["raison"]
 
 
 def test_reduction_des_janvier_aucun_point_de_depart():
