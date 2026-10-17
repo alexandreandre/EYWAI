@@ -9,6 +9,7 @@ from .cotisations_rubriques import construire_cotisations_officielles
 from .calcul_reduction_generale import smic_de_reference_pour_explication
 from app.modules.payroll.application.compensation_semaines import avec_saisie_manuelle
 from app.modules.payroll.domain.explications_lignes import (
+    depart_reduction_pour_explication,
     poser_explications,
     reduction_deja_pour_explication,
 )
@@ -911,6 +912,9 @@ def creer_bulletin_final(
         ),
         smic_reference_horaire=smic_de_reference_pour_explication(
             contexte, getattr(contexte, "year", None)
+        ),
+        depart_reduction=depart_reduction_pour_explication(
+            mois, getattr(contexte, "cumuls", None)
         ),
     )
     log_payroll_debug(logger, 'INFO: Bulletin de paie final assemblé.')

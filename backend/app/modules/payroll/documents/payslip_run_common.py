@@ -92,6 +92,14 @@ def mettre_a_jour_cumuls(
             "brut_annee_civile",
         ):
             cumuls[compteur] = 0.0
+        # Point de départ de la réduction posé par une reprise : il ne vaut que
+        # pour l'année de la reprise (voir calcul_reduction_generale).
+        from app.modules.payroll.engine.calcul_reduction_generale import (
+            CLES_POINT_DE_DEPART_REDUCTION,
+        )
+
+        for cle in CLES_POINT_DE_DEPART_REDUCTION:
+            cumuls.pop(cle, None)
 
     cumuls["brut_annee_civile"] = cumuls["brut_annee_civile"] + round(salaire_brut_mois, 2)
     cumuls["brut_total"] = cumuls.get("brut_total", 0.0) + round(salaire_brut_mois, 2)

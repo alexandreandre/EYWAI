@@ -452,6 +452,35 @@ def _heures_de_la_reduction(lus: dict[int, dict], mois_presents: list[int], matr
                  + sum(h for h in forfait if h is not None), 2)
 
 
+def point_de_depart_de_la_reduction(lus: dict[int, dict], bascule: int, matricule: str) -> dict:
+    """Les mois de tête où Quadra n'a appliqué de réduction générale à personne.
+
+    Comitech, janvier 2026 : aucune ligne de réduction sur les 17 bulletins, et la
+    régularisation de Quadra part de février sans jamais reprendre janvier. Martine
+    suit Quadra (décision du 17/10/2026) : l'ouverture garde le brut et les heures
+    imprimés depuis janvier, et dit à part ce que la réduction laisse hors de sa
+    base (`calcul_reduction_generale.CLES_POINT_DE_DEPART_REDUCTION`). Rien si la
+    réduction commence au premier mois repris, si Quadra n'en a appliqué aucune de
+    l'année, ou si le salarié n'était pas là avant le point de départ.
+    """
+    mois = [m for m in sorted(lus) if m <= bascule]
+    avec_reduction = [
+        m for m in mois
+        if any(_somme_des_lignes(b, EST_REDUCTION_GENERALE) for b in lus[m].values())
+    ]
+    if not avec_reduction or avec_reduction[0] == mois[0]:
+        return {}
+    depart = avec_reduction[0]
+    hors = [m for m in mois if m < depart and matricule in lus[m]]
+    if not hors:
+        return {}
+    return {
+        "reduction_generale_depuis_mois": depart,
+        "brut_hors_reduction_generale": round(sum(_brut_du_mois(lus[m][matricule]) for m in hors), 2),
+        "heures_hors_reduction_generale": _heures_de_la_reduction(lus, hors, matricule, lus[hors[-1]][matricule]),
+    }
+
+
 def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dict:
     mois_presents = [m for m in sorted(lus) if m <= bascule and matricule in lus[m]]
     dernier = lus[bascule][matricule]
@@ -487,6 +516,7 @@ def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dic
             "brut_reference_n_1": base_cp,
             "brut_reference_period_start": debut_cp.isoformat(),
             "brut_reference_period_end": fin_cp.isoformat(),
+            **point_de_depart_de_la_reduction(lus, bascule, matricule),
         },
         "periode": {"annee_en_cours": ANNEE, "dernier_mois_calcule": bascule},
         "reprise": {

@@ -36,6 +36,33 @@ def reduction_deja_pour_explication(mois: int, cumuls: Mapping[str, Any] | None)
         return 0.0
 
 
+#: Clé du point de départ de la réduction posé par une reprise (même nom que
+#: `calcul_reduction_generale.CLE_DEPART_REDUCTION`, le domaine n'importe pas le moteur).
+_CLE_DEPART_REDUCTION = "reduction_generale_depuis_mois"
+
+_MOIS_FR = (
+    "janvier", "février", "mars", "avril", "mai", "juin",
+    "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+)
+
+
+def depart_reduction_pour_explication(mois: int, cumuls: Mapping[str, Any] | None) -> int | None:
+    """Premier mois de la régularisation posé par une reprise, ou None.
+
+    Lu dans les cumuls du mois précédent, comme le moteur. None en janvier
+    (l'année recommence), sans point de départ, ou s'il est en janvier (aucun
+    mois laissé hors de la réduction).
+    """
+    if mois == 1 or not isinstance(cumuls, Mapping):
+        return None
+    inner = cumuls.get("cumuls")
+    source = inner if isinstance(inner, Mapping) else cumuls
+    depart = _entier(source.get(_CLE_DEPART_REDUCTION))
+    if depart is None or not 2 <= depart <= 12:
+        return None
+    return depart
+
+
 def poser_explications(
     bulletin: dict[str, Any],
     *,
@@ -43,11 +70,14 @@ def poser_explications(
     duree_hebdo: float | None = None,
     reduction_deja: float | None = None,
     smic_reference_horaire: float | None = None,
+    depart_reduction: int | None = None,
 ) -> dict[str, Any]:
     """Ajoute `explication` sur les lignes d'heures sup, d'absence et de RGDU.
 
     `smic_reference_horaire` : le SMIC du 1er janvier que la réduction générale
     retient (RGDU) ; l'explication le nomme à côté de celui du pied du bulletin.
+    `depart_reduction` : premier mois de la régularisation posé par une reprise
+    (l'ancien logiciel n'a appliqué aucune réduction avant).
     """
     en_tete = bulletin.get("en_tete") if isinstance(bulletin.get("en_tete"), dict) else {}
     annee = _entier(en_tete.get("annee"))
@@ -58,7 +88,12 @@ def poser_explications(
     _expliquer_heures_sup(bulletin, evenements, duree_hebdo, annee, mois)
     _expliquer_absences(bulletin)
     _expliquer_reduction_generale(
-        bulletin, annee, mois, float(reduction_deja or 0.0), smic_reference_horaire
+        bulletin,
+        annee,
+        mois,
+        float(reduction_deja or 0.0),
+        smic_reference_horaire,
+        depart_reduction,
     )
     return bulletin
 
@@ -145,16 +180,34 @@ def _phrase_smic(
     return phrase
 
 
+def _phrase_depart(depart: int) -> str:
+    """La régularisation part de `depart`, comme chez l'ancien logiciel."""
+    sans = list(_MOIS_FR[: depart - 1])
+    if len(sans) == 1:
+        sujet = f"{sans[0]} n'a"
+    else:
+        sujet = f"{', '.join(sans[:-1])} et {sans[-1]} n'ont"
+    return (
+        f"Réduction générale : régularisée depuis {_MOIS_FR[depart - 1]}, "
+        f"comme l'ancien logiciel ; {sujet} pas eu de réduction."
+    )
+
+
 def _expliquer_reduction_generale(
     bulletin: dict[str, Any],
     annee: int | None,
     mois: int | None,
     reduction_deja: float,
     smic_reference: float | None = None,
+    depart: int | None = None,
 ) -> None:
     regularisation = mois != 1 and reduction_deja > 0
     smic = _phrase_smic(bulletin, annee, smic_reference)
-    if regularisation and smic:
+    if mois != 1 and depart and 2 <= depart <= 12:
+        texte = _phrase_depart(depart)
+        if smic:
+            texte = f"{texte} {smic}"
+    elif regularisation and smic:
         texte = f"Réduction générale : régularisation depuis janvier. {smic}"
     elif regularisation:
         texte = "Réduction générale : régularisation depuis janvier"

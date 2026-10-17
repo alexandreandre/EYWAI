@@ -445,6 +445,20 @@ def _verifier_cumuls_coherents(
         )
 
 
+#: Point de départ de la réduction posé par une reprise (solde d'ouverture) :
+#: premier mois que l'ancien logiciel a fait entrer dans sa régularisation, et le
+#: brut et les heures des mois d'avant, qu'il en a laissés hors. Absents partout
+#: ailleurs. Effacés en janvier : ils ne valent que pour l'année de la reprise.
+CLE_DEPART_REDUCTION = "reduction_generale_depuis_mois"
+CLE_BRUT_HORS_REDUCTION = "brut_hors_reduction_generale"
+CLE_HEURES_HORS_REDUCTION = "heures_hors_reduction_generale"
+CLES_POINT_DE_DEPART_REDUCTION = (
+    CLE_DEPART_REDUCTION,
+    CLE_BRUT_HORS_REDUCTION,
+    CLE_HEURES_HORS_REDUCTION,
+)
+
+
 def _lire_cumuls_precedents(contexte: ContextePaie) -> tuple[float, float, float]:
     """Lit les cumuls (brut, heures rémunérées, réduction déjà appliquée) du mois N-1.
 
@@ -480,6 +494,14 @@ def _lire_cumuls_precedents(contexte: ContextePaie) -> tuple[float, float, float
     reduction_deja_appliquee = abs(
         cumuls_precedents.get("reduction_generale_patronale", 0.0)
     )
+    # Point de départ posé par une reprise : les mois où l'ancien logiciel n'a
+    # appliqué aucune réduction restent hors de la régularisation, comme chez
+    # lui (Comitech, janvier 2026). Les cumuls imprimés, eux, gardent ces mois.
+    brut_hors = cumuls_precedents.get(CLE_BRUT_HORS_REDUCTION)
+    heures_hors = cumuls_precedents.get(CLE_HEURES_HORS_REDUCTION)
+    if brut_hors or heures_hors:
+        brut_cumule = max(0.0, float(brut_cumule or 0.0) - float(brut_hors or 0.0))
+        heures_cumulees = max(0.0, float(heures_cumulees or 0.0) - float(heures_hors or 0.0))
     return brut_cumule, heures_cumulees, reduction_deja_appliquee
 
 
