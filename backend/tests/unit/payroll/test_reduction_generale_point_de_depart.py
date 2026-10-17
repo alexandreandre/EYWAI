@@ -176,3 +176,19 @@ def test_sans_point_de_depart_aucune_cle_n_est_ajoutee():
     _, janvier = _bulletin(septembre, 2027, 1)
     for cle in POINT_DE_DEPART:
         assert cle not in janvier
+
+
+def test_des_heures_hors_negatives_rendent_a_la_base_les_heures_de_l_ancien_logiciel():
+    """L'ancien logiciel a retenu plus d'heures de SMIC que le « Cumul heures » imprimé
+    (arrêt payé en maintien) : la clé est négative et la base gagne ces heures."""
+    cumuls = _ouverture_au_31_aout(point_de_depart=True)
+    cumuls["heures_hors_reduction_generale"] = HEURES - 25.0
+    brut, heures, _ = _lire_cumuls_precedents(_contexte(cumuls, 2026, 9))
+    assert brut == pytest.approx(7 * BRUT)
+    assert heures == pytest.approx(7 * HEURES + 25.0)
+
+    seules = {"brut_total": 4 * BRUT, "heures_remunerees": 4 * HEURES,
+              "reduction_generale_patronale": -500.0, "heures_hors_reduction_generale": -4.6}
+    brut, heures, _ = _lire_cumuls_precedents(_contexte(seules, 2026, 9))
+    assert brut == pytest.approx(4 * BRUT)
+    assert heures == pytest.approx(4 * HEURES + 4.6)

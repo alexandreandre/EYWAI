@@ -445,10 +445,18 @@ def _verifier_cumuls_coherents(
         )
 
 
-#: Point de départ de la réduction posé par une reprise (solde d'ouverture) :
-#: premier mois que l'ancien logiciel a fait entrer dans sa régularisation, et le
-#: brut et les heures des mois d'avant, qu'il en a laissés hors. Absents partout
-#: ailleurs. Effacés en janvier : ils ne valent que pour l'année de la reprise.
+#: Base de la réduction posée par une reprise (solde d'ouverture), pour que la
+#: régularisation reparte de celle de l'ancien logiciel et non des cumuls imprimés :
+#: - `reduction_generale_depuis_mois` : premier mois qu'il a fait entrer dans sa
+#:   régularisation (l'explication de la ligne le nomme) ;
+#: - `brut_hors_reduction_generale` : le brut des mois d'avant, qu'il en a laissés hors ;
+#: - `heures_hors_reduction_generale` : les heures à retirer de la base pour retrouver
+#:   celle de l'ancien logiciel : celles des mois d'avant, et l'écart entre le « Cumul
+#:   heures » imprimé et les heures de SMIC qu'il a réellement retenues. Négatif quand
+#:   il en a retenu plus que le cumul imprimé (arrêt payé en maintien) : la base gagne
+#:   alors ces heures. La lecture ne descend jamais sous zéro.
+#: Absents partout ailleurs. Effacés en janvier : ils ne valent que pour l'année de
+#: la reprise.
 CLE_DEPART_REDUCTION = "reduction_generale_depuis_mois"
 CLE_BRUT_HORS_REDUCTION = "brut_hors_reduction_generale"
 CLE_HEURES_HORS_REDUCTION = "heures_hors_reduction_generale"
@@ -494,9 +502,9 @@ def _lire_cumuls_precedents(contexte: ContextePaie) -> tuple[float, float, float
     reduction_deja_appliquee = abs(
         cumuls_precedents.get("reduction_generale_patronale", 0.0)
     )
-    # Point de départ posé par une reprise : les mois où l'ancien logiciel n'a
-    # appliqué aucune réduction restent hors de la régularisation, comme chez
-    # lui (Comitech, janvier 2026). Les cumuls imprimés, eux, gardent ces mois.
+    # Base posée par une reprise : la régularisation repart de celle de l'ancien
+    # logiciel (Comitech : rien en janvier, heures de SMIC qu'il a retenues). Les
+    # cumuls imprimés, eux, restent les siens. Voir CLES_POINT_DE_DEPART_REDUCTION.
     brut_hors = cumuls_precedents.get(CLE_BRUT_HORS_REDUCTION)
     heures_hors = cumuls_precedents.get(CLE_HEURES_HORS_REDUCTION)
     if brut_hors or heures_hors:
