@@ -124,6 +124,35 @@ describe('fusion du contrat PDF', () => {
     expect(fusion.last_name).toBe('Dupont-Essai');
     expect(fusion.salaire_de_base.valeur).toBeCloseTo(1990.001);
   });
+
+  it('les taux de prévoyance lus en % arrivent en fraction, comme la fiche les stocke ([D1])', () => {
+    const fusion = fusionnerExtractionContrat(SAISIE, {
+      specificites_paie: {
+        prevoyance: {
+          adhesion: true,
+          lignes_specifiques: [
+            { libelle: 'Prévoyance cadre', salarial: 0.78, patronal: '1,5', forfait_social: 8 },
+            { libelle: 'Prévoyance TB', salarial: 4.6865, patronal: 0.5601 },
+          ],
+        },
+      },
+    });
+    expect(fusion.specificites_paie.prevoyance.lignes_specifiques).toEqual([
+      { libelle: 'Prévoyance cadre', salarial: 0.0078, patronal: 0.015, forfait_social: 0.08 },
+      { libelle: 'Prévoyance TB', salarial: 0.046865, patronal: 0.005601 },
+    ]);
+  });
+
+  it('un taux de prévoyance illisible reste tel quel : le formulaire le refuse sous le champ', () => {
+    const fusion = fusionnerExtractionContrat(SAISIE, {
+      specificites_paie: {
+        prevoyance: { adhesion: true, lignes_specifiques: [{ libelle: 'Prévoyance', salarial: 'voir annexe' }] },
+      },
+    });
+    expect(fusion.specificites_paie.prevoyance.lignes_specifiques).toEqual([
+      { libelle: 'Prévoyance', salarial: 'voir annexe' },
+    ]);
+  });
 });
 
 describe('garde-fous d’écran', () => {
