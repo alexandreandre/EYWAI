@@ -94,9 +94,11 @@ absents. La valeur que Martine aurait calculée n'est pas stockée dans la corre
 serait périmée au premier recalcul) : le moteur la pose sur la ligne corrigée, à chaque calcul,
 dans un champ `valeur_calculee`.
 
-Le gain et la retenue de régularisation sont des saisies du mois ordinaires (nom, montant,
-soumis, imposable), avec une famille comptable propre (`export_code`) pour ne jamais tomber
-dans le bloc « acompte » de la comptabilité.
+Le gain et la retenue de régularisation sont des saisies du mois ordinaires (nom, montant
+signé, soumis, imposable, sur le net) : ce sont les « primes ajoutées » que l'onglet
+« Corriger » sait déjà créer, corriger, retirer et restaurer. Leur traitement comptable est
+celui des primes et des retenues existantes ; le test du théorème vérifie que le net se
+reconstruit avec elles.
 
 Le choix de `monthly_inputs` est imposé par l'existant : c'est la seule table que lisent
 l'empreinte « À recalculer » (`SAISIE_COLONNES`, à étendre à `correction_ligne`), le bac à
@@ -128,8 +130,10 @@ Les règles qui reconnaissent une ligne par son libellé (CSG non déductible da
 imposable, heures sup, indemnité de congés au solde de tout compte, contingent, regroupement
 par organisme) restent valables : une correction ne change jamais le libellé. La mention
 « corrigée à la main » est un champ à part sur la ligne. Une régularisation hérite de la nature
-de la ligne qu'elle régularise : ces règles la reconnaissent par son `coti_id`, pas par son
-libellé.
+de la ligne qu'elle régularise : elle porte son `coti_id`, et son libellé est celui de la ligne
+d'origine précédé de « Régularisation – ». Les règles qui lisent le `coti_id` (mutuelle, DSN,
+comptabilité) comme celles qui lisent un libellé (CSG non déductible dans le net imposable) la
+classent donc comme la ligne d'origine ; un test le vérifie pour chacune.
 
 Les retenues posées après le moteur (prêts, saisies sur salaire, report d'un net négatif)
 restent où elles sont ; la garantie « totaux = somme des lignes » les inclut.
@@ -161,10 +165,14 @@ signale le mois suivant « À recalculer ».
 et enregistré normalement suit donc partout, sauf ici :
 
 - **DSN.** La maladie et les allocations familiales au-delà du taux socle, la CSG/CRDS et le net
-  versé recalculent base × taux (`dsn_export/domain/cotisation_mapping.py`, `builder.py`). La
-  DSN doit lire les montants du bulletin. Une ligne sans `coti_id` connu est ignorée : une
-  régularisation porte toujours un `coti_id`. La réduction générale corrigée garde sa
-  `smic_reference_mois`.
+  versé recalculent base × taux (`dsn_export/domain/cotisation_mapping.py`, `builder.py`).
+  Une régularisation exprimée en base au taux de la ligne (règle 3) est donc recalculée juste,
+  à l'arrondi près, comme la ligne d'origine ; seule la fusion des lignes de même code est à
+  corriger (ci-dessous). Une ligne sans `coti_id` connu est ignorée : une régularisation porte
+  toujours un `coti_id`. La DSN lit le SMIC de référence sur la ligne d'origine de la réduction
+  générale, que la régularisation ne remplace pas. À vérifier au premier dépôt réel : la
+  cohérence entre les assiettes des cotisations (bloc 81) et les bases assujetties (bloc 78)
+  quand une régularisation change une assiette.
 - **Comptabilité.** Une ligne sans organisme est sautée et l'écriture se déséquilibre
   (`exports/infrastructure/payroll_ledger.py`) : même règle du `coti_id`. Le gain et la retenue
   de régularisation ont leur famille comptable.
@@ -175,8 +183,12 @@ et enregistré normalement suit donc partout, sauf ici :
   doit plus dire « régularisation depuis janvier » sur une ligne corrigée.
 - **Contrôle « validé = recalculé ».** Il compare une liste de blocs figée
   (`payroll/domain/empreinte_entrees.py`) : tout nouveau bloc y entre.
-- **Comparaison au mois précédent.** Une régularisation déclenche les alertes « nouvelle
-  ligne » puis « ligne disparue » : leur message dit « ligne corrigée à la main ».
+- **Comparaison au mois précédent.** Les alertes « nouvelle ligne » et « ligne disparue »
+  (R07, R06) ne lisent que les lignes de brut : une régularisation de cotisation ne les
+  déclenche pas ; un gain de régularisation les déclenche comme toute prime nouvelle.
+- **Fusion des lignes dans la DSN.** La DSN fusionne les lignes d'un même code en additionnant
+  leurs taux (`_cumuler`) : une régularisation fusionnée doit ajouter son montant (et son
+  assiette, puisqu'elle est une base), jamais son taux.
 
 ## 8. L'écran
 
@@ -230,10 +242,12 @@ moteur n'est pas couvert : un nouveau type de ligne ne peut pas entrer sans sa c
 
 - régularisation de cotisation (nouveau), gain et retenue de régularisation depuis l'onglet
   « Corriger » ;
-- colonne `correction_ligne`, empreinte, bac à sable, restauration, correction en attente ;
+- colonne `correction_ligne`, empreinte, bac à sable, restauration (la « correction en
+  attente » n'existe qu'à l'étape 2 : une régularisation ne devient jamais orpheline) ;
 - application dans les deux pipelines, cumuls (§ 6) ; une régularisation de la réduction
   générale entre dans son cumul ;
-- DSN qui lit les montants, familles comptables, mention sur le PDF et à l'écran ;
+- DSN dont la fusion additionne le montant et l'assiette d'une régularisation, jamais son
+  taux ; mention sur le PDF et à l'écran ;
 - liste de contrôle et capteur ;
 - test du théorème (chaque montant du bulletin se corrige par une régularisation de même
   nature ou à la source ; l'impôt se corrige par son taux, sur la fiche).
