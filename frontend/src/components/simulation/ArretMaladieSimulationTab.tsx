@@ -396,6 +396,9 @@ export function ArretMaladieSimulationTab({ employees }: ArretMaladieSimulationT
                 >
                   {eur(syn.impact_net_salarie)}
                 </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Net avant impôt, IJSS comprises, sur toute la durée de l’arrêt
+                </p>
               </CardContent>
             </Card>
             <Card>
@@ -435,6 +438,12 @@ export function ArretMaladieSimulationTab({ employees }: ArretMaladieSimulationT
                     <TableCell>Salaire mensuel de base</TableCell>
                     <TableCell className="text-right tabular-nums">{eur(syn.salaire_mensuel_base)}</TableCell>
                   </TableRow>
+                  {syn.salaire_perdu !== undefined ? (
+                    <TableRow>
+                      <TableCell>Salaire des jours d’arrêt (retenu)</TableCell>
+                      <TableCell className="text-right tabular-nums">{eur(-syn.salaire_perdu)}</TableCell>
+                    </TableRow>
+                  ) : null}
                   <TableRow>
                     <TableCell>IJSS théoriques</TableCell>
                     <TableCell className="text-right tabular-nums">{eur(syn.ijss_theorique)}</TableCell>

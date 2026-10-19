@@ -201,7 +201,10 @@ export interface SimulationArretMaladieParams {
 
 export interface SimulationArretMaladieSynthese {
   salaire_mensuel_base: number;
+  /** Net avant impôt avec l'arrêt moins net sans l'arrêt, IJSS nettes comprises, sur toute la durée. */
   impact_net_salarie: number;
+  /** Retenue des jours ouvrés d'arrêt, valorisés comme sur le bulletin. */
+  salaire_perdu?: number;
   cout_employeur_complement: number;
   charges_patronales_estimees: number;
   cout_employeur_total: number;

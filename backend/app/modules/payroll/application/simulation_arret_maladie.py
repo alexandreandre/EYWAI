@@ -4,8 +4,10 @@ Simulation arrêt maladie — alignée sur calculer_maintien (même moteur que l
 
 from __future__ import annotations
 
+import calendar
+from dataclasses import asdict, dataclass
 from datetime import date, timedelta
-from typing import Any, Dict
+from typing import Any, Callable, Dict, List
 
 from app.modules.employees.domain.salary_timeline import salaire_actif_a_date
 from app.modules.employees.infrastructure.repository import EmployeeRepository
@@ -17,8 +19,19 @@ from app.modules.payroll.application.simulation_queries import (
     load_company,
     load_employee,
 )
-from app.modules.payroll.engine.contexte import ChargerContexte
-from app.modules.payroll.engine.maintien_salaire_service import calculer_maintien
+from app.modules.payroll.engine import legal_constants as lc
+from app.modules.payroll.engine.calcul_brut import (
+    _get_salaire_horaire_base,
+    _heures_journalieres_contrat,
+)
+from app.modules.payroll.engine.calcul_brut_forfait import _diviseur_jour_absence
+from app.modules.payroll.engine.calcul_inverse import _calculer_bulletin_avec_brut_override
+from app.modules.payroll.engine.contexte import ChargerContexte, ContextePaie
+from app.modules.payroll.engine.ijss_bulletin import compute_ijss_csg_lines
+from app.modules.payroll.engine.maintien_salaire_service import (
+    _quote_part_hs_structurelles_journaliere,
+    calculer_maintien,
+)
 from app.modules.payroll.schemas.requests import SimulationArretMaladieRequest
 from app.modules.users.schemas.responses import User
 
@@ -60,6 +73,89 @@ def _employee_payload_for_contexte(
         }
     )
     return employee_map
+
+
+def _jours_ouvres(debut: date, fin: date) -> int:
+    return sum(
+        1 for k in range((fin - debut).days + 1) if (debut + timedelta(days=k)).weekday() < 5
+    )
+
+
+def salaire_perdu_sur_la_periode(contexte: ContextePaie, debut: date, fin: date) -> float:
+    """Ce que le bulletin retient pour les jours d'arrêt de la période, arrondi une fois
+    comme sa ligne de retenue (`calcul_brut`) : chaque jour ouvré à la référence journalière
+    légale au taux horaire de base, plus la quote-part d'heures sup structurelles de la
+    journée (« Réduction HS structurelles ») ; au forfait jours, le salaire au diviseur
+    d'absence de la société (`calcul_brut_forfait`)."""
+    jours = _jours_ouvres(debut, fin)
+    if contexte.is_forfait_jour:
+        salaire = float(contexte.salaire_base_mensuel or 0.0)
+        return round(jours * salaire / _diviseur_jour_absence(contexte), 2)
+    duree = float(contexte.duree_hebdo_contrat or lc.DUREE_LEGALE_HEBDO)
+    taux = _get_salaire_horaire_base(contexte, duree)
+    par_jour = _heures_journalieres_contrat(duree) * taux + _quote_part_hs_structurelles_journaliere(
+        contexte, duree, taux
+    )
+    return round(jours * par_jour, 2)
+
+
+@dataclass(frozen=True)
+class ImpactDuMois:
+    annee: int
+    mois: int
+    salaire_perdu: float
+    maintien_verse: float
+    ijss: float
+    ijss_nettes: float
+    impact: float
+
+
+def _mois_de_l_arret(debut: date, fin: date) -> List[tuple[int, int, date, date]]:
+    """Les mois que touche l'arrêt : (année, mois, premier et dernier jour d'arrêt du mois)."""
+    sortie = []
+    jour = debut
+    while jour <= fin:
+        dernier = date(jour.year, jour.month, calendar.monthrange(jour.year, jour.month)[1])
+        borne = min(dernier, fin)
+        sortie.append((jour.year, jour.month, jour, borne))
+        jour = borne + timedelta(days=1)
+    return sortie
+
+
+def impact_net_de_l_arret(
+    contexte: ContextePaie,
+    arret: Dict[str, Any],
+    settings: Dict[str, Any],
+    debut: date,
+    fin: date,
+    net_avant_impot: Callable[[float, int, int], float],
+) -> List[ImpactDuMois]:
+    """Impact de l'arrêt sur le net avant impôt du salarié, mois par mois, comme le bulletin :
+    le net du mois avec l'arrêt (salaire moins la retenue des jours d'arrêt, plus le maintien
+    employeur) moins le net sans arrêt, plus les IJSS nettes de leur CSG/CRDS (versées par
+    l'employeur en subrogation, par la CPAM sinon : le salarié les touche dans les deux cas).
+
+    `net_avant_impot(brut, annee, mois)` donne le net d'un mois pour un brut : le bulletin
+    d'essai du moteur dans la simulation, une fonction simple dans les tests.
+    """
+    salaire = float(contexte.salaire_base_mensuel or 0.0)
+    baremes_maladie = (contexte.baremes or {}).get("maladie")
+    sortie: List[ImpactDuMois] = []
+    for annee, mois, d, f in _mois_de_l_arret(debut, fin):
+        resultats = calculer_maintien(arret, contexte, settings, d, f)
+        maintien = float((resultats.get("maintien") or {}).get("maintien_verse") or 0.0)
+        ijss = float((resultats.get("ijss") or {}).get("ijss_theorique") or 0.0)
+        perdu = salaire_perdu_sur_la_periode(contexte, d, f)
+        _, _, ijss_nettes = compute_ijss_csg_lines(ijss, baremes_maladie)
+        impact = (
+            net_avant_impot(salaire - perdu + maintien, annee, mois)
+            - net_avant_impot(salaire, annee, mois)
+            + ijss_nettes
+        )
+        sortie.append(
+            ImpactDuMois(annee, mois, perdu, round(maintien, 2), round(ijss, 2), ijss_nettes, round(impact, 2))
+        )
+    return sortie
 
 
 def run_simulation_arret_maladie(
@@ -156,7 +252,28 @@ def run_simulation_arret_maladie(
     prevoyance_montant = float(prevoyance.get("montant") or 0.0)
     maintien_info = resultats_maintien.get("maintien", {}) or {}
 
-    impact_net_salarie = maintien_verse - salaire_mensuel
+    # Le net d'un mois pour un brut : le bulletin d'essai du moteur (celui du calcul
+    # inverse), sur une copie du contexte. Il retirait autrefois tout le salaire du mois
+    # du seul maintien : −2 142,19 € pour 14 jours d'arrêt subrogé sur 2 200 € (19/10/2026).
+    def net_avant_impot(brut: float, annee: int, mois: int) -> float:
+        bulletin = _calculer_bulletin_avec_brut_override(
+            brut,
+            employee_map,
+            company_map,
+            baremes,
+            {},
+            {},
+            month=mois,
+            year=annee,
+            contexte_de_base=contexte,
+        )
+        return float((bulletin.get("synthese_net") or {}).get("net_social_avant_impot") or 0.0)
+
+    impact_par_mois = impact_net_de_l_arret(
+        contexte, arret_data, settings_dict, date_debut_periode, date_fin_periode, net_avant_impot
+    )
+    impact_net_salarie = sum(m.impact for m in impact_par_mois)
+    salaire_perdu = sum(m.salaire_perdu for m in impact_par_mois)
     charges_patronales_estimees = complement * 0.42
     cout_employeur_total = complement + charges_patronales_estimees
 
@@ -191,6 +308,8 @@ def run_simulation_arret_maladie(
         "synthese": {
             "salaire_mensuel_base": round(salaire_mensuel, 2),
             "impact_net_salarie": round(impact_net_salarie, 2),
+            "salaire_perdu": round(salaire_perdu, 2),
+            "impact_net_par_mois": [asdict(m) for m in impact_par_mois],
             "cout_employeur_complement": round(complement, 2),
             "charges_patronales_estimees": round(charges_patronales_estimees, 2),
             "cout_employeur_total": round(cout_employeur_total, 2),
