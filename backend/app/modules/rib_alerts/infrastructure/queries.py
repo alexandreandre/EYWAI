@@ -66,7 +66,7 @@ def get_rib_alert_row_by_id(alert_id: str, company_id: str) -> Optional[dict[str
         .maybe_single()
         .execute()
     )
-    return result.data if result.data is not None else None
+    return result.data if result is not None and result.data is not None else None
 
 
 def update_rib_alert_read(alert_id: str, company_id: str) -> bool:

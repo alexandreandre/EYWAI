@@ -40,7 +40,7 @@ def generer_et_enregistrer_evenements(
             .execute()
         )
 
-        if not res.data:
+        if res is None or not res.data:
             logger.warning(f'❌ Aucun calendrier trouvé pour {employee_name} ({month}/{year})')
             return None
 

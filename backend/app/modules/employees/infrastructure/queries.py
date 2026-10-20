@@ -54,7 +54,7 @@ def fetch_exit_summary_for_employee(
             .maybe_single()
             .execute()
         )
-        return dict(resp.data) if resp.data else None
+        return dict(resp.data) if resp is not None and resp.data else None
     except Exception:
         logger.exception("Exception")
         return None

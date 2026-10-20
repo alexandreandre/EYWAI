@@ -38,7 +38,7 @@ class CcTrainingRecommendationsRepository:
             .maybe_single()
             .execute()
         )
-        return dict(r.data) if r.data else None
+        return dict(r.data) if r is not None and r.data else None
 
     def upsert_ai_recommendations(
         self,

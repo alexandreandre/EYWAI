@@ -36,7 +36,7 @@ def get_terminal_status(
             .maybe_single()
             .execute()
         )
-        if row.data:
+        if row is not None and row.data:
             company_name = row.data.get("company_name")
             logo_url = row.data.get("logo_url")
     except Exception:

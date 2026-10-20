@@ -125,7 +125,7 @@ def get_candidate(company_id: str, candidate_id: str) -> Optional[dict[str, Any]
         .maybe_single()
         .execute()
     )
-    if not res.data:
+    if res is None or not res.data:
         return None
     return candidate_row_to_out(res.data)
 
@@ -142,7 +142,7 @@ def get_candidate_with_stage_position(
         .maybe_single()
         .execute()
     )
-    return res.data if res.data else None
+    return res.data if res is not None and res.data else None
 
 
 def list_interviews(
@@ -226,4 +226,4 @@ def get_candidate_email_phone(
         .maybe_single()
         .execute()
     )
-    return res.data if res.data else None
+    return res.data if res is not None and res.data else None

@@ -1068,7 +1068,7 @@ def iter_delete_all_company_employees(
         .maybe_single()
         .execute()
     )
-    if not company_resp.data:
+    if company_resp is None or not company_resp.data:
         raise LookupError("Entreprise non trouvée")
 
     company_name = company_resp.data.get("company_name") or company_id

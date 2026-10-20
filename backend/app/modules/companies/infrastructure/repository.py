@@ -31,7 +31,7 @@ class SupabaseCompanyRepository(ICompanyRepository):
             .maybe_single()
             .execute()
         )
-        if not r.data:
+        if r is None or not r.data:
             return None
         return r.data.get("settings") or {}
 

@@ -29,7 +29,7 @@ def _assert_employee_in_company(employee_id: str, company_id: str) -> None:
         .maybe_single()
         .execute()
     )
-    if not r.data:
+    if r is None or not r.data:
         raise ValueError("Employé introuvable dans cette entreprise.")
 
 

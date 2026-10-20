@@ -30,7 +30,7 @@ class SupabaseEmployeeHoursProvider:
             .execute()
         )
         total_hours = 0.0
-        if response.data and response.data.get("actual_hours"):
+        if response is not None and response.data and response.data.get("actual_hours"):
             calendrier_reel = response.data["actual_hours"].get("calendrier_reel", [])
             for day in calendrier_reel:
                 h = day.get("heures_faites")

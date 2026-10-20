@@ -27,6 +27,6 @@ def get_classifications_for_idcc(supabase_client: Any, idcc: str) -> List[Any]:
             .maybe_single()
             .execute()
         )
-        if r.data and r.data.get("classifications") is not None:
+        if r is not None and r.data and r.data.get("classifications") is not None:
             return r.data["classifications"]
     return []

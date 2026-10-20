@@ -126,7 +126,7 @@ class CCRulesRepository:
             .maybe_single()
             .execute()
         )
-        return response.data if response.data else None
+        return response.data if response is not None and response.data else None
 
     def rollback_from_log(self, log_id: str) -> Optional[dict[str, Any]]:
         log_entry = self.get_log_by_id(log_id)

@@ -176,7 +176,9 @@ class EmployeeUpdater(IEmployeeUpdater):
                 .execute()
             )
             current_access = (
-                current_access_response.data if current_access_response.data else None
+                current_access_response.data
+                if current_access_response is not None and current_access_response.data
+                else None
             )
             previous_rh_access = (
                 current_access.get("role") if current_access else None

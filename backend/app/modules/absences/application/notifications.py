@@ -98,7 +98,7 @@ def _employee_context(employee_id: str) -> dict[str, Any]:
             .maybe_single()
             .execute()
         )
-        return r.data or {}
+        return (r.data if r is not None else None) or {}
     except Exception:
         return {}
 

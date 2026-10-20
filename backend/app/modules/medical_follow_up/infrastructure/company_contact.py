@@ -32,7 +32,7 @@ def get_occupational_health_contact(company_id: str) -> Optional[Dict[str, Optio
         .maybe_single()
         .execute()
     )
-    if not r.data:
+    if r is None or not r.data:
         return None
 
     contact = {

@@ -67,7 +67,7 @@ def _get_agreement_text(supabase: Any, agreement_id: str) -> str | None:
                 "Lecture du texte de convention (%s) impossible: %s", colonnes, exc
             )
             continue
-        if not reponse.data:
+        if reponse is None or not reponse.data:
             return None
         return (
             reponse.data.get("base_text") or reponse.data.get("full_text") or None

@@ -134,7 +134,7 @@ class SupabaseInterviewTemplateRepository:
             .maybe_single()
             .execute()
         )
-        row = t_resp.data if t_resp.data else None
+        row = t_resp.data if t_resp is not None and t_resp.data else None
         if not row:
             return None
         nested = _fetch_sections_and_questions([str(row["id"])])

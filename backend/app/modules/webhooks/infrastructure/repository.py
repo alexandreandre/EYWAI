@@ -111,7 +111,7 @@ class WebhookRepository:
                 .maybe_single()
                 .execute()
             )
-            return dict(res.data) if res.data else None
+            return dict(res.data) if res is not None and res.data else None
         except Exception:
             _log.exception("[webhooks] get_by_id")
             return None

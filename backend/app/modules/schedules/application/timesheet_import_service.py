@@ -159,7 +159,7 @@ def _job_is_terminal(job_id: str) -> bool:
         .maybe_single()
         .execute()
     )
-    row = result.data
+    row = result.data if result is not None else None
     return bool(row) and row.get("status") in ("cancelled", "failed")
 
 
@@ -245,7 +245,7 @@ def get_import_job(job_id: str, *, company_id: str | None = None) -> dict[str, A
     if company_id:
         query = query.eq("company_id", company_id)
     result = query.maybe_single().execute()
-    job = result.data
+    job = result.data if result is not None else None
     if job and job.get("status") in ("extracting", "queued"):
         heartbeat = _parse_iso_datetime(job.get("updated_at"))
         stale = (

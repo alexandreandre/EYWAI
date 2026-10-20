@@ -25,7 +25,7 @@ class CompanyMedicalSettingsProvider(ICompanyMedicalSettingsProvider):
             .maybe_single()
             .execute()
         )
-        if not r.data:
+        if r is None or not r.data:
             return True  # défaut identique au legacy
         settings = r.data.get("settings") or {}
         return bool(settings.get("medical_follow_up_enabled", True))

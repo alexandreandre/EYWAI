@@ -43,7 +43,7 @@ class SupabaseBonusTypeRepository:
         if company_id is not None:
             query = query.eq("company_id", company_id)
         response = query.maybe_single().execute()
-        if not response.data:
+        if response is None or not response.data:
             return None
         return row_to_bonus_type(response.data)
 

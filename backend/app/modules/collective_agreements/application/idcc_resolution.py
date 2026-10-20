@@ -42,7 +42,7 @@ def get_idcc_for_agreement(agreement_id: str, supabase_client: Any = None) -> Op
             .maybe_single()
             .execute()
         )
-        if response.data and response.data.get("idcc"):
+        if response is not None and response.data and response.data.get("idcc"):
             return str(response.data["idcc"]).strip()
     except Exception:
         return None

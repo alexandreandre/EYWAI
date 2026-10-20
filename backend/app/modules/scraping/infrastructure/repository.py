@@ -161,7 +161,7 @@ class ScrapingRepository:
             .maybe_single()
             .execute()
         )
-        return r.data if r.data else None
+        return r.data if r is not None and r.data else None
 
     def get_jobs_for_source_30d(
         self, source_id: str

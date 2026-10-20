@@ -92,7 +92,7 @@ def get_deletion_impact(employee_id: str, company_id: str) -> DeletionImpact:
         .maybe_single()
         .execute()
     )
-    emp = emp_resp.data
+    emp = emp_resp.data if emp_resp is not None else None
     if not emp:
         return DeletionImpact(employee_id=employee_id, employee_name="")
 

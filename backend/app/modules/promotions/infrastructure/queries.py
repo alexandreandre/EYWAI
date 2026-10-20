@@ -142,7 +142,7 @@ class PromotionQueries(IPromotionQueries):
                     .maybe_single()
                     .execute()
                 )
-                if rh_access_response.data:
+                if rh_access_response is not None and rh_access_response.data:
                     current_role = rh_access_response.data.get("role")
                     has_access = current_role in (
                         "collaborateur_rh",
@@ -251,7 +251,7 @@ def get_employee_snapshot_for_promotion(
             .maybe_single()
             .execute()
         )
-        if rh_response.data:
+        if rh_response is not None and rh_response.data:
             previous_rh_access = rh_response.data.get("role")
     return {"employee": employee, "previous_rh_access": previous_rh_access}
 

@@ -129,7 +129,7 @@ class SupabaseTrainingRepository(AbstractTrainingRepository):
             .maybe_single()
             .execute()
         )
-        if not r.data:
+        if r is None or not r.data:
             return None
         row = dict(r.data)
         row["categories"] = _categories_from_db(row.get("categories"))
@@ -318,7 +318,7 @@ class SupabaseTrainingRepository(AbstractTrainingRepository):
             .maybe_single()
             .execute()
         )
-        if not r.data:
+        if r is None or not r.data:
             return None
         row = dict(r.data)
         eid = str(row["employee_id"])

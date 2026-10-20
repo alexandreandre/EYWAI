@@ -196,7 +196,7 @@ class TimesheetImportRepository:
         if company_id:
             q = q.eq("company_id", company_id)
         resp = q.maybe_single().execute()
-        return resp.data
+        return resp.data if resp is not None else None
 
     def is_cancel_requested(self, batch_id: str) -> bool:
         try:
@@ -210,7 +210,7 @@ class TimesheetImportRepository:
             )
         except Exception:
             return False
-        summary = ((resp.data or {}) or {}).get("summary_json") or {}
+        summary = ((resp.data if resp is not None else None) or {}).get("summary_json") or {}
         return bool(summary.get("cancel_requested"))
 
     def request_cancel_batch(
@@ -220,7 +220,7 @@ class TimesheetImportRepository:
         if company_id:
             q = q.eq("company_id", company_id)
         resp = q.maybe_single().execute()
-        row = resp.data or {}
+        row = (resp.data if resp is not None else None) or {}
         if not row:
             return {"status": "unknown", "cancel_requested": False}
         status = row.get("status")
@@ -292,7 +292,7 @@ class TimesheetImportRepository:
             .maybe_single()
             .execute()
         )
-        return resp.data
+        return resp.data if resp is not None else None
 
 
 timesheet_import_repository = TimesheetImportRepository()

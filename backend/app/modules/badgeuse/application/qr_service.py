@@ -147,7 +147,7 @@ def punch_by_username(
         .maybe_single()
         .execute()
     )
-    if not result.data:
+    if result is None or not result.data:
         raise ValueError("Aucun employé actif avec cet identifiant")
     return punch_from_qr(
         qr_payload=None,

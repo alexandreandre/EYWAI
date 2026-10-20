@@ -94,7 +94,7 @@ class JobRepository(IJobRepository):
             .maybe_single()
             .execute()
         )
-        if not res.data:
+        if res is None or not res.data:
             return None
         return job_row_to_out(res.data, 0)
 
@@ -145,7 +145,7 @@ class PipelineStageRepository(IPipelineStageRepository):
             .maybe_single()
             .execute()
         )
-        if not res.data:
+        if res is None or not res.data:
             return None
         return pipeline_stage_row_to_out(res.data)
 
@@ -301,7 +301,7 @@ class CandidateRepository(ICandidateRepository):
             .maybe_single()
             .execute()
         )
-        if not exists.data:
+        if exists is None or not exists.data:
             raise ValueError("Candidat non trouvé")
         safe_name = _safe_cv_filename(filename)
         path = f"{company_id}/{candidate_id}/{safe_name}"
@@ -352,7 +352,7 @@ class CandidateRepository(ICandidateRepository):
             .maybe_single()
             .execute()
         )
-        return res.data if res.data else None
+        return res.data if res is not None and res.data else None
 
 
 # ─── Duplicate checker ────────────────────────────────────────────────
@@ -478,7 +478,7 @@ class EmployeeCreator(IEmployeeCreator):
                 .maybe_single()
                 .execute()
             )
-            if not existing.data:
+            if existing is None or not existing.data:
                 raise ValueError("Salarié existant non trouvé")
             employee = existing.data
             supabase.table("recruitment_candidates").update(
@@ -684,7 +684,7 @@ class NoteRepository(INoteRepository):
             .maybe_single()
             .execute()
         )
-        if not exists.data:
+        if exists is None or not exists.data:
             raise ValueError("Candidat non trouvé")
         safe_name = _safe_cv_filename(filename)
         path = f"{company_id}/{candidate_id}/{safe_name}"

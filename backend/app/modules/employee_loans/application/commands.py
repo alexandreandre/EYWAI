@@ -279,7 +279,12 @@ def _fetch_contract_parties(company_id: str, employee_id: str) -> tuple[dict, di
         .maybe_single()
         .execute()
     )
-    if not company_res.data or not employee_res.data:
+    if (
+        company_res is None
+        or not company_res.data
+        or employee_res is None
+        or not employee_res.data
+    ):
         raise LookupError("Données entreprise ou employé introuvables.")
     return company_res.data, employee_res.data
 

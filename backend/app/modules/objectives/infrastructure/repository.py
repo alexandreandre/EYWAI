@@ -335,7 +335,7 @@ class SupabaseObjectivesRepository(AbstractObjectivesRepository):
             .maybe_single()
             .execute()
         )
-        if not chk.data:
+        if chk is None or not chk.data:
             raise LookupError("Objectif non trouvé.")
         supabase.table("employee_objectives").delete().eq("id", objective_id).eq(
             "company_id", company_id
@@ -452,7 +452,7 @@ class SupabaseObjectivesRepository(AbstractObjectivesRepository):
             .maybe_single()
             .execute()
         )
-        if not chk.data:
+        if chk is None or not chk.data:
             raise LookupError("Jalon non trouvé.")
         supabase.table("objective_milestones").delete().eq("id", milestone_id).eq(
             "objective_id", objective_id

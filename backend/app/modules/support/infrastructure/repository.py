@@ -22,7 +22,7 @@ class SupabaseSupportRepository:
             .maybe_single()
             .execute()
         )
-        return r.data if r.data else None
+        return r.data if r is not None and r.data else None
 
     def list_for_super_admin(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
         query = (
@@ -93,7 +93,7 @@ class SupabaseSupportRepository:
             .maybe_single()
             .execute()
         )
-        return r.data if r.data else None
+        return r.data if r is not None and r.data else None
 
     def get_status_history(self, ticket_id: str) -> List[Dict[str, Any]]:
         result = (

@@ -89,7 +89,7 @@ class SupabaseAbsenceRepository(IAbsenceRepository):
             .maybe_single()
             .execute()
         )
-        return r.data if r.data else None
+        return r.data if r is not None and r.data else None
 
     def update(self, request_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         update_resp = (
