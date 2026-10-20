@@ -33,6 +33,7 @@ import {
   messageFiltreSansCalendrier,
   phraseHeuresSurArret,
   resumeHeuresSurArret,
+  bandeauCalendriersPrets,
 } from '@/lib/calendrierPilotage';
 import type {
   ModeFilter,
@@ -390,6 +391,7 @@ export default function Schedules() {
     filteredRows.length > 0 &&
     heuresSurArret.totalJours === 0 &&
     filteredRows.every((r) => r.rowStatus !== 'a_saisir');
+  const bandeauPrets = bandeauCalendriersPrets(filteredRows);
 
   // Le filtre ne laisse aucun calendrier : plus rien n'est sélectionné, et sous
   // « À saisir » on dit qu'il ne reste plus rien à saisir.
@@ -513,11 +515,16 @@ export default function Schedules() {
       )}
 
       {allSaisiBanner && (
-        <div className="rounded-md border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-900">
-          Tous les calendriers affichés sont prêts pour la paie ce mois-ci. Vous pouvez lancer le
-          calcul de paie.
-                        </div>
-                      )}
+        <div
+          className={
+            bandeauPrets.ton === 'ok'
+              ? 'rounded-md border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-900'
+              : 'rounded-md border bg-muted/40 px-4 py-3 text-sm text-foreground'
+          }
+        >
+          {bandeauPrets.texte}
+        </div>
+      )}
 
       {filtreSansCalendrier && saisieFilter === 'a_saisir' ? (
         <div

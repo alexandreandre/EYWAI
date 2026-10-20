@@ -5,7 +5,8 @@
  * refusée, « -105.0 h » d'écart sur un calendrier incomplet, « aucun employé ne
  * correspond » quand il ne reste simplement plus rien à saisir.
  */
-import type { EmployeeRowStatus } from './calendarStats';
+import { aDesHeuresPointees, type EmployeeRowStatus } from './calendarStats';
+import type { ActualHoursData } from '@/api/calendar';
 
 /**
  * Un salarié dont des jours portent des heures pendant un arrêt n'est pas prêt :
@@ -98,6 +99,8 @@ export function libelleEntetePilotage(k: {
   total: number;
   /** Saisis et sans conflit ; à défaut, le reste vaut à saisir + en conflit. */
   prets?: number;
+  /** Prêts parce que, sans heure pointée, la paie reprend le prévu. */
+  pretsSansHeuresPointees?: number;
 }): { ton: 'ok' | 'alerte' | 'neutre'; texte: string } {
   const calendriers = (n: number) => `${n} calendrier${n > 1 ? 's' : ''}`;
   if (k.avecHeuresSurArret > 0) {
@@ -119,5 +122,50 @@ export function libelleEntetePilotage(k: {
   if (k.aSaisir > 0) {
     return { ton: 'neutre', texte: `Reste à compléter : ${calendriers(k.aSaisir)} sur ${k.total}` };
   }
+  // Sans aucune heure pointée, un calendrier est « prêt » parce que la paie
+  // reprend son prévu : le dire (tournage C1 du 18/10, réel vide pendant
+  // l'import des pointages, « Tous les calendriers sont prêts »).
+  const sans = k.pretsSansHeuresPointees ?? 0;
+  if (sans > 0 && sans >= (k.prets ?? k.total)) {
+    return {
+      ton: 'neutre',
+      texte: `Aucune heure pointée ce mois : la paie reprendra le prévu ${
+        sans > 1 ? `des ${sans} calendriers` : 'du calendrier'
+      }`,
+    };
+  }
+  if (sans > 0) {
+    return {
+      ton: 'ok',
+      texte: `Tous les calendriers sont prêts pour la paie (${sans} sans heure pointée : la paie reprend ${
+        sans > 1 ? 'leur' : 'son'
+      } prévu)`,
+    };
+  }
   return { ton: 'ok', texte: 'Tous les calendriers sont prêts pour la paie' };
+}
+
+/**
+ * Le bandeau quand tous les calendriers affichés sont saisis, sans conflit.
+ * « Prêts » ne se dit sans réserve que s'ils portent des heures pointées ;
+ * sinon la paie reprendra le prévu, et des pointages restent peut-être à importer.
+ */
+export function bandeauCalendriersPrets(
+  rows: readonly { isForfaitJour: boolean; actual: readonly ActualHoursData[] }[],
+): { ton: 'ok' | 'neutre'; texte: string } {
+  const sans = rows.filter((r) => !r.isForfaitJour && !aDesHeuresPointees(r.actual)).length;
+  if (sans > 0 && sans === rows.length) {
+    return {
+      ton: 'neutre',
+      texte:
+        'Aucune heure pointée ce mois sur les calendriers affichés : la paie reprendra leur prévu. ' +
+        'Si des pointages existent, importez-les avant de lancer la paie.',
+    };
+  }
+  const precision =
+    sans > 0 ? ` (${sans} sans heure pointée : la paie reprend ${sans > 1 ? 'leur' : 'son'} prévu)` : '';
+  return {
+    ton: 'ok',
+    texte: `Tous les calendriers affichés sont prêts pour la paie ce mois-ci${precision}. Vous pouvez lancer le calcul de paie.`,
+  };
 }

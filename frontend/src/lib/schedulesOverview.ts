@@ -210,6 +210,8 @@ export interface GlobalOverviewKpis {
   heuresFaitesTotal: number;
   /** Saisis et sans heures sur un jour d'arrêt : prêts pour la paie. */
   prets: number;
+  /** Prêts parce que, sans aucune heure pointée, la paie reprend le prévu (hors forfait jours). */
+  pretsSansHeuresPointees: number;
   progressPercent: number;
 }
 
@@ -233,6 +235,13 @@ export function computeGlobalKpis(
     (r) => r.rowStatus !== 'a_saisir' && (r.joursHeuresSurArret?.length ?? 0) === 0
   ).length;
   const progressPercent = total > 0 ? Math.round((prets / total) * 100) : 0;
+  const pretsSansHeuresPointees = rows.filter(
+    (r) =>
+      r.rowStatus !== 'a_saisir' &&
+      (r.joursHeuresSurArret?.length ?? 0) === 0 &&
+      !r.isForfaitJour &&
+      !aDesHeuresPointees(r.actual)
+  ).length;
 
   return {
     total,
@@ -244,6 +253,7 @@ export function computeGlobalKpis(
     heuresPrevuesTotal,
     heuresFaitesTotal,
     prets,
+    pretsSansHeuresPointees,
     progressPercent,
   };
 }
