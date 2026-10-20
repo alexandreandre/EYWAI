@@ -588,6 +588,30 @@ def _date_de_sortie(employee_id: str) -> date | None:
     return _jour_iso(brut)
 
 
+def _contrat_du_mois(employee_id: str, year: int, month: int) -> tuple[date | None, date | None]:
+    """Début du contrat qui couvre le mois, et sa fin quand c'est un contrat rangé.
+
+    Après « Nouveau contrat », la fiche porte la date d'entrée du nouveau
+    contrat. Un mois de l'ancien se calcule sur la fiche rangée avec lui
+    (`contrat_du_mois.fiche_du_mois`) : ses congés s'acquièrent aussi depuis le
+    début de cet ancien contrat et jusqu'à sa fin. Ils partaient de la date
+    d'embauche du nouveau : 0 jour acquis, et l'indemnité de congés du bulletin
+    de sortie disparaissait à la régénération (tournage H.5, 20/10/2026).
+    Sans contrat rangé sur le mois, la date d'embauche de la fiche, comme avant.
+    """
+    hire_date = _parse_hire_date(employee_id)
+    if hire_date is None or (year, month) >= (hire_date.year, hire_date.month):
+        return hire_date, None
+    from app.modules.employees.application.contrat_du_mois import lecteur_contrats
+
+    periode = lecteur_contrats.contrat_passe_du_mois(employee_id, year, month)
+    if not periode:
+        return hire_date, None
+    fiche = periode.get("fiche") if isinstance(periode.get("fiche"), dict) else {}
+    debut = _jour_iso(fiche.get("hire_date") or periode.get("date_debut"))
+    return (debut or hire_date), _jour_iso(periode.get("date_fin"))
+
+
 def get_absence_balances_for_payslip(
     employee_id: str,
     year: int,
@@ -599,9 +623,9 @@ def get_absence_balances_for_payslip(
     pris jusqu'à la fin de la fenêtre des variables (`date_fin_prises`).
 
     `date_de_sortie` : le dernier jour d'un départ connu de l'appelant (dossier
-    de départ calculé avant que la fiche ne le porte) ; à défaut, celui de la
-    fiche."""
-    hire_date = _parse_hire_date(employee_id)
+    de départ calculé avant que la fiche ne le porte) ; à défaut, la fin du
+    contrat rangé qui couvre le mois, sinon celui de la fiche."""
+    hire_date, fin_du_contrat_range = _contrat_du_mois(employee_id, year, month)
     if not hire_date:
         return None
     _, last_day = calendar.monthrange(year, month)
@@ -609,7 +633,12 @@ def get_absence_balances_for_payslip(
     # Rien ne s'acquiert après la sortie : une fin de CDD au 15/09 acquérait
     # jusqu'au 30/09 (8,33 jours au lieu de ce qui est dû au 15/09), et faussait
     # l'indemnité de congés du solde de tout compte.
-    sortie = date_de_sortie if date_de_sortie is not None else _date_de_sortie(employee_id)
+    if date_de_sortie is not None:
+        sortie = date_de_sortie
+    elif fin_du_contrat_range is not None:
+        sortie = fin_du_contrat_range
+    else:
+        sortie = _date_de_sortie(employee_id)
     sortie_dans_le_mois: date | None = None
     if sortie is not None and sortie < ref_date:
         ref_date = sortie
