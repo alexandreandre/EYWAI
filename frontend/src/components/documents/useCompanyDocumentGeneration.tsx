@@ -1,3 +1,4 @@
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -57,6 +58,7 @@ type GenMode = DocumentGenMode;
 
 export function useCompanyDocumentGeneration() {
   const queryClient = useQueryClient();
+  const { demander, fenetre: fenetreConfirmation } = useConfirmation();
   const navigate = useNavigate();
   const companyId = useActiveCompanyId();
 
@@ -304,8 +306,13 @@ export function useCompanyDocumentGeneration() {
         setLoadingAction(null);
       }
     },
-    handleDelete: (id: string) => {
-      if (!window.confirm('Supprimer ce document ? Cette action est irréversible.')) return;
+    handleDelete: async (id: string) => {
+      if (!(await demander({
+        titre: 'Supprimer ce document ?',
+        description: 'Cette action est irréversible.',
+        confirmer: 'Supprimer',
+        destructif: true,
+      }))) return;
       deleteMut.mutate(id);
     },
     handleSend: (id: string) => {
@@ -336,6 +343,7 @@ export function useCompanyDocumentGeneration() {
 
   const dialogs = (
     <>
+      {fenetreConfirmation}
       <Dialog open={genMode === 'contrat'} onOpenChange={(o) => !o && setGenMode(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

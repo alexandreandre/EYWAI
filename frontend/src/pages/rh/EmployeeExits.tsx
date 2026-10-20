@@ -1,3 +1,4 @@
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { log } from '@/lib/logger';
 import { deDevant } from '@/features/payroll/utils/elision';
 import { RhPageHeader } from '@/components/layout';
@@ -45,6 +46,7 @@ const EmployeeExitsPage = () => {
   const [selectedExitType, setSelectedExitType] = useState<string>('all');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedExit, setSelectedExit] = useState<EmployeeExitWithDetails | null>(null);
+  const { demander, fenetre } = useConfirmation();
 
   useEffect(() => {
     void fetchExits();
@@ -114,11 +116,14 @@ const EmployeeExitsPage = () => {
   ];
 
   const handleDeleteExit = async (exitId: string, employeeName: string) => {
-    const confirmMessage = `Êtes-vous sûr de vouloir supprimer le départ ${deDevant(employeeName)} ?\n\nCette action est irréversible et :\n- Supprimera tous les documents associés\n- Supprimera la checklist\n- Remettra l'employé en statut "actif"`;
-
-    if (!confirm(confirmMessage)) {
-      return;
-    }
+    const confirme = await demander({
+      titre: `Supprimer le départ ${deDevant(employeeName)} ?`,
+      description:
+        'Cette action est irréversible :\n- tous les documents du départ sont supprimés ;\n- la checklist est supprimée ;\n- le salarié repasse en statut « actif ».',
+      confirmer: 'Supprimer le départ',
+      destructif: true,
+    });
+    if (!confirme) return;
 
     try {
       await deleteEmployeeExit(exitId);
@@ -137,6 +142,7 @@ const EmployeeExitsPage = () => {
 
   return (
     <div className="space-y-6">
+      {fenetre}
       <RhPageHeader
         title="Départs"
         description="Gérez les processus de départ des collaborateurs et leurs documents de fin de contrat"

@@ -1,5 +1,6 @@
 // src/pages/EmployeeDetail.tsx
 
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { messageBulletinsARecalculer } from "@/components/saisies/libellesSaisie";
 import { log } from '@/lib/logger';
 import { lazy, Suspense, useCallback, useState, useEffect, useRef, useMemo } from "react";
@@ -99,6 +100,7 @@ function TabPanelSkeleton() {
 
 export default function EmployeeDetail() {
   const { employeeId } = useParams<{ employeeId: string }>();
+  const { demander, fenetre } = useConfirmation();
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
@@ -388,7 +390,13 @@ export default function EmployeeDetail() {
   }, [employeeId, selectedDate.year, selectedDate.month]);
 
   const handleDeleteSaisie = async (id: string) => {
-    if (!window.confirm("Supprimer cette saisie ?")) return;
+    const confirme = await demander({
+      titre: 'Supprimer cette saisie ?',
+      description: 'Elle est retirée des variables du mois.',
+      confirmer: 'Supprimer',
+      destructif: true,
+    });
+    if (!confirme) return;
     try {
       await saisiesApi.deleteEmployeeMonthlyInput(employeeId!, id);
       toast({ title: "Supprimée", description: "La saisie a été supprimée." });
@@ -550,6 +558,7 @@ export default function EmployeeDetail() {
 
   return (
     <div className="space-y-6">
+      {fenetre}
       <Link to="/employees" className="flex items-center text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="mr-2 h-4 w-4" /> Retour à la liste des collaborateurs
       </Link>

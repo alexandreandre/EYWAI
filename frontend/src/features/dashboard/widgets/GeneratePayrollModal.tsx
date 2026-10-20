@@ -1,3 +1,4 @@
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { isPresentDuringMonth, isPresentEmployee } from '@/lib/employmentStatus';
 import { moisDePaieParDefaut } from '@/features/payroll/utils/payrollMonth';
@@ -60,6 +61,7 @@ export function GeneratePayrollModal({
   const feedRef = useRef<HTMLDivElement>(null);
 
   const generation = usePayrollGeneration();
+  const { demander, fenetre } = useConfirmation();
 
   const parsedMonth = selectedMonth
     ? {
@@ -202,14 +204,23 @@ export function GeneratePayrollModal({
     onClose();
   };
 
-  const startGeneration = () => {
+  const startGeneration = async () => {
     // Un contrôle en panne ne compte pas pour « zéro anomalie » : on demande
     // une confirmation explicite au lieu de générer sans rien dire.
     const confirmation = messageConfirmationGeneration({
       controleEnErreur: preflightError,
       anomalies: preflightData?.anomalies ?? [],
     });
-    if (confirmation && !window.confirm(confirmation)) return;
+    if (
+      confirmation &&
+      !(await demander({
+        titre: 'Générer les bulletins ?',
+        description: confirmation,
+        confirmer: 'Générer quand même',
+      }))
+    ) {
+      return;
+    }
 
     const ids = Array.from(selectedEmployees);
     const [yearStr, monthStr] = selectedMonth.split('-');
@@ -266,6 +277,8 @@ export function GeneratePayrollModal({
 
   return (
     <>
+    {fenetre}
+    {generation.fenetreQuitter}
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {

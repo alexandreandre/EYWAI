@@ -2,6 +2,7 @@
  * Historique des simulations sauvegardées
  */
 
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { log } from '@/lib/logger';
 import { showErrorToast } from '@/lib/errorMessages';
 import React from 'react';
@@ -24,6 +25,7 @@ export const SimulationHistory: React.FC<SimulationHistoryProps> = ({
   onDelete,
   loading = false,
 }) => {
+  const { demander, fenetre } = useConfirmation();
   const formatCurrency = (value?: number) => {
     if (!value) return '-';
     return new Intl.NumberFormat('fr-FR', {
@@ -79,6 +81,7 @@ export const SimulationHistory: React.FC<SimulationHistoryProps> = ({
 
   return (
     <div className="space-y-4">
+      {fenetre}
       {/* En-tête */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">
@@ -181,10 +184,13 @@ export const SimulationHistory: React.FC<SimulationHistoryProps> = ({
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            if (window.confirm('Voulez-vous vraiment supprimer cette simulation ?')) {
-                              onDelete(sim.id);
-                            }
+                          onClick={async () => {
+                            const confirme = await demander({
+                              titre: 'Supprimer cette simulation ?',
+                              confirmer: 'Supprimer',
+                              destructif: true,
+                            });
+                            if (confirme) onDelete(sim.id);
                           }}
                           title="Supprimer"
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"

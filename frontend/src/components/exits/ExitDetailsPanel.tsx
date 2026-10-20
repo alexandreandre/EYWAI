@@ -3,6 +3,7 @@
  * Avec onglets : Vue d'ensemble, Checklist, Documents, Indemnités
  */
 
+import { useConfirmation } from '@/hooks/useConfirmation';
 import IccpArbitrageDetail from '@/features/employee-exits/IccpArbitrageDetail';
 import { lireMontantNegocie } from '@/features/employee-exits/utils/montantNegocie';
 import {
@@ -170,6 +171,7 @@ const EXIT_TYPE_OPTIONS: { value: ExitType; label: string }[] = [
 
 export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetailsPanelProps) {
   const { toast } = useToast();
+  const { demander, fenetre } = useConfirmation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -309,7 +311,12 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       ? `Changer le type de départ recalculera les indemnités et signalera ${pluriel(generatedDocsCount, 'document')} ${accord(generatedDocsCount, 'généré')} à revoir. Régénérez les PDF concernés après validation.`
       : 'Changer le type de départ recalculera les indemnités et réalignera le workflow.';
 
-    if (!confirm(message)) return;
+    const confirme = await demander({
+      titre: 'Changer le type de départ ?',
+      description: message,
+      confirmer: 'Changer le type',
+    });
+    if (!confirme) return;
 
     setSavingExitType(true);
     try {
@@ -354,7 +361,12 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       ? `Corriger le dernier jour travaillé recalculera les indemnités et signalera ${pluriel(generatedDocsCount, 'document')} ${accord(generatedDocsCount, 'généré')} à revoir. Régénérez les PDF concernés après validation.`
       : 'Corriger le dernier jour travaillé recalculera les indemnités.';
 
-    if (!confirm(message)) return;
+    const confirme = await demander({
+      titre: 'Corriger le dernier jour travaillé ?',
+      description: message,
+      confirmer: 'Corriger la date',
+    });
+    if (!confirme) return;
 
     setSavingLastWorkingDay(true);
     try {
@@ -631,9 +643,13 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   const handleDeleteDocument = async (documentId: string) => {
     if (!exitId) return;
 
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce document ?')) {
-      return;
-    }
+    const confirme = await demander({
+      titre: 'Supprimer ce document ?',
+      description: 'Le document est retiré du dossier de départ.',
+      confirmer: 'Supprimer',
+      destructif: true,
+    });
+    if (!confirme) return;
 
     try {
       await deleteExitDocument(exitId, documentId);
@@ -778,6 +794,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   return (
     <Sheet open={open} onOpenChange={onClose}>
       <SheetContent className="sm:max-w-3xl overflow-y-auto">
+        {fenetre}
         <SheetHeader className="pb-6">
           <SheetTitle className="text-2xl">
             {employee?.first_name} {employee?.last_name}

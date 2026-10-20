@@ -1,3 +1,4 @@
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { log } from '@/lib/logger';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import apiClient from '@/api/apiClient';
@@ -93,6 +94,7 @@ export function CompanyMutuelleSection({
   className,
 }: CompanyMutuelleSectionProps) {
   const { toast } = useToast();
+  const { demander, fenetre } = useConfirmation();
   const mutuelleClient = useMemo(
     () => mutuelleTypesClientForCompany(companyId),
     [companyId],
@@ -258,9 +260,13 @@ export function CompanyMutuelleSection({
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cette formule de mutuelle ?')) {
-      return;
-    }
+    const confirme = await demander({
+      titre: 'Supprimer cette formule de mutuelle ?',
+      description: 'Les salariés qui l’avaient ne l’auront plus sur leurs prochains bulletins.',
+      confirmer: 'Supprimer',
+      destructif: true,
+    });
+    if (!confirme) return;
     try {
       await mutuelleClient.deleteMutuelleType(id);
       toast({ title: 'Succès', description: 'Formule de mutuelle supprimée' });
@@ -714,6 +720,7 @@ export function CompanyMutuelleSection({
 
   return (
     <Card className={className}>
+      {fenetre}
       <CardHeader>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>

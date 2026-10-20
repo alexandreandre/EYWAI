@@ -8,6 +8,7 @@
  * - Voir le dashboard consolidé
  */
 
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { log } from '@/lib/logger';
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -120,6 +121,7 @@ interface GroupStats {
 }
 
 export default function CompanyGroupDetail() {
+  const { demander, fenetre } = useConfirmation();
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -276,7 +278,12 @@ export default function CompanyGroupDetail() {
   };
 
   const handleRemoveCompany = async (companyId: string, companyName: string) => {
-    if (!confirm(`Voulez-vous vraiment retirer "${companyName}" de ce groupe ?`)) {
+    const confirme = await demander({
+      titre: `Retirer « ${companyName} » de ce groupe ?`,
+      confirmer: 'Retirer',
+      destructif: true,
+    });
+    if (!confirme) {
       return;
     }
 
@@ -378,7 +385,13 @@ export default function CompanyGroupDetail() {
   };
 
   const handleRemoveUserFromGroup = async (userId: string, userEmail: string) => {
-    if (!confirm(`Voulez-vous vraiment retirer tous les accès de "${userEmail}" aux entreprises de ce groupe ?`)) {
+    const confirme = await demander({
+      titre: `Retirer tous les accès de ${userEmail} ?`,
+      description: 'La personne perd l’accès à toutes les entreprises de ce groupe.',
+      confirmer: 'Retirer les accès',
+      destructif: true,
+    });
+    if (!confirme) {
       return;
     }
 
@@ -465,6 +478,7 @@ export default function CompanyGroupDetail() {
 
   return (
     <div className="space-y-6">
+      {fenetre}
       {/* Header */}
       <div>
         <Button variant="ghost" onClick={() => navigate('/super-admin/groups')} className="mb-4">

@@ -1,3 +1,4 @@
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { useMemo, useRef, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -397,6 +398,7 @@ export function AssistedFillReview({
   isRefining = false,
 }: AssistedFillReviewProps) {
   const { toast } = useToast();
+  const { demander, fenetre } = useConfirmation();
   const [isSaving, setIsSaving] = useState(false);
   const [refineText, setRefineText] = useState('');
   const refineDictation = useSpeechDictation((text) =>
@@ -877,10 +879,16 @@ export function AssistedFillReview({
     const lowCoverage = savableRows.some(
       (r) => (r.coverageRatio ?? 1) < 0.4 && rowQualityIssue(r) === 'extraction_incomplete',
     );
-    if (lowCoverage && !window.confirm(
-      'Certains salariés ont une extraction très incomplète (< 40 % des jours). '
-      + 'Les jours non lus resteront vides au planning. Continuer ?',
-    )) {
+    if (
+      lowCoverage &&
+      !(await demander({
+        titre: 'Enregistrer une lecture très incomplète ?',
+        description:
+          'Certains salariés ont une extraction très incomplète (< 40 % des jours). '
+          + 'Les jours non lus resteront vides au planning.',
+        confirmer: 'Enregistrer quand même',
+      }))
+    ) {
       return;
     }
     setIsSaving(true);
@@ -1092,6 +1100,7 @@ export function AssistedFillReview({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+      {fenetre}
       {showReviewSummaryBanner(proposal) && (
       <div className="shrink-0 rounded-md border bg-muted/20 px-3 py-2 text-xs">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

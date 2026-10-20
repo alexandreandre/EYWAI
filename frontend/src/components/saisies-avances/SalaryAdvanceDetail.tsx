@@ -1,5 +1,6 @@
 // frontend/src/components/saisies-avances/SalaryAdvanceDetail.tsx
 
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { log } from '@/lib/logger';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -31,6 +32,7 @@ interface SalaryAdvanceDetailProps {
 
 export function SalaryAdvanceDetail({ advance, onClose, onUpdate }: SalaryAdvanceDetailProps) {
   const { toast } = useToast();
+  const { demander, fenetre } = useConfirmation();
   const { user } = useAuth();
   const [payments, setPayments] = useState<SalaryAdvancePayment[]>([]);
   const [isLoadingPayments, setIsLoadingPayments] = useState(false);
@@ -70,9 +72,13 @@ export function SalaryAdvanceDetail({ advance, onClose, onUpdate }: SalaryAdvanc
   };
 
   const handleDeletePayment = async (paymentId: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce paiement ?')) {
-      return;
-    }
+    const confirme = await demander({
+      titre: 'Supprimer ce paiement ?',
+      description: 'Le paiement est retiré de l’avance.',
+      confirmer: 'Supprimer',
+      destructif: true,
+    });
+    if (!confirme) return;
     try {
       await deleteAdvancePayment(paymentId);
       toast({
@@ -121,6 +127,7 @@ export function SalaryAdvanceDetail({ advance, onClose, onUpdate }: SalaryAdvanc
 
   return (
     <>
+      {fenetre}
       <Dialog open={true} onOpenChange={onClose}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>

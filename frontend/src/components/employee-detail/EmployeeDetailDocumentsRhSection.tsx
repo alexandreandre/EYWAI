@@ -1,3 +1,4 @@
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { useMemo, useState, useEffect, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -135,6 +136,7 @@ export function useEmployeeDocumentGeneration(
   deepLink?: { generate?: 'fiche_poste'; jobId?: string }
 ) {
   const queryClient = useQueryClient();
+  const { demander, fenetre: fenetreConfirmation } = useConfirmation();
   const displayName = `${employee.last_name} ${employee.first_name}`.trim();
 
   const [genMode, setGenMode] = useState<GenMode>(null);
@@ -394,8 +396,13 @@ export function useEmployeeDocumentGeneration(
     }
   };
 
-  const handleDelete = (id: string) => {
-    if (!window.confirm('Supprimer ce document ? Cette action est irréversible.')) return;
+  const handleDelete = async (id: string) => {
+    if (!(await demander({
+      titre: 'Supprimer ce document ?',
+      description: 'Cette action est irréversible.',
+      confirmer: 'Supprimer',
+      destructif: true,
+    }))) return;
     deleteMut.mutate(id);
   };
 
@@ -425,6 +432,7 @@ export function useEmployeeDocumentGeneration(
 
   const dialogs = (
     <>
+      {fenetreConfirmation}
       <Dialog open={genMode === 'contrat'} onOpenChange={(o) => !o && setGenMode(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

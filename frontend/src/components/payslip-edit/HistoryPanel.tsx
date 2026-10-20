@@ -39,7 +39,8 @@ interface HistoryPanelProps {
   onRecalculRefuse?: (refus: RefusApresCorrection) => void;
   canRestore?: boolean;
   /** Garde des corrections non enregistrées : faux si la RH préfère les garder. */
-  avantRestauration?: () => boolean;
+  /** Vrai si la restauration peut partir (corrections en cours abandonnées ou absentes). */
+  avantRestauration?: () => boolean | Promise<boolean>;
 }
 
 export default function HistoryPanel({
@@ -77,8 +78,8 @@ export default function HistoryPanel({
   }, [payslipId, toast]);
 
   // Le clic ouvre la fenêtre de confirmation ; la restauration part de son bouton.
-  const demanderRestauration = (version: number) => {
-    if (avantRestauration && !avantRestauration()) return;
+  const demanderRestauration = async (version: number) => {
+    if (avantRestauration && !(await avantRestauration())) return;
     setAConfirmer(version);
   };
 

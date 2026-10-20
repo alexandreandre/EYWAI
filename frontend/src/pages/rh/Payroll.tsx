@@ -797,6 +797,7 @@ export default function Payroll() {
   return (
     <GenerationEnCoursProvider value={generationEnCours}>
     <div className="space-y-6">
+      {generation.fenetreQuitter}
       <PageFetchIndicator isFetching={employeesQuery.isFetching || payslipsQuery.isFetching} />
       <RhPageHeader
         title="Gestion de la Paie"

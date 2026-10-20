@@ -10,6 +10,7 @@
  * (planning, fiche, saisies), puis « Régénérer ».
  */
 
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { dateEnClair, dateHeureEnClair } from '@/components/payslip/comparaisonAffichage';
 import { pageTitleClassName } from '@/components/layout';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -286,13 +287,22 @@ export default function PayslipEdit() {
   }, [modifie]);
 
   /** Faux si la RH préfère garder ses corrections en cours. */
+  const { demander, fenetre } = useConfirmation();
   const abandonnerSiBesoin = useCallback(
-    () => !modifie || window.confirm(QUESTION_ABANDON),
-    [modifie]
+    async () =>
+      !modifie ||
+      demander({
+        titre: QUESTION_ABANDON,
+        description: 'Les corrections saisies et non enregistrées seront perdues.',
+        confirmer: 'Abandonner les corrections',
+        annuler: 'Garder mes corrections',
+        destructif: true,
+      }),
+    [modifie, demander]
   );
 
-  const aller = (lien: string) => {
-    if (abandonnerSiBesoin()) navigate(lien);
+  const aller = async (lien: string) => {
+    if (await abandonnerSiBesoin()) navigate(lien);
   };
 
   const enregistrer = async () => {
@@ -358,7 +368,7 @@ export default function PayslipEdit() {
   };
 
   const valider = async () => {
-    if (!payslipId || !abandonnerSiBesoin()) return;
+    if (!payslipId || !(await abandonnerSiBesoin())) return;
     setValidateBusy(true);
     try {
       appliquer(await validatePayslip(payslipId, societeDuBulletin));
@@ -436,6 +446,7 @@ export default function PayslipEdit() {
 
   return (
     <div className="container mx-auto space-y-6">
+      {fenetre}
       <PayslipAlertsBanner data={payslip.payslip_data} />
       <ReportNetNegatif
         payslipId={payslip.id}
@@ -514,8 +525,8 @@ export default function PayslipEdit() {
         <div className="flex items-center gap-4">
           <Button
             variant="outline"
-            onClick={() => {
-              if (abandonnerSiBesoin()) navigate(-1);
+            onClick={async () => {
+              if (await abandonnerSiBesoin()) navigate(-1);
             }}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />

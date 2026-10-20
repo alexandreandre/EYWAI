@@ -9,6 +9,9 @@ import { BootProvider } from './contexts/BootContext';
 import { BootGate } from '@/components/BootGate';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
 import { Toaster } from '@/components/ui/toaster';
+// Les pages qui notifient par « sonner » (départs, taux, badgeuse…) : sans cet
+// afficheur, leurs messages de succès et d'erreur ne se voyaient pas.
+import { Toaster as Notifications } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { SignedPdfPreviewProvider } from '@/contexts/SignedPdfPreviewContext';
 import { AppSidebar } from '@/components/ui/app-sidebar';
@@ -310,6 +313,7 @@ export default function App() {
     <TooltipProvider>
       <SignedPdfPreviewProvider>
         <Toaster />
+        <Notifications position="bottom-right" richColors closeButton />
         <TestEnvBadge />
         <BootProvider>
         <AuthProvider>

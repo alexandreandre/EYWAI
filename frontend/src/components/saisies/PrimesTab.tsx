@@ -1,4 +1,5 @@
 // Composant pour l'onglet Primes (contenu actuel de Saisies.tsx)
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { libelleMontantSaisie, montantAEditer, montantAEnvoyer } from './sensSaisie';
 import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -59,6 +60,7 @@ export function PrimesTab({
   onClearFocusEmployee,
 }: PrimesTabProps) {
   const { toast } = useToast();
+  const { demander, fenetre } = useConfirmation();
   const queryClient = useQueryClient();
   const companyIdActif = useActiveCompanyId();
   const apresSaisie = () => void invaliderApresSaisie(queryClient, companyIdActif);
@@ -138,7 +140,13 @@ export function PrimesTab({
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Supprimer cette saisie ?")) return;
+    const confirme = await demander({
+      titre: 'Supprimer cette saisie ?',
+      description: 'Elle est retirée des variables du mois.',
+      confirmer: 'Supprimer',
+      destructif: true,
+    });
+    if (!confirme) return;
     try {
       const reponse = await saisiesApi.deleteMonthlyInput(id);
       const aRecalculer = phraseARecalculer(reponse.data?.bulletins_a_recalculer);
@@ -227,6 +235,7 @@ export function PrimesTab({
 
   return (
     <div className="space-y-6">
+      {fenetre}
       {/* Sélecteurs de date */}
       <div className="flex flex-col md:flex-row justify-between md:items-start gap-4">
         <div>

@@ -1,3 +1,4 @@
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { libelleMontantSaisie } from '@/components/saisies-avances/seizureFormat';
 // frontend/src/pages/SalarySeizures.tsx
 
@@ -36,6 +37,7 @@ const STATUS_COLORS: Record<SalarySeizureStatus, string> = {
 
 export default function SalarySeizures() {
   const { toast } = useToast();
+  const { demander, fenetre } = useConfirmation();
   const [seizures, setSeizures] = useState<SalarySeizure[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -80,7 +82,13 @@ export default function SalarySeizures() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cette saisie ?')) {
+    const confirme = await demander({
+      titre: 'Supprimer cette saisie sur salaire ?',
+      description: 'Elle ne sera plus retenue sur les prochains bulletins.',
+      confirmer: 'Supprimer',
+      destructif: true,
+    });
+    if (!confirme) {
       return;
     }
     try {
@@ -112,6 +120,7 @@ export default function SalarySeizures() {
 
   return (
     <div className="space-y-6">
+      {fenetre}
       <RhPageHeader
         title="Saisies sur salaire"
         icon={<Scale />}

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { useConfirmation } from '@/hooks/useConfirmation';
 import { generatePayslip } from '@/api/payslips';
 import {
   getPayrollGenerationErrorMessage,
@@ -546,7 +548,10 @@ export function usePayrollGeneration() {
   );
 
   // Pendant la génération : question avant de fermer l'onglet ou de suivre un
-  // lien vers une autre page de l'application.
+  // lien vers une autre page de l'application (fenêtre de l'application, que
+  // l'appelant rend : `fenetreQuitter`).
+  const navigate = useNavigate();
+  const { demander, fenetre: fenetreQuitter } = useConfirmation();
   useEffect(() => {
     if (phase !== 'running') return undefined;
     const avantDeQuitter = (event: BeforeUnloadEvent) => {
@@ -568,11 +573,18 @@ export function usePayrollGeneration() {
         window.location
       );
       if (!quitte) return;
-      if (window.confirm(questionQuitterGeneration(completedCountRef.current, totalRef.current))) {
-        return;
-      }
       event.preventDefault();
       event.stopPropagation();
+      const destination = new URL(lien.getAttribute('href') ?? '', window.location.origin);
+      void demander({
+        titre: 'Quitter la génération en cours ?',
+        description: questionQuitterGeneration(completedCountRef.current, totalRef.current),
+        confirmer: 'Quitter la page',
+        annuler: 'Rester sur la page',
+        destructif: true,
+      }).then((quitter) => {
+        if (quitter) navigate(destination.pathname + destination.search + destination.hash);
+      });
     };
     window.addEventListener('beforeunload', avantDeQuitter);
     document.addEventListener('click', surClic, true);
@@ -580,7 +592,7 @@ export function usePayrollGeneration() {
       window.removeEventListener('beforeunload', avantDeQuitter);
       document.removeEventListener('click', surClic, true);
     };
-  }, [phase]);
+  }, [phase, demander, navigate]);
 
   const currentLabel = currentJob
     ? `Génération du bulletin de ${monthYearLabel(currentJob.month, currentJob.year)} — ${currentJob.employeeName}…`
@@ -651,5 +663,6 @@ export function usePayrollGeneration() {
     reset,
     cancel,
     dismiss,
+    fenetreQuitter,
   };
 }
