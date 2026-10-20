@@ -2,11 +2,7 @@
  * Dialog pour créer un nouveau processus de sortie de salarié
  */
 
-import {
-  aujourdhuiLocal,
-  dateDeDemandeProposee,
-  notificationAvantLaFin,
-} from '@/features/employee-exits/utils/dateDeDemande';
+import { aujourdhuiLocal, dateDeDemandeProposee } from '@/features/employee-exits/utils/dateDeDemande';
 import { log } from '@/lib/logger';
 import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -164,14 +160,10 @@ export function CreateExitDialog({
       }
       if (initialLastWorkingDay) {
         setLastWorkingDay(initialLastWorkingDay);
-        // La date du jour ; plafonnée au dernier jour déjà passé quand le
-        // départ se notifie avant sa fin (une fin de CDD ne l'est pas).
+        // La date du jour, plafonnée au dernier jour déjà passé : la base
+        // refuse une demande postérieure au dernier jour.
         setExitRequestDate(
-          dateDeDemandeProposee({
-            aujourdHui: aujourdhuiLocal(),
-            dernierJour: initialLastWorkingDay,
-            exitType: initialExitType ?? exitType,
-          })
+          dateDeDemandeProposee({ aujourdHui: aujourdhuiLocal(), dernierJour: initialLastWorkingDay })
         );
       }
     } else {
@@ -297,7 +289,7 @@ export function CreateExitDialog({
       return;
     }
 
-    if (notificationAvantLaFin(exitType) && new Date(lastWorkingDay) < new Date(exitRequestDate)) {
+    if (new Date(lastWorkingDay) < new Date(exitRequestDate)) {
       toast({
         title: 'Erreur',
         description: 'Le dernier jour de travail doit être postérieur ou égal à la date de demande',
