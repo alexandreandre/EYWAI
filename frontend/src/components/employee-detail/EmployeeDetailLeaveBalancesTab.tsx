@@ -181,7 +181,7 @@ export function EmployeeDetailLeaveBalancesTab({
             <CardDescription>
               Droits acquis, jours pris et soldes restants au jour d’aujourd’hui.
               Le crayon d’une ligne corrige son solde : congés payés (N-1 et N à
-              la fin d’un mois), RTT, JTC.
+              la fin d’un mois), RTT, JTC, repos compensateur.
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" asChild className="shrink-0">
