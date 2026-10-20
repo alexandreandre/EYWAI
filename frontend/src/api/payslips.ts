@@ -439,10 +439,15 @@ export const editPayslip = async (
  * Rend le bulletin enregistré, avec la note du PDF en cours de saisie.
  * Le HTML retourné est celui du PDF.
  */
-export const previewPayslip = async (payslipId: string, pdfNotes?: string): Promise<string> => {
+export const previewPayslip = async (
+  payslipId: string,
+  pdfNotes?: string,
+  companyId?: string | null
+): Promise<string> => {
   const response = await apiClient.post<{ html: string }>(
     `/api/payslips/${payslipId}/preview`,
-    { pdf_notes: pdfNotes ?? null }
+    { pdf_notes: pdfNotes ?? null },
+    enTeteSociete(companyId)
   );
   return response.data.html;
 };

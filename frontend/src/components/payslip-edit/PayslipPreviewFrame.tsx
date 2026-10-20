@@ -1,20 +1,26 @@
 // frontend/src/components/payslip-edit/PayslipPreviewFrame.tsx
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { previewPayslip } from '@/api/payslips';
-import { cadreDApercu } from './apercuBulletin';
+import { cadreDApercu, chargerApercu } from './apercuBulletin';
 
 interface PayslipPreviewFrameProps {
   payslipId: string;
   /** Note du PDF en cours de saisie : seul écart possible avec le bulletin enregistré. */
   pdfNotes?: string;
+  /** Société du bulletin, envoyée avec l'appel comme pour les autres lectures du bulletin. */
+  companyId?: string | null;
 }
 
-export default function PayslipPreviewFrame({ payslipId, pdfNotes }: PayslipPreviewFrameProps) {
+export default function PayslipPreviewFrame({
+  payslipId,
+  pdfNotes,
+  companyId,
+}: PayslipPreviewFrameProps) {
   const [apercu, setApercu] = useState<{ html: string; version: number }>({
     html: '',
     version: 0,
@@ -22,18 +28,26 @@ export default function PayslipPreviewFrame({ payslipId, pdfNotes }: PayslipPrev
   const [erreur, setErreur] = useState<string>('');
   const [chargement, setChargement] = useState<boolean>(false);
 
+  // Seule la dernière demande compte : une réponse plus ancienne, ou arrivée
+  // après la fermeture de l'onglet, ne remplace rien.
+  const derniereDemande = useRef(0);
+  useEffect(() => () => void (derniereDemande.current = -1), []);
+
   const rafraichir = useCallback(async () => {
+    const demande = (derniereDemande.current += 1);
     setChargement(true);
     setErreur('');
-    try {
-      const html = await previewPayslip(payslipId, pdfNotes);
-      setApercu((avant) => ({ html, version: avant.version + 1 }));
-    } catch {
-      setErreur('Aperçu indisponible pour le moment.');
-    } finally {
-      setChargement(false);
+    const resultat = await chargerApercu(() => previewPayslip(payslipId, pdfNotes, companyId));
+    if (derniereDemande.current !== demande) return;
+    if ('html' in resultat) {
+      setApercu((avant) => ({ html: resultat.html, version: avant.version + 1 }));
+    } else {
+      // Pas d'ancien aperçu sous un message d'échec : il passerait pour le bulletin à jour.
+      setApercu((avant) => ({ html: '', version: avant.version + 1 }));
+      setErreur(resultat.erreur);
     }
-  }, [payslipId, pdfNotes]);
+    setChargement(false);
+  }, [payslipId, pdfNotes, companyId]);
 
   useEffect(() => {
     void rafraichir();

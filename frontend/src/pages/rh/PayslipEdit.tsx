@@ -647,6 +647,7 @@ export default function PayslipEdit() {
             key={payslip.updated_at ?? payslip.id}
             payslipId={payslip.id}
             pdfNotes={etat.pdfNotes}
+            companyId={payslip.company_id}
           />
         </TabsContent>
 
