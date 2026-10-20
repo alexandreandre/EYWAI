@@ -2,6 +2,11 @@
  * Dialog pour créer un nouveau processus de sortie de salarié
  */
 
+import {
+  aujourdhuiLocal,
+  dateDeDemandeProposee,
+  notificationAvantLaFin,
+} from '@/features/employee-exits/utils/dateDeDemande';
 import { log } from '@/lib/logger';
 import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -102,9 +107,7 @@ export function CreateExitDialog({
   // Form state
   const [employeeId, setEmployeeId] = useState<string>('');
   const [exitType, setExitType] = useState<ExitType>('demission');
-  const [exitRequestDate, setExitRequestDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const [exitRequestDate, setExitRequestDate] = useState<string>(() => aujourdhuiLocal());
   const [lastWorkingDay, setLastWorkingDay] = useState<string>('');
   const [noticePeriodDays, setNoticePeriodDays] = useState<number>(0);
   const [isGrossMisconduct, setIsGrossMisconduct] = useState(false);
@@ -133,7 +136,7 @@ export function CreateExitDialog({
     setListeChargee(false);
     setEmployeeId('');
     setExitType('demission');
-    setExitRequestDate(new Date().toISOString().split('T')[0]);
+    setExitRequestDate(aujourdhuiLocal());
     setLastWorkingDay('');
     setNoticePeriodDays(0);
     setIsGrossMisconduct(false);
@@ -161,10 +164,15 @@ export function CreateExitDialog({
       }
       if (initialLastWorkingDay) {
         setLastWorkingDay(initialLastWorkingDay);
-        // Fin de contrat déjà passée : la demande ne peut pas être postérieure
-        // au dernier jour, sinon l'enregistrement est refusé.
-        const aujourdHui = new Date().toISOString().split('T')[0];
-        if (initialLastWorkingDay < aujourdHui) setExitRequestDate(initialLastWorkingDay);
+        // La date du jour ; plafonnée au dernier jour déjà passé quand le
+        // départ se notifie avant sa fin (une fin de CDD ne l'est pas).
+        setExitRequestDate(
+          dateDeDemandeProposee({
+            aujourdHui: aujourdhuiLocal(),
+            dernierJour: initialLastWorkingDay,
+            exitType: initialExitType ?? exitType,
+          })
+        );
       }
     } else {
       resetForm();
@@ -289,7 +297,7 @@ export function CreateExitDialog({
       return;
     }
 
-    if (new Date(lastWorkingDay) < new Date(exitRequestDate)) {
+    if (notificationAvantLaFin(exitType) && new Date(lastWorkingDay) < new Date(exitRequestDate)) {
       toast({
         title: 'Erreur',
         description: 'Le dernier jour de travail doit être postérieur ou égal à la date de demande',
