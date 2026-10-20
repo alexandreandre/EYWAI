@@ -13,3 +13,14 @@ describe('fiche, onglet « Soldes de congés »', () => {
     expect(texte).toMatch(/Le crayon d’une ligne corrige son solde : congés payés \(N-1 et N à la fin d’un mois\), RTT, JTC, repos compensateur\./);
   });
 });
+
+describe('« Mise à jour complète » grisé (tournage B.2)', () => {
+  // Un bouton désactivé ne reçoit pas le survol : son `title` ne s'affichait
+  // jamais. Le bouton est enveloppé, et l'infobulle tient à l'enveloppe.
+  it.each(['components/rates/RatesPageToolbar.tsx', 'pages/rh/Rates.tsx'])('%s : l’infobulle tient à une enveloppe', (fichier) => {
+    const texte = lire(fichier);
+    expect(texte).not.toMatch(/title=\{(updatesLocked|RATES_UPDATES_LOCKED) \? RATES_UPDATES_LOCK_REASON/);
+    expect(texte).toMatch(/<TooltipTrigger asChild> <span tabIndex=\{0\}[^>]*>/);
+    expect(texte).toMatch(/<TooltipContent[^>]*>\{RATES_UPDATES_LOCK_REASON\}<\/TooltipContent>/);
+  });
+});

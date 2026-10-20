@@ -9,6 +9,7 @@ import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
 import { RhPageHeader } from '@/components/layout';
 import { PageFetchIndicator } from '@/components/skeletons/PageFetchIndicator';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -92,6 +93,12 @@ function RatesLoadingSkeleton() {
 }
 
 function RatesEmptyState({ onFullSync }: { onFullSync: () => void }) {
+  const boutonMiseAJour = (
+    <Button type="button" size="sm" onClick={onFullSync} disabled={RATES_UPDATES_LOCKED}>
+      <Upload className="mr-2 h-4 w-4" />
+      Mise à jour complète
+    </Button>
+  );
   return (
     <Card className="border-border/80 shadow-none">
       <CardContent className="flex flex-col items-center justify-center px-4 py-12 text-center">
@@ -101,17 +108,19 @@ function RatesEmptyState({ onFullSync }: { onFullSync: () => void }) {
           Lancez une mise à jour complète pour alimenter le référentiel depuis les sources
           officielles.
         </p>
-        <Button
-          type="button"
-          className="mt-6"
-          size="sm"
-          onClick={onFullSync}
-          disabled={RATES_UPDATES_LOCKED}
-          title={RATES_UPDATES_LOCKED ? RATES_UPDATES_LOCK_REASON : undefined}
-        >
-          <Upload className="mr-2 h-4 w-4" />
-          Mise à jour complète
-        </Button>
+        {/* Grisé, le bouton ne reçoit pas le survol : l'infobulle tient à son enveloppe. */}
+        {RATES_UPDATES_LOCKED ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={0} className="mt-6 inline-flex rounded-md">
+                {boutonMiseAJour}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">{RATES_UPDATES_LOCK_REASON}</TooltipContent>
+          </Tooltip>
+        ) : (
+          <div className="mt-6">{boutonMiseAJour}</div>
+        )}
       </CardContent>
     </Card>
   );

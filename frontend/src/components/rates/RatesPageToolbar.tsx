@@ -1,6 +1,7 @@
 import { CloudDownload, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { RatesMonthlyAutoPanel } from '@/components/rates/RatesMonthlyAutoPanel';
 import type { MonthlyAutoSyncState } from '@/hooks/useRatesMonthlyAuto';
 import { RATES_UPDATES_LOCK_REASON } from '@/lib/ratesUpdatesLock';
@@ -37,6 +38,16 @@ export function RatesPageToolbar({
   canManageMonthly = false,
   className,
 }: RatesPageToolbarProps) {
+  const boutonMiseAJour = (
+    <Button variant="default" size="sm" className="h-9" onClick={onFullSync} disabled={updatesLocked}>
+      <CloudDownload
+        className={cn('mr-2 h-4 w-4 shrink-0', isSyncing && 'animate-pulse')}
+        aria-hidden
+      />
+      Mise à jour complète
+    </Button>
+  );
+
   return (
     <div
       className={cn(
@@ -63,20 +74,19 @@ export function RatesPageToolbar({
               />
               Actualiser l&apos;affichage
             </Button>
-            <Button
-              variant="default"
-              size="sm"
-              className="h-9"
-              onClick={onFullSync}
-              disabled={updatesLocked}
-              title={updatesLocked ? RATES_UPDATES_LOCK_REASON : undefined}
-            >
-              <CloudDownload
-                className={cn('mr-2 h-4 w-4 shrink-0', isSyncing && 'animate-pulse')}
-                aria-hidden
-              />
-              Mise à jour complète
-            </Button>
+            {/* Grisé, le bouton ne reçoit pas le survol : l'infobulle tient à son enveloppe. */}
+            {updatesLocked ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0} className="inline-flex rounded-md">
+                    {boutonMiseAJour}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">{RATES_UPDATES_LOCK_REASON}</TooltipContent>
+              </Tooltip>
+            ) : (
+              boutonMiseAJour
+            )}
           </div>
         </div>
 
