@@ -61,6 +61,15 @@ def find_cached_preview(
     # (Colorplast 19/09 : `semaine-26.pdf` ancré S27 par erreur, puis S26).
     if preview.week_anchor_date != week_anchor_date:
         return None
+    # Un salarié reconnu à la première lecture a pu être supprimé depuis (puis
+    # recréé sous un autre identifiant) : l'aperçu resservi faisait échouer
+    # l'enregistrement en 422 (clé étrangère des lignes d'import, tournage C1 du
+    # 18/10). Il est alors réextrait, et le rapprochement refait.
+    reconnus = {str(e.employee_id) for e in preview.employees if e.employee_id}
+    if reconnus and not reconnus <= timesheet_import_repository.ids_de_salaries_existants(
+        company_id, reconnus
+    ):
+        return None
     return preview
 
 

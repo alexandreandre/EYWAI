@@ -134,6 +134,20 @@ class TimesheetImportRepository:
         ).strip()
         return nom or None
 
+    def ids_de_salaries_existants(self, company_id: str, ids: set[str]) -> set[str]:
+        """Parmi `ids`, les salariés qui existent encore dans la société."""
+        if not ids:
+            return set()
+        resp = (
+            _admin()
+            .table("employees")
+            .select("id")
+            .eq("company_id", company_id)
+            .in_("id", sorted(ids))
+            .execute()
+        )
+        return {str(r["id"]) for r in (resp.data if resp else None) or [] if r.get("id")}
+
     def find_recent_preview_by_hash(
         self,
         company_id: str,
