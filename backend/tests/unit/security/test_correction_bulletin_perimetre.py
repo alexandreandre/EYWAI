@@ -185,8 +185,9 @@ def test_l_apercu_ne_rend_que_le_bulletin_enregistre():
             patch("app.modules.payslips.api.router.get_payslip_meta_for_access") as meta,
             patch("app.modules.payslips.api.router.access_control_service") as acces,
             patch("app.modules.payslips.api.router.resolve_employee_id_for_user_account", return_value=None),
+            # L'aperçu lit le bulletin enregistré sans les liens du stockage.
             patch(
-                "app.modules.payslips.application.queries.get_payslip_details",
+                "app.modules.payslips.application.queries.get_payslip_for_preview",
                 return_value={"payslip_data": {"net_a_payer": 1800.0}, "cumuls": None},
             ),
         ):
