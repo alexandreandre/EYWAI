@@ -21,12 +21,18 @@ from app.modules.payroll.domain.empreinte_entrees import mois_de_la_fenetre
 
 logger = logging.getLogger(__name__)
 
+#: `employment_status` : la sortie d'un salarié parti au départ clôturé se lit
+#: sur le départ de son contrat (`resolve_date_sortie`), comme au calcul ; sans
+#: lui, la relecture le croyait actif, sans sortie, et un bulletin généré après
+#: la clôture passait aussitôt « La fiche du salarié a changé » (tournage H.5,
+#: 20/10/2026). Le statut n'est pas haché : seule la date de sortie en dépend.
 FICHE_COLONNES = (
     "id, company_id, salaire_de_base, classification_conventionnelle, "
     "duree_hebdomadaire, is_temps_partiel, statut, is_forfait_jour, hire_date, "
     "seniority_reference_date, prior_service_months, contract_end_date, "
     "contract_type, elements_variables, avantages_en_nature, specificites_paie, "
-    "job_title, date_conclusion_contrat, date_debut_execution, current_exit_id"
+    "job_title, date_conclusion_contrat, date_debut_execution, current_exit_id, "
+    "employment_status"
 )
 
 SAISIE_COLONNES = (
