@@ -85,24 +85,39 @@ export function pastilleSaisieDuMois(
   return (joursEnConflit?.length ?? 0) > 0 ? 'Heures sur un arrêt' : 'Saisi';
 }
 
-/** Phrase de l'en-tête de page : prêt pour la paie seulement sans reste à saisir ni conflit. */
+/**
+ * Phrase de l'en-tête de page : prêt pour la paie seulement sans reste à saisir
+ * ni conflit. Un calendrier qui porte des heures sur un arrêt n'est pas prêt
+ * non plus : il compte dans le reste, et l'alerte ambre le dit même quand
+ * d'autres calendriers sont encore à saisir (tournage C1 du 18/10 : « Reste à
+ * compléter : 1 calendrier sur 4 », sans un mot du calendrier en conflit).
+ */
 export function libelleEntetePilotage(k: {
   aSaisir: number;
   avecHeuresSurArret: number;
   total: number;
+  /** Saisis et sans conflit ; à défaut, le reste vaut à saisir + en conflit. */
+  prets?: number;
 }): { ton: 'ok' | 'alerte' | 'neutre'; texte: string } {
-  if (k.aSaisir > 0) {
-    return {
-      ton: 'neutre',
-      texte: `Reste à compléter : ${k.aSaisir} calendrier${k.aSaisir > 1 ? 's' : ''} sur ${k.total}`,
-    };
-  }
+  const calendriers = (n: number) => `${n} calendrier${n > 1 ? 's' : ''}`;
   if (k.avecHeuresSurArret > 0) {
     const n = k.avecHeuresSurArret;
+    if (k.aSaisir > 0) {
+      const restants = k.prets !== undefined ? k.total - k.prets : k.aSaisir + n;
+      return {
+        ton: 'alerte',
+        texte: `Reste à compléter : ${calendriers(restants)} sur ${k.total}, dont ${n} qui ${
+          n > 1 ? 'portent' : 'porte'
+        } des heures pendant un arrêt : à corriger avant la paie`,
+      };
+    }
     return {
       ton: 'alerte',
-      texte: `${n} calendrier${n > 1 ? 's portent' : ' porte'} des heures pendant un arrêt : à corriger avant la paie`,
+      texte: `${calendriers(n)} ${n > 1 ? 'portent' : 'porte'} des heures pendant un arrêt : à corriger avant la paie`,
     };
+  }
+  if (k.aSaisir > 0) {
+    return { ton: 'neutre', texte: `Reste à compléter : ${calendriers(k.aSaisir)} sur ${k.total}` };
   }
   return { ton: 'ok', texte: 'Tous les calendriers sont prêts pour la paie' };
 }

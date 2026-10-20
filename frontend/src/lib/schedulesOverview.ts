@@ -208,6 +208,8 @@ export interface GlobalOverviewKpis {
   conflitsAbsences: number;
   heuresPrevuesTotal: number;
   heuresFaitesTotal: number;
+  /** Saisis et sans heures sur un jour d'arrêt : prêts pour la paie. */
+  prets: number;
   progressPercent: number;
 }
 
@@ -241,6 +243,7 @@ export function computeGlobalKpis(
     conflitsAbsences,
     heuresPrevuesTotal,
     heuresFaitesTotal,
+    prets,
     progressPercent,
   };
 }

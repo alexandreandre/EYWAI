@@ -40,9 +40,35 @@ describe('en-tête du pilotage avec des heures sur un jour d’arrêt', () => {
       ton: 'alerte',
       texte: '1 calendrier porte des heures pendant un arrêt : à corriger avant la paie',
     });
-    expect(libelleEntetePilotage({ ...base, aSaisir: 2, avecHeuresSurArret: 1 }).texte).toBe(
-      'Reste à compléter : 2 calendriers sur 4',
-    );
+    expect(libelleEntetePilotage({ ...base, aSaisir: 2, avecHeuresSurArret: 0 })).toEqual({
+      ton: 'neutre',
+      texte: 'Reste à compléter : 2 calendriers sur 4',
+    });
+  });
+
+  /**
+   * Tournage C1 (18/10/2026) : un calendrier à saisir et un autre portant des
+   * heures sur un arrêt ; l'en-tête disait « Reste à compléter : 1 calendrier
+   * sur 4 » (50 %), sans l'alerte ambre, et ne comptait pas le calendrier en
+   * conflit, qui n'est pas prêt non plus.
+   */
+  it('à saisir ET en conflit : l’alerte ambre compte les deux', () => {
+    const k = computeGlobalKpis([ligne('a_saisir'), ligne('saisi_avec_ecart', [19]), ligne('saisi'), ligne('saisi')]);
+    expect(k.progressPercent).toBe(50);
+    expect(libelleEntetePilotage(k)).toEqual({
+      ton: 'alerte',
+      texte:
+        'Reste à compléter : 2 calendriers sur 4, dont 1 qui porte des heures pendant un arrêt : à corriger avant la paie',
+    });
+  });
+
+  it('un calendrier à saisir qui porte aussi des heures sur un arrêt ne compte qu’une fois', () => {
+    const k = computeGlobalKpis([ligne('a_saisir', [3]), ligne('saisi'), ligne('saisi'), ligne('saisi')]);
+    expect(libelleEntetePilotage(k)).toEqual({
+      ton: 'alerte',
+      texte:
+        'Reste à compléter : 1 calendrier sur 4, dont 1 qui porte des heures pendant un arrêt : à corriger avant la paie',
+    });
   });
 });
 
