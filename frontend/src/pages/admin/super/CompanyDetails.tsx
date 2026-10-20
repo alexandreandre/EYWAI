@@ -1,4 +1,5 @@
 // frontend/src/pages/super-admin/CompanyDetails.tsx
+import { listeDeMoisEnClair } from '@/features/payroll/utils/payrollMonth';
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -621,7 +622,7 @@ export default function CompanyDetails() {
           <DsnCoverageTimeline timeline={dsnCoverage.timeline} />
           {dsnCoverage.gaps.length > 0 && (
             <p className="mt-2 text-sm text-amber-800">
-              Mois manquants : {dsnCoverage.gaps.join(', ')}
+              Mois manquants : {listeDeMoisEnClair(dsnCoverage.gaps)}
             </p>
           )}
         </div>

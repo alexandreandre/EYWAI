@@ -1,5 +1,6 @@
 // Onglet Planifiés — envois compta & banque
 
+import { periodeEnClair } from '@/features/payroll/utils/payrollMonth';
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -591,7 +592,7 @@ function DispatchWizardDialog({ open, channel, period, companyId, onClose, onDon
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>Période {period}</DialogDescription>
+          <DialogDescription>Période : {periodeEnClair(period)}</DialogDescription>
         </DialogHeader>
 
         {showPreviewLoader ? (
@@ -912,7 +913,7 @@ function DispatchHistoryTable({
                     <TableCell className="font-medium">
                       {row.channel === "compta" ? "Comptabilité" : "Banque"}
                     </TableCell>
-                    <TableCell>{row.period}</TableCell>
+                    <TableCell>{periodeEnClair(row.period)}</TableCell>
                     <TableCell>
                       <DispatchStatusBadge status={row.status} />
                     </TableCell>

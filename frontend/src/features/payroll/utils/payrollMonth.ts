@@ -21,6 +21,30 @@ export function monthYearLabel(month: number, year: number): string {
   return `${monthLabel(month)} ${year}`;
 }
 
+function lirePeriode(periode: string): { annee: number; mois: number } | null {
+  const trouve = /^(\d{4})-(\d{2})(-\d{2})?$/.exec((periode ?? '').trim());
+  if (!trouve) return null;
+  const mois = Number(trouve[2]);
+  return mois >= 1 && mois <= 12 ? { annee: Number(trouve[1]), mois } : null;
+}
+
+/** « 2026-10 » → « Octobre 2026 », comme l'historique des exports ; une valeur
+ * illisible reste telle quelle. */
+export function periodeEnClair(periode: string | null | undefined): string {
+  const lue = lirePeriode(periode ?? '');
+  return lue ? monthYearLabel(lue.mois, lue.annee) : (periode ?? '');
+}
+
+/** Des mois « 2026-06 » dans une phrase : « juin 2026, juillet 2026 ». */
+export function listeDeMoisEnClair(periodes: readonly string[]): string {
+  return periodes
+    .map((periode) => {
+      const lue = lirePeriode(periode);
+      return lue ? `${monthLabel(lue.mois).toLowerCase()} ${lue.annee}` : periode;
+    })
+    .join(', ');
+}
+
 export function buildYearOptions(
   payslipYears: number[],
   selectedYear: number

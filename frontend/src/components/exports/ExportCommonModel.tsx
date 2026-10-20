@@ -1,6 +1,7 @@
 // src/components/exports/ExportCommonModel.tsx
 // Modèle commun d'export - ÉTAPE 1 : Structure et UX uniquement
 
+import { periodeEnClair } from '@/features/payroll/utils/payrollMonth';
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getEmptyExportAlertMessage, isEmptyDataMessage } from "@/lib/exportEmptyState";
@@ -921,7 +922,7 @@ export function ExportCommonModel({
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Période</p>
-                    <p className="text-2xl font-bold">{selectedPeriod}</p>
+                    <p className="text-2xl font-bold">{periodeEnClair(selectedPeriod)}</p>
                   </div>
                   {montantApercu ? (
                     <div>
@@ -1110,7 +1111,7 @@ export function ExportCommonModel({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Période :</span>
-                  <span className="font-medium">{generateResponse.period}</span>
+                  <span className="font-medium">{periodeEnClair(generateResponse.period)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Date de génération :</span>

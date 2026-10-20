@@ -1,3 +1,4 @@
+import { listeDeMoisEnClair, periodeEnClair } from '@/features/payroll/utils/payrollMonth';
 import { RefreshCw } from 'lucide-react';
 import type { DsnCoverage } from '@/api/dsnImport';
 import {
@@ -35,7 +36,7 @@ export function CompanyDsnCoverageBand({
         <DsnCoverageTimeline timeline={coverage.timeline} compact />
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           {coverage.last_period ? (
-            <span>Dernier mois importé : {coverage.last_period}</span>
+            <span>Dernier mois importé : {periodeEnClair(coverage.last_period)}</span>
           ) : null}
           {coverage.last_import_at ? (
             <span>
@@ -48,7 +49,7 @@ export function CompanyDsnCoverageBand({
             </span>
           ) : null}
           {coverage.gaps.length > 0 ? (
-            <span className="text-amber-800">Mois manquants : {coverage.gaps.join(', ')}</span>
+            <span className="text-amber-800">Mois manquants : {listeDeMoisEnClair(coverage.gaps)}</span>
           ) : null}
         </div>
       </CardContent>

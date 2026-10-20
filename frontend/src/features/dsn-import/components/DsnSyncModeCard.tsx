@@ -1,3 +1,4 @@
+import { listeDeMoisEnClair, periodeEnClair } from '@/features/payroll/utils/payrollMonth';
 import { useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import type { CompanyDetails } from '@/api/company';
@@ -97,14 +98,14 @@ export function DsnSyncModeCard({ company, coverage, readOnly = false, onUpdated
               <Badge variant={dsnStatusVariant(coverage.status)}>{dsnStatusLabel(coverage.status)}</Badge>
               {coverage.last_period && (
                 <span className="text-xs text-muted-foreground">
-                  Dernier mois importé : {coverage.last_period}
+                  Dernier mois importé : {periodeEnClair(coverage.last_period)}
                 </span>
               )}
             </div>
             <DsnCoverageTimeline timeline={coverage.timeline} compact />
             {coverage.gaps.length > 0 && (
               <p className="text-xs text-amber-800">
-                Mois manquants : {coverage.gaps.join(', ')}
+                Mois manquants : {listeDeMoisEnClair(coverage.gaps)}
               </p>
             )}
             {mode === 'native' && (
