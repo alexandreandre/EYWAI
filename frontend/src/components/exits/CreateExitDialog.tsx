@@ -3,7 +3,6 @@
  */
 
 import { log } from '@/lib/logger';
-import { pluriel } from '@/lib/pluriel';
 import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
@@ -30,6 +29,7 @@ import { messageDepartCree } from '@/features/employee-exits/utils/messageDepart
 import {
   OPTIONS_PREAVIS,
   PREAVIS_PAR_DEFAUT,
+  avertissementFinDePreavis,
   libelleSourcePreavis,
   preavisASaisir,
   typePreavisApresApercu,
@@ -374,18 +374,14 @@ export function CreateExitDialog({
 
   const showNoticeSection = preavisASaisir(exitType);
 
-  const noticeDateWarning =
-    noticePreview?.applicable &&
-    noticePeriodDays > 0 &&
-    lastWorkingDay &&
-    exitRequestDate &&
-    (() => {
-      const minEndDate = new Date(exitRequestDate);
-      minEndDate.setDate(minEndDate.getDate() + noticePeriodDays);
-      return new Date(lastWorkingDay) < minEndDate;
-    })()
-      ? `Le dernier jour travaillé est antérieur à la fin théorique du préavis (${pluriel(noticePeriodDays, 'jour')}). Vérifiez les dates ou indiquez une dispense.`
-      : null;
+  // Seul un préavis exécuté va jusqu'à sa fin : dispensé, plus d'avertissement.
+  const noticeDateWarning = avertissementFinDePreavis({
+    applicable: noticePreview?.applicable,
+    jours: noticePeriodDays,
+    dateDeDemande: exitRequestDate,
+    dernierJour: lastWorkingDay,
+    execution: noticeIndemnityType,
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

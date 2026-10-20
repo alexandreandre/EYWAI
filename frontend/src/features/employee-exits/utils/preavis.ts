@@ -7,6 +7,8 @@
  * ne donne rien. Les valeurs sont celles que lisent le calcul et les documents
  * (backend : payroll/engine/preavis.py).
  */
+import { pluriel } from '@/lib/pluriel';
+
 export type TypePreavis = 'executed' | 'paid' | 'waived' | 'not_applicable';
 
 export const PREAVIS_PAR_DEFAUT: TypePreavis = 'executed';
@@ -58,4 +60,33 @@ export function libelleSourcePreavis(source: string): string {
  * d'essai n'a pas de préavis : son délai de prévenance se calcule. */
 export function preavisASaisir(exitType: string): boolean {
   return exitType === 'demission' || exitType === 'licenciement' || exitType === 'depart_retraite';
+}
+
+/**
+ * L'avertissement « dernier jour avant la fin du préavis », ou null.
+ *
+ * Seul un préavis EXÉCUTÉ va jusqu'à sa fin théorique : dispensé (par
+ * l'employeur ou à la demande du salarié), il ne s'exécute pas et le dernier
+ * jour peut tomber avant. L'avertissement restait affiché après le choix
+ * d'une dispense (tournage H.2, scène 6).
+ */
+export function avertissementFinDePreavis({
+  applicable,
+  jours,
+  dateDeDemande,
+  dernierJour,
+  execution,
+}: {
+  applicable: boolean | undefined;
+  jours: number;
+  dateDeDemande: string;
+  dernierJour: string;
+  execution: TypePreavis;
+}): string | null {
+  if (!applicable || jours <= 0 || !dernierJour || !dateDeDemande) return null;
+  if (execution !== 'executed') return null;
+  const finTheorique = new Date(dateDeDemande);
+  finTheorique.setDate(finTheorique.getDate() + jours);
+  if (!(new Date(dernierJour) < finTheorique)) return null;
+  return `Le dernier jour travaillé est antérieur à la fin théorique du préavis (${pluriel(jours, 'jour')}). Vérifiez les dates ou indiquez une dispense.`;
 }
