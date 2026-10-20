@@ -465,6 +465,34 @@ def _enrich_attestation_document_data(
     return enriched
 
 
+def _avec_l_adresse_de_l_employeur(
+    document_data: Any, company_data: Dict[str, Any]
+) -> Any:
+    """L'adresse et la ville de l'employeur, lues comme le PDF les imprime.
+
+    Les données éditables lisaient `address` et `city` sur la société, qui porte
+    `adresse_rue`, `adresse_code_postal` et `adresse_ville` : l'éditeur montrait
+    deux champs vides alors que le PDF imprimait l'adresse (tournage H.4, scène 9).
+    Le PDF lit la société complétée du document (`get_company_address`,
+    `get_company_city`) ; une adresse saisie à l'éditeur reste la sienne.
+    """
+    from app.shared.infrastructure.pdf.helpers import get_company_address, get_company_city
+
+    if not isinstance(document_data, dict) or not isinstance(document_data.get("company"), dict):
+        return document_data
+    societe = dict(document_data["company"])
+    imprimee = {**company_data, **{k: v for k, v in societe.items() if v not in (None, "")}}
+    lues = {"address": get_company_address(imprimee), "city": get_company_city(imprimee)}
+    completees = {
+        cle: valeur
+        for cle, valeur in lues.items()
+        if valeur and not str(societe.get(cle) or "").strip()
+    }
+    if not completees:
+        return document_data
+    return {**document_data, "company": {**societe, **completees}}
+
+
 def get_exit_document_details(
     exit_id: str,
     document_id: str,
@@ -508,6 +536,9 @@ def get_exit_document_details(
             exit_data,
             sb,
         )
+    document_data = _avec_l_adresse_de_l_employeur(
+        document_data, get_company_by_id(company_id, sb) or {}
+    )
     edit_history = document_edit_history_entries(doc)
     download_url = None
     if doc.get("storage_path"):
