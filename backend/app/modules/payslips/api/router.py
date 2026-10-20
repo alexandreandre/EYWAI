@@ -703,9 +703,9 @@ def preview_payslip_route(
         from app.modules.payroll.documents.bulletin_view import construire_vue_bulletin
 
         from app.modules.payroll.documents.payslip_editor import cumuls_pour_le_rendu
-        from app.modules.payslips.application.queries import get_payslip_details
+        from app.modules.payslips.application.queries import get_payslip_for_preview
 
-        detail = get_payslip_details(payslip_id)
+        detail = get_payslip_for_preview(payslip_id)
         if not detail:
             raise HTTPException(status_code=404, detail="Bulletin introuvable")
         enregistre = detail.get("payslip_data") or {}

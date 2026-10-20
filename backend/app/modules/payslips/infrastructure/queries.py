@@ -313,6 +313,47 @@ def avec_liens_des_versions(historique: Any) -> list[dict[str, Any]]:
     return servi
 
 
+def _cumuls_du_mois(row: dict[str, Any]) -> dict[str, Any] | None:
+    emp_id = row.get("employee_id")
+    year = row.get("year")
+    month = row.get("month")
+    if emp_id is None or year is None or month is None:
+        return None
+    cumuls_res = (
+        supabase.table("employee_schedules")
+        .select("cumuls")
+        .match({"employee_id": emp_id, "year": year, "month": month})
+        .maybe_single()
+        .execute()
+    )
+    return (
+        (cumuls_res.data or {}).get("cumuls")
+        if cumuls_res and cumuls_res.data
+        else None
+    )
+
+
+def get_payslip_for_preview(payslip_id: str) -> dict[str, Any] | None:
+    """Le bulletin enregistré et ses cumuls, pour l'aperçu : rien du stockage.
+
+    L'aperçu se rend depuis les données enregistrées ; il n'a besoin ni du lien
+    du PDF ni de ceux des versions. Il passait par `get_payslip_details`, qui en
+    signe quatre : un appel au stockage qui échouait rendait « Aperçu
+    indisponible pour le moment » (tournage B.1-B.4, 19/10/2026).
+    """
+    r = (
+        supabase.table("payslips")
+        .select("id, employee_id, year, month, payslip_data")
+        .eq("id", payslip_id)
+        .maybe_single()
+        .execute()
+    )
+    row = r.data if r else None
+    if not row:
+        return None
+    return {**row, "cumuls": _cumuls_du_mois(row)}
+
+
 def get_payslip_details(payslip_id: str) -> dict[str, Any] | None:
     """Détail complet d'un bulletin (dont cumuls, url signée). Utilise le mapper pour la structure."""
     # `maybe_single` : un bulletin inconnu rend None (404), pas une erreur 500.
@@ -333,23 +374,7 @@ def get_payslip_details(payslip_id: str) -> dict[str, Any] | None:
     if storage_path:
         signed_url, preview_url = create_payslip_signed_urls(storage_path, 3600)
 
-    cumuls = None
-    emp_id = row.get("employee_id")
-    year = row.get("year")
-    month = row.get("month")
-    if emp_id is not None and year is not None and month is not None:
-        cumuls_res = (
-            supabase.table("employee_schedules")
-            .select("cumuls")
-            .match({"employee_id": emp_id, "year": year, "month": month})
-            .maybe_single()
-            .execute()
-        )
-        cumuls = (
-            (cumuls_res.data or {}).get("cumuls")
-            if cumuls_res and cumuls_res.data
-            else None
-        )
+    cumuls = _cumuls_du_mois(row)
 
     row = {**row, "edit_history": avec_liens_des_versions(row.get("edit_history"))}
     return build_payslip_detail(row, signed_url, cumuls, preview_url)

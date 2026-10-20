@@ -14,6 +14,7 @@ from app.modules.payslips.infrastructure.queries import (
     get_my_payslips as _get_my_payslips,
     get_payslip_data_du_mois as _get_payslip_data_du_mois,
     get_payslip_details as _get_payslip_details,
+    get_payslip_for_preview as _get_payslip_for_preview,
     get_payslip_history as _get_payslip_history,
 )
 
@@ -51,6 +52,11 @@ def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
 def get_payslip_details(payslip_id: str) -> dict[str, Any] | None:
     """Détail complet d'un bulletin (dont cumuls, edit_history, url signée)."""
     return _get_payslip_details(payslip_id)
+
+
+def get_payslip_for_preview(payslip_id: str) -> dict[str, Any] | None:
+    """Le bulletin enregistré et ses cumuls, sans aucun lien du stockage."""
+    return _get_payslip_for_preview(payslip_id)
 
 
 def get_payslip_data_du_mois(
