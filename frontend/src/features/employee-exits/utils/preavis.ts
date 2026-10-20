@@ -90,3 +90,15 @@ export function avertissementFinDePreavis({
   if (!(new Date(dernierJour) < finTheorique)) return null;
   return `Le dernier jour travaillé est antérieur à la fin théorique du préavis (${pluriel(jours, 'jour')}). Vérifiez les dates ou indiquez une dispense.`;
 }
+
+/** La durée montrée dans son champ : vide pour zéro. Le champ partait de
+ * « 0 » et taper « 60 » donnait « 060 » (tournage H.2, scène 4). */
+export function dureePreavisAffichee(jours: number): string {
+  return jours > 0 ? String(jours) : '';
+}
+
+/** La durée tapée, en jours entiers ; un champ vide vaut zéro. */
+export function dureePreavisSaisie(texte: string): number {
+  const jours = Number.parseInt(texte, 10);
+  return Number.isNaN(jours) || jours < 0 ? 0 : jours;
+}

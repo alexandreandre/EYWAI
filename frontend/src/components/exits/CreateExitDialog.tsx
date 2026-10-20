@@ -30,6 +30,8 @@ import {
   OPTIONS_PREAVIS,
   PREAVIS_PAR_DEFAUT,
   avertissementFinDePreavis,
+  dureePreavisAffichee,
+  dureePreavisSaisie,
   libelleSourcePreavis,
   preavisASaisir,
   typePreavisApresApercu,
@@ -553,8 +555,10 @@ export function CreateExitDialog({
                   id="notice_period_days"
                   type="number"
                   min="0"
-                  value={noticePeriodDays}
-                  onChange={(e) => handleNoticePeriodChange(parseInt(e.target.value, 10) || 0)}
+                  placeholder="0"
+                  value={dureePreavisAffichee(noticePeriodDays)}
+                  onFocus={(e) => e.currentTarget.select()}
+                  onChange={(e) => handleNoticePeriodChange(dureePreavisSaisie(e.target.value))}
                 />
                 <p className="text-sm text-muted-foreground">
                   Valeur proposée par la convention collective ou, pour un licenciement, un

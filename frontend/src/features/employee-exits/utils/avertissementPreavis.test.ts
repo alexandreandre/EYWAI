@@ -35,3 +35,23 @@ describe('avertissement du dernier jour avant la fin du préavis', () => {
     expect(avertissementFinDePreavis({ ...base, jours: 0, execution: 'executed' })).toBeNull();
   });
 });
+
+describe('champ « Durée du préavis (jours) »', () => {
+  it('vide tant qu’aucune durée n’est posée : taper « 60 » donne 60, pas « 060 »', async () => {
+    const { dureePreavisAffichee, dureePreavisSaisie } = await import('./preavis');
+    expect(dureePreavisAffichee(0)).toBe('');
+    expect(dureePreavisAffichee(30)).toBe('30');
+    expect(dureePreavisSaisie('60')).toBe(60);
+    expect(dureePreavisSaisie('')).toBe(0);
+  });
+
+  it('le contenu du champ se sélectionne à la saisie', async () => {
+    const { readFileSync } = await import('node:fs');
+    const path = await import('node:path');
+    const source = readFileSync(
+      path.resolve(__dirname, '../../../components/exits/CreateExitDialog.tsx'),
+      'utf8'
+    ).replace(/\s+/g, ' ');
+    expect(source).toMatch(/id="notice_period_days" type="number" min="0" placeholder="0" value=\{dureePreavisAffichee\(noticePeriodDays\)\} onFocus=\{\(e\) => e\.currentTarget\.select\(\)\}/);
+  });
+});
