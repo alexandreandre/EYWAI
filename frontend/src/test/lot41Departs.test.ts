@@ -42,7 +42,8 @@ describe('Départs : nombres accordés (« 1 jour », « 2 jours »)', () => {
     expect(lire('components/exits/ExitDetailsPanel.tsx')).toContain(
       "{pluriel(exitDetails.notice_period_days ?? 0, 'jour')}"
     );
-    expect(lire('components/exits/CreateExitDialog.tsx')).toContain("(${pluriel(noticePeriodDays, 'jour')})");
+    // L'avertissement de la création vit avec les règles du préavis (dispense : plus d'avertissement).
+    expect(lire('features/employee-exits/utils/preavis.ts')).toContain("(${pluriel(jours, 'jour')})");
     expect(lire('features/employee-exits/IccpArbitrageDetail.tsx')).toContain("{pluriel(joursRestants, 'jour')}");
   });
 });
