@@ -9,6 +9,7 @@ import json
 import threading
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from app.core.logging import get_logger
@@ -69,6 +70,12 @@ def load_employee(employee_id: str, company_id: str) -> Dict[str, Any]:
 
 
 def load_simulation(simulation_id: str, company_id: str) -> Dict[str, Any]:
+    # Un identifiant qui n'est pas un UUID ne désigne aucune simulation : la
+    # base refuserait la requête (22P02) et l'API répondrait 500.
+    try:
+        UUID(str(simulation_id))
+    except ValueError:
+        raise LookupError("Simulation introuvable.") from None
     row = simulation_repository.fetch_simulation_row(simulation_id, company_id)
     if not row:
         raise LookupError("Simulation introuvable.")

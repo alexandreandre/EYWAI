@@ -17,7 +17,7 @@ def fetch_company_row(company_id: str) -> Optional[Dict[str, Any]]:
         .maybe_single()
         .execute()
     )
-    return response.data
+    return response.data if response is not None and response.data else None
 
 
 def fetch_employee_row(employee_id: str) -> Optional[Dict[str, Any]]:
@@ -28,7 +28,7 @@ def fetch_employee_row(employee_id: str) -> Optional[Dict[str, Any]]:
         .maybe_single()
         .execute()
     )
-    return response.data
+    return response.data if response is not None and response.data else None
 
 
 def fetch_active_payroll_config_rows() -> List[Dict[str, Any]]:
@@ -84,7 +84,7 @@ def fetch_simulation_row(
         .maybe_single()
         .execute()
     )
-    return response.data
+    return response.data if response is not None and response.data else None
 
 
 def insert_simulation_row(payload: Dict[str, Any]) -> Optional[str]:
@@ -127,7 +127,7 @@ def fetch_payslip_row(
         .maybe_single()
         .execute()
     )
-    return response.data
+    return response.data if response is not None and response.data else None
 
 
 def delete_simulation_row(simulation_id: str, company_id: str) -> None:
