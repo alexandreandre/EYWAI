@@ -21,6 +21,8 @@ interface ChangerSalaireProps {
   salaireActuel: number | null | undefined;
   /** Faux pour un salarié sans historique : la première ligne part du salaire actuel. */
   avecHistorique?: boolean;
+  /** « Prévu : 2 100,00 € à partir du 01/11/2026. » : un salaire daté dans le futur. */
+  salairePlanifie?: string | null;
   /** Appelé après l'enregistrement : relire la fiche et l'historique. */
   onChanged?: () => void;
 }
@@ -37,6 +39,7 @@ export function ChangerSalaire({
   companyId,
   salaireActuel,
   avecHistorique = true,
+  salairePlanifie = null,
   onChanged,
 }: ChangerSalaireProps) {
   const queryClient = useQueryClient();
@@ -85,6 +88,9 @@ export function ChangerSalaire({
   return (
     <div className="space-y-2 rounded-md border border-dashed p-4 sm:col-span-2">
       <p className="text-sm">{texteSalaireActuel(salaireActuel, avecHistorique)}</p>
+      {salairePlanifie ? (
+        <p className="text-sm font-medium text-amber-800">{salairePlanifie}</p>
+      ) : null}
       {confirmation && (
         <p role="status" className="flex items-start gap-1.5 text-sm text-green-700">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />

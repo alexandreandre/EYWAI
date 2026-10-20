@@ -120,3 +120,41 @@ describe('salaire sans historique', () => {
     expect(avertissementSalaireNonDate(null, 2100)).toBeNull();
   });
 });
+
+/**
+ * Tournage H.5, scène 8 (20/10/2026) : après « Nouveau contrat » (CDI à 2 100 €
+ * au 01/11), la fiche ne disait nulle part que le salaire allait changer : la
+ * rubrique « Rémunération » ne montrait que « Salaire de base actuel :
+ * 1 950,00 € ». Un salaire daté dans le futur se dit à côté.
+ */
+describe('salaire planifié', () => {
+  const ligne = (effective_date: string, valeur: number, planifiee?: boolean) => ({
+    id: effective_date,
+    ancien_salaire: { valeur: 1950 },
+    nouveau_salaire: { valeur },
+    effective_date,
+    created_at: '2026-10-20T10:00:00Z',
+    ...(planifiee === undefined ? {} : { planifiee }),
+  });
+  const le20Octobre = new Date(2026, 9, 20);
+
+  it('un nouveau contrat au 01/11 : « Prévu : 2 100,00 € à partir du 01/11/2026. »', async () => {
+    const { texteSalairePlanifie } = await import('./salaireDate');
+    expect(texteSalairePlanifie([ligne('2026-11-01', 2100, true), ligne('2026-07-01', 1950, false)], le20Octobre)).toBe(
+      'Prévu : 2 100,00 € à partir du 01/11/2026.',
+    );
+  });
+
+  it('sans le drapeau, la date d’effet future suffit ; deux changements prévus se suivent', async () => {
+    const { texteSalairePlanifie } = await import('./salaireDate');
+    expect(texteSalairePlanifie([ligne('2027-01-01', 2200), ligne('2026-11-01', 2100)], le20Octobre)).toBe(
+      'Prévu : 2 100,00 € à partir du 01/11/2026, puis 2 200,00 € à partir du 01/01/2027.',
+    );
+  });
+
+  it('rien de prévu : rien à dire', async () => {
+    const { texteSalairePlanifie } = await import('./salaireDate');
+    expect(texteSalairePlanifie([ligne('2026-10-01', 2000)], le20Octobre)).toBeNull();
+    expect(texteSalairePlanifie(undefined, le20Octobre)).toBeNull();
+  });
+});

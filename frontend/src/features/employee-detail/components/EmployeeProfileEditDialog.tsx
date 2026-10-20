@@ -5,7 +5,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { CheckCircle2, Loader2, X } from 'lucide-react';
 
 import { getSalaryHistory } from '@/api/augmentations';
-import { salaireVerrouille } from '@/features/employee-detail/components/salaireDate';
+import {
+  salaireVerrouille,
+  texteSalairePlanifie,
+} from '@/features/employee-detail/components/salaireDate';
 import { updateEmployee } from '@/api/employees';
 import * as collectiveAgreementsApi from '@/api/collectiveAgreements';
 import { mutuelleTypesApi, type MutuelleType } from '@/api/mutuelleTypes';
@@ -81,6 +84,7 @@ export function EmployeeProfileEditDialog({
     enabled: open && Boolean(companyId),
   });
   const salaireFige = salaireVerrouille(historiqueSalaire.data);
+  const salairePlanifie = texteSalairePlanifie(historiqueSalaire.data, new Date());
 
   const defaultValues = useMemo(() => buildDefaultValues(employee), [employee]);
   const wasOnboarding = employee.employment_status === 'en_onboarding';
@@ -233,6 +237,7 @@ export function EmployeeProfileEditDialog({
               companyOrganismeLabel={companyOrganismeLabel}
               payrollFocus={payrollFocus}
               salaireVerrouille={salaireFige}
+              salairePlanifie={salairePlanifie}
               employeeId={employeeId}
               titreSejour={{
                 is_subject_to_residence_permit: employee.is_subject_to_residence_permit,

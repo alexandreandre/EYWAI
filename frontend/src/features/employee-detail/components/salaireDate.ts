@@ -101,3 +101,25 @@ export function avertissementSalaireNonDate(
     'sans rappel des mois déjà payés. Pour une augmentation à une date, utilisez « Changer le salaire ».'
   );
 }
+
+/**
+ * Les salaires datés dans le futur, dits à côté du salaire actuel :
+ * « Prévu : 2 100,00 € à partir du 01/11/2026. » Après « Nouveau contrat », la
+ * fiche ne montrait que le salaire actuel, sans indice du changement prévu
+ * (tournage H.5, scène 8).
+ */
+export function texteSalairePlanifie(
+  historique: SalaryHistoryEntry[] | undefined,
+  aujourdhui: Date,
+): string | null {
+  const jour = jourIso(aujourdhui);
+  const prevus = (historique ?? [])
+    .filter((ligne) => (ligne.planifiee ?? ligne.effective_date.slice(0, 10) > jour) === true)
+    .filter((ligne) => Number(ligne.nouveau_salaire?.valeur) > 0)
+    .sort((a, b) => a.effective_date.localeCompare(b.effective_date));
+  if (prevus.length === 0) return null;
+  const morceaux = prevus.map(
+    (ligne) => `${euros(Number(ligne.nouveau_salaire.valeur))} à partir du ${dateFr(ligne.effective_date)}`,
+  );
+  return `Prévu : ${morceaux.join(', puis ')}.`;
+}

@@ -69,6 +69,8 @@ interface EmployeeProfileEditFormProps {
   payrollFocus?: boolean;
   /** Historique de salaire présent : le salaire se change avec une date d'effet. */
   salaireVerrouille?: boolean;
+  /** Le salaire daté dans le futur, dit dans la rubrique « Rémunération ». */
+  salairePlanifie?: string | null;
   employeeId?: string;
   /** Statut déjà calculé par le serveur. La fiche ne le recalcule pas. */
   titreSejour?: TitreSejourConnu | null;
@@ -135,6 +137,7 @@ export function EmployeeProfileEditForm({
   companyOrganismeLabel,
   payrollFocus = false,
   salaireVerrouille = false,
+  salairePlanifie = null,
   employeeId,
   titreSejour = null,
 }: EmployeeProfileEditFormProps) {
@@ -470,6 +473,7 @@ export function EmployeeProfileEditForm({
                 Number(salaireVerrouille ? salaireBase : salaireInitial) || null
               }
               avecHistorique={salaireVerrouille}
+              salairePlanifie={salairePlanifie}
             />
           ) : null}
           {salaireVerrouille && employeeId && companyId ? null : (
