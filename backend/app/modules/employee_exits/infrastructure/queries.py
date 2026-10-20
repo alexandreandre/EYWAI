@@ -77,7 +77,7 @@ def get_employee_by_id(
         .maybe_single()
         .execute()
     )
-    return r.data if r.data else None
+    return r.data if r is not None and r.data else None
 
 
 def get_employee_full(
@@ -86,7 +86,7 @@ def get_employee_full(
     """Récupère un employé avec toutes les colonnes."""
     sb = supabase_client or supabase
     r = sb.table("employees").select("*").eq("id", employee_id).maybe_single().execute()
-    return r.data if r.data else None
+    return r.data if r is not None and r.data else None
 
 
 def get_company_by_id(
@@ -95,7 +95,7 @@ def get_company_by_id(
     """Récupère une entreprise par id."""
     sb = supabase_client or supabase
     r = sb.table("companies").select("*").eq("id", company_id).maybe_single().execute()
-    return r.data if r.data else None
+    return r.data if r is not None and r.data else None
 
 
 def get_exit_documents_storage_paths(
@@ -175,7 +175,7 @@ def get_employee_document_by_source_exit_document(
         .maybe_single()
         .execute()
     )
-    return r.data if r.data else None
+    return r.data if r is not None and r.data else None
 
 
 def insert_employee_document(
