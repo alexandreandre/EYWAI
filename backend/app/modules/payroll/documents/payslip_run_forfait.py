@@ -20,6 +20,7 @@ from app.modules.payroll.engine.calcul_cotisations import (
     ratio_plafond_periode,
 )
 from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
+from app.modules.payroll.engine.corrections_manuelles import ajouter_regularisations
 from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
     heures_reduction_forfait_jours,
@@ -637,6 +638,12 @@ def run_payslip_generation_forfait(
         if ligne_reduction_generale:
             lignes_cotisations.append(ligne_reduction_generale)
 
+    # Régularisations de cotisation saisies à la main : après la réduction
+    # générale, qui ne doit pas les lire ; avant le net, qui lit le total
+    # salarial et non les lignes.
+    effet_regul = ajouter_regularisations(lignes_cotisations, total_salarial, saisie_du_mois)
+    total_salarial = effet_regul.total_salarial
+
     resultats_nets = calculer_net_et_impot(
         contexte,
         salaire_brut_calcule,
@@ -709,6 +716,7 @@ def run_payslip_generation_forfait(
         employee_path,
         heures_supplementaires_mois=total_heures_supp,
         heures_remunerees_mois=heures_reduction,
+        regularisation_reduction_generale=effet_regul.reduction_generale,
     )
 
     chemin_cumuls_mis_a_jour = employee_path / "cumuls" / f"{month:02d}.json"

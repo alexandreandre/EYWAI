@@ -8,6 +8,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+from app.modules.payroll.engine.corrections_manuelles import RegularisationInvalide
 from app.modules.payroll.engine.reference_remuneration import mettre_a_jour_brut_reference_cumul
 
 import calendar
@@ -53,6 +54,7 @@ def mettre_a_jour_cumuls(
     *,
     heures_supplementaires_mois: float | None = None,
     heures_remunerees_mois: float | None = None,
+    regularisation_reduction_generale: float = 0.0,
 ) -> None:
     """Écrit le fichier cumuls du mois avec les valeurs du bulletin."""
     nouveaux_cumuls_data = json.loads(json.dumps(contexte.cumuls))
@@ -201,6 +203,23 @@ def mettre_a_jour_cumuls(
             "valeur_cumulative_a_enregistrer", 0.0
         )
         cumuls["reduction_generale_patronale"] = -nouveau_total
+
+    if regularisation_reduction_generale:
+        # Le cumul enregistre la réduction réellement appliquée, régularisation
+        # comprise (stockée en négatif, relue en valeur absolue par la réduction
+        # du mois suivant). Le mois suivant régularise depuis cette valeur.
+        cumul = round(
+            float(cumuls.get("reduction_generale_patronale", 0.0) or 0.0)
+            + float(regularisation_reduction_generale),
+            2,
+        )
+        if cumul > 0:
+            raise RegularisationInvalide(
+                "La régularisation de la réduction générale dépasse la réduction "
+                "appliquée depuis janvier : la réduction de l'année deviendrait "
+                "négative. Corrigez son montant."
+            )
+        cumuls["reduction_generale_patronale"] = cumul
 
     start_month = 6
     try:
