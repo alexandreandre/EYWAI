@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 from app.modules.payroll.domain.report_nap_negatif import (
     CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
 )
+from app.modules.payroll.engine.corrections_manuelles import mentions_des_regularisations
 
 CIVILITES_MASCULINES = {"M", "H", "MR", "MASCULIN", "1"}
 CIVILITES_FEMININES = {"F", "MME", "FEMININ", "FÉMININ", "2"}
@@ -553,6 +554,9 @@ def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     for rubrique in rubriques_principales:
         lignes.extend(_lignes_rubrique(rubrique))
+
+    for mention in mentions_des_regularisations(bulletin):
+        lignes.append(_ligne("note", mention))
 
     total_salarial = round(
         sum(float(r.get("total_salarial") or 0.0) for r in rubriques_principales), 2

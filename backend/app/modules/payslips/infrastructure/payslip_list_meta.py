@@ -12,6 +12,7 @@ from app.modules.payroll.domain.empreinte_entrees import (
 from app.modules.payroll.engine.controles_convention import (
     avertissements_de_generation,
 )
+from app.modules.payroll.engine.corrections_manuelles import regularisations_du_bulletin
 
 
 def _nombre(valeur: Any) -> float | None:
@@ -81,6 +82,7 @@ def payslip_list_meta(payslip_data: Any) -> dict[str, Any]:
         "warnings": [],
         "points_a_arbitrer": [],
         "alertes_acquittees": [],
+        "regularisations": [],
     }
     if not isinstance(payslip_data, dict):
         return vide
@@ -113,4 +115,5 @@ def payslip_list_meta(payslip_data: Any) -> dict[str, Any]:
         "warnings": warnings,
         "points_a_arbitrer": points_a_arbitrer,
         "alertes_acquittees": regles_acquittees(payslip_data),
+        "regularisations": sorted({r.libelle for r in regularisations_du_bulletin(payslip_data).values()}),
     }
