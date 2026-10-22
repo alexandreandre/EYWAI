@@ -12,7 +12,7 @@
  * lignes imprimées depuis une saisie (`saisie_id`), comme
  * `domain/primes_editees.py`.
  */
-import type { PayslipEditRequest, PrimeAjoutee } from '@/api/payslips';
+import type { PayslipEditRequest, PrimeAjoutee, RegularisationAjoutee } from '@/api/payslips';
 import type { MonthlyInputCreate } from '@/api/saisies';
 import { deDevant } from './elision';
 import { monthLabel } from './payrollMonth';
@@ -97,6 +97,9 @@ export interface EtatCorrections {
   primes: PrimeDuBulletin[];
   primesRetirees: string[];
   primesAjoutees: PrimeAjoutee[];
+  regularisations: RegularisationDuBulletin[];
+  regularisationsAjoutees: RegularisationAjoutee[];
+  regularisationsRetirees: string[];
   pdfNotes: string;
   noteInterne: string;
   resume: string;
@@ -244,6 +247,87 @@ export function primeDepuisSaisie(saisie: MonthlyInputCreate): PrimeAjoutee {
   };
 }
 
+/** Une cotisation du bulletin qu'on peut régulariser (elle porte un organisme). */
+export interface CotisationRegularisable {
+  cotiId: string;
+  libelle: string;
+  tauxSalarial: number | null;
+  tauxPatronal: number | null;
+}
+
+/** Une régularisation imprimée sur le bulletin. */
+export interface RegularisationDuBulletin {
+  saisieId: string;
+  libelle: string;
+  motif: string;
+  montantSalarial: number;
+  montantPatronal: number;
+}
+
+function lignesDeCotisation(data: unknown): Ligne[] {
+  const d = (data ?? {}) as { cotisations_officielles?: unknown };
+  const rubriques = Array.isArray(d.cotisations_officielles) ? (d.cotisations_officielles as Ligne[]) : [];
+  return rubriques.flatMap((r) => (Array.isArray(r.lignes) ? (r.lignes as Ligne[]) : []));
+}
+
+export function cotisationsRegularisables(data: unknown): CotisationRegularisable[] {
+  const vues = new Set<string>();
+  const sortie: CotisationRegularisable[] = [];
+  for (const l of lignesDeCotisation(data)) {
+    if (!l.coti_id || l.regularisation || l.is_participation || l.is_ppv) continue;
+    const libelle = typeof l.libelle === 'string' ? l.libelle : String(l.coti_id);
+    const cle = `${l.coti_id}|${libelle}`;
+    if (vues.has(cle)) continue;
+    vues.add(cle);
+    sortie.push({
+      cotiId: String(l.coti_id),
+      libelle,
+      tauxSalarial: nombre(l.taux_salarial) || null,
+      tauxPatronal: nombre(l.taux_patronal) || null,
+    });
+  }
+  return sortie;
+}
+
+export function regularisationsDuBulletin(data: unknown): RegularisationDuBulletin[] {
+  return lignesDeCotisation(data)
+    .map((l) => l.regularisation as Ligne | undefined)
+    .filter((r): r is Ligne => !!r && typeof r === 'object' && !!r.saisie_id)
+    .map((r) => ({
+      saisieId: String(r.saisie_id),
+      libelle: String(r.libelle ?? ''),
+      motif: String(r.motif ?? ''),
+      montantSalarial: arrondi(nombre(r.montant_salarial) ?? 0),
+      montantPatronal: arrondi(nombre(r.montant_patronal) ?? 0),
+    }));
+}
+
+export type PartRegularisee = 'salariale' | 'patronale' | 'les_deux';
+
+/**
+ * Un écart en euros devient une base au taux de la cotisation. Le serveur
+ * recalcule le montant arrondi. Sans taux, l'écart est le montant.
+ */
+export function regularisationDepuisEcart(
+  cotisation: CotisationRegularisable,
+  ecart: number,
+  part: PartRegularisee,
+  motif: string
+): RegularisationAjoutee {
+  const tauxSal = part === 'patronale' ? null : cotisation.tauxSalarial;
+  const tauxPat = part === 'salariale' ? null : cotisation.tauxPatronal;
+  const taux = (tauxSal ?? 0) + (tauxPat ?? 0);
+  const commun = { coti_id: cotisation.cotiId, libelle: cotisation.libelle, motif: motif.trim() };
+  if (taux) {
+    return { ...commun, base: arrondi(ecart / taux), taux_salarial: tauxSal, taux_patronal: tauxPat };
+  }
+  return {
+    ...commun,
+    montant_salarial: part === 'patronale' ? null : arrondi(ecart),
+    montant_patronal: part === 'patronale' ? arrondi(ecart) : null,
+  };
+}
+
 export function etatInitial(data: unknown, pdfNotes: string | null | undefined): EtatCorrections {
   const [hs25, hs50] = quantitesHeuresSup(data);
   return {
@@ -253,6 +337,9 @@ export function etatInitial(data: unknown, pdfNotes: string | null | undefined):
     primes: primesDuBulletin(data),
     primesRetirees: [],
     primesAjoutees: [],
+    regularisations: regularisationsDuBulletin(data),
+    regularisationsAjoutees: [],
+    regularisationsRetirees: [],
     pdfNotes: pdfNotes ?? '',
     noteInterne: '',
     resume: '',
@@ -294,6 +381,8 @@ export function requeteDeCorrection(
       amount: arrondi(p.amount),
     }));
   }
+  if (courant.regularisationsAjoutees.length) corrections.regularisations_ajoutees = courant.regularisationsAjoutees;
+  if (courant.regularisationsRetirees.length) corrections.regularisations_retirees = courant.regularisationsRetirees;
 
   const requete: PayslipEditRequest = { corrections };
   if (courant.pdfNotes.trim() !== initial.pdfNotes.trim()) requete.pdf_notes = courant.pdfNotes;

@@ -1,7 +1,7 @@
 // frontend/src/components/payslip-edit/CorrectionsBulletinPanel.tsx
 
 /**
- * Ce qui se corrige depuis le bulletin : ses heures sup et ses primes du mois.
+ * Ce qui se corrige depuis le bulletin : ses heures sup, ses primes du mois et ses régularisations de cotisation.
  *
  * Chaque correction devient une variable du mois et le bulletin est recalculé
  * en entier à l'enregistrement (brut, cotisations, net, cumuls). Le reste se
@@ -18,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AjouterPrimeBouton from '@/components/payslip-edit/AjouterPrimeBouton';
+import RegularisationsCotisationCard from '@/components/payslip-edit/RegularisationsCotisationCard';
 import { PHRASE_FORFAIT_JOURS_SANS_HEURES_SUP } from '@/lib/forfaitJoursAffichage';
 import { pastilleSoumise } from '@/components/saisies/libellesSaisie';
 import {
@@ -352,6 +353,8 @@ export default function CorrectionsBulletinPanel({
           ) : null}
         </CardContent>
       </Card>
+
+      <RegularisationsCotisationCard payslipData={payslipData} etat={etat} onChange={onChange} disabled={disabled} />
 
       <Card>
         <CardHeader>

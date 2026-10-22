@@ -303,12 +303,27 @@ export interface PrimeAjoutee {
 }
 
 /** Ce qui se corrige depuis le bulletin : ses variables du mois. */
+/** Une régularisation de cotisation saisie depuis le bulletin. */
+export interface RegularisationAjoutee {
+  coti_id: string;
+  libelle: string;
+  motif: string;
+  /** Par la base : le serveur calcule base × taux. Sinon, montant d'une cotisation sans taux. */
+  base?: number | null;
+  taux_salarial?: number | null;
+  taux_patronal?: number | null;
+  montant_salarial?: number | null;
+  montant_patronal?: number | null;
+}
+
 export interface CorrectionsBulletin {
   heures_sup?: { hs25: number; hs50: number };
   revenir_au_planning?: boolean;
   primes_ajoutees?: PrimeAjoutee[];
   primes_corrigees?: Array<{ saisie_id: string; amount: number }>;
   primes_retirees?: string[];
+  regularisations_ajoutees?: RegularisationAjoutee[];
+  regularisations_retirees?: string[];
 }
 
 /** Refus structuré du recalcul d'après une correction (même forme que le 422 de génération). */

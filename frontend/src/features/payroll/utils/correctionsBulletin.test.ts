@@ -6,8 +6,11 @@ import {
   MESSAGE_AUCUNE_PRIME,
   saisiesApresLeCalcul,
   titreDuBulletin,
+  cotisationsRegularisables,
   etatInitial,
   heuresDeclarees,
+  regularisationDepuisEcart,
+  regularisationsDuBulletin,
   montantCorrigeDeLaPrime,
   quantitesHeuresSup,
   recalculAttendu,
@@ -324,5 +327,101 @@ describe('saisiesApresLeCalcul : une prime saisie après le calcul n’est pas �
 
   it('le message vide parle du bulletin, pas des saisies du mois', () => {
     expect(MESSAGE_AUCUNE_PRIME).toBe('Aucune prime sur ce bulletin.');
+  });
+});
+
+const BULLETIN_REGUL = {
+  cotisations_officielles: [
+    {
+      code: 'sante',
+      lignes: [
+        {
+          coti_id: 'securite_sociale_maladie',
+          libelle: 'Sécurité sociale - Maladie',
+          base: 2000,
+          taux_patronal: 0.07,
+          montant_patronal: 140,
+        },
+        {
+          coti_id: 'mutuelle',
+          libelle: 'Mutuelle',
+          base: null,
+          taux_salarial: null,
+          taux_patronal: null,
+          montant_salarial: 20,
+          montant_patronal: 30,
+        },
+        {
+          libelle: 'CSG déductible — Participation',
+          base: 100,
+          taux_salarial: 0.068,
+          montant_salarial: 6.8,
+          is_participation: true,
+        },
+        {
+          coti_id: 'mutuelle',
+          libelle: 'Régularisation – Mutuelle',
+          montant_patronal: 5,
+          regularisation: {
+            saisie_id: 's1',
+            coti_id: 'mutuelle',
+            libelle: 'Mutuelle',
+            motif: 'Tarif',
+            montant_patronal: 5,
+          },
+        },
+      ],
+    },
+  ],
+};
+
+describe('régularisations de cotisation', () => {
+  it('propose les cotisations du bulletin, sans la participation ni les régularisations', () => {
+    expect(cotisationsRegularisables(BULLETIN_REGUL).map((c) => c.cotiId)).toEqual([
+      'securite_sociale_maladie',
+      'mutuelle',
+    ]);
+  });
+
+  it('lit les régularisations déjà posées', () => {
+    expect(regularisationsDuBulletin(BULLETIN_REGUL)).toEqual([
+      { saisieId: 's1', libelle: 'Mutuelle', motif: 'Tarif', montantSalarial: 0, montantPatronal: 5 },
+    ]);
+  });
+
+  it('convertit un écart en euros en base au taux de la cotisation', () => {
+    const [maladie] = cotisationsRegularisables(BULLETIN_REGUL);
+    const r = regularisationDepuisEcart(maladie, 7, 'patronale', 'Base oubliée');
+    expect(r).toEqual({
+      coti_id: 'securite_sociale_maladie',
+      libelle: 'Sécurité sociale - Maladie',
+      motif: 'Base oubliée',
+      base: 100,
+      taux_salarial: null,
+      taux_patronal: 0.07,
+    });
+  });
+
+  it('une cotisation sans taux se régularise par son montant', () => {
+    const mutuelle = cotisationsRegularisables(BULLETIN_REGUL)[1];
+    expect(regularisationDepuisEcart(mutuelle, -4.1, 'salariale', 'Tarif')).toEqual({
+      coti_id: 'mutuelle',
+      libelle: 'Mutuelle',
+      motif: 'Tarif',
+      montant_salarial: -4.1,
+      montant_patronal: null,
+    });
+  });
+
+  it('la requête porte les régularisations ajoutées et retirées', () => {
+    const initial = etatInitial(BULLETIN_REGUL, '');
+    const courant = {
+      ...initial,
+      regularisationsRetirees: ['s1'],
+      regularisationsAjoutees: [{ coti_id: 'mutuelle', libelle: 'Mutuelle', motif: 'Tarif', montant_patronal: 2 }],
+    };
+    const requete = requeteDeCorrection(initial, courant, null);
+    expect(requete.corrections.regularisations_retirees).toEqual(['s1']);
+    expect(requete.corrections.regularisations_ajoutees).toHaveLength(1);
   });
 });
