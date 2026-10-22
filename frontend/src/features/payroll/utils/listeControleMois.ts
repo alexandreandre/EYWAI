@@ -29,6 +29,7 @@ export const ETAPE_BULLETINS = 'bulletins';
 export const ETAPE_SORTIES = 'sorties';
 export const ETAPE_RIB = 'rib';
 export const ETAPE_VALIDES = 'valides';
+export const ETAPE_REGULARISATIONS = 'regularisations';
 export const ETAPE_DECLARATIONS = 'declarations';
 
 /** Les exports qui comptent comme « export comptable » du mois. */
@@ -378,6 +379,36 @@ function actionSiNonFaite(
   return { id: etape.id, ...action };
 }
 
+function etapeRegularisations(
+  lecture: Lecture<Record<string, LigneBulletinPaie[]>>,
+  year: number,
+  month: number
+): { etat: EtatEtape; detail: string } {
+  return etatDepuisLecture(lecture, (parSalarie) => {
+    const precedent = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
+    let total = 0;
+    const repetees = new Set<string>();
+    for (const bulletins of Object.values(parSalarie)) {
+      const duMois = bulletins.find((b) => b.year === year && b.month === month)?.regularisations ?? [];
+      const avant = new Set(
+        bulletins.find((b) => b.year === precedent.year && b.month === precedent.month)?.regularisations ?? []
+      );
+      total += duMois.length;
+      duMois.filter((libelle) => avant.has(libelle)).forEach((libelle) => repetees.add(libelle));
+    }
+    if (total === 0) return { etat: 'fait', detail: 'Aucune régularisation saisie à la main ce mois.' };
+    const phrases = [
+      `${total} régularisation${total > 1 ? 's' : ''} saisie${total > 1 ? 's' : ''} à la main ce mois.`,
+    ];
+    for (const libelle of [...repetees].sort()) {
+      phrases.push(
+        `« ${libelle} » est régularisée deux mois de suite : signalez-le, Martine se trompe peut-être.`
+      );
+    }
+    return { etat: 'fait', detail: phrases.join(' ') };
+  });
+}
+
 export function listeControleDuMois(entree: EntreeListeControle): ListeControleMois {
   const { year, month, salaries } = entree;
   const hrefMois = lienMois(year, month);
@@ -424,13 +455,18 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
     libelle: 'Bulletins validés',
     ...etapeValides(entree.bulletinsParSalarie, salaries, year, month),
   });
+  const regularisations: EtapeControle = {
+    id: ETAPE_REGULARISATIONS,
+    libelle: 'Régularisations à la main',
+    ...etapeRegularisations(entree.bulletinsParSalarie, year, month),
+  };
   const declarations: EtapeControle = {
     id: ETAPE_DECLARATIONS,
     libelle: 'DSN et export comptable faits',
     ...etapeDeclarations(entree.exportsDuMois ?? { statut: 'indisponible' }),
   };
 
-  const etapes = [calendriers, conflits, absences, bulletins, sorties, rib, valides, declarations];
+  const etapes = [calendriers, conflits, absences, bulletins, sorties, rib, valides, regularisations, declarations];
 
   const actions = [
     actionSiNonFaite(calendriers, {

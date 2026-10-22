@@ -34,6 +34,8 @@ export type LigneBulletinPaie = {
   net_a_payer?: number | null;
   /** « valide » une fois validé par la RH. */
   status?: string | null;
+  /** Cotisations régularisées à la main sur ce bulletin (libellés). */
+  regularisations?: string[] | null;
 };
 
 export type SalariePourRelance = {

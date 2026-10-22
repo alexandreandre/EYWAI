@@ -554,3 +554,34 @@ describe('lecture des anomalies pré-paie', () => {
     ).toEqual(OK(['e-1']));
   });
 });
+
+describe('régularisations à la main', () => {
+  it('compte les régularisations du mois et signale une cotisation régularisée deux mois de suite', () => {
+    const e = entree({
+      year: 2026,
+      month: 10,
+      bulletinsParSalarie: {
+        statut: 'ok',
+        valeur: {
+          s1: [
+            { year: 2026, month: 10, regularisations: ['Mutuelle'] },
+            { year: 2026, month: 9, regularisations: ['Mutuelle'] },
+          ],
+          s2: [{ year: 2026, month: 10, regularisations: [] }],
+        },
+      },
+    });
+    const etapeRegul = listeControleDuMois(e).etapes.find((x) => x.id === 'regularisations');
+    expect(etapeRegul?.etat).toBe('fait');
+    expect(etapeRegul?.detail).toBe(
+      '1 régularisation saisie à la main ce mois. « Mutuelle » est régularisée deux mois de suite : signalez-le, Martine se trompe peut-être.'
+    );
+  });
+
+  it('sans régularisation, l’étape le dit simplement', () => {
+    const etapeRegul = listeControleDuMois(
+      entree({ bulletinsParSalarie: { statut: 'ok', valeur: {} } })
+    ).etapes.find((x) => x.id === 'regularisations');
+    expect(etapeRegul?.detail).toBe('Aucune régularisation saisie à la main ce mois.');
+  });
+});
