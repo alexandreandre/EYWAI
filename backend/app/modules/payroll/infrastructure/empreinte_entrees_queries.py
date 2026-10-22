@@ -17,7 +17,7 @@ from datetime import date
 from typing import Any
 
 from app.core.database import supabase
-from app.modules.payroll.domain.empreinte_entrees import mois_de_la_fenetre
+from app.modules.payroll.domain.empreinte_entrees import mois_de_la_fenetre, saisie_pour_empreinte
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ FICHE_COLONNES = (
 SAISIE_COLONNES = (
     "year, month, name, amount, catalog_prime_id, is_socially_taxed, is_taxable, "
     "payroll_quantity, sur_le_net, export_code, quantity_kind, situation_repas, "
-    "description, participation_campaign_id, participation_bulletin_id"
+    "description, participation_campaign_id, participation_bulletin_id, correction_ligne"
 )
 
 SOCIETE_COLONNES = (
@@ -394,7 +394,7 @@ def lire_lectures_salarie(
         # `.in_(year).in_(month)` peut ramener un mois d'une autre année.
         if cle not in periodes_demandees:
             continue
-        saisies_par_mois.setdefault(cle, []).append(row)
+        saisies_par_mois.setdefault(cle, []).append(saisie_pour_empreinte(row))
 
     notes: list[dict[str, Any]] = []
     plage = _plage_dates(fenetre)

@@ -14,11 +14,16 @@ from app.modules.monthly_inputs.infrastructure.repository import (
 )
 
 
+def _sans_corrections(items: list) -> list:
+    """Les régularisations saisies depuis le bulletin se gèrent depuis le bulletin."""
+    return [i for i in items if not (isinstance(i, dict) and i.get("correction_ligne"))]
+
+
 def list_monthly_inputs_by_period(
     year: int, month: int, company_id: str
 ) -> ListMonthlyInputsResultDto:
     """Saisies du mois pour LA SOCIÉTÉ de l'appelant. Ordre created_at desc."""
-    items = monthly_inputs_repository.list_by_period(year, month, company_id)
+    items = _sans_corrections(monthly_inputs_repository.list_by_period(year, month, company_id))
     return ListMonthlyInputsResultDto(items=items)
 
 
@@ -26,8 +31,8 @@ def list_monthly_inputs_by_employee_period(
     employee_id: str, year: int, month: int, company_id: str
 ) -> ListMonthlyInputsResultDto:
     """Saisies d'un salarié pour un mois, dans la société de l'appelant."""
-    items = monthly_inputs_repository.list_by_employee_period(
-        employee_id, year, month, company_id
+    items = _sans_corrections(
+        monthly_inputs_repository.list_by_employee_period(employee_id, year, month, company_id)
     )
     return ListMonthlyInputsResultDto(items=items)
 

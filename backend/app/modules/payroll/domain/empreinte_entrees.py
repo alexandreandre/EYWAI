@@ -95,6 +95,19 @@ def _liste_stable(valeur: Any) -> list[Any]:
     return sorted((_sans_volatils(item) for item in valeur), key=_cle_de_tri)
 
 
+def saisie_pour_empreinte(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Une saisie telle que l'empreinte la lit : une correction vide n'y figure pas.
+
+    Une colonne vide sur toutes les saisies d'avant cette correction changerait
+    l'empreinte de tous les bulletins, qui passeraient « À recalculer » sans
+    que rien n'ait changé.
+    """
+    propre = dict(row)
+    if propre.get("correction_ligne") is None:
+        propre.pop("correction_ligne", None)
+    return propre
+
+
 def mois_de_la_fenetre(year: int, month: int) -> tuple[tuple[int, int], ...]:
     """M-1, M, M+1 — même fenêtre que le générateur (`payslip_generator.py`)."""
     out: list[tuple[int, int]] = []

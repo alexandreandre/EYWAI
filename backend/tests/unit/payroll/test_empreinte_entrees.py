@@ -12,6 +12,7 @@ from app.modules.payroll.domain.empreinte_entrees import (
     empreinte_stockee,
     etat_a_recalculer,
     poser_empreinte,
+    saisie_pour_empreinte,
 )
 
 
@@ -161,3 +162,20 @@ def test_a_recalculer_des_que_les_entrees_ou_les_cumuls_ont_change():
     assert a_recalculer(False, None) is False
     assert a_recalculer(None, None) is None
     assert a_recalculer(None, False) is None
+
+
+def test_une_colonne_correction_vide_ne_change_pas_l_empreinte():
+    """Ajouter correction_ligne aux colonnes lues ne doit périmer aucun bulletin."""
+    ancienne = {"year": 2026, "month": 9, "name": "Prime", "amount": 100}
+    nouvelle = {**ancienne, "correction_ligne": None}
+    assert empreinte(construire_entrees({"saisies": [ancienne]})) == empreinte(
+        construire_entrees({"saisies": [saisie_pour_empreinte(nouvelle)]})
+    )
+
+
+def test_une_regularisation_change_l_empreinte():
+    ordinaire = {"year": 2026, "month": 9, "name": "Régularisation", "amount": 0}
+    regularisee = {**ordinaire, "correction_ligne": {"type": "regularisation_cotisation", "base": 10}}
+    assert empreinte(construire_entrees({"saisies": [saisie_pour_empreinte(ordinaire)]})) != empreinte(
+        construire_entrees({"saisies": [saisie_pour_empreinte(regularisee)]})
+    )
