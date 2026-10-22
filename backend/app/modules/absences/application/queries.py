@@ -1233,7 +1233,10 @@ def get_absence_maintenance_preview(
 
     result = dict(result)
     result["subrogation_mode"] = settings_dict.get("subrogation_mode", "when_maintien")
-    result["subrogation_active"] = sub_active
+    # Le moteur éteint la subrogation quand il n'y a rien à avancer (congé
+    # parental sans maintien, maintien à zéro). Le badge doit suivre le
+    # bulletin, pas la demande calculée avant ce recalcul.
+    result["subrogation_active"] = result.get("subrogation_active", sub_active)
     result["maintien_eligible_seniority"] = _est_maintien_eligible_seniority(
         settings_dict,
         _qualifier_arret(arret_type),

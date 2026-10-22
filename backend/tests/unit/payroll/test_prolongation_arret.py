@@ -344,3 +344,51 @@ def test_l_apercu_d_une_demande_lit_les_arrets_connus_comme_le_bulletin(monkeypa
     assert recu["arrets_connus"] == connus
     # La carence payée de la plasturgie s'y lit aussi, comme au bulletin.
     assert recu["arrets_annee"] == connus
+
+
+def test_l_apercu_affiche_la_subrogation_eteinte_par_le_moteur(monkeypatch):
+    from app.modules.absences.application import queries as q
+
+    absence = {
+        "id": "abs-mat",
+        "employee_id": "emp-1",
+        "arret_type": "maternite",
+        "type": "arret_maternite",
+        "selected_days": ["2026-12-07", "2026-12-08", "2026-12-09"],
+    }
+
+    class _Table:
+        def __init__(self, data):
+            self._data = data
+
+        def __getattr__(self, _nom):
+            return lambda *a, **k: self
+
+        def execute(self):
+            return SimpleNamespace(data=self._data)
+
+    lignes = {"employees": {"id": "emp-1", "company_id": "soc-1"}, "companies": {"id": "soc-1"}}
+    monkeypatch.setattr(q.absence_repository, "get_by_id", lambda _id: absence)
+    monkeypatch.setattr(q.supabase, "table", lambda nom: _Table(lignes.get(nom)))
+    monkeypatch.setattr(q, "resolve_employee_id_for_user", lambda *_a: "emp-1")
+    monkeypatch.setattr(
+        q, "get_maintenance_settings",
+        lambda _cid: SimpleNamespace(model_dump=lambda **_k: {"subrogation_mode": "when_maintien"}),
+    )
+    monkeypatch.setattr(q, "compute_subrogation_for_absence", lambda *a, **k: True)
+    monkeypatch.setattr(q, "resolve_nombre_enfants_employee", lambda _e: 0)
+    monkeypatch.setattr(q, "build_historique_arrets_annee", lambda *a, **k: [])
+    monkeypatch.setattr(q, "poser_salaires_de_reference", lambda *a, **k: None)
+    monkeypatch.setattr(q, "ChargerContexte", lambda *a, **k: object())
+    monkeypatch.setattr(q, "arrets_connus_du_salarie", lambda *a, **k: [])
+    monkeypatch.setattr(
+        q, "calculer_maintien",
+        lambda *a, **k: {"subrogation_active": False, "maintien": {}, "alertes": []},
+    )
+    user = SimpleNamespace(
+        active_company_id="soc-1", id="u-1", is_platform_admin=False,
+        has_rh_access_in_company=lambda _c: True,
+    )
+
+    apercu = q.get_absence_maintenance_preview("abs-mat", user)
+    assert apercu["subrogation_active"] is False
