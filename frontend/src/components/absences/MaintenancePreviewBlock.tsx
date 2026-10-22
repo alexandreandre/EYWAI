@@ -26,6 +26,8 @@ export const ABSENCE_TYPES_MAINTIEN_PREVIEW = new Set<string>([
   "arret_maladie",
   "arret_at",
   "arret_maladie_pro",
+  "arret_maternite",
+  "arret_paternite",
 ]);
 
 const eur = (n: number | null | undefined) =>

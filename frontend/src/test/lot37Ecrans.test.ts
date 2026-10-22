@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { libelleTypeArret, typesArretProposes } from "@/lib/employeeAbsencesUtils";
+import { ABSENCE_TYPES_MAINTIEN_PREVIEW } from "@/components/absences/MaintenancePreviewBlock";
 
 const SRC = path.resolve(__dirname, "..");
 const lire = (rel: string) => readFileSync(path.join(SRC, rel), "utf8").replace(/\s+/g, " ");
@@ -40,6 +41,11 @@ describe("Saisie d'un congé de maternité, de paternité ou d'adoption", () => 
     expect(libelleTypeArret("maternite")).toBe("Maternité");
     expect(libelleTypeArret("paternite")).toBe("Paternité et accueil de l'enfant");
     expect(libelleTypeArret("adoption")).toBe("Adoption");
+  });
+
+  it("le pliant de maintien s'ouvre aussi pour ces congés", () => {
+    expect(ABSENCE_TYPES_MAINTIEN_PREVIEW.has("arret_maternite")).toBe(true);
+    expect(ABSENCE_TYPES_MAINTIEN_PREVIEW.has("arret_paternite")).toBe(true);
   });
 
   it("la fenêtre de saisie tire ses types de la même liste", () => {
