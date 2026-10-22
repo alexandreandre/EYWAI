@@ -21,9 +21,15 @@ from piege import poser_le_piege  # noqa: E402
 
 poser_le_piege()
 
+from fastapi import HTTPException  # noqa: E402
+
 from app.core.database import supabase  # noqa: E402
 from app.core.lecture_seule import lecture_seule  # noqa: E402
-from app.modules.dsn_export.domain.cotisation_mapping import REGLES, build_bases_and_cotisations  # noqa: E402
+from app.modules.dsn_export.domain.cotisation_mapping import (  # noqa: E402
+    REGLES,
+    _traduire,
+    build_bases_and_cotisations,
+)
 from app.modules.exports.domain.controle_comptable import residu_du_bulletin  # noqa: E402
 from app.modules.exports.infrastructure.export_ecritures_comptables import ligne_od_du_bulletin  # noqa: E402
 from app.modules.payroll.engine.corrections_manuelles import RegularisationCotisation  # noqa: E402
@@ -63,15 +69,25 @@ def _montants_dsn(payslip_data: dict) -> dict[str, float]:
     return sortie
 
 
-def _dsn_a_bouge(avant: dict[str, float], apres: dict[str, float], coti_id: str, salarial: float, patronal: float) -> bool:
+def _dsn_a_bouge(
+    avant: dict[str, float],
+    apres: dict[str, float],
+    ligne: dict,
+    salarial: float,
+    patronal: float,
+) -> bool:
     """La somme des codes DSN bouge du montant de la régularisation.
 
     Agirc-Arrco déclare le total sur le code 131 et redéclare la part patronale
     sur 142 ou 146. Les deux bougent, donc la somme bouge du total plus cette part.
+    Une cotisation que la DSN individuelle ne traduit pas (l'exonération apprenti)
+    ne doit pas non plus apparaître via sa régularisation.
     """
     ecart = round(sum(apres.values()) - sum(avant.values()), 2)
+    if not _traduire(ligne, 0.0, 0.0, 0.0):
+        return abs(ecart) <= 0.02
     attendu = round(salarial + patronal, 2)
-    regle = REGLES.get(coti_id)
+    regle = REGLES.get(str(ligne.get("coti_id") or ""))
     if regle is not None and regle.code_patronal:
         attendu = round(attendu + patronal, 2)
     return abs(ecart - attendu) <= 0.02
@@ -146,12 +162,36 @@ def _noter(rapport: list[dict], employee_id: str, ok: bool, **constats: object) 
     print(("OK  " if ok else "ECHEC"), employee_id[:8], constats.get("coti_id") or constats.get("cas"), constats if not ok else "", flush=True)
 
 
+def _generer(employee_id: str, year: int, month: int, cumuls: dict | None, saisies_en_plus: tuple = ()):
+    """Recalcule. Un délai de la base se rejoue ; un refus du bulletin, non."""
+    for essai in range(3):
+        try:
+            return payslip_generator_provider.generate_en_bac_a_sable(
+                employee_id,
+                year,
+                month,
+                cumuls_precedents=cumuls,
+                saisies_en_plus=saisies_en_plus,
+            )
+        except HTTPException as exc:
+            if exc.status_code not in (500, 503) or essai == 2:
+                raise
+            print(f"REESSAI {employee_id[:8]} ({exc.status_code})", flush=True)
+
+
 def _un_salarie(company_id: str, employee_id: str, year: int, month: int, rapport: list[dict]) -> None:
     employee = supabase.table("employees").select("*").eq("id", employee_id).single().execute().data
     cumuls = _cumuls_precedents(employee_id, year, month)
-    base = payslip_generator_provider.generate_en_bac_a_sable(
-        employee_id, year, month, cumuls_precedents=cumuls
-    )
+    try:
+        base = _generer(employee_id, year, month, cumuls)
+    except HTTPException as exc:
+        if exc.status_code not in (400, 422):
+            raise
+        # Le bulletin est déjà refusé (solde d'ouverture incomplet, cumul
+        # manquant). Aucune correction n'est en cause.
+        rapport.append({"salarie": employee_id, "ok": True, "cas": "bulletin de départ refusé", "saute": True})
+        print("SAUTE", employee_id[:8], "bulletin de départ refusé", flush=True)
+        return
     data0 = base["payslip_data"]
     dsn0, residu0 = _montants_dsn(data0), _residu(data0, employee)
     vus: set[str] = set()
@@ -168,9 +208,7 @@ def _un_salarie(company_id: str, employee_id: str, year: int, month: int, rappor
             ),
             "id": "theoreme",
         }
-        res = payslip_generator_provider.generate_en_bac_a_sable(
-            employee_id, year, month, cumuls_precedents=cumuls, saisies_en_plus=(saisie,)
-        )
+        res = _generer(employee_id, year, month, cumuls, (saisie,))
         data1 = res["payslip_data"]
         salarial, patronal = regul.montants()
         constats = {
@@ -187,7 +225,7 @@ def _un_salarie(company_id: str, employee_id: str, year: int, month: int, rappor
             cumul0 = (base.get("cumuls") or {}).get("cumuls", {}).get("reduction_generale_patronale", 0)
             cumul1 = (res.get("cumuls") or {}).get("cumuls", {}).get("reduction_generale_patronale", 0)
             constats["cumul_reduction"] = abs(cumul1 - cumul0 - patronal) < 0.005
-        constats["dsn"] = _dsn_a_bouge(_montants_dsn(data0), _montants_dsn(data1), ligne["coti_id"], salarial, patronal)
+        constats["dsn"] = _dsn_a_bouge(_montants_dsn(data0), _montants_dsn(data1), ligne, salarial, patronal)
         _noter(rapport, employee_id, all(constats.values()), coti_id=ligne["coti_id"], **constats)
     periode = {"employee_id": employee_id, "company_id": company_id, "year": year, "month": month}
     cas = {
@@ -218,9 +256,7 @@ def _un_salarie(company_id: str, employee_id: str, year: int, month: int, rappor
         ),
     }
     for nom, (saisie, cle, attendu) in cas.items():
-        res = payslip_generator_provider.generate_en_bac_a_sable(
-            employee_id, year, month, cumuls_precedents=cumuls, saisies_en_plus=(saisie,)
-        )
+        res = _generer(employee_id, year, month, cumuls, (saisie,))
         data1 = res["payslip_data"]
         champ = "salaire_brut" if cle == "brut" else "net_a_payer"
         mouvement = attendu

@@ -91,3 +91,20 @@ def test_une_regularisation_agirc_redéclare_la_part_patronale():
     avant, apres = par_code([ligne]), par_code([ligne, regul])
     assert round(apres["131"] - avant["131"], 2) == round(salarial + patronal, 2)
     assert round(apres["142"] - avant["142"], 2) == round(patronal, 2)
+
+
+def test_une_exoneration_apprenti_sans_code_dsn_reste_hors_de_la_declaration():
+    ligne = {
+        "coti_id": "exoneration_apprenti_salariale",
+        "libelle": "Exonération cotisations salariales apprenti",
+        "base": 1000.0,
+        "montant_salarial": -50.0,
+        "montant_patronal": 0.0,
+    }
+    regul = RegularisationCotisation(
+        coti_id="exoneration_apprenti_salariale",
+        libelle="Exonération cotisations salariales apprenti",
+        motif="Plafond du mois",
+        montant_salarial=-10.0,
+    ).ligne_de_cotisation()
+    assert _cotisations([ligne, regul]) == _cotisations([ligne])
