@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { usePayrollEmployeesQuery, type EmployeeListItem } from '@/hooks/queries/useEmployeesQuery';
 import { useEmployeePayslipsQuery } from '@/hooks/queries/useEmployeePayslipsQuery';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
-import { deletePayslip, getEmployeePayslips, type PayslipInfo } from '@/api/payslips';
+import { deletePayslip, getEmployeePayslips, telechargerPdfDuMois, type PayslipInfo } from '@/api/payslips';
 import { getExportHistory, marquerDsnHorsMartine } from '@/api/exports';
 import { queryKeys } from '@/lib/queryKeys';
 import { showErrorToast } from '@/lib/errorMessages';
@@ -190,6 +190,7 @@ export default function Payroll() {
   const [selectedMonth, setSelectedMonth] = useState(
     () => moisAffiche(paramsVue, new Date()).month
   );
+  const [pdfDuMoisEnCours, setPdfDuMoisEnCours] = useState(false);
   const aRevoirSeulement = paramsVue.aRevoir;
   // Un parti reste visible sur les mois où il était présent : toute l'année
   // en vue salarié, le mois choisi en vue mois (salarié 086, sorti le 24/07 :
@@ -298,6 +299,17 @@ export default function Payroll() {
     },
     [setSearchParams]
   );
+
+  const ouvrirPdfDuMois = useCallback(async () => {
+    setPdfDuMoisEnCours(true);
+    try {
+      await telechargerPdfDuMois(selectedYear, selectedMonth);
+    } catch (err) {
+      showErrorToast(err);
+    } finally {
+      setPdfDuMoisEnCours(false);
+    }
+  }, [selectedYear, selectedMonth]);
 
   const handleViewChange = useCallback(
     (next: PayrollView) => {
@@ -949,6 +961,10 @@ export default function Payroll() {
               synthese={loadingMonthData ? undefined : syntheseMois}
               aRevoirSeulement={aRevoirSeulement}
               onARevoirChange={changerARevoir}
+              onOuvrirPdfDuMois={() => {
+                void ouvrirPdfDuMois();
+              }}
+              pdfDuMoisEnCours={pdfDuMoisEnCours}
               actionValider={
                 <ValiderBulletinsPrets
                   idsPrets={loadingMonthData ? [] : idsPretsAValider}

@@ -16,7 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { EmployeeListItem } from '@/hooks/queries/useEmployeesQuery';
 import type { PayslipInfo } from '@/api/payslips';
-import { CalendarDays, RefreshCw, Rocket, Search } from 'lucide-react';
+import { CalendarDays, FileText, RefreshCw, Rocket, Search } from 'lucide-react';
 import {
   monthLabel,
   monthYearLabel,
@@ -78,6 +78,9 @@ export type PayrollMonthExplorerProps = {
   onARevoirChange?: (actif: boolean) => void;
   /** Bouton « Valider les bulletins prêts (n) ». */
   actionValider?: ReactNode;
+  /** Télécharge le PDF de tous les bulletins déjà générés de ce mois. */
+  onOuvrirPdfDuMois?: () => void;
+  pdfDuMoisEnCours?: boolean;
 };
 
 function matchesSearch(emp: EmployeeListItem, q: string): boolean {
@@ -112,6 +115,8 @@ export function PayrollMonthExplorer({
   aRevoirSeulement = false,
   onARevoirChange,
   actionValider,
+  onOuvrirPdfDuMois,
+  pdfDuMoisEnCours = false,
 }: PayrollMonthExplorerProps) {
   const [search, setSearch] = useState('');
   const [mobileOpen, setMobileOpen] = useState(true);
@@ -210,6 +215,19 @@ export function PayrollMonthExplorer({
           </SelectContent>
         </Select>
       </div>
+      {onOuvrirPdfDuMois && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5"
+          disabled={loadingPayslips || loadingEmployees || pdfDuMoisEnCours || totalEmployees === 0}
+          onClick={onOuvrirPdfDuMois}
+          data-testid="pdf-du-mois"
+        >
+          <FileText className="h-3.5 w-3.5" />
+          {pdfDuMoisEnCours ? 'Préparation…' : 'Tous les bulletins'}
+        </Button>
+      )}
       {actionValider}
       {perimesCount > 0 && onRecalculerPerimes && (
         <Button

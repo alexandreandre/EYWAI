@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import date
 from typing import List, Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
@@ -25,6 +26,7 @@ from app.modules.webhooks.application.service import trigger_webhook_event
 from app.modules.payslips.application.anomalies_report import (
     build_payslips_anomalies_report,
 )
+from app.modules.payslips.application.pdf_du_mois import rendre_pdf_du_mois
 from app.shared.employee_resolution import resolve_employee_id_for_user_account
 from app.modules.payslips.application import (
     PayslipBadRequestError,
@@ -188,6 +190,34 @@ def _require_payslip_scope(
         current_user, company_id, permission_code, employee_id
     )
     return meta
+
+
+# --- PDF de tous les bulletins du mois (RH) ---
+@router.get("/api/payslips/month-pdf")
+def pdf_du_mois_route(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    current_user: User = Depends(get_current_user),
+):
+    """Recolle les PDF déjà générés du mois. Personne n'est recalculé."""
+    company_id = _require_rh_company_context(current_user)
+    try:
+        contenu, nom = rendre_pdf_du_mois(company_id, year, month)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Échec de pdf_du_mois_route")
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE) from e
+    nom_simple = f"bulletins-{year}-{month:02d}.pdf"
+    return Response(
+        content=contenu,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename*=UTF-8''{quote(nom)}; filename=\"{nom_simple}\""
+            )
+        },
+    )
 
 
 # --- Rapport anomalies (RH) ---

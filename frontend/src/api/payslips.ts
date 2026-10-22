@@ -2,6 +2,7 @@
 
 import apiClient from './apiClient';
 import type { MaintenancePreview } from './absences';
+import { downloadBlob, parseContentDispositionFilename } from '@/lib/downloadBlob';
 
 // =====================================================
 // TYPES
@@ -487,6 +488,19 @@ export const getMyPayslips = async (): Promise<PayslipInfo[]> => {
 /**
  * Récupère la liste des bulletins d'un employé
  */
+/** PDF unique du mois : bulletins déjà générés, ordre alphabétique, signet par salarié. */
+export async function telechargerPdfDuMois(year: number, month: number): Promise<void> {
+  const response = await apiClient.get<Blob>('/api/payslips/month-pdf', {
+    params: { year, month },
+    responseType: 'blob',
+  });
+  const nom = parseContentDispositionFilename(
+    response.headers['content-disposition'],
+    `bulletins-${year}-${String(month).padStart(2, '0')}.pdf`,
+  );
+  downloadBlob(response.data, nom);
+}
+
 export const getEmployeePayslips = async (employeeId: string): Promise<PayslipInfo[]> => {
   const response = await apiClient.get<PayslipInfo[]>(`/api/employees/${employeeId}/payslips`);
   return response.data;
