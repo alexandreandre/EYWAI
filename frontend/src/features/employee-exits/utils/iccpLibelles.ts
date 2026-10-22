@@ -34,7 +34,7 @@ export interface PeriodeIccp {
 function euros(valeur: number | null | undefined): string {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' })
     .format(valeur ?? 0)
-    .replace(/ | /g, ' ');
+    .replace(/[\u202F\u00A0]/g, ' ');
 }
 
 function jours(valeur: number | null | undefined): string {
