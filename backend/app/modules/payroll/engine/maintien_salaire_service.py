@@ -114,7 +114,7 @@ def plafond_ij_pour(
     )
     if t in types_at_mp:
         key = "at_mp_majoree" if jour_arret_1based >= 29 else "at_mp"
-    elif t in ("maternite", "paternite", "maternite_paternite"):
+    elif t in ("maternite", "paternite", "adoption", "maternite_paternite", "paternite_accueil_enfant"):
         key = "maternite_paternite"
     else:
         key = "maladie"
@@ -343,6 +343,17 @@ def _taux_ijss_pour_jour_arret(
         return lc.TAUX_IJSS_MALADIE
     if t == "mi_temps_therapeutique":
         return lc.TAUX_IJSS_MI_TEMPS
+    # Maternité, paternité, adoption : indemnité à 100 % du salaire journalier
+    # de base, dans la limite du plafond propre (art. R323-4 et R331-5 CSS).
+    # Le taux maladie (50 %) ne s'applique pas.
+    if t in {
+        "maternite",
+        "paternite",
+        "adoption",
+        "maternite_paternite",
+        "paternite_accueil_enfant",
+    }:
+        return 1.0
     return lc.TAUX_IJSS_MALADIE
 
 

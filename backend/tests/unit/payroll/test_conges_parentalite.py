@@ -87,6 +87,7 @@ def test_sans_reglage_le_conge_n_a_pas_de_maintien_et_les_ij_vont_au_salarie(arr
     # Pas de carence : indemnités journalières dès le premier jour.
     assert r["carence"]["carence_ss_jours"] == 0
     assert r["ijss"]["nb_jours_indemnises"] == 24
+    assert r["ijss"]["taux_applique"] == 1.0
 
 
 def test_avec_le_reglage_le_conge_est_maintenu_a_100_pour_cent():
@@ -135,3 +136,11 @@ def test_un_conge_d_adoption_se_libelle_comme_tel_au_bulletin():
         {"type": "arret_maladie", "source_absence": "arret_maternite", "arret_type": "adoption"}
     )
     assert LIBELLES_ARRET[nature] == "congé d'adoption"
+
+
+def test_l_adoption_prend_le_plafond_maternite_et_non_celui_de_la_maladie():
+    from app.modules.payroll.engine.maintien_salaire_service import plafond_ij_pour
+
+    plafonds = {"maladie": 42.97, "maternite_paternite": 104.02}
+    assert plafond_ij_pour("adoption", 1, plafonds) == 104.02
+    assert plafond_ij_pour("maternite", 1, plafonds) == 104.02
