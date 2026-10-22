@@ -7,10 +7,10 @@ taux). Une combinaison qui les fait diverger — « Arrêt maladie » typé
 « Accident du travail » : maintien sans carence d'un AT, DSN et attestation
 d'une maladie — est refusée à l'enregistrement.
 
-La parentalité n'a pas encore de type d'arrêt propre (défaut F12, décision
-attendue) : sous « Congé maternité » ou « Congé paternité », le seul choix
-possible à l'écran, « Maladie simple », reste permis, comme « Arrêt
-exceptionnel ».
+Un congé de maternité se type « Maternité » ou « Adoption », un congé de
+paternité « Paternité et accueil de l'enfant » ou « Adoption ». « Maladie
+simple » sous ces natures calculerait une maladie (carence, maintien) : c'est
+refusé.
 
 Module pur.
 """
@@ -36,6 +36,9 @@ LIBELLES_TYPE_D_ARRET: dict[str, str] = {
     "ald": "ALD",
     "rechute_at": "Rechute AT",
     "arret_exceptionnel": "Arrêt exceptionnel",
+    "maternite": "Maternité",
+    "paternite": "Paternité et accueil de l'enfant",
+    "adoption": "Adoption",
 }
 
 #: Types d'arrêt permis pour chaque nature, dans l'ordre de l'écran.
@@ -48,8 +51,8 @@ TYPES_D_ARRET_PAR_NATURE: dict[str, tuple[str, ...]] = {
     ),
     "arret_at": ("accident_travail", "accident_trajet", "rechute_at"),
     "arret_maladie_pro": ("maladie_professionnelle", "rechute_at"),
-    "arret_maternite": ("maladie_simple", "arret_exceptionnel"),
-    "arret_paternite": ("maladie_simple", "arret_exceptionnel"),
+    "arret_maternite": ("maternite", "adoption"),
+    "arret_paternite": ("paternite", "adoption"),
 }
 
 #: La nature à proposer quand on garde le type d'arrêt choisi.
@@ -62,6 +65,8 @@ NATURE_DU_TYPE_D_ARRET: dict[str, str] = {
     "accident_trajet": "arret_at",
     "rechute_at": "arret_at",
     "maladie_professionnelle": "arret_maladie_pro",
+    "maternite": "arret_maternite",
+    "paternite": "arret_paternite",
 }
 
 

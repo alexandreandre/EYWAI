@@ -33,10 +33,10 @@ pytestmark = pytest.mark.unit
         ("arret_at", "rechute_at"),
         ("arret_maladie_pro", "maladie_professionnelle"),
         ("arret_maladie_pro", "rechute_at"),
-        # Pas encore de type d'arrêt propre à la parentalité (défaut F12, en
-        # attente de décision) : le seul choix possible à l'écran reste permis.
-        ("arret_maternite", "maladie_simple"),
-        ("arret_paternite", "maladie_simple"),
+        ("arret_maternite", "maternite"),
+        ("arret_maternite", "adoption"),
+        ("arret_paternite", "paternite"),
+        ("arret_paternite", "adoption"),
     ],
 )
 def test_combinaisons_coherentes_acceptees(nature, type_arret):
@@ -56,7 +56,10 @@ def test_combinaisons_coherentes_acceptees(nature, type_arret):
         ("arret_maladie_pro", "accident_travail"),
         ("arret_maladie_pro", "maladie_simple"),
         ("arret_maternite", "accident_travail"),
+        ("arret_maternite", "maladie_simple"),
+        ("arret_paternite", "maladie_simple"),
         ("arret_paternite", "maladie_professionnelle"),
+        ("arret_maternite", "paternite"),
     ],
 )
 def test_combinaisons_incoherentes_refusees(nature, type_arret):
@@ -98,6 +101,22 @@ def test_enregistrement_refuse_une_combinaison_incoherente():
             commands.create_absence_request(_demande("arret_maladie", "accident_travail"))
     assert "choisissez la nature « Accident du travail »" in str(refus.value)
     repo.create.assert_not_called()
+
+
+def test_la_phrase_d_une_maternite_saisie_en_maladie_dit_le_conge():
+    message = incoherence_nature_type_d_arret("arret_maladie", "maternite")
+    assert "« Maternité »" in message
+    assert "« Congé maternité »" in message
+
+
+def test_enregistrement_accepte_une_maternite():
+    with patch(
+        "app.modules.absences.application.commands.get_employee_company_id",
+        return_value="comp-1",
+    ), patch("app.modules.absences.application.commands.absence_repository") as repo:
+        repo.create.return_value = {"id": "req-1"}
+        commands.create_absence_request(_demande("arret_maternite", "maternite"))
+    assert repo.create.call_args[0][0]["arret_type"] == "maternite"
 
 
 def test_enregistrement_accepte_un_accident_de_trajet_en_accident_du_travail():
