@@ -26,6 +26,9 @@ class PayslipAlert:
     value_n: float
     value_n1: float
     delta_pct: float
+    #: Écart en euros, bulletin moins rejeu. Positif : le bulletin est au-dessus.
+    #: Les règles R comparent en pourcentage et laissent ce champ vide.
+    delta_eur: float | None = None
     status: str = "active"  # active | acquittee | ignoree
     acquitted_by: Optional[str] = None
     acquitted_at: Optional[str] = None
