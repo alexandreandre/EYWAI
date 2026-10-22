@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
+from app.modules.payroll.engine.corrections_manuelles import RegularisationCotisation
 from app.modules.payslips.application import corrections as mod
 from app.modules.payslips.application.dto import (
     CorrigerBulletinInput,
@@ -404,3 +405,49 @@ def test_une_note_seule_ne_demande_pas_que_le_bulletin_soit_recalculable(base):
     with patch.object(mod, "archiver_version"):
         _corriger(pdf_notes="Note")
     base.reimprimer.assert_called_once_with("ps-1")
+
+
+REGUL = {"coti_id": "mutuelle", "libelle": "Mutuelle", "motif": "Tarif 2026", "montant_patronal": 8.3}
+
+
+def test_une_regularisation_sans_motif_est_refusee_par_la_requete():
+    with pytest.raises(ValidationError):
+        PayslipEditRequest(corrections={"regularisations_ajoutees": [{**REGUL, "motif": ""}]})
+
+
+def test_une_regularisation_ambigue_est_refusee_par_la_requete():
+    with pytest.raises(ValidationError):
+        PayslipEditRequest(
+            corrections={"regularisations_ajoutees": [{**REGUL, "base": 10, "taux_patronal": 0.01}]}
+        )
+
+
+def test_la_requete_donne_des_regularisations_au_domaine():
+    requete = PayslipEditRequest(
+        corrections={"regularisations_ajoutees": [REGUL], "regularisations_retirees": ["s9"]}
+    )
+    domaine = requete.corrections.vers_domaine()
+    assert domaine.regularisations_ajoutees[0].montants() == (0.0, 8.3)
+    assert domaine.regularisations_retirees == ("s9",)
+    assert domaine.change_des_variables
+
+
+def test_ajouter_une_regularisation_ecrit_une_saisie_du_mois_puis_recalcule(base):
+    regul = RegularisationCotisation(**REGUL)
+    _corriger(CorrectionsBulletin(regularisations_ajoutees=(regul,)))
+    inserts = base.de("monthly_inputs", "insert")
+    assert len(inserts) == 1
+    saisie = inserts[0][2][0]
+    assert saisie["employee_id"] == "emp-1" and saisie["company_id"] == "comp-1"
+    assert saisie["year"] == 2026 and saisie["month"] == 8
+    assert saisie["correction_ligne"]["type"] == "regularisation_cotisation"
+    assert base.generer.called
+
+
+def test_retirer_une_regularisation_supprime_la_seule_saisie_du_bulletin(base):
+    _corriger(CorrectionsBulletin(regularisations_retirees=("s9",)))
+    suppressions = base.de("monthly_inputs", "delete")
+    assert len(suppressions) == 1
+    filtres = dict(suppressions[0][3])
+    assert filtres["employee_id"] == "emp-1" and filtres["year"] == 2026 and filtres["month"] == 8
+    assert filtres["id"] == ("s9",)

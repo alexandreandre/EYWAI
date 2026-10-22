@@ -1,4 +1,4 @@
-"""Ce qui se corrige sur un bulletin : ses heures sup et ses primes du mois.
+"""Ce qui se corrige sur un bulletin : ses heures sup, ses primes du mois et ses régularisations de cotisation.
 
 Un bulletin ne se corrige plus en retouchant ses lignes. Les montants retouchés
 à la main laissaient les bases, les cotisations, le net et les cumuls de
@@ -12,6 +12,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.modules.payroll.engine.corrections_manuelles import (
+    RegularisationCotisation,
+    regularisations_du_bulletin,
+)
 from app.modules.payslips.domain.heures_sup import quantites_heures_sup_conjoncturelles
 from app.modules.payslips.domain.primes_editees import (
     DiffPrimes,
@@ -29,6 +33,9 @@ class CorrectionsBulletin:
     #: Retirer les heures sup déclarées depuis le bulletin : le planning refait foi.
     revenir_au_planning: bool = False
     primes: DiffPrimes = DiffPrimes()
+    #: Régularisations de cotisation à ajouter, puis identifiants de saisie à retirer.
+    regularisations_ajoutees: tuple[RegularisationCotisation, ...] = ()
+    regularisations_retirees: tuple[str, ...] = ()
 
     @property
     def change_des_variables(self) -> bool:
@@ -36,6 +43,8 @@ class CorrectionsBulletin:
             self.heures_sup is not None
             or self.revenir_au_planning
             or not self.primes.vide
+            or bool(self.regularisations_ajoutees)
+            or bool(self.regularisations_retirees)
         )
 
 
@@ -64,6 +73,11 @@ def resume_des_corrections(corrections: CorrectionsBulletin) -> str:
     if corrections.primes.retirees:
         n = len(corrections.primes.retirees)
         parties.append(f"{n} prime{'s' if n > 1 else ''} retirée{'s' if n > 1 else ''}")
+    for regul in corrections.regularisations_ajoutees:
+        parties.append(f"régularisation « {regul.libelle} » : {regul.motif}")
+    if corrections.regularisations_retirees:
+        n = len(corrections.regularisations_retirees)
+        parties.append(f"{n} régularisation{'s' if n > 1 else ''} retirée{'s' if n > 1 else ''}")
     if not parties:
         return "Notes modifiées"
     texte = ", ".join(parties)
@@ -143,7 +157,17 @@ def corrections_pour_revenir(
                     "catalog_prime_id": None,
                 }
             )
+    regul_courant = regularisations_du_bulletin(courant)
+    regul_cible = regularisations_du_bulletin(cible)
+    regularisations_retirees = tuple(sid for sid in regul_courant if sid not in regul_cible)
+    regularisations_ajoutees = tuple(
+        RegularisationCotisation.depuis({**regul.charge_utile()})
+        for sid, regul in regul_cible.items()
+        if sid not in regul_courant and sid not in saisies_existantes
+    )
     return CorrectionsBulletin(
         heures_sup=_heures_pour_revenir(courant, cible),
         primes=DiffPrimes(tuple(ajoutees), tuple(modifiees), retirees),
+        regularisations_ajoutees=regularisations_ajoutees,
+        regularisations_retirees=regularisations_retirees,
     )

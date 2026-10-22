@@ -9,6 +9,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.modules.payroll.engine.corrections_manuelles import (
+    RegularisationCotisation,
+    RegularisationInvalide,
+)
 from app.modules.payslips.domain.corrections import CorrectionsBulletin
 from app.modules.payslips.domain.primes_editees import DiffPrimes
 
@@ -64,8 +68,38 @@ class PrimeCorrigee(BaseModel):
     amount: float = Field(..., ge=-100_000, le=100_000)
 
 
+class RegularisationAjoutee(BaseModel):
+    """Une régularisation de cotisation saisie depuis le bulletin.
+
+    Le serveur calcule les montants d'une régularisation par la base. Il ne
+    reçoit un montant que pour une cotisation sans taux.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    coti_id: str = Field(..., min_length=1, max_length=80)
+    libelle: str = Field(..., min_length=1, max_length=160)
+    motif: str = Field(..., min_length=3, max_length=300)
+    base: float | None = Field(None, ge=-1_000_000, le=1_000_000)
+    taux_salarial: float | None = Field(None, ge=-1, le=1)
+    taux_patronal: float | None = Field(None, ge=-1, le=1)
+    montant_salarial: float | None = Field(None, ge=-100_000, le=100_000)
+    montant_patronal: float | None = Field(None, ge=-100_000, le=100_000)
+
+    @model_validator(mode="after")
+    def _regularisation_coherente(self) -> "RegularisationAjoutee":
+        try:
+            self.vers_domaine()
+        except RegularisationInvalide as exc:
+            raise ValueError(str(exc)) from exc
+        return self
+
+    def vers_domaine(self) -> RegularisationCotisation:
+        return RegularisationCotisation(**self.model_dump())
+
+
 class CorrectionsBulletinRequest(BaseModel):
-    """Ce qui se corrige depuis le bulletin : heures sup et primes du mois."""
+    """Ce qui se corrige depuis le bulletin : heures sup, primes et régularisations de cotisation du mois."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -74,6 +108,8 @@ class CorrectionsBulletinRequest(BaseModel):
     primes_ajoutees: list[PrimeAjoutee] = Field(default_factory=list, max_length=20)
     primes_corrigees: list[PrimeCorrigee] = Field(default_factory=list, max_length=50)
     primes_retirees: list[str] = Field(default_factory=list, max_length=50)
+    regularisations_ajoutees: list[RegularisationAjoutee] = Field(default_factory=list, max_length=20)
+    regularisations_retirees: list[str] = Field(default_factory=list, max_length=50)
 
     @model_validator(mode="after")
     def _pas_deux_consignes_contraires(self) -> "CorrectionsBulletinRequest":
@@ -104,6 +140,8 @@ class CorrectionsBulletinRequest(BaseModel):
                 ),
                 retirees=tuple(dict.fromkeys(self.primes_retirees)),
             ),
+            regularisations_ajoutees=tuple(r.vers_domaine() for r in self.regularisations_ajoutees),
+            regularisations_retirees=tuple(dict.fromkeys(self.regularisations_retirees)),
         )
 
 

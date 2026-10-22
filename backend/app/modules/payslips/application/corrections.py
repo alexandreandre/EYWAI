@@ -161,6 +161,27 @@ def _ecrire_variables(corrections: CorrectionsBulletin, periode: dict[str, Any])
         _declarer_heures_sup(periode, *corrections.heures_sup)
     if not corrections.primes.vide:
         appliquer_primes_editees(corrections.primes, **periode)
+    _ecrire_regularisations(corrections, periode)
+
+
+def _ecrire_regularisations(corrections: CorrectionsBulletin, periode: dict[str, Any]) -> None:
+    """Ajoute et retire les régularisations du mois.
+
+    Le retrait ne vise que les saisies de ce salarié et de ce mois : un
+    identifiant d'un autre bulletin ne supprime rien.
+    """
+    if corrections.regularisations_retirees:
+        (
+            supabase.table("monthly_inputs")
+            .delete()
+            .match(periode)
+            .in_("id", list(corrections.regularisations_retirees))
+            .execute()
+        )
+    if corrections.regularisations_ajoutees:
+        supabase.table("monthly_inputs").insert(
+            [regul.saisie_du_mois(periode) for regul in corrections.regularisations_ajoutees]
+        ).execute()
 
 
 # --- Notes ---
