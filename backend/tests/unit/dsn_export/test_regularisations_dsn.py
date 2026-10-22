@@ -55,3 +55,39 @@ def test_la_regularisation_ajoute_son_montant_et_son_assiette_et_garde_le_taux()
 
 def test_sans_regularisation_la_dsn_ne_change_pas():
     assert _cotisations([_maladie(2000.0)]) == _cotisations([_maladie(2000.0)])
+
+
+def test_une_regularisation_agirc_redéclare_la_part_patronale():
+    """Le code 131 porte le total, le 142 redéclare la part patronale."""
+    ligne = {
+        "coti_id": "retraite_comp_t1",
+        "libelle": "Retraite complémentaire tranche 1",
+        "base": 2000.0,
+        "taux_salarial": 0.0401,
+        "taux_patronal": 0.0601,
+        "montant_salarial": 80.2,
+        "montant_patronal": 120.2,
+    }
+    regul = RegularisationCotisation(
+        coti_id="retraite_comp_t1",
+        libelle="Retraite complémentaire tranche 1",
+        motif="Base oubliée",
+        base=10.0,
+        taux_salarial=0.0401,
+        taux_patronal=0.0601,
+    ).ligne_de_cotisation()
+    salarial, patronal = RegularisationCotisation(
+        coti_id="retraite_comp_t1",
+        libelle="Retraite complémentaire tranche 1",
+        motif="Base oubliée",
+        base=10.0,
+        taux_salarial=0.0401,
+        taux_patronal=0.0601,
+    ).montants()
+
+    def par_code(lignes):
+        return {c.code: c.montant_patronal for c in _cotisations(lignes)}
+
+    avant, apres = par_code([ligne]), par_code([ligne, regul])
+    assert round(apres["131"] - avant["131"], 2) == round(salarial + patronal, 2)
+    assert round(apres["142"] - avant["142"], 2) == round(patronal, 2)

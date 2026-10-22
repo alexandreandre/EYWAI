@@ -22,7 +22,8 @@ from piege import poser_le_piege  # noqa: E402
 poser_le_piege()
 
 from app.core.database import supabase  # noqa: E402
-from app.modules.dsn_export.domain.cotisation_mapping import build_bases_and_cotisations  # noqa: E402
+from app.core.lecture_seule import lecture_seule  # noqa: E402
+from app.modules.dsn_export.domain.cotisation_mapping import REGLES, build_bases_and_cotisations  # noqa: E402
 from app.modules.exports.domain.controle_comptable import residu_du_bulletin  # noqa: E402
 from app.modules.exports.infrastructure.export_ecritures_comptables import ligne_od_du_bulletin  # noqa: E402
 from app.modules.payroll.engine.corrections_manuelles import RegularisationCotisation  # noqa: E402
@@ -62,6 +63,38 @@ def _montants_dsn(payslip_data: dict) -> dict[str, float]:
     return sortie
 
 
+def _dsn_a_bouge(avant: dict[str, float], apres: dict[str, float], coti_id: str, salarial: float, patronal: float) -> bool:
+    """La somme des codes DSN bouge du montant de la régularisation.
+
+    Agirc-Arrco déclare le total sur le code 131 et redéclare la part patronale
+    sur 142 ou 146. Les deux bougent, donc la somme bouge du total plus cette part.
+    """
+    ecart = round(sum(apres.values()) - sum(avant.values()), 2)
+    attendu = round(salarial + patronal, 2)
+    regle = REGLES.get(coti_id)
+    if regle is not None and regle.code_patronal:
+        attendu = round(attendu + patronal, 2)
+    return abs(ecart - attendu) <= 0.02
+
+
+def _indemnites_suivies(payslip_data: dict) -> float:
+    """Primes que le moteur recalcule à partir du brut : précarité, IFM, congés de CDD."""
+    total = 0.0
+    for ligne in payslip_data.get("calcul_du_brut") or []:
+        if not isinstance(ligne, dict):
+            continue
+        libelle = str(ligne.get("libelle") or "").lower()
+        if "précarité" in libelle or "precarite" in libelle or "fin de mission" in libelle:
+            total += float(ligne.get("gain") or 0)
+    for ligne in payslip_data.get("details_conges") or []:
+        if not isinstance(ligne, dict):
+            continue
+        libelle = str(ligne.get("libelle") or "").lower()
+        if "indemnité compensatrice" in libelle or "indemnite compensatrice" in libelle:
+            total += float(ligne.get("gain") or 0)
+    return round(total, 2)
+
+
 def _residu(payslip_data: dict, employee: dict) -> float:
     ligne = ligne_od_du_bulletin(
         payslip_id="theoreme",
@@ -98,103 +131,111 @@ def main(societe: str, year: int, month: int, sortie: str) -> int:
     echecs = 0
     for bulletin in bulletins:
         employee_id = bulletin["employee_id"]
-        employee = supabase.table("employees").select("*").eq("id", employee_id).single().execute().data
-        cumuls = _cumuls_precedents(employee_id, year, month)
-        base = payslip_generator_provider.generate_en_bac_a_sable(
-            employee_id, year, month, cumuls_precedents=cumuls
-        )
-        data0 = base["payslip_data"]
-        dsn0, residu0 = _montants_dsn(data0), _residu(data0, employee)
-        vus: set[str] = set()
-        for ligne in _lignes(data0):
-            if not ligne.get("coti_id") or ligne.get("is_participation") or ligne.get("is_ppv"):
-                continue
-            if ligne["coti_id"] in vus:
-                continue
-            vus.add(ligne["coti_id"])
-            regul = _regularisation(ligne)
-            saisie = {
-                **regul.saisie_du_mois(
-                    {"employee_id": employee_id, "company_id": company["id"], "year": year, "month": month}
-                ),
-                "id": "theoreme",
-            }
-            res = payslip_generator_provider.generate_en_bac_a_sable(
-                employee_id, year, month, cumuls_precedents=cumuls, saisies_en_plus=(saisie,)
-            )
-            data1 = res["payslip_data"]
-            salarial, patronal = regul.montants()
-            constats = {
-                "ligne": any(item.get("regularisation") for item in _lignes(data1)),
-                "total_salarial": abs(
-                    data1["structure_cotisations"]["total_salarial"]
-                    - data0["structure_cotisations"]["total_salarial"]
-                    - salarial
-                )
-                < 0.005,
-                "residu": abs(_residu(data1, employee) - residu0) < 0.005,
-            }
-            if ligne["coti_id"] == "reduction_generale":
-                cumul0 = (base.get("cumuls") or {}).get("cumuls", {}).get("reduction_generale_patronale", 0)
-                cumul1 = (res.get("cumuls") or {}).get("cumuls", {}).get("reduction_generale_patronale", 0)
-                constats["cumul_reduction"] = abs(cumul1 - cumul0 - patronal) < 0.005
-            dsn1 = _montants_dsn(data1)
-            ecart_dsn = round(sum(dsn1.values()) - sum(dsn0.values()), 2)
-            constats["dsn"] = abs(ecart_dsn - round(salarial + patronal, 2)) <= 0.02
-            ok = all(constats.values())
-            echecs += 0 if ok else 1
-            rapport.append({"salarie": employee_id, "coti_id": ligne["coti_id"], "ok": ok, **constats})
-            print(("OK  " if ok else "ECHEC"), employee_id[:8], ligne["coti_id"], constats if not ok else "")
-        periode = {"employee_id": employee_id, "company_id": company["id"], "year": year, "month": month}
-        cas = {
-            "gain soumis": (
-                {
-                    **periode,
-                    "id": "theoreme-gain",
-                    "name": "Régularisation – gain",
-                    "amount": 10.0,
-                    "is_socially_taxed": True,
-                    "is_taxable": True,
-                },
-                "brut",
-                10.0,
-            ),
-            "retenue sur le net": (
-                {
-                    **periode,
-                    "id": "theoreme-retenue",
-                    "name": "Régularisation – retenue",
-                    "amount": -10.0,
-                    "sur_le_net": True,
-                    "is_socially_taxed": False,
-                    "is_taxable": False,
-                },
-                "net",
-                -10.0,
-            ),
-        }
-        for nom, (saisie, cle, attendu) in cas.items():
-            res = payslip_generator_provider.generate_en_bac_a_sable(
-                employee_id, year, month, cumuls_precedents=cumuls, saisies_en_plus=(saisie,)
-            )
-            data1 = res["payslip_data"]
-            champ = "salaire_brut" if cle == "brut" else "net_a_payer"
-            constats = {
-                cle: abs(float(data1[champ]) - float(data0[champ]) - attendu) < 0.005,
-                "residu": abs(_residu(data1, employee) - residu0) < 0.005,
-            }
-            if cle == "brut":
-                brut0 = (base.get("cumuls") or {}).get("cumuls", {}).get("brut_total", 0)
-                brut1 = (res.get("cumuls") or {}).get("cumuls", {}).get("brut_total", 0)
-                constats["cumul_brut"] = abs(brut1 - brut0 - attendu) < 0.005
-            ok = all(constats.values())
-            echecs += 0 if ok else 1
-            rapport.append({"salarie": employee_id, "cas": nom, "ok": ok, **constats})
-            print(("OK  " if ok else "ECHEC"), employee_id[:8], nom, constats if not ok else "")
+        print(f"salarie {employee_id[:8]}", flush=True)
+        with lecture_seule():
+            _un_salarie(company["id"], employee_id, year, month, rapport)
+    echecs = sum(1 for cas in rapport if not cas["ok"])
     with open(sortie, "w", encoding="utf-8") as fichier:
         json.dump(rapport, fichier, ensure_ascii=False, indent=1)
-    print(f"{len(rapport)} cas, {echecs} échec(s)")
+    print(f"{len(rapport)} cas, {echecs} échec(s)", flush=True)
     return 1 if echecs else 0
+
+
+def _noter(rapport: list[dict], employee_id: str, ok: bool, **constats: object) -> None:
+    rapport.append({"salarie": employee_id, "ok": ok, **constats})
+    print(("OK  " if ok else "ECHEC"), employee_id[:8], constats.get("coti_id") or constats.get("cas"), constats if not ok else "", flush=True)
+
+
+def _un_salarie(company_id: str, employee_id: str, year: int, month: int, rapport: list[dict]) -> None:
+    employee = supabase.table("employees").select("*").eq("id", employee_id).single().execute().data
+    cumuls = _cumuls_precedents(employee_id, year, month)
+    base = payslip_generator_provider.generate_en_bac_a_sable(
+        employee_id, year, month, cumuls_precedents=cumuls
+    )
+    data0 = base["payslip_data"]
+    dsn0, residu0 = _montants_dsn(data0), _residu(data0, employee)
+    vus: set[str] = set()
+    for ligne in _lignes(data0):
+        if not ligne.get("coti_id") or ligne.get("is_participation") or ligne.get("is_ppv"):
+            continue
+        if ligne["coti_id"] in vus:
+            continue
+        vus.add(ligne["coti_id"])
+        regul = _regularisation(ligne)
+        saisie = {
+            **regul.saisie_du_mois(
+                {"employee_id": employee_id, "company_id": company_id, "year": year, "month": month}
+            ),
+            "id": "theoreme",
+        }
+        res = payslip_generator_provider.generate_en_bac_a_sable(
+            employee_id, year, month, cumuls_precedents=cumuls, saisies_en_plus=(saisie,)
+        )
+        data1 = res["payslip_data"]
+        salarial, patronal = regul.montants()
+        constats = {
+            "ligne": any(item.get("regularisation") for item in _lignes(data1)),
+            "total_salarial": abs(
+                data1["structure_cotisations"]["total_salarial"]
+                - data0["structure_cotisations"]["total_salarial"]
+                - salarial
+            )
+            < 0.005,
+            "residu": abs(_residu(data1, employee) - residu0) < 0.005,
+        }
+        if ligne["coti_id"] == "reduction_generale":
+            cumul0 = (base.get("cumuls") or {}).get("cumuls", {}).get("reduction_generale_patronale", 0)
+            cumul1 = (res.get("cumuls") or {}).get("cumuls", {}).get("reduction_generale_patronale", 0)
+            constats["cumul_reduction"] = abs(cumul1 - cumul0 - patronal) < 0.005
+        constats["dsn"] = _dsn_a_bouge(_montants_dsn(data0), _montants_dsn(data1), ligne["coti_id"], salarial, patronal)
+        _noter(rapport, employee_id, all(constats.values()), coti_id=ligne["coti_id"], **constats)
+    periode = {"employee_id": employee_id, "company_id": company_id, "year": year, "month": month}
+    cas = {
+        "gain soumis": (
+            {
+                **periode,
+                "id": "theoreme-gain",
+                "name": "Régularisation – gain",
+                "amount": 10.0,
+                "is_socially_taxed": True,
+                "is_taxable": True,
+            },
+            "brut",
+            10.0,
+        ),
+        "retenue sur le net": (
+            {
+                **periode,
+                "id": "theoreme-retenue",
+                "name": "Régularisation – retenue",
+                "amount": -10.0,
+                "sur_le_net": True,
+                "is_socially_taxed": False,
+                "is_taxable": False,
+            },
+            "net",
+            -10.0,
+        ),
+    }
+    for nom, (saisie, cle, attendu) in cas.items():
+        res = payslip_generator_provider.generate_en_bac_a_sable(
+            employee_id, year, month, cumuls_precedents=cumuls, saisies_en_plus=(saisie,)
+        )
+        data1 = res["payslip_data"]
+        champ = "salaire_brut" if cle == "brut" else "net_a_payer"
+        mouvement = attendu
+        if cle == "brut":
+            # Un CDD recalcule la précarité et l'indemnité de congés sur ce gain.
+            mouvement = round(attendu + _indemnites_suivies(data1) - _indemnites_suivies(data0), 2)
+        constats = {
+            cle: abs(float(data1[champ]) - float(data0[champ]) - mouvement) < 0.005,
+            "residu": abs(_residu(data1, employee) - residu0) < 0.005,
+        }
+        if cle == "brut":
+            brut0 = (base.get("cumuls") or {}).get("cumuls", {}).get("brut_total", 0)
+            brut1 = (res.get("cumuls") or {}).get("cumuls", {}).get("brut_total", 0)
+            constats["cumul_brut"] = abs(brut1 - brut0 - (float(data1[champ]) - float(data0[champ]))) < 0.005
+        _noter(rapport, employee_id, all(constats.values()), cas=nom, **constats)
 
 
 if __name__ == "__main__":
