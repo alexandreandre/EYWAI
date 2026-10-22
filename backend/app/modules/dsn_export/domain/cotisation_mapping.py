@@ -214,6 +214,9 @@ class LigneDsn:
     # Ne se cumule qu'avec une ligne de même taux, en additionnant les
     # assiettes (forfait social : 8 % et 20 % restent deux lignes).
     par_taux: bool = False
+    # Régularisation saisie à la main : se fond dans la ligne de même code en
+    # ajoutant son montant et son assiette, jamais son taux.
+    regularisation: bool = False
 
 
 # --------------------------------------------------------------------------
@@ -731,6 +734,10 @@ def _cumuler(lignes: List[LigneDsn]) -> List[LigneDsn]:
             cumulees[cle] = ligne
             ordre.append(ligne)
             continue
+        if ligne.regularisation:
+            existante.montant = round(existante.montant + ligne.montant, 2)
+            existante.assiette = round(existante.assiette + ligne.assiette, 2)
+            continue
         existante.montant = round(existante.montant + ligne.montant, 2)
         if ligne.par_taux:
             existante.assiette = round(existante.assiette + ligne.assiette, 2)
@@ -785,7 +792,13 @@ def build_bases_and_cotisations(
             continue  # traitées en bloc plus bas
         if coti_id in COTI_ID_NON_INDIVIDUELS:
             continue  # déclarées au niveau de l'établissement, pas du salarié
-        traduites = _traduire(ligne, tmax, assiette_hs, brut)
+        est_regularisation = bool(ligne.get("regularisation"))
+        # Une régularisation de la réduction générale ne redéclare pas le brut
+        # en assiette : elle n'ajoute que son montant.
+        traduites = _traduire(ligne, tmax, assiette_hs, 0.0 if est_regularisation else brut)
+        if est_regularisation:
+            for traduite in traduites:
+                traduite.regularisation = True
         if traduites:
             produites.extend(traduites)
             continue
