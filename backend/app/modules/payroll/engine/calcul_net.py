@@ -123,18 +123,23 @@ def _part_patronale_mutuelle_du_bulletin(
     existent. Sans ligne de mutuelle sur le bulletin — stagiaire sous la
     franchise, dont `calculer_cotisations` sort avant la mutuelle —, rien à
     réintégrer : 600 € de gratification n'ont pas à devenir 617,62 € imposables.
-    Un salarié dont le bulletin porte sa mutuelle garde la valeur de la fiche."""
+    Un salarié dont le bulletin porte sa mutuelle garde la valeur de la fiche.
+    Une régularisation saisie à la main s'ajoute à ce plafond : elle corrige
+    ce que le bulletin a vraiment versé."""
+    mutuelle = [ligne for ligne in lignes_cotisations if ligne.get("coti_id") == "mutuelle"]
     calculee = round(
-        sum(
-            _get_safe_float(ligne.get("montant_patronal"))
-            for ligne in lignes_cotisations
-            if ligne.get("coti_id") == "mutuelle"
-        ),
+        sum(_get_safe_float(ligne.get("montant_patronal")) for ligne in mutuelle if not ligne.get("regularisation")),
         2,
     )
-    if calculee <= 0:
-        return 0.0
-    return min(_get_part_patronale_mutuelle(contexte), calculee)
+    regularisee = round(
+        sum(_get_safe_float(ligne.get("montant_patronal")) for ligne in mutuelle if ligne.get("regularisation")),
+        2,
+    )
+    fiche = _get_part_patronale_mutuelle(contexte)
+    reintegree = min(fiche, calculee) if calculee > 0 else 0.0
+    if regularisee and fiche > 0:
+        reintegree += regularisee
+    return round(max(0.0, reintegree), 2)
 
 
 def _get_part_salariale_mutuelle_non_deductible(contexte: ContextePaie) -> float:
