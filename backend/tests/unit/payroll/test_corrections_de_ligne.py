@@ -17,6 +17,7 @@ from app.modules.payroll.engine.corrections_manuelles import (
     RegularisationCotisation,
     corriger_la_reduction_generale,
     corriger_le_taux_d_impot,
+    corriger_les_lignes_de_cotisation,
     corriger_les_lignes_de_gain,
     poser_les_corrections_en_attente,
     ranger_correction_manuelle,
@@ -291,3 +292,107 @@ def test_les_corrections_en_attente_vont_sur_le_bulletin_et_seulement_elles():
     assert CLE_CORRECTIONS_EN_ATTENTE not in bulletin
     poser_les_corrections_en_attente(bulletin, JournalDesCorrections([_c(base=160.0)]))
     assert bulletin[CLE_CORRECTIONS_EN_ATTENTE][0]["saisie_id"] == "s1"
+
+
+# --- Le journal ne se consomme pas : idempotent et jamais silencieux --------
+
+
+def _maladie():
+    return {"coti_id": "securite_sociale_maladie", "libelle": "Maladie", "base": 2000.0,
+            "taux_salarial": 0.0, "taux_patronal": 0.07, "montant_salarial": 0.0, "montant_patronal": 140.0}
+
+
+def test_un_second_calcul_avec_le_meme_journal_corrige_ses_lignes_a_l_identique():
+    journal = JournalDesCorrections([_c(base=160.0)])
+    premier = LignesCorrigees(journal, BLOC_BRUT, [_salaire_de_base()])
+    second = LignesCorrigees(journal, BLOC_BRUT, [_salaire_de_base()])
+    assert second[0] == premier[0] and second[0]["quantite"] == 160.0
+    assert second.effet.corrigees == 1 and second.effet.quantite("brut:salaire_base") == pytest.approx(8.33)
+    assert journal.en_attente() == []
+
+
+def test_un_second_calcul_retrouve_le_taux_d_impot_et_la_reduction_generale():
+    rg = "cotisation:reduction_generale"
+    journal = JournalDesCorrections([
+        _c(ligne="impot", libelle="Impôt sur le revenu prélevé à la source", taux=7.5, saisie_id="i1"),
+        _c(ligne=rg, libelle="Réduction générale de cotisations patronales", montant_patronal=-250.0, saisie_id="r1"),
+    ])
+    assert corriger_le_taux_d_impot(5.2, 2000.0, journal) == corriger_le_taux_d_impot(5.2, 2000.0, journal)
+    assert corriger_le_taux_d_impot(5.2, 2000.0, journal)[0] == 7.5
+    premiere = corriger_la_reduction_generale(_rg(), journal, reduction_deja=2400.0)
+    seconde = corriger_la_reduction_generale(_rg(), journal, reduction_deja=2400.0)
+    assert seconde == premiere and seconde["montant_patronal"] == -250.0
+    assert journal.en_attente() == []
+
+
+def test_une_ligne_qui_porte_sa_correction_ne_la_prend_pas_deux_fois():
+    journal = JournalDesCorrections([_c(base=160.0)])
+    lignes = LignesCorrigees(journal, BLOC_BRUT, [_salaire_de_base()])
+    effet = corriger_les_lignes_de_gain(lignes, journal)
+    assert effet.corrigees == 0
+    assert lignes[0]["valeur_calculee"] == {"quantite": 151.67, "taux": 16.4832, "gain": 2500.0, "perte": None}
+
+
+def test_un_second_calcul_ne_pose_jamais_l_autre_correction_de_la_meme_ligne():
+    journal = JournalDesCorrections([_c(base=160.0), _c(base=170.0, saisie_id="s2")])
+    LignesCorrigees(journal, BLOC_BRUT, [_salaire_de_base()])
+    second = LignesCorrigees(journal, BLOC_BRUT, [_salaire_de_base()])
+    assert second[0]["quantite"] == 160.0 and second[0]["correction"]["saisie_id"] == "s1"
+    attente = journal.en_attente()
+    assert [e["saisie_id"] for e in attente] == ["s2"] and "autre correction" in attente[0]["raison"]
+
+
+def test_une_ligne_de_gain_retouchee_apres_son_entree_retrouve_sa_correction():
+    journal = JournalDesCorrections([_c(base=160.0)])
+    lignes = LignesCorrigees(journal, BLOC_BRUT, [_salaire_de_base()])
+    lignes[0]["gain"] = 2600.0  # le calcul retouche la ligne après son entrée
+    effet = corriger_les_lignes_de_gain(lignes, journal)
+    voulu = round(160.0 * 16.4832, 2)
+    assert lignes[0]["gain"] == voulu and lignes[0]["quantite"] == 160.0
+    # La valeur retouchée est désormais celle de Martine ; le reste de son calcul est gardé.
+    assert lignes[0]["valeur_calculee"] == {"quantite": 151.67, "taux": 16.4832, "gain": 2600.0, "perte": None}
+    assert effet.corrigees == 1 and effet.sur_le_brut("brut:salaire_base") == round(voulu - 2600.0, 2)
+    assert effet.quantite("brut:salaire_base") == 0.0
+
+
+def test_une_cotisation_retouchee_apres_son_entree_retrouve_sa_correction():
+    code = "cotisation:securite_sociale_maladie"
+    journal = JournalDesCorrections([_c(ligne=code, libelle="Maladie", base=2100.0)])
+    lignes = LignesCorrigees(journal, BLOC_COTISATIONS, [_maladie()])
+    lignes[0]["montant_patronal"] = 150.0
+    effet = corriger_les_lignes_de_cotisation(lignes, journal)
+    assert lignes[0]["montant_patronal"] == 147.0 and lignes[0]["base"] == 2100.0
+    assert lignes[0]["valeur_calculee"]["montant_patronal"] == 150.0
+    assert lignes[0]["valeur_calculee"]["base"] == 2000.0
+    assert (effet.salarial, effet.patronal) == (0.0, -3.0)
+
+
+def test_une_correction_posee_par_un_calcul_abandonne_finit_en_attente():
+    journal = JournalDesCorrections([_c(base=160.0)])
+    LignesCorrigees(journal, BLOC_BRUT, [_salaire_de_base()])  # calcul abandonné
+    bulletin = {"calcul_du_brut": [{"libelle": "Avantages en nature", "quantite": None, "taux": None,
+                                    "gain": 120.0, "perte": None}]}
+    poser_les_corrections_en_attente(bulletin, journal)
+    assert bulletin[CLE_CORRECTIONS_EN_ATTENTE] == [{**_c(base=160.0).trace(), "raison": RAISON_LIGNE_ABSENTE}]
+
+
+def test_une_correction_que_le_bulletin_porte_n_est_pas_en_attente():
+    journal = JournalDesCorrections([_c(base=160.0)])
+    lignes = LignesCorrigees(journal, BLOC_BRUT, [_salaire_de_base()])
+    bulletin = {"calcul_du_brut": list(lignes)}
+    poser_les_corrections_en_attente(bulletin, journal)
+    assert CLE_CORRECTIONS_EN_ATTENTE not in bulletin
+
+
+def test_une_correction_posee_sur_un_autre_doublon_que_le_sien_finit_en_attente():
+    code = "cotisation:mutuelle:mutuelle"
+    mutuelle = {"coti_id": "mutuelle", "libelle": "Mutuelle", "base": None, "taux_salarial": None,
+                "taux_patronal": None, "montant_salarial": 20.0, "montant_patronal": 30.0}
+    journal = JournalDesCorrections([_c(ligne=f"{code}#2", libelle="Mutuelle", montant_salarial=22.5)])
+    lignes = LignesCorrigees(journal, BLOC_COTISATIONS, [dict(mutuelle), dict(mutuelle)])
+    assert lignes[1]["montant_salarial"] == 22.5
+    # Le bulletin range les deux mutuelles dans l'autre ordre : la ligne corrigée y devient la première.
+    bulletin = {"cotisations_officielles": [{"lignes": [lignes[1], lignes[0]]}]}
+    poser_les_corrections_en_attente(bulletin, journal)
+    attente = bulletin[CLE_CORRECTIONS_EN_ATTENTE]
+    assert [e["ligne"] for e in attente] == [f"{code}#2"] and attente[0]["raison"] != RAISON_LIGNE_ABSENTE

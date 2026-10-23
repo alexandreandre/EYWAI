@@ -19,7 +19,7 @@ reste en attente sur le bulletin.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Mapping
+from typing import Any, Collection, Iterable, Mapping
 
 from app.modules.payroll.engine.codes_des_lignes import (
     BLOC_BRUT,
@@ -247,6 +247,14 @@ RAISON_LIGNE_ABSENTE = (
     "correction ou reportez-la sur une autre ligne."
 )
 
+RAISON_DEUX_CORRECTIONS = (
+    "Une autre correction vise déjà cette ligne : retirez l'une des deux."
+)
+RAISON_LIGNE_DEPLACEE = (
+    "La correction s'est posée sur une autre ligne de même libellé : vérifiez la "
+    "ligne, retirez la correction et refaites-la."
+)
+
 #: Comment la ligne se corrige, pour les messages.
 PAR_MODE = {
     MODE_BASE_OU_TAUX: "sa base ou son taux",
@@ -340,6 +348,11 @@ class CorrectionDeLigne:
         return bloc_du_code(self.ligne) or ""
 
     @property
+    def cle(self) -> tuple[str, str]:
+        """La saisie qui porte la correction et la ligne qu'elle vise."""
+        return cle_de_correction(self.trace())
+
+    @property
     def champs(self) -> frozenset[str]:
         return frozenset(nom for nom in _VALEURS if getattr(self, nom) is not None)
 
@@ -388,6 +401,11 @@ class CorrectionDeLigne:
             "is_taxable": False,
             "correction_ligne": self.charge_utile(),
         }
+
+
+def cle_de_correction(trace: Mapping[str, Any]) -> tuple[str, str]:
+    """La clé d'une correction, lue sur sa trace : la saisie qui la porte et la ligne qu'elle vise."""
+    return (str(trace.get("saisie_id") or ""), str(trace.get("ligne") or ""))
 
 
 def est_correction_de_ligne(saisie: Mapping[str, Any]) -> bool:
@@ -446,9 +464,15 @@ class EffetDesCorrections:
         return round(sum((self._brut.get(f, 0.0) for f in familles), 0.0), 2)
 
 
-def _corriger_un_gain(ligne: dict[str, Any], correction: CorrectionDeLigne) -> EffetUnitaire:
+#: Les valeurs d'une ligne qu'une correction peut changer ; `valeur_calculee` les garde.
+_VALEURS_DE_LIGNE = {
+    BLOC_BRUT: ("quantite", "taux", "gain", "perte"),
+    BLOC_COTISATIONS: ("base", "taux_salarial", "taux_patronal", "montant_salarial", "montant_patronal"),
+}
+
+
+def _corriger_un_gain(ligne: dict[str, Any], correction: CorrectionDeLigne) -> None:
     champ = champ_du_montant(ligne)
-    avant = {cle: ligne.get(cle) for cle in ("quantite", "taux", "gain", "perte")}
     if correction.montant is not None:
         ligne[champ] = round(float(correction.montant), 2)
     else:
@@ -457,53 +481,87 @@ def _corriger_un_gain(ligne: dict[str, Any], correction: CorrectionDeLigne) -> E
         ligne["quantite"] = quantite
         ligne["taux"] = taux
         ligne[champ] = round(float(quantite) * float(taux), 2)
-    ligne["valeur_calculee"] = avant
-    ligne["correction"] = correction.trace()
-    signe = 1.0 if champ == "gain" else -1.0
-    return EffetUnitaire(
-        famille=famille_du_code(correction.ligne),
-        quantite=_zero_si_vide(ligne.get("quantite")) - _zero_si_vide(avant["quantite"]),
-        brut=round(signe * (_zero_si_vide(ligne[champ]) - _zero_si_vide(avant[champ])), 2),
-    )
 
 
-def _corriger_une_cotisation(ligne: dict[str, Any], correction: CorrectionDeLigne) -> EffetUnitaire:
-    cles = ("base", "taux_salarial", "taux_patronal", "montant_salarial", "montant_patronal")
-    avant = {cle: ligne.get(cle) for cle in cles}
+def _corriger_une_cotisation(ligne: dict[str, Any], correction: CorrectionDeLigne) -> None:
     if correction.par_montant:
         if correction.montant_salarial is not None:
             ligne["montant_salarial"] = round(float(correction.montant_salarial), 2)
         if correction.montant_patronal is not None:
             ligne["montant_patronal"] = round(float(correction.montant_patronal), 2)
-    else:
-        base = correction.base if correction.base is not None else _zero_si_vide(ligne.get("base"))
-        if correction.taux_salarial is not None:
-            ligne["taux_salarial"] = correction.taux_salarial
-        if correction.taux_patronal is not None:
-            ligne["taux_patronal"] = correction.taux_patronal
-        ligne["base"] = base
-        # Le même arrondi que `calcul_cotisations._calculer_une_ligne`.
-        if ligne.get("taux_salarial") is not None:
-            ligne["montant_salarial"] = round(float(base) * float(ligne["taux_salarial"]), 2)
-        if ligne.get("taux_patronal") is not None:
-            ligne["montant_patronal"] = round(float(base) * float(ligne["taux_patronal"]), 2)
-    ligne["valeur_calculee"] = avant
-    ligne["correction"] = correction.trace()
+        return
+    base = correction.base if correction.base is not None else _zero_si_vide(ligne.get("base"))
+    if correction.taux_salarial is not None:
+        ligne["taux_salarial"] = correction.taux_salarial
+    if correction.taux_patronal is not None:
+        ligne["taux_patronal"] = correction.taux_patronal
+    ligne["base"] = base
+    # Le même arrondi que `calcul_cotisations._calculer_une_ligne`.
+    if ligne.get("taux_salarial") is not None:
+        ligne["montant_salarial"] = round(float(base) * float(ligne["taux_salarial"]), 2)
+    if ligne.get("taux_patronal") is not None:
+        ligne["montant_patronal"] = round(float(base) * float(ligne["taux_patronal"]), 2)
+
+
+def _effet(
+    bloc: str, correction: CorrectionDeLigne, avant: Mapping[str, Any], ligne: Mapping[str, Any]
+) -> EffetUnitaire:
+    """Ce que la ligne a changé depuis `avant` : quantité et brut d'un gain, parts d'une cotisation."""
+
+    def ecart(cle: str) -> float:
+        return _zero_si_vide(ligne.get(cle)) - _zero_si_vide(avant.get(cle))
+
+    famille = famille_du_code(correction.ligne)
+    if bloc == BLOC_BRUT:
+        return EffetUnitaire(famille=famille, quantite=ecart("quantite"), brut=round(ecart("gain") - ecart("perte"), 2))
     return EffetUnitaire(
-        famille=famille_du_code(correction.ligne),
-        salarial=round(_zero_si_vide(ligne.get("montant_salarial")) - _zero_si_vide(avant["montant_salarial"]), 2),
-        patronal=round(_zero_si_vide(ligne.get("montant_patronal")) - _zero_si_vide(avant["montant_patronal"]), 2),
+        famille=famille, salarial=round(ecart("montant_salarial"), 2), patronal=round(ecart("montant_patronal"), 2)
     )
 
 
+def _appliquer(ligne: dict[str, Any], bloc: str, correction: CorrectionDeLigne) -> EffetUnitaire:
+    """Pose la correction ; la ligne garde la valeur que Martine avait calculée."""
+    avant = {cle: ligne.get(cle) for cle in _VALEURS_DE_LIGNE[bloc]}
+    if bloc == BLOC_BRUT:
+        _corriger_un_gain(ligne, correction)
+    else:
+        _corriger_une_cotisation(ligne, correction)
+    ligne["valeur_calculee"] = avant
+    ligne["correction"] = correction.trace()
+    return _effet(bloc, correction, avant, ligne)
+
+
+def _cle_portee(ligne: Mapping[str, Any]) -> tuple[str, str] | None:
+    portee = ligne.get("correction")
+    return cle_de_correction(portee) if isinstance(portee, Mapping) else None
+
+
 class JournalDesCorrections:
-    """Les corrections du mois, et ce que le calcul en a fait."""
+    """Les corrections du mois, et ce que le calcul en a fait.
+
+    Le journal ne se consomme pas. Chaque calcul qui pose ses lignes y retrouve
+    les mêmes corrections : un second calcul avec le même contexte les rejoue à
+    l'identique. Une ligne qui porte déjà sa correction ne la prend jamais deux
+    fois ; retouchée par le calcul après son entrée, elle la retrouve. Une
+    correction qu'aucune ligne du bulletin ne porte finit en attente (règle 7).
+    """
 
     def __init__(self, corrections: Iterable[CorrectionDeLigne]) -> None:
-        self._a_poser: dict[str, list[CorrectionDeLigne]] = {}
+        self._corrections: list[CorrectionDeLigne] = []
+        self._par_cle: dict[tuple[str, str], CorrectionDeLigne] = {}
+        self._par_code: dict[str, CorrectionDeLigne] = {}
+        self._raisons: dict[tuple[str, str], str] = {}
+        self._posees: set[tuple[str, str]] = set()
         for correction in corrections:
-            self._a_poser.setdefault(correction.ligne, []).append(correction)
-        self._refusees: list[tuple[CorrectionDeLigne, str]] = []
+            if correction.cle in self._par_cle:
+                continue  # la même saisie, lue deux fois
+            self._corrections.append(correction)
+            self._par_cle[correction.cle] = correction
+            if correction.ligne in self._par_code:
+                # Une correction par ligne (décision 11) : la seconde attend qu'on en retire une.
+                self._raisons[correction.cle] = RAISON_DEUX_CORRECTIONS
+            else:
+                self._par_code[correction.ligne] = correction
 
     @classmethod
     def depuis(cls, saisie_du_mois: Mapping[str, Any]) -> JournalDesCorrections | None:
@@ -513,25 +571,31 @@ class JournalDesCorrections:
         return cls(CorrectionDeLigne.depuis(entree) for entree in entrees)
 
     def prendre(self, code: str | None) -> CorrectionDeLigne | None:
-        if not code:
-            return None
-        file = self._a_poser.get(code)
-        if not file:
-            return None
-        correction = file.pop(0)
-        if not file:
-            del self._a_poser[code]
-        return correction
+        """La correction qui vise ce code. Elle reste au journal : un autre calcul la retrouve."""
+        return self._par_code.get(code) if code else None
 
     def refuser(self, correction: CorrectionDeLigne, raison: str) -> None:
-        self._refusees.append((correction, raison))
+        self._raisons[correction.cle] = raison
 
-    def corriger(self, ligne: Any, bloc: str, code: str | None) -> EffetUnitaire | None:
-        """Pose sur la ligne la correction qui la vise, s'il y en a une."""
-        if not isinstance(ligne, dict) or ligne.get("correction") is not None:
+    def noter_posee(self, correction: CorrectionDeLigne) -> None:
+        self._posees.add(correction.cle)
+
+    def corriger(
+        self, ligne: Any, bloc: str, code: str | None, deja: Collection[tuple[str, str]] = ()
+    ) -> EffetUnitaire | None:
+        """Pose sur la ligne la correction qui la vise, s'il y en a une.
+
+        `deja` : les corrections que d'autres lignes du même lot portent déjà ;
+        elles ne se posent pas une seconde fois.
+        """
+        if not isinstance(ligne, dict):
             return None
+        if ligne.get("correction") is not None:
+            cle = _cle_portee(ligne)
+            correction = self._par_cle.get(cle) if cle else None
+            return None if correction is None else self._reaffirmer(ligne, bloc, correction)
         correction = self.prendre(code)
-        if correction is None:
+        if correction is None or correction.cle in deja:
             return None
         mode, raison = mode_de_correction(bloc, ligne, code)
         if mode is None:
@@ -540,14 +604,53 @@ class JournalDesCorrections:
         if not correction.convient(mode):
             self.refuser(correction, f"La ligne se corrige par {PAR_MODE[mode]} : refaites la correction.")
             return None
-        if bloc == BLOC_BRUT:
-            return _corriger_un_gain(ligne, correction)
-        return _corriger_une_cotisation(ligne, correction)
+        self.noter_posee(correction)
+        return _appliquer(ligne, bloc, correction)
 
-    def en_attente(self) -> list[dict[str, Any]]:
-        """Les corrections qui n'ont pas trouvé leur ligne, avec la raison."""
-        restantes = [(c, RAISON_LIGNE_ABSENTE) for file in self._a_poser.values() for c in file]
-        return [{**c.trace(), "raison": raison} for c, raison in [*self._refusees, *restantes]]
+    def _reaffirmer(self, ligne: dict[str, Any], bloc: str, correction: CorrectionDeLigne) -> EffetUnitaire | None:
+        """Une ligne qui porte déjà sa correction ne la prend pas deux fois.
+
+        Si le calcul l'a retouchée après son entrée, ce qu'il a retouché devient
+        la valeur de Martine, et la correction se pose à nouveau par-dessus.
+        """
+        self.noter_posee(correction)
+        cles = _VALEURS_DE_LIGNE.get(bloc)
+        if cles is None:
+            return None
+        martine = dict(ligne.get("valeur_calculee") or {})
+        posee = {**ligne, **martine}
+        _appliquer(posee, bloc, correction)
+        retouchees = {cle: ligne.get(cle) for cle in cles if ligne.get(cle) != posee.get(cle)}
+        if not retouchees:
+            return None
+        avant = {cle: ligne.get(cle) for cle in cles}
+        ligne.update({**martine, **retouchees})
+        _appliquer(ligne, bloc, correction)
+        return _effet(bloc, correction, avant, ligne)
+
+    def en_attente(self, portees: Mapping[tuple[str, str], Collection[str]] | None = None) -> list[dict[str, Any]]:
+        """Les corrections qui n'ont pas trouvé leur ligne, avec la raison.
+
+        Sans `portees`, celles que le calcul n'a posées sur aucune ligne. Avec
+        les codes des lignes du bulletin qui portent chaque correction, celles
+        que le bulletin ne porte pas sous leur code : c'est lui qui fait foi.
+        """
+        sortie = []
+        for correction in self._corrections:
+            cle = correction.cle
+            raison = self._raisons.get(cle)
+            if raison != RAISON_DEUX_CORRECTIONS:
+                if portees is None:
+                    if cle in self._posees:
+                        continue
+                    raison = raison or RAISON_LIGNE_ABSENTE
+                else:
+                    codes = portees.get(cle) or ()
+                    if correction.ligne in codes:
+                        continue
+                    raison = RAISON_LIGNE_DEPLACEE if codes else (raison or RAISON_LIGNE_ABSENTE)
+            sortie.append({**correction.trace(), "raison": raison})
+        return sortie
 
 
 def journal_du_contexte(contexte: Any) -> JournalDesCorrections | None:
@@ -570,12 +673,17 @@ class LignesCorrigees(list):
         self.bloc = bloc
         self.effet = EffetDesCorrections()
         self._numeros = Numerotation()
+        self._portees: set[tuple[str, str]] = set()
         for ligne in lignes:
             self.append(ligne)
 
     def _poser(self, ligne: Any) -> Any:
         if self.journal is not None and isinstance(ligne, dict):
-            self.effet.ajouter(self.journal.corriger(ligne, self.bloc, self._numeros.code(self.bloc, ligne)))
+            code = self._numeros.code(self.bloc, ligne)
+            self.effet.ajouter(self.journal.corriger(ligne, self.bloc, code, self._portees))
+            cle = _cle_portee(ligne)
+            if cle:
+                self._portees.add(cle)
         return ligne
 
     def append(self, ligne: Any) -> None:
@@ -597,10 +705,15 @@ def _corriger_les_lignes(lignes: Iterable[Any], journal: JournalDesCorrections |
     effet = EffetDesCorrections()
     if journal is None:
         return effet
+    lignes = [ligne for ligne in lignes if isinstance(ligne, dict)]
+    # Une correction qu'une ligne du lot porte déjà ne se pose pas sur une autre.
+    portees = {cle for cle in map(_cle_portee, lignes) if cle}
     numeros = Numerotation()
     for ligne in lignes:
-        if isinstance(ligne, dict):
-            effet.ajouter(journal.corriger(ligne, bloc, numeros.code(bloc, ligne)))
+        effet.ajouter(journal.corriger(ligne, bloc, numeros.code(bloc, ligne), portees))
+        cle = _cle_portee(ligne)
+        if cle:
+            portees.add(cle)
     return effet
 
 
@@ -678,6 +791,7 @@ def corriger_le_taux_d_impot(
     if not correction.convient(MODE_TAUX):
         journal.refuser(correction, f"La ligne se corrige par {PAR_MODE[MODE_TAUX]} : refaites la correction.")
         return taux_calcule, None
+    journal.noter_posee(correction)
     trace = {
         "correction": correction.trace(),
         "valeur_calculee": {
@@ -689,9 +803,22 @@ def corriger_le_taux_d_impot(
 
 
 def poser_les_corrections_en_attente(bulletin: dict[str, Any], journal: JournalDesCorrections | None) -> None:
-    """Règle 7 : une correction sans ligne n'est jamais perdue en silence."""
+    """Règle 7 : une correction sans ligne n'est jamais perdue en silence.
+
+    Le bulletin fait foi : une correction est posée si une de ses lignes, lue
+    comme l'écran et le PDF la lisent, la porte sous son code. Posée par un
+    calcul que le bulletin n'a pas gardé, ou sur un autre doublon que le sien,
+    elle reste en attente.
+    """
     if journal is None:
         return
-    attente = journal.en_attente()
+    # Import local : la lecture d'un bulletin importe ce module.
+    from app.modules.payroll.engine.corrections_du_bulletin import lignes_corrigeables
+
+    portees: dict[tuple[str, str], set[str]] = {}
+    for ligne in lignes_corrigeables(bulletin):
+        if ligne.correction and ligne.code:
+            portees.setdefault(cle_de_correction(ligne.correction), set()).add(ligne.code)
+    attente = journal.en_attente(portees)
     if attente:
         bulletin[CLE_CORRECTIONS_EN_ATTENTE] = attente
