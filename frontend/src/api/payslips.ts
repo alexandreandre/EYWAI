@@ -175,6 +175,8 @@ export interface PayslipInfo {
   heures_sup?: number | null;
   /** « valide » une fois validé par la RH ; « brouillon » ou absent sinon. */
   status?: 'brouillon' | 'valide' | string | null;
+  /** Corrections faites à la main qui ne trouvent plus leur ligne : le bulletin ne peut pas être validé. */
+  corrections_en_attente?: number | null;
   manually_edited: boolean;
   edit_count: number;
   edited_at?: string;

@@ -87,3 +87,24 @@ def test_une_alerte_acquittee_sort_de_la_revue():
         alerts_status={"B02": {"status": "acquittee", "comment": "Vu"}},
     )
     assert revue_du_mois([personne]) == []
+
+
+def test_une_correction_en_attente_est_a_regarder():
+    """Jeu du 23/10 : la liste de contrôle disait « 1 bulletin a une correction en
+    attente », la revue « Rien à regarder ce mois-ci »."""
+    en_attente = {
+        "type": "correction",
+        "ligne": "brut:hs25",
+        "libelle": "Heures suppl. majorées à 25%",
+        "motif": "Heures confirmées",
+        "base": 8.0,
+        "saisie_id": "c9",
+        "raison": "La ligne visée n'est plus sur le bulletin.",
+    }
+    revues = revue_du_mois([_personne("a", "Ada", "Bernard", corrections_en_attente=[en_attente])])
+    assert [r.identifiant for r in revues] == ["a"]
+    alerte = revues[0].alertes[0]
+    assert alerte.level == "CRITIQUE"
+    assert alerte.rule_id not in regles_acquittables()
+    assert "Heures suppl. majorées à 25%" in alerte.message
+    assert "« Corriger »" in alerte.message

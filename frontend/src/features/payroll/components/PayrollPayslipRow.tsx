@@ -28,6 +28,7 @@ import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { ReportNetNegatif } from '@/features/payroll/components/ReportNetNegatif';
 import { libelleDuBlocage } from '@/features/payroll/utils/employmentPeriod';
 import { motifsDesAlertes as motifsDesAlertesDeLaLigne } from '@/features/payroll/utils/motifsAlertes';
+import { messageCorrectionsEnAttente } from '@/features/payroll/utils/correctionsEnAttente';
 import { useGenerationEnCours } from '@/features/payroll/components/GenerationEnCoursContext';
 import { Edit, Loader2, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
 
@@ -96,6 +97,9 @@ export function PayrollPayslipRow({
   const importe = estBulletinImporte(payslip);
   const perime = estPerime(payslip);
   const verification = enVerification(payslip);
+  // Une correction qui ne trouve plus sa ligne bloque la validation : la ligne le dit.
+  const correctionsEnAttente =
+    state.status === 'success' ? messageCorrectionsEnAttente(payslip?.corrections_en_attente) : null;
   const companyId = useActiveCompanyId();
   const generationEnCours = useGenerationEnCours();
   const motifGeneration = generationEnCours ? 'Génération en cours : patientez' : undefined;
@@ -181,6 +185,17 @@ export function PayrollPayslipRow({
           </TooltipTrigger>
           <TooltipContent className="max-w-xs">{infobulleEnVerification(payslip)}</TooltipContent>
         </Tooltip>
+      )}
+      {correctionsEnAttente && (
+        <Badge
+          variant="outline"
+          className="border-red-200 bg-red-50 text-red-800"
+          data-testid="badge-correction-en-attente"
+          title={correctionsEnAttente}
+        >
+          <AlertTriangle className="mr-1 h-3 w-3" aria-hidden />
+          Correction en attente
+        </Badge>
       )}
       {state.status === 'success' && pointsAArbitrer.length > 0 && (
         <Badge
@@ -316,6 +331,10 @@ export function PayrollPayslipRow({
           <span className="text-destructive">{state.errorMessage}</span>
         ) : state.status === 'unavailable' && state.errorMessage ? (
           <span className="text-muted-foreground">{state.errorMessage}</span>
+        ) : correctionsEnAttente ? (
+          <span className="text-destructive" data-testid="correction-en-attente-ligne">
+            {correctionsEnAttente}
+          </span>
         ) : motifsDesAlertes ? (
           <span className="text-amber-700 dark:text-amber-400">{motifsDesAlertes}</span>
         ) : state.status === 'success' && pointsAArbitrer.length > 0 ? (

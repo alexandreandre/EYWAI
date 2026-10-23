@@ -11,6 +11,9 @@ from dataclasses import dataclass
 from app.modules.payroll.engine.controles_convention import (
     extraire_alertes_rh_depuis_bulletin,
 )
+from app.modules.payroll.engine.corrections_du_bulletin import (
+    corrections_en_attente_du_bulletin,
+)
 from app.modules.payslips.domain.anomalies_bulletin import anomalies_du_bulletin
 from app.modules.payslips.domain.comparison_engine import (
     PayslipAlert,
@@ -19,6 +22,10 @@ from app.modules.payslips.domain.comparison_engine import (
 from app.modules.payslips.domain.pdf_du_mois import _cle
 
 _NIVEAU = {"CRITIQUE": 0, "AVERTISSEMENT": 1, "INFO": 2}
+
+#: Une correction faite à la main qui ne trouve plus sa ligne : elle bloque la
+#: validation. Elle se règle (retirée ou reportée), elle ne s'acquitte pas.
+REGLE_CORRECTION_EN_ATTENTE = "correction_en_attente"
 
 
 @dataclass(frozen=True)
@@ -90,8 +97,28 @@ def revue_du_mois(personnes: list[dict]) -> list[RevueDunSalarie]:
     return revues
 
 
+def _corrections_en_attente(donnees: dict) -> list[PayslipAlert]:
+    """Jeu du 23/10 : la liste de contrôle signalait la correction en attente, la revue non."""
+    return [
+        PayslipAlert(
+            rule_id=REGLE_CORRECTION_EN_ATTENTE,
+            level="CRITIQUE",
+            message=(
+                f"La correction de « {entree.get('libelle') or 'une ligne'} » ne trouve plus sa ligne : "
+                "retirez-la ou reportez-la dans l'onglet « Corriger » avant de valider."
+            ),
+            field="corrections",
+            value_n=0.0,
+            value_n1=0.0,
+            delta_pct=0.0,
+        )
+        for entree in corrections_en_attente_du_bulletin(donnees)
+    ]
+
+
 def _alertes(donnees: dict) -> list[PayslipAlert]:
-    alertes = anomalies_du_bulletin(donnees)
+    alertes = _corrections_en_attente(donnees)
+    alertes.extend(anomalies_du_bulletin(donnees))
     for brute in extraire_alertes_rh_depuis_bulletin(donnees):
         alertes.append(
             PayslipAlert(
