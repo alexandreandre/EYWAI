@@ -10,7 +10,9 @@ Pendant un arrêt indemnisé par la CPAM, deux cas existent.
 
 Aujourd'hui, sans subrogation, `maintien_salaire_service` verse le salaire garanti en entier : `maintien_verse = maintien_cible` (MSS:942-946). Le salarié touche donc le garanti, plus les IJSS de la CPAM. C'est aussi vrai en jours ouvrés quand la société est réglée « Jamais » (MSS:1566).
 
-Colorplast et Comitech sont les seules sociétés concernées sur la base de test. Toutes deux sont en « Jamais » et en jours ouvrés, avec 3 arrêts non subrogés chacune (relevé du 23/10). Leurs bulletins ont été calés sur Quadra. La question de leur pratique n'a jamais été posée à Gaëlle.
+Colorplast et Comitech sont les seules sociétés avec des arrêts non subrogés sur la base de test. Toutes deux sont en « Jamais » et en jours ouvrés, avec 3 arrêts non subrogés chacune (relevé du 23/10). Leurs bulletins ont été calés sur Quadra. La question de leur pratique n'a jamais été posée à Gaëlle.
+
+**Correction du 23/10, après lecture du moteur.** Le double paiement n'existe que sur les jours que l'employeur maintient ET que la CPAM indemnise. C'est le cas du maintien légal à partir de J8, ou d'un maintien conventionnel. Quand le seul maintien est la carence payée (Colorplast : maintien légal coupé, 3 jours de carence payés par an), la CPAM ne verse rien ces jours-là. Il n'y a alors aucun double paiement, et rien ne doit être déduit.
 
 ## 2. Ce qu'on construit
 
@@ -19,10 +21,13 @@ Un réglage par société, dans la carte « Maintien de salaire ». Il porte sur
 | Choix affiché | Valeur | Effet sans subrogation |
 |---|---|---|
 | « Verser le salaire garanti en entier » | `false` | le calcul d'aujourd'hui, inchangé |
-| « Verser le complément, IJSS déduites (règle légale) » | `true` | `maintien_verse = max(0, maintien_cible − IJSS retenues)` |
+| « Verser le complément, IJSS déduites (règle légale) » | `true` | `maintien_verse = max(0, maintien_cible − IJSS des jours maintenus)` |
 
 - **Texte d'aide sous le choix** : « Sans subrogation, la CPAM paie les IJSS directement au salarié. Martine peut les déduire du maintien, comme le prévoit la loi, ou verser le salaire garanti en entier. »
-- **IJSS retenues** : le montant validé dans « Suivi IJSS / CPAM » et appliqué au bulletin (`ijss_brut_override`, MSS:1599-1608). À défaut, l'estimation de Martine (`ijss_theorique`).
+- **IJSS des jours maintenus** : seulement les IJSS des jours que l'employeur maintient et que la CPAM indemnise. Ce sont les jours de la période de maintien, en jours calendaires, à partir du premier jour indemnisé par la CPAM.
+  - Sur des jours de carence payés par l'employeur, la CPAM ne verse rien : rien à déduire.
+  - Les IJSS des jours que l'employeur ne maintient pas (de J4 à J7 avec le maintien légal) restent au salarié et ne se déduisent pas.
+  - Montant : l'estimation de Martine (`ijss_theorique`) pour ces jours. Quand un montant validé existe dans « Suivi IJSS / CPAM » (`ijss_brut_override`, MSS:1599-1608), on en déduit la part de ces jours, au prorata des IJSS estimées (montant validé × IJSS estimées des jours maintenus ÷ IJSS estimées de tout l'arrêt).
 - **Avec subrogation**, rien ne change.
 
 ### Ce qui ne change pas
@@ -45,9 +50,9 @@ Un réglage par société, dans la carte « Maintien de salaire ». Il porte sur
 - **Migration** : colonne `company_maintenance_settings.deduire_ijss_sans_subrogation boolean not null default true`, puis `update … set … = false` sur toutes les lignes existantes, dans le même fichier. Application à la main sur la base de test (option `migration` du workflow), comme les migrations précédentes.
 - **Schémas et API** : `maintenance_settings/schemas/responses.py` et `requests.py`, GET/PUT `/api/maintenance-settings/`.
 - **Moteur** (MSS, branche sans subrogation, MSS:942-946 et le chemin maternité MSS:840-870) :
-  - la déduction, plancher à 0 ;
+  - la déduction des seules IJSS des jours maintenus, plancher à 0 ;
   - le montant d'IJSS retenu et sa source (`estimees` ou `validees`), posés sur le résultat du maintien pour l'écran et le PDF ;
-  - lecture `settings.get("deduire_ijss_sans_subrogation", True)` : même défaut que la réponse GET sans ligne.
+  - lecture `settings.get("deduire_ijss_sans_subrogation", False)` dans le moteur, pour qu'un réglage incomplet ne change rien. `get_maintenance_settings` pose toujours la clé : la valeur de la ligne s'il y en a une (`false` si la colonne n'existe pas encore, avant la migration), `true` s'il n'y a pas de ligne. Le GET de l'écran lit la même fonction.
 - **Empreinte** (`empreinte_entrees_service._reglages_societe_du_mois`) : la clé n'entre dans la partie « maintien » que si la ligne de réglages la porte à `true`. Sinon, l'ajout de la colonne, posée à `false` partout, périmerait tous les bulletins avec un arrêt. Passer de `false` à `true` fait donc passer « À recalculer » les bulletins du mois qui ont un arrêt ; repasser à `false` aussi.
 - **Écran** : `MaintenanceSettingsCard.tsx`, sous le choix « Mode de subrogation » : deux boutons radio et le texte d'aide.
 - **Suivi IJSS** : la synchronisation garde un bulletin non subrogé dont le maintien a déduit des IJSS.
@@ -57,7 +62,9 @@ Un réglage par société, dans la carte « Maintien de salaire ». Il porte sur
 
 - **Moteur** :
   - réglage `false` : versé = garanti, comme `test_sans_subrogation_pas_deduction_ijss`, qui doit rester vert sans modification ;
-  - réglage `true` : versé = garanti − IJSS estimées, puis garanti − IJSS validées après application du suivi ;
+  - réglage `true`, maintien légal (arrêt du 05 au 20/06 du test legacy) : seules les IJSS du 12 au 20/06 sont déduites, soit 295,82 € versés, et non 131,43 € ;
+  - réglage `true`, carence payée seule (réglages de `test_prolongation_arret.py`, cas Colorplast) : 310,78 € versés, rien de déduit ;
+  - montant validé : déduction au prorata ;
   - plancher à 0 si les IJSS dépassent le garanti ;
   - jours ouvrés + « Jamais » (cas Colorplast) avec `true` ;
   - congés parentaux maintenus ;
@@ -77,6 +84,7 @@ Un réglage par société, dans la carte « Maintien de salaire ». Il porte sur
 - **Changer le réglage de Colorplast ou de Comitech.** C'est à Gaëlle, après sa réponse à la question : « Quand un salarié n'est pas subrogé, tu déduis les IJSS du maintien dans Quadra ? ».
 - **Régulariser les mois passés.**
 - **Un choix par arrêt.** La carte « Corriger une ligne » couvre un cas isolé.
+- **Le chemin AVEC subrogation** fait la même soustraction sur tout l'arrêt (`maintien_cible − ijss_theorique`, MSS:942-944), sans plancher. Un arrêt subrogé dont le maintien ne couvre qu'une partie des jours indemnisés pourrait donc sous-payer le salarié. À vérifier à part, avec un test de caractérisation et un relevé en lecture seule des vrais bulletins. Rien ne change sans accord d'Alexandre.
 
 ## 7. Règles
 
