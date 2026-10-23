@@ -28,6 +28,7 @@ from app.modules.payslips.application.anomalies_report import (
 )
 from app.modules.payslips.application.pdf_du_mois import rendre_pdf_du_mois
 from app.modules.payslips.application.revue_du_mois import lire_revue_du_mois
+from app.modules.payslips.application.lignes_corrigeables import lire_lignes_corrigeables
 from app.shared.employee_resolution import resolve_employee_id_for_user_account
 from app.modules.payslips.application import (
     PayslipBadRequestError,
@@ -66,7 +67,12 @@ from app.modules.payslips.application.report_nap_negatif import (
 )
 from app.modules.payslips.application.router_queries import get_payslip_meta_for_access
 from app.modules.payslips.schemas.anomalies import PayslipsAnomaliesReport
-from app.modules.payslips.schemas.responses import AlerteRevueResponse, RevueDuMoisResponse, SalarieRevueResponse
+from app.modules.payslips.schemas.responses import (
+    AlerteRevueResponse,
+    LignesCorrigeablesResponse,
+    RevueDuMoisResponse,
+    SalarieRevueResponse,
+)
 from app.modules.payslips.schemas import (
     AcquitAlertRequest,
     ComparisonResultResponse,
@@ -803,6 +809,25 @@ def preview_payslip_route(
         raise
     except Exception as e:
         logger.exception("Échec de preview_payslip_route")
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
+
+
+# --- Lignes corrigeables (carte « Corriger une ligne ») ---
+@router.get("/api/payslips/{payslip_id}/lignes-corrigeables", response_model=LignesCorrigeablesResponse)
+def get_lignes_corrigeables_route(
+    payslip_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Les lignes du bulletin, leur code et ce qui s'y corrige ; les corrections en attente."""
+    try:
+        _require_payslip_scope(current_user, payslip_id, "payslips.edit")
+        return LignesCorrigeablesResponse(**lire_lignes_corrigeables(payslip_id))
+    except _PAYSLIP_APP_ERRORS as e:
+        _map_app_errors(e)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Échec de get_lignes_corrigeables_route")
         raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE)
 
 

@@ -21,6 +21,8 @@ from typing import Any
 
 from app.core.database import supabase
 from app.modules.payroll.documents.verrou_generation import verrou_de_generation
+from app.modules.payroll.engine.corrections_du_bulletin import corrections_du_bulletin
+from app.modules.payroll.engine.corrections_manuelles import regularisations_du_bulletin
 from app.modules.payslips.application.commands import (
     _refuser_si_importe,
     _set_payslip_status_brouillon,
@@ -45,6 +47,7 @@ from app.modules.payslips.application.primes_editees import (
 from app.modules.payslips.domain.corrections import (
     CorrectionsBulletin,
     corrections_pour_revenir,
+    refus_des_corrections,
     resume_des_corrections,
 )
 from app.modules.payslips.domain.heures_sup import (
@@ -162,6 +165,7 @@ def _ecrire_variables(corrections: CorrectionsBulletin, periode: dict[str, Any])
     if not corrections.primes.vide:
         appliquer_primes_editees(corrections.primes, **periode)
     _ecrire_regularisations(corrections, periode)
+    _ecrire_corrections_de_ligne(corrections, periode)
 
 
 def _ecrire_regularisations(corrections: CorrectionsBulletin, periode: dict[str, Any]) -> None:
@@ -181,6 +185,22 @@ def _ecrire_regularisations(corrections: CorrectionsBulletin, periode: dict[str,
     if corrections.regularisations_ajoutees:
         supabase.table("monthly_inputs").insert(
             [regul.saisie_du_mois(periode) for regul in corrections.regularisations_ajoutees]
+        ).execute()
+
+
+def _ecrire_corrections_de_ligne(corrections: CorrectionsBulletin, periode: dict[str, Any]) -> None:
+    """Ajoute et retire les corrections de ligne du mois, pour ce seul salarié et ce seul mois."""
+    if corrections.corrections_retirees:
+        (
+            supabase.table("monthly_inputs")
+            .delete()
+            .match(periode)
+            .in_("id", list(corrections.corrections_retirees))
+            .execute()
+        )
+    if corrections.corrections_ajoutees:
+        supabase.table("monthly_inputs").insert(
+            [correction.saisie_du_mois(periode) for correction in corrections.corrections_ajoutees]
         ).execute()
 
 
@@ -300,6 +320,10 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
     _refuser_si_modifie_depuis(bulletin, cmd.base_updated_at)
 
     corrections = cmd.corrections
+    if cmd.verifier_les_lignes:
+        refus = refus_des_corrections(corrections, bulletin.get("payslip_data"))
+        if refus:
+            raise PayslipBadRequestError(refus)
     note_pdf_changee = _note_pdf_changee(bulletin, cmd.pdf_notes)
     note_interne = (cmd.internal_note or "").strip() or None
     if not (corrections.change_des_variables or note_pdf_changee or note_interne):
@@ -351,9 +375,9 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
 # --- Restauration ---
 
 MESSAGE_RIEN_A_RESTAURER = (
-    "Cette version a déjà les mêmes heures sup et les mêmes primes que le "
-    "bulletin : rien à restaurer. Le reste (planning, absences, salaire) se "
-    "corrige à sa source."
+    "Cette version a déjà les mêmes heures sup, primes, régularisations et "
+    "corrections que le bulletin : rien à restaurer. Le reste (planning, "
+    "absences, salaire) se corrige à sa source."
 )
 
 
@@ -390,10 +414,15 @@ def restaurer_version(cmd: RestorePayslipInput) -> dict[str, Any]:
         raise PayslipBadRequestError("Les données de cette version sont introuvables.")
 
     periode = _periode(bulletin)
+    identifiants = (
+        set(primes_saisies_du_bulletin(cible))
+        | set(regularisations_du_bulletin(cible))
+        | set(corrections_du_bulletin(cible))
+    )
     corrections = corrections_pour_revenir(
         bulletin.get("payslip_data"),
         cible,
-        saisies_existantes=_saisies_existantes(set(primes_saisies_du_bulletin(cible)), periode),
+        saisies_existantes=_saisies_existantes(identifiants, periode),
     )
     if not corrections.change_des_variables:
         raise PayslipBadRequestError(MESSAGE_RIEN_A_RESTAURER)
@@ -404,5 +433,6 @@ def restaurer_version(cmd: RestorePayslipInput) -> dict[str, Any]:
             current_user_id=cmd.current_user_id,
             current_user_name=cmd.current_user_name,
             changes_summary=f"Retour à la version {cmd.version}",
+            verifier_les_lignes=False,
         )
     )

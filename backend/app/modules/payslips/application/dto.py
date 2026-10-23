@@ -186,6 +186,10 @@ class CorrigerBulletinInput:
     pdf_notes: str | None = None
     internal_note: str | None = None
     base_updated_at: str | None = None
+    #: Vérifier que chaque correction ajoutée tient sur le bulletin. La
+    #: restauration d'une version ne le fait pas : une correction dont la ligne
+    #: n'existe plus revient en attente et bloque la validation (règle 7).
+    verifier_les_lignes: bool = True
 
 
 @dataclass

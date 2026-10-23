@@ -12,7 +12,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.modules.payroll.engine.corrections_du_bulletin import corrections_du_bulletin, lignes_corrigeables
 from app.modules.payroll.engine.corrections_manuelles import (
+    PAR_MODE,
+    CorrectionDeLigne,
     RegularisationCotisation,
     regularisations_du_bulletin,
 )
@@ -36,6 +39,9 @@ class CorrectionsBulletin:
     #: Régularisations de cotisation à ajouter, puis identifiants de saisie à retirer.
     regularisations_ajoutees: tuple[RegularisationCotisation, ...] = ()
     regularisations_retirees: tuple[str, ...] = ()
+    #: Corrections de ligne à ajouter, puis identifiants de saisie à retirer.
+    corrections_ajoutees: tuple[CorrectionDeLigne, ...] = ()
+    corrections_retirees: tuple[str, ...] = ()
 
     @property
     def change_des_variables(self) -> bool:
@@ -45,6 +51,8 @@ class CorrectionsBulletin:
             or not self.primes.vide
             or bool(self.regularisations_ajoutees)
             or bool(self.regularisations_retirees)
+            or bool(self.corrections_ajoutees)
+            or bool(self.corrections_retirees)
         )
 
 
@@ -78,10 +86,50 @@ def resume_des_corrections(corrections: CorrectionsBulletin) -> str:
     if corrections.regularisations_retirees:
         n = len(corrections.regularisations_retirees)
         parties.append(f"{n} régularisation{'s' if n > 1 else ''} retirée{'s' if n > 1 else ''}")
+    for correction in corrections.corrections_ajoutees:
+        parties.append(f"ligne « {correction.libelle} » corrigée : {correction.motif}")
+    if corrections.corrections_retirees:
+        n = len(corrections.corrections_retirees)
+        parties.append(f"{n} correction{'s' if n > 1 else ''} retirée{'s' if n > 1 else ''}")
     if not parties:
         return "Notes modifiées"
     texte = ", ".join(parties)
     return texte[0].upper() + texte[1:]
+
+
+_NOMS_DES_TAUX = {"taux": "taux", "taux_salarial": "taux salarial", "taux_patronal": "taux patronal"}
+
+
+def refus_des_corrections(corrections: CorrectionsBulletin, payslip_data: dict[str, Any] | None) -> str | None:
+    """Pourquoi une correction ajoutée ne tient pas sur ce bulletin, ou None.
+
+    La ligne doit exister, se corriger par les champs reçus (règle 3), porter le
+    taux corrigé, et ne pas être déjà corrigée — sauf si sa correction est
+    retirée dans le même enregistrement.
+    """
+    if not corrections.corrections_ajoutees:
+        return None
+    par_code = {ligne.code: ligne for ligne in lignes_corrigeables(payslip_data) if ligne.code}
+    retirees = set(corrections.corrections_retirees)
+    visees: set[str] = set()
+    for correction in corrections.corrections_ajoutees:
+        ligne = par_code.get(correction.ligne)
+        if ligne is None:
+            return f"La ligne « {correction.libelle} » n'est plus sur le bulletin : rechargez-le."
+        if ligne.mode is None:
+            return f"« {ligne.libelle} » : {ligne.raison}"
+        if not correction.convient(ligne.mode):
+            return f"« {ligne.libelle} » se corrige par {PAR_MODE[ligne.mode]}."
+        for champ, nom in _NOMS_DES_TAUX.items():
+            if getattr(correction, champ) is not None and getattr(ligne, champ) is None:
+                return f"« {ligne.libelle} » n'a pas de {nom} : corrigez ce qu'elle porte."
+        deja = (ligne.correction or {}).get("saisie_id")
+        if deja and str(deja) not in retirees:
+            return f"« {ligne.libelle} » est déjà corrigée : retirez d'abord sa correction."
+        if correction.ligne in visees:
+            return f"« {ligne.libelle} » est corrigée deux fois : gardez une seule correction."
+        visees.add(correction.ligne)
+    return None
 
 
 def _declarees(payslip_data: dict[str, Any] | None) -> tuple[float, float] | None:
@@ -133,7 +181,8 @@ def corrections_pour_revenir(
     n'auraient pas suivi) : on revient à ses variables, et le moteur recalcule.
     Une prime de la version dont la saisie a disparu est recréée, avec le régime
     de la section où elle était imprimée ; `saisies_existantes` évite de recréer
-    une saisie encore présente dans le mois.
+    une saisie encore présente dans le mois. Les corrections de ligne reviennent
+    de même ; une correction dont la ligne n'existe plus revient en attente.
     """
     primes_courant = primes_saisies_du_bulletin(courant)
     primes_cible = primes_saisies_du_bulletin(cible)
@@ -165,9 +214,19 @@ def corrections_pour_revenir(
         for sid, regul in regul_cible.items()
         if sid not in regul_courant and sid not in saisies_existantes
     )
+    corrections_courant = corrections_du_bulletin(courant)
+    corrections_cible = corrections_du_bulletin(cible)
+    corrections_retirees = tuple(sid for sid in corrections_courant if sid not in corrections_cible)
+    corrections_ajoutees = tuple(
+        CorrectionDeLigne.depuis(correction.charge_utile())
+        for sid, correction in corrections_cible.items()
+        if sid not in corrections_courant and sid not in saisies_existantes
+    )
     return CorrectionsBulletin(
         heures_sup=_heures_pour_revenir(courant, cible),
         primes=DiffPrimes(tuple(ajoutees), tuple(modifiees), retirees),
         regularisations_ajoutees=regularisations_ajoutees,
         regularisations_retirees=regularisations_retirees,
+        corrections_ajoutees=corrections_ajoutees,
+        corrections_retirees=corrections_retirees,
     )

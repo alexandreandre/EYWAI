@@ -274,3 +274,38 @@ class RevueDuMoisResponse(BaseModel):
     """La revue du mois, dans l'ordre du PDF. Vide si rien n'est à regarder."""
 
     salaries: list[SalarieRevueResponse]
+
+
+class LigneCorrigeableResponse(BaseModel):
+    """Une ligne du bulletin, son code et par quoi elle se corrige (règle 3)."""
+
+    code: str | None = None
+    bloc: Literal["brut", "cotisations", "impot"]
+    libelle: str
+    mode: Literal["base_ou_taux", "montant", "taux"] | None = None
+    raison: str | None = None
+    retenue: bool = False
+    base: float | None = None
+    taux: float | None = None
+    montant: float | None = None
+    taux_salarial: float | None = None
+    taux_patronal: float | None = None
+    montant_salarial: float | None = None
+    montant_patronal: float | None = None
+    correction: dict[str, Any] | None = None
+    valeur_calculee: dict[str, Any] | None = None
+
+
+class CorrectionEnAttenteResponse(BaseModel):
+    """Une correction qui ne trouve plus sa ligne : à retirer ou à reporter."""
+
+    saisie_id: str | None = None
+    ligne: str
+    libelle: str
+    motif: str
+    raison: str
+
+
+class LignesCorrigeablesResponse(BaseModel):
+    lignes: list[LigneCorrigeableResponse]
+    en_attente: list[CorrectionEnAttenteResponse]
