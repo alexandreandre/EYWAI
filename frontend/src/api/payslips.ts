@@ -500,9 +500,41 @@ export const getMyPayslips = async (): Promise<PayslipInfo[]> => {
   return response.data;
 };
 
-/**
- * Récupère la liste des bulletins d'un employé
- */
+export interface AlerteRevue {
+  rule_id: string;
+  level: 'CRITIQUE' | 'AVERTISSEMENT' | 'INFO';
+  message: string;
+  field: string;
+  value_n: number;
+  value_n1: number;
+  delta_eur?: number | null;
+}
+
+export interface SalarieRevue {
+  identifiant: string;
+  bulletin_id: string;
+  prenom: string;
+  nom: string;
+  alertes: AlerteRevue[];
+}
+
+export interface RevueDuMois {
+  salaries: SalarieRevue[];
+}
+
+/** Écarts relus sur les bulletins déjà générés du mois. */
+export async function getRevueDuMois(
+  year: number,
+  month: number,
+  companyId?: string | null,
+): Promise<RevueDuMois> {
+  const response = await apiClient.get<RevueDuMois>('/api/payslips/revue-du-mois', {
+    params: { year, month },
+    ...enTeteSociete(companyId),
+  });
+  return response.data;
+}
+
 /** PDF unique du mois : bulletins déjà générés, ordre alphabétique, signet par salarié. */
 export async function telechargerPdfDuMois(year: number, month: number): Promise<void> {
   const response = await apiClient.get<Blob>('/api/payslips/month-pdf', {
@@ -516,6 +548,7 @@ export async function telechargerPdfDuMois(year: number, month: number): Promise
   downloadBlob(response.data, nom);
 }
 
+/** Récupère la liste des bulletins d'un employé. */
 export const getEmployeePayslips = async (employeeId: string): Promise<PayslipInfo[]> => {
   const response = await apiClient.get<PayslipInfo[]>(`/api/employees/${employeeId}/payslips`);
   return response.data;

@@ -27,6 +27,7 @@ from app.modules.payslips.application.anomalies_report import (
     build_payslips_anomalies_report,
 )
 from app.modules.payslips.application.pdf_du_mois import rendre_pdf_du_mois
+from app.modules.payslips.application.revue_du_mois import lire_revue_du_mois
 from app.shared.employee_resolution import resolve_employee_id_for_user_account
 from app.modules.payslips.application import (
     PayslipBadRequestError,
@@ -56,7 +57,7 @@ from app.modules.payslips.application.comparison_service import (
     valider_plusieurs_bulletins,
 )
 from app.modules.payslips.application.dto import PayslipConflictError
-from app.modules.payslips.domain.comparison_engine import REGLES_CONNUES
+from app.modules.payslips.domain.anomalies_bulletin import regles_acquittables
 from app.modules.payslips.application.report_nap_negatif import (
     ReportNapRefuse,
     executer_report,
@@ -65,6 +66,7 @@ from app.modules.payslips.application.report_nap_negatif import (
 )
 from app.modules.payslips.application.router_queries import get_payslip_meta_for_access
 from app.modules.payslips.schemas.anomalies import PayslipsAnomaliesReport
+from app.modules.payslips.schemas.responses import AlerteRevueResponse, RevueDuMoisResponse, SalarieRevueResponse
 from app.modules.payslips.schemas import (
     AcquitAlertRequest,
     ComparisonResultResponse,
@@ -217,6 +219,47 @@ def pdf_du_mois_route(
                 f"attachment; filename*=UTF-8''{quote(nom)}; filename=\"{nom_simple}\""
             )
         },
+    )
+
+
+# --- Revue du mois : règles B et alertes du moteur, sans recalcul ---
+@router.get("/api/payslips/revue-du-mois", response_model=RevueDuMoisResponse)
+def revue_du_mois_route(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    current_user: User = Depends(get_current_user),
+):
+    """Relit les bulletins déjà générés. Le modèle n'est pas appelé."""
+    company_id = _require_rh_company_context(current_user)
+    try:
+        revues = lire_revue_du_mois(company_id, year, month)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Échec de revue_du_mois_route")
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_INTERNE) from e
+    return RevueDuMoisResponse(
+        salaries=[
+            SalarieRevueResponse(
+                identifiant=revue.identifiant,
+                bulletin_id=revue.bulletin_id,
+                prenom=revue.prenom,
+                nom=revue.nom,
+                alertes=[
+                    AlerteRevueResponse(
+                        rule_id=alerte.rule_id,
+                        level=alerte.level,
+                        message=alerte.message,
+                        field=alerte.field,
+                        value_n=alerte.value_n,
+                        value_n1=alerte.value_n1,
+                        delta_eur=alerte.delta_eur,
+                    )
+                    for alerte in revue.alertes
+                ],
+            )
+            for revue in revues
+        ]
     )
 
 
@@ -479,10 +522,14 @@ def post_report_net_negatif_route(
 
 def _exiger_regle_connue(rule_id: str) -> None:
     """Refuse en 422 un code de règle que le moteur ne produit pas (« R99 »)."""
-    if rule_id not in REGLES_CONNUES:
+    if rule_id not in regles_acquittables():
         raise HTTPException(
             status_code=422,
-            detail=f"Règle d'alerte inconnue : « {rule_id} ». Les règles vont de R01 à R10, plus R12.",
+            detail=(
+                f"Règle d'alerte inconnue : « {rule_id} ». "
+                "Les règles de comparaison vont de R01 à R10, plus R12. "
+                "Les règles du bulletin vont de B01 à B04."
+            ),
         )
 
 

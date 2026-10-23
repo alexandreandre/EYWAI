@@ -246,3 +246,31 @@ class PayslipPreviewResponse(BaseModel):
     """Bulletin rendu, prêt à être affiché tel quel."""
 
     html: str
+
+
+class AlerteRevueResponse(BaseModel):
+    """Une anomalie active d'un bulletin, déjà chiffrée."""
+
+    rule_id: str
+    level: AlertLevelResponse
+    message: str
+    field: str
+    value_n: float
+    value_n1: float
+    delta_eur: float | None = None
+
+
+class SalarieRevueResponse(BaseModel):
+    """Un salarié qui a au moins une anomalie active ce mois-ci."""
+
+    identifiant: str
+    bulletin_id: str
+    prenom: str
+    nom: str
+    alertes: list[AlerteRevueResponse]
+
+
+class RevueDuMoisResponse(BaseModel):
+    """La revue du mois, dans l'ordre du PDF. Vide si rien n'est à regarder."""
+
+    salaries: list[SalarieRevueResponse]

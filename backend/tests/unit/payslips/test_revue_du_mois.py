@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.modules.payslips.domain.revue_du_mois import revue_du_mois
+from app.modules.payslips.domain.anomalies_bulletin import regles_acquittables
+from app.modules.payslips.domain.revue_du_mois import personnes_a_relire, revue_du_mois
 
 pytestmark = pytest.mark.unit
 
@@ -44,6 +45,37 @@ def test_l_ordre_est_celui_du_pdf_et_les_critiques_passent_devant():
     assert niveaux == ["CRITIQUE", "AVERTISSEMENT"]
     assert revues[0].alertes[0].rule_id == "B02"
     assert revues[0].alertes[1].rule_id == "note_de_taux"
+
+
+def test_le_bulletin_le_plus_recent_est_relu_et_un_inconnu_est_laisse():
+    salaries = [{"id": "e1", "first_name": "Ada", "last_name": "Bernard"}]
+    bulletins = [
+        {
+            "id": "ancien",
+            "employee_id": "e1",
+            "updated_at": "2026-08-01",
+            "payslip_data": {"salaire_brut": 1.0},
+        },
+        {
+            "id": "recent",
+            "employee_id": "e1",
+            "updated_at": "2026-08-02",
+            "payslip_data": {"salaire_brut": 2.0},
+        },
+        {"id": "hors", "employee_id": "e9", "payslip_data": {"salaire_brut": 9.0}},
+    ]
+    personnes = personnes_a_relire(salaries, bulletins)
+    assert len(personnes) == 1
+    assert personnes[0]["bulletin_id"] == "recent"
+    assert personnes[0]["prenom"] == "Ada"
+    assert personnes[0]["payslip_data"]["salaire_brut"] == 2.0
+
+
+def test_les_regles_du_bulletin_s_acquittent_avec_celles_de_la_comparaison():
+    regles = regles_acquittables()
+    assert {"B01", "B02", "B03", "B04", "R01", "R12"} <= regles
+    assert "R11" not in regles
+    assert "B99" not in regles
 
 
 def test_une_alerte_acquittee_sort_de_la_revue():

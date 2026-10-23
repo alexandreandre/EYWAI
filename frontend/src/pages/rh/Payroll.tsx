@@ -18,6 +18,7 @@ import {
   PayrollMonthExplorer,
   type EmployeeMonthState,
 } from '@/features/payroll/components/PayrollMonthExplorer';
+import { RevueARegarder } from '@/features/payroll/components/RevueARegarder';
 import { PayrollGroupLaunchCta } from '@/features/payroll/components/PayrollGroupLaunchCta';
 import { PayrollMonthList, type MonthStatusMap } from '@/features/payroll/components/PayrollMonthList';
 import type { PayslipRowState } from '@/features/payroll/components/PayrollPayslipRow';
@@ -977,6 +978,7 @@ export default function Payroll() {
                 />
               }
             />
+            <RevueARegarder year={selectedYear} month={selectedMonth} />
           </TabsContent>
         </Tabs>
       </div>

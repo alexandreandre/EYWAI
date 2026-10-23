@@ -27,6 +27,42 @@ class RevueDunSalarie:
     prenom: str
     nom: str
     alertes: tuple[PayslipAlert, ...]
+    bulletin_id: str = ""
+
+
+def personnes_a_relire(salaries: list[dict], bulletins: list[dict]) -> list[dict]:
+    """Joint les fiches et les bulletins du mois. Le plus récent s'il y en a plusieurs.
+
+    Un bulletin dont le salarié n'est pas dans la liste ne sort pas : la liste
+    est déjà celle de la société.
+    """
+    noms = {
+        str(salarie["id"]): salarie
+        for salarie in salaries
+        if isinstance(salarie, dict) and salarie.get("id")
+    }
+    gardes: dict[str, tuple[str, str, dict]] = {}
+    for ligne in bulletins:
+        if not isinstance(ligne, dict):
+            continue
+        identifiant = str(ligne.get("employee_id") or "")
+        donnees = ligne.get("payslip_data")
+        if identifiant not in noms or not isinstance(donnees, dict):
+            continue
+        instant = str(ligne.get("updated_at") or "")
+        deja = gardes.get(identifiant)
+        if deja is None or instant >= deja[0]:
+            gardes[identifiant] = (instant, str(ligne.get("id") or ""), donnees)
+    return [
+        {
+            "identifiant": identifiant,
+            "bulletin_id": bulletin_id,
+            "prenom": str(noms[identifiant].get("first_name") or ""),
+            "nom": str(noms[identifiant].get("last_name") or ""),
+            "payslip_data": donnees,
+        }
+        for identifiant, (_instant, bulletin_id, donnees) in gardes.items()
+    ]
 
 
 def revue_du_mois(personnes: list[dict]) -> list[RevueDunSalarie]:
@@ -47,6 +83,7 @@ def revue_du_mois(personnes: list[dict]) -> list[RevueDunSalarie]:
                 prenom=str(personne.get("prenom") or ""),
                 nom=str(personne.get("nom") or ""),
                 alertes=tuple(alertes),
+                bulletin_id=str(personne.get("bulletin_id") or ""),
             )
         )
     revues.sort(key=lambda revue: _cle(revue.prenom, revue.nom))
