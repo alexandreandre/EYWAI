@@ -9,6 +9,7 @@ from app.modules.collective_agreements.application.idcc_resolution import (
     resolve_minimum_for_classification,
 )
 from app.modules.collective_agreements.rules.constants import SMH_NATIONAL_IDCC
+from app.modules.payroll.domain.ijss_deduites import est_alerte_ijss_au_salarie
 from app.modules.collective_agreements.rules.resolver import (
     code_postal_from_entreprise,
     resolve_salaires_minima,
@@ -30,6 +31,14 @@ _MAINTIEN_MESSAGES_NON_ACTIONNABLES_LISTE = {
     "Ancienneté insuffisante pour le maintien légal",
     "IJSS versées directement au salarié",
 }
+
+
+def _maintien_non_actionnable(message: str) -> bool:
+    """Les alertes du maintien qui informent sans rien demander (la déduction
+    d'IJSS sans subrogation comprise)."""
+    return message in _MAINTIEN_MESSAGES_NON_ACTIONNABLES_LISTE or est_alerte_ijss_au_salarie(
+        message
+    )
 
 
 def _is_smh_national_idcc(idcc: str) -> bool:
@@ -668,7 +677,7 @@ def _messages_alertes_hors_baremes(payslip_data: Dict[str, Any], seen: set[str])
         if code == "net_superieur_brut" or code in _ALERT_CODES_NON_ACTIONNABLES_LISTE:
             continue
         msg = str(raw.get("message") or "").strip()
-        if msg in _MAINTIEN_MESSAGES_NON_ACTIONNABLES_LISTE:
+        if _maintien_non_actionnable(msg):
             continue
         if msg and msg not in seen:
             messages.append(msg)
@@ -742,7 +751,7 @@ def extraire_alertes_rh_depuis_bulletin(
     if isinstance(synthese, dict):
         for msg in synthese.get("alertes_maintien") or []:
             text = str(msg).strip()
-            if text and text not in _MAINTIEN_MESSAGES_NON_ACTIONNABLES_LISTE:
+            if text and not _maintien_non_actionnable(text):
                 out.append(
                     {
                         "source": "maintien_salaire",

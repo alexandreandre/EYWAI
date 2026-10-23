@@ -7,11 +7,32 @@ Appelé depuis le générateur de bulletins avec données déjà chargées (Tick
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+from app.modules.payroll.domain.ijss_deduites import (
+    CLE_IJSS_DEDUITES,
+    CLE_SOURCE,
+    SOURCE_ESTIMEES,
+    SOURCE_VALIDEES,
+    alerte_ijss_au_salarie,
+)
 
 from .contexte import ContextePaie
 from . import legal_constants as lc
 from .prolongation_arret import chainer_arret
+
+#: Réglage société (23/10/2026) : sans subrogation, déduire du maintien les
+#: IJSS des jours maintenus. Absent du dict : le calcul d'avant ce réglage ;
+#: `get_maintenance_settings` pose toujours la clé.
+CLE_DEDUIRE_IJSS = "deduire_ijss_sans_subrogation"
+
+#: Relevé du mois pour plusieurs arrêts : (montant validé, IJSS estimées, jours indemnisés).
+ReleveIjss = Tuple[float, float, int]
+
+
+def deduire_ijss_sans_subrogation(settings: Dict[str, Any]) -> bool:
+    """La société déduit-elle du maintien les IJSS des jours maintenus, sans subrogation ?"""
+    return bool(settings.get(CLE_DEDUIRE_IJSS, False))
 
 # --- Dates & utilitaires ---
 
@@ -466,7 +487,13 @@ def _calculer_ijss(
     contexte: ContextePaie,
     date_debut_periode: date,
     date_fin_periode: date,
+    par_jour: Optional[Dict[date, float]] = None,
 ) -> Dict[str, Any]:
+    """IJSS estimées de l'arrêt dans la période.
+
+    `par_jour`, s'il est fourni, reçoit l'IJSS de chaque jour indemnisé : la
+    déduction sans subrogation n'en retient que les jours maintenus.
+    """
     arret_type = str(arret.get("arret_type") or "maladie_simple")
     nombre_enfants = int(arret.get("nombre_enfants") or 0)
     is_tp = bool(arret.get("is_temps_partiel"))
@@ -585,6 +612,8 @@ def _calculer_ijss(
                     ijss_j = min(ijss_j, plafond_j)
                 if is_tp:
                     ijss_j *= quotite
+                if par_jour is not None:
+                    par_jour[d] = ijss_j
                 ijss_total += ijss_j
                 nb_indem += 1
                 somme_taux += taux_j
@@ -700,6 +729,66 @@ def _est_maintien_eligible_seniority(
     return anciennete_mois >= min_senior
 
 
+def _ijss_des_jours_maintenus(
+    jours_maintenus: set,
+    ijss: Dict[str, Any],
+    ijss_par_jour: Dict[date, float],
+    releve_du_mois: Optional[ReleveIjss],
+) -> tuple[float, str]:
+    """IJSS que la CPAM verse pour les jours que l'employeur maintient.
+
+    Estimées : la somme des IJSS de ces jours. Montant validé au suivi IJSS :
+    sa part pour ces jours, au prorata des IJSS estimées de l'arrêt (du mois
+    pour plusieurs arrêts), ou des jours indemnisés si rien n'a pu être estimé.
+    """
+    jours = [d for d in ijss_par_jour if d in jours_maintenus]
+    estimees = sum(ijss_par_jour[d] for d in jours)
+    if releve_du_mois is None and not ijss.get("ijss_brut_override"):
+        return estimees, SOURCE_ESTIMEES
+    if releve_du_mois is not None:
+        valide, estime_total, nb_total = releve_du_mois
+    else:
+        valide = float(ijss.get("ijss_theorique") or 0.0)
+        estime_total = sum(ijss_par_jour.values())
+        nb_total = len(ijss_par_jour)
+    if estime_total > 0:
+        part = estimees / estime_total
+    elif nb_total > 0:
+        part = len(jours) / nb_total
+    else:
+        part = 0.0
+    return valide * part, SOURCE_VALIDEES
+
+
+def _verse_sans_subrogation(
+    maintien_cible: float,
+    settings: Dict[str, Any],
+    jours_maintenus: set,
+    ijss: Dict[str, Any],
+    ijss_par_jour: Optional[Dict[date, float]],
+    releve_du_mois: Optional[ReleveIjss],
+) -> tuple[float, Dict[str, Any]]:
+    """Le maintien versé sans subrogation, et la déduction quand elle joue.
+
+    Réglage éteint : le garanti en entier. Allumé : le garanti moins les IJSS
+    des jours maintenus et indemnisés, plancher à 0 (D1226-5). Les IJSS des
+    jours que l'employeur ne maintient pas restent au salarié.
+    """
+    if ijss_par_jour is None or not deduire_ijss_sans_subrogation(settings):
+        return maintien_cible, {}
+    retenues, source = _ijss_des_jours_maintenus(
+        jours_maintenus, ijss, ijss_par_jour, releve_du_mois
+    )
+    retenues = round(retenues, 2)
+    if retenues <= 0 or maintien_cible <= 0:
+        return maintien_cible, {}
+    verse = max(0.0, maintien_cible - retenues)
+    deduites = round(round(maintien_cible, 2) - round(verse, 2), 2)
+    if deduites <= 0:
+        return maintien_cible, {}
+    return verse, {CLE_IJSS_DEDUITES: deduites, CLE_SOURCE: source}
+
+
 def _calculer_maintien_employeur(
     arret: Dict[str, Any],
     qualification: Dict[str, Any],
@@ -712,6 +801,8 @@ def _calculer_maintien_employeur(
     date_debut_periode: date,
     date_fin_periode: date,
     jours_carence_payes: frozenset[date] = frozenset(),
+    ijss_par_jour: Optional[Dict[date, float]] = None,
+    releve_du_mois: Optional[ReleveIjss] = None,
 ) -> Dict[str, Any]:
     motif_non_maintien: Optional[str] = None
     conflit_convention = False
@@ -852,14 +943,23 @@ def _calculer_maintien_employeur(
                 maintien_cible_mat *= qtp
                 prorat_tp_mat = True
 
+        if bool(arret.get("subrogation_active")):
+            maintien_verse_mat, deduction_mat = maintien_cible_mat, {}
+        else:
+            # Tout le congé est maintenu, en jours calendaires.
+            jours_mat = {inter_d + timedelta(days=k) for k in range(jours_intersection)}
+            maintien_verse_mat, deduction_mat = _verse_sans_subrogation(
+                maintien_cible_mat, settings, jours_mat, ijss, ijss_par_jour, releve_du_mois
+            )
+
         salaire_reel_mat = float(arret.get("salaire_periode_reelle") or 0.0)
         return {
             "maintien_applicable": True,
             "taux_maintien": 1.0,
             "maintien_cible": round(maintien_cible_mat, 2),
-            "maintien_verse": round(maintien_cible_mat, 2),
+            "maintien_verse": round(maintien_verse_mat, 2),
             "nb_jours_maintien": jours_maintien_mat,
-            "complement_employeur": round(maintien_cible_mat - salaire_reel_mat, 2),
+            "complement_employeur": round(maintien_verse_mat - salaire_reel_mat, 2),
             "conflit_convention": False,
             "motif_non_maintien": None,
             "proratisation_temps_partiel": prorat_tp_mat,
@@ -867,6 +967,7 @@ def _calculer_maintien_employeur(
             "duree_par_taux_jours": 0,
             "duree_maintien_legale_jours": 0,
             "est_maternite": True,
+            **deduction_mat,
         }
 
     maintien_total_legal = 0.0
@@ -874,11 +975,24 @@ def _calculer_maintien_employeur(
     #: Jours de carence payés par l'employeur (crédit annuel), à 100 %.
     nb_jours_carence_payes = 0
     nb_jours_maintien = 0
+    # Jours maintenus en jours calendaires (week-ends compris en jours ouvrés) :
+    # ceux dont la CPAM déduit les IJSS sans subrogation, si la société le veut.
+    jours_payes: set = set()
+    jours_leg: set = set()
+    jours_conv: set = set()
     for k in range(jours_intersection):
-        if (inter_d + timedelta(days=k)) in jours_carence_payes:
+        jour = inter_d + timedelta(days=k)
+        if jour in jours_carence_payes:
             nb_jours_carence_payes += 1
             nb_jours_maintien += 1
+            jours_payes.add(jour)
             continue
+        rang_maintien = jours_deja + offset + k + 1 - carence_emp_arret
+        if rang_maintien >= 1:
+            if apply_legal and _taux_legal_pour_jour_maintien(rang_maintien, duree_par_taux) > 0:
+                jours_leg.add(jour)
+            if taux_conv is not None and rang_maintien <= cap_conv and float(taux_conv) > 0:
+                jours_conv.add(jour)
         if maintien_base_ouvree and (inter_d + timedelta(days=k)).weekday() >= 5:
             continue  # mode jours ouvrés : week-ends non maintenus
         jour_arret = jours_deja + offset + k + 1  # rang calendaire dans l'arrêt
@@ -939,11 +1053,22 @@ def _calculer_maintien_employeur(
         else 0.0
     )
 
+    # Les jours maintenus, ceux de la règle retenue pour la cible.
+    if taux_conv is not None and (
+        not apply_legal or maintien_total_conv >= maintien_total_legal - 1e-6
+    ):
+        jours_maintenus = jours_conv | jours_payes
+    else:
+        jours_maintenus = jours_leg | jours_payes
+
     subrogation_active = bool(arret.get("subrogation_active"))
+    deduction: Dict[str, Any] = {}
     if subrogation_active:
         maintien_verse = maintien_cible - float(ijss.get("ijss_theorique") or 0.0)
     else:
-        maintien_verse = maintien_cible
+        maintien_verse, deduction = _verse_sans_subrogation(
+            maintien_cible, settings, jours_maintenus, ijss, ijss_par_jour, releve_du_mois
+        )
 
     salaire_reel = float(arret.get("salaire_periode_reelle") or 0.0)
     complement = maintien_verse - salaire_reel
@@ -961,6 +1086,7 @@ def _calculer_maintien_employeur(
         "carence_employeur_jours": carence_emp,
         "duree_par_taux_jours": duree_par_taux,
         "duree_maintien_legale_jours": duree_legale_totale,
+        **deduction,
     }
 
 
@@ -1544,6 +1670,8 @@ def calculer_maintien(
     settings: Dict[str, Any],
     date_debut_periode: date,
     date_fin_periode: date,
+    *,
+    releve_ijss_du_mois: Optional[ReleveIjss] = None,
 ) -> Dict[str, Any]:
     """
     Calcule qualification, carences, IJSS, maintien employeur et point prévoyance.
@@ -1553,6 +1681,9 @@ def calculer_maintien(
         quotite_temps_partiel, historique_arrets_annee (liste optionnelle),
         salaire_periode_reelle (optionnel), arrets_annee (liste optionnelle des
         arrêts de l'année {debut, fin, type}, pour la carence payée).
+    :param releve_ijss_du_mois: plusieurs arrêts dans le mois, réglage de
+        déduction allumé et montant validé : (montant validé, IJSS estimées et
+        jours indemnisés de tous les arrêts), pour la part de chacun.
     """
     # Réglages société qui s'imposent à chaque arrêt, quelle que soit sa
     # saisie : subrogation « jamais » (IJSS versées au salarié, hors bulletin)
@@ -1587,6 +1718,7 @@ def calculer_maintien(
     if jours_deja:
         carence = _carence_d_une_prolongation(carence, jours_deja, debut_chaine)
 
+    ijss_par_jour: Dict[date, float] = {}
     ijss = _calculer_ijss(
         arret,
         qualification,
@@ -1594,6 +1726,7 @@ def calculer_maintien(
         contexte,
         date_debut_periode,
         date_fin_periode,
+        par_jour=ijss_par_jour,
     )
 
     ijss_override = arret.get("ijss_brut_override")
@@ -1651,6 +1784,8 @@ def calculer_maintien(
         date_debut_periode,
         date_fin_periode,
         jours_carence_payes=jours_carence_payes,
+        ijss_par_jour=ijss_par_jour,
+        releve_du_mois=releve_ijss_du_mois,
     )
 
     # Sans maintien de salaire sur la période, l'employeur n'a rien à avancer
@@ -1681,6 +1816,8 @@ def calculer_maintien(
             date_debut_periode,
             date_fin_periode,
             jours_carence_payes=jours_carence_payes,
+            ijss_par_jour=ijss_par_jour,
+            releve_du_mois=releve_ijss_du_mois,
         )
 
     nb_jours_arret_total = jours_deja + _compter_jours_calendaires(
@@ -1748,7 +1885,7 @@ def calculer_maintien(
             "Règle conventionnelle moins favorable que la règle légale — application de la règle légale"
         )
     if not arret.get("subrogation_active"):
-        alertes.append("IJSS versées directement au salarié")
+        alertes.append(alerte_ijss_au_salarie(maintien))
     elif not maintien.get("maintien_applicable", True) and arret.get("subrogation_active"):
         alertes.append(
             "Subrogation demandée sans maintien applicable — vérifier la cohérence"

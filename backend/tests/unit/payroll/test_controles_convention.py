@@ -229,6 +229,24 @@ class TestControleNetSuperieurBrut:
             "Subrogation demandée sans maintien applicable — vérifier la cohérence"
         ]
 
+    def test_l_alerte_ijss_au_salarie_avec_deduction_reste_une_information(self):
+        from app.modules.payroll.engine.controles_convention import (
+            extraire_alertes_rh_depuis_bulletin,
+            extraire_messages_alertes_rh,
+        )
+
+        bulletin = {
+            "synthese_net": {
+                "alertes_maintien": [
+                    "IJSS versées directement au salarié : 369,86 € déduites du "
+                    "maintien (estimées par Martine)",
+                ]
+            },
+        }
+
+        assert extraire_messages_alertes_rh(bulletin) == []
+        assert extraire_alertes_rh_depuis_bulletin(bulletin) == []
+
     def test_extraire_messages_legacy_sans_alertes_baremes(self):
         from app.modules.payroll.engine.controles_convention import (
             extraire_messages_alertes_rh,
