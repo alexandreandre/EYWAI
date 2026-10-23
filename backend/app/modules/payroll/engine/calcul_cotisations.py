@@ -28,6 +28,8 @@ from .regime_indemnites_rupture import (
 from .baremes_loader import resoudre_taux_vm_pour_paie
 from app.shared.domain.employment_rules import is_cadre
 from app.modules.payroll.engine.mutuelles import mutuelles_du_salarie
+from app.modules.payroll.engine.codes_des_lignes import BLOC_COTISATIONS
+from app.modules.payroll.engine.corrections_manuelles import LignesCorrigees, journal_du_contexte
 
 # Fichier : moteur_paie/calcul_cotisations.py
 
@@ -684,19 +686,26 @@ def calculer_cotisations(
     if exo_stage is not None:
         plafond_stage = exo_stage["plafond"]
         if salaire_brut <= plafond_stage + 0.01:
-            return [
-                enrichir_ligne_cotisation(
-                    {
-                        "libelle": "Gratification de stage exonérée",
-                        "base": round(salaire_brut, 2),
-                        "taux_salarial": None,
-                        "montant_salarial": 0.0,
-                        "taux_patronal": None,
-                        "montant_patronal": 0.0,
-                    },
-                    coti_id="exoneration_stage",
-                )
-            ], 0.0
+            lignes_stage = LignesCorrigees(
+                journal_du_contexte(contexte),
+                BLOC_COTISATIONS,
+                [
+                    enrichir_ligne_cotisation(
+                        {
+                            "libelle": "Gratification de stage exonérée",
+                            "base": round(salaire_brut, 2),
+                            "taux_salarial": None,
+                            "montant_salarial": 0.0,
+                            "taux_patronal": None,
+                            "montant_patronal": 0.0,
+                        },
+                        coti_id="exoneration_stage",
+                    )
+                ],
+            )
+            return list(lignes_stage), round(
+                sum(float(ligne.get("montant_salarial") or 0.0) for ligne in lignes_stage), 2
+            )
         part_exo = round(min(salaire_brut, plafond_stage), 2)
         ligne_exo_stage = enrichir_ligne_cotisation(
             {
@@ -727,7 +736,10 @@ def calculer_cotisations(
         "cotisations",
     )
     liste_cotisations_brutes = contexte.baremes["cotisations"].get(root_key, [])
-    bulletin_cotisations = []
+    # Chaque cotisation naît corrigée si une correction faite à la main la vise :
+    # le total salarial, le plafond de la réduction des heures sup et l'assiette
+    # du forfait social lisent la ligne corrigée.
+    bulletin_cotisations = LignesCorrigees(journal_du_contexte(contexte), BLOC_COTISATIONS)
 
     # Exonération apprenti (None si non applicable). Tout est dynamique (barèmes).
     exo_apprenti = contexte_exoneration_apprenti(contexte)

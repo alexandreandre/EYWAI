@@ -125,20 +125,33 @@ def _part_patronale_mutuelle_du_bulletin(
     réintégrer : 600 € de gratification n'ont pas à devenir 617,62 € imposables.
     Un salarié dont le bulletin porte sa mutuelle garde la valeur de la fiche.
     Une régularisation saisie à la main s'ajoute à ce plafond : elle corrige
-    ce que le bulletin a vraiment versé."""
+    ce que le bulletin a vraiment versé. Une ligne corrigée à la main réintègre
+    son écart de la même façon."""
     mutuelle = [ligne for ligne in lignes_cotisations if ligne.get("coti_id") == "mutuelle"]
-    calculee = round(
-        sum(_get_safe_float(ligne.get("montant_patronal")) for ligne in mutuelle if not ligne.get("regularisation")),
-        2,
-    )
+
+    def _calculee(ligne: Dict[str, Any]) -> float:
+        valeur = ligne.get("valeur_calculee")
+        if isinstance(valeur, dict):
+            return _get_safe_float(valeur.get("montant_patronal"))
+        return _get_safe_float(ligne.get("montant_patronal"))
+
+    calculee = round(sum(_calculee(ligne) for ligne in mutuelle if not ligne.get("regularisation")), 2)
     regularisee = round(
         sum(_get_safe_float(ligne.get("montant_patronal")) for ligne in mutuelle if ligne.get("regularisation")),
         2,
     )
+    corrigee = round(
+        sum(
+            _get_safe_float(ligne.get("montant_patronal")) - _calculee(ligne)
+            for ligne in mutuelle
+            if isinstance(ligne.get("valeur_calculee"), dict)
+        ),
+        2,
+    )
     fiche = _get_part_patronale_mutuelle(contexte)
     reintegree = min(fiche, calculee) if calculee > 0 else 0.0
-    if regularisee and fiche > 0:
-        reintegree += regularisee
+    if (regularisee or corrigee) and fiche > 0:
+        reintegree += regularisee + corrigee
     return round(max(0.0, reintegree), 2)
 
 
