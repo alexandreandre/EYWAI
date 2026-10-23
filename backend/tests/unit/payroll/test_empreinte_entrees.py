@@ -179,3 +179,27 @@ def test_une_regularisation_change_l_empreinte():
     assert empreinte(construire_entrees({"saisies": [saisie_pour_empreinte(ordinaire)]})) != empreinte(
         construire_entrees({"saisies": [saisie_pour_empreinte(regularisee)]})
     )
+
+
+def test_une_correction_de_ligne_change_l_empreinte():
+    ordinaire = {"year": 2026, "month": 10, "name": "Correction – Salaire de base", "amount": 0}
+    corrigee = {**ordinaire, "correction_ligne": {"type": "correction", "ligne": "brut:salaire_base", "base": 160.0}}
+    assert empreinte(construire_entrees({"saisies": [saisie_pour_empreinte(ordinaire)]})) != empreinte(
+        construire_entrees({"saisies": [saisie_pour_empreinte(corrigee)]})
+    )
+
+
+def test_la_valeur_calculee_d_une_ligne_corrigee_compte_au_centime():
+    """Le PDF l'imprime : si Martine recalcule autrement la ligne corrigée, le bulletin est à recalculer."""
+    from app.modules.payroll.domain.empreinte_entrees import ecart_au_centime
+
+    def _bulletin(valeur):
+        return {
+            "salaire_brut": 2637.31,
+            "net_a_payer": 2000.0,
+            "calcul_du_brut": [{"libelle": "Salaire de base", "quantite": 160.0, "taux": 16.4832, "gain": 2637.31,
+                                "correction": {"saisie_id": "c1"}, "valeur_calculee": {"gain": valeur}}],
+        }
+
+    assert ecart_au_centime(_bulletin(2500.0), _bulletin(2500.0)) is None
+    assert ecart_au_centime(_bulletin(2500.0), _bulletin(2510.0)) is not None

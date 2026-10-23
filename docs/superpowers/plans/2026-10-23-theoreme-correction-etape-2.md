@@ -5054,3 +5054,13 @@ Lui donner : le résultat du filet (bulletins comparés par société et par moi
 | Test du théorème étendu (§ 9) | 13 |
 | Garantie 1 : filet au centime | 14 |
 | Bornes de la règle 9 (mois repris verrouillé, validé repassé en brouillon) | inchangées : `corriger_bulletin` les applique déjà |
+
+---
+
+## Écarts à l'exécution
+
+Notés par l'agent qui a exécuté les tâches 0 à 10 (23/10).
+
+- **Tâche 0.** Le contrôle des noms du crochet `pre-commit` ne voit pas la table des pseudonymes dans le worktree (`data/_outils/` est hors git) : il passe sans rien vérifier. Avant chaque commit, il a été rejoué sur le diff indexé du worktree avec la table du dépôt principal (lecture seule). Le contrôle `ruff` du crochet est aussi sauté (pas de `backend/.venv` dans le worktree) : rejoué à la main avec l'interpréteur du dépôt principal (`--select E9,F63,F7,F82`).
+- **Tâche 3.** `test_la_precarite_et_l_indemnite_compensatrice_suivent_le_salaire_corrige` passe aussi avant l'implémentation (la correction n'étant pas posée, la précarité vaut le dixième du brut non corrigé, ce que le test vérifie). Il ne devient discriminant qu'une fois la correction posée ; laissé tel quel.
+- **Tâche 8.** L'import en tête de `explications_lignes.py` (`codes_des_lignes`, `corrections_du_bulletin`) créait un cycle quand ce module est chargé le premier (`engine/__init__` → `bulletin` → `explications_lignes` à moitié chargé). Les tests ne le voyaient pas (autre ordre d'import). Corrigé par un import local dans `_expliquer_corrections` ; chaque module touché a été vérifié importable seul, et `app.main` aussi.

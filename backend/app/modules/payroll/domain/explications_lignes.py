@@ -95,6 +95,7 @@ def poser_explications(
         smic_reference_horaire,
         depart_reduction,
     )
+    _expliquer_corrections(bulletin)
     return bulletin
 
 
@@ -443,6 +444,34 @@ def _est_reduction_generale(ligne: Mapping[str, Any]) -> bool:
     if ligne.get("coti_id") == "reduction_generale":
         return True
     return _LIBELLE_RGDU in str(ligne.get("libelle") or "").lower()
+
+
+def _expliquer_corrections(bulletin: dict[str, Any]) -> None:
+    """Une ligne corrigée à la main le dit au survol, avec ce que Martine avait
+    calculé. Posée en dernier : elle remplace l'explication du calcul (celle de
+    la réduction générale ne dit plus « régularisation depuis janvier »)."""
+    # Import local : `engine/bulletin.py` importe ce module, et le paquet
+    # `engine` importe `bulletin` — un import en tête ferait un cycle quand ce
+    # module est chargé le premier.
+    from app.modules.payroll.engine.codes_des_lignes import BLOC_BRUT, BLOC_COTISATIONS
+    from app.modules.payroll.engine.corrections_du_bulletin import (
+        BLOCS_DE_GAINS,
+        explication_de_correction,
+    )
+
+    for bloc in (*BLOCS_DE_GAINS, "details_maintien"):
+        for ligne in _lignes_de(bulletin, bloc):
+            _poser(ligne, explication_de_correction(ligne, BLOC_BRUT))
+    structure = bulletin.get("structure_cotisations")
+    if isinstance(structure, dict):
+        for cle, valeur in structure.items():
+            if isinstance(valeur, list):
+                for ligne in _lignes_de(structure, cle):
+                    _poser(ligne, explication_de_correction(ligne, BLOC_COTISATIONS))
+    for rubrique in bulletin.get("cotisations_officielles") or []:
+        if isinstance(rubrique, dict):
+            for ligne in _lignes_de(rubrique, "lignes"):
+                _poser(ligne, explication_de_correction(ligne, BLOC_COTISATIONS))
 
 
 def _lignes_de(conteneur: Mapping[str, Any], cle: str) -> list[dict[str, Any]]:

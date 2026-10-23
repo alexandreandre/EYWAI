@@ -14,12 +14,18 @@ from app.modules.payroll.domain.empreinte_entrees import (  # noqa: F401 — ré
     MESSAGE_A_RECALCULER,
     MESSAGE_A_REGENERER,
 )
+from app.modules.payroll.engine.corrections_manuelles import CLE_CORRECTIONS_EN_ATTENTE
 
 _TOLERANCE = 0.011
 
 MESSAGE_RECALCUL_EN_ATTENTE = (
     "Le bulletin n'a pas été recalculé après la dernière correction : "
     "régénérez-le avant de le valider."
+)
+
+MESSAGE_CORRECTION_EN_ATTENTE = (
+    "Une correction faite à la main ne trouve plus sa ligne : retirez-la ou "
+    "reportez-la sur une autre ligne (onglet « Corriger ») avant de valider."
 )
 
 
@@ -44,6 +50,8 @@ def raisons_de_ne_pas_valider(
     raisons: list[str] = []
     if isinstance(payslip_data, dict) and payslip_data.get("recalcul_en_attente"):
         raisons.append(MESSAGE_RECALCUL_EN_ATTENTE)
+    if isinstance(payslip_data, dict) and payslip_data.get(CLE_CORRECTIONS_EN_ATTENTE):
+        raisons.append(MESSAGE_CORRECTION_EN_ATTENTE)
     if raison_a_recalculer:
         raisons.append(raison_a_recalculer)
     if verification_en_cours:

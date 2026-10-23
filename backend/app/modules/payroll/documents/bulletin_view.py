@@ -15,6 +15,7 @@ from app.modules.payroll.domain.report_nap_negatif import (
     CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
 )
 from app.modules.payroll.engine.corrections_manuelles import mentions_des_regularisations
+from app.modules.payroll.engine.corrections_du_bulletin import mentions_des_corrections
 
 CIVILITES_MASCULINES = {"M", "H", "MR", "MASCULIN", "1"}
 CIVILITES_FEMININES = {"F", "MME", "FEMININ", "FÉMININ", "2"}
@@ -290,6 +291,12 @@ def _ligne(
     }
 
 
+def _libelle_marque(source: Dict[str, Any]) -> str:
+    """Une ligne corrigée à la main porte un astérisque ; sa note suit les cotisations."""
+    libelle = source.get("libelle") or ""
+    return f"{libelle} *" if isinstance(source.get("correction"), dict) else libelle
+
+
 def _ligne_brut(source: Dict[str, Any]) -> Dict[str, Any]:
     """Une ligne de rémunération : le gain va au salarial, la perte le diminue."""
     gain = source.get("gain")
@@ -301,7 +308,7 @@ def _ligne_brut(source: Dict[str, Any]) -> Dict[str, Any]:
         montant = -float(perte)
     return _ligne(
         "detail",
-        source.get("libelle") or "",
+        _libelle_marque(source),
         base=source.get("quantite"),
         taux=source.get("taux"),
         montant_salarial=montant,
@@ -320,7 +327,7 @@ def _ligne_cotisation(source: Dict[str, Any]) -> Dict[str, Any]:
     taux = source.get("taux_salarial")
     return _ligne(
         "detail",
-        source.get("libelle") or "",
+        _libelle_marque(source),
         base=source.get("base"),
         taux=float(taux) * 100 if taux is not None else None,
         montant_salarial=_montant_ou_vide(source.get("montant_salarial")),
@@ -556,6 +563,8 @@ def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
         lignes.extend(_lignes_rubrique(rubrique))
 
     for mention in mentions_des_regularisations(bulletin):
+        lignes.append(_ligne("note", mention))
+    for mention in mentions_des_corrections(bulletin):
         lignes.append(_ligne("note", mention))
 
     total_salarial = round(
