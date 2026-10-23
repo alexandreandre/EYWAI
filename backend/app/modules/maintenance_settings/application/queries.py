@@ -32,9 +32,16 @@ def _defaults(company_id: str) -> MaintenanceSettings:
         paid_waiting_min_seniority_months=12,
         maintain_working_days=False,
         maintain_parental_leave=False,
+        deduire_ijss_sans_subrogation=True,
         created_at=None,
         updated_at=None,
     )
+
+
+#: Colonne ajoutée le 23/10/2026. Une ligne lue avant la migration ne la porte
+#: pas : c'est une société qui existait, elle garde le calcul d'avant (false),
+#: comme la migration le pose.
+_CLE_DEDUIRE_IJSS = "deduire_ijss_sans_subrogation"
 
 
 def get_maintenance_settings(company_id: str) -> MaintenanceSettings:
@@ -42,4 +49,6 @@ def get_maintenance_settings(company_id: str) -> MaintenanceSettings:
     raw = maintenance_settings_repository.get_by_company(company_id)
     if not raw:
         return _defaults(company_id)
+    if _CLE_DEDUIRE_IJSS not in raw:
+        raw = {**raw, _CLE_DEDUIRE_IJSS: False}
     return MaintenanceSettings.model_validate(raw)

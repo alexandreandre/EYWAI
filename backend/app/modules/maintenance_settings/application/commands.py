@@ -33,6 +33,7 @@ _DB_WRITABLE_KEYS = frozenset(
         "paid_waiting_min_seniority_months",
         "maintain_working_days",
         "maintain_parental_leave",
+        "deduire_ijss_sans_subrogation",
     }
 )
 

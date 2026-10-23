@@ -42,5 +42,9 @@ class MaintenanceSettings(BaseModel):
     #: 100 % dès le premier jour. Pas une obligation légale (convention) : éteint
     #: par défaut, ces congés sont retenus et les IJ versées au salarié.
     maintain_parental_leave: bool = False
+    #: Arrêt sans subrogation : la CPAM verse les IJSS au salarié. True : Martine
+    #: ne verse que le complément, IJSS des jours maintenus déduites (règle
+    #: légale, D1226-5). False : le salaire garanti en entier.
+    deduire_ijss_sans_subrogation: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

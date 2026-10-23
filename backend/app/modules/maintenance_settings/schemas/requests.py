@@ -32,6 +32,7 @@ class MaintenanceSettingsUpdate(BaseModel):
     paid_waiting_min_seniority_months: Optional[int] = None
     maintain_working_days: Optional[bool] = None
     maintain_parental_leave: Optional[bool] = None
+    deduire_ijss_sans_subrogation: Optional[bool] = None
 
     @field_validator("provident_maintenance_rate")
     @classmethod
