@@ -59,6 +59,20 @@ from .salary_evolution_brut import (
     salaire_contractuel_avec_evolution,
 )
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
+from app.modules.payroll.engine.codes_des_lignes import BLOC_BRUT
+from app.modules.payroll.engine.corrections_manuelles import LignesCorrigees, journal_du_contexte
+
+#: Les retenues d'absence qui entrent dans le rapport des salaires de la
+#: réduction générale au forfait jours (`retenues_absence_mois`).
+FAMILLES_RETENUES_FORFAIT = (
+    "brut:absence_entree_sortie",
+    "brut:absence_injustifiee",
+    "brut:absence_non_remuneree",
+    "brut:absence_ferie_non_paye",
+    "brut:absence_maladie",
+    "brut:arret",
+    "brut:retenue_absence_mois_complet",
+)
 
 
 def _construire_ligne_avantages_en_nature(
@@ -301,7 +315,8 @@ def calculer_salaire_brut_forfait(
     Returns:
         Dictionnaire avec le salaire brut total et les détails
     """
-    lignes_composants_brut = []
+    # Chaque ligne naît corrigée si une correction faite à la main la vise.
+    lignes_composants_brut = LignesCorrigees(journal_du_contexte(contexte), BLOC_BRUT)
     salaire_contractuel = salaire_contractuel_avec_evolution(
         contexte, contexte.salaire_base_mensuel
     )
@@ -658,6 +673,13 @@ def calculer_salaire_brut_forfait(
         primes_saisies=primes_saisies,
     )
 
+    # Le salaire du forfait et les retenues d'absence que lit la réduction
+    # générale suivent les lignes corrigées.
+    effet = lignes_composants_brut.effet
+    salaire_forfait_mois = salaire_contractuel + effet.sur_le_brut("brut:salaire_base")
+    if effet.corrigees:
+        retenues_absence_mois -= effet.sur_le_brut(*FAMILLES_RETENUES_FORFAIT)
+
     total_gains = sum(
         ligne.get("gain", 0.0) or 0.0
         for ligne in lignes_composants_brut
@@ -669,7 +691,7 @@ def calculer_salaire_brut_forfait(
 
     # Protection : Les déductions d'absence ne peuvent pas dépasser le salaire de base
     # (sauf si des primes/avantages sont ajoutés)
-    salaire_base_seul = salaire_contractuel
+    salaire_base_seul = salaire_forfait_mois
     if total_pertes > salaire_base_seul:
         logger.warning(f"AVERTISSEMENT: Les déductions d'absence ({total_pertes:.2f} €) dépassent le salaire de base ({salaire_base_seul:.2f} €). Les déductions sont limitées au salaire de base.")
         # Limiter les déductions au salaire de base uniquement
@@ -689,12 +711,12 @@ def calculer_salaire_brut_forfait(
 
     return {
         "salaire_brut_total": round(total_brut, 2),
-        "lignes_composants_brut": lignes_composants_brut,
+        "lignes_composants_brut": list(lignes_composants_brut),
         "remuneration_brute_heures_supp": round(remuneration_hs_totale, 2),
         "total_heures_supp": round(total_heures_supp, 2),
         "nombre_jours_travailles": round(nombre_jours_travailles, 2),
         "nombre_jours_absence": round(nombre_jours_absence_injustifiee, 2),
         # Rapport des salaires de la réduction générale (forfait jours).
-        "salaire_forfait_mois": round(salaire_contractuel, 2),
+        "salaire_forfait_mois": round(salaire_forfait_mois, 2),
         "retenues_absence_mois": round(retenues_absence_mois, 2),
     }
