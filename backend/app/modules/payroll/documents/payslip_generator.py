@@ -73,7 +73,7 @@ from app.modules.payroll.documents.pdf_du_bulletin import (
 from app.modules.payslips.domain.heures_sup import est_declaration_bulletin
 from app.modules.ijss_tracking.domain.saisie_ijss import est_saisie_ijss_validees
 from app.modules.monthly_inputs.domain.rules import est_saisie_retiree
-from app.modules.payroll.engine.corrections_manuelles import ranger_regularisation
+from app.modules.payroll.engine.corrections_manuelles import ranger_correction_manuelle
 from app.core.logging import get_logger, log_payroll_debug
 from app.core.paths import (
     payroll_engine_root,
@@ -920,9 +920,9 @@ def process_payslip_generation(
                 # Prime de règle automatique retirée : gardée à 0 pour ne pas
                 # revenir, elle n'est pas une ligne du bulletin.
                 continue
-            if ranger_regularisation(row, saisies_data):
-                # Régularisation de cotisation saisie depuis le bulletin : elle
-                # n'est pas une prime, le pipeline la pose dans les cotisations.
+            if ranger_correction_manuelle(row, saisies_data):
+                # Régularisation de cotisation ou correction de ligne saisie depuis
+                # le bulletin : ce n'est pas une prime, le moteur la rejoue.
                 continue
             if est_saisie_ijss_validees(row):
                 # Montant validé au suivi IJSS : les IJSS subrogées du mois, rien d'autre.

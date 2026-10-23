@@ -20,7 +20,14 @@ from app.modules.payroll.engine.calcul_cotisations import (
     ratio_plafond_periode,
 )
 from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
-from app.modules.payroll.engine.corrections_manuelles import ajouter_regularisations
+from app.modules.payroll.engine.corrections_manuelles import (
+    JournalDesCorrections,
+    ajouter_regularisations,
+    corriger_les_lignes_de_cotisation,
+    corriger_les_lignes_de_gain,
+    poser_les_corrections_en_attente,
+    synchroniser_le_maintien,
+)
 from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
     heures_reduction_forfait_jours,
@@ -221,6 +228,9 @@ def run_payslip_generation_forfait(
     # Aiguillage Fillon (< 2026) / RGDU (>= 2026) et suppression des bandeaux maladie/AF.
     contexte.year = year
     contexte.month = month
+    # Corrections faites à la main depuis le bulletin (théorème, étape 2) : le
+    # moteur les pose ligne par ligne, là où chaque ligne naît.
+    contexte.corrections_du_mois = JournalDesCorrections.depuis(saisie_du_mois)
     # Barèmes d'une année antérieure au bulletin : refus ; d'une année
     # suivante (décembre recalculé en janvier) : alerte sur le bulletin.
     contexte.alertes_baremes.extend(controler_annee_des_baremes(contexte.baremes, year))
@@ -530,6 +540,12 @@ def run_payslip_generation_forfait(
     lignes_csg_ijss, ijss_imposables, brut_modifie = _appliquer_maintien_arret_maladie(
         contexte, resultats_maintien, details_brut
     )
+    # Lignes de gain posées après le calcul du brut (nuit, pause, maintien) :
+    # corrigées ici, puis le brut se refait sur les lignes.
+    effet_gains = corriger_les_lignes_de_gain(details_brut, contexte.corrections_du_mois)
+    if effet_gains.corrigees:
+        brut_modifie = True
+        synchroniser_le_maintien(resultats_maintien, details_brut)
     if brut_modifie:
         salaire_brut_calcule = round(
             sum(
@@ -638,6 +654,12 @@ def run_payslip_generation_forfait(
         if ligne_reduction_generale:
             lignes_cotisations.append(ligne_reduction_generale)
 
+    # Cotisations posées après `calculer_cotisations` (CSG des IJSS, JEI) :
+    # corrigées ici ; la réduction générale l'a été à son calcul.
+    effet_cotisations = corriger_les_lignes_de_cotisation(lignes_cotisations, contexte.corrections_du_mois)
+    if effet_cotisations.salarial:
+        total_salarial = round(total_salarial + effet_cotisations.salarial, 2)
+
     # Régularisations de cotisation saisies à la main : après la réduction
     # générale, qui ne doit pas les lire ; avant le net, qui lit le total
     # salarial et non les lignes.
@@ -699,6 +721,9 @@ def run_payslip_generation_forfait(
             resultats_maintien=resultats_maintien,
             primes_soumises_impot=primes_soumises_impot,
         )
+
+    # Règle 7 : une correction qui n'a pas trouvé sa ligne reste sur le bulletin.
+    poser_les_corrections_en_attente(bulletin_final, contexte.corrections_du_mois)
 
     smic_calcule_mois = (
         contexte.baremes.get("smic", {}).get("cas_general", 0.0) * heures_equivalentes
