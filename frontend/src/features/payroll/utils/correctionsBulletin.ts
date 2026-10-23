@@ -291,15 +291,24 @@ export function cotisationsRegularisables(data: unknown): CotisationRegularisabl
 
 export function regularisationsDuBulletin(data: unknown): RegularisationDuBulletin[] {
   return lignesDeCotisation(data)
-    .map((l) => l.regularisation as Ligne | undefined)
-    .filter((r): r is Ligne => !!r && typeof r === 'object' && !!r.saisie_id)
-    .map((r) => ({
-      saisieId: String(r.saisie_id),
-      libelle: String(r.libelle ?? ''),
-      motif: String(r.motif ?? ''),
-      montantSalarial: arrondi(nombre(r.montant_salarial) ?? 0),
-      montantPatronal: arrondi(nombre(r.montant_patronal) ?? 0),
-    }));
+    .filter((l) => {
+      const charge = l.regularisation as Ligne | undefined;
+      return !!charge && typeof charge === 'object' && !!charge.saisie_id;
+    })
+    .map((l) => {
+      const charge = l.regularisation as Ligne;
+      // Le montant juste est celui de la ligne recalculée. La charge utile
+      // peut le laisser vide : c'est la base et le taux qui ont été saisis.
+      const salarial = nombre(l.montant_salarial) ?? nombre(charge.montant_salarial) ?? 0;
+      const patronal = nombre(l.montant_patronal) ?? nombre(charge.montant_patronal) ?? 0;
+      return {
+        saisieId: String(charge.saisie_id),
+        libelle: String(charge.libelle ?? ''),
+        motif: String(charge.motif ?? ''),
+        montantSalarial: arrondi(salarial),
+        montantPatronal: arrondi(patronal),
+      };
+    });
 }
 
 export type PartRegularisee = 'salariale' | 'patronale' | 'les_deux';

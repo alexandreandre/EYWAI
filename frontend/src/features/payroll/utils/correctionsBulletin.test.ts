@@ -389,6 +389,38 @@ describe('régularisations de cotisation', () => {
     ]);
   });
 
+  it('affiche le montant recalculé de la ligne quand la charge utile n’a pas de montant', () => {
+    const data = {
+      cotisations_officielles: [
+        {
+          lignes: [
+            {
+              libelle: 'Régularisation – Maladie',
+              montant_salarial: 0,
+              montant_patronal: 7,
+              regularisation: {
+                saisie_id: 's2',
+                libelle: 'Sécurité sociale - Maladie',
+                motif: 'Base oubliée',
+                montant_salarial: null,
+                montant_patronal: null,
+              },
+            },
+          ],
+        },
+      ],
+    };
+    expect(regularisationsDuBulletin(data)).toEqual([
+      {
+        saisieId: 's2',
+        libelle: 'Sécurité sociale - Maladie',
+        motif: 'Base oubliée',
+        montantSalarial: 0,
+        montantPatronal: 7,
+      },
+    ]);
+  });
+
   it('convertit un écart en euros en base au taux de la cotisation', () => {
     const [maladie] = cotisationsRegularisables(BULLETIN_REGUL);
     const r = regularisationDepuisEcart(maladie, 7, 'patronale', 'Base oubliée');
