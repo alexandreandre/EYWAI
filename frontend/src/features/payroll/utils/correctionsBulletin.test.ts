@@ -457,3 +457,30 @@ describe('régularisations de cotisation', () => {
     expect(requete.corrections.regularisations_ajoutees).toHaveLength(1);
   });
 });
+
+describe('heures sup du mois : les champs partent des heures déclarées, jamais d’une ligne corrigée à la main', () => {
+  // Jeu du 23/10 : 5 h déclarées, puis la ligne corrigée à 8 h par « Corriger une ligne ».
+  const corrigee = {
+    ...hs25,
+    quantite: 8,
+    gain: 142.8,
+    correction: { ligne: 'brut:hs25', libelle: hs25.libelle, motif: 'Heures confirmées', base: 8, saisie_id: 'c1' },
+    valeur_calculee: { quantite: 5, taux: 17.85, gain: 89.25, perte: null },
+  };
+
+  it('déclarées 5 h, ligne corrigée à 8 h : le champ dit 5', () => {
+    const data = { calcul_du_brut: [base, corrigee], heures_sup_declarees: { hs25: 5, hs50: 0, planning: 0 } };
+    const initial = etatInitial(data, null);
+    expect([initial.hs25, initial.hs50]).toEqual([5, 0]);
+    // Retoucher le seul second palier déclare 5 h au premier, pas 8.
+    expect(requeteDeCorrection(initial, avec(initial, { hs50: 1 }), null).corrections.heures_sup).toEqual({
+      hs25: 5,
+      hs50: 1,
+    });
+  });
+
+  it('sans heures déclarées, une ligne corrigée compte pour ce que Martine avait calculé', () => {
+    expect(etatInitial({ calcul_du_brut: [base, corrigee, hs50] }, null).hs25).toBe(5);
+    expect(quantitesHeuresSup({ calcul_du_brut: [base, corrigee, hs50] })).toEqual([5, 3.5]);
+  });
+});

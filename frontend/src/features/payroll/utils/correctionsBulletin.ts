@@ -131,10 +131,24 @@ function lignesDe(data: unknown, section: string): Ligne[] {
     : [];
 }
 
-/** (premier palier, second palier) imprimés sur le bulletin. */
+/** La valeur que Martine avait calculée pour une ligne corrigée à la main ; la ligne elle-même sinon. */
+function avantLaCorrection(ligne: Ligne): Ligne {
+  const calcule = ligne.valeur_calculee;
+  return ligne.correction && calcule && typeof calcule === 'object' ? { ...ligne, ...(calcule as Ligne) } : ligne;
+}
+
+/**
+ * (premier palier, second palier) imprimés sur le bulletin.
+ *
+ * Une ligne corrigée à la main compte pour la quantité que Martine avait
+ * calculée : la carte « Heures supplémentaires du mois » reprenait sinon les
+ * 8 h de la correction pour 5 h déclarées, et retoucher l'autre palier les
+ * déclarait (jeu du 23/10).
+ */
 export function quantitesHeuresSup(data: unknown): [number, number] {
   const retenues: Array<[number, number, string]> = [];
-  for (const ligne of lignesDe(data, 'calcul_du_brut')) {
+  for (const imprimee of lignesDe(data, 'calcul_du_brut')) {
+    const ligne = avantLaCorrection(imprimee);
     const libelle = typeof ligne.libelle === 'string' ? ligne.libelle : '';
     if (!estLigneHeuresSupConjoncturelle(libelle)) continue;
     const quantite = nombre(ligne.quantite);
@@ -340,7 +354,10 @@ export function regularisationDepuisEcart(
 }
 
 export function etatInitial(data: unknown, pdfNotes: string | null | undefined): EtatCorrections {
-  const [hs25, hs50] = quantitesHeuresSup(data);
+  // Les heures déclarées au bulletin (les variables du mois) font foi, jamais
+  // la quantité d'une ligne corrigée à la main.
+  const declarees = heuresDeclarees(data);
+  const [hs25, hs50] = declarees ? [declarees.hs25, declarees.hs50] : quantitesHeuresSup(data);
   return {
     hs25,
     hs50,
