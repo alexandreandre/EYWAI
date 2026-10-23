@@ -29,6 +29,9 @@ export interface MaintenanceSettings {
   /** Maintien à 100 % pendant les congés de maternité, de paternité et
    * d'adoption (convention) ; éteint par défaut. */
   maintain_parental_leave: boolean;
+  /** Arrêt sans subrogation : true, Martine ne verse que le complément (IJSS des
+   * jours maintenus déduites) ; false, le salaire garanti en entier. */
+  deduire_ijss_sans_subrogation: boolean;
   created_at: string | null;
   updated_at: string | null;
 }

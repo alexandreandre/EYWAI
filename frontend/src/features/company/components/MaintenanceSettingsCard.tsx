@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -30,6 +31,12 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Wallet } from 'lucide-react';
 import { estRoleRh } from '@/lib/rolesRh';
+import {
+  AIDE_IJSS_SANS_SUBROGATION,
+  CHOIX_IJSS_SANS_SUBROGATION,
+  choixIjssDepuisReglage,
+  reglageDepuisChoixIjss,
+} from './ijssSansSubrogation';
 
 function toUpdatePayload(form: MaintenanceSettings): MaintenanceSettingsUpdate {
   return {
@@ -53,6 +60,7 @@ function toUpdatePayload(form: MaintenanceSettings): MaintenanceSettingsUpdate {
     paid_waiting_min_seniority_months: form.paid_waiting_min_seniority_months,
     maintain_working_days: form.maintain_working_days,
     maintain_parental_leave: form.maintain_parental_leave,
+    deduire_ijss_sans_subrogation: form.deduire_ijss_sans_subrogation,
   };
 }
 
@@ -401,6 +409,32 @@ export default function MaintenanceSettingsCard() {
                   <SelectItem value="never">Jamais — IJSS versées au salarié</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid gap-2 max-w-md">
+              <Label id="deduire_ijss_sans_subrogation">Arrêt sans subrogation</Label>
+              <RadioGroup
+                aria-labelledby="deduire_ijss_sans_subrogation"
+                value={choixIjssDepuisReglage(form.deduire_ijss_sans_subrogation)}
+                onValueChange={(v) => {
+                  const deduire = reglageDepuisChoixIjss(v);
+                  if (deduire === null) return;
+                  setForm((p) => (p ? { ...p, deduire_ijss_sans_subrogation: deduire } : p));
+                }}
+                disabled={readOnly}
+              >
+                {CHOIX_IJSS_SANS_SUBROGATION.map((choix) => (
+                  <div key={choix.valeur} className="flex items-center gap-2">
+                    <RadioGroupItem value={choix.valeur} id={`deduire_ijss_${choix.valeur}`} />
+                    <Label
+                      htmlFor={`deduire_ijss_${choix.valeur}`}
+                      className="cursor-pointer font-normal"
+                    >
+                      {choix.libelle}
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+              <p className="text-sm text-muted-foreground">{AIDE_IJSS_SANS_SUBROGATION}</p>
             </div>
             <div className="grid gap-2 max-w-xs">
               <Label htmlFor="provident_relay_days">Relais prévoyance (jours, optionnel)</Label>
