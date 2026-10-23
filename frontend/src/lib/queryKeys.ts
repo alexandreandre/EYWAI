@@ -29,6 +29,8 @@ export const queryKeys = {
     companyQueryKey(companyId, 'payslips', 'report-net-negatif', 'mois', year, month),
   revueDuMois: (companyId: string | undefined, year: number, month: number) =>
     companyQueryKey(companyId, 'payslips', 'revue-du-mois', year, month),
+  lignesCorrigeables: (companyId: string | undefined, payslipId: string, version: string | null | undefined) =>
+    companyQueryKey(companyId, 'payslips', 'lignes-corrigeables', payslipId, version ?? ''),
   reportNetNegatifTous: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'payslips', 'report-net-negatif'),
   payslipsAnomalies: (companyId: string | null | undefined, year: number, month: number) =>

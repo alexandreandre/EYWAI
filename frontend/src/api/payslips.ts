@@ -316,6 +316,58 @@ export interface RegularisationAjoutee {
   montant_patronal?: number | null;
 }
 
+/** Une ligne corrigée depuis le bulletin : sa base, son taux ou son montant, selon la règle 3. */
+export interface CorrectionLigneAjoutee {
+  /** Le code de la ligne, donné par le serveur. */
+  ligne: string;
+  libelle: string;
+  motif: string;
+  base?: number | null;
+  taux?: number | null;
+  montant?: number | null;
+  taux_salarial?: number | null;
+  taux_patronal?: number | null;
+  montant_salarial?: number | null;
+  montant_patronal?: number | null;
+}
+
+export type ModeDeCorrection = 'base_ou_taux' | 'montant' | 'taux';
+
+/** Une ligne du bulletin et ce qui s'y corrige (`GET /api/payslips/{id}/lignes-corrigeables`). */
+export interface LigneCorrigeable {
+  code: string | null;
+  bloc: 'brut' | 'cotisations' | 'impot';
+  libelle: string;
+  /** null : la ligne ne se corrige pas ici, `raison` dit où. */
+  mode: ModeDeCorrection | null;
+  raison?: string | null;
+  /** Une retenue (absence…) : son montant est ce qui est retiré. */
+  retenue?: boolean;
+  base?: number | null;
+  taux?: number | null;
+  montant?: number | null;
+  taux_salarial?: number | null;
+  taux_patronal?: number | null;
+  montant_salarial?: number | null;
+  montant_patronal?: number | null;
+  correction?: (CorrectionLigneAjoutee & { saisie_id?: string | null }) | null;
+  valeur_calculee?: Record<string, number | null> | null;
+}
+
+/** Une correction qui ne trouve plus sa ligne : elle bloque la validation. */
+export interface CorrectionEnAttente {
+  saisie_id: string | null;
+  ligne: string;
+  libelle: string;
+  motif: string;
+  raison: string;
+}
+
+export interface LignesCorrigeables {
+  lignes: LigneCorrigeable[];
+  en_attente: CorrectionEnAttente[];
+}
+
 export interface CorrectionsBulletin {
   heures_sup?: { hs25: number; hs50: number };
   revenir_au_planning?: boolean;
@@ -324,6 +376,8 @@ export interface CorrectionsBulletin {
   primes_retirees?: string[];
   regularisations_ajoutees?: RegularisationAjoutee[];
   regularisations_retirees?: string[];
+  corrections_ajoutees?: CorrectionLigneAjoutee[];
+  corrections_retirees?: string[];
 }
 
 /** Refus structuré du recalcul d'après une correction (même forme que le 422 de génération). */
@@ -532,6 +586,17 @@ export async function getRevueDuMois(
     params: { year, month },
     ...enTeteSociete(companyId),
   });
+  return response.data;
+}
+
+export async function getLignesCorrigeables(
+  payslipId: string,
+  companyId?: string | null,
+): Promise<LignesCorrigeables> {
+  const response = await apiClient.get<LignesCorrigeables>(
+    `/api/payslips/${encodeURIComponent(payslipId)}/lignes-corrigeables`,
+    { ...enTeteSociete(companyId) },
+  );
   return response.data;
 }
 

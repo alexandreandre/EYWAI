@@ -615,6 +615,8 @@ export default function PayslipEdit() {
         <TabsContent value="corriger" className="space-y-6 mt-6">
           <fieldset disabled={isEditLocked} className="space-y-6 border-0 p-0 m-0 min-w-0">
             <CorrectionsBulletinPanel
+              payslipId={payslip.id}
+              version={payslip.updated_at ?? null}
               payslipData={payslip.payslip_data}
               etat={etat}
               onChange={setEtat}

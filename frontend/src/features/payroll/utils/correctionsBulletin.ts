@@ -12,7 +12,7 @@
  * lignes imprimées depuis une saisie (`saisie_id`), comme
  * `domain/primes_editees.py`.
  */
-import type { PayslipEditRequest, PrimeAjoutee, RegularisationAjoutee } from '@/api/payslips';
+import type { CorrectionLigneAjoutee, LigneCorrigeable, PayslipEditRequest, PrimeAjoutee, RegularisationAjoutee } from '@/api/payslips';
 import type { MonthlyInputCreate } from '@/api/saisies';
 import { deDevant } from './elision';
 import { monthLabel } from './payrollMonth';
@@ -100,6 +100,8 @@ export interface EtatCorrections {
   regularisations: RegularisationDuBulletin[];
   regularisationsAjoutees: RegularisationAjoutee[];
   regularisationsRetirees: string[];
+  correctionsAjoutees: CorrectionLigneAjoutee[];
+  correctionsRetirees: string[];
   pdfNotes: string;
   noteInterne: string;
   resume: string;
@@ -349,6 +351,8 @@ export function etatInitial(data: unknown, pdfNotes: string | null | undefined):
     regularisations: regularisationsDuBulletin(data),
     regularisationsAjoutees: [],
     regularisationsRetirees: [],
+    correctionsAjoutees: [],
+    correctionsRetirees: [],
     pdfNotes: pdfNotes ?? '',
     noteInterne: '',
     resume: '',
@@ -392,6 +396,8 @@ export function requeteDeCorrection(
   }
   if (courant.regularisationsAjoutees.length) corrections.regularisations_ajoutees = courant.regularisationsAjoutees;
   if (courant.regularisationsRetirees.length) corrections.regularisations_retirees = courant.regularisationsRetirees;
+  if (courant.correctionsAjoutees.length) corrections.corrections_ajoutees = courant.correctionsAjoutees;
+  if (courant.correctionsRetirees.length) corrections.corrections_retirees = courant.correctionsRetirees;
 
   const requete: PayslipEditRequest = { corrections };
   if (courant.pdfNotes.trim() !== initial.pdfNotes.trim()) requete.pdf_notes = courant.pdfNotes;
@@ -435,4 +441,106 @@ export function titreDuBulletin(payslipData: unknown, month: number, year: numbe
     texte(salarie?.nom_complet) || [texte(salarie?.prenom), texte(salarie?.nom)].filter(Boolean).join(' ');
   const debut = `Bulletin ${deDevant(monthLabel(month).toLowerCase())} ${year}`;
   return nom ? `${debut} — ${nom}` : debut;
+}
+
+/** Ce qui se tape pour corriger une ligne, selon la règle 3. */
+export type ChampCorrigeable =
+  | 'base'
+  | 'taux'
+  | 'montant'
+  | 'taux_salarial'
+  | 'taux_patronal'
+  | 'montant_salarial'
+  | 'montant_patronal';
+
+export interface ChampDeLigne {
+  cle: ChampCorrigeable;
+  libelle: string;
+  /** La valeur de Martine, dans l'unité tapée (un taux de cotisation en %). */
+  valeur: number | null;
+}
+
+const TAUX_EN_POURCENT: ReadonlySet<ChampCorrigeable> = new Set<ChampCorrigeable>(['taux_salarial', 'taux_patronal']);
+
+function pourcent(fraction: number | null | undefined): number | null {
+  return typeof fraction === 'number' ? Math.round(fraction * 1e6) / 1e4 : null;
+}
+
+/** Les champs que la ligne laisse corriger. Rien pour une ligne qui ne se corrige pas ici. */
+export function champsDeLaLigne(ligne: LigneCorrigeable): ChampDeLigne[] {
+  if (!ligne.mode) return [];
+  if (ligne.bloc === 'impot') {
+    return [{ cle: 'taux', libelle: 'Taux d’impôt du mois (%)', valeur: ligne.taux ?? null }];
+  }
+  if (ligne.bloc === 'brut') {
+    if (ligne.mode === 'base_ou_taux') {
+      return [
+        { cle: 'base', libelle: 'Base (heures, jours ou quantité)', valeur: ligne.base ?? null },
+        { cle: 'taux', libelle: 'Taux', valeur: ligne.taux ?? null },
+      ];
+    }
+    return [{ cle: 'montant', libelle: ligne.retenue ? 'Retenue (€)' : 'Montant (€)', valeur: ligne.montant ?? null }];
+  }
+  if (ligne.mode === 'base_ou_taux') {
+    const champs: ChampDeLigne[] = [{ cle: 'base', libelle: 'Base (€)', valeur: ligne.base ?? null }];
+    if (ligne.taux_salarial != null) {
+      champs.push({ cle: 'taux_salarial', libelle: 'Taux salarial (%)', valeur: pourcent(ligne.taux_salarial) });
+    }
+    if (ligne.taux_patronal != null) {
+      champs.push({ cle: 'taux_patronal', libelle: 'Taux patronal (%)', valeur: pourcent(ligne.taux_patronal) });
+    }
+    return champs;
+  }
+  return [
+    { cle: 'montant_salarial', libelle: 'Part salariale (€)', valeur: ligne.montant_salarial ?? null },
+    { cle: 'montant_patronal', libelle: 'Part patronale (€)', valeur: ligne.montant_patronal ?? null },
+  ];
+}
+
+/** La correction à envoyer : un seul champ, un taux de cotisation repassé en fraction. */
+export function correctionDeLigne(
+  ligne: LigneCorrigeable,
+  cle: ChampCorrigeable,
+  saisie: number,
+  motif: string
+): CorrectionLigneAjoutee {
+  const correction: CorrectionLigneAjoutee = { ligne: String(ligne.code), libelle: ligne.libelle, motif: motif.trim() };
+  correction[cle] = TAUX_EN_POURCENT.has(cle) ? Math.round(saisie * 1e4) / 1e6 : saisie;
+  return correction;
+}
+
+/** Le montant qu'aura la ligne, pour l'aperçu. Le serveur le recalcule. */
+export function apercuDuMontant(ligne: LigneCorrigeable, cle: ChampCorrigeable, saisie: number): number | null {
+  if (!Number.isFinite(saisie)) return null;
+  if (ligne.bloc === 'impot') return ligne.base != null ? arrondi((ligne.base * saisie) / 100) : null;
+  if (cle === 'montant' || cle === 'montant_salarial' || cle === 'montant_patronal') return arrondi(saisie);
+  const base = cle === 'base' ? saisie : ligne.base ?? 0;
+  if (ligne.bloc === 'brut') return arrondi(base * (cle === 'taux' ? saisie : ligne.taux ?? 0));
+  const salarial = cle === 'taux_salarial' ? saisie / 100 : ligne.taux_salarial ?? 0;
+  const patronal = cle === 'taux_patronal' ? saisie / 100 : ligne.taux_patronal ?? 0;
+  return arrondi(arrondi(base * salarial) + arrondi(base * patronal));
+}
+
+/** « 1 234,50 € », avec des espaces ordinaires (les espaces insécables du navigateur varient). */
+export function eurosFr(valeur: number): string {
+  const [entier, decimales] = Math.abs(valeur).toFixed(2).split('.');
+  return `${valeur < 0 ? '−' : ''}${entier.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')},${decimales} €`;
+}
+
+function tauxFr(valeur: number): string {
+  return `${valeur.toFixed(2).replace('.', ',')} %`;
+}
+
+/** « Martine : 2 500,00 € → corrigé : 2 637,31 € ». */
+export function resumeDeLaCorrection(ligne: LigneCorrigeable): string {
+  const calcule = (ligne.valeur_calculee ?? {}) as Record<string, number | null | undefined>;
+  if (ligne.bloc === 'impot') {
+    return `Martine : ${tauxFr(calcule.taux ?? 0)} → corrigé : ${tauxFr(ligne.taux ?? 0)}`;
+  }
+  if (ligne.bloc === 'brut') {
+    return `Martine : ${eurosFr(calcule.gain ?? calcule.perte ?? 0)} → corrigé : ${eurosFr(ligne.montant ?? 0)}`;
+  }
+  const avant = arrondi((calcule.montant_salarial ?? 0) + (calcule.montant_patronal ?? 0));
+  const apres = arrondi((ligne.montant_salarial ?? 0) + (ligne.montant_patronal ?? 0));
+  return `Martine : ${eurosFr(avant)} → corrigé : ${eurosFr(apres)}`;
 }
