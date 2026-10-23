@@ -67,10 +67,37 @@ def _nombre(valeur: Any) -> float | None:
     return float(valeur)
 
 
+def _avant_correction(ligne: Any) -> Any:
+    """La ligne telle que Martine l'avait calculée, si elle a été corrigée à la main."""
+    if not isinstance(ligne, dict) or not isinstance(ligne.get("correction"), dict):
+        return ligne
+    calcule = ligne.get("valeur_calculee")
+    if not isinstance(calcule, dict):
+        return ligne
+    return {**ligne, **{cle: calcule[cle] for cle in ("quantite", "taux") if cle in calcule}}
+
+
+def quantites_heures_sup_calculees(
+    payslip_data: dict[str, Any] | None,
+) -> tuple[float, float]:
+    """Les heures sup que Martine avait calculées, avant toute correction de ligne.
+
+    Ce sont elles qu'une restauration déclare : la correction d'une ligne
+    revient à part, comme correction. Déclarer la quantité corrigée faisait
+    dire au bulletin que Martine avait calculé 8 h pour 5 h au planning (jeu
+    du 23/10). Sans ligne corrigée, elles valent les quantités imprimées.
+    """
+    if not isinstance(payslip_data, dict) or not isinstance(payslip_data.get("calcul_du_brut"), list):
+        return (0.0, 0.0)
+    return quantites_heures_sup_conjoncturelles(
+        {**payslip_data, "calcul_du_brut": [_avant_correction(l) for l in payslip_data["calcul_du_brut"]]}
+    )
+
+
 def quantites_heures_sup_conjoncturelles(
     payslip_data: dict[str, Any] | None,
 ) -> tuple[float, float]:
-    """Rend `(heures du premier palier, heures du second palier)`.
+    """Rend `(heures du premier palier, heures du second palier)` imprimées.
 
     Rend `(0.0, 0.0)` si le bulletin n'en porte pas, ou si une quantité n'est
     pas lisible — mieux vaut ne rien déclarer que déclarer un chiffre inventé.

@@ -19,7 +19,7 @@ from app.modules.payroll.engine.corrections_manuelles import (
     RegularisationCotisation,
     regularisations_du_bulletin,
 )
-from app.modules.payslips.domain.heures_sup import quantites_heures_sup_conjoncturelles
+from app.modules.payslips.domain.heures_sup import quantites_heures_sup_calculees
 from app.modules.payslips.domain.primes_editees import (
     DiffPrimes,
     primes_saisies_du_bulletin,
@@ -153,7 +153,10 @@ def _heures_pour_revenir(
 
     Une version récente dit si ses heures ont été déclarées au bulletin ; une
     plus ancienne ne le dit pas, et on reprend alors les quantités qu'elle
-    imprimait. Rien à déclarer quand elles sont déjà celles du bulletin.
+    imprimait, telles que Martine les avait calculées : une ligne d'heures
+    corrigée à la main revient comme correction, jamais comme heures
+    déclarées. Le bulletin du moment se lit de même. Rien à déclarer quand
+    elles sont déjà celles du bulletin.
     """
     cible_declarees = _declarees(cible)
     if cible_declarees is not None:
@@ -161,8 +164,8 @@ def _heures_pour_revenir(
         if courant_declarees is not None and _proches(cible_declarees, courant_declarees):
             return None
         return cible_declarees
-    heures_cible = quantites_heures_sup_conjoncturelles(cible)
-    heures_courant = quantites_heures_sup_conjoncturelles(courant)
+    heures_cible = quantites_heures_sup_calculees(cible)
+    heures_courant = quantites_heures_sup_calculees(courant)
     if _proches(heures_cible, heures_courant):
         return None
     return (round(heures_cible[0], 2), round(heures_cible[1], 2))
@@ -236,11 +239,11 @@ def corrections_pour_revenir(
 
 
 def _heures_de(payslip_data: dict[str, Any] | None) -> tuple[float, float]:
-    """Les heures sup déclarées au bulletin, sinon celles qu'il imprime."""
+    """Les heures sup déclarées au bulletin, sinon celles que Martine avait calculées (comme la restauration)."""
     declarees = _declarees(payslip_data)
     if declarees is not None:
         return declarees
-    hs25, hs50 = quantites_heures_sup_conjoncturelles(payslip_data)
+    hs25, hs50 = quantites_heures_sup_calculees(payslip_data)
     return (round(hs25, 2), round(hs50, 2))
 
 
