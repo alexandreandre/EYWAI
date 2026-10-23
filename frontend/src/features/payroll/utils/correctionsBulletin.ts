@@ -483,8 +483,41 @@ function pourcent(fraction: number | null | undefined): number | null {
   return typeof fraction === 'number' ? Math.round(fraction * 1e6) / 1e4 : null;
 }
 
-/** Les champs que la ligne laisse corriger. Rien pour une ligne qui ne se corrige pas ici. */
-export function champsDeLaLigne(ligne: LigneCorrigeable): ChampDeLigne[] {
+/**
+ * La ligne telle que Martine l'avait calculée : une ligne corrigée porte la
+ * valeur corrigée, et « Martine : 15 » donnait le taux corrigé pour celui de
+ * Martine (jeu du 23/10). Refaire une correction retirée part aussi de là.
+ */
+export function valeursDeMartine(ligne: LigneCorrigeable): LigneCorrigeable {
+  const calcule = ligne.valeur_calculee;
+  if (!ligne.correction || !calcule) return ligne;
+  const lu = (cle: string) => (cle in calcule ? calcule[cle] ?? null : undefined);
+  const garder = (valeur: number | null | undefined, sinon: number | null | undefined) =>
+    valeur === undefined ? sinon : valeur;
+  if (ligne.bloc === 'brut') {
+    return {
+      ...ligne,
+      base: garder(lu('quantite'), ligne.base),
+      taux: garder(lu('taux'), ligne.taux),
+      montant: garder(ligne.retenue ? lu('perte') : lu('gain'), ligne.montant),
+    };
+  }
+  if (ligne.bloc === 'impot') {
+    return { ...ligne, taux: garder(lu('taux'), ligne.taux), montant: garder(lu('montant'), ligne.montant) };
+  }
+  return {
+    ...ligne,
+    base: garder(lu('base'), ligne.base),
+    taux_salarial: garder(lu('taux_salarial'), ligne.taux_salarial),
+    taux_patronal: garder(lu('taux_patronal'), ligne.taux_patronal),
+    montant_salarial: garder(lu('montant_salarial'), ligne.montant_salarial),
+    montant_patronal: garder(lu('montant_patronal'), ligne.montant_patronal),
+  };
+}
+
+/** Les champs que la ligne laisse corriger, avec la valeur de Martine. Rien pour une ligne qui ne se corrige pas ici. */
+export function champsDeLaLigne(corrigeable: LigneCorrigeable): ChampDeLigne[] {
+  const ligne = valeursDeMartine(corrigeable);
   if (!ligne.mode) return [];
   if (ligne.bloc === 'impot') {
     return [{ cle: 'taux', libelle: 'Taux d’impôt du mois (%)', valeur: ligne.taux ?? null }];
@@ -527,8 +560,9 @@ export function correctionDeLigne(
 }
 
 /** Le montant qu'aura la ligne, pour l'aperçu. Le serveur le recalcule. */
-export function apercuDuMontant(ligne: LigneCorrigeable, cle: ChampCorrigeable, saisie: number): number | null {
+export function apercuDuMontant(corrigeable: LigneCorrigeable, cle: ChampCorrigeable, saisie: number): number | null {
   if (!Number.isFinite(saisie)) return null;
+  const ligne = valeursDeMartine(corrigeable);
   if (ligne.bloc === 'impot') return ligne.base != null ? arrondi((ligne.base * saisie) / 100) : null;
   if (cle === 'montant' || cle === 'montant_salarial' || cle === 'montant_patronal') return arrondi(saisie);
   const base = cle === 'base' ? saisie : ligne.base ?? 0;
@@ -557,7 +591,119 @@ export function resumeDeLaCorrection(ligne: LigneCorrigeable): string {
   if (ligne.bloc === 'brut') {
     return `Martine : ${eurosFr(calcule.gain ?? calcule.perte ?? 0)} → corrigé : ${eurosFr(ligne.montant ?? 0)}`;
   }
-  const avant = arrondi((calcule.montant_salarial ?? 0) + (calcule.montant_patronal ?? 0));
-  const apres = arrondi((ligne.montant_salarial ?? 0) + (ligne.montant_patronal ?? 0));
-  return `Martine : ${eurosFr(avant)} → corrigé : ${eurosFr(apres)}`;
+  // Une part corrigée se lit seule : la somme des deux parts faisait lire
+  // « 35,24 € → 37,62 € » pour une part salariale de 17,62 € → 20 € (jeu du 23/10).
+  // Une base corrigée change les deux parts : leur somme, dite comme telle.
+  type Part = 'salarial' | 'patronal';
+  const correction = ligne.correction ?? { base: null };
+  const parBase = correction.base != null;
+  const touchee = (part: Part) => correction[`montant_${part}`] != null || correction[`taux_${part}`] != null;
+  const presente = (part: Part) =>
+    Math.abs(calcule[`montant_${part}`] ?? 0) > 0 || Math.abs(ligne[`montant_${part}`] ?? 0) > 0;
+  const touchees = (['salarial', 'patronal'] as const).filter((part) => (parBase ? presente(part) : touchee(part)));
+  const parts: readonly Part[] = touchees.length ? touchees : ['salarial', 'patronal'];
+  const avant = arrondi(parts.reduce((total, part) => total + (calcule[`montant_${part}`] ?? 0), 0));
+  const apres = arrondi(parts.reduce((total, part) => total + (ligne[`montant_${part}`] ?? 0), 0));
+  const precision = parts.length === 2 ? 'salarié + employeur' : parts[0] === 'salarial' ? 'part salariale' : 'part patronale';
+  return `Martine : ${eurosFr(avant)} → corrigé : ${eurosFr(apres)} (${precision})`;
+}
+
+function nombreFr(valeur: number): string {
+  return String(Math.round(valeur * 1e4) / 1e4).replace('.', ',');
+}
+
+const ORDRE_DES_CHAMPS: ChampCorrigeable[] = [
+  'base',
+  'taux',
+  'montant',
+  'taux_salarial',
+  'taux_patronal',
+  'montant_salarial',
+  'montant_patronal',
+];
+
+/**
+ * « Taux — Martine : 14,1347 → voulu : 15 · montant après correction : 2 275,05 € ».
+ * La ligne « (à enregistrer) » ne montrait que son libellé et son motif.
+ */
+export function resumeDeLaCorrectionAEnregistrer(
+  correction: CorrectionLigneAjoutee,
+  ligne: LigneCorrigeable | undefined
+): string {
+  const cle = ORDRE_DES_CHAMPS.find((c) => correction[c] != null);
+  if (!cle) return '';
+  const tape = Number(correction[cle]);
+  const voulu = TAUX_EN_POURCENT.has(cle) ? tape * 100 : tape;
+  const champ = ligne ? champsDeLaLigne(ligne).find((c) => c.cle === cle) : undefined;
+  const libelle = champ?.libelle ?? cle;
+  const martine = champ?.valeur != null ? `Martine : ${nombreFr(champ.valeur)} → ` : '';
+  const apercu = ligne ? apercuDuMontant(ligne, cle, voulu) : null;
+  const montant = apercu !== null ? ` · montant après correction : ${eurosFr(apercu)}` : '';
+  return `${libelle} — ${martine}voulu : ${nombreFr(voulu)}${montant}`;
+}
+
+/** Où se corrige une ligne qui ne se corrige pas ici, lisible sans survol. */
+function ouSeCorrige(raison: string | null | undefined): string {
+  const texte = raison ?? '';
+  const lieu = texte.match(/«\s*([^»]+?)\s*»/)?.[1];
+  if (lieu) return `se corrige dans « ${lieu} »`;
+  if (/sous-total/i.test(texte)) return 'sous-total : corrigez ses lignes';
+  if (/information/i.test(texte)) return 'ligne d’information, hors du brut';
+  if (/régularisation de cotisation/i.test(texte)) return 'se corrige par une régularisation de cotisation';
+  if (/source/i.test(texte)) return 'se corrige à sa source ou par une régularisation';
+  return 'ne se corrige pas ici';
+}
+
+/**
+ * Le libellé d'une ligne dans la liste « Ligne ». « Prime de jeu — se corrige
+ * ailleurs » ne disait pas où : « Primes du mois » n'était que dans
+ * l'infobulle, invisible au clavier et au tactile (jeu du 23/10).
+ */
+export function libelleDeLOption(ligne: LigneCorrigeable): string {
+  return ligne.mode ? ligne.libelle : `${ligne.libelle} — ${ouSeCorrige(ligne.raison)}`;
+}
+
+/** Pourquoi « Ajouter la correction » est grisé, dit près du champ ; null quand tout est prêt. */
+export function aideDeLaCorrection(
+  valeur: string,
+  motif: string
+): { champ: 'valeur' | 'motif' | 'bouton'; message: string } | null {
+  const tape = valeur.trim();
+  const longueur = motif.trim().length;
+  if (tape && !Number.isFinite(Number.parseFloat(tape.replace(',', '.')))) {
+    return { champ: 'valeur', message: 'La valeur voulue doit être un nombre, par exemple 15,5.' };
+  }
+  if (longueur > 0 && longueur < 3) {
+    return { champ: 'motif', message: 'Le motif doit faire au moins 3 caractères.' };
+  }
+  if (!tape && longueur === 0) {
+    return { champ: 'bouton', message: 'Tapez la valeur voulue et le motif pour ajouter la correction.' };
+  }
+  if (!tape) return { champ: 'bouton', message: 'Tapez la valeur voulue.' };
+  if (longueur === 0) return { champ: 'bouton', message: 'Écrivez le motif : il est imprimé sur le bulletin.' };
+  return null;
+}
+
+/** Le formulaire de la carte « Corriger une ligne », attaché à une version du bulletin. */
+export interface FormulaireDeLigne {
+  version: string | null;
+  code: string;
+  cle: ChampCorrigeable | '';
+  valeur: string;
+  motif: string;
+  /** La correction en attente qu'on reporte sur une autre ligne. */
+  reporterDe: string | null;
+}
+
+export function formulaireVide(version: string | null): FormulaireDeLigne {
+  return { version, code: '', cle: '', valeur: '', motif: '', reporterDe: null };
+}
+
+/**
+ * Après un enregistrement (nouvelle version du bulletin), la carte revient à
+ * zéro : elle gardait la ligne choisie et disait en rouge « déjà corrigée »
+ * juste après le succès (jeu du 23/10).
+ */
+export function formulaireDeLaVersion(formulaire: FormulaireDeLigne, version: string | null): FormulaireDeLigne {
+  return formulaire.version === version ? formulaire : formulaireVide(version);
 }

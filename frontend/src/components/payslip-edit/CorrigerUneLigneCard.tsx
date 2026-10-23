@@ -19,13 +19,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+  aideDeLaCorrection,
   apercuDuMontant,
   champsDeLaLigne,
   correctionDeLigne,
   type ChampCorrigeable,
   type EtatCorrections,
   eurosFr,
+  formulaireDeLaVersion,
+  type FormulaireDeLigne,
+  formulaireVide,
+  libelleDeLOption,
   resumeDeLaCorrection,
+  resumeDeLaCorrectionAEnregistrer,
 } from '@/features/payroll/utils/correctionsBulletin';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { queryKeys } from '@/lib/queryKeys';
@@ -53,11 +59,12 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
     enabled: Boolean(companyId && payslipId),
     staleTime: 30_000,
   });
-  const [code, setCode] = useState('');
-  const [cle, setCle] = useState<ChampCorrigeable | ''>('');
-  const [valeur, setValeur] = useState('');
-  const [motif, setMotif] = useState('');
-  const [reporterDe, setReporterDe] = useState<string | null>(null);
+  // Le formulaire est attaché à la version du bulletin : après un
+  // enregistrement, il revient à zéro.
+  const [formulaire, setFormulaire] = useState<FormulaireDeLigne>(() => formulaireVide(version));
+  const { code, cle, valeur, motif, reporterDe } = formulaireDeLaVersion(formulaire, version);
+  const remplir = (changement: Partial<FormulaireDeLigne>) =>
+    setFormulaire({ ...formulaireDeLaVersion(formulaire, version), ...changement });
 
   const lignes = query.data?.lignes ?? [];
   const enAttente = query.data?.en_attente ?? [];
@@ -70,7 +77,8 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
   const apercu = ligne && champ ? apercuDuMontant(ligne, champ.cle, nombre) : null;
   const saisieDeLaLigne = ligne?.correction?.saisie_id ? String(ligne.correction.saisie_id) : null;
   const dejaCorrigee = saisieDeLaLigne !== null && !retirees.has(saisieDeLaLigne);
-  const pret = !!ligne && !!champ && Number.isFinite(nombre) && motif.trim().length >= 3 && !dejaCorrigee;
+  const aide = aideDeLaCorrection(valeur, motif);
+  const pret = !!ligne && !!champ && aide === null && !dejaCorrigee;
 
   const basculer = (saisieId: string) =>
     onChange({
@@ -88,9 +96,7 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
       correctionsAjoutees: [...etat.correctionsAjoutees, correctionDeLigne(ligne, champ.cle, nombre, motif)],
       correctionsRetirees: [...etat.correctionsRetirees, ...aRetirer],
     });
-    setValeur('');
-    setMotif('');
-    setReporterDe(null);
+    setFormulaire(formulaireVide(version));
   };
 
   return (
@@ -135,11 +141,7 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            setReporterDe(id);
-                            setMotif(attente.motif);
-                            setCode('');
-                          }}
+                          onClick={() => remplir({ reporterDe: id, motif: attente.motif, code: '', cle: '', valeur: '' })}
                         >
                           Reporter sur une autre ligne
                         </Button>
@@ -186,7 +188,9 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
           >
             <div>
               <div className="font-medium">{c.libelle} (à enregistrer)</div>
-              <div className="text-xs text-muted-foreground">{c.motif}</div>
+              <div className="text-xs text-muted-foreground">
+                {resumeDeLaCorrectionAEnregistrer(c, lignes.find((l) => l.code === c.ligne))} — {c.motif}
+              </div>
             </div>
             <Button
               variant="ghost"
@@ -211,11 +215,7 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
                 id="ligne-a-corriger"
                 className="w-full rounded-md border px-2 py-2 text-sm"
                 value={code}
-                onChange={(e) => {
-                  setCode(e.target.value);
-                  setCle('');
-                  setValeur('');
-                }}
+                onChange={(e) => remplir({ code: e.target.value, cle: '', valeur: '' })}
               >
                 <option value="">Choisissez une ligne…</option>
                 {BLOCS.map(({ bloc, titre }) => (
@@ -224,8 +224,7 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
                       .filter((l) => l.bloc === bloc && l.code)
                       .map((l) => (
                         <option key={String(l.code)} value={String(l.code)} disabled={!l.mode} title={l.raison ?? undefined}>
-                          {l.libelle}
-                          {l.mode ? '' : ' — se corrige ailleurs'}
+                          {libelleDeLOption(l)}
                         </option>
                       ))}
                   </optgroup>
@@ -245,7 +244,7 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
                     id="champ-a-corriger"
                     className="w-full rounded-md border px-2 py-2 text-sm"
                     value={champ.cle}
-                    onChange={(e) => setCle(e.target.value as ChampCorrigeable)}
+                    onChange={(e) => remplir({ cle: e.target.value as ChampCorrigeable })}
                   >
                     {champs.map((c) => (
                       <option key={c.cle} value={c.cle}>
@@ -258,18 +257,39 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
                   <Label htmlFor="valeur-corrigee">
                     Valeur voulue{champ.valeur !== null ? ` (Martine : ${String(champ.valeur).replace('.', ',')})` : ''}
                   </Label>
-                  <Input id="valeur-corrigee" inputMode="decimal" value={valeur} onChange={(e) => setValeur(e.target.value)} />
+                  <Input
+                    id="valeur-corrigee"
+                    inputMode="decimal"
+                    value={valeur}
+                    aria-invalid={aide?.champ === 'valeur'}
+                    onChange={(e) => remplir({ valeur: e.target.value })}
+                  />
+                  {aide?.champ === 'valeur' ? <p className="text-xs text-destructive">{aide.message}</p> : null}
                 </div>
                 <div className="space-y-1 sm:col-span-2">
                   <Label htmlFor="motif-correction">Motif (obligatoire)</Label>
-                  <Input id="motif-correction" maxLength={300} value={motif} onChange={(e) => setMotif(e.target.value)} />
+                  <Input
+                    id="motif-correction"
+                    maxLength={300}
+                    value={motif}
+                    aria-invalid={aide?.champ === 'motif'}
+                    onChange={(e) => remplir({ motif: e.target.value })}
+                  />
+                  {aide?.champ === 'motif' ? (
+                    <p className="text-xs text-destructive" data-testid="motif-trop-court">
+                      {aide.message}
+                    </p>
+                  ) : null}
                 </div>
-                <div className="flex items-center gap-3 sm:col-span-2">
+                <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
                   <Button variant="outline" disabled={!pret} onClick={ajouter} data-testid="ajouter-correction-ligne">
                     Ajouter la correction
                   </Button>
                   {apercu !== null ? (
                     <span className="text-sm text-muted-foreground">Montant après correction : {eurosFr(apercu)}</span>
+                  ) : null}
+                  {aide?.champ === 'bouton' && !dejaCorrigee ? (
+                    <span className="text-xs text-muted-foreground">{aide.message}</span>
                   ) : null}
                 </div>
               </>
