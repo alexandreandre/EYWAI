@@ -279,6 +279,39 @@ def test_le_maintien_de_salaire_ne_compte_qu_un_mois_avec_un_arret():
     assert empreinte_partie(avant) != empreinte_partie(apres)
 
 
+
+def _arret_en_mai():
+    return {
+        **CALENDRIERS,
+        (2026, 5): {
+            "planned_calendar": {"calendrier_prevu": [
+                {"jour": 12, "type": "arret_maladie", "heures": 0, "arret_type": "maladie"}]},
+            "actual_hours": {"calendrier_reel": []},
+        },
+    }
+
+
+def test_le_reglage_ijss_eteint_ne_change_pas_l_empreinte():
+    """La migration pose false partout : aucun bulletin avec un arrêt ne se périme."""
+    avant = _du_mois(calendriers=_arret_en_mai())["reglages_societe"]
+    eteint = {**COMPLEMENTS.maintien, "deduire_ijss_sans_subrogation": False}
+    apres = _du_mois(replace(COMPLEMENTS, maintien=eteint), calendriers=_arret_en_mai())
+    assert empreinte_partie(apres["reglages_societe"]) == empreinte_partie(avant)
+
+
+def test_le_reglage_ijss_allume_ou_eteint_de_nouveau_un_mois_avec_arret_est_a_recalculer():
+    eteint = {**COMPLEMENTS.maintien, "deduire_ijss_sans_subrogation": False}
+    allume = {**COMPLEMENTS.maintien, "deduire_ijss_sans_subrogation": True}
+    e = _du_mois(replace(COMPLEMENTS, maintien=eteint), calendriers=_arret_en_mai())
+    a = _du_mois(replace(COMPLEMENTS, maintien=allume), calendriers=_arret_en_mai())
+    assert empreinte_partie(e["reglages_societe"]) != empreinte_partie(a["reglages_societe"])
+
+
+def test_le_reglage_ijss_allume_ne_touche_pas_un_mois_sans_arret():
+    allume = {**COMPLEMENTS.maintien, "deduire_ijss_sans_subrogation": True}
+    assert not _change("reglages_societe", maintien=allume)
+
+
 def test_la_jei_ne_compte_qu_activee():
     assert not _change("reglages_societe", jei={"jei_enabled": False, "taux_exoneration": 50})
     assert _change("reglages_societe", jei={"jei_enabled": True, "taux_exoneration": 50})

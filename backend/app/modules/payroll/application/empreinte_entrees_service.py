@@ -489,6 +489,20 @@ def _arret_dans_le_mois(
     return False
 
 
+#: Réglage du 23/10/2026 : il n'entre dans l'empreinte qu'allumé. La migration
+#: le pose à false partout ; sans ce filtre, tous les bulletins avec un arrêt
+#: passeraient « À recalculer ».
+_CLE_DEDUIRE_IJSS = "deduire_ijss_sans_subrogation"
+
+
+def _maintien_pour_empreinte(row: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """Le réglage du maintien que le moteur lit, la déduction des IJSS seulement allumée."""
+    reglage = _sans(row, _COLONNES_HORS_CALCUL | {_CLE_DEDUIRE_IJSS})
+    if reglage is not None and row.get(_CLE_DEDUIRE_IJSS) is True:
+        reglage[_CLE_DEDUIRE_IJSS] = True
+    return reglage
+
+
 def _reglages_societe_du_mois(
     complements: Complements,
     *,
@@ -510,7 +524,7 @@ def _reglages_societe_du_mois(
     if is_forfait_jour(employee.get("statut"), employee.get("is_forfait_jour")):
         parties["forfait_jours_ouvres_mois"] = reglages.get("forfait_jours_ouvres_mois")
     if _arret_dans_le_mois(calendriers, year, month, bornes):
-        parties["maintien"] = _sans(complements.maintien)
+        parties["maintien"] = _maintien_pour_empreinte(complements.maintien)
     jei = complements.jei
     if isinstance(jei, Mapping) and jei.get("jei_enabled"):
         parties["jei"] = _sans(jei)
