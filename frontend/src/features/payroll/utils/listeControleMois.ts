@@ -274,12 +274,24 @@ function etapeValides(
 ): { etat: EtatEtape; detail: string } {
   return etatDepuisLecture(lecture, (parSalarie) => {
     let aValider = 0;
+    let enAttente = 0;
     for (const salarie of salaries) {
       if (payrollEmploymentBlockReason(salarie, year, month)) continue;
       const ligne = (parSalarie[salarie.id] ?? []).find((p) => p.year === year && p.month === month);
+      if ((ligne?.corrections_en_attente ?? 0) > 0) enAttente += 1;
       // Un bulletin repris de l'ancien logiciel a été payé : rien à valider.
       if (ligne && (ligne.status === 'valide' || estBulletinImporte(ligne))) continue;
       aValider += 1;
+    }
+    if (enAttente > 0) {
+      return {
+        etat: 'a_faire',
+        detail: pluriel(
+          enAttente,
+          '1 bulletin a une correction en attente : réglez-la dans l’onglet « Corriger » avant de valider.',
+          `${enAttente} bulletins ont une correction en attente : réglez-les dans l’onglet « Corriger » avant de valider.`
+        ),
+      };
     }
     if (aValider === 0) {
       return { etat: 'fait', detail: 'Les bulletins du mois sont validés.' };
@@ -386,24 +398,37 @@ function etapeRegularisations(
 ): { etat: EtatEtape; detail: string } {
   return etatDepuisLecture(lecture, (parSalarie) => {
     const precedent = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
-    let total = 0;
-    const repetees = new Set<string>();
+    let regularisations = 0;
+    let lignes = 0;
+    const regulRepetees = new Set<string>();
+    const lignesRepetees = new Map<string, string>();
     for (const bulletins of Object.values(parSalarie)) {
-      const duMois = bulletins.find((b) => b.year === year && b.month === month)?.regularisations ?? [];
-      const avant = new Set(
-        bulletins.find((b) => b.year === precedent.year && b.month === precedent.month)?.regularisations ?? []
-      );
-      total += duMois.length;
-      duMois.filter((libelle) => avant.has(libelle)).forEach((libelle) => repetees.add(libelle));
+      const duMois = bulletins.find((b) => b.year === year && b.month === month);
+      const avant = bulletins.find((b) => b.year === precedent.year && b.month === precedent.month);
+      const regulDuMois = duMois?.regularisations ?? [];
+      const regulAvant = new Set(avant?.regularisations ?? []);
+      regularisations += regulDuMois.length;
+      regulDuMois.filter((libelle) => regulAvant.has(libelle)).forEach((libelle) => regulRepetees.add(libelle));
+      const corrigees = duMois?.lignes_corrigees ?? [];
+      const famillesAvant = new Set((avant?.lignes_corrigees ?? []).map((l) => l.famille));
+      lignes += corrigees.length;
+      corrigees.filter((l) => famillesAvant.has(l.famille)).forEach((l) => lignesRepetees.set(l.famille, l.libelle));
     }
-    if (total === 0) return { etat: 'fait', detail: 'Aucune régularisation saisie à la main ce mois.' };
-    const phrases = [
-      `${total} régularisation${total > 1 ? 's' : ''} saisie${total > 1 ? 's' : ''} à la main ce mois.`,
-    ];
-    for (const libelle of [...repetees].sort()) {
-      phrases.push(
-        `« ${libelle} » est régularisée deux mois de suite : signalez-le, Martine se trompe peut-être.`
-      );
+    if (regularisations === 0 && lignes === 0) return { etat: 'fait', detail: 'Aucune correction à la main ce mois.' };
+    const phrases: string[] = [];
+    if (regularisations > 0) {
+      const s = regularisations > 1 ? 's' : '';
+      phrases.push(`${regularisations} régularisation${s} saisie${s} à la main ce mois.`);
+    }
+    if (lignes > 0) {
+      const s = lignes > 1 ? 's' : '';
+      phrases.push(`${lignes} ligne${s} corrigée${s} à la main ce mois.`);
+    }
+    for (const libelle of [...regulRepetees].sort()) {
+      phrases.push(`« ${libelle} » est régularisée deux mois de suite : signalez-le, Martine se trompe peut-être.`);
+    }
+    for (const libelle of [...lignesRepetees.values()].sort()) {
+      phrases.push(`« ${libelle} » est corrigée deux mois de suite : signalez-le, Martine se trompe peut-être.`);
     }
     return { etat: 'fait', detail: phrases.join(' ') };
   });
@@ -457,7 +482,7 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
   });
   const regularisations: EtapeControle = {
     id: ETAPE_REGULARISATIONS,
-    libelle: 'Régularisations à la main',
+    libelle: 'Corrections à la main',
     ...etapeRegularisations(entree.bulletinsParSalarie, year, month),
   };
   const declarations: EtapeControle = {

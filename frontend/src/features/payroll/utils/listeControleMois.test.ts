@@ -582,6 +582,43 @@ describe('régularisations à la main', () => {
     const etapeRegul = listeControleDuMois(
       entree({ bulletinsParSalarie: { statut: 'ok', valeur: {} } })
     ).etapes.find((x) => x.id === 'regularisations');
-    expect(etapeRegul?.detail).toBe('Aucune régularisation saisie à la main ce mois.');
+    expect(etapeRegul?.detail).toBe('Aucune correction à la main ce mois.');
+  });
+
+  it('compte les lignes corrigées et signale une ligne corrigée deux mois de suite', () => {
+    const e = entree({
+      year: 2026,
+      month: 10,
+      bulletinsParSalarie: {
+        statut: 'ok',
+        valeur: {
+          s1: [
+            { year: 2026, month: 10, regularisations: [], lignes_corrigees: [{ famille: 'brut:salaire_base', libelle: 'Salaire de base' }] },
+            { year: 2026, month: 9, lignes_corrigees: [{ famille: 'brut:salaire_base', libelle: 'Salaire de base' }] },
+          ],
+        },
+      },
+    });
+    const etapeCorr = listeControleDuMois(e).etapes.find((x) => x.id === 'regularisations');
+    expect(etapeCorr?.libelle).toBe('Corrections à la main');
+    expect(etapeCorr?.detail).toBe(
+      '1 ligne corrigée à la main ce mois. « Salaire de base » est corrigée deux mois de suite : signalez-le, Martine se trompe peut-être.'
+    );
+  });
+
+  it('une correction en attente bloque l’étape de validation', () => {
+    const resultat = listeControleDuMois(
+      entree({
+        bulletinsParSalarie: OK({
+          'e-1': [{ year: 2026, month: 9, a_recalculer: false, origine: 'calcule', status: 'brouillon', corrections_en_attente: 1 }],
+          'e-2': [{ year: 2026, month: 9, a_recalculer: false, origine: 'calcule', status: 'valide' }],
+        }),
+      })
+    );
+    const valides = etape(resultat, ETAPE_VALIDES);
+    expect(valides.etat).toBe('a_faire');
+    expect(valides.detail).toBe(
+      '1 bulletin a une correction en attente : réglez-la dans l’onglet « Corriger » avant de valider.'
+    );
   });
 });

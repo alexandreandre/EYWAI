@@ -11,6 +11,13 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 
+class LigneCorrigeeInfo(BaseModel):
+    """Une famille de ligne corrigée à la main sur le bulletin (capteur du mois)."""
+
+    famille: str
+    libelle: str
+
+
 class PayslipInfo(BaseModel):
     """Ligne de liste de bulletins (moi, employé, etc.)."""
 
@@ -43,6 +50,13 @@ class PayslipInfo(BaseModel):
     edit_count: int = 0
     edited_at: datetime | None = None
     edited_by: str | None = None
+    #: Cotisations régularisées à la main (libellés). Sans ce champ déclaré, la
+    #: réponse le retirait et la liste de contrôle ne le voyait jamais.
+    regularisations: list[str] = []
+    #: Lignes corrigées à la main, une par famille de code.
+    lignes_corrigees: list[LigneCorrigeeInfo] = []
+    #: Corrections qui ne trouvent plus leur ligne : le bulletin ne se valide pas.
+    corrections_en_attente: int = 0
 
 
 class InternalNote(BaseModel):

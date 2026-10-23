@@ -269,6 +269,8 @@ def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
                 "empreinte_cumuls_precedents": meta.get("empreinte_cumuls_precedents"),
                 "empreinte_complementaire": meta.get("empreinte_complementaire"),
                 "regularisations": meta.get("regularisations", []),
+                "lignes_corrigees": meta.get("lignes_corrigees", []),
+                "corrections_en_attente": meta.get("corrections_en_attente", 0),
                 "warnings": meta["warnings"],
                 "points_a_arbitrer": meta.get("points_a_arbitrer") or [],
                 "alertes_acquittees": meta.get("alertes_acquittees") or [],

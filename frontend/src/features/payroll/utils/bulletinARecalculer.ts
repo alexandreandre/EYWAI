@@ -36,6 +36,10 @@ export type LigneBulletinPaie = {
   status?: string | null;
   /** Cotisations régularisées à la main sur ce bulletin (libellés). */
   regularisations?: string[] | null;
+  /** Lignes corrigées à la main sur ce bulletin (famille du code et libellé). */
+  lignes_corrigees?: Array<{ famille: string; libelle: string }> | null;
+  /** Corrections qui ne trouvent plus leur ligne : le bulletin ne peut pas être validé. */
+  corrections_en_attente?: number | null;
 };
 
 export type SalariePourRelance = {
