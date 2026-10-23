@@ -218,6 +218,22 @@ def get_period_dashboard(
     }
 
 
+def bulletin_attend_des_ijss(payslip_data: Dict[str, Any]) -> bool:
+    """Le bulletin a sa ligne attendue au suivi IJSS.
+
+    Subrogé, ou des IJSS sur le bulletin. Sans subrogation, `ijss_subrogees`
+    reprend les IJSS estimées par Martine (engine/bulletin.py) : un arrêt
+    indemnisé y figure déjà. Une déduction d'IJSS du maintien suffit aussi, pour
+    que le vrai montant puisse y être saisi puis appliqué au bulletin.
+    """
+    pdata = payslip_data if isinstance(payslip_data, dict) else {}
+    sn = pdata.get("synthese_net") or {}
+    if float(sn.get("ijss_subrogees") or 0) > 0 or sn.get("subrogation_active"):
+        return True
+    maintien = (pdata.get("bloc_maintien") or {}).get("maintien") or {}
+    return float(maintien.get("ijss_deduites") or 0) > 0
+
+
 def sync_expected_lines(company_id: str, period_id: str) -> Dict[str, Any]:
     period = repo.get_period(company_id, period_id)
     if not period:
@@ -242,9 +258,9 @@ def sync_expected_lines(company_id: str, period_id: str) -> Dict[str, Any]:
     for ps in payslips:
         pdata = ps.get("payslip_data") or {}
         sn = pdata.get("synthese_net") or {}
-        ijss = float(sn.get("ijss_subrogees") or 0)
-        if ijss <= 0 and not sn.get("subrogation_active"):
+        if not bulletin_attend_des_ijss(pdata):
             continue
+        ijss = float(sn.get("ijss_subrogees") or 0)
         bloc = pdata.get("bloc_maintien") or {}
         ijss_block = bloc.get("ijss") or {}
         ijss_theo = float(ijss_block.get("ijss_theorique") or ijss)
