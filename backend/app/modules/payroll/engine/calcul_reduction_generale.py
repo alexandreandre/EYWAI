@@ -12,6 +12,7 @@ from typing import Any
 
 from app.modules.payroll.engine.contexte import ContextePaie
 from app.modules.payroll.engine import legal_constants as lc
+from app.modules.payroll.engine.corrections_manuelles import corriger_la_reduction_generale, journal_du_contexte
 
 # Note: Ce module suppose l'existence d'un objet "contexte" qui contient
 # les informations de l'employé, de l'entreprise et les barèmes/taux.
@@ -557,12 +558,15 @@ def calculer_reduction_generale(
     if getattr(contexte, "is_stagiaire", False):
         return None
     if annee < lc.ANNEE_BASCULE_RGDU:
-        return _calculer_reduction_fillon(
-            contexte, salaire_brut_mois, heures_remunerees_mois
-        )
-    return _calculer_reduction_rgdu(
-        contexte, salaire_brut_mois, heures_remunerees_mois
-    )
+        ligne = _calculer_reduction_fillon(contexte, salaire_brut_mois, heures_remunerees_mois)
+    else:
+        ligne = _calculer_reduction_rgdu(contexte, salaire_brut_mois, heures_remunerees_mois)
+    # Corrigée à la main par son montant : son cumul enregistre la réduction
+    # réellement appliquée, et le mois suivant régularise depuis là (spec § 6).
+    journal = journal_du_contexte(contexte)
+    if journal is None or ligne is None:
+        return ligne
+    return corriger_la_reduction_generale(ligne, journal, _lire_cumuls_precedents(contexte)[2])
 
 
 def _calculer_reduction_rgdu(

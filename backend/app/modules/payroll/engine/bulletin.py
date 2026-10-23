@@ -629,6 +629,8 @@ def creer_bulletin_final(
             # et le bulletin doit afficher le taux dont vient le montant.
             "taux": resultats_nets.get("taux_pas_applique", 0.0),
             "montant": resultats_nets.get("montant_impot_pas"),
+            # Corrigé à la main : la correction et le taux que Martine avait appliqué.
+            **(resultats_nets.get("correction_impot") or {}),
         },
         "montant_net_hs_exonerees": resultats_nets.get("montant_net_hs_exonerees", 0.0),
         "remboursement_transport": resultats_nets.get("remboursement_transport"),

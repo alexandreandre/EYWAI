@@ -8,6 +8,7 @@ from . import legal_constants as lc
 from typing import Dict, Any, List
 from app.modules.payroll.engine.mutuelles import mutuelles_du_salarie
 from app.modules.payroll.engine.frais_professionnels import est_un_frais_professionnel
+from app.modules.payroll.engine.corrections_manuelles import corriger_le_taux_d_impot, journal_du_contexte
 
 
 logger = get_logger("modules.payroll.engine.calcul_net")
@@ -840,9 +841,13 @@ def calculer_net_et_impot(
         participations,
     )
 
-    montant_impot = _calculer_prelevement_a_la_source(contexte, net_imposable)
     base_pas = _base_pas_du_mois(contexte, net_imposable)
-    taux_pas_applique = taux_pas_du_mois(contexte, base_pas)
+    # Le taux du mois peut être corrigé à la main ; le montant suit, avec la
+    # même formule que `_calculer_prelevement_a_la_source`.
+    taux_pas_applique, correction_impot = corriger_le_taux_d_impot(
+        taux_pas_du_mois(contexte, base_pas), base_pas, journal_du_contexte(contexte)
+    )
+    montant_impot = round(base_pas * (taux_pas_applique / 100.0), 2)
     montant_net_social = calculer_montant_net_social(
         contexte,
         salaire_brut,
@@ -865,7 +870,7 @@ def calculer_net_et_impot(
         avantages_en_nature,
     )
     logger.info("INFO: Calcul des nets et de l'impôt terminé.")
-    return {
+    resultats = {
         "net_social": net_social,
         "montant_net_social": montant_net_social,
         "net_imposable": net_imposable,
@@ -893,3 +898,7 @@ def calculer_net_et_impot(
             contexte, lignes_cotisations, remuneration_heures_supp
         ),
     }
+    # La clé n'existe qu'avec une correction : un bulletin sans correction ne change pas.
+    if correction_impot is not None:
+        resultats["correction_impot"] = correction_impot
+    return resultats
