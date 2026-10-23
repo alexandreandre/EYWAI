@@ -95,6 +95,7 @@ def poser_explications(
         smic_reference_horaire,
         depart_reduction,
     )
+    _expliquer_ijss_deduites(bulletin)
     _expliquer_corrections(bulletin)
     return bulletin
 
@@ -444,6 +445,19 @@ def _est_reduction_generale(ligne: Mapping[str, Any]) -> bool:
     if ligne.get("coti_id") == "reduction_generale":
         return True
     return _LIBELLE_RGDU in str(ligne.get("libelle") or "").lower()
+
+
+def _expliquer_ijss_deduites(bulletin: dict[str, Any]) -> None:
+    """Sans subrogation, IJSS déduites : la ligne de maintien dit le calcul."""
+    from app.modules.payroll.domain.ijss_deduites import explication_ijss_deduites
+
+    bloc = bulletin.get("bloc_maintien")
+    texte = explication_ijss_deduites(bloc.get("maintien") if isinstance(bloc, Mapping) else None)
+    if not texte:
+        return
+    for ligne in _lignes_de(bulletin, "calcul_du_brut"):
+        if ligne.get("is_maintien_employeur"):
+            _poser(ligne, texte)
 
 
 def _expliquer_corrections(bulletin: dict[str, Any]) -> None:

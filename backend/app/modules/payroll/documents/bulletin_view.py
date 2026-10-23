@@ -16,6 +16,7 @@ from app.modules.payroll.domain.report_nap_negatif import (
 )
 from app.modules.payroll.engine.corrections_manuelles import mentions_des_regularisations
 from app.modules.payroll.engine.corrections_du_bulletin import mentions_des_corrections
+from app.modules.payroll.domain.ijss_deduites import mention_ijss_deduites
 
 CIVILITES_MASCULINES = {"M", "H", "MR", "MASCULIN", "1"}
 CIVILITES_FEMININES = {"F", "MME", "FEMININ", "FÉMININ", "2"}
@@ -513,6 +514,17 @@ def mention_heures_sup_declarees(bulletin: Dict[str, Any]) -> Optional[str]:
     )
 
 
+def _mention_sous_la_ligne(bulletin: Dict[str, Any], detail: Dict[str, Any]) -> Optional[str]:
+    """Sous la ligne de maintien : les IJSS déduites sans subrogation.
+
+    Une ligne corrigée à la main a sa propre note, après les cotisations.
+    """
+    if not detail.get("is_maintien_employeur") or isinstance(detail.get("correction"), dict):
+        return None
+    bloc = bulletin.get("bloc_maintien")
+    return mention_ijss_deduites(bloc.get("maintien") if isinstance(bloc, dict) else None)
+
+
 def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
     lignes: List[Dict[str, Any]] = []
 
@@ -527,6 +539,9 @@ def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
         for detail in bulletin.get(source) or []:
             if isinstance(detail, dict):
                 lignes.append(_ligne_brut(detail))
+                mention = _mention_sous_la_ligne(bulletin, detail)
+                if mention:
+                    lignes.append(_ligne("note", mention))
 
     # Ligne de note libre, comme Cegid en pose dans le corps du bulletin
     # (« SOLDE MODUL.au 21/06=8.25h ») : ici, la règle retenue pour l'indemnité
