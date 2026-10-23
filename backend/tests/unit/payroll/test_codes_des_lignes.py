@@ -90,6 +90,9 @@ def _gain(libelle, **champs):
         (_gain("Rappel de salaire", gain=50.0), "brut:rappel_salaire"),
         (_gain("Réintégration NDF Repas", gain=3.0), "brut:reintegration:ndf-repas"),
         (_gain("Prime d'ancienneté", quantite=2000.0, taux=0.03, gain=60.0, meta={"plein_mois": 60.0}), "brut:prime_anciennete"),
+        # Telle qu'elle arrive au bulletin : `calcul_brut` retire son `meta`.
+        (_gain("Prime d'ancienneté (5 ans, 2,4 %)", quantite=2289.38, taux=0.024002, gain=54.95), "brut:prime_anciennete"),
+        (_gain("Prime d'ancienneté métallurgie (classe 7, 6 ans)", quantite=2000.0, taux=0.06, gain=120.0), "brut:prime_anciennete"),
         (_gain("Prime exceptionnelle", gain=100.0, saisie_id="s-1"), "brut:saisie:s-1"),
         (_gain("Prime de fin d'année", gain=100.0), "brut:prime:prime-de-fin-d-annee"),
         (_gain("Heures de nuit majorées à 50%", quantite=10.0, taux=24.72, gain=82.42), "brut:heures_nuit"),

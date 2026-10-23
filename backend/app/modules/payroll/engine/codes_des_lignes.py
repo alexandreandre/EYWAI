@@ -111,6 +111,9 @@ _MOTIFS_DE_GAIN: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
         ("precarite", r"^Prime de précarité \(CDD\)$"),
         ("ifm", r"^Indemnité de fin de mission \(intérim\)$"),
         ("avantages_en_nature", r"^Avantages en nature$"),
+        # Le libellé dit l'ancienneté et le taux ; `calcul_brut` retire le
+        # `meta` de la ligne avant le bulletin : c'est lui qu'on lit.
+        ("prime_anciennete", r"^Prime d'ancienneté( |$)"),
         ("rappel_salaire", r"^Rappel de salaire(?P<d>.*)$"),
         ("reintegration", r"^Réintégration (?P<d>.+)$"),
         ("heures_nuit", r"^Heures de nuit majorées à .+%$"),
