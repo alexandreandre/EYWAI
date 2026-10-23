@@ -15,6 +15,7 @@ from app.modules.payroll.domain.ijss_deduites import (
     SOURCE_ESTIMEES,
     SOURCE_VALIDEES,
     alerte_ijss_au_salarie,
+    est_alerte_ijss_au_salarie,
 )
 
 from .contexte import ContextePaie
@@ -1474,6 +1475,43 @@ def _arret_du_segment(arret: Dict[str, Any], segment: Dict[str, Any]) -> Dict[st
     return sous
 
 
+def _releve_ijss_du_mois(
+    arret: Dict[str, Any],
+    segments: List[Dict[str, Any]],
+    contexte: ContextePaie,
+    settings: Dict[str, Any],
+    date_debut_periode: date,
+    date_fin_periode: date,
+) -> Optional[ReleveIjss]:
+    """Le relevé validé du mois et ce que Martine estime pour tous les arrêts.
+
+    Seulement quand la déduction sans subrogation est allumée : sinon le relevé
+    reste porté par le premier arrêt, comme avant. Les estimations viennent
+    d'un premier calcul de chaque arrêt, sans le relevé.
+    """
+    override = arret.get("ijss_brut_override")
+    if override is None or not deduire_ijss_sans_subrogation(settings):
+        return None
+    try:
+        valide = float(override)
+    except (TypeError, ValueError):
+        return None
+    if valide < 0:
+        return None
+    estimes = []
+    for segment in segments:
+        sous = _arret_du_segment(arret, segment)
+        sous.pop("ijss_brut_override", None)
+        estimes.append(
+            calculer_maintien(sous, contexte, settings, date_debut_periode, date_fin_periode)
+        )
+    return (
+        valide,
+        sum(float((r.get("ijss") or {}).get("ijss_theorique") or 0.0) for r in estimes),
+        sum(int((r.get("ijss") or {}).get("nb_jours_indemnises") or 0) for r in estimes),
+    )
+
+
 def _calculer_maintien_des_arrets_du_mois(
     arret: Dict[str, Any],
     segments: List[Dict[str, Any]],
@@ -1488,16 +1526,24 @@ def _calculer_maintien_des_arrets_du_mois(
     dernier : les jours travaillés entre eux comptaient comme jours d'arrêt, et
     la carence payée était perdue ([F11-bis], enquête F du 10/10/2026). Un
     relevé d'IJSS saisi pour le mois (`ijss_brut_override`) vaut pour le mois
-    entier : il est porté par le premier arrêt, les autres à zéro.
+    entier : il est porté par le premier arrêt, les autres à zéro. Sans
+    subrogation, quand la société déduit les IJSS, chaque arrêt en déduit sa
+    part, au prorata des IJSS estimées du mois.
     """
     override = arret.get("ijss_brut_override")
+    releve = _releve_ijss_du_mois(
+        arret, segments, contexte, settings, date_debut_periode, date_fin_periode
+    )
     resultats: List[Dict[str, Any]] = []
     for rang, segment in enumerate(segments):
         sous = _arret_du_segment(arret, segment)
         if override is not None:
             sous["ijss_brut_override"] = override if rang == 0 else 0.0
         resultats.append(
-            calculer_maintien(sous, contexte, settings, date_debut_periode, date_fin_periode)
+            calculer_maintien(
+                sous, contexte, settings, date_debut_periode, date_fin_periode,
+                releve_ijss_du_mois=releve,
+            )
         )
 
     def _somme(bloc: str, cle: str) -> float:
@@ -1521,6 +1567,16 @@ def _calculer_maintien_des_arrets_du_mois(
     for cle in ("maintien_cible", "maintien_verse", "complement_employeur"):
         maintien[cle] = _somme("maintien", cle)
     maintien["nb_jours_maintien"] = _somme_entiere("maintien", "nb_jours_maintien")
+    deduites = _somme("maintien", CLE_IJSS_DEDUITES)
+    maintien.pop(CLE_IJSS_DEDUITES, None)
+    maintien.pop(CLE_SOURCE, None)
+    if deduites > 0:
+        maintien[CLE_IJSS_DEDUITES] = deduites
+        maintien[CLE_SOURCE] = (
+            SOURCE_VALIDEES
+            if any((r.get("maintien") or {}).get(CLE_SOURCE) == SOURCE_VALIDEES for r in resultats)
+            else SOURCE_ESTIMEES
+        )
     maintien["maintien_applicable"] = any(
         (r.get("maintien") or {}).get("maintien_applicable", True) for r in resultats
     )
@@ -1547,6 +1603,13 @@ def _calculer_maintien_des_arrets_du_mois(
         for alerte in r.get("alertes") or []:
             if alerte not in alertes:
                 alertes.append(alerte)
+    if deduites > 0:
+        # Une seule alerte « IJSS versées… », avec la déduction du mois.
+        rang = next(
+            (i for i, a in enumerate(alertes) if est_alerte_ijss_au_salarie(a)), len(alertes)
+        )
+        alertes = [a for a in alertes if not est_alerte_ijss_au_salarie(a)]
+        alertes.insert(rang, alerte_ijss_au_salarie(maintien))
     fusion.update(
         {
             "ijss": ijss,

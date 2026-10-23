@@ -249,3 +249,46 @@ def test_conge_parental_maintenu_les_ij_de_tout_le_conge_sont_deduites():
     assert allume["maintien"]["maintien_verse"] == pytest.approx(
         eteint["maintien"]["maintien_verse"] - ij, abs=0.01
     )
+
+
+# --- Deux arrêts dans le mois -----------------------------------------------
+
+LEGAL_OUVRES = {**PLASTURGIE, "apply_legal_maintenance": True, "paid_waiting_days_per_year": None}
+
+
+def _deux_arrets(reglages, override=None):
+    contexte = _contexte_plasturgie()
+    jours = _jours_d_arret(("2026-09-01", "2026-09-11"), ("2026-09-21", "2026-09-30"))
+    arret = _extraire_arret_pour_maintien(jours, contexte, *SEPTEMBRE)
+    if override is not None:
+        arret["ijss_brut_override"] = override
+    return calculer_maintien(arret, contexte, dict(reglages), *SEPTEMBRE)
+
+
+def test_deux_arrets_les_deductions_s_additionnent():
+    r = _deux_arrets({**LEGAL_OUVRES, CLE: True})
+    m = r["maintien"]
+    assert len(r["arrets_du_mois"]) == 2
+    assert m["ijss_deduites"] > 0
+    assert m["ijss_deduites_source"] == "estimees"
+    eteint = _deux_arrets(LEGAL_OUVRES)["maintien"]
+    assert m["maintien_verse"] == pytest.approx(
+        eteint["maintien_verse"] - m["ijss_deduites"], abs=0.01
+    )
+    assert len([a for a in r["alertes"] if a.startswith(ALERTE)]) == 1
+
+
+def test_deux_arrets_le_releve_valide_se_repartit_sur_le_mois():
+    estime = _deux_arrets({**LEGAL_OUVRES, CLE: True})
+    part = estime["maintien"]["ijss_deduites"] / estime["ijss"]["ijss_theorique"]
+    r = _deux_arrets({**LEGAL_OUVRES, CLE: True}, override=600.0)
+    assert r["ijss"]["ijss_theorique"] == 600.0
+    assert r["maintien"]["ijss_deduites_source"] == "validees"
+    assert r["maintien"]["ijss_deduites"] == pytest.approx(600.0 * part, abs=0.02)
+
+
+def test_deux_arrets_reglage_eteint_identique_au_calcul_d_aujourd_hui():
+    assert _deux_arrets({**LEGAL_OUVRES, CLE: False}, override=600.0) == _deux_arrets(
+        LEGAL_OUVRES, override=600.0
+    )
+    assert "ijss_deduites" not in _deux_arrets(LEGAL_OUVRES)["maintien"]
