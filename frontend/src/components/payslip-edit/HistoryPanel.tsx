@@ -21,8 +21,11 @@ import {
 } from '@/components/ui/alert-dialog';
 import { accord, pluriel } from '@/lib/pluriel';
 import {
+  PHRASE_RESTAURATION,
+  intituleDeVersion,
   libelleBoutonRestaurer,
   phraseConservation,
+  remplaceePar,
   textesConfirmationRestauration,
 } from './historiqueVersions';
 import {
@@ -117,6 +120,10 @@ export default function HistoryPanel({
     }
   };
 
+  const versionAConfirmer = aConfirmer !== null ? history.find((e) => e.version === aConfirmer) : undefined;
+  const textes =
+    aConfirmer !== null ? textesConfirmationRestauration(aConfirmer, versionAConfirmer?.restauration) : null;
+
   if (isLoading) {
     return <SharkFinLoader label="Chargement de l'historique…" className="p-12" />;
   }
@@ -139,7 +146,7 @@ export default function HistoryPanel({
       <Alert>
         <AlertDescription>
           {canRestore
-            ? 'Restaurer une version rétablit seulement ses heures sup et ses primes saisies, puis recalcule le bulletin. La version actuelle reste dans l\'historique.'
+            ? PHRASE_RESTAURATION
             : 'La restauration est désactivée : la période de ce bulletin est verrouillée pour la correction.'}
         </AlertDescription>
       </Alert>
@@ -169,7 +176,10 @@ export default function HistoryPanel({
                         {dateEnClair(entry.edited_at)}
                       </span>
                     </div>
-                    <p className="text-sm text-foreground">{entry.changes_summary}</p>
+                    <p className="text-sm text-foreground" data-testid="contenu-version">
+                      {intituleDeVersion(entry)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{remplaceePar(entry)}</p>
                   </div>
                   <Button
                     variant="outline"
@@ -217,14 +227,27 @@ export default function HistoryPanel({
         </CardContent>
       </Card>
 
-      <AlertDialog open={aConfirmer !== null} onOpenChange={(ouvert) => !ouvert && setAConfirmer(null)}>
+      <AlertDialog open={textes !== null} onOpenChange={(ouvert) => !ouvert && setAConfirmer(null)}>
         <AlertDialogContent>
-          {aConfirmer !== null ? (
+          {textes !== null && aConfirmer !== null ? (
             <>
               <AlertDialogHeader>
-                <AlertDialogTitle>{textesConfirmationRestauration(aConfirmer).titre}</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {textesConfirmationRestauration(aConfirmer).description}
+                <AlertDialogTitle>{textes.titre}</AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-3 text-sm" data-testid="apercu-restauration">
+                    {textes.sections.map((section) => (
+                      <div key={section.titre}>
+                        <p className="font-medium text-foreground">{section.titre} :</p>
+                        <ul className="list-disc pl-5">
+                          {section.lignes.map((ligne) => (
+                            <li key={ligne}>{ligne}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                    {textes.rien ? <p>{textes.rien}</p> : null}
+                    <p>{textes.fin}</p>
+                  </div>
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -233,7 +256,7 @@ export default function HistoryPanel({
                   data-testid="confirmer-restauration"
                   onClick={() => void handleRestore(aConfirmer)}
                 >
-                  {textesConfirmationRestauration(aConfirmer).confirmer}
+                  {textes.confirmer}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </>

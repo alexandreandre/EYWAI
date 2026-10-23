@@ -69,6 +69,14 @@ class InternalNote(BaseModel):
     content: str
 
 
+class ApercuRestauration(BaseModel):
+    """Ce que restaurer une version ferait au bulletin du moment, dit avant de confirmer."""
+
+    reviennent: list[str] = []
+    remplacees: list[str] = []
+    retirees: list[str] = []
+
+
 class HistoryEntry(BaseModel):
     """Entrée d'historique d'édition d'un bulletin."""
 
@@ -83,6 +91,10 @@ class HistoryEntry(BaseModel):
     #: Lien vers le PDF de cette version (signé à la lecture quand le PDF est gardé).
     previous_pdf_url: str | None = None
     pdf_storage_path: str | None = None
+    #: Ce que la version contient de ce qu'une restauration rétablit : son intitulé.
+    contenu: list[str] | None = None
+    #: Ce que sa restauration ferait au bulletin du moment ; absent si illisible.
+    restauration: ApercuRestauration | None = None
 
 
 class ExportDuMois(BaseModel):

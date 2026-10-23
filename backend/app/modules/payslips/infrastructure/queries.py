@@ -15,6 +15,7 @@ from app.modules.payroll.documents.pdf_du_bulletin import nom_affiche
 from app.modules.payroll.domain.report_nap_negatif import statut_qui_verrouille
 from app.shared.domain.employment_rules import effective_statut_for_payroll
 
+from app.modules.payslips.domain.corrections import apercu_de_restauration, contenu_de_version
 from app.modules.payslips.infrastructure.mappers import build_payslip_detail
 from app.modules.payslips.infrastructure.payslip_list_meta import payslip_list_meta
 from app.modules.payslips.infrastructure.storage_urls import (
@@ -403,11 +404,34 @@ def get_payslip_data_du_mois(
     return data if isinstance(data, dict) else None
 
 
+def avec_apercus_de_restauration(historique: list[dict[str, Any]], courant: Any) -> list[dict[str, Any]]:
+    """Chaque version, avec ce qu'elle contient et ce que sa restauration ferait au bulletin du moment.
+
+    Une version illisible reste servie sans aperçu : l'écran dit alors qu'il
+    n'a pas pu le lire, plutôt que de taire l'historique.
+    """
+    courant = courant if isinstance(courant, dict) else {}
+    servi = []
+    for entree in historique:
+        cible = entree.get("previous_payslip_data")
+        if isinstance(cible, dict) and cible:
+            try:
+                entree = {
+                    **entree,
+                    "contenu": contenu_de_version(cible),
+                    "restauration": apercu_de_restauration(courant, cible),
+                }
+            except Exception:  # la version s’affiche sans son aperçu
+                logger.warning("Aperçu de la version %s non calculé", entree.get("version"), exc_info=True)
+        servi.append(entree)
+    return servi
+
+
 def get_payslip_history(payslip_id: str) -> list[dict[str, Any]]:
-    """Historique d'édition d'un bulletin."""
+    """Historique d'édition d'un bulletin, avec le contenu de chaque version."""
     r = (
         supabase.table("payslips")
-        .select("edit_history")
+        .select("edit_history, payslip_data")
         .eq("id", payslip_id)
         .maybe_single()
         .execute()
@@ -415,4 +439,6 @@ def get_payslip_history(payslip_id: str) -> list[dict[str, Any]]:
     payslip = r.data if r else None
     if not payslip:
         return []
-    return avec_liens_des_versions(payslip.get("edit_history"))
+    return avec_apercus_de_restauration(
+        avec_liens_des_versions(payslip.get("edit_history")), payslip.get("payslip_data")
+    )

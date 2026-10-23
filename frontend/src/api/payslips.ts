@@ -144,6 +144,10 @@ export interface HistoryEntry {
   /** Lien vers le PDF de cette version (signé à la lecture). */
   previous_pdf_url?: string | null;
   pdf_storage_path?: string | null;
+  /** Ce que la version contient de ce qu'une restauration rétablit : son intitulé. */
+  contenu?: string[] | null;
+  /** Ce que sa restauration ferait au bulletin du moment ; absent si le serveur n'a pas pu le lire. */
+  restauration?: { reviennent: string[]; remplacees: string[]; retirees: string[] } | null;
 }
 
 export interface PayslipInfo {

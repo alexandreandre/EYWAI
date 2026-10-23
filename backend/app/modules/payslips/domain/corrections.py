@@ -230,3 +230,102 @@ def corrections_pour_revenir(
         corrections_ajoutees=corrections_ajoutees,
         corrections_retirees=corrections_retirees,
     )
+
+
+# --- Ce que l'historique dit d'une version (jeu du 23/10) ---
+
+
+def _heures_de(payslip_data: dict[str, Any] | None) -> tuple[float, float]:
+    """Les heures sup déclarées au bulletin, sinon celles qu'il imprime."""
+    declarees = _declarees(payslip_data)
+    if declarees is not None:
+        return declarees
+    hs25, hs50 = quantites_heures_sup_conjoncturelles(payslip_data)
+    return (round(hs25, 2), round(hs50, 2))
+
+
+def _phrase_heures(heures: tuple[float, float]) -> str:
+    return f"Heures sup {_heures(heures[0])} h à 25 % et {_heures(heures[1])} h à 50 %"
+
+
+def contenu_de_version(cible: dict[str, Any] | None) -> list[str]:
+    """Ce que la version porte de ce qu'une restauration rétablit : son intitulé.
+
+    L'historique affichait le résumé du changement qui avait remplacé la
+    version : « 1 prime retirée » sur une version qui avait la prime.
+    """
+    parties = [_phrase_heures(_heures_de(cible))]
+    primes = primes_saisies_du_bulletin(cible)
+    parties.extend(f"{prime.libelle} {_euros(prime.montant)}" for prime in primes.values())
+    if not primes:
+        parties.append("aucune prime saisie")
+    corrections = corrections_du_bulletin(cible)
+    if corrections:
+        libelles = ", ".join(correction.libelle for correction in corrections.values())
+        parties.append(f"{'Lignes corrigées' if len(corrections) > 1 else 'Ligne corrigée'} : {libelles}")
+    else:
+        parties.append("aucune ligne corrigée")
+    regularisations = regularisations_du_bulletin(cible)
+    if regularisations:
+        libelles = ", ".join(regul.libelle for regul in regularisations.values())
+        parties.append(f"{'Régularisations' if len(regularisations) > 1 else 'Régularisation'} : {libelles}")
+    return parties
+
+
+def apercu_de_restauration(
+    courant: dict[str, Any] | None, cible: dict[str, Any] | None
+) -> dict[str, list[str]]:
+    """Ce que restaurer `cible` ferait au bulletin `courant`, d'après le calcul de la restauration.
+
+    `reviennent` : ce que la version rétablit ; `remplacees` : les corrections
+    du moment dont la ligne reprend celle de la version ; `retirees` : ce que
+    la version n'avait pas et qui part. Rien ne disparaît sans être nommé.
+    """
+    corrections = corrections_pour_revenir(courant, cible)
+    reviennent: list[str] = []
+    remplacees: list[str] = []
+    retirees: list[str] = []
+
+    if corrections.heures_sup is not None:
+        avant = _heures_de(courant)
+        reviennent.append(
+            f"{_phrase_heures(corrections.heures_sup)} (au lieu de {_heures(avant[0])} h et {_heures(avant[1])} h)"
+        )
+
+    primes_courant = primes_saisies_du_bulletin(courant)
+    primes_cible = primes_saisies_du_bulletin(cible)
+    for prime in corrections.primes.ajoutees:
+        reviennent.append(f"Prime « {prime.get('name')} » : {_euros(prime.get('amount') or 0)}")
+    for sid, montant in corrections.primes.modifiees:
+        libelle = primes_cible[sid].libelle if sid in primes_cible else "Prime"
+        phrase = f"Prime « {libelle} » : {_euros(montant)}"
+        if sid in primes_courant:
+            phrase += f" (au lieu de {_euros(primes_courant[sid].montant)})"
+        reviennent.append(phrase)
+    for sid in corrections.primes.retirees:
+        prime = primes_courant[sid]
+        retirees.append(f"Prime « {prime.libelle} » : {_euros(prime.montant)}")
+
+    regul_courant = regularisations_du_bulletin(courant)
+    for regul in corrections.regularisations_ajoutees:
+        reviennent.append(f"Régularisation « {regul.libelle} » : {regul.motif}")
+    for sid in corrections.regularisations_retirees:
+        regul = regul_courant[sid]
+        retirees.append(f"Régularisation « {regul.libelle} » : {regul.motif}")
+
+    corrections_courant = corrections_du_bulletin(courant)
+    par_ligne = {correction.ligne: correction for correction in corrections.corrections_ajoutees}
+    for correction in corrections.corrections_ajoutees:
+        reviennent.append(f"Correction de la ligne « {correction.libelle} » : {correction.motif}")
+    for sid in corrections.corrections_retirees:
+        actuelle = corrections_courant[sid]
+        nouvelle = par_ligne.get(actuelle.ligne)
+        if nouvelle is not None:
+            remplacees.append(
+                f"Correction de la ligne « {actuelle.libelle} » : {actuelle.motif} "
+                f"(remplacée par celle de la version : {nouvelle.motif})"
+            )
+        else:
+            retirees.append(f"Correction de la ligne « {actuelle.libelle} » : {actuelle.motif}")
+
+    return {"reviennent": reviennent, "remplacees": remplacees, "retirees": retirees}
