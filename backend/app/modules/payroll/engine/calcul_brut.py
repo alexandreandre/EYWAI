@@ -29,6 +29,12 @@ from .salaire_contractuel import (
     taux_horaire_base_hors_hs_structurelles,
 )
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
+from app.modules.payroll.engine.codes_des_lignes import BLOC_BRUT
+from app.modules.payroll.engine.corrections_manuelles import (
+    LignesCorrigees,
+    journal_du_contexte,
+    recaler_le_sous_total,
+)
 
 
 def _heures_journalieres_contrat(duree_hebdo: float) -> float:
@@ -1148,7 +1154,11 @@ def calculer_salaire_brut(
     existants sauf `payslip_run_heures.py`), le complément ne se déclenche
     jamais — comportement strictement inchangé.
     """
-    lignes_composants_brut = []
+    # Chaque ligne naît corrigée si une correction faite à la main la vise
+    # (théorème de la correction à la main, étape 2) : tout ce qui se calcule
+    # ensuite depuis les lignes (précarité, indemnité compensatrice, heures sup)
+    # part de la valeur voulue.
+    lignes_composants_brut = LignesCorrigees(journal_du_contexte(contexte), BLOC_BRUT)
     duree_legale_hebdo = lc.DUREE_LEGALE_HEBDO
     duree_contrat_hebdo = contexte.duree_hebdo_contrat
     salaire_contractuel = salaire_contractuel_avec_evolution(
@@ -2186,6 +2196,26 @@ def calculer_salaire_brut(
         lignes_sortie = [l for l in lignes_sortie if l.get("libelle") != LIBELLE_ICCP_DEPART]
     lignes_composants_brut.extend(lignes_sortie)
 
+    # Les heures et montants que le calcul tient à part des lignes suivent les
+    # lignes corrigées (spec § 6, quantités) : heures payées, heures sup
+    # structurelles, absences non payées, arrêts, heures sup perdues.
+    effet = lignes_composants_brut.effet
+    if effet.corrigees:
+        heures_base_remunerees = round(heures_base_remunerees + effet.quantite("brut:salaire_base"), 2)
+        heures_sup_structurelles_mensuelles = round(
+            heures_sup_structurelles_mensuelles + effet.quantite("brut:hs_structurelles"), 2
+        )
+        remuneration_hs_structurelles = round(
+            remuneration_hs_structurelles + effet.sur_le_brut("brut:hs_structurelles"), 2
+        )
+        heures_absence_non_payees += effet.quantite(
+            "brut:absence_injustifiee", "brut:absence_non_remuneree", "brut:absence_ferie_non_paye"
+        )
+        heures_arret_deduites += effet.quantite("brut:arret")
+        deduction_arret_maladie_total -= effet.sur_le_brut("brut:arret")
+        heures_hs_perdues = round(heures_hs_perdues + effet.quantite("brut:reduction_hs_absence"), 2)
+        recaler_le_sous_total(lignes_composants_brut)
+
     # Le calcul du brut total reste inchangé
     total_gains = sum(
         ligne.get("gain", 0.0) or 0.0
@@ -2240,14 +2270,20 @@ def calculer_salaire_brut(
     ) - pertes_heures_supp
 
     # Le total des heures supp pour la déduction forfaitaire patronale n'est pas impacté par les absences
-    heures_sup_conjoncturelles = heures_travail_hs25_total + heures_travail_hs50_total
+    heures_sup_conjoncturelles = (
+        heures_travail_hs25_total + heures_travail_hs50_total + effet.quantite("brut:heures_sup")
+    )
     total_heures_supp_mois = (
         heures_sup_structurelles_mensuelles + heures_sup_conjoncturelles
     ) - heures_absence_hs_total
     if heures_hs_exonerees is not None:
-        total_heures_supp_mois = heures_hs_exonerees
+        total_heures_supp_mois = heures_hs_exonerees + effet.quantite(
+            "brut:heures_sup", "brut:hs_structurelles"
+        )
     if montant_hs_exonerees is not None:
-        remuneration_hs_totale = montant_hs_exonerees
+        remuneration_hs_totale = montant_hs_exonerees + effet.sur_le_brut(
+            "brut:heures_sup", "brut:hs_structurelles", "brut:heures_complementaires"
+        )
 
     # --- FIN DU BLOC CORRIGÉ ---
 
@@ -2255,14 +2291,14 @@ def calculer_salaire_brut(
     # relever le prorata du plafond SS temps partiel (assiette).
     try:
         contexte.heures_complementaires_mois = round(
-            heures_travail_hc1_total + heures_travail_hc2_total, 2
+            heures_travail_hc1_total + heures_travail_hc2_total + effet.quantite("brut:heures_complementaires"), 2
         )
     except Exception:
         pass
 
     return {
         "salaire_brut_total": round(total_brut, 2),
-        "lignes_composants_brut": lignes_composants_brut,
+        "lignes_composants_brut": list(lignes_composants_brut),
         "remuneration_brute_heures_supp": round(remuneration_hs_totale, 2),
         "total_heures_supp": round(total_heures_supp_mois, 2),
         # HS conjoncturelles seules (au-delà de l'horaire contractuel) : utile
@@ -2286,6 +2322,6 @@ def calculer_salaire_brut(
         "deduction_arret_maladie": round(deduction_arret_maladie_total, 2),
         "heures_arret_deduites": round(heures_arret_deduites, 2),
         "heures_complementaires": round(
-            heures_travail_hc1_total + heures_travail_hc2_total, 2
+            heures_travail_hc1_total + heures_travail_hc2_total + effet.quantite("brut:heures_complementaires"), 2
         ),
     }
