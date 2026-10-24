@@ -1077,6 +1077,118 @@ def _est_une_absence(type_ev: str) -> bool:
     )
 
 
+def _absence_qui_retient_la_journee(type_ev: str) -> bool:
+    """Arrêt, absence non rémunérée ou injustifiée : la journée sort du salaire."""
+    return (
+        type_ev.startswith("arret")
+        or type_ev == "absence_non_remuneree"
+        or "absence_injustifiee" in type_ev
+    )
+
+
+def _bornes_de_l_arret(evenement: dict[str, Any]) -> tuple[date, date] | None:
+    debut = _parse_date_contrat(evenement.get("date_debut_arret_reel"))
+    fin = _parse_date_contrat(evenement.get("date_fin_arret_reel"))
+    return (debut, fin) if debut and fin else None
+
+
+def _periodes_d_absence(
+    jours: list[dict[str, Any]], feries: set[date]
+) -> list[tuple[date, date, dict[str, Any]]]:
+    """Les périodes d'absence de la période de paie, chacune avec un de ses jours.
+
+    Un arrêt a ses bornes réelles : la validation les pose sur chacun de ses
+    jours. Une autre absence n'en a pas : ses jours se suivent tant que seuls
+    des week-ends ou des fériés les séparent.
+    """
+    periodes: list[tuple[date, date, dict[str, Any]]] = []
+    sans_bornes: list[tuple[date, dict[str, Any]]] = []
+    for evenement in jours:
+        type_ev = str(evenement.get("type") or "")
+        if evenement.get("is_regularisation_anterieure") or not _absence_qui_retient_la_journee(
+            type_ev
+        ):
+            continue
+        bornes = _bornes_de_l_arret(evenement) if type_ev.startswith("arret") else None
+        if bornes:
+            periodes.append((bornes[0], bornes[1], evenement))
+        else:
+            sans_bornes.append((date.fromisoformat(evenement["date_complete"]), evenement))
+    suivies: list[tuple[date, date, dict[str, Any]]] = []
+    for jour, evenement in sorted(sans_bornes, key=lambda j: j[0]):
+        courante = suivies[-1] if suivies else None
+        if (
+            courante is not None
+            and courante[2].get("type") == evenement.get("type")
+            and all(
+                (courante[1] + timedelta(days=k)).weekday() >= 5
+                or (courante[1] + timedelta(days=k)) in feries
+                for k in range(1, (jour - courante[1]).days)
+            )
+        ):
+            suivies[-1] = (courante[0], jour, courante[2])
+        else:
+            suivies.append((jour, jour, evenement))
+    return periodes + suivies
+
+
+def _feries_payes_d_un_mois_sans_travail(
+    contexte: ContextePaie, jours: list[dict[str, Any]]
+) -> tuple[list[date], dict[date, dict[str, Any]]]:
+    """Les fériés chômés payés d'un mois sans jour travaillé, hors absence ou dedans.
+
+    Hors de toute absence, un férié payé (art. L3133-3 et L3133-5) qui tombe un
+    jour ouvré garde sa paie : le mois n'est pas entièrement absent. Dans une
+    absence, il la suit : un arrêt couvre ses fériés (la validation leur pose
+    ses bornes sans les retyper), un congé sans solde aussi. Rend les dates
+    hors absence, et pour chaque férié compris dans une absence un jour de
+    cette absence.
+    """
+    feries = [
+        ev
+        for ev in jours
+        if ev.get("type") == "ferie" and not ev.get("is_regularisation_anterieure")
+    ]
+    dates_feries = {date.fromisoformat(ev["date_complete"]) for ev in feries}
+    periodes = _periodes_d_absence(jours, dates_feries)
+    hors_absence: list[date] = []
+    dans_une_absence: dict[date, dict[str, Any]] = {}
+    for ferie in feries:
+        jour = date.fromisoformat(ferie["date_complete"])
+        if jour.weekday() >= 5 and not float(ferie.get("heures") or 0):
+            continue
+        if not _jour_ferie_est_paye(contexte, ferie):
+            continue  # retenu par sa propre ligne, quoi qu'il arrive
+        couvrante = next((p for p in periodes if p[0] <= jour <= p[1]), None)
+        bornes = _bornes_de_l_arret(ferie)
+        if couvrante is not None:
+            dans_une_absence[jour] = couvrante[2]
+        elif bornes and bornes[0] <= jour <= bornes[1]:
+            dans_une_absence[jour] = {**ferie, "type": "arret_maladie"}
+        else:
+            hors_absence.append(jour)
+    return hors_absence, dans_une_absence
+
+
+def _ferie_retenu_avec_son_absence(
+    ferie: dict[str, Any], absence: dict[str, Any]
+) -> dict[str, Any]:
+    """Le férié devient un jour de l'absence qui le couvre, retenu pour une journée."""
+    jour = {
+        cle: valeur
+        for cle, valeur in absence.items()
+        if cle not in ("quotite_absence", "demi_journee", "jour", "mois", "annee")
+    }
+    jour.update(
+        {
+            "date_complete": ferie["date_complete"],
+            "heures": 0.0,
+            "ferie_compris_dans_l_absence": True,
+        }
+    )
+    return jour
+
+
 def evenements_de_la_periode(
     calendrier_saisie: List[Dict[str, Any]],
     bornes_mois: tuple[date, date],
@@ -1526,6 +1638,36 @@ def calculer_salaire_brut(
             continue
         jours_dans_periode.append(evenement)
 
+    # Mois sans aucun jour travaillé au planning : il n'est entièrement absent
+    # que si aucun férié payé ne tombe hors de toute absence. Comitech, mai
+    # 2026 (S.G.) : arrêt du 04/05 au 31/05, le vendredi 1er mai férié. Le
+    # chômage du 1er mai « ne peut être une cause de réduction de salaire »
+    # (art. L3133-5) : Quadra retient les seuls jours de l'arrêt, fériés de
+    # l'arrêt compris (« Absence maladie 040526-310526 », 140 h), et laisse
+    # 171,64 € ; Martine retenait tout le mois. Le mois n'étant pas entier, la
+    # retenue se fait jour par jour, et les fériés compris dans l'absence y
+    # entrent comme des jours de l'absence : c'est ce que retenait déjà le
+    # complément ci-dessous, et ce que le maintien compte (`_periode_couverte`
+    # ne voit pas non plus ce mois comme entier).
+    mois_entierement_absent = nb_jours_travail_planifies == 0
+    if mois_entierement_absent:
+        feries_hors_absence, feries_dans_une_absence = (
+            _feries_payes_d_un_mois_sans_travail(contexte, jours_dans_periode)
+        )
+        if feries_hors_absence:
+            mois_entierement_absent = False
+            jours_dans_periode = [
+                _ferie_retenu_avec_son_absence(
+                    evenement,
+                    feries_dans_une_absence[date.fromisoformat(evenement["date_complete"])],
+                )
+                if evenement.get("type") == "ferie"
+                and not evenement.get("is_regularisation_anterieure")
+                and date.fromisoformat(evenement["date_complete"]) in feries_dans_une_absence
+                else evenement
+                for evenement in jours_dans_periode
+            ]
+
     # 3. Traitement de tous les événements de la période
     jours_conges_dans_periode = []
     deduction_arret_maladie_total = 0.0
@@ -1933,7 +2075,9 @@ def calculer_salaire_brut(
     # sur `nb_jours_travail_planifies == 0` (calendrier brut fourni par
     # l'appelant, cf. payslip_run_heures.py) : ne peut PAS se déclencher pour
     # un salarié qui a ne serait-ce qu'un seul jour "travail" planifié dans le
-    # mois, quel que soit l'état du pointage.
+    # mois, quel que soit l'état du pointage. Ni pour un mois dont un férié payé
+    # tombe hors de toute absence (`mois_entierement_absent`, plus haut) : la
+    # retenue y reste celle des jours d'absence, jamais plus que le salaire.
     if (
         nb_jours_travail_planifies == 0
         and montant_absence_pleine_total > 0
@@ -1941,7 +2085,7 @@ def calculer_salaire_brut(
         complement_absence_pleine = round(
             montant_base_mensualise - montant_absence_pleine_total, 2
         )
-        if complement_absence_pleine > 0.01:
+        if complement_absence_pleine > 0.01 and mois_entierement_absent:
             lignes_composants_brut.append(
                 {
                     "libelle": "Complément retenue absence intégrale du mois "
