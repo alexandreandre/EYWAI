@@ -162,7 +162,7 @@ En septembre, comparer les garantis aurait choisi le légal (1 284,79 €), qui 
 ## 4. Ce qui se voit
 
 - **Détail du maintien** (bulletin, `MaintenanceDetailModal`, et aperçu de l'absence, `MaintenancePreviewBlock`) : une section « Paliers de la convention ». Une ligne par palier du mois, par exemple « Du 01/07 au 02/07 : 2 jours ouvrés à 100 % — 194,04 € », et le barème appliqué (« Plasturgie (IDCC 0292), non-cadres, 5 ans et plus »). La carence employeur affichée est celle du barème.
-- **« D'où viennent ces lignes »**, sur la ligne « Maintien de salaire employeur » : « Plasturgie (IDCC 0292) : 2 jours ouvrés à 100 % et 21 jours ouvrés à 75 %, salaire garanti 1 722,12 € », suivi s'il y a lieu de « moins 1 276,89 € d'IJSS versées par la CPAM au salarié (validées) ». Quand le légal l'emporte : « Maintien légal, plus favorable ce mois-ci que le barème ».
+- **« D'où viennent ces lignes »**, sur la ligne « Maintien de salaire employeur » : « Plasturgie (IDCC 0292), non-cadres, 5 ans et plus : 2 jours ouvrés à 100 % et 21 jours ouvrés à 75 %, salaire garanti 1 722,12 € », suivi s'il y a lieu de « moins 1 276,89 € d'IJSS versées par la CPAM au salarié (montant validé dans le suivi IJSS) ». Quand le légal l'emporte : « Maintien légal, plus favorable ce mois-ci que le barème Plasturgie (IDCC 0292) : … ».
 - **Alertes du maintien**, jamais d'état silencieux :
   - « Plasturgie : passage à 75 % le 03/07/2026 » ;
   - « Plasturgie : limite de 135 jours atteinte le 15/09/2026, plus de maintien ensuite. Vérifier la prévoyance. » ;
