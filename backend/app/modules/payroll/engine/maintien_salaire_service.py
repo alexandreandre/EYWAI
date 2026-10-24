@@ -1207,6 +1207,7 @@ def _calculer_prevoyance_complement(
     date_debut_periode: date,
     date_fin_periode: date,
     jours_deja_en_arret: int = 0,
+    taux_maintien_par_jour: Optional[Dict[date, float]] = None,
 ) -> Dict[str, Any]:
     """
     Complément de prévoyance (relais), paramétré par l'entreprise via les settings :
@@ -1295,20 +1296,24 @@ def _calculer_prevoyance_complement(
                 else:
                     ijss_jour = 0.0
 
-                # Maintien employeur du jour (le plus favorable légal / conventionnel)
-                jour_maintien = jour_arret - carence_emp
-                m_leg = (
-                    brut_journalier
-                    * _taux_legal_pour_jour_maintien(jour_maintien, duree_par_taux)
-                    if apply_legal
-                    else 0.0
-                )
-                m_conv = (
-                    brut_journalier * float(taux_conv)
-                    if (taux_conv is not None and 1 <= jour_maintien <= cap_conv)
-                    else 0.0
-                )
-                maintien_jour = max(m_leg, m_conv)
+                # Maintien employeur du jour (le plus favorable légal / conventionnel).
+                # Sous le barème : le taux du jour dans la règle retenue.
+                if taux_maintien_par_jour is not None:
+                    maintien_jour = brut_journalier * taux_maintien_par_jour.get(d, 0.0)
+                else:
+                    jour_maintien = jour_arret - carence_emp
+                    m_leg = (
+                        brut_journalier
+                        * _taux_legal_pour_jour_maintien(jour_maintien, duree_par_taux)
+                        if apply_legal
+                        else 0.0
+                    )
+                    m_conv = (
+                        brut_journalier * float(taux_conv)
+                        if (taux_conv is not None and 1 <= jour_maintien <= cap_conv)
+                        else 0.0
+                    )
+                    maintien_jour = max(m_leg, m_conv)
 
                 complement = taux_cible * brut_journalier - ijss_jour - maintien_jour
                 if complement > 0:
@@ -1960,6 +1965,27 @@ def _releve_ijss_du_mois(
     )
 
 
+def _periode_couverte(
+    segments: List[Dict[str, Any]],
+    arret: Dict[str, Any],
+    date_debut_periode: date,
+    date_fin_periode: date,
+) -> bool:
+    """Tous les jours de la période sont-ils en arrêt, d'un arrêt ou d'un autre ?"""
+    couverts: set = set()
+    for segment in segments:
+        sous = _arret_du_segment(arret, segment)
+        debut = _parse_date(sous.get("date_debut"))
+        fin = _parse_date(sous.get("date_fin")) or debut
+        if debut is None or fin is None:
+            continue
+        jour = max(debut, date_debut_periode)
+        while jour <= min(fin, date_fin_periode):
+            couverts.add(jour)
+            jour += timedelta(days=1)
+    return len(couverts) == _compter_jours_calendaires(date_debut_periode, date_fin_periode)
+
+
 def _calculer_maintien_des_arrets_du_mois(
     arret: Dict[str, Any],
     segments: List[Dict[str, Any]],
@@ -1982,9 +2008,14 @@ def _calculer_maintien_des_arrets_du_mois(
     releve = _releve_ijss_du_mois(
         arret, segments, contexte, settings, date_debut_periode, date_fin_periode
     )
+    mois_entier: Optional[bool] = None
+    if bareme_des_reglages(settings) is not None:
+        mois_entier = _periode_couverte(segments, arret, date_debut_periode, date_fin_periode)
     resultats: List[Dict[str, Any]] = []
     for rang, segment in enumerate(segments):
         sous = _arret_du_segment(arret, segment)
+        if mois_entier is not None:
+            sous["mois_entier_en_arret"] = mois_entier
         if override is not None:
             sous["ijss_brut_override"] = override if rang == 0 else 0.0
         resultats.append(
@@ -2028,6 +2059,13 @@ def _calculer_maintien_des_arrets_du_mois(
     maintien["maintien_applicable"] = any(
         (r.get("maintien") or {}).get("maintien_applicable", True) for r in resultats
     )
+    if any("paliers" in (r.get("maintien") or {}) for r in resultats):
+        maintien["paliers"] = [
+            p for r in resultats for p in ((r.get("maintien") or {}).get("paliers") or [])
+        ]
+        legal = any((r.get("maintien") or {}).get("regle_retenue") == "legal" for r in resultats)
+        maintien["regle_retenue"] = "legal" if legal else "convention"
+        maintien["conflit_convention"] = legal
     carence = dict(resultats[0].get("carence") or {})
     carence["carence_ss_jours"] = _somme_entiere("carence", "carence_ss_jours")
     carence["carence_employeur_jours"] = _somme_entiere("carence", "carence_employeur_jours")
@@ -2114,6 +2152,17 @@ def compute_jours_avec_maintien_mois(
     date_fin_arret = _parse_date(arret.get("date_fin")) or date_debut_arret
     if not date_debut_arret:
         return set()
+    if not qualification.get("est_maternite") and bareme_des_reglages(settings) is not None:
+        # Sous le barème : les jours des paliers de la règle retenue (barème ou légal).
+        resultat = calculer_maintien(arret, contexte, settings, date_debut_periode, date_fin_periode)
+        jours_bareme: set[int] = set()
+        for palier in (resultat.get("maintien") or {}).get("paliers") or []:
+            du, au = _parse_date(palier.get("du")), _parse_date(palier.get("au"))
+            jour = du
+            while du is not None and au is not None and jour <= au:
+                jours_bareme.add(jour.day)
+                jour += timedelta(days=1)
+        return jours_bareme
     arret = _poser_la_chaine(arret, date_debut_arret, date_fin_arret, arret_type)
     jours_deja = _jours_deja_en_arret(arret)
 
@@ -2401,6 +2450,7 @@ def calculer_maintien(
         date_debut_periode=date_debut_periode,
         date_fin_periode=date_fin_periode,
         jours_deja_en_arret=jours_deja,
+        taux_maintien_par_jour=taux_retenus if plan_conv is not None else None,
     )
 
     alertes: List[str] = []
