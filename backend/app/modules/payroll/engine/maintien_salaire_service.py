@@ -406,7 +406,9 @@ DEBUT_PLAFOND_SJB_SMIC = date(2025, 4, 1)
 
 
 def _salaire_journalier_de_base_maladie(
-    arret: Dict[str, Any], salaire_mensuel: float
+    arret: Dict[str, Any],
+    salaire_mensuel: float,
+    plafond_mensuel: Optional[float] = None,
 ) -> float:
     """Salaire journalier de base des IJ maladie : trois derniers bruts ÷ 91,25.
 
@@ -415,6 +417,11 @@ def _salaire_journalier_de_base_maladie(
     bulletin, ou un arrêt sans bruts fournis (aperçu, simulation), compte le
     salaire de base du contrat : c'est une estimation, que le décompte de la
     caisse remplace dans le suivi IJSS.
+
+    `plafond_mensuel`, s'il est fourni, limite chaque paie avant la somme
+    (CSS R323-4 : le revenu retenu « lors de chaque paie […] dans la limite
+    d'un plafond […] calculé pour un mois ») : un mois au-dessus du plafond ne
+    compense pas un mois en dessous.
     """
     bruts = list(arret.get("salaires_bruts_reference") or [])[:3]
     bruts += [None] * (3 - len(bruts))
@@ -424,7 +431,10 @@ def _salaire_journalier_de_base_maladie(
             valeur = float(brut) if brut is not None else None
         except (TypeError, ValueError):
             valeur = None
-        total += valeur if valeur is not None else salaire_mensuel
+        paie = valeur if valeur is not None else salaire_mensuel
+        if plafond_mensuel is not None:
+            paie = min(paie, plafond_mensuel)
+        total += paie
     return total / lc.DIVISEUR_SJB_TROIS_MOIS if total > 0 else 0.0
 
 
@@ -450,12 +460,14 @@ def _smic_horaire_au(contexte: ContextePaie, jour: date) -> Optional[float]:
         return None
 
 
-def _plafond_sjb_maladie(contexte: ContextePaie, debut_arret: date) -> Optional[float]:
-    """Plafond du salaire journalier de base des IJ maladie, ou None.
+def _plafond_mensuel_sjb_maladie(
+    contexte: ContextePaie, debut_arret: date
+) -> Optional[float]:
+    """Plafond de chaque paie retenue pour les IJ maladie, ou None.
 
-    1,4 Smic mensuel × 3 ÷ 91,25, au Smic du dernier jour du mois civil qui
-    précède le début de l'arrêt, pour les arrêts depuis le 01/04/2025. None
-    avant cette date ou sans barème Smic : l'ancien plafond s'applique.
+    1,4 Smic mensuel, au Smic du dernier jour du mois civil qui précède le
+    début de l'arrêt, pour les arrêts depuis le 01/04/2025. None avant cette
+    date ou sans barème Smic : l'ancien plafond s'applique.
     """
     if debut_arret < DEBUT_PLAFOND_SJB_SMIC:
         return None
@@ -463,7 +475,7 @@ def _plafond_sjb_maladie(contexte: ContextePaie, debut_arret: date) -> Optional[
     if not smic_horaire:
         return None
     smic_mensuel = smic_horaire * lc.DUREE_LEGALE_HEBDO * 52 / 12
-    return lc.COEFF_PLAFOND_SJB_SMIC * smic_mensuel * 3 / lc.DIVISEUR_SJB_TROIS_MOIS
+    return lc.COEFF_PLAFOND_SJB_SMIC * smic_mensuel
 
 
 def _plafond_sjb_at_mp(pss_annuel: float, debut_arret: date) -> float:
@@ -538,13 +550,16 @@ def _calculer_ijss(
             salaire_mensuel / lc.DIVISEUR_JOURS_CALENDAIRES if salaire_mensuel else 0.0
         )
 
-    plafond_smic = (
-        _plafond_sjb_maladie(contexte, debut_reference) if est_maladie else None
+    plafond_mensuel_smic = (
+        _plafond_mensuel_sjb_maladie(contexte, debut_reference) if est_maladie else None
     )
     pss_data = contexte.get_bareme_value("pss") if hasattr(contexte, "get_bareme_value") else contexte.baremes.get("pss")
     pss_annuel = _extraire_pss_annuel(pss_data)
-    if plafond_smic is not None:
-        base_plafonnee = min(salaire_journalier_base, plafond_smic)
+    if plafond_mensuel_smic is not None:
+        # Chaque paie retenue dans la limite de 1,4 Smic mensuel (R323-4).
+        base_plafonnee = _salaire_journalier_de_base_maladie(
+            arret, salaire_mensuel, plafond_mensuel_smic
+        )
     elif pss_annuel is None:
         plafond_ss_journalier = 0.0
         base_plafonnee = 0.0
