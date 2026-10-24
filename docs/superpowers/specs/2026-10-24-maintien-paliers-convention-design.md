@@ -63,9 +63,9 @@ Pourquoi : la convention fixe ces valeurs, l'utilisateur n'a rien à décider. U
 - **Pour A** : l'article raisonne par arrêt (« chacun des arrêts », « par arrêt de travail »), et le f) fixe les taux des « premiers jours indemnisés » sans dire « de l'année ».
 - **Surtout** : A n'est jamais moins favorable que B, jour par jour. Si B est la bonne lecture, A paie un peu trop, ce qui est permis. Si A est la bonne et qu'on applique B, Martine paierait moins que la convention.
 - **Effet** : pour M.G. chez Colorplast, environ 2 891 € avec A, 2 208 € avec B (mémoire `comitech-maintien-plasturgie`).
-- Le choix est une propriété du barème dans le code : en changer, c'est une ligne et ses tests. C'est la question n° 3 du §7.
+- Le choix est une propriété du barème dans le code : en changer, c'est une ligne et ses tests. Décision n° 3 du §7.
 
-**Accident de trajet : comme un accident du travail pour l'ancienneté et la carence, mais pas pour le minimum de 2 ans des cadres.** L'accord cadres exclut le trajet du seul minimum de 2 ans. L'avenant non-cadres parle d'« accident (autre qu'accident du travail) » sans dire où ranger le trajet. On prend la lecture qui ne peut pas sous-payer, et on pose la question (n° 5).
+**Accident de trajet : comme un accident du travail pour l'ancienneté et la carence, mais pas pour le minimum de 2 ans des cadres.** L'accord cadres exclut le trajet du seul minimum de 2 ans. L'avenant non-cadres parle d'« accident (autre qu'accident du travail) » sans dire où ranger le trajet. On prend la lecture qui ne peut pas sous-payer (décision n° 5 du §7).
 
 **Hors du barème** : les congés de maternité, de paternité et d'adoption gardent leur réglage (`maintain_parental_leave`). Le mi-temps thérapeutique et l'arrêt exceptionnel suivent le barème comme une maladie : aucun cas aujourd'hui chez Comitech ni chez Colorplast.
 
@@ -149,7 +149,7 @@ En septembre, comparer les garantis aurait choisi le légal (1 284,79 €), qui 
 - **Le plancher à 0 vaut pour le mois** : le texte parle d'« indemnisation globale » réduite des IJ.
 - **Sans subrogation, avec « Verser le salaire garanti en entier »**, rien n'est déduit, comme aujourd'hui.
 
-**Garantie brute, pas nette.** Les deux textes garantissent le net. Martine, comme Quadra, garantit le brut et déduit les IJ brutes. C'est plus favorable au salarié : les IJ supportent moins de prélèvements que le salaire, le net dépasse donc le net garanti. Cinq cas de Comitech sont au centime ainsi. On garde le brut, et on pose la question (n° 4).
+**Garantie brute, pas nette.** Les deux textes garantissent le net. Martine, comme Quadra, garantit le brut et déduit les IJ brutes. C'est plus favorable au salarié : les IJ supportent moins de prélèvements que le salaire, le net dépasse donc le net garanti. Cinq cas de Comitech sont au centime ainsi. On garde le brut (décision n° 4 du §7).
 
 ### 3.6 Compatibilité
 
@@ -232,23 +232,31 @@ En septembre, comparer les garantis aurait choisi le légal (1 284,79 €), qui 
 
 **Bac à sable Comitech**, lecture seule, écritures piégées (`simuler.py` avec `bareme_convention` en mémoire) : le tableau Quadra / Martine refait. Il n'est pas joint au commit.
 
-## 7. Questions pour la personne qui fait la paie Comitech
+## 7. Décisions du 24/10, d'après les textes et les bulletins
 
-À poser après le déploiement, avant de choisir le barème. Martine suit le texte en attendant.
+Règle d'Alexandre du 24/10 : on ne pose pas de questions à la paie, on tranche. D'abord le texte, puis les bulletins pour voir la pratique, et un réglage de société seulement si la pratique s'écarte du texte et peut être voulue. Sources ouvertes le 24/10 : les deux articles cités au §2 (Légifrance), l'arrêt de la cour d'appel de Metz cité par [kohenavocats.com](https://kohenavocats.com/arret-maladie-plasturgie-idcc-292-carence-salaire-net-105-135-jours-prevoyance-60-licenciement-2026/) ([décision](https://www.courdecassation.fr/decision/684a63fe78b2e7f2d685af5a)), et les PDF Quadra de Comitech et Colorplast (`data/<société>/bulletins/2026-*`).
 
-1. **S.G., juillet.** Quadra verse 715,94 € pour juillet (rappel de septembre). C'est 15 jours ouvrés à 100 % (du 01 au 21/07), 1 jour à 75 % (le 22/07), moins 22 IJ (du 01 au 22/07). La convention donne 60 jours à 100 % du 04/05 au 02/07, puis 75 % dès le 03/07, jusqu'au 15/09 (135e jour). Pourquoi le passage à 75 % le 22/07 ? Et pourquoi rien en août et septembre, quand la convention donne 396,72 € et 218,96 € ?
-2. **D.S., juin et juillet.** Quadra verse 1 919,99 € (du 01 au 22/06, conforme au texte), puis 1 652,41 € au bulletin de juillet, puis 510,85 € de rappel du 18 au 26/07 (conforme). Le 1 652,41 € ne se décompose en aucune combinaison simple de journées et d'IJ ; la convention donne 2 327,18 € du 23/06 au 17/07. Sur juin et juillet, la simulation du 24/10 mesurait +674,32 € pour Martine ; la base recommandée donne +615,53 €. Quelle période et quel taux couvre ce montant ?
-3. **Les paliers d'un deuxième arrêt dans l'année** repartent-ils à 100 % (lecture A, celle de Martine), ou continuent-ils là où le premier s'est arrêté (lecture B) ?
-4. **Net ou brut** : les textes garantissent la rémunération nette. Quadra garantit le brut. Est-ce un choix de la société ?
-5. **Accident de trajet** : sans condition d'ancienneté et sans carence, comme un accident du travail ?
-6. **D.J., accident du travail en mai, 11 mois d'ancienneté.** Quadra ne verse rien. Le texte supprime la condition d'ancienneté pour un accident du travail. Avec le barème, Martine verserait environ 431 € (simulation du 24/10, IJ estimées). Oubli dans Quadra ?
+1. **S.G., passage à 75 % : le 03/07, comme le texte.** L'art. 13 compte en jours calendaires (« 105 jours calendaires », c). Quadra passe à 75 % le 22/07 : c'est le 58e jour ouvré depuis le 04/05, donc un décompte en jours ouvrés, que le texte ne prévoit pas. Le rappel Quadra de juillet s'arrête au 22/07 parce qu'il suit les IJ connues à cette date, et août et septembre ne sont pas « refusés » : Quadra verse le maintien deux mois plus tard, en rappel. Pas de réglage : un seul cas, et rien ne montre une règle voulue. Dû selon le texte de mai à septembre : 3 146,61 € ; versé par Quadra : 2 741,81 € (mai 308,97 au bulletin, plus 721,12, 995,78 et 715,94 en rappels de septembre). **Reste dû : 404,80 €**, avec des IJ au montant validé de Quadra pour mai à juillet et estimées ensuite.
+2. **D.S., du 23/06 au 17/07 : le texte.** Le bulletin Quadra de juillet libelle lui-même « complément de salaire du 23/06 au 17/07 » pour 1 652,41 €. Le texte donne 2 327,18 € (19 jours ouvrés à 100 %, moins 25 IJ à 41,95 €). Les trois autres périodes de D.S. tombent au centime sur le texte ; celle-ci n'a aucune explication dans les bulletins (ni prévoyance, ni changement d'IJ, ni rang de palier : D.S. a 150 jours à 100 %). **Reste dû : 615,53 €** sur juin et juillet avec la base du §3.3.
+3. **Deuxième arrêt de l'année : les paliers repartent à 100 % (lecture A), on garde.** L'art. 13 ne pose la double limite (« par arrêt de travail et par année civile ») que pour le nombre de jours ; les taux s'appliquent aux « premiers jours indemnisés » sans dire « de l'année ». Un résumé du texte des collaborateurs dit « dont 45 à 100 % et 60 à 75 % au cours de la même année civile », qui penche vers B pour cet autre texte. A n'est jamais moins favorable que B : Martine ne peut pas sous-payer. Passer à B reste une ligne du barème et ses tests.
+4. **Garantie brute, on garde.** Les textes garantissent le net, et la cour d'appel de Metz a calculé un rappel sur le net reconstitué en écartant le brut réclamé par le salarié : le net est le minimum dû. Garantir le brut et déduire les IJ brutes donne au salarié plus que ce net, parce que les IJ supportent moins de prélèvements que le salaire. C'est aussi la pratique de Quadra chez Comitech, au centime sur quatre périodes. Aucun réglage aujourd'hui : une garantie nette, moins chère pour l'employeur, ne s'ajoutera que si une société la pratique.
+5. **Accident de trajet : sans condition d'ancienneté et sans carence, comme un accident du travail ; sans le minimum de 2 ans des cadres.** L'accord cadres exclut le trajet de ce seul minimum, ce qui montre qu'ailleurs il range le trajet avec l'accident du travail. Pour les non-cadres, c'est la lecture qui ne peut pas sous-payer. Aucun accident de trajet chez Comitech ni Colorplast en 2026.
+6. **D.J., accident du travail à 11 mois d'ancienneté : il a droit au maintien.** L'art. 13 a) supprime la condition d'ancienneté pour un accident du travail. La loi (L1226-1) demande un an, la convention l'emporte. Quadra n'a rien versé : **reste dû environ 431,10 €** (IJ estimées par Martine ; les IJ d'accident du travail réelles sont à relever avant de régulariser).
+
+**Total dû chez Comitech selon le texte : environ 1 451 € brut** (S.G. 404,80, D.S. 615,53, D.J. 431,10). La régularisation se fera sur le premier bulletin de Martine, sur accord d'Alexandre, après un calcul au centime au bac à sable.
+
+**Colorplast, même convention : la pratique est sous le texte et sous la loi.** Les bulletins Quadra de Colorplast portent la convention de la plasturgie. Martine y a le maintien légal éteint et seulement 3 jours de carence payés par an. La prévoyance (GAN non-cadres, 0,93 % en tout) est le minimum de la branche (accord du 29/10/2014, au moins 0,8 %), qui prend le relais **après** le maintien et ne le remplace pas. Rien de cela ne peut être une pratique voulue, puisqu'on ne peut pas descendre sous la loi ni sous une convention étendue. Donc pas de réglage à part : le bon réglage est le barème Plasturgie. Seul M.G. est concerné en 2026 (4 ans et demi d'ancienneté). Ses arrêts : du 16/03 au 28/04, puis du 17/08 au 25/09. Il a reçu 310,78 €. Le bac à sable du 24/10 donne environ 3 060 € de plus, IJ estimées. Ce montant tient compte de deux défauts de données de Martine qui faussent le calcul brut du bac à sable :
+- l'arrêt de mars-avril est enregistré en « sans solde », trois fois, par l'import DSN ([[dsn-import-blocs-confondus]]) : le corriger comme chez Comitech avec `scripts/reprise_arrets_quadra.py` ;
+- en septembre, trois arrêts se recouvrent jusqu'au 30/09, alors que Quadra s'arrête au 25/09.
+
+Choisir le barème, corriger ces arrêts et régulariser se font sur accord d'Alexandre.
 
 ## 8. Hors champ
 
-- **Colorplast ne change pas.** La pratique de Gaëlle (3 jours de carence payés par an, en jours ouvrés, sans maintien conventionnel) reste réglée à la main. La question lui est posée (M.G. : 310,78 € reçus en 2026, environ 2 891 € selon la convention ; mémoire `comitech-maintien-plasturgie`). Le barème ne s'appliquera chez elle que sur sa réponse.
-- **Comitech** : le barème se choisira à l'écran après déploiement, avec Alexandre, après les questions du §7. Rien n'est écrit en base par ce chantier. Les rappels de mai à juillet de S.G. (2 432,84 €), dus en septembre, sont un geste à part (mémoire).
+- **Colorplast** : ce chantier n'y écrit rien. Le barème y est recommandé (§7), sur accord d'Alexandre.
+- **Comitech** : barème Plasturgie et IJSS déduites posés le 24/10 après le déploiement, sur accord d'Alexandre (aucun bulletin de Comitech n'est encore calculé par Martine). Les rappels de mai à juillet de S.G. (2 432,84 €), dus en septembre, sont un geste à part (mémoire).
 - **Les rappels du mois suivant**, à la manière de Quadra : Martine verse dans le mois de l'arrêt.
-- **La garantie nette** (§3.5, question n° 4), et la déduction de la prévoyance et des indemnités d'un tiers responsable (art. 13 g).
+- **La garantie nette** (§3.5, décision n° 4), et la déduction de la prévoyance et des indemnités d'un tiers responsable (art. 13 g).
 - **Une saisie libre des paliers**, et d'autres conventions : un nouveau barème s'ajoutera dans le code.
 - **Proposer le barème d'après l'IDCC de la société.**
 - **L'empreinte des arrêts plus anciens** : modifier un arrêt de février ne fait pas passer « À recalculer » le bulletin d'octobre, même si la limite annuelle en dépend. C'est déjà vrai du crédit de carence payée.
