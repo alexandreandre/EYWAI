@@ -28,6 +28,7 @@ from app.modules.dsn_import.application.import_checks import (
 )
 from app.modules.dsn_import.domain.parser import parse_dsn_files
 from app.modules.dsn_import.domain.user_messages import (
+    absence_non_reprise_anomaly,
     employee_other_company_anomaly,
     parse_warning_anomaly,
     psc_warning_anomaly,
@@ -50,6 +51,8 @@ def parse_and_stage(
     for warning in parsed.warnings or []:
         anomalies.append(parse_warning_anomaly(str(warning)))
     preview_items, summary = build_preview_items(parsed)
+    for non_reprise in summary.get("absences_non_reprises") or []:
+        anomalies.append(absence_non_reprise_anomaly(non_reprise))
     cumul_items = plan_cumul_items(parsed)
     all_items = preview_items + cumul_items
 

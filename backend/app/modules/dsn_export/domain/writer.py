@@ -6,7 +6,6 @@ from typing import Dict, Iterable, List, Optional, Sequence
 
 from app.modules.dsn_import.domain.model import (
     AffiliationBlock,
-    AncienneteBlock,
     ArretTravailBlock,
     BaseAssujettieBlock,
     BordereauBlock,
@@ -46,13 +45,12 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_ANC86_TYPE,
     R_S21_ANC86_UNITE,
     R_S21_ANC86_VALEUR,
-    R_S21_ANC_DEB,
-    R_S21_ANC_FIN,
-    R_S21_ANC_TYPE,
-    R_S21_ARRET_CAISSE,
-    R_S21_ARRET_DEB,
-    R_S21_ARRET_FIN,
+    R_S21_ARRET_DERNIER_JOUR,
+    R_S21_ARRET_FIN_PREVISIONNELLE,
     R_S21_ARRET_MOTIF,
+    R_S21_ARRET_MOTIF_REPRISE,
+    R_S21_ARRET_REPRISE,
+    R_S21_ARRET_SUBROGATION,
     R_S21_BA_CODE,
     R_S21_BA_MONTANT,
     R_S21_BORD_DATE_DEB,
@@ -128,7 +126,6 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_SUSP_DEB,
     R_S21_SUSP_FIN,
     R_S21_SUSP_MOTIF,
-    R_S21_SUSP_TYPE,
     R_S21_VER_DATE,
     R_S21_VER_NET_FISCAL,
     R_S21_VER_NET_VERSE,
@@ -400,23 +397,26 @@ def write_affiliation(aff: AffiliationBlock, out: List[str]) -> None:
 
 
 def write_arret(arret: ArretTravailBlock, out: List[str]) -> None:
+    """Bloc S21.G00.60 « Arrêt de travail »."""
     if arret.rubriques:
         _emit_rubriques_dict(arret.rubriques, out)
         return
-    _emit(R_S21_ARRET_DEB, arret.date_debut, out)
     _emit(R_S21_ARRET_MOTIF, arret.motif, out)
-    _emit(R_S21_ARRET_FIN, arret.date_fin, out)
-    _emit(R_S21_ARRET_CAISSE, arret.siret_caisse, out)
+    _emit(R_S21_ARRET_DERNIER_JOUR, arret.dernier_jour_travaille, out)
+    _emit(R_S21_ARRET_FIN_PREVISIONNELLE, arret.fin_previsionnelle, out)
+    _emit(R_S21_ARRET_SUBROGATION, arret.subrogation, out)
+    _emit(R_S21_ARRET_REPRISE, arret.date_reprise, out)
+    _emit(R_S21_ARRET_MOTIF_REPRISE, arret.motif_reprise, out)
 
 
 def write_suspension(susp: SuspensionContratBlock, out: List[str]) -> None:
+    """Bloc S21.G00.65 « Autre suspension de l'exécution du contrat »."""
     if susp.rubriques:
         _emit_rubriques_dict(susp.rubriques, out)
         return
-    _emit(R_S21_SUSP_TYPE, susp.type_suspension, out)
+    _emit(R_S21_SUSP_MOTIF, susp.motif, out)
     _emit(R_S21_SUSP_DEB, susp.date_debut, out)
     _emit(R_S21_SUSP_FIN, susp.date_fin, out)
-    _emit(R_S21_SUSP_MOTIF, susp.motif, out)
 
 
 def write_fin_contrat(fin: FinContratBlock, out: List[str]) -> None:
@@ -426,15 +426,6 @@ def write_fin_contrat(fin: FinContratBlock, out: List[str]) -> None:
     _emit(R_S21_FIN_DATE, fin.date_fin, out)
     _emit(R_S21_FIN_MOTIF, fin.motif, out)
     _emit(R_S21_FIN_NOTIF, fin.date_notification, out)
-
-
-def write_anciennete(anc: AncienneteBlock, out: List[str]) -> None:
-    if anc.rubriques:
-        _emit_rubriques_dict(anc.rubriques, out)
-        return
-    _emit(R_S21_ANC_TYPE, anc.type_unite, out)
-    _emit(R_S21_ANC_DEB, anc.date_debut, out)
-    _emit(R_S21_ANC_FIN, anc.date_fin, out)
 
 
 def write_remuneration(rem: RemunerationBlock, out: List[str]) -> None:
@@ -669,10 +660,8 @@ def write_contrat(ctr: ContratBlock, out: List[str]) -> None:
 
 
 def _write_anciennetes(ctr: ContratBlock, out: List[str]) -> None:
-    # L'ancienneté ferme le contrat, après le versement : c'est la place que lui
-    # donne le cabinet, et le validateur la réclame à ce niveau.
-    for anc in ctr.anciennetes:
-        write_anciennete(anc, out)
+    # L'ancienneté (bloc 86) ferme le contrat, après le versement : c'est la
+    # place que lui donne le cabinet, et le validateur la réclame à ce niveau.
     anciennete_86 = ctr.rubriques.get("_anciennete_entreprise") if ctr.rubriques else None
     if isinstance(anciennete_86, dict) and anciennete_86.get("valeur"):
         _emit(R_S21_ANC86_TYPE, "07", out)

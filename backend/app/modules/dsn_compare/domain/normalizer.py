@@ -138,22 +138,22 @@ def normalize_individu(ind: IndividuBlock) -> EmployeeSnap:
             bases[_norm_code(base.code).zfill(2)] = float(base.montant or 0)
 
     if ctr:
-        for arret in ctr.arrets:
+        for arret in ctr.arrets:  # bloc 60 : dates telles que déclarées
             events.append(
                 {
                     "type": "arret",
-                    "debut": arret.date_debut,
-                    "fin": arret.date_fin,
+                    "debut": arret.dernier_jour_travaille,
+                    "fin": arret.date_reprise or arret.fin_previsionnelle,
                     "motif": arret.motif,
                 }
             )
-        for susp in ctr.suspensions:
+        for susp in ctr.suspensions:  # bloc 65
             events.append(
                 {
                     "type": "suspension",
                     "debut": susp.date_debut,
                     "fin": susp.date_fin,
-                    "motif": susp.motif or susp.type_suspension,
+                    "motif": susp.motif,
                 }
             )
         if ctr.fin_contrat:

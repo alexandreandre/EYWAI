@@ -176,27 +176,43 @@ R_S21_CPT_CODE = "S21.G00.44.001"
 R_S21_CPT_MONTANT = "S21.G00.44.002"
 R_S21_CPT_ANNEE = "S21.G00.44.003"
 
-# --- Arrêt travail S21.G00.41 ---
-R_S21_ARRET_DEB = "S21.G00.41.001"
-R_S21_ARRET_MOTIF = "S21.G00.41.003"
-R_S21_ARRET_FIN = "S21.G00.41.004"
-R_S21_ARRET_CAISSE = "S21.G00.41.012"
+# Blocs d'absence, lus dans le cahier technique DSN 2026.1 (NEODeS, CT2026.1.2
+# du 24/12/2025, https://www.net-entreprises.fr/media/documentation/dsn-cahier-technique-2026.1.pdf).
+# L'import lisait le 41 comme un arrêt, le 60 comme une suspension et le 65
+# comme une ancienneté : tout arrêt devenait un « sans solde », un jour trop tôt.
 
-# --- Suspension S21.G00.60 ---
-R_S21_SUSP_TYPE = "S21.G00.60.001"
-R_S21_SUSP_DEB = "S21.G00.60.002"
-R_S21_SUSP_FIN = "S21.G00.60.003"
-R_S21_SUSP_MOTIF = "S21.G00.60.004"
+# --- Changements contrat S21.G00.41 (p. 215) ---
+# « Les rubriques de ce bloc sont à renseigner en cas de modification d'une
+# caractéristique du contrat […] avec la valeur avant changement. » Jamais un arrêt.
+R_S21_CHG_DATE = "S21.G00.41.001"
+CHANGEMENT_CONTRAT_PREFIXE = "S21.G00.41."
+
+# --- Arrêt de travail S21.G00.60 (p. 265-269) ---
+R_S21_ARRET_MOTIF = "S21.G00.60.001"
+#: « Veille de la date de début de la prescription » ; si l'arrêt est prescrit
+#: un jour travaillé (accident), ce jour-là.
+R_S21_ARRET_DERNIER_JOUR = "S21.G00.60.002"
+R_S21_ARRET_FIN_PREVISIONNELLE = "S21.G00.60.003"
+R_S21_ARRET_SUBROGATION = "S21.G00.60.004"
+R_S21_ARRET_SUBROGATION_DEBUT = "S21.G00.60.005"
+R_S21_ARRET_SUBROGATION_FIN = "S21.G00.60.006"
+#: « Premier jour travaillé et payé suite à l'arrêt de travail ».
+R_S21_ARRET_REPRISE = "S21.G00.60.010"
+R_S21_ARRET_MOTIF_REPRISE = "S21.G00.60.011"
+R_S21_ARRET_DATE_ACCIDENT = "S21.G00.60.012"
+ARRET_TRAVAIL_PREFIXE = "S21.G00.60."
+
+# --- Autre suspension de l'exécution du contrat S21.G00.65 (p. 280-283) ---
+R_S21_SUSP_MOTIF = "S21.G00.65.001"
+R_S21_SUSP_DEB = "S21.G00.65.002"
+R_S21_SUSP_FIN = "S21.G00.65.003"
+R_S21_SUSP_JOURS_OUVRES = "S21.G00.65.005"
+AUTRE_SUSPENSION_PREFIXE = "S21.G00.65."
 
 # --- Fin contrat S21.G00.62 ---
 R_S21_FIN_DATE = "S21.G00.62.001"
 R_S21_FIN_MOTIF = "S21.G00.62.002"
 R_S21_FIN_NOTIF = "S21.G00.62.006"
-
-# --- Ancienneté S21.G00.65 ---
-R_S21_ANC_TYPE = "S21.G00.65.001"
-R_S21_ANC_DEB = "S21.G00.65.002"
-R_S21_ANC_FIN = "S21.G00.65.003"
 
 # --- Retraite complémentaire S21.G00.71 ---
 #: Code régime : « RUAA » pour le régime unifié AGIRC-ARRCO, celui de tout le
@@ -204,8 +220,9 @@ R_S21_ANC_FIN = "S21.G00.65.003"
 R_S21_CTR_REGIME_RC = "S21.G00.71.002"
 
 # --- Ancienneté cumulée S21.G00.86 ---
-#: À ne pas confondre avec le bloc 65, qui porte des périodes datées. Le 86
-#: porte une durée : type, unité, valeur, et le contrat concerné.
+#: L'ancienneté de la norme est ici, et nulle part ailleurs : le bloc 65 porte
+#: des suspensions du contrat. Le 86 porte une durée : type, unité, valeur, et
+#: le contrat concerné.
 R_S21_ANC86_TYPE = "S21.G00.86.001"
 R_S21_ANC86_UNITE = "S21.G00.86.002"
 R_S21_ANC86_VALEUR = "S21.G00.86.003"
@@ -267,15 +284,15 @@ BLOCK_G00 = {
     "23": "composant_cotisation_etab",
     "30": "individu",
     "40": "contrat",
-    "41": "arret_travail",
+    "41": "changement_contrat",
     "44": "compteur_annuel",
     "50": "versement",
     "51": "remuneration",
     "52": "prime",
     "54": "avantage",
-    "60": "suspension",
+    "60": "arret_travail",
     "62": "fin_contrat",
-    "65": "anciennete",
+    "65": "autre_suspension",
     "70": "affiliation",
     "78": "base_assujettie",
     "79": "composant_base",

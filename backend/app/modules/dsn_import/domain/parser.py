@@ -7,10 +7,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from app.modules.dsn_import.domain.model import (
     AffiliationBlock,
-    AncienneteBlock,
     ArretTravailBlock,
     BaseAssujettieBlock,
     BordereauBlock,
+    ChangementContratBlock,
     ComposantBaseBlock,
     ComposantCotisationEtabBlock,
     CompteurAnnuelBlock,
@@ -132,13 +132,16 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_CI_MONTANT_SAL,
     R_S21_CI_OPS_IDENT,
     R_S21_CI_TAUX,
-    R_S21_ANC_DEB,
-    R_S21_ANC_FIN,
-    R_S21_ANC_TYPE,
-    R_S21_ARRET_CAISSE,
-    R_S21_ARRET_DEB,
-    R_S21_ARRET_FIN,
+    ARRET_TRAVAIL_PREFIXE,
+    AUTRE_SUSPENSION_PREFIXE,
+    CHANGEMENT_CONTRAT_PREFIXE,
+    R_S21_ARRET_DERNIER_JOUR,
+    R_S21_ARRET_FIN_PREVISIONNELLE,
     R_S21_ARRET_MOTIF,
+    R_S21_ARRET_MOTIF_REPRISE,
+    R_S21_ARRET_REPRISE,
+    R_S21_ARRET_SUBROGATION,
+    R_S21_CHG_DATE,
     R_S21_AVANT_CODE,
     R_S21_AVANT_DEB,
     R_S21_AVANT_FIN,
@@ -173,7 +176,6 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_SUSP_DEB,
     R_S21_SUSP_FIN,
     R_S21_SUSP_MOTIF,
-    R_S21_SUSP_TYPE,
     R_S21_VO_BIC,
     R_S21_VO_DATE_DEB,
     R_S21_VO_DATE_FIN,
@@ -277,6 +279,23 @@ def _normalize_rem_type_code(value: str) -> str:
     return val
 
 
+#: Rubrique du bloc 60 → champ de `ArretTravailBlock`.
+_CHAMPS_ARRET: Dict[str, str] = {
+    R_S21_ARRET_MOTIF: "motif",
+    R_S21_ARRET_DERNIER_JOUR: "dernier_jour_travaille",
+    R_S21_ARRET_FIN_PREVISIONNELLE: "fin_previsionnelle",
+    R_S21_ARRET_SUBROGATION: "subrogation",
+    R_S21_ARRET_REPRISE: "date_reprise",
+    R_S21_ARRET_MOTIF_REPRISE: "motif_reprise",
+}
+#: Rubrique du bloc 65 → champ de `SuspensionContratBlock`.
+_CHAMPS_SUSPENSION: Dict[str, str] = {
+    R_S21_SUSP_MOTIF: "motif",
+    R_S21_SUSP_DEB: "date_debut",
+    R_S21_SUSP_FIN: "date_fin",
+}
+
+
 class _ParseContext:
     def __init__(self, dsn_format: str) -> None:
         self.dsn_format = dsn_format
@@ -302,9 +321,9 @@ class _ParseContext:
         self.versement_org: Optional[VersementOrganismeBlock] = None
         self.bordereau: Optional[BordereauBlock] = None
         self.compteur_annuel: Optional[CompteurAnnuelBlock] = None
+        self.changement: Optional[ChangementContratBlock] = None
         self.arret: Optional[ArretTravailBlock] = None
         self.suspension: Optional[SuspensionContratBlock] = None
-        self.anciennete: Optional[AncienneteBlock] = None
         self.warnings: List[str] = []
 
     def _ensure_individu(self) -> IndividuBlock:
@@ -422,6 +441,13 @@ class _ParseContext:
             self.etablissement.compteurs_annuels.append(self.compteur_annuel)
         return self.compteur_annuel
 
+    def _ensure_changement(self) -> ChangementContratBlock:
+        ctr = self._ensure_contrat()
+        if self.changement is None:
+            self.changement = ChangementContratBlock()
+            ctr.changements.append(self.changement)
+        return self.changement
+
     def _ensure_arret(self) -> ArretTravailBlock:
         ctr = self._ensure_contrat()
         if self.arret is None:
@@ -436,13 +462,6 @@ class _ParseContext:
             ctr.suspensions.append(self.suspension)
         return self.suspension
 
-    def _ensure_anciennete(self) -> AncienneteBlock:
-        ctr = self._ensure_contrat()
-        if self.anciennete is None:
-            self.anciennete = AncienneteBlock()
-            ctr.anciennetes.append(self.anciennete)
-        return self.anciennete
-
     def _reset_contrat_children(self) -> None:
         self.versement = None
         self.remuneration = None
@@ -453,9 +472,9 @@ class _ParseContext:
         self.cotisation_agregee = None
         self.prime = None
         self.affiliation = None
+        self.changement = None
         self.arret = None
         self.suspension = None
-        self.anciennete = None
         self.activite = None
 
     def _reset_versement_children(self) -> None:
@@ -496,21 +515,21 @@ class _ParseContext:
             self.contrat = ContratBlock()
             ind.contrats.append(self.contrat)
             self._reset_contrat_children()
+        elif block == "changement_contrat":
+            ctr = self._ensure_contrat()
+            self.changement = ChangementContratBlock()
+            ctr.changements.append(self.changement)
         elif block == "arret_travail":
             ctr = self._ensure_contrat()
             self.arret = ArretTravailBlock()
             ctr.arrets.append(self.arret)
-        elif block == "suspension":
+        elif block == "autre_suspension":
             ctr = self._ensure_contrat()
             self.suspension = SuspensionContratBlock()
             ctr.suspensions.append(self.suspension)
         elif block == "fin_contrat":
             ctr = self._ensure_contrat()
             ctr.fin_contrat = FinContratBlock()
-        elif block == "anciennete":
-            ctr = self._ensure_contrat()
-            self.anciennete = AncienneteBlock()
-            ctr.anciennetes.append(self.anciennete)
         elif block == "affiliation":
             ctr = self._ensure_contrat()
             self.affiliation = AffiliationBlock()
@@ -920,26 +939,23 @@ class _ParseContext:
             self._ensure_compteur_annuel().montant = _float_val(valeur)
         elif rubrique == R_S21_CPT_ANNEE:
             self._ensure_compteur_annuel().annee = valeur.strip()
-        elif rubrique == R_S21_ARRET_DEB:
+        elif rubrique.startswith(CHANGEMENT_CONTRAT_PREFIXE):
+            chg = self._ensure_changement()
+            chg.rubriques[rubrique] = valeur.strip()
+            if rubrique == R_S21_CHG_DATE:
+                chg.date_modification = valeur.strip()
+        elif rubrique.startswith(ARRET_TRAVAIL_PREFIXE):
             ar = self._ensure_arret()
-            ar.date_debut = valeur.strip()
-            ar.rubriques[rubrique] = valeur
-        elif rubrique == R_S21_ARRET_MOTIF:
-            self._ensure_arret().motif = valeur.strip()
-        elif rubrique == R_S21_ARRET_FIN:
-            self._ensure_arret().date_fin = valeur.strip()
-        elif rubrique == R_S21_ARRET_CAISSE:
-            self._ensure_arret().siret_caisse = valeur.strip()
-        elif rubrique == R_S21_SUSP_TYPE:
+            ar.rubriques[rubrique] = valeur.strip()
+            champ = _CHAMPS_ARRET.get(rubrique)
+            if champ:
+                setattr(ar, champ, valeur.strip())
+        elif rubrique.startswith(AUTRE_SUSPENSION_PREFIXE):
             sus = self._ensure_suspension()
-            sus.type_suspension = valeur.strip()
-            sus.rubriques[rubrique] = valeur
-        elif rubrique == R_S21_SUSP_DEB:
-            self._ensure_suspension().date_debut = valeur.strip()
-        elif rubrique == R_S21_SUSP_FIN:
-            self._ensure_suspension().date_fin = valeur.strip()
-        elif rubrique == R_S21_SUSP_MOTIF:
-            self._ensure_suspension().motif = valeur.strip()
+            sus.rubriques[rubrique] = valeur.strip()
+            champ = _CHAMPS_SUSPENSION.get(rubrique)
+            if champ:
+                setattr(sus, champ, valeur.strip())
         elif rubrique == R_S21_FIN_DATE:
             ctr = self._ensure_contrat()
             if ctr.fin_contrat is None:
@@ -956,14 +972,6 @@ class _ParseContext:
             if ctr.fin_contrat is None:
                 ctr.fin_contrat = FinContratBlock()
             ctr.fin_contrat.date_notification = valeur.strip()
-        elif rubrique == R_S21_ANC_TYPE:
-            anc = self._ensure_anciennete()
-            anc.type_unite = valeur.strip()
-            anc.rubriques[rubrique] = valeur
-        elif rubrique == R_S21_ANC_DEB:
-            self._ensure_anciennete().date_debut = valeur.strip()
-        elif rubrique == R_S21_ANC_FIN:
-            self._ensure_anciennete().date_fin = valeur.strip()
         elif rubrique == R_S21_PRIME_CODE:
             pr = self._ensure_prime()
             pr.code = valeur.strip()
@@ -1164,7 +1172,7 @@ def parse_dsn_content(content: bytes, file_name: str = "dsn.txt") -> DsnFile:
     else:
         ctx.warnings.append("Norme détectée : format legacy (SIRET complet en S21.G00.11.001)")
 
-    return DsnFile(
+    dsn_file = DsnFile(
         file_name=file_name,
         envoi=ctx.envoi,
         declaration=ctx.declaration,
@@ -1175,6 +1183,22 @@ def parse_dsn_content(content: bytes, file_name: str = "dsn.txt") -> DsnFile:
         parse_warnings=ctx.warnings,
         dsn_format=dsn_format,
     )
+    _dater_les_absences(dsn_file)
+    return dsn_file
+
+
+def _dater_les_absences(dsn_file: DsnFile) -> None:
+    """Chaque arrêt et suspension retient le mois de la DSN qui le déclare.
+
+    Un arrêt de plus d'un mois est déclaré dans chaque DSN qu'il touche, avec
+    une fin qui peut changer (prolongation, reprise) : à l'import de plusieurs
+    mois, la déclaration la plus récente l'emporte.
+    """
+    periode = ParsedDsnSet._period_from_file(dsn_file) or ""
+    for individu in dsn_file.etablissement.individus:
+        for contrat in individu.contrats:
+            for bloc in [*contrat.arrets, *contrat.suspensions]:
+                bloc.periode_dsn = periode
 
 
 def parse_dsn_files(files: List[Tuple[str, bytes]]) -> ParsedDsnSet:
