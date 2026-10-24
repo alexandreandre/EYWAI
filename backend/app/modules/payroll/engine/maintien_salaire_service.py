@@ -10,6 +10,11 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.modules.payroll.domain.baremes_maintien import (
+    Bareme,
+    bareme_des_reglages,
+    mois_complets,
+)
 from app.modules.payroll.domain.ijss_deduites import (
     CLE_IJSS_DEDUITES,
     CLE_SOURCE,
@@ -18,9 +23,16 @@ from app.modules.payroll.domain.ijss_deduites import (
     alerte_ijss_au_salarie,
     est_alerte_ijss_au_salarie,
 )
+from app.modules.payroll.domain.paliers_affiches import (
+    alertes_du_bareme,
+    detail_du_bareme,
+    motif_carence_du_bareme,
+    motif_sans_droit,
+)
 
 from .contexte import ContextePaie
 from . import legal_constants as lc
+from .paliers_convention import PlanConventionnel, arrets_pour_le_plan, plan_conventionnel
 from .prolongation_arret import chainer_arret
 
 #: Réglage société (23/10/2026) : sans subrogation, déduire du maintien les
@@ -1561,6 +1573,278 @@ def _base_des_jours(
     )
 
 
+# --- Barème de la convention : plan, plancher légal, maintien ---
+
+#: Plancher légal sous le barème : 7 jours de carence, comme le moteur
+#: aujourd'hui (MSS, `_calculer_carence`), 0 en accident du travail et maladie
+#: professionnelle hors trajet.
+CARENCE_LEGALE_EMPLOYEUR_JOURS = 7
+#: Plancher légal sous le barème : une année d'ancienneté (L1226-1).
+ANCIENNETE_LEGALE_MOIS = 12
+
+
+def _est_cadre(contexte: ContextePaie) -> bool:
+    try:
+        return _statut_est_cadre(str(contexte.statut_salarie or ""))
+    except Exception:
+        return False
+
+
+def _plan_au_bareme(
+    arret: Dict[str, Any],
+    contexte: ContextePaie,
+    bareme: Bareme,
+    arret_type: str,
+    date_debut_arret: date,
+    date_fin_arret: date,
+) -> PlanConventionnel:
+    """Les arrêts connus du salarié, rejoués avec le barème de la société."""
+    return plan_conventionnel(
+        arrets_pour_le_plan(
+            arret.get("arrets_connus") or [], date_debut_arret, date_fin_arret, arret_type
+        ),
+        bareme=bareme,
+        est_cadre=_est_cadre(contexte),
+        date_anciennete=_date_anciennete(contexte),
+    )
+
+
+def _carence_au_bareme(
+    carence: Dict[str, Any],
+    plan: PlanConventionnel,
+    bareme: Bareme,
+    date_debut_arret: date,
+    date_fin_arret: date,
+) -> Dict[str, Any]:
+    """La carence employeur du barème, à la place de celle des réglages manuels."""
+    rejoue = plan.arret_du_jour(date_debut_arret)
+    jours = [
+        j for j in (rejoue.jours_de_carence if rejoue else ())
+        if date_debut_arret <= j <= date_fin_arret
+    ]
+    sortie = {
+        **carence,
+        "carence_employeur_jours": len(jours),
+        "carence_employeur_jours_arret": rejoue.carence_jours if rejoue else 0,
+    }
+    if rejoue is not None and not carence.get("prolongation_de"):
+        ss = int(carence.get("carence_ss_jours") or 0)
+        sortie["motif_carence"] = (
+            f"Carence SS : {_jours_fr(ss)}. {motif_carence_du_bareme(bareme, rejoue)}"
+        )
+    return sortie
+
+
+def _anciennete_legale_atteinte(
+    arret: Dict[str, Any], contexte: ContextePaie, date_debut_arret: date
+) -> bool:
+    date_anc = _date_anciennete(contexte)
+    debut_chaine = _parse_date(arret.get("date_debut_chaine")) or date_debut_arret
+    return date_anc is not None and mois_complets(date_anc, debut_chaine) >= ANCIENNETE_LEGALE_MOIS
+
+
+def _taux_legaux_au_bareme(
+    arret: Dict[str, Any],
+    qualification: Dict[str, Any],
+    contexte: ContextePaie,
+    anciennete_mois: int,
+    date_debut_arret: date,
+    jours: List[date],
+) -> Dict[date, float]:
+    """Le maintien légal sous le barème, sans aucun réglage de la société."""
+    if not _anciennete_legale_atteinte(arret, contexte, date_debut_arret):
+        return {}
+    trajet = str(arret.get("arret_type") or "").strip() == "accident_trajet"
+    carence = 0 if (qualification.get("est_at_mp") and not trajet) else CARENCE_LEGALE_EMPLOYEUR_JOURS
+    duree = duree_maintien_par_taux(anciennete_mois)
+    jours_deja = _jours_deja_en_arret(arret)
+    taux: Dict[date, float] = {}
+    for jour in jours:
+        rang = jours_deja + (jour - date_debut_arret).days + 1 - carence
+        t = _taux_legal_pour_jour_maintien(rang, duree)
+        if t > 0:
+            taux[jour] = t
+    return taux
+
+
+def _repartir_les_ijss(
+    paliers: List[Dict[str, Any]],
+    retenues: float,
+    ijss: Dict[str, Any],
+    ijss_par_jour: Optional[Dict[date, float]],
+    releve_du_mois: Optional[ReleveIjss],
+) -> None:
+    """Les IJSS déduites, palier par palier ; le dernier prend l'arrondi."""
+    if retenues > 0 and ijss_par_jour is not None and paliers:
+        parts = [
+            _ijss_des_jours_maintenus(set(p["_jours"]), ijss, ijss_par_jour, releve_du_mois)[0]
+            for p in paliers
+        ]
+        total = sum(parts)
+        reste = round(retenues, 2)
+        for rang, palier in enumerate(paliers):
+            if rang == len(paliers) - 1:
+                part = reste
+            else:
+                part = round(retenues * parts[rang] / total, 2) if total > 0 else 0.0
+            palier["ijss_deduites"] = round(part, 2)
+            reste = round(reste - part, 2)
+    for palier in paliers:
+        palier.pop("_jours", None)
+
+
+def _option_au_bareme(
+    taux_par_jour: Dict[date, float],
+    *,
+    base: BaseDesJours,
+    arret: Dict[str, Any],
+    settings: Dict[str, Any],
+    ijss: Dict[str, Any],
+    ijss_par_jour: Optional[Dict[date, float]],
+    releve_du_mois: Optional[ReleveIjss],
+) -> Dict[str, Any]:
+    """Une règle (barème ou légal) : ses paliers du mois, son garanti, son versé."""
+    paliers: List[Dict[str, Any]] = []
+    for taux in set(taux_par_jour.values()):
+        jours = sorted(j for j, t in taux_par_jour.items() if t == taux)
+        nb = sum(1 for j in jours if base.compte(j))
+        valeur = base.valeur(nb)
+        paliers.append(
+            {
+                "taux": round(taux, 4),
+                "du": jours[0].isoformat(),
+                "au": jours[-1].isoformat(),
+                "jours": nb,
+                "jours_calendaires": len(jours),
+                "valeur": valeur,
+                "garanti": round(valeur * taux, 2),
+                "_jours": jours,
+            }
+        )
+    paliers.sort(key=lambda p: p["du"])
+    cible = round(sum(p["garanti"] for p in paliers), 2)
+    jours_maintenus = set(taux_par_jour)
+    deduction: Dict[str, Any] = {}
+    if bool(arret.get("subrogation_active")):
+        verse = _verse_avec_subrogation(
+            cible, arret, jours_maintenus, ijss, ijss_par_jour, releve_du_mois
+        )
+        retenues = round(cible - verse, 2)
+    else:
+        verse, deduction = _verse_sans_subrogation(
+            cible, settings, jours_maintenus, ijss, ijss_par_jour, releve_du_mois
+        )
+        retenues = float(deduction.get(CLE_IJSS_DEDUITES) or 0.0)
+    _repartir_les_ijss(paliers, retenues, ijss, ijss_par_jour, releve_du_mois)
+    return {
+        "cible": cible,
+        "verse": round(verse, 2),
+        "paliers": paliers,
+        "deduction": deduction,
+        "taux_par_jour": dict(taux_par_jour),
+    }
+
+
+def _calculer_maintien_au_bareme(
+    arret: Dict[str, Any],
+    qualification: Dict[str, Any],
+    carence: Dict[str, Any],
+    ijss: Dict[str, Any],
+    contexte: ContextePaie,
+    settings: Dict[str, Any],
+    date_debut_arret: date,
+    anciennete_mois: int,
+    date_debut_periode: date,
+    date_fin_periode: date,
+    *,
+    plan: PlanConventionnel,
+    bareme: Bareme,
+    ijss_par_jour: Optional[Dict[date, float]],
+    releve_du_mois: Optional[ReleveIjss],
+) -> Tuple[Dict[str, Any], Dict[date, float]]:
+    """Le maintien sous le barème, et le taux de chaque jour retenu.
+
+    Le barème et le maintien légal valorisent les jours de la même façon
+    (`BaseDesJours`) ; Martine verse le plus favorable des deux, jugé sur ce
+    que l'employeur verse (garanti moins les IJSS de ses jours), pas sur le
+    garanti seul (conception du 24/10, §3.4).
+    """
+    date_fin_arret = _parse_date(arret.get("date_fin")) or date_debut_arret
+    rejoue = plan.arret_du_jour(date_debut_arret)
+    duree_par_taux = duree_maintien_par_taux(anciennete_mois)
+    commun: Dict[str, Any] = {
+        "carence_employeur_jours": int(carence.get("carence_employeur_jours") or 0),
+        "duree_par_taux_jours": duree_par_taux,
+        "duree_maintien_legale_jours": 2 * duree_par_taux,
+        "bareme": bareme.code,
+        "bareme_detail": detail_du_bareme(bareme, _est_cadre(contexte), rejoue),
+    }
+    convention_ouverte = rejoue is not None and rejoue.tranche is not None
+    if not convention_ouverte and not _anciennete_legale_atteinte(arret, contexte, date_debut_arret):
+        return (
+            {
+                **commun,
+                "maintien_applicable": False,
+                "taux_maintien": 0.0,
+                "maintien_cible": 0.0,
+                "maintien_verse": 0.0,
+                "nb_jours_maintien": 0,
+                "complement_employeur": 0.0,
+                "conflit_convention": False,
+                "motif_non_maintien": motif_sans_droit(bareme, rejoue),
+                "proratisation_temps_partiel": False,
+                "regle_retenue": "convention",
+                "paliers": [],
+            },
+            {},
+        )
+    inter_d, inter_f = _intersection_dates(
+        date_debut_arret, date_fin_arret, date_debut_periode, date_fin_periode
+    )
+    jours: List[date] = (
+        []
+        if inter_d is None or inter_f is None
+        else [inter_d + timedelta(days=k) for k in range(_compter_jours_calendaires(inter_d, inter_f))]
+    )
+    base = _base_des_jours(arret, contexte, date_debut_periode, date_fin_periode)
+    options = dict(
+        base=base, arret=arret, settings=settings, ijss=ijss,
+        ijss_par_jour=ijss_par_jour, releve_du_mois=releve_du_mois,
+    )
+    convention = _option_au_bareme(
+        {j: plan.taux_par_jour[j] for j in jours if j in plan.taux_par_jour}, **options
+    )
+    legal = _option_au_bareme(
+        _taux_legaux_au_bareme(arret, qualification, contexte, anciennete_mois, date_debut_arret, jours),
+        **options,
+    )
+    legal_retenu = legal["verse"] > convention["verse"] + 1e-9
+    retenue = legal if legal_retenu else convention
+    total_valeur = sum(p["valeur"] for p in retenue["paliers"])
+    salaire_reel = float(arret.get("salaire_periode_reelle") or 0.0)
+    return (
+        {
+            **commun,
+            "maintien_applicable": True,
+            "taux_maintien": (
+                round(min(retenue["cible"] / total_valeur, 1.0), 4) if total_valeur else 0.0
+            ),
+            "maintien_cible": retenue["cible"],
+            "maintien_verse": retenue["verse"],
+            "nb_jours_maintien": sum(p["jours"] for p in retenue["paliers"]),
+            "complement_employeur": round(retenue["verse"] - salaire_reel, 2),
+            "conflit_convention": legal_retenu,
+            "motif_non_maintien": None,
+            "proratisation_temps_partiel": base.quotite != 1.0 and not base.mois_entier,
+            "regle_retenue": "legal" if legal_retenu else "convention",
+            "paliers": retenue["paliers"],
+            "paliers_en_jours_ouvres": base.jours_ouvres,
+            **retenue["deduction"],
+        },
+        retenue["taux_par_jour"],
+    )
+
+
 # --- Prolongation et arrêts du mois ---
 
 
@@ -1979,15 +2263,30 @@ def calculer_maintien(
         statut = ""
     est_cadre = _statut_est_cadre(statut)
 
-    jours_carence_payes = _jours_de_carence_payes_de_l_arret(
-        arret,
-        settings,
-        date_entree=date_anciennete,
-        date_debut_arret=date_debut_arret,
-        date_fin_arret=date_fin_arret or date_debut_arret,
-        arret_type=arret_type,
-        est_cadre=est_cadre,
-    )
+    # Barème de la convention (24/10/2026) : il remplace la carence payée et les
+    # réglages manuels de taux, de durée et de carence. Sans barème : le calcul
+    # d'avant, inchangé.
+    bareme = None if qualification.get("est_maternite") else bareme_des_reglages(settings)
+    plan_conv: Optional[PlanConventionnel] = None
+    if bareme is not None:
+        plan_conv = _plan_au_bareme(
+            arret, contexte, bareme, arret_type, date_debut_arret,
+            date_fin_arret or date_debut_arret,
+        )
+        carence = _carence_au_bareme(
+            carence, plan_conv, bareme, date_debut_arret, date_fin_arret or date_debut_arret
+        )
+        jours_carence_payes: frozenset[date] = frozenset()
+    else:
+        jours_carence_payes = _jours_de_carence_payes_de_l_arret(
+            arret,
+            settings,
+            date_entree=date_anciennete,
+            date_debut_arret=date_debut_arret,
+            date_fin_arret=date_fin_arret or date_debut_arret,
+            arret_type=arret_type,
+            est_cadre=est_cadre,
+        )
     if jours_carence_payes:
         carence = {
             **carence,
@@ -1999,21 +2298,45 @@ def calculer_maintien(
             ).strip(),
         }
 
-    maintien = _calculer_maintien_employeur(
-        arret,
-        qualification,
-        carence,
-        ijss,
-        contexte,
-        settings,
-        date_debut_arret,
-        anciennete_mois,
-        date_debut_periode,
-        date_fin_periode,
-        jours_carence_payes=jours_carence_payes,
-        ijss_par_jour=ijss_par_jour,
-        releve_du_mois=releve_ijss_du_mois,
-    )
+    taux_retenus: Dict[date, float] = {}
+
+    def _maintien_de(arret_calcule: Dict[str, Any]) -> Dict[str, Any]:
+        nonlocal taux_retenus
+        if plan_conv is not None and bareme is not None:
+            resultat, taux_retenus = _calculer_maintien_au_bareme(
+                arret_calcule,
+                qualification,
+                carence,
+                ijss,
+                contexte,
+                settings,
+                date_debut_arret,
+                anciennete_mois,
+                date_debut_periode,
+                date_fin_periode,
+                plan=plan_conv,
+                bareme=bareme,
+                ijss_par_jour=ijss_par_jour,
+                releve_du_mois=releve_ijss_du_mois,
+            )
+            return resultat
+        return _calculer_maintien_employeur(
+            arret_calcule,
+            qualification,
+            carence,
+            ijss,
+            contexte,
+            settings,
+            date_debut_arret,
+            anciennete_mois,
+            date_debut_periode,
+            date_fin_periode,
+            jours_carence_payes=jours_carence_payes,
+            ijss_par_jour=ijss_par_jour,
+            releve_du_mois=releve_ijss_du_mois,
+        )
+
+    maintien = _maintien_de(arret)
 
     # Sans maintien de salaire sur la période, l'employeur n'a rien à avancer
     # pour la caisse : pas de subrogation, les IJSS sont versées directement au
@@ -2031,21 +2354,7 @@ def calculer_maintien(
         and float(maintien.get("maintien_cible") or 0.0) <= 0.0
     ):
         arret = {**arret, "subrogation_active": False}
-        maintien = _calculer_maintien_employeur(
-            arret,
-            qualification,
-            carence,
-            ijss,
-            contexte,
-            settings,
-            date_debut_arret,
-            anciennete_mois,
-            date_debut_periode,
-            date_fin_periode,
-            jours_carence_payes=jours_carence_payes,
-            ijss_par_jour=ijss_par_jour,
-            releve_du_mois=releve_ijss_du_mois,
-        )
+        maintien = _maintien_de(arret)
 
     nb_jours_arret_total = jours_deja + _compter_jours_calendaires(
         date_debut_arret, date_fin_arret or date_debut_arret
@@ -2095,18 +2404,32 @@ def calculer_maintien(
     )
 
     alertes: List[str] = []
-    if not maintien.get("maintien_applicable", True):
-        alertes.append(
-            MOTIF_PARENTALITE_SANS_MAINTIEN
-            if maintien.get("est_maternite")
-            else "Ancienneté insuffisante pour le maintien légal"
+    if plan_conv is not None and bareme is not None:
+        alertes.extend(
+            alertes_du_bareme(
+                bareme,
+                maintien,
+                plan_conv,
+                date_debut_arret,
+                date_fin_arret or date_debut_arret,
+                statut=statut,
+                debut_periode=date_debut_periode,
+                fin_periode=date_fin_periode,
+            )
         )
-    duree_legale = int(maintien.get("duree_maintien_legale_jours") or 0)
-    if duree_legale and nb_jours_arret_total > duree_legale:
-        alertes.append(
-            f"Durée maximale du maintien employeur atteinte ({duree_legale} jours "
-            f"selon l'ancienneté). Vérifier l'activation de la prévoyance relais."
-        )
+    else:
+        if not maintien.get("maintien_applicable", True):
+            alertes.append(
+                MOTIF_PARENTALITE_SANS_MAINTIEN
+                if maintien.get("est_maternite")
+                else "Ancienneté insuffisante pour le maintien légal"
+            )
+        duree_legale = int(maintien.get("duree_maintien_legale_jours") or 0)
+        if duree_legale and nb_jours_arret_total > duree_legale:
+            alertes.append(
+                f"Durée maximale du maintien employeur atteinte ({duree_legale} jours "
+                f"selon l'ancienneté). Vérifier l'activation de la prévoyance relais."
+            )
     if maintien.get("conflit_convention"):
         alertes.append(
             "Règle conventionnelle moins favorable que la règle légale — application de la règle légale"
