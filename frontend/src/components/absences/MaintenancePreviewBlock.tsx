@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { libelleIjssDuDetail, texteDeductionDuPliant } from '@/lib/ijssAffichage';
+import { lignesDesPaliers, titreDesPaliers } from '@/lib/paliersAffichage';
 import { pluriel } from '@/lib/pluriel';
 import { formatTauxFr } from '@/lib/employeeAbsencesUtils';
 
@@ -152,6 +153,7 @@ function MaintenancePreviewBody({
   const carence = data.carence;
   const ijss = data.ijss;
   const maintien = data.maintien;
+  const titrePaliers = titreDesPaliers(maintien);
 
   const subrogationSelectValue = (subrogationOverride ?? data.subrogation_active)
     ? "oui"
@@ -211,6 +213,16 @@ function MaintenancePreviewBody({
               Complément employeur :{" "}
               {eur(maintien.complement_employeur ?? 0)}
             </p>
+            {titrePaliers ? (
+              <div className="space-y-1">
+                <p className="font-medium">{titrePaliers}</p>
+                <ul className="space-y-1">
+                  {lignesDesPaliers(maintien).map((ligne) => (
+                    <li key={ligne}>{ligne}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </>
         )}
       </section>

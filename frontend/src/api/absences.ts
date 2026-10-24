@@ -303,6 +303,18 @@ export type MaintenanceSubrogationMode =
   | 'per_case'
   | 'never';
 
+/** Un palier du mois sous le barème de la convention (conception du 24/10/2026). */
+export interface PalierDuMaintien {
+  taux: number;
+  du: string;
+  au: string;
+  jours: number;
+  jours_calendaires?: number;
+  valeur?: number;
+  garanti: number;
+  ijss_deduites?: number;
+}
+
 export interface MaintenancePreview {
   qualification: {
     carence_ss_jours: number;
@@ -337,6 +349,12 @@ export interface MaintenancePreview {
     carence_employeur_jours?: number;
     duree_par_taux_jours?: number;
     duree_maintien_legale_jours?: number;
+    /** Sous un barème seulement. */
+    bareme?: string;
+    bareme_detail?: string;
+    regle_retenue?: 'convention' | 'legal';
+    paliers?: PalierDuMaintien[];
+    paliers_en_jours_ouvres?: boolean;
   };
   prevoyance: {
     prevoyance_declenchee: boolean;

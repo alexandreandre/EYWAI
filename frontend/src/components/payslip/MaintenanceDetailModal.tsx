@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { libelleIjssDuDetail } from '@/lib/ijssAffichage';
+import { lignesDesPaliers, titreDesPaliers } from '@/lib/paliersAffichage';
 import { pluriel } from '@/lib/pluriel';
 
 function alertBannerClass(text: string): string {
@@ -56,6 +57,7 @@ export function MaintenanceDetailModal({
   const carence = maintien.carence;
   const ijss = maintien.ijss;
   const m = maintien.maintien;
+  const titrePaliers = titreDesPaliers(m);
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -114,6 +116,20 @@ export function MaintenanceDetailModal({
               </>
             )}
           </section>
+
+          {titrePaliers ? (
+            <section className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Paliers de la convention
+              </h3>
+              <p className="font-medium">{titrePaliers}</p>
+              <ul className="space-y-1">
+                {lignesDesPaliers(m).map((ligne) => (
+                  <li key={ligne}>{ligne}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           {maintien.prevoyance &&
           (maintien.prevoyance.prevoyance_declenchee ||
