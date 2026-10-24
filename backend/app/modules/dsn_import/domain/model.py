@@ -115,24 +115,52 @@ class CompteurAnnuelBlock:
 
 
 @dataclass
-class ArretTravailBlock:
-    """Bloc S21.G00.41 — arrêt de travail."""
+class ChangementContratBlock:
+    """Bloc S21.G00.41 — changements contrat.
 
-    date_debut: str = ""
-    date_fin: str = ""
+    Les valeurs d'AVANT une modification du contrat (statut, nature, quotité,
+    établissement…), datées par .001. Ce n'est jamais un arrêt de travail.
+    """
+
+    date_modification: str = ""
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class ArretTravailBlock:
+    """Bloc S21.G00.60 — arrêt de travail (maladie, maternité, accident…).
+
+    Les dates sont celles de la norme, pas les bornes de l'absence : le premier
+    jour d'arrêt est le lendemain du dernier jour travaillé (.002) — le jour
+    même pour un accident —, le dernier est la veille de la reprise (.010) si
+    elle est déclarée, sinon la fin prévisionnelle (.003). Voir
+    `dsn_absence_exit_mapping.bornes_arret`.
+    """
+
     motif: str = ""
-    siret_caisse: str = ""
+    dernier_jour_travaille: str = ""
+    fin_previsionnelle: str = ""
+    subrogation: str = ""
+    date_reprise: str = ""
+    motif_reprise: str = ""
+    #: Mois principal de la DSN qui l'a déclaré (AAAA-MM) : un arrêt de plus
+    #: d'un mois est redéclaré chaque mois, la déclaration la plus récente prime.
+    periode_dsn: str = ""
     rubriques: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
 class SuspensionContratBlock:
-    """Bloc S21.G00.60 — suspension de contrat."""
+    """Bloc S21.G00.65 — autre suspension de l'exécution du contrat.
 
-    type_suspension: str = ""
+    Congé non rémunéré, congé parental, évènement familial, chômage sans
+    rupture… Les dates sont les premier et dernier jours de la suspension.
+    """
+
+    motif: str = ""
     date_debut: str = ""
     date_fin: str = ""
-    motif: str = ""
+    periode_dsn: str = ""
     rubriques: Dict[str, str] = field(default_factory=dict)
 
 
@@ -143,16 +171,6 @@ class FinContratBlock:
     date_fin: str = ""
     motif: str = ""
     date_notification: str = ""
-    rubriques: Dict[str, str] = field(default_factory=dict)
-
-
-@dataclass
-class AncienneteBlock:
-    """Bloc S21.G00.65 — ancienneté."""
-
-    type_unite: str = ""
-    date_debut: str = ""
-    date_fin: str = ""
     rubriques: Dict[str, str] = field(default_factory=dict)
 
 
@@ -242,10 +260,10 @@ class ContratBlock:
     libelle_emploi: str = ""
     rubriques: Dict[str, str] = field(default_factory=dict)
     affiliations: List[AffiliationBlock] = field(default_factory=list)
+    changements: List[ChangementContratBlock] = field(default_factory=list)
     arrets: List[ArretTravailBlock] = field(default_factory=list)
     suspensions: List[SuspensionContratBlock] = field(default_factory=list)
     fin_contrat: Optional[FinContratBlock] = None
-    anciennetes: List[AncienneteBlock] = field(default_factory=list)
     versements: List[VersementBlock] = field(default_factory=list)
 
 

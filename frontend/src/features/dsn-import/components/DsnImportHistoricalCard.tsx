@@ -14,8 +14,8 @@ export function DsnImportHistoricalCard({ items }: { items: DsnImportItemPreview
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Absences et sorties historiques</CardTitle>
         <CardDescription>
-          Données issues des blocs G00.41, G00.60 et G00.62 — créées en statut validé / archivé si
-          les dates sont passées.
+          Arrêts de travail (bloc G00.60), autres suspensions du contrat (G00.65) et fins de
+          contrat (G00.62) — créés en statut validé / archivé si les dates sont passées.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

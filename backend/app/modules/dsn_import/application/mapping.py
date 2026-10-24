@@ -22,9 +22,17 @@ from app.modules.dsn_import.domain.normalize import (
 from app.modules.dsn_import.application.cumuls import extract_monthly_totals
 from app.modules.dsn_import.domain.establishment_extract import enrich_establishment_payload
 from app.modules.dsn_import.domain.dsn_absence_exit_mapping import (
+    BLOC_ARRET,
+    BLOC_SUSPENSION,
+    bornes_arret,
+    bornes_suspension,
     build_absence_payload_from_arret,
     build_absence_payload_from_suspension,
     build_exit_payload_from_fin_contrat,
+    derniere_declaration,
+    libelle_motif,
+    map_arret_motif,
+    map_suspension_to_absence,
 )
 from app.modules.dsn_import.domain.psc import build_specificites_paie_psc
 from app.modules.dsn_import.application.boeth_import import (
@@ -402,13 +410,6 @@ def map_employee_payload(
     psc_block = build_specificites_paie_psc(contrat, organismes_psc=etab.organismes_psc)
     psc_meta = psc_block.pop("_psc_meta", {})
 
-    anciennete_dates = [
-        normalize_date_dsn(a.date_debut)
-        for a in contrat.anciennetes
-        if normalize_date_dsn(a.date_debut)
-    ]
-    date_anciennete = min(anciennete_dates) if anciennete_dates else hire
-
     primes_dsn = [
         {
             "code": p.code,
@@ -476,12 +477,9 @@ def map_employee_payload(
         "specificites_paie": {
             **psc_block,
             "prelevement_a_la_source": pas,
-            "dsn_anciennete": {
-                "date_anciennete": date_anciennete,
-                "segments": len(contrat.anciennetes),
-            }
-            if contrat.anciennetes
-            else None,
+            # Plus de « dsn_anciennete » : elle prenait la date de début des
+            # blocs S21.G00.65, qui sont des suspensions du contrat (congé
+            # sans solde, congé parental…), pas une ancienneté.
         },
         "collective_agreement_idcc": contrat.idcc,
         # Salariés en activité chez l'établisseur externe — pas le flux onboarding MARTINE.
@@ -528,7 +526,13 @@ def collect_idcc_by_establishment(parsed: ParsedDsnSet) -> Dict[str, List[str]]:
 def _build_absence_exit_items(
     etab: EtablissementBlock,
     siret: str,
+    non_reprises: Optional[Dict[Tuple[str, str], int]] = None,
 ) -> List[Dict[str, Any]]:
+    """Sorties (bloc 62), arrêts (bloc 60) et autres suspensions (bloc 65).
+
+    `non_reprises` compte, par (bloc, motif), les absences déclarées que Martine
+    ne sait pas ranger : elles ne sont pas créées, l'aperçu les signale.
+    """
     items: List[Dict[str, Any]] = []
     for ind in etab.individus:
         ident = ind.identifiant or ind.nom
@@ -561,34 +565,35 @@ def _build_absence_exit_items(
                     }
                 )
 
-        for arret in contrat.arrets:
-            abs_payload = build_absence_payload_from_arret(
-                arret,
-                siret=siret,
-                nir=ind.nir or ident,
-                employee_label=label,
-            )
-            if not abs_payload:
-                continue
-            ref = f"abs:{siret}:{ident}:{abs_payload['source_key']}"
-            items.append(
-                {
-                    "item_type": "absence",
-                    "source_ref": ref,
-                    "action": "create",
-                    "mapped_payload": abs_payload,
-                    "label": f"Arrêt — {label}",
-                    "preview_columns": {
-                        "absence_type": abs_payload.get("absence_type"),
-                        "date_debut": abs_payload.get("date_debut"),
-                        "date_fin": abs_payload.get("date_fin"),
-                    },
-                }
-            )
+        # Tous les contrats de l'individu : à l'import de plusieurs mois, chaque
+        # DSN ajoute le sien. Un arrêt redéclaré d'un mois sur l'autre, ou
+        # prolongé, n'en fait qu'un (même motif, même dernier jour travaillé).
+        arrets = [a for c in ind.contrats for a in c.arrets]
+        suspensions = [s for c in ind.contrats for s in c.suspensions]
+        if non_reprises is not None:
+            # Une absence redéclarée chaque mois ne compte qu'une fois.
+            vues = {
+                (BLOC_ARRET, (a.motif or "").strip(), a.dernier_jour_travaille)
+                for a in arrets
+                if map_arret_motif(a.motif) is None
+            } | {
+                (BLOC_SUSPENSION, (s.motif or "").strip(), s.date_debut)
+                for s in suspensions
+                if map_suspension_to_absence(s.motif) is None
+            }
+            for bloc, motif, _ in vues:
+                non_reprises[(bloc, motif)] = non_reprises.get((bloc, motif), 0) + 1
 
-        for suspension in contrat.suspensions:
-            abs_payload = build_absence_payload_from_suspension(
-                suspension,
+        blocs = [
+            (arret, build_absence_payload_from_arret, "Arrêt")
+            for arret in derniere_declaration(arrets, _cle_arret, bornes_arret)
+        ] + [
+            (suspension, build_absence_payload_from_suspension, "Suspension")
+            for suspension in derniere_declaration(suspensions, _cle_suspension, bornes_suspension)
+        ]
+        for bloc, construire, nature in blocs:
+            abs_payload = construire(
+                bloc,
                 siret=siret,
                 nir=ind.nir or ident,
                 employee_label=label,
@@ -602,7 +607,7 @@ def _build_absence_exit_items(
                     "source_ref": ref,
                     "action": "create",
                     "mapped_payload": abs_payload,
-                    "label": f"Suspension — {label}",
+                    "label": f"{nature} — {label}",
                     "preview_columns": {
                         "absence_type": abs_payload.get("absence_type"),
                         "date_debut": abs_payload.get("date_debut"),
@@ -612,6 +617,27 @@ def _build_absence_exit_items(
             )
 
     return items
+
+
+def _cle_arret(arret: Any) -> Tuple[str, Optional[str]]:
+    return (arret.motif or "").strip().zfill(2), normalize_date_dsn(arret.dernier_jour_travaille)
+
+
+def _cle_suspension(suspension: Any) -> Tuple[str, Optional[str]]:
+    return (suspension.motif or "").strip().zfill(3), normalize_date_dsn(suspension.date_debut)
+
+
+def absences_non_reprises(non_reprises: Dict[Tuple[str, str], int]) -> List[Dict[str, Any]]:
+    """Ce que l'aperçu dit des absences déclarées qui ne sont pas créées."""
+    return [
+        {
+            "bloc": bloc,
+            "motif": motif,
+            "libelle": libelle_motif(bloc, motif),
+            "nombre": nombre,
+        }
+        for (bloc, motif), nombre in sorted(non_reprises.items())
+    ]
 
 
 def build_preview_items(parsed: ParsedDsnSet) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
@@ -637,6 +663,7 @@ def build_preview_items(parsed: ParsedDsnSet) -> Tuple[List[Dict[str, Any]], Dic
     )
 
     idcc_map = collect_idcc_by_establishment(parsed)
+    non_reprises: Dict[Tuple[str, str], int] = {}
 
     for siret, etab in etabs.items():
         etab_payload = map_establishment_payload(etab, siren, parsed)
@@ -686,7 +713,7 @@ def build_preview_items(parsed: ParsedDsnSet) -> Tuple[List[Dict[str, Any]], Dic
             apply_review_flags(emp_item)
             items.append(emp_item)
 
-        items.extend(_build_absence_exit_items(etab, siret))
+        items.extend(_build_absence_exit_items(etab, siret, non_reprises))
 
     summary = {
         "siren": siren,
@@ -695,6 +722,7 @@ def build_preview_items(parsed: ParsedDsnSet) -> Tuple[List[Dict[str, Any]], Dic
         "establishment_count": len(etabs),
         "employee_count": sum(len(e.individus) for e in etabs.values()),
         "file_count": len(parsed.files),
+        "absences_non_reprises": absences_non_reprises(non_reprises),
     }
 
     raison = _find_raison_sociale(parsed)

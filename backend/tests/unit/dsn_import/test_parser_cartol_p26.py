@@ -61,10 +61,16 @@ def test_establishment_payload_enriched():
     assert payload.get("dsn_organismes")
 
 
-def test_preview_includes_absence_and_exit_items():
+def test_preview_le_changement_de_contrat_n_est_pas_un_arret():
+    """Le fixture porte un bloc S21.G00.41 (changement d'établissement le
+    14/04/2023, ancien SIRET en .012). C'est un « Changements Contrat » (cahier
+    technique DSN 2026.1, p. 215), pas un arrêt : il devenait un arrêt maladie
+    d'un jour."""
     parsed = parse_dsn_files([(str(FIXTURE), FIXTURE.read_bytes())])
     items, _ = build_preview_items(parsed)
     types = {it["item_type"] for it in items}
     assert "establishment" in types
     assert "employee" in types
-    assert any(it["item_type"] == "absence" for it in items)
+    assert not any(it["item_type"] == "absence" for it in items)
+    contrat = parsed.files[0].etablissement.individus[0].contrats[0]
+    assert [c.date_modification for c in contrat.changements] == ["14042023"]

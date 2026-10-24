@@ -229,6 +229,25 @@ def parse_warning_anomaly(message: str) -> Dict[str, Any]:
     return build_anomaly("parse_warning", message, severity="warning")
 
 
+def absence_non_reprise_anomaly(non_reprise: Dict[str, Any]) -> Dict[str, Any]:
+    """Absences déclarées dans la DSN que l'import ne crée pas (motif sans équivalent)."""
+    nombre = int(non_reprise.get("nombre") or 0)
+    bloc = str(non_reprise.get("bloc") or "")
+    nature, accord = ("arrêt", "importé") if bloc.endswith(".60") else ("suspension", "importée")
+    pluriel_s = "s" if nombre > 1 else ""
+    return build_anomaly(
+        "absence_non_reprise",
+        (
+            f"{nombre} {nature}{pluriel_s} « {non_reprise.get('libelle')} » "
+            f"(motif {non_reprise.get('motif')}, bloc {bloc}) non {accord}{pluriel_s} : "
+            "Martine n'a pas de type d'absence qui lui corresponde."
+        ),
+        hint="Saisissez ces absences à la main dans le module Absences si la paie doit en tenir compte.",
+        severity="warning",
+        meta=dict(non_reprise),
+    )
+
+
 def psc_warning_anomaly(*, source_ref: str, message: str, employee_label: str) -> Dict[str, Any]:
     return build_anomaly(
         "psc_warning",
