@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 SubrogationMode = Literal["when_maintien", "automatic", "at_mp_only", "per_case", "never"]
+BaremeConvention = Literal["plasturgie_0292"]
 
 
 class MaintenanceSettings(BaseModel):
@@ -46,5 +47,8 @@ class MaintenanceSettings(BaseModel):
     #: ne verse que le complément, IJSS des jours maintenus déduites (règle
     #: légale, D1226-5). False : le salaire garanti en entier.
     deduire_ijss_sans_subrogation: bool = True
+    #: Barème de la convention (24/10/2026) : None, les réglages manuels ;
+    #: "plasturgie_0292", les paliers de la plasturgie (non-cadres et cadres).
+    bareme_convention: Optional[BaremeConvention] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

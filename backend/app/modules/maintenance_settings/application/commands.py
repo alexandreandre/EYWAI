@@ -34,6 +34,7 @@ _DB_WRITABLE_KEYS = frozenset(
         "maintain_working_days",
         "maintain_parental_leave",
         "deduire_ijss_sans_subrogation",
+        "bareme_convention",
     }
 )
 

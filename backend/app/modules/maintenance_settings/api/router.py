@@ -7,9 +7,12 @@ PUT : admin, rh ou super_admin uniquement.
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.security import get_current_user
+from app.modules.payroll.domain.baremes_maintien import BAREMES, description_lisible
 from app.modules.maintenance_settings.application import commands, queries
 from app.modules.maintenance_settings.schemas.requests import MaintenanceSettingsUpdate
 from app.modules.maintenance_settings.schemas.responses import MaintenanceSettings
@@ -40,6 +43,19 @@ def get_maintenance_settings_route(
             detail="Accès non autorisé pour cette entreprise",
         )
     return queries.get_maintenance_settings(cid)
+
+
+def baremes_lisibles() -> list[dict[str, Any]]:
+    """Les barèmes que la société peut choisir, tels que l'écran les montre."""
+    return [description_lisible(bareme) for bareme in BAREMES.values()]
+
+
+@router.get("/baremes")
+def get_baremes_route(
+    current_user: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """Le tableau de chaque barème, construit depuis le barème du moteur."""
+    return baremes_lisibles()
 
 
 @router.put("/", response_model=MaintenanceSettings)

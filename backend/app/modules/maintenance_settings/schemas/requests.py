@@ -5,6 +5,8 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, field_validator
 
 SubrogationModeLiteral = Literal["when_maintien", "automatic", "at_mp_only", "per_case", "never"]
+#: Barème de la convention (conception du 24/10/2026) ; None : réglages manuels.
+BaremeConventionLiteral = Literal["plasturgie_0292"]
 
 
 class MaintenanceSettingsUpdate(BaseModel):
@@ -33,6 +35,7 @@ class MaintenanceSettingsUpdate(BaseModel):
     maintain_working_days: Optional[bool] = None
     maintain_parental_leave: Optional[bool] = None
     deduire_ijss_sans_subrogation: Optional[bool] = None
+    bareme_convention: Optional[BaremeConventionLiteral] = None
 
     @field_validator("provident_maintenance_rate")
     @classmethod
