@@ -6,6 +6,7 @@ Appelé depuis le générateur de bulletins avec données déjà chargées (Tick
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -1450,6 +1451,113 @@ def _valeur_de_jours_ouvres(
     heures_sup = round(nb_jours * heures_jour, 2)
     return round(heures_base * taux_horaire_base, 2) + round(
         heures_sup * taux_horaire_base * (1 + majoration), 2
+    )
+
+
+# --- Barème de la convention : la valeur des jours maintenus ---
+
+
+def _salaire_du_mois(
+    contexte: ContextePaie, duree_hebdo: float, taux_horaire_base: float
+) -> float:
+    """Le salaire d'un mois entièrement travaillé : la base et ses heures sup
+    structurelles, comme les lignes du bulletin. Comitech, juin 2026 : 1 952,60
+    de base et 17,33 h à 16,0925, soit 2 231,48."""
+    from .salaire_contractuel import salaire_hors_hs_structurelles
+
+    base = round(float(contexte.salaire_base_mensuel or 0.0), 2)
+    heures_jour, majoration = _heures_sup_structurelles_par_jour(contexte, duree_hebdo)
+    if not heures_jour or not salaire_hors_hs_structurelles(contexte.contrat):
+        return base
+    from .calcul_brut import compute_hs_structurelles_mensuelles
+
+    heures = compute_hs_structurelles_mensuelles(duree_hebdo)
+    return round(base + round(heures * taux_horaire_base * (1 + majoration), 2), 2)
+
+
+@dataclass
+class BaseDesJours:
+    """Ce que vaut un jour maintenu sous le barème (conception du 24/10, §3.3).
+
+    Mois entier en arrêt : le salaire du mois, réparti au prorata des jours
+    (ouvrés en jours ouvrés). Sinon, la journée : en jours ouvrés, 7 h et la
+    quote-part d'heures sup structurelles, comptées par bloc comme le cabinet ;
+    sinon salaire / 30,42 par jour calendaire. La quotité d'un temps partiel ne
+    s'applique qu'à la journée : le salaire du mois est déjà au temps partiel.
+    """
+
+    contexte: Any
+    jours_ouvres: bool
+    mois_entier: bool
+    jours_du_mois: int
+    salaire_du_mois: float
+    taux_horaire_base: float
+    duree_hebdo: float
+    quotite: float
+
+    def compte(self, jour: date) -> bool:
+        return not self.jours_ouvres or jour.weekday() < 5
+
+    def valeur(self, nb_jours: int) -> float:
+        if nb_jours <= 0:
+            return 0.0
+        if self.mois_entier and self.jours_du_mois > 0:
+            return round(self.salaire_du_mois * nb_jours / self.jours_du_mois, 2)
+        if self.jours_ouvres:
+            brut = _valeur_de_jours_ouvres(
+                self.contexte, self.duree_hebdo, self.taux_horaire_base, nb_jours
+            )
+        else:
+            salaire = float(self.contexte.salaire_base_mensuel or 0.0)
+            brut = salaire / lc.DIVISEUR_JOURS_CALENDAIRES * nb_jours
+        return round(brut * self.quotite, 2)
+
+
+def _base_des_jours(
+    arret: Dict[str, Any],
+    contexte: ContextePaie,
+    date_debut_periode: date,
+    date_fin_periode: date,
+) -> BaseDesJours:
+    jours_ouvres = bool(arret.get("maintien_base_ouvree"))
+    duree_hebdo = float(contexte.duree_hebdo_contrat or 0.0)
+    try:
+        from .calcul_brut import _get_salaire_horaire_base
+
+        taux_horaire_base = _get_salaire_horaire_base(contexte, duree_hebdo)
+    except Exception:
+        taux_horaire_base = 0.0
+    mois_entier = arret.get("mois_entier_en_arret")
+    if mois_entier is None:
+        debut = _parse_date(arret.get("date_debut"))
+        fin = _parse_date(arret.get("date_fin")) or debut
+        mois_entier = bool(
+            debut and fin and debut <= date_debut_periode and fin >= date_fin_periode
+        )
+    jours_du_mois = sum(
+        1
+        for k in range(_compter_jours_calendaires(date_debut_periode, date_fin_periode))
+        if not jours_ouvres or (date_debut_periode + timedelta(days=k)).weekday() < 5
+    )
+    salaire = (
+        _salaire_du_mois(contexte, duree_hebdo, taux_horaire_base)
+        if jours_ouvres
+        else round(float(contexte.salaire_base_mensuel or 0.0), 2)
+    )
+    quotite = 1.0
+    if bool(arret.get("is_temps_partiel")):
+        q = float(arret.get("quotite_temps_partiel") or 1.0)
+        if q > 0:
+            quotite = q
+    return BaseDesJours(
+        contexte=contexte,
+        jours_ouvres=jours_ouvres,
+        mois_entier=bool(mois_entier),
+        jours_du_mois=jours_du_mois,
+        salaire_du_mois=salaire,
+        taux_horaire_base=taux_horaire_base,
+        duree_hebdo=duree_hebdo,
+        quotite=quotite,
     )
 
 
