@@ -312,6 +312,24 @@ def test_le_reglage_ijss_allume_ne_touche_pas_un_mois_sans_arret():
     assert not _change("reglages_societe", maintien=allume)
 
 
+def test_le_bareme_nul_ne_change_pas_l_empreinte():
+    avant = _du_mois(calendriers=_arret_en_mai())["reglages_societe"]
+    nul = {**COMPLEMENTS.maintien, "bareme_convention": None}
+    apres = _du_mois(replace(COMPLEMENTS, maintien=nul), calendriers=_arret_en_mai())
+    assert empreinte_partie(apres["reglages_societe"]) == empreinte_partie(avant)
+
+
+def test_choisir_le_bareme_un_mois_avec_arret_est_a_recalculer():
+    choisi = {**COMPLEMENTS.maintien, "bareme_convention": "plasturgie_0292"}
+    avant = _du_mois(calendriers=_arret_en_mai())["reglages_societe"]
+    apres = _du_mois(replace(COMPLEMENTS, maintien=choisi), calendriers=_arret_en_mai())
+    assert empreinte_partie(apres["reglages_societe"]) != empreinte_partie(avant)
+
+
+def test_le_bareme_ne_touche_pas_un_mois_sans_arret():
+    assert not _change("reglages_societe", maintien={**COMPLEMENTS.maintien, "bareme_convention": "plasturgie_0292"})
+
+
 def test_la_jei_ne_compte_qu_activee():
     assert not _change("reglages_societe", jei={"jei_enabled": False, "taux_exoneration": 50})
     assert _change("reglages_societe", jei={"jei_enabled": True, "taux_exoneration": 50})

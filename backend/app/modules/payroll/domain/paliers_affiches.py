@@ -10,7 +10,13 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Mapping, Optional
 
-from app.modules.payroll.domain.baremes_maintien import Bareme, libelle_tranche, pourcent
+from app.modules.payroll.domain.baremes_maintien import (
+    Bareme,
+    bareme_par_code,
+    libelle_tranche,
+    pourcent,
+)
+from app.modules.payroll.domain.ijss_deduites import suite_ijss_deduites
 
 #: Raisons de carence posées par le plan (`paliers_convention`).
 _RAISON_CADRE = "cadre"
@@ -116,9 +122,42 @@ def alertes_du_bareme(
     return alertes
 
 
+def _euros(valeur: float) -> str:
+    return f"{valeur:,.2f}".replace(",", " ").replace(".", ",") + " €"
+
+
+def _jours_du_palier(n: int, ouvres: bool) -> str:
+    if ouvres:
+        return f"{n} jour ouvré" if n == 1 else f"{n} jours ouvrés"
+    return _jours(n)
+
+
+def explication_du_maintien_au_bareme(maintien: Optional[Mapping[str, Any]]) -> Optional[str]:
+    """« D'où viennent ces lignes » : les paliers du mois, le garanti, les IJSS."""
+    if not isinstance(maintien, Mapping) or not maintien.get("paliers"):
+        return None
+    ouvres = bool(maintien.get("paliers_en_jours_ouvres"))
+    morceaux = [
+        f"{_jours_du_palier(int(p.get('jours') or 0), ouvres)} à {pourcent(float(p.get('taux') or 0))}"
+        for p in maintien["paliers"]
+    ]
+    garanti = round(float(maintien.get("maintien_cible") or 0.0), 2)
+    if maintien.get("regle_retenue") == "legal":
+        bareme = bareme_par_code(maintien.get("bareme"))
+        nom = bareme.libelle if bareme else "de la convention"
+        debut = f"Maintien légal, plus favorable ce mois-ci que le barème {nom}"
+    else:
+        debut = str(maintien.get("bareme_detail") or "Barème de la convention")
+    return (
+        f"{debut} : {' et '.join(morceaux)}, salaire garanti {_euros(garanti)}"
+        f"{suite_ijss_deduites(maintien)}"
+    )
+
+
 __all__ = [
     "ALERTE_STATUT_ABSENT",
     "alertes_du_bareme",
+    "explication_du_maintien_au_bareme",
     "detail_du_bareme",
     "motif_carence_du_bareme",
     "motif_sans_droit",

@@ -493,13 +493,20 @@ def _arret_dans_le_mois(
 #: le pose à false partout ; sans ce filtre, tous les bulletins avec un arrêt
 #: passeraient « À recalculer ».
 _CLE_DEDUIRE_IJSS = "deduire_ijss_sans_subrogation"
+#: Réglage du 24/10/2026 : le barème de la convention n'y entre que choisi. La
+#: migration ajoute la colonne, nulle partout ; sans ce filtre, tous les
+#: bulletins avec un arrêt passeraient « À recalculer ».
+_CLE_BAREME = "bareme_convention"
 
 
 def _maintien_pour_empreinte(row: Mapping[str, Any] | None) -> dict[str, Any] | None:
-    """Le réglage du maintien que le moteur lit, la déduction des IJSS seulement allumée."""
-    reglage = _sans(row, _COLONNES_HORS_CALCUL | {_CLE_DEDUIRE_IJSS})
+    """Le réglage du maintien que le moteur lit : la déduction des IJSS seulement
+    allumée, le barème seulement choisi."""
+    reglage = _sans(row, _COLONNES_HORS_CALCUL | {_CLE_DEDUIRE_IJSS, _CLE_BAREME})
     if reglage is not None and row.get(_CLE_DEDUIRE_IJSS) is True:
         reglage[_CLE_DEDUIRE_IJSS] = True
+    if reglage is not None and row.get(_CLE_BAREME):
+        reglage[_CLE_BAREME] = row[_CLE_BAREME]
     return reglage
 
 

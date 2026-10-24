@@ -77,6 +77,17 @@ def explication_ijss_deduites(maintien: Optional[Mapping[str, Any]]) -> Optional
     )
 
 
+def suite_ijss_deduites(maintien: Optional[Mapping[str, Any]]) -> str:
+    """« moins 1 276,89 € d'IJSS versées par la CPAM au salarié (…) », ou rien."""
+    deduites = montant_deduit(maintien)
+    if deduites <= 0 or not isinstance(maintien, Mapping):
+        return ""
+    return (
+        f" moins {_euros(deduites)} d'IJSS versées par la CPAM au salarié "
+        f"({_SOURCE_LONGUE[_source(maintien)]})"
+    )
+
+
 def mention_ijss_deduites(maintien: Optional[Mapping[str, Any]]) -> Optional[str]:
     """La note du PDF sous la ligne de maintien."""
     deduites = montant_deduit(maintien)

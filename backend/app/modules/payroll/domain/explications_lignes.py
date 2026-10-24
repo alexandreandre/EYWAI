@@ -448,11 +448,14 @@ def _est_reduction_generale(ligne: Mapping[str, Any]) -> bool:
 
 
 def _expliquer_ijss_deduites(bulletin: dict[str, Any]) -> None:
-    """Sans subrogation, IJSS déduites : la ligne de maintien dit le calcul."""
+    """La ligne de maintien dit le calcul : les paliers du barème quand il y en a
+    un, sinon, sans subrogation, le garanti moins les IJSS déduites."""
     from app.modules.payroll.domain.ijss_deduites import explication_ijss_deduites
+    from app.modules.payroll.domain.paliers_affiches import explication_du_maintien_au_bareme
 
     bloc = bulletin.get("bloc_maintien")
-    texte = explication_ijss_deduites(bloc.get("maintien") if isinstance(bloc, Mapping) else None)
+    maintien = bloc.get("maintien") if isinstance(bloc, Mapping) else None
+    texte = explication_du_maintien_au_bareme(maintien) or explication_ijss_deduites(maintien)
     if not texte:
         return
     for ligne in _lignes_de(bulletin, "calcul_du_brut"):
