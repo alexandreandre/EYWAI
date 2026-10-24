@@ -13,8 +13,6 @@ n'était pas payée.
 
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
 
 from app.modules.payroll.documents.payslip_run_heures import (
@@ -156,6 +154,16 @@ def test_deux_arrets_chacun_deduit_les_ijss_de_ses_jours_maintenus():
     assert [a["maintien_verse"] for a in r["arrets_du_mois"]] == [164.34, 262.95]
     assert r["maintien"]["maintien_verse"] == 427.29
     assert r["ijss"]["ijss_theorique"] == 863.01  # 369,86 + 493,15, toutes reversées
+
+
+def test_deux_arrets_le_releve_valide_se_repartit_sur_le_mois():
+    """600 € validés pour 21 jours indemnisés, dont 13 maintenus : 371,43 € déduits."""
+    r = _deux_arrets(override=600.0)
+    assert r["ijss"]["ijss_theorique"] == 600.0
+    cible = r["maintien"]["maintien_cible"]
+    assert cible == 961.54
+    assert r["maintien"]["maintien_verse"] == pytest.approx(cible - 371.43, abs=0.02)
+    assert [a["maintien_verse"] for a in r["arrets_du_mois"]] == [226.96, 363.15]
 
 
 # --- Jours ouvrés, IJSS hors bulletin (RUN:122-126) --------------------------

@@ -1522,12 +1522,16 @@ def _releve_ijss_du_mois(
 ) -> Optional[ReleveIjss]:
     """Le relevé validé du mois et ce que Martine estime pour tous les arrêts.
 
-    Seulement quand la déduction sans subrogation est allumée : sinon le relevé
-    reste porté par le premier arrêt, comme avant. Les estimations viennent
-    d'un premier calcul de chaque arrêt, sans le relevé.
+    Quand un arrêt du mois est subrogé, ou que la déduction sans subrogation
+    est allumée : chaque arrêt en déduit alors sa part. Sinon le relevé reste
+    porté par le premier arrêt, comme avant. Les estimations viennent d'un
+    premier calcul de chaque arrêt, sans le relevé.
     """
     override = arret.get("ijss_brut_override")
-    if override is None or not deduire_ijss_sans_subrogation(settings):
+    subroge = settings.get("subrogation_mode") != "never" and any(
+        _arret_du_segment(arret, segment).get("subrogation_active") for segment in segments
+    )
+    if override is None or not (subroge or deduire_ijss_sans_subrogation(settings)):
         return None
     try:
         valide = float(override)
@@ -1563,9 +1567,9 @@ def _calculer_maintien_des_arrets_du_mois(
     dernier : les jours travaillés entre eux comptaient comme jours d'arrêt, et
     la carence payée était perdue ([F11-bis], enquête F du 10/10/2026). Un
     relevé d'IJSS saisi pour le mois (`ijss_brut_override`) vaut pour le mois
-    entier : il est porté par le premier arrêt, les autres à zéro. Sans
-    subrogation, quand la société déduit les IJSS, chaque arrêt en déduit sa
-    part, au prorata des IJSS estimées du mois.
+    entier : il est porté par le premier arrêt, les autres à zéro. Avec
+    subrogation, ou sans quand la société déduit les IJSS, chaque arrêt en
+    déduit sa part, au prorata des IJSS estimées du mois.
     """
     override = arret.get("ijss_brut_override")
     releve = _releve_ijss_du_mois(
