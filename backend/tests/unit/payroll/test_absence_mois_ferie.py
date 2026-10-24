@@ -132,6 +132,19 @@ def test_un_ferie_paye_hors_de_l_arret_reste_paye_hors_du_1er_mai():
     assert result["salaire_brut_total"] == 68.65
 
 
+def test_moins_de_trois_mois_d_anciennete_le_ferie_non_paye_et_l_arret_retiennent_le_salaire_exact():
+    # Entré le 15/11/2025 : le 1er janvier n'est pas payé (L3133-3). Le mois est
+    # alors entièrement absent, et la retenue vaut le salaire, ni plus ni moins :
+    # la retenue du férié s'ajoutait au complément, 90,12 € de trop.
+    result = _brut(
+        _ctx("2025-11-15", jours_feries_anciennete_min_mois=3),
+        _arret(date(2026, 1, 2), date(2026, 1, 31), JANVIER, (date(2026, 1, 1),)),
+        JANVIER,
+    )
+    assert _pertes(result, "Abs. jour férié non payé") == 90.12
+    assert repr(result["salaire_brut_total"]) == "0.0"  # ni -90,12 ni « -0,00 »
+
+
 def test_moins_de_trois_mois_d_anciennete_le_1er_mai_reste_paye():
     result = _brut(
         _ctx("2026-03-16", jours_feries_anciennete_min_mois=3),

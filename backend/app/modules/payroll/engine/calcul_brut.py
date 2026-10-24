@@ -1885,6 +1885,10 @@ def calculer_salaire_brut(
                     heures_abs / lc.DUREE_LEGALE_HEBDO * 5
                 )
                 jours_absence_legale_ferie += heures_abs / lc.DUREE_LEGALE_HEBDO * 5
+                # Mois entièrement absent : la retenue du férié fait partie de
+                # celle du mois. Laissée hors du cumul, elle s'ajoutait au
+                # complément et le mois retenait 7 h de plus que le salaire.
+                montant_absence_pleine_total += montant_deduction
             date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
                 "%d/%m/%y"
             )
@@ -2441,7 +2445,9 @@ def calculer_salaire_brut(
         pass
 
     return {
-        "salaire_brut_total": round(total_brut, 2),
+        # `+ 0.0` : un mois retenu au centime près s'arrondit à -0,0, que le
+        # bulletin imprimerait « -0,00 ».
+        "salaire_brut_total": round(total_brut, 2) + 0.0,
         "lignes_composants_brut": list(lignes_composants_brut),
         "remuneration_brute_heures_supp": round(remuneration_hs_totale, 2),
         "total_heures_supp": round(total_heures_supp_mois, 2),
