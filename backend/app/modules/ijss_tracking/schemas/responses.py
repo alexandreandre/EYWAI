@@ -26,6 +26,12 @@ class IjssDashboardRow(BaseModel):
     validation_source: Optional[str] = None
     applied_to_payslip_at: Optional[str] = None
     applied_ijss_brut: Optional[float] = None
+    # Lu sur le bulletin actuel : la part déduite du maintien (arrêt non subrogé).
+    ijss_deduites: Optional[float] = None
+    ijss_deduites_source: Optional[str] = None
+    nb_jours_maintenus: Optional[int] = None
+    # Montant appliqué qui ne change plus le bulletin (garanti versé en entier).
+    applique_sans_effet: bool = False
 
 
 class IjssUnmatchedReceivedLine(BaseModel):

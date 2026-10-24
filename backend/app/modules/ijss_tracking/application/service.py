@@ -9,6 +9,10 @@ from typing import Any, Dict, List, Optional
 
 from app.core.database import get_supabase_admin_client
 from app.core.logging import get_logger
+from app.modules.ijss_tracking.domain.deduction_affichee import (
+    deduction_du_bulletin,
+    montant_applique_sans_effet,
+)
 from app.modules.ijss_tracking.domain.enums import IJSS_ELIGIBLE_ABSENCE_TYPES
 from app.modules.ijss_tracking.domain.reconciliation import (
     aggregate_line_status,
@@ -141,6 +145,20 @@ def _recompute_period(period: Dict[str, Any]) -> Dict[str, Any]:
     return updated or period
 
 
+def _bulletins_du_mois(company_id: str, year: int, month: int) -> Dict[str, Dict[str, Any]]:
+    """Les bulletins actuels du mois, par salarié : ce que le suivi doit relire."""
+    lignes = (
+        get_supabase_admin_client()
+        .table("payslips")
+        .select("id, employee_id, payslip_data")
+        .eq("company_id", company_id)
+        .eq("year", year)
+        .eq("month", month)
+        .execute()
+    ).data or []
+    return {str(p.get("employee_id") or ""): p for p in lignes}
+
+
 def get_period_dashboard(
     company_id: str, year: int, month: int
 ) -> Dict[str, Any]:
@@ -152,6 +170,7 @@ def get_period_dashboard(
     received = repo.list_received_lines(str(period["id"]))
     employees = _fetch_employees(company_id)
     emp_map = {str(e["id"]): e for e in employees}
+    bulletins = _bulletins_du_mois(company_id, year, month)
 
     rows: List[Dict[str, Any]] = []
     counts = {"ok": 0, "variance": 0, "pending": 0}
@@ -168,6 +187,9 @@ def get_period_dashboard(
             counts["variance"] += 1
         else:
             counts["pending"] += 1
+        bulletin = bulletins.get(emp_id)
+        deduction = deduction_du_bulletin((bulletin or {}).get("payslip_data"))
+        subrogation = bool(exp.get("subrogation_active"))
         rows.append(
             {
                 "expected_line_id": exp.get("id"),
@@ -187,7 +209,14 @@ def get_period_dashboard(
                 "received_cpam": cpam,
                 "received_bank": bank,
                 "line_status": st,
-                "subrogation_active": bool(exp.get("subrogation_active")),
+                "subrogation_active": subrogation,
+                **deduction,
+                "applique_sans_effet": montant_applique_sans_effet(
+                    subrogation_active=subrogation,
+                    applique=bool(exp.get("applied_to_payslip_at")),
+                    bulletin_connu=bulletin is not None,
+                    deduction=deduction,
+                ),
             }
         )
 

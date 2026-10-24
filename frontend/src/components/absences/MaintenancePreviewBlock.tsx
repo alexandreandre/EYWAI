@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { libelleIjssDuDetail, texteDeductionDuPliant } from '@/lib/ijssAffichage';
 import { pluriel } from '@/lib/pluriel';
 import { formatTauxFr } from '@/lib/employeeAbsencesUtils';
 
@@ -160,6 +161,8 @@ function MaintenancePreviewBody({
     mode === "automatic" ||
     mode === "at_mp_only" ||
     mode === "never";
+  // prettier-ignore
+  const texteDeduction = texteDeductionDuPliant(data.subrogation_active, data.deduire_ijss_sans_subrogation);
 
   return (
     <>
@@ -180,7 +183,9 @@ function MaintenancePreviewBody({
         <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           IJSS
         </h4>
-        <p>IJSS estimées : {eur(ijss.ijss_theorique)}</p>
+        <p>
+          {libelleIjssDuDetail(ijss.ijss_brut_override)} : {eur(ijss.ijss_theorique)}
+        </p>
         <p>Taux appliqué : {formatTauxFr(ijss.taux_applique)}</p>
         <p>Jours indemnisés : {ijss.nb_jours_indemnises}</p>
         <p>Salaire journalier de base : {eur(ijss.salaire_journalier_base)}</p>
@@ -236,10 +241,8 @@ function MaintenancePreviewBody({
             ) : (
               <Badge variant="secondary">CPAM verse directement le salarié</Badge>
             )}
-            {subrogationReadOnly ? (
-              <span className="text-xs text-muted-foreground">
-                Déduit du maintien applicable
-              </span>
+            {subrogationReadOnly && texteDeduction ? (
+              <span className="text-xs text-muted-foreground">{texteDeduction}</span>
             ) : null}
           </div>
         )}

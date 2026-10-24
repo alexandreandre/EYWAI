@@ -1233,6 +1233,10 @@ def get_absence_maintenance_preview(
 
     result = dict(result)
     result["subrogation_mode"] = settings_dict.get("subrogation_mode", "when_maintien")
+    # Ce que la société fait des IJSS sans subrogation : le pliant le dit.
+    result["deduire_ijss_sans_subrogation"] = bool(
+        settings_dict.get("deduire_ijss_sans_subrogation", False)
+    )
     # Le moteur éteint la subrogation quand il n'y a rien à avancer (congé
     # parental sans maintien, maintien à zéro). Le badge doit suivre le
     # bulletin, pas la demande calculée avant ce recalcul.

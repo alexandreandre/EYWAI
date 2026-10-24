@@ -322,6 +322,8 @@ export interface MaintenancePreview {
     nb_jours_indemnises: number;
     taux_applique: number;
     salaire_journalier_base: number;
+    /** Vrai quand le montant vient du suivi IJSS (validé), pas de l'estimation. */
+    ijss_brut_override?: boolean;
   };
   maintien: {
     maintien_applicable: boolean;
@@ -354,6 +356,8 @@ export interface MaintenancePreview {
   est_cadre?: boolean;
   /** Renseigné par l’API pour l’UI (paramétrage entreprise). */
   subrogation_mode?: MaintenanceSubrogationMode;
+  /** Réglage société : sans subrogation, déduire les IJSS du maintien ou non. */
+  deduire_ijss_sans_subrogation?: boolean;
   maintien_eligible_seniority?: boolean;
 }
 

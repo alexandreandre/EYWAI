@@ -50,6 +50,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { useToast } from '@/hooks/use-toast';
 import { downloadBlob } from '@/lib/downloadBlob';
+import {
+  libelleIjssDuPanneau,
+  phraseAppliqueSansEffet,
+  phraseDeduitesDuMaintien,
+} from '@/lib/ijssAffichage';
 import { cn } from '@/lib/utils';
 import { IjssUnmatchedReceivedPanel } from '@/features/ijss/components/IjssUnmatchedReceivedPanel';
 import {
@@ -110,6 +115,7 @@ function DetailPanel({
   onClose,
   onJustified,
   periodClosed,
+  onValidated,
   onUpdated,
 }: {
   row: IjssDashboardRow | null;
@@ -117,6 +123,9 @@ function DetailPanel({
   onClose: () => void;
   onJustified: () => void;
   periodClosed: boolean;
+  /** Après « Valider le brut CPAM » : la fiche reste ouverte. */
+  onValidated: () => void;
+  /** Après « Appliquer sur le bulletin » : la fiche se ferme. */
   onUpdated: () => void;
 }) {
   const { toast } = useToast();
@@ -139,7 +148,7 @@ function DetailPanel({
     },
     onSuccess: () => {
       toast({ title: 'Montant brut validé' });
-      onUpdated();
+      onValidated();
     },
     onError: (e: Error) => toast({ variant: 'destructive', title: e.message }),
   });
@@ -167,9 +176,12 @@ function DetailPanel({
             <dd className="font-medium tabular-nums">{eur(row.ijss_theorique)}</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-muted-foreground">IJSS bulletin (subrogées)</dt>
+            <dt className="text-muted-foreground">{libelleIjssDuPanneau(row.subrogation_active)}</dt>
             <dd className="font-medium tabular-nums">{eur(row.ijss_subrogees_bulletin)}</dd>
           </div>
+          {phraseDeduitesDuMaintien(row, eur) ? (
+            <div className="font-medium">{phraseDeduitesDuMaintien(row, eur)}</div>
+          ) : null}
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Décompte CPAM</dt>
             <dd className="font-medium tabular-nums">{eur(row.received_cpam)}</dd>
@@ -193,6 +205,11 @@ function DetailPanel({
             </div>
           ) : null}
         </dl>
+        {row.applique_sans_effet ? (
+          <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
+            {phraseAppliqueSansEffet()}
+          </p>
+        ) : null}
         {!periodClosed && row.expected_line_id && (
           <div className="mt-6 space-y-3">
             <div className="space-y-2">
@@ -582,11 +599,20 @@ export default function SuiviIJSSPage() {
       </Card>
 
       <DetailPanel
-        row={selectedRow}
+        row={
+          selectedRow
+            ? (rows.find(
+                (r) =>
+                  (r.expected_line_id ?? r.employee_id) ===
+                  (selectedRow.expected_line_id ?? selectedRow.employee_id),
+              ) ?? selectedRow)
+            : null
+        }
         open={Boolean(selectedRow)}
         onClose={() => setSelectedRow(null)}
         onJustified={invalidate}
         periodClosed={periodClosed}
+        onValidated={invalidate}
         onUpdated={() => {
           invalidate();
           setSelectedRow(null);

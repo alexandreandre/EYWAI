@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { libelleIjssDuDetail } from '@/lib/ijssAffichage';
 import { pluriel } from '@/lib/pluriel';
 
 function alertBannerClass(text: string): string {
@@ -88,7 +89,9 @@ export function MaintenanceDetailModal({
             <p>Salaire journalier de base : {eur(ijss.salaire_journalier_base)}</p>
             <p>Taux IJSS appliqué : {formatTauxFr(ijss.taux_applique)}</p>
             <p>Nombre de jours indemnisés : {ijss.nb_jours_indemnises}</p>
-            <p>IJSS estimées : {eur(ijss.ijss_theorique)}</p>
+            <p>
+              {libelleIjssDuDetail(ijss.ijss_brut_override)} : {eur(ijss.ijss_theorique)}
+            </p>
           </section>
 
           <section className="space-y-2">

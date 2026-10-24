@@ -29,6 +29,12 @@ export interface IjssDashboardRow {
   validation_source?: string | null;
   applied_to_payslip_at?: string | null;
   applied_ijss_brut?: number | null;
+  /** Part déduite du maintien, lue sur le bulletin actuel (arrêt non subrogé). */
+  ijss_deduites?: number | null;
+  ijss_deduites_source?: string | null;
+  nb_jours_maintenus?: number | null;
+  /** Montant appliqué qui ne change plus le bulletin (garanti versé en entier). */
+  applique_sans_effet?: boolean;
 }
 
 export interface IjssPeriodDashboard {
