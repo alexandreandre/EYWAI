@@ -32,3 +32,11 @@ export function reglageDepuisChoixIjss(valeur: string): boolean | null {
   const choix = CHOIX_IJSS_SANS_SUBROGATION.find((c) => c.valeur === valeur);
   return choix ? choix.deduire : null;
 }
+
+/** Le choix affiché n'est pas celui qui est enregistré. */
+export function choixIjssModifie(
+  form: { deduire_ijss_sans_subrogation: boolean },
+  enregistre: { deduire_ijss_sans_subrogation: boolean } | undefined,
+): boolean {
+  return Boolean(enregistre) && form.deduire_ijss_sans_subrogation !== enregistre?.deduire_ijss_sans_subrogation;
+}

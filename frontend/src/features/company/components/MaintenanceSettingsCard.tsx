@@ -35,6 +35,7 @@ import {
   AIDE_IJSS_SANS_SUBROGATION,
   CHOIX_IJSS_SANS_SUBROGATION,
   choixIjssDepuisReglage,
+  choixIjssModifie,
   reglageDepuisChoixIjss,
 } from './ijssSansSubrogation';
 
@@ -435,6 +436,21 @@ export default function MaintenanceSettingsCard() {
                 ))}
               </RadioGroup>
               <p className="text-sm text-muted-foreground">{AIDE_IJSS_SANS_SUBROGATION}</p>
+              {!readOnly && choixIjssModifie(form, data) ? (
+                <div className="flex flex-wrap items-center gap-3" role="status">
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                    Choix modifié, pas encore enregistré.
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSave}
+                    disabled={mutation.isPending}
+                  >
+                    {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+                  </Button>
+                </div>
+              ) : null}
             </div>
             <div className="grid gap-2 max-w-xs">
               <Label htmlFor="provident_relay_days">Relais prévoyance (jours, optionnel)</Label>
