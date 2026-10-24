@@ -618,46 +618,73 @@ def create_reconciliation_absence(
         .eq("status", "validated")
         .execute()
     )
+    deja_couverts: set[str] = set()
+    premiere_qui_recouvre: dict | None = None
     for row in existing.data or []:
         existing_days = set(row.get("selected_days") or [])
         if existing_days == set(days_iso):
             return row
+        if premiere_qui_recouvre is None and existing_days & set(days_iso):
+            premiere_qui_recouvre = row
+        deja_couverts |= existing_days
 
-    db_data: dict[str, Any] = {
-        "employee_id": employee_id,
-        "company_id": company_id,
-        "type": absence_type,
-        "status": "validated",
-        "workflow_step": "approved_rh",
-        "selected_days": days_iso,
-        "comment": comment or "Import DSN historique",
-    }
-    if arret_type:
-        db_data["arret_type"] = arret_type
+    # Un arrêt de plus d'un mois est redéclaré dans chaque DSN, et une
+    # prolongation garde son dernier jour travaillé : seuls les jours qui
+    # manquent sont créés, une demande par suite de jours contigus.
+    morceaux = _jours_contigus(sorted(set(days_iso) - deja_couverts))
+    if not morceaux:
+        return premiere_qui_recouvre or {}
 
-    try:
-        created = absence_repository.create(db_data)
-    except Exception as exc:
-        if "processus de sortie" in str(exc).lower():
-            return {
-                "skipped": True,
-                "reason": "exit_in_progress",
-                "employee_id": employee_id,
-            }
-        raise
+    created: dict = {}
+    for jours in morceaux:
+        db_data: dict[str, Any] = {
+            "employee_id": employee_id,
+            "company_id": company_id,
+            "type": absence_type,
+            "status": "validated",
+            "workflow_step": "approved_rh",
+            "selected_days": jours,
+            "comment": comment or "Import DSN historique",
+        }
+        if arret_type:
+            db_data["arret_type"] = arret_type
 
-    try:
-        days_to_update = [date.fromisoformat(d) for d in days_iso]
-        calendar_update_provider.update_calendar_from_days(
-            employee_id,
-            days_to_update,
-            absence_type,
-            arret_type=arret_type,
-        )
-    except Exception:
-        logger.exception("Sync calendrier absence DSN échouée pour %s", created.get("id"))
+        try:
+            created = absence_repository.create(db_data)
+        except Exception as exc:
+            if "processus de sortie" in str(exc).lower():
+                return {
+                    "skipped": True,
+                    "reason": "exit_in_progress",
+                    "employee_id": employee_id,
+                }
+            raise
+
+        try:
+            days_to_update = [date.fromisoformat(d) for d in jours]
+            calendar_update_provider.update_calendar_from_days(
+                employee_id,
+                days_to_update,
+                absence_type,
+                arret_type=arret_type,
+            )
+        except Exception:
+            logger.exception("Sync calendrier absence DSN échouée pour %s", created.get("id"))
 
     return created
+
+
+def _jours_contigus(jours: list[str]) -> list[list[str]]:
+    """Les jours ISO triés, coupés là où un jour manque."""
+    morceaux: list[list[str]] = []
+    precedent: date | None = None
+    for jour in jours:
+        courant = date.fromisoformat(jour)
+        if precedent is None or (courant - precedent).days != 1:
+            morceaux.append([])
+        morceaux[-1].append(jour)
+        precedent = courant
+    return morceaux
 
 
 # --- Saisie RH directe au calendrier (« une saisie RH enregistre un fait ») ---
