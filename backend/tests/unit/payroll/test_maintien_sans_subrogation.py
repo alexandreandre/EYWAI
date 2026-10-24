@@ -201,14 +201,13 @@ def test_jours_ouvres_jamais_avec_maintien_legal_les_week_ends_comptent():
     )
 
 
-def test_caracterisation_avec_subrogation_carence_payee_seule():
-    """Hors champ (conception § 6) : ce que fait AUJOURD'HUI le chemin subrogé.
+def test_avec_subrogation_la_carence_payee_seule_est_payee():
+    """Le chemin subrogé suit la même règle (Alexandre, 24/10/2026).
 
-    La subrogation retire toutes les IJSS de l'arrêt du maintien, sans plancher :
-    sur la seule carence payée, le versé devient négatif, la ligne de maintien
-    n'est pas posée et les 310,78 € de carence ne sont pas payés. Le réglage n'y
-    change rien. Test de caractérisation : à revoir avec Alexandre, pas un
-    comportement voulu.
+    Les trois jours payés sont ceux de la carence de la caisse : la CPAM n'y
+    verse rien, il n'y a rien à déduire. Les 310,78 € sont versés ; avant, toutes
+    les IJSS de l'arrêt étaient retirées et le versé tombait à −560,91 €. Le
+    réglage de la déduction sans subrogation n'y change rien.
     """
     subroge = {**PLASTURGIE, "subrogation_mode": "when_maintien"}
     for reglages in (subroge, {**subroge, CLE: True}):
@@ -216,7 +215,8 @@ def test_caracterisation_avec_subrogation_carence_payee_seule():
         assert r["subrogation_active"] is True
         assert r["maintien"]["maintien_cible"] == pytest.approx(310.78, abs=0.01)
         assert r["ijss"]["ijss_theorique"] == pytest.approx(871.69, abs=0.01)
-        assert r["maintien"]["maintien_verse"] == pytest.approx(-560.91, abs=0.01)
+        assert r["maintien"]["maintien_verse"] == pytest.approx(310.78, abs=0.01)
+        assert "ijss_deduites" not in r["maintien"]
 
 
 # --- Congés de parentalité maintenus ----------------------------------------

@@ -790,6 +790,41 @@ def _verse_sans_subrogation(
     return verse, {CLE_IJSS_DEDUITES: deduites, CLE_SOURCE: source}
 
 
+def _verse_avec_subrogation(
+    maintien_cible: float,
+    arret: Dict[str, Any],
+    jours_maintenus: set,
+    ijss: Dict[str, Any],
+    ijss_par_jour: Optional[Dict[date, float]],
+    releve_du_mois: Optional[ReleveIjss],
+) -> float:
+    """Le maintien versé avec subrogation : le garanti moins les IJSS des jours maintenus.
+
+    L'employeur reçoit de la CPAM les IJSS de tout l'arrêt et les reverse au
+    salarié (« IJSS subrogées » au bulletin). Sur les jours qu'il maintient,
+    elles font partie du garanti : il n'en verse que le complément, plancher à 0
+    (D1226-5). Celles des jours qu'il ne maintient pas (carence employeur, J4 à
+    J7 en maintien légal) ne se déduisent jamais : le salarié les reçoit en plus
+    du garanti. Même règle, et même prorata d'un montant validé, que sans
+    subrogation.
+
+    Reconstitution d'un bulletin Cegid (saisie « IJSS override » : maintien en
+    jours ouvrés, IJSS hors bulletin) : le montant saisi est la retenue relevée
+    sur ce bulletin (absence à 100 % moins maintien), pas les IJSS de l'arrêt.
+    Il se déduit en entier, comme avant.
+    """
+    ijss_arret = float(ijss.get("ijss_theorique") or 0.0)
+    reconstitution = bool(arret.get("maintien_base_ouvree")) and bool(
+        ijss.get("ijss_brut_override")
+    )
+    if ijss_par_jour is None or reconstitution:
+        return maintien_cible - ijss_arret
+    retenues, _source = _ijss_des_jours_maintenus(
+        jours_maintenus, ijss, ijss_par_jour, releve_du_mois
+    )
+    return max(0.0, maintien_cible - round(retenues, 2))
+
+
 def _calculer_maintien_employeur(
     arret: Dict[str, Any],
     qualification: Dict[str, Any],
@@ -1065,7 +1100,9 @@ def _calculer_maintien_employeur(
     subrogation_active = bool(arret.get("subrogation_active"))
     deduction: Dict[str, Any] = {}
     if subrogation_active:
-        maintien_verse = maintien_cible - float(ijss.get("ijss_theorique") or 0.0)
+        maintien_verse = _verse_avec_subrogation(
+            maintien_cible, arret, jours_maintenus, ijss, ijss_par_jour, releve_du_mois
+        )
     else:
         maintien_verse, deduction = _verse_sans_subrogation(
             maintien_cible, settings, jours_maintenus, ijss, ijss_par_jour, releve_du_mois

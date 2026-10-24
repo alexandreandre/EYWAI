@@ -113,9 +113,13 @@ class TestCalculerMaintienScenarios:
         assert r["ijss"]["nb_jours_indemnises"] > 0
         assert r["maintien"]["maintien_applicable"] is True
         assert r["subrogation_active"] is True
+        # IJSS du 04 au 15 (12 j), maintien du 08 au 15 (8 j) : seules les IJSS
+        # des jours maintenus se déduisent, celles du 04 au 07 restent au salarié.
+        ijss_maintenus = r["ijss"]["ijss_theorique"] * 8 / 12
         assert r["maintien"]["maintien_verse"] == pytest.approx(
-            r["maintien"]["maintien_cible"] - r["ijss"]["ijss_theorique"], rel=1e-2, abs=0.05
+            r["maintien"]["maintien_cible"] - ijss_maintenus, abs=0.01
         )
+        assert r["maintien"]["maintien_verse"] == pytest.approx(262.95, abs=0.01)
 
     def test_at_subrogation_carence_ss_zero(self):
         p_debut, p_fin = date(2025, 6, 1), date(2025, 7, 31)
