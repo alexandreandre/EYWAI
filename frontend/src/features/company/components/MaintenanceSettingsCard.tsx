@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  getBaremesMaintien,
   getMaintenanceSettings,
   saveMaintenanceSettings,
+  type BaremeLisible,
   type MaintenanceSettings,
   type MaintenanceSettingsUpdate,
 } from '@/api/maintenanceSettings';
@@ -38,6 +40,72 @@ import {
   choixIjssModifie,
   reglageDepuisChoixIjss,
 } from './ijssSansSubrogation';
+import {
+  AIDE_BAREME,
+  CHOIX_BAREME,
+  TEXTE_LEGAL_SOUS_BAREME,
+  TEXTE_STATUT_CADRE,
+  baremeModifie,
+  champVisible,
+  choixBaremeDepuisReglage,
+  reglageDepuisChoixBareme,
+  texteRegleParLeBareme,
+} from './baremeConvention';
+
+/** Le tableau du barème choisi, en lecture seule : ce que le moteur applique. */
+function TableauDuBareme({ bareme }: { bareme: BaremeLisible }) {
+  return (
+    <div className="space-y-4 rounded-lg border p-4" data-testid="tableau-bareme">
+      {bareme.categories.map((categorie) => (
+        <div key={categorie.titre} className="space-y-2">
+          <p className="font-medium">{categorie.titre}</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-muted-foreground">
+                  <th className="py-1 pr-4 font-normal">Ancienneté au début de l’arrêt</th>
+                  <th className="py-1 pr-4 font-normal">Paliers</th>
+                  <th className="py-1 font-normal">Limite par arrêt et par année civile</th>
+                </tr>
+              </thead>
+              <tbody>
+                {categorie.lignes.map((ligne) => (
+                  <tr key={ligne.anciennete} className="border-t">
+                    <td className="py-1 pr-4">{ligne.anciennete}</td>
+                    <td className="py-1 pr-4">{ligne.paliers}</td>
+                    <td className="py-1">{ligne.limite}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {categorie.notes.map((note) => (
+            <p key={note} className="text-sm text-muted-foreground">
+              {note}
+            </p>
+          ))}
+        </div>
+      ))}
+      <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+        {bareme.regles.map((regle) => (
+          <li key={regle}>{regle}</li>
+        ))}
+        <li>{TEXTE_STATUT_CADRE}</li>
+      </ul>
+      <p className="text-sm">
+        Textes :{' '}
+        {bareme.sources.map((source, i) => (
+          <span key={source.url}>
+            {i > 0 ? ' ; ' : null}
+            <a className="underline" href={source.url} target="_blank" rel="noreferrer">
+              {source.titre}
+            </a>
+          </span>
+        ))}
+      </p>
+    </div>
+  );
+}
 
 function toUpdatePayload(form: MaintenanceSettings): MaintenanceSettingsUpdate {
   return {
@@ -45,12 +113,10 @@ function toUpdatePayload(form: MaintenanceSettings): MaintenanceSettingsUpdate {
     min_seniority_months: form.min_seniority_months,
     min_seniority_months_at_mp: form.min_seniority_months_at_mp,
     employer_waiting_days: form.employer_waiting_days,
-    seniority_extension_enabled: form.seniority_extension_enabled,
     remove_employer_waiting: form.remove_employer_waiting,
     annual_unique_waiting: form.annual_unique_waiting,
     maintain_100_percent: form.maintain_100_percent,
     differentiated_at_illness: form.differentiated_at_illness,
-    maintain_by_category: form.maintain_by_category,
     no_seniority_condition: form.no_seniority_condition,
     custom_duration_days: form.custom_duration_days,
     subrogation_mode: form.subrogation_mode,
@@ -62,6 +128,7 @@ function toUpdatePayload(form: MaintenanceSettings): MaintenanceSettingsUpdate {
     maintain_working_days: form.maintain_working_days,
     maintain_parental_leave: form.maintain_parental_leave,
     deduire_ijss_sans_subrogation: form.deduire_ijss_sans_subrogation,
+    bareme_convention: form.bareme_convention ?? null,
   };
 }
 
@@ -78,6 +145,13 @@ export default function MaintenanceSettingsCard() {
     queryKey: ['maintenance-settings', activeCompanyId],
     queryFn: getMaintenanceSettings,
     enabled: Boolean(activeCompanyId),
+  });
+
+  const { data: baremes } = useQuery({
+    queryKey: ['maintenance-settings-baremes'],
+    queryFn: getBaremesMaintien,
+    enabled: Boolean(activeCompanyId),
+    staleTime: Infinity,
   });
 
   const [form, setForm] = useState<MaintenanceSettings | null>(null);
@@ -146,6 +220,13 @@ export default function MaintenanceSettingsCard() {
     );
   }
 
+  const baremeChoisi = baremes?.find((b) => b.code === form.bareme_convention) ?? null;
+  const libelleBareme =
+    baremeChoisi?.libelle ??
+    CHOIX_BAREME.find((c) => c.code === form.bareme_convention)?.libelle ??
+    '';
+  const visible = (cle: keyof MaintenanceSettings) => champVisible(cle, form);
+
   const setNum = (key: keyof MaintenanceSettings, raw: string, optional = false) => {
     if (raw === '' && optional) {
       setForm((prev) => (prev ? { ...prev, [key]: null } : prev));
@@ -201,6 +282,13 @@ export default function MaintenanceSettingsCard() {
           </TabsList>
 
           <TabsContent value="legal" className="mt-4 space-y-6">
+            {form.bareme_convention ? (
+              <div className="rounded-lg border p-4 text-sm" role="note">
+                <p className="font-medium">{texteRegleParLeBareme(libelleBareme)}</p>
+                <p className="text-muted-foreground">{TEXTE_LEGAL_SOUS_BAREME}</p>
+              </div>
+            ) : null}
+            {visible('apply_legal_maintenance') ? (
             <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
               <div>
                 <Label htmlFor="apply_legal_maintenance">Appliquer le maintien légal</Label>
@@ -215,6 +303,8 @@ export default function MaintenanceSettingsCard() {
                 disabled={readOnly}
               />
             </div>
+            ) : null}
+            {visible('min_seniority_months') ? (
             <div className="grid gap-2 max-w-xs">
               <Label htmlFor="min_seniority_months">Ancienneté minimale maladie (mois)</Label>
               <Input
@@ -227,6 +317,8 @@ export default function MaintenanceSettingsCard() {
                 disabled={readOnly}
               />
             </div>
+            ) : null}
+            {visible('min_seniority_months_at_mp') ? (
             <div className="grid gap-2 max-w-xs">
               <Label htmlFor="min_seniority_months_at_mp">Ancienneté minimale AT/MP (mois)</Label>
               <Input
@@ -239,6 +331,8 @@ export default function MaintenanceSettingsCard() {
                 disabled={readOnly}
               />
             </div>
+            ) : null}
+            {visible('employer_waiting_days') ? (
             <div className="grid gap-2 max-w-xs">
               <Label htmlFor="employer_waiting_days">Délai de carence employeur (jours)</Label>
               <Input
@@ -251,31 +345,72 @@ export default function MaintenanceSettingsCard() {
                 disabled={readOnly || form.remove_employer_waiting}
               />
             </div>
-            <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
-              <div>
-                <Label htmlFor="seniority_extension_enabled">Prolongation selon ancienneté</Label>
-                <p className="text-sm text-muted-foreground">Allongement des droits lié à l’ancienneté.</p>
-              </div>
-              <Switch
-                id="seniority_extension_enabled"
-                checked={form.seniority_extension_enabled}
-                onCheckedChange={(v) =>
-                  setForm((p) => (p ? { ...p, seniority_extension_enabled: v } : p))
-                }
-                disabled={readOnly}
-              />
-            </div>
+            ) : null}
           </TabsContent>
 
           <TabsContent value="convention" className="mt-4 space-y-4">
-            {[
-              ['remove_employer_waiting', 'Supprimer la carence employeur'] as const,
-              ['annual_unique_waiting', 'Carence annuelle unique'] as const,
-              ['maintain_100_percent', 'Maintien à 100 %'] as const,
-              ['differentiated_at_illness', 'Différenciation selon pathologie'] as const,
-              ['maintain_by_category', 'Maintien par catégorie'] as const,
-              ['no_seniority_condition', 'Sans condition d’ancienneté'] as const,
-            ].map(([key, label]) => (
+            <div className="grid gap-2 max-w-md">
+              <Label id="bareme_convention">Barème de la convention</Label>
+              <Select
+                value={choixBaremeDepuisReglage(form.bareme_convention)}
+                onValueChange={(v) => {
+                  const code = reglageDepuisChoixBareme(v);
+                  if (code === undefined) return;
+                  setForm((p) => (p ? { ...p, bareme_convention: code } : p));
+                }}
+                disabled={readOnly}
+              >
+                <SelectTrigger aria-labelledby="bareme_convention">
+                  <SelectValue placeholder="Choisir" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CHOIX_BAREME.map((choix) => (
+                    <SelectItem key={choix.valeur} value={choix.valeur}>
+                      {choix.libelle}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">{AIDE_BAREME}</p>
+              {!readOnly && baremeModifie(form, data) ? (
+                <div className="flex flex-wrap items-center gap-3" role="status">
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                    Barème modifié, pas encore enregistré.
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSave}
+                    disabled={mutation.isPending}
+                  >
+                    {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+            {form.bareme_convention ? (
+              baremeChoisi ? (
+                <TableauDuBareme bareme={baremeChoisi} />
+              ) : (
+                <p className="text-sm text-muted-foreground" role="status">
+                  Chargement du barème…
+                </p>
+              )
+            ) : null}
+            {form.bareme_convention ? (
+              <p className="text-sm font-medium">{texteRegleParLeBareme(libelleBareme)}</p>
+            ) : null}
+            {(
+              [
+                ['remove_employer_waiting', 'Supprimer la carence employeur'],
+                ['annual_unique_waiting', 'Carence annuelle unique'],
+                ['maintain_100_percent', 'Maintien à 100 %'],
+                ['differentiated_at_illness', 'Différenciation selon pathologie'],
+                ['no_seniority_condition', 'Sans condition d’ancienneté'],
+              ] as const
+            )
+              .filter(([key]) => visible(key))
+              .map(([key, label]) => (
               <div
                 key={key}
                 className="flex items-center justify-between gap-4 rounded-lg border p-4"
@@ -300,6 +435,7 @@ export default function MaintenanceSettingsCard() {
               />
               </div>
             ))}
+            {visible('paid_waiting_days_per_year') ? (
             <div className="rounded-lg border p-4 space-y-3">
               <div>
                 <Label htmlFor="paid_waiting_days_per_year">Carence payée par an (jours)</Label>
@@ -337,6 +473,7 @@ export default function MaintenanceSettingsCard() {
                 </div>
               </div>
             </div>
+            ) : null}
             <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
               <div>
                 <Label htmlFor="maintain_working_days">Maintien en jours ouvrés</Label>
@@ -375,6 +512,7 @@ export default function MaintenanceSettingsCard() {
                 disabled={readOnly}
               />
             </div>
+            {visible('custom_duration_days') ? (
             <div className="grid gap-2 max-w-xs">
               <Label htmlFor="custom_duration_days">Durée personnalisée (jours, optionnel)</Label>
               <Input
@@ -387,6 +525,7 @@ export default function MaintenanceSettingsCard() {
                 placeholder="—"
               />
             </div>
+            ) : null}
           </TabsContent>
 
           <TabsContent value="prevoyance" className="mt-4 space-y-6">
