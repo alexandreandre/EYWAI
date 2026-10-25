@@ -20,9 +20,9 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-#: `EYWAI_DATA` pointe vers le `data/` du dépôt principal quand on lance depuis un
+#: `MARTINE_DATA` pointe vers le `data/` du dépôt principal quand on lance depuis un
 #: worktree, qui n'en a pas (gitignoré).
-RACINE_DATA = Path(os.environ.get("EYWAI_DATA") or Path(__file__).resolve().parents[3] / "data")
+RACINE_DATA = Path(os.environ.get("MARTINE_DATA") or Path(__file__).resolve().parents[3] / "data")
 
 NOMBRE = re.compile(r"-?\d+\.\d{2,4}")
 #: `[A-Z0-9]+`, pas `[A-Z]+` : des matricules suffixés d'un chiffre (contrats
