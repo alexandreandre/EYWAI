@@ -176,3 +176,31 @@ def test_les_conges_d_une_fiche_restee_sur_l_ancien_contrat_ne_sont_pas_repris()
     assert raison and "31/05/2026" in raison and "Nouveau contrat" in raison
     assert fiche_hors_du_contrat({"contract_end_date": None}, b) is None
     assert fiche_hors_du_contrat({"contract_end_date": "2026-12-18"}, b) is None
+
+
+# ---------------------------------------------------------------------------
+# Une embauche au nom en deux mots retrouve sa fiche au solde d'ouverture
+# ---------------------------------------------------------------------------
+
+
+def test_le_solde_retrouve_la_fiche_d_un_matricule_coupe_au_premier_blanc():
+    """Quadra imprime « Matricule : MARTIN DUVAL » ; le lecteur s'arrête au blanc et lit
+    « MARTIN ». L'import apparie par préfixe : le solde doit faire de même, sinon il
+    compte la fiche comme absente et refuse d'écrire."""
+    from scripts.reprise_colorplast_solde_ouverture import fiches_des_matricules
+
+    deux_mots = {"id": "a", "last_name": "MARTIN DUVAL"}
+    un_mot = {"id": "b", "last_name": "DURAND"}
+    par_nom = {"MARTINDUVAL": deux_mots, "DURAND": un_mot}
+    assert fiches_des_matricules(par_nom, ["MARTIN", "DURAND", "INCONNU"]) == {
+        "MARTIN": deux_mots,
+        "DURAND": un_mot,
+    }
+
+
+def test_un_prefixe_qui_designe_deux_fiches_ne_designe_personne():
+    from scripts.reprise_colorplast_solde_ouverture import fiches_des_matricules
+
+    par_nom = {"MARTINDUVAL": {"id": "a"}, "MARTINEAU": {"id": "b"}}
+    assert fiches_des_matricules(par_nom, ["MARTIN"]) == {}
+    assert fiches_des_matricules(par_nom, ["MARTINEAU"]) == {"MARTINEAU": {"id": "b"}}

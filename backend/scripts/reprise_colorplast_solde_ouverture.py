@@ -194,6 +194,20 @@ def _fiches_par_nom(admin) -> dict[str, dict]:
     return {str(e["last_name"]).upper().replace(" ", "").replace("-", ""): e for e in lignes}
 
 
+def fiches_des_matricules(par_nom: dict[str, dict], matricules) -> dict[str, dict]:
+    """La fiche de chaque matricule Quadra, appariée comme à l'import des bulletins.
+
+    Le matricule lu s'arrête au premier blanc (« MARTIN DUVAL » se lit « MARTIN ») et Quadra
+    le coupe à dix caractères : un nom à deux mots ne retrouvait pas sa fiche, le
+    solde le comptait sans fiche et refusait d'écrire, alors que l'import, qui
+    tolère le préfixe, avait écrit son bulletin. Un préfixe qui désigne plusieurs
+    fiches ne désigne personne.
+    """
+    from scripts.reprise_colorplast_import_litteral import _fiche_du_matricule
+
+    return {nom: fiche for nom in matricules if (fiche := _fiche_du_matricule(par_nom, nom))}
+
+
 def _simuler_les_conges(soldes: dict, fiches: dict, bascule: int) -> list[str]:
     """Les congés affichés après la reprise, simulée sans rien écrire, contre Quadra."""
     from scripts.reprise_colorplast_import_litteral import etiquette
@@ -231,7 +245,7 @@ def main(appliquer: bool, bascule: int = BASCULE_PAR_DEFAUT, sans_fiche: int = 0
     lus = {m: lire_bulletins(ANNEE, m) for m in mois_repris}
     soldes = construire_le_solde(lus, bascule)
     admin = get_supabase_admin_client()
-    fiches = _fiches_par_nom(admin)
+    fiches = fiches_des_matricules(_fiches_par_nom(admin), soldes)
 
     print(f"Reprise Colorplast au {bascule:02d}/{ANNEE} — "
           f"{len(soldes)} salariés présents au mois de bascule\n")
