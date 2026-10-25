@@ -29,10 +29,21 @@ repris.
 Les salariés sont appariés par numéro de sécurité sociale : Quadra les inscrit
 parfois sous leur nom de naissance.
 
+Un salarié revenu en cours d'année sur sa fiche (même matricule Quadra, nouvelle
+date d'entrée) ouvre avec les cumuls de son seul contrat en cours, comme MARTINE au
+premier mois d'un contrat. Ses congés ne sont repris que si la fiche porte ce
+contrat : sur une fiche encore sortie, le solde se calculerait sur l'ancien contrat
+(rouvrir la fiche par « Nouveau contrat », puis relancer).
+
+La simulation montre les congés qu'affichera MARTINE au mois de bascule après la
+reprise (`apply_cp_solde_import` rejoué en mémoire, scripts/reprise_conges_en_memoire.py).
+
 Usage (depuis backend/) :
     python -m scripts.reprise_comitech                   # simulation, jusqu'à juillet
     python -m scripts.reprise_comitech --jusqu-a 8       # simulation, jusqu'à août
-    python -m scripts.reprise_comitech --apply           # écrit
+    python -m scripts.reprise_comitech --jusqu-a 9 --mois 9           # septembre seul, simulation
+    python -m scripts.reprise_comitech --jusqu-a 9 --mois 9 --apply   # écrit septembre, l'ouverture au 30/09
+                                                                       # et la bascule
 """
 
 from __future__ import annotations
@@ -541,8 +552,57 @@ def base_de_la_reduction(lus: dict[int, dict], bascule: int, matricule: str, cum
             "heures_retrouvees": heures_retrouvees, "raison": raison}
 
 
+def mois_du_contrat_en_cours(lus: dict[int, dict], bascule: int, matricule: str) -> list[int]:
+    """Les mois repris du contrat en cours au mois de bascule, pour ce matricule.
+
+    Quadra garde le même matricule quand un salarié parti revient (Comitech : CDD
+    clos le 31/05, nouveau contrat le 01/09/2026) et imprime son « Entré(e) le » du
+    nouveau contrat, mais continue ses cumuls sur l'année. Un mois antérieur à cette
+    entrée appartient au contrat précédent.
+    """
+    presents = [m for m in sorted(lus) if m <= bascule and matricule in lus[m]]
+    entree = lus[bascule][matricule].infos.get("entree")
+    if not entree:
+        return presents
+    debut = _date_fr(entree)
+    return [m for m in presents if f"{ANNEE:04d}-{m:02d}-31" >= debut]
+
+
+def _somme_du_contrat(lus: dict[int, dict], mois: list[int], matricule: str) -> dict[str, float]:
+    """Les cumuls du seul contrat en cours, additionnés mois par mois.
+
+    Le cumul imprimé couvre l'année, contrat précédent compris : il ne sert pas.
+    Chaque bulletin imprime ses valeurs du mois (brut, net imposable, impôt,
+    heures de la période, heures sup des lignes, net des heures sup exonérées).
+    """
+    total = {"brut_total": 0.0, "net_imposable": 0.0, "impot_preleve_a_la_source": 0.0,
+             "heures_remunerees": 0.0, "heures_supplementaires_remunerees": 0.0,
+             "montant_net_hs_exonerees_cumul": 0.0}
+    for m in mois:
+        b = lus[m][matricule]
+        total["brut_total"] += _brut_du_mois(b)
+        total["net_imposable"] += float(b.net.get("net_imposable") or 0.0)
+        total["impot_preleve_a_la_source"] += float(b.net.get("pas_montant") or 0.0)
+        forfait = heures_reduction_forfait_quadra(b)
+        total["heures_remunerees"] += forfait if forfait is not None else float(b.droite.get("heures_periode") or 0.0)
+        total["heures_supplementaires_remunerees"] += sum(
+            (lg.base or 0.0) * (1 if lg.gain is not None else -1)
+            for lg in b.lignes
+            if re.search(r"H\.?\s*SUPP|HEURES\s+SUPPL", lg.libelle or "", re.IGNORECASE)
+            and (lg.gain is not None or lg.montant_sal is not None)
+        )
+        total["montant_net_hs_exonerees_cumul"] += float(b.net.get("net_hs_exo") or 0.0)
+    return {k: round(v, 2) for k, v in total.items()}
+
+
 def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dict:
-    mois_presents = [m for m in sorted(lus) if m <= bascule and matricule in lus[m]]
+    presents = [m for m in sorted(lus) if m <= bascule and matricule in lus[m]]
+    mois_presents = mois_du_contrat_en_cours(lus, bascule, matricule)
+    nouveau_contrat = mois_presents != presents
+    # Un contrat qui reprend en cours d'année : les autres calculs ne voient que ses mois.
+    lus_du_contrat = (
+        {m: {matricule: lus[m][matricule]} for m in mois_presents} if nouveau_contrat else lus
+    )
     dernier = lus[bascule][matricule]
     reduction_generale = deduction_hs = hs_brut = plafonds = bruts = 0.0
     for m in mois_presents:
@@ -552,18 +612,29 @@ def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dic
         hs_brut += _heures_sup_brut(b)
         plafonds += float(b.droite.get("plafond") or 0.0)
         bruts += _brut_du_mois(b)
-    brut = float(dernier.droite.get("cumul_bruts") or 0.0)
-    net_hs_exo = float(dernier.net.get("net_hs_exo_cumul") or 0.0)
-    tranche_2 = round(max(0.0, brut - plafonds), 2)
-    base_cp, debut_cp, fin_cp = base_du_dixieme(lus, ANNEE, bascule, matricule, _brut_du_mois)
-    solde = {
-        "controle_somme_des_bruts": round(bruts, 2),
-        "cumuls": {
-            "brut_total": brut,
+    if nouveau_contrat:
+        imprimes = _somme_du_contrat(lus, mois_presents, matricule)
+    else:
+        imprimes = {
+            "brut_total": float(dernier.droite.get("cumul_bruts") or 0.0),
             "net_imposable": float(dernier.net.get("net_imposable_cumul") or 0.0),
             "impot_preleve_a_la_source": float(dernier.net.get("pas_cumul") or 0.0),
             "heures_remunerees": _heures_de_la_reduction(lus, mois_presents, matricule, dernier),
             "heures_supplementaires_remunerees": float(dernier.droite.get("cumul_hs") or 0.0),
+            "montant_net_hs_exonerees_cumul": float(dernier.net.get("net_hs_exo_cumul") or 0.0),
+        }
+    brut = imprimes["brut_total"]
+    net_hs_exo = imprimes["montant_net_hs_exonerees_cumul"]
+    tranche_2 = round(max(0.0, brut - plafonds), 2)
+    base_cp, debut_cp, fin_cp = base_du_dixieme(lus_du_contrat, ANNEE, bascule, matricule, _brut_du_mois)
+    solde = {
+        "controle_somme_des_bruts": round(bruts, 2),
+        "cumuls": {
+            "brut_total": brut,
+            "net_imposable": imprimes["net_imposable"],
+            "impot_preleve_a_la_source": imprimes["impot_preleve_a_la_source"],
+            "heures_remunerees": imprimes["heures_remunerees"],
+            "heures_supplementaires_remunerees": imprimes["heures_supplementaires_remunerees"],
             "montant_hs_remunerees": round(hs_brut, 2),
             "montant_net_hs_exonerees_cumul": net_hs_exo,
             "hs_exonerees_ir_cumul": round(net_hs_exo * RATIO_HS_DEFISCALISEES, 2),
@@ -586,9 +657,14 @@ def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dic
             "fait_foi": True,
         },
     }
+    if nouveau_contrat:
+        # Même règle que MARTINE au premier mois d'un contrat (cumuls_precedents_du_contrat) :
+        # la réduction générale, les tranches et le dixième repartent avec le contrat.
+        solde["reprise"]["contrat_en_cours_depuis"] = dernier.infos.get("entree")
+        solde["reprise"]["cumul_brut_imprime_sur_l_annee"] = float(dernier.droite.get("cumul_bruts") or 0.0)
     # Base de la réduction de Quadra (point de départ, heures de SMIC retenues) : les
     # clés vont dans les cumuls écrits ; le détail reste ici, pour être relu.
-    base = base_de_la_reduction(lus, bascule, matricule, solde["cumuls"])
+    base = base_de_la_reduction(lus_du_contrat, bascule, matricule, solde["cumuls"])
     solde["cumuls"].update(base["cles"])
     solde["base_de_la_reduction"] = base
     return solde
@@ -619,29 +695,84 @@ def _date_fr(texte: Any) -> str:
 # ---------------------------------------------------------------------------
 
 
-def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = ()) -> int:
+def fiche_hors_du_contrat(fiche: dict, bulletin) -> str | None:
+    """Pourquoi la fiche ne porte pas le contrat du bulletin, ou None.
+
+    Fiche sortie avant l'entrée imprimée (retour le 01/09 sur une fiche close au
+    31/05) : ses congés se calculeraient sur l'ancien contrat, et ne s'afficheraient
+    plus après la reprise.
+    """
+    entree = bulletin.infos.get("entree")
+    fin = str(fiche.get("contract_end_date") or "")[:10]
+    if entree and fin and fin < _date_fr(entree):
+        return (f"fiche close le {fin[8:10]}/{fin[5:7]}/{fin[:4]}, contrat du bulletin "
+                f"depuis le {entree} : rouvrir la fiche (« Nouveau contrat »), puis relancer")
+    return None
+
+
+def _simuler_les_conges(soldes: dict, bascule: int) -> list[str]:
+    """Les congés affichés après la reprise, simulée sans rien écrire, contre Quadra."""
+    from scripts.reprise_colorplast_import_litteral import etiquette
+    from scripts.reprise_conges_en_memoire import (
+        ajustements_en_memoire,
+        solde_affiche,
+        solde_affiche_apres_reprise,
+    )
+
+    ecarts = []
+    print(f"\n=== Congés au {bascule:02d}/{ANNEE} (N-1 / N) : Quadra, MARTINE avant, MARTINE après la reprise")
+    for v in soldes.values():
+        fiche, b = v["fiche"], v["bulletin"]
+        cp_n1, cp_n = b.cp.get("Solde", (0.0, 0.0))
+        if v.get("conges_non_repris"):
+            print(f"  {etiquette(fiche):14s} Quadra {cp_n1:6.2f} / {cp_n:5.2f}   non repris : {v['conges_non_repris']}")
+            continue
+        with ajustements_en_memoire():
+            avant = solde_affiche(fiche["id"], ANNEE, bascule)
+            apres = solde_affiche_apres_reprise(COMPANY_ID, fiche["id"], ANNEE, bascule, cp_n1, cp_n)
+        if apres is None:
+            verdict = "plus de compteur au mois de bascule (sortie)"
+        elif abs(apres[0] - cp_n1) < 0.005 and abs(apres[1] - cp_n) < 0.005:
+            verdict = "= Quadra"
+        else:
+            verdict = "ÉCART"
+            ecarts.append(etiquette(fiche))
+        print(f"  {etiquette(fiche):14s} Quadra {cp_n1:6.2f} / {cp_n:5.2f}   avant {avant}   après {apres}   {verdict}")
+    return ecarts
+
+
+def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = (), mois_ecrits: tuple[int, ...] | None = None) -> int:
+    from scripts.reprise_colorplast_import_litteral import etiquette
+
     admin = get_supabase_admin_client()
     fiches = admin.table("employees").select(
-        "id, last_name, first_name, nir, statut, job_title, employee_folder_name, employment_status, is_forfait_jour"
+        "id, last_name, first_name, nir, statut, job_title, employee_folder_name, employment_status, "
+        "is_forfait_jour, contract_end_date"
     ).eq("company_id", COMPANY_ID).execute().data
     par_nir = {_nir(f["nir"]): f for f in fiches if f.get("nir")}
     societe = admin.table("companies").select("company_name, siret").eq("id", COMPANY_ID).execute().data[0]
 
     mois_repris = tuple(range(1, jusqu_a + 1))
+    # Les mois dont les bulletins sont (ré)écrits ; tous ceux repris par défaut. Le solde
+    # d'ouverture, lui, se lit toujours sur tous les mois repris.
+    mois_ecrits = tuple(mois_ecrits or mois_repris)
+    if not set(mois_ecrits) <= set(mois_repris):
+        raise SystemExit(f"Mois hors reprise : {sorted(set(mois_ecrits) - set(mois_repris))}")
     lus = {m: lire_bulletins(ANNEE, m, SOCIETE) for m in mois_repris}
     anomalies: list[str] = []
     a_ecrire: list[tuple[int, str, Any, dict]] = []
 
-    for mois in mois_repris:
+    for mois in mois_ecrits:
         print(f"\n=== {mois:02d}/{ANNEE} — {len(lus[mois])} bulletins")
         for mat, b in sorted(lus[mois].items()):
-            if mat in sans:
-                print(f"  {mat:11s} écarté (--sans)")
-                continue
             fiche = par_nir.get(_nir(b.infos.get("nir")))
+            qui = etiquette(fiche, b.infos.get("entree"))
+            if mat in sans:
+                print(f"  {qui:14s} écarté (--sans)")
+                continue
             if not fiche:
-                anomalies.append(f"{mois:02d} {mat} : aucune fiche pour ce numéro de sécurité sociale")
-                print(f"  {mat:11s} !! aucune fiche (NIR)")
+                anomalies.append(f"{mois:02d} {qui} : aucune fiche pour ce numéro de sécurité sociale")
+                print(f"  {qui:14s} !! aucune fiche (NIR)")
                 continue
             donnees = donnees_du_bulletin(b, ANNEE, mois, fiche, societe)
             ecart_brut = lignes_du_brut(b)[1]["ecart_brut"]
@@ -649,7 +780,7 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = ()) -> int:
                                   donnees["retenues_sur_net"])
             sans_effet = [r for r in donnees["retenues_sur_net"] if r.get("sans_effet_sur_le_net")]
             if sans_effet:
-                print(f"  {mat:11s} .. retenue imprimée sans effet sur le net de Quadra : "
+                print(f"  {qui:14s} .. retenue imprimée sans effet sur le net de Quadra : "
                       + ", ".join(f"{r['libelle']} {r['montant']:.2f}" for r in sans_effet))
             total = _ligne_totale(b, "TOTAL DES RETENUES")
             ecart_total = None
@@ -661,10 +792,10 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = ()) -> int:
             etat = "ok"
             if abs(ecart_brut) > TOLERANCE or abs(ecart_net) > TOLERANCE or (ecart_total is not None and abs(ecart_total) > TOLERANCE):
                 etat = f"ÉCART brut {ecart_brut:+.2f} net {ecart_net:+.2f} retenues {ecart_total if ecart_total is not None else 0:+.2f}"
-                anomalies.append(f"{mois:02d} {mat} : {etat}")
+                anomalies.append(f"{mois:02d} {qui} : {etat}")
             cp = b.cp.get("Solde", (0.0, 0.0))
             cpt = donnees["pied_de_page"].get("compteurs_quadra") or {}
-            print(f"  {mat:11s} brut {donnees['salaire_brut']:9.2f} net {donnees['net_a_payer']:9.2f} "
+            print(f"  {qui:14s} brut {donnees['salaire_brut']:9.2f} net {donnees['net_a_payer']:9.2f} "
                   f"CP {cp[0]:5.2f}/{cp[1]:5.2f} {cpt if cpt else ''} [{etat}]")
             a_ecrire.append((mois, mat, b, {"fiche": fiche, "donnees": donnees}))
 
@@ -690,8 +821,8 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = ()) -> int:
             )
             for _, m, b, _ in lignes[1:]:
                 principal[3]["pages"] += list(b.pages)
-            print(f"  {mois:02d} {principal[1]} : bulletin gardé, joint à ses pages "
-                  + ", ".join(f"{a['matricule']} ({a['brut']:.2f} brut, entrée {a['entree']})" for a in autres))
+            print(f"  {mois:02d} {etiquette(principal[3]['fiche'])} : bulletin gardé, joint aux pages "
+                  + ", ".join(f"de l'autre contrat ({a['brut']:.2f} brut, entrée {a['entree']})" for a in autres))
         a_ecrire.append(principal)
 
     bascule = mois_repris[-1]
@@ -706,8 +837,8 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = ()) -> int:
         solde = solde_d_ouverture(lus, bascule, mat)
         ecart = round(solde["controle_somme_des_bruts"] - solde["cumuls"]["brut_total"], 2)
         if abs(ecart) > TOLERANCE:
-            anomalies.append(f"{mat} : somme des bruts {solde['controle_somme_des_bruts']:.2f} contre cumul imprimé "
-                             f"{solde['cumuls']['brut_total']:.2f}")
+            anomalies.append(f"{etiquette(fiche)} : somme des bruts {solde['controle_somme_des_bruts']:.2f} "
+                             f"contre cumul imprimé {solde['cumuls']['brut_total']:.2f}")
         par_fiche.setdefault(fiche["id"], []).append((mat, b, solde, fiche))
     soldes: dict[str, dict] = {}
     for lignes in par_fiche.values():
@@ -715,18 +846,23 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = ()) -> int:
         lignes.sort(key=lambda x: _date_fr(x[1].infos.get("entree")))
         mat, b, _, fiche = lignes[-1]
         solde = solde_du_contrat_qui_continue([(x[1].infos.get("entree"), x[2]) for x in lignes])
+        qui = etiquette(fiche)
         if len(lignes) > 1:
-            print(f"  {mat:11s} contrat en cours depuis le {b.infos.get('entree')} : ses cumuls seuls "
-                  f"(contrat{'s' if len(lignes) > 2 else ''} clos : " + ", ".join(x[0] for x in lignes[:-1]) + ")")
-        soldes[mat] = {"fiche": fiche, "solde": solde, "bulletin": b}
+            print(f"  {qui:14s} contrat en cours depuis le {b.infos.get('entree')} : ses cumuls seuls "
+                  f"({len(lignes) - 1} contrat(s) clos sous un autre matricule)")
+        if solde["reprise"].get("contrat_en_cours_depuis"):
+            print(f"  {qui:14s} revenu le {solde['reprise']['contrat_en_cours_depuis']} : cumuls du contrat en cours "
+                  f"(Quadra imprime {solde['reprise']['cumul_brut_imprime_sur_l_annee']:.2f} de brut sur l'année)")
+        soldes[mat] = {"fiche": fiche, "solde": solde, "bulletin": b,
+                       "conges_non_repris": fiche_hors_du_contrat(fiche, b)}
         c = solde["cumuls"]
-        print(f"  {mat:11s} brut {c['brut_total']:10.2f} heures {c['heures_remunerees']:8.2f} "
+        print(f"  {qui:14s} brut {c['brut_total']:10.2f} heures {c['heures_remunerees']:8.2f} "
               f"HS {c['heures_supplementaires_remunerees']:7.2f} net imp. {c['net_imposable']:10.2f} "
               f"réd. gén. {c['reduction_generale_patronale']:9.2f} "
               f"(écart {round(solde['controle_somme_des_bruts'] - c['brut_total'], 2):+.2f})")
 
     presents = {_nir(v["fiche"]["nir"]) for v in soldes.values()}
-    actifs_sans_bulletin = [f"{f['last_name']} ({f['employment_status']})" for f in fiches
+    actifs_sans_bulletin = [f"{etiquette(f)} ({f['employment_status']})" for f in fiches
                             if (f.get("employment_status") or "actif") in ("actif", "active")
                             and _nir(f.get("nir")) not in presents]
     if actifs_sans_bulletin:
@@ -739,9 +875,12 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = ()) -> int:
         print("Rien n'est écrit tant qu'une anomalie subsiste.")
         return 1
     if not appliquer:
+        ecarts = _simuler_les_conges(soldes, bascule)
+        if ecarts:
+            print("!! Congés qui ne retomberaient pas sur Quadra : " + ", ".join(ecarts))
         print(f"\nSimulation : {len(a_ecrire)} bulletins, {len(soldes)} soldes d'ouverture. "
               "Relancer avec --apply pour écrire.")
-        return 0
+        return 1 if ecarts else 0
 
     # --- Écriture ------------------------------------------------------------
     from app.modules.absences.application.leave_settings_commands import apply_cp_solde_import
@@ -784,6 +923,9 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = ()) -> int:
             admin.table("employee_schedules").insert(
                 {"employee_id": fiche["id"], "company_id": COMPANY_ID, "year": ANNEE, "month": bascule, "cumuls": charge}
             ).execute()
+        if v.get("conges_non_repris"):
+            print(f"  {etiquette(fiche):14s} solde d'ouverture écrit ; congés NON repris : {v['conges_non_repris']}")
+            continue
         cp_n1, cp_n = b.cp.get("Solde", (0.0, 0.0))
         compteurs = lignes_du_brut(b)[1]
         repos_cadre = compteurs.get("solde_repos_cadre")
@@ -796,7 +938,7 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = ()) -> int:
             admin.table("employee_leave_adjustments").update(
                 {"jtc_opening_balance": float(repos_cadre)}
             ).eq("employee_id", fiche["id"]).eq("year", ANNEE).execute()
-        print(f"  {mat:11s} solde d'ouverture et congés écrits"
+        print(f"  {etiquette(fiche):14s} solde d'ouverture et congés écrits"
               + (f", repos cadre {repos_cadre} j" if repos_cadre is not None else ""))
 
     existante = admin.table("company_payroll_takeover").select("company_id").eq("company_id", COMPANY_ID).execute().data
@@ -820,4 +962,9 @@ if __name__ == "__main__":
     sans = ()
     if "--sans" in sys.argv:
         sans = tuple(m.strip().upper() for m in sys.argv[sys.argv.index("--sans") + 1].split(",") if m.strip())
-    raise SystemExit(main("--apply" in sys.argv, jusqu_a, sans))
+    # --mois 9 : n'écrit que les bulletins de ces mois (les autres sont déjà repris) ;
+    # le solde d'ouverture se lit toujours sur tous les mois jusqu'à la bascule.
+    mois_ecrits = None
+    if "--mois" in sys.argv:
+        mois_ecrits = tuple(int(m) for m in sys.argv[sys.argv.index("--mois") + 1].split(","))
+    raise SystemExit(main("--apply" in sys.argv, jusqu_a, sans, mois_ecrits))
