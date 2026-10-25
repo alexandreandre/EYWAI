@@ -1,4 +1,4 @@
-"""Reprise Colorplast : importe littéralement les bulletins de janvier à août 2026.
+"""Reprise Colorplast : importe littéralement les bulletins de 2026, jusqu'au mois de bascule.
 
 Les mois payés dans Quadra ne se reconstruisent pas, ils se copient. L'interface
 affiche le PDF stocké à côté des cumuls, donc la copie la plus fidèle possible
@@ -19,14 +19,29 @@ attestations) : elles sont marquées comme non reprises dans `payslip_data`.
 Chaque bulletin importé porte `origine = 'importe'`. Le verrou de génération, lui,
 vient de la bascule de la société (cf. app/shared/reprise_paie.py).
 
+Chaque bulletin est contrôlé avant écriture, sur le PDF : la somme des lignes du
+brut redonne le brut imprimé, et brut − retenues + sommes versées − impôt le net
+payé (mêmes contrôles que la reprise Comitech). Un bulletin qui ne s'équilibre pas
+n'est pas écrit. La simulation dit aussi l'écart de la structure de cotisations
+reprise (celle du calcul de MARTINE, rassise sur le brut du PDF) avec le PDF : elle
+ne fait pas foi, mais un écart y désigne une différence de paramétrage.
+
+Un bulletin sans calcul de MARTINE à compléter (embauche saisie après coup) est
+bâti entièrement depuis le PDF, comme ceux de Comitech.
+
 Usage :
-    python -m scripts.reprise_colorplast_import_litteral                    # simulation
+    python -m scripts.reprise_colorplast_import_litteral                    # simulation, janvier à août
     python -m scripts.reprise_colorplast_import_litteral --apply            # écrit
     python -m scripts.reprise_colorplast_import_litteral --mois 8 --apply   # un seul mois
+    python -m scripts.reprise_colorplast_import_litteral --bascule 9 --mois 9           # septembre, simulation
+    python -m scripts.reprise_colorplast_import_litteral --bascule 9 --mois 9 --apply   # septembre, écrit
+
+`--bascule M` : dernier mois payé par Quadra (8 par défaut, la bascule du 29/09/2026).
 
 Août a d'abord été calculé par MARTINE (premier mois en parallèle), puis repris de
 Quadra le 29/09/2026 comme les sept mois précédents : le bulletin calculé sert de
-base aux sections non reprises, comme le rejeu pour janvier à juillet.
+base aux sections non reprises, comme le rejeu pour janvier à juillet. Septembre
+suit le même chemin depuis le 24/10/2026 (bascule au 30/09).
 """
 
 from __future__ import annotations
@@ -53,8 +68,21 @@ from scripts.backtest.colorplast_lignes_quadra import (  # noqa: E402
 
 COMPANY_ID = "dbe2b9f5-44dd-41bc-a625-36ed33d160f7"
 ANNEE = 2026
-MOIS_REPRIS = (1, 2, 3, 4, 5, 6, 7, 8)
+#: Dernier mois payé par Quadra avant la bascule du 24/10/2026 (bascule au 31/08).
+BASCULE_PAR_DEFAUT = 8
 SEAU = "payslips"
+#: Écart toléré au contrôle d'équilibre d'un bulletin, comme pour Comitech.
+TOLERANCE = 0.011
+
+
+def mois_repris(bascule: int = BASCULE_PAR_DEFAUT) -> tuple[int, ...]:
+    """Les mois repris de Quadra : de janvier au mois de bascule compris."""
+    if not 1 <= bascule <= 12:
+        raise ValueError(f"Mois de bascule invalide : {bascule}")
+    return tuple(range(1, bascule + 1))
+
+
+MOIS_REPRIS = mois_repris()
 #: La période de congés ouvre le 1er juin chez Colorplast (company_leave_settings).
 DEBUT_PERIODE_CP = 6
 
@@ -83,7 +111,7 @@ def _cle(nom: str) -> str:
 def _fiches(admin) -> dict[str, dict]:
     lignes = (
         admin.table("employees")
-        .select("id, last_name, first_name, employee_folder_name")
+        .select("id, last_name, first_name, employee_folder_name, job_title, statut")
         .eq("company_id", COMPANY_ID)
         .execute()
         .data
@@ -593,10 +621,70 @@ def _donnees_reprises(existantes: dict | None, bulletin, annee: int, mois: int) 
     return donnees
 
 
-def main(appliquer: bool, mois_choisis: tuple[int, ...] = MOIS_REPRIS) -> int:
+def etiquette(fiche: dict | None, entree: str | None = None) -> str:
+    """Comment désigner un salarié dans la sortie : ses initiales et le début de
+    l'identifiant de sa fiche, jamais son nom (le journal se partage)."""
+    if not fiche:
+        return f"sans fiche (entré le {entree or '?'})"
+    initiales = "".join(f"{str(fiche.get(c) or '?')[:1].upper()}." for c in ("first_name", "last_name"))
+    return f"{initiales} {str(fiche.get('id') or '')[:8]}"
+
+
+def controle_du_pdf(bulletin) -> dict[str, float]:
+    """Le bulletin du PDF s'équilibre-t-il ? Écarts du brut et du net, au centime.
+
+    Brut : lignes du brut (sous-totaux exclus) contre « SALAIRE BRUT ». Net : brut −
+    retenues + sommes versées − impôt contre le net payé imprimé (même contrôle que
+    la reprise Comitech, qui lit le même format Quadra).
+    """
+    from scripts.reprise_comitech import (
+        apres_le_net,
+        equilibre,
+        structure_des_cotisations,
+    )
+
+    lignes = [lg for lg in _lignes_du_brut(bulletin) if not lg.get("is_sous_total")]
+    somme = round(sum((lg.get("gain") or 0.0) - (lg.get("perte") or 0.0) for lg in lignes), 2)
+    structure = structure_des_cotisations(bulletin)
+    versees, retenues = apres_le_net(bulletin)
+    return {
+        "brut": round(somme - _brut_du_mois(bulletin), 2),
+        "net": equilibre(bulletin, structure, versees, retenues),
+        "total_salarial": structure["total_salarial"],
+    }
+
+
+def _donnees_sans_calcul(bulletin, annee: int, mois: int, fiche: dict, societe: dict) -> dict:
+    """Le `payslip_data` d'un bulletin que MARTINE n'a jamais calculé : tout du PDF.
+
+    Sans calcul à compléter, la copie hybride n'aurait ni cotisations ni synthèse.
+    On bâtit donc le bulletin comme ceux de Comitech (même format Quadra), avec les
+    lignes du brut de Colorplast (sous-totaux marqués, entête des congés retirée).
+    """
+    from scripts.reprise_comitech import donnees_du_bulletin
+
+    donnees = donnees_du_bulletin(bulletin, annee, mois, fiche, societe)
+    donnees["calcul_du_brut"] = _lignes_du_brut(bulletin)
+    donnees["reprise"]["source"] = f"data/colorplast/bulletins/{annee:04d}-{mois:02d}"
+    donnees["reprise"]["sections_copiees_du_pdf"] = ["tout le bulletin"]
+    return donnees
+
+
+def main(
+    appliquer: bool,
+    mois_choisis: tuple[int, ...] = MOIS_REPRIS,
+    bascule: int = BASCULE_PAR_DEFAUT,
+) -> int:
+    hors = sorted(set(mois_choisis) - set(mois_repris(bascule)))
+    if hors:
+        raise SystemExit(f"Mois hors reprise (bascule au {bascule:02d}/{ANNEE}) : {hors}")
     admin = get_supabase_admin_client()
     fiches = _fiches(admin)
-    total, crees, manquants = 0, 0, []
+    societe = (
+        admin.table("companies").select("company_name, siret").eq("id", COMPANY_ID).execute().data
+        or [{}]
+    )[0]
+    total, crees, manquants, anomalies, ecarts_structure = 0, 0, [], [], []
 
     for mois in mois_choisis:
         pdf = pdf_du_mois(ANNEE, mois)
@@ -605,15 +693,17 @@ def main(appliquer: bool, mois_choisis: tuple[int, ...] = MOIS_REPRIS) -> int:
         for nom, bulletin in sorted(bulletins.items()):
             fiche = _fiche_du_matricule(fiches, nom)
             if not fiche:
-                manquants.append(f"{nom} {mois:02d}/{ANNEE}")
-                print(f"  {nom:12s} !! aucune fiche unique dans la base, ignoré")
+                qui = etiquette(None, bulletin.infos.get("entree"))
+                manquants.append(f"{qui} {mois:02d}/{ANNEE}")
+                print(f"  {qui:24s} !! aucune fiche unique dans la base, ignoré")
                 continue
+            qui = etiquette(fiche)
             brut = _brut_du_mois(bulletin)
             net = bulletin.net.get("net_a_payer")
             pages = ",".join(str(p) for p in bulletin.pages)
             existant = (
                 admin.table("payslips")
-                .select("id, payslip_data, pdf_storage_path")
+                .select("id, payslip_data, pdf_storage_path, origine")
                 .eq("employee_id", fiche["id"])
                 .eq("year", ANNEE)
                 .eq("month", mois)
@@ -621,16 +711,32 @@ def main(appliquer: bool, mois_choisis: tuple[int, ...] = MOIS_REPRIS) -> int:
                 .execute()
                 .data
             )
-            etat = "remplace" if existant else "CRÉE"
+            etat = f"remplace un bulletin {existant[0].get('origine') or 'calcule'}" if existant else "CRÉE"
+            controle = controle_du_pdf(bulletin)
+            if existant:
+                donnees = _donnees_reprises(existant[0].get("payslip_data"), bulletin, ANNEE, mois)
+            else:
+                donnees = _donnees_sans_calcul(bulletin, ANNEE, mois, fiche, societe)
+            equilibre_ok = abs(controle["brut"]) <= TOLERANCE and abs(controle["net"]) <= TOLERANCE
+            if not equilibre_ok:
+                anomalies.append(f"{qui} {mois:02d} : brut {controle['brut']:+.2f}, net {controle['net']:+.2f}")
+            ecart_structure = round(
+                float((donnees.get("structure_cotisations") or {}).get("total_salarial") or 0.0)
+                - controle["total_salarial"],
+                2,
+            )
+            if abs(ecart_structure) > TOLERANCE:
+                ecarts_structure.append(f"{qui} {mois:02d} {ecart_structure:+.2f}")
             solde_n1, solde_n = bulletin.cp.get("Solde", (0.0, 0.0))
             print(
-                f"  {nom:12s} pages {pages:7s} brut {brut:9.2f} net {net or 0:9.2f}"
-                f"  CP N-1 {solde_n1:6.2f}  N {solde_n:5.2f}  [{etat}]"
+                f"  {qui:24s} pages {pages:7s} brut {brut:9.2f} net {net or 0:9.2f}"
+                f"  CP N-1 {solde_n1:6.2f}  N {solde_n:5.2f}"
+                f"  équilibre {'ok' if equilibre_ok else 'ÉCART'}  [{etat}]"
             )
             total += 1
             if not existant:
                 crees += 1
-            if not appliquer:
+            if not appliquer or not equilibre_ok:
                 continue
 
             nom_pdf = f"Bulletin_{fiche['employee_folder_name']}_{mois:02d}-{ANNEE}.pdf"
@@ -643,13 +749,6 @@ def main(appliquer: bool, mois_choisis: tuple[int, ...] = MOIS_REPRIS) -> int:
             url = supabase.storage.from_(SEAU).create_signed_url(
                 chemin, 3600, options={"download": True}
             )["signedURL"]
-
-            donnees = _donnees_reprises(
-                existant[0].get("payslip_data") if existant else None,
-                bulletin,
-                ANNEE,
-                mois,
-            )
             charge = {
                 "employee_id": fiche["id"],
                 "company_id": COMPANY_ID,
@@ -668,15 +767,28 @@ def main(appliquer: bool, mois_choisis: tuple[int, ...] = MOIS_REPRIS) -> int:
     print(f"\n{total} bulletins, dont {crees} à créer.")
     if manquants:
         print("Sans fiche en base : " + ", ".join(manquants))
+    if ecarts_structure:
+        print("Structure de cotisations reprise du calcul de MARTINE, écart avec le PDF "
+              "(part salariale, ne fait pas foi) : " + ", ".join(ecarts_structure))
+    if anomalies:
+        print(f"{len(anomalies)} bulletin(s) qui ne s'équilibrent pas, non écrits : " + "; ".join(anomalies))
     if not appliquer:
         print("Simulation. Relancer avec --apply pour importer.")
-    return 0
+    return 1 if anomalies else 0
+
+
+def _arguments(argv: list[str]) -> tuple[bool, tuple[int, ...], int]:
+    bascule = BASCULE_PAR_DEFAUT
+    if "--bascule" in argv:
+        bascule = int(argv[argv.index("--bascule") + 1])
+    choisis = mois_repris(bascule)
+    if "--mois" in argv:
+        choisis = tuple(int(m) for m in argv[argv.index("--mois") + 1].split(","))
+        if not set(choisis) <= set(mois_repris(bascule)):
+            raise SystemExit(f"Mois hors reprise : {choisis}")
+    return "--apply" in argv, choisis, bascule
 
 
 if __name__ == "__main__":
-    choisis = MOIS_REPRIS
-    if "--mois" in sys.argv:
-        choisis = tuple(int(m) for m in sys.argv[sys.argv.index("--mois") + 1].split(","))
-        if not set(choisis) <= set(MOIS_REPRIS):
-            raise SystemExit(f"Mois hors reprise : {choisis}")
-    raise SystemExit(main("--apply" in sys.argv, choisis))
+    appliquer, choisis, bascule = _arguments(sys.argv)
+    raise SystemExit(main(appliquer, choisis, bascule))

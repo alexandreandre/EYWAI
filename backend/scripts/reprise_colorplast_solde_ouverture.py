@@ -1,4 +1,4 @@
-"""Reprise Colorplast : écrit le solde d'ouverture au 31 août 2026 lu chez Quadra.
+"""Reprise Colorplast : écrit le solde d'ouverture au mois de bascule, lu chez Quadra.
 
 Le passé appartient à Quadra. Ce script ne recalcule rien : il lit les bulletins
 PDF de Gaëlle ligne à ligne, agrège les mois repris, contrôle l'agrégat contre le
@@ -14,11 +14,23 @@ absorbe les absences validées jusqu'à cette date : ranger des doublons d'avant
 la bascule se fait donc avant ce script, jamais après.
 
 Bascule au 31/07 le 21/09/2026, puis au 31/08 le 29/09/2026 : août est payé par
-Quadra comme les mois précédents, septembre est le premier mois MARTINE.
+Quadra comme les mois précédents. Le 24/10/2026, septembre aussi (bascule au 30/09,
+`--bascule 9`) : octobre est le premier mois MARTINE.
+
+La simulation montre aussi les congés qu'affichera MARTINE au mois de bascule une
+fois la reprise faite : `apply_cp_solde_import` est rejoué avec ses écritures
+gardées en mémoire (scripts/reprise_conges_en_memoire.py), et le solde affiché
+comparé à celui que Quadra imprime.
+
+Une embauche du mois de bascule que personne n'a encore créée dans MARTINE n'a pas
+de fiche : `--sans-fiche N` accepte exactement N bulletins sans fiche, laissés de
+côté (rien n'est écrit pour eux ; relancer une fois leur fiche créée).
 
 Usage :
-    python -m scripts.reprise_colorplast_solde_ouverture            # simulation
-    python -m scripts.reprise_colorplast_solde_ouverture --apply    # écrit
+    python -m scripts.reprise_colorplast_solde_ouverture                    # simulation, bascule au 31/08
+    python -m scripts.reprise_colorplast_solde_ouverture --apply            # écrit
+    python -m scripts.reprise_colorplast_solde_ouverture --bascule 9 --sans-fiche 2          # 30/09, simulation
+    python -m scripts.reprise_colorplast_solde_ouverture --bascule 9 --sans-fiche 2 --apply  # 30/09, écrit
 """
 
 from __future__ import annotations
@@ -43,8 +55,10 @@ from scripts.backtest.colorplast_lignes_quadra import lire_bulletins  # noqa: E4
 
 COMPANY_ID = "dbe2b9f5-44dd-41bc-a625-36ed33d160f7"
 ANNEE = 2026
-MOIS_REPRIS = (1, 2, 3, 4, 5, 6, 7, 8)
-BASCULE = (2026, 8)
+#: Dernier mois payé par Quadra avant la bascule du 24/10/2026 (bascule au 31/08).
+BASCULE_PAR_DEFAUT = 8
+MOIS_REPRIS = tuple(range(1, BASCULE_PAR_DEFAUT + 1))
+BASCULE = (ANNEE, BASCULE_PAR_DEFAUT)
 
 #: Deux libellés chez Quadra pour les heures sup : les structurelles et les réelles.
 EST_HEURE_SUP = re.compile(r"H\.?\s*SUPP|HEURES\s+SUPPL", re.I)
@@ -116,12 +130,14 @@ def base_du_dixieme(lus: dict[int, dict], annee: int, bascule: int, cle: str, br
     return round(sum(brut_du_mois(lus[m][cle]) for m in mois), 2), debut, fin
 
 
-def construire_le_solde(lus: dict[int, dict]) -> dict[str, dict[str, Any]]:
+def construire_le_solde(
+    lus: dict[int, dict], mois_bascule: int = BASCULE_PAR_DEFAUT
+) -> dict[str, dict[str, Any]]:
     """Un solde d'ouverture par salarié présent au mois de bascule."""
     soldes: dict[str, dict[str, Any]] = {}
-    mois_bascule = BASCULE[1]
+    mois_repris = tuple(range(1, mois_bascule + 1))
     for nom, dernier in sorted(lus[mois_bascule].items()):
-        mois_presents = [m for m in MOIS_REPRIS if nom in lus.get(m, {})]
+        mois_presents = [m for m in mois_repris if nom in lus.get(m, {})]
         reduction_generale = deduction_hs = hs_brut = plafonds = 0.0
         bruts_mensuels = 0.0
         for m in mois_presents:
@@ -170,49 +186,89 @@ def construire_le_solde(lus: dict[int, dict]) -> dict[str, dict[str, Any]]:
     return soldes
 
 
-def _fiches_par_nom(admin) -> dict[str, str]:
+def _fiches_par_nom(admin) -> dict[str, dict]:
     lignes = (
-        admin.table("employees").select("id, last_name").eq("company_id", COMPANY_ID).execute().data
+        admin.table("employees").select("id, last_name, first_name")
+        .eq("company_id", COMPANY_ID).execute().data
     )
-    return {str(e["last_name"]).upper().replace(" ", "").replace("-", ""): e["id"] for e in lignes}
+    return {str(e["last_name"]).upper().replace(" ", "").replace("-", ""): e for e in lignes}
 
 
-def main(appliquer: bool) -> int:
-    lus = {m: lire_bulletins(ANNEE, m) for m in MOIS_REPRIS}
-    soldes = construire_le_solde(lus)
+def _simuler_les_conges(soldes: dict, fiches: dict, bascule: int) -> list[str]:
+    """Les congés affichés après la reprise, simulée sans rien écrire, contre Quadra."""
+    from scripts.reprise_colorplast_import_litteral import etiquette
+    from scripts.reprise_conges_en_memoire import (
+        ajustements_en_memoire,
+        solde_affiche,
+        solde_affiche_apres_reprise,
+    )
+
+    ecarts = []
+    print(f"\nCongés au {bascule:02d}/{ANNEE} (N-1 / N) : Quadra, MARTINE avant, MARTINE après la reprise")
+    for nom, solde in soldes.items():
+        fiche = fiches.get(nom)
+        if not fiche:
+            continue
+        quadra = (solde["conges"]["cp_n1"], solde["conges"]["cp_n"])
+        with ajustements_en_memoire():
+            avant = solde_affiche(fiche["id"], ANNEE, bascule)
+            apres = solde_affiche_apres_reprise(COMPANY_ID, fiche["id"], ANNEE, bascule, *quadra)
+        if apres is None:
+            verdict = "plus de compteur au mois de bascule (sortie)"
+        elif all(abs(a - q) < 0.005 for a, q in zip(apres, quadra)):
+            verdict = "= Quadra"
+        else:
+            verdict = "ÉCART"
+            ecarts.append(etiquette(fiche))
+        print(f"  {etiquette(fiche):14s} Quadra {quadra[0]:6.2f} / {quadra[1]:5.2f}   avant {avant}   après {apres}   {verdict}")
+    return ecarts
+
+
+def main(appliquer: bool, bascule: int = BASCULE_PAR_DEFAUT, sans_fiche: int = 0) -> int:
+    from scripts.reprise_colorplast_import_litteral import etiquette
+
+    mois_repris = tuple(range(1, bascule + 1))
+    lus = {m: lire_bulletins(ANNEE, m) for m in mois_repris}
+    soldes = construire_le_solde(lus, bascule)
     admin = get_supabase_admin_client()
     fiches = _fiches_par_nom(admin)
 
-    print(f"Reprise Colorplast au {BASCULE[1]:02d}/{BASCULE[0]} — "
+    print(f"Reprise Colorplast au {bascule:02d}/{ANNEE} — "
           f"{len(soldes)} salariés présents au mois de bascule\n")
 
     anomalies = 0
+    ignores = []
     for nom, solde in soldes.items():
+        qui = etiquette(fiches.get(nom), lus[bascule][nom].infos.get("entree"))
         ecart = round(solde["controle_somme_des_bruts"] - solde["cumuls"]["brut_total"], 2)
         if abs(ecart) >= 0.01:
-            print(f"!! {nom} : somme des bruts mensuels {solde['controle_somme_des_bruts']:.2f} "
+            print(f"!! {qui} : somme des bruts mensuels {solde['controle_somme_des_bruts']:.2f} "
                   f"contre brut cumulé imprimé {solde['cumuls']['brut_total']:.2f} "
                   f"(écart {ecart:+.2f}) — lecture à revoir avant écriture")
             anomalies += 1
         if nom not in fiches:
-            print(f"!! {nom} : aucune fiche dans la base")
-            anomalies += 1
+            ignores.append(qui)
+    if len(ignores) != sans_fiche:
+        print(f"!! {len(ignores)} bulletin(s) du mois de bascule sans fiche, {sans_fiche} attendu(s) "
+              f"(--sans-fiche) : " + ", ".join(ignores))
+        anomalies += 1
+    elif ignores:
+        print("Sans fiche, laissés de côté (relancer une fois la fiche créée) : " + ", ".join(ignores))
+    soldes_ecrits = {nom: s for nom, s in soldes.items() if nom in fiches}
 
     cles = ["brut_total", "heures_remunerees", "net_imposable", "impot_preleve_a_la_source",
             "reduction_generale_patronale", "cumul_pss_agirc_arrco", "hs_exonerees_ir_cumul"]
     entetes = ["brut", "heures", "net imp.", "PAS", "réd. gén.", "plafond", "HS exo IR"]
-    print(f"{'Salarié':11s} " + " ".join(f"{e:>11s}" for e in entetes))
-    for nom, solde in soldes.items():
+    print(f"{'Salarié':14s} " + " ".join(f"{e:>11s}" for e in entetes))
+    for nom, solde in soldes_ecrits.items():
         vals = [solde["cumuls"][c] for c in cles]
-        print(f"{nom:11s} " + " ".join(f"{v:11.2f}" for v in vals))
+        print(f"{etiquette(fiches[nom]):14s} " + " ".join(f"{v:11.2f}" for v in vals))
 
-    print("\nComparaison avec nos compteurs actuels (nous − Quadra) :")
-    for nom, solde in soldes.items():
-        eid = fiches.get(nom)
-        if not eid:
-            continue
+    print("\nComparaison avec nos compteurs actuels du mois de bascule (nous − Quadra) :")
+    for nom, solde in soldes_ecrits.items():
+        eid = fiches[nom]["id"]
         ligne = (admin.table("employee_schedules").select("cumuls")
-                 .eq("employee_id", eid).eq("year", BASCULE[0]).eq("month", BASCULE[1])
+                 .eq("employee_id", eid).eq("year", ANNEE).eq("month", bascule)
                  .limit(1).execute().data)
         nos = ((ligne or [{}])[0].get("cumuls") or {}).get("cumuls") or {}
         diffs = []
@@ -221,55 +277,63 @@ def main(appliquer: bool) -> int:
                 d = round(float(nos[c]) - solde["cumuls"][c], 2)
                 if abs(d) >= 0.01:
                     diffs.append(f"{c} {d:+.2f}")
-        print(f"  {nom:11s} " + ("; ".join(diffs) if diffs else "aligné"))
+        print(f"  {etiquette(fiches[nom]):14s} " + ("; ".join(diffs) if diffs else ("aligné" if nos else "aucun cumul")))
 
     if anomalies:
         print(f"\n{anomalies} anomalie(s) : rien n'est écrit.")
         return 1
     if not appliquer:
-        print("\nCongés imprimés au mois de bascule (N-1 / N) :")
-        for nom, solde in soldes.items():
-            print(f"  {nom:11s} {solde['conges']['cp_n1']:6.2f} / {solde['conges']['cp_n']:6.2f}")
+        ecarts = _simuler_les_conges(soldes_ecrits, fiches, bascule)
+        if ecarts:
+            print("!! Congés qui ne retomberaient pas sur Quadra : " + ", ".join(ecarts))
         print(f"\nSimulation. Relancer avec --apply pour écrire le solde, reprendre les "
-              f"congés et poser la bascule au {BASCULE[1]:02d}/{BASCULE[0]}.")
-        return 0
+              f"congés et poser la bascule au {bascule:02d}/{ANNEE}.")
+        return 1 if ecarts else 0
 
-    for nom, solde in soldes.items():
-        eid = fiches[nom]
+    fin_du_mois = date(ANNEE, bascule, monthrange(ANNEE, bascule)[1])
+    for nom, solde in soldes_ecrits.items():
+        eid = fiches[nom]["id"]
         charge = {"cumuls": solde["cumuls"], "periode": solde["periode"],
                   "reprise": solde["reprise"]}
         existe = (admin.table("employee_schedules").select("id")
-                  .eq("employee_id", eid).eq("year", BASCULE[0]).eq("month", BASCULE[1])
+                  .eq("employee_id", eid).eq("year", ANNEE).eq("month", bascule)
                   .limit(1).execute().data)
         if existe:
             admin.table("employee_schedules").update({"cumuls": charge}) \
                 .eq("id", existe[0]["id"]).execute()
         else:
             admin.table("employee_schedules").insert(
-                {"employee_id": eid, "year": BASCULE[0], "month": BASCULE[1], "cumuls": charge}
+                {"employee_id": eid, "company_id": COMPANY_ID, "year": ANNEE, "month": bascule,
+                 "cumuls": charge}
             ).execute()
         apply_cp_solde_import(
-            COMPANY_ID, eid, BASCULE[0],
+            COMPANY_ID, eid, ANNEE,
             cp_n1_solde=solde["conges"]["cp_n1"], cp_n_solde=solde["conges"]["cp_n"],
-            rtt_solde=0.0, month=BASCULE[1],
-            note=f"Reprise Quadra au {date(BASCULE[0], BASCULE[1], monthrange(*BASCULE)[1]):%d/%m/%Y} "
-                 f"(bascule de la société) : soldes du bulletin de {BASCULE[1]:02d}/{BASCULE[0]}, "
+            rtt_solde=0.0, month=bascule,
+            note=f"Reprise Quadra au {fin_du_mois:%d/%m/%Y} "
+                 f"(bascule de la société) : soldes du bulletin de {bascule:02d}/{ANNEE}, "
                  f"N-1 {solde['conges']['cp_n1']:.2f} / N {solde['conges']['cp_n']:.2f}",
         )
-        print(f"  {nom:11s} solde d'ouverture et congés écrits")
+        print(f"  {etiquette(fiches[nom]):14s} solde d'ouverture et congés écrits")
 
-    ligne = {"company_id": COMPANY_ID, "cutoff_year": BASCULE[0], "cutoff_month": BASCULE[1],
+    ligne = {"company_id": COMPANY_ID, "cutoff_year": ANNEE, "cutoff_month": bascule,
              "source": "bulletins", "previous_software": "Quadra",
-             "note": f"Reprise Colorplast : Gaëlle a payé janvier à {BASCULE[1]:02d}/{BASCULE[0]} dans "
+             "note": f"Reprise Colorplast : Gaëlle a payé janvier à {bascule:02d}/{ANNEE} dans "
                      f"Quadra. Bulletins et compteurs repris littéralement des PDF ; la paie MARTINE "
                      f"commence le mois suivant (bascule posée le {date.today():%d/%m/%Y})."}
     if admin.table("company_payroll_takeover").select("id").eq("company_id", COMPANY_ID).execute().data:
         admin.table("company_payroll_takeover").update(ligne).eq("company_id", COMPANY_ID).execute()
     else:
         admin.table("company_payroll_takeover").insert(ligne).execute()
-    print(f"\nBascule de la société posée au {BASCULE[1]:02d}/{BASCULE[0]}.")
+    print(f"\nBascule de la société posée au {bascule:02d}/{ANNEE}.")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main("--apply" in sys.argv))
+    _bascule = BASCULE_PAR_DEFAUT
+    if "--bascule" in sys.argv:
+        _bascule = int(sys.argv[sys.argv.index("--bascule") + 1])
+    _sans_fiche = 0
+    if "--sans-fiche" in sys.argv:
+        _sans_fiche = int(sys.argv[sys.argv.index("--sans-fiche") + 1])
+    raise SystemExit(main("--apply" in sys.argv, _bascule, _sans_fiche))
