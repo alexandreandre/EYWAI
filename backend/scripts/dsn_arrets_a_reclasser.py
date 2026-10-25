@@ -1,4 +1,4 @@
-"""Rattrapage, LECTURE SEULE : ce que deviendraient les absences rangées à tort par l'import DSN.
+"""Rattrapage des absences rangées à tort par l'import DSN : lecture seule, ou écriture avec --ecrire.
 
 L'ancien import lisait le bloc S21.G00.60 (arrêt de travail) comme une
 « suspension » : tout arrêt devenait un congé « sans solde », du dernier jour
@@ -18,12 +18,18 @@ on relit `data/<société>/dsn/AAAA-MM.dsn` avec le nouvel import.
 
 Pour chaque demande importée : le bloc d'origine, ce qu'elle deviendrait (type,
 type d'arrêt, dates), et les doublons avec les absences déjà saisies (reprise
-Quadra, saisie RH). Sortie en initiales. AUCUNE écriture : piège posé avant
-l'import de l'application, vérifié à la fin.
+Quadra, saisie RH). Sortie en initiales. Sans --ecrire, AUCUNE écriture : piège
+posé avant l'import de l'application, vérifié à la fin.
+
+Avec --ecrire (accord d'Alexandre du 24/10) : chaque arrêt du bloc 60 sans
+doublon remplace les demandes importées à tort (annulées, puis l'arrêt est créé
+par create_reconciliation_absence) ; chaque faux arrêt d'un jour du bloc 41 est
+annulé. Rien n'est écrit pour un salarié sorti, un arrêt qui recouvre une absence
+saisie ou reprise, une source introuvable, ni pour les blocs 65 jamais importés.
 
 Usage (depuis backend/) :
     PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. python -B scripts/dsn_arrets_a_reclasser.py \
-        [--data /chemin/data] [--env /chemin/backend/.env] [--json sortie.json] \
+        [--data /chemin/data] [--env /chemin/backend/.env] [--json sortie.json] [--ecrire] \
         colorplast comitech mbc cartol lewis
 """
 
@@ -47,6 +53,9 @@ IMPORT_DSN = "Import DSN historique"
 #: Types d'absence qui sont des arrêts de travail (attestation, IJSS).
 ARRETS = {"arret_maladie", "arret_at", "arret_maladie_pro", "arret_maternite", "arret_paternite"}
 FICHIER_DU_LOT = re.compile(r"_(\d{2})(\d{2})_")
+#: Compte qui signe les absences corrigées (Alexandre), comme scripts/reprise_arrets_quadra.py.
+AUTEUR = "8300cc71-87a7-4d3f-8aef-8393de0ebc4f"
+SORTIS = ("parti", "en_sortie")
 
 
 def _racine_principale() -> Optional[Path]:
@@ -133,7 +142,7 @@ def analyser(societe: str, data: Path, sb) -> Dict[str, Any]:
 
     employes = _tout(
         sb.table("employees")
-        .select("id, first_name, last_name, nir, hire_date, seniority_reference_date, specificites_paie")
+        .select("id, first_name, last_name, nir, hire_date, seniority_reference_date, specificites_paie, employment_status")
         .eq("company_id", company_id)
     )
     par_nir = {nir_match_key(e.get("nir")): e for e in employes if e.get("nir")}
@@ -193,6 +202,7 @@ def analyser(societe: str, data: Path, sb) -> Dict[str, Any]:
                 compteurs["salarie_sans_fiche"] += 1
             continue
         ini = _initiales(emp)
+        sorti = (emp.get("employment_status") or "actif").lower() in SORTIS
         siennes = par_employe.get(str(emp["id"]), [])
         importees = [a for a in siennes if _origine(a) == "import DSN" and a["status"] == "validated"]
         annulees = [a for a in siennes if _origine(a) == "import DSN" and a["status"] == "cancelled"]
@@ -216,7 +226,12 @@ def analyser(societe: str, data: Path, sb) -> Dict[str, Any]:
                 if a["id"] not in expliquees and _jours(a)
                 and ((_jours(a)[0], _jours(a)[-1]) in anciennes_bornes or set(_jours(a)) & jours_nouveaux)
             ]
-            if not remplacees:
+            # Une demande importée peut couvrir deux arrêts : déjà prise par le
+            # premier, elle sera annulée, et le second doit quand même être créé.
+            deja_prises = [
+                a for a in importees if a["id"] in expliquees and set(_jours(a)) & jours_nouveaux
+            ]
+            if not remplacees and not deja_prises:
                 continue
             expliquees |= {a["id"] for a in remplacees}
             deja_juste = any(
@@ -242,6 +257,15 @@ def analyser(societe: str, data: Path, sb) -> Dict[str, Any]:
                 "remplace": [f"{a['type']} {_bornes(_jours(a))}" for a in remplacees],
                 "trace": sorted({f"{t['bloc']} {','.join(t['fichiers'])}" for t in trace_lue if t}),
                 "deja_juste": deja_juste,
+                "action": None if deja_juste or doublons or sorti else {
+                    "employee_id": emp["id"], "company_id": company_id,
+                    "annuler": [a["id"] for a in remplacees],
+                    "creer": {
+                        "absence_type": nouveau["absence_type"], "arret_type": nouveau["arret_type"],
+                        "selected_days": sorted(jours_nouveaux),
+                        "comment": f"Import DSN corrigé : bloc S21.G00.60, motif {nouveau['motif_dsn']}",
+                    },
+                },
                 "doublons": [
                     f"{a['type']}{'/' + a['arret_type'] if a.get('arret_type') else ''} {_bornes(_jours(a))} ({_origine(a)})"
                     for a in doublons
@@ -264,6 +288,9 @@ def analyser(societe: str, data: Path, sb) -> Dict[str, Any]:
                     "remplace": [f"{a['type']} {_bornes(j)}"],
                     "trace": [f"{t['bloc']} {','.join(t['fichiers'])}"] if t else [],
                     "deja_juste": False, "doublons": [],
+                    "action": None if sorti else {
+                        "employee_id": emp["id"], "company_id": company_id, "annuler": [a["id"]], "creer": None,
+                    },
                 })
 
         # 3. Ce qui reste importé sans source retrouvée.
@@ -323,6 +350,7 @@ def main() -> int:
     parser.add_argument("--data", type=Path)
     parser.add_argument("--env", type=Path)
     parser.add_argument("--json", type=Path)
+    parser.add_argument("--ecrire", action="store_true", help="applique les corrections (accord d'Alexandre)")
     args = parser.parse_args()
 
     principale = _racine_principale()
@@ -336,7 +364,8 @@ def main() -> int:
     from dotenv import load_dotenv
 
     load_dotenv(env)
-    piege.poser_le_piege()  # avant tout import de l'application
+    if not args.ecrire:
+        piege.poser_le_piege()  # avant tout import de l'application
     from app.core.database import get_supabase_admin_client
 
     sb = get_supabase_admin_client()
@@ -360,12 +389,54 @@ def main() -> int:
         if r["anciennete_prise_sur_une_suspension"]:
             print("   ancienneté prise sur une suspension :", "; ".join(r["anciennete_prise_sur_une_suspension"]))
 
-    print("\nécritures piégées :", piege.ECRITURES)
+    if args.ecrire:
+        ecrire(resultats)
+    else:
+        print("\nécritures piégées :", piege.ECRITURES)
     if args.json:
         args.json.write_text(json.dumps(
             {"ecritures_piegees": piege.ECRITURES, "resultats": resultats}, ensure_ascii=False, indent=1
         ))
     return 0 if piege.ECRITURES == [] else 1
+
+
+def ecrire(resultats: List[Dict[str, Any]]) -> None:
+    """Annule les demandes importées à tort, puis crée l'arrêt qui les remplace."""
+    from app.modules.absences.application.commands import (
+        create_reconciliation_absence,
+        update_absence_request_status,
+    )
+    from app.modules.absences.infrastructure.repository import absence_repository
+
+    jour = date.today().strftime("%d/%m/%Y")
+    for r in resultats:
+        annulees = creees = laissees = 0
+        for ligne in r.get("lignes", []):
+            action = ligne.get("action")
+            if not action:
+                laissees += 1
+                continue
+            for absence_id in action["annuler"]:
+                update_absence_request_status(absence_id, "cancelled")
+                absence_repository.update(absence_id, {
+                    "comment": f"{IMPORT_DSN} — annulée le {jour} : {ligne['bloc']} mal lu par l'ancien import"
+                               f" (remplacée par : {ligne['deviendrait']})",
+                })
+                annulees += 1
+            if action["creer"]:
+                c = action["creer"]
+                res = create_reconciliation_absence(
+                    action["employee_id"], action["company_id"], AUTEUR,
+                    absence_type=c["absence_type"], selected_days=c["selected_days"],
+                    arret_type=c["arret_type"], comment=c["comment"], source="dsn_import",
+                )
+                if res.get("skipped"):
+                    print(f"   {ligne['salarie']:6s} création ignorée par la base : {res.get('reason')}")
+                else:
+                    creees += 1
+        print(f"=== {r['societe']} : {annulees} demande(s) annulée(s), {creees} arrêt(s) créé(s),"
+              f" {laissees} ligne(s) laissée(s) telles quelles")
+    print("ÉCRIT")
 
 
 if __name__ == "__main__":
