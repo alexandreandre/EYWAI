@@ -81,3 +81,26 @@ def test_la_paternite_suit_le_meme_calcul():
     assert _ijss([2600.0, 2700.0, 2800.0], arret_type="paternite")["ijss_journaliere"] == (
         pytest.approx(8100.0 / 91.25 * 0.79, abs=1e-4)
     )
+
+
+def _ijss_du(debut, fin, salaires, salaire_base=2500.0, **extra):
+    arret = {
+        "arret_type": "maternite", "date_debut": debut, "date_fin": fin,
+        "subrogation_active": False, "nombre_enfants": 0, "salaire_periode_reelle": 0.0,
+        "salaires_bruts_reference": salaires, **extra,
+    }
+    periode = (date.fromisoformat(debut).replace(day=1), date.fromisoformat(fin))
+    return calculer_maintien(arret, _ctx(salaire_base), dict(REGLAGES), *periode)["ijss"]
+
+
+def test_le_plafond_est_celui_du_dernier_jour_du_mois_qui_precede_l_arret():
+    # Congé du 05/01/2026 : plafond en vigueur le 31/12/2025, 3 925 € (F2265),
+    # et non celui des barèmes de 2026. 3 × 3 925 ÷ 91,25 × 0,79 = 101,94.
+    ijss = _ijss_du("2026-01-05", "2026-01-31", [5000.0, 5000.0, 5000.0])
+    assert round(ijss["ijss_journaliere"], 2) == 101.94
+
+
+def test_l_ij_ne_descend_pas_sous_le_minimum_de_2026():
+    # 3 × 300 ÷ 91,25 × 0,79 = 7,79 : le minimum de 11,12 € s'applique (F2265).
+    ijss = _ijss_du("2026-09-01", "2026-09-30", [300.0, 300.0, 300.0], salaire_base=300.0)
+    assert round(ijss["ijss_journaliere"], 2) == 11.12

@@ -588,8 +588,12 @@ def _calculer_ijss(
         # CSS R331-5 : chaque paie dans la limite du plafond mensuel de la
         # Sécurité sociale, puis le taux forfaitaire de 21 %. Avant le 25/10,
         # le salaire de base ÷ 30,42, plafonné à 1,8 plafond journalier, sans
-        # taux forfaitaire. Le plafond est celui des barèmes du bulletin.
-        pss_mensuel = _extraire_pss_mensuel(pss_data)
+        # taux forfaitaire. Le plafond est celui du dernier jour du mois qui
+        # précède l'arrêt (celui qu'il prolonge, pour une prolongation).
+        reference_plafond = debut_reference.replace(day=1) - timedelta(days=1)
+        pss_mensuel = lc.PSS_MENSUEL_PAR_ANNEE.get(
+            reference_plafond.year
+        ) or _extraire_pss_mensuel(pss_data)
         base_plafonnee = (
             _salaire_journalier_de_base_maladie(arret, salaire_mensuel, pss_mensuel)
             * (1.0 - lc.TAUX_FORFAITAIRE_IJ_MATERNITE)
@@ -620,6 +624,12 @@ def _calculer_ijss(
     )
 
     carence_ss = int(carence.get("carence_ss_jours") or 0)
+    # Minimum de l'IJ de repos (R331-5), à l'année du début du congé.
+    minimum_ij = (
+        lc.IJ_MATERNITE_MINIMUM_PAR_ANNEE.get(debut_reference.year)
+        if est_parentalite and base_plafonnee > 0
+        else None
+    )
 
     # V1 forfait jour : le décompte IJSS repose déjà sur des jours calendaires
     # (boucle jour par jour sur l'intervalle d'arrêt), pas sur des jours ouvrés —
@@ -664,6 +674,8 @@ def _calculer_ijss(
                     ijss_j = min(ijss_j, plafond_j)
                 if is_tp:
                     ijss_j *= quotite
+                if minimum_ij:
+                    ijss_j = max(ijss_j, minimum_ij)
                 if par_jour is not None:
                     par_jour[d] = ijss_j
                 ijss_total += ijss_j
