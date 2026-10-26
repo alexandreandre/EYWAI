@@ -29,6 +29,7 @@ from .salaire_contractuel import (
     taux_horaire_base_hors_hs_structurelles,
 )
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
+from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
 from app.modules.payroll.engine.codes_des_lignes import BLOC_BRUT
 from app.modules.payroll.engine.corrections_manuelles import (
     LignesCorrigees,
@@ -1086,6 +1087,18 @@ def _absence_qui_retient_la_journee(type_ev: str) -> bool:
     )
 
 
+def _absence_de_la_demande_du_ferie(ferie: dict[str, Any]) -> str | None:
+    """Le type de jour de l'absence dont la demande validée couvre ce férié,
+    quand elle retient la journée (un congé sans solde : `absence_non_remuneree`).
+
+    La validation ne retype pas les fériés et ne leur pose aucune borne hors
+    arrêt ; la génération les marque depuis la demande (`source_absence`). Un
+    sans solde du vendredi 1er mai 2026 au 31 mai laissait le 1er mai payé.
+    """
+    type_jour = ABSENCE_TYPE_TO_CALENDAR_TYPE.get(str(ferie.get("source_absence") or ""))
+    return type_jour if type_jour and _absence_qui_retient_la_journee(type_jour) else None
+
+
 def _bornes_de_l_arret(evenement: dict[str, Any]) -> tuple[date, date] | None:
     debut = _parse_date_contrat(evenement.get("date_debut_arret_reel"))
     fin = _parse_date_contrat(evenement.get("date_fin_arret_reel"))
@@ -1161,10 +1174,13 @@ def _feries_payes_d_un_mois_sans_travail(
             continue  # retenu par sa propre ligne, quoi qu'il arrive
         couvrante = next((p for p in periodes if p[0] <= jour <= p[1]), None)
         bornes = _bornes_de_l_arret(ferie)
+        absence_de_la_demande = _absence_de_la_demande_du_ferie(ferie)
         if couvrante is not None:
             dans_une_absence[jour] = couvrante[2]
         elif bornes and bornes[0] <= jour <= bornes[1]:
             dans_une_absence[jour] = {**ferie, "type": "arret_maladie"}
+        elif absence_de_la_demande:
+            dans_une_absence[jour] = {**ferie, "type": absence_de_la_demande}
         else:
             hors_absence.append(jour)
     return hors_absence, dans_une_absence

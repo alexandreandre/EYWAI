@@ -228,3 +228,46 @@ def test_forfait_jours_un_ferie_paye_hors_de_l_arret_reste_paye():
     result = calculer_salaire_brut_forfait(_forfait(), cal, *JANVIER, [])
     assert not any(l.startswith("Absence sur tout le mois") for l in _libelles(result))
     assert result["salaire_brut_total"] > 0
+
+
+# --- Défaut du 24/10 : un congé sans solde qui commence un jour férié --------
+# Congé sans solde du vendredi 1er mai au 31 mai : la demande validée porte
+# le 1er mai, mais la validation ne retype pas les fériés et ne leur pose
+# aucune borne. Le 1er mai se lisait hors de toute absence, restait payé, et
+# le mois n'était pas entier. La génération marque désormais les fériés que
+# la demande couvre (`source_absence`).
+
+
+def _sans_solde_de_mai(marquer_le_1er_mai: bool = True) -> list[dict]:
+    cal = []
+    for jour in _jours(MAI):
+        if jour in FERIES_MAI:
+            ev = {"date_complete": jour.isoformat(), "type": "ferie", "heures": 0.0}
+            if marquer_le_1er_mai or jour != date(2026, 5, 1):
+                ev["source_absence"] = "sans_solde"
+            cal.append(ev)
+        elif jour.weekday() < 5:
+            cal.append({"date_complete": jour.isoformat(), "type": "absence_non_remuneree", "heures": 0})
+    return cal
+
+
+def test_un_conge_sans_solde_qui_commence_le_1er_mai_retient_tout_le_mois():
+    result = _brut(_ctx(), _sans_solde_de_mai(), MAI)
+    assert any(l.startswith(COMPLEMENT) for l in _libelles(result))
+    assert result["salaire_brut_total"] == 0.0
+
+
+def test_un_ferie_hors_de_la_demande_sans_solde_reste_paye():
+    # Même calendrier, le 1er mai hors de la demande : rien ne change.
+    result = _brut(_ctx(), _sans_solde_de_mai(marquer_le_1er_mai=False), MAI)
+    assert not any(l.startswith(COMPLEMENT) for l in _libelles(result))
+    assert result["salaire_brut_total"] == round(2231.48 - 20 * 90.12 - 257.48, 2)
+
+
+def test_forfait_jours_un_conge_sans_solde_qui_commence_le_1er_mai_retient_le_forfait():
+    cal = [
+        {**ev, "heures": 1.0} if ev["type"] == "absence_non_remuneree" else ev
+        for ev in _sans_solde_de_mai()
+    ]
+    result = calculer_salaire_brut_forfait(_forfait(), cal, *MAI, [])
+    assert result["salaire_brut_total"] == 0.0
