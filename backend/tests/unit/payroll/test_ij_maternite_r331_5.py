@@ -104,3 +104,16 @@ def test_l_ij_ne_descend_pas_sous_le_minimum_de_2026():
     # 3 × 300 ÷ 91,25 × 0,79 = 7,79 : le minimum de 11,12 € s'applique (F2265).
     ijss = _ijss_du("2026-09-01", "2026-09-30", [300.0, 300.0, 300.0], salaire_base=300.0)
     assert round(ijss["ijss_journaliere"], 2) == 11.12
+
+
+def test_le_detail_dit_le_taux_forfaitaire_retire():
+    # Le pliant relie le salaire journalier à l'indemnité : 88,77 € moins 21 %,
+    # soit 70,13 € par jour. Sans ce taux, 100 % × 88,77 ne redonnait pas l'IJ.
+    ijss = _ijss([2600.0, 2700.0, 2800.0])
+    assert ijss["taux_forfaitaire_retire"] == 0.21
+    assert ijss["base_plafonnee"] == pytest.approx(70.1260, abs=1e-4)
+
+
+def test_une_maladie_ne_retire_aucun_taux_forfaitaire():
+    ijss = _ijss([2600.0, 2700.0, 2800.0], arret_type="maladie_simple")
+    assert ijss["taux_forfaitaire_retire"] == 0.0

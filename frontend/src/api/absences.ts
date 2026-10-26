@@ -334,6 +334,10 @@ export interface MaintenancePreview {
     nb_jours_indemnises: number;
     taux_applique: number;
     salaire_journalier_base: number;
+    /** Salaire journalier retenu pour l'indemnité, après plafond ou taux forfaitaire. */
+    base_plafonnee?: number;
+    /** 0,21 pour une maternité, une paternité ou une adoption (CSS R331-5), sinon 0. */
+    taux_forfaitaire_retire?: number;
     /** Vrai quand le montant vient du suivi IJSS (validé), pas de l'estimation. */
     ijss_brut_override?: boolean;
   };
