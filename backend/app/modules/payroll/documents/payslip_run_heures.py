@@ -31,7 +31,9 @@ from app.modules.payroll.engine.corrections_manuelles import (
 )
 from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
+    heures_retablies_par_les_rappels_de_maintien,
 )
+from app.modules.payroll.engine.salaire_contractuel import salaire_du_mois_complet
 from app.modules.payroll.engine import legal_constants as lc
 
 # Jours qui empêchent la retenue « absence intégrale du mois ».
@@ -1304,11 +1306,16 @@ def run_payslip_generation_heures(
             min(1.0, maintien_verse / deduction_arret) if deduction_arret > 0 else 0.0
         )
         heures_arret_non_maintenues = round(heures_arret * (1.0 - part_maintenue), 2)
+    # Le maintien d'arrêts passés, payé ce mois-ci, en rétablit les heures (BOSS § 800).
+    heures_retablies_par_rappels = heures_retablies_par_les_rappels_de_maintien(
+        primes_soumises, heures_contractuelles_mois, salaire_du_mois_complet(contexte)
+    )
 
     heures_remunerees_reduction = max(
         0.0,
         max(0.0, heures_base_mois - heures_activite_partielle)
         - heures_arret_non_maintenues
+        + heures_retablies_par_rappels
         + float(total_heures_supp or 0.0)
         + float(resultat_brut.get("heures_complementaires", 0.0) or 0.0)
         - float(resultat_brut.get("heures_absence_non_payees", 0.0) or 0.0),

@@ -31,6 +31,7 @@ from app.modules.payroll.engine.corrections_manuelles import (
 from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
     heures_reduction_forfait_jours,
+    heures_retablies_par_les_rappels_de_maintien,
     rapport_salaires_forfait_jours,
 )
 from app.modules.payroll.engine.lectures import lire_ou_arreter
@@ -625,10 +626,17 @@ def run_payslip_generation_forfait(
     # jours travaillés (7 h × 21 jours = 147 h, quand Quadra et la loi comptent
     # 150,28 h pour 216 jours). Aussi le « Cumul heures » des cumuls, que relit
     # la régularisation du mois suivant.
-    heures_reduction = heures_reduction_du_mois(
-        resultat_brut,
-        resultats_maintien,
-        jours_du_forfait_pour_reduction(contexte, company_id),
+    jours_du_forfait = jours_du_forfait_pour_reduction(contexte, company_id)
+    heures_reduction = heures_reduction_du_mois(resultat_brut, resultats_maintien, jours_du_forfait)
+    # Le maintien d'arrêts passés, payé ce mois-ci, en rétablit les heures (BOSS § 800).
+    heures_reduction = max(
+        0.0,
+        heures_reduction
+        + heures_retablies_par_les_rappels_de_maintien(
+            primes_soumises,
+            heures_reduction_forfait_jours(jours_du_forfait),
+            contexte.salaire_base_mensuel,
+        ),
     )
 
     ligne_exoneration_jei = calculer_exoneration_jei(

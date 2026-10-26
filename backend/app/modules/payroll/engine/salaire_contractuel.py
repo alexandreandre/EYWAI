@@ -42,6 +42,17 @@ def taux_horaire_base_hors_hs_structurelles(salaire_mensuel: float) -> float:
     return salaire_mensuel / heures if heures > 0 else 0.0
 
 
+def salaire_du_mois_complet(contexte: Any) -> float:
+    """Salaire d'un mois payé en entier : la base, HS structurelles comprises quand elle les laisse à part."""
+    salaire = contexte.salaire_base_mensuel
+    if not salaire_hors_hs_structurelles(contexte.contrat):
+        return salaire
+    from app.modules.payroll.engine.calcul_brut import _taux_majoration_hs
+
+    majoration = _taux_majoration_hs(contexte, 0) or 0.25
+    return salaire_contractuel_total_hors_hs_mode(salaire, contexte.duree_hebdo_contrat, majoration)
+
+
 def salaire_contractuel_total_hors_hs_mode(
     salaire_mensuel: float,
     duree_hebdo: float,

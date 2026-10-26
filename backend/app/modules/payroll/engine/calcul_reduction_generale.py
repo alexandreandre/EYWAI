@@ -357,6 +357,33 @@ def calculer_coefficient_rgdu(
     return coefficient, detail
 
 
+#: Prime du catalogue : le maintien de salaire dû pour des mois d'arrêt, payé plus tard.
+PRIME_RAPPEL_MAINTIEN = "rappel_maintien_salaire"
+
+
+def heures_retablies_par_les_rappels_de_maintien(
+    primes: Any, heures_mois_complet: float, salaire_mois_complet: float
+) -> float:
+    """Heures de SMIC de référence que les rappels de maintien du mois rétablissent.
+
+    Un arrêt sort du SMIC à proportion du salaire que l'employeur n'a pas maintenu
+    (CSS D241-7, IV, 5e alinéa). Payé plus tard, le maintien en rétablit la part, le
+    mois où la paie en tient compte (BOSS, allègements généraux, § 800) : heures d'un
+    mois complet × rappel ÷ salaire d'un mois complet. Quadra fait de même (Comitech,
+    septembre 2026). Sans ces heures, le rappel entrait au brut seul et la réduction
+    baissait, jusqu'à se rembourser (M.G., octobre 2026 : −606,28 € au lieu de
+    +1 524,86 €). Un trop-versé repris (rappel négatif) les retire.
+    """
+    rappels = sum(
+        float(p.get("montant") or 0.0)
+        for p in primes or []
+        if isinstance(p, dict) and p.get("prime_id") == PRIME_RAPPEL_MAINTIEN
+    )
+    if not rappels or salaire_mois_complet <= 0 or heures_mois_complet <= 0:
+        return 0.0
+    return round(heures_mois_complet * rappels / salaire_mois_complet, 2)
+
+
 def heures_reduction_forfait_jours(
     jours_du_forfait: float, rapport_salaires: float = 1.0
 ) -> float:
