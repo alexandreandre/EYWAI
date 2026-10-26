@@ -314,6 +314,21 @@ def _facteur_prorata_entree_sortie(
     return jours_presence / jours_ouvres_mois
 
 
+def _est_la_journee_de_solidarite(contexte: ContextePaie, jour: date) -> bool:
+    """La journée de solidarité, paramétrée par l'entreprise
+    (`parametres_paie.jour_solidarite`) ; à défaut d'accord (art. L3133-11),
+    le lundi de Pentecôte."""
+    jour_solidarite = (contexte.entreprise.get("parametres_paie", {}) or {}).get(
+        "jour_solidarite"
+    )
+    date_solidarite = _parse_date_contrat(jour_solidarite) if jour_solidarite else None
+    if date_solidarite is None:
+        from app.modules.absences.domain.rtt_forfait import _easter_sunday
+
+        date_solidarite = _easter_sunday(jour.year) + timedelta(days=50)
+    return date_solidarite == jour
+
+
 def _jour_ferie_est_paye(contexte: ContextePaie, evenement: Dict[str, Any]) -> bool:
     """Jour férié chômé payé, sous condition légale d'ancienneté (art. L3133-3 C. trav.).
 
@@ -344,17 +359,8 @@ def _jour_ferie_est_paye(contexte: ContextePaie, evenement: Dict[str, Any]) -> b
         return True
 
     # Journée de solidarité : jour férié travaillé/neutre par convention, sans effet
-    # de paie ; date paramétrée par l'entreprise (parametres_paie.jour_solidarite).
-    # À défaut d'accord (art. L3133-11), c'est le lundi de Pentecôte.
-    jour_solidarite = (contexte.entreprise.get("parametres_paie", {}) or {}).get(
-        "jour_solidarite"
-    )
-    date_solidarite = _parse_date_contrat(jour_solidarite) if jour_solidarite else None
-    if date_solidarite is None:
-        from app.modules.absences.domain.rtt_forfait import _easter_sunday
-
-        date_solidarite = _easter_sunday(date_ferie.year) + timedelta(days=50)
-    if date_solidarite == date_ferie:
+    # de paie (`_est_la_journee_de_solidarite`).
+    if _est_la_journee_de_solidarite(contexte, date_ferie):
         return True
 
     # Ancienneté = date la plus favorable (embauche ou reprise d'ancienneté).
@@ -1193,7 +1199,11 @@ def _suspend_le_contrat(absence: dict[str, Any]) -> bool:
 
 
 def feries_retenus_avec_leur_absence(
-    contexte: ContextePaie, jours: list[dict[str, Any]], *, mois_sans_travail: bool
+    contexte: ContextePaie,
+    jours: list[dict[str, Any]],
+    *,
+    mois_sans_travail: bool,
+    retyper_le_mois_entier: bool = False,
 ) -> tuple[list[dict[str, Any]], bool]:
     """Les jours de la période, les fériés compris dans une absence retypés en
     jours de cette absence ; et si le mois est entièrement absent.
@@ -1215,19 +1225,26 @@ def feries_retenus_avec_leur_absence(
     la retenue complète va jusqu'au salaire et rien n'est retypé. Mois sans
     jour travaillé avec un férié payé hors absence : tous les fériés compris
     dans une absence sont retenus (règle du 24/10). Mois travaillé : ceux d'un
-    arrêt ou d'un congé sans solde ; entre deux absences injustifiées, le férié
-    reste payé (art. L3133-3).
+    arrêt ou d'un congé sans solde, hors journée de solidarité ; entre deux
+    absences injustifiées, le férié reste payé (art. L3133-3).
+    `retyper_le_mois_entier` (forfait jours, qui reconnaît le mois entier en
+    comptant les journées retenues) retype aussi ceux du mois entier.
     """
     hors_absence, dans_une_absence = _feries_payes_d_un_mois_sans_travail(contexte, jours)
     entier = mois_sans_travail and not hors_absence
-    if entier:
+    if entier and not retyper_le_mois_entier:
         return jours, True
     if not mois_sans_travail:
+        # La journée de solidarité garde sa règle, sans effet de paie : Quadra,
+        # chez Colorplast, ne la retient pas avec un accident du travail qui la
+        # couvre (A.D., « Absence A.T. 230526-290526 », 28 h sans le 25 mai).
         dans_une_absence = {
-            jour: absence for jour, absence in dans_une_absence.items() if _suspend_le_contrat(absence)
+            jour: absence
+            for jour, absence in dans_une_absence.items()
+            if _suspend_le_contrat(absence) and not _est_la_journee_de_solidarite(contexte, jour)
         }
     if not dans_une_absence:
-        return jours, False
+        return jours, entier
     return [
         _ferie_retenu_avec_son_absence(
             evenement, dans_une_absence[date.fromisoformat(evenement["date_complete"])]
@@ -1237,7 +1254,7 @@ def feries_retenus_avec_leur_absence(
         and date.fromisoformat(evenement["date_complete"]) in dans_une_absence
         else evenement
         for evenement in jours
-    ], False
+    ], entier
 
 
 def _ferie_retenu_avec_son_absence(

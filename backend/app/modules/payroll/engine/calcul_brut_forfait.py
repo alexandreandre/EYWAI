@@ -63,6 +63,12 @@ from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 from app.modules.payroll.engine.codes_des_lignes import BLOC_BRUT
 from app.modules.payroll.engine.corrections_manuelles import LignesCorrigees, journal_du_contexte
 
+#: Jours travaillés ou payés d'un mois au forfait : sans aucun d'eux, le mois
+#: est sans travail (la règle des fériés d'une absence le traite à part).
+TYPES_JOURS_TRAVAILLES_OU_PAYES = frozenset(
+    {"travail_base", "travail", "conges_payes", "ecole", "rtt", "formation"}
+)
+
 #: Les retenues d'absence qui entrent dans le rapport des salaires de la
 #: réduction générale au forfait jours (`retenues_absence_mois`).
 FAMILLES_RETENUES_FORFAIT = (
@@ -419,7 +425,12 @@ def calculer_salaire_brut_forfait(
     # 31/05/2026, le 1er mai hors de l'arrêt : les 8, 14 et 25 mai restaient
     # payés (777,50 € d'un forfait de 3 608 €, 171,64 € aux heures).
     jours_dans_periode, _ = feries_retenus_avec_leur_absence(
-        contexte, jours_dans_periode, mois_sans_travail=False
+        contexte,
+        jours_dans_periode,
+        mois_sans_travail=not any(
+            j.get("type") in TYPES_JOURS_TRAVAILLES_OU_PAYES for j in jours_dans_periode
+        ),
+        retyper_le_mois_entier=True,
     )
 
     jours_conges_dans_periode = []

@@ -135,3 +135,12 @@ def test_forfait_les_feries_d_un_conge_sans_solde_sont_retenus():
     cal = _mois(sans_solde=(date(2026, 5, 1), date(2026, 5, 15)), forfait=True)
     result = calculer_salaire_brut_forfait(_forfait(), cal, *MAI, [])
     assert sum(1 for l in _libelles(result) if l.startswith("Absence non rémunérée")) == 11
+
+
+def test_la_journee_de_solidarite_dans_un_arret_reste_sans_effet_de_paie():
+    # Lundi de Pentecôte (25/05/2026), journée de solidarité par défaut
+    # (L3133-11) : Martine la traite sans effet de paie. Colorplast, A.D.,
+    # accident du travail du 23/05 au 29/05 : Quadra retient « Absence A.T.
+    # 230526-290526 » 28 h, soit les 26 au 29 mai, sans le 25.
+    result = _brut(_mois(arret=(date(2026, 5, 23), date(2026, 5, 29))))
+    assert _pertes(result, "Absence arrêt maladie") == round(4 * 7 * 12.8740, 2)
