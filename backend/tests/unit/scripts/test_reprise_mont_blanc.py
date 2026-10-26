@@ -70,7 +70,10 @@ def test_un_mois_declare_en_dsn_sans_bulletin_dans_le_pdf_est_complete():
     assert list(complements) == [3] and list(complements[3]) == ["ESSAI"]
     b = complements[3]["ESSAI"]
     from scripts.reprise_colorplast_import_litteral import _brut_du_mois
-    from scripts.reprise_colorplast_solde_ouverture import EST_REDUCTION_GENERALE, _somme_des_lignes
+    from scripts.reprise_colorplast_solde_ouverture import (
+        EST_REDUCTION_GENERALE,
+        _somme_des_lignes,
+    )
 
     assert _brut_du_mois(b) == 1985.79
     assert _somme_des_lignes(b, EST_REDUCTION_GENERALE) == -575.5
