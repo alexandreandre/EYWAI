@@ -29,6 +29,7 @@ from .salaire_contractuel import (
     taux_horaire_base_hors_hs_structurelles,
 )
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
+from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
 from app.modules.payroll.engine.codes_des_lignes import BLOC_BRUT
 from app.modules.payroll.engine.corrections_manuelles import (
     LignesCorrigees,
@@ -313,6 +314,21 @@ def _facteur_prorata_entree_sortie(
     return jours_presence / jours_ouvres_mois
 
 
+def _est_la_journee_de_solidarite(contexte: ContextePaie, jour: date) -> bool:
+    """La journée de solidarité, paramétrée par l'entreprise
+    (`parametres_paie.jour_solidarite`) ; à défaut d'accord (art. L3133-11),
+    le lundi de Pentecôte."""
+    jour_solidarite = (contexte.entreprise.get("parametres_paie", {}) or {}).get(
+        "jour_solidarite"
+    )
+    date_solidarite = _parse_date_contrat(jour_solidarite) if jour_solidarite else None
+    if date_solidarite is None:
+        from app.modules.absences.domain.rtt_forfait import _easter_sunday
+
+        date_solidarite = _easter_sunday(jour.year) + timedelta(days=50)
+    return date_solidarite == jour
+
+
 def _jour_ferie_est_paye(contexte: ContextePaie, evenement: Dict[str, Any]) -> bool:
     """Jour férié chômé payé, sous condition légale d'ancienneté (art. L3133-3 C. trav.).
 
@@ -343,17 +359,8 @@ def _jour_ferie_est_paye(contexte: ContextePaie, evenement: Dict[str, Any]) -> b
         return True
 
     # Journée de solidarité : jour férié travaillé/neutre par convention, sans effet
-    # de paie ; date paramétrée par l'entreprise (parametres_paie.jour_solidarite).
-    # À défaut d'accord (art. L3133-11), c'est le lundi de Pentecôte.
-    jour_solidarite = (contexte.entreprise.get("parametres_paie", {}) or {}).get(
-        "jour_solidarite"
-    )
-    date_solidarite = _parse_date_contrat(jour_solidarite) if jour_solidarite else None
-    if date_solidarite is None:
-        from app.modules.absences.domain.rtt_forfait import _easter_sunday
-
-        date_solidarite = _easter_sunday(date_ferie.year) + timedelta(days=50)
-    if date_solidarite == date_ferie:
+    # de paie (`_est_la_journee_de_solidarite`).
+    if _est_la_journee_de_solidarite(contexte, date_ferie):
         return True
 
     # Ancienneté = date la plus favorable (embauche ou reprise d'ancienneté).
@@ -1086,6 +1093,18 @@ def _absence_qui_retient_la_journee(type_ev: str) -> bool:
     )
 
 
+def _absence_de_la_demande_du_ferie(ferie: dict[str, Any]) -> str | None:
+    """Le type de jour de l'absence dont la demande validée couvre ce férié,
+    quand elle retient la journée (un congé sans solde : `absence_non_remuneree`).
+
+    La validation ne retype pas les fériés et ne leur pose aucune borne hors
+    arrêt ; la génération les marque depuis la demande (`source_absence`). Un
+    sans solde du vendredi 1er mai 2026 au 31 mai laissait le 1er mai payé.
+    """
+    type_jour = ABSENCE_TYPE_TO_CALENDAR_TYPE.get(str(ferie.get("source_absence") or ""))
+    return type_jour if type_jour and _absence_qui_retient_la_journee(type_jour) else None
+
+
 def _bornes_de_l_arret(evenement: dict[str, Any]) -> tuple[date, date] | None:
     debut = _parse_date_contrat(evenement.get("date_debut_arret_reel"))
     fin = _parse_date_contrat(evenement.get("date_fin_arret_reel"))
@@ -1161,13 +1180,81 @@ def _feries_payes_d_un_mois_sans_travail(
             continue  # retenu par sa propre ligne, quoi qu'il arrive
         couvrante = next((p for p in periodes if p[0] <= jour <= p[1]), None)
         bornes = _bornes_de_l_arret(ferie)
+        absence_de_la_demande = _absence_de_la_demande_du_ferie(ferie)
         if couvrante is not None:
             dans_une_absence[jour] = couvrante[2]
         elif bornes and bornes[0] <= jour <= bornes[1]:
             dans_une_absence[jour] = {**ferie, "type": "arret_maladie"}
+        elif absence_de_la_demande:
+            dans_une_absence[jour] = {**ferie, "type": absence_de_la_demande}
         else:
             hors_absence.append(jour)
     return hors_absence, dans_une_absence
+
+
+def _suspend_le_contrat(absence: dict[str, Any]) -> bool:
+    """Arrêt ou congé sans solde : le contrat est suspendu, ses fériés le suivent."""
+    type_ev = str(absence.get("type") or "")
+    return type_ev.startswith("arret") or type_ev == "absence_non_remuneree"
+
+
+def feries_retenus_avec_leur_absence(
+    contexte: ContextePaie,
+    jours: list[dict[str, Any]],
+    *,
+    mois_sans_travail: bool,
+    retyper_le_mois_entier: bool = False,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Les jours de la période, les fériés compris dans une absence retypés en
+    jours de cette absence ; et si le mois est entièrement absent.
+
+    Un férié compris dans un arrêt ou un congé sans solde n'est pas payé comme
+    férié : il est retenu avec l'absence, et seul le maintien le couvre, s'il
+    est indemnisé. Convention de la plasturgie, avenant Collaborateurs, art. 11
+    (Légifrance KALITEXT000005682080) : l'indemnité du férié est due pour une
+    perte de salaire « du fait du chômage d'un jour férié » ; le maintien
+    (avenant du 15/05/1991, art. 13 ; accord cadres, art. 5 c) vaut la
+    rémunération qu'il « aurait perçue s'il avait normalement travaillé », en
+    jours calendaires. C. trav. D1226-1 ; suspension du contrat : Cass. soc.
+    24/06/1998 n° 96-44.234 et 14/04/1999 n° 97-42.064 ; arrêt maladie :
+    CA Douai 30/05/2025 n° 24/00480. S.G., arrêt du 05/05 au 20/05/2026 : la
+    retenue comptait 10 journées, le maintien 12, les 8 et 14 mai étaient
+    payés deux fois.
+
+    Mois sans jour travaillé et sans férié payé hors absence : il est entier,
+    la retenue complète va jusqu'au salaire et rien n'est retypé. Mois sans
+    jour travaillé avec un férié payé hors absence : tous les fériés compris
+    dans une absence sont retenus (règle du 24/10). Mois travaillé : ceux d'un
+    arrêt ou d'un congé sans solde, hors journée de solidarité ; entre deux
+    absences injustifiées, le férié reste payé (art. L3133-3).
+    `retyper_le_mois_entier` (forfait jours, qui reconnaît le mois entier en
+    comptant les journées retenues) retype aussi ceux du mois entier.
+    """
+    hors_absence, dans_une_absence = _feries_payes_d_un_mois_sans_travail(contexte, jours)
+    entier = mois_sans_travail and not hors_absence
+    if entier and not retyper_le_mois_entier:
+        return jours, True
+    if not mois_sans_travail:
+        # La journée de solidarité garde sa règle, sans effet de paie : Quadra,
+        # chez Colorplast, ne la retient pas avec un accident du travail qui la
+        # couvre (A.D., « Absence A.T. 230526-290526 », 28 h sans le 25 mai).
+        dans_une_absence = {
+            jour: absence
+            for jour, absence in dans_une_absence.items()
+            if _suspend_le_contrat(absence) and not _est_la_journee_de_solidarite(contexte, jour)
+        }
+    if not dans_une_absence:
+        return jours, entier
+    return [
+        _ferie_retenu_avec_son_absence(
+            evenement, dans_une_absence[date.fromisoformat(evenement["date_complete"])]
+        )
+        if evenement.get("type") == "ferie"
+        and not evenement.get("is_regularisation_anterieure")
+        and date.fromisoformat(evenement["date_complete"]) in dans_une_absence
+        else evenement
+        for evenement in jours
+    ], entier
 
 
 def _ferie_retenu_avec_son_absence(
@@ -1649,24 +1736,11 @@ def calculer_salaire_brut(
     # entrent comme des jours de l'absence : c'est ce que retenait déjà le
     # complément ci-dessous, et ce que le maintien compte (`_periode_couverte`
     # ne voit pas non plus ce mois comme entier).
-    mois_entierement_absent = nb_jours_travail_planifies == 0
-    if mois_entierement_absent:
-        feries_hors_absence, feries_dans_une_absence = (
-            _feries_payes_d_un_mois_sans_travail(contexte, jours_dans_periode)
-        )
-        if feries_hors_absence:
-            mois_entierement_absent = False
-            jours_dans_periode = [
-                _ferie_retenu_avec_son_absence(
-                    evenement,
-                    feries_dans_une_absence[date.fromisoformat(evenement["date_complete"])],
-                )
-                if evenement.get("type") == "ferie"
-                and not evenement.get("is_regularisation_anterieure")
-                and date.fromisoformat(evenement["date_complete"]) in feries_dans_une_absence
-                else evenement
-                for evenement in jours_dans_periode
-            ]
+    # Dans un mois travaillé aussi, un férié compris dans un arrêt ou un congé
+    # sans solde suit l'absence (`feries_retenus_avec_leur_absence`).
+    jours_dans_periode, mois_entierement_absent = feries_retenus_avec_leur_absence(
+        contexte, jours_dans_periode, mois_sans_travail=nb_jours_travail_planifies == 0
+    )
 
     # 3. Traitement de tous les événements de la période
     jours_conges_dans_periode = []

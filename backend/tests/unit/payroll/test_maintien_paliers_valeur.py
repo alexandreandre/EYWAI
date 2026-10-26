@@ -93,3 +93,65 @@ def test_temps_partiel_la_quotite_ne_touche_que_la_journee():
 def test_plusieurs_arrets_qui_couvrent_le_mois_le_disent():
     base = _base(_sg(), "2026-06-16", "2026-06-30", JUIN, mois_entier_en_arret=True)
     assert base.mois_entier and base.valeur(11) == 1115.74
+
+
+# --- Défaut du 24/10 : un arrêt qui commence juste après un week-end ---------
+# Le 01/08/2026 est un samedi. Arrêt du lundi 03/08 au 31/08 : aucun jour
+# ouvré d'août n'est travaillé, la retenue d'absence prend tout le salaire
+# (2 231,48). En jours ouvrés, le maintien comptait 21 journées (2 162,83) :
+# seuls des jours qui ne comptent pas (le week-end) sont hors de l'arrêt, le
+# mois est donc entier.
+AOUT = (date(2026, 8, 1), date(2026, 8, 31))
+
+
+def test_jours_ouvres_un_week_end_avant_l_arret_n_empeche_pas_le_mois_entier():
+    base = _base(_sg(), "2026-08-03", "2026-08-31", AOUT)
+    assert base.mois_entier and base.jours_du_mois == 21
+    assert base.valeur(21) == 2231.48
+
+
+def test_jours_ouvres_un_jour_ouvre_hors_de_l_arret_garde_le_mois_partiel():
+    # Arrêt du mardi 04/08 : le lundi 03/08 est un jour ouvré hors de l'arrêt.
+    base = _base(_sg(), "2026-08-04", "2026-08-31", AOUT)
+    assert not base.mois_entier and base.valeur(20) == 2059.84
+
+
+def test_jours_ouvres_deux_arrets_separes_par_un_week_end_couvrent_le_mois():
+    from app.modules.payroll.engine.maintien_salaire_service import _periode_couverte
+
+    segments = [
+        {"date_debut": "2026-08-03", "date_fin": "2026-08-14"},
+        {"date_debut": "2026-08-17", "date_fin": "2026-08-31"},
+    ]
+    assert _periode_couverte(segments, {"maintien_base_ouvree": True}, *AOUT)
+
+
+def test_jours_calendaires_un_week_end_avant_l_arret_n_empeche_pas_le_mois_entier():
+    # Même arrêt en jours calendaires : 29 jours en arrêt, aucun jour ouvré
+    # travaillé. Le salaire du mois se répartit sur ces 29 jours ; avant, la
+    # journée (salaire ÷ 30,42) ne donnait que 29/30,42 du salaire.
+    contexte = build_test_contexte(salaire_base=2500.0)
+    base = _base_des_jours({"date_debut": "2026-08-03", "date_fin": "2026-08-31"}, contexte, *AOUT)
+    assert base.mois_entier and base.jours_du_mois == 29
+    assert base.valeur(29) == 2500.0
+    assert base.valeur(10) == round(2500.0 * 10 / 29, 2)
+
+
+def test_jours_calendaires_un_jour_ouvre_hors_de_l_arret_garde_la_journee():
+    contexte = build_test_contexte(salaire_base=2500.0)
+    base = _base_des_jours({"date_debut": "2026-08-04", "date_fin": "2026-08-31"}, contexte, *AOUT)
+    assert not base.mois_entier and base.valeur(28) == round(2500.0 / 30.42 * 28, 2)
+
+
+def test_jours_calendaires_deux_arrets_qui_couvrent_les_jours_ouvres():
+    from app.modules.payroll.engine.maintien_salaire_service import (
+        _jours_couverts,
+        _periode_couverte,
+    )
+
+    segments = [
+        {"date_debut": "2026-08-03", "date_fin": "2026-08-14"},
+        {"date_debut": "2026-08-17", "date_fin": "2026-08-31"},
+    ]
+    assert _periode_couverte(segments, {}, *AOUT)
+    assert len(_jours_couverts(segments, {}, *AOUT)) == 27

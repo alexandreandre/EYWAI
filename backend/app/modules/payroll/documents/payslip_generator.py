@@ -501,7 +501,52 @@ def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> lis
         if src:
             e["source_absence"] = src
     _stamp_nature_des_arrets(planned_entries, toutes)
+    _stamp_feries_des_absences_retenues(planned_entries, toutes)
     return toutes
+
+
+def _stamp_feries_des_absences_retenues(planned_entries: list, demandes: list) -> None:
+    """Étiquette chaque férié couvert par une demande validée qui retient la
+    journée (un congé sans solde), avec le type de la demande (`source_absence`).
+
+    La validation ne retype pas les fériés et, hors arrêt, ne leur pose aucune
+    borne : un sans solde du vendredi 1er mai 2026 au 31 mai laissait le
+    1er mai hors de toute absence, donc payé, et le mois partiel. Le moteur
+    lit ce marqueur (`calcul_brut._absence_de_la_demande_du_ferie`).
+
+    Seulement si le planning porte la demande : une demande validée avant le
+    01/10/2026 n'écrivait pas le planning, ses jours restent « travail », et
+    son férié ne se retient pas seul (V.L., Comitech, avril 2026).
+    """
+    type_par_date: dict = {}
+    for e in planned_entries:
+        try:
+            iso = date(int(e["annee"]), int(e["mois"]), int(e["jour"])).isoformat()
+        except (KeyError, TypeError, ValueError):
+            continue
+        type_par_date[iso] = e.get("type")
+    source_par_date: dict = {}
+    for row in demandes or []:
+        type_jour = ABSENCE_TYPE_TO_CALENDAR_TYPE.get(str(row.get("type") or ""))
+        if type_jour != "absence_non_remuneree":
+            continue
+        jours = [str(d)[:10] for d in row.get("selected_days") or []]
+        if not any(type_par_date.get(iso) == type_jour for iso in jours):
+            continue
+        for iso in jours:
+            source_par_date.setdefault(iso, row.get("type"))
+    if not source_par_date:
+        return
+    for e in planned_entries:
+        if e.get("type") != "ferie":
+            continue
+        try:
+            iso = date(int(e["annee"]), int(e["mois"]), int(e["jour"])).isoformat()
+        except (KeyError, TypeError, ValueError):
+            continue
+        source = source_par_date.get(iso)
+        if source:
+            e["source_absence"] = source
 
 
 def _stamp_nature_des_arrets(planned_entries: list, demandes: list) -> None:

@@ -28,6 +28,7 @@ from .calcul_brut import (
     _jour_ferie_est_paye,
     _jours_evenement_conges,
     _libelle_dates_conges,
+    feries_retenus_avec_leur_absence,
     iccp_saisie_au_mois,
     montant_iccp_saisie,
 )
@@ -61,6 +62,12 @@ from .salary_evolution_brut import (
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 from app.modules.payroll.engine.codes_des_lignes import BLOC_BRUT
 from app.modules.payroll.engine.corrections_manuelles import LignesCorrigees, journal_du_contexte
+
+#: Jours travaillés ou payés d'un mois au forfait : sans aucun d'eux, le mois
+#: est sans travail (la règle des fériés d'une absence le traite à part).
+TYPES_JOURS_TRAVAILLES_OU_PAYES = frozenset(
+    {"travail_base", "travail", "conges_payes", "ecole", "rtt", "formation"}
+)
 
 #: Les retenues d'absence qui entrent dans le rapport des salaires de la
 #: réduction générale au forfait jours (`retenues_absence_mois`).
@@ -412,6 +419,19 @@ def calculer_salaire_brut_forfait(
         <= date.fromisoformat(j["date_complete"])
         <= date_fin_periode
     ]
+    # Un férié compris dans un arrêt ou un congé sans solde suit l'absence : une
+    # journée retenue, que seul le maintien couvre, comme au moteur des heures
+    # (`feries_retenus_avec_leur_absence`, sources citées). Arrêt du 04/05 au
+    # 31/05/2026, le 1er mai hors de l'arrêt : les 8, 14 et 25 mai restaient
+    # payés (777,50 € d'un forfait de 3 608 €, 171,64 € aux heures).
+    jours_dans_periode, _ = feries_retenus_avec_leur_absence(
+        contexte,
+        jours_dans_periode,
+        mois_sans_travail=not any(
+            j.get("type") in TYPES_JOURS_TRAVAILLES_OU_PAYES for j in jours_dans_periode
+        ),
+        retyper_le_mois_entier=True,
+    )
 
     jours_conges_dans_periode = []
     nombre_jours_absence_injustifiee = 0
@@ -596,6 +616,10 @@ def calculer_salaire_brut_forfait(
     jours_ouvres_contrat = [
         jour for jour in jours_ouvres_mois if jour not in set(jours_hors_contrat)
     ]
+    # Les fériés compris dans une absence y sont déjà, retypés plus haut. Arrêt
+    # du 20/04 au 10/06/2026 : 21 jours ouvrés absents en mai, fériés compris ;
+    # seuls 17 étaient comptés, et 777,50 € restaient d'un forfait de 3 608 €.
+    # Un férié payé hors de toute absence garde le mois partiel.
     if jours_ouvres_contrat and jours_absence_non_payes >= len(jours_ouvres_contrat) - 1e-9:
         perte_entree_sortie = sum(
             (ligne.get("perte") or 0.0)

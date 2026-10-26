@@ -137,3 +137,37 @@ def test_le_generateur_pose_la_nature_de_la_demande_sur_les_jours_d_arret(monkey
     assert [j.get("source_absence") for j in jours] == [
         "arret_paternite", "arret_paternite", "arret_at", None, "conge_paye", None,
     ]
+
+
+def test_le_generateur_marque_les_feries_d_un_conge_sans_solde(monkeypatch):
+    # Défaut du 24/10 : un sans solde du 1er au 31 mai couvre le 1er mai, que la
+    # validation laisse « férié » sans borne. Les fériés d'une demande de congé
+    # payé ne sont pas marqués : le congé ne retient pas la journée.
+    demandes = [
+        {"type": "sans_solde", "selected_days": ["2026-05-01", "2026-05-02", "2026-05-04"]},
+        {"type": "conge_paye", "selected_days": ["2026-05-14"]},
+    ]
+    monkeypatch.setattr(payslip_generator, "supabase", _Client(demandes))
+    jours = [
+        _jour(1, "ferie"),
+        _jour(4, "absence_non_remuneree"),
+        _jour(8, "ferie"),
+        _jour(14, "ferie"),
+    ]
+    payslip_generator._stamp_source_absence_conges(jours, "emp-1")
+    assert [j.get("source_absence") for j in jours] == ["sans_solde", None, None, None]
+
+
+def test_le_generateur_ne_marque_pas_les_feries_d_un_sans_solde_absent_du_planning(monkeypatch):
+    # Une demande sans solde validée avant le 01/10/2026 n'écrivait pas le
+    # planning : ses jours restent « travail ». Son férié ne se retient pas
+    # seul (V.L., Comitech, avril 2026 : le lundi de Pâques seul retenu).
+    demandes = [{"type": "sans_solde", "selected_days": ["2026-04-03", "2026-04-06", "2026-04-07"]}]
+    monkeypatch.setattr(payslip_generator, "supabase", _Client(demandes))
+    jours = [
+        {"annee": 2026, "mois": 4, "jour": 3, "type": "travail", "heures_prevues": 7.0},
+        {"annee": 2026, "mois": 4, "jour": 6, "type": "ferie", "heures_prevues": 0.0},
+        {"annee": 2026, "mois": 4, "jour": 7, "type": "travail", "heures_prevues": 7.0},
+    ]
+    payslip_generator._stamp_source_absence_conges(jours, "emp-1")
+    assert jours[1].get("source_absence") is None

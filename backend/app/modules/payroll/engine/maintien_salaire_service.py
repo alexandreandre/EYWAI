@@ -130,6 +130,16 @@ def _extraire_pss_annuel(baremes_pss: Any) -> Optional[float]:
     return None
 
 
+def _extraire_pss_mensuel(baremes_pss: Any) -> Optional[float]:
+    """Le plafond mensuel de la Sécurité sociale, ou le douzième de l'annuel."""
+    if isinstance(baremes_pss, dict):
+        mensuel = baremes_pss.get("mensuel")
+        if isinstance(mensuel, (int, float)) and mensuel > 0:
+            return float(mensuel)
+    annuel = _extraire_pss_annuel(baremes_pss)
+    return annuel / 12.0 if annuel else None
+
+
 def plafond_ij_pour(
     arret_type: str,
     jour_arret_1based: int,
@@ -551,10 +561,11 @@ def _calculer_ijss(
     )
 
     salaire_mensuel = float(contexte.salaire_base_mensuel or 0.0)
-    est_maladie = not qualification.get("est_at_mp") and not qualification.get(
-        "est_maternite"
-    )
-    if est_maladie:
+    est_parentalite = bool(qualification.get("est_maternite"))
+    est_maladie = not qualification.get("est_at_mp") and not est_parentalite
+    if est_maladie or est_parentalite:
+        # Trois derniers bruts ÷ 91,25 : R323-4 pour la maladie, et R331-5 qui
+        # y renvoie pour la maternité, la paternité et l'adoption.
         salaire_journalier_base = _salaire_journalier_de_base_maladie(
             arret, salaire_mensuel
         )
@@ -572,6 +583,22 @@ def _calculer_ijss(
         # Chaque paie retenue dans la limite de 1,4 Smic mensuel (R323-4).
         base_plafonnee = _salaire_journalier_de_base_maladie(
             arret, salaire_mensuel, plafond_mensuel_smic
+        )
+    elif est_parentalite:
+        # CSS R331-5 : chaque paie dans la limite du plafond mensuel de la
+        # Sécurité sociale, puis le taux forfaitaire de 21 %. Avant le 25/10,
+        # le salaire de base ÷ 30,42, plafonné à 1,8 plafond journalier, sans
+        # taux forfaitaire. Le plafond est celui du dernier jour du mois qui
+        # précède l'arrêt (celui qu'il prolonge, pour une prolongation).
+        reference_plafond = debut_reference.replace(day=1) - timedelta(days=1)
+        pss_mensuel = lc.PSS_MENSUEL_PAR_ANNEE.get(
+            reference_plafond.year
+        ) or _extraire_pss_mensuel(pss_data)
+        base_plafonnee = (
+            _salaire_journalier_de_base_maladie(arret, salaire_mensuel, pss_mensuel)
+            * (1.0 - lc.TAUX_FORFAITAIRE_IJ_MATERNITE)
+            if pss_mensuel
+            else 0.0
         )
     elif pss_annuel is None:
         plafond_ss_journalier = 0.0
@@ -597,6 +624,12 @@ def _calculer_ijss(
     )
 
     carence_ss = int(carence.get("carence_ss_jours") or 0)
+    # Minimum de l'IJ de repos (R331-5), à l'année du début du congé.
+    minimum_ij = (
+        lc.IJ_MATERNITE_MINIMUM_PAR_ANNEE.get(debut_reference.year)
+        if est_parentalite and base_plafonnee > 0
+        else None
+    )
 
     # V1 forfait jour : le décompte IJSS repose déjà sur des jours calendaires
     # (boucle jour par jour sur l'intervalle d'arrêt), pas sur des jours ouvrés —
@@ -639,8 +672,13 @@ def _calculer_ijss(
                 )
                 if plafond_j is not None:
                     ijss_j = min(ijss_j, plafond_j)
-                if is_tp:
+                if is_tp and arret_type == "mi_temps_therapeutique":
+                    # Les paies retenues sont déjà au temps partiel (R323-4, 1° :
+                    # « 1/91,25 du montant des trois dernières paies ») : la
+                    # quotité ne réduit plus l'IJ, sauf au mi-temps thérapeutique.
                     ijss_j *= quotite
+                if minimum_ij:
+                    ijss_j = max(ijss_j, minimum_ij)
                 if par_jour is not None:
                     par_jour[d] = ijss_j
                 ijss_total += ijss_j
@@ -836,13 +874,15 @@ def _verse_avec_subrogation(
     du garanti. Même règle, et même prorata d'un montant validé, que sans
     subrogation.
 
-    Reconstitution d'un bulletin Cegid (saisie « IJSS override » : maintien en
-    jours ouvrés, IJSS hors bulletin) : le montant saisi est la retenue relevée
-    sur ce bulletin (absence à 100 % moins maintien), pas les IJSS de l'arrêt.
-    Il se déduit en entier, comme avant.
+    Reconstitution d'un bulletin Cegid (saisie « IJSS override », marquée
+    `ijss_releve_du_bulletin` par la chaîne : maintien en jours ouvrés, IJSS
+    hors bulletin) : le montant saisi est la retenue relevée sur ce bulletin
+    (absence à 100 % moins maintien), pas les IJSS de l'arrêt. Il se déduit en
+    entier, comme avant. Un montant validé au suivi IJSS, lui, est un relevé de
+    la caisse : sa part des jours maintenus, même en jours ouvrés.
     """
     ijss_arret = float(ijss.get("ijss_theorique") or 0.0)
-    reconstitution = bool(arret.get("maintien_base_ouvree")) and bool(
+    reconstitution = bool(arret.get("ijss_releve_du_bulletin")) and bool(
         ijss.get("ijss_brut_override")
     )
     if ijss_par_jour is None or reconstitution:
@@ -1546,16 +1586,20 @@ def _base_des_jours(
         taux_horaire_base = 0.0
     mois_entier = arret.get("mois_entier_en_arret")
     if mois_entier is None:
-        debut = _parse_date(arret.get("date_debut"))
-        fin = _parse_date(arret.get("date_fin")) or debut
-        mois_entier = bool(
-            debut and fin and debut <= date_debut_periode and fin >= date_fin_periode
-        )
+        mois_entier = _periode_couverte([{}], arret, date_debut_periode, date_fin_periode)
     jours_du_mois = sum(
         1
         for k in range(_compter_jours_calendaires(date_debut_periode, date_fin_periode))
         if not jours_ouvres or (date_debut_periode + timedelta(days=k)).weekday() < 5
     )
+    if mois_entier and not jours_ouvres:
+        # Jours calendaires : le salaire du mois se répartit sur les jours en
+        # arrêt (un week-end avant l'arrêt n'en retire rien).
+        jours_du_mois = int(
+            arret.get("jours_couverts_du_mois")
+            or len(_jours_couverts([{}], arret, date_debut_periode, date_fin_periode))
+            or jours_du_mois
+        )
     salaire = (
         _salaire_du_mois(contexte, duree_hebdo, taux_horaire_base)
         if jours_ouvres
@@ -1965,13 +2009,13 @@ def _releve_ijss_du_mois(
     )
 
 
-def _periode_couverte(
+def _jours_couverts(
     segments: List[Dict[str, Any]],
     arret: Dict[str, Any],
     date_debut_periode: date,
     date_fin_periode: date,
-) -> bool:
-    """Tous les jours de la période sont-ils en arrêt, d'un arrêt ou d'un autre ?"""
+) -> set:
+    """Les jours calendaires de la période en arrêt, d'un arrêt ou d'un autre."""
     couverts: set = set()
     for segment in segments:
         sous = _arret_du_segment(arret, segment)
@@ -1983,7 +2027,36 @@ def _periode_couverte(
         while jour <= min(fin, date_fin_periode):
             couverts.add(jour)
             jour += timedelta(days=1)
-    return len(couverts) == _compter_jours_calendaires(date_debut_periode, date_fin_periode)
+    return couverts
+
+
+def _periode_couverte(
+    segments: List[Dict[str, Any]],
+    arret: Dict[str, Any],
+    date_debut_periode: date,
+    date_fin_periode: date,
+    *,
+    jours_ouvres: Optional[bool] = None,
+) -> bool:
+    """Tous les jours ouvrés de la période sont-ils en arrêt, d'un arrêt ou
+    d'un autre ?
+
+    Un week-end hors de l'arrêt ne rend pas le mois partiel. Arrêt du lundi
+    03/08/2026 au 31/08, le 01/08 étant un samedi : aucun jour ouvré n'est
+    travaillé, la retenue d'absence prend tout le salaire (2 231,48 pour S.G.),
+    et le maintien comptait 21 journées (2 162,83), ou 29/30,42 du salaire en
+    jours calendaires. `jours_ouvres` est gardé pour les appelants : la règle
+    est la même dans les deux modes.
+    """
+    couverts = _jours_couverts(segments, arret, date_debut_periode, date_fin_periode)
+    return all(
+        jour in couverts
+        for jour in (
+            date_debut_periode + timedelta(days=k)
+            for k in range(_compter_jours_calendaires(date_debut_periode, date_fin_periode))
+        )
+        if jour.weekday() < 5
+    )
 
 
 def _calculer_maintien_des_arrets_du_mois(
@@ -2009,13 +2082,18 @@ def _calculer_maintien_des_arrets_du_mois(
         arret, segments, contexte, settings, date_debut_periode, date_fin_periode
     )
     mois_entier: Optional[bool] = None
+    jours_couverts = 0
     if bareme_des_reglages(settings) is not None:
         mois_entier = _periode_couverte(segments, arret, date_debut_periode, date_fin_periode)
+        jours_couverts = len(
+            _jours_couverts(segments, arret, date_debut_periode, date_fin_periode)
+        )
     resultats: List[Dict[str, Any]] = []
     for rang, segment in enumerate(segments):
         sous = _arret_du_segment(arret, segment)
         if mois_entier is not None:
             sous["mois_entier_en_arret"] = mois_entier
+            sous["jours_couverts_du_mois"] = jours_couverts
         if override is not None:
             sous["ijss_brut_override"] = override if rang == 0 else 0.0
         resultats.append(
@@ -2536,6 +2614,9 @@ def calculer_maintien(
         "statut": statut,
         "est_cadre": est_cadre,
     }
+    if arret.get("ijss_releve_du_bulletin"):
+        # Reconstitution d'un bulletin Cegid : IJSS hors bulletin.
+        result["ijss_releve_du_bulletin"] = True
 
     if ijss.get("is_mi_temps_therapeutique"):
         spm = float(ijss.get("salaire_partiel_maintenu") or 0.0)

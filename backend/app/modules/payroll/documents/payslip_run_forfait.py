@@ -507,7 +507,9 @@ def run_payslip_generation_forfait(
             if override is not None:
                 arret_data["ijss_brut_override"] = override
             if saisie_du_mois.get("maintien_base_ouvree"):
+                # Saisie « IJSS override » : reconstitution d'un bulletin Cegid.
                 arret_data["maintien_base_ouvree"] = True
+                arret_data["ijss_releve_du_bulletin"] = True
             try:
                 from app.modules.maintenance_settings.application.queries import (
                     get_maintenance_settings,

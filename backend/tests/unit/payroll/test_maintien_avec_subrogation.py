@@ -166,7 +166,12 @@ def test_deux_arrets_le_releve_valide_se_repartit_sur_le_mois():
     assert [a["maintien_verse"] for a in r["arrets_du_mois"]] == [226.96, 363.15]
 
 
-# --- Jours ouvrés, IJSS hors bulletin (RUN:122-126) --------------------------
+# --- Jours ouvrés : IJSS subrogées au bulletin, sauf reconstitution Cegid ----
+# Défaut du 24/10 : en jours ouvrés, le bulletin laissait les IJSS hors du net
+# même avec une vraie subrogation, quand la CPAM les verse à l'employeur. Le
+# salarié ne touchait que le complément. Seule la reconstitution d'un bulletin
+# Cegid (saisie « IJSS override » : le montant est la retenue relevée sur ce
+# bulletin, sans IJSS au net) les garde hors bulletin.
 
 LEGAL_OUVRES_SUBROGE = {
     **PLASTURGIE,
@@ -195,7 +200,9 @@ def test_reconstitution_cegid_la_retenue_saisie_se_deduit_en_entier():
     bulletin : le garanti moins le montant saisi, au centime. Ce n'est pas un
     relevé de la caisse, il ne se répartit pas sur les jours maintenus.
     """
-    r, contexte = _septembre_ouvres(ijss_brut_override=200.0, maintien_base_ouvree=True)
+    r, contexte = _septembre_ouvres(
+        ijss_brut_override=200.0, maintien_base_ouvree=True, ijss_releve_du_bulletin=True
+    )
     m = r["maintien"]
     assert r["subrogation_active"] is True
     assert r["maintien_base_ouvree"] is True
@@ -213,5 +220,45 @@ def test_jours_ouvres_ijss_estimees_seules_celles_des_jours_maintenus_sont_dedui
     assert r["ijss"]["ijss_theorique"] == 290.56
     assert m["maintien_cible"] == 466.16
     assert m["maintien_verse"] == 304.74  # 466,16 − 161,42 (du 14 au 18/09) ; et non 175,60
-    # IJSS hors bulletin en jours ouvrés, avec ou sans subrogation (RUN:122-126).
-    assert _au_bulletin(r, contexte) == (304.74, 0)
+    # Subrogation : la CPAM verse les IJSS à l'employeur, qui les reverse.
+    assert _au_bulletin(r, contexte) == (304.74, 290.56)
+    # Le garanti des jours maintenus, plus les IJSS du 10 au 13/09 (carence employeur).
+    assert round(304.74 + 290.56, 2) == round(466.16 + 290.56 - 161.42, 2)
+
+
+def test_jours_ouvres_par_le_reglage_de_la_societe_les_ijss_subrogees_sont_reversees():
+    # Le mode vient du réglage « maintien en jours ouvrés », pas des jours d'arrêt.
+    contexte = _contexte_plasturgie()
+    arret = _extraire_arret_pour_maintien(
+        _jours_d_arret(("2026-09-07", "2026-09-18")), contexte, *SEPTEMBRE
+    )
+    arret.pop("maintien_base_ouvree", None)
+    reglages = {**LEGAL_OUVRES_SUBROGE, "maintain_working_days": True}
+    r = calculer_maintien(arret, contexte, reglages, *SEPTEMBRE)
+    assert r["maintien_base_ouvree"] is True and r["subrogation_active"] is True
+    assert _au_bulletin(r, contexte) == (304.74, 290.56)
+
+
+def test_sans_subrogation_en_jours_ouvres_les_ijss_restent_hors_bulletin():
+    r, contexte = _septembre_ouvres(subrogation_active=False)
+    assert r["subrogation_active"] is False
+    assert _au_bulletin(r, contexte)[1] == 0
+
+
+def test_jours_ouvres_montant_valide_du_suivi_ijss_au_prorata_et_reverse():
+    # Un montant validé au suivi IJSS est un relevé de la caisse, pas la retenue
+    # d'un bulletin Cegid : sa part des jours maintenus (5 sur 9, au prorata
+    # des IJSS estimées) se déduit, et il est reversé au bulletin.
+    r, contexte = _septembre_ouvres(ijss_brut_override=200.0)
+    assert r["maintien"]["maintien_verse"] == round(466.16 - 200.0 * 161.42 / 290.56, 2)
+    assert _au_bulletin(r, contexte) == (r["maintien"]["maintien_verse"], 200.0)
+
+
+def test_la_chaine_marque_la_reconstitution_cegid_depuis_la_saisie():
+    import inspect
+
+    from app.modules.payroll.documents import payslip_run_forfait, payslip_run_heures
+
+    for module in (payslip_run_heures, payslip_run_forfait):
+        source = inspect.getsource(module)
+        assert 'arret_data["ijss_releve_du_bulletin"] = True' in source
