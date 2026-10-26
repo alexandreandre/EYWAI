@@ -121,11 +121,16 @@ def _appliquer_maintien_arret_maladie(
 
     lignes_csg_ijss: List[Dict[str, Any]] = []
     ijss_imposables: List[Dict[str, Any]] = []
-    # Mode « jours ouvrés » (Cegid MBC) : le maintien versé (complément = cible −
-    # IJSS) figure déjà au brut ; l'IJSS est versée au salarié directement par la
-    # CPAM (hors bulletin) et NE doit PAS être réintégrée au net imposable / net à
-    # payer, sous peine de double compte.
-    ijss_hors_bulletin = bool(resultats_maintien.get("maintien_base_ouvree"))
+    # Reconstitution d'un bulletin Cegid (Mont Blanc, saisie « IJSS override »,
+    # marquée `ijss_releve_du_bulletin` par la chaîne) : le maintien versé (cible − montant saisi)
+    # figure déjà au brut ; l'IJSS est versée au salarié directement par la CPAM
+    # (hors bulletin) et NE doit PAS être réintégrée au net imposable / net à
+    # payer, sous peine de double compte. Hors de ce cas, le mode jours ouvrés
+    # ne fait que valoriser les journées : avec une vraie subrogation, la CPAM
+    # verse les IJSS à l'employeur, qui les reverse au bulletin (défaut du
+    # 24/10 : elles restaient hors bulletin, le salarié ne touchait que le
+    # complément). Même marqueur que le moteur (`_verse_avec_subrogation`).
+    ijss_hors_bulletin = bool(resultats_maintien.get("ijss_releve_du_bulletin"))
     # Congé de parentalité : le maintien employeur = 100 % du salaire plein, il
     # absorbe déjà les IJSS maternité (récupérées par l'employeur via subrogation
     # mais non ré-affichées). Les réintégrer au net imposable / net à payer
@@ -1097,7 +1102,9 @@ def run_payslip_generation_heures(
             if override is not None:
                 arret_data["ijss_brut_override"] = override
             if saisie_du_mois.get("maintien_base_ouvree"):
+                # Saisie « IJSS override » : reconstitution d'un bulletin Cegid.
                 arret_data["maintien_base_ouvree"] = True
+                arret_data["ijss_releve_du_bulletin"] = True
             try:
                 from app.modules.maintenance_settings.application.queries import (
                     get_maintenance_settings,

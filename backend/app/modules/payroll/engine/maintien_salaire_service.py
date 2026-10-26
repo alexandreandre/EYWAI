@@ -836,13 +836,15 @@ def _verse_avec_subrogation(
     du garanti. Même règle, et même prorata d'un montant validé, que sans
     subrogation.
 
-    Reconstitution d'un bulletin Cegid (saisie « IJSS override » : maintien en
-    jours ouvrés, IJSS hors bulletin) : le montant saisi est la retenue relevée
-    sur ce bulletin (absence à 100 % moins maintien), pas les IJSS de l'arrêt.
-    Il se déduit en entier, comme avant.
+    Reconstitution d'un bulletin Cegid (saisie « IJSS override », marquée
+    `ijss_releve_du_bulletin` par la chaîne : maintien en jours ouvrés, IJSS
+    hors bulletin) : le montant saisi est la retenue relevée sur ce bulletin
+    (absence à 100 % moins maintien), pas les IJSS de l'arrêt. Il se déduit en
+    entier, comme avant. Un montant validé au suivi IJSS, lui, est un relevé de
+    la caisse : sa part des jours maintenus, même en jours ouvrés.
     """
     ijss_arret = float(ijss.get("ijss_theorique") or 0.0)
-    reconstitution = bool(arret.get("maintien_base_ouvree")) and bool(
+    reconstitution = bool(arret.get("ijss_releve_du_bulletin")) and bool(
         ijss.get("ijss_brut_override")
     )
     if ijss_par_jour is None or reconstitution:
@@ -2555,6 +2557,9 @@ def calculer_maintien(
         "statut": statut,
         "est_cadre": est_cadre,
     }
+    if arret.get("ijss_releve_du_bulletin"):
+        # Reconstitution d'un bulletin Cegid : IJSS hors bulletin.
+        result["ijss_releve_du_bulletin"] = True
 
     if ijss.get("is_mi_temps_therapeutique"):
         spm = float(ijss.get("salaire_partiel_maintenu") or 0.0)
