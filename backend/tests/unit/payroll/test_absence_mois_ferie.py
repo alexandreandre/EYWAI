@@ -200,3 +200,31 @@ def test_forfait_jours_le_1er_mai_avant_un_arret_n_est_pas_retenu():
     result = calculer_salaire_brut_forfait(ctx, cal, *MAI, [])
     assert not any(l.startswith("Absence sur tout le mois") for l in _libelles(result))
     assert result["salaire_brut_total"] > 0
+
+
+# --- Défaut du 24/10 : forfait jours, mois entier d'arrêt avec des fériés ----
+# Arrêt du 20/04 au 10/06 : tout mai est en arrêt, ses quatre fériés compris
+# (la validation leur pose les bornes sans les retyper). La règle « absence sur
+# tout le mois » ne comptait que les 17 jours retypés sur 21 jours ouvrés :
+# 777,50 € restaient d'un forfait de 3 608 €.
+
+
+def _forfait():
+    return build_test_contexte(
+        statut="Cadre", salaire_base=3608.0, specificites_extra={"is_forfait_jour": True}
+    )
+
+
+def test_forfait_jours_un_arret_sur_tout_le_mois_retient_le_forfait_feries_compris():
+    cal = _arret(date(2026, 4, 20), date(2026, 6, 10), MAI, FERIES_MAI)
+    result = calculer_salaire_brut_forfait(_forfait(), cal, *MAI, [])
+    assert any(l.startswith("Absence sur tout le mois") for l in _libelles(result))
+    assert result["salaire_brut_total"] == 0.0
+
+
+def test_forfait_jours_un_ferie_paye_hors_de_l_arret_reste_paye():
+    # 1er janvier (jeudi) hors de l'arrêt du 02/01 au 31/01 : une journée payée.
+    cal = _arret(date(2026, 1, 2), date(2026, 1, 31), JANVIER, (date(2026, 1, 1),))
+    result = calculer_salaire_brut_forfait(_forfait(), cal, *JANVIER, [])
+    assert not any(l.startswith("Absence sur tout le mois") for l in _libelles(result))
+    assert result["salaire_brut_total"] > 0
