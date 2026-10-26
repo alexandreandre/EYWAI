@@ -113,8 +113,8 @@ def _classer_quadra(l: LigneComparee, regle_loi: str, ctx: Contexte) -> tuple[st
                 "janvier sans réduction chez Quadra (taux réduits de 2025) : SMIC déclaré sans effet, la base de MARTINE part de février")
     if l.smic_loi == 0 and 0 < l.smic_quadra < 400 and "R-H4" in regle_loi:
         return ("erreur_quadra", "R-H4",
-                f"mois d'arrêt sans maintien : Quadra garde dans le SMIC les heures structurelles retirées "
-                f"(≈ {l.smic_quadra / 12.02:.1f} h, {l.smic_quadra:.2f} €), le rapport des salaires est nul")
+                f"mois d'arrêt sans aucun salaire : Quadra déclare encore ≈ {l.smic_quadra / 12.02:.1f} h de SMIC "
+                f"({l.smic_quadra:.2f} €, vraisemblablement les heures structurelles retirées), le rapport des salaires est nul")
     if abs(l.smic_quadra - 1823.03) < 0.01 and d is not None and d < -TOLERANCE_SMIC:
         return ("erreur_quadra", "R-H1",
                 f"SMIC mensuel seul ({l.smic_quadra:.2f} €) : Quadra ne compte pas les heures supplémentaires "
