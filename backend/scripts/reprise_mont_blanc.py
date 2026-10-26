@@ -175,6 +175,145 @@ def plan_prime_anciennete(fiche: dict, bulletin) -> bool:
     return incluse and a_part
 
 
+def _maj(libelle) -> str:
+    return " ".join(str(libelle or "").split()).upper()
+
+
+def _montants_quadra_de_mutuelle(bulletin) -> list[tuple[float, float, str]]:
+    """(salarial, patronal, libellé) de chaque ligne de mutuelle du bulletin : obligatoire
+    (« EMU… », dans les cotisations) et facultative (« SMU… », après le net, salariale)."""
+    lignes = []
+    for lg in bulletin.lignes:
+        code = lg.code or ""
+        if code.startswith("EMU"):
+            lignes.append((round(lg.montant_sal or 0.0, 2), round(lg.montant_pat or 0.0, 2), lg.libelle))
+        elif code.startswith("SMU"):
+            montant = lg.montant_sal if lg.montant_sal is not None else -(lg.gain or 0.0)
+            lignes.append((round(montant, 2), 0.0, lg.libelle))
+    return lignes
+
+
+def _formule_de_quadra(sal: float, pat: float, libelle: str, types: list[dict]) -> dict | None:
+    """La formule de la société aux mêmes montants ; à égalité, celle dont le libellé partage
+    un mot clé avec Quadra (isolé, enfant, conjoint), puis la plus utilisée."""
+    egales = [t for t in types if abs(float(t.get("montant_salarial") or 0) - sal) < 0.005
+              and abs(float(t.get("montant_patronal") or 0) - pat) < 0.005]
+    mots = {m for m in ("ISOL", "ENFANT", "CONJOINT") if m in _maj(libelle)}
+    egales.sort(key=lambda t: (-len(mots & {m for m in ("ISOL", "ENFANT", "CONJOINT") if m in _maj(t.get("libelle"))}),
+                               -int(t.get("n") or 0), str(t.get("libelle"))))
+    return egales[0] if egales else None
+
+
+def plan_de_mutuelle(fiche: dict, bulletin, types: list[dict]) -> dict | None:
+    """Les formules de mutuelle de la fiche telles que Quadra les prélève au mois de bascule, ou None.
+
+    Le moteur lit `specificites_paie.mutuelle` (adhésion, formules). Une ligne de Quadra sans
+    formule aux mêmes montants dans la société n'est pas devinée : `introuvables`."""
+    quadra = _montants_quadra_de_mutuelle(bulletin)
+    mutuelle = ((fiche.get("specificites_paie") or {}).get("mutuelle") or {})
+    actuels = [str(i) for i in (mutuelle.get("mutuelle_type_ids") or []) if i] if mutuelle.get("adhesion") else []
+    par_id = {str(t["id"]): t for t in types}
+    montants = sorted((round(float(par_id[i].get("montant_salarial") or 0), 2),
+                       round(float(par_id[i].get("montant_patronal") or 0), 2)) for i in actuels if i in par_id)
+    if sorted((sal, pat) for sal, pat, _ in quadra) == montants and len(montants) == len(actuels):
+        return None
+    cibles, introuvables = [], []
+    for sal, pat, libelle in quadra:
+        t = _formule_de_quadra(sal, pat, libelle, types)
+        (cibles.append(str(t["id"])) if t else introuvables.append(f"{libelle} {sal:.2f} / {pat:.2f}"))
+    return {"adhesion": bool(cibles), "mutuelle_type_ids": cibles, "introuvables": introuvables,
+            "avant": {"adhesion": bool(mutuelle.get("adhesion")), "mutuelle_type_ids": actuels},
+            "quadra": [f"{lib} {sal:.2f} / {pat:.2f}" for sal, pat, lib in quadra]}
+
+
+def plan_de_prevoyance(fiche: dict, bulletin) -> dict | None:
+    """La prévoyance de la fiche aux taux que Quadra prélève (lignes « EPR… », tranche A), ou None.
+
+    Posée seulement quand Quadra prélève une prévoyance que la fiche n'applique pas ou à
+    d'autres taux ; les lignes reprennent la forme de l'import DSN (`prevoyance_dsn`)."""
+    lignes, quadra = [], []
+    for lg in bulletin.lignes:
+        if (lg.code or "").startswith("EPR") and lg.base:
+            quadra.append((lg.base, round(lg.montant_sal or 0.0, 2), round(lg.montant_pat or 0.0, 2)))
+            lignes.append({
+                "id": "prevoyance_dsn" if not lignes else f"prevoyance_dsn_{len(lignes) + 1}",
+                "base": "brut_plafonne",
+                "libelle": " ".join(lg.libelle.split()),
+                # Le taux salarial imprimé par Quadra ; le patronal, montant ÷ base à cinq
+                # décimales (0,50 %, 1,58 %, 0,904 %) : au-delà, c'est l'arrondi au centime.
+                "salarial": round((lg.taux / 100) if lg.taux and lg.montant_sal else
+                                  (lg.montant_sal or 0.0) / lg.base, 5),
+                "patronal": round((lg.montant_pat or 0.0) / lg.base, 5),
+                "forfait_social": 0.08,
+            })
+    if not lignes:
+        return None
+    prev = ((fiche.get("specificites_paie") or {}).get("prevoyance") or {})
+    actuelles = prev.get("lignes_specifiques") or []
+    # Mêmes taux : ceux de la fiche redonnent, sur les bases de Quadra, ses montants au centime.
+    memes_taux = len(actuelles) == len(quadra) and all(
+        abs(round(base * float(l.get("salarial") or 0), 2) - sal) < 0.005
+        and abs(round(base * float(l.get("patronal") or 0), 2) - pat) < 0.005
+        for l, (base, sal, pat) in zip(actuelles, quadra))
+    if prev.get("adhesion") and (memes_taux or not actuelles):
+        return None
+    return {"adhesion": True, "lignes_specifiques": lignes,
+            "avant": {"adhesion": bool(prev.get("adhesion")),
+                      "taux": [(l.get("salarial"), l.get("patronal")) for l in actuelles]}}
+
+
+def sorties_de_quadra(mois: list[dict], fin_de_bascule: date) -> list[tuple[str, object, date]]:
+    """(matricule, dernier bulletin, date de sortie) des sorties imprimées par Quadra
+    (« Sorti(e) le ») jusqu'au mois de bascule ; `mois` : les bulletins par mois, dans l'ordre."""
+    vues: dict[str, tuple] = {}
+    for bulletins in mois:
+        for mat, b in bulletins.items():
+            d = _date_fr(b.infos.get("sortie"))
+            if d is not None and d <= fin_de_bascule:
+                vues[mat] = (mat, b, d)
+    return sorted(vues.values(), key=lambda x: x[0])
+
+
+def motif_de_sortie(bulletin, motif_dsn: str | None) -> tuple[str, str]:
+    """(type de départ, d'où il vient). La DSN du mois de sortie d'abord (S21.G00.62.002) ;
+    sinon ce que le bulletin prouve : indemnité de précarité (fin de CDD), de licenciement, de
+    rupture conventionnelle ; sinon « autre motif », Quadra n'imprimant pas le motif."""
+    from app.modules.dsn_import.domain.dsn_absence_exit_mapping import map_exit_motif
+
+    if motif_dsn:
+        return map_exit_motif(motif_dsn), f"motif DSN {motif_dsn}"
+    libelles = [_maj(lg.libelle) for lg in bulletin.lignes if lg.gain]
+    if any("PRÉCARITÉ" in l or "PRECARITE" in l for l in libelles):
+        return "fin_cdd", "indemnité de précarité au bulletin de Quadra"
+    if any("LICENCIEMENT" in l for l in libelles):
+        return "licenciement", "indemnité de licenciement au bulletin de Quadra"
+    if any("RUPTURE" in l and "CONV" in l for l in libelles):
+        return "rupture_conventionnelle", "indemnité de rupture conventionnelle au bulletin de Quadra"
+    return "autre_motif", "motif non imprimé par Quadra ; à reprendre de la DSN du mois de sortie"
+
+
+def motif_dsn_de_sortie(nir: str, mois: int) -> str | None:
+    """Le motif de rupture (S21.G00.62.002) déclaré pour ce NIR dans la DSN du mois, s'il y est."""
+    import re
+
+    from scripts.verification_rgdu.chemins import DATA
+
+    chemin = DATA / SOCIETE / "dsn" / f"{ANNEE:04d}-{mois:02d}.dsn"
+    if not chemin.exists():
+        return None
+    courant, motif = None, None
+    for ligne in chemin.read_bytes().decode("latin-1").splitlines():
+        m = re.match(r"(S21\.G00\.\d\d\.\d{3}),'(.*)'", ligne.strip())
+        if not m:
+            continue
+        rub, val = m.groups()
+        if rub == "S21.G00.30.001":
+            courant = val[:13]
+        elif rub == "S21.G00.62.002" and courant == str(nir)[:13]:
+            motif = val
+    return motif
+
+
 #: Heures mensuelles d'un temps plein (35 h × 52 / 12), base du « SALAIRE DE BASE » de Quadra.
 HEURES_TEMPS_PLEIN = 151.67
 
@@ -234,10 +373,16 @@ def fiches(appliquer: bool, bascule: int) -> int:
     admin = get_supabase_admin_client()
     lignes = admin.table("employees").select(
         "id, first_name, last_name, nir, hire_date, seniority_reference_date, prior_service_months, "
-        "salaire_de_base, duree_hebdomadaire, specificites_paie"
+        "salaire_de_base, duree_hebdomadaire, specificites_paie, employment_status, contract_end_date"
     ).eq("company_id", COMPANY_ID).execute().data
+    types = admin.table("company_mutuelle_types").select(
+        "id, libelle, montant_salarial, montant_patronal").eq("company_id", COMPANY_ID).eq("is_active", True).execute().data
+    usages = admin.table("employee_mutuelle_types").select("mutuelle_type_id").in_(
+        "mutuelle_type_id", [t["id"] for t in types] or ["-"]).execute().data
+    for t in types:
+        t["n"] = sum(1 for u in usages if u["mutuelle_type_id"] == t["id"])
     par_nir = {_nir(f["nir"]): f for f in lignes if f.get("nir")}
-    plans, salaires, primes = [], [], []
+    plans, salaires, primes, mutuelles, prevoyances = [], [], [], [], []
     print(f"\n=== Ancienneté au {bascule:02d}/{ANNEE} (date de Quadra, reprise en mois remise à zéro)")
     lus = [lire_bulletins(ANNEE, m, SOCIETE) for m in range(1, bascule + 1)]
     fin = date(ANNEE, bascule, calendar.monthrange(ANNEE, bascule)[1])
@@ -252,6 +397,16 @@ def fiches(appliquer: bool, bascule: int) -> int:
             salaires.append((fiche, salaire))
         if plan_prime_anciennete(fiche, b):
             primes.append(fiche)
+        # Mutuelle et prévoyance : seulement pour qui reste payé après la bascule.
+        fin_contrat = str(fiche.get("contract_end_date") or "")[:10]
+        encore_la = not b.infos.get("sortie") and not (fin_contrat and fin_contrat <= fin.isoformat())
+        if encore_la:
+            mut = plan_de_mutuelle(fiche, b, types)
+            if mut is not None:
+                mutuelles.append((fiche, mut))
+            prev = plan_de_prevoyance(fiche, b)
+            if prev is not None:
+                prevoyances.append((fiche, prev))
         if plan is None:
             continue
         entree = _date_fr(b.infos.get("entree"))
@@ -272,6 +427,17 @@ def fiches(appliquer: bool, bascule: int) -> int:
     for fiche in primes:
         print(f"  {etiquette(fiche):14s} prime d'ancienneté payée à part par Quadra : réglage « incluse dans le salaire » retiré")
     print(f"{len(primes)} prime(s) d'ancienneté à remettre à part.")
+    libelles = {str(t["id"]): t["libelle"] for t in types}
+    print(f"\n=== Mutuelle et prévoyance au {bascule:02d}/{ANNEE} (celles que Quadra prélève)")
+    for fiche, mut in mutuelles:
+        print(f"  {etiquette(fiche):14s} mutuelle {[libelles.get(i, i) for i in mut['avant']['mutuelle_type_ids']] or 'aucune'}"
+              f" → {[libelles.get(i, i) for i in mut['mutuelle_type_ids']] or 'aucune'} (Quadra : {mut['quadra'] or 'aucune'})"
+              + (f" ; !! sans formule aux montants de Quadra : {mut['introuvables']}" if mut["introuvables"] else ""))
+    for fiche, prev in prevoyances:
+        print(f"  {etiquette(fiche):14s} prévoyance {'adhérente' if prev['avant']['adhesion'] else 'non adhérente'} "
+              f"{prev['avant']['taux']} → {[(l['salarial'], l['patronal']) for l in prev['lignes_specifiques']]}")
+    print(f"{len(mutuelles)} mutuelle(s) à aligner sur Quadra.")
+    print(f"{len(prevoyances)} prévoyance(s) à aligner sur Quadra.")
     societe = admin.table("companies").select("settings").eq("id", COMPANY_ID).execute().data[0]
     reglages = dict(societe.get("settings") or {})
     taux = taux_de_chomage_de_quadra(lus[-1].values())
@@ -296,8 +462,36 @@ def fiches(appliquer: bool, bascule: int) -> int:
                 apply_salary_update(fiche["id"], COMPANY_ID, sal["avant"]["salaire_de_base"], sal["salaire_de_base"],
                                     f"Reprise Quadra : salaire de base du bulletin de {bascule:02d}/{ANNEE}",
                                     f"{ANNEE:04d}-{bascule:02d}-01", AUTEUR)
-        # Une seule écriture de specificites_paie par fiche, avec tous ses changements.
+        from app.modules.mutuelle_types.infrastructure.repository import MutuelleTypesRepository
+
+        depot = MutuelleTypesRepository(admin)
+        for fiche, mut in mutuelles:
+            if mut["introuvables"]:
+                print(f"  {etiquette(fiche):14s} mutuelle NON écrite : formule introuvable")
+                continue
+            if len(mut["mutuelle_type_ids"]) == 1:
+                depot.replace_employee_mutuelle(fiche["id"], mut["mutuelle_type_ids"][0], AUTEUR)
+            else:
+                admin.table("employee_mutuelle_types").delete().eq("employee_id", fiche["id"]).execute()
+                for i in mut["mutuelle_type_ids"]:
+                    admin.table("employee_mutuelle_types").insert(
+                        {"employee_id": fiche["id"], "mutuelle_type_id": i, "created_by": AUTEUR}).execute()
+        # Une seule écriture de specificites_paie par fiche, avec tous ses changements, relue
+        # après la mutuelle (replace_employee_mutuelle l'a mise à jour).
+        relues = {f["id"]: f.get("specificites_paie") or {} for f in admin.table("employees").select(
+            "id, specificites_paie").eq("company_id", COMPANY_ID).execute().data}
+        for fiche in [f for f, _ in salaires] + primes + [f for f, _ in mutuelles] + [f for f, _ in prevoyances]:
+            fiche["specificites_paie"] = relues.get(fiche["id"], fiche.get("specificites_paie"))
         specs: dict[str, dict] = {}
+        for fiche, mut in mutuelles:
+            if len(mut["mutuelle_type_ids"]) != 1 and not mut["introuvables"]:
+                spec = specs.setdefault(fiche["id"], dict(fiche.get("specificites_paie") or {}))
+                spec["mutuelle"] = {**(spec.get("mutuelle") or {}), "adhesion": bool(mut["mutuelle_type_ids"]),
+                                    "mutuelle_type_ids": mut["mutuelle_type_ids"], "lignes_specifiques": []}
+        for fiche, prev in prevoyances:
+            spec = specs.setdefault(fiche["id"], dict(fiche.get("specificites_paie") or {}))
+            spec["prevoyance"] = {**(spec.get("prevoyance") or {}), "adhesion": True,
+                                  "lignes_specifiques": prev["lignes_specifiques"]}
         for fiche, sal in salaires:
             if sal["salaire_hors_hs_structurelles"] and not sal["avant"]["salaire_hors_hs_structurelles"]:
                 spec = specs.setdefault(fiche["id"], dict(fiche.get("specificites_paie") or {}))
@@ -308,7 +502,50 @@ def fiches(appliquer: bool, bascule: int) -> int:
         for fid, spec in specs.items():
             admin.table("employees").update({"specificites_paie": spec}).eq("id", fid).eq(
                 "company_id", COMPANY_ID).execute()
-        print(f"{len(plans)} ancienneté(s), {len(salaires)} salaire(s) et {len(primes)} prime(s) écrits.")
+        print(f"{len(plans)} ancienneté(s), {len(salaires)} salaire(s), {len(primes)} prime(s), "
+              f"{len(mutuelles)} mutuelle(s) et {len(prevoyances)} prévoyance(s) écrites.")
+    return 0
+
+
+def sorties(appliquer: bool, bascule: int) -> int:
+    """Les sorties imprimées par Quadra jusqu'à la bascule, posées sur les fiches encore actives.
+
+    Par le chemin de l'application pour une sortie reprise (`create_reconciliation_exit`) :
+    départ créé, clos et archivé (fiche « partie »), sans document de sortie (Quadra les a
+    faits). Motif : DSN du mois de sortie si elle est là, sinon ce que prouve le bulletin."""
+    from app.core.database import get_supabase_admin_client
+    from scripts.backtest.colorplast_lignes_quadra import lire_bulletins
+    from scripts.reprise_colorplast_import_litteral import etiquette
+    from scripts.reprise_comitech import _nir
+
+    admin = get_supabase_admin_client()
+    par_nir = {_nir(f["nir"]): f for f in admin.table("employees").select(
+        "id, first_name, last_name, nir, employment_status").eq("company_id", COMPANY_ID).execute().data if f.get("nir")}
+    fin = date(ANNEE, bascule, calendar.monthrange(ANNEE, bascule)[1])
+    a_poser = []
+    print(f"\n=== Sorties imprimées par Quadra jusqu'au {fin:%d/%m/%Y}")
+    for _mat, b, jour in sorties_de_quadra([lire_bulletins(ANNEE, m, SOCIETE) for m in range(1, bascule + 1)], fin):
+        fiche = par_nir.get(_nir(b.infos.get("nir")))
+        if not fiche:
+            continue
+        statut = str(fiche.get("employment_status") or "actif")
+        if statut not in ("actif", "active"):
+            print(f"  {etiquette(fiche):14s} sortie le {jour:%d/%m/%Y} : fiche déjà {statut}")
+            continue
+        type_depart, raison = motif_de_sortie(b, motif_dsn_de_sortie(_nir(b.infos.get("nir")), jour.month))
+        print(f"  {etiquette(fiche):14s} sortie le {jour:%d/%m/%Y} à poser : {type_depart} ({raison})")
+        a_poser.append((fiche, jour, type_depart, raison))
+    print(f"{len(a_poser)} sortie(s) à poser.")
+    if appliquer:
+        from app.modules.employee_exits.application.commands import create_reconciliation_exit
+
+        for fiche, jour, type_depart, raison in a_poser:
+            create_reconciliation_exit(
+                fiche["id"], COMPANY_ID, AUTEUR, exit_type=type_depart, last_working_day=jour,
+                exit_reason=f"Reprise Quadra : sortie du {jour:%d/%m/%Y} ({raison})",
+                fast_archive=True, source="dsn_reconciliation",
+            )
+            print(f"  {etiquette(fiche):14s} sortie posée et archivée")
     return 0
 
 
@@ -324,7 +561,8 @@ def main(appliquer: bool, bascule: int, sans: tuple[str, ...] = (), mois_ecrits:
         code = rc.main(appliquer, bascule, sans, mois_ecrits, complements)
         if code:
             return code
-    return fiches(appliquer, bascule)
+    code = fiches(appliquer, bascule)
+    return code or sorties(appliquer, bascule)
 
 
 if __name__ == "__main__":

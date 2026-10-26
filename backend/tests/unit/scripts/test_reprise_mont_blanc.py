@@ -205,3 +205,86 @@ def test_le_taux_de_chomage_module_se_lit_sur_les_bulletins_de_quadra():
 
     assert taux_de_chomage_de_quadra([bulletin(2033.71, 60.0), bulletin(3984.0, 117.53),
                                       bulletin(1232.23, 49.29)]) == 2.95
+
+
+# --- Mutuelle, prévoyance, sorties (26/10) -------------------------------------------------
+
+TYPES = [
+    {"id": "isole", "libelle": "Mutuelle Isolé 0/46.86", "montant_salarial": "0.00", "montant_patronal": "46.86"},
+    {"id": "autre-0-46", "libelle": "Mutuelle 0.00€ / 46.86€", "montant_salarial": "0.00", "montant_patronal": "46.86"},
+    {"id": "famille", "libelle": "Mutuelle salarié+1enfant 34.84€ / 46.86€", "montant_salarial": "34.84",
+     "montant_patronal": "46.86"},
+    {"id": "petite", "libelle": "Mutuelle 2.94€ / 0.00€", "montant_salarial": "2.94", "montant_patronal": "0.00"},
+]
+
+
+def _avec_lignes(*lignes):
+    b = _bulletin("X", "1", "01/01/2020")
+    b.lignes = [Ligne(None, "SALAIRE DE BASE", base=151.67, taux=12.31, gain=1867.06), *lignes]
+    return b
+
+
+def test_la_mutuelle_de_la_fiche_prend_la_formule_que_quadra_prelève():
+    from scripts.reprise_mont_blanc import plan_de_mutuelle
+
+    fiche = {"specificites_paie": {"mutuelle": {"adhesion": True, "mutuelle_type_ids": ["isole"]}}}
+    b = _avec_lignes(Ligne("EMU2", "GAN Mut salarié+1enfant", base=4005.0, taux=0.87, montant_sal=34.84,
+                           montant_pat=46.86))
+    plan = plan_de_mutuelle(fiche, b, TYPES)
+    assert plan["mutuelle_type_ids"] == ["famille"] and plan["adhesion"] is True
+
+
+def test_a_montants_egaux_le_libelle_de_quadra_departage_les_formules():
+    from scripts.reprise_mont_blanc import plan_de_mutuelle
+
+    fiche = {"specificites_paie": {"mutuelle": {"adhesion": False}}}
+    b = _avec_lignes(Ligne("EMU1", "GAN Mutuelle Isolé", base=4005.0, montant_pat=46.86))
+    assert plan_de_mutuelle(fiche, b, TYPES)["mutuelle_type_ids"] == ["isole"]
+
+
+def test_sans_mutuelle_chez_quadra_la_fiche_n_en_preleve_plus():
+    from scripts.reprise_mont_blanc import plan_de_mutuelle
+
+    fiche = {"specificites_paie": {"mutuelle": {"adhesion": True, "mutuelle_type_ids": ["petite"]}}}
+    plan = plan_de_mutuelle(fiche, _avec_lignes(), TYPES)
+    assert plan["mutuelle_type_ids"] == [] and plan["adhesion"] is False
+
+
+def test_une_mutuelle_deja_juste_n_a_pas_de_plan():
+    from scripts.reprise_mont_blanc import plan_de_mutuelle
+
+    fiche = {"specificites_paie": {"mutuelle": {"adhesion": True, "mutuelle_type_ids": ["famille"]}}}
+    b = _avec_lignes(Ligne("EMU2", "GAN Mut salarié+1enfant", base=4005.0, montant_sal=34.84, montant_pat=46.86))
+    assert plan_de_mutuelle(fiche, b, TYPES) is None
+
+
+def test_la_prevoyance_que_quadra_preleve_est_posee_a_ses_taux():
+    from scripts.reprise_mont_blanc import plan_de_prevoyance
+
+    fiche = {"specificites_paie": {"prevoyance": {"adhesion": False, "lignes_specifiques": [
+        {"id": "prevoyance_dsn", "patronal": 0.015, "salarial": 0.037383}]}}}
+    b = _avec_lignes(Ligne("EPR3", "GAN PREVOYANCE NON CADRE TA", base=2182.77, taux=0.5, montant_sal=10.91,
+                           montant_pat=10.91))
+    plan = plan_de_prevoyance(fiche, b)
+    assert plan["adhesion"] is True
+    assert [(l["salarial"], l["patronal"], l["base"]) for l in plan["lignes_specifiques"]] == [(0.005, 0.005, "brut_plafonne")]
+    juste = {"specificites_paie": {"prevoyance": {"adhesion": True, "lignes_specifiques": plan["lignes_specifiques"]}}}
+    assert plan_de_prevoyance(juste, b) is None
+
+
+def test_une_sortie_imprimee_par_quadra_sans_motif_ni_dsn_est_un_autre_motif():
+    from scripts.reprise_mont_blanc import motif_de_sortie
+
+    b = _avec_lignes(Ligne("BCP", "Indemnité CP", base=1014.32, taux=1.0, gain=1014.32))
+    assert motif_de_sortie(b, None)[0] == "autre_motif"
+    assert motif_de_sortie(b, "059") == ("demission", "motif DSN 059")
+    cdd = _avec_lignes(Ligne(None, "Ind.de précarité des CDD", base=3657.98, taux=100.0, gain=3657.98))
+    assert motif_de_sortie(cdd, None)[0] == "fin_cdd"
+
+
+def test_les_sorties_de_quadra_sont_celles_imprimees_jusqu_a_la_bascule():
+    from scripts.reprise_mont_blanc import sorties_de_quadra
+
+    juin = {"A": _bulletin("A", "1", "01/01/2020")}
+    juillet = {"A": _bulletin("A", "1", "01/01/2020", sortie="03/07/2026"), "B": _bulletin("B", "2", "01/01/2021")}
+    assert [(m, d.isoformat()) for m, _b, d in sorties_de_quadra([juin, juillet], date(2026, 7, 31))] == [("A", "2026-07-03")]
