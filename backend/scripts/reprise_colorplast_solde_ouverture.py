@@ -83,7 +83,7 @@ TAUX_CSG_CRDS_PLEIN = 0.097
 #:     imprimé   = G × (1 − 0,068 × 0,9825)
 #:     défiscalisé = G × (1 − 0,097 × 0,9825)
 #: donc le second vaut le premier multiplié par le rapport des deux facteurs.
-#: Vérifié sur GIRERD juin 2026 : 449,54 € de HS, 419,51 € imprimés, 406,70 €
+#: Vérifié sur F.G. juin 2026 : 449,54 € de HS, 419,51 € imprimés, 406,70 €
 #: défiscalisés, et sur les six mois l'écart avec notre cumul reste sous 1 €.
 RATIO_HS_DEFISCALISEES = (1 - TAUX_CSG_CRDS_PLEIN * ABATTEMENT_CSG) / (
     1 - TAUX_CSG_DEDUCTIBLE * ABATTEMENT_CSG
@@ -128,6 +128,43 @@ def base_du_dixieme(lus: dict[int, dict], annee: int, bascule: int, cle: str, br
         raise SystemExit(f"Période de congés {debut} → {fin} : il faut aussi les bulletins de {debut.year}.")
     mois = [m for m in sorted(lus) if m <= bascule and cle in lus[m] and date(annee, m, 1) >= debut]
     return round(sum(brut_du_mois(lus[m][cle]) for m in mois), 2), debut, fin
+
+
+def heures_hors_de_la_reduction(cumuls: dict[str, Any]) -> float | None:
+    """Les heures à retirer du « Cumul heures » imprimé pour retrouver la base de SMIC de Quadra.
+
+    Le cumul imprimé n'est pas le SMIC que Quadra a retenu pour la réduction (arrêt payé en
+    maintien, entrée ou sortie en cours de mois). Sans cette clé, le premier mois de MARTINE
+    régularisait l'écart : au 30/09/2026, L.C. reprenait 174,92 € de réduction et M.G. 234,76 €,
+    M.B. en rendait 67,41 €. Les heures sont retrouvées en inversant la formule sur la réduction
+    cumulée de Quadra, comme à la reprise Comitech (`reprise_comitech.base_de_la_reduction`,
+    décision du 17/10/2026). None quand la réduction ne dit rien des heures (aucune, plafonnée,
+    au plancher), ou quand les heures imprimées la redonnent déjà à moins d'un euro (palier
+    d'arrondi du coefficient) ; négatif quand Quadra en a retenu plus qu'il n'en imprime.
+    """
+    from app.modules.payroll.engine.calcul_reduction_generale import (
+        calculer_coefficient_rgdu,
+    )
+    from scripts.reprise_comitech import (
+        _RGDU_P,
+        _RGDU_TDELTA,
+        _RGDU_TMIN,
+        _SMIC_HORAIRE_RGDU,
+        smic_retrouve_de_la_reduction,
+    )
+
+    brut = float(cumuls.get("brut_total") or 0.0)
+    deja = abs(float(cumuls.get("reduction_generale_patronale") or 0.0))
+    heures = float(cumuls.get("heures_remunerees") or 0.0)
+    coef, _ = calculer_coefficient_rgdu(brut, round(heures * _SMIC_HORAIRE_RGDU, 2),
+                                        tmin=_RGDU_TMIN, tdelta=_RGDU_TDELTA, p=_RGDU_P)
+    if abs(round(brut * coef, 2) - deja) < 1.0:
+        return None
+    smic, _raison = smic_retrouve_de_la_reduction(brut, deja)
+    if not smic:
+        return None
+    hors = round(heures - round(smic / _SMIC_HORAIRE_RGDU, 2), 2)
+    return hors if abs(hors) >= 0.005 else None
 
 
 def construire_le_solde(
@@ -183,6 +220,9 @@ def construire_le_solde(
                 "fait_foi": True,
             },
         }
+        hors = heures_hors_de_la_reduction(soldes[nom]["cumuls"])
+        if hors is not None:
+            soldes[nom]["cumuls"]["heures_hors_reduction_generale"] = hors
     return soldes
 
 
@@ -277,6 +317,13 @@ def main(appliquer: bool, bascule: int = BASCULE_PAR_DEFAUT, sans_fiche: int = 0
     for nom, solde in soldes_ecrits.items():
         vals = [solde["cumuls"][c] for c in cles]
         print(f"{etiquette(fiches[nom]):14s} " + " ".join(f"{v:11.2f}" for v in vals))
+
+    print("\nBase de la réduction de Quadra (heures imprimées → heures de SMIC retenues) :")
+    for nom, solde in soldes_ecrits.items():
+        c = solde["cumuls"]
+        hors = c.get("heures_hors_reduction_generale")
+        print(f"  {etiquette(fiches[nom]):14s} {c['heures_remunerees']:9.2f} h → "
+              + ("inchangées" if hors is None else f"{c['heures_remunerees'] - hors:9.2f} h (clé {hors:+.2f})"))
 
     print("\nComparaison avec nos compteurs actuels du mois de bascule (nous − Quadra) :")
     for nom, solde in soldes_ecrits.items():
