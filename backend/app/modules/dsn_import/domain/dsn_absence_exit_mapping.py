@@ -125,15 +125,36 @@ LIBELLES_MOTIF_ARRET: Dict[str, str] = {
 #: Motif de suspension (S21.G00.65.001) → type d'absence de Martine. Seules
 #: les suspensions prises en jours entiers sur toute la période : le congé de
 #: proche aidant, de présence parentale ou de solidarité familiale se
-#: fractionnent (65.005 en demi-journées), le congé pour enfant malade peut
-#: être payé par la convention ; ils restent à saisir.
+#: fractionnent (65.005 en demi-journées) ; ils restent à saisir.
 SUSPENSION_ABSENCE_MAP: Dict[str, str] = {
     "501": "sans_solde",  # congé divers non rémunéré
     "632": "sans_solde",  # congé parental d'éducation
     "635": "sans_solde",  # congé pour création ou reprise d'entreprise
+    "636": "sans_solde",  # congé pour enfant malade : non rémunéré (L1225-61)
     "639": "sans_solde",  # congé sabbatique
     "680": "sans_solde",  # congé sans solde cotisé
     "637": "evenement_familial",  # congé pour évènement familial
+}
+
+#: Motifs déclarés que l'import ne peut pas créer en absence, et où les saisir.
+#: Le temps partiel thérapeutique (60.001 = 15 à 18) n'a que ses dates dans la
+#: DSN : les heures non travaillées n'y sont pas, et un arrêt par période
+#: retiendrait des jours pleins. L'activité partielle (65.001 = 602, chômage
+#: sans rupture du contrat, L5122-1) se paie en heures chômées et en indemnité.
+_TEMPS_PARTIEL_THERAPEUTIQUE = (
+    "Temps partiel thérapeutique : la DSN donne la période, pas les heures non "
+    "travaillées. Saisissez-les jour par jour dans le module Absences : arrêt de "
+    "type « Mi-temps thérapeutique », avec les heures non travaillées du planning."
+)
+CONSIGNES_MOTIFS_NON_REPRIS: Dict[Tuple[str, str], str] = {
+    ("S21.G00.60", "15"): _TEMPS_PARTIEL_THERAPEUTIQUE,
+    ("S21.G00.60", "16"): _TEMPS_PARTIEL_THERAPEUTIQUE,
+    ("S21.G00.60", "17"): _TEMPS_PARTIEL_THERAPEUTIQUE,
+    ("S21.G00.60", "18"): _TEMPS_PARTIEL_THERAPEUTIQUE,
+    ("S21.G00.65", "602"): (
+        "Activité partielle : elle ne se saisit pas comme une absence, mais en heures "
+        "dans les variables du mois (heures chômées et indemnité d'activité partielle)."
+    ),
 }
 
 LIBELLES_MOTIF_SUSPENSION: Dict[str, str] = {
@@ -197,6 +218,12 @@ def map_arret_motif(motif: str) -> Optional[Tuple[str, str]]:
 def map_suspension_to_absence(motif: str) -> Optional[str]:
     """Type d'absence d'un motif de suspension, ou None s'il n'a pas d'équivalent."""
     return SUSPENSION_ABSENCE_MAP.get(_code(motif, 3))
+
+
+def consigne_motif(bloc: str, motif: str) -> Optional[str]:
+    """Où saisir un motif déclaré que l'import ne crée pas, s'il a une place dans Martine."""
+    longueur = 2 if bloc == BLOC_ARRET else 3
+    return CONSIGNES_MOTIFS_NON_REPRIS.get((bloc, _code(motif, longueur)))
 
 
 def libelle_motif(bloc: str, motif: str) -> str:

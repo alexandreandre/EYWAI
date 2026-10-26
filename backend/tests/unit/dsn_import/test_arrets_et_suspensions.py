@@ -308,3 +308,43 @@ def test_l_apercu_dit_ce_qui_n_est_pas_importe():
     assert anomalie["message"].startswith(
         "2 suspensions « chômage sans rupture de contrat » (motif 602, bloc S21.G00.65) non importées"
     )
+
+
+# --- Motifs traduits le 25/10/2026 (reprise Mont Blanc) ----------------------
+
+
+def test_un_conge_pour_enfant_malade_636_est_un_sans_solde():
+    """Code du travail L1225-61 : congé non rémunéré, sauf convention plus favorable.
+    Mont Blanc (Quadra, janvier 2026) retient bien la journée (« Abs. Enfant malade »)."""
+    absence = _une_absence(("2026-01.dsn", _dsn("012026", _suspension("636", "21012026", "21012026"))))
+    assert absence["absence_type"] == "sans_solde"
+    assert absence["selected_days"] == ["2026-01-21"]
+
+
+@pytest.mark.parametrize("motif", ["15", "16", "17", "18"])
+def test_le_temps_partiel_therapeutique_dit_ou_le_saisir(motif):
+    """La DSN donne la période du temps partiel thérapeutique, pas les heures non
+    travaillées : pas d'absence créée (elle retiendrait des jours pleins), mais l'aperçu
+    dit de le saisir jour par jour, en arrêt de type « Mi-temps thérapeutique »."""
+    from app.modules.dsn_import.domain.user_messages import absence_non_reprise_anomaly
+
+    parsed = parse_dsn_files([("2026-06.dsn", _dsn("062026", _arret(motif, "14062026", "30062026")))])
+    items, summary = build_preview_items(parsed)
+    assert not [it for it in items if it["item_type"] == "absence"]
+    (non_repris,) = summary["absences_non_reprises"]
+    anomalie = absence_non_reprise_anomaly(non_repris)
+    assert "Mi-temps thérapeutique" in anomalie["hint"] and "jour par jour" in anomalie["hint"]
+    assert "pas de type d'absence" not in anomalie["message"]
+
+
+def test_le_chomage_sans_rupture_602_dit_de_le_saisir_dans_les_variables():
+    """Activité partielle (L5122-1) : des heures chômées et une indemnité, pas une absence."""
+    from app.modules.dsn_import.domain.user_messages import absence_non_reprise_anomaly
+
+    _, summary = build_preview_items(
+        parse_dsn_files([("2026-05.dsn", _dsn("052026", _suspension("602", "04052026", "04052026")))])
+    )
+    (non_repris,) = summary["absences_non_reprises"]
+    anomalie = absence_non_reprise_anomaly(non_repris)
+    assert "activité partielle" in anomalie["hint"].lower() and "variables du mois" in anomalie["hint"]
+    assert "pas de type d'absence" not in anomalie["message"]

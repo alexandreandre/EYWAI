@@ -30,6 +30,7 @@ from app.modules.dsn_import.domain.dsn_absence_exit_mapping import (
     build_absence_payload_from_suspension,
     build_exit_payload_from_fin_contrat,
     derniere_declaration,
+    consigne_motif,
     libelle_motif,
     map_arret_motif,
     map_suspension_to_absence,
@@ -635,6 +636,7 @@ def absences_non_reprises(non_reprises: Dict[Tuple[str, str], int]) -> List[Dict
             "motif": motif,
             "libelle": libelle_motif(bloc, motif),
             "nombre": nombre,
+            **({"consigne": c} if (c := consigne_motif(bloc, motif)) else {}),
         }
         for (bloc, motif), nombre in sorted(non_reprises.items())
     ]
