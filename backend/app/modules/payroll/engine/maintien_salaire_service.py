@@ -130,6 +130,16 @@ def _extraire_pss_annuel(baremes_pss: Any) -> Optional[float]:
     return None
 
 
+def _extraire_pss_mensuel(baremes_pss: Any) -> Optional[float]:
+    """Le plafond mensuel de la Sécurité sociale, ou le douzième de l'annuel."""
+    if isinstance(baremes_pss, dict):
+        mensuel = baremes_pss.get("mensuel")
+        if isinstance(mensuel, (int, float)) and mensuel > 0:
+            return float(mensuel)
+    annuel = _extraire_pss_annuel(baremes_pss)
+    return annuel / 12.0 if annuel else None
+
+
 def plafond_ij_pour(
     arret_type: str,
     jour_arret_1based: int,
@@ -551,10 +561,11 @@ def _calculer_ijss(
     )
 
     salaire_mensuel = float(contexte.salaire_base_mensuel or 0.0)
-    est_maladie = not qualification.get("est_at_mp") and not qualification.get(
-        "est_maternite"
-    )
-    if est_maladie:
+    est_parentalite = bool(qualification.get("est_maternite"))
+    est_maladie = not qualification.get("est_at_mp") and not est_parentalite
+    if est_maladie or est_parentalite:
+        # Trois derniers bruts ÷ 91,25 : R323-4 pour la maladie, et R331-5 qui
+        # y renvoie pour la maternité, la paternité et l'adoption.
         salaire_journalier_base = _salaire_journalier_de_base_maladie(
             arret, salaire_mensuel
         )
@@ -572,6 +583,18 @@ def _calculer_ijss(
         # Chaque paie retenue dans la limite de 1,4 Smic mensuel (R323-4).
         base_plafonnee = _salaire_journalier_de_base_maladie(
             arret, salaire_mensuel, plafond_mensuel_smic
+        )
+    elif est_parentalite:
+        # CSS R331-5 : chaque paie dans la limite du plafond mensuel de la
+        # Sécurité sociale, puis le taux forfaitaire de 21 %. Avant le 25/10,
+        # le salaire de base ÷ 30,42, plafonné à 1,8 plafond journalier, sans
+        # taux forfaitaire. Le plafond est celui des barèmes du bulletin.
+        pss_mensuel = _extraire_pss_mensuel(pss_data)
+        base_plafonnee = (
+            _salaire_journalier_de_base_maladie(arret, salaire_mensuel, pss_mensuel)
+            * (1.0 - lc.TAUX_FORFAITAIRE_IJ_MATERNITE)
+            if pss_mensuel
+            else 0.0
         )
     elif pss_annuel is None:
         plafond_ss_journalier = 0.0

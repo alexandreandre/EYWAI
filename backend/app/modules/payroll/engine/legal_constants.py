@@ -28,6 +28,14 @@ COEFF_PLAFOND_IJ_PSS = 1.8
 # salaires bruts ÷ 91,25, chacun retenu dans la limite de 1,4 Smic mensuel pour
 # les arrêts depuis le 01/04/2025 (Smic du dernier jour du mois civil précédent).
 DIVISEUR_SJB_TROIS_MOIS = 91.25
+# IJ de maternité, de paternité et d'adoption (CSS R331-5, Légifrance
+# LEGIARTI000054167779 ; même calcul depuis le 14/04/2021) : les trois
+# derniers salaires ÷ 91,25, chaque paie retenue dans la limite du plafond
+# mensuel de la Sécurité sociale (L241-3) en vigueur le dernier jour du mois
+# civil qui précède l'arrêt, puis « diminué par application d'un taux
+# forfaitaire représentatif de la part salariale des cotisations » : 21 %
+# (arrêté du 28 mars 2013 ; service-public F2265, vérifié le 01/06/2026).
+TAUX_FORFAITAIRE_IJ_MATERNITE = 0.21
 COEFF_PLAFOND_SJB_SMIC = 1.4
 # IJ accident du travail / maladie professionnelle (CSS R433-2) : salaire
 # journalier de base retenu dans la limite d'une fraction du plafond annuel de
