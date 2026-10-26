@@ -125,15 +125,16 @@ def anciennete_de_quadra(bulletins: list, fin_de_bascule: date) -> date | None:
 def plan_d_anciennete(fiche: dict, bulletin, anciennete: date | None = None) -> dict | None:
     """Ce qu'il faut écrire sur la fiche pour que l'ancienneté soit celle de Quadra, ou None.
 
-    Cible : `seniority_reference_date` = date d'ancienneté de Quadra quand elle diffère de
-    l'embauche de la fiche (sinon aucune), `prior_service_months` = 0 (la date porte déjà la
-    reprise ; la garder en plus la compterait deux fois, cf. prior-service-months).
+    Cible : `seniority_reference_date` = date d'ancienneté de Quadra, toujours écrite, même
+    égale à l'embauche : sans elle le moteur reprend la date « d'ancienneté » de l'ancien
+    import DSN, lue sur une suspension (prime d'ancienneté perdue chez quatre salariés en
+    juillet) ; `prior_service_months` = 0 (la date porte déjà la reprise ; la garder en plus
+    la compterait deux fois, cf. prior-service-months).
     `anciennete` : la date retenue (`anciennete_de_quadra`), sinon celle du bulletin."""
     anciennete = anciennete or _date_fr(bulletin.infos.get("anciennete"))
-    embauche = str(fiche.get("hire_date") or "")[:10]
     if anciennete is None:
         return None
-    cible_ref = anciennete.isoformat() if anciennete.isoformat() != embauche else None
+    cible_ref = anciennete.isoformat()
     actuel_ref = str(fiche.get("seniority_reference_date") or "")[:10] or None
     actuel_prior = int(fiche.get("prior_service_months") or 0)
     if actuel_ref == cible_ref and actuel_prior == 0:
@@ -145,6 +146,33 @@ def plan_d_anciennete(fiche: dict, bulletin, anciennete: date | None = None) -> 
         "quadra": {"anciennete": bulletin.infos.get("anciennete"), "entree": bulletin.infos.get("entree")},
         "embauche_fiche": str(fiche.get("hire_date") or "")[:10],
     }
+
+
+def taux_de_chomage_de_quadra(bulletins) -> float | None:
+    """Le taux patronal d'assurance chômage que Quadra applique au plus grand nombre (en %).
+
+    Taux modulé (bonus-malus) notifié à la société : 2,95 % chez Mont Blanc en juillet 2026, les
+    apprentis restant au taux de droit commun (4 %). Réglage de société `taux_assurance_chomage`,
+    comme chez Comitech."""
+    from collections import Counter
+
+    taux = Counter()
+    for b in bulletins:
+        for lg in b.lignes:
+            lib = " ".join(str(lg.libelle or "").split()).upper()
+            if lib.startswith(("CHÔMAGE", "CHOMAGE")) and lg.base and lg.montant_pat and lg.base > 0:
+                taux[round(lg.montant_pat / lg.base * 100, 2)] += 1
+    return taux.most_common(1)[0][0] if taux else None
+
+
+def plan_prime_anciennete(fiche: dict, bulletin) -> bool:
+    """Vrai si la fiche dit la prime d'ancienneté fondue dans le salaire de base alors que Quadra
+    la paie sur une ligne à part (« Prime ancienneté ») : le réglage est à retirer."""
+    spec = ((fiche.get("specificites_paie") or {}).get("prime_anciennete") or {})
+    incluse = isinstance(spec, dict) and bool(spec.get("incluse_dans_salaire_base"))
+    a_part = any("ANCIENNET" in " ".join(str(lg.libelle or "").split()).upper() and lg.gain
+                 for lg in bulletin.lignes)
+    return incluse and a_part
 
 
 #: Heures mensuelles d'un temps plein (35 h × 52 / 12), base du « SALAIRE DE BASE » de Quadra.
@@ -209,7 +237,7 @@ def fiches(appliquer: bool, bascule: int) -> int:
         "salaire_de_base, duree_hebdomadaire, specificites_paie"
     ).eq("company_id", COMPANY_ID).execute().data
     par_nir = {_nir(f["nir"]): f for f in lignes if f.get("nir")}
-    plans, salaires = [], []
+    plans, salaires, primes = [], [], []
     print(f"\n=== Ancienneté au {bascule:02d}/{ANNEE} (date de Quadra, reprise en mois remise à zéro)")
     lus = [lire_bulletins(ANNEE, m, SOCIETE) for m in range(1, bascule + 1)]
     fin = date(ANNEE, bascule, calendar.monthrange(ANNEE, bascule)[1])
@@ -222,6 +250,8 @@ def fiches(appliquer: bool, bascule: int) -> int:
         salaire = plan_de_salaire(fiche, b)
         if salaire is not None:
             salaires.append((fiche, salaire))
+        if plan_prime_anciennete(fiche, b):
+            primes.append(fiche)
         if plan is None:
             continue
         entree = _date_fr(b.infos.get("entree"))
@@ -239,6 +269,20 @@ def fiches(appliquer: bool, bascule: int) -> int:
               + (" ; réglage « hors heures structurelles » posé"
                  if sal["salaire_hors_hs_structurelles"] and not sal["avant"]["salaire_hors_hs_structurelles"] else ""))
     print(f"{len(salaires)} salaire(s) à aligner sur Quadra.")
+    for fiche in primes:
+        print(f"  {etiquette(fiche):14s} prime d'ancienneté payée à part par Quadra : réglage « incluse dans le salaire » retiré")
+    print(f"{len(primes)} prime(s) d'ancienneté à remettre à part.")
+    societe = admin.table("companies").select("settings").eq("id", COMPANY_ID).execute().data[0]
+    reglages = dict(societe.get("settings") or {})
+    taux = taux_de_chomage_de_quadra(lus[-1].values())
+    a_poser = taux is not None and reglages.get("taux_assurance_chomage") != taux
+    print(f"\n=== Société : taux d'assurance chômage {reglages.get('taux_assurance_chomage')} → {taux} "
+          f"(Quadra, {bascule:02d}/{ANNEE})")
+    print(f"{int(a_poser)} réglage(s) de société à poser.")
+    if appliquer and a_poser:
+        reglages["taux_assurance_chomage"] = taux
+        admin.table("companies").update({"settings": reglages}).eq("id", COMPANY_ID).execute()
+        print("taux d'assurance chômage écrit.")
     if appliquer:
         from app.modules.employees.application.commands import apply_salary_update
 
@@ -252,12 +296,19 @@ def fiches(appliquer: bool, bascule: int) -> int:
                 apply_salary_update(fiche["id"], COMPANY_ID, sal["avant"]["salaire_de_base"], sal["salaire_de_base"],
                                     f"Reprise Quadra : salaire de base du bulletin de {bascule:02d}/{ANNEE}",
                                     f"{ANNEE:04d}-{bascule:02d}-01", AUTEUR)
+        # Une seule écriture de specificites_paie par fiche, avec tous ses changements.
+        specs: dict[str, dict] = {}
+        for fiche, sal in salaires:
             if sal["salaire_hors_hs_structurelles"] and not sal["avant"]["salaire_hors_hs_structurelles"]:
-                spec = dict(fiche.get("specificites_paie") or {})
+                spec = specs.setdefault(fiche["id"], dict(fiche.get("specificites_paie") or {}))
                 spec["salaire_hors_hs_structurelles"] = True
-                admin.table("employees").update({"specificites_paie": spec}).eq("id", fiche["id"]).eq(
-                    "company_id", COMPANY_ID).execute()
-        print(f"{len(plans)} ancienneté(s) et {len(salaires)} salaire(s) écrits.")
+        for fiche in primes:
+            spec = specs.setdefault(fiche["id"], dict(fiche.get("specificites_paie") or {}))
+            spec["prime_anciennete"] = {**(spec.get("prime_anciennete") or {}), "incluse_dans_salaire_base": False}
+        for fid, spec in specs.items():
+            admin.table("employees").update({"specificites_paie": spec}).eq("id", fid).eq(
+                "company_id", COMPANY_ID).execute()
+        print(f"{len(plans)} ancienneté(s), {len(salaires)} salaire(s) et {len(primes)} prime(s) écrits.")
     return 0
 
 

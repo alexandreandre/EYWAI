@@ -89,13 +89,30 @@ def test_la_date_d_anciennete_de_quadra_remplace_la_reprise_en_mois():
     assert plan["prior_service_months"] == 0
 
 
-def test_une_anciennete_egale_a_l_entree_ne_pose_aucune_date():
-    fiche = {"hire_date": "2021-03-29", "seniority_reference_date": None, "prior_service_months": 66}
-    plan = plan_d_anciennete(fiche, _bulletin("X", "1", "29/03/2021", anciennete="29/03/2021"))
-    assert plan["seniority_reference_date"] is None and plan["prior_service_months"] == 0
+def test_une_anciennete_egale_a_l_entree_est_posee_quand_meme():
+    """Sans date posée, le moteur prend la date « d'ancienneté » de l'ancien import DSN, lue
+    sur une suspension (congé enfant malade du 08/01/2026) : la prime d'ancienneté tombait à
+    zéro. La date de Quadra est donc toujours écrite."""
+    fiche = {"hire_date": "2018-01-11", "seniority_reference_date": None, "prior_service_months": 103,
+             "specificites_paie": {"dsn_anciennete": {"date_anciennete": "2026-01-08"}}}
+    plan = plan_d_anciennete(fiche, _bulletin("X", "1", "11/01/2018", anciennete="11/01/2018"))
+    assert plan["seniority_reference_date"] == "2018-01-11" and plan["prior_service_months"] == 0
+
+
+def test_une_prime_que_quadra_paie_a_part_n_est_pas_fondue_dans_le_salaire():
+    from scripts.reprise_mont_blanc import plan_prime_anciennete
+
+    fiche = {"specificites_paie": {"prime_anciennete": {"incluse_dans_salaire_base": True}}}
+    b = _avec_base(151.67, 15.5126, 2352.8, Ligne("BANC", "Prime ancienneté", base=1994.55, taux=15.0, gain=299.18))
+    assert plan_prime_anciennete(fiche, b) is True
+    assert plan_prime_anciennete({"specificites_paie": {}}, b) is False
 
 
 def test_une_fiche_deja_juste_n_est_pas_touchee():
+    fiche = {"hire_date": "2012-04-01", "seniority_reference_date": "1986-06-04", "prior_service_months": 0}
+    assert plan_d_anciennete(fiche, _bulletin("X", "1", "01/04/2012", anciennete="04/06/1986")) is None
+    fiche = {"hire_date": "2018-01-11", "seniority_reference_date": "2018-01-11", "prior_service_months": 0}
+    assert plan_d_anciennete(fiche, _bulletin("X", "1", "11/01/2018", anciennete="11/01/2018")) is None
     fiche = {"hire_date": "2012-04-01", "seniority_reference_date": "1986-06-04", "prior_service_months": 0}
     assert plan_d_anciennete(fiche, _bulletin("X", "1", "01/04/2012", anciennete="04/06/1986")) is None
 
@@ -175,3 +192,16 @@ def test_une_fiche_deja_juste_n_a_pas_de_plan_de_salaire():
              "specificites_paie": {"salaire_hors_hs_structurelles": True}}
     hs = Ligne(None, "H. supp majorées à 25 %", base=10.83, taux=15.3875, gain=166.65)
     assert plan_de_salaire(fiche, _avec_base(151.67, 12.31, 1867.06, hs)) is None
+
+
+def test_le_taux_de_chomage_module_se_lit_sur_les_bulletins_de_quadra():
+    """Bonus-malus : Quadra applique 2,95 % (60,00 € sur 2 033,71 €) ; l'apprenti reste à 4 %."""
+    from scripts.reprise_mont_blanc import taux_de_chomage_de_quadra
+
+    def bulletin(base, montant):
+        b = _bulletin("X", "1", "01/01/2020")
+        b.lignes = [Ligne(None, "SALAIRE BRUT", gain=base), Ligne(None, "Chômage", base=base, montant_pat=montant)]
+        return b
+
+    assert taux_de_chomage_de_quadra([bulletin(2033.71, 60.0), bulletin(3984.0, 117.53),
+                                      bulletin(1232.23, 49.29)]) == 2.95
