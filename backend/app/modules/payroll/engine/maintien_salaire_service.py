@@ -2577,7 +2577,13 @@ def calculer_maintien(
         alertes.append(
             "Subrogation demandée sans maintien applicable — vérifier la cohérence"
         )
-    if subrogation_demandee and float(ijss.get("ijss_theorique") or 0) == 0:
+    # Un arrêt tout entier dans la carence n'a aucun jour indemnisé : 0 € est
+    # alors la bonne réponse, pas un calcul impossible.
+    if (
+        subrogation_demandee
+        and float(ijss.get("ijss_theorique") or 0) == 0
+        and int(ijss.get("nb_jours_indemnises") or 0) > 0
+    ):
         sjb = float(ijss.get("salaire_journalier_base") or 0)
         bp = float(ijss.get("base_plafonnee") or 0)
         if sjb <= 0:
