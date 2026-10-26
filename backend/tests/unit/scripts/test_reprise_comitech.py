@@ -150,6 +150,35 @@ def test_un_mois_d_arret_complet_a_un_brut_nul_et_reporte_le_net_negatif():
     assert equilibre(b, s, versees, retenues) == 0.0
 
 
+def test_un_mois_d_arret_complet_avec_participation_garde_ses_cotisations_hors_du_brut():
+    """Mont Blanc, mai : tout le mois en maladie (brut nul, pas de « SALAIRE BRUT »), mais la
+    participation versée porte de la CSG. Les lignes rangées sous une section de cotisations
+    (Q800…) ne sont jamais du brut : sans cela la CSG déductible faussait le brut de −182,49."""
+    b = _bulletin(
+        [
+            Ligne(None, "SALAIRE DE BASE", base=151.67, taux=15.5126, gain=2352.8),
+            Ligne(None, "H. supp majorées à 25 %", base=7.24, taux=19.3908, gain=140.39),
+            Ligne(None, "Absence maladie 010526-310526", base=151.67, taux=15.5126, montant_sal=2352.8),
+            Ligne(None, "H. supp majorées à 25 %", base=7.24, taux=19.3908, montant_sal=140.39),
+            Ligne(None, "Solde JTC =1j"),
+            Ligne(None, "CSG déductible à l'IR", base=2683.64, taux=6.8, montant_sal=182.49,
+                  section="Q800 CSG déductible à l'IR"),
+            Ligne(None, "TOTAL DES RETENUES", montant_sal=182.49),
+            Ligne(None, "Participation 2025", base=2683.64, gain=2683.64),
+            Ligne(None, "NET IMPOSABLE", gain=2501.15),
+            Ligne(None, "CSG/CRDS non déductible à l'IR", base=2683.64, taux=2.9, montant_sal=77.83,
+                  section="Q801 CSG/CRDS non déductible à l'IR"),
+            Ligne("SINT", "Avance participation 2025", base=-1000.0, gain=-1000.0),
+        ],
+        net={"net_a_payer": 1305.77, "pas_montant": 117.55, "net_imposable": 2501.15},
+    )
+    assert lignes_du_brut(b)[1]["ecart_brut"] == 0.0
+    s = structure_des_cotisations(b)
+    assert [l["libelle"] for l in s["bloc_principales"]] == ["CSG déductible à l'IR"]
+    versees, retenues = apres_le_net(b)
+    assert equilibre(b, s, versees, retenues) == 0.0
+
+
 def test_deux_contrats_le_meme_mois_l_ouverture_est_celle_du_contrat_qui_continue():
     """Fin de CDD le 30/08 puis apprentissage le 31/08 : Quadra ouvre un second
     matricule dont les cumuls repartent de zéro. Additionner les deux faisait

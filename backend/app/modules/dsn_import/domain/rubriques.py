@@ -335,7 +335,8 @@ ACTIVITE_UNITE_JOURS = {"12", "20"}
 ACTIVITE_HEURES_PAR_JOUR = 7.0
 # Bases assujetties DSN utilisées comme repli brut (assiette brute)
 BASE_ASSUJETTIE_BRUT_CODES = {"02", "03", "04", "11"}
-REDUCTION_GENERALE_COT_CODES = {
-    "114", "115", "116", "117", "118", "119",
-    "214", "215", "216", "217", "218", "219",
-}
+# Réduction générale (S21.G00.81.001, cahier technique DSN 2026.1) : 018 sur les
+# cotisations de sécurité sociale et de chômage, 106 sur la retraite
+# complémentaire. 114 est la réduction salariale des heures sup, 115 la
+# cotisation Alsace-Moselle : ce ne sont pas des réductions générales.
+REDUCTION_GENERALE_COT_CODES = {"018", "106"}

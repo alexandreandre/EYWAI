@@ -331,8 +331,13 @@ def extract_monthly_totals(ind: IndividuBlock) -> Dict[str, float]:
             employee_charges += ver_cot_sal
             employer_charges += ver_cot_pat
             _merge_cotisation_detail(cotisations_detail, ver_cot_detail)
+            # Réduction générale : blocs S21.G00.81 de la norme (P22 et suivantes),
+            # montant en .004, et blocs de l'ancien format.
+            for cot in ver.cotisations_individuelles:
+                if _normalize_dsn_cotisation_code(cot.code) in REDUCTION_GENERALE_COT_CODES:
+                    reduction_pat += abs(_cotisation_individuelle_amount(cot))
             for cot in ver.cotisations:
-                if cot.code in REDUCTION_GENERALE_COT_CODES:
+                if _normalize_dsn_cotisation_code(cot.code) in REDUCTION_GENERALE_COT_CODES:
                     reduction_pat += abs(cot.montant_patronal)
 
     employee_charges = _normalize_employee_charges(
@@ -376,6 +381,11 @@ def build_cumuls_for_month(
     prev_cumuls = {}
     if previous and isinstance(previous.get("cumuls"), dict):
         prev_cumuls = previous["cumuls"]
+    # Cumuls de l'année civile : janvier (ou un mois antérieur au dernier mois
+    # chaîné, signe d'une année nouvelle) repart de zéro, comme le moteur.
+    prev_month = int(((previous or {}).get("periode") or {}).get("dernier_mois_calcule") or 0)
+    if month == 1 or (prev_month and month < prev_month):
+        prev_cumuls = {}
 
     cumuls = {
         "brut_total": round(prev_cumuls.get("brut_total", 0.0) + month_totals["brut"], 2),
@@ -391,9 +401,12 @@ def build_cumuls_for_month(
         "heures_remunerees": round(
             prev_cumuls.get("heures_remunerees", 0.0) + month_totals["heures"], 2
         ),
-        "reduction_generale_patronale": month_totals["reduction_generale_patronale"]
-        if month_totals["reduction_generale_patronale"]
-        else prev_cumuls.get("reduction_generale_patronale", 0.0),
+        # Cumul de l'année : celui du mois précédent plus la réduction du mois.
+        "reduction_generale_patronale": round(
+            float(prev_cumuls.get("reduction_generale_patronale", 0.0) or 0.0)
+            + float(month_totals.get("reduction_generale_patronale") or 0.0),
+            2,
+        ),
     }
     return {"cumuls": cumuls, "periode": {"dernier_mois_calcule": month}}
 

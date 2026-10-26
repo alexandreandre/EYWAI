@@ -158,3 +158,57 @@ def test_extract_monthly_totals_classifies_p26_individual_cotisations():
     assert detail["reduction_codes"] == {"018": -25.0}
     assert detail["ignored_codes"] == {"072": 180.0}
     assert detail["unknown_codes"] == {"999": 12.0}
+
+
+def _individu_avec_reduction(*cotisations):
+    from app.modules.dsn_import.domain.model import ContratBlock, IndividuBlock
+
+    ver = VersementBlock(
+        net_fiscal=1600.0,
+        remunerations=[RemunerationBlock(type_code="001", montant=2033.71)],
+        cotisations_individuelles=list(cotisations),
+    )
+    return IndividuBlock(contrats=[ContratBlock(versements=[ver])])
+
+
+def test_la_reduction_generale_se_lit_sur_les_codes_018_et_106():
+    """Cahier technique DSN 2026.1, S21.G00.81.001 : 018 réduction générale (sécurité
+    sociale et chômage), 106 réduction générale (retraite complémentaire). 114 est la
+    réduction salariale des heures sup, 115 la cotisation Alsace-Moselle : jamais la
+    réduction générale (défaut D4, 25/10/2026)."""
+    ind = _individu_avec_reduction(
+        CotisationIndividuelleBlock(code="018", montant_patronal=-566.42),
+        CotisationIndividuelleBlock(code="106", montant_patronal=-115.42),
+        CotisationIndividuelleBlock(code="114", montant_patronal=-18.85),
+        CotisationIndividuelleBlock(code="115", montant_patronal=30.0),
+    )
+    assert extract_monthly_totals(ind)["reduction_generale_patronale"] == -681.84
+
+
+def test_la_reduction_generale_se_cumule_de_mois_en_mois():
+    """Le cumul de juin est celui de mai plus la réduction de juin, pas la seule réduction
+    de juin : le premier mois calculé par Martine régularisait sinon toute l'année."""
+    prev = {"cumuls": {"brut_total": 10000.0, "reduction_generale_patronale": -3000.0}}
+    mois = {"brut": 2033.71, "net_imposable": 1600.0, "pas": 0.0, "heures": 162.5,
+            "reduction_generale_patronale": -681.84}
+    assert build_cumuls_for_month(prev, mois, 6)["cumuls"]["reduction_generale_patronale"] == -3681.84
+
+
+def test_un_mois_sans_reduction_garde_le_cumul():
+    prev = {"cumuls": {"reduction_generale_patronale": -3000.0}}
+    mois = {"brut": 5000.0, "net_imposable": 3900.0, "pas": 0.0, "heures": 151.67,
+            "reduction_generale_patronale": 0.0}
+    assert build_cumuls_for_month(prev, mois, 6)["cumuls"]["reduction_generale_patronale"] == -3000.0
+
+
+def test_janvier_repart_de_zero_meme_apres_les_dsn_de_l_annee_precedente():
+    """Import de septembre 2025 à juin 2026 en une fois : le cumul de janvier ne porte
+    que janvier (année civile), réduction comprise."""
+    prev = {"cumuls": {"brut_total": 9000.0, "net_imposable": 7000.0, "impot_preleve_a_la_source": 300.0,
+                       "heures_remunerees": 600.0, "reduction_generale_patronale": -1500.0},
+            "periode": {"dernier_mois_calcule": 12}}
+    mois = {"brut": 2000.0, "net_imposable": 1600.0, "pas": 50.0, "heures": 151.67,
+            "reduction_generale_patronale": -400.0}
+    c = build_cumuls_for_month(prev, mois, 1)["cumuls"]
+    assert (c["brut_total"], c["net_imposable"], c["heures_remunerees"], c["reduction_generale_patronale"]) == (
+        2000.0, 1600.0, 151.67, -400.0)

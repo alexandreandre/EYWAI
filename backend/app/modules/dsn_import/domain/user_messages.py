@@ -235,14 +235,21 @@ def absence_non_reprise_anomaly(non_reprise: Dict[str, Any]) -> Dict[str, Any]:
     bloc = str(non_reprise.get("bloc") or "")
     nature, accord = ("arrêt", "importé") if bloc.endswith(".60") else ("suspension", "importée")
     pluriel_s = "s" if nombre > 1 else ""
+    consigne = non_reprise.get("consigne")
+    raison = (
+        "la DSN ne dit pas tout ce qu'il faut pour les créer."
+        if consigne
+        else "Martine n'a pas de type d'absence qui lui corresponde."
+    )
     return build_anomaly(
         "absence_non_reprise",
         (
             f"{nombre} {nature}{pluriel_s} « {non_reprise.get('libelle')} » "
             f"(motif {non_reprise.get('motif')}, bloc {bloc}) non {accord}{pluriel_s} : "
-            "Martine n'a pas de type d'absence qui lui corresponde."
+            f"{raison}"
         ),
-        hint="Saisissez ces absences à la main dans le module Absences si la paie doit en tenir compte.",
+        hint=consigne
+        or "Saisissez ces absences à la main dans le module Absences si la paie doit en tenir compte.",
         severity="warning",
         meta=dict(non_reprise),
     )
