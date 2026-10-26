@@ -87,6 +87,17 @@ SEAU = "payslips"
 TOLERANCE = 0.011
 
 
+def regler_pour(societe: str, company_id: str, tdelta: float) -> None:
+    """Fait servir ce script à une autre société payée par Quadra (Mont Blanc).
+
+    `societe` : dossier sous data/ ; `tdelta` : Tdelta de la réduction générale 2026
+    (0,3781 sous 50 salariés, 0,3821 à partir de 50), qui sert à retrouver les heures
+    de SMIC de Quadra (`smic_retrouve_de_la_reduction`)."""
+    global SOCIETE, COMPANY_ID, _RGDU_TDELTA, _RGDU_TMAX
+    SOCIETE, COMPANY_ID = societe, company_id
+    _RGDU_TDELTA, _RGDU_TMAX = tdelta, round(_RGDU_TMIN + tdelta, 4)
+
+
 def _norme(libelle: Any) -> str:
     return " ".join(str(libelle or "").split()).upper()
 
@@ -123,6 +134,11 @@ def zones(bulletin) -> dict[str, list]:
         if lib == "SALAIRE BRUT":
             zone = "cotisations"
             continue
+        # Sans « SALAIRE BRUT » (brut nul), une ligne rangée sous une section de
+        # cotisations (Q100…Q802) n'est jamais du brut : Mont Blanc, mai 2026, mois
+        # d'arrêt complet où la participation versée porte de la CSG.
+        if zone == "brut" and lg.section:
+            zone = "cotisations"
         if lib.startswith("TOTAL DES RETENUES"):
             zone = "avant_net"
             continue
@@ -503,7 +519,8 @@ def smic_retrouve_de_la_reduction(brut: float, deja: float) -> tuple[float | Non
     """Le SMIC cumulé que suppose une réduction cumulée `deja` sur `brut`, ou (None, raison).
 
     Inversion de la formule de la réduction générale : coefficient = réduction ÷ brut,
-    SMIC = brut/3 × (1 + 2 × ((coef − 0,02)/0,3781)^(1/1,75)). Le coefficient de Quadra a
+    SMIC = brut/3 × (1 + 2 × ((coef − 0,02)/Tdelta)^(1/1,75)), Tdelta = 0,3781 sous 50
+    salariés, 0,3821 au-delà (`regler_pour`). Le coefficient de Quadra a
     4 décimales et la réduction en centimes le redonne à l'arrondi près (21,17 € sur
     53,18 € = 0,39808 : c'est le plafond 0,3981) : seul un coefficient strictement entre
     0,02 et 0,3981 à 4 décimales dit combien d'heures Quadra a retenues.
@@ -513,7 +530,7 @@ def smic_retrouve_de_la_reduction(brut: float, deja: float) -> tuple[float | Non
     coef = deja / brut
     if not _RGDU_TMIN < round(coef, 4) < _RGDU_TMAX:
         etat = "plafonné" if round(coef, 4) >= _RGDU_TMAX else "au plancher ou nul"
-        return None, f"coefficient {coef:.5f} {etat}, hors de ]0,02 ; 0,3981["
+        return None, f"coefficient {coef:.5f} {etat}, hors de ]0,02 ; {_RGDU_TMAX}["
     return brut / 3 * (1 + 2 * ((coef - _RGDU_TMIN) / _RGDU_TDELTA) ** (1 / _RGDU_P)), None
 
 
@@ -710,6 +727,24 @@ def fiche_hors_du_contrat(fiche: dict, bulletin) -> str | None:
     return None
 
 
+def verdict_des_conges(quadra: tuple[float, float], apres: tuple[float, float] | None) -> str:
+    """Les congés affichés après la reprise contre ceux de Quadra.
+
+    Un solde négatif de Quadra (congés pris par anticipation) est enregistré tel quel,
+    mais l'affichage garde son plancher à zéro (`apply_cp_solde_import`) : un 0 affiché
+    face à un négatif est juste."""
+    if apres is None:
+        return "plus de compteur au mois de bascule (sortie)"
+
+    def egal(affiche: float, repris: float) -> bool:
+        return abs(affiche - repris) < 0.005 or (repris < 0 and abs(affiche) < 0.005)
+
+    if egal(apres[0], quadra[0]) and egal(apres[1], quadra[1]):
+        negatif = quadra[0] < 0 or quadra[1] < 0
+        return "= Quadra (négatif enregistré, affiché à 0)" if negatif else "= Quadra"
+    return "ÉCART"
+
+
 def _simuler_les_conges(soldes: dict, bascule: int) -> list[str]:
     """Les congés affichés après la reprise, simulée sans rien écrire, contre Quadra."""
     from scripts.reprise_colorplast_import_litteral import etiquette
@@ -730,18 +765,18 @@ def _simuler_les_conges(soldes: dict, bascule: int) -> list[str]:
         with ajustements_en_memoire():
             avant = solde_affiche(fiche["id"], ANNEE, bascule)
             apres = solde_affiche_apres_reprise(COMPANY_ID, fiche["id"], ANNEE, bascule, cp_n1, cp_n)
-        if apres is None:
-            verdict = "plus de compteur au mois de bascule (sortie)"
-        elif abs(apres[0] - cp_n1) < 0.005 and abs(apres[1] - cp_n) < 0.005:
-            verdict = "= Quadra"
-        else:
-            verdict = "ÉCART"
+        verdict = verdict_des_conges((cp_n1, cp_n), apres)
+        if verdict == "ÉCART":
             ecarts.append(etiquette(fiche))
         print(f"  {etiquette(fiche):14s} Quadra {cp_n1:6.2f} / {cp_n:5.2f}   avant {avant}   après {apres}   {verdict}")
     return ecarts
 
 
-def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = (), mois_ecrits: tuple[int, ...] | None = None) -> int:
+def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = (), mois_ecrits: tuple[int, ...] | None = None,
+         complements: dict[int, dict[str, Any]] | None = None) -> int:
+    """`complements` : {mois: {matricule: Bulletin}} pour des mois absents du PDF mais
+    déclarés en DSN (Mont Blanc, mars : une page manquante). Ils entrent dans le solde
+    d'ouverture seulement ; aucun bulletin n'est écrit pour eux."""
     from scripts.reprise_colorplast_import_litteral import etiquette
 
     admin = get_supabase_admin_client()
@@ -759,6 +794,10 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = (), mois_ecrits:
     if not set(mois_ecrits) <= set(mois_repris):
         raise SystemExit(f"Mois hors reprise : {sorted(set(mois_ecrits) - set(mois_repris))}")
     lus = {m: lire_bulletins(ANNEE, m, SOCIETE) for m in mois_repris}
+    lus_ouverture = {m: {**(complements or {}).get(m, {}), **lus[m]} for m in mois_repris}
+    for m, ajoutes in sorted((complements or {}).items()):
+        for mat in sorted(set(ajoutes) - set(lus.get(m, {}))):
+            print(f"  {m:02d} {mat[:3]}… : bulletin absent du PDF, mois complété depuis la DSN (ouverture seulement)")
     anomalies: list[str] = []
     a_ecrire: list[tuple[int, str, Any, dict]] = []
 
@@ -834,7 +873,7 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = (), mois_ecrits:
         fiche = par_nir.get(_nir(b.infos.get("nir")))
         if not fiche:
             continue
-        solde = solde_d_ouverture(lus, bascule, mat)
+        solde = solde_d_ouverture(lus_ouverture, bascule, mat)
         ecart = round(solde["controle_somme_des_bruts"] - solde["cumuls"]["brut_total"], 2)
         if abs(ecart) > TOLERANCE:
             anomalies.append(f"{etiquette(fiche)} : somme des bruts {solde['controle_somme_des_bruts']:.2f} "

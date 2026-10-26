@@ -1,0 +1,119 @@
+"""Reprise Mont Blanc : le programme de Comitech réglé pour une société de 50 salariés et plus,
+un mois absent du PDF complété depuis la DSN, l'ancienneté de Quadra. Données fabriquées."""
+
+from __future__ import annotations
+
+from datetime import date
+
+import pytest
+
+import scripts.reprise_comitech as rc
+from scripts.backtest.colorplast_lignes_quadra import Bulletin, Ligne
+from scripts.reprise_mont_blanc import (
+    TDELTA,
+    complements_depuis_la_dsn,
+    plafond_au_prorata,
+    plan_d_anciennete,
+)
+from scripts.verification_rgdu.dsn_quadra import BaseReduction
+
+pytestmark = pytest.mark.unit
+
+
+@pytest.fixture
+def reglage_mont_blanc():
+    avant = (rc.SOCIETE, rc.COMPANY_ID, rc._RGDU_TDELTA, rc._RGDU_TMAX)
+    rc.regler_pour("mbc", "societe-essai", TDELTA)
+    yield
+    rc.SOCIETE, rc.COMPANY_ID, rc._RGDU_TDELTA, rc._RGDU_TMAX = avant
+
+
+def _bulletin(mat: str, nir: str, entree: str, **infos) -> Bulletin:
+    b = Bulletin(matricule=mat)
+    b.lignes = [Ligne(None, "SALAIRE BRUT", gain=2000.0)]
+    b.infos = {"nir": nir, "entree": entree, **infos}
+    b.pages = [1]
+    return b
+
+
+def test_a_partir_de_50_salaries_le_plafond_du_coefficient_est_0_4021(reglage_mont_blanc):
+    """Un coefficient de 0,4000 est plafonné sous 50 salariés (0,3981), pas à Mont Blanc :
+    il dit alors combien d'heures de SMIC Quadra a retenues."""
+    smic, raison = rc.smic_retrouve_de_la_reduction(10000.0, 4000.0)
+    assert raison is None and smic is not None
+    assert rc.smic_retrouve_de_la_reduction(10000.0, 4021.0)[0] is None
+
+
+def test_le_reglage_ne_change_pas_comitech():
+    assert (rc._RGDU_TDELTA, rc._RGDU_TMAX) == (0.3781, 0.3981)
+    assert rc.smic_retrouve_de_la_reduction(10000.0, 4000.0)[0] is None
+
+
+def test_le_plafond_d_un_mois_d_entree_est_au_prorata_des_jours():
+    assert plafond_au_prorata(3, date(2026, 3, 2)) == round(4005.0 * 30 / 31, 2)
+    assert plafond_au_prorata(4, date(2026, 3, 2)) == 4005.0
+
+
+def test_un_mois_declare_en_dsn_sans_bulletin_dans_le_pdf_est_complete():
+    """Entrée le 02/03 : bulletin de mars absent du PDF, mais le salarié est dans la DSN de
+    mars. Le mois entre dans l'ouverture avec le brut et la réduction de la DSN."""
+    nir = "2990175000001"
+    lus = {
+        3: {"AUTRE": _bulletin("AUTRE", "1800175000009", "01/01/2020")},
+        7: {"ESSAI": _bulletin("ESSAI", nir + "45", "02/03/2026")},
+    }
+    base = BaseReduction(nir=nir, nom="", prenom="", debut=date(2026, 3, 1), fin=date(2026, 3, 31),
+                         assiette=1985.79, montant_018=-480.0, montant_106=-95.5)
+    autre = BaseReduction(nir="1800175000009", nom="", prenom="", debut=date(2026, 3, 1),
+                          fin=date(2026, 3, 31), assiette=2500.0)
+    complements = complements_depuis_la_dsn(lus, 7, {3: [base, autre]})
+    assert list(complements) == [3] and list(complements[3]) == ["ESSAI"]
+    b = complements[3]["ESSAI"]
+    from scripts.reprise_colorplast_import_litteral import _brut_du_mois
+    from scripts.reprise_colorplast_solde_ouverture import EST_REDUCTION_GENERALE, _somme_des_lignes
+
+    assert _brut_du_mois(b) == 1985.79
+    assert _somme_des_lignes(b, EST_REDUCTION_GENERALE) == -575.5
+    assert b.droite["plafond"] == round(4005.0 * 30 / 31, 2)
+
+
+def test_la_date_d_anciennete_de_quadra_remplace_la_reprise_en_mois():
+    """Entrée le 01/04/2012, ancienneté du 04/06/1986 (société d'origine) : la fiche portait
+    173 mois de « reprise », l'ancienneté déjà écoulée, comptée deux fois."""
+    fiche = {"hire_date": "2012-04-01", "seniority_reference_date": None, "prior_service_months": 173}
+    plan = plan_d_anciennete(fiche, _bulletin("X", "1", "01/04/2012", anciennete="04/06/1986"))
+    assert plan["seniority_reference_date"] == "1986-06-04"
+    assert plan["prior_service_months"] == 0
+
+
+def test_une_anciennete_egale_a_l_entree_ne_pose_aucune_date():
+    fiche = {"hire_date": "2021-03-29", "seniority_reference_date": None, "prior_service_months": 66}
+    plan = plan_d_anciennete(fiche, _bulletin("X", "1", "29/03/2021", anciennete="29/03/2021"))
+    assert plan["seniority_reference_date"] is None and plan["prior_service_months"] == 0
+
+
+def test_une_fiche_deja_juste_n_est_pas_touchee():
+    fiche = {"hire_date": "2012-04-01", "seniority_reference_date": "1986-06-04", "prior_service_months": 0}
+    assert plan_d_anciennete(fiche, _bulletin("X", "1", "01/04/2012", anciennete="04/06/1986")) is None
+
+
+def test_un_solde_negatif_de_quadra_affiche_a_zero_est_juste():
+    assert rc.verdict_des_conges((0.0, -2.84), (0.0, 0.0)).startswith("= Quadra")
+    assert rc.verdict_des_conges((0.0, 4.16), (0.0, 0.0)) == "ÉCART"
+    assert rc.verdict_des_conges((10.0, 2.08), (10.0, 2.08)) == "= Quadra"
+
+
+def test_une_anciennete_dans_le_futur_est_une_faute_de_frappe():
+    from scripts.reprise_mont_blanc import anciennete_de_quadra
+
+    juin = _bulletin("X", "1", "21/08/2023", anciennete="21/08/2023")
+    juillet = _bulletin("X", "1", "21/08/2023", anciennete="21/08/2026")
+    assert anciennete_de_quadra([juin, juillet], date(2026, 7, 31)) == date(2023, 8, 21)
+
+
+def test_l_anciennete_se_compare_a_l_embauche_de_la_fiche():
+    """Fiche embauchée en 2022, Quadra : entrée et ancienneté au 05/01/2026 (nouveau
+    contrat) : la date de Quadra reste, sinon la prime partirait de 2022."""
+    fiche = {"hire_date": "2022-05-02", "seniority_reference_date": "2026-01-05", "prior_service_months": 6}
+    plan = plan_d_anciennete(fiche, _bulletin("X", "1", "05/01/2026", anciennete="05/01/2026"))
+    assert plan["seniority_reference_date"] == "2026-01-05" and plan["prior_service_months"] == 0

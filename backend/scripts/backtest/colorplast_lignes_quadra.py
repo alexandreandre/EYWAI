@@ -80,6 +80,9 @@ _ENTETE = (
     ("sortie", re.compile(r"Sorti\(e\) le\s*:\s*(\d{2}/\d{2}/\d{4})")),
     ("emploi", re.compile(r"Emploi\s*:\s*(.+?)\s{2,}")),
     ("coefficient", re.compile(r"Coeff\s*:\s*(\d+)")),
+    # Date d'ancienneté retenue par Quadra (prime d'ancienneté), parfois antérieure à
+    # l'entrée : Mont Blanc reprend l'ancienneté de la société d'origine.
+    ("anciennete", re.compile(r"Anciennet[ée]\s*:\s*(\d{2}/\d{2}/\d{4})")),
 )
 
 
