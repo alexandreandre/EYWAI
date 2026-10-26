@@ -672,7 +672,10 @@ def _calculer_ijss(
                 )
                 if plafond_j is not None:
                     ijss_j = min(ijss_j, plafond_j)
-                if is_tp:
+                if is_tp and arret_type == "mi_temps_therapeutique":
+                    # Les paies retenues sont déjà au temps partiel (R323-4, 1° :
+                    # « 1/91,25 du montant des trois dernières paies ») : la
+                    # quotité ne réduit plus l'IJ, sauf au mi-temps thérapeutique.
                     ijss_j *= quotite
                 if minimum_ij:
                     ijss_j = max(ijss_j, minimum_ij)
