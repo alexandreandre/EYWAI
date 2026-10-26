@@ -1577,6 +1577,14 @@ def _base_des_jours(
         for k in range(_compter_jours_calendaires(date_debut_periode, date_fin_periode))
         if not jours_ouvres or (date_debut_periode + timedelta(days=k)).weekday() < 5
     )
+    if mois_entier and not jours_ouvres:
+        # Jours calendaires : le salaire du mois se répartit sur les jours en
+        # arrêt (un week-end avant l'arrêt n'en retire rien).
+        jours_du_mois = int(
+            arret.get("jours_couverts_du_mois")
+            or len(_jours_couverts([{}], arret, date_debut_periode, date_fin_periode))
+            or jours_du_mois
+        )
     salaire = (
         _salaire_du_mois(contexte, duree_hebdo, taux_horaire_base)
         if jours_ouvres
@@ -1986,25 +1994,13 @@ def _releve_ijss_du_mois(
     )
 
 
-def _periode_couverte(
+def _jours_couverts(
     segments: List[Dict[str, Any]],
     arret: Dict[str, Any],
     date_debut_periode: date,
     date_fin_periode: date,
-    *,
-    jours_ouvres: Optional[bool] = None,
-) -> bool:
-    """Tous les jours de la période qui comptent sont-ils en arrêt, d'un arrêt
-    ou d'un autre ?
-
-    En jours ouvrés, seuls les jours ouvrés comptent : un week-end hors de
-    l'arrêt ne rend pas le mois partiel. Arrêt du lundi 03/08/2026 au 31/08,
-    le 01/08 étant un samedi : aucun jour ouvré n'est travaillé, la retenue
-    d'absence prend tout le salaire (2 231,48 pour S.G.), et le maintien
-    comptait 21 journées (2 162,83). En jours calendaires, chaque jour compte.
-    """
-    if jours_ouvres is None:
-        jours_ouvres = bool(arret.get("maintien_base_ouvree"))
+) -> set:
+    """Les jours calendaires de la période en arrêt, d'un arrêt ou d'un autre."""
     couverts: set = set()
     for segment in segments:
         sous = _arret_du_segment(arret, segment)
@@ -2016,13 +2012,35 @@ def _periode_couverte(
         while jour <= min(fin, date_fin_periode):
             couverts.add(jour)
             jour += timedelta(days=1)
+    return couverts
+
+
+def _periode_couverte(
+    segments: List[Dict[str, Any]],
+    arret: Dict[str, Any],
+    date_debut_periode: date,
+    date_fin_periode: date,
+    *,
+    jours_ouvres: Optional[bool] = None,
+) -> bool:
+    """Tous les jours ouvrés de la période sont-ils en arrêt, d'un arrêt ou
+    d'un autre ?
+
+    Un week-end hors de l'arrêt ne rend pas le mois partiel. Arrêt du lundi
+    03/08/2026 au 31/08, le 01/08 étant un samedi : aucun jour ouvré n'est
+    travaillé, la retenue d'absence prend tout le salaire (2 231,48 pour S.G.),
+    et le maintien comptait 21 journées (2 162,83), ou 29/30,42 du salaire en
+    jours calendaires. `jours_ouvres` est gardé pour les appelants : la règle
+    est la même dans les deux modes.
+    """
+    couverts = _jours_couverts(segments, arret, date_debut_periode, date_fin_periode)
     return all(
         jour in couverts
         for jour in (
             date_debut_periode + timedelta(days=k)
             for k in range(_compter_jours_calendaires(date_debut_periode, date_fin_periode))
         )
-        if not jours_ouvres or jour.weekday() < 5
+        if jour.weekday() < 5
     )
 
 
@@ -2049,17 +2067,18 @@ def _calculer_maintien_des_arrets_du_mois(
         arret, segments, contexte, settings, date_debut_periode, date_fin_periode
     )
     mois_entier: Optional[bool] = None
+    jours_couverts = 0
     if bareme_des_reglages(settings) is not None:
-        mois_entier = _periode_couverte(
-            segments, arret, date_debut_periode, date_fin_periode,
-            jours_ouvres=bool(settings.get("maintain_working_days"))
-            or any(_arret_du_segment(arret, s).get("maintien_base_ouvree") for s in segments),
+        mois_entier = _periode_couverte(segments, arret, date_debut_periode, date_fin_periode)
+        jours_couverts = len(
+            _jours_couverts(segments, arret, date_debut_periode, date_fin_periode)
         )
     resultats: List[Dict[str, Any]] = []
     for rang, segment in enumerate(segments):
         sous = _arret_du_segment(arret, segment)
         if mois_entier is not None:
             sous["mois_entier_en_arret"] = mois_entier
+            sous["jours_couverts_du_mois"] = jours_couverts
         if override is not None:
             sous["ijss_brut_override"] = override if rang == 0 else 0.0
         resultats.append(
