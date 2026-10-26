@@ -240,3 +240,28 @@ def test_sans_bareme_le_resultat_est_celui_d_avant_cle_pour_cle(mois, periode, o
     avant = _mois_sg(mois, periode, override, reglages=sans)
     assert _mois_sg(mois, periode, override, reglages={**sans, "bareme_convention": None}) == avant
     assert "paliers" not in avant["maintien"] and "bareme" not in avant["maintien"]
+
+
+# --- Défaut du 24/10 : arrêt qui commence juste après un week-end ------------
+
+
+def test_arret_du_lundi_apres_un_week_end_maintient_le_salaire_du_mois():
+    # 01/08/2026 : samedi. Premier arrêt de l'année du 03/08 au 31/08 : la
+    # carence est levée, 100 %. Tout le salaire est retenu (2 231,48) ; le
+    # maintien en comptait 21 journées (2 162,83).
+    arret = _arret("2026-08-03", "2026-08-31", [("2026-08-03", "2026-08-31")])
+    reglages = {**BAREME, "deduire_ijss_sans_subrogation": False}
+    maintien = calculer_maintien(arret, _sg(), reglages, date(2026, 8, 1), date(2026, 8, 31))
+    assert maintien["maintien"]["maintien_cible"] == 2231.48
+
+
+def test_deux_arrets_separes_par_un_week_end_le_reglage_jours_ouvres_suffit():
+    # Les jours d'arrêt ne portent pas `maintien_base_ouvree` (arrêts saisis à
+    # l'écran) : le réglage de la société fait le mode.
+    connus = [("2026-08-03", "2026-08-14"), ("2026-08-17", "2026-08-31")]
+    arrets = [_arret(d, f, connus) for d, f in connus]
+    arret = {**arrets[0], "arrets_du_mois": arrets}
+    reglages = {**BAREME, "deduire_ijss_sans_subrogation": False}
+    maintien = calculer_maintien(arret, _sg(), reglages, date(2026, 8, 1), date(2026, 8, 31))
+    paliers = maintien["maintien"]["paliers"]
+    assert round(sum(p["valeur"] for p in paliers), 2) == 2231.48

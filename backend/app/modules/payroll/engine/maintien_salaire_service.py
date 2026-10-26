@@ -1546,11 +1546,7 @@ def _base_des_jours(
         taux_horaire_base = 0.0
     mois_entier = arret.get("mois_entier_en_arret")
     if mois_entier is None:
-        debut = _parse_date(arret.get("date_debut"))
-        fin = _parse_date(arret.get("date_fin")) or debut
-        mois_entier = bool(
-            debut and fin and debut <= date_debut_periode and fin >= date_fin_periode
-        )
+        mois_entier = _periode_couverte([{}], arret, date_debut_periode, date_fin_periode)
     jours_du_mois = sum(
         1
         for k in range(_compter_jours_calendaires(date_debut_periode, date_fin_periode))
@@ -1970,8 +1966,20 @@ def _periode_couverte(
     arret: Dict[str, Any],
     date_debut_periode: date,
     date_fin_periode: date,
+    *,
+    jours_ouvres: Optional[bool] = None,
 ) -> bool:
-    """Tous les jours de la période sont-ils en arrêt, d'un arrêt ou d'un autre ?"""
+    """Tous les jours de la période qui comptent sont-ils en arrêt, d'un arrêt
+    ou d'un autre ?
+
+    En jours ouvrés, seuls les jours ouvrés comptent : un week-end hors de
+    l'arrêt ne rend pas le mois partiel. Arrêt du lundi 03/08/2026 au 31/08,
+    le 01/08 étant un samedi : aucun jour ouvré n'est travaillé, la retenue
+    d'absence prend tout le salaire (2 231,48 pour S.G.), et le maintien
+    comptait 21 journées (2 162,83). En jours calendaires, chaque jour compte.
+    """
+    if jours_ouvres is None:
+        jours_ouvres = bool(arret.get("maintien_base_ouvree"))
     couverts: set = set()
     for segment in segments:
         sous = _arret_du_segment(arret, segment)
@@ -1983,7 +1991,14 @@ def _periode_couverte(
         while jour <= min(fin, date_fin_periode):
             couverts.add(jour)
             jour += timedelta(days=1)
-    return len(couverts) == _compter_jours_calendaires(date_debut_periode, date_fin_periode)
+    return all(
+        jour in couverts
+        for jour in (
+            date_debut_periode + timedelta(days=k)
+            for k in range(_compter_jours_calendaires(date_debut_periode, date_fin_periode))
+        )
+        if not jours_ouvres or jour.weekday() < 5
+    )
 
 
 def _calculer_maintien_des_arrets_du_mois(
@@ -2010,7 +2025,11 @@ def _calculer_maintien_des_arrets_du_mois(
     )
     mois_entier: Optional[bool] = None
     if bareme_des_reglages(settings) is not None:
-        mois_entier = _periode_couverte(segments, arret, date_debut_periode, date_fin_periode)
+        mois_entier = _periode_couverte(
+            segments, arret, date_debut_periode, date_fin_periode,
+            jours_ouvres=bool(settings.get("maintain_working_days"))
+            or any(_arret_du_segment(arret, s).get("maintien_base_ouvree") for s in segments),
+        )
     resultats: List[Dict[str, Any]] = []
     for rang, segment in enumerate(segments):
         sous = _arret_du_segment(arret, segment)
