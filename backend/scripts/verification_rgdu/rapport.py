@@ -24,17 +24,34 @@ PRECLASSEMENTS = ("identique", "arrondi", "a_juger_quadra", "erreur_eywai", "a_j
 COLONNES_CLASSEMENT = ("classement_final", "regle", "note_classement")
 
 
-def ecrire_csv(lignes: list[LigneComparee], chemin: Path, regles: list[str] | None = None) -> None:
+def ecrire_csv(lignes: list[LigneComparee], chemin: Path, regles: list[str] | None = None,
+               classements: list[tuple[str, str, str]] | None = None) -> None:
     """`regles` : les ID de regles.md appliqués par la colonne loi, un par ligne (colonne
-    `regles_loi`). Les colonnes du classement final restent vides."""
+    `regles_loi`). `classements` : (classement_final, regle, note_classement) par ligne
+    (`classement.classer`) ; sans eux, les colonnes du classement final restent vides."""
     chemin.parent.mkdir(parents=True, exist_ok=True)
     noms = [f.name for f in fields(LigneComparee)] + ["regles_loi", *COLONNES_CLASSEMENT]
     regles = regles if regles is not None else [""] * len(lignes)
+    classements = classements if classements is not None else [("", "", "")] * len(lignes)
     with open(chemin, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=noms)
         w.writeheader()
-        for l, r in zip(lignes, regles, strict=True):
-            w.writerow({**asdict(l), "regles_loi": r, **dict.fromkeys(COLONNES_CLASSEMENT, "")})
+        for l, r, c in zip(lignes, regles, classements, strict=True):
+            w.writerow({**asdict(l), "regles_loi": r, **dict(zip(COLONNES_CLASSEMENT, c, strict=True))})
+
+
+def resume_classement(lignes: list[LigneComparee], classements: list[tuple[str, str, str]]) -> str:
+    """Comptes et impacts par société, classement final et règle, sans aucune clé de salarié."""
+    groupes: dict[tuple[str, str, str], list[LigneComparee]] = defaultdict(list)
+    for l, (classe, regle, _note) in zip(lignes, classements, strict=True):
+        if classe:
+            groupes[(l.societe, classe, regle)].append(l)
+    sortie = ["| Société | Classement final | Règle | Lignes | Impact Quadra (€) | Impact MARTINE (€) |",
+              "|---|---|---|---|---|---|"]
+    for (s, c, r), ls in sorted(groupes.items()):
+        sortie.append(f"| {s} | {c} | {r} | {len(ls)} | {_euros(sum(l.impact_quadra for l in ls))} "
+                      f"| {_euros(sum(l.impact_eywai for l in ls))} |")
+    return "\n".join(sortie) + "\n"
 
 
 def _euros(x: float) -> str:
