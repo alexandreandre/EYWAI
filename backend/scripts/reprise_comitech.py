@@ -796,8 +796,10 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = (), mois_ecrits:
     lus = {m: lire_bulletins(ANNEE, m, SOCIETE) for m in mois_repris}
     lus_ouverture = {m: {**(complements or {}).get(m, {}), **lus[m]} for m in mois_repris}
     for m, ajoutes in sorted((complements or {}).items()):
-        for mat in sorted(set(ajoutes) - set(lus.get(m, {}))):
-            print(f"  {m:02d} {mat[:3]}… : bulletin absent du PDF, mois complété depuis la DSN (ouverture seulement)")
+        absents = set(ajoutes) - set(lus.get(m, {}))
+        if absents:
+            print(f"  {m:02d} : {len(absents)} bulletin(s) absent(s) du PDF, mois complété(s) depuis la DSN "
+                  "(ouverture seulement)")
     anomalies: list[str] = []
     a_ecrire: list[tuple[int, str, Any, dict]] = []
 
