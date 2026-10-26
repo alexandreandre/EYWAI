@@ -200,6 +200,24 @@ def test_sans_phrase_par_periode_l_onglet_lit_l_arbitrage_imprime():
     )
 
 
+def test_un_bulletin_repris_ne_montre_pas_la_phrase_de_notre_recalcul():
+    """Colorplast, sortie du 15/09/2026 (H.F.) : septembre repris de Quadra garde
+    les sections de détail de notre brouillon. L'onglet affichait l'indemnité de
+    congés de Quadra (107,46) à côté de la phrase du brouillon, « … Total 0,00 »."""
+    dossier = _dossier_avec_bulletin({
+        "salaire_brut": 2082.69,
+        "net_a_payer": 1647.44,
+        "calcul_du_brut": [{"libelle": "Ind. CP fin de contrat", "gain": 107.46}],
+        "details_conges": [],
+        "indemnite_cp_fin_contrat": {
+            "total": 0.0,
+            "mention": "Indemnité de congés payés de fin de contrat : … Total 0,00.",
+        },
+        "reprise": {"logiciel_precedent": "Quadra", "sections_non_reprises": ["details_maintien"]},
+    })
+    assert dossier["bulletin_de_sortie"]["calcul_conges"] is None
+
+
 def _dossier_avec_bulletin(bulletin):
     exit_repo = MagicMock()
     exit_repo.get_with_employee.return_value = {

@@ -291,7 +291,13 @@ def _ce_que_le_bulletin_de_sortie_a_verse(
 
 
 def _calcul_des_conges_du_bulletin(bulletin: Dict[str, Any]) -> Optional[str]:
-    """La phrase d'indemnité de congés imprimée par le bulletin, ou None."""
+    """La phrase d'indemnité de congés imprimée par le bulletin, ou None.
+
+    Un bulletin repris d'un autre logiciel garde les sections de détail de notre
+    recalcul, qui ne font pas foi : sa phrase contredirait le montant repris.
+    """
+    if bulletin.get("reprise"):
+        return None
     fin_contrat = bulletin.get("indemnite_cp_fin_contrat")
     if isinstance(fin_contrat, dict) and fin_contrat.get("mention"):
         return str(fin_contrat["mention"])
