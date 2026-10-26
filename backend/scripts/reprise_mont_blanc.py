@@ -14,7 +14,12 @@ puis la bascule de la société. Ce qui change pour Mont Blanc :
 - l'ancienneté : Quadra imprime sa date d'ancienneté (« Ancienneté : 04/06/1986 »), qui
   paie la prime d'ancienneté ; la fiche porte dans `prior_service_months` l'ancienneté
   déjà écoulée, comptée deux fois par le moteur. Le plan pose la date de Quadra en
-  `seniority_reference_date` et remet la reprise en mois à zéro (`plan_d_anciennete`).
+  `seniority_reference_date` et remet la reprise en mois à zéro (`plan_d_anciennete`) ;
+- le salaire : la fiche reprend le salaire de base que Quadra paie au mois de bascule (SMIC
+  passé à 12,31 €, heures structurelles hors du salaire), par un changement daté
+  (`plan_de_salaire`).
+
+`--anciennete-seule` : seulement l'étape des fiches (ancienneté et salaire), pour la relecture.
 
 Simulation par défaut. `--apply` écrit (bulletins, ouvertures, congés, bascule, puis
 ancienneté) : à lancer par `~/dev/eywai-filet/reprise-mont-blanc/appliquer.sh`, qui
@@ -142,25 +147,69 @@ def plan_d_anciennete(fiche: dict, bulletin, anciennete: date | None = None) -> 
     }
 
 
+#: Heures mensuelles d'un temps plein (35 h × 52 / 12), base du « SALAIRE DE BASE » de Quadra.
+HEURES_TEMPS_PLEIN = 151.67
+
+
+def plan_de_salaire(fiche: dict, bulletin) -> dict | None:
+    """Le salaire de base de la fiche tel que Quadra le paie au mois de bascule, ou None.
+
+    Quadra imprime « SALAIRE DE BASE heures × taux » (ou le seul montant, au forfait jours) et,
+    au-delà de 35 h, les heures structurelles à part (« H. supp majorées à 25 % »). La fiche doit
+    porter ce salaire du mois complet, et le réglage « salaire hors heures structurelles » quand
+    l'horaire dépasse 35 h (sinon le moteur prend le salaire pour l'horaire entier). Un mois
+    incomplet (entrée, sortie, temps partiel en cours de mois) ne dit pas le salaire du mois
+    complet : aucun plan."""
+    ligne = next((lg for lg in bulletin.lignes
+                  if " ".join(str(lg.libelle or "").split()).upper().startswith("SALAIRE DE BASE") and lg.gain), None)
+    if ligne is None:
+        return None
+    duree = float(fiche.get("duree_hebdomadaire") or 35.0)
+    heures_contrat = round(min(duree, 35.0) * 52 / 12, 2)
+    if ligne.base is not None and abs(ligne.base - heures_contrat) > 0.02 and abs(ligne.base - HEURES_TEMPS_PLEIN) > 0.02:
+        return None
+    cible = round(float(ligne.gain), 2)
+    hors_hs = True if duree > 35.0 and ligne.base is not None else None
+    actuel = fiche.get("salaire_de_base") or {}
+    actuel_hors = bool((fiche.get("specificites_paie") or {}).get("salaire_hors_hs_structurelles"))
+    if abs(float(actuel.get("valeur") or 0.0) - cible) < 0.005 and (hors_hs is None or actuel_hors):
+        return None
+    return {
+        "salaire_de_base": {"valeur": cible, "type": actuel.get("type") or "mensuel"},
+        "salaire_hors_hs_structurelles": hors_hs,
+        "avant": {"salaire_de_base": actuel, "salaire_hors_hs_structurelles": actuel_hors},
+        "quadra": {"base": ligne.base, "taux": ligne.taux, "gain": ligne.gain},
+    }
+
+
 def _bases_dsn(bascule: int) -> dict[int, list]:
     from scripts.verification_rgdu.dsn_quadra import dsn_du_mois
 
     return {m: dsn_du_mois(SOCIETE, m) for m in range(1, bascule + 1)}
 
 
-def anciennete(appliquer: bool, bascule: int) -> int:
-    """Le plan d'ancienneté au mois de bascule ; écrit avec `appliquer`."""
+#: Compte qui signe les écritures de reprise (Alexandre), comme scripts/dsn_arrets_a_reclasser.py.
+AUTEUR = "8300cc71-87a7-4d3f-8aef-8393de0ebc4f"
+
+
+def fiches(appliquer: bool, bascule: int) -> int:
+    """Les fiches au mois de bascule : ancienneté de Quadra, salaire de base de Quadra.
+
+    Écrit avec `appliquer` : la date d'ancienneté et la reprise en mois sur la fiche ; le
+    salaire par un changement daté du 1er du mois de bascule (`apply_salary_update`, qui
+    met la fiche à jour), et le réglage « salaire hors heures structurelles »."""
     from app.core.database import get_supabase_admin_client
     from scripts.backtest.colorplast_lignes_quadra import lire_bulletins
     from scripts.reprise_colorplast_import_litteral import etiquette
     from scripts.reprise_comitech import _nir
 
     admin = get_supabase_admin_client()
-    fiches = admin.table("employees").select(
-        "id, first_name, last_name, nir, hire_date, seniority_reference_date, prior_service_months"
+    lignes = admin.table("employees").select(
+        "id, first_name, last_name, nir, hire_date, seniority_reference_date, prior_service_months, "
+        "salaire_de_base, duree_hebdomadaire, specificites_paie"
     ).eq("company_id", COMPANY_ID).execute().data
-    par_nir = {_nir(f["nir"]): f for f in fiches if f.get("nir")}
-    plans = []
+    par_nir = {_nir(f["nir"]): f for f in lignes if f.get("nir")}
+    plans, salaires = [], []
     print(f"\n=== Ancienneté au {bascule:02d}/{ANNEE} (date de Quadra, reprise en mois remise à zéro)")
     lus = [lire_bulletins(ANNEE, m, SOCIETE) for m in range(1, bascule + 1)]
     fin = date(ANNEE, bascule, calendar.monthrange(ANNEE, bascule)[1])
@@ -170,23 +219,45 @@ def anciennete(appliquer: bool, bascule: int) -> int:
             continue
         historique = [m[_mat] for m in lus if _mat in m]
         plan = plan_d_anciennete(fiche, b, anciennete_de_quadra(historique, fin))
+        salaire = plan_de_salaire(fiche, b)
+        if salaire is not None:
+            salaires.append((fiche, salaire))
         if plan is None:
             continue
-        ecart_embauche = plan["embauche_fiche"] != (
-            _date_fr(b.infos.get("entree")).isoformat() if _date_fr(b.infos.get("entree")) else "")
+        entree = _date_fr(b.infos.get("entree"))
+        ecart_embauche = plan["embauche_fiche"] != (entree.isoformat() if entree else "")
         print(f"  {etiquette(fiche):14s} réf. {plan['avant']['seniority_reference_date']} → "
               f"{plan['seniority_reference_date']} ; reprise {plan['avant']['prior_service_months']} → 0 mois"
               + (f" ; embauche fiche {plan['embauche_fiche']} ≠ entrée Quadra {b.infos.get('entree')}"
                  if ecart_embauche else ""))
         plans.append((fiche, plan))
     print(f"{len(plans)} fiche(s) à mettre à l'ancienneté de Quadra.")
+    print(f"\n=== Salaire de base au {bascule:02d}/{ANNEE} (celui que Quadra paie)")
+    for fiche, sal in salaires:
+        print(f"  {etiquette(fiche):14s} {sal['avant']['salaire_de_base'].get('valeur')} → {sal['salaire_de_base']['valeur']}"
+              f" (Quadra {sal['quadra']['base']} × {sal['quadra']['taux']})"
+              + (" ; réglage « hors heures structurelles » posé"
+                 if sal["salaire_hors_hs_structurelles"] and not sal["avant"]["salaire_hors_hs_structurelles"] else ""))
+    print(f"{len(salaires)} salaire(s) à aligner sur Quadra.")
     if appliquer:
+        from app.modules.employees.application.commands import apply_salary_update
+
         for fiche, plan in plans:
             admin.table("employees").update({
                 "seniority_reference_date": plan["seniority_reference_date"],
                 "prior_service_months": 0,
             }).eq("id", fiche["id"]).eq("company_id", COMPANY_ID).execute()
-        print(f"{len(plans)} fiche(s) écrites.")
+        for fiche, sal in salaires:
+            if abs(float(sal["avant"]["salaire_de_base"].get("valeur") or 0.0) - sal["salaire_de_base"]["valeur"]) >= 0.005:
+                apply_salary_update(fiche["id"], COMPANY_ID, sal["avant"]["salaire_de_base"], sal["salaire_de_base"],
+                                    f"Reprise Quadra : salaire de base du bulletin de {bascule:02d}/{ANNEE}",
+                                    f"{ANNEE:04d}-{bascule:02d}-01", AUTEUR)
+            if sal["salaire_hors_hs_structurelles"] and not sal["avant"]["salaire_hors_hs_structurelles"]:
+                spec = dict(fiche.get("specificites_paie") or {})
+                spec["salaire_hors_hs_structurelles"] = True
+                admin.table("employees").update({"specificites_paie": spec}).eq("id", fiche["id"]).eq(
+                    "company_id", COMPANY_ID).execute()
+        print(f"{len(plans)} ancienneté(s) et {len(salaires)} salaire(s) écrits.")
     return 0
 
 
@@ -202,7 +273,7 @@ def main(appliquer: bool, bascule: int, sans: tuple[str, ...] = (), mois_ecrits:
         code = rc.main(appliquer, bascule, sans, mois_ecrits, complements)
         if code:
             return code
-    return anciennete(appliquer, bascule)
+    return fiches(appliquer, bascule)
 
 
 if __name__ == "__main__":

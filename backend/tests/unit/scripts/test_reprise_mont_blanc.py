@@ -120,3 +120,58 @@ def test_l_anciennete_se_compare_a_l_embauche_de_la_fiche():
     fiche = {"hire_date": "2022-05-02", "seniority_reference_date": "2026-01-05", "prior_service_months": 6}
     plan = plan_d_anciennete(fiche, _bulletin("X", "1", "05/01/2026", anciennete="05/01/2026"))
     assert plan["seniority_reference_date"] == "2026-01-05" and plan["prior_service_months"] == 0
+
+
+def _avec_base(base, taux, gain, *autres):
+    b = _bulletin("X", "1", "01/01/2020")
+    b.lignes = [Ligne(None, "SALAIRE DE BASE", base=base, taux=taux, gain=gain), *autres]
+    return b
+
+
+def test_le_salaire_de_la_fiche_suit_le_taux_de_quadra_au_mois_de_bascule():
+    """Le SMIC passé à 12,31 € : la fiche gardait 12,02 × 151,67 (1 823,07 €)."""
+    from scripts.reprise_mont_blanc import plan_de_salaire
+
+    fiche = {"salaire_de_base": {"valeur": 1823.07, "type": "mensuel"}, "duree_hebdomadaire": "37.50",
+             "specificites_paie": {"salaire_hors_hs_structurelles": True}}
+    hs = Ligne(None, "H. supp majorées à 25 %", base=10.83, taux=15.3875, gain=166.65)
+    plan = plan_de_salaire(fiche, _avec_base(151.67, 12.31, 1867.06, hs))
+    assert plan["salaire_de_base"] == {"valeur": 1867.06, "type": "mensuel"}
+    assert plan["salaire_hors_hs_structurelles"] is True
+
+
+def test_une_fiche_qui_comptait_les_heures_structurelles_dans_le_salaire_est_ramenee_a_la_base():
+    """37,5 h : Quadra paie 151,67 h de base et 10,83 h structurelles à 25 % ; la fiche portait
+    les deux dans le salaire, sans le réglage « salaire hors heures structurelles »."""
+    from scripts.reprise_mont_blanc import plan_de_salaire
+
+    fiche = {"salaire_de_base": {"valeur": 1985.79, "type": "mensuel"}, "duree_hebdomadaire": "37.50",
+             "specificites_paie": {}}
+    hs = Ligne(None, "H. supp majorées à 25 %", base=10.83, taux=15.3875, gain=166.65)
+    plan = plan_de_salaire(fiche, _avec_base(151.67, 12.31, 1867.06, hs))
+    assert plan["salaire_de_base"]["valeur"] == 1867.06
+    assert plan["salaire_hors_hs_structurelles"] is True
+
+
+def test_un_mois_incomplet_ne_dit_pas_le_salaire_du_mois_complet():
+    from scripts.reprise_mont_blanc import plan_de_salaire
+
+    fiche = {"salaire_de_base": {"valeur": 2017.61, "type": "mensuel"}, "duree_hebdomadaire": "37.50"}
+    assert plan_de_salaire(fiche, _avec_base(21.0, 13.3026, 279.35)) is None
+
+
+def test_un_forfait_jours_prend_le_montant_imprime():
+    from scripts.reprise_mont_blanc import plan_de_salaire
+
+    fiche = {"salaire_de_base": {"valeur": 3900.0, "type": "mensuel"}, "duree_hebdomadaire": "35.00"}
+    plan = plan_de_salaire(fiche, _avec_base(None, None, 3984.0, Ligne(None, "Forfait 216 jours")))
+    assert plan["salaire_de_base"]["valeur"] == 3984.0 and plan["salaire_hors_hs_structurelles"] is None
+
+
+def test_une_fiche_deja_juste_n_a_pas_de_plan_de_salaire():
+    from scripts.reprise_mont_blanc import plan_de_salaire
+
+    fiche = {"salaire_de_base": {"valeur": 1867.06, "type": "mensuel"}, "duree_hebdomadaire": "37.50",
+             "specificites_paie": {"salaire_hors_hs_structurelles": True}}
+    hs = Ligne(None, "H. supp majorées à 25 %", base=10.83, taux=15.3875, gain=166.65)
+    assert plan_de_salaire(fiche, _avec_base(151.67, 12.31, 1867.06, hs)) is None
