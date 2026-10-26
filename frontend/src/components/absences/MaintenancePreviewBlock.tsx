@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { libelleIjssDuDetail, texteDeductionDuPliant } from '@/lib/ijssAffichage';
+import { libelleIjssDuDetail, phraseSalaireJournalierRetenu, texteDeductionDuPliant } from '@/lib/ijssAffichage';
 import { lignesDesPaliers, titreDesPaliers } from '@/lib/paliersAffichage';
 import { pluriel } from '@/lib/pluriel';
 import { formatTauxFr } from '@/lib/employeeAbsencesUtils';
@@ -191,6 +191,7 @@ function MaintenancePreviewBody({
         <p>Taux appliqué : {formatTauxFr(ijss.taux_applique)}</p>
         <p>Jours indemnisés : {ijss.nb_jours_indemnises}</p>
         <p>Salaire journalier de base : {eur(ijss.salaire_journalier_base)}</p>
+        {phraseSalaireJournalierRetenu(ijss, eur) ? <p>{phraseSalaireJournalierRetenu(ijss, eur)}</p> : null}
       </section>
 
       <section className="space-y-2">

@@ -5,6 +5,7 @@
  * posé sur le bulletin (part déduite du maintien, montant venu du suivi) et le
  * réglage de la société.
  */
+import { formatTauxFr } from '@/lib/employeeAbsencesUtils';
 import { pluriel } from '@/lib/pluriel';
 
 /** Libellé du montant d'IJSS dans la fiche d'une ligne du suivi. */
@@ -28,6 +29,30 @@ export function phraseDeduitesDuMaintien(
 /** Un montant appliqué qui ne change plus le bulletin. */
 export function phraseAppliqueSansEffet(): string {
   return 'Appliqué, sans effet : la société verse le garanti en entier';
+}
+
+/**
+ * La ligne qui relie le salaire journalier de base à l'indemnité : les 21 %
+ * forfaitaires d'un congé de maternité, de paternité ou d'adoption (CSS
+ * R331-5), ou un plafond. `null` quand le salaire journalier est retenu tel
+ * quel ou que le serveur ne le dit pas.
+ */
+export function phraseSalaireJournalierRetenu(
+  ijss: {
+    salaire_journalier_base?: number | null;
+    base_plafonnee?: number | null;
+    taux_forfaitaire_retire?: number | null;
+  },
+  eur: (n: number) => string,
+): string | null {
+  const retenu = Number(ijss.base_plafonnee ?? 0);
+  if (!(retenu > 0)) return null;
+  const taux = Number(ijss.taux_forfaitaire_retire ?? 0);
+  if (taux > 0) return `Moins ${formatTauxFr(taux)} forfaitaires : ${eur(retenu)} par jour`;
+  if (retenu < Number(ijss.salaire_journalier_base ?? 0) - 0.005) {
+    return `Retenu dans la limite du plafond : ${eur(retenu)} par jour`;
+  }
+  return null;
 }
 
 /** Détail du maintien : le montant d'IJSS vient du suivi, ou de l'estimation de Martine. */

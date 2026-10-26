@@ -547,6 +547,7 @@ def _calculer_ijss(
             "taux_applique": 0.0,
             "salaire_journalier_base": 0.0,
             "base_plafonnee": 0.0,
+            "taux_forfaitaire_retire": 0.0,
         }
         out.update(_ijss_extras_mi_temps_forfait(arret, arret_type, contexte))
         return out
@@ -614,6 +615,12 @@ def _calculer_ijss(
             plafond_ss_journalier * lc.COEFF_PLAFOND_IJ_PSS,
         )
 
+    # Le pliant le dit entre le salaire journalier et l'indemnité : sans lui,
+    # « 100 % » du salaire journalier ne redonnait pas l'IJ d'une maternité.
+    taux_forfaitaire_retire = (
+        lc.TAUX_FORFAITAIRE_IJ_MATERNITE if est_parentalite and base_plafonnee > 0 else 0.0
+    )
+
     ij_plafonds = plafonds_ij_au(
         (
             contexte.get_bareme_value("ij_plafonds")
@@ -647,6 +654,7 @@ def _calculer_ijss(
             "taux_applique": 0.0,
             "salaire_journalier_base": round(salaire_journalier_base, 4),
             "base_plafonnee": round(base_plafonnee, 4),
+            "taux_forfaitaire_retire": taux_forfaitaire_retire,
         }
         out.update(_ijss_extras_mi_temps_forfait(arret, arret_type, contexte))
         return out
@@ -696,6 +704,7 @@ def _calculer_ijss(
         "taux_applique": round(taux_moyen, 4),
         "salaire_journalier_base": round(salaire_journalier_base, 4),
         "base_plafonnee": round(base_plafonnee, 4),
+        "taux_forfaitaire_retire": taux_forfaitaire_retire,
     }
     out.update(_ijss_extras_mi_temps_forfait(arret, arret_type, contexte))
     return out

@@ -8,6 +8,7 @@ import {
   libelleIjssDuPanneau,
   phraseAppliqueSansEffet,
   phraseDeduitesDuMaintien,
+  phraseSalaireJournalierRetenu,
   texteDeductionDuPliant,
 } from "@/lib/ijssAffichage";
 
@@ -127,5 +128,31 @@ describe("Carte « Maintien de salaire » : enregistrer le choix IJSS", () => {
     expect(t.indexOf("Choix modifié, pas encore enregistré.")).toBeLessThan(t.indexOf('htmlFor="provident_relay_days"'));
     // Le comportement d'enregistrement reste celui de la carte.
     expect(t).toContain("onClick={handleSave}");
+  });
+});
+
+describe("Pliant : du salaire journalier à l'indemnité", () => {
+  it("dit les 21 % forfaitaires d'un congé de maternité", () => {
+    const ijss = { salaire_journalier_base: 69.0411, base_plafonnee: 54.5425, taux_forfaitaire_retire: 0.21 };
+    expect(phraseSalaireJournalierRetenu(ijss, eur)).toBe("Moins 21 % forfaitaires : 54,54 € par jour");
+  });
+
+  it("dit le plafond quand le salaire journalier est plafonné", () => {
+    const ijss = { salaire_journalier_base: 120, base_plafonnee: 98.63, taux_forfaitaire_retire: 0 };
+    expect(phraseSalaireJournalierRetenu(ijss, eur)).toBe("Retenu dans la limite du plafond : 98,63 € par jour");
+  });
+
+  it("se tait quand le salaire journalier est retenu tel quel, ou inconnu", () => {
+    expect(phraseSalaireJournalierRetenu({ salaire_journalier_base: 72.33, base_plafonnee: 72.33, taux_forfaitaire_retire: 0 }, eur)).toBeNull();
+    expect(phraseSalaireJournalierRetenu({ salaire_journalier_base: 72.33 }, eur)).toBeNull();
+    expect(phraseSalaireJournalierRetenu({ salaire_journalier_base: 72.33, base_plafonnee: 0 }, eur)).toBeNull();
+  });
+
+  it("s'affiche dans le pliant et dans le détail du bulletin, sous le salaire journalier", () => {
+    for (const f of ["components/absences/MaintenancePreviewBlock.tsx", "components/payslip/MaintenanceDetailModal.tsx"]) {
+      const t = lire(f);
+      expect(t).toContain("phraseSalaireJournalierRetenu(ijss, eur)");
+      expect(t.indexOf("Salaire journalier de base")).toBeLessThan(t.indexOf("phraseSalaireJournalierRetenu(ijss, eur)"));
+    }
   });
 });

@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { libelleIjssDuDetail } from '@/lib/ijssAffichage';
+import { libelleIjssDuDetail, phraseSalaireJournalierRetenu } from '@/lib/ijssAffichage';
 import { lignesDesPaliers, titreDesPaliers } from '@/lib/paliersAffichage';
 import { pluriel } from '@/lib/pluriel';
 
@@ -89,6 +89,7 @@ export function MaintenanceDetailModal({
               IJSS
             </h3>
             <p>Salaire journalier de base : {eur(ijss.salaire_journalier_base)}</p>
+            {phraseSalaireJournalierRetenu(ijss, eur) ? <p>{phraseSalaireJournalierRetenu(ijss, eur)}</p> : null}
             <p>Taux IJSS appliqué : {formatTauxFr(ijss.taux_applique)}</p>
             <p>Nombre de jours indemnisés : {ijss.nb_jours_indemnises}</p>
             <p>
