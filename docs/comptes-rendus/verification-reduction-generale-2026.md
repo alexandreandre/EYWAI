@@ -121,14 +121,19 @@ par le moteur, et bloquées.
 ## Corrections, par priorité
 
 **Avant la paie d'octobre**
-1. Ouverture Colorplast : `scripts/reprise_colorplast_solde_ouverture.py --bascule 9` en
-   simulation puis `--apply` (corrigé en 564c3253, test `test_reprise_colorplast_base_reduction.py`).
-2. Rappels de maintien : corriger à la main la ligne de réduction d'octobre (M.G. 1 524,86 € ;
-   S.G. 482,79 € ; D.J. 870,73 € ; D.S. 211,60 €), le cumul suit (`corrections_manuelles.py:760-779`).
+1. Ouverture Colorplast : la clé `heures_hors_reduction_generale`, calculée par
+   `heures_hors_de_la_reduction` (564c3253, test `test_reprise_colorplast_base_reduction.py`), ajoutée
+   aux seules ouvertures en base ; le script d'ouverture n'est pas relancé en entier (embauches et
+   contrat posés depuis).
+2. Rappels de maintien : **corrigé dans le moteur** (5464f0c8), pas à la main. Corriger le seul
+   montant de la ligne n'aurait pas tenu : la régularisation de novembre l'aurait repris, faute des
+   heures de SMIC dans le cumul. La prime du catalogue `rappel_maintien_salaire` ajoute aux heures de
+   la réduction heures d'un mois complet × rappel ÷ salaire d'un mois complet ; les 7 saisies
+   d'octobre sont typées. Bac à sable : M.G. 1 524,86 €, D.J. 870,73 €, D.S. 211,60 € (la loi),
+   S.G. 484,22 € pour 482,79 € (palier du coefficient) ; novembre ne reprend rien.
 3. Fiches de F.A. et X.P. : date de naissance, RIB, statut « Actif ».
 
-**Avant janvier 2027** : rappel de maintien typé qui porte son SMIC (moteur, plan séparé) ;
-barème par année (P2) ; bornes de collecte (P3) ; règle des cinq ans de l'effectif (F3).
+**Avant janvier 2027** : barème par année (P2) ; bornes de collecte (P3) ; règle des cinq ans de l'effectif (F3).
 
 **Avant la bascule de Mont-Blanc** : ouverture avec la base de Quadra (R3) ; import DSN (D4).
 

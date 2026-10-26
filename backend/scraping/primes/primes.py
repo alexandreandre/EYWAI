@@ -117,6 +117,17 @@ CATALOGUE = {
                 "Exonération dans les limites fixées par l'URSSAF (voir barème Frais professionnels)."
             ),
         },
+        {
+            "id": "rappel_maintien_salaire",
+            "libelle": "Rappel de maintien de salaire",
+            "soumise_a_impot": True,
+            "soumise_a_cotisations": True,
+            "_commentaire": (
+                "Maintien de salaire dû pour des mois d'arrêt et payé plus tard. La "
+                "réduction générale rétablit le SMIC de ces mois, le mois du rappel "
+                "(BOSS, allègements généraux, § 800 ; règle appliquée automatiquement en paie)."
+            ),
+        },
     ],
     "_commentaire": (
         "Catalogue des primes, indemnités et gratifications les plus courantes "
