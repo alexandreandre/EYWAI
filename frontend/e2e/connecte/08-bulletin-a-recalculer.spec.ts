@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../helpers/garde';
 import { surveiller, verifierPageSaine } from '../helpers/erreurs';
 
 /**
@@ -80,7 +81,9 @@ test('un bulletin périmé se dit À recalculer, puis le badge disparaît', asyn
   await expect(page.getByRole('button', { name: /Recalculer tout ce qui a changé/i }).first()).toBeVisible();
 
   await page.getByRole('button', { name: /^Recalculer$/ }).first().click();
-  await expect(page.getByText('Bulletin recalculé').first()).toBeVisible({ timeout: 30_000 });
+  // Le toast nomme la salariée et chiffre l'écart avant → après (données simulées).
+  await expect(page.getByText('Bulletin de Jeanne Essai recalculé').first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/Heures sup\. 2 → 4/).first()).toBeVisible();
   await expect(page.getByText('À recalculer')).toHaveCount(0);
 
   await verifierPageSaine(page, s);

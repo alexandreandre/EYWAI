@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../helpers/garde';
 import { API_URL } from '../helpers/env';
 import { surveiller, verifierPageSaine } from '../helpers/erreurs';
 
@@ -37,7 +37,8 @@ for (const { chemin, nom } of PAGES) {
     await page.goto(chemin);
 
     await expect(page).not.toHaveURL(/\/login/);
-    await expect(page.locator('#root > *:visible').first()).toBeVisible();
+    // Premier rendu parfois lent à froid (Cloud Run, chargement différé de la page) : 30 s.
+    await expect(page.locator('#root > *:visible').first()).toBeVisible({ timeout: 30_000 });
     await verifierPageSaine(page, s, `Erreurs sur ${chemin}`);
   });
 }
