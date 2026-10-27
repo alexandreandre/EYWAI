@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../helpers/garde';
 import { surveiller, verifierPageSaine } from '../helpers/erreurs';
 
 test.describe('Parcours paie (lecture seule)', () => {

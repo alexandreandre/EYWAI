@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../helpers/garde';
 import { surveiller, verifierPageSaine } from '../helpers/erreurs';
 
 // Parcours d'une gestionnaire de paie qui crée un salarié depuis la page Paie

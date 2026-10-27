@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../helpers/garde';
 import { surveiller, verifierPageSaine } from '../helpers/erreurs';
 import { API_URL } from '../helpers/env';
 
@@ -206,7 +207,19 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
         : e;
     const resume = '**/api/employees/summary**';
     const fiche = new RegExp(`/api/employees/${cible!.id}(\\?.*)?$`);
-    const ficheReelle = await lireApi<Salarie>(page, `/api/employees/${cible!.id}`);
+    // La fiche réelle, relue telle quelle, sauf un code PCS-ESE hors format :
+    // le formulaire refuse d'enregistrer une fiche qui en porte un (la fenêtre
+    // reste ouverte, « Enregistrement impossible »). Ce test vérifie le parcours
+    // de la gestionnaire, pas la qualité des données de la base partagée.
+    const ficheLue = await lireApi<Salarie & { classification_conventionnelle?: Record<string, unknown> | null }>(
+      page,
+      `/api/employees/${cible!.id}`
+    );
+    const classification = ficheLue.classification_conventionnelle;
+    const ficheReelle =
+      classification && typeof classification.pcs === 'string' && !/^\d{3}[a-z]$/.test(classification.pcs)
+        ? { ...ficheLue, classification_conventionnelle: { ...classification, pcs: '' } }
+        : ficheLue;
     let completee = false;
     // La fiche du salarié, telle qu'une embauche du jour la laisserait ; une
     // fois « complétée », le serveur la rend telle qu'elle est.
@@ -268,7 +281,7 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
       await expect(dossier.getByTestId('documents-sortie-grises')).toHaveText(/bulletin de sortie/i);
     } else {
       await generer.click();
-      for (const document of [/certificat de travail/i, /attestation employeur/i, /solde de tout compte/i]) {
+      for (const document of [/certificat de travail/i, /attestation france travail/i, /solde de tout compte/i]) {
         await expect(page.getByRole('menuitem', { name: document })).toBeVisible();
       }
       await page.keyboard.press('Escape');
