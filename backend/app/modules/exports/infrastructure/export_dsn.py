@@ -1,4 +1,5 @@
 # Générateur DSN mensuelle NEODeS P26V01 (fichier plat).
+from app.modules.dsn_export.domain.fiche_a_completer import fiche_a_completer
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -503,6 +504,8 @@ def check_dsn_data(
                 warnings.append(
                     f"Salarié {employee_name} : prévoyance absente alors que contrat actif"
                 )
+        for manque in fiche_a_completer(employee):
+            warnings.append(f"Salarié {employee_name} : {manque}")
         hire_date = employee.get("hire_date")
         if hire_date:
             try:
