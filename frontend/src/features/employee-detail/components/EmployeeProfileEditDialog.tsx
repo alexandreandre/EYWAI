@@ -30,6 +30,7 @@ import { EmployeeProfileEditForm } from '@/features/employee-detail/components/E
 import {
   buildDefaultValues,
   buildUpdatePayload,
+  optionsDeClassification,
 } from '@/features/employee-detail/components/employeeProfileFormUtils';
 import {
   employeeProfileEditSchema,
@@ -230,7 +231,7 @@ export function EmployeeProfileEditDialog({
             <EmployeeProfileEditForm
               control={form.control}
               companyAgreements={companyAgreements}
-              classificationsCc={classificationsCc}
+              classificationsCc={optionsDeClassification(classificationsCc, employee)}
               activeTeams={activeTeams}
               availableMutuelles={availableMutuelles}
               loadingMutuelles={loadingMutuelles}
