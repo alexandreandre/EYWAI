@@ -145,7 +145,6 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
   const tr = spec.titres_restaurant as
     | { beneficie?: boolean; nombre_par_mois?: number; valeur_faciale?: number; part_patronale?: number }
     | undefined;
-  const classification = (employee as Employee & { classification_conventionnelle?: EmployeeProfileEditFormValues['classification_conventionnelle'] }).classification_conventionnelle;
   const reprise = lireRepriseDsn(spec.dsn_reprise);
 
   return {
@@ -183,11 +182,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       valeur: readSalaryValue(employee) ?? ('' as unknown as number),
     },
     collective_agreement_id: employee.collective_agreement_id ?? null,
-    classification_conventionnelle: {
-      groupe_emploi: classification?.groupe_emploi ?? 'C',
-      classe_emploi: classification?.classe_emploi ?? 6,
-      coefficient: classification?.coefficient ?? 240,
-    },
+    classification_conventionnelle: classificationDeDepart(employee),
     code_pcs: lirePcs(employee),
     team_id: employee.team_id ?? '',
     specificites_paie: {
@@ -236,6 +231,51 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
     residence_permit_type: employee.residence_permit_type ?? '',
     residence_permit_number: employee.residence_permit_number ?? '',
   };
+}
+
+type ClassificationDuFormulaire = { groupe_emploi: string; classe_emploi: number; coefficient: number };
+
+/** Coefficient de la fiche : le sien, sinon le niveau repris de la DSN (S21.G00.40.041). */
+function coefficientDeLaFiche(employee: Employee): number | null {
+  const classification = classificationDe(employee);
+  for (const cle of ['coefficient', 'niveau_dsn']) {
+    const valeur = Number(classification?.[cle]);
+    if (Number.isInteger(valeur) && valeur > 0) return valeur;
+  }
+  return null;
+}
+
+/**
+ * Classification de départ du formulaire. Une fiche reprise de la DSN ne porte son
+ * coefficient qu'en `niveau_dsn`, sans groupe ni classe : on part de ce coefficient, en
+ * « Non précisé » / classe 0 comme la grille de la plasturgie. Partir de « C » / 6 / 240
+ * laissait la liste vide (constaté le 27/10/2026 sur 16 fiches Comitech). Ces valeurs
+ * ne sont écrites que si la gestionnaire les change (`fusionnerClassification`).
+ */
+function classificationDeDepart(employee: Employee): ClassificationDuFormulaire {
+  const classification = classificationDe(employee) as Partial<ClassificationDuFormulaire> | null | undefined;
+  const coefficient = coefficientDeLaFiche(employee);
+  const reprise = coefficient !== null;
+  return {
+    groupe_emploi: classification?.groupe_emploi ?? (reprise ? 'Non précisé' : 'C'),
+    classe_emploi: classification?.classe_emploi ?? (reprise ? 0 : 6),
+    coefficient: classification?.coefficient ?? coefficient ?? 240,
+  };
+}
+
+/**
+ * Les classifications proposées : la grille de la convention, plus celle de la fiche
+ * quand la grille ne la connaît pas (grille de la plasturgie limitée à 700-720, fiches
+ * Comitech à 730-910). Sans cela, la liste restait vide sur une fiche juste.
+ */
+export function optionsDeClassification<T extends ClassificationDuFormulaire>(
+  grille: T[],
+  employee: Employee,
+): ClassificationDuFormulaire[] {
+  if (coefficientDeLaFiche(employee) === null) return grille;
+  const depart = classificationDeDepart(employee);
+  const cle = (c: ClassificationDuFormulaire) => `${c.groupe_emploi}-${c.classe_emploi}-${c.coefficient}`;
+  return grille.some((c) => cle(c) === cle(depart)) ? grille : [...grille, depart];
 }
 
 /**

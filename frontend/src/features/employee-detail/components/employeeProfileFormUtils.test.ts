@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDefaultValues,
   buildUpdatePayload,
+  optionsDeClassification,
   readWeeklyHours,
 } from '@/features/employee-detail/components/employeeProfileFormUtils';
 import type { Employee } from '@/features/employee-detail/types';
@@ -258,6 +259,62 @@ describe('classification conventionnelle à l’enregistrement (29/09/2026)', ()
     valeurs.classification_conventionnelle.coefficient = 710;
     const payload = buildUpdatePayload(valeurs, fiche);
     expect(payload.classification_conventionnelle).toMatchObject({ coefficient: 710, taux_at_individuel_dsn: '3.15' });
+  });
+});
+
+describe('classification reprise de la DSN, montrée dans la liste (27/10/2026)', () => {
+  // Fiche importée de la DSN : le coefficient n'est qu'en niveau_dsn (S21.G00.40.041).
+  const sansCoefficient = { pcs: '387a', idcc: '0292', niveau_dsn: '910', code_statut_dsn: '04' };
+  const fiche = {
+    id: 'e2',
+    first_name: 'Essai',
+    last_name: 'Reprise',
+    collective_agreement_id: 'cc-plasturgie',
+    classification_conventionnelle: sansCoefficient,
+  } as unknown as Parameters<typeof buildDefaultValues>[0];
+  const grille = [
+    { groupe_emploi: 'Non précisé', classe_emploi: 0, coefficient: 700 },
+    { groupe_emploi: 'Non précisé', classe_emploi: 0, coefficient: 710 },
+  ];
+
+  it('le formulaire part du niveau de la DSN, sans groupe ni classe inventés', () => {
+    expect(buildDefaultValues(fiche).classification_conventionnelle).toEqual({
+      groupe_emploi: 'Non précisé',
+      classe_emploi: 0,
+      coefficient: 910,
+    });
+  });
+
+  it('un simple enregistrement n’ajoute rien à la classification', () => {
+    const payload = buildUpdatePayload(buildDefaultValues(fiche), fiche);
+    expect(payload.classification_conventionnelle).toEqual(sansCoefficient);
+  });
+
+  it('une fiche sans classification garde les valeurs de départ habituelles', () => {
+    expect(buildDefaultValues(baseEmployee).classification_conventionnelle).toEqual({
+      groupe_emploi: 'C',
+      classe_emploi: 6,
+      coefficient: 240,
+    });
+  });
+
+  it('la liste propose la classification de la fiche quand la grille ne la connaît pas', () => {
+    expect(optionsDeClassification(grille, fiche)).toEqual([
+      ...grille,
+      { groupe_emploi: 'Non précisé', classe_emploi: 0, coefficient: 910 },
+    ]);
+  });
+
+  it('sans doublon quand la grille la connaît', () => {
+    const ficheConnue = {
+      ...fiche,
+      classification_conventionnelle: { ...sansCoefficient, niveau_dsn: '710' },
+    } as typeof fiche;
+    expect(optionsDeClassification(grille, ficheConnue)).toEqual(grille);
+  });
+
+  it('rien d’ajouté pour une fiche sans classification', () => {
+    expect(optionsDeClassification(grille, baseEmployee)).toEqual(grille);
   });
 });
 
