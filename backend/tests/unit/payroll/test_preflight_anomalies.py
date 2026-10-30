@@ -687,6 +687,21 @@ class TestFicheCompletePourLaDsn:
                  "hire_date": "2026-07-01", "date_naissance": None}
         assert _revue([futur]).anomalies == []
 
+    def test_un_contrat_fini_avant_le_mois_n_est_pas_dans_sa_dsn(self):
+        # Octobre 2026 : un CDD fini le 11/09, resté « en sortie », était
+        # signalé alors qu'il n'est plus déclaré.
+        parti = {**_employee(), "employment_status": "en_sortie", "contract_type": "CDD",
+                 "contract_end_date": "2026-05-29", "classification_conventionnelle": {}}
+        assert _fiches_dsn(_revue([parti])) == []
+
+    def test_un_contrat_qui_finit_dans_le_mois_reste_controle(self):
+        sortant = {**_employee(), "employment_status": "en_sortie", "contract_type": "CDD",
+                   "contract_end_date": "2026-06-01", "classification_conventionnelle": {}}
+        (anomalie,) = _fiches_dsn(_revue([sortant]))
+        assert anomalie.message == (
+            "Fiche à compléter pour la DSN : code PCS-ESE, motif de recours du CDD."
+        )
+
     def test_l_onboarding_n_entre_pas_dans_le_controle_des_heures(self):
         nouveau = {**_employee(), "employment_status": "en_onboarding",
                    "hire_date": "2026-06-01"}

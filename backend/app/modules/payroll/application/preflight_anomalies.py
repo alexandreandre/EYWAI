@@ -111,15 +111,18 @@ def _anomalies_fiche_dsn(
     """Une anomalie bloquante par fiche à laquelle manque une rubrique DSN.
 
     Un embauché du mois encore en onboarding est regardé aussi : sa DSN est
-    due comme celle des autres, et sa fiche se complète avant sa paie.
+    due comme celle des autres, et sa fiche se complète avant sa paie. Un
+    contrat fini avant le mois n'est plus déclaré, même resté « en sortie ».
     """
-    fin_du_mois = month_period_bounds(year, month)[1].isoformat()
+    debut, fin = (d.isoformat() for d in month_period_bounds(year, month))
     anomalies: List[PreflightAnomaly] = []
     for emp in fiches:
         onboarding = emp.get("employment_status") == "en_onboarding"
         if onboarding and not (
-            emp.get("hire_date") and str(emp["hire_date"])[:10] <= fin_du_mois
+            emp.get("hire_date") and str(emp["hire_date"])[:10] <= fin
         ):
+            continue
+        if emp.get("contract_end_date") and str(emp["contract_end_date"])[:10] < debut:
             continue
         manques = manques_fiche_dsn(emp)
         if not manques:
