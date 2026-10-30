@@ -35,7 +35,7 @@ const exportTypeLabels: Record<string, string> = {
   // Déclarations
   dsn_mensuelle: "DSN mensuelle",
   dsn_hors_martine: "DSN déposée hors de Martine",
-  dsn_signalement_arret: "Signalement DSN d'arrêt",
+  dsn_signalement_arret: "Signalement DSN",
   // Paiements
   virement_salaires: "Virement salaires",
   virement_acomptes: "Virement acomptes",

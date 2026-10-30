@@ -29,4 +29,11 @@ describe('signalements d’arrêt', () => {
       'Réel · arrêt, accident du travail du 05/10/2026 · généré le 12/10/2026',
     );
   });
+  it('dit une fin de contrat', () => {
+    expect(libelleSignalement({ ...ligne, nature: '07', motif: '', debut: '2026-12-18', fin_prevue: '2026-12-18' }))
+      .toBe('Fin de contrat le 18/12/2026');
+    expect(libelleFait({ employee_id: 'e1', salarie: 'A. T.', nature: '07', motif: '', debut: '2026-12-18',
+      fin_prevue: '2026-12-18', essai: false, genere_le: '2026-12-21' }))
+      .toBe('Réel · fin de contrat du 18/12/2026 · généré le 21/12/2026');
+  });
 });

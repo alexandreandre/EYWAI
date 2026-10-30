@@ -81,7 +81,7 @@ def test_le_type_se_lit_dans_l_historique_et_ne_devient_pas_a_refaire():
     from app.modules.exports.schemas.requests import ExportType
 
     assert "dsn_signalement_arret" in get_args(ExportType)
-    assert EXPORT_TYPE_LABELS["dsn_signalement_arret"] == "Signalement DSN d'arrêt"
+    assert EXPORT_TYPE_LABELS["dsn_signalement_arret"] == "Signalement DSN"
     # Il lit les arrêts et la fiche, aucun bulletin : un recalcul ne le rend pas faux.
     assert "dsn_signalement_arret" in EXPORTS_HORS_BULLETINS
 

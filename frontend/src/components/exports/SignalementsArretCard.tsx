@@ -50,12 +50,12 @@ export function SignalementsArretCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileWarning className="h-5 w-5" />
-          Signalements d'arrêt
+          Signalements DSN
         </CardTitle>
         <CardDescription>
-          Chaque nouvel arrêt se signale à la CPAM, sur net-entreprises, dans les 5 jours (avec la DSN
-          du mois en cas de subrogation). Une prolongation ne se signale pas : elle part dans la DSN
-          mensuelle.
+          À déposer sur net-entreprises : chaque nouvel arrêt dans les 5 jours (avec la DSN du mois en
+          cas de subrogation) ; chaque fin de contrat dans les 5 jours ouvrés, une fois le bulletin de
+          sortie calculé. Une prolongation ne se signale pas : elle part dans la DSN mensuelle.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -69,10 +69,12 @@ export function SignalementsArretCard() {
           </div>
         )}
         {data && data.a_faire.length === 0 && (
-          <p className="text-sm text-muted-foreground">Aucun arrêt à signaler.</p>
+          <p className="text-sm text-muted-foreground">Rien à signaler.</p>
         )}
         {data?.a_faire.map((ligne) => {
           const limite = echeance(ligne);
+          // Une fin de contrat attend sa sortie et son bulletin : rien à générer avant.
+          const enAttente = ligne.nature === "07" && !!ligne.a_verifier;
           return (
             <div
               key={`${ligne.employee_id}-${ligne.nature}-${ligne.debut}`}
@@ -92,14 +94,14 @@ export function SignalementsArretCard() {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={generation.isPending}
+                  disabled={generation.isPending || enAttente}
                   onClick={() => generation.mutate({ ligne, essai: true })}
                 >
                   Fichier d'essai
                 </Button>
                 <Button
                   size="sm"
-                  disabled={generation.isPending}
+                  disabled={generation.isPending || enAttente}
                   onClick={() => generation.mutate({ ligne, essai: false })}
                 >
                   Fichier réel

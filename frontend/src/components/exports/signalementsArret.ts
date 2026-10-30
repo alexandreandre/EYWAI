@@ -1,4 +1,4 @@
-// Libellés des signalements DSN d'arrêt (04) et de reprise anticipée (05).
+// Libellés des signalements DSN : arrêt (04), reprise anticipée (05), fin de contrat (07).
 import type { SignalementFait, SignalementLigne } from '@/api/exports';
 
 const MOTIFS: Record<string, string> = {
@@ -14,6 +14,7 @@ const MOTIFS: Record<string, string> = {
 const jour = (iso: string) => iso.split('-').reverse().join('/');
 
 export function libelleSignalement(l: SignalementLigne): string {
+  if (l.nature === '07') return `Fin de contrat le ${jour(l.debut)}`;
   const arret = `arrêt ${MOTIFS[l.motif] ?? l.motif} du ${jour(l.debut)}`;
   if (l.nature === '05' && l.date_reprise) {
     return `Reprise anticipée le ${jour(l.date_reprise)} (${arret})`;
@@ -29,6 +30,8 @@ export function echeance(l: SignalementLigne): { texte: string; urgent: boolean 
 }
 
 export function libelleFait(f: SignalementFait): string {
+  const genere = `${f.essai ? 'Essai' : 'Réel'}`;
+  if (f.nature === '07') return `${genere} · fin de contrat du ${jour(f.debut)} · généré le ${jour(f.genere_le)}`;
   const quoi = f.nature === '05' ? 'reprise' : 'arrêt';
   return `${f.essai ? 'Essai' : 'Réel'} · ${quoi}, ${MOTIFS[f.motif] ?? f.motif} du ${jour(f.debut)} · généré le ${jour(f.genere_le)}`;
 }
