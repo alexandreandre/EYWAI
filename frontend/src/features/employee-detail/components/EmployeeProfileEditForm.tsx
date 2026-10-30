@@ -424,6 +424,22 @@ export function EmployeeProfileEditForm({
               codes={NIVEAUX_DIPLOME_PREPARE}
             />
           )}
+          {isApprentissageContract(contractType) && (
+            <FormField
+              control={control}
+              name="specificites_paie.dsn_reprise.date_fin_contrat"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date de fin prévue du contrat</FormLabel>
+                  <FormControl><Input {...field} type="date" /></FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Déclarée en DSN : la fin du contrat d'apprentissage écrite sur le contrat.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField

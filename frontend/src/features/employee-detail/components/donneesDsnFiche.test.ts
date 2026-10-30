@@ -45,13 +45,14 @@ describe('motif de recours et niveau de diplôme sur la fiche', () => {
     expect(valeurs.specificites_paie.dsn_reprise).toEqual({
       motif_recours: '02',
       niveau_diplome_prepare: '05',
+      date_fin_contrat: '',
     });
   });
 
   it('un CDD enregistre son motif sans rien perdre de la reprise ni des affiliations', () => {
     const employe = fiche();
     const valeurs = buildDefaultValues(employe);
-    valeurs.specificites_paie.dsn_reprise = { motif_recours: '02', niveau_diplome_prepare: '' };
+    valeurs.specificites_paie.dsn_reprise = { motif_recours: '02', niveau_diplome_prepare: '', date_fin_contrat: '' };
     const payload = buildUpdatePayload(valeurs, employe);
     expect(payload.specificites_paie?.dsn_reprise).toEqual({ ...repriseChargee, motif_recours: '02' });
     expect(payload.specificites_paie?.affiliations_psc).toEqual(affiliations);
@@ -60,11 +61,55 @@ describe('motif de recours et niveau de diplôme sur la fiche', () => {
   it('un apprenti enregistre son niveau de diplôme préparé', () => {
     const employe = fiche({ contract_type: 'Apprentissage' });
     const valeurs = buildDefaultValues(employe);
-    valeurs.specificites_paie.dsn_reprise = { motif_recours: '', niveau_diplome_prepare: '05' };
+    valeurs.specificites_paie.dsn_reprise = { motif_recours: '', niveau_diplome_prepare: '05', date_fin_contrat: '' };
     const payload = buildUpdatePayload(valeurs, employe);
     expect(payload.specificites_paie?.dsn_reprise).toEqual({
       ...repriseChargee,
       niveau_diplome_prepare: '05',
+    });
+  });
+
+  it('un apprenti enregistre la date de fin prévue de son contrat pour la DSN', () => {
+    const employe = fiche({ contract_type: 'Apprentissage', contract_end_date: null });
+    const valeurs = buildDefaultValues(employe);
+    valeurs.specificites_paie.dsn_reprise = {
+      motif_recours: '',
+      niveau_diplome_prepare: '05',
+      date_fin_contrat: '2028-08-31',
+    };
+    const payload = buildUpdatePayload(valeurs, employe);
+    expect(payload.specificites_paie?.dsn_reprise).toEqual({
+      ...repriseChargee,
+      niveau_diplome_prepare: '05',
+      date_fin_contrat: '2028-08-31',
+    });
+  });
+
+  it('la date de fin du cabinet (JJMMAAAA) se relit en date et reste telle quelle sans changement', () => {
+    const employe = fiche({
+      contract_type: 'Apprentissage',
+      contract_end_date: null,
+      specificites_paie: { dsn_reprise: { ...repriseChargee, date_fin_contrat: '31082028' } },
+    });
+    const valeurs = buildDefaultValues(employe);
+    expect(valeurs.specificites_paie.dsn_reprise.date_fin_contrat).toBe('2028-08-31');
+    const payload = buildUpdatePayload(valeurs, employe);
+    expect(payload.specificites_paie?.dsn_reprise).toEqual({
+      ...repriseChargee,
+      date_fin_contrat: '31082028',
+    });
+  });
+
+  it('un CDD ne range pas de date de fin dans la reprise : la sienne est sur le contrat', () => {
+    const employe = fiche({
+      specificites_paie: { dsn_reprise: { ...repriseChargee, date_fin_contrat: '18122026' } },
+    });
+    const valeurs = buildDefaultValues(employe);
+    valeurs.specificites_paie.dsn_reprise.date_fin_contrat = '';
+    const payload = buildUpdatePayload(valeurs, employe);
+    expect(payload.specificites_paie?.dsn_reprise).toEqual({
+      ...repriseChargee,
+      date_fin_contrat: '18122026',
     });
   });
 
@@ -74,7 +119,7 @@ describe('motif de recours et niveau de diplôme sur la fiche', () => {
       specificites_paie: { dsn_reprise: { ...repriseChargee, motif_recours: '01' } },
     });
     const valeurs = buildDefaultValues(employe);
-    valeurs.specificites_paie.dsn_reprise = { motif_recours: '', niveau_diplome_prepare: '06' };
+    valeurs.specificites_paie.dsn_reprise = { motif_recours: '', niveau_diplome_prepare: '06', date_fin_contrat: '' };
     const payload = buildUpdatePayload(valeurs, employe);
     expect(payload.specificites_paie?.dsn_reprise).toEqual({ ...repriseChargee, motif_recours: '01' });
   });
@@ -84,7 +129,7 @@ describe('motif de recours et niveau de diplôme sur la fiche', () => {
       specificites_paie: { dsn_reprise: { ...repriseChargee, motif_recours: '01' } },
     });
     const valeurs = buildDefaultValues(employe);
-    valeurs.specificites_paie.dsn_reprise = { motif_recours: '', niveau_diplome_prepare: '' };
+    valeurs.specificites_paie.dsn_reprise = { motif_recours: '', niveau_diplome_prepare: '', date_fin_contrat: '' };
     const payload = buildUpdatePayload(valeurs, employe);
     expect(payload.specificites_paie?.dsn_reprise).toEqual({ ...repriseChargee, motif_recours: null });
   });

@@ -81,12 +81,21 @@ function lirePcs(employee: Employee): string {
   return texte(classificationDe(employee)?.pcs);
 }
 
+/** La date du cabinet (JJMMAAAA) ou de l'écran (AAAA-MM-JJ), au format de l'écran. */
+function dateIsoDeLaReprise(valeur: unknown): string {
+  const brut = texte(valeur).trim();
+  if (/^\d{8}$/.test(brut)) return `${brut.slice(4, 8)}-${brut.slice(2, 4)}-${brut.slice(0, 2)}`;
+  return brut.slice(0, 10);
+}
+
 /**
  * La reprise DSN enregistrée part de celle de la fiche (type et identifiant du
  * taux PAS, SMIC retenu… posés par le chargeur) : seuls les champs affichés
- * pour ce contrat s'y écrivent — le motif pour un CDD, le diplôme préparé pour
- * un apprenti. Un champ vidé part à null (le serveur fusionne, une clé omise
- * resterait). Rien à dire : pas de clé `dsn_reprise` ajoutée.
+ * pour ce contrat s'y écrivent — le motif pour un CDD, le diplôme préparé et la
+ * date de fin prévue pour un apprenti (sa fiche n'a pas de date de fin de
+ * contrat). Un champ vidé part à null (le serveur fusionne, une clé omise
+ * resterait). Rien à dire : pas de clé `dsn_reprise` ajoutée. Une date du
+ * cabinet que la saisie n'a pas changée reste à son format.
  */
 export function fusionnerRepriseDsn(
   origine: unknown,
@@ -95,13 +104,17 @@ export function fusionnerRepriseDsn(
 ): Record<string, unknown> | undefined {
   const avant = lireRepriseDsn(origine);
   const fusion: Record<string, unknown> = { ...avant };
-  const ecrire = (cle: 'motif_recours' | 'niveau_diplome_prepare') => {
-    const valeur = saisie[cle].trim();
+  const ecrire = (cle: 'motif_recours' | 'niveau_diplome_prepare' | 'date_fin_contrat') => {
+    const valeur = (saisie[cle] ?? '').trim();
+    if (cle === 'date_fin_contrat' && valeur && valeur === dateIsoDeLaReprise(avant[cle])) return;
     if (valeur) fusion[cle] = valeur;
     else if (avant[cle] != null && avant[cle] !== '') fusion[cle] = null;
   };
   if (isCddContract(contractType)) ecrire('motif_recours');
-  if (isApprentissageContract(contractType)) ecrire('niveau_diplome_prepare');
+  if (isApprentissageContract(contractType)) {
+    ecrire('niveau_diplome_prepare');
+    ecrire('date_fin_contrat');
+  }
   return Object.keys(fusion).length > 0 || origine != null ? fusion : undefined;
 }
 
@@ -215,6 +228,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       dsn_reprise: {
         motif_recours: texte(reprise.motif_recours),
         niveau_diplome_prepare: texte(reprise.niveau_diplome_prepare),
+        date_fin_contrat: dateIsoDeLaReprise(reprise.date_fin_contrat),
       },
       maintien_regime_apprenti: Boolean(spec.maintien_regime_apprenti),
       personnel_rd_eligible_jei: Boolean(spec.personnel_rd_eligible_jei),

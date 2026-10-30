@@ -94,10 +94,12 @@ export const employeeProfileEditSchema = z
           .default([]),
       }),
       // Déclarés en DSN seulement : motif de recours d'un CDD (S21.G00.40.021),
-      // niveau de diplôme préparé d'un apprenti (S21.G00.30.025).
+      // niveau de diplôme préparé et date de fin prévue d'un apprenti
+      // (S21.G00.30.025, S21.G00.40.010).
       dsn_reprise: z.object({
         motif_recours: z.string(),
         niveau_diplome_prepare: z.string(),
+        date_fin_contrat: z.string().default(''),
       }),
       maintien_regime_apprenti: z.boolean().optional(),
       personnel_rd_eligible_jei: z.boolean().optional(),
