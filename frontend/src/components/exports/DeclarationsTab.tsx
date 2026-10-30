@@ -9,6 +9,7 @@ import { ExportCommonModel } from "./ExportCommonModel";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ExportHistoryModal } from "./ExportHistoryModal";
 import DsnTransmissionsPanel from "@/features/net-entreprises/components/DsnTransmissionsPanel";
+import { SignalementsArretCard } from "./SignalementsArretCard";
 
 export function DeclarationsTab() {
   const [selectedExport, setSelectedExport] = useState<string | null>(null);
@@ -103,6 +104,9 @@ export function DeclarationsTab() {
           );
         })}
       </div>
+
+      {/* Signalements d'arrêt et de reprise à déposer */}
+      <SignalementsArretCard />
 
       {/* Suivi des télétransmissions DSN (Net-entreprises) */}
       <DsnTransmissionsPanel />

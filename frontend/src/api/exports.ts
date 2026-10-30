@@ -27,7 +27,8 @@ export type ExportType =
   | "virement_acomptes"
   | "recapitulatif_montants"
   // Marque à la main de la liste de contrôle : DSN déposée depuis l'ancien logiciel.
-  | "dsn_hors_martine";
+  | "dsn_hors_martine"
+  | "dsn_signalement_arret";
 
 export type ExportStatus = "previewed" | "generated" | "cancelled" | "replaced";
 
@@ -185,6 +186,59 @@ export async function getExportHistory(
  * DSN est déposée hors de Martine (décision du 12/10). L'historique des exports
  * garde qui et quand ; aucun fichier.
  */
+/** Signalement DSN d'arrêt (04) ou de reprise anticipée (05) à déposer. */
+export interface SignalementLigne {
+  employee_id: string;
+  salarie?: string;
+  nature: string;
+  motif: string;
+  debut: string;
+  fin_prevue: string;
+  subrogation: boolean;
+  connu_le: string;
+  a_deposer_avant: string;
+  date_reprise: string | null;
+  en_retard: boolean;
+}
+
+export interface SignalementFait {
+  employee_id: string;
+  salarie: string;
+  nature: string;
+  motif: string;
+  debut: string;
+  fin_prevue: string;
+  essai: boolean;
+  genere_le: string;
+}
+
+export interface SignalementsResponse {
+  a_faire: SignalementLigne[];
+  faits: SignalementFait[];
+}
+
+export interface SignalementGenere {
+  export_id: string;
+  filename: string;
+  download_url: string;
+  message: string;
+}
+
+export async function listerSignalements(): Promise<SignalementsResponse> {
+  const response = await apiClient.get('/api/exports/dsn-signalements');
+  return response.data;
+}
+
+export async function genererSignalement(body: {
+  employee_id: string;
+  nature: string;
+  debut: string;
+  essai: boolean;
+}): Promise<SignalementGenere> {
+  const response = await apiClient.post('/api/exports/dsn-signalements', body);
+  return response.data;
+}
+
 export async function marquerDsnHorsMartine(period: string, note?: string): Promise<void> {
   await apiClient.post('/api/exports/dsn-hors-martine', { period, note: note ?? null });
 }
