@@ -217,6 +217,9 @@ export function ExportCommonModel({
   const [dsnType, setDsnType] = useState<DsnType>("dsn_mensuelle_normale");
   const [establishmentId, setEstablishmentId] = useState("");
   const [acceptWarnings, setAcceptWarnings] = useState(false);
+  // Fichier d'essai (S10.G00.00.005 = 01) : déposé en mode test, il ne vaut
+  // pas déclaration et passe le verrou du dépôt réel.
+  const [fichierEssai, setFichierEssai] = useState(false);
 
   // Paramètres spécifiques au virement des acomptes
   const [acompteMode, setAcompteMode] = useState<AcompteMode>("a_verser");
@@ -274,6 +277,9 @@ export function ExportCommonModel({
       }
       if (acceptWarnings) {
         filters.accept_warnings = true;
+      }
+      if (fichierEssai) {
+        filters.essai = true;
       }
     }
     return filters;
@@ -390,6 +396,7 @@ export function ExportCommonModel({
       dsnType,
       establishmentId,
       acceptWarnings,
+      fichierEssai,
       acompteMode,
       acompteLimiterAuMois,
       acompteDateDebut,
@@ -612,6 +619,16 @@ export function ExportCommonModel({
                   />
                   <Label htmlFor="accept-warnings" className="font-normal">
                     Accepter les avertissements non bloquants à la génération
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="fichier-essai"
+                    checked={fichierEssai}
+                    onCheckedChange={(c) => setFichierEssai(c === true)}
+                  />
+                  <Label htmlFor="fichier-essai" className="font-normal">
+                    Fichier d'essai : à déposer en mode test sur net-entreprises, il ne vaut pas déclaration
                   </Label>
                 </div>
               </>

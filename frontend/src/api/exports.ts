@@ -107,7 +107,7 @@ export interface ExportFileInfo {
   filename: string;
   path: string;
   size: number;
-  format: "csv" | "xlsx" | "zip" | "xml" | "txt";
+  format: "csv" | "xlsx" | "zip" | "xml" | "txt" | "dsn";
 }
 
 export interface ExportReport {

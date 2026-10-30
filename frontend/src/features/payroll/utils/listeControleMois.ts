@@ -93,6 +93,8 @@ export type ExportPourControle = {
   generated_at: string;
   a_refaire?: boolean;
   generated_by_name?: string | null;
+  /** `essai: true` : fichier d'essai de la DSN, qui ne vaut pas déclaration. */
+  parameters?: Record<string, unknown> | null;
 };
 
 export type EntreeListeControle = {
@@ -315,6 +317,7 @@ function etatExport(
   const derniers = new Map<string, ExportPourControle>();
   for (const e of exports) {
     if (e.status !== 'generated' || !types.includes(e.export_type)) continue;
+    if (e.parameters?.essai === true) continue;
     const avant = derniers.get(e.export_type);
     if (!avant || e.generated_at > avant.generated_at) derniers.set(e.export_type, e);
   }

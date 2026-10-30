@@ -377,6 +377,13 @@ describe('« c’est fini » : bulletins validés, DSN et export comptable faits
     expect(etape(resultat, ETAPE_DECLARATIONS).detail).toBe('La DSN du mois n’est pas faite.');
   });
 
+  it('un fichier d’essai de la DSN ne compte pas comme la DSN du mois', () => {
+    const resultat = listeControleDuMois(
+      entree({ exportsDuMois: OK([exportFait('dsn_mensuelle', { parameters: { essai: true } }), COMPTA]) })
+    );
+    expect(etape(resultat, ETAPE_DECLARATIONS).detail).toBe('La DSN du mois n’est pas faite.');
+  });
+
   it('un export fait avant le dernier calcul est à refaire', () => {
     const resultat = listeControleDuMois(
       entree({ exportsDuMois: OK([exportFait('dsn_mensuelle', { a_refaire: true }), COMPTA]) })
