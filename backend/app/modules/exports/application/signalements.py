@@ -7,20 +7,27 @@ base, le rangement du fichier et l'historique des exports.
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.core.database import supabase
 from app.modules.dsn_export.application.signalement_builder import construire_signalement
 from app.modules.dsn_export.domain import etat_conformite
 from app.modules.dsn_export.domain.evenements import MOTIF_ARRET
+from app.modules.dsn_export.domain.fctu import (
+    FinASignaler,
+    bloc_preavis,
+    fctu_depuis_mensuelle,
+    fins_a_signaler,
+)
 from app.modules.dsn_export.domain.signalements import (
     SignalementAFaire,
     SignalementEnvoye,
     signalements_a_faire,
 )
+from app.modules.dsn_export.domain.usages_signalement import NATURE_FCTU
 from app.modules.dsn_export.infrastructure import settings_repository
 from app.modules.exports.application import commands
-from app.modules.exports.infrastructure.export_dsn import get_company_data
+from app.modules.exports.infrastructure.export_dsn import generate_dsn_file, get_company_data
 from app.modules.exports.infrastructure.storage import create_signed_url, upload_export_file
 from app.shared.domain.effectif_seuils import effectif_retenu
 
@@ -91,6 +98,79 @@ def _noms(company_id: str) -> Dict[str, str]:
     }
 
 
+def _sorties(company_id: str) -> List[Dict[str, Any]]:
+    return (
+        supabase.table("employee_exits")
+        .select("*")
+        .eq("company_id", company_id)
+        .neq("status", "annulee")
+        .execute()
+    ).data or []
+
+
+def _contrats(company_id: str) -> List[Dict[str, Any]]:
+    return (
+        supabase.table("employees")
+        .select("id,contract_type,contract_end_date")
+        .eq("company_id", company_id)
+        .execute()
+    ).data or []
+
+
+def _bulletins(company_id: str, depuis: Optional[date]) -> Set[Tuple[str, int, int]]:
+    requete = supabase.table("payslips").select("employee_id,year,month").eq("company_id", company_id)
+    if depuis:
+        requete = requete.gte("year", depuis.year)
+    return {
+        (str(l["employee_id"]), int(l["year"]), int(l["month"]))
+        for l in (requete.execute().data or [])
+    }
+
+
+def _fins(company_id: str, aujourd_hui: date) -> List[FinASignaler]:
+    depuis = _depuis(company_id)
+    return fins_a_signaler(
+        sorties=_sorties(company_id),
+        contrats=_contrats(company_id),
+        envoyes=_envoyes(company_id),
+        bulletins=_bulletins(company_id, depuis),
+        depuis=depuis,
+        aujourd_hui=aujourd_hui,
+    )
+
+
+def _attente_fin(f: FinASignaler, aujourd_hui: date) -> Optional[str]:
+    """Ce qui manque avant de générer la fin de contrat, ou None si elle est prête."""
+    if f.fin > aujourd_hui:
+        return (
+            f"Fin prévue le {f.fin:%d/%m/%Y} : le fichier se génère après la sortie "
+            "et son bulletin."
+        )
+    if not f.bulletin_pret:
+        return (
+            "Bulletin du mois de sortie pas encore calculé : calculez-le, la fin de "
+            "contrat reprend le solde de tout compte."
+        )
+    return None
+
+
+def _ligne_fin(f: FinASignaler, noms: Dict[str, str], aujourd_hui: date) -> Dict[str, Any]:
+    return {
+        "employee_id": f.employee_id,
+        "salarie": noms.get(f.employee_id, ""),
+        "nature": NATURE_FCTU,
+        "motif": "",
+        "debut": f.fin.isoformat(),
+        "fin_prevue": f.fin.isoformat(),
+        "subrogation": False,
+        "connu_le": f.fin.isoformat(),
+        "a_deposer_avant": f.a_deposer_avant.isoformat(),
+        "date_reprise": None,
+        "en_retard": f.a_deposer_avant < aujourd_hui,
+        "a_verifier": _attente_fin(f, aujourd_hui),
+    }
+
+
 def _a_faire(company_id: str, aujourd_hui: date) -> List[SignalementAFaire]:
     par_salarie: Dict[str, List[Dict[str, Any]]] = {}
     for arret in _arrets(company_id):
@@ -141,7 +221,10 @@ def lister(company_id: str, *, aujourd_hui: Optional[date] = None) -> Dict[str, 
         }
         for e in sorted(_envoyes(company_id), key=lambda e: e.genere_le, reverse=True)
     ]
-    return {"a_faire": [_ligne(s, noms, jour) for s in _a_faire(company_id, jour)], "faits": faits}
+    a_faire = [_ligne(s, noms, jour) for s in _a_faire(company_id, jour)]
+    a_faire += [_ligne_fin(f, noms, jour) for f in _fins(company_id, jour)]
+    a_faire.sort(key=lambda ligne: (ligne["a_deposer_avant"], ligne["employee_id"]))
+    return {"a_faire": a_faire, "faits": faits}
 
 
 def _fichier(company_id: str, s: SignalementAFaire, essai: bool) -> str:
@@ -157,34 +240,37 @@ def _fichier(company_id: str, s: SignalementAFaire, essai: bool) -> str:
 
 
 def generer(
-    company_id: str, user_id: str, *, employee_id: str, nature: str, debut: str, essai: bool
+    company_id: str,
+    user_id: str,
+    *,
+    employee_id: str,
+    nature: str,
+    debut: str,
+    essai: bool,
+    aujourd_hui: Optional[date] = None,
 ) -> Dict[str, Any]:
     """Génère, range et historise le fichier d'un signalement encore à faire."""
+    jour = aujourd_hui or date.today()
     if not essai and not etat_conformite.SIGNALEMENTS_DEPOSABLES:
         raise ValueError(etat_conformite.RAISON_SIGNALEMENTS)
+    if nature == NATURE_FCTU:
+        return _generer_fin(company_id, user_id, employee_id=employee_id, fin=debut, essai=essai, jour=jour)
     s = next(
         (
-            x for x in _a_faire(company_id, date.today())
+            x for x in _a_faire(company_id, jour)
             if x.employee_id == employee_id and x.nature == nature and x.debut.isoformat() == debut
         ),
         None,
     )
     if s is None:
         raise ValueError("Ce signalement n'est plus à faire : rechargez la liste.")
-    contenu = _fichier(company_id, s, essai).encode("iso-8859-15")
-    prefixe = "dsn_essai_signalement" if essai else "dsn_signalement"
-    filename = f"{prefixe}_{nature}_{s.debut.isoformat()}_{datetime.now():%Y%m%d%H%M%S}.dsn"
-    chemin = upload_export_file(
-        BUCKET,
-        f"exports/{company_id}/{EXPORT_TYPE}/{filename}",
-        contenu,
-        "text/plain; charset=iso-8859-15",
-    )
-    export_id = commands.record_export_history({
-        "company_id": company_id,
-        "export_type": EXPORT_TYPE,
-        "period": s.debut.strftime("%Y-%m"),
-        "parameters": {
+    return _ranger(
+        company_id,
+        user_id,
+        _fichier(company_id, s, essai).encode("iso-8859-15"),
+        essai=essai,
+        a_deposer_avant=s.a_deposer_avant,
+        parametres={
             "employee_id": s.employee_id,
             "nature": s.nature,
             "motif": s.motif,
@@ -194,6 +280,73 @@ def generer(
             "date_reprise": _iso(s.date_reprise),
             "essai": essai,
         },
+    )
+
+
+def _generer_fin(
+    company_id: str, user_id: str, *, employee_id: str, fin: str, essai: bool, jour: date
+) -> Dict[str, Any]:
+    """La fin de contrat : la DSN du mois de sortie du salarié, passée en nature 07."""
+    f = next(
+        (x for x in _fins(company_id, jour) if x.employee_id == employee_id and x.fin.isoformat() == fin),
+        None,
+    )
+    if f is None:
+        raise ValueError("Ce signalement n'est plus à faire : rechargez la liste.")
+    attente = _attente_fin(f, jour)
+    if attente:
+        raise ValueError(attente)
+    sortie = next((s for s in _sorties(company_id) if str(s.get("employee_id")) == employee_id), None)
+    mensuelle = generate_dsn_file(
+        company_id, f"{f.fin:%Y-%m}", "dsn_mensuelle_normale", [employee_id], essai=essai
+    )
+    texte = fctu_depuis_mensuelle(
+        mensuelle.decode("iso-8859-15"), mois_solde=f.fin, preavis=bloc_preavis(sortie)
+    )
+    return _ranger(
+        company_id,
+        user_id,
+        texte.encode("iso-8859-15"),
+        essai=essai,
+        a_deposer_avant=f.a_deposer_avant,
+        parametres={
+            "employee_id": employee_id,
+            "nature": NATURE_FCTU,
+            "motif": "",
+            "debut": f.fin.isoformat(),
+            "fin_prevue": f.fin.isoformat(),
+            "subrogation": False,
+            "date_reprise": None,
+            "essai": essai,
+        },
+    )
+
+
+def _ranger(
+    company_id: str,
+    user_id: str,
+    contenu: bytes,
+    *,
+    essai: bool,
+    a_deposer_avant: date,
+    parametres: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Range le fichier, l'inscrit à l'historique et dit quoi en faire."""
+    prefixe = "dsn_essai_signalement" if essai else "dsn_signalement"
+    filename = (
+        f"{prefixe}_{parametres['nature']}_{parametres['debut']}_{datetime.now():%Y%m%d%H%M%S}.dsn"
+    )
+    chemin = upload_export_file(
+        BUCKET,
+        f"exports/{company_id}/{EXPORT_TYPE}/{filename}",
+        contenu,
+        "text/plain; charset=iso-8859-15",
+    )
+    export_id = commands.record_export_history({
+        "company_id": company_id,
+        "export_type": EXPORT_TYPE,
+        "period": parametres["debut"][:7],
+        "parameters": parametres,
         "file_paths": [chemin],
         "report": {},
         "status": "generated",
@@ -203,7 +356,7 @@ def generer(
         "Fichier d'essai : déposez-le en mode test sur net-entreprises.fr. "
         "Il ne vaut pas signalement."
         if essai
-        else f"Déposez-le sur net-entreprises.fr avant le {s.a_deposer_avant:%d/%m/%Y}."
+        else f"Déposez-le sur net-entreprises.fr avant le {a_deposer_avant:%d/%m/%Y}."
     )
     return {
         "export_id": export_id,

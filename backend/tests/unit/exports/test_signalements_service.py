@@ -20,7 +20,10 @@ def base():
          patch(f"{MODULE}._envoyes", return_value=[]), \
          patch(f"{MODULE}._depuis", return_value=date(2026, 10, 1)), \
          patch(f"{MODULE}._effectif", return_value=20), \
-         patch(f"{MODULE}._noms", return_value={"e1": "A. T."}):
+         patch(f"{MODULE}._noms", return_value={"e1": "A. T."}), \
+         patch(f"{MODULE}._sorties", return_value=[]), \
+         patch(f"{MODULE}._contrats", return_value=[]), \
+         patch(f"{MODULE}._bulletins", return_value=set()):
         yield
 
 
@@ -81,3 +84,50 @@ def test_le_type_se_lit_dans_l_historique_et_ne_devient_pas_a_refaire():
     assert EXPORT_TYPE_LABELS["dsn_signalement_arret"] == "Signalement DSN d'arrêt"
     # Il lit les arrêts et la fiche, aucun bulletin : un recalcul ne le rend pas faux.
     assert "dsn_signalement_arret" in EXPORTS_HORS_BULLETINS
+
+
+@pytest.fixture
+def sortie():
+    with patch(f"{MODULE}._arrets", return_value=[]), \
+         patch(f"{MODULE}._envoyes", return_value=[]), \
+         patch(f"{MODULE}._depuis", return_value=date(2026, 10, 1)), \
+         patch(f"{MODULE}._effectif", return_value=20), \
+         patch(f"{MODULE}._noms", return_value={"e2": "B. U."}), \
+         patch(f"{MODULE}._sorties", return_value=[{"employee_id": "e2", "exit_type": "fin_cdd",
+                                                     "last_working_day": "2026-11-06", "status": "validee"}]), \
+         patch(f"{MODULE}._contrats", return_value=[]), \
+         patch(f"{MODULE}._bulletins", return_value={("e2", 2026, 11)}):
+        yield
+
+
+def test_la_fin_de_contrat_se_liste_avec_sa_date_limite(sortie):
+    (ligne,) = service.lister("c1", aujourd_hui=date(2026, 11, 9))["a_faire"]
+    assert (ligne["nature"], ligne["debut"], ligne["a_deposer_avant"], ligne["a_verifier"]) == (
+        "07", "2026-11-06", "2026-11-13", None)
+
+
+def test_sans_bulletin_de_sortie_la_fin_de_contrat_attend(sortie):
+    with patch(f"{MODULE}._bulletins", return_value=set()):
+        (ligne,) = service.lister("c1", aujourd_hui=date(2026, 11, 9))["a_faire"]
+        assert "Bulletin du mois de sortie" in ligne["a_verifier"]
+        with pytest.raises(ValueError, match="Bulletin"):
+            service.generer("c1", "u1", employee_id="e2", nature="07", debut="2026-11-06", essai=True,
+                            aujourd_hui=date(2026, 11, 9))
+
+
+def test_la_fin_de_contrat_se_genere_depuis_la_dsn_du_mois(sortie):
+    mensuelle = "\r\n".join([
+        "S20.G00.05.001,'01'", "S21.G00.30.001,'1900101234567'", "S21.G00.50.001,'30112026'",
+        "S21.G00.62.001,'06112026'", "S21.G00.62.002,'031'", "S90.G00.90.001,'7'", "S90.G00.90.002,'1'",
+    ]) + "\r\n"
+    with patch(f"{MODULE}.generate_dsn_file", return_value=mensuelle.encode("iso-8859-15")) as mensuelle_du_mois, \
+         patch(f"{MODULE}.upload_export_file", return_value="exports/c1/f.dsn") as rangement, \
+         patch(f"{MODULE}.create_signed_url", return_value="https://lien"), \
+         patch(f"{MODULE}.commands.record_export_history", return_value="x2") as historique:
+        resultat = service.generer("c1", "u1", employee_id="e2", nature="07", debut="2026-11-06", essai=False,
+                                   aujourd_hui=date(2026, 11, 9))
+    assert mensuelle_du_mois.call_args.args[:4] == ("c1", "2026-11", "dsn_mensuelle_normale", ["e2"])
+    contenu = rangement.call_args.args[2].decode("iso-8859-15")
+    assert "S20.G00.05.001,'07'" in contenu and "S21.G00.63.001,'90'" in contenu
+    assert historique.call_args.args[0]["parameters"]["nature"] == "07"
+    assert resultat["message"] == "Déposez-le sur net-entreprises.fr avant le 13/11/2026."
