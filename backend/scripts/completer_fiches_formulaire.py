@@ -1,21 +1,24 @@
-"""Débloque les fiches salariés que le formulaire refuse d'enregistrer, sans toucher à la paie.
+"""Complète les fiches salariés dont la valeur juste est connue, sans toucher à la paie.
 
-Le formulaire de la fiche (`employeeProfileEditSchema.ts`) refuse un code
-PCS-ESE qui n'a pas la forme « trois chiffres et une lettre minuscule »
-(`^\\d{3}[a-z]$`). Une seule fiche en cours de Colorplast et de Comitech est
-dans ce cas avec une valeur juste connue : l'usineur S.B. (Comitech) porte
-« 9999 », repris tel quel des DSN Quadra de janvier à juin 2026 ; son collègue
-au même libellé d'emploi (« Usineur », V.C.) y est déclaré en 623f.
+Lot du 27/10 (écrit) : l'usineur S.B. (Comitech) portait « 9999 », que le
+formulaire refuse ; il a reçu 623f, le PCS-ESE de son collègue au même emploi.
 
-Le PCS n'est lu par aucun calcul de bulletin (DSN et OETH seulement ; aucun
-poste ECAP chez Comitech). Bulletins de septembre recalculés au bac à sable,
-fiche actuelle contre fiche corrigée en mémoire : 0 écart au centime. Les
-bulletins de S.B. sont tous repris de Quadra (« importe ») : aucun ne passe
-« À recalculer ».
+Lot du 30/10, pour la DSN d'octobre : la revue pré-paie signale les fiches que
+DSN-VAL refuserait (« Fiche à compléter (DSN) »). Les valeurs posées ici se
+lisent dans les DSN Quadra de janvier à juillet 2026, sans exception :
+- PCS-ESE 674a pour les CDD de production de Colorplast et de Comitech ;
+- motif de recours 02 (accroissement temporaire d'activité) pour tous les CDD
+  des deux sociétés.
+Le PCS se range dans la classification, le motif sous
+`specificites_paie.dsn_reprise.motif_recours`, là où le formulaire de la fiche
+et la reprise DSN les écrivent. Aucun calcul de bulletin ne lit le PCS ; le
+moteur ne lit le motif que pour écarter la prime de précarité, et 02 ne
+l'écarte pas (engine/motif_recours.py). Tous les bulletins de ces fiches sont
+repris de Quadra (« importe ») : aucun ne passe « À recalculer ».
 
-Les deux autres fiches refusées (Colorplast, X.P. et F.A., en onboarding) n'ont
-ni date de naissance ni IBAN : aucune source ne les donne, le script ne les
-touche pas — ils se saisissent sur la fiche depuis le contrat et le RIB.
+Restent sans source, donc hors du script : la date de naissance de X.P. et de
+F.A. (le NIR ne donne que l'année et le mois), la date de fin et le diplôme
+préparé de l'apprenti S.V. de Comitech.
 
 Depuis backend/ :
 
@@ -51,33 +54,66 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 #: Même règle que le formulaire (`FORMAT_PCS_ESE`, frontend/src/constants/dsnFiche.ts).
 FORMAT_PCS_ESE = re.compile(r"^\d{3}[a-z]$")
 
+#: Les codes que le formulaire propose (`MOTIFS_RECOURS_CDD`, même fichier).
+MOTIFS_RECOURS_CDD = frozenset(
+    {"01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "12", "13"}
+)
+
+#: Les colonnes de la fiche que le script peut corriger.
+COLONNES = frozenset({"classification_conventionnelle", "specificites_paie"})
+
+COLORPLAST = "dbe2b9f5-44dd-41bc-a625-36ed33d160f7"
+COMITECH = "12cd8c71-da13-43f9-9151-475c4d5e8812"
+
 
 @dataclass(frozen=True)
 class Correction:
     employee_id: str
     initiales: str
     societe: str
-    #: Clé de `classification_conventionnelle` corrigée.
-    cle: str
+    #: Colonne de la fiche, et chemin de la clé corrigée dans son JSON.
+    colonne: str
+    chemin: tuple[str, ...]
     avant: Any
     apres: Any
     source: str
 
 
+_SOURCE_PCS_COLORPLAST = (
+    "PCS-ESE du collègue en CDI au même emploi « Préparateur peintre », et de tous "
+    "les CDD de Colorplast déclarés par Quadra (S21.G00.40.004, DSN de mars à juillet 2026)."
+)
+_SOURCE_PCS_COMITECH = (
+    "PCS-ESE des ouvriers de production de Comitech déclarés par Quadra (opérateurs "
+    "polyvalents, S21.G00.40.004, DSN de janvier à juillet 2026) ; le seul autre agent "
+    "de production, parti le 24/07, portait « 9999 », que le formulaire refuse."
+)
+_SOURCE_MOTIF = (
+    "Motif de tous les CDD déclarés par Quadra chez Colorplast et Comitech "
+    "(S21.G00.40.021 = 02, DSN de janvier à juillet 2026, sans exception)."
+)
+
+
+def _pcs(employee_id: str, initiales: str, societe: str, source: str) -> Correction:
+    return Correction(employee_id, initiales, societe, "classification_conventionnelle",
+                      ("pcs",), None, "674a", source)
+
+
+def _motif(employee_id: str, initiales: str, societe: str) -> Correction:
+    return Correction(employee_id, initiales, societe, "specificites_paie",
+                      ("dsn_reprise", "motif_recours"), None, "02", _SOURCE_MOTIF)
+
+
 CORRECTIONS: tuple[Correction, ...] = (
-    Correction(
-        employee_id="312226e9-aab5-4dad-a06c-28ec8f09a1d0",
-        initiales="S.B.",
-        societe="12cd8c71-da13-43f9-9151-475c4d5e8812",  # Comitech Composite
-        cle="pcs",
-        avant="9999",
-        apres="623f",
-        source=(
-            "PCS-ESE du collègue au même emploi « Usineur » (V.C.), déclaré par "
-            "Quadra en S21.G00.40.004 dans les DSN de janvier à juin 2026 ; "
-            "S.B. y porte « 9999 », que le formulaire refuse."
-        ),
-    ),
+    _pcs("2e3c07ed-5090-45d6-bbe2-b74b2b7cc36f", "A.B.", COLORPLAST, _SOURCE_PCS_COLORPLAST),
+    _motif("2e3c07ed-5090-45d6-bbe2-b74b2b7cc36f", "A.B.", COLORPLAST),
+    _pcs("d9133249-b420-4b7a-81ef-015fc0e7dc71", "X.P.", COLORPLAST, _SOURCE_PCS_COLORPLAST),
+    _motif("d9133249-b420-4b7a-81ef-015fc0e7dc71", "X.P.", COLORPLAST),
+    _pcs("bc90c7bd-b545-4816-965d-a821fb4fc514", "F.A.", COLORPLAST, _SOURCE_PCS_COLORPLAST),
+    _motif("bc90c7bd-b545-4816-965d-a821fb4fc514", "F.A.", COLORPLAST),
+    _pcs("01ea5d95-fda3-46b7-9e22-280bdf7598ca", "D.G.", COMITECH, _SOURCE_PCS_COMITECH),
+    _motif("01ea5d95-fda3-46b7-9e22-280bdf7598ca", "D.G.", COMITECH),
+    _motif("b5bb1c56-50b8-4b69-bb2a-01e7e8332682", "V.L.", COMITECH),
 )
 
 
@@ -120,30 +156,63 @@ def empreinte(etats: dict[str, dict[str, Any]]) -> str:
     return hashlib.sha256(texte.encode("utf-8")).hexdigest()
 
 
-def classification_corrigee(fiche: dict[str, Any], corrections: list[Correction]) -> dict[str, Any]:
-    """La classification de la fiche, seules les clés corrigées changées.
+def _valider(c: Correction) -> None:
+    if c.colonne not in COLONNES:
+        raise SystemExit(f"{c.initiales} : colonne {c.colonne} hors du formulaire de la fiche, rien n'est écrit.")
+    if c.chemin == ("pcs",) and not FORMAT_PCS_ESE.match(str(c.apres)):
+        raise SystemExit(f"{c.initiales} : PCS {c.apres!r} refusé par le formulaire, rien n'est écrit.")
+    if c.chemin[-1:] == ("motif_recours",) and c.apres not in MOTIFS_RECOURS_CDD:
+        raise SystemExit(f"{c.initiales} : motif {c.apres!r} hors de la liste DSN, rien n'est écrit.")
+
+
+def _lire(valeur: Any, chemin: tuple[str, ...]) -> Any:
+    for cle in chemin:
+        if not isinstance(valeur, dict):
+            return None
+        valeur = valeur.get(cle)
+    return valeur
+
+
+def _feuilles(valeur: Any, prefixe: tuple[str, ...] = ()) -> dict[tuple[str, ...], Any]:
+    """Chaque valeur du JSON qui n'est pas un objet, avec son chemin."""
+    if not isinstance(valeur, dict):
+        return {prefixe: valeur}
+    feuilles: dict[tuple[str, ...], Any] = {}
+    for cle, sous in valeur.items():
+        feuilles.update(_feuilles(sous, prefixe + (cle,)))
+    return feuilles
+
+
+def colonnes_corrigees(fiche: dict[str, Any], corrections: list[Correction]) -> dict[str, Any]:
+    """Les colonnes de la fiche, seules les clés corrigées changées.
 
     Arrête tout si une valeur d'avant n'est pas celle attendue, si une valeur
     corrigée ne passe pas le formulaire, ou si une autre clé changerait.
     """
-    origine = fiche.get("classification_conventionnelle")
-    if not isinstance(origine, dict):
-        raise SystemExit(f"{corrections[0].initiales} : classification absente, rien n'est écrit.")
-    nouvelle = copy.deepcopy(origine)
+    nouvelles: dict[str, Any] = {}
     for c in corrections:
-        if origine.get(c.cle) != c.avant:
+        _valider(c)
+        origine = fiche.get(c.colonne)
+        if origine is not None and not isinstance(origine, dict):
+            raise SystemExit(f"{c.initiales} : {c.colonne} n'est pas un objet, rien n'est écrit.")
+        if _lire(origine, c.chemin) != c.avant:
             raise SystemExit(
-                f"{c.initiales} : {c.cle} vaut {origine.get(c.cle)!r}, {c.avant!r} attendu — "
-                "la fiche a changé, rien n'est écrit."
+                f"{c.initiales} : {c.colonne}.{'.'.join(c.chemin)} vaut {_lire(origine, c.chemin)!r}, "
+                f"{c.avant!r} attendu — la fiche a changé, rien n'est écrit."
             )
-        if c.cle == "pcs" and not FORMAT_PCS_ESE.match(str(c.apres)):
-            raise SystemExit(f"{c.initiales} : {c.apres!r} ne passe pas le formulaire, rien n'est écrit.")
-        nouvelle[c.cle] = c.apres
-    changees = {k for k in set(origine) | set(nouvelle) if origine.get(k) != nouvelle.get(k)}
-    attendues = {c.cle for c in corrections}
-    if changees != attendues:
-        raise SystemExit(f"Clés changées {sorted(changees)} au lieu de {sorted(attendues)} : rien n'est écrit.")
-    return nouvelle
+        noeud = nouvelles.setdefault(c.colonne, copy.deepcopy(origine or {}))
+        for cle in c.chemin[:-1]:
+            noeud = noeud.setdefault(cle, {})
+            if not isinstance(noeud, dict):
+                raise SystemExit(f"{c.initiales} : {c.colonne}.{cle} n'est pas un objet, rien n'est écrit.")
+        noeud[c.chemin[-1]] = c.apres
+    for colonne, nouvelle in nouvelles.items():
+        avant, apres = _feuilles(fiche.get(colonne) or {}), _feuilles(nouvelle)
+        changees = {p for p in set(avant) | set(apres) if avant.get(p) != apres.get(p)}
+        attendues = {c.chemin for c in corrections if c.colonne == colonne}
+        if changees != attendues:
+            raise SystemExit(f"Clés changées {sorted(changees)} au lieu de {sorted(attendues)} : rien n'est écrit.")
+    return nouvelles
 
 
 def par_fiche() -> dict[str, list[Correction]]:
@@ -176,10 +245,10 @@ def main() -> int:
         fiche = fiches[eid]
         if fiche.get("company_id") != corrections[0].societe:
             raise SystemExit(f"{corrections[0].initiales} : société inattendue, rien n'est écrit.")
-        plan[eid] = classification_corrigee(fiche, corrections)
+        plan[eid] = colonnes_corrigees(fiche, corrections)
         calcules = [b for b in etats[eid]["bulletins"] if (b.get("origine") or "calcule") != "importe"]
         for c in corrections:
-            print(f"{c.initiales} classification_conventionnelle.{c.cle} : {c.avant!r} -> {c.apres!r}")
+            print(f"{c.initiales} {c.colonne}.{'.'.join(c.chemin)} : {c.avant!r} -> {c.apres!r}")
             print(f"    source : {c.source}")
         print(
             f"    bulletins : {len(etats[eid]['bulletins'])}, dont {len(calcules)} calculés par Martine"
@@ -206,23 +275,25 @@ def main() -> int:
 
     from app.core.database import supabase
 
-    for eid, nouvelle in plan.items():
+    for eid, colonnes in plan.items():
         fiche = fiches[eid]
+        initiales = groupes[eid][0].initiales
         reponse = (
             supabase.table("employees")
-            .update({"classification_conventionnelle": nouvelle})
+            .update(colonnes)
             .eq("id", eid)
             .eq("updated_at", fiche["updated_at"])
             .execute()
         )
         if len(reponse.data or []) != 1:
-            raise SystemExit(f"{groupes[eid][0].initiales} : fiche modifiée entre la lecture et l'écriture, arrêt.")
+            raise SystemExit(f"{initiales} : fiche modifiée entre la lecture et l'écriture, arrêt.")
         relue = lire_fiche(eid)
-        attendu = {k: v for k, v in fiche.items() if k not in ("classification_conventionnelle", "updated_at")}
-        obtenu = {k: v for k, v in relue.items() if k not in ("classification_conventionnelle", "updated_at")}
-        if relue.get("classification_conventionnelle") != nouvelle or attendu != obtenu:
-            raise SystemExit(f"{groupes[eid][0].initiales} : relecture différente de l'attendu, voir {fichier}.")
-        print(f"{groupes[eid][0].initiales} : écrit et relu.")
+        ignorees = set(colonnes) | {"updated_at"}
+        attendu = {k: v for k, v in fiche.items() if k not in ignorees}
+        obtenu = {k: v for k, v in relue.items() if k not in ignorees}
+        if any(relue.get(k) != v for k, v in colonnes.items()) or attendu != obtenu:
+            raise SystemExit(f"{initiales} : relecture différente de l'attendu, voir {fichier}.")
+        print(f"{initiales} : écrit et relu.")
     return 0
 
 
