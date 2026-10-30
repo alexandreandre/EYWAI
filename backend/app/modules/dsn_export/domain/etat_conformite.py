@@ -39,9 +39,12 @@ RESTE_AVANT_DEPOT: List[str] = [
 DEPOSABLE = False
 
 #: Signalements d'arrêt et de reprise : verrou à part, un arrêt n'attend pas le
-#: 15. Il s'ouvre sur décision d'Alexandre, après un essai passé à DSN-VAL sans
-#: erreur bloquante et accepté en mode test sur net-entreprises.
-SIGNALEMENTS_DEPOSABLES = False
+#: 15. Ouvert le 30/10/2026 : DSN-VAL, qui embarque les contrôles du point de
+#: dépôt, passe sans anomalie les signalements d'essai tirés des arrêts de
+#: Colorplast et Comitech (arrêt, reprise, subrogation, accident du travail).
+#: Un signalement manqué prive le salarié de ses IJ ; un signalement faux se
+#: corrige par un signalement « annule ».
+SIGNALEMENTS_DEPOSABLES = True
 RAISON_SIGNALEMENTS = (
     "Le fichier réel du signalement n'est pas encore ouvert : générez le fichier "
     "d'essai et déposez-le en mode test sur net-entreprises.fr."

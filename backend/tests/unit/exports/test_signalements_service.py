@@ -31,8 +31,22 @@ def test_la_liste_dit_la_date_limite_et_le_retard(base):
     assert ligne["en_retard"] is True and ligne["salarie"] == "A. T."
 
 
-def test_le_fichier_reel_reste_verrouille(base):
-    with pytest.raises(ValueError, match="essai"):
+def test_le_fichier_reel_se_genere_et_dit_la_date_limite(base):
+    # Décision du 30/10 : DSN-VAL embarque les contrôles du point de dépôt et
+    # passe les signalements sans anomalie ; un arrêt n'attend pas.
+    with patch(f"{MODULE}._fichier", return_value="S10.G00.00.001,'Martine Paie'\n"), \
+         patch(f"{MODULE}.upload_export_file", return_value="exports/c1/x.dsn"), \
+         patch(f"{MODULE}.create_signed_url", return_value="https://lien"), \
+         patch(f"{MODULE}.commands.record_export_history", return_value="x1") as historique:
+        resultat = service.generer("c1", "u1", employee_id="e1", nature="04", debut="2026-10-05", essai=False)
+    assert historique.call_args.args[0]["parameters"]["essai"] is False
+    assert resultat["message"] == "Déposez-le sur net-entreprises.fr avant le 11/10/2026."
+
+
+def test_verrou_ferme_le_fichier_reel_est_refuse(base):
+    from app.modules.dsn_export.domain import etat_conformite
+
+    with patch.object(etat_conformite, "SIGNALEMENTS_DEPOSABLES", False), pytest.raises(ValueError, match="essai"):
         service.generer("c1", "u1", employee_id="e1", nature="04", debut="2026-10-05", essai=False)
 
 
