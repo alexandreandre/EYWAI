@@ -702,21 +702,24 @@ def _is_cadre(employee: Dict[str, Any]) -> bool:
 def build_envoi(
     *,
     dsn_type: str = "dsn_mensuelle_normale",
+    essai: bool = False,
     settings: Optional[DsnSettings] = None,
 ) -> EnvoiBlock:
-    mode = "01"  # réel
-    if "test" in (dsn_type or "").lower():
-        mode = "02"
+    # S10.G00.00.005 : 01 fichier d'essai, 02 fichier réel. S10.G00.00.007 :
+    # point de dépôt, 01 net-entreprises (02 serait la MSA), essai compris.
+    # Valeurs de la norme livrée avec DSN-VAL et des fichiers acceptés du
+    # cabinet (005 = 02, 007 = 01).
+    essai = essai or "test" in (dsn_type or "").lower()
+    code_envoi = "01" if essai else "02"
     parametres = settings or DsnSettings()
     rubriques = {
         "S10.G00.00.001": "Martine Paie",
         "S10.G00.00.002": "Martine",
         "S10.G00.00.003": VERSION_LOGICIEL,
         "S10.G00.00.004": "0",
-        # Aligné sur les fichiers acceptés par net-entreprises.
-        "S10.G00.00.005": "02",
+        "S10.G00.00.005": code_envoi,
         "S10.G00.00.006": "P26V01",
-        "S10.G00.00.007": mode,
+        "S10.G00.00.007": "01",
         "S10.G00.00.008": "01",
     }
     # Émetteur du fichier (S10.G00.01) : peut différer de la société déclarée
@@ -742,9 +745,9 @@ def build_envoi(
             }
         )
     return EnvoiBlock(
-        periode="01",
+        periode=code_envoi,
         norme="P26V01",
-        type_envoi=mode,
+        type_envoi="01",
         rubriques=rubriques,
     )
 
@@ -1670,6 +1673,7 @@ def build_parsed_dsn_from_payroll(
     period: str,
     *,
     dsn_type: str = "dsn_mensuelle_normale",
+    essai: bool = False,
     file_name: str = "dsn_mensuelle.dsn",
     require_cotisation_codes: bool = False,
     settings: Optional[DsnSettings] = None,
@@ -1681,7 +1685,7 @@ def build_parsed_dsn_from_payroll(
     """
     warnings: List[str] = []
     parametres = settings or DsnSettings()
-    envoi = build_envoi(dsn_type=dsn_type, settings=parametres)
+    envoi = build_envoi(dsn_type=dsn_type, essai=essai, settings=parametres)
     declaration = build_declaration(period, settings=parametres)
     entreprise = build_entreprise(company, settings=parametres)
     etab = build_etablissement(company, entreprise, settings=parametres)
