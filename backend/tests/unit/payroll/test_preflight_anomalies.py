@@ -95,11 +95,16 @@ def _employee():
         "last_name": "Dupont",
         "statut": "ouvrier",
         "team_id": None,
+        "employment_status": "actif",
+        "hire_date": "2020-01-06",
+        "contract_type": "CDI",
+        "date_naissance": "1980-08-14",
+        "classification_conventionnelle": {"pcs": "674a"},
     }
 
 
-def _configure_supabase(mock_supabase, *, schedules=None, resolutions=None):
-    employees_execute = MagicMock(data=[_employee()])
+def _configure_supabase(mock_supabase, *, schedules=None, resolutions=None, employees=None):
+    employees_execute = MagicMock(data=employees if employees is not None else [_employee()])
     schedules_execute = MagicMock(data=schedules or [])
     resolutions_execute = MagicMock(data=resolutions or [])
 
@@ -199,7 +204,7 @@ class TestBuildPreflightAnomalies:
             preflight_anomalies.build_preflight_anomalies(COMPANY_ID, 2026, 6)
 
         employees_chain.select.return_value.eq.return_value.in_.assert_called_once_with(
-            "employment_status", ["actif", "en_sortie"]
+            "employment_status", ["actif", "en_sortie", "en_onboarding"]
         )
 
     @patch(
@@ -596,3 +601,111 @@ class TestPeriodeASaisir:
         assert [s.employee_id for s in result.heures_sur_arret] == [EMP_ID]
         jours = result.heures_sur_arret[0].jours
         assert any(j.get("jour") == 15 and j.get("heures", 0) > 0 for j in jours)
+
+
+_PATCHES_REVUE = (
+    patch(
+        "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",
+        return_value=[],
+    ),
+    patch(
+        "app.modules.modulation.infrastructure.repository.get_modulation_settings",
+        return_value=ModulationSettings(),
+    ),
+    patch(
+        "app.modules.payroll.application.preflight_anomalies.badgeuse_service.get_company_period_summary",
+        return_value={},
+    ),
+    patch(
+        "app.modules.absences.infrastructure.repository.absence_repository.list_validated_for_employees",
+        return_value=[],
+    ),
+)
+
+
+def _revue(employees, *, resolutions=None, month=6):
+    """La revue de juin 2026 sur ces fiches, sans planning."""
+    with patch(
+        "app.modules.payroll.application.preflight_anomalies.supabase"
+    ) as mock_supabase, patch(
+        "app.modules.payroll.application.preflight_anomalies.preflight_repository.list_resolutions",
+        return_value=resolutions or [],
+    ), _PATCHES_REVUE[0], _PATCHES_REVUE[1], _PATCHES_REVUE[2], _PATCHES_REVUE[3]:
+        _configure_supabase(mock_supabase, employees=employees)
+        return preflight_anomalies.build_preflight_anomalies(COMPANY_ID, 2026, month)
+
+
+def _fiches_dsn(result):
+    return [a for a in result.anomalies if a.type == "fiche_dsn"]
+
+
+class TestFicheCompletePourLaDsn:
+    """Une rubrique que DSN-VAL refuserait se complète sur la fiche avant la
+    paie (septembre 2026 : 11 refus bloquants, presque tous des fiches)."""
+
+    def test_une_fiche_complete_ne_dit_rien(self):
+        assert _fiches_dsn(_revue([_employee()])) == []
+
+    def test_un_cdd_sans_pcs_ni_motif_est_bloquant(self):
+        cdd = {**_employee(), "contract_type": "CDD", "contract_end_date": "2026-12-18",
+               "classification_conventionnelle": {}}
+        result = _revue([cdd])
+        (anomalie,) = _fiches_dsn(result)
+        assert anomalie.severity == "bloquant"
+        assert anomalie.status == "a_traiter"
+        assert anomalie.message == (
+            "Fiche à compléter pour la DSN : code PCS-ESE, motif de recours du CDD."
+        )
+        assert result.counts.fiche_dsn == 1
+        # Sans planning, la fiche complète a déjà ses heures à saisir.
+        assert result.counts.bloquant == _revue([_employee()]).counts.bloquant + 1
+
+    def test_une_justification_ne_leve_pas_le_blocage(self):
+        # Le seul remède est de compléter la fiche : une justification
+        # enregistrée (même ancienne) ne range pas l'anomalie.
+        cdd = {**_employee(), "contract_type": "CDD", "contract_end_date": "2026-12-18",
+               "classification_conventionnelle": {"pcs": "674a"}}
+        result = _revue([cdd], resolutions=[{
+            "employee_id": EMP_ID, "anomaly_type": "fiche_dsn", "status": "justifie",
+            "motif": "autre", "commentaire": "plus tard",
+        }])
+        (anomalie,) = _fiches_dsn(result)
+        assert anomalie.status == "a_traiter"
+        assert result.total_open == _revue([_employee()]).total_open + 1
+
+    def test_un_embauche_du_mois_encore_en_onboarding_est_controle(self):
+        nouveau = {**_employee(), "employment_status": "en_onboarding",
+                   "hire_date": "2026-06-23", "date_naissance": None}
+        (anomalie,) = _fiches_dsn(_revue([nouveau]))
+        assert anomalie.message == (
+            "Fiche à compléter pour la DSN : date de naissance. "
+            "Encore en onboarding : passez-le en « Actif » pour générer son bulletin."
+        )
+
+    def test_un_onboarding_embauche_plus_tard_n_est_pas_du_mois(self):
+        futur = {**_employee(), "employment_status": "en_onboarding",
+                 "hire_date": "2026-07-01", "date_naissance": None}
+        assert _revue([futur]).anomalies == []
+
+    def test_l_onboarding_n_entre_pas_dans_le_controle_des_heures(self):
+        nouveau = {**_employee(), "employment_status": "en_onboarding",
+                   "hire_date": "2026-06-01"}
+        result = _revue([nouveau])
+        assert result.anomalies == []
+
+
+class TestJustifierUneFicheDsn:
+    @patch("app.modules.payroll.application.preflight_anomalies.preflight_repository.upsert_resolution")
+    def test_la_fiche_dsn_ne_se_justifie_pas(self, mock_upsert):
+        with pytest.raises(ValueError, match="fiche"):
+            preflight_anomalies.justify_anomaly(
+                company_id=COMPANY_ID,
+                employee_id=EMP_ID,
+                year=2026,
+                month=6,
+                anomaly_type="fiche_dsn",
+                motif="autre",
+                commentaire="plus tard",
+                resolved_by="user-1",
+            )
+        mock_upsert.assert_not_called()

@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 from app.shared.domain.pluriel import pluriel
 from app.core.database import supabase
 from app.modules.badgeuse.application import punch_service as badgeuse_service
+from app.modules.dsn_export.domain.fiche_a_completer import manques_fiche_dsn
 from app.modules.payroll.application.periode_variables_service import (
     bulletins_sur_une_autre_fenetre,
     resoudre_fenetre_variables,
@@ -41,6 +42,9 @@ from app.shared.domain.employment_rules import is_forfait_jour
 from app.shared.domain.periode_variables import semaines_iso
 
 OPEN_STATUSES = frozenset({"a_traiter"})
+
+#: Anomalies qui ne se justifient pas : seule la correction les range.
+NON_JUSTIFIABLES = frozenset({"fiche_dsn"})
 
 
 def _anomaly_id(employee_id: str, anomaly_type: str) -> str:
@@ -92,11 +96,56 @@ def _build_counts(anomalies: List[PreflightAnomaly]) -> PreflightAnomalyCounts:
             counts.hs_pointage_a_valider += 1
         elif a.type == "fenetre_modifiee":
             counts.fenetre_modifiee += 1
+        elif a.type == "fiche_dsn":
+            counts.fiche_dsn += 1
         if a.severity == "bloquant":
             counts.bloquant += 1
         else:
             counts.a_verifier += 1
     return counts
+
+
+def _anomalies_fiche_dsn(
+    fiches: List[Dict[str, Any]], year: int, month: int
+) -> List[PreflightAnomaly]:
+    """Une anomalie bloquante par fiche à laquelle manque une rubrique DSN.
+
+    Un embauché du mois encore en onboarding est regardé aussi : sa DSN est
+    due comme celle des autres, et sa fiche se complète avant sa paie.
+    """
+    fin_du_mois = month_period_bounds(year, month)[1].isoformat()
+    anomalies: List[PreflightAnomaly] = []
+    for emp in fiches:
+        onboarding = emp.get("employment_status") == "en_onboarding"
+        if onboarding and not (
+            emp.get("hire_date") and str(emp["hire_date"])[:10] <= fin_du_mois
+        ):
+            continue
+        manques = manques_fiche_dsn(emp)
+        if not manques:
+            continue
+        message = (
+            "Fiche à compléter pour la DSN : "
+            f"{', '.join(m.champ for m in manques)}."
+        )
+        if onboarding:
+            message += (
+                " Encore en onboarding : passez-le en « Actif » pour générer son bulletin."
+            )
+        eid = str(emp["id"])
+        anomalies.append(
+            PreflightAnomaly(
+                id=_anomaly_id(eid, "fiche_dsn"),
+                employee_id=eid,
+                employee_name=_employee_name(emp.get("first_name"), emp.get("last_name")),
+                team_id=str(emp["team_id"]) if emp.get("team_id") else None,
+                type="fiche_dsn",
+                severity="bloquant",
+                status="a_traiter",
+                message=message,
+            )
+        )
+    return anomalies
 
 
 def build_preflight_anomalies(
@@ -105,27 +154,32 @@ def build_preflight_anomalies(
     emp_res = (
         supabase.table("employees")
         # Entrée et fin de contrat : la période à saisir s'arrête à la sortie,
-        # comme au garde-fou de génération.
+        # comme au garde-fou de génération. Type de contrat, naissance,
+        # classification et reprise : la fiche que lira la DSN.
         .select(
             "id, first_name, last_name, statut, is_forfait_jour, team_id, "
-            "hire_date, contract_end_date"
+            "hire_date, contract_end_date, employment_status, contract_type, "
+            "date_naissance, classification_conventionnelle, specificites_paie"
         )
         .eq("company_id", company_id)
         # En sortie : départ créé, dernier bulletin encore à faire ; ses heures
-        # et ses conflits se contrôlent comme ceux d'un actif.
-        .in_("employment_status", ["actif", "en_sortie"])
+        # et ses conflits se contrôlent comme ceux d'un actif. En onboarding :
+        # seule sa fiche DSN se contrôle.
+        .in_("employment_status", ["actif", "en_sortie", "en_onboarding"])
         .execute()
     )
-    employees = emp_res.data or []
+    fiches = emp_res.data or []
+    anomalies_fiche_dsn = _anomalies_fiche_dsn(fiches, year, month)
+    employees = [e for e in fiches if e.get("employment_status") != "en_onboarding"]
     if not employees:
         return PreflightAnomaliesResponse(
             year=year,
             month=month,
-            total=0,
-            total_open=0,
+            total=len(anomalies_fiche_dsn),
+            total_open=len(anomalies_fiche_dsn),
             total_treated=0,
-            counts=PreflightAnomalyCounts(),
-            anomalies=[],
+            counts=_build_counts(anomalies_fiche_dsn),
+            anomalies=anomalies_fiche_dsn,
         )
 
     employee_ids = [str(e["id"]) for e in employees]
@@ -443,6 +497,7 @@ def build_preflight_anomalies(
             )
         )
 
+    anomalies.extend(anomalies_fiche_dsn)
     counts = _build_counts(anomalies)
     total_open = sum(1 for a in anomalies if a.status in OPEN_STATUSES)
     total_treated = len(anomalies) - total_open
@@ -470,6 +525,10 @@ def justify_anomaly(
     commentaire: Optional[str],
     resolved_by: str,
 ) -> Dict[str, Any]:
+    if anomaly_type in NON_JUSTIFIABLES:
+        raise ValueError(
+            "Une fiche incomplète pour la DSN ne se justifie pas : complétez la fiche du salarié."
+        )
     if motif == "autre" and not (commentaire or "").strip():
         raise ValueError("Un commentaire est obligatoire pour le motif « Autre ».")
     return preflight_repository.upsert_resolution(

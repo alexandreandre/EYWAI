@@ -15,6 +15,7 @@ PreflightAnomalyType = Literal[
     "hs_routing_pending",
     "hs_pointage_a_valider",
     "fenetre_modifiee",
+    "fiche_dsn",
 ]
 
 PreflightAnomalySeverity = Literal["bloquant", "a_verifier"]
@@ -77,6 +78,7 @@ class PreflightAnomalyCounts(BaseModel):
     hs_routing_pending: int = 0
     hs_pointage_a_valider: int = 0
     fenetre_modifiee: int = 0
+    fiche_dsn: int = 0
     bloquant: int = 0
     a_verifier: int = 0
 
