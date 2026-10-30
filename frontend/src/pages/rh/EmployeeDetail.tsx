@@ -10,6 +10,7 @@ import apiClient from "@/api/apiClient";
 import { EmployeeOnboardingCompletion } from "@/features/employee-detail/components/EmployeeOnboardingCompletion";
 import { EmployeePendingExitBanner } from "@/features/employee-detail/components/EmployeePendingExitBanner";
 import { EmployeeProfileEditDialog } from "@/features/employee-detail/components/EmployeeProfileEditDialog";
+import { ouvreLaModification } from "@/features/employee-detail/utils/lienModification";
 import { isProfileIncomplete } from "@/features/employee-detail/components/employeeProfileFormUtils";
 import * as saisiesApi from "@/api/saisies";
 import { useCalendar } from "@/hooks/useCalendar";
@@ -371,6 +372,8 @@ export default function EmployeeDetail() {
     if (Number.isInteger(year) && year >= 2000 && Number.isInteger(month) && month >= 1 && month <= 12) {
       setSelectedDate({ year, month });
     }
+    // La revue pré-paie ouvre la fiche à compléter (?modifier=fiche).
+    if (ouvreLaModification(location.search)) setProfileEditOpen(true);
     // Une seule fois, à l'arrivée sur la fiche.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employeeId]);

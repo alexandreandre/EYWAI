@@ -3,6 +3,7 @@ import type {
   PreflightAnomalyType,
   PreflightResolutionMotif,
 } from '@/api/payrollPreflight';
+import { lienModifierFiche } from '@/features/employee-detail/utils/lienModification';
 
 export const PREFLIGHT_ANOMALY_TYPE_LABELS: Record<PreflightAnomalyType, string> = {
   ecart_heures: 'Écart heures',
@@ -12,9 +13,12 @@ export const PREFLIGHT_ANOMALY_TYPE_LABELS: Record<PreflightAnomalyType, string>
   hs_routing_pending: 'HS à arbitrer',
   hs_pointage_a_valider: 'HS pointage à valider',
   fenetre_modifiee: 'Fenêtre modifiée',
+  fiche_dsn: 'Fiche à compléter (DSN)',
 };
 
 export const PREFLIGHT_ANOMALY_TYPE_ORDER: PreflightAnomalyType[] = [
+  // Une fiche incomplète refuserait la DSN : à compléter avant le reste.
+  'fiche_dsn',
   'hs_routing_pending',
   'hs_pointage_a_valider',
   'ecart_heures',
@@ -55,6 +59,9 @@ export function verifyPathForAnomaly(anomaly: PreflightAnomaly): string {
     // Le calendrier du salarié permet de corriger le pointage et reste dans le
     // périmètre du mode paie (la badgeuse, elle, y est inatteignable).
     return `/schedules?employee=${encodeURIComponent(anomaly.employee_id)}`;
+  }
+  if (anomaly.type === 'fiche_dsn') {
+    return lienModifierFiche(anomaly.employee_id);
   }
   if (anomaly.type === 'fenetre_modifiee') {
     // Le remède est de régénérer : le lancement de paie.

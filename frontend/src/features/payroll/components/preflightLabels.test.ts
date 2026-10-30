@@ -28,6 +28,14 @@ describe('fenetre_modifiee', () => {
   });
 });
 
+describe('fiche_dsn', () => {
+  it('a un libellé, passe en tête et ouvre la modification de la fiche', () => {
+    expect(PREFLIGHT_ANOMALY_TYPE_LABELS.fiche_dsn).toBe('Fiche à compléter (DSN)');
+    expect(PREFLIGHT_ANOMALY_TYPE_ORDER[0]).toBe('fiche_dsn');
+    expect(verifyPathForAnomaly(anomalie('fiche_dsn'))).toBe('/employees/e1?modifier=fiche');
+  });
+});
+
 describe('liens des anomalies en mode paie', () => {
   it('chaque lien d’action mène à une page permise par le mode paie', () => {
     for (const type of PREFLIGHT_ANOMALY_TYPE_ORDER) {
