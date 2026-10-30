@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Tuple
 
+from app.modules.dsn_export.domain.evenements import dsn
 from app.modules.dsn_export.domain.signalements import SignalementEnvoye
 from app.modules.dsn_export.domain.usages_signalement import NATURE_FCTU, filtrer
 from app.modules.dsn_export.domain.writer import ecrire_blocs
@@ -25,6 +26,19 @@ from app.modules.dsn_export.domain.writer import ecrire_blocs
 JOURS_D_AVANCE = 31
 
 _VERSEMENT_DU_MOIS = "01"
+#: Transaction en cours (62.008) : 02 - non. Martine n'en saisit pas ; une
+#: transaction se signe après la sortie.
+_SANS_TRANSACTION = "02"
+#: Base « éléments de cotisation prévoyance, santé, retraite supplémentaire » :
+#: refusée dans un FCTU (DSN-VAL, CCH-14), avec ses composants et cotisations.
+_BASE_PSC = "31"
+_ENFANTS_DE_LA_BASE = ("S21.G00.79", "S21.G00.81")
+
+#: Type réalisation et paiement du préavis (63.001) d'après le dossier de départ.
+_PREAVIS_PAR_TYPE = {"executed": "01", "paid": "02", "waived": "03", "not_applicable": "90"}
+#: Sorties sans préavis (cahier technique 2026.1, CCH-11/12 de 63.001).
+_SORTIES_SANS_PREAVIS = {"fin_cdd", "rupture_conventionnelle", "deces"}
+_PREAVIS_DATES = {"01", "02", "03", "60"}
 
 
 def ajouter_jours_ouvres(jour: date, n: int) -> date:
@@ -56,7 +70,37 @@ def _blocs(texte: str) -> List[Dict[str, str]]:
     return blocs
 
 
-def fctu_depuis_mensuelle(texte_mensuelle: str, *, mois_solde: date) -> str:
+def bloc_preavis(sortie: Optional[Mapping[str, Any]]) -> Dict[str, str]:
+    """Le bloc préavis (63), obligatoire dans un FCTU, lu dans le dossier de départ.
+
+    Un CDD à son terme sans dossier, une rupture conventionnelle : « 90 - pas de
+    clause de préavis applicable ». Une fin de période d'essai : « 60 - délai de
+    prévenance » s'il a des dates, sinon 90. Ailleurs, le type saisi au départ ;
+    sans lui, rien ne s'invente.
+    """
+    sortie = sortie or {}
+    type_sortie = str(sortie.get("exit_type") or "fin_cdd")
+    debut, fin = _jour(sortie.get("notice_start_date")), _jour(sortie.get("notice_end_date"))
+    if type_sortie in _SORTIES_SANS_PREAVIS:
+        code = "90"
+    elif type_sortie == "fin_periode_essai":
+        code = "60" if debut and fin else "90"
+    else:
+        code = _PREAVIS_PAR_TYPE.get(str(sortie.get("notice_indemnity_type") or ""))
+        if not code:
+            raise ValueError(
+                "Préavis de la sortie à compléter (effectué, payé, dispensé) dans le "
+                "dossier de départ : la fin de contrat le déclare."
+            )
+    bloc = {"S21.G00.63.001": code}
+    if code in _PREAVIS_DATES and debut and fin:
+        bloc.update({"S21.G00.63.002": dsn(debut), "S21.G00.63.003": dsn(fin)})
+    return bloc
+
+
+def fctu_depuis_mensuelle(
+    texte_mensuelle: str, *, mois_solde: date, preavis: Mapping[str, str]
+) -> str:
     """Le FCTU tiré de la DSN du mois de sortie, limitée au salarié qui part."""
     blocs = _blocs(texte_mensuelle)
     if sum(1 for bloc in blocs if "S21.G00.30.001" in bloc or "S21.G00.30.002" in bloc) != 1:
@@ -67,14 +111,29 @@ def fctu_depuis_mensuelle(texte_mensuelle: str, *, mois_solde: date) -> str:
             "recalculez son bulletin de sortie."
         )
     sortie: List[Dict[str, str]] = []
+    base_ecartee = False
     for bloc in blocs:
+        if "S21.G00.78.001" in bloc:
+            base_ecartee = bloc["S21.G00.78.001"] == _BASE_PSC
+        elif not next(iter(bloc)).startswith(_ENFANTS_DE_LA_BASE):
+            base_ecartee = False
+        if base_ecartee:
+            continue
         if "S20.G00.05.001" in bloc:
             bloc = {**bloc, "S20.G00.05.001": NATURE_FCTU}
         if "S21.G00.50.001" in bloc:
             bloc = {**bloc, "S21.G00.50.020": _VERSEMENT_DU_MOIS}
-        if "S21.G00.62.001" in bloc:
-            bloc = {**bloc, "S21.G00.62.020": f"01{mois_solde:%m%Y}"}
         filtre = filtrer(bloc, NATURE_FCTU)
+        if "S21.G00.62.001" in bloc:
+            filtre = {
+                **filtre,
+                "S21.G00.62.020": f"01{mois_solde:%m%Y}",
+                "S21.G00.62.008": filtre.get("S21.G00.62.008") or _SANS_TRANSACTION,
+            }
+            sortie.append(filtre)
+            if not any("S21.G00.63.001" in b for b in blocs):
+                sortie.append(filtrer(preavis, NATURE_FCTU))
+            continue
         if filtre:
             sortie.append(filtre)
     return ecrire_blocs(sortie)

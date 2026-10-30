@@ -4,6 +4,7 @@ import pytest
 
 from app.modules.dsn_export.domain.fctu import (
     ajouter_jours_ouvres,
+    bloc_preavis,
     fctu_depuis_mensuelle,
     fins_a_signaler,
 )
@@ -23,6 +24,9 @@ LIGNES = [
 ]
 
 
+SANS_PREAVIS = {"S21.G00.63.001": "90"}
+
+
 def _mensuelle(lignes=LIGNES):
     return "\r\n".join(lignes) + "\r\n"
 
@@ -32,7 +36,7 @@ def _rubriques(texte):
 
 
 def test_la_dsn_du_mois_de_sortie_devient_la_fin_de_contrat():
-    texte = fctu_depuis_mensuelle(_mensuelle(), mois_solde=date(2026, 12, 18))
+    texte = fctu_depuis_mensuelle(_mensuelle(), mois_solde=date(2026, 12, 18), preavis=SANS_PREAVIS)
     r = _rubriques(texte)
     assert r["S20.G00.05.001"] == "'07'"
     assert "S20.G00.05.005" not in r and "S21.G00.20.001" not in r and "S21.G00.50.002" not in r
@@ -45,13 +49,13 @@ def test_la_dsn_du_mois_de_sortie_devient_la_fin_de_contrat():
 def test_sans_fin_de_contrat_dans_le_mois_rien_ne_part():
     with pytest.raises(ValueError, match="fin de contrat"):
         fctu_depuis_mensuelle(_mensuelle([l for l in LIGNES if not l.startswith("S21.G00.62")]),
-                              mois_solde=date(2026, 12, 18))
+                              mois_solde=date(2026, 12, 18), preavis=SANS_PREAVIS)
 
 
 def test_une_fin_de_contrat_ne_porte_qu_un_salarie():
     deux = LIGNES[:-2] + ["S21.G00.30.001,'2900101234567'"] + LIGNES[-2:]
     with pytest.raises(ValueError, match="un seul salarié"):
-        fctu_depuis_mensuelle(_mensuelle(deux), mois_solde=date(2026, 12, 18))
+        fctu_depuis_mensuelle(_mensuelle(deux), mois_solde=date(2026, 12, 18), preavis=SANS_PREAVIS)
 
 
 def test_cinq_jours_ouvres():
@@ -95,3 +99,45 @@ def test_la_sortie_saisie_prime_sur_le_terme_du_cdd():
         depuis=date(2026, 10, 1), aujourd_hui=date(2026, 11, 20),
     )
     assert f.fin == date(2026, 11, 27)
+
+
+def test_le_preavis_et_la_transaction_suivent_la_fin_de_contrat():
+    # DSN-VAL, fin de CDD du 15/09 : « Sous-groupe S21.G00.63 absent après
+    # S21.G00.62 », « Absence de la rubrique S21.G00.62.008 ».
+    texte = fctu_depuis_mensuelle(_mensuelle(), mois_solde=date(2026, 12, 18), preavis=SANS_PREAVIS)
+    lignes = texte.strip().split("\r\n")
+    assert "S21.G00.62.008,'02'" in lignes
+    assert lignes.index("S21.G00.63.001,'90'") == lignes.index("S21.G00.62.020,'01122026'") + 1
+
+
+def test_la_base_prevoyance_sante_sort_avec_ses_cotisations():
+    # DSN-VAL : « base assujettie de code 31 […] dans un signalement FCTU. Ceci n'est pas admis. »
+    lignes = LIGNES[:13] + [
+        "S21.G00.78.001,'03'", "S21.G00.78.004,'1500.00'", "S21.G00.81.001,'018'", "S21.G00.81.004,'-300.00'",
+        "S21.G00.78.001,'31'", "S21.G00.78.004,'1500.00'", "S21.G00.79.001,'18'", "S21.G00.81.001,'059'",
+        "S21.G00.81.004,'12.00'",
+        "S21.G00.78.001,'02'", "S21.G00.78.004,'1500.00'",
+    ] + LIGNES[13:]
+    texte = fctu_depuis_mensuelle(_mensuelle(lignes), mois_solde=date(2026, 12, 18), preavis=SANS_PREAVIS)
+    assert "S21.G00.78.001,'31'" not in texte and "S21.G00.81.001,'059'" not in texte
+    assert "S21.G00.81.001,'018'" in texte and "S21.G00.78.001,'02'" in texte
+
+
+@pytest.mark.parametrize("sortie, attendu", [
+    ({"exit_type": "fin_cdd"}, {"S21.G00.63.001": "90"}),
+    ({"exit_type": "rupture_conventionnelle"}, {"S21.G00.63.001": "90"}),
+    ({"exit_type": "demission", "notice_indemnity_type": "executed",
+      "notice_start_date": "2026-11-02", "notice_end_date": "2026-11-30"},
+     {"S21.G00.63.001": "01", "S21.G00.63.002": "02112026", "S21.G00.63.003": "30112026"}),
+    ({"exit_type": "licenciement", "notice_indemnity_type": "paid",
+      "notice_start_date": "2026-11-02", "notice_end_date": "2026-12-31"},
+     {"S21.G00.63.001": "02", "S21.G00.63.002": "02112026", "S21.G00.63.003": "31122026"}),
+    ({"exit_type": "demission", "notice_indemnity_type": "waived"}, {"S21.G00.63.001": "03"}),
+])
+def test_le_preavis_se_lit_dans_le_dossier_de_depart(sortie, attendu):
+    assert bloc_preavis(sortie) == attendu
+
+
+def test_un_preavis_inconnu_ne_s_invente_pas():
+    with pytest.raises(ValueError, match="Préavis"):
+        bloc_preavis({"exit_type": "demission"})
