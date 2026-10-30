@@ -168,6 +168,15 @@ def periodes_d_arret(absences: Iterable[Dict[str, Any]]) -> List[Periode]:
     return sorted(fusionnees, key=lambda p: p.debut)
 
 
+def dernier_jour_travaille(motif: str, debut: date, debut_contrat: Optional[date]) -> date:
+    """La veille de l'arrêt, sauf accident ou maladie professionnelle : le jour
+    de l'accident est travaillé (CT, 60.002) ; jamais avant le contrat (CCH-13)."""
+    jour = debut if motif in MOTIFS_ACCIDENT else debut - timedelta(days=1)
+    if debut_contrat and jour < debut_contrat:
+        return debut_contrat
+    return jour
+
+
 def blocs_arret(
     absences: Iterable[Dict[str, Any]],
     debut_mois: date,
@@ -189,15 +198,7 @@ def blocs_arret(
             continue
         if subrogation_paie is not None:
             periode.subrogation = subrogation_paie
-        # La veille de la prescription, sauf arrêt prescrit un jour travaillé :
-        # le jour de l'accident est travaillé (CT, 60.002).
-        dernier_jour = (
-            periode.debut
-            if periode.motif in MOTIFS_ACCIDENT
-            else periode.debut - timedelta(days=1)
-        )
-        if debut_contrat and dernier_jour < debut_contrat:
-            dernier_jour = debut_contrat  # CCH-13
+        dernier_jour = dernier_jour_travaille(periode.motif, periode.debut, debut_contrat)
         rubriques = {
             "S21.G00.60.001": periode.motif,
             "S21.G00.60.002": dsn(dernier_jour),
