@@ -31,4 +31,18 @@ def test_le_mois_principal_et_l_ape_sont_interdits():
 
 def test_une_nature_inconnue_est_refusee():
     with pytest.raises(ValueError):
-        filtrer({}, "07")
+        filtrer({}, "08")
+
+
+def test_la_fin_de_contrat_garde_le_salarie_et_ecarte_l_etablissement():
+    from app.modules.dsn_export.domain.usages_signalement import NATURE_FCTU
+
+    rubriques = {
+        "S20.G00.05.005": "01102026", "S21.G00.20.001": "URSSAF", "S21.G00.23.001": "100",
+        "S21.G00.40.007": "02", "S21.G00.50.020": "01", "S21.G00.62.020": "01102026",
+        "S21.G00.78.001": "03", "S21.G00.81.001": "018", "S21.G00.86.001": "07",
+    }
+    assert filtrer(rubriques, NATURE_FCTU) == {
+        "S21.G00.40.007": "02", "S21.G00.50.020": "01", "S21.G00.62.020": "01102026",
+        "S21.G00.78.001": "03", "S21.G00.81.001": "018", "S21.G00.86.001": "07",
+    }
