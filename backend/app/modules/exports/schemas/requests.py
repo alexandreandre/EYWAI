@@ -30,6 +30,8 @@ ExportType = Literal[
     # Marque à la main de la liste de contrôle du mois : la DSN est déposée
     # depuis l'ancien logiciel (décision du 12/10/2026). Aucun fichier.
     "dsn_hors_martine",
+    # Signalements DSN d'arrêt (04) et de reprise anticipée (05), 30/10/2026.
+    "dsn_signalement_arret",
 ]
 
 

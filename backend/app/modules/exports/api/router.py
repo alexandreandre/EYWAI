@@ -12,6 +12,7 @@ from app.modules.exports.api.dependencies import get_active_company_id
 from app.modules.exports.application import service as export_service
 from app.modules.exports.application import scheduled_exports as scheduled_export_service
 from app.modules.exports.application import dispatch as dispatch_service
+from app.modules.exports.application import signalements as signalements_service
 from app.modules.exports.schemas import (
     ExportPreviewRequest,
     ExportPreviewResponse,
@@ -165,6 +166,63 @@ def marquer_dsn_hors_martine(
         raise HTTPException(
             status_code=500,
             detail="La marque « DSN déposée hors de Martine » n'a pas été enregistrée : réessayez.",
+        )
+
+
+class SignalementRequest(BaseModel):
+    """Signalement DSN à générer : le salarié, la nature (04 ou 05), le début de l'arrêt."""
+
+    employee_id: str
+    nature: str
+    debut: str
+    essai: bool = True
+
+
+@router.get("/dsn-signalements")
+def lister_signalements(
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    """Arrêts à signaler et reprises anticipées, avec la date limite ; signalements générés."""
+    try:
+        _require_exports_company_access(current_user, company_id)
+        return signalements_service.lister(company_id)
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Échec de lister_signalements")
+        raise HTTPException(
+            status_code=500,
+            detail="La liste des signalements n'a pas pu être lue : réessayez.",
+        )
+
+
+@router.post("/dsn-signalements")
+def generer_signalement(
+    request: SignalementRequest,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    """Génère le fichier d'un signalement encore à faire (essai, ou réel une fois ouvert)."""
+    try:
+        _require_exports_company_access(current_user, company_id)
+        return signalements_service.generer(
+            company_id,
+            current_user.id,
+            employee_id=request.employee_id,
+            nature=request.nature,
+            debut=request.debut,
+            essai=request.essai,
+        )
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except Exception:
+        logger.exception("Échec de generer_signalement")
+        raise HTTPException(
+            status_code=500,
+            detail="Le signalement n'a pas été généré : réessayez.",
         )
 
 

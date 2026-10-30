@@ -38,6 +38,15 @@ RESTE_AVANT_DEPOT: List[str] = [
 
 DEPOSABLE = False
 
+#: Signalements d'arrêt et de reprise : verrou à part, un arrêt n'attend pas le
+#: 15. Il s'ouvre sur décision d'Alexandre, après un essai passé à DSN-VAL sans
+#: erreur bloquante et accepté en mode test sur net-entreprises.
+SIGNALEMENTS_DEPOSABLES = False
+RAISON_SIGNALEMENTS = (
+    "Le fichier réel du signalement n'est pas encore ouvert : générez le fichier "
+    "d'essai et déposez-le en mode test sur net-entreprises.fr."
+)
+
 SUFFIXE_NON_DEPOSABLE = "_NON_DEPOSABLE"
 
 
