@@ -266,6 +266,19 @@ def test_l_apprenti_reprend_niveau_de_diplome_et_date_de_fin():
     assert individu.contrats[0].rubriques["S21.G00.40.010"] == "31082026"
 
 
+def test_la_fin_prevue_saisie_a_l_ecran_se_declare_en_jjmmaaaa():
+    """L'écran range la date de fin prévue d'un apprenti dans la reprise DSN,
+    au format de la saisie (AAAA-MM-JJ) ; la DSN la veut en JJMMAAAA (CCH-12)."""
+    salarie = {
+        **SALARIE,
+        "contract_type": "Apprentissage",
+        "specificites_paie": {"dsn_reprise": {"niveau_diplome_prepare": "05",
+                                              "date_fin_contrat": "2028-08-31"}},
+    }
+    individu, _ = construire_individu(salarie)
+    assert individu.contrats[0].rubriques["S21.G00.40.010"] == "31082028"
+
+
 def test_la_reprise_se_lit_aussi_dans_specificites_paie():
     """En base réelle, la reprise DSN vit sous specificites_paie (portée par
     dsn_reprise_loader.py) — le builder doit la lire là aussi."""

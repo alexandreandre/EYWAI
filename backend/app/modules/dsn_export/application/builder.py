@@ -1360,9 +1360,11 @@ def build_individu_from_payroll(
     # CDD et contrats à terme : la date de fin prévisionnelle est obligatoire
     # (CCH-12), le motif de recours attendu (SIG-11). La date vit déjà sur la
     # fiche ; le motif vient du contrat quand il y est, sinon de la reprise.
+    # Celle d'un apprenti, saisie à l'écran dans la reprise, arrive en
+    # AAAA-MM-JJ ; celle du cabinet en JJMMAAAA : les deux se convertissent.
     date_fin_prev = iso_to_dsn_date(
         employee.get("contract_end_date") or employee.get("date_fin_contrat")
-    ) or str(reprise.get("date_fin_contrat") or "")
+    ) or iso_to_dsn_date(reprise.get("date_fin_contrat"))
     if date_fin_prev:
         rubriques_contrat["S21.G00.40.010"] = date_fin_prev
     motif_recours = str(
