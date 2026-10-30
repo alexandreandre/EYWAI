@@ -2,7 +2,10 @@
 
 import pytest
 
-from app.modules.dsn_export.domain.fiche_a_completer import fiche_a_completer
+from app.modules.dsn_export.domain.fiche_a_completer import (
+    fiche_a_completer,
+    manques_fiche_dsn,
+)
 from app.modules.exports.infrastructure.export_dsn import check_dsn_data
 
 pytestmark = pytest.mark.unit
@@ -11,6 +14,7 @@ pytestmark = pytest.mark.unit
 def _cdi(**extra):
     base = {
         "contract_type": "CDI",
+        "date_naissance": "1980-08-14",
         "classification_conventionnelle": {"pcs": "674a"},
     }
     base.update(extra)
@@ -60,6 +64,47 @@ def test_apprenti_complet():
         specificites_paie={"dsn_reprise": {"niveau_diplome_prepare": "05"}},
     )
     assert fiche_a_completer(emp) == []
+
+
+def test_date_de_naissance_absente_est_signalee():
+    manques = fiche_a_completer(_cdi(date_naissance=None))
+    assert any("S21.G00.30.006" in m for m in manques)
+
+
+def test_type_de_contrat_absent_est_signale():
+    # Sans type, la DSN déclarerait un CDI (nature 01) sans rien dire.
+    manques = fiche_a_completer(_cdi(contract_type=None))
+    assert any("S21.G00.40.007" in m for m in manques)
+
+
+def test_apprenti_avec_fin_prevue_saisie_pour_la_dsn():
+    # La fiche d'un apprenti n'a pas de date de fin de contrat : la date de
+    # fin prévue se saisit dans la reprise DSN, au format de l'écran.
+    emp = _cdi(
+        contract_type="Apprentissage",
+        specificites_paie={
+            "dsn_reprise": {"niveau_diplome_prepare": "05", "date_fin_contrat": "2028-08-31"}
+        },
+    )
+    assert fiche_a_completer(emp) == []
+
+
+def test_les_champs_manquants_se_disent_en_mots_simples():
+    emp = {"contract_type": "CDD", "classification_conventionnelle": {}}
+    assert [m.champ for m in manques_fiche_dsn(emp)] == [
+        "code PCS-ESE",
+        "date de naissance",
+        "date de fin prévue du contrat",
+        "motif de recours du CDD",
+    ]
+    apprenti = {"contract_type": "Apprentissage", "date_naissance": "2007-01-20",
+                "classification_conventionnelle": {"pcs": "674a"}}
+    assert [m.champ for m in manques_fiche_dsn(apprenti)] == [
+        "date de fin prévue du contrat",
+        "niveau de diplôme préparé",
+    ]
+    assert [m.champ for m in manques_fiche_dsn({"date_naissance": "1980-01-01",
+            "classification_conventionnelle": {"pcs": "674a"}})] == ["type de contrat"]
 
 
 def test_l_apercu_reprend_ces_manques_dans_ses_avertissements():
