@@ -59,6 +59,17 @@ Une fiche sans NIR (ni numéro technique temporaire), sans nom, prénoms ou date
 - DSN-VAL : un fichier d'essai tiré d'un vrai arrêt du test (lecture seule), 0 erreur bloquante.
 - Frontend : la date limite et sa couleur ; les boutons d'essai et réel.
 
+## Lot B : fin de contrat (FCTU, nature 07)
+
+Cahier technique 2026.1, § 5.2 : le signalement « doit être transmis dans les cinq jours ouvrés qui suivent la survenance de la fin du contrat de travail » ; il porte « l'ensemble des informations relatives à la fin d'un contrat de travail, y compris les données du mois en cours calculées dans le cadre du solde de tout compte » ; ses données se reportent ensuite dans la DSN mensuelle. Rubriques propres : S21.G00.62.020 (mois du solde de tout compte, au 1er du mois) et S21.G00.50.020 (01 : éléments de ce mois).
+
+- **Contenu** : la DSN du mois de sortie limitée au salarié (`generate_dsn_file` avec son seul identifiant, les mêmes règles que la mensuelle), passée en nature 07, filtrée par les rubriques permises en fin de contrat (tableau des usages : 227 rubriques ; les blocs d'établissement 20, 22, 23 en sortent), avec 62.020 et 50.020 = 01. Pas de 62 dans le mois (sortie non saisie) : la génération s'arrête et le dit.
+- **Quelles fins** : les sorties saisies (hors annulées) et les CDD à leur terme, terminés après le dernier mois repris de l'ancien logiciel ; celles des 31 jours à venir s'affichent aussi, pour prévenir. À déposer avant : fin + 5 jours ouvrés (samedis et dimanches sautés, fériés comptés : le plus strict).
+- **Prêt** quand le bulletin du mois de sortie existe ; sinon la ligne dit « bulletin de sortie à calculer d'abord » et ne se génère pas.
+- **Historique** : même type d'export que les arrêts (`dsn_signalement_arret`, nature 07 dans les paramètres) : pas de nouvelle migration.
+- **Verrou** : le contenu vient du constructeur de la mensuelle ; le fichier réel s'ouvre après un essai tiré d'une vraie sortie passé à DSN-VAL sans anomalie bloquante.
+- **Hors lot B** : un FCTU qui porte aussi M-1 (50.020 = 02), quand la DSN de M-1 n'est pas encore déposée : la règle net-entreprises est alors de déposer la DSN de M-1 dans le même délai ; « annule et remplace » après un rappel.
+
 ## Hors du lot
 
 - FCTU (lot B), puis signalement « annule et remplace » d'un 04 déjà déposé (une erreur se corrige aujourd'hui sur net-entreprises).
