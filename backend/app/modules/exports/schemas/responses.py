@@ -71,7 +71,8 @@ class ExportFileInfo(BaseModel):
     filename: str
     path: str
     size: int
-    format: Literal["csv", "xlsx", "zip", "xml", "txt"]
+    # « dsn » : le fichier plat P26V01 de la DSN mensuelle.
+    format: Literal["csv", "xlsx", "zip", "xml", "txt", "dsn"]
 
 
 class ExportReport(BaseModel):

@@ -378,11 +378,20 @@ def get_dsn_employees_data(
     return employees_data, totals
 
 
+#: Dit à l'aperçu d'un fichier d'essai : le verrou du dépôt réel ne le bloque pas.
+AVERTISSEMENT_ESSAI = (
+    "Fichier d'essai (S10.G00.00.005 = 01) : à déposer en mode test sur "
+    "net-entreprises, il ne vaut pas déclaration. Le fichier réel reste bloqué."
+)
+
+
 def check_dsn_data(
     company_id: str,
     period: str,
     employees_data: List[Dict[str, Any]],
     company_data: Dict[str, Any],
+    *,
+    essai: bool = False,
 ) -> Tuple[List[Dict[str, Any]], List[str]]:
     anomalies = []
     warnings = []
@@ -423,7 +432,9 @@ def check_dsn_data(
                 "Adresse établissement incomplète (rue, ville ou code postal manquant)"
             )
 
-    if not DEPOSABLE:
+    if essai:
+        warnings.append(AVERTISSEMENT_ESSAI)
+    elif not DEPOSABLE:
         anomalies.append(anomalie_non_deposable())
 
     for emp_data in employees_data:
@@ -532,11 +543,13 @@ def preview_dsn(
     dsn_type: str,
     employee_ids: Optional[List[str]] = None,
     establishment_id: Optional[str] = None,
+    *,
+    essai: bool = False,
 ) -> Dict[str, Any]:
     company_data = get_company_data(company_id)
     employees_data, totals = get_dsn_employees_data(company_id, period, employee_ids)
     anomalies, warnings = check_dsn_data(
-        company_id, period, employees_data, company_data
+        company_id, period, employees_data, company_data, essai=essai
     )
 
     employees_preview = []
@@ -652,6 +665,8 @@ def generate_dsn_file(
     dsn_type: str,
     employee_ids: Optional[List[str]] = None,
     establishment_id: Optional[str] = None,
+    *,
+    essai: bool = False,
 ) -> bytes:
     """Génère un fichier DSN plat P26V01, relu et validé avant retour."""
     company_data = get_company_data(company_id)
@@ -672,14 +687,18 @@ def generate_dsn_file(
 
     employees_data, _totals = get_dsn_employees_data(company_id, period, employee_ids)
     period_formatted = period.replace("-", "_")
-    suffixe = "" if DEPOSABLE else SUFFIXE_NON_DEPOSABLE
-    file_name = f"dsn_mensuelle_{period_formatted}{suffixe}.dsn"
+    if essai:
+        file_name = f"dsn_essai_mensuelle_{period_formatted}.dsn"
+    else:
+        suffixe = "" if DEPOSABLE else SUFFIXE_NON_DEPOSABLE
+        file_name = f"dsn_mensuelle_{period_formatted}{suffixe}.dsn"
     try:
         dsn_file, build_warnings = build_parsed_dsn_from_payroll(
             company_data,
             employees_data,
             period,
             dsn_type=dsn_type,
+            essai=essai,
             file_name=file_name,
             require_cotisation_codes=False,
             settings=settings_repository.charger(company_id),
@@ -721,8 +740,10 @@ def generate_dsn_xml(
     dsn_type: str,
     employee_ids: Optional[List[str]] = None,
     establishment_id: Optional[str] = None,
+    *,
+    essai: bool = False,
 ) -> bytes:
     """Alias historique : produit désormais un fichier plat P26V01 (.dsn)."""
     return generate_dsn_file(
-        company_id, period, dsn_type, employee_ids, establishment_id
+        company_id, period, dsn_type, employee_ids, establishment_id, essai=essai
     )

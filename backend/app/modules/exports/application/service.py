@@ -1102,8 +1102,16 @@ def _generate_dsn(
     establishment_id = (
         request.filters.get("establishment_id") if request.filters else None
     )
+    # Fichier d'essai : il passe le verrou du dépôt réel, ne compte pas comme
+    # la DSN du mois et ne crée pas de suivi de dépôt.
+    essai = bool(request.filters.get("essai")) if request.filters else False
     preview_data = providers.preview_dsn(
-        company_id, request.period, dsn_type, request.employee_ids, establishment_id
+        company_id,
+        request.period,
+        dsn_type,
+        request.employee_ids,
+        establishment_id,
+        essai=essai,
     )
     accept_warnings = bool(
         request.filters.get("accept_warnings", False) if request.filters else False
@@ -1111,13 +1119,19 @@ def _generate_dsn(
     domain_rules.validate_dsn_can_generate(preview_data, accept_warnings)
 
     dsn_xml_content = providers.generate_dsn_xml(
-        company_id, request.period, dsn_type, request.employee_ids, establishment_id
+        company_id,
+        request.period,
+        dsn_type,
+        request.employee_ids,
+        establishment_id,
+        essai=essai,
     )
     if isinstance(dsn_xml_content, str):
         dsn_xml_content = dsn_xml_content.encode("utf-8")
 
     period_formatted = request.period.replace("-", "_")
-    filename = _horodater(f"dsn_mensuelle_{period_formatted}.dsn")
+    prefixe = "dsn_essai_mensuelle" if essai else "dsn_mensuelle"
+    filename = _horodater(f"{prefixe}_{period_formatted}.dsn")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
         BUCKET, storage_path, dsn_xml_content, "text/plain; charset=iso-8859-15"
@@ -1133,6 +1147,7 @@ def _generate_dsn(
         "filters": request.filters,
         "dsn_type": dsn_type,
         "establishment_id": establishment_id,
+        "essai": essai,
     }
     dsn_report = DSNReport(
         period=request.period,
@@ -1177,9 +1192,20 @@ def _generate_dsn(
     # Suivi de télétransmission Net-entreprises. Tolérant aux pannes : en cas
     # d'erreur ou d'API non branchée, on retombe sur le mode manuel sans casser
     # la génération de la DSN.
-    transmission = _record_dsn_transmission(
-        company_id, export_id, request.period, dsn_type, dsn_xml_content, user_id
-    )
+    if essai:
+        transmission = {
+            "transmission_id": None,
+            "status": "manual",
+            "mode": "manual",
+            "message": (
+                "Fichier d'essai : déposez-le en mode test sur net-entreprises.fr. "
+                "Il ne vaut pas déclaration."
+            ),
+        }
+    else:
+        transmission = _record_dsn_transmission(
+            company_id, export_id, request.period, dsn_type, dsn_xml_content, user_id
+        )
 
     return DSNGenerateResponse(
         export_id=export_id,

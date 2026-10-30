@@ -427,8 +427,12 @@ def preview_dsn(
     dsn_type: str,
     employee_ids: Optional[List[str]],
     establishment_id: Optional[str],
+    *,
+    essai: bool = False,
 ) -> Dict[str, Any]:
-    return _preview_dsn(company_id, period, dsn_type, employee_ids, establishment_id)
+    return _preview_dsn(
+        company_id, period, dsn_type, employee_ids, establishment_id, essai=essai
+    )
 
 
 def generate_dsn_xml(
@@ -437,9 +441,11 @@ def generate_dsn_xml(
     dsn_type: str,
     employee_ids: Optional[List[str]],
     establishment_id: Optional[str],
+    *,
+    essai: bool = False,
 ) -> bytes:
     return _generate_dsn_xml(
-        company_id, period, dsn_type, employee_ids, establishment_id
+        company_id, period, dsn_type, employee_ids, establishment_id, essai=essai
     )
 
 

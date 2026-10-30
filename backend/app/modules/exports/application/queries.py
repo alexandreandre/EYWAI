@@ -175,6 +175,7 @@ def _preview_export_brut(
             dsn_type,
             request.employee_ids,
             establishment_id,
+            essai=bool(request.filters.get("essai")) if request.filters else False,
         )
         totals = ExportTotals(
             employees_count=preview["nombre_salaries"],

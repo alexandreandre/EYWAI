@@ -151,6 +151,7 @@ class TestPreviewExport:
                     "dsn_mensuelle_normale",
                     None,
                     "etab-1",
+                    essai=False,
                 )
         assert result.employees_count == 8
         assert result.totals.total_brut == 32000.0
