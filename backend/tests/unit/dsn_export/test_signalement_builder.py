@@ -4,7 +4,7 @@ import pytest
 
 from app.modules.dsn_export.application.builder import DsnBuildError
 from app.modules.dsn_export.application.signalement_builder import construire_signalement
-from app.modules.dsn_export.domain.settings import DsnSettings
+from app.modules.dsn_export.domain.settings import ContactDeclaration, DsnSettings
 from app.modules.dsn_export.domain.signalements import SignalementAFaire
 
 SOCIETE = {"siret": "80248516900011", "name": "Société test", "code_naf": "2229A",
@@ -12,7 +12,13 @@ SOCIETE = {"siret": "80248516900011", "name": "Société test", "code_naf": "222
 SALARIE = {"nir": "1900101234567", "last_name": "Testeur", "first_name": "Alix",
            "date_naissance": "1990-01-15", "hire_date": "2026-09-01", "matricule": "42",
            "classification_conventionnelle": {"numero_contrat_dsn": "00042"}}
-REGLAGES = DsnSettings(versements=[{"organisme": "URSSAF", "iban": "FR7612345678901234567890123", "bic": "TESTFRPP"}])
+def _contact(type_):
+    return ContactDeclaration(nom="CONTACT PAIE", telephone="0400000000", email="paie@exemple.fr",
+                              code_destinataire=type_)
+
+
+REGLAGES = DsnSettings(versements=[{"organisme": "URSSAF", "iban": "FR7612345678901234567890123", "bic": "TESTFRPP"}],
+                       contacts_declaration=[_contact("01")])
 
 
 def _signalement(nature="04", motif="01", subrogation=False, reprise=None):
@@ -54,7 +60,8 @@ def test_la_subrogation_porte_les_dates_et_le_compte_de_l_employeur():
 
 def test_une_subrogation_sans_iban_ne_se_genere_pas():
     with pytest.raises(DsnBuildError, match="IBAN"):
-        construire_signalement(SOCIETE, SALARIE, _signalement(subrogation=True), settings=DsnSettings(),
+        construire_signalement(SOCIETE, SALARIE, _signalement(subrogation=True),
+                               settings=DsnSettings(contacts_declaration=[_contact("01")]),
                                essai=True, constitue_le=date(2026, 10, 7))
 
 
@@ -70,4 +77,21 @@ def test_une_reprise_porte_sa_date_sans_subrogation():
 def test_un_champ_d_identite_manquant_arrete_tout(champ):
     with pytest.raises(DsnBuildError):
         construire_signalement(SOCIETE, {**SALARIE, champ: None}, _signalement(), settings=REGLAGES,
+                               essai=True, constitue_le=date(2026, 10, 7))
+
+
+def test_seul_le_contact_des_indemnites_journalieres_est_declare():
+    # Cahier technique 2026.1 : contact chez le déclaré (1,2) dans un signalement
+    # d'arrêt ou de reprise ; type 01 = contact pour les IJ.
+    reglages = DsnSettings(versements=REGLAGES.versements,
+                           contacts_declaration=[_contact("01"), _contact("02"), _contact("04")])
+    texte = construire_signalement(SOCIETE, SALARIE, _signalement(), settings=reglages,
+                                   essai=True, constitue_le=date(2026, 10, 7))
+    assert [l for l in texte.splitlines() if l.startswith("S20.G00.07.004")] == ["S20.G00.07.004,'01'"]
+
+
+def test_sans_contact_des_indemnites_journalieres_le_signalement_ne_part_pas():
+    reglages = DsnSettings(versements=REGLAGES.versements, contacts_declaration=[_contact("02")])
+    with pytest.raises(DsnBuildError, match="contact"):
+        construire_signalement(SOCIETE, SALARIE, _signalement(), settings=reglages,
                                essai=True, constitue_le=date(2026, 10, 7))

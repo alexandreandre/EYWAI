@@ -29,6 +29,10 @@ from app.modules.dsn_export.domain.usages_signalement import NATURE_ARRET, filtr
 from app.modules.dsn_export.domain.writer import ecrire_blocs
 
 
+#: Type du contact chez le déclaré pour les IJ (S20.G00.07.004).
+CONTACT_IJ = "01"
+
+
 def _manque(champ: str) -> DsnBuildError:
     return DsnBuildError(f"Signalement impossible : {champ} manquant sur la fiche du salarié.")
 
@@ -129,6 +133,7 @@ def construire_signalement(
         "S20.G00.05.004": "1",
         "S20.G00.05.007": dsn(constitue_le),
     }
+    # Contact chez le déclaré (1,2) : celui des indemnités journalières (type 01).
     contacts = [
         {
             "S20.G00.07.001": c.nom,
@@ -137,7 +142,13 @@ def construire_signalement(
             "S20.G00.07.004": c.code_destinataire,
         }
         for c in settings.contacts_declaration
-    ]
+        if c.code_destinataire == CONTACT_IJ
+    ][:1]
+    if not contacts:
+        raise DsnBuildError(
+            "Signalement impossible : aucun contact pour les indemnités journalières "
+            "(type 01) dans les réglages DSN."
+        )
     blocs: List[Dict[str, str]] = [
         build_envoi(essai=essai, settings=settings).rubriques,
         declaration,
