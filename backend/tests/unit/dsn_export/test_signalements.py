@@ -75,3 +75,25 @@ def test_le_jour_de_l_accident_est_travaille():
 
 def test_jours_ouvrables():
     assert ajouter_jours_ouvrables(date(2026, 10, 10), 5) == date(2026, 10, 16)
+
+
+def test_un_arret_qui_reprend_un_jour_apres_le_precedent_est_a_verifier():
+    # Comitech, octobre 2026 : arrêt continu depuis mai, sauf le 01/10, jour
+    # oublié à la saisie ou vraie reprise. Signalé comme nouvel arrêt, il
+    # ferait appliquer trois jours de carence à tort.
+    arrets = {"e1": [_arret(date(2026, 9, 1), date(2026, 9, 30), date(2026, 10, 1)),
+                     _arret(date(2026, 10, 2), date(2026, 10, 12), date(2026, 10, 1))]}
+    (s,) = signalements_a_faire(arrets, [], depuis=date(2026, 10, 1), effectif=20)
+    assert s.debut == date(2026, 10, 2)
+    assert s.a_verifier == (
+        "Un seul jour sans arrêt depuis le précédent, fini le 30/09/2026 : si c'est une "
+        "prolongation, complétez l'arrêt au lieu de le signaler (sinon trois jours de "
+        "carence seraient appliqués)."
+    )
+
+
+def test_un_arret_bien_apres_le_precedent_n_est_pas_a_verifier():
+    arrets = {"e1": [_arret(date(2026, 9, 1), date(2026, 9, 20), date(2026, 9, 2)),
+                     _arret(date(2026, 10, 5), date(2026, 10, 9), date(2026, 10, 6))]}
+    (s,) = signalements_a_faire(arrets, [], depuis=date(2026, 10, 1), effectif=20)
+    assert s.a_verifier is None

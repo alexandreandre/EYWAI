@@ -43,6 +43,8 @@ class SignalementAFaire:
     connu_le: date
     a_deposer_avant: date
     date_reprise: Optional[date] = None
+    #: Raison de vérifier avant de déposer (arrêt qui ressemble à une prolongation).
+    a_verifier: Optional[str] = None
 
 
 def echeance_mensuelle(jour: date, effectif: int) -> date:
@@ -79,6 +81,25 @@ def _connu_le(absences: Iterable[Dict[str, Any]], debut: date, fin: date) -> dat
     return max(min(saisies), debut) if saisies else debut
 
 
+def _ressemble_a_une_prolongation(debut: date, fins_precedentes: List[date]) -> Optional[str]:
+    """Un arrêt qui reprend un ou deux jours après le précédent : jour oublié à la
+    saisie, ou vraie reprise. Le signaler comme nouvel arrêt referait courir la
+    carence ; c'est à vérifier avant de déposer."""
+    avant = [fin for fin in fins_precedentes if fin < debut]
+    if not avant:
+        return None
+    fin = max(avant)
+    trou = (debut - fin).days - 1
+    if trou not in (1, 2):
+        return None
+    jours = "Un seul jour" if trou == 1 else "Deux jours"
+    return (
+        f"{jours} sans arrêt depuis le précédent, fini le {fin:%d/%m/%Y} : si c'est une "
+        "prolongation, complétez l'arrêt au lieu de le signaler (sinon trois jours de "
+        "carence seraient appliqués)."
+    )
+
+
 def signalements_a_faire(
     arrets: Mapping[str, List[Dict[str, Any]]],
     envoyes: Iterable[SignalementEnvoye],
@@ -94,7 +115,8 @@ def signalements_a_faire(
     reels = [e for e in envoyes if not e.essai]
     resultat: List[SignalementAFaire] = []
     for employee_id, absences in arrets.items():
-        for periode in periodes_d_arret(absences):
+        periodes = periodes_d_arret(absences)
+        for periode in periodes:
             if depuis and periode.debut < depuis:
                 continue
             les_siens = [
@@ -114,6 +136,9 @@ def signalements_a_faire(
                 resultat.append(SignalementAFaire(
                     employee_id, NATURE_ARRET, periode.motif, periode.debut, periode.fin,
                     periode.subrogation, connu, limite,
+                    a_verifier=_ressemble_a_une_prolongation(
+                        periode.debut, [p.fin for p in periodes]
+                    ),
                 ))
                 continue
             declaree = max(arrets_envoyes, key=lambda e: e.genere_le).fin_prevue

@@ -120,6 +120,7 @@ def _ligne(s: SignalementAFaire, noms: Dict[str, str], aujourd_hui: date) -> Dic
         "a_deposer_avant": _iso(s.a_deposer_avant),
         "date_reprise": _iso(s.date_reprise),
         "en_retard": s.a_deposer_avant < aujourd_hui,
+        "a_verifier": s.a_verifier,
     }
 
 

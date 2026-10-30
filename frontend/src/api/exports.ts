@@ -199,6 +199,8 @@ export interface SignalementLigne {
   a_deposer_avant: string;
   date_reprise: string | null;
   en_retard: boolean;
+  /** Raison de vérifier avant de déposer (arrêt qui ressemble à une prolongation). */
+  a_verifier?: string | null;
 }
 
 export interface SignalementFait {

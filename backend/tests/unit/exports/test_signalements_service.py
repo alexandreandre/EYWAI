@@ -29,6 +29,7 @@ def test_la_liste_dit_la_date_limite_et_le_retard(base):
     (ligne,) = resultat["a_faire"]
     assert ligne["nature"] == "04" and ligne["a_deposer_avant"] == "2026-10-11"
     assert ligne["en_retard"] is True and ligne["salarie"] == "A. T."
+    assert ligne["a_verifier"] is None
 
 
 def test_le_fichier_reel_se_genere_et_dit_la_date_limite(base):

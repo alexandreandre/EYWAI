@@ -84,6 +84,9 @@ export function SignalementsArretCard() {
                 <p className={limite.urgent ? "text-sm font-medium text-destructive" : "text-sm text-muted-foreground"}>
                   {limite.texte}
                 </p>
+                {ligne.a_verifier && (
+                  <p className="text-sm text-amber-700 dark:text-amber-400">À vérifier : {ligne.a_verifier}</p>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button
