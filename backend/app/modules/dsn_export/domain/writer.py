@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 
 from app.modules.dsn_import.domain.model import (
     AffiliationBlock,
@@ -703,6 +703,16 @@ def write_total_fichier(out: List[str], *, nb_declarations: int = 1) -> None:
     total = len(out) + 2
     out.append(format_rubrique_line(RUB_TOTAL_LIGNES, str(total)))
     out.append(format_rubrique_line(RUB_TOTAL_DECLARATIONS, str(nb_declarations)))
+
+
+def ecrire_blocs(blocs: Sequence[Mapping[str, str]]) -> str:
+    """Un fichier fait de blocs déjà construits (signalements) : chaque bloc par
+    numéro croissant, dans l'ordre donné, puis le bloc total."""
+    out: List[str] = []
+    for bloc in blocs:
+        _emit_rubriques_dict(dict(bloc), out)
+    write_total_fichier(out)
+    return FIN_DE_LIGNE.join(out) + FIN_DE_LIGNE
 
 
 def encode_dsn_bytes(dsn_file: DsnFile, *, encoding: str = DSN_ENCODING) -> bytes:
