@@ -6,8 +6,12 @@ import pytest
 from app.modules.dsn_export.domain.fiche_a_completer import manques_fiche_dsn
 from scripts.completer_fiches_formulaire import (
     CORRECTIONS,
+    PREMIER_PRENOM,
     Correction,
+    LueEnDsn,
     colonnes_corrigees,
+    lire_dsn,
+    resoudre,
 )
 
 
@@ -74,7 +78,69 @@ def test_une_colonne_hors_du_formulaire_arrete_tout():
         ])
 
 
-def test_le_lot_ne_porte_que_des_valeurs_que_le_formulaire_accepte():
+NIR = "1900175123456"
+
+#: Une DSN fictive : un salarié, un contrat, toutes les rubriques que le lot lit.
+DSN_FICTIVE = "\n".join([
+    "S21.G00.30.001,'190017512345678'",
+    "S21.G00.30.002,'IMAGINAIRE'",
+    "S21.G00.30.004,'ALIX MARIE-JEANNE'",
+    "S21.G00.30.006,'15011990'",
+    "S21.G00.30.025,'05'",
+    "S21.G00.40.001,'01092026'",
+    "S21.G00.40.009,'00003'",
+    "S21.G00.40.010,'31082028'",
+])
+
+
+def _individus(tmp_path, texte=DSN_FICTIVE):
+    chemin = tmp_path / "2026-09.dsn"
+    chemin.write_text(texte, encoding="latin-1")
+    return lire_dsn(chemin)
+
+
+def _fiche_lue():
+    return {"nir": NIR + "78", "first_name": "Alix", "date_naissance": None,
+            "classification_conventionnelle": {}, "specificites_paie": None}
+
+
+def test_le_lot_ne_porte_que_des_valeurs_que_le_formulaire_accepte(tmp_path):
+    individus = _individus(tmp_path)
     for c in CORRECTIONS:
-        fiche = {"classification_conventionnelle": {}, "specificites_paie": None}
-        assert colonnes_corrigees(fiche, [c])
+        fiche = _fiche_lue()
+        assert colonnes_corrigees(fiche, [resoudre(c, fiche, individus)])
+
+
+def _lue(colonne, chemin, rubrique, forme, avant=None):
+    return _correction(colonne, chemin, avant, LueEnDsn(rubrique, forme))
+
+
+def test_les_prenoms_lus_suivent_l_etat_civil_en_minuscules(tmp_path):
+    c = resoudre(_lue("first_name", (), "S21.G00.30.004", "prenoms", PREMIER_PRENOM),
+                 _fiche_lue(), _individus(tmp_path))
+    assert (c.avant, c.apres) == ("Alix", "Alix Marie-Jeanne")
+
+
+def test_un_prenom_de_fiche_qui_n_est_pas_le_premier_arrete_tout(tmp_path):
+    fiche = {**_fiche_lue(), "first_name": "Marie"}
+    with pytest.raises(SystemExit, match="premier"):
+        resoudre(_lue("first_name", (), "S21.G00.30.004", "prenoms", PREMIER_PRENOM),
+                 fiche, _individus(tmp_path))
+
+
+def test_une_date_lue_passe_au_format_du_formulaire(tmp_path):
+    c = resoudre(_lue("date_naissance", (), "S21.G00.30.006", "date"), _fiche_lue(), _individus(tmp_path))
+    assert c.apres == "1990-01-15"
+
+
+def test_un_salarie_absent_de_la_dsn_arrete_tout(tmp_path):
+    fiche = {**_fiche_lue(), "nir": "2990175123456"}
+    with pytest.raises(SystemExit, match="absent"):
+        resoudre(_lue("date_naissance", (), "S21.G00.30.006", "date"), fiche, _individus(tmp_path))
+
+
+def test_deux_contrats_dans_le_mois_arretent_une_rubrique_du_contrat(tmp_path):
+    deux = DSN_FICTIVE + "\nS21.G00.40.001,'20092026'\nS21.G00.40.009,'00004'"
+    with pytest.raises(SystemExit, match="2 contrats"):
+        resoudre(_lue("classification_conventionnelle", ("numero_contrat_dsn",), "S21.G00.40.009", "code"),
+                 _fiche_lue(), _individus(tmp_path, deux))
