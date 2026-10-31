@@ -68,36 +68,3 @@ def test_le_journal_compte_un_salarie(module_path, monkeypatch):
     lignes, totaux = module.get_journal_paie_data(SOC, "2026-11")
     assert len(lignes) == 2
     assert totaux["employees_count"] == 1
-
-
-def test_la_dsn_d_un_mois_a_deux_contrats_est_refusee_nommement():
-    """La forme de cette DSN (deux contrats, D3.2) n'est pas encore faite :
-    refus nommé plutôt qu'une DSN qui perdrait un bulletin."""
-    from app.modules.exports.infrastructure.export_dsn import check_dsn_data
-
-    emp = {"id": SAL, "first_name": "Camille", "last_name": "Exemple", "nir": "1850575123456", "contract_type": "CDI"}
-    anomalies, _ = check_dsn_data(
-        SOC,
-        "2026-11",
-        [{"employee": emp, "brut": 900.0, "net_imposable": 700.0, "deux_contrats": True}],
-        {"siret": "73282932000074", "code_naf": "2229A"},
-        essai=True,
-    )
-    assert {
-        "type": "error",
-        "message": (
-            "Novembre 2026 : Camille Exemple a deux contrats dans le mois. "
-            "La DSN de ce cas n'est pas encore faite par Martine."
-        ),
-        "severity": "blocking",
-        "employee_id": SAL,
-        "employee_name": "Camille Exemple",
-    } in anomalies
-
-
-def test_la_dsn_garde_le_bulletin_du_contrat_de_la_fiche_et_signale_l_autre(monkeypatch):
-    from app.modules.exports.infrastructure.export_dsn import _bulletins_par_salarie
-
-    par_salarie, deux_contrats = _bulletins_par_salarie([_bulletin("ancien", "periode-1"), _bulletin("nouveau")])
-    assert par_salarie[SAL]["id"] == "nouveau"
-    assert deux_contrats == {SAL}

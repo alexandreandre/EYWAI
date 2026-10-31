@@ -1,6 +1,6 @@
 # Générateur DSN mensuelle NEODeS P26V01 (fichier plat).
 from app.modules.dsn_export.domain.fiche_a_completer import fiche_a_completer
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -10,6 +10,8 @@ from app.modules.dsn_export.application.builder import (
     build_parsed_dsn_from_payroll,
 )
 from app.modules.dsn_export.domain.affiliations import Collegue, deduire_affiliations
+from app.modules.dsn_export.domain.contract_map import numero_du_contrat
+from app.modules.dsn_export.domain.deux_contrats import evenements_du_contrat
 from app.modules.dsn_export.domain.etat_conformite import (
     DEPOSABLE,
     SUFFIXE_NON_DEPOSABLE,
@@ -28,6 +30,11 @@ from app.modules.dsn_import.domain.validation import validate_parsed_dsn
 from app.modules.exports.infrastructure.payslip_accounting_extract import (
     extract_cotisations_from_payslip,
     extract_pas_amount,
+)
+from app.modules.employees.application.contrat_du_mois import (
+    debut_du_contrat,
+    fiche_du_mois,
+    lecteur_contrats,
 )
 from app.modules.oeth_settings.application import queries as oeth_queries
 from app.modules.payroll.application.monthly_specificites import (
@@ -71,7 +78,8 @@ def _evenements_dsn(
 
     - ``absences_dsn`` : les demandes d'arrêt validées de l'année écoulée
       jusqu'à la fin du mois — un arrêt prolongé se déclare depuis son début ;
-    - ``sortie_dsn`` : la sortie dont le dernier jour tombe dans le mois ;
+    - ``sortie_dsn`` : la sortie dont le dernier jour tombe dans le mois
+      (``sorties_dsn`` : toutes, pour un mois à deux contrats) ;
     - ``pas_type_taux`` / ``pas_identifiant_taux`` : le dernier taux reçu.
     """
     from datetime import timedelta
@@ -137,6 +145,8 @@ def _evenements_dsn(
         jour = str(sortie.get("last_working_day") or "")[:10]
         if eid in resultat and debut_mois.isoformat() <= jour <= fin_mois.isoformat():
             resultat[eid]["sortie_dsn"] = sortie
+            # Toutes, pour un mois à deux contrats : chacun la sienne (D3.2).
+            resultat[eid].setdefault("sorties_dsn", []).append(sortie)
 
     # SMIC de la réduction générale d'un bulletin qui ne le porte pas : de
     # quoi le refaire comme le moteur (SMIC horaire de référence, cumul des
@@ -298,12 +308,13 @@ def get_dsn_employees_data(
         payslips_query = payslips_query.in_("employee_id", employee_ids)
     payslips_response = payslips_query.execute()
     payslips = payslips_response.data or []
-    payslips_by_employee, a_deux_contrats = _bulletins_par_salarie(payslips)
+    payslips_by_employee, ranges_par_salarie = _bulletins_par_salarie(payslips)
+    fiches_par_id = {str(e["id"]): e for e in employees}
     evenements = _evenements_dsn(
         company_id,
         period,
-        list(payslips_by_employee),
-        {str(e["id"]): e for e in employees},
+        sorted(set(payslips_by_employee) | set(ranges_par_salarie)),
+        fiches_par_id,
     )
 
     employees_data = []
@@ -319,73 +330,134 @@ def get_dsn_employees_data(
         "total_cotisations_patronales": 0.0,
     }
 
-    for employee in employees:
-        payslip = payslips_by_employee.get(employee["id"])
-        if not payslip:
-            continue
-        payslip_data = payslip.get("payslip_data", {})
+    def _declarable(fiche: Dict[str, Any], bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """La fiche et les montants d'un bulletin, comme la DSN les déclare."""
+        nonlocal collegues
+        payslip_data = bulletin.get("payslip_data", {})
         if not isinstance(payslip_data, dict):
-            continue
-        # Enrichissements DSN absents en colonnes natives
-        if not employee.get("idcc"):
-            employee["idcc"] = ""
-        classif = employee.get("classification_conventionnelle")
-        if isinstance(classif, dict):
-            employee.setdefault("pcs", classif.get("pcs") or classif.get("code_pcs") or "")
-            employee.setdefault(
-                "idcc", classif.get("idcc") or employee.get("idcc") or ""
-            )
-        brut = float(payslip_data.get("salaire_brut", 0) or 0)
-        synthese = payslip_data.get("synthese_net")
-        net_imposable = float(
-            synthese.get("net_imposable", 0) if isinstance(synthese, dict) else 0
-        )
-        pas = extract_pas_amount(synthese) if isinstance(synthese, dict) else 0.0
-        cot_sal, cot_pat, cotisations_list, _meta = extract_cotisations_from_payslip(
-            payslip_data
-        )
-        # Enrichissement BOETH pour le builder
-        try:
-            boeth = oeth_queries.get_boeth_code_for_employee(employee.get("id", ""), period)
-            if boeth:
-                employee = {**employee, "boeth_code": boeth}
-        except Exception:
-            pass
-        # Arrêts, sortie et taux PAS reçus : ce que la DSN déclare et que le
-        # bulletin ne porte pas (blocs 60, 62, rubriques 50.007 / 50.008).
-        employee = {**employee, **evenements.get(employee["id"], {})}
+            return None
+        fiche = _fiche_dsn(fiche, period)
         # Embauché après la reprise des DSN de l'ancien logiciel : pas
         # d'affiliations prévoyance / santé, que DSN-VAL exige (bloc 70).
-        if not _affiliations(employee):
+        if not _affiliations(fiche):
             if collegues is None:
                 collegues = _collegues_affilies(
                     company_id, employees, employee_ids, year, month
                 )
-            employee = _avec_affiliations_deduites(employee, collegues, year, month)
-        employees_data.append(
-            {
-                "employee": employee,
-                "payslip": payslip,
-                "deux_contrats": employee["id"] in a_deux_contrats,
-                "payslip_data": payslip_data,
-                "brut": brut,
-                "net_imposable": net_imposable,
-                "pas": pas,
-                "cotisations_salariales": cot_sal,
-                "cotisations_patronales": cot_pat,
-                "cotisations_detail": cotisations_list,
-            }
-        )
+            fiche = _avec_affiliations_deduites(fiche, collegues, year, month)
+        return {"employee": fiche, "payslip": bulletin, "payslip_data": payslip_data, **_montants(payslip_data)}
+
+    for employee in employees:
+        eid = employee["id"]
+        payslip = payslips_by_employee.get(eid)
+        range_ = ranges_par_salarie.get(eid)
+        if not payslip and not range_:
+            continue
+        # Arrêts, sortie et taux PAS reçus : ce que la DSN déclare et que le
+        # bulletin ne porte pas (blocs 60, 62, rubriques 50.007 / 50.008).
+        # Dans un mois à deux contrats, chacun reçoit ceux de ses dates (D3.2).
+        evenements_salarie = evenements.get(eid, {})
+        precedent: Optional[Dict[str, Any]] = None
+        refus: Optional[str] = None
+        if range_:
+            periode = lecteur_contrats.contrat_range(str(range_["contract_period_id"])) or {}
+            try:
+                fiche_rangee = fiche_du_mois(employee, year, month, range_["contract_period_id"])
+            except ValueError:
+                refus = (
+                    "la fiche de son contrat précédent n'a pas été rangée : "
+                    "la DSN ne peut pas déclarer ce contrat."
+                )
+            else:
+                precedent = _declarable(
+                    {
+                        **fiche_rangee,
+                        **evenements_du_contrat(
+                            evenements_salarie,
+                            _jour(periode.get("date_debut")) or date(year, month, 1),
+                            _jour(periode.get("date_fin")),
+                            contrat_de_la_fiche=False,
+                        ),
+                    },
+                    range_,
+                )
+        if payslip:
+            evenements_fiche = (
+                evenements_du_contrat(
+                    evenements_salarie, debut_du_contrat(employee) or date(year, month, 1), None
+                )
+                if range_
+                else evenements_salarie
+            )
+            ligne = _declarable({**employee, **evenements_fiche}, payslip)
+            if ligne is None:
+                continue
+            if precedent:
+                ligne["contrat_precedent"] = precedent
+        elif precedent:
+            # Le bulletin du nouveau contrat n'est pas encore généré : l'ancien
+            # contrat se déclare seul, sur sa fiche rangée.
+            ligne = precedent
+            precedent = None
+        else:
+            ligne = {"employee": _fiche_dsn(dict(employee), period), "payslip": range_, **_montants({})}
+        if refus:
+            ligne["contrat_precedent_refus"] = refus
+        employees_data.append(ligne)
         totals["nombre_salaries"] += 1
-        totals["nombre_contrats"] += 1
-        totals["masse_salariale_brute"] += brut
-        totals["total_charges"] += cot_sal + cot_pat
-        totals["total_net_imposable"] += net_imposable
-        totals["total_pas"] += pas
-        totals["total_cotisations_salariales"] += cot_sal
-        totals["total_cotisations_patronales"] += cot_pat
+        for declare in (ligne, precedent):
+            if not declare:
+                continue
+            totals["nombre_contrats"] += 1
+            totals["masse_salariale_brute"] += declare["brut"]
+            totals["total_charges"] += declare["cotisations_salariales"] + declare["cotisations_patronales"]
+            totals["total_net_imposable"] += declare["net_imposable"]
+            totals["total_pas"] += declare["pas"]
+            totals["total_cotisations_salariales"] += declare["cotisations_salariales"]
+            totals["total_cotisations_patronales"] += declare["cotisations_patronales"]
 
     return employees_data, totals
+
+
+def _jour(valeur: Any) -> Optional[date]:
+    try:
+        return date.fromisoformat(str(valeur or "")[:10])
+    except ValueError:
+        return None
+
+
+def _fiche_dsn(employee: Dict[str, Any], period: str) -> Dict[str, Any]:
+    """La fiche enrichie de ce que la DSN lit hors colonnes : IDCC et PCS de la
+    classification, code BOETH du mois."""
+    if not employee.get("idcc"):
+        employee["idcc"] = ""
+    classif = employee.get("classification_conventionnelle")
+    if isinstance(classif, dict):
+        employee.setdefault("pcs", classif.get("pcs") or classif.get("code_pcs") or "")
+        employee.setdefault("idcc", classif.get("idcc") or employee.get("idcc") or "")
+    try:
+        boeth = oeth_queries.get_boeth_code_for_employee(employee.get("id", ""), period)
+        if boeth:
+            employee = {**employee, "boeth_code": boeth}
+    except Exception:
+        pass
+    return employee
+
+
+def _montants(payslip_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Brut, net imposable, PAS et cotisations d'un bulletin."""
+    synthese = payslip_data.get("synthese_net")
+    cot_sal, cot_pat, cotisations_list, _meta = extract_cotisations_from_payslip(payslip_data)
+    return {
+        "brut": float(payslip_data.get("salaire_brut", 0) or 0),
+        "net_imposable": float(
+            synthese.get("net_imposable", 0) if isinstance(synthese, dict) else 0
+        ),
+        "pas": extract_pas_amount(synthese) if isinstance(synthese, dict) else 0.0,
+        "cotisations_salariales": cot_sal,
+        "cotisations_patronales": cot_pat,
+        "cotisations_detail": cotisations_list,
+    }
 
 
 #: Dit à l'aperçu d'un fichier d'essai : le verrou du dépôt réel ne le bloque pas.
@@ -403,21 +475,15 @@ _MOIS_DSN = (
 
 def _bulletins_par_salarie(
     payslips: List[Dict[str, Any]],
-) -> Tuple[Dict[str, Dict[str, Any]], set]:
-    """Le bulletin du contrat de la fiche de chaque salarié, et ceux qui ont un
-    second bulletin dans le mois (contrat rangé d'un mois partagé, D3)."""
+) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    """Le bulletin du contrat de la fiche de chaque salarié, et celui du
+    contrat rangé d'un mois partagé (`contract_period_id` rempli, D3)."""
     par_salarie: Dict[str, Dict[str, Any]] = {}
-    a_deux_contrats: set = set()
+    ranges: Dict[str, Dict[str, Any]] = {}
     for bulletin in payslips:
-        if bulletin.get("contract_period_id"):
-            a_deux_contrats.add(bulletin["employee_id"])
-        else:
-            par_salarie[bulletin["employee_id"]] = bulletin
-    # Le contrat rangé sans bulletin du contrat de la fiche : il reste déclaré
-    # (et refusé avec les autres cas à deux contrats).
-    for bulletin in payslips:
-        par_salarie.setdefault(bulletin["employee_id"], bulletin)
-    return par_salarie, a_deux_contrats
+        cible = ranges if bulletin.get("contract_period_id") else par_salarie
+        cible[bulletin["employee_id"]] = bulletin
+    return par_salarie, ranges
 
 
 def check_dsn_data(
@@ -478,17 +544,39 @@ def check_dsn_data(
         employee_name = (
             f"{employee.get('first_name', '')} {employee.get('last_name', '')}".strip()
         )
-        if emp_data.get("deux_contrats"):
-            # Deux bulletins, un par contrat (D3) : la DSN qui les déclare tous
-            # les deux est à faire (D3.2). Refus nommé plutôt qu'un bulletin perdu.
-            annee_dsn, mois_dsn = (int(x) for x in period.split("-"))
+        annee_dsn, mois_dsn = (int(x) for x in period.split("-"))
+        mois_partage = f"{_MOIS_DSN[mois_dsn]} {annee_dsn} : {employee_name} a deux contrats dans le mois"
+        precedent = emp_data.get("contrat_precedent") or {}
+        if emp_data.get("contrat_precedent_refus"):
+            anomalies.append(
+                {
+                    "type": "error",
+                    "message": f"{mois_partage}, mais {emp_data['contrat_precedent_refus']}",
+                    "severity": "blocking",
+                    "employee_id": employee_id,
+                    "employee_name": employee_name,
+                }
+            )
+        if precedent and numero_du_contrat(precedent.get("employee") or {}) == numero_du_contrat(employee):
+            # CT 40.009 CCH-12 : deux contrats d'un individu, deux numéros.
             anomalies.append(
                 {
                     "type": "error",
                     "message": (
-                        f"{_MOIS_DSN[mois_dsn]} {annee_dsn} : {employee_name} a deux contrats "
-                        "dans le mois. La DSN de ce cas n'est pas encore faite par Martine."
+                        f"{mois_partage}, sous le même numéro de contrat DSN "
+                        f"({numero_du_contrat(employee)}) : la DSN ne peut pas les distinguer. "
+                        "Le numéro du nouveau contrat se change par le support."
                     ),
+                    "severity": "blocking",
+                    "employee_id": employee_id,
+                    "employee_name": employee_name,
+                }
+            )
+        if precedent and float(precedent.get("brut") or 0) <= 0:
+            anomalies.append(
+                {
+                    "type": "error",
+                    "message": f"Salarié {employee_name} : brut ≤ 0 sur le bulletin du contrat précédent",
                     "severity": "blocking",
                     "employee_id": employee_id,
                     "employee_name": employee_name,
@@ -604,7 +692,14 @@ def preview_dsn(
     )
 
     employees_preview = []
-    for emp_data in employees_data:
+    # Une ligne par bulletin : un mois à deux contrats en a deux (D3.2).
+    bulletins_declares = [
+        declare
+        for emp_data in employees_data
+        for declare in (emp_data.get("contrat_precedent"), emp_data)
+        if declare
+    ]
+    for emp_data in bulletins_declares:
         employee = emp_data["employee"]
         cotisations_detail = emp_data.get("cotisations_detail", [])
         organismes = set()
@@ -640,7 +735,7 @@ def preview_dsn(
         )
 
     organismes_summary = {}
-    for emp_data in employees_data:
+    for emp_data in bulletins_declares:
         cotisations_detail = emp_data.get("cotisations_detail", [])
         for coti in cotisations_detail:
             if isinstance(coti, dict):
