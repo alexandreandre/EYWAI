@@ -14,6 +14,7 @@ from app.modules.dsn_export.domain.settings import (
     normaliser_naf,
 )
 from app.modules.dsn_export.domain.contract_map import (
+    debut_du_contrat,
     iso_to_dsn_date,
     map_codification_ue,
     map_contract_nature_to_dsn,
@@ -435,7 +436,7 @@ def _cdd_court_ou_imprecis(nature: str, employee: Dict[str, Any]) -> bool:
     if nature != "02":
         return False
     try:
-        debut = _date.fromisoformat(str(employee.get("hire_date") or "")[:10])
+        debut = _date.fromisoformat(debut_du_contrat(employee))
     except ValueError:
         return False
     fin_texte = str(employee.get("contract_end_date") or "")[:10]
@@ -973,7 +974,7 @@ def build_individu_from_payroll(
     )
     nature = map_contract_nature_to_dsn(employee.get("contract_type"))
     statut = map_statut_to_dsn(employee.get("statut"), is_cadre=_is_cadre(employee))
-    date_debut = iso_to_dsn_date(employee.get("hire_date") or employee.get("date_entree"))
+    date_debut = iso_to_dsn_date(debut_du_contrat(employee))
     if not date_debut:
         raise DsnBuildError(f"Date d'embauche manquante pour NIR {nir_dsn}")
 

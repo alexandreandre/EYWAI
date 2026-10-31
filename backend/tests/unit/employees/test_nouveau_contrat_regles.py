@@ -283,6 +283,14 @@ class TestEcritures:
         assert nouvelle["specificites_paie"] == {"dsn_reprise": {"pas_type": "01"}}
         assert fiche_rangee(fiche, nouvelle)["specificites_paie"]["dsn_reprise"]["date_fin_contrat"] == "31052026"
 
+    def test_le_debut_repris_du_contrat_precedent_ne_suit_pas(self):
+        """Le nouveau contrat commence à sa date d'embauche ; le début repris
+        du cabinet décrivait le contrat rangé (CT § 2.1.2.3.2)."""
+        fiche = {**FICHE, "specificites_paie": {"dsn_reprise": {"date_debut_contrat": "2026-03-02", "pas_type": "01"}}}
+        _, nouvelle, _ = ecritures(fiche, PRECEDENT, _demande())
+        assert nouvelle["specificites_paie"] == {"dsn_reprise": {"pas_type": "01"}}
+        assert fiche_rangee(fiche, nouvelle)["specificites_paie"]["dsn_reprise"]["date_debut_contrat"] == "2026-03-02"
+
     def test_temps_partiel_et_poste_vide(self):
         _, fiche, _ = ecritures(FICHE, PRECEDENT, _demande(duree_hebdomadaire=24, job_title="  "))
         assert fiche["is_temps_partiel"] is True

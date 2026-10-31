@@ -16,7 +16,11 @@ from app.modules.dsn_export.application.builder import (
     build_envoi,
     build_etablissement,
 )
-from app.modules.dsn_export.domain.contract_map import iso_to_dsn_date, numero_du_contrat
+from app.modules.dsn_export.domain.contract_map import (
+    debut_du_contrat,
+    iso_to_dsn_date,
+    numero_du_contrat,
+)
 from app.modules.dsn_export.domain.evenements import (
     MOTIFS_ACCIDENT,
     dernier_jour_travaille,
@@ -26,7 +30,6 @@ from app.modules.dsn_export.domain.settings import DsnSettings
 from app.modules.dsn_export.domain.signalements import SignalementAFaire
 from app.modules.dsn_export.domain.usages_signalement import NATURE_ARRET, filtrer
 from app.modules.dsn_export.domain.writer import ecrire_blocs
-
 
 #: Type du contact chez le déclaré pour les IJ (S20.G00.07.004).
 CONTACT_IJ = "01"
@@ -61,9 +64,8 @@ def _individu(employee: Dict[str, Any]) -> Dict[str, str]:
 
 
 def _debut_contrat(employee: Dict[str, Any]) -> date:
-    texte = str(employee.get("hire_date") or employee.get("date_entree") or "")[:10]
     try:
-        return date.fromisoformat(texte)
+        return date.fromisoformat(debut_du_contrat(employee))
     except ValueError:
         raise _manque("date d'embauche") from None
 

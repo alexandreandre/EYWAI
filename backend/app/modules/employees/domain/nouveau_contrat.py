@@ -229,7 +229,7 @@ DRAPEAUX_DU_CONTRAT = (DRAPEAUX_ALTERNANCE, DRAPEAUX_FIN_DE_CONTRAT)
 
 #: Reprise DSN du cabinet propre au contrat rangé : sa fin prévue, et son
 #: motif de recours, qui ne suit que d'un CDD à un CDD (D3.2).
-_FIN_REPRISE, _MOTIF = "date_fin_contrat", "motif_recours"
+_FIN_REPRISE, _DEBUT_REPRISE, _MOTIF = "date_fin_contrat", "date_debut_contrat", "motif_recours"
 
 
 def _de_cdd_a_cdd(precedent: ContratPrecedent, demande: Demande) -> bool:
@@ -239,7 +239,7 @@ def _de_cdd_a_cdd(precedent: ContratPrecedent, demande: Demande) -> bool:
 def _specificites_du_nouveau_contrat(specificites: Any, garder_motif: bool) -> dict[str, Any] | None:
     """Les spécificités de paie, ce qui était propre au contrat rangé remis à
     zéro : drapeaux (alternance, exclusions de fin de contrat), groupe par
-    groupe, et reprise DSN (fin prévue, motif de recours) ; None si rien
+    groupe, et reprise DSN (début et fin repris, motif de recours) ; None si rien
     n'était posé (rien à réécrire)."""
     if not isinstance(specificites, Mapping):
         return None
@@ -248,7 +248,7 @@ def _specificites_du_nouveau_contrat(specificites: Any, garder_motif: bool) -> d
         if any(specificites.get(cle) for cle in groupe):
             remis.update(groupe)
     reprise = specificites.get("dsn_reprise")
-    propres = (_FIN_REPRISE,) if garder_motif else (_FIN_REPRISE, _MOTIF)
+    propres = (_FIN_REPRISE, _DEBUT_REPRISE) + (() if garder_motif else (_MOTIF,))
     if isinstance(reprise, Mapping) and any(cle in reprise for cle in propres):
         remis["dsn_reprise"] = {cle: v for cle, v in reprise.items() if cle not in propres}
     if not remis:

@@ -26,6 +26,28 @@ def numero_du_contrat(employee: Dict[str, Any]) -> str:
     )
 
 
+def debut_du_contrat(employee: Dict[str, Any]) -> str:
+    """Début du contrat (S21.G00.40.001), AAAA-MM-JJ : celui repris du cabinet
+    (`dsn_reprise.date_debut_contrat`) quand le contrat en cours y a commencé
+    après l'embauche de la fiche — un CDD suivi d'un apprentissage, sur une
+    seule fiche —, l'embauche sinon. Le cahier technique 2026.1 (§ 2.1.2.3.2)
+    identifie un contrat par sa date de début et son numéro : les changer sans
+    bloc 41 ouvre un second contrat chez les organismes. Une reprise d'avant
+    l'embauche (la fiche a changé de contrat depuis) ou illisible est écartée."""
+    embauche = str(employee.get("hire_date") or employee.get("date_entree") or "")[:10]
+    specificites = employee.get("specificites_paie")
+    reprise = employee.get("dsn_reprise") or (
+        specificites.get("dsn_reprise") if isinstance(specificites, dict) else None
+    )
+    repris = str((reprise or {}).get("date_debut_contrat") or "")[:10]
+    try:
+        if date.fromisoformat(repris) > date.fromisoformat(embauche):
+            return repris
+    except ValueError:
+        pass
+    return embauche
+
+
 def numero_suivant(numero: str) -> str:
     """Le numéro du contrat suivant d'un salarié : 00000 → 00001, comme Quadra ;
     00001 après un numéro qui n'est pas un nombre."""
