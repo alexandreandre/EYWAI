@@ -48,6 +48,7 @@ describe('saisieInitiale', () => {
       compteIban: '',
       compteBic: '',
       compteTitulaire: '',
+      miseADisposition: '1',
     });
   });
 
@@ -61,7 +62,44 @@ describe('saisieInitiale', () => {
       compteIban: '',
       compteBic: '',
       compteTitulaire: '',
+      miseADisposition: '1',
     });
+  });
+});
+
+describe('mise à disposition des bulletins', () => {
+  const sansReglage = societe();
+  const desLaValidation = societe({
+    settings: { effectif_seuils: { [ANNEE]: 5 }, bulletins_mise_a_disposition_jour: 0 },
+  });
+
+  it('se relit dans la saisie, le 1er du mois suivant par défaut', () => {
+    expect(saisieInitiale(sansReglage).miseADisposition).toBe('1');
+    expect(saisieInitiale(desLaValidation).miseADisposition).toBe('0');
+  });
+
+  it('ne s’envoie que si elle change', () => {
+    expect(construireMiseAJour(sansReglage, saisieInitiale(sansReglage)).corps).toEqual({});
+    expect(
+      construireMiseAJour(sansReglage, { ...saisieInitiale(sansReglage), miseADisposition: '0' })
+        .corps,
+    ).toEqual({ bulletins_mise_a_disposition_jour: 0 });
+    expect(
+      construireMiseAJour(desLaValidation, { ...saisieInitiale(desLaValidation), miseADisposition: '5' })
+        .corps,
+    ).toEqual({ bulletins_mise_a_disposition_jour: 5 });
+  });
+
+  it('ne fait pas passer les bulletins « À recalculer », mais confirme l’enregistrement', () => {
+    expect(parametresOntChange(sansReglage, desLaValidation)).toBe(false);
+    expect(messageApresEnregistrement(sansReglage, desLaValidation).titre).toBe(
+      'Paramètres paie enregistrés',
+    );
+  });
+
+  it('se dit en clair dans le résumé', () => {
+    expect(resumeParametresPaie(sansReglage)).toContain('bulletins visibles le 1er du mois suivant');
+    expect(resumeParametresPaie(desLaValidation)).toContain('bulletins visibles dès la validation');
   });
 });
 
@@ -414,13 +452,13 @@ describe('resumeParametresPaie', () => {
         }),
       ),
     ).toBe(
-      `Effectif ${ANNEE} : 21 · chômage 2,95 % · paiement le dernier jour du mois · solidarité le 25/05/2026`,
+      `Effectif ${ANNEE} : 21 · chômage 2,95 % · paiement le dernier jour du mois · solidarité le 25/05/2026 · bulletins visibles le 1er du mois suivant`,
     );
   });
 
   it('dit ce qui s’applique quand rien n’est réglé', () => {
     expect(resumeParametresPaie(societe({ effectif: 19, settings: {} }))).toBe(
-      `Effectif ${ANNEE} non saisi · chômage au taux normal · paiement le jour de l'arrêté des variables · solidarité le lundi de Pentecôte`,
+      `Effectif ${ANNEE} non saisi · chômage au taux normal · paiement le jour de l'arrêté des variables · solidarité le lundi de Pentecôte · bulletins visibles le 1er du mois suivant`,
     );
   });
 });

@@ -1,7 +1,8 @@
 /**
  * Réglages de paie de la société saisis dans la carte « Paramètres de paie » :
  * taux d'assurance chômage notifié (bonus-malus), effectif retenu pour les
- * seuils, date de paiement des salaires, journée de solidarité.
+ * seuils, date de paiement des salaires, journée de solidarité, jour où les
+ * salariés voient leur bulletin.
  *
  * Le moteur les lit dans companies.settings. L'effectif s'y range par année
  * (`effectif_seuils`) : la colonne companies.effectif n'est que le nombre de
@@ -32,6 +33,17 @@ export const LIBELLES_DATE_PAIEMENT: Record<DatePaiement, string> = {
   arrete_des_variables: "Jour de l'arrêté des variables",
 };
 
+/** Sans réglage, le salarié voit son bulletin le 1er du mois suivant (D5, 31/10/2026). */
+export const MISE_A_DISPOSITION_PAR_DEFAUT = 1;
+export const MISE_A_DISPOSITION_DES_LA_VALIDATION = 0;
+export const MISE_A_DISPOSITION_JOUR_MAX = 28;
+
+/** « Dès la validation », « Le 1er du mois suivant », « Le 5 du mois suivant »… */
+export function libelleMiseADisposition(jour: number): string {
+  if (jour === MISE_A_DISPOSITION_DES_LA_VALIDATION) return 'Dès la validation';
+  return `Le ${jour === 1 ? '1er' : jour} du mois suivant`;
+}
+
 export const DESCRIPTIONS_DATE_PAIEMENT: Record<DatePaiement, string> = {
   dernier_jour_du_mois: 'Le bulletin indique un paiement le 30 ou le 31.',
   arrete_des_variables:
@@ -47,6 +59,8 @@ export interface SaisieParametresPaie {
   compteIban: string;
   compteBic: string;
   compteTitulaire: string;
+  /** '0' = dès la validation, '1' à '28' = ce jour du mois suivant. */
+  miseADisposition: string;
 }
 
 export type ErreursParametresPaie = Partial<Record<keyof SaisieParametresPaie, string>>;
@@ -59,6 +73,7 @@ export type MiseAJourParametresPaie = Pick<
   | 'date_paiement'
   | 'jour_solidarite'
   | 'compte_bancaire'
+  | 'bulletins_mise_a_disposition_jour'
 >;
 
 /** L'année dont la carte saisit l'effectif. */
@@ -85,6 +100,7 @@ const LIBELLES_CHAMPS: Record<Exclude<keyof MiseAJourParametresPaie, 'effectif_a
   date_paiement: 'Date de paiement des salaires',
   jour_solidarite: 'Journée de solidarité',
   compte_bancaire: 'Compte bancaire de la société',
+  bulletins_mise_a_disposition_jour: 'Mise à disposition des bulletins',
 };
 
 /** Les réglages qui entrent dans le calcul des bulletins. */
@@ -95,10 +111,23 @@ const CHAMPS_DU_CALCUL = [
   'jour_solidarite',
 ] as const;
 
-/** Tous les réglages de la carte ; le compte bancaire ne touche à aucun bulletin. */
-const ORDRE_CHAMPS: (keyof typeof LIBELLES_CHAMPS)[] = [...CHAMPS_DU_CALCUL, 'compte_bancaire'];
+/** Tous les réglages de la carte ; le compte bancaire et la mise à disposition
+ * ne changent aucun montant. */
+const ORDRE_CHAMPS: (keyof typeof LIBELLES_CHAMPS)[] = [
+  ...CHAMPS_DU_CALCUL,
+  'compte_bancaire',
+  'bulletins_mise_a_disposition_jour',
+];
 
 const BIC = /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/;
+
+function jourMiseADisposition(valeur: unknown): number | null {
+  return Number.isInteger(valeur) &&
+    (valeur as number) >= MISE_A_DISPOSITION_DES_LA_VALIDATION &&
+    (valeur as number) <= MISE_A_DISPOSITION_JOUR_MAX
+    ? (valeur as number)
+    : null;
+}
 
 function estDatePaiement(valeur: unknown): valeur is DatePaiement {
   return valeur === 'dernier_jour_du_mois' || valeur === 'arrete_des_variables';
@@ -113,6 +142,9 @@ function enregistres(company: CompanyDetails, annee: number) {
     date_paiement: estDatePaiement(reglages.date_paiement) ? reglages.date_paiement : null,
     jour_solidarite: reglages.jour_solidarite ?? null,
     compte_bancaire: compteNormalise(reglages.compte_bancaire),
+    bulletins_mise_a_disposition_jour: jourMiseADisposition(
+      reglages.bulletins_mise_a_disposition_jour,
+    ),
   };
 }
 
@@ -154,6 +186,9 @@ export function saisieInitiale(
     compteIban: valeurs.compte_bancaire?.iban ?? '',
     compteBic: valeurs.compte_bancaire?.bic ?? '',
     compteTitulaire: valeurs.compte_bancaire?.titulaire ?? '',
+    miseADisposition: String(
+      valeurs.bulletins_mise_a_disposition_jour ?? MISE_A_DISPOSITION_PAR_DEFAUT,
+    ),
   };
 }
 
@@ -245,6 +280,14 @@ export function construireMiseAJour(
     }
   }
 
+  const jourMad = jourMiseADisposition(Number(saisie.miseADisposition));
+  if (
+    jourMad !== null &&
+    jourMad !== (avant.bulletins_mise_a_disposition_jour ?? MISE_A_DISPOSITION_PAR_DEFAUT)
+  ) {
+    corps.bulletins_mise_a_disposition_jour = jourMad;
+  }
+
   return { corps, erreurs };
 }
 
@@ -295,9 +338,12 @@ export function messageApresEnregistrement(
   if (parametresOntChange(avant, relue)) {
     return { titre: 'Paramètres paie enregistrés', description: `${resume} ${PHRASE_A_RECALCULER}` };
   }
-  const compteAvant = enregistres(avant, anneeEnCours()).compte_bancaire;
-  const compteApres = enregistres(relue, anneeEnCours()).compte_bancaire;
-  if (!memeValeur(compteAvant, compteApres)) {
+  const a = enregistres(avant, anneeEnCours());
+  const b = enregistres(relue, anneeEnCours());
+  if (
+    !memeValeur(a.compte_bancaire, b.compte_bancaire) ||
+    !memeValeur(a.bulletins_mise_a_disposition_jour, b.bulletins_mise_a_disposition_jour)
+  ) {
     return { titre: 'Paramètres paie enregistrés', description: resume };
   }
   return { titre: 'Aucun changement à enregistrer', description: `Les réglages restent : ${resume}` };
@@ -322,7 +368,10 @@ export function resumeParametresPaie(
   const solidarite = date
     ? `solidarité le ${String(date.jour).padStart(2, '0')}/${String(date.mois).padStart(2, '0')}/${date.annee}`
     : 'solidarité le lundi de Pentecôte';
-  return [effectif, chomage, paiement, solidarite].join(' · ');
+  const visibles = `bulletins visibles ${libelleMiseADisposition(
+    v.bulletins_mise_a_disposition_jour ?? MISE_A_DISPOSITION_PAR_DEFAUT,
+  ).toLowerCase()}`;
+  return [effectif, chomage, paiement, solidarite, visibles].join(' · ');
 }
 
 /**

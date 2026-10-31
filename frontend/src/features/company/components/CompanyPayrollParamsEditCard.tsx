@@ -27,9 +27,12 @@ import {
 import {
   DESCRIPTIONS_DATE_PAIEMENT,
   LIBELLES_DATE_PAIEMENT,
+  MISE_A_DISPOSITION_DES_LA_VALIDATION,
+  MISE_A_DISPOSITION_JOUR_MAX,
   avertissementJourSolidarite,
   champsNonRelus,
   construireMiseAJour,
+  libelleMiseADisposition,
   messageApresEnregistrement,
   repliEffectif,
   saisieInitiale,
@@ -40,6 +43,12 @@ import { useSurchargesPeriodeVariables } from '@/features/payroll/hooks/usePerio
 import { lireTauxSaisi, tauxEnSaisie } from '../lib/tauxSociete';
 
 type Erreurs = ErreursParametresPaie & { tauxAtMp?: string };
+
+/** Dès la validation, puis le 1er au 28 du mois suivant. */
+const JOURS_MISE_A_DISPOSITION = Array.from(
+  { length: MISE_A_DISPOSITION_JOUR_MAX + 1 },
+  (_, jour) => MISE_A_DISPOSITION_DES_LA_VALIDATION + jour,
+);
 
 function Aide({ children }: { children: ReactNode }) {
   return <p className="text-xs text-muted-foreground">{children}</p>;
@@ -293,6 +302,27 @@ export function CompanyPayrollParamsEditCard({
             </SelectContent>
           </Select>
           <Aide>{DESCRIPTIONS_DATE_PAIEMENT[saisie.datePaiement]}</Aide>
+        </div>
+
+        <div className="space-y-1">
+          <Label>Bulletins visibles par les salariés</Label>
+          <Select value={saisie.miseADisposition} onValueChange={(v) => modifier('miseADisposition', v)}>
+            <SelectTrigger aria-label="Bulletins visibles par les salariés">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {JOURS_MISE_A_DISPOSITION.map((jour) => (
+                <SelectItem key={jour} value={String(jour)}>
+                  {libelleMiseADisposition(jour)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Aide>
+            Le salarié voit son bulletin validé à cette date, et en est prévenu ; celui de son départ,
+            dès la validation. Dès qu&apos;il est visible, le bulletin ne se modifie plus : une erreur
+            se corrige le mois suivant.
+          </Aide>
         </div>
 
         <div className="space-y-1">

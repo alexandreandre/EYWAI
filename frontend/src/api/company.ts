@@ -90,6 +90,9 @@ export interface CompanyDetails {
     effectif_seuils?: Record<string, number>;
     /** Compte qui débite les salaires : donneur d'ordre des remises SEPA. */
     compte_bancaire?: CompteBancaireSociete | null;
+    /** Jour où les salariés voient leur bulletin validé : 0 = dès la validation,
+     * 1 à 28 = ce jour du mois suivant ; absent = le 1er. */
+    bulletins_mise_a_disposition_jour?: number | null;
   };
   dsn_sync_mode?: DsnSyncMode | null;
   /** Bascule de reprise (`company_payroll_takeover`), lue seulement ; null sans reprise. */
@@ -215,6 +218,8 @@ export type CompanyDetailsUpdate = Partial<
   jour_solidarite?: string | null;
   /** Compte qui débite les salaires ; null le retire. */
   compte_bancaire?: CompteBancaireSociete | null;
+  /** 0 = dès la validation, 1 à 28 = ce jour du mois suivant ; null = le 1er. */
+  bulletins_mise_a_disposition_jour?: number | null;
 };
 
 export async function fetchCompanyDetails(): Promise<CompanyDetailsPayload> {

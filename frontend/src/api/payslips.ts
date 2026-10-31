@@ -265,6 +265,10 @@ export interface PayslipDetail {
   manual_edit_locked?: boolean;
   manual_edit_lock_reason?: string | null;
   manual_edit_lock_until?: string | null;
+  /** Jour où le salarié reçoit ce bulletin validé (AAAA-MM-JJ) ; null pour un brouillon. */
+  remis_le?: string | null;
+  /** Remis : le salarié le voit, il ne se modifie plus. */
+  bulletin_remis?: boolean;
   /** Dernière mise à jour, renvoyée avec une correction (refusée si elle a changé). */
   updated_at?: string | null;
   /** Date du dernier calcul : les saisies d'après ne sont pas encore sur le bulletin. */

@@ -99,6 +99,7 @@ import {
 import { lienVariablesDuMois } from '@/features/payroll/utils/payslipDerivedLines';
 import { bandeauExportsDuMois } from '@/lib/exportsARefaire';
 import { estPerime, messageARecalculer } from '@/features/payroll/utils/bulletinARecalculer';
+import { phraseRemise } from '@/features/payroll/utils/remiseBulletin';
 import {
   messageEnVerification,
   delaiAvantRelecture,
@@ -438,6 +439,7 @@ export default function PayslipEdit() {
   );
   // Ce qui a changé depuis le calcul, dit simplement (« La mutuelle a changé… »).
   const aRecalculer = messageARecalculer(payslip);
+  const remise = phraseRemise(payslip);
   const lienSaisies = lienVariablesDuMois({
     employeeId: payslip.employee_id,
     year: payslip.year,
@@ -509,6 +511,12 @@ export default function PayslipEdit() {
             La période est normalement verrouillée pour les RH, mais vous pouvez encore corriger ce
             bulletin en tant qu&apos;administrateur plateforme.
           </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {remise ? (
+        <Alert data-testid="remise-du-bulletin">
+          <AlertDescription>{remise}</AlertDescription>
         </Alert>
       ) : null}
 
