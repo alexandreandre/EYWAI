@@ -96,14 +96,31 @@ def test_le_bulletin_de_sortie_avant_le_nouveau_contrat(monkeypatch):
     assert donnees["salaire_brut"] == 700.0
 
 
-def test_supprimer_le_bulletin_du_contrat_range_garde_les_cumuls_du_mois(base):
+@pytest.fixture
+def sans_stockage(base, monkeypatch):
+    """La suppression retire aussi le PDF et recalcule le repos compensateur :
+    hors de la base en mémoire, doublés ici (aucun appel réseau)."""
+    from types import SimpleNamespace
+
+    from app.modules.payslips.infrastructure import repository
+
+    retires: list = []
+    seau = SimpleNamespace(remove=lambda chemins: retires.extend(chemins))
+    client = SimpleNamespace(table=base.table, storage=SimpleNamespace(from_=lambda _nom: seau))
+    monkeypatch.setattr(repository, "supabase", client)
+    monkeypatch.setattr(repository, "recalculer_credits_repos_employe", lambda *_a, **_k: None)
+    return retires
+
+
+def test_supprimer_le_bulletin_du_contrat_range_garde_les_cumuls_du_mois(base, sans_stockage):
     from app.modules.payslips.infrastructure.repository import PayslipRepository
 
     PayslipRepository().delete("ancien")
+    assert sans_stockage == ["chemin/ancien.pdf"]
     assert base.ligne("employee_schedules", id="planning-11")["cumuls"] == {"brut_total": 900.0}
 
 
-def test_supprimer_le_bulletin_du_contrat_de_la_fiche_vide_les_cumuls_du_mois(base):
+def test_supprimer_le_bulletin_du_contrat_de_la_fiche_vide_les_cumuls_du_mois(base, sans_stockage):
     from app.modules.payslips.infrastructure.repository import PayslipRepository
 
     PayslipRepository().delete("nouveau")
