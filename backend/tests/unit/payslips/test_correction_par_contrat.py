@@ -45,7 +45,9 @@ def test_le_bulletin_corrige_est_lu_avec_sa_cle():
 
 
 def test_la_saisie_du_mois_montre_les_variables_du_contrat_de_la_fiche(monkeypatch):
-    from app.modules.monthly_inputs.infrastructure.repository import SupabaseMonthlyInputsRepository
+    from app.modules.monthly_inputs.infrastructure.repository import (
+        SupabaseMonthlyInputsRepository,
+    )
 
     BaseEnMemoire(
         {

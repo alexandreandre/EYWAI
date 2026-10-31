@@ -59,13 +59,17 @@ def test_le_bulletin_du_mois_est_celui_du_contrat_de_la_fiche(base):
 
 
 def test_le_mois_suivant_repart_du_contrat_de_la_fiche(base):
-    from app.modules.payslips.application.suite_du_bulletin import _lire_bulletin_du_mois
+    from app.modules.payslips.application.suite_du_bulletin import (
+        _lire_bulletin_du_mois,
+    )
 
     assert _lire_bulletin_du_mois(SAL, 2026, 11)["payslip_data"]["salaire_brut"] == 900.0
 
 
 def test_l_empreinte_lit_le_bulletin_du_contrat_de_la_fiche(base):
-    from app.modules.payroll.infrastructure.empreinte_entrees_queries import lire_bulletin_enregistre
+    from app.modules.payroll.infrastructure.empreinte_entrees_queries import (
+        lire_bulletin_enregistre,
+    )
 
     assert lire_bulletin_enregistre(SAL, 2026, 11)["id"] == "nouveau"
 
@@ -112,3 +116,19 @@ def test_le_repos_compensateur_lit_un_bulletin_par_mois(base):
     )
 
     assert get_bulletins_par_mois_par_employe(SOC, 2026, [SAL])[SAL][11]["salaire_brut"] == 900.0
+
+
+def test_la_liste_des_bulletins_dit_lequel_est_celui_du_contrat_range(base, monkeypatch):
+    from app.modules.payslips.infrastructure import queries
+
+    base.tables["employee_contract_periods"] = [{"id": RANGE, "date_fin": "2026-11-10"}]
+    monkeypatch.setattr(
+        queries,
+        "create_payslip_url_maps",
+        lambda chemins, _duree: ({c: f"https://{c}" for c in chemins}, {}),
+    )
+    liste = {b["id"]: b for b in queries.get_employee_payslips(SAL)}
+    assert liste["ancien"]["contract_period_id"] == RANGE
+    assert liste["ancien"]["contrat_jusqu_au"] == "2026-11-10"
+    assert liste["nouveau"]["contract_period_id"] is None
+    assert liste["nouveau"]["contrat_jusqu_au"] is None

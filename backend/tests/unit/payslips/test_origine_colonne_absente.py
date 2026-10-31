@@ -28,7 +28,7 @@ def test_le_statut_est_lu_meme_sans_la_colonne_origine():
     with patch("app.modules.payslips.application.commands.supabase", client):
         assert _fetch_payslip_status("ps-1") == {"id": "ps-1", "status": "brouillon"}
     colonnes = [appel.args[0] for appel in chaine.select.call_args_list]
-    assert colonnes == ["id, status, origine", "id, status"]
+    assert colonnes == ["id, status, origine, contract_period_id", "id, status"]
 
 
 def test_avec_la_colonne_l_origine_est_rendue():

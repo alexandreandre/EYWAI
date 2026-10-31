@@ -57,6 +57,10 @@ class PayslipInfo(BaseModel):
     lignes_corrigees: list[LigneCorrigeeInfo] = []
     #: Corrections qui ne trouvent plus leur ligne : le bulletin ne se valide pas.
     corrections_en_attente: int = 0
+    #: Mois à deux contrats (D3) : le bulletin du contrat rangé porte sa clé et
+    #: la fin de ce contrat ; nuls pour le contrat de la fiche.
+    contract_period_id: str | None = None
+    contrat_jusqu_au: str | None = None
 
 
 class InternalNote(BaseModel):
@@ -143,6 +147,9 @@ class PayslipDetail(BaseModel):
     manual_edit_lock_until: date | None = None
     #: Jour où le salarié reçoit ce bulletin validé (D5) ; None pour un brouillon.
     remis_le: date | None = None
+    #: Mois à deux contrats (D3) : le contrat rangé de ce bulletin, nul pour le
+    #: contrat de la fiche. La régénération le renvoie.
+    contract_period_id: str | None = None
     #: Remis : le salarié le voit, il ne se modifie plus (D4).
     bulletin_remis: bool = False
     #: Phrase à afficher quand le mois précédent a changé depuis le calcul de

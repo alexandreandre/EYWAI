@@ -768,7 +768,7 @@ def _fetch_payslip_status(payslip_id: str) -> dict[str, Any] | None:
     statut seul, et la garde des bulletins importés ne s'applique simplement
     pas — la bascule de la société, elle, refuse déjà de les recalculer.
     """
-    for colonnes in ("id, status, origine", "id, status"):
+    for colonnes in ("id, status, origine, contract_period_id", "id, status"):
         try:
             r = (
                 supabase.table("payslips")
@@ -823,6 +823,13 @@ def delete_payslip(payslip_id: str) -> bool:
             "Ce bulletin est validé : il ne peut pas être supprimé directement. "
             "Ouvrez le bulletin et cliquez sur « Régénérer » (l'ancienne version "
             "est archivée) : il repasse en brouillon, que vous pouvez alors supprimer."
+        )
+    if existing.get("contract_period_id"):
+        # Supprimé, l'écran ne saurait pas le régénérer : il n'a pas de ligne à
+        # lui dans la paie du mois, seulement sous le salarié [D3].
+        raise PayslipBadRequestError(
+            "Ce bulletin est celui du contrat précédent, dans un mois à deux contrats : "
+            "il ne se supprime pas. Régénérez-le ou corrigez-le depuis cette page."
         )
     # L'échéance de prêt redevient due, l'avance se rouvre, les dépôts CET et les
     # heures créditées en modulation reviennent : le bulletin n'existera plus.

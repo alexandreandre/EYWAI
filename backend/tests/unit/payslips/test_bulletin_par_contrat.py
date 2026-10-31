@@ -12,8 +12,12 @@ from unittest.mock import patch
 
 import pytest
 
-from app.modules.payslips.application import commands, effets_du_bulletin as effets
-from app.modules.payslips.application.dto import GeneratePayslipInput, PayslipBadRequestError
+from app.modules.payslips.application import commands
+from app.modules.payslips.application import effets_du_bulletin as effets
+from app.modules.payslips.application.dto import (
+    GeneratePayslipInput,
+    PayslipBadRequestError,
+)
 from tests.unit.base_en_memoire import BaseEnMemoire
 
 pytestmark = [pytest.mark.unit, pytest.mark.effets_en_base]
@@ -193,7 +197,9 @@ class TestGardeDuContratDeLaFiche:
 class TestGenerateur:
     def test_les_variables_du_bulletin_sont_celles_de_sa_cle(self, monkeypatch):
         from app.core import database
-        from app.modules.payroll.documents.bulletin_par_contrat import variables_du_bulletin
+        from app.modules.payroll.documents.bulletin_par_contrat import (
+            variables_du_bulletin,
+        )
 
         BaseEnMemoire(
             {
@@ -212,3 +218,14 @@ class TestGenerateur:
 
         assert suffixe_du_pdf(None) == ""
         assert suffixe_du_pdf(RANGE) == "_contrat-precedent"
+
+
+def test_le_bulletin_du_contrat_range_ne_se_supprime_pas():
+    with patch.object(commands, "_refuser_si_importe"), patch.object(
+        commands,
+        "_fetch_payslip_status",
+        return_value={"id": "ancien", "status": "brouillon", "contract_period_id": RANGE},
+    ), patch.object(commands.effets, "defaire_avant_suppression") as defaire:
+        with pytest.raises(PayslipBadRequestError, match="contrat précédent"):
+            commands.delete_payslip("ancien")
+    defaire.assert_not_called()

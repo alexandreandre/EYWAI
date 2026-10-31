@@ -225,7 +225,7 @@ def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
     """Liste des bulletins d'un employé (net, alertes RH, URLs signées)."""
     base = (
         "id, month, year, pdf_storage_path, payslip_data, status, "
-        "manually_edited, edit_count, edited_at, edited_by"
+        "manually_edited, edit_count, edited_at, edited_by, contract_period_id"
     )
     # `origine` vient de la migration de reprise (20260917090000), pas encore
     # appliquée partout : sans elle on lit la liste sans la colonne.
@@ -258,6 +258,7 @@ def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
         return []
 
     download_map, preview_map = create_payslip_url_maps(paths, 3600)
+    fins = _fins_des_contrats_ranges(payslips_db)
 
     result = []
     for p in payslips_db:
@@ -294,9 +295,27 @@ def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
                 "edit_count": int(p.get("edit_count") or 0),
                 "edited_at": p.get("edited_at"),
                 "edited_by": p.get("edited_by"),
+                # Mois à deux contrats : le bulletin du contrat rangé, et sa fin (D3).
+                "contract_period_id": p.get("contract_period_id"),
+                "contrat_jusqu_au": fins.get(str(p.get("contract_period_id") or "")),
             }
         )
     return result
+
+
+def _fins_des_contrats_ranges(payslips_db: list[dict[str, Any]]) -> dict[str, str]:
+    """La fin du contrat rangé de chaque bulletin d'un mois à deux contrats (D3)."""
+    ids = sorted({str(p["contract_period_id"]) for p in payslips_db if p.get("contract_period_id")})
+    if not ids:
+        return {}
+    lignes = (
+        supabase.table("employee_contract_periods")
+        .select("id, date_fin")
+        .in_("id", ids)
+        .execute()
+        .data
+    ) or []
+    return {str(l["id"]): str(l.get("date_fin") or "")[:10] for l in lignes}
 
 
 def avec_liens_des_versions(historique: Any) -> list[dict[str, Any]]:
@@ -330,6 +349,11 @@ def avec_liens_des_versions(historique: Any) -> list[dict[str, Any]]:
 
 
 def _cumuls_du_mois(row: dict[str, Any]) -> dict[str, Any] | None:
+    # Le bulletin d'un contrat rangé (mois à deux contrats) garde ses cumuls dans
+    # son contenu : ceux du planning du mois sont ceux du contrat qui continue [D3].
+    if row.get("contract_period_id"):
+        donnees = row.get("payslip_data") or {}
+        return donnees.get("cumuls") if isinstance(donnees, dict) else None
     emp_id = row.get("employee_id")
     year = row.get("year")
     month = row.get("month")
@@ -359,7 +383,7 @@ def get_payslip_for_preview(payslip_id: str) -> dict[str, Any] | None:
     """
     r = (
         supabase.table("payslips")
-        .select("id, employee_id, year, month, payslip_data")
+        .select("id, employee_id, year, month, payslip_data, contract_period_id")
         .eq("id", payslip_id)
         .maybe_single()
         .execute()
