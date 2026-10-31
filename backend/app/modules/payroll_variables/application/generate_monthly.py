@@ -60,6 +60,37 @@ def _bornes_variables(company_id: str, year: int, month: int) -> tuple[date, dat
         return _month_bounds(year, month)
 
 
+def _bornes_du_contrat(emp: dict[str, Any], start: date, end: date) -> tuple[date, date]:
+    """La fenêtre des variables, à partir du début du contrat de la fiche.
+
+    Vide (début après la fin) si le contrat commence après la fenêtre : les
+    règles qui comptent des jours ne comptent rien, une prime fixe du mois reste.
+
+    Un mois où un contrat finit et un autre commence a deux bulletins [D3] : le
+    planning du mois porte les jours des deux contrats, ceux de l'ancien ne
+    sont pas payés au nouveau. La fin de contrat de la fiche n'est pas lue :
+    des fiches actives en portent une dépassée (renouvellement non reporté), et
+    le bulletin de l'ancien contrat ne relance jamais ses variables.
+    """
+    debut = _parse_date_iso(emp.get("date_debut_execution") or emp.get("hire_date"))
+    return (max(start, debut) if debut else start), end
+
+
+def _dans_le_contrat(
+    calendrier: list[dict[str, Any]], year: int, month: int, debut: date, fin: date
+) -> list[dict[str, Any]]:
+    """Les jours du calendrier du mois qui tombent dans le contrat."""
+    garde = []
+    for entree in calendrier:
+        try:
+            jour = date(year, month, int(entree.get("jour")))
+        except (TypeError, ValueError):
+            continue
+        if debut <= jour <= fin:
+            garde.append(entree)
+    return garde
+
+
 def _slug_prime_id(label: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
     return slug or "prime"
@@ -247,8 +278,10 @@ def _count_shift_type_occurrences(
     year: int,
     month: int,
     shift_type_codes: list[str] | None,
+    bornes: tuple[date, date] | None = None,
 ) -> float:
-    start, end = _bornes_variables(company_id, year, month)
+    fenetre = _bornes_variables(company_id, year, month)
+    start, end = bornes or fenetre
     resp = (
         supabase.table("shifts")
         .select("shift_date, shift_types(code)")
@@ -268,6 +301,10 @@ def _count_shift_type_occurrences(
             count += 1.0
     if count > 0:
         return count
+    # Le résumé du planning compte tout le mois : il ne sert pas à un contrat
+    # qui commence ou finit dans la fenêtre [D3].
+    if (start, end) != tuple(fenetre):
+        return 0.0
     return _count_planning_shift_entries(employee_id, year, month, shift_type_codes)
 
 
@@ -277,15 +314,19 @@ def _resolve_quantity(
     company_id: str,
     year: int,
     month: int,
+    bornes: tuple[date, date] | None = None,
 ) -> float:
+    """`bornes` : la fenêtre des variables bornée au contrat de la fiche [D3]."""
     rule_type = rule.get("rule_type") or ""
-    start, end = _bornes_variables(company_id, year, month)
+    fenetre = _bornes_variables(company_id, year, month)
+    start, end = bornes or fenetre
+    resume_du_mois = (start, end) == tuple(fenetre)
     if rule_type == "per_astreinte_week":
         return float(_count_astreinte_weeks(employee_id, start, end))
     if rule_type == "per_modulation_payout":
         return max(0.0, _modulation_balance_hours(employee_id, company_id, year))
     if rule_type == "per_night_hour":
-        summary = _shift_payroll_summary(employee_id, year, month)
+        summary = _shift_payroll_summary(employee_id, year, month) if resume_du_mois else {}
         night = float(summary.get("night_hours") or 0)
         if night > 0:
             return night
@@ -301,7 +342,7 @@ def _resolve_quantity(
         shift_codes = (rule.get("conditions") or {}).get("shift_type_codes")
         codes = [str(c) for c in shift_codes] if isinstance(shift_codes, list) else None
         return _count_shift_type_occurrences(
-            employee_id, company_id, year, month, codes
+            employee_id, company_id, year, month, codes, bornes=(start, end)
         )
     if rule_type == "per_week_without_absence":
         return 0.0
@@ -431,7 +472,8 @@ def generate_monthly_variables(
         supabase.table("employees")
         .select(
             "id, first_name, last_name, statut, specificites_paie, "
-            "salaire_de_base, duree_hebdomadaire, hire_date, contract_end_date"
+            "salaire_de_base, duree_hebdomadaire, hire_date, contract_end_date, "
+            "date_debut_execution"
         )
         .eq("company_id", company_id)
         .in_("employment_status", ["actif", "active"])
@@ -465,6 +507,9 @@ def generate_monthly_variables(
             if not employee_matches_conditions(emp, conditions):
                 continue
             eid = str(emp["id"])
+            # Les jours du contrat de la fiche seulement [D3].
+            bornes = _bornes_du_contrat(emp, start, end)
+            debut_c, fin_c = bornes
 
             if rule_type == "transport_domicile_travail":
                 # Le montant vient de la fiche salarié (avenant signé), pas de la
@@ -518,8 +563,10 @@ def generate_monthly_variables(
                     emp,
                     year=year,
                     month=month,
-                    calendrier_reel=_load_calendrier_reel(eid, year, month),
-                    astreinte_shift_dates=_astreinte_shift_dates(eid, start, end),
+                    calendrier_reel=_dans_le_contrat(
+                        _load_calendrier_reel(eid, year, month), year, month, debut_c, fin_c
+                    ),
+                    astreinte_shift_dates=_astreinte_shift_dates(eid, debut_c, fin_c),
                     baremes_km=baremes_km,
                     manual_trips=manual_trips,
                 )
@@ -570,7 +617,7 @@ def generate_monthly_variables(
                     rule,
                     year=year,
                     month=month,
-                    shift_dates=_astreinte_shift_dates(eid, start, end),
+                    shift_dates=_astreinte_shift_dates(eid, debut_c, fin_c),
                     special_days=special_days,
                 )
                 for payout in payouts:
@@ -597,8 +644,10 @@ def generate_monthly_variables(
                     rule,
                     year=year,
                     month=month,
-                    calendrier_reel=_load_calendrier_reel(eid, year, month),
-                    astreinte_shift_dates=_astreinte_shift_dates(eid, start, end),
+                    calendrier_reel=_dans_le_contrat(
+                        _load_calendrier_reel(eid, year, month), year, month, debut_c, fin_c
+                    ),
+                    astreinte_shift_dates=_astreinte_shift_dates(eid, debut_c, fin_c),
                     hourly_rate=hourly,
                 )
                 for maj in majorations:
@@ -622,7 +671,7 @@ def generate_monthly_variables(
             if rule_type == "per_week_without_absence":
                 emp_absences = absences_by_employee.get(eid, [])
                 shift_dates = list_locked_shift_dates_for_employee(
-                    eid, start, end, company_id=company_id
+                    eid, debut_c, fin_c, company_id=company_id
                 )
                 presence = evaluate_presence_weeks(
                     year=year,
@@ -657,7 +706,7 @@ def generate_monthly_variables(
                 )
                 continue
 
-            qty = _resolve_quantity(rule, eid, company_id, year, month)
+            qty = _resolve_quantity(rule, eid, company_id, year, month, bornes=bornes)
             amount = compute_rule_amount(
                 rule_type,
                 float(rule["amount"]) if rule.get("amount") is not None else None,

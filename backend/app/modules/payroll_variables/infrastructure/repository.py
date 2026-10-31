@@ -63,6 +63,9 @@ def find_existing_monthly_input(
         .eq("year", year)
         .eq("month", month)
         .eq("name", name)
+        # Une variable rangée avec l'ancien contrat d'un mois partagé n'est
+        # jamais réécrite par la génération du contrat de la fiche [D3].
+        .is_("contract_period_id", "null")
         .limit(1)
         .execute()
     )
