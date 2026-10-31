@@ -58,6 +58,7 @@ def get_journal_paie_data(
         "total_net_a_payer": 0.0,
     }
 
+    salaries_vus: set[str] = set()
     for payslip in payslips:
         employee = payslip.get("employees", {})
         payslip_data = payslip.get("payslip_data", {})
@@ -111,7 +112,9 @@ def get_journal_paie_data(
 
         journal_data.append(row)
 
-        totals["employees_count"] += 1
+        # Des salariés, pas des bulletins (deux contrats le même mois : un salarié, D3).
+        salaries_vus.add(str(employee.get("id") or payslip.get("employee_id") or ""))
+        totals["employees_count"] = len(salaries_vus)
         totals["total_brut"] += brut
         totals["total_cotisations_salariales"] += cotisations_salariales
         totals["total_cotisations_patronales"] += cotisations_patronales

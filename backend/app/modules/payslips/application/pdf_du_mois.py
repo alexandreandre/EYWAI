@@ -37,18 +37,25 @@ def _salaries(lignes: list[dict[str, Any]]) -> list[SalarieDuMois]:
 
 
 def _bulletins(lignes: list[dict[str, Any]]) -> list[BulletinRange]:
-    """Un salarié, un fichier : le plus récemment mis à jour s'il y en a plusieurs."""
-    gardes: dict[str, tuple[str, str | None]] = {}
+    """Un bulletin, un fichier : le plus récemment mis à jour s'il y en a plusieurs.
+
+    Un bulletin par salarié et par contrat : un mois à deux contrats en a deux (D3).
+    """
+    gardes: dict[tuple[str, str], tuple[str, str | None]] = {}
     for ligne in lignes:
         identifiant = str(ligne.get("employee_id") or "")
         if not identifiant:
             continue
+        cle = (identifiant, str(ligne.get("contract_period_id") or ""))
         chemin = str(ligne["pdf_storage_path"]) if ligne.get("pdf_storage_path") else None
         instant = str(ligne.get("updated_at") or "")
-        deja = gardes.get(identifiant)
+        deja = gardes.get(cle)
         if deja is None or (chemin and (not deja[1] or instant >= deja[0])):
-            gardes[identifiant] = (instant, chemin)
-    return [BulletinRange(identifiant=identifiant, chemin=chemin) for identifiant, (_instant, chemin) in gardes.items()]
+            gardes[cle] = (instant, chemin)
+    return [
+        BulletinRange(identifiant=identifiant, chemin=chemin)
+        for (identifiant, _contrat), (_instant, chemin) in gardes.items()
+    ]
 
 
 def _lire_pdf(chemin: str) -> bytes:
@@ -75,7 +82,7 @@ def rendre_pdf_du_mois(company_id: str, annee: int, mois: int) -> tuple[bytes, s
     salaries = _salaries(get_employees_summary(company_id, payroll_ready_only=True))
     lus = (
         supabase.table("payslips")
-        .select("employee_id, pdf_storage_path, updated_at")
+        .select("employee_id, pdf_storage_path, updated_at, contract_period_id")
         .eq("company_id", company_id)
         .eq("year", annee)
         .eq("month", mois)

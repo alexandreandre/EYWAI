@@ -126,3 +126,22 @@ def test_un_fichier_illisible_est_nomme_et_n_est_pas_colle():
 
 def test_le_nom_de_fichier_porte_le_mois():
     assert nom_de_fichier(2026, 10) == "Bulletins octobre 2026.pdf"
+
+
+def test_deux_contrats_le_meme_mois_deux_bulletins_colles():
+    """Le CDD fini le 10/11 et le contrat repris le 17/11 : deux bulletins (D3)."""
+    salaries = [_salarie("1", "Camille", "Martin", debut="2026-11-17")]
+    bulletins = [BulletinRange("1", "ancien.pdf"), BulletinRange("1", "nouveau.pdf")]
+    morceaux, sans = classer(salaries, bulletins, 2026, 11)
+    assert morceaux == [("Camille Martin", "ancien.pdf"), ("Camille Martin", "nouveau.pdf")]
+    assert sans == []
+
+
+def test_un_fichier_par_bulletin_et_par_contrat(monkeypatch):
+    from app.modules.payslips.application.pdf_du_mois import _bulletins
+
+    lignes = [
+        {"employee_id": "1", "pdf_storage_path": "ancien.pdf", "updated_at": "1", "contract_period_id": "periode-1"},
+        {"employee_id": "1", "pdf_storage_path": "nouveau.pdf", "updated_at": "2"},
+    ]
+    assert sorted(b.chemin for b in _bulletins(lignes)) == ["ancien.pdf", "nouveau.pdf"]

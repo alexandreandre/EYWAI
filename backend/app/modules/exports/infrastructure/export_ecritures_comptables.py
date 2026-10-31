@@ -175,6 +175,7 @@ def get_payslip_data_for_od(
         month,
         year,
         payslip_data,
+        contract_period_id,
         employees!inner(
             id,
             first_name,
@@ -196,12 +197,13 @@ def get_payslip_data_for_od(
     payslips = response.data or []
 
     # Certaines saisies non soumises entrent dans le net à payer sans être
-    # recopiées dans payslip_data (indemnité d'activité partielle).
-    saisies_par_salarie: Dict[str, List[Dict[str, Any]]] = {}
+    # recopiées dans payslip_data (indemnité d'activité partielle). Rangées par
+    # bulletin : un mois à deux contrats en a deux, chacun ses saisies (D3).
+    saisies_par_salarie: Dict[tuple, List[Dict[str, Any]]] = {}
     try:
         saisies_r = (
             supabase.table("monthly_inputs")
-            .select("employee_id, name, amount, is_socially_taxed")
+            .select("employee_id, name, amount, is_socially_taxed, contract_period_id")
             .eq("company_id", company_id)
             .eq("year", year)
             .eq("month", month)
@@ -210,7 +212,7 @@ def get_payslip_data_for_od(
         )
         for saisie in saisies_r.data or []:
             saisies_par_salarie.setdefault(
-                str(saisie.get("employee_id") or ""), []
+                (str(saisie.get("employee_id") or ""), saisie.get("contract_period_id")), []
             ).append(saisie)
     except Exception as e:
         logger.warning(f"Saisies mensuelles non lues pour l'OD : {e}")
@@ -224,6 +226,7 @@ def get_payslip_data_for_od(
         "employees_count": 0,
     }
     payslip_list = []
+    salaries_vus: set[str] = set()
 
     comptes_de_saisie: Dict[str, str] = {}
 
@@ -258,7 +261,9 @@ def get_payslip_data_for_od(
             payslip_id=payslip["id"],
             employee=employee,
             payslip_data=payslip_data,
-            saisies_du_salarie=saisies_par_salarie.get(str(employee.get("id") or ""), []),
+            saisies_du_salarie=saisies_par_salarie.get(
+                (str(employee.get("id") or ""), payslip.get("contract_period_id")), []
+            ),
             compte_de_saisie=compte_de_saisie,
             establishment_label=establishment_label,
         )
@@ -268,7 +273,9 @@ def get_payslip_data_for_od(
         totals["total_cotisations_salariales"] += ligne["cotisations_salariales"]
         totals["total_cotisations_patronales"] += ligne["cotisations_patronales"]
         totals["total_pas"] += ligne["pas"]
-        totals["employees_count"] += 1
+        # Des salariés, pas des bulletins (deux contrats le même mois : un salarié).
+        salaries_vus.add(str(employee.get("id") or payslip.get("employee_id") or ""))
+        totals["employees_count"] = len(salaries_vus)
 
     return payslip_list, totals
 

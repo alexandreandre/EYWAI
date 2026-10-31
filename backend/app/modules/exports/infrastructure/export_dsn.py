@@ -286,7 +286,8 @@ def get_dsn_employees_data(
         employee_id,
         month,
         year,
-        payslip_data
+        payslip_data,
+        contract_period_id
         """
         )
         .eq("company_id", company_id)
@@ -297,7 +298,7 @@ def get_dsn_employees_data(
         payslips_query = payslips_query.in_("employee_id", employee_ids)
     payslips_response = payslips_query.execute()
     payslips = payslips_response.data or []
-    payslips_by_employee = {p["employee_id"]: p for p in payslips}
+    payslips_by_employee, a_deux_contrats = _bulletins_par_salarie(payslips)
     evenements = _evenements_dsn(
         company_id,
         period,
@@ -365,6 +366,7 @@ def get_dsn_employees_data(
             {
                 "employee": employee,
                 "payslip": payslip,
+                "deux_contrats": employee["id"] in a_deux_contrats,
                 "payslip_data": payslip_data,
                 "brut": brut,
                 "net_imposable": net_imposable,
@@ -391,6 +393,31 @@ AVERTISSEMENT_ESSAI = (
     "Fichier d'essai (S10.G00.00.005 = 01) : à déposer en mode test sur "
     "net-entreprises, il ne vaut pas déclaration. Le fichier réel reste bloqué."
 )
+
+
+_MOIS_DSN = (
+    "", "Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet",
+    "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+)
+
+
+def _bulletins_par_salarie(
+    payslips: List[Dict[str, Any]],
+) -> Tuple[Dict[str, Dict[str, Any]], set]:
+    """Le bulletin du contrat de la fiche de chaque salarié, et ceux qui ont un
+    second bulletin dans le mois (contrat rangé d'un mois partagé, D3)."""
+    par_salarie: Dict[str, Dict[str, Any]] = {}
+    a_deux_contrats: set = set()
+    for bulletin in payslips:
+        if bulletin.get("contract_period_id"):
+            a_deux_contrats.add(bulletin["employee_id"])
+        else:
+            par_salarie[bulletin["employee_id"]] = bulletin
+    # Le contrat rangé sans bulletin du contrat de la fiche : il reste déclaré
+    # (et refusé avec les autres cas à deux contrats).
+    for bulletin in payslips:
+        par_salarie.setdefault(bulletin["employee_id"], bulletin)
+    return par_salarie, a_deux_contrats
 
 
 def check_dsn_data(
@@ -451,6 +478,22 @@ def check_dsn_data(
         employee_name = (
             f"{employee.get('first_name', '')} {employee.get('last_name', '')}".strip()
         )
+        if emp_data.get("deux_contrats"):
+            # Deux bulletins, un par contrat (D3) : la DSN qui les déclare tous
+            # les deux est à faire (D3.2). Refus nommé plutôt qu'un bulletin perdu.
+            annee_dsn, mois_dsn = (int(x) for x in period.split("-"))
+            anomalies.append(
+                {
+                    "type": "error",
+                    "message": (
+                        f"{_MOIS_DSN[mois_dsn]} {annee_dsn} : {employee_name} a deux contrats "
+                        "dans le mois. La DSN de ce cas n'est pas encore faite par Martine."
+                    ),
+                    "severity": "blocking",
+                    "employee_id": employee_id,
+                    "employee_name": employee_name,
+                }
+            )
         nir = employee.get("nir")
         nir_valid, nir_error = validate_nir_dsn(nir)
         if not nir_valid:

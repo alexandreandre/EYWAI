@@ -111,20 +111,20 @@ def classer(
     affiché sur le mois. Quelqu'un hors du mois, sans fichier, n'est pas
     nommé : ce n'est pas un trou de paie.
     """
-    chemin_par_personne = {
-        bulletin.identifiant: bulletin.chemin
-        for bulletin in bulletins
-        if bulletin.chemin
-    }
+    # Un mois à deux contrats a deux bulletins pour la même personne (D3).
+    chemins_par_personne: dict[str, list[str]] = {}
+    for bulletin in bulletins:
+        if bulletin.chemin:
+            chemins_par_personne.setdefault(bulletin.identifiant, []).append(bulletin.chemin)
     connus = {salarie.identifiant for salarie in salaries}
     morceaux: list[tuple[str, str, tuple[str, str]]] = []
     sans: list[tuple[str, tuple[str, str]]] = []
     for salarie in salaries:
         nom = nom_affiche(salarie.prenom, salarie.nom)
         cle = _cle(salarie.prenom, salarie.nom)
-        chemin = chemin_par_personne.get(salarie.identifiant)
-        if chemin:
-            morceaux.append((nom, chemin, cle))
+        chemins = chemins_par_personne.get(salarie.identifiant)
+        if chemins:
+            morceaux.extend((nom, chemin, cle) for chemin in chemins)
             continue
         if not present_sur_le_mois(salarie.statut, salarie.dernier_jour, annee, mois):
             continue

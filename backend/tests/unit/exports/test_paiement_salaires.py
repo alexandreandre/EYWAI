@@ -164,3 +164,29 @@ class _FakeQuery:
 class _FakeResult:
     def __init__(self, data):
         self.data = data
+
+
+class TestDeuxContratsLeMemeMois:
+    """Un CDD fini le 10/11, un nouveau contrat dès le 17/11 : deux bulletins,
+    deux nets à virer, pas un doublon (D3)."""
+
+    @pytest.mark.parametrize("module_path", _CHEMINS)
+    def test_les_deux_nets_sont_vires(self, module_path, monkeypatch):
+        import importlib
+
+        module = importlib.import_module(module_path)
+        coords = {"iban": _VALID_IBAN, "bic": "BNPAFRPP"}
+        ancien = {
+            **_payslip_row("emp-1", "Camille", "Exemple", coords, net_a_payer=700.0),
+            "id": "ps-ancien",
+            "contract_period_id": "periode-1",
+        }
+        nouveau = {**_payslip_row("emp-1", "Camille", "Exemple", coords, net_a_payer=900.0), "id": "ps-nouveau"}
+        monkeypatch.setattr(
+            f"{module_path}.supabase.table",
+            lambda name: _FakeQuery(name, payslips=[ancien, nouveau], exits=[]),
+        )
+        data, totals, anomalies, _ = module.get_paiement_salaires_data("co-1", "2026-11")
+        assert anomalies == []
+        assert totals["virements_count"] == 2
+        assert totals["total_amount"] == pytest.approx(1600.0)

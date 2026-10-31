@@ -54,6 +54,7 @@ def get_paiement_salaires_data(
         month,
         year,
         payslip_data,
+        contract_period_id,
         employees!inner(
             id,
             first_name,
@@ -96,8 +97,10 @@ def get_paiement_salaires_data(
     for payslip in payslips:
         employee = payslip.get("employees", {})
         employee_id = employee.get("id")
+        # Un bulletin par contrat : un mois à deux contrats a deux nets à virer (D3).
+        cle = (employee_id, payslip.get("contract_period_id"))
 
-        if employee_id in seen_employees:
+        if cle in seen_employees:
             anomalies.append(
                 {
                     "type": "error",
@@ -109,7 +112,7 @@ def get_paiement_salaires_data(
             )
             continue
 
-        seen_employees.add(employee_id)
+        seen_employees.add(cle)
 
         if excluded_employee_ids and employee_id in excluded_employee_ids:
             continue

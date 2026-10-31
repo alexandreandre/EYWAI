@@ -119,7 +119,9 @@ def _lire_bulletins(
             float(c.get("total_patronal") or 0)
             for c in (donnees.get("cotisations_officielles") or [])
         )
-        resultat.setdefault(ligne["employee_id"], {})[cle] = (brut, patronal)
+        # Un mois à deux contrats a deux bulletins : la provision les somme (D3).
+        deja_brut, deja_patronal = resultat.setdefault(ligne["employee_id"], {}).get(cle, (0.0, 0.0))
+        resultat[ligne["employee_id"]][cle] = (deja_brut + brut, deja_patronal + patronal)
     return resultat
 
 
