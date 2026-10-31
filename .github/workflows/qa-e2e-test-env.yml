@@ -8,10 +8,12 @@
 
 name: QA E2E (env de test)
 
+# Pas de lancement planifié : GitHub le jouerait depuis main, dont les specs
+# ne sont pas celles du site de test (rouge chaque matin sans rien prouver,
+# 28-30/10/2026). La suite tourne après chaque déploiement, sur les specs du
+# commit déployé, et à la demande.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '30 5 * * 1-5' # chaque matin de semaine, avant la journée de travail
   workflow_run:
     workflows: ['Deploy test env'] # rejoue la suite après chaque déploiement du test
     types: [completed]
