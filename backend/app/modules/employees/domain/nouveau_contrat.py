@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
+from app.modules.dsn_export.domain.contract_map import numero_du_contrat, numero_suivant
+
 TYPES_DE_CONTRAT = ("CDI", "CDD", "Apprentissage", "Contrat de professionnalisation")
 STATUTS_PARTIS = ("parti", "sorti", "inactif")
 DUREE_HEBDO_MAX = 48.0
@@ -225,19 +227,46 @@ DRAPEAUX_FIN_DE_CONTRAT = {
 DRAPEAUX_DU_CONTRAT = (DRAPEAUX_ALTERNANCE, DRAPEAUX_FIN_DE_CONTRAT)
 
 
-def _specificites_sans_alternance(specificites: Any) -> dict[str, Any] | None:
-    """Les spécificités de paie, drapeaux propres au contrat rangé (alternance,
-    exclusions de fin de contrat) remis à zéro, groupe par groupe ; None si
-    aucun n'était posé (rien à réécrire)."""
+#: Reprise DSN du cabinet propre au contrat rangé : sa fin prévue, et son
+#: motif de recours, qui ne suit que d'un CDD à un CDD (D3.2).
+_FIN_REPRISE, _MOTIF = "date_fin_contrat", "motif_recours"
+
+
+def _de_cdd_a_cdd(precedent: ContratPrecedent, demande: Demande) -> bool:
+    return precedent.contract_type.strip().upper() == "CDD" and demande.contract_type == "CDD"
+
+
+def _specificites_du_nouveau_contrat(specificites: Any, garder_motif: bool) -> dict[str, Any] | None:
+    """Les spécificités de paie, ce qui était propre au contrat rangé remis à
+    zéro : drapeaux (alternance, exclusions de fin de contrat), groupe par
+    groupe, et reprise DSN (fin prévue, motif de recours) ; None si rien
+    n'était posé (rien à réécrire)."""
     if not isinstance(specificites, Mapping):
         return None
-    remis = {}
+    remis: dict[str, Any] = {}
     for groupe in DRAPEAUX_DU_CONTRAT:
         if any(specificites.get(cle) for cle in groupe):
             remis.update(groupe)
+    reprise = specificites.get("dsn_reprise")
+    propres = (_FIN_REPRISE,) if garder_motif else (_FIN_REPRISE, _MOTIF)
+    if isinstance(reprise, Mapping) and any(cle in reprise for cle in propres):
+        remis["dsn_reprise"] = {cle: v for cle, v in reprise.items() if cle not in propres}
     if not remis:
         return None
     return {**specificites, **remis}
+
+
+def _classification_du_nouveau_contrat(fiche: Mapping[str, Any], garder_motif: bool) -> dict[str, Any]:
+    """La classification de la fiche, avec le numéro DSN du contrat suivant
+    (00000 → 00001, comme Quadra) : deux contrats déclarés le même mois ont deux
+    numéros (CT 40.009 CCH-12). Le motif de recours repris ne suit que d'un CDD
+    à un CDD."""
+    classification = fiche.get("classification_conventionnelle")
+    nouvelle = dict(classification) if isinstance(classification, Mapping) else {}
+    nouvelle["numero_contrat_dsn"] = numero_suivant(numero_du_contrat(dict(fiche)))
+    if not garder_motif:
+        nouvelle.pop(_MOTIF, None)
+    return nouvelle
 
 
 def ecritures(
@@ -249,7 +278,9 @@ def ecritures(
     celles du contrat précédent : elles sont vidées, sinon la garde de présence
     lirait encore l'ancien début. Le maintien de l'ancien régime apprenti et sa
     date d'effet (`specificites_paie`) étaient aussi ceux du contrat rangé : ils
-    sont remis à zéro, le reste des spécificités est gardé.
+    sont remis à zéro, le reste des spécificités est gardé. La classification
+    prend le numéro DSN du contrat suivant ; la fiche rangée garde l'ancienne
+    (D3.2).
     """
     periode = {
         "contract_type": precedent.contract_type,
@@ -269,7 +300,11 @@ def ecritures(
         "current_exit_id": None,
         "seniority_reference_date": date_anciennete(fiche, precedent, demande).isoformat(),
     }
-    specificites = _specificites_sans_alternance(fiche.get("specificites_paie"))
+    garder_motif = _de_cdd_a_cdd(precedent, demande)
+    nouvelle_fiche["classification_conventionnelle"] = _classification_du_nouveau_contrat(
+        fiche, garder_motif
+    )
+    specificites = _specificites_du_nouveau_contrat(fiche.get("specificites_paie"), garder_motif)
     if specificites is not None:
         nouvelle_fiche["specificites_paie"] = specificites
     ancien = fiche.get("salaire_de_base")

@@ -16,6 +16,7 @@ from app.modules.employees.domain.nouveau_contrat import (
     contrat_precedent,
     date_anciennete,
     ecritures,
+    fiche_rangee,
     message_de_succes,
     premier_jour_possible,
     raison_du_refus,
@@ -236,7 +237,51 @@ class TestEcritures:
             "employment_status": "actif",
             "current_exit_id": None,
             "seniority_reference_date": "2026-09-01",
+            "classification_conventionnelle": {"numero_contrat_dsn": "00001"},
         }
+
+    def test_le_nouveau_contrat_prend_le_numero_dsn_suivant(self):
+        """Comme Quadra (00000, 00001…) : deux contrats d'un salarié déclarés le
+        même mois ont deux numéros (CT 40.009 CCH-12, D3.2). Le reste de la
+        classification suit."""
+        fiche = {**FICHE, "classification_conventionnelle": {"numero_contrat_dsn": "00004", "niveau_dsn": "720"}}
+        _, nouvelle, _ = ecritures(fiche, PRECEDENT, _demande())
+        assert nouvelle["classification_conventionnelle"] == {"numero_contrat_dsn": "00005", "niveau_dsn": "720"}
+
+    def test_le_contrat_range_garde_son_numero_dsn(self):
+        fiche = {**FICHE, "classification_conventionnelle": {"numero_contrat_dsn": "00004"}}
+        _, nouvelle, _ = ecritures(fiche, PRECEDENT, _demande())
+        assert fiche_rangee(fiche, nouvelle)["classification_conventionnelle"] == {"numero_contrat_dsn": "00004"}
+
+    def test_le_motif_de_recours_suit_d_un_cdd_a_un_cdd(self):
+        """Des CDD successifs pour le même besoin (saisonnier…) ; le motif se
+        corrige sur la fiche."""
+        fiche = {
+            **FICHE,
+            "classification_conventionnelle": {"motif_recours": "03"},
+            "specificites_paie": {"dsn_reprise": {"motif_recours": "03", "pas_type": "01"}},
+        }
+        _, nouvelle, _ = ecritures(fiche, PRECEDENT, _demande())
+        assert nouvelle["classification_conventionnelle"]["motif_recours"] == "03"
+        assert "specificites_paie" not in nouvelle
+
+    def test_le_motif_de_recours_ne_suit_pas_vers_un_cdi(self):
+        fiche = {
+            **FICHE,
+            "classification_conventionnelle": {"motif_recours": "03"},
+            "specificites_paie": {"dsn_reprise": {"motif_recours": "03", "pas_type": "01"}},
+        }
+        _, nouvelle, _ = ecritures(fiche, PRECEDENT, _demande(contract_type="CDI", date_fin=None))
+        assert "motif_recours" not in nouvelle["classification_conventionnelle"]
+        assert nouvelle["specificites_paie"] == {"dsn_reprise": {"pas_type": "01"}}
+
+    def test_la_fin_reprise_du_contrat_precedent_ne_suit_pas(self):
+        """La fin du nouveau contrat est sur la fiche ; celle de la reprise DSN
+        décrivait le contrat rangé (CT 40.010 CCH-11)."""
+        fiche = {**FICHE, "specificites_paie": {"dsn_reprise": {"date_fin_contrat": "31052026", "pas_type": "01"}}}
+        _, nouvelle, _ = ecritures(fiche, PRECEDENT, _demande())
+        assert nouvelle["specificites_paie"] == {"dsn_reprise": {"pas_type": "01"}}
+        assert fiche_rangee(fiche, nouvelle)["specificites_paie"]["dsn_reprise"]["date_fin_contrat"] == "31052026"
 
     def test_temps_partiel_et_poste_vide(self):
         _, fiche, _ = ecritures(FICHE, PRECEDENT, _demande(duree_hebdomadaire=24, job_title="  "))

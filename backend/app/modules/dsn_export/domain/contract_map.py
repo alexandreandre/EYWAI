@@ -26,6 +26,14 @@ def numero_du_contrat(employee: Dict[str, Any]) -> str:
     )
 
 
+def numero_suivant(numero: str) -> str:
+    """Le numéro du contrat suivant d'un salarié : 00000 → 00001, comme Quadra ;
+    00001 après un numéro qui n'est pas un nombre."""
+    if numero.isdigit():
+        return str(int(numero) + 1).zfill(max(len(numero), len(NUMERO_PREMIER_CONTRAT)))
+    return str(1).zfill(len(NUMERO_PREMIER_CONTRAT))
+
+
 # Inverse nature contrat
 _NATURE_FROM_MARTINE: Dict[str, str] = {}
 for code, label in CONTRACT_NATURE_MAP.items():

@@ -35,6 +35,7 @@ FICHE = {
     "duree_hebdomadaire": "39.00",
     "job_title": "Opératrice polyvalente",
     "salaire_de_base": {"type": "mensuel", "valeur": 1964.73},
+    "classification_conventionnelle": {"numero_contrat_dsn": "00000", "niveau_dsn": "720"},
 }
 DEPART = {"id": "depart-1", "last_working_day": "2026-05-31", "status": "archivee"}
 
@@ -131,7 +132,8 @@ def base(monkeypatch):
     def ranger(employee_id, company_id, payload, fiche=None):
         b.journal.append(("periode", payload.contract_type, payload.date_debut.isoformat(), payload.date_fin.isoformat()))
         ligne = {"id": "periode-1", "contract_type": payload.contract_type,
-                 "date_debut": payload.date_debut.isoformat(), "date_fin": payload.date_fin.isoformat()}
+                 "date_debut": payload.date_debut.isoformat(), "date_fin": payload.date_fin.isoformat(),
+                 "fiche": fiche}
         b.periodes.append(ligne)
         return ligne
 
@@ -225,6 +227,11 @@ class TestCreer:
         resultat = service.creer(EMP, SOC, _payload(reprendre_anciennete=True), "rh-1")
         assert base.fiche["seniority_reference_date"] == "2026-01-19"
         assert resultat["date_anciennete"] == "2026-01-19"
+
+    def test_le_nouveau_contrat_a_le_numero_dsn_suivant_et_le_range_l_ancien(self, base):
+        service.creer(EMP, SOC, _payload(), "rh-1")
+        assert base.fiche["classification_conventionnelle"] == {"numero_contrat_dsn": "00001", "niveau_dsn": "720"}
+        assert base.periodes[0]["fiche"]["classification_conventionnelle"]["numero_contrat_dsn"] == "00000"
 
     def test_un_refus_n_ecrit_rien(self, base):
         with pytest.raises(service.NouveauContratRefuse, match="Indiquez la date de fin du CDD"):
