@@ -379,8 +379,18 @@ def write_individu(ind: IndividuBlock, out: List[str]) -> None:
         _emit(R_S21_IND_VILLE, ind.adresse_ville, out)
         _emit(R_S21_IND_MATRICULE, ind.matricule, out)
         _emit(R_S21_IND_NTT, ind.ntt, out)
+    # Arborescence de la norme (CT 2026.1, § 8) : contrats (40), versements
+    # (50) et anciennetés (86) sont tous enfants de l'individu. Un versement
+    # écrit sous chaque contrat ferait du second contrat d'un mois à deux
+    # contrats l'enfant du premier versement (D3.2). Avec un contrat, l'ordre
+    # est celui d'avant.
     for ctr in ind.contrats:
         write_contrat(ctr, out)
+    for ctr in ind.contrats:
+        for ver in ctr.versements:
+            write_versement(ver, out)
+    for ctr in ind.contrats:
+        _write_anciennetes(ctr, out)
 
 
 def write_affiliation(aff: AffiliationBlock, out: List[str]) -> None:
@@ -611,6 +621,8 @@ def write_versement(ver: VersementBlock, out: List[str]) -> None:
 
 
 def write_contrat(ctr: ContratBlock, out: List[str]) -> None:
+    """Le contrat et ses blocs enfants ; ses versements et son ancienneté
+    s'écrivent après tous les contrats de l'individu (`write_individu`)."""
     if ctr.rubriques:
         _emit_rubriques_dict(ctr.rubriques, out)
         # Ordre de la norme, celui du cabinet, que le validateur exige :
@@ -630,9 +642,6 @@ def write_contrat(ctr: ContratBlock, out: List[str]) -> None:
         regime = str(ctr.rubriques.get("_regime_retraite_complementaire") or "")
         if regime:
             _emit(R_S21_CTR_REGIME_RC, regime, out)
-        for ver in ctr.versements:
-            write_versement(ver, out)
-        _write_anciennetes(ctr, out)
         return
     else:
         _emit(R_S21_CTR_DATE_DEBUT, ctr.date_debut, out)
@@ -657,9 +666,6 @@ def write_contrat(ctr: ContratBlock, out: List[str]) -> None:
         write_suspension(susp, out)
     if ctr.fin_contrat:
         write_fin_contrat(ctr.fin_contrat, out)
-    for ver in ctr.versements:
-        write_versement(ver, out)
-    _write_anciennetes(ctr, out)
 
 
 def _write_anciennetes(ctr: ContratBlock, out: List[str]) -> None:
