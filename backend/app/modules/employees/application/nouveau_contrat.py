@@ -7,6 +7,11 @@ Trois écritures, dans cet ordre, pour que rien ne reste à moitié fait :
    fiche revient à son état d'avant ;
 3. le salaire passe par l'historique daté (comme l'onglet Augmentations) ; si
    cela échoue, le contrat reste enregistré et la réponse dit où saisir le salaire.
+
+Un nouveau contrat qui commence le mois où le précédent finit : ce mois a deux
+bulletins [D3]. Juste après le rangement, son bulletin et ses variables passent
+au contrat rangé (`ranger_mois_partage`) ; si ce marquage échoue, le contrat
+rangé est retiré et la fiche revient à son état d'avant.
 """
 
 from __future__ import annotations
@@ -31,6 +36,7 @@ from app.modules.employees.domain.nouveau_contrat import (
     date_anciennete,
     ecritures,
     fiche_rangee,
+    meme_mois,
     message_de_succes,
     premier_jour_possible,
     raison_du_refus,
@@ -80,6 +86,10 @@ def _jj_mm_aaaa(d: date) -> str:
     return d.strftime("%d/%m/%Y")
 
 
+def _mm_aaaa(d: date) -> str:
+    return d.strftime("%m/%Y")
+
+
 def _euros(montant: float) -> str:
     return f"{montant:,.2f}".replace(",", " ").replace(".", ",")
 
@@ -122,6 +132,53 @@ def _bulletin_existe(employee_id: str, annee: int, mois: int) -> bool:
         .data
     )
     return bool(lignes)
+
+
+def _effets_par_mois(employee_id: str, annee: int, mois: int) -> bool:
+    """Le bulletin du mois a appliqué du CET ou crédité de la modulation : ces
+    effets se défont par (salarié, mois), pas par bulletin."""
+    cet = (
+        supabase.table("employee_cet_movements")
+        .select("id")
+        .eq("employee_id", employee_id)
+        .eq("year", annee)
+        .eq("month", mois)
+        .eq("status", "applied_payroll")
+        .limit(1)
+        .execute()
+        .data
+    )
+    if cet:
+        return True
+    modulation = (
+        supabase.table("employee_modulation_movements")
+        .select("id")
+        .eq("employee_id", employee_id)
+        .eq("year", annee)
+        .eq("month", mois)
+        .eq("movement_type", "credit_hs")
+        .eq("source", "payroll_auto")
+        .limit(1)
+        .execute()
+        .data
+    )
+    return bool(modulation)
+
+
+def _rendre_la_fiche(employee_id: str, company_id: str, fiche: dict, nouvelle_fiche: dict) -> bool:
+    """Remet la fiche dans son état d'avant ; False si la remise a échoué."""
+    avant = {cle: fiche.get(cle) for cle in nouvelle_fiche}
+    try:
+        return bool(
+            supabase.table("employees")
+            .update(avant)
+            .eq("id", employee_id)
+            .eq("company_id", company_id)
+            .execute()
+            .data
+        )
+    except Exception:  # noqa: BLE001 — sans retour, le message dit l'état laissé
+        return False
 
 
 def apercu(employee_id: str, company_id: str) -> dict[str, Any]:
@@ -187,6 +244,11 @@ def creer(
             else False
         ),
         rang_de_bascule=bascule.rang if bascule else None,
+        effets_par_mois=(
+            precedent is not None
+            and meme_mois(precedent, demande)
+            and _effets_par_mois(employee_id, precedent.fin.year, precedent.fin.month)
+        ),
     )
     if raison:
         raise NouveauContratRefuse(raison)
@@ -224,19 +286,7 @@ def creer(
         )
     except Exception as exc:  # l'état laissé est dit dans le message
         logger.exception("Nouveau contrat : rangement du contrat précédent impossible")
-        avant = {cle: fiche.get(cle) for cle in nouvelle_fiche}
-        try:
-            revenue = (
-                supabase.table("employees")
-                .update(avant)
-                .eq("id", employee_id)
-                .eq("company_id", company_id)
-                .execute()
-                .data
-            )
-        except Exception:  # noqa: BLE001 — sans retour, le message dit l'état laissé
-            revenue = None
-        if revenue:
+        if _rendre_la_fiche(employee_id, company_id, fiche, nouvelle_fiche):
             raise NonEnregistre(
                 "Le nouveau contrat n'a pas été enregistré : rien n'a changé sur la fiche. "
                 "Réessayez dans un instant."
@@ -246,6 +296,37 @@ def creer(
             f"ajoutez-le dans les contrats passés : {precedent.contract_type} du "
             f"{_jj_mm_aaaa(precedent.debut)} au {_jj_mm_aaaa(precedent.fin)}."
         ) from exc
+
+    # 2 bis. Mois partagé : son bulletin et ses variables vont au contrat rangé.
+    # Sinon le premier bulletin du nouveau contrat remplacerait le sien [D3].
+    if meme_mois(precedent, demande):
+        try:
+            supabase.rpc(
+                "ranger_mois_partage",
+                {
+                    "p_period": ligne["id"],
+                    "p_employee": employee_id,
+                    "p_year": precedent.fin.year,
+                    "p_month": precedent.fin.month,
+                },
+            ).execute()
+        except Exception as exc:  # l'état laissé est dit dans le message
+            logger.exception("Nouveau contrat : mois partagé non rangé")
+            try:
+                supabase.table("employee_contract_periods").delete().eq("id", ligne["id"]).execute()
+                retire = True
+            except Exception:  # noqa: BLE001 — le message dit l'état laissé
+                retire = False
+            if retire and _rendre_la_fiche(employee_id, company_id, fiche, nouvelle_fiche):
+                raise NonEnregistre(
+                    "Le nouveau contrat n'a pas été enregistré : rien n'a changé sur la fiche. "
+                    "Réessayez dans un instant."
+                ) from exc
+            raise NonEnregistre(
+                f"Le nouveau contrat est enregistré, mais le bulletin de {_mm_aaaa(precedent.fin)} "
+                "n'est pas rangé avec le contrat précédent. Ne générez pas le bulletin du "
+                "nouveau contrat pour ce mois : contactez le support."
+            ) from exc
 
     # 3. Le salaire, daté du début du nouveau contrat.
     avertissements: list[str] = []

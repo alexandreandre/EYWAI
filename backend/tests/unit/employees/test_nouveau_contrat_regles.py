@@ -53,7 +53,7 @@ def _demande(**champs) -> Demande:
     return Demande(**base)
 
 
-def _refus(fiche=FICHE, demande=None, *, bulletin=True, bascule=None):
+def _refus(fiche=FICHE, demande=None, *, bulletin=True, bascule=None, effets_par_mois=False):
     fiche = dict(fiche)
     return raison_du_refus(
         fiche,
@@ -61,6 +61,7 @@ def _refus(fiche=FICHE, demande=None, *, bulletin=True, bascule=None):
         demande or _demande(),
         bulletin_du_dernier_mois=bulletin,
         rang_de_bascule=bascule,
+        effets_par_mois=effets_par_mois,
     )
 
 
@@ -105,7 +106,9 @@ class TestRefus:
 
     def test_le_premier_jour_possible(self):
         assert premier_jour_possible(PRECEDENT) == date(2026, 6, 1)
-        assert premier_jour_possible(ContratPrecedent("CDD", date(2026, 1, 1), date(2026, 12, 15))) == date(2027, 1, 1)
+        # Le lendemain de la fin, même dans le mois : un bulletin par contrat [D3].
+        assert premier_jour_possible(ContratPrecedent("CDD", date(2026, 1, 1), date(2026, 12, 15))) == date(2026, 12, 16)
+        assert premier_jour_possible(ContratPrecedent("CDD", date(2026, 1, 1), date(2026, 12, 31))) == date(2027, 1, 1)
 
     def test_avant_la_fin_du_precedent(self):
         assert _refus(demande=_demande(date_debut=date(2026, 5, 31))) == (
@@ -113,20 +116,45 @@ class TestRefus:
             "Il peut commencer le 01/06/2026 au plus tôt."
         )
 
-    def test_le_meme_mois_que_la_fin_du_precedent(self):
+    @staticmethod
+    def _le_meme_mois(debut: date, **options):
         fiche = {**FICHE, "contract_end_date": "2026-05-15"}
-        refus = raison_du_refus(
+        return raison_du_refus(
             fiche,
             contrat_precedent(fiche, {"last_working_day": "2026-05-15"}),
-            _demande(date_debut=date(2026, 5, 20)),
-            bulletin_du_dernier_mois=True,
+            _demande(date_debut=debut),
+            bulletin_du_dernier_mois=options.get("bulletin", True),
             rang_de_bascule=None,
+            effets_par_mois=options.get("effets_par_mois", False),
         )
-        assert refus == (
-            "Le nouveau contrat commencerait en 05/2026, le mois où le précédent se "
-            "termine : Martine ne fait qu'un bulletin par mois. Il peut commencer le "
-            "01/06/2026 au plus tôt."
+
+    def test_le_meme_mois_que_la_fin_du_precedent_passe(self):
+        """Deux bulletins dans le mois, un par contrat (D3, retour d'Elsa du 28/10)."""
+        assert self._le_meme_mois(date(2026, 5, 20)) is None
+
+    def test_le_jour_de_la_fin_du_precedent_est_refuse(self):
+        assert self._le_meme_mois(date(2026, 5, 15)) == (
+            "Le nouveau contrat doit commencer après la fin du précédent (15/05/2026). "
+            "Il peut commencer le 16/05/2026 au plus tôt."
         )
+
+    def test_le_meme_mois_exige_le_bulletin_du_precedent(self):
+        assert self._le_meme_mois(date(2026, 5, 20), bulletin=False) == (
+            "Générez d'abord le bulletin de 05/2026, dernier mois du contrat précédent : "
+            "il ne pourra plus l'être ensuite."
+        )
+
+    def test_le_meme_mois_refuse_un_bulletin_avec_cet_ou_modulation(self):
+        """Le CET et la modulation se défont par mois : régénérer l'un des deux
+        bulletins déferait ceux de l'autre."""
+        assert self._le_meme_mois(date(2026, 5, 20), effets_par_mois=True) == (
+            "Le bulletin de 05/2026 du contrat précédent porte du CET ou de la modulation, "
+            "qui ne se partagent pas entre deux bulletins du même mois. Le nouveau contrat "
+            "peut commencer le 01/06/2026 au plus tôt."
+        )
+
+    def test_cet_ou_modulation_ne_genent_pas_un_debut_le_mois_suivant(self):
+        assert _refus(effets_par_mois=True) is None
 
     def test_le_lendemain_au_premier_du_mois_passe(self):
         assert _refus(demande=_demande(date_debut=date(2026, 6, 1))) is None
@@ -286,4 +314,15 @@ def test_message_de_succes():
     )
     assert message_de_succes(PRECEDENT, _demande(contract_type="CDI", date_fin=None)).startswith(
         "Nouveau contrat enregistré : CDI à partir du 01/09/2026."
+    )
+
+
+def test_message_de_succes_d_un_mois_partage():
+    """Le mois commun aura deux bulletins : le message le dit [D3]."""
+    precedent = ContratPrecedent("CDD", date(2026, 1, 19), date(2026, 5, 15))
+    assert message_de_succes(precedent, _demande(date_debut=date(2026, 5, 20))) == (
+        "Nouveau contrat enregistré : CDD du 20/05/2026 au 18/12/2026. Le contrat "
+        "précédent (CDD du 19/01/2026 au 15/05/2026) est dans les contrats passés. "
+        "05/2026 aura deux bulletins : celui du contrat précédent (jusqu'au 15/05/2026), "
+        "déjà généré, et celui du nouveau contrat (depuis le 20/05/2026), à générer."
     )

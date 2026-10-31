@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 TYPES_DE_CONTRAT = ("CDI", "CDD", "Apprentissage", "Contrat de professionnalisation")
@@ -120,9 +120,20 @@ def raison_indisponible(
 
 
 def premier_jour_possible(precedent: ContratPrecedent) -> date:
-    """Le 1er du mois qui suit la fin du contrat précédent : un bulletin par mois."""
-    fin = precedent.fin
-    return date(fin.year + (fin.month == 12), fin.month % 12 + 1, 1)
+    """Le lendemain de la fin du contrat précédent.
+
+    Dans le même mois, ce mois a deux bulletins, un par contrat [D3].
+    """
+    return precedent.fin + timedelta(days=1)
+
+
+def _premier_du_mois_suivant(d: date) -> date:
+    return date(d.year + (d.month == 12), d.month % 12 + 1, 1)
+
+
+def meme_mois(precedent: ContratPrecedent, demande: Demande) -> bool:
+    """Le nouveau contrat commence le mois où le précédent finit : mois partagé [D3]."""
+    return _rang(demande.date_debut) == _rang(precedent.fin)
 
 
 def raison_du_refus(
@@ -132,8 +143,14 @@ def raison_du_refus(
     *,
     bulletin_du_dernier_mois: bool,
     rang_de_bascule: int | None,
+    effets_par_mois: bool = False,
 ) -> str | None:
-    """Pourquoi la demande ne peut pas être enregistrée, ou None."""
+    """Pourquoi la demande ne peut pas être enregistrée, ou None.
+
+    `effets_par_mois` : le bulletin du dernier mois du précédent porte du CET ou
+    de la modulation. Ils se défont par (salarié, mois) : dans un mois partagé,
+    régénérer l'un des deux bulletins déferait ceux de l'autre.
+    """
     indisponible = raison_indisponible(fiche, precedent)
     if indisponible:
         return indisponible
@@ -159,17 +176,18 @@ def raison_du_refus(
             f"({_jj_mm_aaaa(precedent.fin)}). Il peut commencer le "
             f"{_jj_mm_aaaa(premier_jour_possible(precedent))} au plus tôt."
         )
-    if _rang(demande.date_debut) <= _rang(precedent.fin):
-        return (
-            f"Le nouveau contrat commencerait en {_mm_aaaa(demande.date_debut)}, le mois "
-            "où le précédent se termine : Martine ne fait qu'un bulletin par mois. Il peut "
-            f"commencer le {_jj_mm_aaaa(premier_jour_possible(precedent))} au plus tôt."
-        )
     avant_bascule = rang_de_bascule is not None and _rang(precedent.fin) <= rang_de_bascule
     if not bulletin_du_dernier_mois and not avant_bascule:
         return (
             f"Générez d'abord le bulletin de {_mm_aaaa(precedent.fin)}, dernier mois du "
             "contrat précédent : il ne pourra plus l'être ensuite."
+        )
+    if meme_mois(precedent, demande) and effets_par_mois:
+        return (
+            f"Le bulletin de {_mm_aaaa(precedent.fin)} du contrat précédent porte du CET ou "
+            "de la modulation, qui ne se partagent pas entre deux bulletins du même mois. "
+            "Le nouveau contrat peut commencer le "
+            f"{_jj_mm_aaaa(_premier_du_mois_suivant(precedent.fin))} au plus tôt."
         )
     return None
 
@@ -292,9 +310,15 @@ def message_de_succes(precedent: ContratPrecedent, demande: Demande) -> str:
         if demande.date_fin
         else f" à partir du {debut}"
     )
-    return (
+    range_ = (
         f"Nouveau contrat enregistré : {contrat}. Le contrat précédent "
         f"({precedent.contract_type} du {_jj_mm_aaaa(precedent.debut)} au "
-        f"{_jj_mm_aaaa(precedent.fin)}) est dans les contrats passés. Le bulletin de "
-        f"{_mm_aaaa(demande.date_debut)} peut être généré."
+        f"{_jj_mm_aaaa(precedent.fin)}) est dans les contrats passés."
     )
+    if meme_mois(precedent, demande):
+        return (
+            f"{range_} {_mm_aaaa(demande.date_debut)} aura deux bulletins : celui du contrat "
+            f"précédent (jusqu'au {_jj_mm_aaaa(precedent.fin)}), déjà généré, et celui du "
+            f"nouveau contrat (depuis le {debut}), à générer."
+        )
+    return f"{range_} Le bulletin de {_mm_aaaa(demande.date_debut)} peut être généré."

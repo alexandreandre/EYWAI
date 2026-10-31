@@ -50,6 +50,10 @@ class _Requete:
         self.op, self.valeurs = "update", valeurs
         return self
 
+    def delete(self):
+        self.op = "delete"
+        return self
+
     def eq(self, colonne, valeur):
         self.filtres[colonne] = valeur
         return self
@@ -74,9 +78,23 @@ class _Base:
         self.bulletins = set(bulletins)
         self.journal: list[tuple] = []
         self.refuser_mise_a_jour = False
+        self.effets_par_mois: set[str] = set()
+        self.refuser_rangement = False
 
     def table(self, nom):
         return _Requete(self, nom)
+
+    def rpc(self, nom, params):
+        base = self
+
+        class _Appel:
+            def execute(self):
+                base.journal.append(("rpc", nom, dict(params)))
+                if base.refuser_rangement:
+                    raise RuntimeError("Aucun bulletin de 05/2026 à ranger avec le contrat précédent.")
+                return SimpleNamespace(data={"bulletins": 1, "variables": 0})
+
+        return _Appel()
 
     def executer(self, r: _Requete):
         if r.table == "employees" and r.op == "select":
@@ -94,6 +112,11 @@ class _Base:
         if r.table == "payslips":
             cle = (r.filtres.get("year"), r.filtres.get("month"))
             return [{"id": "b"}] if cle in self.bulletins else []
+        if r.table in ("employee_cet_movements", "employee_modulation_movements"):
+            return [{"id": "m"}] if r.table in self.effets_par_mois else []
+        if r.table == "employee_contract_periods" and r.op == "delete":
+            self.journal.append(("retrait", dict(r.filtres)))
+            return [{"id": r.filtres.get("id")}]
         raise AssertionError(f"lecture inattendue : {r.table} {r.op}")
 
 
@@ -273,3 +296,45 @@ def test_le_corps_de_requete_valide_les_dates():
     corps = _payload(contract_type=" CDI ", date_fin=None)
     assert corps.contract_type == "CDI"
     assert corps.date_debut == date(2026, 9, 1)
+
+
+class TestMoisPartage:
+    """Le CDD finit le 15/05, le nouveau contrat commence le 20/05 : mai a deux bulletins [D3]."""
+
+    @pytest.fixture
+    def mai(self, base):
+        base.fiche["contract_end_date"] = "2026-05-15"
+        base.depart = {**DEPART, "last_working_day": "2026-05-15"}
+        return base
+
+    def test_le_mois_partage_est_range_avec_le_contrat_precedent(self, mai):
+        resultat = service.creer(EMP, SOC, _payload(date_debut="2026-05-20"), "rh-1")
+        assert [e[0] for e in mai.journal] == ["update", "periode", "rpc", "salaire"]
+        assert mai.journal[2] == (
+            "rpc",
+            "ranger_mois_partage",
+            {"p_period": "periode-1", "p_employee": EMP, "p_year": 2026, "p_month": 5},
+        )
+        assert "05/2026 aura deux bulletins" in resultat["message"]
+
+    def test_un_rangement_en_echec_remet_tout(self, mai):
+        """Sans marquage, le premier bulletin du nouveau contrat remplacerait celui de l'ancien."""
+        mai.refuser_rangement = True
+        with pytest.raises(service.NonEnregistre, match="rien n'a changé sur la fiche"):
+            service.creer(EMP, SOC, _payload(date_debut="2026-05-20"), "rh-1")
+        assert [e[0] for e in mai.journal] == ["update", "periode", "rpc", "retrait", "update"]
+        assert mai.journal[3] == ("retrait", {"id": "periode-1"})
+        assert mai.fiche["hire_date"] == "2026-01-19"
+        assert mai.fiche["employment_status"] == "parti"
+
+    @pytest.mark.parametrize("table", ["employee_cet_movements", "employee_modulation_movements"])
+    def test_un_bulletin_avec_cet_ou_modulation_est_refuse(self, mai, table):
+        mai.effets_par_mois = {table}
+        with pytest.raises(service.NouveauContratRefuse, match="CET ou de la modulation"):
+            service.creer(EMP, SOC, _payload(date_debut="2026-05-20"), "rh-1")
+        assert mai.journal == []
+
+    def test_le_mois_suivant_ne_range_rien(self, base):
+        base.effets_par_mois = {"employee_cet_movements"}
+        service.creer(EMP, SOC, _payload(), "rh-1")
+        assert [e[0] for e in base.journal] == ["update", "periode", "salaire"]
