@@ -111,7 +111,7 @@ def _sorties(company_id: str) -> List[Dict[str, Any]]:
 def _contrats(company_id: str) -> List[Dict[str, Any]]:
     return (
         supabase.table("employees")
-        .select("id,contract_type,contract_end_date")
+        .select("id,contract_type,contract_end_date,hire_date,date_debut_execution")
         .eq("company_id", company_id)
         .execute()
     ).data or []
@@ -296,7 +296,16 @@ def _generer_fin(
     attente = _attente_fin(f, jour)
     if attente:
         raise ValueError(attente)
-    sortie = next((s for s in _sorties(company_id) if str(s.get("employee_id")) == employee_id), None)
+    # La sortie de cette fin : après « Nouveau contrat », le salarié en a deux.
+    sortie = next(
+        (
+            s
+            for s in _sorties(company_id)
+            if str(s.get("employee_id")) == employee_id
+            and str(s.get("last_working_day") or "")[:10] == f.fin.isoformat()
+        ),
+        None,
+    )
     mensuelle = generate_dsn_file(
         company_id, f"{f.fin:%Y-%m}", "dsn_mensuelle_normale", [employee_id], essai=essai
     )

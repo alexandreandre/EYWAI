@@ -221,19 +221,32 @@ def fins_a_signaler(
     aujourd_hui: date,
 ) -> List[FinASignaler]:
     """Les fins de contrat à signaler : sorties saisies (hors annulées), sinon
-    terme du CDD ; celles des 31 jours à venir comprises, pour prévenir."""
+    terme du CDD ; celles des 31 jours à venir comprises, pour prévenir.
+
+    Une sortie d'avant le début du contrat de la fiche est celle d'un contrat
+    rangé par « Nouveau contrat » : elle compte à part, sans cacher le terme du
+    contrat en cours (D3.2).
+    """
     fins: Dict[str, date] = {}
+    ranges: Set[Tuple[str, date]] = set()
+    debuts: Dict[str, Optional[date]] = {}
     for contrat in contrats:
+        employee_id = str(contrat.get("id"))
+        debuts[employee_id] = _jour(contrat.get("date_debut_execution") or contrat.get("hire_date"))
         if str(contrat.get("contract_type") or "").upper() == "CDD":
             fin = _jour(contrat.get("contract_end_date"))
             if fin:
-                fins[str(contrat.get("id"))] = fin
+                fins[employee_id] = fin
     for sortie in sorties:
         if str(sortie.get("status") or "") == "annulee":
             continue
         fin = _jour(sortie.get("last_working_day"))
-        if fin:
-            fins[str(sortie.get("employee_id"))] = fin
+        employee_id = str(sortie.get("employee_id"))
+        debut = debuts.get(employee_id)
+        if fin and debut and fin < debut:
+            ranges.add((employee_id, fin))
+        elif fin:
+            fins[employee_id] = fin
     deja = {
         (e.employee_id, e.debut) for e in envoyes if e.nature == NATURE_FCTU and not e.essai
     }
@@ -245,7 +258,7 @@ def fins_a_signaler(
             ajouter_jours_ouvres(fin, 5),
             (employee_id, fin.year, fin.month) in bulletins,
         )
-        for employee_id, fin in fins.items()
+        for employee_id, fin in set(fins.items()) | ranges
         if (not depuis or fin >= depuis) and fin <= horizon and (employee_id, fin) not in deja
     ]
     return sorted(resultat, key=lambda f: (f.a_deposer_avant, f.employee_id))

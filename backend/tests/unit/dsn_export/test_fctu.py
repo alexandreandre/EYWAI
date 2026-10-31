@@ -101,6 +101,33 @@ def test_la_sortie_saisie_prime_sur_le_terme_du_cdd():
     assert f.fin == date(2026, 11, 27)
 
 
+def test_la_sortie_d_un_contrat_range_ne_cache_pas_le_terme_du_nouveau_cdd():
+    """Revenu en CDD le 01/09 après un CDD sorti le 31/05 (« Nouveau contrat ») :
+    la sortie du 31/05, archivée, est celle du contrat rangé ; le terme du
+    18/12 reste à signaler."""
+    (f,) = fins_a_signaler(
+        sorties=[{"employee_id": "e2", "last_working_day": "2026-05-31", "status": "archivee"}],
+        contrats=[{**_cdd("e2", "2026-12-18"), "hire_date": "2026-09-01"}],
+        envoyes=[], bulletins=set(),
+        depuis=date(2026, 10, 1), aujourd_hui=date(2026, 12, 1),
+    )
+    assert f.fin == date(2026, 12, 18)
+
+
+def test_un_mois_a_deux_contrats_signale_la_fin_de_l_ancien_et_le_terme_du_nouveau():
+    """Le CDD sort le 10/11, un nouveau CDD commence le 17/11 (D3)."""
+    fins = fins_a_signaler(
+        sorties=[{"employee_id": "e2", "last_working_day": "2026-11-10", "status": "archivee"}],
+        contrats=[{**_cdd("e2", "2026-12-18"), "hire_date": "2026-11-17"}],
+        envoyes=[], bulletins={("e2", 2026, 11)},
+        depuis=date(2026, 10, 1), aujourd_hui=date(2026, 11, 20),
+    )
+    assert [(f.fin, f.bulletin_pret) for f in fins] == [
+        (date(2026, 11, 10), True),
+        (date(2026, 12, 18), False),
+    ]
+
+
 def test_le_preavis_et_la_transaction_suivent_la_fin_de_contrat():
     # DSN-VAL, fin de CDD du 15/09 : « Sous-groupe S21.G00.63 absent après
     # S21.G00.62 », « Absence de la rubrique S21.G00.62.008 ».
