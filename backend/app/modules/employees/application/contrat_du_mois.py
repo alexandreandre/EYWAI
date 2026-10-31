@@ -10,7 +10,9 @@ ou non, hors départ annulé et hors transfert.
 
 Après « Nouveau contrat », la fiche décrit le nouveau contrat : un mois de
 l'ancien se calcule sur la fiche que ce contrat avait, rangée avec lui
-(`employee_contract_periods.fiche`) [D4].
+(`employee_contract_periods.fiche`) [D4]. Le mois où l'ancien finit et où le
+nouveau commence a deux bulletins ; celui de l'ancien se demande par son
+contrat rangé (`contract_period_id`) [D3].
 """
 
 from __future__ import annotations
@@ -82,27 +84,41 @@ class LecteurContrats:
         ) or []
         return dict(lignes[0]) if lignes else None
 
+    def contrat_range(self, period_id: str) -> dict | None:
+        """Le contrat rangé, par son id."""
+        lignes = (
+            supabase.table("employee_contract_periods")
+            .select("*")
+            .eq("id", period_id)
+            .limit(1)
+            .execute()
+            .data
+        ) or []
+        return dict(lignes[0]) if lignes else None
+
+    def contrat_qui_finit_dans_le_mois(self, employee_id: str, year: int, month: int) -> dict | None:
+        """Le contrat rangé avec sa fiche dont le dernier jour tombe dans le mois."""
+        premier = date(year, month, 1)
+        dernier = date(year + (month == 12), month % 12 + 1, 1)
+        lignes = (
+            supabase.table("employee_contract_periods")
+            .select("*")
+            .eq("employee_id", employee_id)
+            .gte("date_fin", premier.isoformat())
+            .lt("date_fin", dernier.isoformat())
+            .order("date_fin", desc=True)
+            .execute()
+            .data
+        ) or []
+        return next((dict(l) for l in lignes if isinstance(l.get("fiche"), dict) and l["fiche"]), None)
+
 
 lecteur_contrats = LecteurContrats()
 
 
-def fiche_du_mois(employee: Mapping[str, Any], year: int, month: int) -> dict[str, Any]:
-    """La fiche sur laquelle le mois se calcule.
-
-    Un mois d'avant le contrat en cours appartient à un contrat rangé par
-    « Nouveau contrat » : il se calcule sur la fiche que ce contrat avait,
-    rangée avec lui, « parti » et sans départ en cours (sa sortie se lit sur son
-    départ, archivé). Sans fiche rangée (contrat passé saisi à la main), rien
-    ne change : le mois reste refusé plutôt que calculé sur la fiche d'un autre
-    contrat [D4].
-    """
-    debut = debut_du_contrat(employee)
-    if debut is None or (year, month) >= (debut.year, debut.month) or not employee.get("id"):
-        return dict(employee)
-    periode = lecteur_contrats.contrat_passe_du_mois(str(employee["id"]), year, month)
-    rangee = (periode or {}).get("fiche")
-    if not isinstance(rangee, dict) or not rangee:
-        return dict(employee)
+def _sur_la_fiche_rangee(employee: Mapping[str, Any], rangee: Mapping[str, Any]) -> dict[str, Any]:
+    """La fiche d'un contrat rangé : « parti », sans départ en cours (sa sortie se
+    lit sur son départ, archivé)."""
     return {
         **employee,
         **rangee,
@@ -112,6 +128,66 @@ def fiche_du_mois(employee: Mapping[str, Any], year: int, month: int) -> dict[st
         "exit_type": None,
         "exit_status": None,
     }
+
+
+def fiche_du_mois(
+    employee: Mapping[str, Any],
+    year: int,
+    month: int,
+    contract_period_id: str | None = None,
+) -> dict[str, Any]:
+    """La fiche sur laquelle le mois se calcule.
+
+    Avec `contract_period_id` : la fiche de ce contrat rangé, quel que soit le
+    mois. C'est le bulletin de l'ancien contrat dans un mois partagé [D3]. Sans
+    fiche rangée, ou pour le contrat d'un autre salarié : refus (`ValueError`),
+    jamais le calcul d'un contrat sur la fiche d'un autre.
+
+    Un mois d'avant le contrat en cours appartient à un contrat rangé par
+    « Nouveau contrat » : il se calcule sur la fiche que ce contrat avait,
+    rangée avec lui, « parti » et sans départ en cours (sa sortie se lit sur son
+    départ, archivé). Sans fiche rangée (contrat passé saisi à la main), rien
+    ne change : le mois reste refusé plutôt que calculé sur la fiche d'un autre
+    contrat [D4].
+    """
+    if contract_period_id:
+        periode = lecteur_contrats.contrat_range(str(contract_period_id)) or {}
+        rangee = periode.get("fiche")
+        if (
+            not isinstance(rangee, dict)
+            or not rangee
+            or str(periode.get("employee_id")) != str(employee.get("id"))
+        ):
+            raise ValueError(
+                "Le contrat précédent de ce bulletin n'a pas sa fiche rangée : "
+                "son bulletin ne peut pas être recalculé."
+            )
+        return _sur_la_fiche_rangee(employee, rangee)
+    debut = debut_du_contrat(employee)
+    if debut is None or (year, month) >= (debut.year, debut.month) or not employee.get("id"):
+        return dict(employee)
+    periode = lecteur_contrats.contrat_passe_du_mois(str(employee["id"]), year, month)
+    rangee = (periode or {}).get("fiche")
+    if not isinstance(rangee, dict) or not rangee:
+        return dict(employee)
+    return _sur_la_fiche_rangee(employee, rangee)
+
+
+def mois_partage(employee: Mapping[str, Any], year: int, month: int) -> dict | None:
+    """Le contrat rangé qui finit dans un mois où le contrat de la fiche commence, ou None.
+
+    Ce mois a deux bulletins : celui du contrat de la fiche, et celui de ce
+    contrat rangé [D3]. Se lit sur la fiche et les contrats rangés, pas sur les
+    bulletins : le second reste proposé même supprimé.
+    """
+    debut = debut_du_contrat(employee)
+    if debut is None or (debut.year, debut.month) != (year, month) or not employee.get("id"):
+        return None
+    periode = lecteur_contrats.contrat_qui_finit_dans_le_mois(str(employee["id"]), year, month)
+    if not periode:
+        return None
+    fin = _date(periode.get("date_fin"))
+    return periode if fin is not None and fin < debut else None
 
 
 def sortie_du_contrat_en_cours(employee: Mapping[str, Any]) -> str | None:
