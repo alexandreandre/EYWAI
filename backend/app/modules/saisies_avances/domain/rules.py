@@ -209,6 +209,12 @@ def composition_base_saisissable(
             frais += montant
     if frais:
         elements.append(("remboursements de frais", -frais))
+    # Les indemnités de rupture du bulletin de sortie (licenciement, rupture
+    # conventionnelle, mise à la retraite), ajoutées au net après cotisations,
+    # ne sont pas de la rémunération (L3252-1, L3252-3).
+    rupture = _d((bulletin.get("indemnites_sortie") or {}).get("total_exonerees"))
+    if rupture > 0:
+        elements.append(("indemnités de rupture", -rupture))
     return net, [(libelle, _centimes(montant)) for libelle, montant in elements]
 
 
@@ -221,7 +227,8 @@ def base_saisissable(bulletin: Dict[str, Any]) -> Decimal:
     - l'acompte retenu y est rajouté (c'est déjà du salaire) ; un ajout sur le
       net porté en acompte négatif (panier, déplacement, avance versée) en sort ;
     - l'avantage en nature, retiré du net à payer, y revient ;
-    - le remboursement de transport et les notes de frais en sortent.
+    - le remboursement de transport et les notes de frais en sortent ;
+    - les indemnités de rupture du bulletin de sortie en sortent.
     """
     net, elements = composition_base_saisissable(bulletin)
     return _centimes(net + sum((m for _l, m in elements), Decimal("0")))

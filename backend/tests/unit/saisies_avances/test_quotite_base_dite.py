@@ -137,3 +137,31 @@ def test_le_report_d_un_net_negatif_est_nomme_a_part():
     )
     assert net == Decimal("920.94")
     assert elements == [("report de net négatif retenu", Decimal("801.25"))]
+
+
+def test_les_indemnites_de_rupture_sortent_de_la_base():
+    # L3252-1 et L3252-3 : la quotité vise les sommes dues à titre de rémunération,
+    # sans les indemnités insaisissables ; l'indemnité de licenciement n'a pas le
+    # caractère de salaire. Le bulletin de sortie l'ajoute au net après cotisations.
+    bulletin = {
+        "net_a_payer": 4619.54,
+        "indemnites_sortie": {"total_exonerees": 3000.0, "total_soumises": 812.0},
+    }
+    net, elements = rules.composition_base_saisissable(bulletin)
+    assert net == Decimal("4619.54")
+    assert elements == [("indemnités de rupture", Decimal("-3000.00"))]
+    assert rules.base_saisissable(bulletin) == Decimal("1619.54")
+
+
+def test_la_saisie_du_bulletin_de_sortie_ne_prend_pas_l_indemnite_de_licenciement():
+    bulletin = _enrichir(
+        {"net_a_payer": 4619.54, "indemnites_sortie": {"total_exonerees": 3000.0}}
+    )
+    assert bulletin["retenues_saisies"]["total_preleve"] == pytest.approx(274.63)
+
+
+def test_le_bulletin_garde_les_personnes_a_charge_de_la_saisie():
+    # Le prêt de l'employeur se retient sur ce que la saisie laisse de la même
+    # quotité : il lui faut les personnes à charge déclarées pour la saisie.
+    bulletin = _enrichir({"net_a_payer": 1619.54})
+    assert bulletin["retenues_saisies"]["personnes_a_charge"] == 0

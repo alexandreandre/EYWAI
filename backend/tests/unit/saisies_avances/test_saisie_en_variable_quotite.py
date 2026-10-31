@@ -74,3 +74,15 @@ def test_sous_la_quotite_aucune_alerte(enrichir):
 
 def test_une_retenue_qui_n_est_pas_une_saisie_ne_compte_pas(enrichir):
     assert _alertes(enrichir([{"name": "Acompte d'octobre", "amount": -800.0, "sur_le_net": True}])) == []
+
+
+def test_le_bulletin_garde_le_total_des_saisies_en_variables(enrichir):
+    # Le prêt de l'employeur se retient sur ce qui reste de la quotité : les
+    # saisies entrées en variables en ont déjà pris leur part.
+    bulletin = enrichir(
+        [
+            {"name": "Saisie sur salaire", "amount": -100.0, "sur_le_net": True},
+            {"name": "Acompte d'octobre", "amount": -800.0, "sur_le_net": True},
+        ]
+    )
+    assert bulletin["retenues_saisies"]["total_en_variables"] == 100.0

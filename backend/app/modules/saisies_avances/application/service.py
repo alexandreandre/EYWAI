@@ -717,6 +717,7 @@ def enrich_payslip(
     except Exception:  # noqa: BLE001 — une alerte en moins, jamais un bulletin en moins
         logger.warning("Variables du mois illisibles pour la quotité saisissable", exc_info=True)
         saisies_variables = []
+    total_saisies_variables = sum((m for _n, m in saisies_variables), Decimal("0"))
     if saisies_variables:
         bareme_variables, _ = domain_rules.resoudre_bareme_quotite(
             get_bareme_quotite_saisissable(), year, month
@@ -728,7 +729,7 @@ def enrich_payslip(
                 )
                 - total_deductions
             )
-            if sum((m for _n, m in saisies_variables), Decimal("0")) > quotite_restante:
+            if total_saisies_variables > quotite_restante:
                 payslip_json_data.setdefault("alertes_baremes", []).append(
                     {
                         "code": "saisie_en_variable_au_dela_de_la_quotite",
@@ -838,6 +839,9 @@ def enrich_payslip(
     payslip_json_data["retenues_saisies"] = {
         "total_preleve": float(total_deductions),
         "saisies": saisies_appliquees,
+        # Le prêt de l'employeur se retient sur ce qui reste de la même quotité.
+        "personnes_a_charge": dependents_count,
+        "total_en_variables": float(total_saisies_variables),
     }
     payslip_json_data["remboursements_avances"] = {
         "total_rembourse": float(total_repayments),
