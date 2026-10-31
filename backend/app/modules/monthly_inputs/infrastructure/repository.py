@@ -22,6 +22,9 @@ class SupabaseMonthlyInputsRepository(IMonthlyInputsRepository):
             supabase.table("monthly_inputs")
             .select("*")
             .match({"year": year, "month": month, "company_id": str(company_id)})
+            # Les variables du contrat de la fiche ; celles du contrat rangé d'un
+            # mois partagé se corrigent depuis son bulletin [D3].
+            .is_("contract_period_id", "null")
             .order("created_at", desc=True)
             .execute()
         )
@@ -41,6 +44,7 @@ class SupabaseMonthlyInputsRepository(IMonthlyInputsRepository):
                     "company_id": str(company_id),
                 }
             )
+            .is_("contract_period_id", "null")  # le contrat de la fiche [D3]
             .order("created_at", desc=True)
             .execute()
         )

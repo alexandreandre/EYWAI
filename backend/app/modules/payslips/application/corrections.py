@@ -20,6 +20,7 @@ from datetime import datetime
 from typing import Any
 
 from app.core.database import supabase
+from app.shared.cle_du_bulletin import du_contrat
 from app.modules.payroll.documents.verrou_generation import verrou_de_generation
 from app.modules.payroll.engine.corrections_du_bulletin import corrections_du_bulletin
 from app.modules.payroll.engine.corrections_manuelles import regularisations_du_bulletin
@@ -67,7 +68,7 @@ MESSAGE_RIEN_A_ENREGISTRER = "Aucune modification à enregistrer."
 
 _COLONNES = (
     "id, employee_id, company_id, year, month, status, updated_at, url, "
-    "payslip_data, pdf_notes, internal_notes, edit_history, pdf_storage_path"
+    "payslip_data, pdf_notes, internal_notes, edit_history, pdf_storage_path, contract_period_id"
 )
 
 
@@ -127,23 +128,27 @@ def _periode(bulletin: dict[str, Any]) -> dict[str, Any]:
 # --- Variables du mois ---
 
 
-def _retirer_heures_sup_declarees(periode: dict[str, Any]) -> None:
+def _retirer_heures_sup_declarees(periode: dict[str, Any], contrat: str | None = None) -> None:
     """Retire les seules déclarations faites depuis le bulletin : les autres
-    saisies d'heures (reprise, règles de la société) ne sont pas les nôtres."""
-    (
+    saisies d'heures (reprise, règles de la société) ne sont pas les nôtres, ni
+    celles de l'autre bulletin d'un mois à deux contrats [D3]."""
+    requete = (
         supabase.table("monthly_inputs")
         .delete()
         .match(periode)
         .in_("name", list(LIBELLES_HS_DECLAREES))
-        .execute()
     )
+    du_contrat(requete, contrat).execute()
 
 
-def _declarer_heures_sup(periode: dict[str, Any], hs25: float, hs50: float) -> None:
+def _declarer_heures_sup(
+    periode: dict[str, Any], hs25: float, hs50: float, contrat: str | None = None
+) -> None:
     """Pose les deux paliers ensemble, toujours : le moteur les lit par paire."""
-    _retirer_heures_sup_declarees(periode)
+    _retirer_heures_sup_declarees(periode, contrat)
     base = {
         **periode,
+        "contract_period_id": contrat,
         "amount": 0,
         "is_socially_taxed": True,
         "is_taxable": True,
@@ -157,18 +162,23 @@ def _declarer_heures_sup(periode: dict[str, Any], hs25: float, hs50: float) -> N
     ).execute()
 
 
-def _ecrire_variables(corrections: CorrectionsBulletin, periode: dict[str, Any]) -> None:
+def _ecrire_variables(
+    corrections: CorrectionsBulletin, periode: dict[str, Any], contrat: str | None = None
+) -> None:
+    """`contrat` : la clé du bulletin corrigé, que portent ses variables [D3]."""
     if corrections.revenir_au_planning:
-        _retirer_heures_sup_declarees(periode)
+        _retirer_heures_sup_declarees(periode, contrat)
     if corrections.heures_sup is not None:
-        _declarer_heures_sup(periode, *corrections.heures_sup)
+        _declarer_heures_sup(periode, *corrections.heures_sup, contrat)
     if not corrections.primes.vide:
-        appliquer_primes_editees(corrections.primes, **periode)
-    _ecrire_regularisations(corrections, periode)
-    _ecrire_corrections_de_ligne(corrections, periode)
+        appliquer_primes_editees(corrections.primes, **periode, contract_period_id=contrat)
+    _ecrire_regularisations(corrections, periode, contrat)
+    _ecrire_corrections_de_ligne(corrections, periode, contrat)
 
 
-def _ecrire_regularisations(corrections: CorrectionsBulletin, periode: dict[str, Any]) -> None:
+def _ecrire_regularisations(
+    corrections: CorrectionsBulletin, periode: dict[str, Any], contrat: str | None = None
+) -> None:
     """Ajoute et retire les régularisations du mois.
 
     Le retrait ne vise que les saisies de ce salarié et de ce mois : un
@@ -184,11 +194,16 @@ def _ecrire_regularisations(corrections: CorrectionsBulletin, periode: dict[str,
         )
     if corrections.regularisations_ajoutees:
         supabase.table("monthly_inputs").insert(
-            [regul.saisie_du_mois(periode) for regul in corrections.regularisations_ajoutees]
+            [
+                regul.saisie_du_mois({**periode, "contract_period_id": contrat})
+                for regul in corrections.regularisations_ajoutees
+            ]
         ).execute()
 
 
-def _ecrire_corrections_de_ligne(corrections: CorrectionsBulletin, periode: dict[str, Any]) -> None:
+def _ecrire_corrections_de_ligne(
+    corrections: CorrectionsBulletin, periode: dict[str, Any], contrat: str | None = None
+) -> None:
     """Ajoute et retire les corrections de ligne du mois, pour ce seul salarié et ce seul mois."""
     if corrections.corrections_retirees:
         (
@@ -200,7 +215,10 @@ def _ecrire_corrections_de_ligne(corrections: CorrectionsBulletin, periode: dict
         )
     if corrections.corrections_ajoutees:
         supabase.table("monthly_inputs").insert(
-            [correction.saisie_du_mois(periode) for correction in corrections.corrections_ajoutees]
+            [
+                correction.saisie_du_mois({**periode, "contract_period_id": contrat})
+                for correction in corrections.corrections_ajoutees
+            ]
         ).execute()
 
 
@@ -288,6 +306,7 @@ def _recalculer(
                 employee_id=str(bulletin["employee_id"]),
                 year=int(bulletin["year"]),
                 month=int(bulletin["month"]),
+                contract_period_id=bulletin.get("contract_period_id"),
                 # Le bulletin existe déjà : ces deux gardes ont été franchies à
                 # sa première génération. Les réopposer bloquerait une correction.
                 force_calendrier_incomplet=True,
@@ -336,7 +355,12 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
     # recalculer (salarié sorti, mois repris de l'ancien logiciel…).
     verifier_appartenance(corrections.primes.ids_touches, **periode)
     if corrections.change_des_variables:
-        salarie_generable(periode["employee_id"], periode["year"], periode["month"])
+        salarie_generable(
+            periode["employee_id"],
+            periode["year"],
+            periode["month"],
+            bulletin.get("contract_period_id"),
+        )
     motif = (cmd.changes_summary or "").strip() or resume_des_corrections(corrections)
 
     recalcule, erreur, refus = False, None, None
@@ -356,7 +380,7 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
             )
         _enregistrer_notes(bulletin, cmd, note_pdf_changee, note_interne)
         if corrections.change_des_variables:
-            _ecrire_variables(corrections, periode)
+            _ecrire_variables(corrections, periode, bulletin.get("contract_period_id"))
             erreur, refus = _recalculer(bulletin, cmd, motif)
             recalcule = erreur is None
         elif note_pdf_changee:

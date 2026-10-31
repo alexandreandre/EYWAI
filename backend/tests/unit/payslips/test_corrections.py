@@ -87,6 +87,10 @@ class _Requete:
         self.filtres.append((cle, tuple(valeurs)))
         return self
 
+    def is_(self, cle, valeur):
+        self.filtres.append((cle, f"is.{valeur}"))
+        return self
+
     def execute(self):
         self.client.ecritures.append((self.nom, self.op, self.valeur, tuple(self.filtres)))
         return MagicMock(data=[])
@@ -218,7 +222,7 @@ def test_les_primes_passent_par_les_variables_du_mois(base):
     with patch.object(mod, "appliquer_primes_editees") as appliquer:
         _corriger(CorrectionsBulletin(primes=primes))
     appliquer.assert_called_once_with(
-        primes, employee_id="emp-1", company_id="comp-1", year=2026, month=8
+        primes, employee_id="emp-1", company_id="comp-1", year=2026, month=8, contract_period_id=None
     )
     mod.verifier_appartenance.assert_called_once_with(
         {"s-1", "s-2"}, employee_id="emp-1", company_id="comp-1", year=2026, month=8

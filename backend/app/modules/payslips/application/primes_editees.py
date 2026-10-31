@@ -55,14 +55,25 @@ def verifier_appartenance(
 
 
 def appliquer_primes_editees(
-    diff: DiffPrimes, *, employee_id: str, company_id: str, year: int, month: int
+    diff: DiffPrimes,
+    *,
+    employee_id: str,
+    company_id: str,
+    year: int,
+    month: int,
+    contract_period_id: str | None = None,
 ) -> None:
-    """Insère les primes ajoutées, corrige les montants, retire les primes supprimées."""
+    """Insère les primes ajoutées, corrige les montants, retire les primes supprimées.
+
+    `contract_period_id` : la clé du bulletin corrigé, que portent ses primes
+    ajoutées (mois à deux contrats, D3).
+    """
     base = {
         "employee_id": employee_id,
         "company_id": str(company_id),
         "year": year,
         "month": month,
+        "contract_period_id": contract_period_id,
     }
     # `manual_override` : la génération automatique des variables ne repasse pas
     # derrière une prime posée ou corrigée depuis le bulletin.

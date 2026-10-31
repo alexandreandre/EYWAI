@@ -151,6 +151,8 @@ def test_l_insertion_impose_le_salarie_la_societe_et_la_periode_du_bulletin():
             "company_id": "c1",
             "year": 2026,
             "month": 9,
+            # Le bulletin du contrat de la fiche : clé nulle (D3).
+            "contract_period_id": None,
             "manual_override": True,
         }
     ]
