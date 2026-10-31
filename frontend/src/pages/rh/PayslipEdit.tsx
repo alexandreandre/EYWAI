@@ -579,6 +579,7 @@ export default function PayslipEdit() {
             employeeId={payslip.employee_id}
             year={payslip.year}
             month={payslip.month}
+            contractPeriodId={payslip.contract_period_id}
             manuallyEdited={payslip.manually_edited}
             modificationsNonEnregistrees={modifie}
             employeeName={prenomDuBulletin(payslip.payslip_data)}

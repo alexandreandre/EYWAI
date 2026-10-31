@@ -8,6 +8,7 @@
  */
 
 import { estPerime } from './bulletinARecalculer';
+import { bulletinDuMois } from './bulletinDuMois';
 import { deDevant } from './elision';
 import { monthYearLabel } from './payrollMonth';
 import { moisPrecedent } from './revueDuMois';
@@ -27,7 +28,7 @@ export function moisPrecedentARecalculer(
   month: number
 ): { year: number; month: number } | null {
   const avant = moisPrecedent(year, month);
-  const ligne = (lignes ?? []).find((l) => l.year === avant.year && l.month === avant.month);
+  const ligne = bulletinDuMois(lignes ?? [], avant.year, avant.month);
   return ligne && estPerime(ligne) ? avant : null;
 }
 

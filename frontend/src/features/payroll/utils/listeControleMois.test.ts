@@ -345,6 +345,26 @@ describe('« c’est fini » : bulletins validés, DSN et export comptable faits
     expect(etape(resultat, ETAPE_VALIDES).etat).toBe('fait');
   });
 
+  it('deux contrats le même mois : validé quand les deux bulletins le sont (D3)', () => {
+    const avec = (statutAncien: string) =>
+      listeControleDuMois(
+        entree({
+          bulletinsParSalarie: OK({
+            // Le bulletin du nouveau contrat d'abord : l'autre ne doit pas être oublié.
+            'e-1': [
+              { year: 2026, month: 9, origine: 'calcule', status: 'valide' },
+              { year: 2026, month: 9, origine: 'calcule', status: statutAncien, contract_period_id: 'periode-1' },
+            ],
+            'e-2': [{ year: 2026, month: 9, origine: 'calcule', status: 'valide' }],
+          }),
+        })
+      );
+    expect(etape(avec('valide'), ETAPE_VALIDES).etat).toBe('fait');
+    const brouillon = etape(avec('brouillon'), ETAPE_VALIDES);
+    expect(brouillon.etat).toBe('a_faire');
+    expect(brouillon.detail).toBe('1 bulletin reste à valider.');
+  });
+
   it('bulletins illisibles : validés à confirmer, jamais cochés', () => {
     expect(etape(listeControleDuMois(entree({ bulletinsParSalarie: ERREUR })), ETAPE_VALIDES).etat).toBe(
       'a_confirmer'

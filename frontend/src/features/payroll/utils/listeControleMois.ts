@@ -16,6 +16,7 @@ import {
 import { payrollEmploymentBlockReason } from '@/features/payroll/utils/employmentPeriod';
 import { estPerime, type LigneBulletinPaie } from '@/features/payroll/utils/bulletinARecalculer';
 import { estBulletinImporte } from '@/features/payroll/utils/bulletinImporte';
+import { bulletinDuMois, bulletinsDuContratPrecedent } from '@/features/payroll/utils/bulletinDuMois';
 import {
   bandeauxSortieDuMois,
   type DepartPourSortieGuidee,
@@ -215,7 +216,7 @@ function etapeBulletins(
     let perimes = 0;
     for (const salarie of salaries) {
       if (payrollEmploymentBlockReason(salarie, year, month)) continue;
-      const ligne = (parSalarie[salarie.id] ?? []).find((p) => p.year === year && p.month === month);
+      const ligne = bulletinDuMois(parSalarie[salarie.id], year, month);
       if (!ligne) {
         manquants += 1;
         continue;
@@ -279,7 +280,12 @@ function etapeValides(
     let enAttente = 0;
     for (const salarie of salaries) {
       if (payrollEmploymentBlockReason(salarie, year, month)) continue;
-      const ligne = (parSalarie[salarie.id] ?? []).find((p) => p.year === year && p.month === month);
+      const ligne = bulletinDuMois(parSalarie[salarie.id], year, month);
+      // Mois à deux contrats (D3) : le mois est validé quand les deux bulletins le sont.
+      for (const precedent of bulletinsDuContratPrecedent(parSalarie[salarie.id], year, month)) {
+        if ((precedent.corrections_en_attente ?? 0) > 0) enAttente += 1;
+        if (precedent.status !== 'valide') aValider += 1;
+      }
       if ((ligne?.corrections_en_attente ?? 0) > 0) enAttente += 1;
       // Un bulletin repris de l'ancien logiciel a été payé : rien à valider.
       if (ligne && (ligne.status === 'valide' || estBulletinImporte(ligne))) continue;
@@ -406,8 +412,8 @@ function etapeRegularisations(
     const regulRepetees = new Set<string>();
     const lignesRepetees = new Map<string, string>();
     for (const bulletins of Object.values(parSalarie)) {
-      const duMois = bulletins.find((b) => b.year === year && b.month === month);
-      const avant = bulletins.find((b) => b.year === precedent.year && b.month === precedent.month);
+      const duMois = bulletinDuMois(bulletins, year, month);
+      const avant = bulletinDuMois(bulletins, precedent.year, precedent.month);
       const regulDuMois = duMois?.regularisations ?? [];
       const regulAvant = new Set(avant?.regularisations ?? []);
       regularisations += regulDuMois.length;

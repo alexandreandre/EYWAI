@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { deDevant } from '@/features/payroll/utils/elision';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,8 @@ export type EmployeeMonthState = {
   payslipPrecedent?: PayslipInfo;
   /** Rien à revoir et pas encore validé : part avec « Valider les bulletins prêts ». */
   pret?: boolean;
+  /** Mois à deux contrats (D3) : le bulletin du contrat rangé qui finit ce mois-là. */
+  bulletinsContratPrecedent?: PayslipInfo[];
 };
 
 export type PayrollMonthExplorerProps = {
@@ -275,22 +278,26 @@ export function PayrollMonthExplorer({
       </p>
     ) : (
       <ul className="divide-y divide-border/60">
-        {filtered.map(({ employee, state, ecart }) => (
-          <PayrollPayslipRow
-            key={employee.id}
-            name={`${employee.first_name} ${employee.last_name}`}
-            state={state}
-            ecart={ecart}
-            onGenerate={() => onGenerateEmployee(employee.id)}
-            onDelete={(payslipId) => onDeletePayslip(payslipId, employee.id)}
-            deletingPayslipId={deletingPayslipId}
-            deleteDescription={
-              <>
-                Le bulletin {deDevant(`${employee.first_name} ${employee.last_name}`)} pour{' '}
-                {monthYearLabel(selectedMonth, selectedYear)} sera supprimé définitivement.
-              </>
-            }
-          />
+        {filtered.map(({ employee, state, ecart, bulletinsContratPrecedent }) => (
+          <Fragment key={employee.id}>
+            <PayrollPayslipRow
+              name={`${employee.first_name} ${employee.last_name}`}
+              state={state}
+              ecart={ecart}
+              onGenerate={() => onGenerateEmployee(employee.id)}
+              onDelete={(payslipId) => onDeletePayslip(payslipId, employee.id)}
+              deletingPayslipId={deletingPayslipId}
+              deleteDescription={
+                <>
+                  Le bulletin {deDevant(`${employee.first_name} ${employee.last_name}`)} pour{' '}
+                  {monthYearLabel(selectedMonth, selectedYear)} sera supprimé définitivement.
+                </>
+              }
+            />
+            {(bulletinsContratPrecedent ?? []).map((bulletin) => (
+              <BulletinDuContratPrecedent key={bulletin.id} bulletin={bulletin} />
+            ))}
+          </Fragment>
         ))}
       </ul>
     );
@@ -393,5 +400,29 @@ export function PayrollMonthExplorer({
       </div>
       </div>
     </ReportsNetNegatifDuMois>
+  );
+}
+
+/**
+ * Le bulletin du contrat rangé d'un mois à deux contrats (D3), sous la ligne du
+ * salarié : il se voit, se corrige, se régénère et se valide depuis sa page.
+ */
+function BulletinDuContratPrecedent({ bulletin }: { bulletin: PayslipInfo }) {
+  const fin = bulletin.contrat_jusqu_au
+    ? ` jusqu’au ${bulletin.contrat_jusqu_au.slice(8, 10)}/${bulletin.contrat_jusqu_au.slice(5, 7)}`
+    : '';
+  const valide = bulletin.status === 'valide';
+  return (
+    <li
+      className="flex items-center justify-between gap-3 py-2 pl-8 pr-3 text-sm text-muted-foreground"
+      data-testid="bulletin-contrat-precedent"
+    >
+      <span>
+        Contrat précédent{fin} : bulletin {valide ? 'validé' : 'à valider'}
+      </span>
+      <Button asChild variant="ghost" size="sm">
+        <Link to={`/payslips/${bulletin.id}/edit`}>Ouvrir</Link>
+      </Button>
+    </li>
   );
 }

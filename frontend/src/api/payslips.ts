@@ -177,6 +177,10 @@ export interface PayslipInfo {
   status?: 'brouillon' | 'valide' | string | null;
   /** Corrections faites à la main qui ne trouvent plus leur ligne : le bulletin ne peut pas être validé. */
   corrections_en_attente?: number | null;
+  /** Mois à deux contrats (D3) : le contrat rangé de ce bulletin ; nul pour le contrat de la fiche. */
+  contract_period_id?: string | null;
+  /** Fin du contrat rangé (AAAA-MM-JJ), pour la ligne « Contrat précédent ». */
+  contrat_jusqu_au?: string | null;
   manually_edited: boolean;
   edit_count: number;
   edited_at?: string;
@@ -243,6 +247,8 @@ export interface PayslipDetail {
   id: string;
   employee_id: string;
   company_id: string;
+  /** Mois à deux contrats (D3) : le contrat rangé de ce bulletin, renvoyé à la régénération. */
+  contract_period_id?: string | null;
   name: string;
   month: number;
   year: number;
@@ -686,6 +692,8 @@ export const generatePayslip = async (
     regenerer_bulletin_valide?: boolean;
     /** Reprise non posée : part de cumuls à zéro, avec une alerte (sinon 422 `reprise_non_posee`). */
     partir_de_cumuls_a_zero?: boolean;
+    /** Mois à deux contrats (D3) : régénère le bulletin de ce contrat rangé. */
+    contract_period_id?: string | null;
   },
   signal?: AbortSignal,
   companyId?: string | null

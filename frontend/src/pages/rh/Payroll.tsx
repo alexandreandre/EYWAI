@@ -77,6 +77,10 @@ import {
   type VuePaie,
 } from '@/features/payroll/utils/vuePaieUrl';
 import { estPretAValider } from '@/features/payroll/utils/validationGroupee';
+import {
+  bulletinDuMois,
+  bulletinsDuContratPrecedent,
+} from '@/features/payroll/utils/bulletinDuMois';
 import { avertissementMoisPrecedentGroupe } from '@/features/payroll/utils/validationMoisPrecedent';
 import { ValiderBulletinsPrets } from '@/features/payroll/components/ValiderBulletinsPrets';
 import {
@@ -407,11 +411,17 @@ export default function Payroll() {
 
   const monthEmployeeStates = useMemo<EmployeeMonthState[]>(() => {
     return employees.map((emp) => {
-      const payslip = (payslipsByEmployee[emp.id] ?? []).find(
-        (p) => p.year === selectedYear && p.month === selectedMonth
+      const payslip = bulletinDuMois(payslipsByEmployee[emp.id], selectedYear, selectedMonth);
+      const payslipPrecedent = bulletinDuMois(
+        payslipsByEmployee[emp.id],
+        precedent.year,
+        precedent.month
       );
-      const payslipPrecedent = (payslipsByEmployee[emp.id] ?? []).find(
-        (p) => p.year === precedent.year && p.month === precedent.month
+      // Mois à deux contrats (D3) : le bulletin du contrat rangé, sous la ligne.
+      const bulletinsContratPrecedent = bulletinsDuContratPrecedent(
+        payslipsByEmployee[emp.id],
+        selectedYear,
+        selectedMonth
       );
       const state = buildRowState(
         payslip,
@@ -434,6 +444,7 @@ export default function Payroll() {
         employee: emp,
         state: rowState,
         payslipPrecedent,
+        bulletinsContratPrecedent,
         ecart: ecart
           ? {
               texte: libelleEcart(ecart, selectedYear, selectedMonth),
@@ -571,9 +582,7 @@ export default function Payroll() {
       const emp = employees.find((e) => e.id === employeeId);
       if (!emp) return;
       if (payrollGenerationBlockReason(emp, selectedYear, selectedMonth)) return;
-      const payslip = (payslipsByEmployee[emp.id] ?? []).find(
-        (p) => p.year === selectedYear && p.month === selectedMonth
-      );
+      const payslip = bulletinDuMois(payslipsByEmployee[emp.id], selectedYear, selectedMonth);
       generation.generateJobs([
         {
           employeeId: emp.id,

@@ -9,6 +9,7 @@
 
 import { accord, pluriel } from '@/lib/pluriel';
 
+import { bulletinDuMois } from './bulletinDuMois';
 import { estBulletinImporte } from './bulletinImporte';
 import { monthLabel } from './payrollMonth';
 
@@ -27,6 +28,8 @@ export type MontantsBulletin = {
 export type LigneBulletinPaie = {
   year: number;
   month: number;
+  /** Mois à deux contrats (D3) : le contrat rangé de ce bulletin ; nul pour le contrat de la fiche. */
+  contract_period_id?: string | null;
   origine?: string | null;
   a_recalculer?: boolean | null;
   heures_sup?: number | null;
@@ -241,9 +244,7 @@ export function nomsDesValidesChanges(
 ): string[] {
   const noms: string[] = [];
   for (const salarie of salaries) {
-    const ligne = (bulletinsParSalarie[salarie.id] ?? []).find(
-      (p) => p.year === year && p.month === month
-    );
+    const ligne = bulletinDuMois(bulletinsParSalarie[salarie.id], year, month);
     if (ligne && estPerime(ligne) && estValide(ligne)) noms.push(nomDuSalarie(salarie));
   }
   return noms;
@@ -288,9 +289,7 @@ export function jobsDesBulletinsPerimes(
 ): JobBulletinPerime[] {
   const jobs: JobBulletinPerime[] = [];
   for (const salarie of salaries) {
-    const ligne = (bulletinsParSalarie[salarie.id] ?? []).find(
-      (p) => p.year === year && p.month === month
-    );
+    const ligne = bulletinDuMois(bulletinsParSalarie[salarie.id], year, month);
     if (!ligne || !estPerime(ligne) || estValide(ligne)) continue;
     jobs.push({
       employeeId: salarie.id,

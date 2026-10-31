@@ -62,6 +62,8 @@ interface RegeneratePayslipButtonProps {
   employeeId: string;
   year: number;
   month: number;
+  /** Mois à deux contrats (D3) : le bulletin du contrat rangé se régénère par sa clé. */
+  contractPeriodId?: string | null;
   /** Le bulletin porte des retouches manuelles : la régénération les écrase. */
   manuallyEdited: boolean;
   /** Des corrections sont en cours sur l'écran : la régénération les abandonne. */
@@ -89,6 +91,7 @@ export default function RegeneratePayslipButton({
   employeeId,
   year,
   month,
+  contractPeriodId,
   manuallyEdited,
   modificationsNonEnregistrees = false,
   employeeName,
@@ -130,7 +133,13 @@ export default function RegeneratePayslipButton({
       const issue = await regenererPuisRecharger(
         () =>
           generatePayslip(
-            { employee_id: employeeId, year, month, ...forcage },
+            {
+              employee_id: employeeId,
+              year,
+              month,
+              ...(contractPeriodId ? { contract_period_id: contractPeriodId } : {}),
+              ...forcage,
+            },
             undefined,
             companyId
           ),
