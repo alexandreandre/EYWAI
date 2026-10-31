@@ -32,7 +32,7 @@ Même colonne sur `monthly_inputs` : une variable du mois partagé appartient au
 
 Le planning (`employee_schedules`) reste unique par mois : il est commun aux deux contrats.
 
-Un mois est **partagé** quand un contrat rangé avec sa fiche y finit et que le contrat de la fiche y commence. Cela se lit sur la fiche et dans `employee_contract_periods`, pas sur les bulletins. L'écran peut donc proposer le bulletin du contrat rangé même après sa suppression.
+Un mois est **partagé** quand un contrat rangé avec sa fiche y finit et que le contrat de la fiche y commence. Cela se lit sur la fiche et dans `employee_contract_periods` (`contrat_du_mois.mois_partage`), pas sur les bulletins.
 
 ## Parcours
 
@@ -49,14 +49,14 @@ Un mois est **partagé** quand un contrat rangé avec sa fiche y finit et que le
 `process_payslip_generation` (et le générateur au forfait) reçoit `contract_period_id` (nul par défaut).
 
 - **Clé nulle** : rien ne change, sauf l'écriture de la clé. Une garde refuse d'écrire si le bulletin à clé nulle du mois appartient à un autre contrat. On le voit à sa date d'entrée enregistrée (`payslip_data.en_tete.salarie.date_entree`), qui n'est pas le début du contrat de la fiche. Cela ne peut arriver que si le marquage a manqué. Le message : « Le bulletin de novembre du contrat précédent n'est pas rangé : régénérez-le depuis sa ligne, avant celui du nouveau contrat. » Jamais de remplacement silencieux.
-- **Suppression** : supprimer un bulletin vide aujourd'hui les cumuls du mois (`payslips/infrastructure/repository.py`). Ce n'est fait que pour un bulletin à clé nulle : ces cumuls sont ceux du contrat qui continue.
+- **Suppression** : supprimer un bulletin vide aujourd'hui les cumuls du mois (`payslips/infrastructure/repository.py`). Ce n'est fait que pour un bulletin à clé nulle : ces cumuls sont ceux du contrat qui continue. Le bulletin du contrat rangé, lui, ne se supprime pas (décision du codage, 31/10) : l'écran n'aurait pas de ligne d'où le régénérer. Il se régénère ou se corrige depuis sa page.
 - **Clé remplie** : c'est le bulletin du contrat rangé dans le mois partagé.
   - La fiche est celle du contrat rangé : `fiche_du_mois` reçoit l'id et prend la fiche rangée, même si le mois est celui du début du contrat en cours.
   - Il ne lit que les variables de sa clé.
   - Il ne lance pas la génération automatique des variables : celles de ce contrat ont été écrites quand il était en cours, et elles sont rangées.
   - Il n'écrit rien dans `employee_schedules`, ni cumuls ni `payroll_events`. Ceux du mois sont ceux du contrat qui continue, et le mois suivant les relit. Ses cumuls restent dans `payslip_data`.
   - Le PDF est recherché et remplacé par sa clé, et son nom porte « contrat-precedent ».
-- **Variables automatiques** (`generate_monthly_variables`) : ne comptent que les jours du contrat de la fiche. Aujourd'hui, les règles qui comptent les postes du planning (paniers, astreintes, types de poste) lisent toute la fenêtre des variables. Dans un mois partagé, elles paieraient au nouveau contrat les postes de l'ancien. Elles n'écrivent et ne suppriment que des variables à clé nulle.
+- **Variables automatiques** (`generate_monthly_variables`) : ne comptent que les jours à partir du début du contrat de la fiche. Aujourd'hui, les règles qui comptent les postes du planning (paniers, astreintes, types de poste) lisent toute la fenêtre des variables. Dans un mois partagé, elles paieraient au nouveau contrat les postes de l'ancien. Les résumés du planning en cache, faits sur tout le mois, ne servent plus quand le contrat commence dans la fenêtre. La fin de contrat de la fiche n'est pas lue : 25 fiches actives du test en portent une dépassée (renouvellement non reporté), et le bulletin de l'ancien contrat ne relance jamais ses variables. Une prime fixe du mois reste due. Les variables écrites ne touchent jamais une variable à clé remplie.
 - **Effets défaits par mois** : le CET (`defaire_application_en_paie`) et la modulation (`defaire_credits_de_paie`) se défont par (salarié, mois). Régénérer un bulletin du mois partagé déferait ceux de l'autre. « Nouveau contrat » dans le même mois est donc refusé si le bulletin de l'ancien contrat porte du CET ou de la modulation : « Le bulletin de novembre porte un usage du CET : le nouveau contrat commence le 01/12 au plus tôt, ou corrigez d'abord ce bulletin. » Ce cas ne s'est jamais présenté pour un CDD court.
 
 ## Lecture : « le bulletin du mois »
@@ -81,7 +81,7 @@ Elle déclare deux contrats pour l'individu, avec leurs rémunérations. Sa form
 
 ## Écrans
 
-- **Liste de paie** : la ligne du salarié montre le bulletin du contrat de la fiche, comme aujourd'hui. En dessous, une ligne « Contrat précédent, jusqu'au 10/11 » porte le bulletin rangé, avec son statut et ses actions (voir, régénérer, valider). Les contrôles du mois (à générer, à recalculer, validé) lisent les deux bulletins : le mois est complet quand les deux sont validés. Aujourd'hui `Payroll.tsx` et `listeControleMois.ts` prennent le premier bulletin trouvé pour le mois. Ils prendront celui de la clé nulle, et l'autre par sa clé.
+- **Liste de paie** : la ligne du salarié montre le bulletin du contrat de la fiche, comme aujourd'hui. En dessous, une ligne « Contrat précédent jusqu'au 10/11 : bulletin validé » (ou « à valider ») porte un lien « Ouvrir » vers sa page. Sur cette page, il se voit, se corrige, se régénère par sa clé et se valide. La file de génération du mois reste indexée par salarié et mois : elle ne génère que le contrat de la fiche. Les contrôles du mois lisent le bulletin du contrat de la fiche (`bulletinDuMois`), et l'étape « validés » n'est cochée que quand les deux bulletins le sont.
 - **Fiche du salarié, bulletins** : les deux bulletins de novembre, chacun avec les dates de son contrat.
 - **Saisie des variables** : le mois montre les variables du contrat de la fiche. Une variable du contrat rangé s'ajoute par « Corriger le bulletin » sur son bulletin, qui écrit sa clé.
 
@@ -89,7 +89,8 @@ Elle déclare deux contrats pour l'individu, avec leurs rémunérations. Sa form
 
 - La DSN du mois partagé (D3.2, ci-dessus).
 - Plus de deux contrats dans le même mois.
-- Les salaires de référence (maintien, attestations, PPV) lisent, pour le mois partagé, le bulletin du contrat de la fiche. Ils ne voient donc pas la part de l'ancien contrat. C'est un écart de niche, corrigeable à la main, et on le dit dans la vidéo H.5.
+- Les salaires de référence (maintien, attestations, PPV), le repos compensateur et le suivi des IJSS lisent, pour le mois partagé, le bulletin du contrat de la fiche. Ils ne voient donc pas la part de l'ancien contrat. C'est un écart de niche, corrigeable à la main, et on le dit dans la vidéo H.5.
+- Saisies sur salaire et prêts dans un mois partagé : chaque bulletin applique sa quotité saisissable sur son propre salaire, sans les combiner. Les remboursements restent rattachés à leur bulletin. Écart de niche, corrigeable à la main.
 - Le délai de carence entre deux CDD sur le même poste (C. trav. L1244-3) : c'est à l'employeur de le respecter, Martine ne le contrôle pas.
 - Une génération groupée « tout le mois » ne régénère que le bulletin du contrat de la fiche. Le bulletin rangé se régénère depuis sa ligne.
 
