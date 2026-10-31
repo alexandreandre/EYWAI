@@ -26,6 +26,7 @@ from __future__ import annotations
 import logging
 
 from app.core.database import supabase
+from app.shared.cle_du_bulletin import du_contrat
 from app.modules.payslips.application.dto import PayslipBadRequestError
 
 logger = logging.getLogger(__name__)
@@ -38,16 +39,15 @@ class EffetsNonDefaisables(PayslipBadRequestError, ValueError):
     """
 
 
-def _bulletin_du_mois(employee_id: str, year: int, month: int) -> str | None:
-    lignes = (
+def _bulletin_du_mois(
+    employee_id: str, year: int, month: int, contract_period_id: str | None = None
+) -> str | None:
+    requete = (
         supabase.table("payslips")
         .select("id")
         .match({"employee_id": employee_id, "year": year, "month": month})
-        .limit(1)
-        .execute()
-        .data
-        or []
     )
+    lignes = du_contrat(requete, contract_period_id).limit(1).execute().data or []
     return str(lignes[0]["id"]) if lignes else None
 
 
@@ -58,6 +58,7 @@ def refuser_si_effets_non_defaisables(
     *,
     payslip_id: str | None = None,
     verbe: str = "recalculer",
+    contract_period_id: str | None = None,
 ) -> None:
     """Lève `EffetsNonDefaisables` si le bulletin du mois ne peut pas être défait.
 
@@ -66,7 +67,7 @@ def refuser_si_effets_non_defaisables(
     """
     from app.modules.employee_loans.application.annulation import refus_de_defaire
 
-    payslip_id = payslip_id or _bulletin_du_mois(employee_id, year, month)
+    payslip_id = payslip_id or _bulletin_du_mois(employee_id, year, month, contract_period_id)
     if not payslip_id:
         return
     refus = refus_de_defaire(payslip_id, verbe)
@@ -75,13 +76,23 @@ def refuser_si_effets_non_defaisables(
 
 
 def defaire_effets_du_bulletin(
-    employee_id: str, year: int, month: int, *, payslip_id: str | None
+    employee_id: str,
+    year: int,
+    month: int,
+    *,
+    payslip_id: str | None,
+    contract_period_id: str | None = None,
 ) -> None:
     """Défait ce que le bulletin du mois a écrit hors de lui.
 
     `payslip_id` : le bulletin enregistré, ou None s'il n'y en a pas — le CET et
     la modulation du mois sont défaits quand même : appliqués par une génération
     interrompue, ils ne doivent pas être perdus au calcul suivant.
+
+    `contract_period_id` : le bulletin d'un contrat rangé, dans un mois partagé
+    [D3]. Le CET et la modulation se défont par mois : ce sont ceux du contrat
+    de la fiche, on n'y touche pas (« Nouveau contrat » refuse le mois partagé
+    si le bulletin de l'ancien en portait).
     """
     from app.modules.cet.application.payroll_hook import defaire_application_en_paie
     from app.modules.employee_loans.application.annulation import (
@@ -96,8 +107,10 @@ def defaire_effets_du_bulletin(
     if payslip_id:
         prets = defaire_retenues_du_bulletin(payslip_id)
         avances = defaire_remboursements_du_bulletin(payslip_id)
-    cet = defaire_application_en_paie(employee_id, year, month)
-    modulation = defaire_credits_de_paie(employee_id, year, month)
+    cet = modulation = 0
+    if not contract_period_id:
+        cet = defaire_application_en_paie(employee_id, year, month)
+        modulation = defaire_credits_de_paie(employee_id, year, month)
     if prets or avances or cet or modulation:
         logger.info(
             "[effets] %s %02d/%d défait : %d retenue(s) de prêt, %d avance(s), "
@@ -112,11 +125,11 @@ def defaire_effets_du_bulletin(
         )
 
 
-def _periode_du_bulletin(payslip_id: str) -> tuple[str, int, int] | None:
-    """(salarié, année, mois) du bulletin, None s'il n'existe plus."""
+def _periode_du_bulletin(payslip_id: str) -> tuple[str, int, int, str | None] | None:
+    """(salarié, année, mois, contrat) du bulletin, None s'il n'existe plus."""
     r = (
         supabase.table("payslips")
-        .select("employee_id, year, month")
+        .select("employee_id, year, month, contract_period_id")
         .eq("id", payslip_id)
         .maybe_single()
         .execute()
@@ -124,7 +137,12 @@ def _periode_du_bulletin(payslip_id: str) -> tuple[str, int, int] | None:
     ligne = r.data if r and r.data else None
     if not ligne or not ligne.get("employee_id"):
         return None
-    return str(ligne["employee_id"]), int(ligne["year"]), int(ligne["month"])
+    return (
+        str(ligne["employee_id"]),
+        int(ligne["year"]),
+        int(ligne["month"]),
+        ligne.get("contract_period_id"),
+    )
 
 
 def defaire_avant_suppression(payslip_id: str) -> None:
@@ -132,5 +150,10 @@ def defaire_avant_suppression(payslip_id: str) -> None:
     periode = _periode_du_bulletin(payslip_id)
     if not periode:
         return
-    refuser_si_effets_non_defaisables(*periode, payslip_id=payslip_id, verbe="supprimer")
-    defaire_effets_du_bulletin(*periode, payslip_id=payslip_id)
+    employee_id, year, month, contrat = periode
+    refuser_si_effets_non_defaisables(
+        employee_id, year, month, payslip_id=payslip_id, verbe="supprimer"
+    )
+    defaire_effets_du_bulletin(
+        employee_id, year, month, payslip_id=payslip_id, contract_period_id=contrat
+    )

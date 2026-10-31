@@ -27,6 +27,9 @@ class PayslipRequest(BaseModel):
     - regenerer_bulletin_valide : écraser un bulletin validé, avec archivage (409 sinon).
     - partir_de_cumuls_a_zero : reprise non posée, générer en partant de cumuls à
       zéro (422 `reprise_non_posee` sinon) ; le bulletin garde qui et quand.
+
+    `contract_period_id` : le bulletin du contrat rangé, dans un mois où un
+    autre contrat commence (D3) ; absent pour le contrat de la fiche.
     """
 
     employee_id: str
@@ -35,6 +38,7 @@ class PayslipRequest(BaseModel):
     force_calendrier_incomplet: bool = False
     regenerer_bulletin_valide: bool = False
     partir_de_cumuls_a_zero: bool = False
+    contract_period_id: str | None = None
 
 
 class HeuresSupCorrigees(BaseModel):

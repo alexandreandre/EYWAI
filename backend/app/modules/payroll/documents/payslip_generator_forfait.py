@@ -83,6 +83,11 @@ from app.shared.domain.employment_rules import (
     payslip_employment_period_block_reason,
 )
 from app.modules.employees.application.contrat_du_mois import fiche_du_mois
+from app.modules.payroll.documents.bulletin_par_contrat import (
+    suffixe_du_pdf,
+    variables_du_bulletin,
+)
+from app.shared.cle_du_bulletin import CONFLIT_BULLETIN
 from app.modules.payroll.documents.payslip_generator import (
     resolve_date_sortie,
     _parse_if_json_string,
@@ -120,6 +125,7 @@ def process_payslip_generation_forfait(
     ijss_tracking_meta: dict | None = None,
     bac_a_sable: BacASable | None = None,
     depart_a_zero: dict | None = None,
+    contract_period_id: str | None = None,
 ):
     """
     Génère une fiche de paie pour un employé en forfait jour.
@@ -149,8 +155,12 @@ def process_payslip_generation_forfait(
             raise HTTPException(status_code=404, detail="Employé non trouvé.")
 
         # Un mois d'un contrat rangé par « Nouveau contrat » se calcule sur la
-        # fiche que ce contrat avait (type, entrée, fin, durée…) [D4].
-        employee_data = fiche_du_mois(employee_data, year, month)
+        # fiche que ce contrat avait (type, entrée, fin, durée…) [D4] ; dans un
+        # mois partagé, le bulletin de l'ancien contrat la demande par sa clé [D3].
+        try:
+            employee_data = fiche_du_mois(employee_data, year, month, contract_period_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         employee_data = {
             **employee_data,
             "exit_last_working_day": resolve_date_sortie(employee_data),
@@ -226,11 +236,8 @@ def process_payslip_generation_forfait(
             .execute()
         )
 
-        saisies_res = (
-            supabase.table("monthly_inputs")
-            .select("*")
-            .match({"employee_id": employee_id, "year": year, "month": month})
-            .execute()
+        saisies_res = variables_du_bulletin(
+            supabase, employee_id, year, month, contract_period_id
         )
         # Bac à sable : des saisies qui n'existent qu'en mémoire s'ajoutent à
         # celles du mois (hors bac à sable, rien ne change).
@@ -767,9 +774,18 @@ def process_payslip_generation_forfait(
             payslip_json_data, **lectures_du_calcul
         )
 
-        pdf_name = f"Bulletin_{employee_folder_name}_{month:02d}-{year}_FORFAIT.pdf"
-        local_pdf_path = employee_path / "bulletins" / pdf_name
-        pdf_remplace = chemin_enregistre(supabase, str(company_id), employee_id, year, month)
+        # Le moteur imprime sous le nom du mois ; le bulletin d'un contrat rangé
+        # est publié sous un nom à lui [D3].
+        suffixe = "_FORFAIT" + suffixe_du_pdf(contract_period_id)
+        local_pdf_path = (
+            employee_path
+            / "bulletins"
+            / f"Bulletin_{employee_folder_name}_{month:02d}-{year}_FORFAIT.pdf"
+        )
+        pdf_name = f"{local_pdf_path.stem}{suffixe_du_pdf(contract_period_id)}.pdf"
+        pdf_remplace = chemin_enregistre(
+            supabase, str(company_id), employee_id, year, month, contract_period_id
+        )
         files_to_cleanup.append(local_pdf_path)
         # Le HTML imprimé, gardé à côté du PDF par le moteur (lot 43).
         files_to_cleanup.append(local_pdf_path.with_suffix(".html"))
@@ -799,11 +815,12 @@ def process_payslip_generation_forfait(
                 "payslip_data": payslip_json_data,
                 "pdf_storage_path": storage_path,
                 "url": pdf_url,
+                "contract_period_id": contract_period_id,
                 # Date du dernier calcul (l'upsert ne la reposait pas) : les
                 # exports déjà faits du mois deviennent « à refaire ».
                 "generated_at": datetime.now(timezone.utc).isoformat(),
             },
-            on_conflict="company_id,employee_id,year,month",
+            on_conflict=CONFLIT_BULLETIN,
         ).execute()
 
         payslip_id = None
@@ -830,15 +847,17 @@ def process_payslip_generation_forfait(
                     month=month,
                     year=year,
                     storage_path=storage_path,
-                    pdf_name_suffix="_FORFAIT",
+                    pdf_name_suffix=suffixe,
                     html_imprime=html_imprime(local_pdf_path),
                 ),
             )
             retirer_pdf_remplace(supabase, pdf_remplace, storage_path)
 
-        supabase.table("employee_schedules").update({"cumuls": new_cumuls_json}).match(
-            {"employee_id": employee_id, "year": year, "month": month}
-        ).execute()
+        # Les cumuls du mois sont ceux du contrat qui continue [D3].
+        if not contract_period_id:
+            supabase.table("employee_schedules").update({"cumuls": new_cumuls_json}).match(
+                {"employee_id": employee_id, "year": year, "month": month}
+            ).execute()
 
         from app.modules.payroll.engine.controles_convention import (
             avertissements_de_generation,

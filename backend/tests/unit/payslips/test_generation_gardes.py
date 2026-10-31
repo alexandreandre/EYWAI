@@ -486,6 +486,28 @@ class TestRouteGenerate422CalendrierIncomplet:
             {"code": "calendrier_incomplet_force"}
         ]
 
+    def test_route_transmet_le_contrat_du_bulletin(self, client: TestClient):
+        """Mois partagé : le bulletin de l'ancien contrat se régénère par sa clé (D3)."""
+        from app.core.security import get_current_user
+
+        with patch("app.modules.payslips.api.router.generate_payslip") as mock_gen, patch(
+            "app.modules.payslips.api.router.access_control_service.require_employee_access"
+        ):
+            mock_gen.return_value = MagicMock(
+                status="success", message="OK", download_url="u", payslip_id="ps-1", warnings=[]
+            )
+            app.dependency_overrides[get_current_user] = self._rh_user
+            try:
+                response = client.post(
+                    "/api/actions/generate-payslip",
+                    json={"employee_id": "emp-1", "year": 2026, "month": 11, "contract_period_id": "periode-1"},
+                )
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
+
+        assert response.status_code == 200
+        assert mock_gen.call_args[0][0].contract_period_id == "periode-1"
+
 
 class TestGardeBulletinValide:
     """Task 2 : un bulletin validé n'est plus écrasable en silence."""

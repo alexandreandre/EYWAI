@@ -22,6 +22,8 @@ from typing import Any
 
 from weasyprint import HTML
 
+from app.shared.cle_du_bulletin import du_contrat
+
 logger = logging.getLogger(__name__)
 
 BUCKET = "payslips"
@@ -57,7 +59,12 @@ def nom_affiche(chemin: str) -> str:
 
 
 def chemin_enregistre(
-    client: Any, company_id: str, employee_id: str, year: int, month: int
+    client: Any,
+    company_id: str,
+    employee_id: str,
+    year: int,
+    month: int,
+    contract_period_id: str | None = None,
 ) -> str | None:
     """Chemin du PDF du bulletin en place, avant qu'une génération ne le remplace.
 
@@ -65,15 +72,15 @@ def chemin_enregistre(
     fichier reste alors dans le stockage, ce qui ne gêne que la place prise.
     """
     try:
-        r = (
+        requete = (
             client.table("payslips")
             .select("pdf_storage_path")
             .match(
                 {"company_id": company_id, "employee_id": employee_id, "year": year, "month": month}
             )
-            .maybe_single()
-            .execute()
         )
+        # Le PDF du bulletin de ce contrat, pas celui de l'autre bulletin du mois [D3].
+        r = du_contrat(requete, contract_period_id).maybe_single().execute()
     except Exception:
         logger.warning(
             "PDF en place non lu (%s, %s, %02d/%s) : il restera dans le stockage.",

@@ -148,6 +148,9 @@ class GeneratePayslipInput:
     #: Un bulletin remis au salarié ne se modifie plus (D4) ; seul
     #: l'administrateur de la plateforme passe outre.
     modifier_bulletin_remis: bool = False
+    #: Le bulletin d'un contrat rangé, dans un mois où un autre commence (D3) ;
+    #: nul pour le contrat de la fiche.
+    contract_period_id: str | None = None
 
 
 @dataclass

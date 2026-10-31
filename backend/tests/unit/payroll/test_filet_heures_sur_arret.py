@@ -121,7 +121,7 @@ class _Requete:
     def eq(self, *_a):
         return self
 
-    in_ = gte = lte = limit = order = eq
+    in_ = gte = lte = limit = order = is_ = eq
 
     def match(self, *_a):
         return self

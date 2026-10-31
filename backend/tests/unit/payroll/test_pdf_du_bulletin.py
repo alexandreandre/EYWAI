@@ -103,7 +103,7 @@ class _Client:
             def match(self, *_a):
                 return self
 
-            eq = match
+            eq = is_ = match
 
             def maybe_single(self):
                 return self
@@ -561,3 +561,48 @@ class TestDiagnosticDuStockage:
 
     def test_sans_bulletin_le_chemin_d_avant(self, monkeypatch):
         assert self._diagnostic(monkeypatch, None).endswith(f"/payslips/{CHEMIN_HISTORIQUE}")
+
+
+class TestBulletinDuContratRange:
+    """Novembre partagé : le bulletin de l'ancien contrat s'écrit sous sa clé,
+    sous un nom à lui, et laisse le planning du mois au contrat qui continue [D3]."""
+
+    def test_ecrit_sa_cle_sans_toucher_au_planning(self, monkeypatch, imprimeur):
+        from app.shared.cle_du_bulletin import CONFLIT_BULLETIN
+
+        periode = {
+            "id": "periode-1",
+            "employee_id": EMP,
+            "fiche": {"hire_date": "2020-01-06", "contract_type": "CDD", "contract_end_date": "2026-09-30"},
+        }
+        monkeypatch.setattr(
+            "app.modules.employees.application.contrat_du_mois.lecteur_contrats.contrat_range",
+            lambda _id: periode,
+        )
+        conflits: list = []
+        upsert = _RequeteEcrite.upsert
+
+        def upsert_note(self, ligne, **k):
+            conflits.append(k.get("on_conflict"))
+            return upsert(self, ligne, **k)
+
+        monkeypatch.setattr(_RequeteEcrite, "upsert", upsert_note)
+        base = _BaseEcrite(chemin_en_place=None)
+
+        resultat = _generer(monkeypatch, base, contract_period_id="periode-1")
+
+        assert resultat["status"] == "success"
+        enregistrer = [e for e in base.journal if e[0] == "enregistrer"][0]
+        assert enregistrer[2]["contract_period_id"] == "periode-1"
+        assert enregistrer[2]["name"] == "Bulletin_Salarie_Filet_09-2026_contrat-precedent.pdf"
+        assert conflits == [CONFLIT_BULLETIN]
+        assert not [e for e in base.journal if e[0] == "modifier" and e[1] == "employee_schedules"]
+
+    def test_le_contrat_de_la_fiche_ecrit_le_planning(self, monkeypatch, imprimeur):
+        base = _BaseEcrite(chemin_en_place=None)
+
+        _generer(monkeypatch, base)
+
+        enregistrer = [e for e in base.journal if e[0] == "enregistrer"][0]
+        assert enregistrer[2]["contract_period_id"] is None
+        assert [e for e in base.journal if e[0] == "modifier" and e[1] == "employee_schedules"]

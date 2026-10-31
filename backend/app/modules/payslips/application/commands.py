@@ -59,9 +59,12 @@ from app.modules.notifications.application.employee_document_alerts import (
 )
 from app.modules.employees.application.service import enrich_employee_with_exit_context
 from app.modules.employees.application.contrat_du_mois import (
+    debut_du_contrat,
     fiche_du_mois,
+    mois_partage,
     sortie_du_contrat_en_cours,
 )
+from app.shared.cle_du_bulletin import du_contrat
 from app.shared.domain.employment_rules import payslip_employment_period_block_reason
 from app.shared.reprise_paie import (
     CLE_DEPART_A_ZERO,
@@ -242,20 +245,46 @@ def _check_heures_sur_jour_d_arret(
 
 
 def _fetch_existing_payslip(
-    employee_id: str, year: int, month: int
+    employee_id: str, year: int, month: int, contract_period_id: str | None = None
 ) -> dict[str, Any] | None:
-    """Bulletin existant de la période (statut + contenu), None sinon."""
-    r = (
+    """Bulletin existant de la période et du contrat (statut + contenu), None sinon."""
+    requete = (
         supabase.table("payslips")
         .select(
             "id, company_id, status, validated_at, payslip_data, url, edit_history, "
-            "pdf_notes, manually_edited, pdf_storage_path"
+            "pdf_notes, manually_edited, pdf_storage_path, contract_period_id"
         )
         .match({"employee_id": employee_id, "year": year, "month": month})
-        .maybe_single()
-        .execute()
     )
+    r = du_contrat(requete, contract_period_id).maybe_single().execute()
     return r.data if r and r.data else None
+
+
+def _check_contrat_du_bulletin(
+    employee: dict[str, Any],
+    cmd: GeneratePayslipInput,
+    bulletin_existant: dict[str, Any] | None,
+) -> None:
+    """Le bulletin du contrat de la fiche ne remplace jamais celui d'un autre contrat [D3].
+
+    Dans un mois partagé, « Nouveau contrat » range le bulletin de l'ancien
+    contrat avec lui. Si ce marquage a manqué, le bulletin à clé nulle est
+    encore celui de l'ancien contrat : il est entré avant le début du contrat de
+    la fiche.
+    """
+    if cmd.contract_period_id or not bulletin_existant:
+        return
+    if not mois_partage(employee, cmd.year, cmd.month):
+        return
+    salarie = ((bulletin_existant.get("payslip_data") or {}).get("en_tete") or {}).get("salarie") or {}
+    entree = str(salarie.get("date_entree") or "")[:10]
+    debut = debut_du_contrat(employee)
+    if entree and debut and entree < debut.isoformat():
+        raise PayslipBadRequestError(
+            f"Le bulletin de {cmd.month:02d}/{cmd.year} du contrat précédent n'est pas rangé "
+            "avec le contrat précédent : il serait remplacé par celui du nouveau contrat. "
+            "Contactez le support avant de générer ce bulletin."
+        )
 
 
 def archiver_version(
@@ -477,7 +506,9 @@ def _check_validated_guard(
     écrasé sans copie est définitivement perdu — c'est ce qui est arrivé aux
     bulletins de Colorplast le 26/08/2026.
     """
-    existing = _fetch_existing_payslip(cmd.employee_id, cmd.year, cmd.month)
+    existing = _fetch_existing_payslip(
+        cmd.employee_id, cmd.year, cmd.month, cmd.contract_period_id
+    )
     if not existing:
         return None
     if existing.get("status") != "valide":
@@ -538,18 +569,24 @@ def _raison_de_blocage_du_salarie(
     return payroll_block_reason(employee)
 
 
-def salarie_generable(employee_id: str, year: int, month: int) -> dict[str, Any]:
+def salarie_generable(
+    employee_id: str, year: int, month: int, contract_period_id: str | None = None
+) -> dict[str, Any]:
     """Le salarié, si son bulletin du mois peut être (re)calculé ; lève sinon.
 
     Ces refus d'entrée valent aussi pour une correction : elle les oppose avant
-    d'écrire la moindre variable du mois.
+    d'écrire la moindre variable du mois. `contract_period_id` : le bulletin du
+    contrat rangé d'un mois partagé, calculé sur sa fiche rangée [D3].
     """
     employee = _employee_repository.get_by_id_only(employee_id)
     if not employee:
         raise PayslipNotFoundError("Employé non trouvé.")
     employee = enrich_employee_with_exit_context(employee)
     # Un mois d'un contrat rangé par « Nouveau contrat » : la fiche de ce contrat [D4].
-    employee = fiche_du_mois(employee, year, month)
+    try:
+        employee = fiche_du_mois(employee, year, month, contract_period_id)
+    except ValueError as exc:
+        raise PayslipBadRequestError(str(exc)) from exc
     if not employee.get("exit_last_working_day"):
         # Départ clôturé : `current_exit_id` est effacé, la sortie se lit sur
         # le départ du contrat en cours [D3].
@@ -571,7 +608,12 @@ def salarie_generable(employee_id: str, year: int, month: int) -> dict[str, Any]
         raise PayslipBadRequestError(bascule_block_reason)
     # Ce que le bulletin du mois a retenu (prêts…) doit pouvoir être défait avant
     # d'être refait : sinon, refus ici, avant la moindre écriture.
-    effets.refuser_si_effets_non_defaisables(employee_id, year, month)
+    if contract_period_id:
+        effets.refuser_si_effets_non_defaisables(
+            employee_id, year, month, contract_period_id=contract_period_id
+        )
+    else:
+        effets.refuser_si_effets_non_defaisables(employee_id, year, month)
     return employee
 
 
@@ -593,7 +635,9 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     from app.core.lecture_seule import lectures_partagees
 
     with lectures_partagees():
-        employee = salarie_generable(cmd.employee_id, cmd.year, cmd.month)
+        employee = salarie_generable(
+            cmd.employee_id, cmd.year, cmd.month, cmd.contract_period_id
+        )
 
         # Une seule génération à la fois pour ce salarié et ce mois : tout ce qui
         # écrit (archive, calcul, bulletin, cumuls) se fait sous le verrou.
@@ -611,16 +655,24 @@ def _generer_sous_verrou(
     _check_heures_sur_jour_d_arret(employee, periode)
     calendar_warning = _check_calendar_guard(employee, cmd, periode)
     bulletin_existant = _check_validated_guard(cmd)
+    _check_contrat_du_bulletin(employee, cmd, bulletin_existant)
     if bulletin_existant:
         _archive_before_regeneration(bulletin_existant, cmd)
     # Échéance de prêt, avance, CET, modulation : ce que l'ancien calcul a écrit
     # est défait, le nouveau le refait une seule fois.
-    effets.defaire_effets_du_bulletin(
-        cmd.employee_id,
-        cmd.year,
-        cmd.month,
-        payslip_id=str(bulletin_existant["id"]) if bulletin_existant else None,
-    )
+    payslip_id = str(bulletin_existant["id"]) if bulletin_existant else None
+    if cmd.contract_period_id:
+        effets.defaire_effets_du_bulletin(
+            cmd.employee_id,
+            cmd.year,
+            cmd.month,
+            payslip_id=payslip_id,
+            contract_period_id=cmd.contract_period_id,
+        )
+    else:
+        effets.defaire_effets_du_bulletin(
+            cmd.employee_id, cmd.year, cmd.month, payslip_id=payslip_id
+        )
     validated_existing = (
         bulletin_existant
         if (bulletin_existant or {}).get("status") == "valide"
@@ -629,7 +681,9 @@ def _generer_sous_verrou(
 
     statut = employee_statut_reader.get_employee_statut(cmd.employee_id)
     depart_a_zero = _depart_a_zero(cmd, bulletin_existant)
-    extra = {"depart_a_zero": depart_a_zero} if depart_a_zero else {}
+    extra: dict[str, Any] = {"depart_a_zero": depart_a_zero} if depart_a_zero else {}
+    if cmd.contract_period_id:
+        extra["contract_period_id"] = cmd.contract_period_id
     if is_forfait_jour(statut):
         result = payslip_generator_provider.generate_forfait(
             employee_id=cmd.employee_id,
@@ -674,8 +728,10 @@ def _generer_sous_verrou(
     # Les cumuls de ce mois ont pu changer : le mois suivant qui en part est
     # nommé (brouillon, recalculé dans le même geste par l'écran) ou signalé
     # (validé, jamais recalculé sans la RH).
+    # Le bulletin d'un contrat rangé n'a pas de mois suivant : celui-ci part de
+    # cumuls vides, premier mois du contrat de la fiche [D3].
     suite = None
-    if str(result.get("status") or "") == "success":
+    if str(result.get("status") or "") == "success" and not cmd.contract_period_id:
         mois_suivant = mois_suivant_a_recalculer(cmd.employee_id, cmd.year, cmd.month)
         if mois_suivant and mois_suivant.valide:
             warnings.append(
