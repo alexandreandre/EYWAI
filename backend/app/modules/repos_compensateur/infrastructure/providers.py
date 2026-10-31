@@ -27,6 +27,7 @@ def get_bulletins_par_mois_par_employe(
         .eq("company_id", company_id)
         .eq("year", year)
         .in_("employee_id", employee_ids)
+        .is_("contract_period_id", "null")  # un bulletin par mois : le contrat de la fiche [D3]
         .execute()
     )
     payslips = payslips_resp.data or []

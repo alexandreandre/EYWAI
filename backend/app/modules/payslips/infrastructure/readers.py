@@ -57,6 +57,7 @@ class DebugStorageInfoProvider:
             supabase.table("payslips")
             .select("pdf_storage_path")
             .match({"employee_id": employee_id, "year": year, "month": month})
+            .is_("contract_period_id", "null")  # le contrat de la fiche [D3]
             .maybe_single()
             .execute()
         )

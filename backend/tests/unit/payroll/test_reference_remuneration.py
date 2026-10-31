@@ -30,6 +30,8 @@ class _FakeQuery:
     def match(self, *_args, **_kwargs):
         return self
 
+    is_ = match
+
     def maybe_single(self):
         return self
 

@@ -87,6 +87,7 @@ def lire_bruts_periode_reference(
                 supabase_client.table("payslips")
                 .select("payslip_data")
                 .match({"employee_id": employee_id, "year": year, "month": month})
+                .is_("contract_period_id", "null")  # le contrat de la fiche [D3]
                 .maybe_single()
                 .execute()
             )
@@ -197,6 +198,7 @@ def lire_brut_total_contrat(
                 supabase_client.table("payslips")
                 .select("payslip_data")
                 .match({"employee_id": employee_id, "year": year, "month": month})
+                .is_("contract_period_id", "null")  # le contrat de la fiche [D3]
                 .maybe_single()
                 .execute()
             )

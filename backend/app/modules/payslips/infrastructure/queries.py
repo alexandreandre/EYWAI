@@ -399,13 +399,18 @@ def get_payslip_details(payslip_id: str) -> dict[str, Any] | None:
 def get_payslip_data_du_mois(
     employee_id: str, year: int, month: int
 ) -> dict[str, Any] | None:
-    """Bulletin du salarié pour un mois civil, ou None s'il n'existe pas."""
+    """Bulletin du salarié pour un mois civil, ou None s'il n'existe pas.
+
+    Celui du contrat de la fiche : dans un mois à deux contrats, l'autre est
+    celui du contrat rangé [D3].
+    """
     r = (
         supabase.table("payslips")
         .select("payslip_data")
         .eq("employee_id", employee_id)
         .eq("year", year)
         .eq("month", month)
+        .is_("contract_period_id", "null")
         .maybe_single()
         .execute()
     )

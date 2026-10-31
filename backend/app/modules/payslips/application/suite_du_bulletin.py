@@ -68,6 +68,8 @@ def _lire_bulletin_du_mois(employee_id: str, year: int, month: int) -> dict[str,
                 supabase.table("payslips")
                 .select(colonnes)
                 .match({"employee_id": str(employee_id), "year": year, "month": month})
+                # Le contrat de la fiche : c'est lui qui repart des cumuls du mois [D3].
+                .is_("contract_period_id", "null")
                 .maybe_single()
                 .execute()
             )

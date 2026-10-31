@@ -154,6 +154,7 @@ def _bulletins_du_mois(company_id: str, year: int, month: int) -> Dict[str, Dict
         .eq("company_id", company_id)
         .eq("year", year)
         .eq("month", month)
+        .is_("contract_period_id", "null")  # un bulletin par salarié : le contrat de la fiche [D3]
         .execute()
     ).data or []
     return {str(p.get("employee_id") or ""): p for p in lignes}

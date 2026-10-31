@@ -147,6 +147,7 @@ class SalaryCertificateGenerator:
                         "month": month_info["month"],
                     }
                 )
+                .is_("contract_period_id", "null")  # le contrat de la fiche [D3]
                 .maybe_single()
                 .execute()
             )

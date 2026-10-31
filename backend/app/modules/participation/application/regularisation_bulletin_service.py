@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from app.core.database import supabase
+from app.shared.cle_du_bulletin import CONFLIT_BULLETIN
 from app.modules.participation.domain.regularisation_payslip import (
     REGULARISATION_KIND,
     build_regularisation_participation_payslip_data,
@@ -188,6 +189,7 @@ def generate_regularisation_participation_payslip(
                 "month": month_paie,
             }
         )
+        .is_("contract_period_id", "null")  # le contrat de la fiche [D3]
         .maybe_single()
         .execute()
     )
@@ -256,7 +258,7 @@ def generate_regularisation_participation_payslip(
                 # Date du calcul : les exports déjà faits du mois deviennent « à refaire ».
                 "generated_at": datetime.now(timezone.utc).isoformat(),
             },
-            on_conflict="company_id,employee_id,year,month",
+            on_conflict=CONFLIT_BULLETIN,
         )
         .execute()
     )

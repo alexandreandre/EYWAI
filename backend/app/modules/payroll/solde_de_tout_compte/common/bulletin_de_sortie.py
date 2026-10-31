@@ -75,7 +75,11 @@ def _date(valeur: Any) -> Optional[date]:
 def bulletin_du_mois_de_sortie(
     employee_id: Optional[str], exit_data: Dict[str, Any], supabase_client: Any
 ) -> Optional[Dict[str, Any]]:
-    """Le bulletin du mois du dernier jour travaillé, s'il existe."""
+    """Le bulletin du mois du dernier jour travaillé, s'il existe.
+
+    Un mois à deux contrats a deux bulletins [D3] : celui de ce départ est
+    entré avant la sortie, l'autre après (le nouveau contrat).
+    """
     sortie = _date(exit_data.get("last_working_day"))
     if not employee_id or not sortie or supabase_client is None:
         return None
@@ -85,13 +89,19 @@ def bulletin_du_mois_de_sortie(
         .eq("employee_id", employee_id)
         .eq("year", sortie.year)
         .eq("month", sortie.month)
-        .limit(1)
         .execute()
     )
     lignes = getattr(resp, "data", None) or []
-    if not lignes:
+
+    def _entree(ligne: Dict[str, Any]) -> Optional[date]:
+        en_tete = (ligne.get("payslip_data") or {}).get("en_tete") or {}
+        return _date((en_tete.get("salarie") or {}).get("date_entree"))
+
+    du_contrat_sorti = [l for l in lignes if (_entree(l) or sortie) <= sortie]
+    if not du_contrat_sorti:
         return None
-    donnees = lignes[0].get("payslip_data") or {}
+    ligne = max(du_contrat_sorti, key=lambda l: _entree(l) or date.min)
+    donnees = ligne.get("payslip_data") or {}
     return donnees if donnees.get("salaire_brut") is not None else None
 
 

@@ -48,7 +48,7 @@ class PayslipRepository:
         """
         r = (
             supabase.table("payslips")
-            .select("pdf_storage_path, employee_id, company_id, year, month")
+            .select("pdf_storage_path, employee_id, company_id, year, month, contract_period_id")
             .eq("id", payslip_id)
             .maybe_single()
             .execute()
@@ -77,7 +77,14 @@ class PayslipRepository:
                 },
             )
 
-        if row.get("employee_id") and row.get("year") and row.get("month"):
+        # Le bulletin d'un contrat rangé (mois à deux contrats) n'a pas écrit les
+        # cumuls du mois : ce sont ceux du contrat qui continue [D3].
+        if (
+            row.get("employee_id")
+            and row.get("year")
+            and row.get("month")
+            and not row.get("contract_period_id")
+        ):
             # Les cumuls du mois partent avec le bulletin : restés en base, ils
             # servaient de départ au mois suivant comme si ce bulletin avait été
             # payé. Effacés, un mois suivant déjà calculé passe « À recalculer »

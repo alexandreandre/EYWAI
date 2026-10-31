@@ -27,6 +27,7 @@ def cumul_brut_du_mois_precedent(employee_id: str, year: int, month: int) -> flo
             supabase.table("payslips")
             .select("cumuls:payslip_data->cumuls")
             .match({"employee_id": str(employee_id), "year": int(year), "month": int(month) - 1})
+            .is_("contract_period_id", "null")  # le contrat de la fiche [D3]
             .maybe_single()
             .execute()
         )

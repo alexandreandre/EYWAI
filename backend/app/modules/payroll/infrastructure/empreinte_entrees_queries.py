@@ -257,11 +257,15 @@ def lire_empreintes_des_bulletins(employee_id: str) -> list[dict[str, Any]]:
 
 
 def lire_bulletin_enregistre(employee_id: str, year: int, month: int) -> dict[str, Any] | None:
-    """Le bulletin enregistré du mois (id, statut, données), ou None."""
+    """Le bulletin enregistré du mois (id, statut, données), ou None.
+
+    Celui du contrat de la fiche [D3].
+    """
     resp = (
         supabase.table("payslips")
         .select("id, status, payslip_data")
         .match({"employee_id": str(employee_id), "year": int(year), "month": int(month)})
+        .is_("contract_period_id", "null")
         .limit(1)
         .execute()
     )

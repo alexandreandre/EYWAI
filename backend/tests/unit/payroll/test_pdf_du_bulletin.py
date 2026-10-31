@@ -525,7 +525,7 @@ class TestDiagnosticDuStockage:
                     def eq(self, *_a):
                         return self
 
-                    match = eq
+                    match = is_ = eq
 
                     def single(self):
                         return self
