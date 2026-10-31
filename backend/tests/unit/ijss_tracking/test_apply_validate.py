@@ -222,3 +222,30 @@ def test_un_recalcul_refuse_garde_la_saisie_et_le_dit(monkeypatch):
     assert "Des heures sont saisies pendant l'arrêt." in str(exc.value)
     assert len(saisies.ecrites) == 1
     assert lignes == {}
+
+
+def test_un_bulletin_remis_au_salarie_est_refuse_sans_rien_ecrire(monkeypatch):
+    """D4 : les IJSS reçues après la remise vont sur le bulletin du mois suivant."""
+    from datetime import date
+
+    from app.modules.payslips.application import commands as cmd_mod
+
+    saisies, generations, lignes = _monter(
+        monkeypatch,
+        bulletin={
+            "id": "ps-mai",
+            "company_id": "co-1",
+            "status": "valide",
+            "validated_at": "2026-05-29T10:00:00+00:00",
+            "payslip_data": {},
+        },
+    )
+    monkeypatch.setattr(cmd_mod, "jour_de_la_societe", lambda _c: 1)
+    monkeypatch.setattr(cmd_mod, "aujourd_hui_local", lambda: date(2026, 6, 10))
+
+    with pytest.raises(ValueError, match="bulletin de juin 2026"):
+        apply_validated_ijss_to_payslip("co-1", "exp-1", "user-1")
+
+    assert saisies.ordre == []
+    assert generations == []
+    assert lignes == {}

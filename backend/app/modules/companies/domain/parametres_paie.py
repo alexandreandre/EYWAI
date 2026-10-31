@@ -29,6 +29,12 @@ TAUX_CHOMAGE_MAX = 5.0
 #: (payroll/engine/bulletin.py, _calculer_date_paiement).
 DATES_PAIEMENT: tuple[str, ...] = ("dernier_jour_du_mois", "arrete_des_variables")
 
+#: Jour où les salariés voient leurs bulletins validés : 0 = dès la validation,
+#: 1 à 28 = ce jour du mois suivant ; absent, le 1er (lu par
+#: payslips/domain/mise_a_disposition.py). Hors de l'empreinte : il ne change
+#: aucun montant.
+CLE_MISE_A_DISPOSITION = "bulletins_mise_a_disposition_jour"
+
 #: Réglages rangés dans `companies.settings` ; `None` retire la clé.
 CLES_SETTINGS: tuple[str, ...] = (
     "taux_assurance_chomage",
@@ -36,6 +42,7 @@ CLES_SETTINGS: tuple[str, ...] = (
     "jour_solidarite",
     "effectif_seuils",
     "compte_bancaire",
+    CLE_MISE_A_DISPOSITION,
 )
 
 _DATE_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -103,6 +110,18 @@ def valider_date_paiement(valeur: Any) -> str | None:
             "La date de paiement est « Dernier jour du mois » ou « Jour de l'arrêté des variables »."
         )
     return str(valeur)
+
+
+def valider_jour_mise_a_disposition(valeur: Any) -> int | None:
+    """0 = dès la validation, 1 à 28 = ce jour du mois suivant ; None = le 1er."""
+    if valeur is None:
+        return None
+    if isinstance(valeur, int) and not isinstance(valeur, bool) and 0 <= valeur <= 28:
+        return valeur
+    raise ValueError(
+        "Les bulletins se mettent à disposition dès leur validation, ou un jour du "
+        "mois suivant, de 1 à 28."
+    )
 
 
 def valider_jour_solidarite(valeur: Any) -> str | None:

@@ -8,6 +8,7 @@ et mappent les exceptions (PayslipNotFoundError -> 404, PayslipForbiddenError ->
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 from app.modules.payslips.application.coherence import signal_a_regenerer
@@ -43,6 +44,7 @@ from app.modules.payslips.application.queries import (
     get_payslip_history,
 )
 from app.modules.payslips.domain.corrections import CorrectionsBulletin
+from app.modules.payslips.domain.mise_a_disposition import message_pas_encore_disponible
 from app.modules.payslips.domain.rules import (
     can_edit_or_restore_payslip,
     can_view_payslip,
@@ -114,6 +116,12 @@ def get_payslip_details_for_user(
         detail, bypass_lock=ctx.is_platform_admin
     )
     if not _voit_comme_rh(detail, ctx):
+        if not detail.get("bulletin_remis"):
+            # D5 : validé, mais pas encore mis à disposition par la société.
+            remis_le = detail.get("remis_le")
+            raise PayslipForbiddenError(
+                message_pas_encore_disponible(date.fromisoformat(remis_le) if remis_le else None)
+            )
         # Le salarié voit son bulletin, pas les versions de travail ni les notes
         # internes de la RH (audit du 28/09).
         return {
@@ -273,6 +281,7 @@ def edit_payslip_for_user(
             pdf_notes=pdf_notes,
             internal_note=internal_note,
             base_updated_at=base_updated_at,
+            modifier_bulletin_remis=ctx.is_platform_admin,
         )
     )
 
@@ -311,5 +320,6 @@ def restore_payslip_for_user(
             version=version,
             current_user_id=ctx.user_id,
             current_user_name=ctx.display_name(),
+            modifier_bulletin_remis=ctx.is_platform_admin,
         )
     )

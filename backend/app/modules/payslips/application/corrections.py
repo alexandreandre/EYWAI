@@ -292,6 +292,7 @@ def _recalculer(
                 # sa première génération. Les réopposer bloquerait une correction.
                 force_calendrier_incomplet=True,
                 regenerer_bulletin_valide=True,
+                modifier_bulletin_remis=cmd.modifier_bulletin_remis,
                 requested_by=cmd.current_user_id,
                 requested_by_name=cmd.current_user_name,
                 motif=motif,
@@ -432,6 +433,7 @@ def restaurer_version(cmd: RestorePayslipInput) -> dict[str, Any]:
             corrections=corrections,
             current_user_id=cmd.current_user_id,
             current_user_name=cmd.current_user_name,
+            modifier_bulletin_remis=cmd.modifier_bulletin_remis,
             changes_summary=f"Retour à la version {cmd.version}",
             verifier_les_lignes=False,
         )

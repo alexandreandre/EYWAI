@@ -15,6 +15,7 @@ from app.modules.payslips.application.commands import (
     _fetch_existing_payslip,
     _refuser_si_importe,
     generate_payslip,
+    refuser_si_remis,
     salarie_generable,
 )
 from app.modules.payslips.application.corrections import _message_d_erreur
@@ -178,6 +179,7 @@ def apply_validated_ijss_to_payslip(
         existant = _fetch_existing_payslip(employee_id, year, month)
         if existant:
             _refuser_si_importe(str(existant["id"]))
+            refuser_si_remis(existant, year, month)
     except (PayslipBadRequestError, PayslipNotFoundError) as exc:
         raise ValueError(str(exc)) from exc
 

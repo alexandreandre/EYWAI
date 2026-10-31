@@ -145,6 +145,9 @@ class GeneratePayslipInput:
     #: Ce qui a été changé avant cette régénération (correction au bulletin,
     #: restauration) : écrit dans l'historique à la place du motif générique.
     motif: str | None = None
+    #: Un bulletin remis au salarié ne se modifie plus (D4) ; seul
+    #: l'administrateur de la plateforme passe outre.
+    modifier_bulletin_remis: bool = False
 
 
 @dataclass
@@ -190,6 +193,8 @@ class CorrigerBulletinInput:
     #: restauration d'une version ne le fait pas : une correction dont la ligne
     #: n'existe plus revient en attente et bloque la validation (règle 7).
     verifier_les_lignes: bool = True
+    #: Repris par le recalcul : voir GeneratePayslipInput.
+    modifier_bulletin_remis: bool = False
 
 
 @dataclass
@@ -200,3 +205,4 @@ class RestorePayslipInput:
     version: int
     current_user_id: str
     current_user_name: str
+    modifier_bulletin_remis: bool = False

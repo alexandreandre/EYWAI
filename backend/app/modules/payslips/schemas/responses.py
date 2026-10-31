@@ -141,6 +141,10 @@ class PayslipDetail(BaseModel):
     manual_edit_locked: bool = False
     manual_edit_lock_reason: str | None = None
     manual_edit_lock_until: date | None = None
+    #: Jour où le salarié reçoit ce bulletin validé (D5) ; None pour un brouillon.
+    remis_le: date | None = None
+    #: Remis : le salarié le voit, il ne se modifie plus (D4).
+    bulletin_remis: bool = False
     #: Phrase à afficher quand le mois précédent a changé depuis le calcul de
     #: ce bulletin (cumuls qui ne se suivent plus) ; None sinon.
     a_regenerer: str | None = None

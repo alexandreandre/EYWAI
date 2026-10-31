@@ -220,7 +220,11 @@ class TestListesDesBulletins:
     def test_les_listes_affichent_le_nom_d_avant(self, monkeypatch):
         from app.modules.payslips.infrastructure import queries
 
-        ligne = {"id": "ps-1", "month": MOIS, "year": ANNEE, "pdf_storage_path": self.HORODATE}
+        # La requête ne lit que des bulletins validés (`status = valide`).
+        ligne = {
+            "id": "ps-1", "month": MOIS, "year": ANNEE, "status": "valide",
+            "pdf_storage_path": self.HORODATE,
+        }
         monkeypatch.setattr(queries, "supabase", self._base(ligne))
         monkeypatch.setattr(queries, "create_payslip_url_maps", self._liens)
 

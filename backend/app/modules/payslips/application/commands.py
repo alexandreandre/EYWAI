@@ -41,7 +41,13 @@ from app.modules.payslips.application.suite_du_bulletin import (
     mois_suivant_a_recalculer,
     phrase_mois_suivant_valide,
 )
+from app.modules.payslips.domain.mise_a_disposition import (
+    message_bulletin_remis,
+    remis_le_du_bulletin,
+)
 from app.modules.payslips.domain.rules import is_forfait_jour
+from app.modules.payslips.infrastructure.mise_a_disposition_queries import jour_de_la_societe
+from app.shared.domain.temps_local import aujourd_hui_local
 from app.modules.payslips.infrastructure.providers import (
     payslip_generator_provider,
 )
@@ -242,8 +248,8 @@ def _fetch_existing_payslip(
     r = (
         supabase.table("payslips")
         .select(
-            "id, status, payslip_data, url, edit_history, pdf_notes, "
-            "manually_edited, pdf_storage_path"
+            "id, company_id, status, validated_at, payslip_data, url, edit_history, "
+            "pdf_notes, manually_edited, pdf_storage_path"
         )
         .match({"employee_id": employee_id, "year": year, "month": month})
         .maybe_single()
@@ -449,6 +455,17 @@ def _reset_payslip_flags_after_regeneration(payslip_id: str) -> None:
     ).eq("id", payslip_id).execute()
 
 
+def refuser_si_remis(existing: dict[str, Any], year: int, month: int) -> None:
+    """D4 : un bulletin remis au salarié ne se modifie plus, l'erreur se corrige
+    le mois suivant. Lève PayslipBadRequestError."""
+    remis = remis_le_du_bulletin(
+        {**existing, "year": year, "month": month},
+        jour=jour_de_la_societe(existing.get("company_id")),
+    )
+    if remis and remis <= aujourd_hui_local():
+        raise PayslipBadRequestError(message_bulletin_remis(year, month, remis))
+
+
 def _check_validated_guard(
     cmd: GeneratePayslipInput,
 ) -> dict[str, Any] | None:
@@ -465,6 +482,9 @@ def _check_validated_guard(
         return None
     if existing.get("status") != "valide":
         return existing
+    if not cmd.modifier_bulletin_remis:
+        # Avant le refus du bulletin validé, qui proposerait « Régénérer ».
+        refuser_si_remis(existing, cmd.year, cmd.month)
     if not cmd.regenerer_bulletin_valide:
         raise PayslipValidatedError(
             f"Un bulletin validé existe déjà pour {cmd.month:02d}/{cmd.year}. "

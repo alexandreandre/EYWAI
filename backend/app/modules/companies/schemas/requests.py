@@ -16,6 +16,7 @@ from app.modules.companies.domain.parametres_paie import (
     valider_annee_effectif,
     valider_compte_bancaire,
     valider_effectif,
+    valider_jour_mise_a_disposition,
     valider_jour_solidarite,
     valider_taux_assurance_chomage,
 )
@@ -180,6 +181,19 @@ class CompanyDetailsUpdate(BaseModel):
             "les salaires (donneur d'ordre des remises SEPA). null retire la clé."
         ),
     )
+    bulletins_mise_a_disposition_jour: Optional[int] = Field(
+        None,
+        description=(
+            "settings.bulletins_mise_a_disposition_jour : 0 = les salariés voient "
+            "leur bulletin dès sa validation, 1 à 28 = ce jour du mois suivant. "
+            "null retire la clé (le 1er du mois suivant)."
+        ),
+    )
+
+    @field_validator("bulletins_mise_a_disposition_jour", mode="before")
+    @classmethod
+    def _mise_a_disposition(cls, valeur: Any) -> Optional[int]:
+        return _en_erreur_lisible(valider_jour_mise_a_disposition, valeur)
 
     @field_validator("compte_bancaire", mode="before")
     @classmethod

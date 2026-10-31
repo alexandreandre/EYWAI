@@ -185,7 +185,7 @@ def test_la_route_rend_la_suite(monkeypatch):
     monkeypatch.setattr(
         router.access_control_service, "require_employee_access", lambda *a, **k: None
     )
-    utilisateur = SimpleNamespace(id="u1", first_name="A", last_name="B")
+    utilisateur = SimpleNamespace(id="u1", first_name="A", last_name="B", is_platform_admin=False)
     reponse = router.generate_payslip_route(
         router.PayslipRequest(employee_id="e1", year=2026, month=9), utilisateur
     )

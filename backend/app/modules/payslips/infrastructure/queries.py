@@ -16,6 +16,9 @@ from app.modules.payroll.domain.report_nap_negatif import statut_qui_verrouille
 from app.shared.domain.employment_rules import effective_statut_for_payroll
 
 from app.modules.payslips.domain.corrections import apercu_de_restauration, contenu_de_version
+from app.modules.payslips.domain.mise_a_disposition import bulletins_remis
+from app.modules.payslips.infrastructure.mise_a_disposition_queries import jour_de_la_societe
+from app.shared.domain.temps_local import aujourd_hui_local
 from app.modules.payslips.infrastructure.mappers import build_payslip_detail
 from app.modules.payslips.infrastructure.payslip_list_meta import payslip_list_meta
 from app.modules.payslips.infrastructure.storage_urls import (
@@ -50,7 +53,10 @@ def get_payslip_meta(payslip_id: str) -> dict[str, Any] | None:
     """
     r = (
         supabase.table("payslips")
-        .select("company_id, employee_id, year, month")
+        .select(
+            "company_id, employee_id, year, month, status, validated_at, "
+            "bulletin_de_sortie:payslip_data->bulletin_de_sortie"
+        )
         .eq("id", payslip_id)
         .maybe_single()
         .execute()
@@ -158,16 +164,17 @@ def get_report_candidates_for_company_period(
 
 
 def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
-    """Liste des bulletins VALIDÉS de l'employé (net_a_payer, URLs signées).
+    """Liste des bulletins REMIS de l'employé (net_a_payer, URLs signées).
 
     Contrat vague 3 du design d'intégration : un salarié ne voit jamais un
     brouillon. Tant que la RH ne valide pas, son espace est vide — c'est
     voulu (au 21/08/2026 : 1308/1308 bulletins en brouillon, aucun salarié
-    connecté).
+    connecté). Un bulletin validé n'apparaît qu'à sa date de mise à
+    disposition, réglée par la société (D5, 31/10/2026).
     """
     r = (
         supabase.table("payslips")
-        .select("id, month, year, pdf_storage_path, payslip_data")
+        .select("id, company_id, month, year, status, validated_at, pdf_storage_path, payslip_data")
         .eq("employee_id", employee_id)
         .eq("status", "valide")
         .order("year", desc=True)
@@ -177,6 +184,11 @@ def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
     payslips_db = (r.data or []) if r else []
     if not payslips_db:
         return []
+    payslips_db = bulletins_remis(
+        payslips_db,
+        jour=jour_de_la_societe(payslips_db[0].get("company_id")),
+        aujourd_hui=aujourd_hui_local(),
+    )
 
     paths = [p["pdf_storage_path"] for p in payslips_db if p.get("pdf_storage_path")]
     if not paths:

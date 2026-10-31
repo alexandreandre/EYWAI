@@ -164,6 +164,8 @@ class TestGetPayslipDetailsForUser:
             "month": 6,
             "url": "https://u.fr",
             "status": "valide",
+            # Remis au salarié (D5) : sans cela, il ne l'ouvre pas encore.
+            "bulletin_remis": True,
         }
         ctx = _ctx_employee("emp-1")
         with (
@@ -191,7 +193,7 @@ class TestGetPayslipDetailsForUser:
     def test_le_salarie_ne_voit_ni_versions_ni_notes_internes(self):
         detail = {
             "id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2026,
-            "month": 6, "status": "valide",
+            "month": 6, "status": "valide", "bulletin_remis": True,
             "edit_history": [{"version": 1}], "internal_notes": [{"content": "interne"}],
         }
         with (

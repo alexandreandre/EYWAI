@@ -334,6 +334,7 @@ def generate_payslip_route(
                 force_calendrier_incomplet=request.force_calendrier_incomplet,
                 regenerer_bulletin_valide=request.regenerer_bulletin_valide,
                 partir_de_cumuls_a_zero=request.partir_de_cumuls_a_zero,
+                modifier_bulletin_remis=bool(current_user.is_platform_admin),
                 requested_by=str(current_user.id),
                 requested_by_name=(
                     f"{current_user.first_name or ''} {current_user.last_name or ''}".strip()

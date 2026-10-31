@@ -41,7 +41,10 @@ from app.modules.payslips.infrastructure.comparison_queries import (
 )
 from app.core.database import supabase
 from app.core.logging import get_logger
-from app.shared.domain.temps_local import date_heure_en_clair
+from app.shared.domain.temps_local import aujourd_hui_local, date_heure_en_clair
+from app.modules.payslips.application.period_edit_lock import refus_avant_remise
+from app.modules.payslips.domain.mise_a_disposition import remis_le
+from app.modules.payslips.infrastructure.mise_a_disposition_queries import jour_de_la_societe
 from app.modules.payslips.application.commands import (
     _notify_payslip_available,
 )
@@ -82,6 +85,11 @@ def _ensure_view_detail(detail: dict[str, Any] | None, ctx: UserContext) -> dict
         raise PayslipForbiddenError(
             "Accès refusé: vous n'avez pas les permissions pour consulter ce bulletin"
         )
+    if not _voit_comme_rh(detail, ctx):
+        # D5 : la courbe des nets ne montre pas un bulletin avant sa remise.
+        refus = refus_avant_remise(detail)
+        if refus:
+            raise PayslipForbiddenError(refus)
     return detail
 
 
@@ -361,6 +369,19 @@ def validate_payslip_for_user(payslip_id: str, ctx: UserContext) -> None:
     fresh_pd = updated.get("payslip_data") if isinstance(updated, dict) else None
     if not isinstance(fresh_pd, dict):
         fresh_pd = pd
+    # D5 : notifié le jour où il voit son bulletin. Validé avant la date de mise
+    # à disposition, il l'est ce jour-là par scripts/notifier_bulletins_remis.py.
+    aujourd_hui = aujourd_hui_local()
+    remis = remis_le(
+        year=year,
+        month=month,
+        statut="valide",
+        valide_le=aujourd_hui,
+        jour=jour_de_la_societe(comp_id),
+        bulletin_de_sortie=fresh_pd.get("bulletin_de_sortie") is True,
+    )
+    if remis and remis > aujourd_hui:
+        return
     if not fresh_pd.get("salarie_notifie_le"):
         try:
             if _notify_payslip_available(emp_id, comp_id, year, month):

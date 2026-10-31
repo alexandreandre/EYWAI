@@ -121,6 +121,36 @@ class TestDatePaiement:
         assert set(DATES_PAIEMENT) == {DATE_PAIEMENT_DERNIER_JOUR, DATE_PAIEMENT_ARRETE}
 
 
+class TestMiseADispositionDesBulletins:
+    @pytest.mark.parametrize("jour", [0, 1, 5, 28])
+    def test_des_la_validation_ou_un_jour_du_mois_suivant(self, jour):
+        assert CompanyDetailsUpdate(bulletins_mise_a_disposition_jour=jour).to_update_dict() == {
+            "bulletins_mise_a_disposition_jour": jour
+        }
+
+    @pytest.mark.parametrize("saisie", [29, -1, "le 1er", True, 1.5])
+    def test_un_autre_jour_est_refuse(self, saisie):
+        with pytest.raises(ValidationError) as exc:
+            CompanyDetailsUpdate(bulletins_mise_a_disposition_jour=saisie)
+        assert "de 1 à 28" in exc.value.errors()[0]["msg"]
+
+    def test_null_explicite_revient_au_1er_du_mois_suivant(self):
+        assert CompanyDetailsUpdate(bulletins_mise_a_disposition_jour=None).to_update_dict() == {
+            "bulletins_mise_a_disposition_jour": None
+        }
+
+    def test_la_cle_est_celle_que_lit_la_remise(self):
+        from app.modules.companies.domain.parametres_paie import CLE_MISE_A_DISPOSITION
+        from app.modules.payslips.domain.mise_a_disposition import CLE_REGLAGE, JOUR_MAX
+
+        assert CLE_MISE_A_DISPOSITION == CLE_REGLAGE
+        assert JOUR_MAX == 28
+
+    def test_le_reglage_rejoint_settings(self):
+        _, depot, _ = _ecrire({"bulletins_mise_a_disposition_jour": 0})
+        assert depot.update_company.call_args[0][1]["settings"]["bulletins_mise_a_disposition_jour"] == 0
+
+
 class TestJourSolidarite:
     def test_une_date_iso_est_gardee_telle_quelle(self):
         assert CompanyDetailsUpdate(jour_solidarite="2026-05-25").to_update_dict() == {
