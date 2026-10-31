@@ -757,13 +757,15 @@ def creer_bulletin_final(
     solde_conges = build_solde_conges_pied_de_page(
         _extraire_employee_id(contexte), annee, mois, date_fin_variables
     )
+    bulletin_de_sortie = _est_bulletin_de_sortie(contexte, annee, mois)
     alertes_baremes.extend(
-        alertes_des_compteurs_de_conges(
-            solde_conges, bulletin_de_sortie=_est_bulletin_de_sortie(contexte, annee, mois)
-        )
+        alertes_des_compteurs_de_conges(solde_conges, bulletin_de_sortie=bulletin_de_sortie)
     )
 
     bulletin = {
+        # Lu par la remise au salarié : le bulletin de sortie est remis dès sa
+        # validation, avec le solde de tout compte (payslips/domain/mise_a_disposition.py).
+        "bulletin_de_sortie": bulletin_de_sortie,
         "en_tete": {
             "periode": periode_formatee,
             "annee": annee,
@@ -1192,4 +1194,5 @@ def creer_bulletin_sortie(
 
     log_payroll_debug(logger, f'INFO: Bulletin de sortie assemblé - Indemnités totales: {round(total_indemnites_soumises + total_indemnites_exonerees, 2)} €')
 
+    bulletin_base["bulletin_de_sortie"] = True
     return bulletin_base

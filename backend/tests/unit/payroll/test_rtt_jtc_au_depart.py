@@ -16,6 +16,7 @@ from app.modules.payroll.engine import bulletin as module_bulletin
 from app.modules.payroll.engine.bulletin import (
     alertes_des_compteurs_de_conges,
     creer_bulletin_final,
+    creer_bulletin_sortie,
 )
 from app.modules.payroll.engine.calcul_cotisations import calculer_cotisations
 from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
@@ -64,6 +65,29 @@ def test_le_bulletin_de_sortie_porte_l_alerte(monkeypatch):
     nets = calculer_net_et_impot(ctx, 2000.0, lignes, total_sal, [], 0.0)
     final = creer_bulletin_final(ctx, 2000.0, [], lignes, nets, [], 2026, 7)
     assert "rtt_jtc_non_payes_au_depart" in [a.get("code") for a in final["alertes_baremes"]]
+
+
+@pytest.mark.parametrize("depart", [True, False])
+def test_le_bulletin_dit_s_il_est_celui_de_la_sortie(monkeypatch, depart):
+    """La remise au salarié en dépend : le bulletin de sortie est remis dès sa validation."""
+    monkeypatch.setattr(module_bulletin, "build_solde_conges_pied_de_page", lambda *a, **k: None)
+    ctx = build_test_contexte(salaire_base=2000.0)
+    ctx.year = 2026
+    ctx.depart_du_mois = depart
+    lignes, total_sal = calculer_cotisations(ctx, 2000.0)
+    nets = calculer_net_et_impot(ctx, 2000.0, lignes, total_sal, [], 0.0)
+    final = creer_bulletin_final(ctx, 2000.0, [], lignes, nets, [], 2026, 7)
+    assert final["bulletin_de_sortie"] is depart
+
+
+def test_le_bulletin_aux_indemnites_de_sortie_est_celui_de_la_sortie(monkeypatch):
+    monkeypatch.setattr(module_bulletin, "build_solde_conges_pied_de_page", lambda *a, **k: None)
+    ctx = build_test_contexte(salaire_base=2000.0)
+    ctx.year = 2026
+    lignes, total_sal = calculer_cotisations(ctx, 2000.0)
+    nets = calculer_net_et_impot(ctx, 2000.0, lignes, total_sal, [], 0.0)
+    final = creer_bulletin_sortie(ctx, 2000.0, [], lignes, nets, [], {}, 2026, 7)
+    assert final["bulletin_de_sortie"] is True
 
 
 def test_le_recu_reprend_l_alerte_du_bulletin_de_sortie():
