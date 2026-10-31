@@ -88,7 +88,11 @@ Sources : cahier technique DSN 2026.1 (`docs/audit-maji-2026/sources/dsn-cahier-
      - la fiche de l'ancien contrat n'a pas été rangée.
 8. **Aperçu.** Une ligne par bulletin. `nombre_contrats` compte les deux et les
    totaux additionnent les deux.
-9. **Ancien contrat seul.** Si le bulletin du nouveau contrat n'est pas encore
+9. **Fin de contrat (FCTU).** Le FCTU est la DSN du mois de sortie réduite au
+   salarié. Dans un mois à deux contrats, il ne garde que le contrat qui porte
+   la fin (62), le versement qui le rémunère (51.010) et son ancienneté
+   (86.005), sans 78.006. DSN-VAL : 0 anomalie sur le FCTU tiré du cas fabriqué.
+10. **Ancien contrat seul.** Si le bulletin du nouveau contrat n'est pas encore
    généré, la DSN déclare l'ancien contrat seul, sur sa fiche rangée.
 
 ## Hors champ

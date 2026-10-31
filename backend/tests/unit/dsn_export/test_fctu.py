@@ -141,3 +141,41 @@ def test_le_preavis_se_lit_dans_le_dossier_de_depart(sortie, attendu):
 def test_un_preavis_inconnu_ne_s_invente_pas():
     with pytest.raises(ValueError, match="Préavis"):
         bloc_preavis({"exit_type": "demission"})
+
+
+DEUX_CONTRATS = [
+    "S10.G00.00.001,'Martine Paie'", "S10.G00.00.005,'01'",
+    "S20.G00.05.001,'01'", "S20.G00.05.005,'01112026'",
+    "S21.G00.06.001,'802485169'",
+    "S21.G00.11.001,'00011'",
+    "S21.G00.30.001,'1900101234567'",
+    "S21.G00.40.001,'01072026'", "S21.G00.40.007,'02'", "S21.G00.40.009,'00000'",
+    "S21.G00.62.001,'10112026'", "S21.G00.62.002,'031'",
+    "S21.G00.40.001,'17112026'", "S21.G00.40.007,'01'", "S21.G00.40.009,'00001'",
+    "S21.G00.50.001,'30112026'", "S21.G00.50.002,'700.00'", "S21.G00.50.003,'01'",
+    "S21.G00.51.001,'01112026'", "S21.G00.51.002,'10112026'", "S21.G00.51.010,'00000'", "S21.G00.51.011,'001'",
+    "S21.G00.78.001,'03'", "S21.G00.78.004,'700.00'", "S21.G00.78.006,'00000'",
+    "S21.G00.50.001,'30112026'", "S21.G00.50.002,'900.00'", "S21.G00.50.003,'02'",
+    "S21.G00.51.001,'17112026'", "S21.G00.51.002,'30112026'", "S21.G00.51.010,'00001'", "S21.G00.51.011,'001'",
+    "S21.G00.78.001,'03'", "S21.G00.78.004,'900.00'", "S21.G00.78.006,'00001'",
+    "S21.G00.86.001,'07'", "S21.G00.86.005,'00000'",
+    "S21.G00.86.001,'07'", "S21.G00.86.005,'00001'",
+    "S90.G00.90.001,'40'", "S90.G00.90.002,'1'",
+]
+
+
+def test_un_mois_a_deux_contrats_ne_signale_que_le_contrat_qui_finit():
+    """Le CDD finit le 10/11, un nouveau contrat commence le 17/11 (D3.2) : le
+    FCTU porte le contrat qui finit, son versement et son ancienneté, rien du
+    nouveau."""
+    texte = fctu_depuis_mensuelle(
+        _mensuelle(DEUX_CONTRATS), mois_solde=date(2026, 11, 10), preavis=SANS_PREAVIS
+    )
+    lignes = texte.strip().split("\r\n")
+    assert [l for l in lignes if l.startswith("S21.G00.40.009")] == ["S21.G00.40.009,'00000'"]
+    assert not [l for l in lignes if "'00001'" in l]
+    assert [l for l in lignes if l.startswith("S21.G00.50.001")] == ["S21.G00.50.001,'30112026'"]
+    assert [l for l in lignes if l.startswith("S21.G00.78.004")] == ["S21.G00.78.004,'700.00'"]
+    assert [l for l in lignes if l.startswith("S21.G00.86.005")] == ["S21.G00.86.005,'00000'"]
+    # Un seul contrat déclaré : sa base ne cite plus de numéro (CT 78.006).
+    assert not [l for l in lignes if l.startswith("S21.G00.78.006")]

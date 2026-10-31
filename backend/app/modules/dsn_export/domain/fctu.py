@@ -70,6 +70,61 @@ def _blocs(texte: str) -> List[Dict[str, str]]:
     return blocs
 
 
+#: Blocs enfants d'un contrat (40) et d'un versement (50) : arborescence du
+#: cahier technique 2026.1, § 8.
+_ENFANTS_DU_CONTRAT = tuple(
+    f"S21.G00.{n}" for n in ("41", "60", "62", "63", "65", "66", "70", "71", "72", "73")
+)
+_ENFANTS_DU_VERSEMENT = tuple(
+    f"S21.G00.{n}" for n in ("51", "52", "53", "54", "56", "58", "78", "79", "81", "83", "84", "95")
+)
+
+
+def _seul_le_contrat_qui_finit(blocs: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """Un mois à deux contrats (D3.2) : le contrat qui porte la fin (62), le
+    versement qui le rémunère (51.010) et son ancienneté (86.005) ; rien de
+    l'autre contrat. Un seul contrat : les blocs tels quels."""
+    if sum(1 for b in blocs if "S21.G00.40.001" in b) < 2:
+        return blocs
+    contrat_de: List[Optional[str]] = [None] * len(blocs)
+    courant: Optional[str] = None  # le contrat dont on lit les blocs enfants
+    versement: List[int] = []  # les blocs du versement en cours
+    for index, bloc in enumerate(blocs):
+        prefixe = next(iter(bloc))[:10]
+        if prefixe == "S21.G00.50":
+            courant, versement = None, [index]
+        elif prefixe in _ENFANTS_DU_VERSEMENT and versement:
+            versement.append(index)
+            # Le versement appartient au contrat de sa rémunération (51, son
+            # premier enfant) ; ses blocs suivants aussi.
+            numero = bloc.get("S21.G00.51.010") or contrat_de[versement[0]]
+            for i in versement:
+                contrat_de[i] = numero
+        else:
+            versement = []
+            if prefixe == "S21.G00.40":
+                courant = bloc.get("S21.G00.40.009", "")
+            elif prefixe == "S21.G00.86":
+                courant = None
+                contrat_de[index] = bloc.get("S21.G00.86.005", "")
+            elif prefixe not in _ENFANTS_DU_CONTRAT:
+                courant = None
+            if courant is not None:
+                contrat_de[index] = courant
+    finit = next(
+        (contrat_de[i] for i, b in enumerate(blocs) if "S21.G00.62.001" in b), None
+    )
+    gardes = []
+    for bloc, contrat in zip(blocs, contrat_de):
+        if contrat is not None and contrat != finit:
+            continue
+        if "S21.G00.78.006" in bloc:
+            # Un seul contrat déclaré : la base ne cite plus son numéro (78.006).
+            bloc = {k: v for k, v in bloc.items() if k != "S21.G00.78.006"}
+        gardes.append(bloc)
+    return gardes
+
+
 def bloc_preavis(sortie: Optional[Mapping[str, Any]]) -> Dict[str, str]:
     """Le bloc préavis (63), obligatoire dans un FCTU, lu dans le dossier de départ.
 
@@ -110,6 +165,7 @@ def fctu_depuis_mensuelle(
             "Pas de fin de contrat dans le mois : saisissez la sortie du salarié, puis "
             "recalculez son bulletin de sortie."
         )
+    blocs = _seul_le_contrat_qui_finit(blocs)
     sortie: List[Dict[str, str]] = []
     base_ecartee = False
     for bloc in blocs:
