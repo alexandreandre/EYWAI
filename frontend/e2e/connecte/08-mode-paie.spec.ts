@@ -291,4 +291,7 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
   // Seules écritures du parcours, interceptées : la création et la fiche complétée.
   expect(ecritures).toEqual(['POST /api/employees', expect.stringMatching(/^PUT \/api\/employees\/[0-9a-f-]+$/)]);
   await verifierPageSaine(page, s);
+  // Une liste encore en vol quand le test finit ne doit pas faire échouer la
+  // suite (« route.fetch: Test ended », 30 et 31/10 : 50 tests verts, job rouge).
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
