@@ -7,6 +7,25 @@ from typing import Any, Dict, Optional
 
 from app.modules.dsn_import.domain.rubriques import CONTRACT_NATURE_MAP, STATUT_CADRE_CODES
 
+#: Numéro d'un contrat sans numéro repris : le premier de Quadra.
+NUMERO_PREMIER_CONTRAT = "00000"
+
+
+def numero_du_contrat(employee: Dict[str, Any]) -> str:
+    """Numéro du contrat (S21.G00.40.009) : celui de la classification de la
+    fiche — repris du cabinet, ou posé par « Nouveau contrat » (00000, 00001…,
+    comme Quadra) —, « 00000 » sinon."""
+    classification = employee.get("classification_conventionnelle")
+    if not isinstance(classification, dict):
+        classification = {}
+    return str(
+        classification.get("numero_contrat_dsn")
+        or employee.get("numero_contrat")
+        or employee.get("contract_number")
+        or NUMERO_PREMIER_CONTRAT
+    )
+
+
 # Inverse nature contrat
 _NATURE_FROM_MARTINE: Dict[str, str] = {}
 for code, label in CONTRACT_NATURE_MAP.items():

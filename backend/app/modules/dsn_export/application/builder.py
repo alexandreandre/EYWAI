@@ -21,6 +21,7 @@ from app.modules.dsn_export.domain.contract_map import (
     map_sexe_to_dsn,
     map_statut_categoriel_rc,
     map_statut_to_dsn,
+    numero_du_contrat,
     period_bounds,
     period_to_mois_principal,
 )
@@ -29,6 +30,7 @@ from app.modules.dsn_export.domain.agregats import (
     montant_retraite_complementaire,
 )
 from app.modules.dsn_export.domain.cotisation_mapping import build_bases_and_cotisations
+from app.modules.dsn_export.domain.deux_contrats import fusionner
 from app.modules.dsn_export.domain.versements_complementaires import (
     bloc_versement_complementaire,
     cotisations_par_contrat,
@@ -925,6 +927,18 @@ def build_etablissement(
     return etab
 
 
+def _fin_reprise_du_contrat(reprise: Dict[str, Any], date_debut: str) -> str:
+    """La date de fin reprise du cabinet, si elle ne précède pas le début du
+    contrat (JJMMAAAA) ; vide sinon."""
+    fin = iso_to_dsn_date(reprise.get("date_fin_contrat"))
+    try:
+        if fin and datetime.strptime(fin, "%d%m%Y") < datetime.strptime(date_debut, "%d%m%Y"):
+            return ""
+    except ValueError:
+        pass
+    return fin
+
+
 def build_individu_from_payroll(
     employee: Dict[str, Any],
     payslip_data: Dict[str, Any],
@@ -1051,12 +1065,7 @@ def build_individu_from_payroll(
     warnings.extend(map_warnings)
 
     classification = _classification(employee)
-    numero = str(
-        classification.get("numero_contrat_dsn")
-        or employee.get("numero_contrat")
-        or employee.get("contract_number")
-        or "00000"
-    )
+    numero = numero_du_contrat(employee)
     # Événements du contrat : arrêts (60), autres suspensions (65), fin (62)
     # et indemnités de rupture (52), qui sortent du salaire brut chômage.
     absences = [a for a in (employee.get("absences_dsn") or []) if isinstance(a, dict)]
@@ -1370,9 +1379,11 @@ def build_individu_from_payroll(
     # fiche ; le motif vient du contrat quand il y est, sinon de la reprise.
     # Celle d'un apprenti, saisie à l'écran dans la reprise, arrive en
     # AAAA-MM-JJ ; celle du cabinet en JJMMAAAA : les deux se convertissent.
+    # Une fin reprise antérieure au début décrit un contrat rangé par « Nouveau
+    # contrat », pas celui-ci (CCH-11 : la fin ne précède pas le début).
     date_fin_prev = iso_to_dsn_date(
         employee.get("contract_end_date") or employee.get("date_fin_contrat")
-    ) or iso_to_dsn_date(reprise.get("date_fin_contrat"))
+    ) or _fin_reprise_du_contrat(reprise, date_debut)
     if date_fin_prev:
         rubriques_contrat["S21.G00.40.010"] = date_fin_prev
     motif_recours = str(
@@ -1773,18 +1784,33 @@ def build_parsed_dsn_from_payroll(
             )
             continue
 
+        options = {
+            "period": period,
+            "company_siret": etab.siret,
+            "require_cotisation_codes": require_cotisation_codes,
+            "default_ops": default_ops,
+            "settings": parametres,
+            "defauts_contrat": defauts_contrat,
+        }
         try:
-            ind, w = build_individu_from_payroll(
-                employee,
-                payslip_data,
-                period=period,
-                company_siret=etab.siret,
-                require_cotisation_codes=require_cotisation_codes,
-                default_ops=default_ops,
-                settings=parametres,
-                defauts_contrat=defauts_contrat,
-            )
+            ind, w = build_individu_from_payroll(employee, payslip_data, **options)
             warnings.extend(w)
+            precedent = row.get("contrat_precedent")
+            if isinstance(precedent, dict):
+                # Mois à deux contrats (D3.2) : le bulletin du contrat rangé, sur
+                # sa fiche rangée, déclaré avant celui du contrat de la fiche.
+                ancien, w = build_individu_from_payroll(
+                    precedent.get("employee") or {},
+                    precedent.get("payslip_data")
+                    or (precedent.get("payslip") or {}).get("payslip_data")
+                    or {},
+                    **options,
+                )
+                warnings.extend(w)
+                try:
+                    ind = fusionner(ancien, ind)
+                except ValueError as exc:
+                    raise DsnBuildError(str(exc)) from exc
             etab.individus.append(ind)
         except DsnBuildError as exc:
             # Erreurs bloquantes individuelles (NIR, embauche…) : skip + warning

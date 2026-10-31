@@ -12,12 +12,11 @@ from typing import Any, Dict, List, Optional
 
 from app.modules.dsn_export.application.builder import (
     DsnBuildError,
-    _classification,
     build_entreprise,
     build_envoi,
     build_etablissement,
 )
-from app.modules.dsn_export.domain.contract_map import iso_to_dsn_date
+from app.modules.dsn_export.domain.contract_map import iso_to_dsn_date, numero_du_contrat
 from app.modules.dsn_export.domain.evenements import (
     MOTIFS_ACCIDENT,
     dernier_jour_travaille,
@@ -70,14 +69,11 @@ def _debut_contrat(employee: Dict[str, Any]) -> date:
 
 
 def _contrat(employee: Dict[str, Any], debut: date, siret: str) -> Dict[str, str]:
-    classification = _classification(employee)
-    numero = str(
-        classification.get("numero_contrat_dsn")
-        or employee.get("numero_contrat")
-        or employee.get("contract_number")
-        or "00000"
-    )
-    return {"S21.G00.40.001": dsn(debut), "S21.G00.40.009": numero, "S21.G00.40.019": siret[:14]}
+    return {
+        "S21.G00.40.001": dsn(debut),
+        "S21.G00.40.009": numero_du_contrat(employee),
+        "S21.G00.40.019": siret[:14],
+    }
 
 
 def _arret(s: SignalementAFaire, debut_contrat: Optional[date], settings: DsnSettings) -> Dict[str, str]:
