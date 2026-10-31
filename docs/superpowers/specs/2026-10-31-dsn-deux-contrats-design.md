@@ -110,6 +110,17 @@ Sources : cahier technique DSN 2026.1 (`docs/audit-maji-2026/sources/dsn-cahier-
 - DSN-VAL sur un fichier fabriqué à deux contrats, à partir d'un jeu de
   conformité : aucun rejet propre aux deux contrats.
 
+**Résultat du 31/10.**
+- Jeu Colorplast de juin 2026, 7 salariés. Un CDI devient un CDD fini le 10
+  (numéro 00000, sortie, motif 02), suivi d'un CDI commencé le 17 (numéro
+  00001). Les deux contrats ont leurs affiliations.
+- DSN-VAL 2026.1 relève une seule règle, sur le fichier de référence comme sur
+  le fichier à deux contrats : 81.001 CCH-17. Ce sont des bulletins de juin
+  repris, sans le SMIC de la réduction générale.
+- Elle passe de 14 à 16 occurrences, parce que le bulletin dupliqué est déclaré
+  deux fois.
+- Aucun rejet sur 40.009, 50.003, 51.010, 62, 70.012, 78.005, 78.006 ni 86.005.
+
 ## Découpage
 
 1. **Écriture.** `writer.write_individu` écrit les contrats, puis les

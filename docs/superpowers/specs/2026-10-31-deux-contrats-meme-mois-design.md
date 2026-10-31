@@ -77,7 +77,7 @@ Lisent les deux bulletins du mois, parce que de l'argent ou un document du mois 
 
 ## DSN du mois partagé
 
-Elle déclare deux contrats pour l'individu, avec leurs rémunérations. Sa forme exacte (blocs 40, 50, 51 et 78) se lit dans le cahier technique avant d'être codée : c'est **D3.2**, une spécification à part. D'ici là, l'export DSN refuse le mois, nommément : « Novembre 2026 : [salarié] a deux contrats dans le mois. La DSN de ce cas n'est pas encore faite par Martine. » C'est un manque du verrou, comme les fiches incomplètes, et non une DSN qui perdrait un bulletin. Le signalement de fin de contrat (FCTU) de l'ancien contrat existe déjà.
+Elle déclare deux contrats pour l'individu, avec leurs rémunérations : c'est **D3.2**, spécifiée à part ([2026-10-31-dsn-deux-contrats-design.md](2026-10-31-dsn-deux-contrats-design.md)) et codée. Le refus nommé posé en attendant (« … La DSN de ce cas n'est pas encore faite par Martine. ») est retiré. Le signalement de fin de contrat (FCTU) de l'ancien contrat existe déjà.
 
 ## Écrans
 
@@ -87,7 +87,7 @@ Elle déclare deux contrats pour l'individu, avec leurs rémunérations. Sa form
 
 ## Hors périmètre
 
-- La DSN du mois partagé (D3.2, ci-dessus).
+- La DSN du mois partagé (D3.2, ci-dessus, codée depuis).
 - Plus de deux contrats dans le même mois.
 - Les salaires de référence (maintien, attestations, PPV), le repos compensateur et le suivi des IJSS lisent, pour le mois partagé, le bulletin du contrat de la fiche. Ils ne voient donc pas la part de l'ancien contrat. C'est un écart de niche, corrigeable à la main, et on le dit dans la vidéo H.5.
 - Saisies sur salaire et prêts dans un mois partagé : chaque bulletin applique sa quotité saisissable sur son propre salaire, sans les combiner. Les remboursements restent rattachés à leur bulletin. Écart de niche, corrigeable à la main.
@@ -104,7 +104,7 @@ La migration et le code partent ensemble. L'ancien `on_conflict` n'a plus d'inde
 - `fiche_du_mois` avec une clé : la fiche rangée, y compris pour le mois de début du contrat en cours.
 - Génération avec une clé : elle ne lit que les variables de sa clé, n'écrit pas `employee_schedules`, remplace son seul PDF et écrit sa clé. Avec la clé nulle : la garde refuse si le bulletin du mois porte un autre contrat.
 - Variables automatiques bornées au contrat : un panier du 5/11 n'est pas compté au contrat qui commence le 17/11.
-- Exports : paiement (deux nets, pas de doublon), journal et OD (variables comptées une fois), effectif distinct, et refus nommé de la DSN.
+- Exports : paiement (deux nets, pas de doublon), journal et OD (variables comptées une fois), effectif distinct ; la DSN, d'abord refusée nommément, est faite par D3.2.
 - Cas complet en bac à sable sur un salarié de Recette chez MAJI, supprimé ensuite : sortie le 10/11, retour le 17/11, deux bulletins. La somme des deux bruts égale le brut d'un mois entier au prorata des jours, à la réduction générale près, calculée par contrat.
 
 ## Sources
