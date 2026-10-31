@@ -1,6 +1,7 @@
 # Générateur DSN mensuelle NEODeS P26V01 (fichier plat).
 from app.modules.dsn_export.domain.fiche_a_completer import fiche_a_completer
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.database import supabase
@@ -13,6 +14,12 @@ from app.modules.dsn_export.domain.etat_conformite import (
     DEPOSABLE,
     SUFFIXE_NON_DEPOSABLE,
     anomalie_non_deposable,
+)
+from app.modules.dsn_export.domain.settings import DsnSettings
+from app.modules.dsn_export.domain.versements_complementaires import (
+    cotisations_par_contrat,
+    est_fin_de_trimestre,
+    mois_precedents_du_trimestre,
 )
 from app.modules.dsn_export.domain.writer import encode_dsn_bytes
 from app.modules.dsn_export.infrastructure import settings_repository
@@ -27,6 +34,7 @@ from app.modules.payroll.application.monthly_specificites import (
     resolve_monthly_specificites,
 )
 from app.shared.domain.employment_rules import is_cadre
+from app.shared.reprise_paie import lire_bascule
 from app.shared.dsn_validation import validate_nir, validate_nir_dsn, validate_siret
 
 DSN_NORME = "P26V01"
@@ -659,6 +667,41 @@ def _neodes_norme_version() -> str:
     return DSN_NORME
 
 
+def cotisations_complementaires_avant(
+    company_id: str,
+    company_data: Dict[str, Any],
+    period: str,
+    parametres: DsnSettings,
+) -> Optional[Dict[str, Decimal]]:
+    """Les cotisations de prévoyance et de santé des mois précédents du
+    trimestre, par contrat, recalculées comme leur DSN depuis leurs bulletins.
+
+    None hors fin de trimestre, ou si l'un de ces mois a été payé par l'ancien
+    logiciel (bascule) : ses cotisations ne sont pas celles que Martine a
+    déclarées, et le versement du trimestre se fait à la main.
+    """
+    if not est_fin_de_trimestre(period):
+        return None
+    bascule = lire_bascule(company_id)
+    totaux: Dict[str, Decimal] = {}
+    for mois in mois_precedents_du_trimestre(period):
+        annee, numero = map(int, mois.split("-"))
+        if bascule is not None and bascule.couvre(annee, numero):
+            return None
+        donnees, _ = get_dsn_employees_data(company_id, mois)
+        if not donnees:
+            continue
+        try:
+            dsn_du_mois, _ = build_parsed_dsn_from_payroll(
+                company_data, donnees, mois, settings=parametres
+            )
+        except DsnBuildError:
+            continue
+        for ordre, montant in cotisations_par_contrat(dsn_du_mois.etablissement).items():
+            totaux[ordre] = totaux.get(ordre, Decimal("0")) + montant
+    return totaux
+
+
 def generate_dsn_file(
     company_id: str,
     period: str,
@@ -692,6 +735,7 @@ def generate_dsn_file(
     else:
         suffixe = "" if DEPOSABLE else SUFFIXE_NON_DEPOSABLE
         file_name = f"dsn_mensuelle_{period_formatted}{suffixe}.dsn"
+    parametres = settings_repository.charger(company_id)
     try:
         dsn_file, build_warnings = build_parsed_dsn_from_payroll(
             company_data,
@@ -701,7 +745,10 @@ def generate_dsn_file(
             essai=essai,
             file_name=file_name,
             require_cotisation_codes=False,
-            settings=settings_repository.charger(company_id),
+            settings=parametres,
+            cotisations_complementaires_avant=cotisations_complementaires_avant(
+                company_id, company_data, period, parametres
+            ),
         )
     except DsnBuildError as exc:
         raise ValueError(str(exc)) from exc

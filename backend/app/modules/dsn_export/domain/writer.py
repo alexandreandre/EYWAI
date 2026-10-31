@@ -281,6 +281,9 @@ def write_organisme_psc(org: OrganismePscBlock, out: List[str]) -> None:
 def write_versement_organisme(vo: VersementOrganismeBlock, out: List[str]) -> None:
     if vo.rubriques:
         _emit_rubriques_dict(vo.rubriques, out)
+        # Composants de versement (bloc 55), enfants du versement.
+        for composant in vo.rubriques.get("_composants_55") or []:
+            _emit_rubriques_dict(composant, out)
         return
     _emit(R_S21_VO_IDENT, vo.identifiant, out)
     _emit(R_S21_VO_LIBELLE, vo.libelle, out)

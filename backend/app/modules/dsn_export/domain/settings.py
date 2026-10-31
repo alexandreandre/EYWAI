@@ -227,6 +227,9 @@ def _versements(contenu: bytes) -> List[Dict[str, str]]:
             versements.append({"organisme": valeur})
         elif code in _VERSEMENT_CLES and versements:
             versements[-1][_VERSEMENT_CLES[code]] = valeur
+        elif code == "S21.G00.20.011" and versements and len(valeur) == 8:
+            # Date de paiement JJMMAAAA : le jour du contrat, repris chaque trimestre.
+            versements[-1]["jour_paiement"] = str(int(valeur[:2]))
     vus = set()
     uniques = []
     for versement in versements:
@@ -235,6 +238,24 @@ def _versements(contenu: bytes) -> List[Dict[str, str]]:
         vus.add(versement["organisme"])
         uniques.append(versement)
     return uniques
+
+
+def types_de_population(contenu: bytes) -> Dict[str, str]:
+    """Type de population (55.002) de chaque contrat (55.003) dans les composants
+    de versement du cabinet : un code de la fiche de l'organisme, déclaré sur sa
+    demande (FAQ DSN OC, net-entreprises)."""
+    from app.modules.dsn_export.domain.conformance import lire_rubriques
+
+    types: Dict[str, str] = {}
+    courant: Dict[str, str] = {}
+    for code, valeur in lire_rubriques(contenu):
+        if code == "S21.G00.55.001":
+            courant = {}
+        elif code in ("S21.G00.55.002", "S21.G00.55.003"):
+            courant[code] = valeur
+            if courant.get("S21.G00.55.003") and courant.get("S21.G00.55.002"):
+                types[courant["S21.G00.55.003"]] = courant["S21.G00.55.002"]
+    return types
 
 
 def _quotite_forfait_jours(contenu: bytes) -> str:

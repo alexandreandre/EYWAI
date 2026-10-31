@@ -29,6 +29,11 @@ from app.modules.dsn_export.domain.agregats import (
     montant_retraite_complementaire,
 )
 from app.modules.dsn_export.domain.cotisation_mapping import build_bases_and_cotisations
+from app.modules.dsn_export.domain.versements_complementaires import (
+    bloc_versement_complementaire,
+    cotisations_par_contrat,
+    est_fin_de_trimestre,
+)
 from app.modules.dsn_export.domain.evenements import (
     bloc_fin_contrat,
     blocs_arret,
@@ -1575,14 +1580,16 @@ def _paiements(
     period: str,
     ops_urssaf: str,
     parametres: DsnSettings,
+    cotisations_complementaires_avant: Optional[Dict[str, Decimal]] = None,
 ) -> List[str]:
     """Bordereau Urssaf (22 / 23), versements (20) et assujettissements (44).
 
     Les montants viennent des cotisations individuelles déclarées ; les
     organismes, l'entité d'affectation et les coordonnées bancaires du
-    paramétrage repris du cabinet. Un versement à un organisme
-    complémentaire (prévoyance, santé, retraite supplémentaire) n'est pas
-    produit : son appel est trimestriel et ventilé par contrat (bloc 55).
+    paramétrage repris du cabinet. Un organisme complémentaire (prévoyance,
+    santé) est payé au dernier mois du trimestre, pour les cotisations des
+    trois mois, ventilées par contrat (blocs 55) : celles des deux mois
+    d'avant viennent de l'appelant (`cotisations_complementaires_avant`).
     """
     avertissements: List[str] = []
     debut, fin = period_bounds(period)
@@ -1621,6 +1628,12 @@ def _paiements(
         ops_urssaf: float(total_urssaf),
     }
     retraite = montant_retraite_complementaire(salaries)
+    fin_de_trimestre = est_fin_de_trimestre(period)
+    montants_oc: Optional[Dict[str, Decimal]] = None
+    if fin_de_trimestre and cotisations_complementaires_avant is not None:
+        montants_oc = dict(cotisations_complementaires_avant)
+        for ordre, montant in cotisations_par_contrat(etab).items():
+            montants_oc[ordre] = montants_oc.get(ordre, Decimal("0")) + montant
     oc_ignores = []
     for versement in parametres.versements:
         organisme = str(versement.get("organisme") or "")
@@ -1629,7 +1642,15 @@ def _paiements(
         elif organisme.isdigit() and len(organisme) == 14:
             montant = retraite  # caisse de retraite complémentaire (Agirc-Arrco)
         else:
-            oc_ignores.append(organisme)
+            # Organisme complémentaire : rien hors fin de trimestre.
+            if montants_oc is not None:
+                etab.versements_organismes.append(
+                    bloc_versement_complementaire(
+                        versement, parametres.organismes_complementaires, montants_oc, period
+                    )
+                )
+            elif fin_de_trimestre:
+                oc_ignores.append(organisme)
             continue
         rubriques = {
             "S21.G00.20.001": organisme,
@@ -1655,9 +1676,10 @@ def _paiements(
         )
     if oc_ignores:
         avertissements.append(
-            "Versements aux organismes complémentaires non produits ("
+            "Versements trimestriels aux organismes complémentaires non produits ("
             + ", ".join(oc_ignores)
-            + ") : appel trimestriel par contrat, à régler hors DSN ou à paramétrer"
+            + ") : les cotisations des mois précédents du trimestre ne sont pas "
+            "connues (mois payés par l'ancien logiciel) ; à déclarer à la main"
         )
     annee = period[:4]
     etab.rubriques["_blocs_44"] = [
@@ -1677,6 +1699,7 @@ def build_parsed_dsn_from_payroll(
     file_name: str = "dsn_mensuelle.dsn",
     require_cotisation_codes: bool = False,
     settings: Optional[DsnSettings] = None,
+    cotisations_complementaires_avant: Optional[Dict[str, Decimal]] = None,
 ) -> Tuple[DsnFile, List[str]]:
     """Construit un DsnFile P26 à partir de données déjà chargées (sans DB).
 
@@ -1771,7 +1794,9 @@ def build_parsed_dsn_from_payroll(
     if not etab.individus:
         raise DsnBuildError("Aucun salarié avec bulletin pour la période")
 
-    warnings.extend(_paiements(etab, period, default_ops, parametres))
+    warnings.extend(
+        _paiements(etab, period, default_ops, parametres, cotisations_complementaires_avant)
+    )
 
     return (
         DsnFile(
