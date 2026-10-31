@@ -6,8 +6,10 @@ Aucun import legacy (services/*) : tout passe par le pont partagé app/shared/in
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from typing import Any
 
+from app.core.lecture_seule import ecritures_permises, lecture_seule
 from app.modules.payroll.documents.bac_a_sable import BacASable
 from app.modules.payslips.domain.rules import is_forfait_jour
 from app.modules.payslips.infrastructure.readers import employee_statut_reader
@@ -61,19 +63,25 @@ class PayslipGeneratorProvider:
         Les cumuls précédents viennent de l'appelant ; le résultat porte
         `payslip_data` et `cumuls` au lieu d'un identifiant et d'une URL.
         `saisies_en_plus` : des saisies du mois qui n'existent qu'en mémoire.
+
+        Le calcul tourne en lecture seule : une écriture faite au passage (le
+        droit aux congés d'ancienneté du pied du bulletin) reste en mémoire, et
+        toute autre est refusée avant de partir. Un appelant déjà en lecture
+        seule (le brut d'une prime) garde son bloc et ses lectures.
         """
         bac = BacASable(
             cumuls_precedents=cumuls_precedents,
             saisies_en_plus=tuple(saisies_en_plus),
         )
-        statut = employee_statut_reader.get_employee_statut(employee_id)
-        if is_forfait_jour(statut):
-            return process_payslip_generation_forfait(
+        with lecture_seule() if ecritures_permises() else nullcontext():
+            statut = employee_statut_reader.get_employee_statut(employee_id)
+            if is_forfait_jour(statut):
+                return process_payslip_generation_forfait(
+                    employee_id=employee_id, year=year, month=month, bac_a_sable=bac
+                )
+            return process_payslip_generation(
                 employee_id=employee_id, year=year, month=month, bac_a_sable=bac
             )
-        return process_payslip_generation(
-            employee_id=employee_id, year=year, month=month, bac_a_sable=bac
-        )
 
 
 payslip_generator_provider = PayslipGeneratorProvider()
