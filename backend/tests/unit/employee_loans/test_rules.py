@@ -107,19 +107,42 @@ def test_is_installment_fully_paid():
     )
 
 
-def test_compute_loan_repayment_cap_est_le_dixieme_du_salaire_exigible():
-    # Art. L3251-3 : 10 % du salaire exigible (avant acompte), net suffisant.
-    cap = compute_loan_repayment_cap(Decimal("2183.07"), Decimal("1383.07"))
-    assert cap == Decimal("218.31")
+def test_le_plafond_du_pret_est_la_quotite_saisissable_du_mois():
+    # Cass. soc., 15/01/2014, n° 12-19.739 : un prêt à part du contrat de travail
+    # n'est pas une avance ; il se compense dans la limite de la fraction saisissable.
+    cap = compute_loan_repayment_cap(
+        quotite_du_mois=Decimal("274.63"),
+        deja_pris=Decimal("0"),
+        net_disponible=Decimal("1619.54"),
+    )
+    assert cap == Decimal("274.63")
 
 
-def test_compute_loan_repayment_cap_plafonne_au_net_disponible():
-    assert compute_loan_repayment_cap(Decimal("2000"), Decimal("50")) == Decimal("50.00")
+def test_le_plafond_du_pret_est_ce_que_les_saisies_laissent_de_la_quotite():
+    assert compute_loan_repayment_cap(
+        quotite_du_mois=Decimal("274.63"),
+        deja_pris=Decimal("250.00"),
+        net_disponible=Decimal("1369.54"),
+    ) == Decimal("24.63")
+    # Des saisies au-delà de la quotité (entrées en variables) ne laissent rien.
+    assert compute_loan_repayment_cap(
+        quotite_du_mois=Decimal("274.63"),
+        deja_pris=Decimal("300.00"),
+        net_disponible=Decimal("1319.54"),
+    ) == Decimal("0.00")
 
 
-def test_compute_loan_repayment_cap_net_nul_ou_negatif():
-    assert compute_loan_repayment_cap(Decimal("0"), Decimal("0")) == Decimal("0.00")
-    assert compute_loan_repayment_cap(Decimal("2000"), Decimal("-5")) == Decimal("0.00")
+def test_le_plafond_du_pret_ne_depasse_jamais_le_net_disponible():
+    assert compute_loan_repayment_cap(
+        quotite_du_mois=Decimal("118.59"),
+        deja_pris=Decimal("0"),
+        net_disponible=Decimal("50"),
+    ) == Decimal("50.00")
+    assert compute_loan_repayment_cap(
+        quotite_du_mois=Decimal("118.59"),
+        deja_pris=Decimal("0"),
+        net_disponible=Decimal("-5"),
+    ) == Decimal("0.00")
 
 
 def test_compute_installment_remaining():

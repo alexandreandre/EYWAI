@@ -29,6 +29,9 @@ from app.modules.payslips.application.dto import (
     PayslipBadRequestError,
 )
 from tests.unit.base_en_memoire import BaseEnMemoire
+from tests.unit.saisies_avances.test_quotite_saisissable_legale import (
+    BAREME as BAREME_QUOTITE,
+)
 
 pytestmark = [pytest.mark.unit, pytest.mark.effets_en_base]
 
@@ -98,6 +101,15 @@ def _base_initiale(*, statut_avance: str = "paid", verse: float = 800.0) -> Base
             "salary_advance_repayments": [],
             "salary_seizures": [],
             "salary_seizure_deductions": [],
+            # Le prêt se retient dans la limite de la quotité saisissable du mois.
+            "payroll_config": [
+                {
+                    "config_key": "quotite_saisissable",
+                    "is_active": True,
+                    "company_id": None,
+                    "config_data": BAREME_QUOTITE,
+                }
+            ],
             "employee_loans": [
                 {
                     "id": "pret-1",

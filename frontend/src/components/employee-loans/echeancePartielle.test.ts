@@ -28,10 +28,11 @@ describe('le volet du prêt explique une échéance retenue en partie', () => {
   it('dit le montant retenu, le montant prévu, la règle et le sort du reliquat', () => {
     expect(espaces(explicationEcheancePartielle(echeance))).toBe(
       'Échéance n° 1 (10/2026) : 163,58 € retenus sur 201,08 € prévus. Chaque mois, ' +
-        'la retenue est limitée au dixième du salaire exigible (article L3251-3 du Code ' +
-        "du travail), dans la limite du net à payer ; l'alerte du bulletin donne le " +
-        'détail. Le reliquat de 37,50 € reste dû : il sera retenu seul sur le bulletin ' +
-        "suivant, et les échéances suivantes glissent d'un mois."
+        'la retenue, intérêts compris, est limitée à la quotité saisissable du salaire ' +
+        "(article L3252-2 du Code du travail), moins les saisies sur salaire, et au net à " +
+        "payer ; l'alerte du bulletin donne le détail. Le reliquat de 37,50 € reste dû : " +
+        "il sera retenu seul sur le bulletin suivant, et les échéances suivantes glissent " +
+        "d'un mois."
     );
   });
 

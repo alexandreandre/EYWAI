@@ -8,19 +8,16 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
-from app.modules.payroll.domain.report_nap_negatif import (
-    CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
-)
+from app.core.logging import get_logger
 
 from app.modules.employee_loans.domain.rules import (
     capital_du_au_debut_du_mois,
     compute_installment_remaining,
     compute_interest_benefit_in_kind,
-    compute_interest_paid,
     compute_loan_repayment_cap,
-    compute_repayment_amount,
     is_installment_settled,
     message_pret_retenu_en_partie,
+    retenue_dans_le_plafond,
 )
 from app.modules.employee_loans.infrastructure.payroll_queries import (
     get_capital_repayments,
@@ -33,6 +30,16 @@ from app.modules.employee_loans.infrastructure.repository import (
     employee_loan_repayments_repository,
     employee_loans_repository,
 )
+from app.modules.saisies_avances.domain.rules import (
+    base_saisissable,
+    calculate_seizable_amount,
+    resoudre_bareme_quotite,
+)
+from app.modules.saisies_avances.infrastructure.queries import (
+    get_bareme_quotite_saisissable,
+)
+
+logger = get_logger("modules.employee_loans.enrichment")
 
 
 def process_suspended_loan_installments(
@@ -63,30 +70,20 @@ def enrich_payslip_loans(
 ) -> Dict[str, Any]:
     """
     Applique les retenues de remboursement de prêt sur le net à payer.
-    Reprend la plus ancienne échéance non soldée ; plafonné au dixième du salaire (art. L3251-3).
+    Reprend la plus ancienne échéance non soldée ; plafonné à ce qui reste de la
+    quotité saisissable du mois après les saisies sur salaire (Cass. soc.,
+    15 janvier 2014, n° 12-19.739), et au net encore disponible.
     Une échéance retenue en partie, ou pas du tout, le dit au bulletin
     (`alertes_baremes`) : combien, sur combien, la règle et le reliquat.
     """
     process_suspended_loan_installments(employee_id, year, month)
 
     net_a_payer = Decimal(str(payslip_json_data.get("net_a_payer", 0)))
-    # Salaire exigible = net avant acomptes et avances (saisies/avances ont déjà
-    # été retirées de net_a_payer) ; le net encore disponible, lui, est net_a_payer.
-    reports = sum(
-        max(0.0, float(r.get("montant") or 0.0))
-        for r in payslip_json_data.get(CLE_REPORTS_NAP_NEGATIF) or []
-        if isinstance(r, dict)
+    quotite_du_mois, annee_bareme, pris_par_les_saisies = _quotite_du_mois(
+        payslip_json_data, year, month
     )
-    acompte_moteur = max(
-        Decimal("0"),
-        Decimal(str((payslip_json_data.get("synthese_net") or {}).get("acompte_verse") or 0))
-        - Decimal(str(reports)),
-    )
-    avances = Decimal(
-        str((payslip_json_data.get("remboursements_avances") or {}).get("total_rembourse") or 0)
-    )
-    salaire_exigible = net_a_payer + acompte_moteur + avances
-    seizable_remaining = compute_loan_repayment_cap(salaire_exigible, net_a_payer)
+    net_restant = net_a_payer
+    pris_par_les_prets = Decimal("0")
 
     loans_due = get_unsettled_installments_for_payroll(employee_id, year, month)
     legal_rate = get_legal_interest_rate()
@@ -103,7 +100,8 @@ def enrich_payslip_loans(
         interets: Decimal,
         prevu: Decimal,
         reliquat: Decimal,
-        plafond_restant: Decimal,
+        quotite_restante: Decimal,
+        net_disponible: Decimal,
     ) -> None:
         payslip_json_data.setdefault("alertes_baremes", []).append(
             {
@@ -116,9 +114,11 @@ def enrich_payslip_loans(
                     interets_retenus=interets,
                     prevu=prevu,
                     reliquat=reliquat,
-                    salaire_exigible=salaire_exigible,
-                    net_disponible=net_a_payer,
-                    plafond_restant=plafond_restant,
+                    quotite_du_mois=quotite_du_mois,
+                    annee_bareme=annee_bareme,
+                    pris_par_les_saisies=pris_par_les_saisies,
+                    quotite_restante=quotite_restante,
+                    net_disponible=net_disponible,
                 ),
             }
         )
@@ -163,14 +163,26 @@ def enrich_payslip_loans(
             interest_paid_so_far,
         )
 
-        if seizable_remaining <= 0:
-            # Plus rien à retenir ce mois-ci (net nul, ou dixième déjà pris par
-            # un autre prêt) : l'échéance reste due, et le bulletin le dit.
+        if quotite_du_mois is None:
+            quotite_restante = Decimal("0")
+            plafond = Decimal("0")
+        else:
+            quotite_restante = quotite_du_mois - pris_par_les_saisies - pris_par_les_prets
+            plafond = compute_loan_repayment_cap(
+                quotite_du_mois=quotite_du_mois,
+                deja_pris=pris_par_les_saisies + pris_par_les_prets,
+                net_disponible=net_restant,
+            )
+
+        if plafond <= 0:
+            # Plus rien à retenir ce mois-ci (net nul, quotité prise par les
+            # saisies ou un autre prêt, barème absent) : l'échéance reste due,
+            # et le bulletin le dit.
             if due_capital > 0 or due_interest > 0:
                 du = _money(due_capital + due_interest)
                 _alerter(
                     loan, installment, Decimal("0"), Decimal("0"), du, du,
-                    seizable_remaining,
+                    quotite_restante, net_restant,
                 )
             continue
 
@@ -184,11 +196,8 @@ def enrich_payslip_loans(
                     pass
             continue
 
-        capital_paid_this = compute_repayment_amount(
-            due_capital, seizable_remaining, remaining_capital
-        )
-        interest_paid_this = compute_interest_paid(
-            due_capital, due_interest, capital_paid_this
+        capital_paid_this, interest_paid_this = retenue_dans_le_plafond(
+            due_capital, due_interest, plafond, remaining_capital
         )
 
         # L'avantage en nature du mois : l'intérêt épargné sur le capital dû au
@@ -202,8 +211,9 @@ def enrich_payslip_loans(
             Decimal(str(loan.get("annual_interest_rate", 0))),
         )
 
-        plafond_avant = seizable_remaining
-        seizable_remaining -= capital_paid_this + interest_paid_this
+        net_avant = net_restant
+        pris_par_les_prets += capital_paid_this + interest_paid_this
+        net_restant -= capital_paid_this + interest_paid_this
         total_capital += capital_paid_this
         total_interest += interest_paid_this
         total_an += an_amount
@@ -235,7 +245,8 @@ def enrich_payslip_loans(
                 interest_paid_this,
                 _money(due_capital + due_interest),
                 reliquat_apres,
-                plafond_avant,
+                quotite_restante,
+                net_avant,
             )
 
         remboursements.append(
@@ -318,6 +329,35 @@ def enrich_payslip_loans(
 
 
 CODE_ALERTE_RETENUE_PARTIELLE = "pret_employeur_retenue_partielle"
+
+
+def _quotite_du_mois(
+    bulletin: Dict[str, Any], year: int, month: int
+) -> tuple[Optional[Decimal], Optional[int], Decimal]:
+    """La quotité saisissable du mois, l'année de son barème et ce que les saisies
+    sur salaire en ont déjà pris. La base est celle des saisies, prise avant les
+    retenues : les saisies et les avances déjà retirées du net y reviennent. Les
+    personnes à charge sont celles de la saisie en cours, sinon aucune. Sans
+    barème : (None, None, pris)."""
+    saisies = bulletin.get("retenues_saisies") or {}
+    pris = Decimal(str(saisies.get("total_preleve") or 0)) + Decimal(
+        str(saisies.get("total_en_variables") or 0)
+    )
+    try:
+        bareme, _messages = resoudre_bareme_quotite(
+            get_bareme_quotite_saisissable(), year, month
+        )
+    except Exception:  # noqa: BLE001 — sans barème, rien n'est retenu et le bulletin le dit
+        logger.warning("Barème de la quotité saisissable illisible", exc_info=True)
+        bareme = None
+    if bareme is None:
+        return None, None, pris
+    avances = Decimal(
+        str((bulletin.get("remboursements_avances") or {}).get("total_rembourse") or 0)
+    )
+    base = base_saisissable(bulletin) + Decimal(str(saisies.get("total_preleve") or 0)) + avances
+    personnes = int(saisies.get("personnes_a_charge") or 0)
+    return calculate_seizable_amount(base, personnes, bareme), int(bareme["annee"]), pris
 
 
 def _capital_du_au_debut_du_mois(

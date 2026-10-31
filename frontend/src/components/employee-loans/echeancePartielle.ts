@@ -38,8 +38,9 @@ export function explicationEcheancePartielle(echeance: Echeance): string | null 
   return (
     `Échéance n° ${echeance.installment_number} (${periode}) : ` +
     `${FORMAT_EUROS.format(preleve)} retenus sur ${FORMAT_EUROS.format(echeance.total_due)} prévus. ` +
-    'Chaque mois, la retenue est limitée au dixième du salaire exigible (article L3251-3 ' +
-    "du Code du travail), dans la limite du net à payer ; l'alerte du bulletin donne le détail. " +
+    'Chaque mois, la retenue, intérêts compris, est limitée à la quotité saisissable du ' +
+    'salaire (article L3252-2 du Code du travail), moins les saisies sur salaire, et au net ' +
+    "à payer ; l'alerte du bulletin donne le détail. " +
     `Le reliquat de ${FORMAT_EUROS.format(reliquat)} reste dû : il sera retenu seul sur le ` +
     "bulletin suivant, et les échéances suivantes glissent d'un mois."
   );

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from typing import Any, Dict, Iterable, List
 
 from app.modules.employee_loans.domain.constants import DECLARATION_2062_THRESHOLD_EUR
@@ -145,24 +145,57 @@ def capital_du_au_debut_du_mois(
     return _money(max(Decimal("0"), capital))
 
 
-#: Art. L3251-3 du Code du travail : la retenue pour une avance en espèces
-#: (le prêt de l'employeur y est assimilé) ne dépasse pas le dixième du salaire exigible.
-LOAN_REPAYMENT_SALARY_FRACTION = Decimal("0.10")
-
-
 def compute_loan_repayment_cap(
-    salaire_exigible: Decimal,
+    *,
+    quotite_du_mois: Decimal,
+    deja_pris: Decimal,
     net_disponible: Decimal,
 ) -> Decimal:
-    """Plafond de retenue du mois : dixième du salaire exigible (art. L3251-3),
-    sans jamais dépasser le net encore disponible (le net ne devient pas négatif)."""
-    dixieme = salaire_exigible * LOAN_REPAYMENT_SALARY_FRACTION
-    return _money(max(Decimal("0"), min(dixieme, net_disponible)))
+    """Plafond de retenue d'un prêt : ce qui reste de la quotité saisissable du
+    mois une fois retenu ce qui en est déjà pris (saisies sur salaire, prêt
+    précédent), sans jamais dépasser le net encore disponible (le net ne devient
+    pas négatif).
+
+    Un prêt signé à part du contrat de travail, pour une durée fixée, n'est pas
+    une avance en espèces (le dixième de L3251-3 ne s'y applique pas) : il se
+    compense dans la limite de la fraction saisissable du salaire (Cass. soc.,
+    15 janvier 2014, n° 12-19.739)."""
+    reste = quotite_du_mois - deja_pris
+    return _money(max(Decimal("0"), min(reste, net_disponible)))
+
+
+def retenue_dans_le_plafond(
+    due_capital: Decimal,
+    due_interest: Decimal,
+    plafond: Decimal,
+    remaining_capital: Decimal | None = None,
+) -> tuple[Decimal, Decimal]:
+    """Capital et intérêts retenus ensemble sous le plafond du mois, les intérêts
+    au prorata du capital retenu. La part du capital est arrondie au centime
+    inférieur : l'arrondi des intérêts ne fait jamais dépasser le plafond."""
+    du = due_capital + due_interest
+    if du > plafond and du > 0:
+        part_capital = (plafond * due_capital / du).quantize(
+            Decimal("0.01"), rounding=ROUND_DOWN
+        )
+    else:
+        part_capital = plafond
+    capital = compute_repayment_amount(due_capital, part_capital, remaining_capital)
+    interets = compute_interest_paid(due_capital, due_interest, capital)
+    return capital, min(interets, max(Decimal("0"), plafond - capital))
 
 
 def _euros_fr(montant: Decimal) -> str:
     texte = f"{abs(montant):,.2f}".replace(",", " ").replace(".", ",")
     return f"{'−' if montant < 0 else ''}{texte} €"
+
+
+def _qui_a_pris(pris_par_les_saisies: Decimal, pris_par_d_autres_prets: Decimal) -> str:
+    if pris_par_les_saisies > 0 and pris_par_d_autres_prets > 0:
+        return "les saisies sur salaire et un autre prêt"
+    if pris_par_les_saisies > 0:
+        return "les saisies sur salaire"
+    return "un autre prêt"
 
 
 def message_pret_retenu_en_partie(
@@ -173,18 +206,22 @@ def message_pret_retenu_en_partie(
     interets_retenus: Decimal,
     prevu: Decimal,
     reliquat: Decimal,
-    salaire_exigible: Decimal,
+    quotite_du_mois: Decimal | None,
+    annee_bareme: int | None,
+    pris_par_les_saisies: Decimal,
+    quotite_restante: Decimal,
     net_disponible: Decimal,
-    plafond_restant: Decimal,
 ) -> str:
     """Ce que dit le bulletin d'une échéance de prêt retenue en partie : combien,
     sur combien, la règle appliquée et ce que devient le reliquat.
 
-    La règle est celle du code, dite telle quelle : le capital retenu est
-    limité au dixième du salaire exigible (L3251-3) et au net encore
-    disponible ; les intérêts suivent au prorata du capital retenu ; l'échéance
-    non soldée est reprise seule au bulletin suivant (une échéance par prêt et
-    par bulletin), ce qui fait glisser les suivantes d'un mois.
+    La règle est celle du code, dite telle quelle : capital et intérêts
+    tiennent ensemble dans ce qui reste de la quotité saisissable du mois
+    (`quotite_restante`, avant ce prêt) et dans le net encore disponible
+    (`net_disponible`, avant ce prêt) ; les intérêts suivent au prorata du
+    capital retenu ; l'échéance non soldée est reprise seule au bulletin
+    suivant (une échéance par prêt et par bulletin), ce qui fait glisser les
+    suivantes d'un mois.
     """
     qui = f"Prêt employeur ({motif})" if motif else "Prêt employeur"
     retenu = capital_retenu + interets_retenus
@@ -192,29 +229,40 @@ def message_pret_retenu_en_partie(
         f"{qui} : {_euros_fr(retenu)} retenus sur {_euros_fr(prevu)} prévus "
         f"pour l'échéance n° {numero}."
     )
-    dixieme = _money(salaire_exigible * LOAN_REPAYMENT_SALARY_FRACTION)
-    if net_disponible <= 0:
+    if quotite_du_mois is None:
+        raison = (
+            "Le barème de la quotité saisissable n'est pas chargé : rien n'est "
+            "retenu. Contactez le support."
+        )
+    elif net_disponible <= 0:
         raison = "Le net à payer du mois ne permet pas de retenue."
-    elif plafond_restant <= 0:
-        raison = (
-            "Le dixième du salaire exigible (article L3251-3 du Code du travail), "
-            f"{_euros_fr(dixieme)}, est déjà retenu pour un autre prêt."
-        )
-    elif net_disponible < dixieme:
-        raison = "Le net à payer du mois ne permet pas plus."
     else:
-        part = (
-            f"le dixième de {_euros_fr(salaire_exigible)}"
-            if plafond_restant >= dixieme
-            else f"ce qui reste du dixième de {_euros_fr(salaire_exigible)} après un autre prêt"
+        pris_ailleurs = max(
+            Decimal("0"), quotite_du_mois - pris_par_les_saisies - quotite_restante
         )
-        raison = (
-            "La retenue est limitée au dixième du salaire exigible (article L3251-3 "
-            f"du Code du travail) : {_euros_fr(capital_retenu)} de capital ({part})"
-        )
-        if interets_retenus > 0:
-            raison += f", plus {_euros_fr(interets_retenus)} d'intérêts au prorata"
-        raison += "."
+        if quotite_restante <= 0:
+            raison = (
+                f"La quotité saisissable du mois, {_euros_fr(quotite_du_mois)}, limite "
+                "de la retenue (article L3252-2 du Code du travail), est déjà prise par "
+                f"{_qui_a_pris(pris_par_les_saisies, pris_ailleurs)}."
+            )
+        elif net_disponible < quotite_restante:
+            raison = "Le net à payer du mois ne permet pas plus."
+        else:
+            raison = (
+                "La retenue, intérêts compris, est limitée à la quotité saisissable "
+                f"du mois ({_euros_fr(quotite_du_mois)}, barème {annee_bareme}, "
+                "article L3252-2 du Code du travail)"
+            )
+            if quotite_restante < quotite_du_mois:
+                raison += (
+                    f", dont il restait {_euros_fr(quotite_restante)} après "
+                    f"{_qui_a_pris(pris_par_les_saisies, pris_ailleurs)}"
+                )
+            raison += f" : {_euros_fr(capital_retenu)} de capital"
+            if interets_retenus > 0:
+                raison += f", plus {_euros_fr(interets_retenus)} d'intérêts au prorata"
+            raison += "."
     fin = (
         f"Le reliquat de {_euros_fr(reliquat)} reste dû sur l'échéance n° {numero} : "
         "il sera retenu seul sur le bulletin suivant, et les échéances suivantes "

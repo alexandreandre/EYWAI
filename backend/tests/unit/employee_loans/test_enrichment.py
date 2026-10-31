@@ -257,32 +257,33 @@ def _retenue_pour(payslip, capital_part=225):
     return result
 
 
-def test_retenue_pret_dixieme_du_net_avant_acompte_avance():
-    # Net avant acompte et prêt 2 183,07 €, acompte 800 € (module Avances).
+def test_la_quotite_du_pret_se_calcule_sur_le_net_avant_l_avance():
+    # Net avant avance et prêt 2 183,07 €, avance 800 € (module Avances) :
+    # quotité 604,52 € (elle serait de 200,19 € sur les seuls 1 383,07 €).
     payslip = {
         "net_a_payer": 1383.07,
         "remboursements_avances": {"total_rembourse": 800.0},
     }
-    result = _retenue_pour(payslip)
-    assert result["remboursements_prets"]["total_rembourse"] == 218.31
-    assert result["net_a_payer"] == 1164.76
+    result = _retenue_pour(payslip, capital_part=700)
+    assert result["remboursements_prets"]["total_rembourse"] == 604.52
+    assert result["net_a_payer"] == 778.55
 
 
-def test_retenue_pret_dixieme_du_net_avant_acompte_variable():
+def test_la_quotite_du_pret_se_calcule_sur_le_net_avant_l_acompte_variable():
     # Même cas, acompte saisi en variable du mois (déjà dans le net du moteur).
     payslip = {"net_a_payer": 1383.07, "synthese_net": {"acompte_verse": 800.0}}
-    result = _retenue_pour(payslip)
-    assert result["remboursements_prets"]["total_rembourse"] == 218.31
+    result = _retenue_pour(payslip, capital_part=700)
+    assert result["remboursements_prets"]["total_rembourse"] == 604.52
 
 
-def test_retenue_pret_echeance_sous_le_dixieme_en_entier():
+def test_retenue_pret_echeance_sous_la_quotite_en_entier():
     result = _retenue_pour({"net_a_payer": 2000.0}, capital_part=150)
     assert result["remboursements_prets"]["total_rembourse"] == 150.0
     assert result["net_a_payer"] == 1850.0
 
 
 def test_retenue_pret_plafonnee_au_net_disponible():
-    # Dixième = 200 € mais il ne reste que 80 € de net après un acompte de 1 920 €.
+    # Quotité 471,73 € mais il ne reste que 80 € de net après une avance de 1 920 €.
     payslip = {
         "net_a_payer": 80.0,
         "remboursements_avances": {"total_rembourse": 1920.0},
