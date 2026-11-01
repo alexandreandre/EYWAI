@@ -309,6 +309,10 @@ def get_dsn_employees_data(
     payslips_response = payslips_query.execute()
     payslips = payslips_response.data or []
     payslips_by_employee, ranges_par_salarie = _bulletins_par_salarie(payslips)
+    # La fiche du mois : un mois qui appartient tout entier à un contrat rangé
+    # par « Nouveau contrat » se déclare sur la fiche de ce contrat, comme son
+    # bulletin se calcule [D4] ; sinon, la fiche du jour.
+    employees = [fiche_du_mois(e, year, month) for e in employees]
     fiches_par_id = {str(e["id"]): e for e in employees}
     evenements = _evenements_dsn(
         company_id,
