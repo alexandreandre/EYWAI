@@ -18,6 +18,7 @@ def process_payslip_generation(
     *,
     bac_a_sable: Any = None,
     depart_a_zero: dict[str, Any] | None = None,
+    contract_period_id: str | None = None,
 ) -> dict[str, Any]:
     """Délègue à app.modules.payroll.documents.payslip_generator (comportement identique)."""
     from app.modules.payroll.documents.payslip_generator import (
@@ -27,7 +28,14 @@ def process_payslip_generation(
     extra: dict[str, Any] = {"bac_a_sable": bac_a_sable} if bac_a_sable is not None else {}
     if depart_a_zero:
         extra["depart_a_zero"] = depart_a_zero
-    return _impl(employee_id=employee_id, year=year, month=month, **extra)
+    # `contract_period_id` : le bulletin du contrat rangé d'un mois à deux contrats [D3].
+    return _impl(
+        employee_id=employee_id,
+        year=year,
+        month=month,
+        contract_period_id=contract_period_id,
+        **extra,
+    )
 
 
 def process_payslip_generation_forfait(
@@ -37,6 +45,7 @@ def process_payslip_generation_forfait(
     *,
     bac_a_sable: Any = None,
     depart_a_zero: dict[str, Any] | None = None,
+    contract_period_id: str | None = None,
 ) -> dict[str, Any]:
     """Délègue à app.modules.payroll.documents.payslip_generator_forfait (comportement identique)."""
     from app.modules.payroll.documents.payslip_generator_forfait import (
@@ -46,7 +55,14 @@ def process_payslip_generation_forfait(
     extra: dict[str, Any] = {"bac_a_sable": bac_a_sable} if bac_a_sable is not None else {}
     if depart_a_zero:
         extra["depart_a_zero"] = depart_a_zero
-    return _impl(employee_id=employee_id, year=year, month=month, **extra)
+    # `contract_period_id` : le bulletin du contrat rangé d'un mois à deux contrats [D3].
+    return _impl(
+        employee_id=employee_id,
+        year=year,
+        month=month,
+        contract_period_id=contract_period_id,
+        **extra,
+    )
 
 
 def recalculer_credits_repos_employe(
