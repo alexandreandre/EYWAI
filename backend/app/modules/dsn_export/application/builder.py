@@ -30,7 +30,10 @@ from app.modules.dsn_export.domain.agregats import (
     bordereau_urssaf,
     montant_retraite_complementaire,
 )
-from app.modules.dsn_export.domain.cotisation_mapping import build_bases_and_cotisations
+from app.modules.dsn_export.domain.cotisation_mapping import (
+    CODE_EXONERATION_APPRENTI_PAR_DISPOSITIF,
+    build_bases_and_cotisations,
+)
 from app.modules.dsn_export.domain.deux_contrats import fusionner
 from app.modules.dsn_export.domain.versements_complementaires import (
     bloc_versement_complementaire,
@@ -940,6 +943,24 @@ def _fin_reprise_du_contrat(reprise: Dict[str, Any], date_debut: str) -> str:
     return fin
 
 
+def _dispositif_du_contrat(employee: Dict[str, Any], defauts: Dict[str, str]) -> str:
+    """Dispositif de politique publique du contrat (S21.G00.40.008)."""
+    classification = _classification(employee)
+    dispositif = str(
+        classification.get("dispositif_politique_publique")
+        or employee.get("dispositif_politique")
+        or "99"
+    )
+    apprentissage = dispositif in {"64", "65", "66"} or "apprenti" in str(
+        employee.get("contract_type") or ""
+    ).lower()
+    if dispositif == "99" and apprentissage and defauts.get("dispositif_apprentissage"):
+        # Un apprenti déclaré « sans dispositif » perd ses exonérations et
+        # son contrat se lit comme un CDD ordinaire.
+        dispositif = defauts["dispositif_apprentissage"]
+    return dispositif
+
+
 def build_individu_from_payroll(
     employee: Dict[str, Any],
     payslip_data: Dict[str, Any],
@@ -1050,6 +1071,7 @@ def build_individu_from_payroll(
             f"Cotisations prévoyance / santé sans affiliation (bloc 70) pour le NIR "
             f"{nir_dsn} : base 31 refusée (CCH-11 / CCH-12), affiliations à reprendre"
         )
+    dispositif = _dispositif_du_contrat(employee, defauts)
     bases, cotisations, map_warnings = build_bases_and_cotisations(
         cot_lines,
         brut=brut,
@@ -1062,6 +1084,7 @@ def build_individu_from_payroll(
             str(a.get("id_affiliation") or "") for a in affiliations_psc
         ]
         or None,
+        code_exoneration_apprenti=CODE_EXONERATION_APPRENTI_PAR_DISPOSITIF.get(dispositif),
     )
     warnings.extend(map_warnings)
 
@@ -1342,15 +1365,6 @@ def build_individu_from_payroll(
         warnings.append(
             f"Code convention collective (IDCC) manquant pour le NIR {nir_dsn}"
         )
-    dispositif = str(
-        classification.get("dispositif_politique_publique")
-        or employee.get("dispositif_politique")
-        or "99"
-    )
-    if dispositif == "99" and apprentissage and defauts.get("dispositif_apprentissage"):
-        # Un apprenti déclaré « sans dispositif » perd ses exonérations et
-        # son contrat se lit comme un CDD ordinaire.
-        dispositif = defauts["dispositif_apprentissage"]
     libelle_emploi = str(
         classification.get("libelle_emploi")
         or employee.get("job_title")
@@ -1582,6 +1596,7 @@ def _cotisations_du_salarie(ind: IndividuBlock) -> List[Dict[str, Any]]:
                         "montant": float(rubriques.get("S21.G00.81.004") or 0),
                         "taux": float(rubriques.get("S21.G00.81.007") or 0),
                         "ops": rubriques.get("S21.G00.81.002") or "",
+                        "apprenti": str(rubriques.get("_apprenti") or ""),
                     }
                 )
     return lignes

@@ -194,6 +194,18 @@ COTI_ID_NON_INDIVIDUELS = {
 }
 
 
+#: Ligne du bulletin qui porte l'exonération salariale de l'apprenti : son
+#: assiette est la part de rémunération exonérée (50 % du SMIC du mois).
+COTI_ID_EXONERATION_APPRENTI = "exoneration_apprenti_salariale"
+#: Code de cotisation de l'exonération apprenti par dispositif de politique
+#: publique (S21.G00.40.008) : loi de 1979, de 1987, de 1992.
+CODE_EXONERATION_APPRENTI_PAR_DISPOSITIF = {"64": "001", "65": "002", "81": "003"}
+#: Exonération de cotisations salariales de retraite complémentaire de l'apprenti.
+CODE_EXONERATION_RETRAITE_APPRENTI = "109"
+#: Rubriques dont la part salariale de retraite complémentaire est exonérée.
+COTI_ID_RETRAITE_COMP_EXONEREE = {"retraite_comp_t1", "ceg_t1"}
+
+
 class CotisationMappingError(ValueError):
     """Rubrique de cotisation obligatoire non traduisible en code DSN."""
 
@@ -217,6 +229,13 @@ class LigneDsn:
     # Régularisation saisie à la main : se fond dans la ligne de même code en
     # ajoutant son montant et son assiette, jamais son taux.
     regularisation: bool = False
+    # Apprenti : « exonere » pour la part de rémunération exonérée, « reste »
+    # pour la part au-delà — le bordereau Urssaf les range sur des CTP
+    # différents (726 et 423, ou 100 et 772).
+    apprenti: str = ""
+    # Montant de la base assujettie quand l'assiette de la ligne n'en est
+    # qu'une part (la vieillesse scindée d'un apprenti).
+    assiette_de_base: float = 0.0
 
 
 # --------------------------------------------------------------------------
@@ -709,6 +728,27 @@ def _traduire(
 # --------------------------------------------------------------------------
 
 
+def _vieillesse_apprenti(ligne: Dict[str, Any], exoneree: float) -> Tuple[List[LigneDsn], float]:
+    """La vieillesse d'un apprenti, scindée à l'assiette exonérée : le seul taux
+    patronal sur la part exonérée, le taux plein au-delà (fiche net-entreprises
+    n° 831). Rend aussi la part salariale exonérée de la ligne."""
+    regle = REGLES[str(ligne.get("coti_id") or "")]
+    assiette, sal, pat, taux_sal, taux_pat = _parts(ligne)
+    part = min(exoneree, assiette)
+    exoneration = round(part * taux_sal, 2)
+    patronal = round(part * taux_pat, 2)
+    reste = round(sal + pat - exoneration - patronal, 2)
+    lignes: List[LigneDsn] = []
+    if patronal:
+        lignes.append(LigneDsn(regle.code, regle.base, round(part, 2), patronal, abs(taux_pat),
+                               distincte=True, apprenti="exonere", assiette_de_base=assiette))
+    if assiette - part > 0.005:
+        lignes.append(LigneDsn(regle.code, regle.base, round(assiette - part, 2), reste,
+                               abs(round(taux_sal + taux_pat, 6)), distincte=True, apprenti="reste",
+                               assiette_de_base=assiette))
+    return lignes, exoneration
+
+
 def _taux_dsn(taux_fraction: float) -> str:
     """La DSN attend un taux en pourcentage, à trois décimales."""
     # Le taux s'écrit sans signe (CSL-00) : sur une régularisation, c'est le
@@ -751,11 +791,35 @@ def _cumuler(lignes: List[LigneDsn]) -> List[LigneDsn]:
 #: cotisation individuelle Prévoyance (059) le refuse même — CCH-11 — et les
 #: codes recouvrés par l'Agirc-Arrco (106, 131, 132 Apec) sont « non
 #: concernés » par l'OPS au CT 2026. 142 et 146 sont, eux, des codes Urssaf.
-CODES_SANS_OPS = {"059", "106", "131", "132"}
+CODES_SANS_OPS = {"059", "106", "109", "131", "132"}
 
 #: Codes Agirc-Arrco déclarés par leur seul montant (assiette et taux « non
 #: concernés » au CT 2026 hors réduction) — le 131 l'était déjà.
 CODES_AGIRC_ARRCO_MONTANT_SEUL = {"132"}
+
+
+def _exoneration_apprenti(
+    produites: List[LigneDsn], lignes: List[Dict[str, Any]], exoneree: float, code: str
+) -> float:
+    """Le code d'exonération sur les bases 02 et 03, le 109, et le 131 net de
+    la part salariale exonérée ; rend cette part (Quadra déclarait de même)."""
+    for base in (BASE_PLAFONNEE, BASE_BRUT_DEPLAFONNE):
+        produites.append(LigneDsn(code, base, round(exoneree, 2), 0.0, 0.0, distincte=True, apprenti="exonere"))
+    produites.append(
+        LigneDsn(CODE_EXONERATION_RETRAITE_APPRENTI, BASE_BRUT_DEPLAFONNE, round(exoneree, 2), 0.0, 0.0,
+                 distincte=True)
+    )
+    retraite = 0.0
+    for ligne in lignes:
+        if str(ligne.get("coti_id") or "") in COTI_ID_RETRAITE_COMP_EXONEREE:
+            assiette, _, _, taux_sal, _ = _parts(ligne)
+            retraite += round(min(exoneree, assiette) * taux_sal, 2)
+    agirc = next(
+        (l for l in produites if l.code == CODE_AGIRC_ARRCO and l.base == BASE_PLAFONNEE), None
+    )
+    if agirc is not None and retraite:
+        agirc.montant = round(agirc.montant - retraite, 2)
+    return round(retraite, 2)
 
 
 def build_bases_and_cotisations(
@@ -768,8 +832,14 @@ def build_bases_and_cotisations(
     default_ops: str = "",
     smic_retenu: Optional[float] = None,
     affiliation_ids: Optional[List[str]] = None,
+    code_exoneration_apprenti: Optional[str] = None,
 ) -> Tuple[List[BaseAssujettieBlock], List[CotisationIndividuelleBlock], List[str]]:
     """Bases assujetties et cotisations individuelles d'un bulletin.
+
+    ``code_exoneration_apprenti`` (001, 002 ou 003, d'après le dispositif du
+    contrat) : la part exonérée d'un apprenti se déclare comme le demande la
+    fiche net-entreprises n° 831 — ce code sur les bases 02 et 03, la
+    vieillesse scindée, le 109, le 131 net de l'exonération.
 
     ``smic_retenu`` alimente le composant S21.G00.79 type 01 sous la base 03 —
     le montant du SMIC pris pour la réduction générale, sans lequel déclarer le
@@ -781,11 +851,23 @@ def build_bases_and_cotisations(
     lignes_valides = [l for l in cotisation_lines if isinstance(l, dict)]
     tmax = _tmax_applicable(lignes_valides)
     assiette_hs = _assiette_heures_supplementaires(lignes_valides)
+    lignes_exoneration = [l for l in lignes_valides if l.get("coti_id") == COTI_ID_EXONERATION_APPRENTI]
+    exoneree = max((abs(_parts(l)[0]) for l in lignes_exoneration), default=0.0)
+    exoneration_bulletin = round(abs(sum(_parts(l)[1] for l in lignes_exoneration)), 2)
+    scinder = bool(code_exoneration_apprenti) and exoneree > 0
+    exoneration_declaree = 0.0
 
     produites: List[LigneDsn] = []
     for ligne in lignes_valides:
         coti_id = str(ligne.get("coti_id") or "")
         libelle = str(ligne.get("libelle") or "")
+        if coti_id == COTI_ID_EXONERATION_APPRENTI:
+            continue  # déclarée par ses effets, plus bas
+        if scinder and REGLES.get(coti_id, Regle("", "")).code == "076":
+            vieillesse, exoneration = _vieillesse_apprenti(ligne, exoneree)
+            produites.extend(vieillesse)
+            exoneration_declaree += exoneration
+            continue
         if coti_id in {"csg_deductible", "csg_non_deductible", "crds"} or (
             not coti_id and ("csg" in libelle.lower() or "crds" in libelle.lower())
         ):
@@ -811,6 +893,21 @@ def build_bases_and_cotisations(
 
     produites.extend(_csg_et_crds(lignes_valides))
     produites = _cumuler(produites)
+    if exoneree > 0 and not scinder:
+        avertissements.append(
+            "Exonération salariale d'un apprenti sans dispositif de politique publique "
+            "(S21.G00.40.008 : 64, 65 ou 81) : déclarée sans son code d'exonération"
+        )
+    if scinder:
+        exoneration_declaree += _exoneration_apprenti(
+            produites, lignes_valides, exoneree, str(code_exoneration_apprenti)
+        )
+        ecart = round(exoneration_bulletin - exoneration_declaree, 2)
+        if abs(ecart) > 0.05:
+            avertissements.append(
+                f"Exonération salariale de l'apprenti : {ecart:.2f} € du bulletin non "
+                "ventilés en DSN (vieillesse et retraite complémentaire seulement)"
+            )
 
     # Montant de chaque base assujettie. La prévoyance (base 31) est traitée à
     # part : une base par cotisation 059, pas une base fourre-tout.
@@ -825,7 +922,11 @@ def build_bases_and_cotisations(
             # L'assiette brute déplafonnée est le brut, jamais l'assiette d'une
             # ligne (une tranche A à 4 005 € la gonflait sur un brut de 3 750 €).
             continue
-        if ligne.par_taux:
+        if ligne.assiette_de_base:
+            montants_base[ligne.base] = max(
+                montants_base.get(ligne.base, 0.0), round(ligne.assiette_de_base, 2)
+            )
+        elif ligne.par_taux:
             # Base du forfait social : la somme des assiettes, une par taux.
             montants_base[ligne.base] = round(
                 montants_base.get(ligne.base, 0.0) + ligne.assiette, 2
@@ -879,6 +980,8 @@ def build_bases_and_cotisations(
             rubriques["S21.G00.81.007"] = _taux_dsn(ligne.taux)
             if ligne.affiliation_id:
                 rubriques["S21.G00.81.005"] = ligne.affiliation_id
+            if ligne.apprenti:
+                rubriques["_apprenti"] = ligne.apprenti
             cotisations.append(
                 CotisationIndividuelleBlock(
                     code=ligne.code,

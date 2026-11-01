@@ -28,7 +28,15 @@ CTP_REDUCTIONS = {"003", "004", "668"}
 #: Régularisation positive de la réduction générale : déclarée en assiette.
 CTP_REGULARISATION_REDUCTION = "669"
 #: CTP dont le taux se déclare (23.003) : accident du travail et chômage modulé.
-CTP_TAUX_DECLARE = {("100", "920"), ("725", "920")}
+CTP_TAUX_DECLARE = {("100", "920"), ("725", "920"), ("726", "920")}
+#: Codes d'exonération de l'apprenti (loi de 1979, 1987, 1992) : leur assiette
+#: est la part de rémunération exonérée, ils ne portent pas de cotisation.
+CODES_EXONERATION_APPRENTI = {"001", "002", "003"}
+#: Part exonérée d'un apprenti (fiche net-entreprises n° 831) : les cotisations
+#: patronales de sécurité sociale passent du CTP 100 au 726, l'assurance
+#: chômage du 772 au 423 ; la part au-delà reste sur 100 et 772.
+CTP_PART_EXONEREE_APPRENTI = {("100", "920"): ("726", "920"), ("100", "921"): ("726", "921"),
+                              ("772", "920"): ("423", "920")}
 
 TAUX_CHOMAGE_DROIT_COMMUN = 4.0
 TAUX_CFP_MOINS_DE_11 = 0.55
@@ -94,9 +102,14 @@ def bordereau_urssaf(
     inconnus: List[str] = []
     for lignes in salaries:
         par_ctp: Dict[Tuple[str, str], float] = {}
+        exoneree = max(
+            (float(l.get("assiette") or 0) for l in lignes
+             if str(l.get("code") or "") in CODES_EXONERATION_APPRENTI),
+            default=0.0,
+        )
         for ligne in lignes:
             code = str(ligne.get("code") or "")
-            if code in CODES_HORS_BORDEREAU:
+            if code in CODES_HORS_BORDEREAU or code in CODES_EXONERATION_APPRENTI:
                 continue
             taux = float(ligne.get("taux") or 0)
             montant = float(ligne.get("montant") or 0)
@@ -109,6 +122,9 @@ def bordereau_urssaf(
             if cle is None:
                 if code not in inconnus:
                     inconnus.append(code)
+                continue
+            if exoneree and cle in CTP_PART_EXONEREE_APPRENTI:
+                _ventiler_apprenti(ligne, cle, taux, exoneree, par_ctp, montants, taux_declares)
                 continue
             # Plusieurs codes du même CTP partagent l'assiette du salarié.
             par_ctp[cle] = max(par_ctp.get(cle, 0.0), float(ligne.get("assiette") or 0))
@@ -148,6 +164,39 @@ def bordereau_urssaf(
             }
         )
     return lignes_23, total, inconnus
+
+
+def _ventiler_apprenti(
+    ligne: Dict[str, Any],
+    cle: Tuple[str, str],
+    taux: float,
+    exoneree: float,
+    par_ctp: Dict[Tuple[str, str], float],
+    montants: Dict[Tuple[str, str], float],
+    taux_declares: Dict[Tuple[str, str], str],
+) -> None:
+    """Une cotisation d'apprenti entre la part exonérée (CTP 726 ou 423) et la
+    part au-delà (CTP 100 ou 772). La vieillesse, déjà scindée au niveau du
+    salarié, va d'un bloc là où sa part la range."""
+    cle_exoneree = CTP_PART_EXONEREE_APPRENTI[cle]
+    assiette = float(ligne.get("assiette") or 0)
+    montant = float(ligne.get("montant") or 0)
+    part = str(ligne.get("apprenti") or "")
+    if part == "exonere":
+        repartition = [(cle_exoneree, assiette, montant)]
+    elif part == "reste":
+        repartition = [(cle, assiette, montant)]
+    else:
+        exo = min(exoneree, assiette)
+        montant_exonere = round(exo * taux / 100, 2)
+        repartition = [(cle_exoneree, exo, montant_exonere), (cle, assiette - exo, round(montant - montant_exonere, 2))]
+    for destination, assiette_part, montant_part in repartition:
+        if assiette_part <= 0 and not montant_part:
+            continue
+        par_ctp[destination] = max(par_ctp.get(destination, 0.0), round(assiette_part, 2))
+        montants[destination] = montants.get(destination, 0.0) + montant_part
+        if destination in CTP_TAUX_DECLARE and str(ligne.get("code") or "") == "045":
+            taux_declares[destination] = f"{taux:.2f}"
 
 
 def montant_retraite_complementaire(salaries: Iterable[List[Dict[str, Any]]]) -> float:

@@ -298,10 +298,18 @@ def test_blocs_livres_sont_conformes(societe: str, periode: str, repertoire: Pat
 # sur l'assiette cumulée comme le cabinet (072 : 95 → 45, 079 : 74 → 41),
 # coefficient 2026 de la réduction générale (018 / 106), Apec (132) déclarée
 # en montant seul (taux : les 16 écarts 03/132 disparaissent).
-PLAFOND_LIGNES_MANQUANTES = 174
+#
+# 31/10 : exonération salariale des apprentis déclarée (fiche net-entreprises
+# n° 831 : 002 sur les bases 02 et 03, vieillesse scindée, 109, 131 net) :
+# 174 → 168 absentes (les 109 manquants disparaissent, 2 des 6 « 002 »
+# restent : un apprenti sans ligne d'exonération au bulletin), 940 → 937
+# divergents. 7 → 9 taux : sur le 002 de la base 03, le cabinet écrit 8,550,
+# Martine 0,000 — la norme ne demande un taux que « pour une cotisation »
+# (81.007), et une exonération n'en est pas une.
+PLAFOND_LIGNES_MANQUANTES = 168
 PLAFOND_LIGNES_EN_TROP = 17
-PLAFOND_MONTANTS_DIVERGENTS = 940
-PLAFOND_TAUX_DIVERGENTS = 7
+PLAFOND_MONTANTS_DIVERGENTS = 937
+PLAFOND_TAUX_DIVERGENTS = 9
 
 
 @besoin_de_fixtures
