@@ -27,6 +27,7 @@ from app.modules.dsn_export.domain.contract_map import (
     period_to_mois_principal,
 )
 from app.modules.dsn_export.domain.agregats import (
+    CODES_PRIME_PARTAGE_VALEUR,
     bordereau_urssaf,
     montant_retraite_complementaire,
 )
@@ -1622,7 +1623,18 @@ def _paiements(
     debut, fin = period_bounds(period)
     salaries = [_cotisations_du_salarie(ind) for ind in etab.individus]
     urssaf = [[l for l in lignes if ops_urssaf and l["ops"] == ops_urssaf] for lignes in salaries]
-    lignes_23, total_urssaf, inconnus = bordereau_urssaf(urssaf)
+    ppv = round(
+        sum(
+            prime.montant
+            for individu in etab.individus
+            for contrat in individu.contrats
+            for versement in contrat.versements
+            for prime in versement.primes
+            if prime.code in CODES_PRIME_PARTAGE_VALEUR
+        ),
+        2,
+    )
+    lignes_23, total_urssaf, inconnus = bordereau_urssaf(urssaf, prime_partage_valeur=ppv)
     for code in inconnus:
         avertissements.append(
             f"Cotisation {code} sans code type de personnel connu : absente du bordereau Urssaf"

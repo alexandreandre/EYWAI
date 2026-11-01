@@ -35,6 +35,11 @@ CODES_EXONERATION_APPRENTI = {"001", "002", "003"}
 #: Part exonérée d'un apprenti (fiche net-entreprises n° 831) : les cotisations
 #: patronales de sécurité sociale passent du CTP 100 au 726, l'assurance
 #: chômage du 772 au 423 ; la part au-delà reste sur 100 et 772.
+#: Prime de partage de la valeur (fiche net-entreprises « Comment déclarer la
+#: PPV ») : son montant global au CTP 510, qualifiant 920, taux à 0 % — sans
+#: incidence sur le montant dû. Types du bloc 52 qui la portent.
+CTP_PRIME_PARTAGE_VALEUR = "510"
+CODES_PRIME_PARTAGE_VALEUR = {"904", "905", "906"}
 CTP_PART_EXONEREE_APPRENTI = {("100", "920"): ("726", "920"), ("100", "921"): ("726", "921"),
                               ("772", "920"): ("423", "920")}
 
@@ -90,11 +95,14 @@ CODES_HORS_BORDEREAU = {"142", "146"}
 
 def bordereau_urssaf(
     salaries: Iterable[List[Dict[str, Any]]],
+    *,
+    prime_partage_valeur: float = 0.0,
 ) -> Tuple[List[Dict[str, str]], int, List[str]]:
     """Cotisations agrégées (23), montant du bordereau (22.005) et codes inconnus.
 
     ``salaries`` : pour chaque salarié, ses cotisations individuelles Urssaf
     ``{code, base, assiette, montant, taux}`` (taux en pourcentage).
+    ``prime_partage_valeur`` : le total des PPV versées dans le mois (CTP 510).
     """
     assiettes: Dict[Tuple[str, str], float] = {}
     montants: Dict[Tuple[str, str], float] = {}
@@ -133,6 +141,9 @@ def bordereau_urssaf(
                 taux_declares[cle] = f"{taux:.2f}"
         for cle, assiette in par_ctp.items():
             assiettes[cle] = assiettes.get(cle, 0.0) + assiette
+
+    if prime_partage_valeur > 0:
+        assiettes[(CTP_PRIME_PARTAGE_VALEUR, "920")] = prime_partage_valeur
 
     lignes_23: List[Dict[str, str]] = []
     total = 0

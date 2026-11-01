@@ -261,3 +261,31 @@ def test_assujettissements_fiscaux_du_millesime():
         {"001": "001", "002": "0.00", "003": "2026"},
         {"001": "013", "002": "0.00", "003": "2026"},
     ]
+
+
+def test_la_prime_de_partage_de_la_valeur_se_declare_au_ctp_510():
+    """Fiche net-entreprises « Comment déclarer la PPV » : le montant global de
+    la prime versée au CTP 510, qualifiant 920, taux à 0 %, sans incidence sur
+    le montant dû. Comme la déclarait l'ancien logiciel (juillet et septembre)."""
+    lignes, total, _ = bordereau_urssaf([SALARIE_A], prime_partage_valeur=400.0)
+    _, total_sans, _ = bordereau_urssaf([SALARIE_A])
+    assert {"ctp": "510", "qualifiant": "920", "taux": "", "assiette": "400.00", "montant": "0.00"} in lignes
+    assert total == total_sans
+
+
+def test_sans_prime_de_partage_pas_de_ctp_510():
+    lignes, _, _ = bordereau_urssaf([SALARIE_A])
+    assert all(l["ctp"] != "510" for l in lignes)
+
+
+def test_la_prime_de_partage_du_bulletin_arrive_au_bordereau():
+    bulletin = {**BULLETIN, "primes_non_soumises": [
+        {"libelle": "Prime de partage de la valeur (PPV)", "montant": 100.0, "prime_id": "prime_partage_valeur"},
+    ]}
+    fichier, _ = build_parsed_dsn_from_payroll(
+        SOCIETE, [{"employee": SALARIE, "payslip_data": bulletin}], "2026-06", settings=PARAMETRES
+    )
+    texte = encode_dsn_bytes(fichier).decode("iso-8859-15")
+    lignes = [(l.split(",", 1)[0], l.split(",", 1)[1].strip("'")) for l in texte.splitlines()]
+    ctp = {b["001"]: b for b in _blocs(lignes, "S21.G00.23")}
+    assert ctp["510"]["002"] == "920" and ctp["510"]["004"] == "100.00"
