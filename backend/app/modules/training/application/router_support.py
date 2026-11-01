@@ -40,14 +40,24 @@ def approve_enrollment_by_rh(
 
 
 def submit_enrollment_evaluation(
-    enrollment_id: str, company_id: str, **kwargs: Any
+    enrollment_id: str,
+    company_id: str,
+    actor_employee_id: Optional[str],
+    rating: int,
+    comment: Optional[str],
 ) -> Dict[str, Any]:
-    return training_repository.submit_evaluation(enrollment_id, company_id, **kwargs)
+    return training_repository.submit_evaluation(
+        enrollment_id, company_id, actor_employee_id, rating, comment
+    )
 
 
 def upload_enrollment_certificate(
-    enrollment_id: str, company_id: str, **kwargs: Any
+    enrollment_id: str,
+    company_id: str,
+    file_bytes: bytes,
+    filename: str,
+    content_type: str,
 ) -> str:
     return training_repository.upload_enrollment_certificate(
-        enrollment_id, company_id, **kwargs
+        enrollment_id, company_id, file_bytes, filename, content_type
     )

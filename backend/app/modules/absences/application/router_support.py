@@ -35,13 +35,13 @@ def list_employee_ids_managed_by_manager(
 
 def approve_absence_by_manager(
     absence_id: str,
-    manager_employee_id: str,
     company_id: str,
-    *,
-    comment: Optional[str] = None,
+    manager_user_id: str,
+    approved: bool,
+    rejection_reason: Optional[str] = None,
 ) -> Dict[str, Any]:
     return absence_repository.approve_by_manager(
-        absence_id, manager_employee_id, company_id, comment=comment
+        absence_id, company_id, manager_user_id, approved, rejection_reason
     )
 
 
