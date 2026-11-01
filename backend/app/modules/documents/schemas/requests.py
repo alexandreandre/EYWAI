@@ -26,11 +26,11 @@ class GenerateDocumentRequest(BaseModel):
     motif: Optional[str] = None
     template_id: Optional[str] = None
     nouveau_salaire: Optional[float] = Field(
-        None,
+        default=None,
         description="Persisté dans generation_context pour rebouclage à la signature.",
     )
     ancien_salaire: Optional[float] = Field(
-        None,
+        default=None,
         description="Salaire avant modification (snapshot ou valeur front).",
     )
     ancien_poste: Optional[str] = None
