@@ -149,6 +149,9 @@ class IExitDocumentGenerator(ABC):
         employee_data: Dict[str, Any],
         company_data: Dict[str, Any],
         exit_data: Dict[str, Any],
+        indemnities: Optional[Dict[str, Any]] = None,
+        supabase_client: Any = None,
+        document_data: Optional[Dict[str, Any]] = None,
     ) -> bytes:
         """Génère l'attestation Pôle Emploi."""
         ...
@@ -190,8 +193,11 @@ class IExitStorageProvider(ABC):
     """
 
     @abstractmethod
-    def upload(self, path: str, content: bytes, content_type: str) -> None:
-        """Upload un fichier dans le bucket exit_documents."""
+    def upload(
+        self, path: str, content: bytes, content_type: str, *, remplacer: bool = False
+    ) -> None:
+        """Upload un fichier dans le bucket exit_documents ; `remplacer` réécrit un
+        chemin déjà pris (édition d'un document)."""
         ...
 
     @abstractmethod

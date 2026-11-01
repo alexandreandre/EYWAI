@@ -92,6 +92,20 @@ jobs:
       - name: Smoke import (vérifie le chargement de l'app)
         run: python -c "from app.main import app; print('OK', len(app.openapi()['paths']), 'routes')"
 
+      # Les tests unitaires remplacent souvent les ponts entre modules : un appel
+      # qui passe un argument que la fonction appelée ne prend pas leur échappe
+      # (génération des bulletins en 500 le 01/11/2026). mypy ne bloque ici que
+      # sur ces erreurs d'appel.
+      - name: Signatures des appels (mypy, erreurs d'appel seulement, bloquant)
+        run: |
+          pip install mypy==2.4.1
+          mypy app --ignore-missing-imports --follow-imports=silent --no-error-summary --python-version 3.11 > mypy.txt || true
+          if grep "\[call-arg\]" mypy.txt; then
+            echo "::error::Appel dont les arguments ne correspondent pas à la fonction appelée (lignes ci-dessus)."
+            exit 1
+          fi
+          echo "Aucune erreur d'appel."
+
       - name: Pytest unit (bloquant)
         run: python -m pytest tests/unit -v --tb=short -p no:cacheprovider
 
