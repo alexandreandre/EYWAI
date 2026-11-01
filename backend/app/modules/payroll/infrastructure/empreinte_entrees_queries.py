@@ -225,7 +225,7 @@ def _lire_surcharges_fenetre(
 
 
 _EMPREINTES_DES_BULLETINS = (
-    "id, year, month, status, "
+    "id, year, month, status, contract_period_id, "
     "empreinte_entrees:payslip_data->parametres->>empreinte_entrees, "
     "empreinte_cumuls_precedents:payslip_data->parametres->>empreinte_cumuls_precedents, "
     "empreinte_complementaire:payslip_data->parametres->empreinte_complementaire"

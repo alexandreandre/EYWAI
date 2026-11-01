@@ -55,7 +55,11 @@ logger = get_logger("modules.payslips.application.comparison_service")
 
 def _etat_actuel_du_bulletin(detail: dict[str, Any]) -> Any:
     """L'état du bulletin dans sa chaîne (`EtatDuBulletin`) ; None si illisible :
-    on ne bloque pas la validation sur une lecture ratée."""
+    on ne bloque pas la validation sur une lecture ratée. None aussi pour le
+    bulletin du contrat rangé d'un mois à deux contrats : l'état du mois est
+    celui du bulletin de la fiche [D3]."""
+    if detail.get("contract_period_id"):
+        return None
     try:
         from app.modules.payroll.application.empreinte_entrees_service import (
             etat_dans_la_chaine,

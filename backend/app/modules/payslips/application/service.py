@@ -172,6 +172,10 @@ def _etats_du_bulletin(
     """
     if str(detail.get("origine") or "calcule") == "importe":
         return None, None, None
+    if detail.get("contract_period_id"):
+        # Le bulletin du contrat rangé d'un mois à deux contrats : l'état du mois
+        # est celui du bulletin de la fiche ; celui-ci se régénère sur demande [D3].
+        return None, None, None
     try:
         from app.modules.payroll.application import empreinte_entrees_service
 

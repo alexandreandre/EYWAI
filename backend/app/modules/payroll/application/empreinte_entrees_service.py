@@ -818,6 +818,11 @@ _PARTIES_IGNOREES_SI_VALIDE = frozenset(
 )
 
 
+def du_contrat_range(ligne: Mapping[str, Any]) -> bool:
+    """Le bulletin du contrat rangé d'un mois à deux contrats [D3]."""
+    return bool(ligne.get("contract_period_id"))
+
+
 def _etats_par_mois(
     lectures: LecturesEmpreinte | None, lignes: Iterable[Mapping[str, Any]]
 ) -> dict[tuple[int, int], EtatDuBulletin]:
@@ -834,6 +839,11 @@ def _etats_par_mois(
     """
     etats: dict[tuple[int, int], EtatDuBulletin] = {}
     for ligne in sorted(lignes, key=lambda l: (int(l["year"]), int(l["month"]))):
+        if du_contrat_range(ligne):
+            # Le bulletin du contrat rangé d'un mois à deux contrats se recalcule
+            # sur demande, sur la fiche rangée : l'état du mois est celui du
+            # bulletin de la fiche, qu'il ne doit pas écraser [D3].
+            continue
         periode = (int(ligne["year"]), int(ligne["month"]))
         if lectures is None or str(ligne.get("origine") or "calcule") == "importe":
             etats[periode] = EtatDuBulletin()
@@ -1095,6 +1105,8 @@ def _verifier_les_valides(
     from app.core.lecture_seule import ecritures_permises
 
     for ligne in lignes:
+        if du_contrat_range(ligne):
+            continue
         try:
             periode = (int(ligne["year"]), int(ligne["month"]))
         except (KeyError, TypeError, ValueError):
@@ -1232,7 +1244,7 @@ def annoter_a_recalculer(employee_id: str, lignes: list[dict[str, Any]]) -> list
         copie.pop("empreinte_complementaire", None)
         try:
             periode = (int(copie["year"]), int(copie["month"]))
-            etat = etats.get(periode)
+            etat = None if du_contrat_range(copie) else etats.get(periode)
         except (KeyError, TypeError, ValueError):
             etat = None
         copie["a_recalculer"] = etat.a_recalculer if etat else None

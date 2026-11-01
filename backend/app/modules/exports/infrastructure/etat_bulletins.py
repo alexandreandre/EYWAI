@@ -61,11 +61,15 @@ def lire_etat_bulletins(
     year, month = map(int, period.split("-"))
     bulletins = _bulletins_du_mois(company_id, year, month, employee_ids)
     non_valides = sum(1 for b in bulletins if b.get("status") != "valide")
-    a_calculer = [
-        str(b["employee_id"])
-        for b in bulletins
-        if str(b.get("origine") or "calcule") != "importe"
-    ]
+    # Un salarié par état : un mois à deux contrats a deux bulletins, mais
+    # l'état du mois est celui du bulletin de la fiche [D3].
+    a_calculer = list(
+        dict.fromkeys(
+            str(b["employee_id"])
+            for b in bulletins
+            if str(b.get("origine") or "calcule") != "importe"
+        )
+    )
 
     def etat_de(employee_id: str) -> bool | None:
         etat = empreinte_entrees_service.etat_dans_la_chaine(employee_id, year, month)
