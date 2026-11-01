@@ -16,9 +16,10 @@ mesure du 01/11/2026).
 La correction passe par la clé de reprise `brut_hors_reduction_generale`
 (engine/calcul_reduction_generale.py) : elle retire un montant du brut de la
 réduction ; négative, elle y ajoute la PPV. Elle ne vaut que pour l'année de la
-reprise et s'efface en janvier. Les deux versements de 2026 sont faits ; le
-moteur ne compte pas encore une PPV qu'il verserait lui-même (à corriger avant
-la prochaine).
+reprise et s'efface en janvier. Les deux versements de 2026 sont faits. Une
+PPV que Martine verse elle-même passe par le cumul `ppv_annee_civile` du moteur
+(engine/calcul_reduction_generale.py, CLE_PPV_ANNEE), distinct de la trace
+ci-dessous.
 
 La PPV de chaque salarié se lit à l'exécution dans les DSN Quadra
 (data/<société>/dsn/2026-MM.dsn, bloc 52, types 904 à 906, hors git), le salarié

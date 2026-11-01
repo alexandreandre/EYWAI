@@ -353,6 +353,9 @@ def run_payslip_generation_forfait(
     primes_soumises = []
     primes_non_soumises = []
     primes_soumises_impot = []
+    # Part exonérée de la PPV : hors du brut soumis, dans la rémunération de la
+    # réduction générale (CSS L241-13, III ; voir CLE_PPV_ANNEE).
+    ppv_hors_brut = 0.0
     catalogue_primes = {p["id"]: p for p in contexte.baremes["primes"]}
     effectif_entreprise = contexte.effectif
     # PPV : données lues par le générateur (PPV de l'année, rémunération des
@@ -433,6 +436,10 @@ def run_payslip_generation_forfait(
                 )
                 primes_non_soumises.extend(rangee.non_soumises)
                 primes_soumises_impot.extend(rangee.soumises_impot)
+                ppv_hors_brut += sum(
+                    float(p.get("montant") or 0.0)
+                    for p in (*rangee.non_soumises, *rangee.soumises_impot)
+                )
                 primes_soumises.extend(rangee.soumises)
                 lignes_cotisations_ppv.extend(rangee.lignes_cotisations)
                 contexte.alertes_baremes.extend(rangee.alertes)
@@ -659,7 +666,8 @@ def run_payslip_generation_forfait(
     ligne_reduction_generale = None
     if not jei_applicable(contexte, year, month):
         ligne_reduction_generale = calculer_reduction_generale(
-            contexte, salaire_brut_calcule, heures_reduction
+            contexte, salaire_brut_calcule, heures_reduction,
+            ppv_mois=ppv_hors_brut,
         )
         if ligne_reduction_generale:
             lignes_cotisations.append(ligne_reduction_generale)

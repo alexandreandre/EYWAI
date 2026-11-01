@@ -97,10 +97,11 @@ def mettre_a_jour_cumuls(
         # Point de départ de la réduction posé par une reprise : il ne vaut que
         # pour l'année de la reprise (voir calcul_reduction_generale).
         from app.modules.payroll.engine.calcul_reduction_generale import (
+            CLE_PPV_ANNEE,
             CLES_POINT_DE_DEPART_REDUCTION,
         )
 
-        for cle in CLES_POINT_DE_DEPART_REDUCTION:
+        for cle in (*CLES_POINT_DE_DEPART_REDUCTION, CLE_PPV_ANNEE):
             cumuls.pop(cle, None)
 
     cumuls["brut_annee_civile"] = cumuls["brut_annee_civile"] + round(salaire_brut_mois, 2)
@@ -203,6 +204,15 @@ def mettre_a_jour_cumuls(
             "valeur_cumulative_a_enregistrer", 0.0
         )
         cumuls["reduction_generale_patronale"] = -nouveau_total
+        # La PPV exonérée que la réduction du mois a comptée (voir CLE_PPV_ANNEE).
+        from app.modules.payroll.engine.calcul_reduction_generale import (
+            CLE_PPV_ANNEE,
+            CLE_PPV_DU_MOIS,
+        )
+
+        ppv = float(reduction_generale_mois.get(CLE_PPV_DU_MOIS) or 0.0)
+        if ppv:
+            cumuls[CLE_PPV_ANNEE] = round(float(cumuls.get(CLE_PPV_ANNEE) or 0.0) + ppv, 2)
 
     if regularisation_reduction_generale:
         # Le cumul enregistre la réduction réellement appliquée, régularisation

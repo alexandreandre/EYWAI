@@ -494,6 +494,16 @@ CLES_POINT_DE_DEPART_REDUCTION = (
     CLE_HEURES_HORS_REDUCTION,
 )
 
+#: Prime de partage de la valeur versée dans l'année civile, part exonérée : elle
+#: entre dans la rémunération de la réduction (CSS L241-13, III ; BOSS § 170 et
+#: § 200, au mois de son versement ; règle R-B1) sans être du brut soumis. La
+#: part au-delà du plafond est déjà dans le brut. Remise à zéro en janvier.
+#: Distincte de `ppv_reduction_generale`, la trace de la reprise du 01/11/2026
+#: (PPV de Quadra posée par un `brut_hors_reduction_generale` négatif).
+CLE_PPV_ANNEE = "ppv_annee_civile"
+#: La part de la ligne du mois que le cumul ajoute à `ppv_annee_civile`.
+CLE_PPV_DU_MOIS = "ppv_du_mois"
+
 
 def _lire_cumuls_precedents(contexte: ContextePaie) -> tuple[float, float, float]:
     """Lit les cumuls (brut, heures rémunérées, réduction déjà appliquée) du mois N-1.
@@ -526,6 +536,7 @@ def _lire_cumuls_precedents(contexte: ContextePaie) -> tuple[float, float, float
     brut_cumule = cumuls_precedents.get(
         "brut_annee_civile", cumuls_precedents.get("brut_total", 0.0)
     )
+    brut_cumule = float(brut_cumule or 0.0) + float(cumuls_precedents.get(CLE_PPV_ANNEE) or 0.0)
     heures_cumulees = cumuls_precedents.get("heures_remunerees", 0.0)
     reduction_deja_appliquee = abs(
         cumuls_precedents.get("reduction_generale_patronale", 0.0)
@@ -566,6 +577,7 @@ def calculer_reduction_generale(
     contexte: ContextePaie,
     salaire_brut_mois: float,
     heures_remunerees_mois: float,
+    ppv_mois: float = 0.0,
 ) -> dict[str, Any] | None:
     """Réduction générale des cotisations patronales avec régularisation progressive.
 
@@ -580,6 +592,8 @@ def calculer_reduction_generale(
         salaire_brut_mois: Le salaire brut du mois en cours.
         heures_remunerees_mois: Le total des heures du mois qui entrent dans le
                                calcul du SMIC de référence (travail, HS, CP, etc.).
+        ppv_mois: La part exonérée de la prime de partage de la valeur versée ce
+                  mois, hors du brut soumis (voir CLE_PPV_ANNEE).
     """
     annee = getattr(contexte, "year", None) or lc.ANNEE_BASCULE_RGDU
     if getattr(contexte, "is_stagiaire", False):
@@ -587,7 +601,9 @@ def calculer_reduction_generale(
     if annee < lc.ANNEE_BASCULE_RGDU:
         ligne = _calculer_reduction_fillon(contexte, salaire_brut_mois, heures_remunerees_mois)
     else:
-        ligne = _calculer_reduction_rgdu(contexte, salaire_brut_mois, heures_remunerees_mois)
+        ligne = _calculer_reduction_rgdu(
+            contexte, salaire_brut_mois, heures_remunerees_mois, ppv_mois
+        )
     # Corrigée à la main par son montant : son cumul enregistre la réduction
     # réellement appliquée, et le mois suivant régularise depuis là (spec § 6).
     journal = journal_du_contexte(contexte)
@@ -600,6 +616,7 @@ def _calculer_reduction_rgdu(
     contexte: ContextePaie,
     salaire_brut_mois: float,
     heures_remunerees_mois: float,
+    ppv_mois: float = 0.0,
 ) -> dict[str, Any] | None:
     """Branche RGDU (>= 2026). Lit les paramètres scrapables dans payroll_config."""
     log_payroll_debug(logger, 'INFO: Calcul de la Réduction Générale (RGDU 2026)...')
@@ -615,7 +632,8 @@ def _calculer_reduction_rgdu(
 
     _verifier_cumuls_coherents(brut_prec, heures_prec, reduction_deja)
 
-    brut_total_cumule = brut_prec + salaire_brut_mois
+    ppv_mois = round(float(ppv_mois or 0.0), 2)
+    brut_total_cumule = brut_prec + salaire_brut_mois + ppv_mois
     heures_total_cumulees = heures_prec + heures_remunerees_mois
     smic_reference_total_cumule = _calculer_smic_de_reference_cumule(
         contexte, heures_total_cumulees
@@ -645,22 +663,22 @@ def _calculer_reduction_rgdu(
 
     log_payroll_debug(logger, f'DEBUG [RGDU]: Coeff = {coefficient_C} | Total dû = {reduction_totale_due:.2f} € | Mois = {montant_final} €')
 
-    return enrichir_ligne_cotisation(
-        {
-            "libelle": "Réduction générale de cotisations patronales",
-            "base": salaire_brut_mois,
-            "taux_salarial": None,
-            "montant_salarial": 0.0,
-            "taux_patronal": coefficient_C if coefficient_C > 0 else None,
-            "montant_patronal": montant_final,
-            "valeur_cumulative_a_enregistrer": reduction_totale_due,
-            # SMIC retenu du mois, que la DSN déclare (S21.G00.79 type 01).
-            "smic_reference_mois": _calculer_smic_de_reference_cumule(
-                contexte, heures_remunerees_mois
-            ),
-        },
-        coti_id="reduction_generale",
-    )
+    ligne = {
+        "libelle": "Réduction générale de cotisations patronales",
+        "base": salaire_brut_mois,
+        "taux_salarial": None,
+        "montant_salarial": 0.0,
+        "taux_patronal": coefficient_C if coefficient_C > 0 else None,
+        "montant_patronal": montant_final,
+        "valeur_cumulative_a_enregistrer": reduction_totale_due,
+        # SMIC retenu du mois, que la DSN déclare (S21.G00.79 type 01).
+        "smic_reference_mois": _calculer_smic_de_reference_cumule(
+            contexte, heures_remunerees_mois
+        ),
+    }
+    if ppv_mois:
+        ligne[CLE_PPV_DU_MOIS] = ppv_mois
+    return enrichir_ligne_cotisation(ligne, coti_id="reduction_generale")
 
 
 def _calculer_reduction_fillon(
