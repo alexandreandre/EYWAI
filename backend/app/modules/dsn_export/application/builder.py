@@ -76,6 +76,14 @@ from app.modules.dsn_import.domain.model import (
 )
 from app.shared.domain.employment_rules import mois_du_contrat_en_cours
 from app.shared.dsn_validation import build_siret_from_siren_nic
+# Parts patronales déclarées en autres éléments de revenu brut (S21.G00.54) :
+# 92 la santé, 93 la prévoyance ; même lecture que le montant net social.
+from app.modules.payroll.engine.protection_sociale import (
+    COTI_PREVOYANCE_RETRAITE_SUP,
+    COTI_SANTE,
+    famille_protection_sociale as _famille_psc,
+    parts_patronales_protection_sociale as _parts_patronales_psc,
+)
 
 
 def _extracteurs_bulletin():
@@ -221,51 +229,10 @@ def _net_a_payer(payslip_data: Dict[str, Any]) -> float:
     return 0.0
 
 
-#: Contributions patronales déclarées en autres éléments de revenu brut
-#: (S21.G00.54) : 92 la santé, 93 la prévoyance et la retraite supplémentaire.
-COTI_SANTE = {"mutuelle", "complementaire_sante"}
-COTI_PREVOYANCE_RETRAITE_SUP = {
-    "prevoyance",
-    "prevoyance_cadre",
-    "prevoyance_non_cadre",
-    "retraite_sup",
-}
-
-
 def _arrondi(valeur: float) -> float:
     from decimal import ROUND_HALF_UP, Decimal
 
     return float(Decimal(str(round(valeur, 6))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-
-
-def _famille_psc(ligne: Dict[str, Any]) -> str:
-    """« sante », « prevoyance » ou « » pour une ligne de cotisation."""
-    coti_id = str(ligne.get("coti_id") or "")
-    if coti_id in COTI_SANTE:
-        return "sante"
-    if coti_id in COTI_PREVOYANCE_RETRAITE_SUP:
-        return "prevoyance"
-    if coti_id:
-        return ""
-    libelle = str(ligne.get("libelle") or "").lower()
-    if "mutuelle" in libelle or "santé" in libelle or "sante" in libelle:
-        return "sante"
-    if "prévoyance" in libelle or "prevoyance" in libelle or "retraite sup" in libelle:
-        return "prevoyance"
-    return ""
-
-
-def _parts_patronales_psc(lignes: List[Dict[str, Any]]) -> Tuple[float, float]:
-    """(santé, prévoyance + retraite supplémentaire), parts patronales."""
-    sante = prevoyance = 0.0
-    for ligne in lignes:
-        famille = _famille_psc(ligne)
-        montant = float(ligne.get("montant_patronal") or 0)
-        if famille == "sante":
-            sante += montant
-        elif famille == "prevoyance":
-            prevoyance += montant
-    return round(sante, 2), round(prevoyance, 2)
 
 
 def _epargne_salariale(payslip_data: Dict[str, Any], period: str) -> List[Tuple[str, float, int]]:

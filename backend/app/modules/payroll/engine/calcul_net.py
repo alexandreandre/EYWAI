@@ -8,6 +8,7 @@ from . import legal_constants as lc
 from typing import Dict, Any, List
 from app.modules.payroll.engine.mutuelles import mutuelles_du_salarie
 from app.modules.payroll.engine.frais_professionnels import est_un_frais_professionnel
+from app.modules.payroll.engine.protection_sociale import parts_patronales_protection_sociale
 from app.modules.payroll.engine.corrections_manuelles import corriger_le_taux_d_impot, journal_du_contexte
 
 
@@ -263,6 +264,7 @@ def calculer_montant_net_social(
     primes_non_soumises: List[Dict[str, Any]],
     participations: List[Dict[str, Any]] | None = None,
     primes_soumises_impot: List[Dict[str, Any]] | None = None,
+    lignes_cotisations: List[Dict[str, Any]] | None = None,
 ) -> float:
     """
     Montant net social (BOSS, arrêté 31/01/2023 modifié — en vigueur 07/2023).
@@ -290,10 +292,11 @@ def calculer_montant_net_social(
     subrogées imposables). Vérifié sur salarié 014 (Lewis, mai 2026) : le MNS réel
     Cegid inclut bien le remboursement de prévoyance imposable net-only.
 
-    La part patronale de la complémentaire santé n'est PAS ajoutée au MNS
-    (alignement sur la référence cabinet Cegid : MNS = net à payer avant impôt).
-    Elle reste en revanche réintégrée au NET IMPOSABLE (avantage taxable, cf.
-    `_calculer_net_imposable`).
+    + parts patronales santé et prévoyance des lignes de cotisation (BOSS,
+      « Montant net social », II.A.1 et II.C.29 ; arrêté du 25/02/2016
+      modifié, art. 1er, II, 1°). L'ancien logiciel ne les ajoutait pas
+      (MNS = net à payer avant impôt) et Martine l'imitait jusqu'au
+      01/11/2026 : l'audit de ce jour l'a trouvé faux dans les 7 sociétés.
 
     Hors PAS et remboursements de frais professionnels : une ligne marquée
     `frais_professionnels` (note de frais du module, indemnité forfaitaire)
@@ -310,8 +313,11 @@ def calculer_montant_net_social(
         _get_safe_float(p.get("montant")) for p in (primes_soumises_impot or [])
     ) - _csg_des_primes_imposables(primes_soumises_impot)[1]
     _, _, net_social_participation = _participation_aggregats(participations)
+    part_sante, part_prevoyance = parts_patronales_protection_sociale(lignes_cotisations or [])
     mns = (
         _get_safe_float(salaire_brut)
+        + part_sante
+        + part_prevoyance
         + total_primes_non_soumises
         + total_primes_soumises_impot
         - _get_safe_float(total_cotisations_salariales)
@@ -855,6 +861,7 @@ def calculer_net_et_impot(
         primes_non_soumises,
         participations,
         primes_soumises_impot,
+        lignes_cotisations=lignes_cotisations,
     )
     from app.modules.payroll.engine.calcul_brut import montant_avantages_en_nature
 
