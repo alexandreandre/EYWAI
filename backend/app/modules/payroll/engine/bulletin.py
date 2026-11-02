@@ -181,7 +181,7 @@ def alertes_des_compteurs_de_conges(
                     "critique": False,
                     "message": (
                         f"Départ : {' et '.join(restes)} non pris, ni payés ni retenus "
-                        "(« Néant » sur le bulletin et sur le reçu), à vérifier selon "
+                        "(« Néant » sur le reçu), à vérifier selon "
                         "l'accord de la société : paiement ou perte des jours non pris."
                     ),
                 }

@@ -256,6 +256,14 @@ def generate_solde_depuis_bulletin(
         sections.append(amounts_section("INDEMNITÉS DE FIN DE CONTRAT SOUMISES À COTISATIONS", rupture))
     if apres_cotisations:
         sections.append(amounts_section("SOMMES VERSÉES APRÈS COTISATIONS", apres_cotisations))
+    if alertes_du_recu(payslip_data):
+        # RTT ou JTC restants au départ, ni payés ni retenus : le reçu le dit,
+        # comme le reçu estimé (décision du 12/10/2026).
+        sections.append(
+            amounts_section(
+                "AUTRES RÉGULARISATIONS", [amount_row("RTT / repos compensateurs", "Néant", None)]
+            )
+        )
 
     exit_type = str(exit_data.get("exit_type") or "")
     sortie = _date(exit_data.get("last_working_day"))

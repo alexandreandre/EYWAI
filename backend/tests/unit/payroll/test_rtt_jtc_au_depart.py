@@ -20,6 +20,7 @@ from app.modules.payroll.engine.bulletin import (
 )
 from app.modules.payroll.engine.calcul_cotisations import calculer_cotisations
 from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
+from app.modules.payroll.solde_de_tout_compte.common import bulletin_de_sortie
 from app.modules.payroll.solde_de_tout_compte.common.bulletin_de_sortie import (
     alertes_du_recu,
 )
@@ -40,7 +41,9 @@ def test_au_depart_les_rtt_et_jtc_restants_appellent_une_alerte():
     message = alerte["message"]
     assert "3 j de RTT" in message
     assert "2 j de JTC" in message
-    assert "« Néant »" in message
+    assert "« Néant » sur le reçu" in message
+    # Le bulletin n'a pas de ligne « Néant » : l'alerte ne le promet pas.
+    assert "sur le bulletin et sur le reçu" not in message
     assert "à vérifier selon l'accord" in message
     assert alerte["critique"] is False
 
@@ -129,3 +132,35 @@ def test_la_generation_du_recu_rend_l_alerte(
     ):
         resultat = generate_exit_document("exit-1", "co-1", "solde_tout_compte", "user-1", supabase_client=MagicMock())
     assert resultat["alertes"] == ["À vérifier selon l'accord."]
+
+
+def _bulletin_de_sortie(alertes: list[dict]) -> dict:
+    return {
+        "salaire_brut": 1000.0,
+        "net_a_payer": 780.0,
+        "calcul_du_brut": [{"libelle": "Salaire de base", "gain": 1000.0}],
+        "alertes_baremes": alertes,
+    }
+
+
+def _sections_du_recu(payslip_data: dict) -> list[dict]:
+    exit_data = {"exit_type": "demission", "last_working_day": "2026-10-30"}
+    with patch.object(bulletin_de_sortie, "render_solde_tout_compte_html", return_value=b"pdf") as rendu:
+        bulletin_de_sortie.generate_solde_depuis_bulletin({}, {}, exit_data, payslip_data)
+    return rendu.call_args.kwargs["sections"]
+
+
+def test_le_recu_tire_du_bulletin_dit_neant_pour_les_rtt_non_pris():
+    """L'alerte annonce « Néant » sur le reçu : le reçu tiré du bulletin le porte."""
+    sections = _sections_du_recu(
+        _bulletin_de_sortie([{"code": "rtt_jtc_non_payes_au_depart", "message": "11 j de RTT…"}])
+    )
+    (autres,) = [s for s in sections if s["title"] == "AUTRES RÉGULARISATIONS"]
+    assert autres["rows"] == [
+        {"kind": "amount", "label": "RTT / repos compensateurs", "detail": "Néant", "montant": None}
+    ]
+
+
+def test_sans_rtt_restant_le_recu_tire_du_bulletin_n_a_pas_la_ligne():
+    sections = _sections_du_recu(_bulletin_de_sortie([{"code": "autre", "message": "sans rapport"}]))
+    assert "AUTRES RÉGULARISATIONS" not in [s["title"] for s in sections]
