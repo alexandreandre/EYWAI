@@ -9,6 +9,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
+from app.modules.absences.domain.evenements_familiaux import duree_evenement
 
 
 def get_employee_collective_agreement(employee_id: str) -> Optional[str]:
@@ -60,19 +61,17 @@ def get_quota_evenement(employee_id: str, event_code: str) -> Optional[Dict[str,
     Retourne {duree_jours, type_jours, condition_anciennete_jours} ou None.
     """
     cc_id = get_employee_collective_agreement(employee_id)
-    if not cc_id:
-        return None
-
-    override = (
-        supabase.table("cc_evenements_familiaux")
-        .select("duree_jours, type_jours, condition_anciennete_jours")
-        .eq("collective_agreement_id", cc_id)
-        .eq("event_code", event_code)
-        .maybe_single()
-        .execute()
-    )
-    if override and override.data:
-        return override.data
+    ov = None
+    if cc_id:
+        override = (
+            supabase.table("cc_evenements_familiaux")
+            .select("duree_jours, type_jours, condition_anciennete_jours")
+            .eq("collective_agreement_id", cc_id)
+            .eq("event_code", event_code)
+            .maybe_single()
+            .execute()
+        )
+        ov = override.data if override and override.data else None
 
     ref = (
         supabase.table("evenements_familiaux_reference")
@@ -81,13 +80,21 @@ def get_quota_evenement(employee_id: str, event_code: str) -> Optional[Dict[str,
         .maybe_single()
         .execute()
     )
-    if ref and ref.data:
-        return {
-            "duree_jours": ref.data["duree_legale_jours"],
-            "type_jours": ref.data["type_jours_legal"],
-            "condition_anciennete_jours": None,
-        }
-    return None
+    rd = ref.data if ref and ref.data else None
+    # Jamais moins que la loi (L3142-4), même sans convention configurée.
+    duree = duree_evenement(
+        event_code,
+        duree_convention=ov["duree_jours"] if ov else None,
+        duree_reference=rd["duree_legale_jours"] if rd else None,
+        avec_convention=bool(cc_id),
+    )
+    if duree is None:
+        return None
+    return {
+        "duree_jours": duree,
+        "type_jours": (ov or {}).get("type_jours") or (rd or {}).get("type_jours_legal") or "JO",
+        "condition_anciennete_jours": (ov or {}).get("condition_anciennete_jours"),
+    }
 
 
 def get_solde_evenement(
@@ -169,14 +176,13 @@ def get_events_disponibles(employee_id: str) -> List[Dict[str, Any]]:
         hire_date = date.fromisoformat(h) if isinstance(h, str) else h
 
     cc_id = get_employee_collective_agreement(employee_id)
-    if not cc_id:
-        return []
-
     overrides = (
         supabase.table("cc_evenements_familiaux")
         .select("event_code, duree_jours, type_jours, condition_anciennete_jours")
         .eq("collective_agreement_id", cc_id)
         .execute()
+        if cc_id
+        else None
     )
     refs = (
         supabase.table("evenements_familiaux_reference")
@@ -184,7 +190,6 @@ def get_events_disponibles(employee_id: str) -> List[Dict[str, Any]]:
         .order("ordre_affichage")
         .execute()
     )
-    {r["code"]: r for r in (refs.data if refs else []) or []}
     override_map = {
         o["event_code"]: o for o in (overrides.data if overrides else []) or []
     }
@@ -197,12 +202,18 @@ def get_events_disponibles(employee_id: str) -> List[Dict[str, Any]]:
             continue
         seen_codes.add(code)
         ov = override_map.get(code)
+        duree = duree_evenement(
+            code,
+            duree_convention=ov["duree_jours"] if ov else None,
+            duree_reference=ref.get("duree_legale_jours"),
+            avec_convention=bool(cc_id),
+        )
+        if duree is None:
+            continue
         if ov:
-            duree = ov["duree_jours"]
             type_j = ov.get("type_jours") or "JO"
             cond = ov.get("condition_anciennete_jours")
         else:
-            duree = ref["duree_legale_jours"]
             type_j = ref.get("type_jours_legal") or "JO"
             cond = None
 
