@@ -8,7 +8,8 @@ Le chantier et sa méthode de mesure sont décrits dans
 ``docs/superpowers/specs/2026-08-03-dsn-export-conformite-design.md``.
 
 Lever le blocage (``DEPOSABLE = True``) est une décision d'Alexandre, pas un
-effet de bord d'un correctif : ce module ne dit que l'état, à jour du 05/10/2026.
+effet de bord d'un correctif : ce module ne dit que l'état, à jour du 02/11/2026
+(versements trimestriels produits depuis le 31/10/2026).
 """
 
 from __future__ import annotations
@@ -23,13 +24,12 @@ DEJA_PRODUIT: List[str] = [
     "rémunérations et cotisations individuelles",
     "bordereau et versements Urssaf, retraite complémentaire et impôt à la source",
     "prévoyance et mutuelle : adhésions et affiliations",
+    "versements trimestriels aux organismes de prévoyance et de mutuelle",
     "arrêts de travail, fins de contrat et autres suspensions",
 ]
 
 # Ce qui reste avant d'ouvrir le dépôt.
 RESTE_AVANT_DEPOT: List[str] = [
-    "les versements trimestriels aux organismes de prévoyance et de mutuelle : "
-    "pas encore produits",
     "les cotisations Urssaf qui ne figurent sur aucun bulletin (solde annuel, "
     "réduction ponctuelle) : absentes du bordereau",
     "une DSN complète contrôlée sans rejet par l'outil officiel DSN-VAL, "

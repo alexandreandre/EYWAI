@@ -40,6 +40,7 @@ def test_ce_qui_est_produit_n_est_plus_annonce_manquant():
         "affiliations",
         "arrêts",
         "fins de contrat",
+        "versements trimestriels",
     ):
         assert bloc in deja_produit, bloc
 
@@ -51,6 +52,7 @@ def test_ce_qui_est_produit_n_est_plus_annonce_manquant():
         "fin de contrat",
         "fins de contrat",
         "salariés sortis",
+        "trimestriel",
     ):
         assert produit not in reste, produit
     assert not hasattr(etat_conformite, "BLOCS_MANQUANTS")
@@ -58,9 +60,9 @@ def test_ce_qui_est_produit_n_est_plus_annonce_manquant():
 
 def test_le_reste_est_dit():
     reste = " ".join(etat_conformite.RESTE_AVANT_DEPOT).lower()
-    # Le builder ne produit pas l'appel trimestriel des organismes
-    # complémentaires, ni ce qui n'est sur aucun bulletin.
-    assert "trimestriel" in reste
+    # Le builder ne produit pas ce qui n'est sur aucun bulletin. Les versements
+    # trimestriels des organismes complémentaires sont produits depuis le
+    # 31/10/2026 (blocs 20 et 55, versements_complementaires.py).
     assert "aucun bulletin" in reste
     assert "dsn-val" in reste
 

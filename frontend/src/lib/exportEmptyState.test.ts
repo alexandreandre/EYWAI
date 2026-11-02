@@ -53,7 +53,7 @@ describe("exportEmptyState", () => {
 
 /**
  * Le message réel de l'aperçu DSN (`message_non_deposable()`, dsn_export,
- * relevé le 12/10/2026). Il contient « aucun » au milieu d'une phrase
+ * relevé le 02/11/2026). Il contient « aucun » au milieu d'une phrase
  * (« …qui ne figurent sur aucun bulletin… ») : ce n'est pas un message de vide.
  */
 const MESSAGE_DSN_NON_DEPOSABLE =
@@ -64,9 +64,9 @@ const MESSAGE_DSN_NON_DEPOSABLE =
   "  - rémunérations et cotisations individuelles\n" +
   "  - bordereau et versements Urssaf, retraite complémentaire et impôt à la source\n" +
   "  - prévoyance et mutuelle : adhésions et affiliations\n" +
+  "  - versements trimestriels aux organismes de prévoyance et de mutuelle\n" +
   "  - arrêts de travail, fins de contrat et autres suspensions\n" +
   "Reste avant d'ouvrir le dépôt :\n" +
-  "  - les versements trimestriels aux organismes de prévoyance et de mutuelle : pas encore produits\n" +
   "  - les cotisations Urssaf qui ne figurent sur aucun bulletin (solde annuel, réduction ponctuelle) : absentes du bordereau\n" +
   "  - une DSN complète contrôlée sans rejet par l'outil officiel DSN-VAL, pour chaque société\n" +
   "En attendant : déposez la DSN du mois comme avant, depuis votre ancien logiciel de paie. Si ce n'est pas possible, ouvrez un ticket (menu Support, module « Paie & Bulletins », urgence « Critique ») avant l'échéance de dépôt.";

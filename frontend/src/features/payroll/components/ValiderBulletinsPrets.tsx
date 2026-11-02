@@ -69,7 +69,10 @@ export function ValiderBulletinsPrets({
       if (resume.refus.length > 0) {
         setRecap(resume);
       } else {
-        toast({ title: resume.titre, description: `${titreMois} : les salariés voient leur bulletin.` });
+        toast({
+          title: resume.titre,
+          description: `${titreMois} : les salariés les verront à la date de mise à disposition.`,
+        });
       }
     } catch (error) {
       showErrorToast(error, {
@@ -110,8 +113,9 @@ export function ValiderBulletinsPrets({
             </AlertDialogTitle>
             <AlertDialogDescription>
               Ce sont les bulletins générés, à jour, sans alerte ni écart fort avec le mois
-              précédent. Chaque salarié verra son bulletin dans son espace et en sera prévenu. Les
-              bulletins à revoir ne sont pas validés : ouvrez-les un par un.
+              précédent. Chaque salarié le verra dans son espace à la date de mise à disposition de
+              la société (le 1er du mois suivant, sauf autre réglage dans « Paramètres de paie »).
+              Les bulletins à revoir ne sont pas validés : ouvrez-les un par un.
             </AlertDialogDescription>
             {avertissement ? (
               <p className="text-sm text-amber-700" data-testid="validation-mois-precedent">
