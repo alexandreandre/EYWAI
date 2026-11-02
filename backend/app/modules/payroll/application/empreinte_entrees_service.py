@@ -103,6 +103,9 @@ _CLES_SAISIE = (
 #: Clés de `specificites_paie` que seules la DSN (export et import) lisent :
 #: les poser ou les corriger ne change aucun bulletin.
 _SPECIFICITES_DSN_SEULE = frozenset({"affiliations_psc", "dsn_reprise"})
+#: La formule de société d'où viennent les lignes de prévoyance (02/11/2026) :
+#: aucun calcul ne la lit, le moteur ne lit que `lignes_specifiques`.
+_CLE_FORMULE_PREVOYANCE = "formule_id"
 
 
 def _extrait(source: Mapping[str, Any] | None, cles: Sequence[str]) -> dict[str, Any]:
@@ -119,10 +122,19 @@ def _fiche(employee: Mapping[str, Any] | None) -> dict[str, Any]:
     fiche = _extrait(employee, _CLES_FICHE)
     specificites = fiche.get("specificites_paie")
     if isinstance(specificites, Mapping) and _SPECIFICITES_DSN_SEULE & specificites.keys():
-        fiche["specificites_paie"] = {
+        specificites = {
             cle: valeur
             for cle, valeur in specificites.items()
             if cle not in _SPECIFICITES_DSN_SEULE
+        }
+        fiche["specificites_paie"] = specificites
+    prevoyance = specificites.get("prevoyance") if isinstance(specificites, Mapping) else None
+    if isinstance(prevoyance, Mapping) and _CLE_FORMULE_PREVOYANCE in prevoyance:
+        fiche["specificites_paie"] = {
+            **specificites,
+            "prevoyance": {
+                cle: valeur for cle, valeur in prevoyance.items() if cle != _CLE_FORMULE_PREVOYANCE
+            },
         }
     return fiche
 
