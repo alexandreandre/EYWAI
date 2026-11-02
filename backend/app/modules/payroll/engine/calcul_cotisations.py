@@ -1144,7 +1144,6 @@ def calculer_cotisations(
         # Cas CADRE : on lit les lignes depuis le contrat.json
         lignes_specifiques = prevoyance_spec.get("lignes_specifiques", [])
         log_payroll_debug(logger, f'  -> Lignes spécifiques trouvées pour le cadre: {len(lignes_specifiques)}')
-        taux_forfait_social_cadre = 0.0
         for ligne in lignes_specifiques:
             base_id = ligne.get("base", "brut_plafonne")
             assiette = assiettes.get(base_id, 0.0)
@@ -1162,30 +1161,6 @@ def calculer_cotisations(
                 bulletin_cotisations.append(ligne_calculee)
                 log_payroll_debug(logger, f'    -> Ligne calculée (Cadre): {ligne_calculee}')
 
-            # Le taux se retient, la ligne se pose une seule fois après la
-            # boucle : un cadre porte souvent deux tranches de prévoyance, et
-            # une ligne par tranche compterait le forfait social deux fois.
-            taux_forfait_social_cadre = max(
-                taux_forfait_social_cadre, float(ligne.get("forfait_social") or 0.0)
-            )
-
-        # Forfait social : même assiette que pour les non-cadres — l'ensemble
-        # des contributions patronales de protection sociale complémentaire,
-        # frais de santé compris. Il ne portait que sur la ligne de prévoyance
-        # en cours, ce qui sous-évaluait l'assiette dès qu'une mutuelle existait
-        # (salarié 146, Colorplast janvier 2026 : 69,33 au lieu des 98,56 du cabinet ;
-        # même constat sur les cadres de Mont Blanc Composite chez Cegid).
-        if taux_forfait_social_cadre > 0:
-            ligne_fs = _calculer_une_ligne(
-                f"Forfait social {taux_forfait_social_cadre * 100:.0f}% sur prévoyance",
-                _assiette_forfait_social(bulletin_cotisations),
-                None,
-                taux_forfait_social_cadre,
-                coti_id="forfait_social",
-            )
-            if ligne_fs:
-                bulletin_cotisations.append(ligne_fs)
-
     elif adhesion_prevoyance and not is_cadre(contexte.statut_salarie):
         logger.info('  -> ✅ Branche NON-CADRE sélectionnée.')
         lignes_specifiques = prevoyance_spec.get("lignes_specifiques", [])
@@ -1194,7 +1169,6 @@ def calculer_cotisations(
                 logger,
                 f'  -> Lignes spécifiques non-cadre: {len(lignes_specifiques)}',
             )
-            taux_forfait_social = 0.0
             for ligne in lignes_specifiques:
                 base_id = ligne.get("base", "brut_plafonne")
                 assiette = assiettes.get(base_id, 0.0)
@@ -1208,21 +1182,6 @@ def calculer_cotisations(
                 )
                 if ligne_calculee:
                     bulletin_cotisations.append(ligne_calculee)
-                taux_forfait_social = max(
-                    taux_forfait_social,
-                    float(ligne.get("forfait_social") or 0.0),
-                )
-            if taux_forfait_social > 0:
-                base_forfait_social = _assiette_forfait_social(bulletin_cotisations)
-                ligne_fs = _calculer_une_ligne(
-                    f"Forfait social {taux_forfait_social * 100:.0f}% sur prévoyance",
-                    base_forfait_social,
-                    None,
-                    taux_forfait_social,
-                    coti_id="forfait_social",
-                )
-                if ligne_fs:
-                    bulletin_cotisations.append(ligne_fs)
         else:
             coti_data = contexte.get_cotisation_by_id("prevoyance_non_cadre")
             if coti_data:
@@ -1240,37 +1199,29 @@ def calculer_cotisations(
                 )
                 if ligne_calculee:
                     bulletin_cotisations.append(ligne_calculee)
-                    # Forfait social : même règle que sur le chemin « lignes de
-                    # la fiche » ci-dessus, mais le taux vient ici du barème.
-                    # Sans cette accroche, un salarié dont la fiche ne porte
-                    # aucune ligne de prévoyance ne pouvait jamais en avoir
-                    # (sept des neuf salariés de Colorplast).
-                    taux_fs = float(coti_data.get("forfait_social") or 0.0)
-                    if taux_fs > 0:
-                        base_fs = round(
-                            sum(
-                                float(c.get("montant_patronal") or 0.0)
-                                for c in bulletin_cotisations
-                                if c.get("coti_id")
-                                in {"mutuelle", "prevoyance_non_cadre"}
-                            ),
-                            2,
-                        )
-                        ligne_fs = _calculer_une_ligne(
-                            f"Forfait social {taux_fs * 100:.0f}% sur prévoyance",
-                            base_fs,
-                            None,
-                            taux_fs,
-                            coti_id="forfait_social",
-                        )
-                        if ligne_fs:
-                            bulletin_cotisations.append(ligne_fs)
             else:
                 logger.warning(
                     "  -> ❌ Règle 'prevoyance_non_cadre' INTROUVABLE dans les barèmes."
                 )
     else:
         logger.warning("  -> ❌ Aucune branche de calcul de prévoyance n'a été exécutée.")
+
+    # Forfait social : la loi, pas la fiche (décision d'Alexandre du 03/11/2026).
+    # 8 % (CSS L137-16) sur toutes les parts patronales santé et prévoyance
+    # (`_assiette_forfait_social`, vérifiée sur Quadra et Cegid), à partir de
+    # 11 salariés : en dessous, l'employeur n'y est pas assujetti (L137-15).
+    # Une seule ligne, adhérent à la prévoyance ou non : la mutuelle patronale
+    # seule y est soumise.
+    if contexte.effectif >= lc.SEUIL_EFFECTIF_FORFAIT_SOCIAL_PREVOYANCE:
+        ligne_fs = _calculer_une_ligne(
+            "Forfait social 8% sur prévoyance",
+            _assiette_forfait_social(bulletin_cotisations),
+            None,
+            lc.TAUX_FORFAIT_SOCIAL_PREVOYANCE,
+            coti_id="forfait_social",
+        )
+        if ligne_fs:
+            bulletin_cotisations.append(ligne_fs)
     log_payroll_debug(logger, '--- FIN DEBUG PRÉVOYANCE ---\n')
 
     retraite_sup_spec = contexte.contrat.get("specificites_paie", {}).get(

@@ -100,18 +100,22 @@ class TestContributionCpfCdd:
 
 class TestForfaitSocialBaremeGlobal:
     """Sept salariés sur neuf n'ont pas de ligne de prévoyance sur leur fiche :
-    ils passent par le barème global, qui n'avait pas d'accroche."""
+    ils passent par le barème global. Le forfait social suit la loi (CSS
+    L137-15, L137-16) : 8 % à partir de 11 salariés, rien en dessous, quel que
+    soit le taux du barème (décision du 03/11/2026)."""
 
-    def test_huit_pourcent_sur_prevoyance_et_mutuelle(self):
-        ctx = build_test_contexte(
-            salaire_base=BRUT_DUMAREL, duree_hebdo=39.0, effectif=9,
-            baremes=_baremes(PREVOYANCE_GLOBALE),
+    def _contexte(self, effectif, bareme=PREVOYANCE_GLOBALE):
+        return build_test_contexte(
+            salaire_base=BRUT_DUMAREL, duree_hebdo=39.0, effectif=effectif,
+            baremes=_baremes(bareme),
             specificites_extra={
                 "prevoyance": {"adhesion": True, "lignes_specifiques": []},
                 "mutuelle": {"adhesion": True, "lignes_specifiques": [MUTUELLE_ISOLE]},
             },
         )
-        lignes = _lignes(ctx, BRUT_DUMAREL)
+
+    def test_huit_pourcent_sur_prevoyance_et_mutuelle_a_11_salaries(self):
+        lignes = _lignes(self._contexte(11), BRUT_DUMAREL)
         prevoyance = _ligne(lignes, "Prévoyance Non-Cadre")
         assert prevoyance["montant_patronal"] == pytest.approx(14.06, abs=0.01)
         forfait = _ligne(lignes, "Forfait social")
@@ -120,18 +124,14 @@ class TestForfaitSocialBaremeGlobal:
         assert forfait["base"] == pytest.approx(43.29, abs=0.01)
         assert forfait["montant_patronal"] == pytest.approx(3.46, abs=0.01)
 
-    def test_sans_taux_au_bareme_aucune_ligne(self):
-        """Garde anti-régression : sans taux configuré, rien n'apparaît."""
+    def test_colorplast_neuf_salaries_aucun_forfait(self):
+        """Quadra le payait (164,68 € de janvier à septembre 2026) : pas dû sous 11."""
+        assert _ligne(_lignes(self._contexte(9), BRUT_DUMAREL), "Forfait social") is None
+
+    def test_le_taux_du_bareme_ne_decide_plus(self):
         sans_taux = {k: v for k, v in PREVOYANCE_GLOBALE.items() if k != "forfait_social"}
-        ctx = build_test_contexte(
-            salaire_base=BRUT_DUMAREL, duree_hebdo=39.0, effectif=9,
-            baremes=_baremes(sans_taux),
-            specificites_extra={
-                "prevoyance": {"adhesion": True, "lignes_specifiques": []},
-                "mutuelle": {"adhesion": True, "lignes_specifiques": [MUTUELLE_ISOLE]},
-            },
-        )
-        assert _ligne(_lignes(ctx, BRUT_DUMAREL), "Forfait social") is None
+        forfait = _ligne(_lignes(self._contexte(11, sans_taux), BRUT_DUMAREL), "Forfait social")
+        assert forfait["montant_patronal"] == pytest.approx(3.46, abs=0.01)
 
 
 class TestForfaitSocialRetraiteSupplementaire:
@@ -238,7 +238,8 @@ class TestForfaitSocialCadre:
     """Le cadre porte souvent deux tranches de prévoyance : une seule ligne de
     forfait social doit en sortir, sur l'ensemble des contributions patronales
     de protection sociale — prévoyance et mutuelle, comme chez les deux
-    cabinets (Moroche chez Quadra : 98,56 = 69,33 + 29,23)."""
+    cabinets (Moroche chez Quadra : 98,56 = 69,33 + 29,23). Effectif de 11 :
+    sous 11, aucun forfait (voir TestForfaitSocialBaremeGlobal)."""
 
     def _contexte(self, deux_tranches=True):
         lignes = [{
@@ -251,7 +252,7 @@ class TestForfaitSocialCadre:
                 "patronal": 0.0171, "salarial": 0.0114, "forfait_social": 0.08,
             })
         return build_test_contexte(
-            statut="Cadre", salaire_base=BRUT_MOROCHE, duree_hebdo=39.0, effectif=9,
+            statut="Cadre", salaire_base=BRUT_MOROCHE, duree_hebdo=39.0, effectif=11,
             specificites_extra={
                 "prevoyance": {"adhesion": True, "lignes_specifiques": lignes},
                 "mutuelle": {"adhesion": True, "lignes_specifiques": [MUTUELLE_ISOLE]},

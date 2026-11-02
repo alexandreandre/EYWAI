@@ -17,6 +17,10 @@ JOURS_FORFAIT_LEGAL = 218
 # Seuils d'effectif
 SEUIL_EFFECTIF_FNAL = 50
 SEUIL_EFFECTIF_CFP = 11
+# Forfait social sur la prévoyance complémentaire (santé comprise) : CSS L137-15
+# (moins de 11 salariés non assujettis) et L137-16 (taux de 8 %).
+SEUIL_EFFECTIF_FORFAIT_SOCIAL_PREVOYANCE = 11
+TAUX_FORFAIT_SOCIAL_PREVOYANCE = 0.08
 
 # Bascule réduction générale : Fillon (RGCP) jusqu'en 2025, RGDU à partir de 2026
 # (réforme des allègements généraux, LFSS 2025 art. 18 / décret n°2025-887).

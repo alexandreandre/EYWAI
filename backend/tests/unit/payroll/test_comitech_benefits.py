@@ -52,6 +52,7 @@ def test_forfait_social_non_cadre_inclut_mutuelle_et_prevoyance():
     ctx = build_test_contexte(
         statut="Non-Cadre",
         salaire_base=2356.03,
+        effectif=30,  # LEWIS : forfait social dû à partir de 11 salariés
         specificites_extra={
             "mutuelle": {
                 "adhesion": True,
