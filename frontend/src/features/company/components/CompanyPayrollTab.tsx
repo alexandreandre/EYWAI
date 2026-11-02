@@ -12,6 +12,7 @@ import WorkMedalSettingsCard from "@/features/company/components/WorkMedalSettin
 import { DsnSyncModeCard } from "@/features/dsn-import/components/DsnSyncModeCard";
 import { CompanyPayrollParamsEditCard } from "@/features/company/components/CompanyPayrollParamsEditCard";
 import { CompanyMutuelleSection } from "@/features/company/components/CompanyMutuelleSection";
+import { CompanyPrevoyanceFormulesSection } from "@/features/company/components/CompanyPrevoyanceFormulesSection";
 import { WorkMedalCasesList } from "@/features/work-medals/components/WorkMedalCasesList";
 import OethSettingsCard from "@/features/company/components/OethSettingsCard";
 import OvertimeContingentSettingsCard from "@/features/company/components/OvertimeContingentSettingsCard";
@@ -325,6 +326,13 @@ export function CompanyPayrollTab({
         "Mutuelle & complémentaire santé",
         "Organisme, catalogue de formules et affectation salariés",
         <CompanyMutuelleSection canEdit={canEditPayrollParams} embedded />,
+      )}
+
+      {renderSection(
+        "prevoyance",
+        "Prévoyance",
+        "Formules de la société, à choisir sur la fiche du salarié",
+        <CompanyPrevoyanceFormulesSection canEdit={canEditPayrollParams} />,
       )}
 
       {renderSection(
