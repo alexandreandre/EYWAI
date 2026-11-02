@@ -150,6 +150,40 @@ describe('employeeProfileFormUtils prevoyance', () => {
     });
   });
 
+  it('la formule et la base des lignes vont et reviennent (02/11/2026)', () => {
+    const lignes = [{ ...prevoyanceLines[0], base: 'tranche_2' }];
+    const employee: Employee = {
+      ...baseEmployee,
+      specificites_paie: {
+        ...baseEmployee.specificites_paie,
+        prevoyance: { adhesion: true, formule_id: 'f1', lignes_specifiques: lignes },
+      },
+    };
+    const values = buildDefaultValues(employee);
+    expect(values.specificites_paie.prevoyance.formule_id).toBe('f1');
+    const payload = buildUpdatePayload(values, employee);
+    expect(payload.specificites_paie?.prevoyance).toMatchObject({ formule_id: 'f1', lignes_specifiques: lignes });
+  });
+
+  it('sans formule, le lien est effacé explicitement', () => {
+    const employee: Employee = {
+      ...baseEmployee,
+      specificites_paie: {
+        ...baseEmployee.specificites_paie,
+        prevoyance: { adhesion: true, formule_id: 'f1', lignes_specifiques: prevoyanceLines },
+      },
+    };
+    const defaults = buildDefaultValues(employee);
+    const values: EmployeeProfileEditFormValues = {
+      ...defaults,
+      specificites_paie: {
+        ...defaults.specificites_paie,
+        prevoyance: { ...defaults.specificites_paie.prevoyance, formule_id: null },
+      },
+    };
+    expect(buildUpdatePayload(values, employee).specificites_paie?.prevoyance).toMatchObject({ formule_id: null });
+  });
+
   it('buildUpdatePayload vide les lignes si adhésion décochée', () => {
     const employee: Employee = {
       ...baseEmployee,

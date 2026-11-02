@@ -3,7 +3,7 @@ import { titresRestaurantSchema } from '@/lib/titresRestaurant';
 import { ibanBienForme } from "@/lib/iban";
 import { bicFieldSchema } from "@/lib/ibanSchema";
 import { isEmployeeCadre } from "@/lib/mutuelleUtils";
-import { TAUX_PREVOYANCE_INVALIDE } from "@/features/employees/utils/prevoyance";
+import { formulePrevoyanceIdSchema, lignePrevoyanceSchema } from "@/features/employees/utils/prevoyanceSchema";
 import { needsContractEndDate } from "@/constants/contracts";
 import { MESSAGE_SALAIRE_TROP_ELEVE, SALAIRE_MENSUEL_MAXIMUM } from '@/lib/salaireVraisemblable';
 
@@ -142,15 +142,8 @@ export const createEmployeeFormSchema = z.object({
     // Prévoyance : une adhésion simple, et une liste optionnelle pour les cadres
     prevoyance: z.object({
       adhesion: z.boolean(),
-      lignes_specifiques: z.array(
-        z.object({
-          id: z.string(),
-          libelle: z.string().min(2, { message: "Libellé requis." }),
-          salarial: z.coerce.number({ invalid_type_error: TAUX_PREVOYANCE_INVALIDE }),
-          patronal: z.coerce.number({ invalid_type_error: TAUX_PREVOYANCE_INVALIDE }),
-          forfait_social: z.coerce.number({ invalid_type_error: TAUX_PREVOYANCE_INVALIDE }),
-        })
-      ).optional(),
+      formule_id: formulePrevoyanceIdSchema,
+      lignes_specifiques: z.array(lignePrevoyanceSchema).optional(),
     }),
   }),
 }).superRefine((data, ctx) => {

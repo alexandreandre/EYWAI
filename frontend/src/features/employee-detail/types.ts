@@ -122,6 +122,7 @@ export interface Employee {
     };
     prevoyance?: {
       adhesion?: boolean;
+      formule_id?: string | null;
       lignes_specifiques?: Array<{ libelle?: string; salarial?: number }>;
     };
     [key: string]: unknown;

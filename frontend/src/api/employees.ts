@@ -74,6 +74,8 @@ export type UpdateEmployeePayload = {
     };
     prevoyance?: {
       adhesion?: boolean;
+      /** Formule de la société d'où viennent les lignes. */
+      formule_id?: string | null;
       lignes_specifiques?: unknown[];
     };
     [key: string]: unknown;

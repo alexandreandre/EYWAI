@@ -142,6 +142,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
   const mutuelle = spec.mutuelle as { mutuelle_type_ids?: string[] } | undefined;
   const prevoyance = spec.prevoyance as {
     adhesion?: boolean;
+    formule_id?: string | null;
     lignes_specifiques?: EmployeeProfileEditFormValues['specificites_paie']['prevoyance']['lignes_specifiques'];
   } | undefined;
   const transport = spec.transport as {
@@ -215,6 +216,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       },
       prevoyance: {
         adhesion: prevoyance?.adhesion ?? false,
+        formule_id: prevoyance?.formule_id ?? null,
         // Un montant absent de la fiche vaut 0 : laissé vide, il devenait un
         // nombre invalide sur un champ que le formulaire n'affiche pas, et
         // l'enregistrement échouait sans un mot (7 fiches sur 8 d'une société).
@@ -388,6 +390,11 @@ export function buildUpdatePayload(
       prevoyance: {
         ...(existingSpec.prevoyance as object),
         adhesion: values.specificites_paie.prevoyance.adhesion,
+        // Toujours écrit, même vide : la fiche fusionne la prévoyance, un
+        // lien omis resterait celui d'avant.
+        formule_id: values.specificites_paie.prevoyance.adhesion
+          ? values.specificites_paie.prevoyance.formule_id ?? null
+          : null,
         lignes_specifiques: values.specificites_paie.prevoyance.adhesion
           ? values.specificites_paie.prevoyance.lignes_specifiques ?? []
           : [],
