@@ -74,3 +74,25 @@ class TestSaisieMarqueeSurLeNet:
         assert not _is_net_a_payer_only_correction_input({"name": "Net négatif de juillet", "amount": -419.75})
         # Les anciens libellés restent reconnus.
         assert _is_net_a_payer_only_correction_input({"name": "Report NAP négatif", "amount": -419.75})
+
+
+def test_remboursement_de_pret_saisi_a_la_main_est_une_retenue_nette():
+    # « Contrat de prêt <nom> » (Mont Blanc 2026, saisies d'avant la case) : le
+    # salarié rembourse un prêt sur son net, comme une saisie sur salaire ; le
+    # montant net social compte les revenus « même en cas de saisies sur
+    # salaire » (BOSS, Montant net social, II.A.1). Les prêts du module sont
+    # déjà retenus après le calcul, hors montant net social.
+    assert _is_net_a_payer_only_correction_input({"name": "Contrat de prêt X", "amount": -250.0})
+    assert _is_net_a_payer_only_correction_input({"name": "Contrat de pret Y", "amount": -90.0})
+
+
+def test_pret_verse_au_salarie_n_est_pas_une_retenue():
+    # Un prêt versé (montant positif) n'est pas classé par le libellé.
+    assert not _is_net_a_payer_only_correction_input({"name": "Contrat de prêt X", "amount": 250.0})
+
+
+def test_avance_de_participation_reste_hors_du_canal_net():
+    # Acompte ou avance sur participation : suit le mécanisme de la participation.
+    assert not _is_net_a_payer_only_correction_input(
+        {"name": "Avance participation 2025 (déjà versée)", "amount": -500.0}
+    )

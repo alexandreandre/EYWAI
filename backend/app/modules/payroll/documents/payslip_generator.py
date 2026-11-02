@@ -256,6 +256,12 @@ def _is_net_a_payer_only_correction_input(row: dict) -> bool:
     # trésorerie, hors assiette sociale/fiscale (cf. Cegid salarié 224 mai 2026).
     if "saisie" in label:
         return True
+    # « Contrat de prêt <nom> » (saisies d'avant la case, Mont Blanc 2026) : le
+    # remboursement d'un prêt de l'employeur, retenu sur le net comme une saisie.
+    # Les prêts du module sont déjà retenus après le calcul, hors montant net
+    # social ; ceux saisis à la main le baissaient (audit du 02/11/2026).
+    if "contrat de prêt" in label or "contrat de pret" in label:
+        return True
     # « Trop-perçu MM/AAAA » : reprise d'une somme versée en trop sur un mois
     # antérieur. Comme l'acompte, c'est de la trésorerie — elle ne change ni
     # l'assiette sociale, ni l'assiette fiscale, ni le montant net social, qui
