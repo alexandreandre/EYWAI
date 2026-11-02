@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Page, Route } from '@playwright/test';
 import { test, expect } from '../helpers/garde';
 import { surveiller, verifierPageSaine } from '../helpers/erreurs';
 import { API_URL } from '../helpers/env';
@@ -33,6 +33,21 @@ async function commeUneGestionnaireDePaie(page: Page) {
       },
     });
   });
+}
+
+/**
+ * Une interception qu'on coupe sans la retirer. Retirée par page.unroute, une
+ * interception dont un appel est encore en vol échoue quand le test se ferme
+ * (« route.fetch: Test ended ») et rend la suite rouge, tests verts (31/10 et
+ * 02/11) : page.unrouteAll en fin de test ne la voit plus. Coupée, elle laisse
+ * passer les appels et reste enregistrée jusqu'à ce dernier unrouteAll.
+ */
+async function intercepter(page: Page, url: string | RegExp, gerer: (route: Route) => Promise<void>) {
+  let active = true;
+  await page.route(url, (route) => (active ? gerer(route) : route.fallback()));
+  return () => {
+    active = false;
+  };
 }
 
 /** Toute requête d'écriture vers l'API, hors renouvellement de session. */
@@ -107,7 +122,7 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
 
   await test.step('créer un salarié depuis la page Paie', async () => {
     const idNouveau = '00000000-0000-4000-8000-000000000081';
-    await page.route('**/api/employees', async (route) => {
+    const couperCreation = await intercepter(page, '**/api/employees', async (route) => {
       if (route.request().method() !== 'POST') return route.fallback();
       await route.fulfill({
         status: 201,
@@ -124,7 +139,7 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
         },
       });
     });
-    await page.route('**/api/employees/summary**', async (route) => {
+    const couperListe = await intercepter(page, '**/api/employees/summary**', async (route) => {
       const reponse = await route.fetch();
       const liste = (await reponse.json()) as Array<Record<string, unknown>>;
       await route.fulfill({
@@ -173,8 +188,8 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
     await expect(recap.getByText('Coordonnées bancaires (RIB)')).toBeVisible();
     await recap.getByRole('button', { name: 'Fermer' }).click();
     await expect(page.getByText('RIB à compléter').first()).toBeVisible();
-    await page.unroute('**/api/employees');
-    await page.unroute('**/api/employees/summary**');
+    couperCreation();
+    couperListe();
   });
 
   const salaries = await test.step('lire la liste paie', () =>
@@ -223,12 +238,12 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
     let completee = false;
     // La fiche du salarié, telle qu'une embauche du jour la laisserait ; une
     // fois « complétée », le serveur la rend telle qu'elle est.
-    await page.route(resume, async (route) => {
+    const couperResume = await intercepter(page, resume, async (route) => {
       const reponse = await route.fetch();
       const liste = (await reponse.json()) as Salarie[];
       await route.fulfill({ response: reponse, json: completee ? liste : liste.map(aCompleter) });
     });
-    await page.route(fiche, async (route) => {
+    const couperFiche = await intercepter(page, fiche, async (route) => {
       if (route.request().method() === 'PUT') {
         // Enregistrement intercepté : rien n'est écrit, la fiche réelle est rendue.
         completee = true;
@@ -258,8 +273,8 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
     await lienPaie.click();
     await expect(page.getByText(/gestion de la paie/i).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/Fiche à compléter/)).toHaveCount(0, { timeout: 30_000 });
-    await page.unroute(resume);
-    await page.unroute(fiche);
+    couperResume();
+    couperFiche();
   });
 
   await test.step('d’un salarié parti à ses documents de sortie', async () => {
@@ -292,6 +307,7 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
   expect(ecritures).toEqual(['POST /api/employees', expect.stringMatching(/^PUT \/api\/employees\/[0-9a-f-]+$/)]);
   await verifierPageSaine(page, s);
   // Une liste encore en vol quand le test finit ne doit pas faire échouer la
-  // suite (« route.fetch: Test ended », 30 et 31/10 : 50 tests verts, job rouge).
+  // suite (« route.fetch: Test ended ») : toutes les interceptions, coupées ou
+  // non, sont encore enregistrées ici (voir intercepter).
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
