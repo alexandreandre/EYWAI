@@ -88,3 +88,13 @@ def test_fiche_a_mettre_a_jour_seulement_si_elle_porte_la_formule_et_diverge():
 )
 def test_formule_convient_selon_la_categorie(categorie, cadre, attendu):
     assert formule_convient({"statut_categoriel": categorie}, cadre) is attendu
+
+
+def test_la_cle_des_lignes_regroupe_les_fiches_identiques():
+    from app.modules.prevoyance_formules.domain.rules import cle_des_lignes
+
+    a = [{**LIGNE_TA, "id": "1"}, {**LIGNE_TB, "id": "2"}]
+    b = [{**LIGNE_TA, "id": "x", "base": "brut_plafonne"}, LIGNE_TB]
+    assert cle_des_lignes(a) == cle_des_lignes(b)
+    assert cle_des_lignes(a) != cle_des_lignes(a[:1])
+    assert hash(cle_des_lignes(a)) == hash(cle_des_lignes(b))

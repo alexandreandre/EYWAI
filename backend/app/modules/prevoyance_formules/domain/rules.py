@@ -56,9 +56,14 @@ def _cle(ligne: Mapping[str, Any]) -> tuple:
     )
 
 
+def cle_des_lignes(lignes: Iterable[Mapping[str, Any]] | None) -> tuple:
+    """Une clé comparable et hachable : mêmes lignes, même ordre, identifiants exclus."""
+    return tuple(_cle(l) for l in (lignes or []))
+
+
 def lignes_identiques(a: Iterable[Mapping[str, Any]] | None, b: Iterable[Mapping[str, Any]] | None) -> bool:
     """Mêmes lignes, dans le même ordre, sans tenir compte des identifiants."""
-    return [_cle(l) for l in (a or [])] == [_cle(l) for l in (b or [])]
+    return cle_des_lignes(a) == cle_des_lignes(b)
 
 
 def fiche_a_mettre_a_jour(specificites: Mapping[str, Any] | None, formule: Mapping[str, Any]) -> bool:
