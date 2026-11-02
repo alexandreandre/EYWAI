@@ -1,24 +1,18 @@
-"""Montant net social et complément de mutuelle à la charge du salarié.
+"""Montant net social et complément de mutuelle « Famille » à la charge du salarié.
 
-Le montant net social est défini par l'arrêté du 31/01/2023 comme les sommes
-versées au salarié diminuées des seules cotisations et contributions sociales
-**obligatoires**. Un complément « Famille » entièrement à la charge du salarié
-n'en est pas une : la couverture collective obligatoire doit être financée pour
-moitié au moins par l'employeur (art. L911-7 du code de la sécurité sociale),
-et une extension facultative reste hors du champ.
+Le BOSS (« Montant net social », version au 01/11/2026, II.A.2) retire du
+montant net social « les cotisations salariales à la complémentaire santé
+prévue à l'article L. 911-7 du CSS (…, dont les options individuelles
+rattachées à des garanties collectives) ». Le complément « Famille » est une
+option de ce type : il se retire, comme la formule Isolé.
 
-Constat sur les bulletins Quadra de Colorplast, janvier à juillet 2026 : pour
-les trois salariés qui paient le complément « GAN Famille », la relation
-
-    montant net social − net à payer avant impôt − acompte = 98,13
-
-se vérifie sur les 21 bulletins concernés, et vaut zéro pour les salariés sans
-complément. La retenue réduit donc le net à payer mais jamais le montant net
-social. MARTINE la déduisait des deux (Lanolet janvier : 2 440,05 € au lieu de
-2 538,18 €).
-
-Le montant net social est transmis aux organismes sociaux : c'est le seul écart
-du rapprochement de janvier qui sorte de l'entreprise.
+Historique : Quadra ne le retire pas chez Colorplast (relation
+`montant net social − net à payer avant impôt − acompte = 98,13` sur les
+21 bulletins des trois salariés concernés, janvier à juillet 2026) et Martine
+l'a imité du 28/09 au 02/11/2026 par le drapeau `part_salariale_obligatoire`.
+L'audit du 01/11 (thème 7) l'a trouvé contraire au BOSS ; Alexandre a validé
+le 02/11 de suivre la règle. Le drapeau reste sur les types de mutuelle, sans
+effet sur le montant net social.
 
 Chiffres repris des bulletins de janvier 2026 (env. de test).
 """
@@ -36,8 +30,9 @@ BRUT_LANOLET = 3046.68
 #: Total des cotisations salariales, complément Famille et CSG/CRDS compris.
 COTISATIONS_LANOLET = 706.63
 TRANSPORT_LANOLET = [{"libelle": "Indemnite de transport", "montant": 100.0}]
+#: Quadra : le complément n'est pas retranché (contraire au BOSS, II.A.2).
 MNS_QUADRA_LANOLET = 2538.18
-#: Ce que nous produisions : le complément était retranché du net social.
+#: La règle : le complément est retranché comme le reste de la mutuelle.
 MNS_AVEC_FAMILLE_RETRANCHEE = 2440.05
 
 # --- Dumarel, janvier 2026 : Isolé seul, témoin
@@ -116,15 +111,15 @@ def _mns(monkeypatch, lignes_mutuelle, brut, cotisations, primes, contexte=None)
 
 
 class TestMontantNetSocialEtMutuelleFacultative:
-    def test_le_complement_famille_ne_reduit_pas_le_net_social(self, monkeypatch):
+    def test_le_complement_famille_reduit_le_net_social(self, monkeypatch):
+        """Même marqué « non obligatoire », le complément Famille se retire."""
         famille = {**FAMILLE, "part_salariale_obligatoire": False}
         assert _mns(
             monkeypatch, [ISOLE, famille], BRUT_LANOLET, COTISATIONS_LANOLET,
             TRANSPORT_LANOLET,
-        ) == MNS_QUADRA_LANOLET
+        ) == MNS_AVEC_FAMILLE_RETRANCHEE
 
-    def test_sans_le_drapeau_rien_ne_bouge(self, monkeypatch):
-        """Garde anti-régression : le défaut reste « obligatoire »."""
+    def test_sans_le_drapeau_meme_resultat(self, monkeypatch):
         assert _mns(
             monkeypatch, [ISOLE, FAMILLE], BRUT_LANOLET, COTISATIONS_LANOLET,
             TRANSPORT_LANOLET,
@@ -137,9 +132,7 @@ class TestMontantNetSocialEtMutuelleFacultative:
             monkeypatch, [ISOLE], BRUT_DUMAREL, COTISATIONS_DUMAREL, FRAIS_DUMAREL
         ) == MNS_QUADRA_DUMAREL
 
-    def test_le_drapeau_marche_aussi_sur_une_ligne_specifique(self, monkeypatch):
-        """Même levier que pour le net imposable : les lignes saisies à la main
-        sur la fiche portent le drapeau comme les types de mutuelle."""
+    def test_une_ligne_specifique_famille_se_retire_aussi(self, monkeypatch):
         contexte = _contexte(
             ["isole"],
             lignes_specifiques=[
@@ -149,7 +142,7 @@ class TestMontantNetSocialEtMutuelleFacultative:
         assert _mns(
             monkeypatch, [ISOLE], BRUT_LANOLET, COTISATIONS_LANOLET,
             TRANSPORT_LANOLET, contexte=contexte,
-        ) == MNS_QUADRA_LANOLET
+        ) == MNS_AVEC_FAMILLE_RETRANCHEE
 
     def test_sans_adhesion_mutuelle_aucun_effet(self, monkeypatch):
         contexte = SimpleNamespace(
