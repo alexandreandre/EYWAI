@@ -47,19 +47,21 @@ class _Requete:
 class _Base:
     def __init__(self, donnees: dict):
         self.donnees = donnees
+        self.requetes = 0
 
     def table(self, nom: str):
+        self.requetes += 1
         return _Requete(nom, self.donnees)
 
 
-def _base(cc_id=None, overrides=()):
+def _base(cc_id=None, overrides=(), pris=()):
     return _Base(
         {
             "employees": [{"id": "e1", "hire_date": "2020-01-01", "collective_agreement_id": cc_id, "company_id": "c1"}],
             "company_collective_agreements": [],
             "cc_evenements_familiaux": [dict(o, collective_agreement_id=cc_id) for o in overrides],
             "evenements_familiaux_reference": REFERENCE,
-            "absence_requests": [],
+            "absence_requests": list(pris),
         }
     )
 
@@ -103,3 +105,22 @@ def test_un_salarie_d_une_autre_societe_n_est_pas_lu():
     ) as lecture:
         assert absences_queries.get_evenements_familiaux_du_salarie("e1", "c1") is None
     lecture.assert_not_called()
+
+
+# --- La liste se lit en quelques requêtes, pas une série par événement ---
+# Vu au tournage du 03/11 : ~16 s de « Chargement… » dans « Nouveau congé ».
+
+
+def test_la_liste_se_lit_en_peu_de_requetes():
+    base = _base(cc_id="cc1")
+    with patch.object(ef, "supabase", base):
+        ef.get_events_disponibles("e1")
+    assert base.requetes <= 6
+
+
+def test_les_jours_deja_pris_baissent_le_solde():
+    pris = [{"employee_id": "e1", "type": "evenement_familial", "event_subtype": "mariage_salarie", "status": "validated", "selected_days": ["2026-06-01", "2026-06-02"]}]
+    with patch.object(ef, "supabase", _base(cc_id=None, pris=pris)):
+        liste = {e["code"]: (e["solde_restant"], e["taken"]) for e in ef.get_events_disponibles("e1")}
+    assert liste["mariage_salarie"] == (2, 2)
+    assert liste["pacs_salarie"] == (4, 0)

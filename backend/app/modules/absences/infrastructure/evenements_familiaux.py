@@ -97,6 +97,13 @@ def get_quota_evenement(employee_id: str, event_code: str) -> Optional[Dict[str,
     }
 
 
+def _solde(duree: int, taken: int) -> Dict[str, int]:
+    """Un événement peut revenir (deux naissances) : le solde repart à chaque cycle."""
+    cycles_completed = taken // duree if duree > 0 else 0
+    remainder = taken % duree if duree > 0 else 0
+    return {"solde_restant": duree - remainder, "cycles_completed": cycles_completed}
+
+
 def get_solde_evenement(
     employee_id: str,
     event_code: str,
@@ -140,21 +147,15 @@ def get_solde_evenement(
         .eq("status", "validated")
         .execute()
     )
-    taken = 0
-    for r in (reqs.data if reqs else []) or []:
-        days = r.get("selected_days") or []
-        taken += len(days)
-
-    cycles_completed = taken // duree if duree > 0 else 0
-    remainder = taken % duree if duree > 0 else 0
-    solde = duree - remainder
+    taken = sum(len(r.get("selected_days") or []) for r in (reqs.data if reqs else []) or [])
+    solde = _solde(duree, taken)
     return {
         "quota": duree,
         "taken": taken,
-        "solde_restant": solde,
+        "solde_restant": solde["solde_restant"],
         "type_jours": type_jours,
         "condition_ok": True,
-        "cycles_completed": cycles_completed,
+        "cycles_completed": solde["cycles_completed"],
     }
 
 
@@ -193,6 +194,21 @@ def get_events_disponibles(employee_id: str) -> List[Dict[str, Any]]:
     override_map = {
         o["event_code"]: o for o in (overrides.data if overrides else []) or []
     }
+    # Les jours déjà pris, lus une fois pour tous les événements (une lecture
+    # par événement faisait ~16 s de « Chargement… », vu le 03/11).
+    pris = (
+        supabase.table("absence_requests")
+        .select("event_subtype, selected_days")
+        .eq("employee_id", employee_id)
+        .eq("type", "evenement_familial")
+        .eq("status", "validated")
+        .execute()
+    )
+    pris_par_code: Dict[str, int] = {}
+    for r in (pris.data if pris else []) or []:
+        code_pris = r.get("event_subtype")
+        if code_pris:
+            pris_par_code[code_pris] = pris_par_code.get(code_pris, 0) + len(r.get("selected_days") or [])
 
     result = []
     seen_codes = set()
@@ -222,7 +238,8 @@ def get_events_disponibles(employee_id: str) -> List[Dict[str, Any]]:
             if days_since_hire < cond:
                 continue
 
-        solde_data = get_solde_evenement(employee_id, code, hire_date)
+        taken = pris_par_code.get(code, 0)
+        solde = _solde(duree, taken)
         result.append(
             {
                 "code": code,
@@ -230,9 +247,9 @@ def get_events_disponibles(employee_id: str) -> List[Dict[str, Any]]:
                 "duree_jours": duree,
                 "type_jours": type_j,
                 "quota": duree,
-                "solde_restant": solde_data["solde_restant"],
-                "taken": solde_data["taken"],
-                "cycles_completed": solde_data.get("cycles_completed", 0),
+                "solde_restant": solde["solde_restant"],
+                "taken": taken,
+                "cycles_completed": solde["cycles_completed"],
             }
         )
     return result
