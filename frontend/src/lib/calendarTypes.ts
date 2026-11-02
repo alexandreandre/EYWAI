@@ -56,6 +56,25 @@ export const CALENDAR_TYPE_BG_COLORS: Record<string, string> = {
   ecole: 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200/60',
 };
 
+/**
+ * Heures prévues et réelles d'une case : « Prévu » en orange, « Réel » en
+ * vert-bleu, tous deux distincts du bleu du type « Travail » (retour d'Elsa
+ * du 28/10 : « Travail » et « Prévu » avaient le même bleu).
+ */
+export const COULEUR_PREVU = {
+  texte: 'text-orange-700',
+  texteSombre: 'dark:text-orange-300',
+  barre: 'bg-orange-500',
+  piste: 'bg-orange-100/90',
+} as const;
+
+export const COULEUR_REEL = {
+  texte: 'text-teal-700',
+  texteSombre: 'dark:text-teal-300',
+  barre: 'bg-teal-500',
+  piste: 'bg-teal-100/90',
+} as const;
+
 export const CALENDAR_LEGEND_ITEMS: {
   key: string;
   label: string;

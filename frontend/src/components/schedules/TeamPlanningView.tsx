@@ -31,6 +31,8 @@ import {
   CALENDAR_TYPE_BAR_COLORS as TYPE_BAR,
   CALENDAR_TYPE_BG_COLORS as TYPE_BG,
   CALENDAR_TYPE_LABELS as TYPE_LABEL,
+  COULEUR_PREVU,
+  COULEUR_REEL,
 } from '@/lib/calendarTypes';
 
 const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
@@ -438,7 +440,7 @@ export function TeamPlanningView({
                                 <span
                                   className={cn(
                                     'text-xs font-medium',
-                                    actual?.heures_faites === 1 ? 'text-teal-700' : 'text-sky-700'
+                                    actual?.heures_faites === 1 ? COULEUR_REEL.texte : COULEUR_PREVU.texte
                                   )}
                                 >
                                   {forfaitDayDisplay}
@@ -453,13 +455,13 @@ export function TeamPlanningView({
                                 <span
                                   className={cn(
                                     'font-medium',
-                                    actualDisplay ? 'text-teal-700' : 'text-muted-foreground/40'
+                                    actualDisplay ? COULEUR_REEL.texte : 'text-muted-foreground/40'
                                   )}
                                 >
                                   {actualDisplay ?? '–'}
                                 </span>
                                 <span className="text-muted-foreground/60">/</span>
-                                <span className="font-medium text-sky-700">
+                                <span className={cn('font-medium', COULEUR_PREVU.texte)}>
                                   {plannedDisplay ?? '–'}
                                 </span>
                               </div>
@@ -525,9 +527,9 @@ export function TeamPlanningView({
           )
         )}
         <span className="flex items-center gap-1.5">
-          <span className="text-teal-700 font-medium">Réel</span>
+          <span className={cn(COULEUR_REEL.texte, 'font-medium')}>Réel</span>
           <span>/</span>
-          <span className="text-sky-700 font-medium">Prévu</span>
+          <span className={cn(COULEUR_PREVU.texte, 'font-medium')}>Prévu</span>
         </span>
       </div>
     </div>

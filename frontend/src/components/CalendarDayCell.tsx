@@ -19,6 +19,8 @@ import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 import {
   CALENDAR_TYPE_BAR_COLORS,
   CALENDAR_TYPE_BG_COLORS,
+  COULEUR_PREVU,
+  COULEUR_REEL,
   editableTypeOptionsFor,
   getCalendarTypeLabel,
 } from '@/lib/calendarTypes';
@@ -90,18 +92,18 @@ function HourGauges({
           label="Prévu"
           value={pVal}
           filled={pVal === 1}
-          barClass="bg-sky-500"
-          trackClass="bg-sky-100"
-          textClass="text-sky-800"
+          barClass={COULEUR_PREVU.barre}
+          trackClass={COULEUR_PREVU.piste}
+          textClass={COULEUR_PREVU.texte}
           unit="forfait"
         />
         <DayGaugeRow
           label="Travaillé"
           value={aVal}
           filled={aVal === 1}
-          barClass="bg-teal-500"
-          trackClass="bg-teal-100"
-          textClass="text-teal-800"
+          barClass={COULEUR_REEL.barre}
+          trackClass={COULEUR_REEL.piste}
+          textClass={COULEUR_REEL.texte}
           unit="forfait"
         />
       </div>
@@ -120,9 +122,9 @@ function HourGauges({
         label="Prévu"
         value={hasPlanned ? p : null}
         percent={pPct}
-        barClass="bg-sky-500"
-        trackClass="bg-sky-100/90"
-        textClass="text-sky-800 dark:text-sky-300"
+        barClass={COULEUR_PREVU.barre}
+        trackClass={COULEUR_PREVU.piste}
+        textClass={`${COULEUR_PREVU.texte} ${COULEUR_PREVU.texteSombre}`}
         unit="h"
         showBar
       />
@@ -130,9 +132,9 @@ function HourGauges({
         label="Réel"
         value={hasActual ? a : null}
         percent={aPct}
-        barClass="bg-teal-500"
-        trackClass="bg-teal-100/90"
-        textClass="text-teal-800 dark:text-teal-300"
+        barClass={COULEUR_REEL.barre}
+        trackClass={COULEUR_REEL.piste}
+        textClass={`${COULEUR_REEL.texte} ${COULEUR_REEL.texteSombre}`}
         unit="h"
         showBar
       />
