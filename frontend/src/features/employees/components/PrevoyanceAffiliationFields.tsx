@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { PlusCircle, Trash2 } from 'lucide-react';
 import { type ComponentProps, forwardRef, useEffect, useRef, useState } from 'react';
 import {
@@ -5,9 +6,11 @@ import {
   type Control,
   type FieldValues,
   type Path,
+  useController,
   useFieldArray,
   useWatch,
 } from 'react-hook-form';
+import { CLE_FORMULES_PREVOYANCE, prevoyanceFormulesApi } from '@/api/prevoyanceFormules';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -20,11 +23,25 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  formulesPourLeStatut,
+  lignesDeLaFormule,
+  lignesModifiees,
+} from '@/features/employees/utils/formulesPrevoyance';
+import {
   aideLignesPrevoyance,
   fractionDuTexteTaux,
   texteDuTauxPrevoyance,
 } from '@/features/employees/utils/prevoyance';
 import { isEmployeeCadre } from '@/lib/mutuelleUtils';
+
+const SANS_FORMULE = '__sans_formule__';
 
 type PrevoyanceAffiliationFieldsProps<T extends FieldValues> = {
   control: Control<T>;
@@ -86,10 +103,34 @@ export function PrevoyanceAffiliationFields<T extends FieldValues>({
   const lignes = useWatch({ control, name: lignesPath }) as unknown[] | undefined;
   const cadre = isEmployeeCadre(statut);
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control,
     name: lignesPath as ArrayPath<T>,
   });
+  const { field: formuleField } = useController({
+    control,
+    name: `${namePrefix}.formule_id` as Path<T>,
+  });
+  // Les formules de la société (02/11/2026) : en choisir une copie ses lignes.
+  const { data: formules = [] } = useQuery({
+    queryKey: CLE_FORMULES_PREVOYANCE,
+    queryFn: prevoyanceFormulesApi.lister,
+    staleTime: 60_000,
+  });
+  const proposees = formulesPourLeStatut(formules, cadre);
+  const formuleId = (formuleField.value as string | null | undefined) ?? null;
+  const choisie = formules.find((f) => f.id === formuleId);
+  const horsListe = choisie && !proposees.includes(choisie);
+  const choisirFormule = (valeur: string) => {
+    if (valeur === SANS_FORMULE) {
+      formuleField.onChange(null);
+      return;
+    }
+    const formule = formules.find((f) => f.id === valeur);
+    if (!formule) return;
+    replace(lignesDeLaFormule(formule) as never);
+    formuleField.onChange(formule.id);
+  };
 
   const categoryLabel = cadre ? 'cadre' : 'non-cadre';
 
@@ -113,6 +154,39 @@ export function PrevoyanceAffiliationFields<T extends FieldValues>({
 
       {adhesion ? (
         <div className="ml-2 space-y-4 border-l-2 pl-6">
+          {proposees.length > 0 || choisie ? (
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Formule de la société</p>
+              <Select value={choisie ? choisie.id : SANS_FORMULE} onValueChange={choisirFormule}>
+                <SelectTrigger className="max-w-md">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SANS_FORMULE}>Aucune (lignes saisies à la main)</SelectItem>
+                  {proposees.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.libelle}
+                    </SelectItem>
+                  ))}
+                  {choisie && horsListe ? (
+                    <SelectItem value={choisie.id}>
+                      {choisie.libelle} ({choisie.is_active ? 'autre catégorie' : 'formule retirée'})
+                    </SelectItem>
+                  ) : null}
+                </SelectContent>
+              </Select>
+              {choisie && !choisie.is_active ? (
+                <p className="text-xs text-muted-foreground">
+                  Formule retirée : la fiche garde ses lignes.
+                </p>
+              ) : null}
+              {choisie && choisie.is_active && lignesModifiees(lignes as never, choisie) ? (
+                <p className="text-xs text-amber-700">
+                  Lignes modifiées depuis la formule « {choisie.libelle} ».
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium">
               Lignes de prévoyance ({categoryLabel})
