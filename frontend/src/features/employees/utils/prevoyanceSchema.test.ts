@@ -25,6 +25,11 @@ describe('prévoyance de la fiche', () => {
     expect(prevoyanceFicheSchema.parse({ adhesion: true, formule_id: null }).formule_id).toBeNull();
   });
 
+  it('accepte une ligne sans forfait social (il suit la loi, pas la ligne)', () => {
+    const { forfait_social: _fs, ...sansForfait } = ligneTB;
+    expect(prevoyanceFicheSchema.safeParse({ adhesion: true, lignes_specifiques: [sansForfait] }).success).toBe(true);
+  });
+
   it('refuse toujours une ligne sans libellé', () => {
     expect(prevoyanceFicheSchema.safeParse({ adhesion: true, lignes_specifiques: [{ ...ligneTB, libelle: '' }] }).success).toBe(false);
   });

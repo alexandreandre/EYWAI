@@ -279,12 +279,11 @@ export function CompanyPrevoyanceFormulesSection({ canEdit }: { canEdit: boolean
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-4">
+                  <div className="grid gap-3 sm:grid-cols-3">
                     {(
                       [
                         ['salarial', 'Taux salarial (%)'],
                         ['patronal', 'Taux patronal (%)'],
-                        ['forfait_social', 'Forfait social (%)'],
                       ] as const
                     ).map(([champ, libelle]) => (
                       <div key={champ} className="space-y-1">

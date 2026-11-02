@@ -10,7 +10,8 @@ export interface LigneFormulePrevoyance {
   libelle: string;
   salarial: number;
   patronal: number;
-  forfait_social: number;
+  /** Ancien taux de la ligne, plus lu : le forfait social suit la loi (effectif). */
+  forfait_social?: number;
   base?: BasePrevoyance | null;
   [cle: string]: unknown;
 }

@@ -14,7 +14,8 @@ export const lignePrevoyanceSchema = z
     libelle: z.string().min(2, { message: 'Libellé requis.' }),
     salarial: z.coerce.number({ invalid_type_error: TAUX_PREVOYANCE_INVALIDE }),
     patronal: z.coerce.number({ invalid_type_error: TAUX_PREVOYANCE_INVALIDE }),
-    forfait_social: z.coerce.number({ invalid_type_error: TAUX_PREVOYANCE_INVALIDE }),
+    // Plus saisi : le forfait social suit la loi (8 % à partir de 11 salariés).
+    forfait_social: z.coerce.number({ invalid_type_error: TAUX_PREVOYANCE_INVALIDE }).optional(),
   })
   .passthrough();
 
