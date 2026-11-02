@@ -114,7 +114,7 @@ export function ValiderBulletinsPrets({
             <AlertDialogDescription>
               Ce sont les bulletins générés, à jour, sans alerte ni écart fort avec le mois
               précédent. Chaque salarié le verra dans son espace à la date de mise à disposition de
-              la société (le 1er du mois suivant, sauf autre réglage dans « Paramètres de paie »).
+              la société (le 1er du mois suivant, sauf autre réglage dans l’onglet « Paramètres paie »).
               Les bulletins à revoir ne sont pas validés : ouvrez-les un par un.
             </AlertDialogDescription>
             {avertissement ? (
