@@ -9,6 +9,7 @@ import {
   normalizeContractType,
 } from '@/constants/contracts';
 import { isEmployeeCadre } from '@/lib/mutuelleUtils';
+import { avecTauxRenseignes } from '@/features/employees/utils/formulesPrevoyance';
 
 export function normalizeNir(value: string | null | undefined): string {
   return (value ?? '').replace(/\s/g, '').slice(0, 15);
@@ -220,12 +221,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
         // Un montant absent de la fiche vaut 0 : laissé vide, il devenait un
         // nombre invalide sur un champ que le formulaire n'affiche pas, et
         // l'enregistrement échouait sans un mot (7 fiches sur 8 d'une société).
-        lignes_specifiques: (prevoyance?.lignes_specifiques ?? []).map((ligne) => ({
-          ...ligne,
-          salarial: ligne.salarial ?? 0,
-          patronal: ligne.patronal ?? 0,
-          forfait_social: ligne.forfait_social ?? 0,
-        })),
+        lignes_specifiques: (prevoyance?.lignes_specifiques ?? []).map(avecTauxRenseignes),
       },
       dsn_reprise: {
         motif_recours: texte(reprise.motif_recours),

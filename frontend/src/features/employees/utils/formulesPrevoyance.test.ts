@@ -9,6 +9,7 @@ import {
   messageFichesAMettreAJour,
   messageFichesMisesAJour,
 } from '@/features/employees/utils/formulesPrevoyance';
+import { lignePrevoyanceSchema } from '@/features/employees/utils/prevoyanceSchema';
 
 const TA = { libelle: 'Prévoyance TA', salarial: 0.005, patronal: 0.007, forfait_social: 0.08 };
 const TB = { ...TA, libelle: 'Prévoyance TB', base: 'tranche_2' as const };
@@ -34,6 +35,18 @@ describe('formules de prévoyance sur la fiche', () => {
     expect(lignes[1]).toMatchObject({ base: 'tranche_2', salarial: 0.005 });
     lignes[0].salarial = 1;
     expect(formule('f1', 'cadre').lignes[0].salarial).toBe(0.005);
+  });
+
+  it('met à 0 un taux absent de la formule, que la fiche accepte alors', () => {
+    // Formule des cadres de MAJI (02/11) : lignes reprises sans forfait social.
+    const sansForfait = {
+      ...formule('f2', 'cadre'),
+      lignes: [{ libelle: 'Prévoyance cadre APICIL TA', patronal: 0.0169, salarial: 0, base: 'brut_plafonne' as const }],
+    } as unknown as FormulePrevoyance;
+    const [ligne] = lignesDeLaFormule(sansForfait);
+    expect(ligne).toMatchObject({ salarial: 0, patronal: 0.0169, forfait_social: 0, base: 'brut_plafonne' });
+    expect(lignePrevoyanceSchema.safeParse(ligne).success).toBe(true);
+    expect(lignesModifiees([ligne], sansForfait)).toBe(false);
   });
 
   it('voit des lignes modifiées depuis la formule', () => {

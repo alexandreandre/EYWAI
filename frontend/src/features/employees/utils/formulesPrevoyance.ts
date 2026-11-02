@@ -16,10 +16,24 @@ export function formulesPourLeStatut(formules: FormulePrevoyance[], cadre: boole
   );
 }
 
+/**
+ * Un taux absent vaut 0, comme pour le moteur. Laissé vide, il devient un
+ * nombre invalide et la fiche refuse de s'enregistrer (lignes reprises sans
+ * forfait social : MAJI, Mont Blanc, Zone 404).
+ */
+export function avecTauxRenseignes<L extends Partial<LigneFormulePrevoyance>>(ligne: L): L {
+  return {
+    ...ligne,
+    salarial: ligne.salarial ?? 0,
+    patronal: ligne.patronal ?? 0,
+    forfait_social: ligne.forfait_social ?? 0,
+  };
+}
+
 /** Les lignes de la formule, copiées pour la fiche. */
 export function lignesDeLaFormule(formule: FormulePrevoyance): LignePrevoyanceFiche[] {
   return formule.lignes.map((ligne, index) => ({
-    ...structuredClone(ligne),
+    ...avecTauxRenseignes(structuredClone(ligne)),
     id: `prevoyance_${index + 1}`,
   }));
 }
