@@ -918,6 +918,17 @@ def get_my_evenements_familiaux(user_id: str, company_id: str) -> List[dict]:
     return evenement_familial_provider.get_events_disponibles(employee_id)
 
 
+def get_evenements_familiaux_du_salarie(employee_id: str, company_id: str) -> List[dict] | None:
+    """Événements familiaux d'un salarié choisi par la RH, ou None s'il n'est pas de la société.
+
+    La fenêtre « Nouveau congé » de la RH lisait la liste du compte connecté
+    (/me), vide pour une RH qui n'a pas de fiche (défaut vu le 03/11).
+    """
+    if get_employee_company_id(employee_id) != str(company_id):
+        return None
+    return evenement_familial_provider.get_events_disponibles(employee_id)
+
+
 def get_salary_certificate_info(absence_id: str) -> dict | None:
     """Infos attestation pour une absence (view_url, download_url ajoutés à cert_data). None si pas trouvée."""
     if not absence_repository.get_by_id(absence_id):

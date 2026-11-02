@@ -82,3 +82,24 @@ def test_avec_convention_une_duree_sous_la_loi_remonte_au_minimum():
         liste = {e["code"]: e["quota"] for e in ef.get_events_disponibles("e1")}
         assert ef.get_solde_evenement("e1", "pacs_salarie")["solde_restant"] == 4
     assert liste == {"mariage_salarie": 4, "pacs_salarie": 4, "deces_grands_parents": 1}
+
+
+# --- Saisie RH : la liste du salarié choisi, pas celle du compte connecté ---
+
+from app.modules.absences.application import queries as absences_queries
+
+
+def test_la_rh_obtient_la_liste_du_salarie_choisi():
+    with patch.object(absences_queries, "get_employee_company_id", return_value="c1"), patch.object(
+        absences_queries.evenement_familial_provider, "get_events_disponibles", return_value=[{"code": "pacs_salarie"}]
+    ) as lecture:
+        assert absences_queries.get_evenements_familiaux_du_salarie("e1", "c1") == [{"code": "pacs_salarie"}]
+    lecture.assert_called_once_with("e1")
+
+
+def test_un_salarie_d_une_autre_societe_n_est_pas_lu():
+    with patch.object(absences_queries, "get_employee_company_id", return_value="autre"), patch.object(
+        absences_queries.evenement_familial_provider, "get_events_disponibles"
+    ) as lecture:
+        assert absences_queries.get_evenements_familiaux_du_salarie("e1", "c1") is None
+    lecture.assert_not_called()

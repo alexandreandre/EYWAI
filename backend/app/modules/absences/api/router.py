@@ -693,6 +693,28 @@ def get_my_evenements_familiaux(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get(
+    "/employees/{employee_id}/evenements-familiaux",
+    response_model=EvenementFamilialQuotaResponse,
+)
+def get_evenements_familiaux_du_salarie(
+    employee_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Événements familiaux d'un salarié, pour la saisie par la RH.
+
+    Déclarée après la route « /employees/me/... » : « me » n'est pas un identifiant.
+    """
+    company_id = current_user.active_company_id
+    if not company_id:
+        raise HTTPException(status_code=403, detail="Impossible de déterminer l'entreprise.")
+    assert_can_read_employee_profile(current_user, employee_id, str(company_id))
+    events = queries.get_evenements_familiaux_du_salarie(employee_id, str(company_id))
+    if events is None:
+        raise HTTPException(status_code=404, detail="Salarié introuvable dans cette entreprise.")
+    return EvenementFamilialQuotaResponse(events=[EvenementFamilialEvent(**e) for e in events])
+
+
 @router.get("/employees/me/balances", response_model=AbsenceBalancesResponse)
 def get_my_absence_balances(
     current_user: User = Depends(get_current_user),

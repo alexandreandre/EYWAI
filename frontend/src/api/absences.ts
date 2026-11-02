@@ -198,8 +198,11 @@ export interface AbsenceCreationPayload {
 /**
  * (POUR L'EMPLOYÉ) Récupère les événements familiaux disponibles avec quota et solde.
  */
-export const getEvenementsFamiliaux = () => {
-  return apiClient.get<EvenementFamilialQuotaResponse>('/api/absences/employees/me/evenements-familiaux');
+/** Sans salarié : la liste du compte connecté ; avec : celle du salarié choisi par la RH. */
+export const getEvenementsFamiliaux = (employeeId?: string) => {
+  return apiClient.get<EvenementFamilialQuotaResponse>(
+    `/api/absences/employees/${employeeId ?? 'me'}/evenements-familiaux`,
+  );
 };
 
 /**

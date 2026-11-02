@@ -255,17 +255,22 @@ export function AbsenceRequestModal({
   }, [absenceType]);
 
 
-  // Charger les événements familiaux quand on sélectionne ce type
+  // Charger les événements familiaux quand on sélectionne ce type : ceux du
+  // salarié choisi par la RH, sinon ceux du salarié connecté.
   useEffect(() => {
     if (isOpen && absenceType === 'evenement_familial') {
+      setEventSubtype('');
+      if (isRhMode && !selectedEmployeeId) {
+        setEvenementFamilialEvents([]);
+        return;
+      }
       setIsLoadingEvents(true);
-      absencesApi.getEvenementsFamiliaux()
+      absencesApi.getEvenementsFamiliaux(isRhMode ? selectedEmployeeId : undefined)
         .then(res => setEvenementFamilialEvents(res.data.events || []))
         .catch(() => setEvenementFamilialEvents([]))
         .finally(() => setIsLoadingEvents(false));
-      setEventSubtype('');
     }
-  }, [isOpen, absenceType]);
+  }, [isOpen, absenceType, isRhMode, selectedEmployeeId]);
 
   const selectedDaysCount = selectedDays?.length ?? 0;
 
@@ -713,7 +718,7 @@ export function AbsenceRequestModal({
               {isLoadingEvents ? (
                 <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Chargement...</p>
               ) : evenementFamilialEvents.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Aucun événement familial disponible. Assurez-vous que votre convention collective est configurée.</p>
+                <p className="text-sm text-muted-foreground">{isRhMode && !selectedEmployeeId ? "Choisissez d'abord le salarié." : "Aucun événement familial disponible pour ce salarié."}</p>
               ) : (
                 <>
                   <Select value={eventSubtype} onValueChange={(v) => { setEventSubtype(v); setSelectedDays([]); }}>

@@ -717,6 +717,66 @@ class TestGetMyEvenementsFamiliaux:
         assert response.status_code == 401
 
 
+class TestGetEvenementsFamiliauxDuSalarie:
+    """GET /api/absences/employees/{employee_id}/evenements-familiaux — saisie par la RH.
+
+    Défaut trouvé au tournage du 03/11 : la fenêtre « Nouveau congé » de la RH
+    lisait la liste du compte connecté (/me), vide pour une RH sans fiche.
+    """
+
+    def test_sans_jeton_401(self, client: TestClient):
+        response = client.get("/api/absences/employees/emp-1/evenements-familiaux")
+        assert response.status_code == 401
+
+    def test_la_rh_lit_la_liste_du_salarie(self, client: TestClient):
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+        try:
+            with patch(
+                "app.modules.absences.api.router.queries.get_evenements_familiaux_du_salarie",
+                return_value=[{"code": "pacs_salarie", "libelle": "PACS du salarié", "duree_jours": 4, "type_jours": "JO", "quota": 4, "solde_restant": 4, "taken": 0}],
+            ) as lecture:
+                response = client.get("/api/absences/employees/emp-1/evenements-familiaux")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 200
+        assert response.json()["events"][0]["solde_restant"] == 4
+        lecture.assert_called_once_with("emp-1", TEST_COMPANY_ID)
+
+    def test_un_collaborateur_ne_lit_pas_un_autre_salarie(self, client: TestClient):
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+        try:
+            with patch(
+                "app.modules.employees.api.deps.resolve_employee_id_for_user_account",
+                return_value="emp-moi",
+                create=True,
+            ), patch(
+                "app.modules.absences.api.router.queries.get_evenements_familiaux_du_salarie"
+            ) as lecture:
+                response = client.get("/api/absences/employees/emp-autre/evenements-familiaux")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
+        lecture.assert_not_called()
+
+    def test_un_salarie_hors_de_la_societe_404(self, client: TestClient):
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+        try:
+            with patch(
+                "app.modules.absences.api.router.queries.get_evenements_familiaux_du_salarie",
+                return_value=None,
+            ):
+                response = client.get("/api/absences/employees/emp-1/evenements-familiaux")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 404
+
+
 class TestGetMyAbsenceBalances:
     """GET /api/absences/employees/me/balances."""
 
