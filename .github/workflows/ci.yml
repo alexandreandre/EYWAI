@@ -14,12 +14,20 @@
 # Les tests unit sont hermétiques (mocks, pas de DB réelle) : ils tournent même
 # sans secrets Supabase, grâce à des valeurs factices d'amorçage qui n'engagent
 # aucun appel réseau (le client supabase-py n'effectue pas de requête à l'init).
+# Deux serrures en plus, posées par tests/conftest.py et tests/unit/conftest.py
+# (valables aussi sur un poste) : valeurs factices imposées avant l'import de
+# l'application, et réseau coupé pendant chaque test (pytest-socket). Un appel
+# oublié échoue aussitôt au lieu d'attendre l'hôte factice (22 min le 03/11/2026).
 name: CI
 
 on:
+  # Un commit qui ne touche que de la documentation ne relance pas la CI : le
+  # déploiement du test accepte alors la CI verte du dernier commit de code.
   pull_request:
+    paths-ignore: ["docs/**", "**/*.md"]
   push:
     branches: ["**"]
+    paths-ignore: ["docs/**", "**/*.md"]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -107,7 +115,9 @@ jobs:
           echo "Aucune erreur d'appel."
 
       - name: Pytest unit (bloquant)
-        run: python -m pytest tests/unit -v --tb=short -p no:cacheprovider
+        run: >-
+          python -m pytest tests/unit -v --tb=short -p no:cacheprovider
+          --disable-socket --allow-unix-socket --timeout=60 --durations=30
 
       - name: Scraping compile + validation (hermétique)
         run: python scraping/test_scrapers.py
@@ -126,6 +136,7 @@ jobs:
           tests/unit/scraping/test_official_domains.py
           tests/unit/scraping/test_agent_safety.py
           -v --tb=short -p no:cacheprovider
+          --disable-socket --allow-unix-socket --timeout=60
 
       - name: OpenAPI artifact
         run: |

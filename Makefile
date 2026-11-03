@@ -147,7 +147,7 @@ verifier: lint typecheck test
 test: test-backend test-frontend
 
 test-backend:
-	cd backend && $(CI_ENV) .venv/bin/python -m pytest tests/unit -q -p no:cacheprovider
+	cd backend && $(CI_ENV) .venv/bin/python -m pytest tests/unit -q -p no:cacheprovider --timeout=60 --durations=10
 
 test-frontend:
 	cd frontend && npm run test
