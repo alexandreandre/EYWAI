@@ -625,6 +625,21 @@ def _somme_du_contrat(lus: dict[int, dict], mois: list[int], matricule: str) -> 
     return {k: round(v, 2) for k, v in total.items()}
 
 
+def trous_de_reduction(lus: dict[int, dict], bascule: int, matricule: str) -> list[int]:
+    """Les mois du contrat en cours sans réduction générale alors que d'autres mois en ont
+    une pour un brut comparable (au plus 5 % au-dessus) : un trou probable de la source
+    (B7, audit § 5.3 — date de contrat fausse, mois oublié). La reprise copie Quadra ; elle
+    le signale, sans le corriger."""
+    mois = mois_du_contrat_en_cours(lus, bascule, matricule)
+    reductions = {m: _somme_des_lignes(lus[m][matricule], EST_REDUCTION_GENERALE) for m in mois}
+    bruts = {m: _brut_du_mois(lus[m][matricule]) for m in mois}
+    avec = [bruts[m] for m in mois if reductions[m] < 0]
+    if not avec:
+        return []
+    plafond = max(avec) * 1.05
+    return [m for m in mois if reductions[m] == 0 and 0 < bruts[m] <= plafond]
+
+
 def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dict:
     presents = [m for m in sorted(lus) if m <= bascule and matricule in lus[m]]
     mois_presents = mois_du_contrat_en_cours(lus, bascule, matricule)
@@ -888,6 +903,10 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = (), mois_ecrits:
         if not fiche:
             continue
         solde = solde_d_ouverture(lus_ouverture, bascule, mat)
+        trous = trous_de_reduction(lus_ouverture, bascule, mat)
+        if trous:
+            print(f"  {etiquette(fiche):14s} à vérifier (non bloquant) : aucune réduction générale en "
+                  + ", ".join(f"{m:02d}" for m in trous) + " pour un brut comparable aux autres mois")
         ecart = round(solde["controle_somme_des_bruts"] - solde["cumuls"]["brut_total"], 2)
         if abs(ecart) > TOLERANCE:
             anomalies.append(f"{etiquette(fiche)} : somme des bruts {solde['controle_somme_des_bruts']:.2f} "

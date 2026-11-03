@@ -444,3 +444,32 @@ def test_un_nir_imprime_reste_seul_juge():
     fiches = [{"id": "f1", "nir": "1990175000001", "matricule": "DURAND"}]
     b = _bulletin([], nir="2880175000002")
     assert fiche_du_bulletin(b, "DURAND", fiches) is None
+
+
+def _mois(brut, reduction=None):
+    lignes = [Ligne(None, "SALAIRE BRUT", gain=brut)]
+    if reduction is not None:
+        lignes.append(Ligne(None, "EXO., ECRET. ET ALLEG. COTIS", base=-reduction, montant_pat=-reduction))
+    return _bulletin(lignes)
+
+
+def test_un_mois_sans_reduction_entre_deux_mois_qui_en_ont_est_un_trou():
+    """B7 : un salarié présent dont un mois n'a aucune réduction générale, pour un brut
+    comparable aux mois qui en ont une, est probablement un trou de la source."""
+    from scripts.reprise_comitech import trous_de_reduction
+
+    lus = {1: {"DURAND": _mois(1900.0)}, 2: {"DURAND": _mois(1900.0, 380.0)}, 3: {"DURAND": _mois(1910.0, 375.0)}}
+    assert trous_de_reduction(lus, 3, "DURAND") == [1]
+
+
+def test_pas_de_trou_pour_un_mois_au_brut_plus_eleve_ni_avant_l_entree():
+    from scripts.reprise_comitech import trous_de_reduction
+
+    lus = {
+        1: {},
+        2: {"DURAND": _mois(1900.0, 380.0)},
+        3: {"DURAND": _mois(4100.0)},  # prime : au-delà de 1,6 SMIC, pas de réduction
+    }
+    assert trous_de_reduction(lus, 3, "DURAND") == []
+    sans_reduction = {1: {"DURAND": _mois(3500.0)}, 2: {"DURAND": _mois(3500.0)}}
+    assert trous_de_reduction(sans_reduction, 2, "DURAND") == []
