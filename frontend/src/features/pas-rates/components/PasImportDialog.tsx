@@ -34,6 +34,7 @@ import {
   type PasApercuLigne,
   type PasSource,
 } from "@/api/pasRates";
+import { INTRO_IMPORT_PAS, SOURCES_IMPORT_PAS } from '@/features/pas-rates/lib/importPas';
 import { accord, pluriel } from '@/lib/pluriel';
 
 interface PasImportDialogProps {
@@ -41,19 +42,6 @@ interface PasImportDialogProps {
   onOpenChange: (open: boolean) => void;
   onApplied: () => void;
 }
-
-const SOURCE_OPTIONS: { value: PasSource; label: string; aide: string }[] = [
-  {
-    value: "dsn",
-    label: "DSN mensuelle",
-    aide: "Le fichier déposé chaque mois pour la déclaration sociale.",
-  },
-  {
-    value: "crm",
-    label: "Compte rendu métier",
-    aide: "Le retour de la DGFiP téléchargé sur net-entreprises.fr.",
-  },
-];
 
 function formatTaux(valeur: number | null): string {
   return valeur == null ? "—" : `${valeur.toFixed(2).replace(".", ",")} %`;
@@ -155,8 +143,7 @@ export function PasImportDialog({ open, onOpenChange, onApplied }: PasImportDial
         <DialogHeader>
           <DialogTitle>Mettre à jour les taux</DialogTitle>
           <DialogDescription>
-            Déposez une DSN ou un compte rendu métier net-entreprises. Rien n&apos;est
-            écrit tant que vous n&apos;avez pas confirmé.
+            {INTRO_IMPORT_PAS}
           </DialogDescription>
         </DialogHeader>
 
@@ -174,7 +161,7 @@ export function PasImportDialog({ open, onOpenChange, onApplied }: PasImportDial
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {SOURCE_OPTIONS.map((opt) => (
+                {SOURCES_IMPORT_PAS.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
                     {opt.label}
                   </SelectItem>
@@ -182,7 +169,7 @@ export function PasImportDialog({ open, onOpenChange, onApplied }: PasImportDial
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              {SOURCE_OPTIONS.find((o) => o.value === source)?.aide}
+              {SOURCES_IMPORT_PAS.find((o) => o.value === source)?.aide}
             </p>
           </div>
 
