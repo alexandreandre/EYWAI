@@ -59,3 +59,23 @@ def test_le_bulletin_calcule_porte_les_parts_patronales():
     nets = calcul_net.calculer_net_et_impot(contexte, BRUT, [MUTUELLE, PREVOYANCE, VIEILLESSE], COTISATIONS, [], 0.0)
     sans = calcul_net.calculer_net_et_impot(contexte, BRUT, [VIEILLESSE], COTISATIONS, [], 0.0)
     assert round(nets["montant_net_social"] - sans["montant_net_social"], 2) == round(29.23 + 14.53, 2)
+
+
+def test_une_retenue_saisie_en_prime_non_soumise_ne_baisse_pas_le_net_social():
+    """Une « prime non soumise » négative est une retenue (prêt, acompte). Le
+    montant net social compte les revenus « même en cas de saisies sur salaire »
+    (BOSS, Montant net social, II.A.1) : une retenue ne le réduit pas. C'est le
+    défaut de l'ancien logiciel chez Mont Blanc (prêt retiré du MNS), que Martine
+    ne doit pas reproduire. (Le net à payer, lui, garde la retenue.)"""
+    base = calcul_net.calculer_montant_net_social(SANS_MUTUELLE, BRUT, COTISATIONS, [])
+    avec_retenue = calcul_net.calculer_montant_net_social(
+        SANS_MUTUELLE, BRUT, COTISATIONS, [{"libelle": "Remboursement de prêt", "montant": -400.0}]
+    )
+    assert avec_retenue == base
+
+
+def test_une_prime_non_soumise_positive_entre_toujours_dans_le_net_social():
+    avec_prime = calcul_net.calculer_montant_net_social(
+        SANS_MUTUELLE, BRUT, COTISATIONS, [{"libelle": "Prime non soumise", "montant": 50.0}]
+    )
+    assert avec_prime == round(BRUT - COTISATIONS + 50.0, 2)

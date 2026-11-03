@@ -5,6 +5,8 @@ compte rendu métier — l'employeur applique la grille. Prélever 0 % reviendra
 décider à la place de l'administration.
 """
 
+from datetime import date
+
 from app.modules.payroll.engine.calcul_net import (
     _calculer_prelevement_a_la_source,
     _zone_pas,
@@ -16,7 +18,7 @@ from tests.unit.payroll.fixtures.baremes_snapshot import baremes_snapshot
 class _Contexte:
     """Contexte minimal : seuls le bloc PAS, les barèmes et l'adresse comptent ici."""
 
-    def __init__(self, bloc_pas, code_postal="79140"):
+    def __init__(self, bloc_pas, code_postal="79140", date_fin_periode=None):
         self.contrat = {"specificites_paie": {"prelevement_a_la_source": bloc_pas}}
         self.baremes = baremes_snapshot()
         self.entreprise = {
@@ -24,10 +26,13 @@ class _Contexte:
         }
         self.is_alsace_moselle = False
         self.is_apprenti = False
+        self.date_fin_periode = date_fin_periode
 
 
-def _pas(bloc, net_imposable=2000.0, code_postal="79140"):
-    return _calculer_prelevement_a_la_source(_Contexte(bloc, code_postal), net_imposable)
+def _pas(bloc, net_imposable=2000.0, code_postal="79140", date_fin=None):
+    return _calculer_prelevement_a_la_source(
+        _Contexte(bloc, code_postal, date_fin), net_imposable
+    )
 
 
 def test_taux_inconnu_applique_la_grille():
@@ -46,6 +51,30 @@ def test_taux_zero_recu_reste_a_zero():
 
 def test_taux_personnalise_ignore_la_grille():
     assert _pas({"taux": 5.0, "type_taux": "01"}) == 100.0
+
+
+def test_un_taux_personnalise_perime_repasse_a_la_grille():
+    """Un taux 01 dont la période a plus de deux mois sans nouvel envoi se périme
+    (CGI 1671) : mai + 2 mois reste valable en juillet, se périme en août."""
+    bloc = {"taux": 5.0, "type_taux": "01", "periode": "2026-05"}
+    assert _pas(bloc, date_fin=date(2026, 7, 31)) == 100.0
+    assert _pas(bloc, date_fin=date(2026, 8, 31)) == 220.0
+
+
+def test_sans_periode_de_paie_le_taux_personnalise_reste_applique():
+    """Sans période de paie lisible, on ne juge pas la péremption (compatibilité)."""
+    assert _pas({"taux": 5.0, "type_taux": "01", "periode": "2026-01"}) == 100.0
+
+
+def test_un_taux_personnalise_sans_periode_ne_se_perime_pas():
+    """Un 01 transmis sans période (date d'envoi inconnue) reste appliqué."""
+    assert _pas({"taux": 5.0, "type_taux": "01"}, date_fin=date(2026, 12, 31)) == 100.0
+
+
+def test_un_taux_saisi_a_la_main_ne_se_perime_pas():
+    """Saisi à la main (case « personnalisé »), sans type ni période : pas de date
+    d'envoi, donc jamais périmé."""
+    assert _pas({"taux": 5.0, "is_personnalise": True}, date_fin=date(2026, 12, 31)) == 100.0
 
 
 class TestTauxBareme:

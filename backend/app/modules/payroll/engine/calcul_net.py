@@ -1,11 +1,17 @@
 from app.core.logging import get_logger, log_payroll_debug
-from app.shared.pas_taux import est_taux_bareme, taux_connu as taux_detenu, zone_du_code_postal
+from app.shared.pas_taux import (
+    est_taux_bareme,
+    taux_connu as taux_detenu,
+    taux_personnalise_perime,
+    zone_du_code_postal,
+)
 
 from .contexte import ContextePaie
 from .exoneration_alternance import contexte_exoneration_apprenti
 from .exoneration_stage import exoneration_ir_stage
 from . import legal_constants as lc
-from typing import Dict, Any, List
+from datetime import date
+from typing import Dict, Any, List, Optional
 from app.modules.payroll.engine.mutuelles import mutuelles_du_salarie
 from app.modules.payroll.engine.frais_professionnels import est_un_frais_professionnel
 from app.modules.payroll.engine.protection_sociale import parts_patronales_protection_sociale
@@ -263,10 +269,15 @@ def calculer_montant_net_social(
     social, II, A, 1 : « Les remboursements de frais professionnels (au réel ou
     forfaitaires) dans la limite de chacun de leurs plafonds d'exonération »).
     """
+    # Seuls les compléments de rémunération (montant positif) entrent dans le
+    # MNS. Une « prime non soumise » négative est une retenue (prêt, acompte) :
+    # le MNS compte les revenus « même en cas de saisies sur salaire » (BOSS,
+    # Montant net social, II.A.1), une retenue ne le réduit pas. Le net à payer
+    # garde la retenue (`_calculer_net_a_payer`).
     total_primes_non_soumises = sum(
         _get_safe_float(p.get("montant"))
         for p in primes_non_soumises
-        if not est_un_frais_professionnel(p)
+        if not est_un_frais_professionnel(p) and _get_safe_float(p.get("montant")) > 0
     )
     total_primes_soumises_impot = sum(
         _get_safe_float(p.get("montant")) for p in (primes_soumises_impot or [])
@@ -556,6 +567,14 @@ def _base_pas_du_mois(contexte: ContextePaie, net_imposable_mois: float) -> floa
     return round(max(0.0, base_pas_mois), 2)
 
 
+def _periode_de_paie(contexte: ContextePaie) -> Optional[str]:
+    """La période de paie « AAAA-MM », pour juger la péremption du taux PAS."""
+    fin = getattr(contexte, "date_fin_periode", None)
+    if isinstance(fin, date):
+        return f"{fin.year:04d}-{fin.month:02d}"
+    return None
+
+
 def taux_pas_du_mois(contexte: ContextePaie, base_pas: float) -> float:
     """Taux de prélèvement à la source réellement applicable ce mois-ci, en %.
 
@@ -572,7 +591,12 @@ def taux_pas_du_mois(contexte: ContextePaie, base_pas: float) -> float:
       le mois suivant figerait un barème qui doit suivre la paie.
 
     Un taux personnalisé transmis par la DGFiP est en revanche appliqué tel quel,
-    y compris s'il vaut 0 % : c'est un taux, pas une absence de taux.
+    y compris s'il vaut 0 % : c'est un taux, pas une absence de taux. Il se périme
+    toutefois : passé deux mois sans nouvel envoi (sa période est antérieure de
+    plus de `ANCIENNETE_TOLEREE_MOIS` mois à la paie), la DGFiP l'a probablement
+    remplacé, et la grille reprend (CGI 1671 ; même seuil que l'écran des taux).
+    Un taux saisi à la main, sans période transmise, n'a pas de date d'envoi :
+    il n'est pas périmé.
 
     « Aucun taux connu » comprend le `taux: 0` qu'un formulaire pose par défaut,
     sans type, sans identifiant, sans période et case « personnalisé » décochée
@@ -582,7 +606,11 @@ def taux_pas_du_mois(contexte: ContextePaie, base_pas: float) -> float:
         "prelevement_a_la_source", {}
     )
     taux_connu = taux_detenu(bloc_pas)
-    if taux_connu is None or est_taux_bareme(bloc_pas.get("type_taux")):
+    if (
+        taux_connu is None
+        or est_taux_bareme(bloc_pas.get("type_taux"))
+        or taux_personnalise_perime(bloc_pas, _periode_de_paie(contexte))
+    ):
         return taux_pas_neutre(
             contexte.baremes.get("pas") or [], base_pas, _zone_pas(contexte)
         )

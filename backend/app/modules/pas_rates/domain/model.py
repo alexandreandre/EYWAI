@@ -16,9 +16,7 @@ est juste le résultat d'une grille, que le moteur recalcule à chaque paie.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
-from datetime import date
 from typing import Dict, List, Optional
 
 from app.shared import pas_taux
@@ -50,35 +48,18 @@ STATUT_LABELS: Dict[str, str] = {
     STATUT_MANQUANT: "Grille par défaut",
 }
 
-# Au-delà, le taux en base a de bonnes chances d'avoir été remplacé par la DGFiP :
-# la DSN d'un mois est déposée le mois suivant, un taux de deux mois est donc le
-# plus récent qu'on puisse détenir en régime normal.
-ANCIENNETE_TOLEREE_MOIS = 2
-
-_PERIODE_RE = re.compile(r"^(\d{4})-(0[1-9]|1[0-2])$")
+# Le seuil de péremption et les helpers de période vivent dans `app.shared.pas_taux`,
+# partagés avec le moteur de paie (`calcul_net.taux_pas_du_mois`) ; on les
+# réexporte ici pour l'écran, sans changer l'API de ce module.
+ANCIENNETE_TOLEREE_MOIS = pas_taux.ANCIENNETE_TOLEREE_MOIS
+periode_valide = pas_taux.periode_valide
+periode_courante = pas_taux.periode_courante
+ecart_mois = pas_taux.ecart_mois
 
 
 def type_label(type_taux: Optional[str]) -> str:
     """Libellé lisible d'un type de taux, y compris pour un code inattendu."""
     return pas_taux.libelle_type(type_taux)
-
-
-def periode_valide(periode: Optional[str]) -> bool:
-    return bool(periode) and bool(_PERIODE_RE.match(periode or ""))
-
-
-def periode_courante(today: Optional[date] = None) -> str:
-    d = today or date.today()
-    return f"{d.year:04d}-{d.month:02d}"
-
-
-def ecart_mois(periode: str, reference: str) -> Optional[int]:
-    """Nombre de mois entre une période et une référence, None si illisible."""
-    if not periode_valide(periode) or not periode_valide(reference):
-        return None
-    ay, am = int(periode[:4]), int(periode[5:7])
-    by, bm = int(reference[:4]), int(reference[5:7])
-    return (by - ay) * 12 + (bm - am)
 
 
 def calculer_statut(

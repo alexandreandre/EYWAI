@@ -29,6 +29,8 @@ versement, ce qui confirme la lecture.
 
 from __future__ import annotations
 
+import re
+from datetime import date
 from typing import Any, Dict, Optional
 
 TYPE_PERSONNALISE = "01"
@@ -141,3 +143,50 @@ def zone_du_code_postal(code_postal: Any) -> str:
     if departement in ("973", "976"):
         return ZONE_GUYANE_MAYOTTE
     return ZONE_METROPOLE
+
+
+# --- Péremption d'un taux personnalisé (01) -------------------------------
+# Au-delà de ce nombre de mois, le taux personnalisé en base a de bonnes chances
+# d'avoir été remplacé par la DGFiP : la DSN d'un mois est déposée le mois
+# suivant, un taux de deux mois est donc le plus récent qu'on puisse détenir en
+# régime normal. Sans nouvel envoi, le taux se périme et la grille reprend
+# (CGI 1671). Même seuil pour l'écran (statut « À rafraîchir ») et le moteur.
+ANCIENNETE_TOLEREE_MOIS = 2
+
+_PERIODE_RE = re.compile(r"^(\d{4})-(0[1-9]|1[0-2])$")
+
+
+def periode_valide(periode: Optional[str]) -> bool:
+    return bool(periode) and bool(_PERIODE_RE.match(periode or ""))
+
+
+def periode_courante(today: Optional[date] = None) -> str:
+    d = today or date.today()
+    return f"{d.year:04d}-{d.month:02d}"
+
+
+def ecart_mois(periode: str, reference: str) -> Optional[int]:
+    """Nombre de mois entre une période et une référence, None si illisible."""
+    if not periode_valide(periode) or not periode_valide(reference):
+        return None
+    ay, am = int(periode[:4]), int(periode[5:7])
+    by, bm = int(reference[:4]), int(reference[5:7])
+    return (by - ay) * 12 + (bm - am)
+
+
+def taux_personnalise_perime(
+    bloc: Optional[Dict[str, Any]], reference_periode: Optional[str]
+) -> bool:
+    """Un taux personnalisé transmis est-il périmé à la période de paie ?
+
+    Vrai seulement pour un taux de type 01 qui porte une période antérieure de
+    plus de `ANCIENNETE_TOLEREE_MOIS` mois à la paie. Un taux saisi à la main
+    (sans période transmise) n'a pas de date d'envoi : on ne le périme pas. Sans
+    période de référence lisible, on ne juge pas non plus.
+    """
+    if not isinstance(bloc, dict) or not periode_valide(reference_periode):
+        return False
+    if not est_taux_personnalise(bloc.get("type_taux")):
+        return False
+    ecart = ecart_mois(str(bloc.get("periode") or ""), reference_periode or "")
+    return ecart is not None and ecart > ANCIENNETE_TOLEREE_MOIS
