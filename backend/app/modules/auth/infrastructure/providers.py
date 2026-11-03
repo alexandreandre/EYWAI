@@ -62,10 +62,11 @@ class SupabaseAuthProvider(IAuthProvider):
         return supabase.auth.get_user(token).user
 
     def find_user_id_by_email(self, email: str) -> str | None:
-        admin_client = get_supabase_admin_client()
-        users_response = admin_client.auth.admin.list_users()
-        for u in users_response:
-            if u.email and u.email.lower() == email.lower():
+        from app.shared.infrastructure.comptes_auth import tous_les_comptes
+
+        cible = email.lower()
+        for u in tous_les_comptes(get_supabase_admin_client()):
+            if u.email and u.email.lower() == cible:
                 return u.id
         return None
 
