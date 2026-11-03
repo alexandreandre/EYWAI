@@ -36,6 +36,7 @@ from app.modules.dsn_import.domain.dsn_absence_exit_mapping import (
     map_suspension_to_absence,
 )
 from app.modules.dsn_import.domain.psc import build_specificites_paie_psc
+from app.modules.dsn_import.domain.rubriques import DISPOSITIFS_APPRENTISSAGE
 from app.modules.dsn_import.application.boeth_import import (
     boeth_preview_columns,
     extract_boeth_from_contrat,
@@ -406,6 +407,8 @@ def map_employee_payload(
     end = normalize_date_dsn(contrat.date_fin)
 
     contract_type = map_contract_type(contrat.nature)
+    if str(contrat.dispositif or "").strip() in DISPOSITIFS_APPRENTISSAGE:
+        contract_type = "apprentissage"
     pas = extract_pas(contrat)
     sexe = map_sexe(ind.sexe)
     psc_block = build_specificites_paie_psc(contrat, organismes_psc=etab.organismes_psc)

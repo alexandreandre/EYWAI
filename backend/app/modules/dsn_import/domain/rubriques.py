@@ -302,6 +302,11 @@ BLOCK_G00 = {
 }
 
 # Codes nature contrat DSN -> libellé MARTINE
+# Dispositif de politique publique (S21.G00.40.008) d'un contrat d'apprentissage : la
+# DSN déclare l'apprentissage en CDD (nature 02), c'est le dispositif qui le distingue.
+# Même ensemble que la revue « Fiche à compléter » (dsn_export/domain/fiche_a_completer).
+DISPOSITIFS_APPRENTISSAGE = frozenset({"64", "65", "66", "81"})
+
 CONTRACT_NATURE_MAP = {
     "01": "CDI",
     "02": "CDD",
