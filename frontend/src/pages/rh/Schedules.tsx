@@ -1,3 +1,9 @@
+import {
+  aDesAbsentsATyper,
+  correspondAuFiltreSaisie,
+  phraseBandeauAbsents,
+  resumeAbsentsATyper,
+} from '@/lib/absentATyper';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { displayNameNomPrenom } from '@/lib/employeeName';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -211,7 +217,7 @@ export default function Schedules() {
       ) {
         return false;
       }
-      if (saisieFilter !== 'all' && row.rowStatus !== saisieFilter) return false;
+      if (!correspondAuFiltreSaisie(row, saisieFilter)) return false;
       if (modeFilter === 'forfait_jour' && !row.isForfaitJour) return false;
       if (modeFilter === 'horaire' && row.isForfaitJour) return false;
       return true;
@@ -268,7 +274,7 @@ export default function Schedules() {
   // doivent rester stables quand on filtre par équipe ou recherche.
   const statusCounts = useMemo(
     () => ({
-      aSaisir: rows.filter((r) => r.rowStatus === 'a_saisir').length,
+      aSaisir: rows.filter((r) => correspondAuFiltreSaisie(r, 'a_saisir')).length,
       saisi: rows.filter((r) => r.rowStatus === 'saisi').length,
       ecart: rows.filter((r) => r.rowStatus === 'saisi_avec_ecart').length,
     }),
@@ -385,12 +391,14 @@ export default function Schedules() {
   // la génération serait refusée.
   const heuresSurArret = useMemo(() => resumeHeuresSurArret(filteredRows), [filteredRows]);
   const phraseArret = phraseHeuresSurArret(heuresSurArret);
+  const absentsATyper = useMemo(() => resumeAbsentsATyper(filteredRows), [filteredRows]);
+  const phraseAbsents = phraseBandeauAbsents(absentsATyper);
 
   const allSaisiBanner =
     !isPageLoading &&
     filteredRows.length > 0 &&
     heuresSurArret.totalJours === 0 &&
-    filteredRows.every((r) => r.rowStatus !== 'a_saisir');
+    filteredRows.every((r) => r.rowStatus !== 'a_saisir' && !aDesAbsentsATyper(r));
   const bandeauPrets = bandeauCalendriersPrets(filteredRows);
 
   // Le filtre ne laisse aucun calendrier : plus rien n'est sélectionné, et sous
@@ -489,6 +497,28 @@ export default function Schedules() {
           >
             Afficher les {rows.length} calendriers
           </Button>
+        </div>
+      )}
+
+      {phraseAbsents && (
+        <div
+          className="rounded-md border border-red-400 bg-red-50 px-4 py-3 text-sm text-red-900"
+          data-testid="bandeau-absents-a-typer"
+        >
+          <p>{phraseAbsents}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {absentsATyper.map((sal) => (
+              <Button
+                key={sal.id}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDrawerEmployeeId(sal.id)}
+              >
+                Ouvrir le calendrier de {sal.nom} ({sal.jours.join(', ')})
+              </Button>
+            ))}
+          </div>
         </div>
       )}
 

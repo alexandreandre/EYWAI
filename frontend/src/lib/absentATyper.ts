@@ -34,3 +34,58 @@ export function phraseAbsentsATyper(jours: number[]): string {
     ? `1 jour absent sans type (${quand})`
     : `${n} jours absents sans type (${quand})`;
 }
+
+export function aDesAbsentsATyper(row: { joursAbsentsATyper?: number[] | null }): boolean {
+  return (row.joursAbsentsATyper?.length ?? 0) > 0;
+}
+
+/**
+ * Filtre de saisie de la page Calendrier : « À saisir » garde aussi un salarié
+ * dont un jour est marqué absent sans type (la paie est bloquée tant qu'il
+ * n'est pas typé) ; les autres filtres suivent le statut.
+ */
+export function correspondAuFiltreSaisie(
+  row: { rowStatus: string; joursAbsentsATyper?: number[] | null },
+  filtre: string
+): boolean {
+  if (filtre === 'all') return true;
+  if (filtre === 'a_saisir' && aDesAbsentsATyper(row)) return true;
+  return row.rowStatus === filtre;
+}
+
+export interface AbsentsDuCalendrier {
+  id: string;
+  nom: string;
+  jours: number[];
+}
+
+export function resumeAbsentsATyper(
+  rows: readonly {
+    employee: { id: string; first_name?: string | null; last_name?: string | null };
+    joursAbsentsATyper?: number[] | null;
+  }[]
+): AbsentsDuCalendrier[] {
+  return rows
+    .filter(aDesAbsentsATyper)
+    .map((r) => ({
+      id: r.employee.id,
+      nom: `${r.employee.first_name ?? ''} ${r.employee.last_name ?? ''}`.trim(),
+      jours: [...(r.joursAbsentsATyper ?? [])],
+    }));
+}
+
+/** La phrase du bandeau rouge de la page Calendrier. */
+export function phraseBandeauAbsents(resume: AbsentsDuCalendrier[]): string | null {
+  const total = resume.reduce((n, s) => n + s.jours.length, 0);
+  if (total === 0) return null;
+  const noms = resume.map((s) => s.nom).join(', ');
+  const debut =
+    total > 1
+      ? `${total} jours sont marqués « absent » sans type (${noms}) : donnez-leur leur type dans le calendrier.`
+      : `1 jour est marqué « absent » sans type (${noms}) : donnez-lui son type dans le calendrier.`;
+  const fin =
+    resume.length > 1
+      ? 'La paie de ces salariés est refusée, sans forçage possible, jusque-là.'
+      : 'La paie de ce salarié est refusée, sans forçage possible, jusque-là.';
+  return `${debut} ${fin}`;
+}

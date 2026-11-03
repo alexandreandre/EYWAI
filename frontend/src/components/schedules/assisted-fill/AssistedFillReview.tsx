@@ -67,6 +67,7 @@ import {
   type JourVide,
 } from './casesAbsent';
 import { TYPE_ABSENT_A_TYPER } from '@/lib/absentATyper';
+import { libelleBadges } from './badgesDuJour';
 import {
   cleJourExistant,
   joursRemplaces,
@@ -1553,6 +1554,14 @@ export function AssistedFillReview({
                           onChange={(n) => updateDay(row.key, day.jour, { nature: n })}
                         />
                         </>
+                        )}
+                        {libelleBadges(day.punch_entry_raw, day.punch_exit_raw) && (
+                          <span
+                            className="text-[10px] tabular-nums text-muted-foreground"
+                            data-testid="badges-du-jour"
+                          >
+                            {libelleBadges(day.punch_entry_raw, day.punch_exit_raw)}
+                          </span>
                         )}
                         {vide && (
                           <label className="flex items-center gap-1 text-[11px] text-red-800">
