@@ -5,6 +5,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Version visible
+- La version du site s'affiche en bas du menu, par exemple « Version paie-2026-11-03.1 ».
+- En signalant un écart, la donner au support : on saura quel code a calculé le bulletin.
+- Le site ne peut plus être mis à jour si les vérifications automatiques ne sont pas vertes.
+
 ### Documents internes à l'abri
 - Rien ne change à l'écran ni dans les bulletins.
 - Les fichiers de travail tirés des bulletins et les documents commerciaux ne peuvent plus partir sur le dépôt public.
