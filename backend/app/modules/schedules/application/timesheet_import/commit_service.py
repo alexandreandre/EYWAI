@@ -201,6 +201,21 @@ def _employees_from_batch(
     ]
 
 
+def _marques_absent_doublees(
+    prevu_days: List[Any], reel_days: List[Any], refuses: List[Dict[str, Any]]
+) -> int:
+    """Jours cochés « absent » écrits au prévu ET au réel : un seul jour écrit."""
+    from app.modules.schedules.domain.absent_a_typer import TYPE_ABSENT_A_TYPER
+
+    jours_reel = {d.jour for d in reel_days}
+    jours_refuses = {w.get("jour") for w in refuses}
+    return sum(
+        1
+        for d in prevu_days
+        if d.type == TYPE_ABSENT_A_TYPER and d.jour in jours_reel and d.jour not in jours_refuses
+    )
+
+
 def _planning_par_defaut(year: int, month: int) -> List[Dict[str, Any]]:
     return [
         {
@@ -274,8 +289,13 @@ def _upsert_employees_for_month(
                 warnings.extend(
                     {"employee_id": emp.employee_id, **w} for w in avertissements
                 )
-                # Les jours refusés (absence validée préservée) ne comptent pas.
-                days_written += len(prevu_days) - len(avertissements)
+                # Les jours refusés (absence validée préservée) ne comptent pas,
+                # ni la marque « absent » d'un jour qui part aussi au réel.
+                days_written += (
+                    len(prevu_days)
+                    - len(avertissements)
+                    - _marques_absent_doublees(prevu_days, reel_days, avertissements)
+                )
             if reel_days:
                 merged_actual = _merge_days(actual_existing, reel_days, "reel")
                 days_written += len(reel_days)
@@ -385,8 +405,13 @@ def _upsert_employees_for_month_fast(
                 warnings.extend(
                     {"employee_id": emp.employee_id, **w} for w in avertissements
                 )
-                # Les jours refusés (absence validée préservée) ne comptent pas.
-                days_written += len(prevu_days) - len(avertissements)
+                # Les jours refusés (absence validée préservée) ne comptent pas,
+                # ni la marque « absent » d'un jour qui part aussi au réel.
+                days_written += (
+                    len(prevu_days)
+                    - len(avertissements)
+                    - _marques_absent_doublees(prevu_days, reel_days, avertissements)
+                )
             if reel_days:
                 merged_actual = _merge_days(actual_existing, reel_days, "reel")
                 days_written += len(reel_days)

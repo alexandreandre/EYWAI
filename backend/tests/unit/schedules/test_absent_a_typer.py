@@ -122,3 +122,26 @@ def test_premier_import_du_mois_le_planning_par_defaut_est_cree_autour_de_la_mar
     assert prevu[9]["type"] == TYPE_ABSENT_A_TYPER
     assert prevu[8]["type"] == "travail"
     assert prevu[12]["type"] == "weekend"
+
+
+@patch("app.modules.schedules.application.timesheet_import.commit_service.get_employee_company_and_statut")
+def test_un_jour_coche_absent_compte_pour_un_jour_ecrit(mock_statut):
+    """Le jour coché part au prévu et au réel : le message « N jours mis à jour »
+    ne doit le compter qu'une fois."""
+    from app.modules.schedules.application.timesheet_import.commit_service import (
+        _upsert_employees_for_month,
+    )
+
+    mock_statut.return_value = ("c1", "CDI")
+    emp = PersistTimesheetEmployee.model_validate({
+        "employee_id": "e1",
+        "days": [
+            {"jour": 8, "heures": 7.0, "type": "travail", "nature": "reel"},
+            {"jour": 9, "heures": None, "type": TYPE_ABSENT_A_TYPER, "nature": "prevu"},
+            {"jour": 9, "heures": None, "type": TYPE_ABSENT_A_TYPER, "nature": "reel"},
+        ],
+    })
+    _, total, *_ = _upsert_employees_for_month(
+        company_id="c1", year=2026, month=9, employees=[emp], existing_rows={},
+    )
+    assert total == 2
