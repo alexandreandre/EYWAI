@@ -318,6 +318,15 @@ export interface PalierDuMaintien {
   ijss_deduites?: number;
 }
 
+/** IJSS déduites comptées nettes, ramenées au brut (conception du 03/11/2026). */
+export interface GarantieNette {
+  taux_salarial: number;
+  taux_ijss: number;
+  ijss_deduites: number;
+  /** Lecture brute moins versé : positif, le maintien est réduit ; négatif, augmenté. */
+  reduction: number;
+}
+
 export interface MaintenancePreview {
   qualification: {
     carence_ss_jours: number;
@@ -362,6 +371,8 @@ export interface MaintenancePreview {
     regle_retenue?: 'convention' | 'legal';
     paliers?: PalierDuMaintien[];
     paliers_en_jours_ouvres?: boolean;
+    /** Barème qui garantit le net (plasturgie) : la conversion des IJSS. */
+    garantie_nette?: GarantieNette;
   };
   prevoyance: {
     prevoyance_declenchee: boolean;

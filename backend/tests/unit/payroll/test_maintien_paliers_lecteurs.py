@@ -60,15 +60,19 @@ def test_deux_arrets_qui_couvrent_juin_valent_le_salaire_du_mois():
         ("2026-06-01", "2026-06-15", 11, 1115.74),
         ("2026-06-16", "2026-06-30", 11, 1115.74),
     ]
-    assert (m["maintien_cible"], m["ijss_deduites"], m["maintien_verse"]) == (2231.48, 1235.70, 995.78)
+    # Chaque arrêt ramène ses IJ au brut et arrondit : 846,78, un centime de
+    # plus qu'un seul arrêt sur le mois (846,77).
+    assert (m["maintien_cible"], m["ijss_deduites"], m["maintien_verse"]) == (2231.48, 1235.70, 846.78)
     assert m["regle_retenue"] == "convention"
 
 
 def test_la_prime_d_anciennete_suit_les_jours_de_la_regle_retenue():
-    # IJ validées à 41,19 €/jour : le barème l'emporte sur le versé (218,96 contre 172,66).
+    # IJ validées à 41,19 €/jour : sous la garantie du net, le légal l'emporte
+    # sur le versé (172,66) ; ses deux tiers courent jusqu'au 27/09, alors que le
+    # barème s'arrêtait au 15/09.
     arret = _arret("2026-09-01", "2026-09-30", CHAINE, ijss_brut_override=1235.70)
     jours = compute_jours_avec_maintien_mois(arret, _sg(), {**BAREME, **MANUELS}, *SEPTEMBRE)
-    assert jours == set(range(1, 16))  # 75 % jusqu'au 15/09 ; le légal n'est pas retenu
+    assert jours == set(range(1, 28))
 
 
 def test_la_prevoyance_lit_le_taux_de_chaque_jour_retenu():
@@ -76,9 +80,10 @@ def test_la_prevoyance_lit_le_taux_de_chaque_jour_retenu():
                 "provident_cadre_only": False, "provident_relay_days": 1}
     arret = _arret("2026-09-01", "2026-09-30", CHAINE, ijss_brut_override=1235.70)
     r = calculer_maintien(arret, _sg(), reglages, *SEPTEMBRE)
-    assert r["maintien"]["regle_retenue"] == "convention"
-    # Du 16 au 30/09, plus de maintien : la prévoyance complète ; avant, 75 % suffit.
-    assert r["prevoyance"]["nb_jours"] == 15
+    assert r["maintien"]["regle_retenue"] == "legal"
+    # Du 28 au 30/09, plus de maintien légal : la prévoyance complète ; avant,
+    # les deux tiers suffisent.
+    assert r["prevoyance"]["nb_jours"] == 3
     assert r["prevoyance"]["montant"] > 0
 
 

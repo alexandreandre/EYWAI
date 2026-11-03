@@ -142,4 +142,7 @@ def test_la_description_lisible_de_l_ecran():
     assert d["categories"][1]["lignes"][-1]["paliers"] == "150 jours à 100 %, puis 150 jours à 50 %"
     assert d["categories"][1]["notes"][0] == "Pas de carence."
     assert all(s["url"].startswith("https://www.legifrance.gouv.fr/") for s in d["sources"])
-    assert "Chaque mois, Martine compare avec le maintien légal et verse le plus favorable." in d["regles"]
+    assert (
+        "Chaque mois, Martine compare avec le maintien légal, calculé sur le brut, et verse le plus favorable."
+        in d["regles"]
+    )

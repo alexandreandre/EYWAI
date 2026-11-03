@@ -20,6 +20,11 @@ from typing import Any, Mapping, Optional
 CODE_PLASTURGIE = "plasturgie_0292"
 CLE_BAREME = "bareme_convention"
 
+#: Ce que le barème garantit : le brut (IJ brutes déduites) ou le net (IJ
+#: nettes ramenées au brut, `engine/garantie_nette.py`).
+GARANTIE_BRUTE = "brute"
+GARANTIE_NETTE = "nette"
+
 FAMILLE_MALADIE = "maladie"
 FAMILLE_ACCIDENT_TRAVAIL = "accident_travail"  # accident du travail, maladie professionnelle, rechute
 FAMILLE_TRAJET = "trajet"
@@ -81,6 +86,7 @@ class Bareme:
     cadres: Categorie
     sources: tuple[Source, ...]
     regles: tuple[str, ...]
+    garantie: str = GARANTIE_BRUTE
 
     def categorie(self, est_cadre: bool) -> Categorie:
         return self.cadres if est_cadre else self.non_cadres
@@ -146,8 +152,17 @@ PLASTURGIE = Bareme(
         "chaque nouvel arrêt.",
         "Les IJSS des jours maintenus sont déduites selon le réglage « Arrêt sans "
         "subrogation » ; avec subrogation, toujours.",
-        "Chaque mois, Martine compare avec le maintien légal et verse le plus favorable.",
+        (
+            "Le maintien garantit le net (art. 13 e ; accord Cadres, art. 5) : les IJSS "
+            "déduites sont comptées nettes de CSG et CRDS, puis ramenées au brut avec le "
+            "taux de cotisations salariales du salarié."
+        ),
+        (
+            "Chaque mois, Martine compare avec le maintien légal, calculé sur le brut, et "
+            "verse le plus favorable."
+        ),
     ),
+    garantie=GARANTIE_NETTE,
 )
 
 BAREMES: dict[str, Bareme] = {PLASTURGIE.code: PLASTURGIE}
@@ -260,6 +275,8 @@ __all__ = [
     "FAMILLE_MALADIE",
     "FAMILLE_PARENTALITE",
     "FAMILLE_TRAJET",
+    "GARANTIE_BRUTE",
+    "GARANTIE_NETTE",
     "PLASTURGIE",
     "Bareme",
     "Categorie",

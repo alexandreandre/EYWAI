@@ -1,8 +1,10 @@
 """Le moteur applique le barème de la plasturgie (conception du 24/10/2026).
 
-Au centime, les cas de Comitech que le texte explique : IJ au montant validé
-relevé sur Quadra (41,19 €/jour pour S.G., 41,95 € pour D.S.), salaires de la
-fiche. Puis le plancher légal, comparé sur le versé, les alertes, la
+Les cas de Comitech : IJ au montant validé relevé sur Quadra (41,19 €/jour
+pour S.G., 41,95 € pour D.S.), salaires de la fiche. Le garanti est celui de
+Quadra au centime ; le versé, non : Quadra déduit les IJ brutes, Martine
+garantit le net comme le texte (conception du 03/11, la lecture brute de
+Quadra est rappelée en commentaire). Puis le plancher légal, comparé sur le versé, les alertes, la
 subrogation, et la compatibilité : sans barème, rien ne change. Initiales
 seulement.
 """
@@ -92,7 +94,8 @@ def _mois_sg(mois, periode, override, contexte=None, reglages=BAREME, **extra):
 def test_s_g_mai_premier_arret_de_l_annee_sans_carence():
     r = _mois_sg(5, MAI, 1029.75)
     m = r["maintien"]
-    assert (m["maintien_cible"], m["ijss_deduites"], m["maintien_verse"]) == (2059.84, 1029.75, 1030.09)
+    # Quadra, lecture brute : 1 030,09.
+    assert (m["maintien_cible"], m["ijss_deduites"], m["maintien_verse"]) == (2059.84, 1029.75, 905.92)
     assert m["paliers"] == [{
         "taux": 1.0, "du": "2026-05-04", "au": "2026-05-31", "jours": 20,
         "jours_calendaires": 28, "valeur": 2059.84, "garanti": 2059.84, "ijss_deduites": 1029.75,
@@ -105,16 +108,18 @@ def test_s_g_mai_premier_arret_de_l_annee_sans_carence():
 
 def test_s_g_juin_mois_entier_le_salaire_du_mois():
     m = _mois_sg(6, JUIN, 1235.70)["maintien"]
-    assert (m["maintien_cible"], m["ijss_deduites"], m["maintien_verse"]) == (2231.48, 1235.70, 995.78)
+    # Quadra, lecture brute : 995,78.
+    assert (m["maintien_cible"], m["ijss_deduites"], m["maintien_verse"]) == (2231.48, 1235.70, 846.77)
 
 
 def test_d_s_cadre_avril_et_mai():
     arret = _arret("2026-04-27", "2026-07-17", [("2026-04-27", "2026-07-17")])
     avril = calculer_maintien({**arret, "ijss_brut_override": 41.95}, _ds(), dict(BAREME), *AVRIL)
-    assert (avril["maintien"]["maintien_cible"], avril["maintien"]["maintien_verse"]) == (710.72, 668.77)
+    # Quadra, lecture brute : 668,77 en avril, 2 549,28 en mai.
+    assert (avril["maintien"]["maintien_cible"], avril["maintien"]["maintien_verse"]) == (710.72, 663.71)
     assert "cadres : pas de carence" in avril["carence"]["motif_carence"]
     mai = calculer_maintien({**arret, "ijss_brut_override": 1300.45}, _ds(), dict(BAREME), *MAI)
-    assert (mai["maintien"]["maintien_cible"], mai["maintien"]["maintien_verse"]) == (3849.73, 2549.28)
+    assert (mai["maintien"]["maintien_cible"], mai["maintien"]["maintien_verse"]) == (3849.73, 2392.46)
     assert mai["maintien"]["bareme_detail"] == "Plasturgie (IDCC 0292), cadres, 10 ans et plus"
 
 
@@ -122,7 +127,8 @@ def test_d_s_prolongation_du_18_au_26_07():
     arret = _arret("2026-07-18", "2026-07-26",
                    [("2026-04-27", "2026-07-17"), ("2026-07-18", "2026-07-26")], 377.55)
     m = calculer_maintien(arret, _ds(), dict(BAREME), *JUILLET)["maintien"]
-    assert (m["maintien_cible"], m["ijss_deduites"], m["maintien_verse"]) == (888.40, 377.55, 510.85)
+    # Quadra, lecture brute : 510,85.
+    assert (m["maintien_cible"], m["ijss_deduites"], m["maintien_verse"]) == (888.40, 377.55, 465.32)
 
 
 def test_les_reglages_manuels_ne_comptent_pas_sous_le_bareme():
@@ -144,7 +150,7 @@ def test_passage_a_75_pour_cent_dans_le_mois():
         {"taux": 0.75, "du": "2026-07-03", "au": "2026-07-31", "jours": 21, "jours_calendaires": 29,
          "valeur": 2037.44, "garanti": 1528.08, "ijss_deduites": 1194.51},
     ]
-    assert (m["maintien_cible"], m["maintien_verse"]) == (1722.12, 445.23)
+    assert (m["maintien_cible"], m["maintien_verse"]) == (1722.12, 291.25)
     assert "Plasturgie : passage à 75 % le 03/07/2026." in r["alertes"]
 
 
@@ -163,16 +169,30 @@ def test_le_legal_l_emporte_en_juillet_pour_un_non_cadre_de_22_ans():
     assert ALERTE_LEGAL in r["alertes"]
 
 
-def test_en_septembre_le_bareme_l_emporte_sur_le_verse_meme_si_le_garanti_legal_est_plus_haut():
-    """Légal : 1 284,79 garantis, 172,66 versés ; barème : 836,81 et 218,96."""
+def test_en_septembre_le_legal_l_emporte_sous_la_garantie_du_net():
+    """Barème : 836,81 garantis, mais 617,85 € d'IJ ramenées au brut ; légal :
+    1 284,79 garantis, 172,66 versés. C'est le constat de l'audit pour S.G. :
+    la loi lui donne plus que le texte lu au net."""
     r = _mois_sg(9, SEPTEMBRE, 1235.70)
     m = r["maintien"]
-    assert m["regle_retenue"] == "convention"
-    assert (m["maintien_cible"], m["ijss_deduites"], m["maintien_verse"]) == (836.81, 617.85, 218.96)
+    assert m["regle_retenue"] == "legal"
+    assert (m["maintien_cible"], m["maintien_verse"]) == (1284.79, 172.66)
     assert (
         "Plasturgie : limite de 135 jours atteinte le 15/09/2026, plus de maintien ensuite. "
         "Vérifier la prévoyance."
     ) in r["alertes"]
+
+
+def test_le_bareme_l_emporte_sur_le_verse_meme_si_le_garanti_legal_est_plus_haut(monkeypatch):
+    """Un salarié presque sans cotisations salariales (un apprenti, 2 %) : les
+    IJ nettes valent moins de brut. Barème : 836,81 − 588,22 = 248,59 versés ;
+    légal : 1 284,79 garantis, 172,66 versés. Le versé décide, pas le garanti."""
+    from app.modules.payroll.engine import maintien_salaire_service
+
+    monkeypatch.setattr(maintien_salaire_service, "taux_salarial_marginal", lambda *a, **k: 0.02)
+    m = _mois_sg(9, SEPTEMBRE, 1235.70)["maintien"]
+    assert m["regle_retenue"] == "convention"
+    assert (m["maintien_cible"], m["ijss_deduites"], m["maintien_verse"]) == (836.81, 617.85, 248.59)
 
 
 # --- Subrogation et réglage des IJSS -----------------------------------------
@@ -183,7 +203,7 @@ def test_avec_subrogation_le_garanti_moins_les_ijss_des_jours_maintenus():
     r = _mois_sg(6, JUIN, 1235.70, reglages=reglages, subrogation_active=True)
     assert r["subrogation_active"] is True
     m = r["maintien"]
-    assert (m["maintien_cible"], m["maintien_verse"]) == (2231.48, 995.78)
+    assert (m["maintien_cible"], m["maintien_verse"]) == (2231.48, 846.77)
     assert "ijss_deduites" not in m
     assert m["paliers"][0]["ijss_deduites"] == 1235.70
 
@@ -228,7 +248,7 @@ def test_un_deuxieme_arret_a_trois_jours_de_carence():
 def test_un_statut_absent_est_lu_non_cadre_et_le_bulletin_le_dit():
     r = _mois_sg(5, MAI, 1029.75, contexte=_contexte(statut=""))
     assert "Statut absent de la fiche : barème des non-cadres appliqué." in r["alertes"]
-    assert r["maintien"]["maintien_verse"] == 1030.09
+    assert r["maintien"]["maintien_verse"] == 905.92
 
 
 # --- Compatibilité : sans barème, rien ne change ------------------------------

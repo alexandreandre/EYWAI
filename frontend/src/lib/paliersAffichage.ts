@@ -44,6 +44,23 @@ export function titreDesPaliers(maintien: MaintenancePreview['maintien']): strin
     : maintien.bareme_detail;
 }
 
+/** « 6,7 % », « 21,84 % », « 22 % » : sans zéro inutile. */
+function pourcentCourt(taux: number): string {
+  const valeur = Math.round(taux * 10000) / 100;
+  return `${String(valeur).replace('.', ',')} %`;
+}
+
+/** La conversion des IJSS sous un barème qui garantit le net (conception du 03/11/2026). */
+export function phraseGarantieNette(garantie: NonNullable<MaintenancePreview['maintien']['garantie_nette']>): string {
+  const sens = garantie.reduction >= 0 ? 'réduit' : 'augmenté';
+  return (
+    `Garantie du net : les IJSS (${eurosFr(garantie.ijss_deduites)}) sont comptées nettes de CSG et CRDS ` +
+    `(${pourcentCourt(garantie.taux_ijss)}), puis ramenées au brut avec ${pourcentCourt(garantie.taux_salarial)} ` +
+    `de cotisations salariales. Maintien ${sens} de ${eurosFr(Math.abs(garantie.reduction))}.`
+  );
+}
+
 export function lignesDesPaliers(maintien: MaintenancePreview['maintien']): string[] {
-  return (maintien.paliers ?? []).map((p) => ligneDuPalier(p, Boolean(maintien.paliers_en_jours_ouvres)));
+  const lignes = (maintien.paliers ?? []).map((p) => ligneDuPalier(p, Boolean(maintien.paliers_en_jours_ouvres)));
+  return maintien.garantie_nette && lignes.length ? [...lignes, phraseGarantieNette(maintien.garantie_nette)] : lignes;
 }
