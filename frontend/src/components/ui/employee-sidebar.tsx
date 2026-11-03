@@ -47,6 +47,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { VersionDuSite } from "@/components/VersionDuSite";
 
 type NavItem = {
   to: string;
@@ -283,6 +284,7 @@ export function EmployeeSidebar() {
             <NotificationBell companyId={companyId} collapsed={collapsed} />
           </div>
         ) : null}
+        <VersionDuSite collapsed={collapsed} />
       </SidebarFooter>
     </Sidebar>
   );

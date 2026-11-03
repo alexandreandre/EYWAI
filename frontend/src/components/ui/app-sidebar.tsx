@@ -85,6 +85,7 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { NotificationBell } from "@/components/NotificationBell";
+import { VersionDuSite } from "@/components/VersionDuSite";
 import type { LucideIcon } from "lucide-react";
 
 type SidebarLinkItem = {
@@ -1310,6 +1311,7 @@ export function AppSidebar() {
           )}
           <SidebarAccountMenu collapsed={collapsed} />
         </div>
+        <VersionDuSite collapsed={collapsed} />
       </SidebarFooter>
     </Sidebar>
   );

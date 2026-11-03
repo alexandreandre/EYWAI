@@ -69,6 +69,18 @@ SUPPORT_RECIPIENTS = tuple(
 # Redirection temporaire des e-mails « nouveau bulletin » (vide = envoi au salarié).
 PAYSLIP_EMAIL_REDIRECT = os.getenv("PAYSLIP_EMAIL_REDIRECT", "").strip() or None
 
+# --- Version déployée -------------------------------------------------------------
+# Gravées dans l'image par le déploiement (build-args du Dockerfile) : une image
+# construite ailleurs dit « non étiquetée » au lieu d'afficher une version périmée.
+MARTINE_VERSION = os.getenv("MARTINE_VERSION", "").strip() or None
+MARTINE_COMMIT = os.getenv("MARTINE_COMMIT", "").strip() or None
+
+
+def version_deployee() -> dict:
+    """Étiquette `paie-AAAA-MM-JJ.N` et commit du code en ligne (None si inconnus)."""
+    return {"version": MARTINE_VERSION, "commit": MARTINE_COMMIT}
+
+
 # --- Environnement d'exécution -------------------------------------------------
 # "prod" (défaut) ou "test". Pilote les garde-fous de l'environnement de test :
 # redirection e-mail, blocage signature électronique et dépôt DSN.
