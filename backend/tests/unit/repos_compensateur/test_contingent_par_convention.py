@@ -61,3 +61,19 @@ def test_un_contingent_saisi_reste_celui_de_la_societe():
     )
     assert reglages.legal_cor_contingent_hours == 220.0
     assert ligne["legal_cor_contingent_hours"] == 220
+
+
+def test_creer_le_reglage_sans_contingent_ecrit_celui_de_la_convention():
+    """La colonne a 220 par défaut en base : une ligne créée sans le champ ne doit pas le prendre."""
+    client = MagicMock()
+    table = client.table.return_value
+    table.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(data=[])
+    with patch.object(settings_repository, "supabase", client), patch.object(
+        settings_repository, "_idcc_de_la_societe", return_value="0292"
+    ):
+        settings_repository.upsert_contingent_settings(
+            "societe-1", {"management_contingent_hours": 360}
+        )
+    ecrit = table.insert.call_args.args[0]
+    assert ecrit["legal_cor_contingent_hours"] == 130.0
+    assert ecrit["management_contingent_hours"] == 360

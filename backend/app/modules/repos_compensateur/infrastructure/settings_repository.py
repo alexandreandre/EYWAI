@@ -145,6 +145,9 @@ def upsert_contingent_settings(company_id: str, payload: dict[str, Any]) -> dict
         ).execute()
     else:
         row["created_at"] = now
+        # La colonne a 220 par défaut en base : sans ce champ, la plasturgie
+        # serait créée à 220 h au lieu de ses 130 h.
+        row = _avec_contingent_de_la_convention(company_id, row)
         supabase.table("company_overtime_contingent_settings").insert(row).execute()
 
     return get_contingent_settings_row(company_id)
