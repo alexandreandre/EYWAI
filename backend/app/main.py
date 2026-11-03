@@ -17,7 +17,12 @@ from app.core.constants import EXPOSED_HEADERS
 from app.core.supabase_resilience import is_transient_supabase_error
 from app.core.lifecycle import lifespan
 from app.core.logging import configure_logging, get_logger
-from app.core.settings import ALLOWED_ORIGINS_EXTRA, check_environment_consistency
+from app.core.settings import (
+    ALLOWED_ORIGINS_EXTRA,
+    MARTINE_VERSION,
+    check_environment_consistency,
+    version_deployee,
+)
 
 configure_logging()
 logger = get_logger(__name__)
@@ -60,7 +65,7 @@ Abonnez-vous aux événements métier via
 - payslip.validated, absence.approved
 - document.signed, recruitment.hired
     """,
-    version="1.0.0",
+    version=MARTINE_VERSION or "non étiquetée",
     contact={
         "name": "Martine Support",
         "email": "support@eywai.fr",
@@ -252,5 +257,6 @@ app.include_router(api_router)
 
 @app.get("/health")
 def healthcheck():
-    """Healthcheck pour vérifier que l'API est en ligne."""
-    return {"status": "ok"}
+    """L'API est en ligne, et quelle version du code répond (support : quel code
+    a calculé un bulletin)."""
+    return {"status": "ok", **version_deployee()}

@@ -36,6 +36,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copier tout le code de l'application
 COPY . .
 
+# Version déployée, gravée par deploy-test-env.yml (vide = image non étiquetée).
+# Après le code : ne défait pas le cache des dépendances.
+ARG MARTINE_VERSION=""
+ARG MARTINE_COMMIT=""
+ENV MARTINE_VERSION=${MARTINE_VERSION} MARTINE_COMMIT=${MARTINE_COMMIT}
+
 # --- ✅ Commande de démarrage : proxy headers pour HTTPS en prod (Cloud Run) ---
 # Lit le port depuis la variable $PORT fournie par Cloud Run.
 # --forwarded-allow-ips='*' : fait respecter X-Forwarded-Proto pour que les redirections
