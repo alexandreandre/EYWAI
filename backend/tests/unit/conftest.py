@@ -1,10 +1,29 @@
-"""Réglages communs aux tests unitaires : aucun appel à une vraie base."""
+"""Réglages communs aux tests unitaires : aucun appel à une vraie base.
+
+Deux serrures : la garde refuse de collecter si l'URL Supabase désigne une vraie
+base (sans dérogation possible), et le réseau est coupé pendant chaque test
+(`pytest-socket`) : un appel oublié échoue tout de suite au lieu d'attendre.
+"""
 
 from __future__ import annotations
 
 import pytest
+import pytest_socket
+
+from tests._garde_base_reelle import refuser_une_vraie_base
+
+refuser_une_vraie_base("unitaires", derogation_permise=False)
 
 from app.modules.payroll.documents import verrou_generation
+
+
+@pytest.fixture(autouse=True)
+def reseau_coupe():
+    """Aucune connexion réseau pendant un test unitaire ; les sockets Unix restent
+    permises (la boucle asyncio en a besoin)."""
+    pytest_socket.disable_socket(allow_unix_socket=True)
+    yield
+    pytest_socket.enable_socket()
 
 
 class VerrousEnMemoire:
