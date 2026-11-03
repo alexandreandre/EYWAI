@@ -2,8 +2,8 @@ import apiClient from '@/api/apiClient';
 
 export type SubrogationMode = 'when_maintien' | 'automatic' | 'at_mp_only' | 'per_case' | 'never';
 
-/** Barème de la convention (conception du 24/10/2026). */
-export type BaremeConvention = 'plasturgie_0292';
+/** Barème de la convention (24/10/2026 ; métallurgie le 03/11). */
+export type BaremeConvention = 'plasturgie_0292' | 'metallurgie_3248';
 
 export interface MaintenanceSettings {
   id: string | null;

@@ -17,10 +17,11 @@ const SRC = path.resolve(__dirname, "..");
 const lire = (rel: string) => readFileSync(path.join(SRC, rel), "utf8").replace(/\s+/g, " ");
 
 describe("Barème de la convention dans la carte « Maintien de salaire »", () => {
-  it("propose « Aucun » et la plasturgie", () => {
+  it("propose « Aucun », la plasturgie et la métallurgie", () => {
     expect(CHOIX_BAREME.map((c) => [c.libelle, c.code])).toEqual([
       ["Aucun : les réglages ci-dessous", null],
       ["Plasturgie (IDCC 0292)", "plasturgie_0292"],
+      ["Métallurgie (IDCC 3248)", "metallurgie_3248"],
     ]);
     expect(AIDE_BAREME).toContain("Revenir à « Aucun » rend les réglages manuels");
     expect(texteRegleParLeBareme("Plasturgie (IDCC 0292)")).toBe(

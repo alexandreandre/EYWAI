@@ -68,6 +68,18 @@ describe("Paliers de la convention au détail du maintien", () => {
     expect(lignesDesPaliers(JUILLET)).toHaveLength(2);
   });
 
+  it("sous le plafond au net (métallurgie), une dernière ligne dit le plafond", () => {
+    const plafond = {
+      ...JUILLET,
+      plafond_net: { taux_salarial: 0.2184, taux_ijss: 0.067, ijss_deduites: 900, reduction: 150.5 },
+    } as MaintenancePreview["maintien"];
+    expect(lignesDesPaliers(plafond).at(-1)).toBe(
+      "Plafond au net : le maintien ne peut pas dépasser le net que le salarié aurait perçu. " +
+        "Les IJSS (900,00 €) sont comptées nettes de CSG et CRDS (6,7 %), puis ramenées au brut " +
+        "avec 21,84 % de cotisations salariales. Maintien réduit de 150,50 €.",
+    );
+  });
+
   it("le titre dit le barème, ou le légal quand il l'emporte, et rien sans barème", () => {
     expect(titreDesPaliers(JUILLET)).toBe("Plasturgie (IDCC 0292), non-cadres, 5 ans et plus");
     expect(titreDesPaliers({ ...JUILLET, regle_retenue: "legal" })).toBe(

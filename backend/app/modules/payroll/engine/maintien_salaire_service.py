@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from app.modules.payroll.domain.baremes_maintien import (
     GARANTIE_NETTE,
+    GARANTIE_PLAFOND_NET,
     Bareme,
     bareme_des_reglages,
     mois_complets,
@@ -1810,6 +1811,11 @@ ALERTE_GARANTIE_NETTE_NON_CALCULEE = (
     "Garantie du net non calculée (taux de cotisations salariales non mesuré) : "
     "les IJSS brutes sont déduites, plus favorable au salarié."
 )
+#: La mesure du taux salarial a échoué : le maintien n'est pas plafonné.
+ALERTE_PLAFOND_NET_NON_CALCULE = (
+    "Plafond au net non calculé (taux de cotisations salariales non mesuré) : "
+    "le maintien n'est pas plafonné, plus favorable au salarié."
+)
 
 
 def _garantir_le_net(
@@ -1843,6 +1849,45 @@ def _garantir_le_net(
             **option,
             "verse": verse,
             "garantie_nette": {
+                "taux_salarial": taux,
+                "taux_ijss": taux_ijss,
+                "ijss_deduites": ijss,
+                "reduction": reduction,
+            },
+        },
+        False,
+    )
+
+
+def _plafonner_au_net(
+    option: Dict[str, Any], contexte: ContextePaie, base: BaseDesJours
+) -> Tuple[Dict[str, Any], bool]:
+    """L'option de la convention bornée au net (conception du 03/11, métallurgie).
+
+    Le garanti reste brut (IJSS brutes déduites) ; le versé ne peut dépasser le
+    net qu'aurait perçu le salarié : `versé ≤ valeur − IJ × (1 − s) / (1 − t)`,
+    avec la valeur des jours à 100 %. Le plafond ne fait que baisser le versé.
+    Rend l'option, et vrai si la mesure du taux a échoué (pas de plafond alors,
+    plus favorable au salarié).
+    """
+    ijss = round(sum(float(p.get("ijss_deduites") or 0.0) for p in option["paliers"]), 2)
+    if ijss <= 0:
+        return option, False
+    valeur = round(sum(float(p["valeur"]) for p in option["paliers"]), 2)
+    taux = taux_salarial_marginal(contexte, max(base.salaire_du_mois, valeur), valeur)
+    if taux is None:
+        return option, True
+    taux = round(taux, 4)
+    taux_ijss = round(taux_csg_crds_ijss((contexte.baremes or {}).get("maladie")), 4)
+    plafond = max(0.0, round(valeur - ijss_ramenees_au_brut(ijss, taux_ijss, taux), 2))
+    reduction = round(option["verse"] - plafond, 2)
+    if reduction <= 0:
+        return option, False
+    return (
+        {
+            **option,
+            "verse": plafond,
+            "plafond_net": {
                 "taux_salarial": taux,
                 "taux_ijss": taux_ijss,
                 "ijss_deduites": ijss,
@@ -1923,8 +1968,11 @@ def _calculer_maintien_au_bareme(
         {j: plan.taux_par_jour[j] for j in jours if j in plan.taux_par_jour}, **options
     )
     net_non_calcule = False
+    plafond_non_calcule = False
     if bareme.garantie == GARANTIE_NETTE:
         convention, net_non_calcule = _garantir_le_net(convention, contexte, base)
+    elif bareme.garantie == GARANTIE_PLAFOND_NET:
+        convention, plafond_non_calcule = _plafonner_au_net(convention, contexte, base)
     legal = _option_au_bareme(
         _taux_legaux_au_bareme(arret, qualification, contexte, anciennete_mois, date_debut_arret, jours),
         **options,
@@ -1953,6 +2001,8 @@ def _calculer_maintien_au_bareme(
             **retenue["deduction"],
             **({"garantie_nette": retenue["garantie_nette"]} if "garantie_nette" in retenue else {}),
             **({"garantie_nette_non_calculee": True} if net_non_calcule and not legal_retenu else {}),
+            **({"plafond_net": retenue["plafond_net"]} if "plafond_net" in retenue else {}),
+            **({"plafond_net_non_calcule": True} if plafond_non_calcule and not legal_retenu else {}),
         },
         retenue["taux_par_jour"],
     )
@@ -2208,15 +2258,16 @@ def _calculer_maintien_des_arrets_du_mois(
         legal = any((r.get("maintien") or {}).get("regle_retenue") == "legal" for r in resultats)
         maintien["regle_retenue"] = "legal" if legal else "convention"
         maintien["conflit_convention"] = legal
-    nettes = [(r.get("maintien") or {}).get("garantie_nette") for r in resultats]
-    nettes = [g for g in nettes if g]
-    maintien.pop("garantie_nette", None)
-    if nettes:
-        maintien["garantie_nette"] = {
-            **nettes[0],
-            "ijss_deduites": round(sum(g["ijss_deduites"] for g in nettes), 2),
-            "reduction": round(sum(g["reduction"] for g in nettes), 2),
-        }
+    for cle_garantie in ("garantie_nette", "plafond_net"):
+        parts = [(r.get("maintien") or {}).get(cle_garantie) for r in resultats]
+        parts = [g for g in parts if g]
+        maintien.pop(cle_garantie, None)
+        if parts:
+            maintien[cle_garantie] = {
+                **parts[0],
+                "ijss_deduites": round(sum(g["ijss_deduites"] for g in parts), 2),
+                "reduction": round(sum(g["reduction"] for g in parts), 2),
+            }
     carence = dict(resultats[0].get("carence") or {})
     carence["carence_ss_jours"] = _somme_entiere("carence", "carence_ss_jours")
     carence["carence_employeur_jours"] = _somme_entiere("carence", "carence_employeur_jours")
@@ -2633,6 +2684,8 @@ def calculer_maintien(
             )
     if maintien.get("garantie_nette_non_calculee"):
         alertes.append(ALERTE_GARANTIE_NETTE_NON_CALCULEE)
+    if maintien.get("plafond_net_non_calcule"):
+        alertes.append(ALERTE_PLAFOND_NET_NON_CALCULE)
     if maintien.get("conflit_convention"):
         alertes.append(
             "Règle conventionnelle moins favorable que la règle légale — application de la règle légale"

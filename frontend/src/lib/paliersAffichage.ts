@@ -60,7 +60,20 @@ export function phraseGarantieNette(garantie: NonNullable<MaintenancePreview['ma
   );
 }
 
+/** Le plafond au net sous un barème qui borne le maintien (métallurgie, 03/11/2026). */
+export function phrasePlafondNet(plafond: NonNullable<MaintenancePreview['maintien']['plafond_net']>): string {
+  return (
+    `Plafond au net : le maintien ne peut pas dépasser le net que le salarié aurait perçu. ` +
+    `Les IJSS (${eurosFr(plafond.ijss_deduites)}) sont comptées nettes de CSG et CRDS ` +
+    `(${pourcentCourt(plafond.taux_ijss)}), puis ramenées au brut avec ${pourcentCourt(plafond.taux_salarial)} ` +
+    `de cotisations salariales. Maintien réduit de ${eurosFr(Math.abs(plafond.reduction))}.`
+  );
+}
+
 export function lignesDesPaliers(maintien: MaintenancePreview['maintien']): string[] {
   const lignes = (maintien.paliers ?? []).map((p) => ligneDuPalier(p, Boolean(maintien.paliers_en_jours_ouvres)));
-  return maintien.garantie_nette && lignes.length ? [...lignes, phraseGarantieNette(maintien.garantie_nette)] : lignes;
+  if (!lignes.length) return lignes;
+  if (maintien.garantie_nette) return [...lignes, phraseGarantieNette(maintien.garantie_nette)];
+  if (maintien.plafond_net) return [...lignes, phrasePlafondNet(maintien.plafond_net)];
+  return lignes;
 }

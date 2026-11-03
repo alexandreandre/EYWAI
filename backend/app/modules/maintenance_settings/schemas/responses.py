@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 SubrogationMode = Literal["when_maintien", "automatic", "at_mp_only", "per_case", "never"]
-BaremeConvention = Literal["plasturgie_0292"]
+BaremeConvention = Literal["plasturgie_0292", "metallurgie_3248"]
 
 
 class MaintenanceSettings(BaseModel):

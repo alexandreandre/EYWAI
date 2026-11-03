@@ -89,12 +89,20 @@ def test_un_bareme_inconnu_est_refuse():
 
 
 def test_la_route_rend_le_tableau_du_bareme():
-    (plasturgie,) = baremes_lisibles()
-    assert plasturgie["code"] == "plasturgie_0292"
+    baremes = {b["code"]: b for b in baremes_lisibles()}
+    assert set(baremes) == {"plasturgie_0292", "metallurgie_3248"}
+    plasturgie = baremes["plasturgie_0292"]
     assert plasturgie["libelle"] == "Plasturgie (IDCC 0292)"
     assert plasturgie["categories"][0]["lignes"][1]["paliers"] == (
         "60 jours à 100 %, puis 75 jours à 75 %"
     )
+    assert baremes["metallurgie_3248"]["libelle"] == "Métallurgie (IDCC 3248)"
+
+
+def test_la_migration_de_la_metallurgie_etend_la_contrainte():
+    sql = (MIGRATION.parent / "20261103120000_bareme_metallurgie.sql").read_text(encoding="utf-8")
+    assert "'plasturgie_0292', 'metallurgie_3248'" in sql
+    assert "update public" not in sql
 
 
 def test_la_migration_ajoute_la_colonne_sans_toucher_aux_lignes():

@@ -327,6 +327,15 @@ export interface GarantieNette {
   reduction: number;
 }
 
+/** Plafond au net du maintien (métallurgie) : la même conversion des IJSS. */
+export interface PlafondNet {
+  taux_salarial: number;
+  taux_ijss: number;
+  ijss_deduites: number;
+  /** Lecture brute moins versé plafonné : toujours positif quand le plafond mord. */
+  reduction: number;
+}
+
 export interface MaintenancePreview {
   qualification: {
     carence_ss_jours: number;
@@ -373,6 +382,8 @@ export interface MaintenancePreview {
     paliers_en_jours_ouvres?: boolean;
     /** Barème qui garantit le net (plasturgie) : la conversion des IJSS. */
     garantie_nette?: GarantieNette;
+    /** Barème plafonné au net (métallurgie) : la conversion des IJSS. */
+    plafond_net?: PlafondNet;
   };
   prevoyance: {
     prevoyance_declenchee: boolean;

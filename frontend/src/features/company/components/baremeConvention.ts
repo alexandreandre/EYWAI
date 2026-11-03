@@ -17,6 +17,7 @@ export const CHOIX_BAREME: ReadonlyArray<{
 }> = [
   { valeur: AUCUN_BAREME, libelle: 'Aucun : les réglages ci-dessous', code: null },
   { valeur: 'plasturgie_0292', libelle: 'Plasturgie (IDCC 0292)', code: 'plasturgie_0292' },
+  { valeur: 'metallurgie_3248', libelle: 'Métallurgie (IDCC 3248)', code: 'metallurgie_3248' },
 ];
 
 export const AIDE_BAREME =

@@ -175,19 +175,34 @@ def plan_conventionnel(
 ) -> PlanConventionnel:
     """Rejoue les arrêts : le taux de chaque jour indemnisé, et chaque arrêt."""
     categorie = bareme.categorie(est_cadre)
+    par_annee = bareme.anciennete_et_paliers_par_annee
     taux_par_jour: dict[date, float] = {}
     rejoues: list[ArretRejoue] = []
     premiers: set[int] = set()
     reliquats: dict[int, int] = {}
     indemnises_par_an: dict[int, int] = {}
     dernier_par_an: dict[int, date] = {}
+
+    def _tranche_au(jour: date, famille: str) -> Optional[Tranche]:
+        mois = mois_complets(date_anciennete, jour) if date_anciennete else 0
+        return tranche_pour(bareme, est_cadre=est_cadre, mois_anciennete=mois, famille=famille)
+
     for chaine in _chaines(arrets):
         debut = chaine[0].debut
         type_arret = chaine[0].type_arret
         famille = famille_du_type(type_arret)
         mois = mois_complets(date_anciennete, debut) if date_anciennete else 0
         jours = tuple(sorted({j for a in chaine for j in _jours(a.debut, a.fin)}))
-        tranche = tranche_pour(bareme, est_cadre=est_cadre, mois_anciennete=mois, famille=famille)
+        if par_annee:
+            # Ancienneté lue chaque jour : la tranche d'affichage est la plus
+            # haute atteinte sur l'arrêt (None si le droit ne s'ouvre jamais).
+            tranche = None
+            for j in jours:
+                t = _tranche_au(j, famille)
+                if t is not None and (tranche is None or t.limite > tranche.limite):
+                    tranche = t
+        else:
+            tranche = tranche_pour(bareme, est_cadre=est_cadre, mois_anciennete=mois, famille=famille)
         rejoue = ArretRejoue(
             debut=debut, fin=jours[-1], type_arret=type_arret, famille=famille,
             mois_anciennete=mois, tranche=tranche, jours=jours,
@@ -205,15 +220,23 @@ def plan_conventionnel(
         taux_precedent: Optional[float] = None
         refus: Optional[date] = None
         for jour in jours[carence:]:
-            if rang >= tranche.limite or indemnises_par_an.get(jour.year, 0) >= tranche.limite:
+            tranche_j = _tranche_au(jour, famille) if par_annee else tranche
+            if tranche_j is None:
+                continue  # pas encore l'ancienneté requise (acquise en cours d'arrêt)
+            annee_count = indemnises_par_an.get(jour.year, 0)
+            # Le rang d'un jour est le plus grand des jours déjà indemnisés pour
+            # l'arrêt et dans l'année (métallurgie) ; pour la plasturgie, le rang
+            # de l'arrêt (l'année n'étant alors qu'un plafond : même bloc).
+            if max(rang, annee_count) >= tranche_j.limite:
                 refus = refus or jour
-                if rang >= tranche.limite:
+                if rang >= tranche_j.limite:
                     break
                 continue
             rang += 1
-            indemnises_par_an[jour.year] = indemnises_par_an.get(jour.year, 0) + 1
+            indemnises_par_an[jour.year] = annee_count + 1
             dernier_par_an[jour.year] = jour
-            taux = tranche.taux_du_rang(rang)
+            rang_taux = max(rang, annee_count + 1) if par_annee else rang
+            taux = tranche_j.taux_du_rang(rang_taux)
             taux_par_jour[jour] = taux
             if taux != taux_precedent:
                 rejoue.bascules.append((jour, taux))

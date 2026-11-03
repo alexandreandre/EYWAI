@@ -5,8 +5,8 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, field_validator
 
 SubrogationModeLiteral = Literal["when_maintien", "automatic", "at_mp_only", "per_case", "never"]
-#: Barème de la convention (conception du 24/10/2026) ; None : réglages manuels.
-BaremeConventionLiteral = Literal["plasturgie_0292"]
+#: Barème de la convention (24/10/2026, métallurgie le 03/11) ; None : réglages manuels.
+BaremeConventionLiteral = Literal["plasturgie_0292", "metallurgie_3248"]
 
 
 class MaintenanceSettingsUpdate(BaseModel):

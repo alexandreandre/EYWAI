@@ -11,6 +11,9 @@ from datetime import date
 from typing import Any, Mapping, Optional
 
 from app.modules.payroll.domain.baremes_maintien import (
+    FAMILLE_ACCIDENT_TRAVAIL,
+    FAMILLE_MALADIE,
+    FAMILLE_TRAJET,
     Bareme,
     bareme_par_code,
     libelle_tranche,
@@ -46,10 +49,23 @@ def detail_du_bareme(bareme: Bareme, est_cadre: bool, arret: Any) -> str:
     return texte
 
 
+def _sans_carence_du_tout(bareme: Bareme) -> bool:
+    """Un barème sans carence pour personne (métallurgie)."""
+    return bareme.non_cadres.carence_jours <= 0 and bareme.cadres.carence_jours <= 0
+
+
 def motif_sans_droit(bareme: Bareme, arret: Any) -> str:
     mois = int(getattr(arret, "mois_anciennete", 0) or 0)
+    famille = getattr(arret, "famille", FAMILLE_MALADIE)
+    if famille == FAMILLE_ACCIDENT_TRAVAIL and bareme.anciennete_requise_at_mp_mois > 0:
+        return (
+            f"{bareme.nom_court} : {bareme.anciennete_requise_at_mp_mois} mois d'ancienneté "
+            f"requis pour un accident du travail ou une maladie professionnelle "
+            f"({mois} mois au début de l'arrêt)."
+        )
+    quoi = "un accident de trajet" if famille == FAMILLE_TRAJET else "une maladie"
     return (
-        f"{bareme.nom_court} : un an d'ancienneté requis pour une maladie "
+        f"{bareme.nom_court} : un an d'ancienneté requis pour {quoi} "
         f"({mois} mois au début de l'arrêt)."
     )
 
@@ -58,6 +74,8 @@ def motif_carence_du_bareme(bareme: Bareme, arret: Any) -> str:
     nom = bareme.nom_court
     if getattr(arret, "tranche", None) is None:
         return motif_sans_droit(bareme, arret)
+    if _sans_carence_du_tout(bareme):
+        return f"{nom} : pas de carence."
     raison = getattr(arret, "raison_carence", "")
     if raison == _RAISON_CADRE:
         return f"{nom}, cadres : pas de carence."
