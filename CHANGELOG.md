@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+(rien)
+
+## paie-2026-11-03.1 — 3 novembre 2026
+
 ### Des textes qui disent vrai
 - La pastille orange en haut à droite dit « Données réelles · envois limités » au lieu de « Environnement de test ».
 - En la survolant : vos données sont réelles et conservées, et ce qui ne part pas encore (e-mails des salariés, DSN, signature, comptable).
