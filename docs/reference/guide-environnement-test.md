@@ -1,150 +1,88 @@
-# Environnement de test — guide d'utilisation
+# Le site de paie (projet « test ») — guide d'utilisation
 
-Date : 2026-07-29
+Mis à jour : 2026-11-03 (la version du 29/07 décrivait une copie d'essai ; ce n'est plus vrai).
 
 ## En une phrase
 
-Il existe désormais **deux EYWAI** : celui de tous les jours, et une copie sur
-laquelle on peut tout essayer sans rien casser.
+Le site dit « de test » est **le site où se fait la paie réelle** depuis septembre 2026 :
+les données y sont vraies et conservées. Il deviendra la production à la bascule ;
+d'ici là, quatre envois y restent coupés.
 
-## Les deux environnements
+## Les deux sites
 
-| | Production | Test |
+| | Site de paie (projet « test ») | Ancienne production |
 |---|---|---|
-| Adresse | `sirh-frontend-505040845625.europe-west1.run.app` | `sirh-frontend-test-505040845625.europe-west1.run.app` |
-| Données | les vraies | une **copie** des vraies |
-| Conséquences | réelles | aucune |
-| Reconnaissable à | rien de particulier | un **bandeau orange** en haut de chaque page |
+| Adresse | `sirh-frontend-test-505040845625.europe-west1.run.app` | `sirh-frontend-505040845625.europe-west1.run.app` |
+| Données | **réelles**, saisies par la gestionnaire de paie | anciennes, plus mises à jour |
+| Utilisé pour | la paie du mois | rien (image du 16/09, déploiement coupé) |
+| Reconnaissable à | une pastille orange « Données réelles · envois limités » en haut à droite | pas de pastille |
 
-Les identifiants sont les mêmes des deux côtés. Chacun retrouve ses droits
-habituels dans le test.
+La version en ligne s'affiche en bas du menu (« Version paie-AAAA-MM-JJ.N ») et dans
+`/health` du backend. La donner quand on signale un écart.
 
-## La règle à retenir
+## Ce qui ne part pas depuis ce site
 
-**Le test copie la production. La production n'a jamais connaissance du test.**
+Ces blocages sont des verrous du code (`APP_ENV=test`), pas des consignes :
 
-Ce qui est fait dans le test — une démission, une suppression, un bulletin
-généré — n'existe que là. Ce qui est fait en production ne descend dans le test
-qu'au moment d'une resynchro, décidée à la main.
+- **E-mails** : ceux de l'équipe RH (accès admin, rh, collaborateur_rh, ou rôle avec
+  une permission RH) partent aux vraies adresses ; ceux des salariés partent vers une
+  boîte de contrôle unique, le destinataire prévu étant indiqué dans l'objet. Le
+  service refuse de démarrer si cette redirection n'est pas configurée.
+- **DSN** : aucun dépôt par l'API net-entreprises ; la DSN se dépose à la main.
+- **Signature électronique** : refusée, aucun salarié ne reçoit de demande.
+- **Cabinet comptable** : la transmission automatique retombe en mode manuel.
 
-## Ce qui ne peut pas partir depuis le test
+## Ce qu'il ne faut pas faire
 
-Les données étant réelles, trois sorties sont bloquées pour éviter d'atteindre
-de vraies personnes :
+- **Ne pas « essayer pour voir »** : une sortie, une suppression, un bulletin généré
+  sont réels. Pour essayer un geste inconnu, demander d'abord à l'équipe.
+- **Ne pas resynchroniser depuis l'ancienne production** : cela effacerait la paie
+  réelle. C'est verrouillé trois fois (phrase `EFFACER LA BASE DE TEST` exigée ;
+  refus si une société a une reprise de paie, table `company_payroll_takeover` ;
+  route `POST /api/test-env/refresh` réservée aux super admins et sans jeton GitHub
+  posé). Le workflow « Refresh test from prod » est désactivé depuis le 24/09/2026.
+- **Ne pas faire tourner les tests contre cette base** : `backend/tests/conftest.py`
+  impose une base factice avant tout import, et les tests unitaires coupent le réseau
+  et refusent une vraie base. La dérogation `MARTINE_TESTS_BASE_REELLE=oui` (tests
+  d'intégration et e2e seulement) est réservée à une base jetable créée pour ça.
 
-- **Les e-mails** partent tous vers une boîte unique, jamais aux salariés. Le
-  destinataire prévu est indiqué dans l'objet du message.
-- **La signature électronique** est refusée : aucun salarié ne reçoit de
-  demande de signature.
-- **Le dépôt de DSN** est refusé : rien n'est transmis à l'URSSAF.
+## Sauvegardes
 
-Ces blocages ne sont pas une consigne mais un verrou technique : le service de
-test **refuse de démarrer** si la redirection des e-mails n'est pas configurée.
-
-## La resynchro
-
-La resynchro remet le test à l'état exact de la production.
-
-**Elle efface tout ce qui a été fait dans le test.** Une démission d'essai, un
-bulletin généré pour voir, une fiche modifiée : tout disparaît et est remplacé
-par les données réelles du moment.
-
-**Verrouillée depuis le 24/09/2026.** La base de test porte une vraie paie :
-Colorplast y fait la sienne depuis sa reprise (bulletins importés de Quadra,
-paie d'août en cours). Trois verrous :
-
-- le workflow exige de taper `EFFACER LA BASE DE TEST` ;
-- le script refuse d'écraser une base où une société a une reprise de paie
-  (table `company_payroll_takeover`), sauf `REFRESH_ECRASER_PAIE_REELLE=oui`
-  posé à la main, en connaissance de cause ;
-- la route `POST /api/test-env/refresh` est réservée aux super admins.
-
-Tant que Colorplast fait sa paie ici, **ne pas resynchroniser**. Le workflow
-est d'ailleurs désactivé sur GitHub depuis le 24/09/2026 : les verrous vivent
-sur la branche de travail, et un workflow manuel tourne avec la version de
-`main`. Le réactiver (`gh workflow enable "Refresh test from prod"`) seulement
-une fois ces verrous arrivés sur `main`. Il n'existe
-aujourd'hui ni bandeau ni bouton de resynchro dans l'application.
-
-La base de test est sauvegardée chaque nuit par Supabase (7 jours de rétention,
-sans restauration à la minute : une restauration peut perdre jusqu'à une
-journée de saisie). Vérifier : `supabase backups list --project-ref <ref du test>`.
-
-## Bonnes pratiques
-
-**Pour les personnes qui testent**
-
-- Tout essayer dans le test, y compris ce qu'on n'oserait jamais faire en
-  production : sortir un salarié, supprimer une fiche, lancer une paie.
-- Vérifier le bandeau orange avant toute manipulation destructrice. Pas de
-  bandeau = production.
-- Ne pas compter sur la durée : le test peut être remis à zéro à tout moment.
-  Ce qui doit être conservé se note ailleurs, avec une capture d'écran.
-- Signaler un problème en précisant l'environnement, la date et l'heure.
-
-**Pour l'administration**
-
-- Prévenir avant chaque resynchro.
-- Faire valider une nouveauté dans le test avant de la livrer en production.
-- La production ne se déploie plus sans approbation explicite (règle de
-  révision obligatoire sur l'environnement GitHub `production`).
-- **Ne pas laisser un déploiement en attente d'approbation** : le verrou de
-  concurrence de `deploy.yml` met tous les suivants en file, sans message
-  d'erreur. Un déploiement qui ne démarre jamais est presque toujours une
-  approbation oubliée.
+Sauvegarde quotidienne par Supabase, 7 jours, sans restauration à la minute : une
+restauration peut perdre jusqu'à une journée de saisie. Le stockage des fichiers
+n'est dans aucune sauvegarde (audit du 03/11/2026, R3). Vérifier :
+`supabase backups list --project-ref <ref du projet test>`.
 
 ## Côté technique
 
-**Déployer une branche sur le test**, pour faire valider une nouveauté avant
-livraison :
+**Déployer** (environ 6 minutes, puis l'E2E rejoue la suite) :
 
 ```bash
 gh workflow run deploy-test-env.yml --ref <branche>
 ```
 
-Ne touche jamais la production : services, base et variables sont ceux du test.
+- Refusé si la CI n'est pas verte sur le commit (ou, pour un commit de documentation
+  seule, sur le dernier commit de code avant lui) ; une CI en cours est attendue.
+- Les jobs qui écrivent passent par l'environnement GitHub `paie-reelle` (relecteur,
+  branches autorisées).
+- Un déploiement réussi pose l'étiquette `paie-AAAA-MM-JJ.N` (date de Paris) sur le
+  commit ; le résumé du run signale un commit qui ne contient pas la version en ligne.
+- Trois lignes par changement dans `CHANGELOG.md`, en mots d'utilisatrice.
 
-**Lancer une resynchro** (voir les verrous plus haut ; refusée tant qu'une
-société a une reprise de paie sur le test) :
+**Migrations** : jamais automatiques. Une migration s'applique en la nommant au
+déploiement, dans une transaction qui l'inscrit aussi au registre :
 
 ```bash
-gh workflow run refresh-test-from-prod.yml -f confirmation="EFFACER LA BASE DE TEST"
+gh workflow run deploy-test-env.yml --ref <branche> -f migration=AAAAMMJJHHMMSS_nom.sql
 ```
 
-**Ce que la resynchro copie** : le schéma `public` (schéma et données), les
-comptes de connexion (`auth.users` et `auth.identities`), et les fichiers
-Storage. Elle rétablit ensuite les droits d'API, supprime la configuration SMTP
-héritée de la production et vide les notifications en attente.
+Les migrations du dépôt sont idempotentes ; toute nouvelle migration a un horodatage
+unique. Le registre de la base de test ne correspond pas encore aux fichiers (audit
+du 03/11/2026, R4) : ne pas lancer `supabase db push`.
 
-**Garantie de non-écriture** : la lecture de la production passe par un rôle
-PostgreSQL dédié, `eywai_replica_reader`, dont toutes les sessions sont forcées
-en lecture seule. Un `UPDATE`, un `INSERT` ou un `DELETE` y est refusé par le
-serveur lui-même — pas par une consigne.
+**Variables du service backend** : le déploiement repose les siennes
+(`--update-env-vars`) et garde les autres ; la liste de celles à poser une fois à la
+main est en commentaire dans `.github/workflows/deploy-test-env.yml`.
 
-**Migrations** : elles s'appliquent automatiquement à chaque déploiement, via
-le job `migrate` de `deploy.yml` (secret `SUPABASE_DB_URL`). Trois obstacles ont
-dû être levés pour y arriver, à connaître si le sujet ressurgit :
-
-1. L'historique n'existait pas — le schéma `supabase_migrations` était absent en
-   production alors que les 159 migrations étaient bel et bien appliquées. Il a
-   été rattrapé par inscription, **sans exécuter leur contenu**.
-2. Neuf horodatages étaient partagés par vingt fichiers. La CLI utilise
-   l'horodatage comme clé primaire : onze migrations restaient invisibles et
-   `supabase db push` sortait en code 1. Les fichiers ont été décalés d'une à
-   deux secondes. **Toute nouvelle migration doit avoir un horodatage unique.**
-3. La connexion passe par le *pooler* (`aws-1-eu-west-3.pooler.supabase.com`,
-   port 5432, mode session). L'adresse directe n'est joignable qu'en IPv6, dont
-   les exécutants GitHub ne disposent pas toujours ; et le port 6543 (mode
-   transaction) ne supporte pas certaines instructions de migration.
-
-**Conception détaillée** :
+**Conception d'origine** (copie d'essai, juillet 2026) :
 `docs/superpowers/specs/2026-07-28-environnement-test-donnees-reelles-design.md`
-
-## Points ouverts
-
-- Les e-mails du test partent tous vers `eywaitest@gmail.com`.
-- La route `POST /api/test-env/refresh` (super admins) nécessite un jeton
-  GitHub à portée restreinte (`GITHUB_DISPATCH_TOKEN`) sur le service de test ;
-  il n'y est pas posé (vérifié le 24/09/2026). Sans confirmation dans
-  `client_payload`, le workflow ainsi déclenché refuse de toute façon.
-- ~~Migrations non automatisées~~ — **résolu le 2026-07-31.**
