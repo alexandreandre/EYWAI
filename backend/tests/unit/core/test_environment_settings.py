@@ -7,9 +7,18 @@ import pytest
 from app.core import settings
 
 
-def test_app_env_defaut_est_prod():
-    assert settings.APP_ENV == "prod"
-    assert settings.is_test_environment() is False
+def test_app_env_defaut_est_prod(monkeypatch):
+    # Le défaut se lit sans APP_ENV ni `.env` : un poste qui pose APP_ENV=test
+    # ne doit pas faire mentir ce test.
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setattr("dotenv.load_dotenv", lambda *_a, **_k: False)
+    importlib.reload(settings)
+    try:
+        assert settings.APP_ENV == "prod"
+        assert settings.is_test_environment() is False
+    finally:
+        monkeypatch.undo()
+        importlib.reload(settings)
 
 
 def test_is_test_environment_vrai_quand_app_env_test(monkeypatch):
