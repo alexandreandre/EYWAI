@@ -73,6 +73,8 @@ DEFAULT_COLUMN_ALIASES = {
     ),
     "exit_2": ("sortie 2", "sortie2", "exit_2", "exit2"),
     "exit_1": ("sortie 1", "sortie1", "exit_1", "exit1"),
+    "entry_2": ("entree 2", "entree2", "entry_2", "entry2"),
+    "entry_3": ("entree 3", "entree3", "entry_3", "entry3"),
     "shift_code": (
         "code horai",
         "code horaire",
@@ -94,6 +96,12 @@ class TabularDayRow:
     exit_raw: object = None
     shift_code: Optional[str] = None
     raw_payload: Dict[str, Any] = field(default_factory=dict)
+    # Pause visible entre les paires entrée/sortie de la journée (None : une
+    # seule paire, la pause n'est pas connue).
+    punched_break_minutes: Optional[int] = None
+    # Badges de la ligne, dans l'ordre des colonnes : ("E"|"S", minutes).
+    punches: List[Tuple[str, int]] = field(default_factory=list)
+    notes: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -413,6 +421,19 @@ def parse_tabular_file(
     exit_1_col = mapping.get("exit_1")
     use_last_exit = bool(opts.get("use_last_nonzero_exit", True))
     skip_period_filter = bool(opts.get("skip_period_filter"))
+    # Trois paires entrée/sortie (badgeuse type PMI) : la journée se lit sur
+    # toute la séquence des badges, poste de nuit compris.
+    colonnes_paires = (
+        ("E", entry_col),
+        ("S", exit_1_col),
+        ("E", mapping.get("entry_2")),
+        ("S", exit_2_col),
+        ("E", mapping.get("entry_3")),
+        ("S", exit_col),
+    )
+    paires_mode = bool(
+        punch_pairs_mode and use_last_exit and mapping.get("entry_2") and exit_1_col
+    )
 
     decimal_sep = str(opts.get("decimal_separator") or "")
     if not decimal_sep and hours_col:
@@ -497,6 +518,13 @@ def parse_tabular_file(
             else None
         )
 
+        punches: List[Tuple[str, int]] = []
+        if paires_mode:
+            for kind, col in colonnes_paires:
+                minutes = _minutes_badge(row.get(col)) if col else None
+                if minutes is not None:
+                    punches.append((kind, minutes))
+
         result.rows.append(
             TabularDayRow(
                 matricule=mat or None,
@@ -509,9 +537,13 @@ def parse_tabular_file(
                 exit_raw=exit_raw,
                 shift_code=shift_code,
                 raw_payload=dict(row),
+                punches=punches,
             )
         )
         parsed_count += 1
+
+    if paires_mode:
+        _retraiter_paires(result.rows)
 
     if parsed_count == 0:
         result.confidence = 0.0
@@ -522,6 +554,104 @@ def parse_tabular_file(
         result.confidence = 0.75 if punch_pairs_mode else 0.65
 
     return result
+
+
+def _minutes_badge(raw: Any) -> Optional[int]:
+    """800 → 480, « 16:30 » → 990 ; 0, vide ou illisible → None."""
+    from app.modules.schedules.domain.punch_accounting_rules import parse_hhmm_value
+
+    if not _raw_time_present(raw):
+        return None
+    if isinstance(raw, float) and raw.is_integer():
+        raw = int(raw)
+    return parse_hhmm_value(raw)
+
+
+def _hhmm(minutes: int) -> int:
+    return (minutes // 60) * 100 + minutes % 60
+
+
+def _libelle(minutes: int) -> str:
+    return f"{minutes // 60} h {minutes % 60:02d}"
+
+
+def _retraiter_paires(rows: List[TabularDayRow]) -> None:
+    """Première entrée, dernière sortie, pause entre paires, postes de nuit.
+
+    Un poste de nuit commence sur la ligne du jour (entrée à 20 h, sans
+    sortie) et finit sur la ligne du lendemain (sortie à 4 h avant toute
+    entrée) : la sortie est rattachée à la veille. Une entrée seule qui
+    n'est pas suivie d'une telle sortie reste une entrée sans sortie.
+    """
+    from datetime import date as _date
+
+    par_salarie: Dict[str, List[TabularDayRow]] = {}
+    for r in rows:
+        par_salarie.setdefault(r.matricule or r.raw_name or "", []).append(r)
+
+    for lignes in par_salarie.values():
+        lignes.sort(key=lambda r: (r.year, r.month, r.jour))
+        veille: Optional[TabularDayRow] = None
+        entree_en_suspens: Optional[int] = None
+        for r in lignes:
+            seq = list(r.punches)
+            jour = _date(r.year, r.month, r.jour)
+            if (
+                entree_en_suspens is not None
+                and veille is not None
+                and (jour - _date(veille.year, veille.month, veille.jour)).days == 1
+                and seq
+                and seq[0][0] == "S"
+            ):
+                sortie = seq.pop(0)[1]
+                if veille.exit_raw is not None:
+                    # La veille a déjà son poste de jour : deux postes le même
+                    # jour ne tiennent pas dans une entrée et une sortie.
+                    veille.notes.append(
+                        f"Deuxième poste {_libelle(entree_en_suspens)} → "
+                        f"{_libelle(sortie)} non compté : à saisir à la main."
+                    )
+                else:
+                    veille.entry_raw = _hhmm(entree_en_suspens)
+                    veille.exit_raw = _hhmm(sortie)
+                    veille.punched_break_minutes = None
+                r.notes.append(
+                    f"Sortie à {_libelle(sortie)} rattachée au poste de nuit de la veille."
+                )
+            entree_en_suspens = None
+
+            premiere_entree = next((i for i, p in enumerate(seq) if p[0] == "E"), None)
+            derniere_sortie = max(
+                (i for i, p in enumerate(seq) if p[0] == "S"
+                 and premiere_entree is not None and i > premiere_entree),
+                default=None,
+            )
+            if premiere_entree is None:
+                r.entry_raw = None
+                r.exit_raw = _hhmm(seq[0][1]) if seq else None
+            elif derniere_sortie is None:
+                r.entry_raw = _hhmm(seq[premiere_entree][1])
+                r.exit_raw = None
+                entree_en_suspens = seq[premiere_entree][1]
+            else:
+                poste = seq[premiere_entree : derniere_sortie + 1]
+                r.entry_raw = _hhmm(poste[0][1])
+                r.exit_raw = _hhmm(poste[-1][1])
+                pauses = [
+                    poste[i + 1][1] - poste[i][1]
+                    for i in range(len(poste) - 1)
+                    if poste[i][0] == "S" and poste[i + 1][0] == "E"
+                ]
+                r.punched_break_minutes = (
+                    sum(max(0, p) for p in pauses) if pauses else None
+                )
+                suite = seq[derniere_sortie + 1 :]
+                if suite and suite[-1][0] == "E":
+                    entree_en_suspens = suite[-1][1]
+                    r.notes.append(
+                        f"Entrée à {_libelle(suite[-1][1])} sans sortie ce jour-là."
+                    )
+            veille = r
 
 
 def _raw_time_present(raw: Any) -> bool:

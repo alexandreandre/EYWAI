@@ -81,6 +81,9 @@ class AiDayEntry(BaseModel):
     punch_entry_raw: Optional[str] = None
     punch_exit_raw: Optional[str] = None
     shift_code: Optional[str] = None
+    # Pause vue entre les paires de badges (relevé à trois paires) : plafonne
+    # la pause du créneau (une demi-journée sans déjeuner ne perd pas 45 min).
+    punch_break_minutes: Optional[int] = None
     planned_paid_break_minutes: Optional[int] = None
     # Mois/année réels du jour si différents du (year, month) de la proposition
     # (semaine hebdomadaire à cheval sur deux mois). None = utiliser le mois de

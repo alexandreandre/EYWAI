@@ -120,15 +120,28 @@ def apply_punch_accounting_to_proposal(
                     if day.planned_paid_break_minutes
                     else None
                 ),
+                punched_break_minutes=day.punch_break_minutes,
             )
 
-            if result.is_absent:
-                new_days.append(
-                    day.model_copy(update={"heures": 0.0, "type": "absence"})
-                )
+            if result.is_absent or result.is_incomplete:
+                # Sans badge, ou avec un seul : le jour reste VIDE, à compléter
+                # par la RH (heures, ou case « absent » puis son type). Une
+                # « absence » à 0 h faisait retenir une absence injustifiée
+                # dès qu'on forçait la paie.
+                for alert in result.alerts:
+                    warnings.append(f"Jour {day.jour} : {alert}")
+                    quality_checks.append(
+                        TimesheetQualityCheck(
+                            level="warning",
+                            code="punch_incomplete",
+                            message=f"Jour {day.jour} : {alert}",
+                            employee_raw_name=emp.raw_name,
+                            matricule=emp.time_tracking_id,
+                        )
+                    )
+                new_days.append(day.model_copy(update={"heures": None}))
                 continue
 
-            warnings = list(emp.warnings)
             for alert in result.alerts:
                 warnings.append(f"Jour {day.jour} : {alert}")
                 quality_checks.append(

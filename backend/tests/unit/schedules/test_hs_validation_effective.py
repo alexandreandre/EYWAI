@@ -164,9 +164,13 @@ def test_la_retention_ne_credite_jamais_plus_que_le_pointe():
     )
     jour = PunchDayInput(entry_minutes=300, exit_minutes=315, shift_code="M")
     r = compute_punch_day(jour, _SETTINGS_AVEC_REVUE, [slot])
-    assert r.needs_review is True
     assert r.accounted_hours == r.pointed_net_hours
     assert r.accounted_hours <= 0.25
+    # 03/11 : les heures en plus sont plafonnées au temps fait au-delà du
+    # théorique ; 15 min badgées n'en font aucune, rien à valider (une revue
+    # de 3 h aurait crédité 3 h une fois approuvée).
+    assert r.overtime_hours == 0.0
+    assert r.needs_review is False
 
 
 def test_le_reimport_ne_retrograde_pas_une_revue_approuvee():

@@ -57,6 +57,10 @@ class PunchDayInput:
     # Pause réellement badgée (amplitude − séquences travaillées) : quand
     # elle est connue, elle prime sur toute estimation (créneau, forfait).
     measured_break_minutes: int | None = None
+    # Pause visible sur les pointages intermédiaires d'un relevé à horaires
+    # fixes : elle PLAFONNE la pause du créneau (une demi-journée sans
+    # déjeuner ne perd pas 45 min) sans changer la détection avance/dépassement.
+    punched_break_minutes: int | None = None
 
 
 @dataclass(frozen=True)
@@ -70,6 +74,9 @@ class PunchDayResult:
     alerts: tuple[str, ...] = field(default_factory=tuple)
     applied_slot_id: str | None = None
     is_absent: bool = False
+    # Un seul badge, ou une entrée sans sortie (ou l'inverse) : la journée
+    # n'est ni travaillée ni absente, elle reste à compléter par la RH.
+    is_incomplete: bool = False
 
 
 THREE_DAILY_SLOTS_PRESET: tuple[dict, ...] = (
