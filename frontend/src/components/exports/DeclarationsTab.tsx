@@ -38,7 +38,8 @@ export function DeclarationsTab() {
     {
       id: "attestations-annexes",
       name: "Attestations & annexes",
-      description: "Attestations de salaire par collaborateur (mutuelle, RQTH à venir)",
+      description:
+        "Brut, net imposable et net payé de chaque salarié pour le mois (justificatif pour une mutuelle, une banque…). Les attestations pour la CPAM et France Travail partent dans la DSN.",
       icon: Shield,
     },
   ];
