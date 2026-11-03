@@ -98,6 +98,8 @@ def _build_counts(anomalies: List[PreflightAnomaly]) -> PreflightAnomalyCounts:
             counts.fenetre_modifiee += 1
         elif a.type == "fiche_dsn":
             counts.fiche_dsn += 1
+        elif a.type == "absent_a_typer":
+            counts.absent_a_typer += 1
         if a.severity == "bloquant":
             counts.bloquant += 1
         else:
@@ -267,6 +269,25 @@ def build_preflight_anomalies(
                 HeuresSurArretSalarie(
                     employee_id=eid,
                     jours=[c.en_detail() for c in periode.conflits],
+                )
+            )
+        if periode is not None and periode.absents_a_typer:
+            from app.modules.schedules.domain.absent_a_typer import message_absents_a_typer
+
+            anomalies.append(
+                PreflightAnomaly(
+                    id=_anomaly_id(eid, "absent_a_typer"),
+                    employee_id=eid,
+                    employee_name=name,
+                    team_id=team_id,
+                    type="absent_a_typer",
+                    severity="bloquant",
+                    status="a_traiter",
+                    is_forfait_jour=forfait,
+                    jours_manquants=[d.isoformat() for d in periode.absents_a_typer],
+                    message=message_absents_a_typer(
+                        str(emp.get("first_name") or name), periode.absents_a_typer
+                    ),
                 )
             )
         row_status = compute_row_status(

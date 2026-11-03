@@ -724,3 +724,51 @@ class TestJustifierUneFicheDsn:
                 resolved_by="user-1",
             )
         mock_upsert.assert_not_called()
+
+
+class TestAbsentATyper:
+    """Case « absent » de l'import : un jour marqué sans type est bloquant dans
+    la revue pré-paie, comme à la génération (retour d'Elsa du 28/10/2026)."""
+
+    @patch(
+        "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",
+        return_value=[],
+    )
+    @patch("app.modules.modulation.infrastructure.repository.get_modulation_settings")
+    @patch("app.modules.payroll.application.preflight_anomalies.badgeuse_service.get_company_period_summary")
+    @patch("app.modules.payroll.application.preflight_anomalies.preflight_repository.list_resolutions")
+    @patch("app.modules.payroll.application.preflight_anomalies.supabase")
+    def test_un_jour_absent_sans_type_est_bloquant(
+        self, mock_supabase, mock_resolutions, mock_badgeuse, mock_mod_settings, _mock_punch_reviews
+    ):
+        mock_mod_settings.return_value = _default_mod_settings()
+        prevu = _full_june_2026_planned()
+        reel = _full_june_2026_actual()
+        prevu[9] = {"jour": 10, "type": "absent_a_typer", "heures_prevues": 8.0}
+        reel[9] = {"jour": 10, "type": "absent_a_typer", "heures_faites": None}
+        _configure_supabase(
+            mock_supabase,
+            schedules=[{
+                "employee_id": EMP_ID,
+                "planned_calendar": {"calendrier_prevu": prevu},
+                "actual_hours": {"calendrier_reel": reel},
+            }],
+        )
+        mock_resolutions.return_value = []
+        mock_badgeuse.return_value = {}
+
+        with patch(
+            "app.modules.absences.infrastructure.repository.absence_repository.list_validated_for_employees",
+            return_value=[],
+        ):
+            result = preflight_anomalies.build_preflight_anomalies(COMPANY_ID, 2026, 6)
+
+        absents = [a for a in result.anomalies if a.type == "absent_a_typer"]
+        assert len(absents) == 1
+        assert absents[0].severity == "bloquant"
+        assert absents[0].jours_manquants == ["2026-06-10"]
+        assert absents[0].message.startswith("Jean a un jour marqué « absent » sans type")
+        assert result.counts.absent_a_typer == 1
+        assert result.counts.bloquant >= 1
+        assert "heures_non_saisies" not in [a.type for a in result.anomalies]
+        assert "ecart_heures" not in [a.type for a in result.anomalies]

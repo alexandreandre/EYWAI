@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Iterable, Literal, Mapping, Sequence
 
+from app.modules.schedules.domain.absent_a_typer import est_absent_a_typer
 from app.modules.schedules.domain.conflits_arret import JourEnConflit, jours_en_conflit
 from app.modules.schedules.domain.ecart_rules import (
     a_des_heures_pointees,
@@ -49,6 +50,9 @@ class PeriodeASaisir:
     #: (`domain.conflits_arret`). Ce ne sont pas des jours à saisir : le statut
     #: n'en dépend pas ; la génération les refuse à part.
     conflits: tuple[JourEnConflit, ...] = ()
+    #: Jours marqués « absent » à l'import, sans type encore : ni à saisir ni
+    #: en conflit ; la génération les refuse à part, sans forçage.
+    absents_a_typer: tuple[date, ...] = ()
 
     @property
     def bloquants(self) -> tuple[JourASaisir, ...]:
@@ -129,6 +133,7 @@ def periode_a_saisir(
     )
 
     manquants: list[JourASaisir] = []
+    absents: list[date] = []
     jour = debut
     while jour <= fin:
         hors_contrat = (date_entree is not None and jour < date_entree) or (
@@ -137,6 +142,8 @@ def periode_a_saisir(
         if not hors_contrat:
             dans_fenetre = fenetre[0] <= jour <= fenetre[1]
             planning = par_mois.get((jour.year, jour.month))
+            if planning is not None and est_absent_a_typer(planning[0].get(jour.day)):
+                absents.append(jour)
             if planning is None:
                 if jour.weekday() < 5:
                     manquants.append(JourASaisir(jour, dans_fenetre, "planning_absent"))
@@ -170,7 +177,8 @@ def periode_a_saisir(
         if dans_la_periode(c)
     ]
     return PeriodeASaisir(
-        debut, fin, fenetre, mois_civil, tuple(manquants), origine, tuple(conflits)
+        debut, fin, fenetre, mois_civil, tuple(manquants), origine, tuple(conflits),
+        tuple(absents),
     )
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import calendar as cal_mod
 from typing import List
 
+from app.modules.schedules.domain.absent_a_typer import TYPE_ABSENT_A_TYPER
 from app.modules.schedules.domain.rules import coerce_jour, merge_planned_entries
 from app.modules.schedules.schemas.ai import DayNature
 from app.modules.schedules.schemas.persist import (
@@ -56,6 +57,11 @@ def _merge_planned_days(
                         ),
                     }
                 )
+            continue
+        if day.type == TYPE_ABSENT_A_TYPER:
+            # La case « absent » ne change que le type : les heures prévues
+            # restent (la RH retrouve sa journée si elle décoche).
+            entrant.append({"jour": jour, "type": day.type})
             continue
         entrant.append(
             {"jour": jour, "type": day.type, "heures_prevues": day.heures}
