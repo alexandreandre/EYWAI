@@ -31,10 +31,15 @@ def test_ce_qui_n_est_pas_une_vraie_base(url):
 
 
 def test_la_base_factice_remplace_celle_du_poste(monkeypatch):
-    from tests._garde_base_reelle import HOTE_FACTICE_CI, imposer_la_base_factice
+    from tests._garde_base_reelle import (
+        ANCIENNE_VARIABLE_DEROGATION,
+        HOTE_FACTICE_CI,
+        VARIABLE_DEROGATION,
+        imposer_la_base_factice,
+    )
 
-    monkeypatch.delenv("MARTINE_TESTS_BASE_REELLE", raising=False)
-    monkeypatch.delenv("EYWAI_TESTS_BASE_REELLE", raising=False)
+    monkeypatch.delenv(VARIABLE_DEROGATION, raising=False)
+    monkeypatch.delenv(ANCIENNE_VARIABLE_DEROGATION, raising=False)
     monkeypatch.setenv("SUPABASE_URL", "https://abcdefghijklmnop.supabase.co")
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "vraie-cle")
     imposer_la_base_factice()
