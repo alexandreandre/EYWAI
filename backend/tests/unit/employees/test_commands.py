@@ -275,6 +275,7 @@ def test_update_employee_success_returns_updated_data(mock_emp_repo):
         "date_naissance": "1985-05-01",
         "adresse": {"rue": "1 rue Test"},
         "salaire_de_base": {"valeur": 2500},
+        "contract_type": "CDI",
     }
     mock_emp_repo.update.return_value = {
         "id": "emp-1",
@@ -306,6 +307,7 @@ def test_update_employee_completes_onboarding_and_activates(
         "adresse": {"rue": "1 rue Test", "ville": "Paris"},
         "coordonnees_bancaires": {"iban": "FR7630001007941234567890185"},
         "salaire_de_base": {"valeur": 2500},
+        "contract_type": "CDI",
     }
     activated_employee = {
         **complete_employee,
@@ -346,6 +348,7 @@ def test_update_employee_contract_and_specificites_paie(mock_emp_repo):
         "adresse": {"rue": "1 rue Test", "ville": "Paris"},
         "coordonnees_bancaires": {"iban": "FR7630001007941234567890185"},
         "salaire_de_base": {"valeur": 2500},
+        "contract_type": "CDI",
         "specificites_paie": {"is_alsace_moselle": False},
     }
     mock_emp_repo.update.return_value = {"id": "emp-1", "job_title": "Dev senior"}

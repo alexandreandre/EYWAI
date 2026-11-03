@@ -237,7 +237,7 @@ class OnboardingRepository:
                 "id, first_name, last_name, job_title, hire_date, "
                 "employment_status, current_exit_id, "
                 "nir, date_naissance, adresse, coordonnees_bancaires, salaire_de_base, "
-                "salary_payment_method"
+                "salary_payment_method, contract_type"
             )
             .eq("company_id", company_id)
             .gte("hire_date", cutoff.isoformat())

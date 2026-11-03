@@ -49,7 +49,7 @@ def _employees_stats(company_id: str) -> Dict[str, Any]:
         .select(
             "id, employment_status, "
             "coordonnees_bancaires, nir, date_naissance, adresse, salaire_de_base, "
-            "salary_payment_method"
+            "salary_payment_method, contract_type"
         )
         .eq("company_id", company_id)
         .execute()

@@ -17,6 +17,7 @@ def _complete_payroll_fields():
         "adresse": {"ville": "Paris"},
         "coordonnees_bancaires": {"iban": "FR7630001007941234567890185"},
         "salaire_de_base": {"montant": 2500},
+        "contract_type": "CDI",
     }
 
 

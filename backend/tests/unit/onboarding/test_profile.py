@@ -20,6 +20,7 @@ def _complete_employee():
         "adresse": {"voie": "1 rue de la Paix", "ville": "Paris"},
         "coordonnees_bancaires": {"iban": "FR7630001007941234567890185"},
         "salaire_de_base": {"montant": 2500},
+        "contract_type": "CDI",
     }
 
 
@@ -102,6 +103,28 @@ class TestMissingPayrollFields:
         emp["coordonnees_bancaires"] = {"iban": iban}
         assert "Coordonnées bancaires (RIB)" not in missing_payroll_fields(emp)
         assert payroll_block_reason(emp) is None
+
+
+class TestTypeDeContratObligatoire:
+    """Pas de bulletin sans type de contrat (promesse faite à Elsa, vidéo B, 02/11) :
+    un apprenti a ses propres exonérations, et la DSN déclarerait un CDI."""
+
+    @pytest.mark.parametrize("valeur", [None, "", "   "])
+    def test_sans_type_de_contrat_la_fiche_est_incomplete(self, valeur):
+        emp = _complete_employee()
+        emp["contract_type"] = valeur
+        assert missing_payroll_fields(emp) == ["Type de contrat"]
+        assert is_profile_complete(emp) is False
+
+    def test_sans_type_de_contrat_la_paie_refuse_et_dit_quoi(self):
+        emp = _complete_employee()
+        emp["employment_status"] = "actif"
+        del emp["contract_type"]
+        assert is_payroll_eligible(emp) is False
+        assert payroll_block_reason(emp) == (
+            "Impossible de générer un bulletin : fiche paie incomplète. "
+            "Manque : Type de contrat."
+        )
 
 
 class TestPayrollEligibility:

@@ -5,4 +5,5 @@ export const PAYROLL_REQUIRED_FIELD_LABELS = [
   'Adresse postale',
   'Coordonnées bancaires (RIB)',
   'Rémunération',
+  'Type de contrat',
 ] as const;

@@ -19,6 +19,9 @@ PAYROLL_REQUIRED_FIELDS: List[Tuple[str, str]] = [
     ("adresse", "Adresse postale"),
     ("coordonnees_bancaires", "Coordonnées bancaires (RIB)"),
     ("salaire_de_base", "Rémunération"),
+    # Sans type, la DSN déclarerait un CDI, et un apprenti perdrait ses
+    # exonérations : pas de bulletin sans type de contrat (vidéo B, 02/11).
+    ("contract_type", "Type de contrat"),
 ]
 
 
