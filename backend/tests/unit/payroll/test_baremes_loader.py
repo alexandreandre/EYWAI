@@ -85,6 +85,18 @@ def test_assembler_baremes_inclut_ij_km_vm():
     assert out["conventions_collectives"]["idcc_1486"] == {}
 
 
+def test_assembler_baremes_transmet_le_bareme_jei():
+    """Sans lui, `calculer_exoneration_jei` lit `actif` absent et n'exonère jamais (Zone 404, 03/11)."""
+    jei = {
+        "actif": True,
+        "duree_annees": 7,
+        "facteur_smic_plafond": 4.5,
+        "cotisations_exonerees_patronales": ["securite_sociale_maladie", "allocations_familiales"],
+    }
+    out = assembler_baremes({"jei": jei, "pas": {"baremes": []}, "primes": {"primes": []}}, {})
+    assert out["jei"] == jei
+
+
 def test_baremes_lookup_absent_retourne_none_et_alerte():
     alertes = []
     val = baremes_lookup({}, "smic", "cas_general", alertes=alertes)

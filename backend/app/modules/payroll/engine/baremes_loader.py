@@ -227,6 +227,9 @@ def assembler_baremes(
         "cdd": db_baremes.get("cdd", {}),
         "interim": db_baremes.get("interim", {}),
         "conges": db_baremes.get("conges", {}),
+        # Exonération JEI (`exoneration_jei.calculer_exoneration_jei` lit `actif`, les plafonds
+        # et les cotisations exonérées) : sans cette clé, elle ne s'appliquait jamais.
+        "jei": db_baremes.get("jei", {}),
     }
 
 

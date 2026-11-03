@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.core.database import supabase
+from app.core.lecture_seule import ecritures_permises
 from app.modules.jei_settings.domain.exonerations_interfaces import (
     AbstractJeiExonerationsRepository,
 )
@@ -43,6 +44,10 @@ class SupabaseJeiExonerationsRepository(AbstractJeiExonerationsRepository):
         employee_id: str,
         montant_exonere: float,
     ) -> None:
+        # Un calcul en lecture seule (bac à sable, contrôle) n'enregistre rien : le plafond
+        # du mois se lit hors du mois calculé, l'écriture n'y change rien.
+        if not ecritures_permises():
+            return
         supabase.table("company_jei_exonerations").upsert(
             {
                 "company_id": company_id,
