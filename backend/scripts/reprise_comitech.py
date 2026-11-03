@@ -107,6 +107,19 @@ def _nir(valeur: Any) -> str:
     return re.sub(r"\s", "", str(valeur or "")).upper()[:13]
 
 
+def fiche_du_bulletin(bulletin, matricule: str, fiches: list[dict]) -> dict | None:
+    """La fiche du salarié d'un bulletin Quadra.
+
+    Par le numéro de sécurité sociale quand le bulletin l'imprime (Quadra inscrit parfois
+    un salarié sous son nom de naissance) ; sinon par le matricule Quadra, que la fiche
+    porte (MAJI, Zone 404 : leurs bulletins n'impriment pas le numéro)."""
+    nir = _nir(bulletin.infos.get("nir"))
+    if nir:
+        return next((f for f in fiches if _nir(f.get("nir")) == nir), None)
+    cle = str(matricule or "").strip().upper()
+    return next((f for f in fiches if cle and str(f.get("matricule") or "").strip().upper() == cle), None)
+
+
 def _arrondi(valeur: Any) -> float:
     return round(float(valeur or 0.0), 2)
 
@@ -782,9 +795,8 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = (), mois_ecrits:
     admin = get_supabase_admin_client()
     fiches = admin.table("employees").select(
         "id, last_name, first_name, nir, statut, job_title, employee_folder_name, employment_status, "
-        "is_forfait_jour, contract_end_date"
+        "is_forfait_jour, contract_end_date, matricule"
     ).eq("company_id", COMPANY_ID).execute().data
-    par_nir = {_nir(f["nir"]): f for f in fiches if f.get("nir")}
     societe = admin.table("companies").select("company_name, siret").eq("id", COMPANY_ID).execute().data[0]
 
     mois_repris = tuple(range(1, jusqu_a + 1))
@@ -806,7 +818,7 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = (), mois_ecrits:
     for mois in mois_ecrits:
         print(f"\n=== {mois:02d}/{ANNEE} — {len(lus[mois])} bulletins")
         for mat, b in sorted(lus[mois].items()):
-            fiche = par_nir.get(_nir(b.infos.get("nir")))
+            fiche = fiche_du_bulletin(b, mat, fiches)
             qui = etiquette(fiche, b.infos.get("entree"))
             if mat in sans:
                 print(f"  {qui:14s} écarté (--sans)")
@@ -872,7 +884,7 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = (), mois_ecrits:
     for mat, b in sorted(lus[bascule].items()):
         if mat in sans:
             continue
-        fiche = par_nir.get(_nir(b.infos.get("nir")))
+        fiche = fiche_du_bulletin(b, mat, fiches)
         if not fiche:
             continue
         solde = solde_d_ouverture(lus_ouverture, bascule, mat)

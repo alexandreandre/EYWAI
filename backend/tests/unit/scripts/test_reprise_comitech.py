@@ -424,3 +424,23 @@ def test_aucune_reduction_de_l_annee_aucun_point_de_depart():
         for b in mois.values():
             _sans_reduction(b)
     assert point_de_depart_de_la_reduction(lus, 8, "M") == {}
+
+
+def test_un_bulletin_sans_nir_s_apparie_par_matricule():
+    """Les bulletins Quadra de MAJI n'impriment pas le numéro de sécurité sociale :
+    la fiche se retrouve par le matricule Quadra, qui est celui de la fiche."""
+    from scripts.reprise_comitech import fiche_du_bulletin
+
+    fiches = [{"id": "f1", "nir": "1990175000001", "matricule": "DURAND"}]
+    b = _bulletin([], matricule="DURAND")
+    assert fiche_du_bulletin(b, "DURAND", fiches)["id"] == "f1"
+
+
+def test_un_nir_imprime_reste_seul_juge():
+    """Quand le bulletin imprime un NIR, le matricule ne sert jamais : pas d'appariement
+    sur un homonyme de matricule (Comitech, nom de naissance)."""
+    from scripts.reprise_comitech import fiche_du_bulletin
+
+    fiches = [{"id": "f1", "nir": "1990175000001", "matricule": "DURAND"}]
+    b = _bulletin([], nir="2880175000002")
+    assert fiche_du_bulletin(b, "DURAND", fiches) is None
