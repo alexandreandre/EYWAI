@@ -418,6 +418,14 @@ export function CalendarDayCell({
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-40 p-1" align="start" onClick={(e) => e.stopPropagation()}>
+            {absent && (
+              <p
+                className="mb-1 rounded bg-red-50 px-2 py-1 text-[11px] font-medium text-red-800"
+                data-testid="choisir-type-absence"
+              >
+                Choisissez le type de l’absence.
+              </p>
+            )}
             {editableTypeOptionsFor(plannedDay.type).map((t) => (
               <button
                 key={t.value}
