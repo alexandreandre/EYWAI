@@ -83,9 +83,29 @@ class TestAggregateCharges:
         assert totals["total_cotisations_salariales"] == 180.0
 
 
+def _tableau_vide():
+    from app.modules.exports.domain.tableau_des_charges import construire_tableau
+
+    return construire_tableau([]), {"company_name": "Société"}
+
+
 class TestGenerateExport:
+    @patch.object(module, "_tableau_et_societe", side_effect=lambda *a, **k: _tableau_vide())
     @patch.object(module, "get_charges_sociales_data")
-    def test_xlsx_starts_with_pk_zip_header(self, mock_get_data):
+    def test_le_classeur_commence_par_le_tableau_des_charges_au_format_quadra(self, mock_get_data, _tableau):
+        import io
+
+        from openpyxl import load_workbook
+
+        mock_get_data.return_value = ([], [], {"employees_count": 0})
+        content = module.generate_charges_sociales_export("company-1", "2026-08", format="xlsx")
+        classeur = load_workbook(io.BytesIO(content))
+        assert classeur.sheetnames[0] == "Tableau des charges"
+        assert classeur["Tableau des charges"]["A5"].value == "TABLEAU DES CHARGES DE 08/26 - En Euros"
+
+    @patch.object(module, "_tableau_et_societe", side_effect=lambda *a, **k: _tableau_vide())
+    @patch.object(module, "get_charges_sociales_data")
+    def test_xlsx_starts_with_pk_zip_header(self, mock_get_data, _tableau):
         mock_get_data.return_value = (
             [
                 {

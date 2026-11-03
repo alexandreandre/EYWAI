@@ -178,17 +178,55 @@ def _write_sheet(
         )
 
 
+def _tableau_et_societe(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+    caisses: Optional[List[str]] = None,
+):
+    """Le tableau des charges au format de Quadra, et l'en-tête de la société."""
+    from app.core.database import supabase
+    from app.modules.exports.infrastructure.export_tableau_des_charges import donnees_du_tableau
+
+    tableau = donnees_du_tableau(company_id, period, employee_ids)
+    if caisses:
+        retenues = {c.upper() for c in caisses}
+        tableau.sections = [s for s in tableau.sections if s.organisme in retenues]
+    lignes = (
+        supabase.table("companies")
+        .select("company_name, adresse_rue, adresse_code_postal, adresse_ville")
+        .eq("id", company_id)
+        .limit(1)
+        .execute()
+        .data
+    )
+    return tableau, (lignes[0] if lignes else {})
+
+
 def _generate_xlsx_workbook(
     detail_rows: List[Dict[str, Any]],
     summary_rows: List[Dict[str, Any]],
     period: str,
     include_consolidated: bool,
+    tableau=None,
+    societe: Optional[Dict[str, Any]] = None,
 ) -> bytes:
     wb = Workbook()
     period_label = format_period(period)
 
+    if tableau is not None:
+        # Première feuille : le « Tableau des charges » au format de Quadra (demande
+        # d'Elsa du 03/11/2026) ; synthèse et détail suivent.
+        from app.modules.exports.infrastructure.export_tableau_des_charges import (
+            ecrire_tableau_des_charges,
+        )
+
+        ws_tableau = wb.active
+        ws_tableau.title = "Tableau des charges"
+        ecrire_tableau_des_charges(ws_tableau, tableau, period, societe)
+
     if include_consolidated and summary_rows:
-        ws_summary = wb.active
+        ws_summary = wb.create_sheet() if tableau is not None else wb.active
         ws_summary.title = "Synthèse par organisme"
         _write_sheet(
             ws_summary,
@@ -196,6 +234,8 @@ def _generate_xlsx_workbook(
             summary_rows,
             f"Synthèse par organisme — {period_label}",
         )
+        ws_detail = wb.create_sheet("Détail par cotisation")
+    elif tableau is not None:
         ws_detail = wb.create_sheet("Détail par cotisation")
     else:
         ws_detail = wb.active
@@ -271,8 +311,9 @@ def generate_charges_sociales_export(
     )
 
     if format == "xlsx":
+        tableau, societe = _tableau_et_societe(company_id, period, employee_ids, caisses)
         return _generate_xlsx_workbook(
-            detail_rows, summary_rows, period, include_consolidated
+            detail_rows, summary_rows, period, include_consolidated, tableau, societe
         )
     if include_consolidated and summary_rows:
         summary_csv = generate_csv(summary_rows, SUMMARY_HEADERS)
