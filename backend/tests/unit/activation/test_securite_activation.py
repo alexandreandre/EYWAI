@@ -137,6 +137,42 @@ class TestRedirectionBloqueInvitation:
         finally:
             _teardown()
 
+    def test_redirect_actif_compte_cote_rh_part(self):
+        """03/11 : un compte côté RH reçoit en direct, même hors de la liste."""
+        _as_rh()
+        try:
+            with (
+                patch(
+                    "app.modules.activation.application.commands._token_repository"
+                ) as repo,
+                patch(
+                    "app.modules.activation.application.commands.providers"
+                ) as providers,
+                patch(
+                    "app.modules.activation.application.commands.activation_email"
+                ) as mail,
+                patch(
+                    "app.modules.activation.application.commands.adresses_rh",
+                    lambda emails: frozenset({"jean.dupont@exemple.fr"}),
+                ),
+                patch(
+                    "app.core.settings.EMAIL_FORCE_REDIRECT_TO",
+                    "boite-interne@eywai.fr",
+                ),
+                patch("app.core.settings.ACTIVATION_EMAIL_ALLOWLIST", ""),
+            ):
+                providers.get_employee_for_activation.return_value = _employee()
+                providers.auth_email_deja_pris.return_value = False
+                providers.get_company_name.return_value = "Entreprise Test"
+                mail.send_activation_email.return_value = True
+                resp = TestClient(app).post(INVITE_URL)
+
+                assert resp.status_code == 200
+                mail.send_activation_email.assert_called_once()
+                repo.create.assert_called_once()
+        finally:
+            _teardown()
+
     def test_redirect_actif_adresse_allowlistee_part(self):
         _as_rh()
         try:

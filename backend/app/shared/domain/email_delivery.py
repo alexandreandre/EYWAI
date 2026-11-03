@@ -37,3 +37,22 @@ def parse_email_allowlist(raw: Optional[str]) -> frozenset[str]:
 def is_direct_delivery_allowed(email: str, allowlist: frozenset[str]) -> bool:
     """True si l'adresse figure exactement dans l'allowlist (levée ciblée du redirect)."""
     return (email or "").strip().lower() in allowlist
+
+
+#: Rôles d'un accès qui font d'un compte un compte « côté RH » (décision du 03/11/2026 :
+#: les e-mails côté RH partent en direct, ceux des collaborateurs restent redirigés).
+ROLES_COTE_RH = frozenset({"admin", "rh", "collaborateur_rh"})
+
+
+def est_compte_rh(acces: list[dict], societes_custom_avec_droits_rh: set[str]) -> bool:
+    """True si un accès actif est admin, rh ou collaborateur_rh, ou custom avec une permission RH
+    dans sa société (même lecture que `core.security._resoudre_acces_rh_custom`)."""
+    for a in acces or []:
+        if not a.get("is_active", True):
+            continue
+        role = a.get("role")
+        if role in ROLES_COTE_RH:
+            return True
+        if role == "custom" and str(a.get("company_id")) in societes_custom_avec_droits_rh:
+            return True
+    return False

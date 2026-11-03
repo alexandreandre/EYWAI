@@ -19,6 +19,7 @@ from app.shared.domain.email_delivery import (
     is_direct_delivery_allowed,
     parse_email_allowlist,
 )
+from app.shared.infrastructure.email.destinataires_rh import adresses_rh
 from app.modules.platform_settings.application.email_config import (
     get_resolved_email_config,
 )
@@ -81,6 +82,11 @@ class SmtpMailSender:
         # direct — sinon un utilisateur de la vague 0 serait joignable à
         # l'invitation mais sourd au reset de mot de passe.
         allowlist = parse_email_allowlist(settings.ACTIVATION_EMAIL_ALLOWLIST)
+        # Et, depuis le 03/11/2026, les comptes côté RH (admin, rh, collaborateur_rh,
+        # custom avec droits RH) : les collaborateurs restent redirigés.
+        hors_liste = [r for r in recipients if not is_direct_delivery_allowed(r, allowlist)]
+        if hors_liste:
+            allowlist = allowlist | adresses_rh(hors_liste)
         direct = [
             r for r in recipients if is_direct_delivery_allowed(r, allowlist)
         ]

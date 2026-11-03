@@ -33,6 +33,7 @@ from app.modules.activation.domain.rules import (
 from app.modules.activation.infrastructure import email as activation_email
 from app.modules.activation.infrastructure import providers
 from app.modules.employees.domain.rules import is_dsn_import_placeholder_email
+from app.shared.infrastructure.email.destinataires_rh import adresses_rh
 from app.modules.activation.infrastructure.providers import (
     EmailAlreadyRegisteredError,
 )
@@ -158,8 +159,10 @@ def invite_employee(
     # Redirect global actif (prod) : refuser plutôt que laisser le lien
     # d'activation — donc le jeton en clair — atterrir dans la boîte de
     # redirection, lisible par d'autres que le salarié.
+    # Un compte côté RH reçoit en direct (03/11/2026) ; les collaborateurs restent redirigés.
     if settings.EMAIL_FORCE_REDIRECT_TO and not is_direct_delivery_allowed(
-        email, parse_email_allowlist(settings.ACTIVATION_EMAIL_ALLOWLIST)
+        email,
+        parse_email_allowlist(settings.ACTIVATION_EMAIL_ALLOWLIST) | adresses_rh([email]),
     ):
         raise DirectDeliveryBlockedError(
             "Les e-mails sortants sont actuellement redirigés : cette adresse "

@@ -93,6 +93,17 @@ def aucun_mois_suivant_lu_en_base(monkeypatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def aucun_compte_rh_lu_en_base(monkeypatch) -> None:
+    """Sous la redirection, un compte côté RH se lit en base (`destinataires_rh`) : en test,
+    aucun, sauf doublure explicite (les tests de la règle la remplacent eux-mêmes)."""
+    from app.modules.activation.application import commands as activation
+    from app.shared.infrastructure.email import smtp_sender
+
+    monkeypatch.setattr(smtp_sender, "adresses_rh", lambda *_a, **_k: frozenset())
+    monkeypatch.setattr(activation, "adresses_rh", lambda *_a, **_k: frozenset())
+
+
+@pytest.fixture(autouse=True)
 def aucun_bac_a_sable_a_la_lecture(monkeypatch) -> None:
     """Un validé dont l'empreinte change est recalculé au bac à sable à la lecture :
     en test, ni bulletin relu, ni moteur lancé, ni empreinte écrite. Les tests de
