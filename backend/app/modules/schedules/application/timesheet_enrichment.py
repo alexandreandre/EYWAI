@@ -68,16 +68,9 @@ def enrich_employee_days(
                 f"({max_hours_per_day:.0f} h) — vérifiez l'OCR."
             )
 
-        enriched.append(
-            AiDayEntry(
-                jour=jour,
-                heures=heures,
-                type=day_type,
-                nature=day.nature,
-                year=day.year,
-                month=day.month,
-            )
-        )
+        # Copie du jour, jamais une reconstruction : les badges, le code horaire
+        # et les pauses restent, pour que la revue montre ce qui a été lu.
+        enriched.append(day.model_copy(update={"heures": heures, "type": day_type}))
 
     proposal.days = enriched
     return proposal
