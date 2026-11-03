@@ -100,20 +100,6 @@ jobs:
       - name: Smoke import (vérifie le chargement de l'app)
         run: python -c "from app.main import app; print('OK', len(app.openapi()['paths']), 'routes')"
 
-      # Les tests unitaires remplacent souvent les ponts entre modules : un appel
-      # qui passe un argument que la fonction appelée ne prend pas leur échappe
-      # (génération des bulletins en 500 le 01/11/2026). mypy ne bloque ici que
-      # sur ces erreurs d'appel.
-      - name: Signatures des appels (mypy, erreurs d'appel seulement, bloquant)
-        run: |
-          pip install mypy==2.4.1
-          mypy app --ignore-missing-imports --follow-imports=silent --no-error-summary --python-version 3.11 > mypy.txt || true
-          if grep "\[call-arg\]" mypy.txt; then
-            echo "::error::Appel dont les arguments ne correspondent pas à la fonction appelée (lignes ci-dessus)."
-            exit 1
-          fi
-          echo "Aucune erreur d'appel."
-
       - name: Pytest unit (bloquant)
         run: >-
           python -m pytest tests/unit -v --tb=short -p no:cacheprovider
@@ -152,6 +138,44 @@ jobs:
           name: openapi-schema
           path: backend/openapi.json
           retention-days: 14
+
+  # ----------------------------------------------------------------------------
+  # 2 bis) Signatures des appels — bloquant, en parallèle des tests unitaires
+  # ----------------------------------------------------------------------------
+  # Les tests unitaires remplacent souvent les ponts entre modules : un appel
+  # qui passe un argument que la fonction appelée ne prend pas leur échappe
+  # (génération des bulletins en 500 le 01/11/2026). mypy ne bloque ici que
+  # sur ces erreurs d'appel. Job à part : la CI reste sous 4 minutes.
+  backend-signatures:
+    name: Backend (signatures des appels, mypy)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt mypy==2.4.1
+
+      - name: Signatures des appels (mypy, erreurs d'appel seulement, bloquant)
+        run: |
+          mypy app --ignore-missing-imports --follow-imports=silent --no-error-summary --python-version 3.11 > mypy.txt || true
+          if grep "\[call-arg\]" mypy.txt; then
+            echo "::error::Appel dont les arguments ne correspondent pas à la fonction appelée (lignes ci-dessus)."
+            exit 1
+          fi
+          echo "Aucune erreur d'appel."
 
   # ----------------------------------------------------------------------------
   # 3) Backend integration — COUPÉ depuis le 26/09/2026 (voir la condition du job)
