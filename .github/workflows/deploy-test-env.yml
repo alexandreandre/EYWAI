@@ -271,6 +271,9 @@ jobs:
       # bulletin n'a jamais pu être généré sur le test. La production la définit
       # déjà. Même valeur que SUPABASE_KEY côté test, comme en production.
       #
+      # FROM_NAME : nom d'expéditeur des e-mails (« Martine », le nom du produit).
+      # Posé ici parce que la console portait encore l'ancien nom du produit.
+      #
       # OPENROUTER_API_KEY : sans cette clé, le remplissage calendrier IA
       # répond 503 et le copilote 500 (ValueError « pas configuré »). Même
       # secret qu'en prod.
@@ -312,7 +315,7 @@ jobs:
             --image "gcr.io/${{ vars.GCP_PROJECT_ID }}/sirh-backend:test-${{ github.sha }}" \
             --region "$GCP_REGION" \
             --memory 4Gi --cpu 2 --no-cpu-throttling --timeout 900 --allow-unauthenticated \
-            --update-env-vars "^##^APP_ENV=test##EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}##SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}##SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}##SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_TEST_SERVICE_KEY }}##OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}##TIMESHEET_EXTRACT_MODE=native##COPILOT_RH_DATA_ENABLED=true##GITHUB_REPO=${{ github.repository }}"
+            --update-env-vars "^##^APP_ENV=test##EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}##SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}##SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}##SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_TEST_SERVICE_KEY }}##OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}##FROM_NAME=Martine##TIMESHEET_EXTRACT_MODE=native##COPILOT_RH_DATA_ENABLED=true##GITHUB_REPO=${{ github.repository }}"
 
       - name: Relever l'URL du backend de test
         id: back

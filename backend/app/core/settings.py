@@ -57,7 +57,7 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 SMTP_SECURITY = os.getenv("SMTP_SECURITY", "starttls").strip().lower()
 FROM_EMAIL = os.getenv("FROM_EMAIL")
-FROM_NAME = os.getenv("FROM_NAME", "SIRH - Système de Gestion RH")
+FROM_NAME = os.getenv("FROM_NAME", "Martine")
 REPLY_TO = os.getenv("REPLY_TO")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:8080")
 
