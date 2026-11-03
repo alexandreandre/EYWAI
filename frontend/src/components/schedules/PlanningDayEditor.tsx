@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, ExternalLink, Briefcase, TreePalm, Sparkles, Stethoscope, Coffee, Leaf } from 'lucide-react';
+import { Loader2, ExternalLink, Briefcase, TreePalm, Sparkles, Stethoscope, Coffee, Leaf, Ban } from 'lucide-react';
+import { estAbsentATyper } from '@/lib/absentATyper';
 import { cn } from '@/lib/utils';
 import type { PlannedEventData, ActualHoursData } from '@/api/calendar';
 import type { DayPatch } from '@/lib/schedulesOverview';
@@ -17,6 +18,9 @@ const TYPE_OPTIONS = [
   { value: 'ferie', label: 'Férié', icon: Sparkles, cls: 'bg-purple-100 text-purple-700 border-purple-200' },
   { value: 'arret_maladie', label: 'Arrêt', icon: Stethoscope, cls: 'bg-red-100 text-red-700 border-red-200' },
   { value: 'weekend', label: 'Week-end', icon: Coffee, cls: 'bg-slate-100 text-slate-600 border-slate-200' },
+  // Pour typer un jour coché « absent » à l'import : les quatre types promis
+  // (congé, RTT, arrêt, absence non payée) sont tous ici.
+  { value: 'absence_non_remuneree', label: 'Abs. non payée', icon: Ban, cls: 'bg-orange-100 text-orange-700 border-orange-200' },
 ] as const;
 
 const LEGACY_CONGE_OPTION = {
@@ -142,6 +146,15 @@ export function PlanningDayEditor({
       <div>
         <p className="text-sm font-semibold leading-tight">{employeeName}</p>
         <p className="text-xs text-muted-foreground capitalize">{dateLabel}</p>
+        {estAbsentATyper(planned) && (
+          <p
+            className="mt-1 text-xs font-medium text-red-800 bg-red-50 border border-red-300 rounded px-2 py-1"
+            data-testid="editeur-absent-a-typer"
+          >
+            Absent : choisissez le type du jour (CP, RTT, arrêt ou absence non payée). La paie
+            reste bloquée tant qu’il manque.
+          </p>
+        )}
         {hasAbsenceConflict && (
           <p className="mt-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
             Absence validée non reflétée sur ce jour.

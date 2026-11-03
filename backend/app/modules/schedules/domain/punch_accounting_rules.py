@@ -173,6 +173,28 @@ def _theoretical_net_hours(slot: PunchShiftSlot, break_minutes: int) -> float:
     return round(max(0, gross - break_minutes) / 60.0, 2)
 
 
+def _distance_au_creneau(
+    slot: PunchShiftSlot, entry_minutes: int, exit_minutes: int | None
+) -> int:
+    """Écart entre la journée pointée et le créneau, entrée ET sortie.
+
+    L'entrée seule trompe : un salarié de journée qui badge à 5 h 29 est plus
+    près de l'équipe de 4 h que de la journée de 8 h, et sa sortie à 16 h 30
+    devenait 4 h 30 « en plus ». Les postes qui passent minuit sont comptés
+    sur 24 h + la sortie.
+    """
+    ecart = abs(slot.entry_minutes - entry_minutes)
+    if exit_minutes is None:
+        return ecart
+    sortie_creneau = slot.exit_minutes
+    if sortie_creneau <= slot.entry_minutes:
+        sortie_creneau += 24 * 60
+    sortie = exit_minutes
+    if sortie <= entry_minutes:
+        sortie += 24 * 60
+    return ecart + abs(sortie_creneau - sortie)
+
+
 def _pick_slot(
     *,
     entry_minutes: int,
@@ -180,6 +202,7 @@ def _pick_slot(
     slots: Sequence[PunchShiftSlot],
     detection: str,
     planned: PlannedShiftBreak | None = None,
+    exit_minutes: int | None = None,
 ) -> PunchShiftSlot | None:
     if not slots:
         return None
@@ -212,6 +235,13 @@ def _pick_slot(
             key=lambda s: abs(s.entry_minutes - planned.planned_entry_minutes),
         )
 
+    if detection == "nearest_entry":
+        # « Horaire le plus proche » : entrée et sortie ensemble.
+        return min(
+            ordered,
+            key=lambda s: _distance_au_creneau(s, entry_minutes, exit_minutes),
+        )
+
     return min(ordered, key=lambda s: abs(s.entry_minutes - entry_minutes))
 
 
@@ -234,14 +264,26 @@ def compute_punch_day(
     """Calcule les heures comptabilisées pour une journée."""
     entry = day_input.entry_minutes
     exit_m = day_input.exit_minutes
+    a_une_entree = entry is not None and entry > 0
+    a_une_sortie = exit_m is not None and exit_m > 0
 
-    if entry is None or exit_m is None or entry <= 0 and exit_m <= 0:
+    if not a_une_entree and not a_une_sortie:
         return PunchDayResult(is_absent=True, accounted_hours=0.0)
 
-    if entry is None or entry <= 0:
-        return PunchDayResult(is_absent=True, accounted_hours=0.0)
-    if exit_m is None or exit_m <= 0:
-        return PunchDayResult(is_absent=True, accounted_hours=0.0)
+    if not a_une_entree or not a_une_sortie or entry == exit_m:
+        # Un seul badge (ou entrée = sortie) : ni travaillée ni absente.
+        # Compter 24 h − pause, ou une absence à 0 h, serait un état faux.
+        if not a_une_sortie:
+            detail = f"entrée {minutes_to_time_string(entry)} sans sortie"
+        elif not a_une_entree:
+            detail = f"sortie {minutes_to_time_string(exit_m)} sans entrée"
+        else:
+            detail = f"un seul badge à {minutes_to_time_string(entry)}"
+        return PunchDayResult(
+            is_incomplete=True,
+            accounted_hours=0.0,
+            alerts=(f"Pointage incomplet : {detail}. Journée à compléter.",),
+        )
 
     slot = _pick_slot(
         entry_minutes=entry,
@@ -249,6 +291,7 @@ def compute_punch_day(
         slots=slots,
         detection=settings.slot_detection,
         planned=day_input.planned_shift,
+        exit_minutes=exit_m,
     )
     # Deux pauses distinctes : celle du PLANNING pour le théorique (le
     # contrat de la journée), celle CONSTATÉE (badgée si mesurée, sinon la
@@ -274,6 +317,19 @@ def compute_punch_day(
     theoretical = _theoretical_net_hours(slot, schedule_break) if slot else pointed
 
     tolerance_hours = settings.tolerance_minutes / 60.0
+
+    pause_pointee = day_input.punched_break_minutes
+    if (mesure is None or mesure <= 0) and pause_pointee is not None:
+        # Pause vue entre les paires de badges, hors part payée du créneau
+        # (déjeuner payé des équipes). Elle remplace la pause du créneau
+        # quand elle est plus longue (temps non travaillé : pas d'heures en
+        # plus fictives), ou sur une journée courte (demi-journée sans
+        # déjeuner : on ne déduit pas une pause non prise). Une journée
+        # complète où la pause du matin n'est pas badgée garde la règle.
+        part_payee = int(slot.paid_break_minutes or 0) if slot else 0
+        pause_non_payee = max(0, int(pause_pointee) - part_payee)
+        if pause_non_payee > actual_break or pointed < theoretical - tolerance_hours:
+            pointed = _pointed_net_hours(entry, exit_m, pause_non_payee)
     alerts: list[str] = []
     overtime = 0.0
     reason: OvertimeReason | None = None
@@ -303,6 +359,18 @@ def compute_punch_day(
                 f"Sortie {minutes_to_time_string(exit_m)} : "
                 f"{late_min} min de dépassement (> {settings.tolerance_minutes} min) — HS à valider."
             )
+
+    if overtime > 0:
+        # Jamais plus d'heures en plus que le temps réellement fait au-delà du
+        # théorique : un retard le matin compense une sortie tardive. Sous la
+        # tolérance une fois compensé, ce n'est plus qu'un arrondi.
+        fait_en_plus = round(max(0.0, pointed - theoretical), 2)
+        if fait_en_plus < overtime:
+            overtime = fait_en_plus
+            if overtime <= tolerance_hours:
+                overtime = 0.0
+                reason = None
+                alerts = []
 
     daily_excess = round(max(0.0, pointed - theoretical - tolerance_hours), 2)
     if daily_excess > overtime:
@@ -360,6 +428,7 @@ def compute_from_raw_times(
     settings: PunchAccountingSettings,
     slots: Iterable[PunchShiftSlot],
     planned_shift: PlannedShiftBreak | None = None,
+    punched_break_minutes: int | None = None,
 ) -> PunchDayResult:
     return compute_punch_day(
         PunchDayInput(
@@ -367,6 +436,7 @@ def compute_from_raw_times(
             exit_minutes=parse_hhmm_value(exit_raw),
             shift_code=shift_code,
             planned_shift=planned_shift,
+            punched_break_minutes=punched_break_minutes,
         ),
         settings,
         list(slots),

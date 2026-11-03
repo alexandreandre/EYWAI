@@ -88,7 +88,10 @@ class TestLewisSampleRows:
         assert result.pointed_net_hours == 9.68
         assert result.needs_review
 
-    def test_absent_day(self):
+    def test_entree_sans_sortie_est_incomplete(self):
+        # 03/11 : une entrée sans sortie n'est plus une absence à 0 h (la paie
+        # retenait une absence injustifiée si l'on forçait) : la journée reste
+        # à compléter par la RH.
         result = compute_from_raw_times(
             entry_raw=800,
             exit_raw=0,
@@ -96,7 +99,8 @@ class TestLewisSampleRows:
             settings=self.settings,
             slots=self.slots,
         )
-        assert result.is_absent
+        assert result.is_incomplete
+        assert not result.is_absent
         assert result.accounted_hours == 0.0
 
     def test_herve_equipe_paid_lunch_via_planning(self):

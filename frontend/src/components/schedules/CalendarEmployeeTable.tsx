@@ -34,6 +34,7 @@ import { CursorHint } from './CursorHint';
 import { usePaintSelect } from './usePaintSelect';
 import { cn } from '@/lib/utils';
 import { isSignificantEcart } from '@/lib/calendarStats';
+import { phraseAbsentsATyper } from '@/lib/absentATyper';
 
 const ROW_STATUS_LABELS: Record<string, string> = {
   a_saisir: 'À saisir',
@@ -344,6 +345,16 @@ export function CalendarEmployeeTable({
                   <Badge variant={ROW_STATUS_VARIANT[row.rowStatus] ?? 'outline'}>
                     {ROW_STATUS_LABELS[row.rowStatus] ?? row.rowStatus}
                   </Badge>
+                  {(row.joursAbsentsATyper?.length ?? 0) > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="ml-1"
+                      data-testid="badge-absent-a-typer"
+                      title={`${phraseAbsentsATyper(row.joursAbsentsATyper ?? [])} : la paie est bloquée tant que le type n’est pas donné.`}
+                    >
+                      Absent sans type
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell className="text-right tabular-nums text-sm">
                   {formatHours(row.heuresPrevues, row.isForfaitJour)}

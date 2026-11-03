@@ -79,6 +79,16 @@ class PayslipHeuresSurArretError(PayslipRefusStructure):
     code = "heures_sur_jour_d_arret"
 
 
+class PayslipAbsentATyperError(PayslipRefusStructure):
+    """Des jours sont marqués « absent » sans type (422). Aucun forçage : la
+    seule sortie est de donner leur type au calendrier.
+
+    `details` : `jours` (dates ISO).
+    """
+
+    code = "absent_a_typer"
+
+
 class PayslipArretsIllisiblesError(PayslipRefusStructure):
     """Les arrêts validés n'ont pas pu être lus (503) : sans eux, la garde
     laisserait passer des heures un week-end d'arrêt. Rien n'est calculé ; il

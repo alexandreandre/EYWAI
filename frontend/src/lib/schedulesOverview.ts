@@ -22,6 +22,7 @@ import type { FrenchPublicHolidayId } from '@/lib/frenchPublicHolidays';
 import { isForfaitJour } from '@/utils/employeeUtils';
 import { downloadBlob } from '@/lib/downloadBlob';
 import { statutAvecHeuresSurArret } from './calendrierPilotage';
+import { joursAbsentsATyper } from './absentATyper';
 
 export interface DayPatch {
   type?: string;
@@ -55,6 +56,8 @@ export interface EmployeeCalendarOverviewRow {
   absenceConflictDays: number[];
   /** Jours qui portent des heures réelles alors que le prévu est un arrêt ou une absence (API). */
   joursHeuresSurArret?: number[];
+  /** Jours marqués « absent » à l'import, sans type encore : la paie est bloquée. */
+  joursAbsentsATyper?: number[];
   loadError: boolean;
   isForfaitJour: boolean;
   /**
@@ -130,6 +133,7 @@ async function fetchEmployeeOverview(
     const pointeMoisPrecedent =
       reelMoisPrecedent === null || aDesHeuresPointees(reelMoisPrecedent);
     const joursHeuresSurArret: number[] = actualRes.data.jours_en_conflit ?? [];
+    const joursAbsents = joursAbsentsATyper(planned);
     const rowStatus = statutAvecHeuresSurArret(
       computeEmployeeRowStatus(
         planned,
@@ -164,6 +168,7 @@ async function fetchEmployeeOverview(
       rowStatus,
       absenceConflictDays,
       joursHeuresSurArret,
+      joursAbsentsATyper: joursAbsents,
       loadError: false,
       isForfaitJour: forfait,
       pointeMoisPrecedent,
@@ -205,6 +210,8 @@ export interface GlobalOverviewKpis {
   avecEcart: number;
   /** Calendriers qui portent des heures sur un jour d'arrêt (génération refusée). */
   avecHeuresSurArret: number;
+  /** Salariés avec au moins un jour « absent » sans type (génération refusée). */
+  avecAbsentsATyper: number;
   conflitsAbsences: number;
   heuresPrevuesTotal: number;
   heuresFaitesTotal: number;
@@ -225,20 +232,24 @@ export function computeGlobalKpis(
   const avecHeuresSurArret = rows.filter(
     (r) => (r.joursHeuresSurArret?.length ?? 0) > 0
   ).length;
+  const avecAbsentsATyper = rows.filter(
+    (r) => (r.joursAbsentsATyper?.length ?? 0) > 0
+  ).length;
   const conflitsAbsences = rows.filter(
     (r) => r.absenceConflictDays.length > 0
   ).length;
   const heuresPrevuesTotal = rows.reduce((s, r) => s + r.heuresPrevues, 0);
   const heuresFaitesTotal = rows.reduce((s, r) => s + r.heuresFaites, 0);
-  // Prêt = saisi et sans heures sur un jour d'arrêt (la génération serait refusée).
-  const prets = rows.filter(
-    (r) => r.rowStatus !== 'a_saisir' && (r.joursHeuresSurArret?.length ?? 0) === 0
-  ).length;
+  // Prêt = saisi, sans heures sur un jour d'arrêt ni jour absent sans type
+  // (la génération serait refusée).
+  const bloque = (r: EmployeeCalendarOverviewRow) =>
+    (r.joursHeuresSurArret?.length ?? 0) > 0 || (r.joursAbsentsATyper?.length ?? 0) > 0;
+  const prets = rows.filter((r) => r.rowStatus !== 'a_saisir' && !bloque(r)).length;
   const progressPercent = total > 0 ? Math.round((prets / total) * 100) : 0;
   const pretsSansHeuresPointees = rows.filter(
     (r) =>
       r.rowStatus !== 'a_saisir' &&
-      (r.joursHeuresSurArret?.length ?? 0) === 0 &&
+      !bloque(r) &&
       !r.isForfaitJour &&
       !aDesHeuresPointees(r.actual)
   ).length;
@@ -249,6 +260,7 @@ export function computeGlobalKpis(
     aSaisir,
     avecEcart,
     avecHeuresSurArret,
+    avecAbsentsATyper,
     conflitsAbsences,
     heuresPrevuesTotal,
     heuresFaitesTotal,
@@ -321,6 +333,7 @@ export function applyDayPatchToRow(
     heuresFaites: stats.heuresFaites,
     ecart: row.isForfaitJour ? stats.ecartJours : stats.ecart,
     rowStatus,
+    joursAbsentsATyper: joursAbsentsATyper(newPlanned),
   };
 }
 

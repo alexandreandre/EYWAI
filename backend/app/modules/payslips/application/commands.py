@@ -24,6 +24,7 @@ from app.modules.payslips.application.dto import (
     PayslipArretsIllisiblesError,
     PayslipBadRequestError,
     PayslipCalendarIncompleteError,
+    PayslipAbsentATyperError,
     PayslipHeuresSurArretError,
     PayslipValidatedError,
     PayslipNotFoundError,
@@ -242,6 +243,30 @@ def _check_heures_sur_jour_d_arret(
         jours,
     )
     raise PayslipHeuresSurArretError(message_de_refus(prenom, conflits), {"jours": jours})
+
+
+def _check_absents_a_typer(employee: dict[str, Any], periode: "PeriodeASaisir") -> None:
+    """Garde « jour marqué absent à l'import, sans type ».
+
+    La case « absent » ne retire rien du salaire par elle-même : c'est le type
+    du jour (congé, RTT, arrêt, absence non payée) qui le fait. Tant qu'il
+    manque, le bulletin serait faux dans un sens ou dans l'autre : refus
+    (422), aucun forçage, la seule sortie est de typer le jour.
+    """
+    from app.modules.schedules.domain.absent_a_typer import message_absents_a_typer
+
+    jours = tuple(getattr(periode, "absents_a_typer", ()) or ())
+    if not jours:
+        return
+    logger.info(
+        "[generation] Refus absent_a_typer pour l'employé %s : %s",
+        employee.get("id"),
+        [d.isoformat() for d in jours],
+    )
+    raise PayslipAbsentATyperError(
+        message_absents_a_typer(_prenom(employee), jours),
+        {"jours": [d.isoformat() for d in jours]},
+    )
 
 
 def _fetch_existing_payslip(
@@ -626,6 +651,8 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     Gardes (lot 3 — génération sûre), côté serveur, jamais dans les générateurs :
     - heures saisies un jour d'arrêt ou d'absence non travaillée →
       PayslipHeuresSurArretError (422), sans forçage possible ;
+    - jour marqué « absent » à l'import sans type → PayslipAbsentATyperError
+      (422), sans forçage possible ;
     - calendrier du mois `a_saisir` → PayslipCalendarIncompleteError (422),
       sauf `force_calendrier_incomplet` explicite (tracé, warning en réponse).
 
@@ -653,6 +680,7 @@ def _generer_sous_verrou(
     # D'abord le refus sans forçage : une génération forcée pour un calendrier
     # incomplet ne doit pas s'arrêter ensuite sur lui.
     _check_heures_sur_jour_d_arret(employee, periode)
+    _check_absents_a_typer(employee, periode)
     calendar_warning = _check_calendar_guard(employee, cmd, periode)
     bulletin_existant = _check_validated_guard(cmd)
     _check_contrat_du_bulletin(employee, cmd, bulletin_existant)

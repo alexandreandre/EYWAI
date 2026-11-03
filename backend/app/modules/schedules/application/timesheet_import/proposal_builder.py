@@ -51,10 +51,14 @@ def build_proposal_from_tabular(
                 punch_entry_raw=str(r.entry_raw) if r.entry_raw is not None else None,
                 punch_exit_raw=str(r.exit_raw) if r.exit_raw is not None else None,
                 shift_code=r.shift_code,
+                punch_break_minutes=r.punched_break_minutes,
             )
             for r in rows
         ]
         proposal.days = days
+        proposal.warnings = list(proposal.warnings) + [
+            f"Jour {r.jour} : {note}" for r in rows for note in r.notes
+        ]
         proposal.days_imported_count = len(days)
         proposal.days_expected_count = len(days)
         proposal.coverage_ratio = 1.0 if days else 0.0

@@ -102,6 +102,7 @@ def build_month_groups_from_rows(
                 punch_entry_raw=str(r.entry_raw) if r.entry_raw is not None else None,
                 punch_exit_raw=str(r.exit_raw) if r.exit_raw is not None else None,
                 shift_code=r.shift_code,
+                punch_break_minutes=r.punched_break_minutes,
             )
             for r in emp_rows
         ]

@@ -16,6 +16,7 @@ PreflightAnomalyType = Literal[
     "hs_pointage_a_valider",
     "fenetre_modifiee",
     "fiche_dsn",
+    "absent_a_typer",
 ]
 
 PreflightAnomalySeverity = Literal["bloquant", "a_verifier"]
@@ -62,7 +63,8 @@ class PreflightAnomaly(BaseModel):
     detail_jours: List[PreflightDayEcartDetail] = Field(default_factory=list)
     conflict_days: List[int] = Field(default_factory=list)
     days_with_pointage_anomalies: Optional[int] = None
-    #: Jours de la fenêtre des variables sans réel (ISO), pour `heures_non_saisies`.
+    #: Jours de la fenêtre des variables sans réel (ISO), pour `heures_non_saisies` ;
+    #: jours marqués « absent » sans type (ISO), pour `absent_a_typer`.
     jours_manquants: List[str] = Field(default_factory=list)
     #: Fenêtre des variables jugée : {debut, fin, semaines, origine}.
     fenetre: Optional[Dict[str, Any]] = None
@@ -79,6 +81,7 @@ class PreflightAnomalyCounts(BaseModel):
     hs_pointage_a_valider: int = 0
     fenetre_modifiee: int = 0
     fiche_dsn: int = 0
+    absent_a_typer: int = 0
     bloquant: int = 0
     a_verifier: int = 0
 

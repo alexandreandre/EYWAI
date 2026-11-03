@@ -70,6 +70,8 @@ export type PayrollGenerationRefusal = {
   details?: RefusalDetails;
   /** Jours où des heures sont saisies sur un arrêt (`heures_sur_jour_d_arret`). */
   jours?: JourEnConflit[];
+  /** Jours marqués « absent » sans type (`absent_a_typer`), dates ISO. */
+  joursAbsents?: string[];
 };
 
 export type PayrollGenerationLogEntry = {

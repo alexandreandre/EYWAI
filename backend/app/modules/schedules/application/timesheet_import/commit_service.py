@@ -201,6 +201,32 @@ def _employees_from_batch(
     ]
 
 
+def _marques_absent_doublees(
+    prevu_days: List[Any], reel_days: List[Any], refuses: List[Dict[str, Any]]
+) -> int:
+    """Jours cochés « absent » écrits au prévu ET au réel : un seul jour écrit."""
+    from app.modules.schedules.domain.absent_a_typer import TYPE_ABSENT_A_TYPER
+
+    jours_reel = {d.jour for d in reel_days}
+    jours_refuses = {w.get("jour") for w in refuses}
+    return sum(
+        1
+        for d in prevu_days
+        if d.type == TYPE_ABSENT_A_TYPER and d.jour in jours_reel and d.jour not in jours_refuses
+    )
+
+
+def _planning_par_defaut(year: int, month: int) -> List[Dict[str, Any]]:
+    return [
+        {
+            "jour": j,
+            "type": _default_type_for_day(year, month, j),
+            "heures_prevues": None,
+        }
+        for j in range(1, cal_mod.monthrange(year, month)[1] + 1)
+    ]
+
+
 def _upsert_employees_for_month(
     *,
     company_id: str,
@@ -221,7 +247,6 @@ def _upsert_employees_for_month(
     warnings: List[Dict[str, Any]] = []
     conflits: List[tuple[str, List[Dict[str, Any]]]] = []
     total_days = 0
-    days_in_month = cal_mod.monthrange(year, month)[1]
 
     for emp in employees:
         try:
@@ -247,6 +272,11 @@ def _upsert_employees_for_month(
                 planned_existing = pc.get("calendrier_prevu") or []
                 actual_existing = ah.get("calendrier_reel") or []
 
+            if not row and reel_days:
+                # Mois sans ligne : un planning par défaut sert de base, même
+                # quand l'import porte aussi des jours prévus (case « absent ») ;
+                # sinon le reste du mois resterait sans planning.
+                planned_existing = _planning_par_defaut(year, month)
             merged_planned = planned_existing
             merged_actual = actual_existing
             days_written = 0
@@ -259,8 +289,13 @@ def _upsert_employees_for_month(
                 warnings.extend(
                     {"employee_id": emp.employee_id, **w} for w in avertissements
                 )
-                # Les jours refusés (absence validée préservée) ne comptent pas.
-                days_written += len(prevu_days) - len(avertissements)
+                # Les jours refusés (absence validée préservée) ne comptent pas,
+                # ni la marque « absent » d'un jour qui part aussi au réel.
+                days_written += (
+                    len(prevu_days)
+                    - len(avertissements)
+                    - _marques_absent_doublees(prevu_days, reel_days, avertissements)
+                )
             if reel_days:
                 merged_actual = _merge_days(actual_existing, reel_days, "reel")
                 days_written += len(reel_days)
@@ -296,14 +331,7 @@ def _upsert_employees_for_month(
             if not row and not prevu_days and reel_days:
                 payload["planned_calendar"] = {
                     "periode": {"mois": month, "annee": year},
-                    "calendrier_prevu": [
-                        {
-                            "jour": j,
-                            "type": _default_type_for_day(year, month, j),
-                            "heures_prevues": None,
-                        }
-                        for j in range(1, days_in_month + 1)
-                    ],
+                    "calendrier_prevu": merged_planned,
                 }
 
             upsert_payloads.append(payload)
@@ -335,7 +363,6 @@ def _upsert_employees_for_month_fast(
     warnings: List[Dict[str, Any]] = []
     conflits: List[tuple[str, List[Dict[str, Any]]]] = []
     total_days = 0
-    days_in_month = cal_mod.monthrange(year, month)[1]
 
     for emp in employees:
         try:
@@ -361,6 +388,11 @@ def _upsert_employees_for_month_fast(
                 planned_existing = pc.get("calendrier_prevu") or []
                 actual_existing = ah.get("calendrier_reel") or []
 
+            if not row and reel_days:
+                # Mois sans ligne : un planning par défaut sert de base, même
+                # quand l'import porte aussi des jours prévus (case « absent ») ;
+                # sinon le reste du mois resterait sans planning.
+                planned_existing = _planning_par_defaut(year, month)
             merged_planned = planned_existing
             merged_actual = actual_existing
             days_written = 0
@@ -373,8 +405,13 @@ def _upsert_employees_for_month_fast(
                 warnings.extend(
                     {"employee_id": emp.employee_id, **w} for w in avertissements
                 )
-                # Les jours refusés (absence validée préservée) ne comptent pas.
-                days_written += len(prevu_days) - len(avertissements)
+                # Les jours refusés (absence validée préservée) ne comptent pas,
+                # ni la marque « absent » d'un jour qui part aussi au réel.
+                days_written += (
+                    len(prevu_days)
+                    - len(avertissements)
+                    - _marques_absent_doublees(prevu_days, reel_days, avertissements)
+                )
             if reel_days:
                 merged_actual = _merge_days(actual_existing, reel_days, "reel")
                 days_written += len(reel_days)
@@ -410,14 +447,7 @@ def _upsert_employees_for_month_fast(
             if not row and not prevu_days and reel_days:
                 payload["planned_calendar"] = {
                     "periode": {"mois": month, "annee": year},
-                    "calendrier_prevu": [
-                        {
-                            "jour": j,
-                            "type": _default_type_for_day(year, month, j),
-                            "heures_prevues": None,
-                        }
-                        for j in range(1, days_in_month + 1)
-                    ],
+                    "calendrier_prevu": merged_planned,
                 }
 
             upsert_payloads.append(payload)
