@@ -69,7 +69,7 @@ git status -sb
 
 ### 5. Staging
 
-- Par défaut : **`git add -A`** à la racine du dépôt (ou chemins pertinents) pour inclure ajouts/suppressions, **sauf** si l’utilisateur impose un périmètre plus restreint.
+- **Jamais `git add -A`, `git add .` ni `git add --all`** (dépôt public : dossiers non suivis du poste, textes extraits de bulletins, travail d’une autre session). Toujours `git add -- <chemin> …` avec les chemins listés par `git status --short`, suppressions comprises (`git rm -- <chemin>`).
 - Re-vérifier : `git status` avant commit.
 
 ### 6. Commits : détaillés, propres, adaptés aux changements
