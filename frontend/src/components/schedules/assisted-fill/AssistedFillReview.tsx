@@ -57,6 +57,17 @@ import {
 import { ImportPunchRuleBar } from './ImportPunchRuleBar';
 import { joursNonLus, phraseJoursNonLus, suiteResultatJoursNonLus } from './joursNonLus';
 import {
+  absentsMarques,
+  basculerAbsent,
+  joursPourEnregistrement,
+  joursVides,
+  nombreAbsents,
+  phraseAvantEnregistrement,
+  type AbsentsDuSalarie,
+  type JourVide,
+} from './casesAbsent';
+import { TYPE_ABSENT_A_TYPER } from '@/lib/absentATyper';
+import {
   cleJourExistant,
   joursRemplaces,
   phraseJoursRemplaces,
@@ -131,6 +142,8 @@ interface EditableDay {
   // Mois/année réels si différents du mois affiché (semaine à cheval sur 2 mois).
   year?: number | null;
   month?: number | null;
+  /** Jour non lu ajouté par la case « absent » (décoché, il disparaît). */
+  ajoutParCase?: boolean;
 }
 
 interface EditableRow {
@@ -411,6 +424,9 @@ export function AssistedFillReview({
   // absence : listés au récapitulatif, avec le chemin pour les corriger.
   const [conflitsArret, setConflitsArret] = useState<ConflitsImportSalarie[]>([]);
   const [pendingApplyMeta, setPendingApplyMeta] = useState<AssistedFillApplyMeta | null>(null);
+  // Jours cochés « absent » et enregistrés : listés au récapitulatif, avec le
+  // chemin pour leur donner leur type (la paie est bloquée jusque-là).
+  const [absentsEnregistres, setAbsentsEnregistres] = useState<AbsentsDuSalarie[]>([]);
   // Relecture d'un fichier déjà importé : les jours corrigés à la main depuis
   // l'import ne seront pas réécrits (le serveur les retire à l'enregistrement).
   const reimport = proposal.reimport ?? null;
@@ -585,6 +601,9 @@ export function AssistedFillReview({
     [rows, includeOrange],
   );
   const phraseNonLus = phraseJoursNonLus(nonLus);
+  const phraseAbsents = phraseAvantEnregistrement(
+    savableRows.reduce((n, r) => n + nombreAbsents(r.days), 0),
+  );
   const suiteNonLus = suiteResultatJoursNonLus(nonLus);
 
   // Heures réelles déjà saisies que l'import va remplacer : lues au calendrier
@@ -743,6 +762,19 @@ export function AssistedFillReview({
     );
   };
 
+  const cocherAbsent = (rowKey: string, vide: JourVide, coche: boolean) => {
+    setRows((prev) =>
+      prev.map((r) => (r.key === rowKey ? { ...r, days: basculerAbsent(r.days, vide, coche) } : r)),
+    );
+  };
+
+  const periodeDuDocument = {
+    debut: proposal.detected_period_start ?? null,
+    fin: proposal.detected_period_end ?? null,
+    annee: proposal.year,
+    mois: proposal.month,
+  };
+
   const removeDay = (rowKey: string, jour: number) => {
     setRows((prev) =>
       prev.map((r) =>
@@ -829,6 +861,14 @@ export function AssistedFillReview({
     meta: AssistedFillApplyMeta,
     successTitle = 'Heures enregistrées',
   ) => {
+    const absents = absentsMarques(
+      savableRows.map((r) => ({
+        employeeId: r.employeeId,
+        nom: r.matchedName ?? r.rawName,
+        jours: r.days,
+      })),
+    );
+    if (absents.length > 0) setAbsentsEnregistres(absents);
     if (conflits.length > 0) {
       const nbJours = conflits.reduce((n, c) => n + c.jours.length, 0);
       toast({
@@ -853,6 +893,11 @@ export function AssistedFillReview({
       return;
     }
     toast({ title: successTitle, description: successDescription });
+    if (absents.length > 0) {
+      // Pas de fermeture silencieuse : la paie de ces salariés est bloquée.
+      setPendingApplyMeta(meta);
+      return;
+    }
     onApplied(meta);
   };
 
@@ -899,7 +944,7 @@ export function AssistedFillReview({
         savableRows.map((row) => ({
           employee_id: row.employeeId as string,
           raw_name: row.rawName,
-          days: row.days.map((d) => ({
+          days: joursPourEnregistrement(row.days).map((d) => ({
             jour: d.jour,
             heures: d.heures,
             type: d.type,
@@ -1010,11 +1055,51 @@ export function AssistedFillReview({
                 ? 'Consigne texte'
                 : proposal.source;
 
-  if (preservedAbsenceDays.length > 0 || conflitsArret.length > 0) {
+  if (
+    preservedAbsenceDays.length > 0 ||
+    conflitsArret.length > 0 ||
+    (absentsEnregistres.length > 0 && pendingApplyMeta)
+  ) {
     // Récapitulatif post-enregistrement : jours refusés car absence validée, et
     // jours enregistrés malgré un arrêt ou une absence au planning.
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+        {absentsEnregistres.length > 0 && (
+          <div
+            className="shrink-0 rounded-md border border-red-400 bg-red-50 px-3 py-2 text-red-900"
+            data-testid="recap-absents-a-typer"
+          >
+            <p className="flex items-center gap-1.5 text-sm font-medium">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              Jours marqués « absent » : type à donner
+            </p>
+            <p className="mt-1 text-xs">
+              Ces jours sont en rouge au calendrier. Aucun salaire n&apos;est retenu pour
+              l&apos;instant, et le bulletin sera refusé tant que vous ne leur aurez pas donné
+              leur type (congé, RTT, arrêt ou absence non payée).
+            </p>
+            <ul className="mt-2 space-y-1 text-xs">
+              {absentsEnregistres.map((a) => (
+                <li key={a.employeeId} className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-medium">{a.nom}</span>
+                  <span className="tabular-nums">
+                    {a.jours.length > 1 ? 'les ' : 'le '}
+                    {a.jours.join(', ')}
+                  </span>
+                  <Link
+                    to={lienCalendrierDuSalarie(a.employeeId, {
+                      year: proposal.year,
+                      month: proposal.month,
+                    })}
+                    className="underline underline-offset-2"
+                  >
+                    Ouvrir le calendrier
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {conflitsArret.length > 0 && (
           <div
             className="shrink-0 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-rose-900"
@@ -1294,6 +1379,15 @@ export function AssistedFillReview({
             const daySum = row.days.reduce((a, d) => a + (d.heures ?? 0), 0);
             const needsAssociate = !row.employeeId || status === 'error';
             const canConfirmVerification = !needsAssociate && isMatchVerificationRow(row);
+            const vides = expanded ? joursVides(row.days, periodeDuDocument) : [];
+            const videDuJour = (day: EditableDay) =>
+              vides.find(
+                (v) =>
+                  v.jour === day.jour &&
+                  v.mois === (day.month ?? proposal.month) &&
+                  v.annee === (day.year ?? proposal.year),
+              );
+            const nonLusDeLaLigne = vides.filter((v) => !v.lu);
             return (
               <div
                 key={row.key}
@@ -1400,10 +1494,17 @@ export function AssistedFillReview({
                         />
                       </div>
                     )}
-                    {row.days.map((day) => (
+                    {row.days.map((day) => {
+                      const vide = videDuJour(day);
+                      const absent = day.type === TYPE_ABSENT_A_TYPER;
+                      return (
                       <div
-                        key={day.jour}
-                        className="flex flex-wrap items-center gap-1.5 rounded bg-muted/30 px-1.5 py-1"
+                        key={`${day.year ?? proposal.year}-${day.month ?? proposal.month}-${day.jour}`}
+                        className={cn(
+                          'flex flex-wrap items-center gap-1.5 rounded px-1.5 py-1',
+                          absent ? 'border border-red-400 bg-red-50' : 'bg-muted/30',
+                        )}
+                        data-absent-a-typer={absent ? 'true' : undefined}
                       >
                         <span className="w-20 text-[11px] font-medium tabular-nums">
                           {weekdayLabel(day.year ?? proposal.year, day.month ?? proposal.month, day.jour)}{' '}
@@ -1414,6 +1515,12 @@ export function AssistedFillReview({
                             </span>
                           )}
                         </span>
+                        {absent ? (
+                          <span className="text-[11px] font-medium text-red-800">
+                            Absent — type à donner au calendrier
+                          </span>
+                        ) : (
+                        <>
                         <Input
                           type="number"
                           step="0.25"
@@ -1445,6 +1552,19 @@ export function AssistedFillReview({
                           nature={day.nature}
                           onChange={(n) => updateDay(row.key, day.jour, { nature: n })}
                         />
+                        </>
+                        )}
+                        {vide && (
+                          <label className="flex items-center gap-1 text-[11px] text-red-800">
+                            <Checkbox
+                              checked={absent}
+                              onCheckedChange={(c) => cocherAbsent(row.key, vide, c === true)}
+                              aria-label={`Absent le ${day.jour}`}
+                              className="h-3.5 w-3.5"
+                            />
+                            Absent
+                          </label>
+                        )}
                         <button
                           type="button"
                           onClick={() => removeDay(row.key, day.jour)}
@@ -1453,7 +1573,41 @@ export function AssistedFillReview({
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
-                    ))}
+                      );
+                    })}
+                    {nonLusDeLaLigne.length > 0 && (
+                      <div className="space-y-1 pt-1" data-testid="jours-non-lus-de-la-ligne">
+                        <p className="text-[11px] text-muted-foreground">
+                          Jours de la période sans pointage : vides, donc à saisir au calendrier.
+                          Cochez « Absent » si la personne n&apos;était pas là.
+                        </p>
+                        {nonLusDeLaLigne.map((v) => (
+                          <div
+                            key={`non-lu-${v.annee}-${v.mois}-${v.jour}`}
+                            className="flex items-center gap-1.5 rounded border border-dashed border-amber-400/80 px-1.5 py-1"
+                          >
+                            <span className="w-20 text-[11px] font-medium tabular-nums">
+                              {weekdayLabel(v.annee, v.mois, v.jour)} {v.jour}
+                              {v.mois !== proposal.month && (
+                                <span className="text-muted-foreground">
+                                  /{String(v.mois).padStart(2, '0')}
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">Vide</span>
+                            <label className="ml-2 flex items-center gap-1 text-[11px] text-red-800">
+                              <Checkbox
+                                checked={false}
+                                onCheckedChange={(c) => cocherAbsent(row.key, v, c === true)}
+                                aria-label={`Absent le ${v.jour}`}
+                                className="h-3.5 w-3.5"
+                              />
+                              Absent
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1553,6 +1707,14 @@ export function AssistedFillReview({
         >
           Les heures déjà saisies n’ont pas pu être lues : l’import remplacera celles qui existent
           sans que ce contrôle puisse les citer.
+        </p>
+      )}
+      {phraseAbsents && (
+        <p
+          className="shrink-0 rounded-md border border-red-400 bg-red-50 px-3 py-1.5 text-xs text-red-900"
+          data-testid="jours-absents-coches"
+        >
+          {phraseAbsents}
         </p>
       )}
       {phraseNonLus && (

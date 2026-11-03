@@ -11,6 +11,7 @@ import {
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { JoursASaisirListe } from '@/features/payroll/components/JoursASaisirListe';
+import { JoursAbsentsATyper } from '@/features/payroll/components/JoursAbsentsATyper';
 import {
   ChoixHeuresSurArret,
   HeuresSurArretSansJours,
@@ -70,6 +71,7 @@ export function PayrollGenerationRefusalDialog({
   ).length;
   const illisiblesCount = refusals.filter((r) => r.code === 'arrets_illisibles').length;
   const repriseCount = refusals.filter((r) => r.code === 'reprise_non_posee').length;
+  const absentsCount = refusals.filter((r) => r.code === 'absent_a_typer').length;
   const forcables = refusForcablesEnGroupe(refusals);
 
   const title = single
@@ -123,7 +125,8 @@ export function PayrollGenerationRefusalDialog({
               {refusals.length} refusés (calendrier incomplet : {calendarCount},
               bulletin validé : {validatedCount}, heures sur un jour d’arrêt :{' '}
               {heuresCount}, arrêts illisibles : {illisiblesCount}
-              {repriseCount > 0 ? `, reprise non posée : ${repriseCount}` : ''}).
+              {repriseCount > 0 ? `, reprise non posée : ${repriseCount}` : ''}
+              {absentsCount > 0 ? `, absent sans type : ${absentsCount}` : ''}).
             </AlertDialogDescription>
           )}
         </AlertDialogHeader>
@@ -132,6 +135,17 @@ export function PayrollGenerationRefusalDialog({
           <JoursASaisirListe
             details={single.details}
             lienPlanning={lienCalendrierDuSalarie(single.job.employeeId)}
+            onLienClick={onDismiss}
+          />
+        )}
+
+        {single?.code === 'absent_a_typer' && (
+          <JoursAbsentsATyper
+            jours={single.joursAbsents ?? []}
+            lienCalendrier={lienCalendrierDuSalarie(single.job.employeeId, {
+              year: single.job.year,
+              month: single.job.month,
+            })}
             onLienClick={onDismiss}
           />
         )}
@@ -166,6 +180,21 @@ export function PayrollGenerationRefusalDialog({
                 </span>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {REFUSAL_DIALOG_LABELS[refusal.code].shortLabel}
+                  {refusal.code === 'absent_a_typer' && (
+                    <>
+                      {' · '}
+                      <Link
+                        to={lienCalendrierDuSalarie(refusal.job.employeeId, {
+                          year: refusal.job.year,
+                          month: refusal.job.month,
+                        })}
+                        onClick={onDismiss}
+                        className="underline underline-offset-2"
+                      >
+                        Donner le type
+                      </Link>
+                    </>
+                  )}
                   {refusal.code === 'calendrier_incomplet' && (
                     <>
                       {' · '}
@@ -237,8 +266,8 @@ export function PayrollGenerationRefusalDialog({
             {repriseCount > 0
               ? ' et, pour une reprise non posée, en partant de cumuls à zéro (le bulletin porte une alerte)'
               : ''}
-            . Les heures sur un jour d’arrêt et les arrêts illisibles ne se
-            forcent pas.
+            . Les heures sur un jour d’arrêt, les jours absents sans type et les
+            arrêts illisibles ne se forcent pas.
           </p>
         )}
 

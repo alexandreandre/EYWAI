@@ -327,7 +327,7 @@ export default function PunchAccountingSettingsCard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="shift_code">Code horaire import</SelectItem>
-                <SelectItem value="nearest_entry">Entrée la plus proche</SelectItem>
+                <SelectItem value="nearest_entry">Horaire le plus proche (entrée et sortie)</SelectItem>
                 <SelectItem value="planning_first">Planning d&apos;abord</SelectItem>
               </SelectContent>
             </Select>

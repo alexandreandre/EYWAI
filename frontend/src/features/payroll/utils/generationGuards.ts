@@ -22,7 +22,8 @@ export type GenerationRefusalCode =
   | 'bulletin_valide'
   | 'heures_sur_jour_d_arret'
   | 'arrets_illisibles'
-  | 'reprise_non_posee';
+  | 'reprise_non_posee'
+  | 'absent_a_typer';
 
 /** Ce que l'API attend pour forcer un refus (`generatePayslip`). */
 export type ForcageGeneration = {
@@ -41,8 +42,9 @@ export function forcageDuRefus(code: GenerationRefusalCode): ForcageGeneration {
 
 /**
  * Calendrier incomplet, bulletin validé et reprise non posée se forcent d'un
- * clic explicite. Les deux autres, jamais : `heures_sur_jour_d_arret` ne se
- * règle que par une correction, `arrets_illisibles` que par un nouvel essai.
+ * clic explicite. Les autres, jamais : `heures_sur_jour_d_arret` ne se
+ * règle que par une correction, `absent_a_typer` qu'en donnant leur type aux
+ * jours, `arrets_illisibles` que par un nouvel essai.
  */
 export const estForcable = (code: GenerationRefusalCode): boolean =>
   Object.keys(forcageDuRefus(code)).length > 0;
@@ -81,6 +83,8 @@ export type GenerationRefusal = {
   details?: RefusalDetails;
   /** Jours où des heures sont saisies sur un arrêt (`heures_sur_jour_d_arret`). */
   jours?: JourEnConflit[];
+  /** Jours marqués « absent » sans type (`absent_a_typer`), dates ISO. */
+  joursAbsents?: string[];
 };
 
 const isoDates = (value: unknown): string[] =>
@@ -130,6 +134,8 @@ const REFUSAL_FALLBACK_MESSAGES: Record<GenerationRefusalCode, string> = {
     'Les arrêts du salarié n’ont pas pu être lus, donc rien n’a été calculé. Réessayez dans un instant.',
   reprise_non_posee:
     'Ce collaborateur était payé avant Martine, mais sa reprise n’est pas posée : son bulletin partirait de cumuls à zéro.',
+  absent_a_typer:
+    'Des jours sont marqués « absent » sans type : donnez le type de chaque jour dans le calendrier (congé, RTT, arrêt ou absence non payée).',
 };
 
 /** Libellés des dialogues de refus (titre, action de forçage, libellé court). */
@@ -161,6 +167,11 @@ export const REFUSAL_DIALOG_LABELS: Record<
     title: 'Reprise de paie non posée',
     actionLabel: 'Générer quand même, en partant de cumuls à zéro',
     shortLabel: 'reprise non posée',
+  },
+  absent_a_typer: {
+    title: 'Jours absents sans type',
+    actionLabel: 'Donner le type au calendrier',
+    shortLabel: 'absent sans type',
   },
 };
 
@@ -194,6 +205,8 @@ export function extractGenerationRefusal(error: unknown): GenerationRefusal | nu
     refusalCode = 'arrets_illisibles';
   } else if (status === 422 && code === 'reprise_non_posee') {
     refusalCode = 'reprise_non_posee';
+  } else if (status === 422 && code === 'absent_a_typer') {
+    refusalCode = 'absent_a_typer';
   }
   if (!refusalCode) return null;
 
@@ -209,6 +222,9 @@ export function extractGenerationRefusal(error: unknown): GenerationRefusal | nu
   }
   if (refusalCode === 'heures_sur_jour_d_arret') {
     refusal.jours = lireJoursEnConflit((detail as { jours?: unknown }).jours);
+  }
+  if (refusalCode === 'absent_a_typer') {
+    refusal.joursAbsents = isoDates((detail as { jours?: unknown }).jours);
   }
   return refusal;
 }

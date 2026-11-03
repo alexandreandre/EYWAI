@@ -25,6 +25,7 @@ import {
   getCalendarTypeLabel,
 } from '@/lib/calendarTypes';
 import { isDayReadyForPayroll } from '@/lib/calendarStats';
+import { estAbsentATyper } from '@/lib/absentATyper';
 import {
   TITRE_INFO_BULLE_CONFLIT,
   estJourEnConflit,
@@ -51,6 +52,10 @@ interface CalendarDayCellProps {
 // paie) n'est proposé que si le jour le porte déjà (retypage historique).
 
 const DEFAULT_SCALE_HOURS = 10;
+
+/** Infobulle d'un jour coché « absent » à l'import, sans type encore. */
+const TITRE_ABSENT_A_TYPER =
+  'Absent : donnez le type du jour (congé, RTT, arrêt ou absence non payée). La paie reste bloquée tant qu’il manque.';
 
 function dayNeedsInput(
   type: string,
@@ -325,12 +330,15 @@ export function CalendarDayCell({
   // (congé vert, arrêt rouge…) pour vérifier d'un coup d'œil.
   const bgColor = CALENDAR_TYPE_BG_COLORS[plannedDay.type] ?? 'bg-card';
   const enConflit = estJourEnConflit(dayNumber, joursEnConflit);
+  const absent = estAbsentATyper(plannedDay);
+  const infoBulle = enConflit ? TITRE_INFO_BULLE_CONFLIT : absent ? TITRE_ABSENT_A_TYPER : undefined;
 
   return (
     <div
       ref={cellRef}
-      title={enConflit ? TITRE_INFO_BULLE_CONFLIT : undefined}
+      title={infoBulle}
       data-conflit-arret={enConflit ? 'true' : undefined}
+      data-absent-a-typer={absent ? 'true' : undefined}
       className={cn(
         'group relative flex h-full min-h-[7.5rem] w-full flex-col rounded-2xl border transition-all duration-200',
         enConflit ? 'bg-rose-100 border-rose-400 ring-2 ring-rose-400' : bgColor,
@@ -349,6 +357,7 @@ export function CalendarDayCell({
     >
       <div className={cn('absolute left-0 top-2 bottom-2 w-1.5 rounded-full', barColor)} />
       {enConflit && <span className="sr-only">{TITRE_INFO_BULLE_CONFLIT}</span>}
+      {absent && !enConflit && <span className="sr-only">{TITRE_ABSENT_A_TYPER}</span>}
 
       <div className="flex items-start justify-between gap-1 p-2 pl-3 shrink-0">
         <div className="flex flex-col min-w-0">

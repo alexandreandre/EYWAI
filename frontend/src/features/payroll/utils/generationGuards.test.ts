@@ -280,3 +280,31 @@ describe('refus reprise_non_posee : générer quand même, en partant de cumuls 
     expect(forcageDuRefus('arrets_illisibles')).toEqual({});
   });
 });
+
+describe('refus absent_a_typer : case « absent » sans type (retour d’Elsa du 28/10)', () => {
+  const erreur = httpError(422, {
+    code: 'absent_a_typer',
+    message: 'Octavie a un jour marqué « absent » sans type : le 9 septembre.',
+    jours: ['2026-09-09'],
+  });
+
+  it('reconnaît le 422 avec ses jours', () => {
+    expect(extractGenerationRefusal(erreur)).toEqual({
+      code: 'absent_a_typer',
+      message: 'Octavie a un jour marqué « absent » sans type : le 9 septembre.',
+      joursAbsents: ['2026-09-09'],
+    });
+  });
+
+  it('ne se force jamais, ni seul ni en groupe', () => {
+    expect(forcageDuRefus('absent_a_typer')).toEqual({});
+    expect(estForcable('absent_a_typer')).toBe(false);
+    expect(refusForcablesEnGroupe([{ code: 'absent_a_typer' as const }])).toEqual([]);
+  });
+
+  it('a un libellé de dialogue et un message de repli', () => {
+    expect(REFUSAL_DIALOG_LABELS.absent_a_typer.shortLabel).toBe('absent sans type');
+    const sansMessage = extractGenerationRefusal(httpError(422, { code: 'absent_a_typer' }));
+    expect(sansMessage?.message).toContain('type');
+  });
+});

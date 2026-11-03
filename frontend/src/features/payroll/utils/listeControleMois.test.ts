@@ -13,6 +13,7 @@ import {
   ETAPE_SORTIES,
   ETAPE_VALIDES,
   MESSAGE_ABSENCES_A_CONFIRMER,
+  lectureAbsentsATyper,
   lectureCalendriersASaisir,
   lectureConflitsArret,
   listeControleDuMois,
@@ -647,5 +648,42 @@ describe('régularisations à la main', () => {
     expect(valides.detail).toBe(
       '1 bulletin a une correction en attente : réglez-la dans l’onglet « Corriger » avant de valider.'
     );
+  });
+});
+
+describe('jours marqués « absent » sans type (retour d’Elsa du 28/10)', () => {
+  it('la revue pré-paie les donne par salarié', () => {
+    const lecture = lectureAbsentsATyper({
+      chargement: false,
+      erreur: false,
+      anomalies: [
+        { type: 'absent_a_typer', employee_id: 'e-1', jours_manquants: ['2026-09-09'] },
+        { type: 'heures_non_saisies', employee_id: 'e-2', jours_manquants: ['2026-09-10'] },
+      ],
+    });
+    expect(lecture).toEqual({ statut: 'ok', valeur: ['e-1'] });
+  });
+
+  it('l’étape des calendriers reste à faire et le dit', () => {
+    const liste = listeControleDuMois(entree({ absentsATyper: OK(['e-1']) }));
+    const calendriers = etape(liste, ETAPE_CALENDRIERS);
+    expect(calendriers.etat).toBe('a_faire');
+    expect(calendriers.detail).toBe(
+      '1 salarié a des jours marqués « absent » sans type : donnez-leur leur type, la paie est bloquée.'
+    );
+    expect(liste.actions.find((a) => a.id === ETAPE_CALENDRIERS)?.quoi).toContain('« absent »');
+  });
+
+  it('les deux causes s’additionnent dans la phrase', () => {
+    const liste = listeControleDuMois(
+      entree({ calendriersASaisir: OK(['e-2']), absentsATyper: OK(['e-1']) })
+    );
+    expect(etape(liste, ETAPE_CALENDRIERS).detail).toBe(
+      '1 calendrier a encore des jours à saisir. 1 salarié a des jours marqués « absent » sans type : donnez-leur leur type, la paie est bloquée.'
+    );
+  });
+
+  it('sans lecture fournie, rien ne change', () => {
+    expect(etape(listeControleDuMois(entree()), ETAPE_CALENDRIERS).etat).toBe('fait');
   });
 });

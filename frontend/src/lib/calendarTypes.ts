@@ -23,6 +23,8 @@ export const CALENDAR_TYPE_LABELS: Record<string, string> = {
   absence_non_remuneree: 'Absence non rémunérée',
   absence_justifiee: 'Absence justifiée',
   ecole: 'École',
+  // Case « absent » de l'import (retour d'Elsa du 28/10) : rouge vif, bloque la paie.
+  absent_a_typer: 'Absent — type à donner',
 };
 
 export const CALENDAR_TYPE_BAR_COLORS: Record<string, string> = {
@@ -38,6 +40,7 @@ export const CALENDAR_TYPE_BAR_COLORS: Record<string, string> = {
   absence_non_remuneree: 'bg-orange-500',
   absence_justifiee: 'bg-amber-500',
   ecole: 'bg-indigo-500',
+  absent_a_typer: 'bg-red-600',
 };
 
 /** Fonds de cellule/carte teintés par type (mêmes teintes que la vue semaine). */
@@ -54,6 +57,7 @@ export const CALENDAR_TYPE_BG_COLORS: Record<string, string> = {
   absence_non_remuneree: 'bg-orange-50 hover:bg-orange-100 border-orange-200/60',
   absence_justifiee: 'bg-amber-50 hover:bg-amber-100 border-amber-200/60',
   ecole: 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200/60',
+  absent_a_typer: 'bg-red-100 hover:bg-red-200 border-red-500 ring-2 ring-red-500',
 };
 
 /**
@@ -87,6 +91,7 @@ export const CALENDAR_LEGEND_ITEMS: {
   { key: 'arret_maladie', label: 'Arrêt maladie', colorClass: 'bg-red-500' },
   { key: 'weekend', label: 'Week-end', colorClass: 'bg-slate-400' },
   { key: 'ecole', label: 'École', colorClass: 'bg-indigo-500' },
+  { key: 'absent_a_typer', label: 'Absent, type à donner', colorClass: 'bg-red-600' },
   { key: 'today', label: "Aujourd'hui", colorClass: 'ring-2 ring-primary' },
 ];
 

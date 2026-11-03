@@ -14,11 +14,14 @@ export const PREFLIGHT_ANOMALY_TYPE_LABELS: Record<PreflightAnomalyType, string>
   hs_pointage_a_valider: 'HS pointage à valider',
   fenetre_modifiee: 'Fenêtre modifiée',
   fiche_dsn: 'Fiche à compléter (DSN)',
+  absent_a_typer: 'Absent sans type',
 };
 
 export const PREFLIGHT_ANOMALY_TYPE_ORDER: PreflightAnomalyType[] = [
   // Une fiche incomplète refuserait la DSN : à compléter avant le reste.
   'fiche_dsn',
+  // Bloque la génération sans forçage : à typer avant le reste.
+  'absent_a_typer',
   'hs_routing_pending',
   'hs_pointage_a_valider',
   'ecart_heures',
@@ -55,7 +58,7 @@ export function verifyPathForAnomaly(anomaly: PreflightAnomaly): string {
   if (anomaly.type === 'hs_pointage_a_valider') {
     return '/company?tab=payroll';
   }
-  if (anomaly.type === 'pointage') {
+  if (anomaly.type === 'pointage' || anomaly.type === 'absent_a_typer') {
     // Le calendrier du salarié permet de corriger le pointage et reste dans le
     // périmètre du mode paie (la badgeuse, elle, y est inatteignable).
     return `/schedules?employee=${encodeURIComponent(anomaly.employee_id)}`;

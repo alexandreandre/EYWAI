@@ -107,6 +107,8 @@ export type EntreeListeControle = {
   departs: Lecture<readonly DepartPourSortieGuidee[]>;
   calendriersASaisir: Lecture<readonly string[]>;
   conflitsArret: Lecture<readonly string[]>;
+  /** Salariés avec des jours marqués « absent » sans type (revue pré-paie). Absent : non lu. */
+  absentsATyper?: Lecture<readonly string[]>;
   /** Absent : non lu, l'étape reste à confirmer. */
   exportsDuMois?: Lecture<readonly ExportPourControle[]>;
 };
@@ -180,6 +182,28 @@ function etapeCalendriers(
       ),
     };
   });
+}
+
+const PHRASE_ABSENTS = (n: number) =>
+  pluriel(
+    n,
+    '1 salarié a des jours marqués « absent » sans type : donnez-leur leur type, la paie est bloquée.',
+    `${n} salariés ont des jours marqués « absent » sans type : donnez-leur leur type, la paie est bloquée.`
+  );
+
+/** Un jour coché « absent » à l'import sans type : le calendrier n'est pas complet. */
+function avecAbsentsATyper(
+  base: { etat: EtatEtape; detail: string },
+  lecture: Lecture<readonly string[]> | undefined,
+  salaries: readonly SalariePourListeControle[]
+): { etat: EtatEtape; detail: string } {
+  if (!lecture || lecture.statut !== 'ok') return base;
+  const n = idsDuMois(lecture.valeur, salaries).length;
+  if (n === 0) return base;
+  if (base.etat === 'a_faire') {
+    return { etat: 'a_faire', detail: `${base.detail} ${PHRASE_ABSENTS(n)}` };
+  }
+  return { etat: 'a_faire', detail: PHRASE_ABSENTS(n) };
 }
 
 function etapeConflits(
@@ -456,7 +480,11 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
   const calendriers = selonSalaries({
     id: ETAPE_CALENDRIERS,
     libelle: 'Calendriers complets',
-    ...etapeCalendriers(entree.calendriersASaisir, salaries),
+    ...avecAbsentsATyper(
+      etapeCalendriers(entree.calendriersASaisir, salaries),
+      entree.absentsATyper,
+      salaries
+    ),
   });
   const conflits = selonSalaries({
     id: ETAPE_CONFLITS,
@@ -504,7 +532,7 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
 
   const actions = [
     actionSiNonFaite(calendriers, {
-      quoi: 'Complétez les jours encore à saisir dans les calendriers.',
+      quoi: 'Complétez les jours encore à saisir dans les calendriers, et donnez leur type aux jours marqués « absent ».',
       ouCliquer: 'Calendrier',
       href: '/schedules',
       ensuite: 'Plus aucun jour de la fenêtre n’est marqué à saisir.',
@@ -588,6 +616,19 @@ export function lectureCalendriersASaisir(preflight: {
         typeof a.employee_id === 'string' &&
         (a.jours_manquants?.length ?? 0) > 0
     )
+    .map((a) => a.employee_id as string);
+  return { statut: 'ok', valeur: [...new Set(ids)] };
+}
+
+export function lectureAbsentsATyper(preflight: {
+  chargement: boolean;
+  erreur: boolean;
+  anomalies?: AnomalieCalendrier[] | null;
+}): Lecture<string[]> {
+  if (preflight.erreur) return { statut: 'erreur' };
+  if (preflight.chargement && preflight.anomalies == null) return { statut: 'chargement' };
+  const ids = (preflight.anomalies ?? [])
+    .filter((a) => a.type === 'absent_a_typer' && typeof a.employee_id === 'string')
     .map((a) => a.employee_id as string);
   return { statut: 'ok', valeur: [...new Set(ids)] };
 }

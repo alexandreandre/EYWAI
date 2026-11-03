@@ -64,6 +64,7 @@ import { ListeControleMois } from '@/features/payroll/components/ListeControleMo
 import { usePreflightAnomalies } from '@/features/payroll/hooks/usePreflightAnomaliesCount';
 import {
   lectureCalendriersASaisir,
+  lectureAbsentsATyper,
   lectureConflitsArret,
   listeControleDuMois,
   type ExportPourControle,
@@ -716,6 +717,11 @@ export default function Payroll() {
     erreur: Boolean(preflightQuery.isError),
     anomalies: preflightQuery.data?.anomalies,
   });
+  const lectureAbsents = lectureAbsentsATyper({
+    chargement: preflightQuery.isLoading,
+    erreur: Boolean(preflightQuery.isError),
+    anomalies: preflightQuery.data?.anomalies,
+  });
   const lectureConflits = lectureConflitsArret({
     chargement: preflightQuery.isLoading,
     erreur: Boolean(preflightQuery.isError),
@@ -772,6 +778,7 @@ export default function Payroll() {
       departs: lectureDeparts,
       calendriersASaisir: lectureCalendriers,
       conflitsArret: lectureConflits,
+      absentsATyper: lectureAbsents,
       exportsDuMois: lectureExports,
     });
   }, [
@@ -784,6 +791,7 @@ export default function Payroll() {
     lectureDeparts,
     lectureCalendriers,
     lectureConflits,
+    lectureAbsents,
     lectureExports,
   ]);
 
