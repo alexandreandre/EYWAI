@@ -15,7 +15,32 @@ from app.modules.repos_compensateur.domain.contingent_rules import (
     PAUSE_HS_DEDUCTION_PER_WORKDAY_DEFAULT,
     WORKDAYS_PER_YEAR_FOR_PAUSE_DEFAULT,
     ContingentSettings,
+    contingent_legal_par_defaut,
 )
+
+
+def _idcc_de_la_societe(company_id: str) -> str | None:
+    resp = (
+        supabase.table("companies")
+        .select("idcc")
+        .eq("id", company_id)
+        .limit(1)
+        .execute()
+    )
+    rows = resp.data or []
+    return rows[0].get("idcc") if rows else None
+
+
+def _avec_contingent_de_la_convention(company_id: str, row: dict[str, Any]) -> dict[str, Any]:
+    """Un contingent non saisi est celui de la convention (130 h en plasturgie)."""
+    if row.get("legal_cor_contingent_hours") not in (None, ""):
+        return row
+    return {
+        **row,
+        "legal_cor_contingent_hours": contingent_legal_par_defaut(
+            _idcc_de_la_societe(company_id)
+        ),
+    }
 
 
 def _row_to_settings(row: dict[str, Any]) -> ContingentSettings:
@@ -53,9 +78,12 @@ def get_contingent_settings(company_id: str) -> ContingentSettings:
     rows = resp.data or []
     if not rows:
         return ContingentSettings(
+            legal_cor_contingent_hours=contingent_legal_par_defaut(
+                _idcc_de_la_societe(company_id)
+            ),
             management_contingent_hours=MANAGEMENT_CONTINGENT_DEFAULT,
         )
-    return _row_to_settings(rows[0])
+    return _row_to_settings(_avec_contingent_de_la_convention(company_id, rows[0]))
 
 
 def get_contingent_settings_row(company_id: str) -> dict[str, Any]:
@@ -71,7 +99,9 @@ def get_contingent_settings_row(company_id: str) -> dict[str, Any]:
     if not rows:
         return {
             "company_id": company_id,
-            "legal_cor_contingent_hours": LEGAL_COR_CONTINGENT_DEFAULT,
+            "legal_cor_contingent_hours": contingent_legal_par_defaut(
+                _idcc_de_la_societe(company_id)
+            ),
             "management_contingent_hours": MANAGEMENT_CONTINGENT_DEFAULT,
             "hours_per_rest_day": HOURS_PER_REST_DAY_DEFAULT,
             "include_structural_hours": True,
@@ -79,7 +109,7 @@ def get_contingent_settings_row(company_id: str) -> dict[str, Any]:
             "pause_hs_deduction_per_workday": PAUSE_HS_DEDUCTION_PER_WORKDAY_DEFAULT,
             "workdays_per_year_for_pause": WORKDAYS_PER_YEAR_FOR_PAUSE_DEFAULT,
         }
-    return rows[0]
+    return _avec_contingent_de_la_convention(company_id, rows[0])
 
 
 def upsert_contingent_settings(company_id: str, payload: dict[str, Any]) -> dict[str, Any]:

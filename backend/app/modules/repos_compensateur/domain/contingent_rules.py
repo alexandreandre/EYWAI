@@ -15,8 +15,19 @@ from app.modules.repos_compensateur.domain.rules import (
     heures_hs_pour_contingent_mois,
 )
 
-LEGAL_COR_CONTINGENT_DEFAULT = 220.0
+LEGAL_COR_CONTINGENT_DEFAULT = 220.0  # D3121-24, à défaut d'accord
 MANAGEMENT_CONTINGENT_DEFAULT = 360.0
+
+#: Contingent fixé par la convention de branche, qui s'applique à défaut
+#: d'accord d'entreprise (L3121-33). Plasturgie : accord du 17/10/2000, art. 4.4.
+#: La métallurgie (3248) fixe 220 h, comme le décret.
+_CONTINGENT_PAR_IDCC = {"0292": 130.0}
+
+
+def contingent_legal_par_defaut(idcc: str | None) -> float:
+    """Contingent annuel d'heures sup quand la société n'en a saisi aucun."""
+    cle = str(idcc or "").strip().zfill(4)
+    return _CONTINGENT_PAR_IDCC.get(cle, LEGAL_COR_CONTINGENT_DEFAULT)
 HOURS_PER_REST_DAY_DEFAULT = 7.0
 PAUSE_HS_DEDUCTION_PER_WORKDAY_DEFAULT = 0.058765
 WORKDAYS_PER_YEAR_FOR_PAUSE_DEFAULT = 260

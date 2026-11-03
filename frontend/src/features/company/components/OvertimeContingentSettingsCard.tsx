@@ -107,7 +107,7 @@ export default function OvertimeContingentSettingsCard() {
           Plafond annuel heures sup (contingent)
         </CardTitle>
         <CardDescription>
-          Plafond de pilotage interne et seuil COR légal (220 h par défaut, art. D3121-24).
+          Plafond de pilotage interne et seuil COR légal. Sans saisie, le seuil est celui de la convention : 130 h en plasturgie, sinon 220 h (art. D3121-24).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
