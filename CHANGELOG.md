@@ -5,6 +5,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Documents internes à l'abri
+- Rien ne change à l'écran ni dans les bulletins.
+- Les fichiers de travail tirés des bulletins et les documents commerciaux ne peuvent plus partir sur le dépôt public.
+- Une protection supplémentaire de la base de paie est prête ; elle ne s'appliquera qu'après accord.
+
 ### Vérifications automatiques étanches
 - Rien ne change à l'écran ni dans les bulletins.
 - Les vérifications automatiques du code ne peuvent plus écrire dans la base où se fait la paie.
