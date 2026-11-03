@@ -5,6 +5,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Des textes qui disent vrai
+- La pastille orange en haut à droite dit « Données réelles · envois limités » au lieu de « Environnement de test ».
+- En la survolant : vos données sont réelles et conservées, et ce qui ne part pas encore (e-mails des salariés, DSN, signature, comptable).
+- Les e-mails automatiques arrivent de la part de « Martine ».
+
 ### Version visible
 - La version du site s'affiche en bas du menu, par exemple « Version paie-2026-11-03.1 ».
 - En signalant un écart, la donner au support : on saura quel code a calculé le bulletin.
