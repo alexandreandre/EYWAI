@@ -8,6 +8,12 @@ from app.modules.exports.infrastructure import export_provision_cp as module
 
 pytestmark = pytest.mark.unit
 
+
+@pytest.fixture(autouse=True)
+def sans_reprise(monkeypatch):
+    """La reprise se lit en base (`company_payroll_takeover`) : ici, une société sans reprise."""
+    monkeypatch.setattr(module, "_lire_bascule", lambda company_id: None)
+
 SALARIES = [
     {
         "id": "emp-1",

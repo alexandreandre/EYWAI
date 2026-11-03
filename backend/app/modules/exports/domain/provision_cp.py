@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
+from typing import Any, Iterable, Mapping
 
 # Jours ouvrés moyens d'un mois, convention du cabinet. Ce n'est pas une règle légale :
 # la règle légale est le maximum entre maintien de salaire et 1/10e de la rémunération
@@ -13,6 +15,35 @@ DIVISEUR_MENSUALISATION: float = 22.0
 
 # Fenêtre du salaire de référence et du taux de charges.
 FENETRE_REFERENCE_MOIS: int = 12
+
+
+def en_jours_ouvres(solde: float, unite: str | None, ratio: float) -> float:
+    """Le solde en jours ouvrés. Il est calculé dans l'unité de la société : seul un solde en
+    jours ouvrables se convertit (MAJI au 30/09/2026 : 20,50 jours ouvrés, pas 17,08)."""
+    if unite == "ouvre":
+        return round(float(solde), 2)
+    if ratio <= 0:
+        return 0.0
+    return round(float(solde) / ratio, 2)
+
+
+def present_a_la_date(entree: date, sorties: Iterable[date], ref: date) -> bool:
+    """Présent à la fin du mois demandé : entré au plus tard ce jour, et pas sorti ce jour ou
+    avant au titre du contrat en cours (une sortie d'avant la réembauche ne compte pas).
+    Un salarié sorti a été payé de ses congés au solde de tout compte : pas de provision."""
+    if entree > ref:
+        return False
+    return not any(entree <= s <= ref for s in sorties)
+
+
+def patronal_du_bulletin(donnees: Mapping[str, Any]) -> float:
+    """Cotisations patronales d'un bulletin : celles calculées par Martine, sinon le total
+    patronal d'un bulletin repris de Quadra (qui n'a pas de `cotisations_officielles`)."""
+    officielles = donnees.get("cotisations_officielles") or []
+    if officielles:
+        return round(sum(float(c.get("total_patronal") or 0) for c in officielles), 2)
+    structure = donnees.get("structure_cotisations") or {}
+    return round(float(structure.get("total_patronal") or 0), 2) if isinstance(structure, Mapping) else 0.0
 
 
 @dataclass(frozen=True)
@@ -152,4 +183,37 @@ def resoudre_reference(
         taux_charges=round(somme_patronal / somme_brut * 100, 2),
         mois_retenus=f"{len(retenus)}/{total_mois}",
         anomalie="",
+    )
+
+
+def reference_du_salarie(
+    bulletins: dict[tuple[int, int], tuple[float, float]],
+    mois_cibles: list[tuple[int, int]],
+    salaire_contractuel: float | None,
+    entree: date | None,
+    taux_societe: float | None = None,
+) -> Reference:
+    """`resoudre_reference` sans le mois d'entrée quand il est incomplet (entrée après le 1er).
+
+    Un premier bulletin partiel n'est pas un salaire mensuel : F.B., entrée le 09/09/2026,
+    172,34 € de brut, aurait valorisé ses jours au tiers. Quand il ne reste aucun autre mois,
+    le salaire contractuel le remplace et le taux de charges vient de ce premier bulletin.
+    """
+    if entree is None or entree.day == 1:
+        return resoudre_reference(bulletins, mois_cibles, salaire_contractuel, taux_societe)
+    cle = (entree.year, entree.month)
+    premier = bulletins.get(cle)
+    if not premier or premier[0] <= 0:
+        return resoudre_reference(bulletins, mois_cibles, salaire_contractuel, taux_societe)
+    autres = {k: v for k, v in bulletins.items() if k != cle}
+    if any(k in autres and autres[k][0] > 0 for k in mois_cibles):
+        return resoudre_reference(autres, mois_cibles, salaire_contractuel, taux_societe)
+    if not salaire_contractuel:
+        return resoudre_reference(bulletins, mois_cibles, salaire_contractuel, taux_societe)
+    brut, patronal = premier
+    return Reference(
+        salaire_reference=round(float(salaire_contractuel), 2),
+        taux_charges=round(patronal / brut * 100, 2),
+        mois_retenus=f"0/{len(mois_cibles)}",
+        anomalie="premier mois incomplet : salaire contractuel utilisé, taux du premier bulletin",
     )

@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.database import supabase
 from app.modules.absences.application.queries import _leave_context, _parse_hire_date
-from app.modules.absences.domain.fractionnement import ouvrables_to_ouvres
 from app.modules.absences.domain.rules import compute_cp_balances_for_bulletin
 from app.modules.absences.infrastructure import fractionnement_repository as frac_repo
 from app.modules.absences.infrastructure.repository import absence_repository
@@ -17,9 +16,14 @@ from app.modules.exports.domain.provision_cp import (
     LigneProvision,
     calculer_ligne,
     calculer_totaux,
+    en_jours_ouvres,
     mois_de_reference,
-    resoudre_reference,
+    patronal_du_bulletin,
+    present_a_la_date,
+    reference_du_salarie,
 )
+from app.shared.reprise_paie import lire_bascule as _lire_bascule
+from app.shared.reprise_paie import rang_du_mois
 from app.shared.utils.export import generate_csv, generate_xlsx
 from app.shared.domain.pluriel import accord, pluriel
 
@@ -62,8 +66,13 @@ def _montant_contractuel(salarie: Dict[str, Any]) -> Optional[float]:
 
 
 def _lire_salaries(
-    company_id: str, employee_ids: Optional[List[str]] = None
+    company_id: str,
+    employee_ids: Optional[List[str]] = None,
+    ref_date: Optional[date] = None,
 ) -> List[Dict[str, Any]]:
+    """Les salariés présents à la fin du mois demandé (`present_a_la_date`), quel que soit leur
+    statut d'aujourd'hui : un salarié parti en juin est dans la provision de mai. Sans date
+    d'entrée, seul un salarié actif est gardé, pour être signalé."""
     requete = (
         supabase.table("employees")
         .select(
@@ -71,11 +80,37 @@ def _lire_salaries(
             "employment_status, salaire_de_base"
         )
         .eq("company_id", company_id)
-        .eq("employment_status", "actif")
     )
     if employee_ids:
         requete = requete.in_("id", employee_ids)
-    lignes = requete.execute().data or []
+    salaries = requete.execute().data or []
+    sorties: Dict[str, List[date]] = {}
+    ids = [s["id"] for s in salaries]
+    if ids:
+        for sortie in (
+            supabase.table("employee_exits")
+            .select("employee_id, last_working_day, exit_type")
+            .in_("employee_id", ids)
+            .execute()
+            .data
+            or []
+        ):
+            if sortie.get("exit_type") == "transfert" or not sortie.get("last_working_day"):
+                continue
+            sorties.setdefault(sortie["employee_id"], []).append(
+                date.fromisoformat(str(sortie["last_working_day"])[:10])
+            )
+    ref = ref_date or date.today()
+    lignes = [
+        s for s in salaries
+        if (not s.get("hire_date") and s.get("employment_status") == "actif")
+        or (
+            s.get("hire_date")
+            and present_a_la_date(
+                date.fromisoformat(str(s["hire_date"])[:10]), sorties.get(s["id"], []), ref
+            )
+        )
+    ]
     return sorted(lignes, key=lambda e: (e.get("last_name") or "", e.get("first_name") or ""))
 
 
@@ -115,10 +150,7 @@ def _lire_bulletins(
             continue
         donnees = ligne.get("payslip_data") or {}
         brut = float(donnees.get("salaire_brut") or 0)
-        patronal = sum(
-            float(c.get("total_patronal") or 0)
-            for c in (donnees.get("cotisations_officielles") or [])
-        )
+        patronal = patronal_du_bulletin(donnees)
         # Un mois à deux contrats a deux bulletins : la provision les somme (D3).
         deja_brut, deja_patronal = resultat.setdefault(ligne["employee_id"], {}).get(cle, (0.0, 0.0))
         resultat[ligne["employee_id"]][cle] = (deja_brut + brut, deja_patronal + patronal)
@@ -152,8 +184,10 @@ def _lire_soldes_ouvres(
     )
     reglages = frac_repo.get_fractionnement_settings_row(company_id) or {}
     ratio = float(reglages.get("ouvres_to_ouvrables_ratio") or 1.2)
-    n1 = ouvrables_to_ouvres(float(soldes["periode_precedente"].get("solde") or 0), ratio)
-    n = ouvrables_to_ouvres(float(soldes["periode_courante"].get("solde") or 0), ratio)
+    # Le solde est dans l'unité de la société : seul un solde en ouvrables se convertit.
+    unite = getattr(policy, "cp_counting_unit", None)
+    n1 = en_jours_ouvres(float(soldes["periode_precedente"].get("solde") or 0), unite, ratio)
+    n = en_jours_ouvres(float(soldes["periode_courante"].get("solde") or 0), unite, ratio)
     return (n1, n)
 
 
@@ -162,7 +196,10 @@ def collecter_lignes(
 ) -> Tuple[List[LigneProvision], List[str]]:
     ref_date = _fin_de_mois(period)
     mois_cibles = mois_de_reference(ref_date.year, ref_date.month)
-    salaries = _lire_salaries(company_id, employee_ids)
+    salaries = _lire_salaries(company_id, employee_ids, ref_date=ref_date)
+    bascule = _lire_bascule(company_id)
+    # À partir du mois de la reprise, les soldes sont ceux du logiciel précédent.
+    soldes_repris = bool(bascule) and rang_du_mois(ref_date.year, ref_date.month) >= bascule.rang
     bulletins = _lire_bulletins(company_id, mois_cibles)
 
     lignes: List[LigneProvision] = []
@@ -176,11 +213,11 @@ def collecter_lignes(
         n1, n = _lire_soldes_ouvres(salarie["id"], company_id, ref_date)
         if round(n1 + n, 2) == 0:
             continue
-        reference = resoudre_reference(
-            bulletins=bulletins.get(salarie["id"], {}),
-            mois_cibles=mois_cibles,
-            salaire_contractuel=_montant_contractuel(salarie),
-            taux_societe=None,
+        reference = reference_du_salarie(
+            bulletins.get(salarie["id"], {}),
+            mois_cibles,
+            _montant_contractuel(salarie),
+            date.fromisoformat(str(salarie["hire_date"])[:10]),
         )
         mois_max = max(mois_max, int(reference.mois_retenus.split("/")[0]))
         anomalie = reference.anomalie
@@ -203,7 +240,7 @@ def collecter_lignes(
         )
 
     avertissements: List[str] = []
-    if lignes:
+    if lignes and not soldes_repris:
         # Les congés antérieurs à janvier 2026 ne sont pas dans MARTINE : le solde de la
         # période précédente est un droit recalculé, pas un report repris du cabinet.
         # Mesuré le 07/08/2026 sur Cartol : 20,8 à 22,5 j chez nous contre 3 à 88 j
@@ -234,6 +271,38 @@ def preview_provision_cp(
     totaux = calculer_totaux(lignes)
 
     anomalies: List[Dict[str, Any]] = []
+    bascule = _lire_bascule(company_id)
+    annee, mois = map(int, period.split("-"))
+    if bascule and rang_du_mois(annee, mois) < bascule.rang:
+        # Avant la reprise, Martine n'a pas les soldes du logiciel précédent : elle n'aurait
+        # que des droits recalculés depuis l'embauche, sans les congés pris (MAJI mai 2026).
+        logiciel = bascule.logiciel_precedent or "le logiciel précédent"
+        anomalies.append(
+            {
+                "type": "error",
+                "message": (
+                    f"Martine tient les congés de cette société depuis la reprise de "
+                    f"{bascule.libelle} : la provision se calcule à partir de ce mois. "
+                    f"Avant, les soldes sont dans {logiciel}."
+                ),
+                "severity": "blocking",
+            }
+        )
+    if not bascule and lignes and all(l.anomalie.startswith("aucun bulletin") for l in lignes):
+        # Ni reprise ni bulletin : la paie est encore ailleurs (Cartol, LEWIS, Mont Blanc au
+        # 03/11/2026). Les soldes seraient des droits recalculés sans les congés pris, le
+        # salaire celui de la fiche et les charges à zéro : un chiffre faux, pas indicatif.
+        anomalies.append(
+            {
+                "type": "error",
+                "message": (
+                    "Martine n'a aucun bulletin ni reprise des congés pour cette société : "
+                    "la paie et les soldes de congés sont encore dans le logiciel précédent. "
+                    "La provision se fera dans Martine après la reprise."
+                ),
+                "severity": "blocking",
+            }
+        )
     if not lignes:
         anomalies.append(
             {
