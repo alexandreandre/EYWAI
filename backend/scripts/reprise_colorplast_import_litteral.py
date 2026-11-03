@@ -51,6 +51,7 @@ import io
 import sys
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -83,6 +84,19 @@ def mois_repris(bascule: int = BASCULE_PAR_DEFAUT) -> tuple[int, ...]:
 
 
 MOIS_REPRIS = mois_repris()
+
+
+def ecrire_bulletin_importe(admin: Any, ligne: dict) -> None:
+    """Écrit (ou remplace) un bulletin copié de Quadra, sous la clé des bulletins de l'application.
+
+    Le bulletin repris est celui du contrat de la fiche (contrat nul, [D3]) : l'ancienne clé à
+    quatre colonnes n'existe plus en base depuis le 01/11.
+    """
+    from app.shared.cle_du_bulletin import CONFLIT_BULLETIN
+
+    admin.table("payslips").upsert(
+        {**ligne, "contract_period_id": None}, on_conflict=CONFLIT_BULLETIN
+    ).execute()
 #: La période de congés ouvre le 1er juin chez Colorplast (company_leave_settings).
 DEBUT_PERIODE_CP = 6
 
@@ -760,9 +774,7 @@ def main(
                 "url": url,
                 "origine": "importe",
             }
-            admin.table("payslips").upsert(
-                charge, on_conflict="company_id,employee_id,year,month"
-            ).execute()
+            ecrire_bulletin_importe(admin, charge)
 
     print(f"\n{total} bulletins, dont {crees} à créer.")
     if manquants:

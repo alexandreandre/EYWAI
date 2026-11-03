@@ -70,6 +70,7 @@ from scripts.reprise_colorplast_import_litteral import (  # noqa: E402
     _pages_du_salarie,
     _pied_de_page_du_pdf,
     _synthese_du_pdf,
+    ecrire_bulletin_importe,
 )
 from scripts.reprise_colorplast_solde_ouverture import (  # noqa: E402
     EST_DEDUCTION_HS,
@@ -968,7 +969,8 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = (), mois_ecrits:
             file_options={"x-upsert": "true", "content-type": "application/pdf"},
         )
         url = supabase.storage.from_(SEAU).create_signed_url(chemin, 3600, options={"download": True})["signedURL"]
-        admin.table("payslips").upsert(
+        ecrire_bulletin_importe(
+            admin,
             {
                 "employee_id": fiche["id"],
                 "company_id": COMPANY_ID,
@@ -980,8 +982,7 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = (), mois_ecrits:
                 "url": url,
                 "origine": "importe",
             },
-            on_conflict="company_id,employee_id,year,month",
-        ).execute()
+        )
     print(f"\n{len(a_ecrire)} bulletins écrits.")
 
     for mat, v in soldes.items():
