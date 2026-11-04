@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+(rien)
+
+## paie-2026-11-04.4 — 4 novembre 2026
+
 ### Moins de code inutile
 - Rien ne change à l'écran ni dans les bulletins.
 - 36 fichiers et 101 fonctions qui ne servaient plus sont retirés, avec 19 bibliothèques.
