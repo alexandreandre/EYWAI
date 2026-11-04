@@ -122,6 +122,19 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
 
   await test.step('créer un salarié depuis la page Paie', async () => {
     const idNouveau = '00000000-0000-4000-8000-000000000081';
+    // Création sans convention : sous convention, la classification se choisit
+    // (rien d'office, 03/11) ; ce parcours-là est joué par 07-creation-salarie.
+    const couperConventions = await intercepter(page, '**/api/collective-agreements/my-company', async (route) => {
+      await route.fulfill({ json: [] });
+    });
+    const couperValeurs = await intercepter(page, '**/api/employees/valeurs-embauche', async (route) => {
+      const reponse = await route.fetch();
+      const valeurs = (await reponse.json()) as Record<string, unknown>;
+      await route.fulfill({
+        response: reponse,
+        json: { ...valeurs, collective_agreement_id: null, classification_conventionnelle: null },
+      });
+    });
     const couperCreation = await intercepter(page, '**/api/employees', async (route) => {
       if (route.request().method() !== 'POST') return route.fallback();
       await route.fulfill({
@@ -190,6 +203,8 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
     await expect(page.getByText('RIB à compléter').first()).toBeVisible();
     couperCreation();
     couperListe();
+    couperConventions();
+    couperValeurs();
   });
 
   const salaries = await test.step('lire la liste paie', () =>

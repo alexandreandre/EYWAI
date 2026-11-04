@@ -324,12 +324,18 @@ describe('classification reprise de la DSN, montrée dans la liste (27/10/2026)'
     expect(payload.classification_conventionnelle).toEqual(sansCoefficient);
   });
 
-  it('une fiche sans classification garde les valeurs de départ habituelles', () => {
+  it('une fiche sans classification part d’une liste vide, plus de « C / 6 / 240 » (03/11)', () => {
     expect(buildDefaultValues(baseEmployee).classification_conventionnelle).toEqual({
-      groupe_emploi: 'C',
-      classe_emploi: 6,
-      coefficient: 240,
+      groupe_emploi: '',
+      classe_emploi: undefined,
+      coefficient: undefined,
     });
+  });
+
+  it('enregistrer une fiche sans classification n’en invente aucune', () => {
+    const sansClassification = { ...baseEmployee, collective_agreement_id: 'cc-plasturgie' } as typeof baseEmployee;
+    const payload = buildUpdatePayload(buildDefaultValues(sansClassification), sansClassification);
+    expect(payload.classification_conventionnelle ?? {}).toEqual({});
   });
 
   it('la liste propose la classification de la fiche quand la grille ne la connaît pas', () => {

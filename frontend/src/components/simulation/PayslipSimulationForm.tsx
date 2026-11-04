@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react';
+import { libelleClassification } from '@/features/employees/utils/classificationConventionnelle';
 import { cn } from '../../lib/utils';
 import * as collectiveAgreementsApi from '@/api/collectiveAgreements';
 import type { SimulationCreateRequest } from '@/api/simulation';
@@ -285,7 +286,7 @@ export const PayslipSimulationForm = forwardRef<PayslipSimulationFormRef, Paysli
               <option value="">Choisir un grade</option>
               {classificationsCc.map((c) => (
                 <option key={classificationKey(c)} value={classificationKey(c)}>
-                  Groupe {c.groupe_emploi} — Classe {c.classe_emploi} — Coeff. {c.coefficient}
+                  {libelleClassification(c)}
                 </option>
               ))}
             </select>

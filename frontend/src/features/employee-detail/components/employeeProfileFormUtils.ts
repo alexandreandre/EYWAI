@@ -1,4 +1,9 @@
 import { titresPourEnvoi } from '@/lib/titresRestaurant';
+import {
+  GROUPE_NON_PRECISE,
+  cleClassification,
+  type Classification as ClassificationComplete,
+} from '@/features/employees/utils/classificationConventionnelle';
 import type { UpdateEmployeePayload } from '@/api/employees';
 import type { Employee } from '@/features/employee-detail/types';
 import type { EmployeeProfileEditFormValues } from '@/features/employee-detail/components/employeeProfileEditSchema';
@@ -245,7 +250,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
   };
 }
 
-type ClassificationDuFormulaire = { groupe_emploi: string; classe_emploi: number; coefficient: number };
+type ClassificationDuFormulaire = { groupe_emploi: string; classe_emploi?: number; coefficient?: number };
 
 /** Coefficient de la fiche : le sien, sinon le niveau repris de la DSN (S21.G00.40.041). */
 function coefficientDeLaFiche(employee: Employee): number | null {
@@ -260,18 +265,19 @@ function coefficientDeLaFiche(employee: Employee): number | null {
 /**
  * Classification de départ du formulaire. Une fiche reprise de la DSN ne porte son
  * coefficient qu'en `niveau_dsn`, sans groupe ni classe : on part de ce coefficient, en
- * « Non précisé » / classe 0 comme la grille de la plasturgie. Partir de « C » / 6 / 240
- * laissait la liste vide (constaté le 27/10/2026 sur 16 fiches Comitech). Ces valeurs
- * ne sont écrites que si la gestionnaire les change (`fusionnerClassification`).
+ * « Non précisé » / classe 0 comme la grille de la plasturgie (27/10/2026). Une fiche
+ * sans classification part de rien : la liste dit « Choisir une classification », plus
+ * de « C » / 6 / 240 affiché d'office (03/11/2026). Ces valeurs ne sont écrites que si
+ * la gestionnaire les change (`fusionnerClassification`).
  */
 function classificationDeDepart(employee: Employee): ClassificationDuFormulaire {
   const classification = classificationDe(employee) as Partial<ClassificationDuFormulaire> | null | undefined;
   const coefficient = coefficientDeLaFiche(employee);
   const reprise = coefficient !== null;
   return {
-    groupe_emploi: classification?.groupe_emploi ?? (reprise ? 'Non précisé' : 'C'),
-    classe_emploi: classification?.classe_emploi ?? (reprise ? 0 : 6),
-    coefficient: classification?.coefficient ?? coefficient ?? 240,
+    groupe_emploi: classification?.groupe_emploi ?? (reprise ? GROUPE_NON_PRECISE : ''),
+    classe_emploi: classification?.classe_emploi ?? (reprise ? 0 : undefined),
+    coefficient: classification?.coefficient ?? coefficient ?? undefined,
   };
 }
 
@@ -280,14 +286,19 @@ function classificationDeDepart(employee: Employee): ClassificationDuFormulaire 
  * quand la grille ne la connaît pas (grille de la plasturgie limitée à 700-720, fiches
  * Comitech à 730-910). Sans cela, la liste restait vide sur une fiche juste.
  */
-export function optionsDeClassification<T extends ClassificationDuFormulaire>(
+export function optionsDeClassification<T extends ClassificationComplete>(
   grille: T[],
   employee: Employee,
-): ClassificationDuFormulaire[] {
-  if (coefficientDeLaFiche(employee) === null) return grille;
+): ClassificationComplete[] {
+  const coefficient = coefficientDeLaFiche(employee);
+  if (coefficient === null) return grille;
   const depart = classificationDeDepart(employee);
-  const cle = (c: ClassificationDuFormulaire) => `${c.groupe_emploi}-${c.classe_emploi}-${c.coefficient}`;
-  return grille.some((c) => cle(c) === cle(depart)) ? grille : [...grille, depart];
+  const option: ClassificationComplete = {
+    groupe_emploi: depart.groupe_emploi || GROUPE_NON_PRECISE,
+    classe_emploi: depart.classe_emploi ?? 0,
+    coefficient: depart.coefficient ?? coefficient,
+  };
+  return grille.some((c) => cleClassification(c) === cleClassification(option)) ? grille : [...grille, option];
 }
 
 /**

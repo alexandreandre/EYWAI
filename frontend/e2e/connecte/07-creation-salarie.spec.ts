@@ -18,6 +18,19 @@ const VALEURS = {
   titres_restaurant_beneficie: false,
 };
 
+const CONVENTION_QA = {
+  id: 'lien-qa',
+  company_id: 'societe-qa',
+  collective_agreement_id: 'cc-qa',
+  assigned_at: '2026-01-01T00:00:00Z',
+  agreement_details: { id: 'cc-qa', name: 'Convention QA', idcc: '9999', is_active: true },
+};
+
+/** Les conventions de la société, interceptées : le parcours ne dépend pas du compte de test. */
+async function conventionsDeLaSociete(page: Page, conventions: object[]) {
+  await page.route('**/api/collective-agreements/my-company', (route) => route.fulfill({ json: conventions }));
+}
+
 async function intercepterCreation(page: Page, valeurs: object = VALEURS) {
   const envois: Record<string, unknown>[] = [];
   await page.route('**/api/employees/valeurs-embauche', (route) => route.fulfill({ json: valeurs }));
@@ -56,9 +69,10 @@ async function intercepterCreation(page: Page, valeurs: object = VALEURS) {
 }
 
 test.describe('Création d’un salarié depuis la paie', () => {
-  test('le minimum suffit, les erreurs mènent au bon onglet, le récapitulatif dit ce qui reste', async ({ page }) => {
+  test('sans convention : le minimum suffit, les erreurs mènent au bon onglet, le récapitulatif dit ce qui reste', async ({ page }) => {
     const s = surveiller(page);
     const envois = await intercepterCreation(page);
+    await conventionsDeLaSociete(page, []);
 
     await page.goto('/payroll');
     await expect(page.getByText(/gestion de la paie/i).first()).toBeVisible({ timeout: 30_000 });
@@ -108,34 +122,24 @@ test.describe('Création d’un salarié depuis la paie', () => {
       adresse: null,
       coordonnees_bancaires: null,
     });
+    // Sans convention, aucune classification d'office (plus de « C / 6 / 240 »).
+    expect(envois[0].classification_conventionnelle).toEqual({});
 
     await recap.getByRole('button', { name: 'Fermer' }).click();
     await expect(recap).toBeHidden();
     await verifierPageSaine(page, s);
   });
 
-  test('la classification et la mutuelle habituelles de la société sont reprises', async ({ page }) => {
-    // Grille de la convention sans la classification que portent les salariés
-    // (cas réel : « C / 710 » contre « Non précisé / 700, 710, 720 »).
+  test('avec une convention : la classification se choisit, rien d’office ; la mutuelle de la société suit', async ({ page }) => {
+    // Les salariés portent « C / 710 / 710 » (groupe et classe mis d'office
+    // autrefois) ; la grille ne connaît que « Non précisé / 700, 710, 720 ».
     const envois = await intercepterCreation(page, {
       ...VALEURS,
       collective_agreement_id: 'cc-qa',
       classification_conventionnelle: { groupe_emploi: 'C', classe_emploi: 710, coefficient: 710 },
       mutuelle_type_ids_par_statut: { 'Non-Cadre': ['mutuelle-non-cadre'], Cadre: ['mutuelle-cadre'] },
     });
-    await page.route('**/api/collective-agreements/my-company', (route) =>
-      route.fulfill({
-        json: [
-          {
-            id: 'lien-qa',
-            company_id: 'societe-qa',
-            collective_agreement_id: 'cc-qa',
-            assigned_at: '2026-01-01T00:00:00Z',
-            agreement_details: { id: 'cc-qa', name: 'Convention QA', idcc: '9999', is_active: true },
-          },
-        ],
-      })
-    );
+    await conventionsDeLaSociete(page, [CONVENTION_QA]);
     await page.route('**/api/collective-agreements/catalog/cc-qa/classifications', (route) =>
       route.fulfill({
         json: [700, 710, 720].map((coefficient) => ({ groupe_emploi: 'Non précisé', classe_emploi: 0, coefficient })),
@@ -158,15 +162,28 @@ test.describe('Création d’un salarié depuis la paie', () => {
     await page.getByRole('option', { name: 'Cadre', exact: true }).click();
 
     await fenetre.getByRole('tab', { name: 'Rémunération' }).click();
-    await expect(fenetre.getByRole('combobox').filter({ hasText: 'Groupe C - Classe 710 - Coeff. 710' })).toBeVisible();
+    // Rien de choisi d'office : la liste attend le choix de la RH.
+    const classification = fenetre.getByRole('combobox').filter({ hasText: 'Choisir une classification' });
+    await expect(classification).toBeVisible();
     await fenetre.getByLabel(/salaire de base mensuel/i).fill('3200');
+    await fenetre.getByRole('button', { name: /enregistrer le salarié|informations? à compléter/i }).click();
+
+    // Sans classification, rien ne part : la RH est gardée sur l'onglet Rémunération.
+    await expect(fenetre.getByText('Classification conventionnelle requise.').first()).toBeVisible();
+    await expect(fenetre.getByRole('tab', { name: 'Rémunération' })).toHaveAttribute('aria-selected', 'true');
+    expect(envois).toHaveLength(0);
+
+    // Le groupe « C » et la classe recopiée ne sont plus proposés : « Coeff. 710 » seul.
+    await classification.click();
+    await expect(page.getByRole('option', { name: /Groupe C/ })).toHaveCount(0);
+    await page.getByRole('option', { name: 'Coeff. 710', exact: true }).click();
     await fenetre.getByRole('button', { name: /enregistrer le salarié|informations? à compléter/i }).click();
 
     await expect(page.getByTestId('recap-nouveau-salarie')).toBeVisible();
     expect(envois[0]).toMatchObject({
       statut: 'Cadre',
       collective_agreement_id: 'cc-qa',
-      classification_conventionnelle: { groupe_emploi: 'C', classe_emploi: 710, coefficient: 710 },
+      classification_conventionnelle: { groupe_emploi: 'Non précisé', classe_emploi: 0, coefficient: 710 },
       specificites_paie: { mutuelle: { mutuelle_type_ids: ['mutuelle-cadre'] }, prevoyance: { adhesion: true } },
     });
   });

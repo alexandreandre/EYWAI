@@ -1,4 +1,5 @@
 import { Loader2 } from 'lucide-react';
+import { libelleClassification, valeurDuChoix } from '@/features/employees/utils/classificationConventionnelle';
 import { aideCodeDsn } from './aideCodesDsn';
 import type { Control } from 'react-hook-form';
 import { useFormState, useWatch } from 'react-hook-form';
@@ -574,30 +575,26 @@ export function EmployeeProfileEditForm({
                   <FormLabel>Classification conventionnelle</FormLabel>
                   <Select
                     onValueChange={(key) => {
-                      const c = classificationsCc.find(
-                        (item) => `${item.groupe_emploi}-${item.classe_emploi}-${item.coefficient}` === key,
-                      );
+                      const c = classificationsCc.find((item) => valeurDuChoix(item) === key);
                       if (c) field.onChange({
                         groupe_emploi: c.groupe_emploi,
                         classe_emploi: c.classe_emploi,
                         coefficient: c.coefficient,
                       });
                     }}
-                    value={
-                      field.value
-                        ? `${field.value.groupe_emploi}-${field.value.classe_emploi}-${field.value.coefficient}`
-                        : undefined
-                    }
+                    // '' : la liste reste contrôlée et montre « Choisir une classification »
+                    // quand rien n'est choisi, au lieu d'un ancien choix.
+                    value={valeurDuChoix(field.value) ?? ''}
                   >
                     <FormControl>
                       <SelectTrigger><SelectValue placeholder="Choisir une classification" /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {classificationsCc.map((c) => {
-                        const key = `${c.groupe_emploi}-${c.classe_emploi}-${c.coefficient}`;
+                      {classificationsCc.filter((c) => valeurDuChoix(c)).map((c) => {
+                        const key = valeurDuChoix(c) ?? '';
                         return (
                           <SelectItem key={key} value={key}>
-                            {c.groupe_emploi} / Classe {c.classe_emploi} / Coef. {c.coefficient}
+                            {libelleClassification(c)}
                           </SelectItem>
                         );
                       })}

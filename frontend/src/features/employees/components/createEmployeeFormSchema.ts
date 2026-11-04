@@ -6,6 +6,11 @@ import { isEmployeeCadre } from "@/lib/mutuelleUtils";
 import { formulePrevoyanceIdSchema, lignePrevoyanceSchema } from "@/features/employees/utils/prevoyanceSchema";
 import { needsContractEndDate } from "@/constants/contracts";
 import { MESSAGE_SALAIRE_TROP_ELEVE, SALAIRE_MENSUEL_MAXIMUM } from '@/lib/salaireVraisemblable';
+import {
+  MESSAGE_CLASSIFICATION_REQUISE,
+  classificationManquante,
+  classificationSaisieSchema,
+} from "@/features/employees/utils/classificationConventionnelle";
 
 export const createEmployeeFormSchema = z.object({
   // --- SECTION SALARIÉ ---
@@ -87,11 +92,9 @@ export const createEmployeeFormSchema = z.object({
       .positive({ message: "Salaire requis." })
       .max(SALAIRE_MENSUEL_MAXIMUM, { message: MESSAGE_SALAIRE_TROP_ELEVE }),
   }),
-  classification_conventionnelle: z.object({
-    groupe_emploi: z.string().min(1, { message: "Groupe requis." }),
-    classe_emploi: z.coerce.number().int(),
-    coefficient: z.coerce.number().int().positive({ message: "Coeff. requis." }),
-  }),
+  // Facultative sans convention ; avec une convention, demandée plus bas. Jamais
+  // de valeur d'office : la RH la choisit (retour du 03/11).
+  classification_conventionnelle: classificationSaisieSchema,
   collective_agreement_id: z.string().nullable().optional(),
 
   avantages_en_nature: z.object({
@@ -165,6 +168,13 @@ export const createEmployeeFormSchema = z.object({
       code: z.ZodIssueCode.custom,
       message: "Date de fin de contrat requise pour un CDD ou un stage.",
       path: ["contract_end_date"],
+    });
+  }
+  if (classificationManquante(data.collective_agreement_id, data.classification_conventionnelle)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: MESSAGE_CLASSIFICATION_REQUISE,
+      path: ["classification_conventionnelle"],
     });
   }
   if (data.has_periode_essai && !data.periode_essai) {
