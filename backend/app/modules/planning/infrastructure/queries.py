@@ -232,30 +232,13 @@ def check_absence_on_date(employee_id: str, shift_date: str) -> Optional[Dict[st
 
 def get_payroll_period_locked(company_id: str, month: int, year: int) -> bool:
     """
-    Vérifie si la paie du mois est clôturée (RG-11).
-    Retourne False si la table payroll_runs n'existe pas encore.
+    La paie du mois est-elle clôturée (RG-11) ? Jamais, pour l'instant.
+
+    La clôture d'une période de paie n'a pas de table : `payroll_runs`, que l'on
+    interrogeait, n'existe pas (184 réponses 404 par jour, audit du 03/11/2026),
+    et la réponse valait toujours False. Elle vaut False sans appel à la base.
     """
-    try:
-        r = (
-            supabase.table("payroll_runs")
-            .select("id, period_start, status")
-            .eq("company_id", company_id)
-            .eq("status", "closed")
-            .execute()
-        )
-        rows = (r.data or []) if r else []
-        for row in rows:
-            period_start = row.get("period_start", "")
-            try:
-                d = date.fromisoformat(str(period_start)[:10])
-                if d.month == month and d.year == year:
-                    return True
-            except Exception:
-                continue
-        return False
-    except Exception:
-        # Table inexistante ou erreur Supabase → paie non clôturée par défaut
-        return False
+    return False
 
 
 def _sort_shift_rows(rows: List[Dict[str, Any]]) -> None:

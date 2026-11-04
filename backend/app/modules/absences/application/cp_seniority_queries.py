@@ -26,33 +26,20 @@ from app.modules.collective_agreements.application.idcc_resolution import (
     resolve_employee_idcc,
 )
 
-_EMPLOYEE_CP_CONTEXT_SELECT_BASE = (
+# `employees.is_cadre_dirigeant` n'existe dans aucune migration ni en base : la
+# lecture la demandait, échouait (42703), puis relisait sans elle, deux
+# allers-retours par lecture (2 937 erreurs « colonne absente » en 24 h, audit du
+# 03/11/2026). Elle n'est plus demandée ; le contexte la garde à False.
+_EMPLOYEE_CP_CONTEXT_SELECT = (
     "hire_date, date_naissance, statut, prior_service_months, "
     "specificites_paie, seniority_reference_date, is_forfait_jour"
 )
-_EMPLOYEE_CP_CONTEXT_SELECT = f"{_EMPLOYEE_CP_CONTEXT_SELECT_BASE}, is_cadre_dirigeant"
-
-
-def is_missing_cadre_dirigeant_column_error(exc: Exception) -> bool:
-    text = str(exc)
-    return "is_cadre_dirigeant" in text and "42703" in text
 
 
 def employee_cp_seniority_select(
     *, include_id: bool = False, include_status: bool = False
 ) -> str:
     fields = _EMPLOYEE_CP_CONTEXT_SELECT
-    if include_id:
-        fields = f"id, first_name, last_name, {fields}"
-    if include_status:
-        fields = f"{fields}, employment_status"
-    return fields
-
-
-def employee_cp_seniority_select_without_cadre_dirigeant(
-    *, include_id: bool = False, include_status: bool = False
-) -> str:
-    fields = _EMPLOYEE_CP_CONTEXT_SELECT_BASE
     if include_id:
         fields = f"id, first_name, last_name, {fields}"
     if include_status:
@@ -174,24 +161,13 @@ def build_employee_cp_seniority_context(
 
 
 def load_employee_cp_seniority_context(employee_id: str) -> EmployeeCpSeniorityContext:
-    try:
-        resp = (
-            supabase.table("employees")
-            .select(employee_cp_seniority_select())
-            .eq("id", employee_id)
-            .limit(1)
-            .execute()
-        )
-    except Exception as exc:
-        if not is_missing_cadre_dirigeant_column_error(exc):
-            raise
-        resp = (
-            supabase.table("employees")
-            .select(employee_cp_seniority_select_without_cadre_dirigeant())
-            .eq("id", employee_id)
-            .limit(1)
-            .execute()
-        )
+    resp = (
+        supabase.table("employees")
+        .select(employee_cp_seniority_select())
+        .eq("id", employee_id)
+        .limit(1)
+        .execute()
+    )
     rows = resp.data or []
     if not rows:
         return EmployeeCpSeniorityContext(hire_date=None)
@@ -234,29 +210,13 @@ def list_cp_seniority_preview(company_id: str, grant_year: int) -> list[dict[str
     policy = get_leave_policy(company_id)
     ref_date = date(grant_year, 5, 31)
 
-    try:
-        emp_resp = (
-            supabase.table("employees")
-            .select(employee_cp_seniority_select(include_id=True, include_status=True))
-            .eq("company_id", company_id)
-            .in_("employment_status", ["actif", "active", "en_onboarding"])
-            .execute()
-        )
-    except Exception as exc:
-        if not is_missing_cadre_dirigeant_column_error(exc):
-            raise
-        emp_resp = (
-            supabase.table("employees")
-            .select(
-                employee_cp_seniority_select_without_cadre_dirigeant(
-                    include_id=True,
-                    include_status=True,
-                )
-            )
-            .eq("company_id", company_id)
-            .in_("employment_status", ["actif", "active", "en_onboarding"])
-            .execute()
-        )
+    emp_resp = (
+        supabase.table("employees")
+        .select(employee_cp_seniority_select(include_id=True, include_status=True))
+        .eq("company_id", company_id)
+        .in_("employment_status", ["actif", "active", "en_onboarding"])
+        .execute()
+    )
     rows: list[dict[str, Any]] = []
     for emp in emp_resp.data or []:
         ctx = build_employee_cp_seniority_context(emp)

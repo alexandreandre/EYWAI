@@ -88,7 +88,6 @@ def _call_get_current_user(access_filters):
 
     with patch.object(security, "get_supabase_admin_client", return_value=client), \
          patch.object(security, "supabase") as mock_supabase, \
-         patch.object(security, "_set_session_company", return_value=True), \
          patch.object(security, "execute_with_retry", side_effect=lambda fn: fn()):
         mock_supabase.auth.get_user.return_value = SimpleNamespace(user=auth_user)
         return security.get_current_user(token="jwt", x_active_company=None)
@@ -131,9 +130,26 @@ def test_x_active_company_on_revoked_access_is_ignored(requested):
 
     with patch.object(security, "get_supabase_admin_client", return_value=client), \
          patch.object(security, "supabase") as mock_supabase, \
-         patch.object(security, "_set_session_company", return_value=True), \
          patch.object(security, "execute_with_retry", side_effect=lambda fn: fn()):
         mock_supabase.auth.get_user.return_value = SimpleNamespace(user=auth_user)
         user = security.get_current_user(token="jwt", x_active_company=requested)
 
     assert user.active_company_id != requested
+
+
+def test_la_connexion_ne_pose_plus_de_contexte_d_entreprise_en_base():
+    """`set_session_company` ne servait à rien (service_role passe outre la RLS)
+    et sérialisait toutes les requêtes sous un verrou : plus aucun appel RPC."""
+    client = _build_client([])
+    auth_user = SimpleNamespace(id="user-gaelle", email="gaelle@example.test")
+
+    with patch.object(security, "get_supabase_admin_client", return_value=client), \
+         patch.object(security, "supabase") as mock_supabase, \
+         patch.object(security, "execute_with_retry", side_effect=lambda fn: fn()):
+        mock_supabase.auth.get_user.return_value = SimpleNamespace(user=auth_user)
+        user = security.get_current_user(token="jwt", x_active_company=None)
+
+    assert user.active_company_id == "co-maji"
+    mock_supabase.rpc.assert_not_called()
+    client.rpc.assert_not_called()
+    assert not hasattr(security, "_set_session_company")

@@ -5,7 +5,6 @@ Contenu :
 - get_current_user : validation JWT, chargement profil + accès multi-entreprises, entreprise active.
 - get_current_user_role : dépendance dérivée (rôle pour l'entreprise active).
 - oauth2_scheme : schéma OAuth2 pour extraction du token.
-- set_session_company (via Supabase RPC) : définition du contexte entreprise en base.
 
 Les permissions métier spécifiques (vérifications par module) restent dans les routers
 ou seront migrées plus tard dans les modules. Ne pas les déplacer ici.
@@ -13,8 +12,6 @@ ou seront migrées plus tard dans les modules. Ne pas les déplacer ici.
 
 from __future__ import annotations
 
-import threading
-import time
 from typing import Annotated, Optional
 
 from fastapi import Depends, HTTPException, Header, status
@@ -37,45 +34,6 @@ logger = get_logger("core.security")
 
 # Schéma OAuth2 pour l'endpoint de login
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
-
-_session_company_lock = threading.Lock()
-
-
-def _set_session_company(company_id: str) -> bool:
-    """
-    Définit le contexte entreprise PostgreSQL (RLS).
-    Sérialise les appels (client Supabase partagé) et réessaie sur erreurs réseau passagères.
-    """
-    last_error: BaseException | None = None
-    for attempt in range(3):
-        try:
-            with _session_company_lock:
-                supabase.rpc(
-                    "set_session_company", {"p_company_id": company_id}
-                ).execute()
-            return True
-        except Exception as e:
-            last_error = e
-            if is_transient_supabase_error(e) and attempt < 2:
-                time.sleep(0.03 * (attempt + 1))
-                continue
-            break
-    if last_error is not None:
-        if is_transient_supabase_error(last_error):
-            if is_app_debug_enabled():
-                logger.debug(
-                    "set_session_company indisponible (transitoire) pour %s: %s",
-                    company_id,
-                    last_error,
-                )
-        else:
-            logger.warning(
-                "set_session_company échoué pour %s: %s",
-                company_id,
-                last_error,
-            )
-    return False
-
 
 def _resoudre_acces_rh_custom(
     user_id: str, accesses: list[CompanyAccess]
@@ -297,10 +255,13 @@ def get_current_user(
             else:
                 active_company_id = accessible_companies[0].company_id
 
-        # 6. Définir le contexte d'entreprise dans PostgreSQL (lecture/écriture du contexte)
-        if active_company_id:
-            _set_session_company(active_company_id)
-        elif debug:
+        # 6. Plus de contexte d'entreprise posé en base : l'appel RPC
+        # `set_session_company`, sous un verrou commun à toutes les requêtes,
+        # ne servait à rien (le backend lit en service_role, qui passe outre la
+        # RLS ; anon et authenticated n'ont plus aucun droit sur les tables) et
+        # posait le réglage pour toute la connexion du pool (audit du 03/11/2026,
+        # 37 727 appels par jour).
+        if not active_company_id and debug:
 
             logger.debug("Aucune entreprise active pour user_id=%s", user.id)
 

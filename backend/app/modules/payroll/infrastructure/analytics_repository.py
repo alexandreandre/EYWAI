@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
 from typing import Any, Dict, List, Optional, Set
 
 from app.core.database import supabase
@@ -128,37 +127,14 @@ class PayrollAnalyticsRepository:
         return n
 
     def fetch_payroll_runs(self, company_id: str, year: int) -> List[Dict[str, Any]]:
-        try:
-            r = (
-                supabase.table("payroll_runs")
-                .select("period_start, status, closed_at, closed_by")
-                .eq("company_id", company_id)
-                .execute()
-            )
-        except Exception:
-            return []
-        rows = (r.data or []) if r else []
-        out: List[Dict[str, Any]] = []
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            ps = str(row.get("period_start") or "")[:10]
-            try:
-                d = date.fromisoformat(ps)
-            except ValueError:
-                continue
-            if d.year != year:
-                continue
-            out.append(
-                {
-                    "year": d.year,
-                    "month": d.month,
-                    "status": str(row.get("status") or "open"),
-                    "closed_at": row.get("closed_at"),
-                    "closed_by": row.get("closed_by"),
-                }
-            )
-        return out
+        """Les clôtures de période de paie de l'année : aucune, pour l'instant.
+
+        La clôture n'a pas de table : `payroll_runs`, que l'on interrogeait,
+        n'existe pas (audit du 03/11/2026) et la lecture rendait toujours une
+        liste vide. Elle la rend sans appel à la base ; « Cycle clos » ne
+        s'affiche donc pas tant qu'une clôture n'existe pas.
+        """
+        return []
 
     def is_period_closed(self, company_id: str, year: int, month: int) -> bool:
         for row in self.fetch_payroll_runs(company_id, year):
