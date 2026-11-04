@@ -76,12 +76,6 @@ export type MilestoneCreate = {
   comment?: string | null;
 };
 
-export type MilestoneUpdate = {
-  expected_value?: number;
-  actual_value?: number | null;
-  comment?: string | null;
-};
-
 export type CheckinCreate = {
   checkin_date: string;
   progress_note: string;
@@ -177,11 +171,6 @@ export async function declineObjectiveToTeam(id: string): Promise<DeclineToTeamR
   return res.data;
 }
 
-export async function getPreviousYearObjectives(id: string): Promise<EmployeeObjective[]> {
-  const res = await apiClient.get<EmployeeObjective[]>(`/api/objectives/${id}/previous-year`);
-  return res.data ?? [];
-}
-
 export async function getAchievementRate(periodYear: number): Promise<AchievementRateResponse> {
   const res = await apiClient.get<AchievementRateResponse>(
     `/api/objectives/achievement-rate?period_year=${periodYear}`,
@@ -197,33 +186,6 @@ export async function listCompanyServices(): Promise<CompanyService[]> {
 export async function createCompanyService(name: string): Promise<CompanyService> {
   const res = await apiClient.post<CompanyService>("/api/objectives/services", { name });
   return res.data;
-}
-
-export async function addMilestone(
-  objectiveId: string,
-  body: MilestoneCreate,
-): Promise<ObjectiveMilestone> {
-  const res = await apiClient.post<ObjectiveMilestone>(
-    `/api/objectives/${objectiveId}/milestones`,
-    body,
-  );
-  return res.data;
-}
-
-export async function updateMilestone(
-  objectiveId: string,
-  milestoneId: string,
-  body: MilestoneUpdate,
-): Promise<ObjectiveMilestone> {
-  const res = await apiClient.put<ObjectiveMilestone>(
-    `/api/objectives/${objectiveId}/milestones/${milestoneId}`,
-    body,
-  );
-  return res.data;
-}
-
-export async function deleteMilestone(objectiveId: string, milestoneId: string): Promise<void> {
-  await apiClient.delete(`/api/objectives/${objectiveId}/milestones/${milestoneId}`);
 }
 
 export async function addCheckin(

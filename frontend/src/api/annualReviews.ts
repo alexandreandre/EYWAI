@@ -178,10 +178,6 @@ export const getMyAnnualReviews = () => {
   return apiClient.get<AnnualReview[]>("/api/annual-reviews/me");
 };
 
-export const getMyCurrentAnnualReview = () => {
-  return apiClient.get<AnnualReview | null>("/api/annual-reviews/me/current");
-};
-
 export const createAnnualReview = (data: AnnualReviewCreate) => {
   const payload = {
     ...data,

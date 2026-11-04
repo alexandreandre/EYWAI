@@ -159,11 +159,6 @@ export async function getEmployeeLoans(employeeId: string): Promise<EmployeeLoan
   return data;
 }
 
-export async function getEmployeeLoan(loanId: string): Promise<EmployeeLoan> {
-  const { data } = await apiClient.get<EmployeeLoan>(`/api/employee-loans/${loanId}`);
-  return data;
-}
-
 export async function createEmployeeLoan(payload: EmployeeLoanCreate): Promise<EmployeeLoan> {
   const { data } = await apiClient.post<EmployeeLoan>('/api/employee-loans/', payload);
   return data;
@@ -235,19 +230,6 @@ export async function getLoanContractUrl(loanId: string): Promise<{ url: string 
 export async function markLoanDeclared2062(loanId: string): Promise<EmployeeLoan> {
   const { data } = await apiClient.patch<EmployeeLoan>(
     `/api/employee-loans/${loanId}/declared-2062`,
-  );
-  return data;
-}
-
-export async function getEmployeeOutstandingLoans(employeeId: string): Promise<{
-  employee_id: string;
-  total_remaining_capital: number;
-  active_loans_count: number;
-  outstanding_loans_count: number;
-  loans: EmployeeLoan[];
-}> {
-  const { data } = await apiClient.get(
-    `/api/employee-loans/employees/${employeeId}/outstanding`,
   );
   return data;
 }

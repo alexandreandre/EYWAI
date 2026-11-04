@@ -56,9 +56,3 @@ export const getRibAlerts = (params?: RibAlertsListParams) => {
 export const markRibAlertRead = (alertId: string) => {
   return apiClient.patch<{ success: boolean }>(`/api/rib-alerts/${alertId}/read`);
 };
-
-export const markRibAlertResolved = (alertId: string, resolutionNote?: string) => {
-  return apiClient.patch<{ success: boolean }>(`/api/rib-alerts/${alertId}/resolve`, {
-    resolution_note: resolutionNote ?? null,
-  });
-};

@@ -98,14 +98,3 @@ export async function validateCpSeniorityGrants(
   );
   return res.data;
 }
-
-export async function overrideCpSeniorityGrant(
-  employeeId: string,
-  payload: { grant_year: number; days_granted: number; note?: string },
-): Promise<unknown> {
-  const res = await apiClient.patch(
-    `/api/absences/cp-seniority-grants/${employeeId}`,
-    payload,
-  );
-  return res.data;
-}

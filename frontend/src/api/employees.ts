@@ -117,13 +117,6 @@ export async function updateEmployee(
   return data;
 }
 
-export async function confirmTrialPeriod(employeeId: string): Promise<Employee> {
-  const { data } = await apiClient.patch<Employee>(
-    `/api/employees/${employeeId}/trial-period/confirm`,
-  );
-  return data;
-}
-
 export async function fetchEmployees(): Promise<Employee[]> {
   const { data } = await apiClient.get<Employee[]>('/api/employees');
   return data ?? [];

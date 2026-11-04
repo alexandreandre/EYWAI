@@ -93,58 +93,10 @@ export interface PreflightAnomaliesResponse {
   heures_sur_arret?: HeuresSurArretSalarie[];
 }
 
-export interface JustifyAnomalyPayload {
-  employee_id: string;
-  anomaly_type: PreflightAnomalyType;
-  year: number;
-  month: number;
-  motif: PreflightResolutionMotif;
-  commentaire?: string;
-}
-
-export interface RemoveAnomalyJustificationPayload {
-  employee_id: string;
-  anomaly_type: PreflightAnomalyType;
-  year: number;
-  month: number;
-}
-
-export interface AcknowledgePreflightPayload {
-  year: number;
-  month: number;
-  open_anomalies_count: number;
-  anomaly_types_summary: string[];
-  commentaire?: string;
-}
-
 export async function getPreflightAnomalies(year: number, month: number) {
   const { data } = await apiClient.get<PreflightAnomaliesResponse>(
     '/api/payroll/preflight-anomalies',
     { params: { year, month } },
-  );
-  return data;
-}
-
-export async function justifyAnomaly(payload: JustifyAnomalyPayload) {
-  const { data } = await apiClient.post<{ ok: boolean }>(
-    '/api/payroll/preflight-anomalies/resolution',
-    payload,
-  );
-  return data;
-}
-
-export async function removeAnomalyJustification(payload: RemoveAnomalyJustificationPayload) {
-  const { data } = await apiClient.delete<{ ok: boolean }>(
-    '/api/payroll/preflight-anomalies/resolution',
-    { data: payload },
-  );
-  return data;
-}
-
-export async function acknowledgePreflight(payload: AcknowledgePreflightPayload) {
-  const { data } = await apiClient.post<{ ok: boolean }>(
-    '/api/payroll/preflight-anomalies/acknowledge',
-    payload,
   );
   return data;
 }

@@ -29,17 +29,6 @@ export interface BonusTypeCreate {
   export_code?: string | null;
 }
 
-export interface BonusTypeUpdate {
-  libelle?: string;
-  type?: 'montant_fixe' | 'selon_heures';
-  montant?: number;
-  seuil_heures?: number | null;
-  soumise_a_cotisations?: boolean;
-  soumise_a_impot?: boolean;
-  prompt_ia?: string | null;
-  export_code?: string | null;
-}
-
 export interface BonusCalculationResult {
   amount: number;
   calculated: boolean;
@@ -56,14 +45,6 @@ export const getBonusTypes = () => {
 
 export const createBonusType = (data: BonusTypeCreate) => {
   return apiClient.post<BonusType>('/api/bonus-types', data);
-};
-
-export const updateBonusType = (id: string, data: BonusTypeUpdate) => {
-  return apiClient.put<BonusType>(`/api/bonus-types/${id}`, data);
-};
-
-export const deleteBonusType = (id: string) => {
-  return apiClient.delete(`/api/bonus-types/${id}`);
 };
 
 export const calculateBonusAmount = (

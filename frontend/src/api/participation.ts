@@ -72,13 +72,6 @@ export async function listCampaigns(year?: number): Promise<ParticipationCampaig
   return data.campaigns ?? [];
 }
 
-export async function getCampaign(campaignId: string): Promise<ParticipationCampaign> {
-  const { data } = await apiClient.get<ParticipationCampaign>(
-    `/api/participation/campaigns/${campaignId}`,
-  );
-  return data;
-}
-
 export async function createCampaign(payload: {
   simulation_id?: string;
   year: number;

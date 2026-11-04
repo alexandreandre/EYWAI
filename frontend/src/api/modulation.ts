@@ -78,15 +78,6 @@ export interface ModulationOverviewRow {
   estimated?: boolean;
 }
 
-export interface ModulationBalance {
-  employee_id: string;
-  year: number;
-  account_balance_hours: number;
-  acquired_hours: number;
-  taken_hours: number;
-  franchise_remaining_hours: number;
-}
-
 export interface ModulationMovement {
   id: string;
   employee_id: string;
@@ -152,18 +143,6 @@ export async function getModulationOverview(
   const { data } = await apiClient.get<ModulationOverviewRow[]>(
     '/api/modulation/overview',
     { params: year ? { year } : undefined },
-  );
-  return data;
-}
-
-export async function getEmployeeModulationBalance(
-  employeeId: string,
-  year?: number,
-  month?: number,
-): Promise<ModulationBalance> {
-  const { data } = await apiClient.get<ModulationBalance>(
-    `/api/modulation/employees/${employeeId}/balance`,
-    { params: { year, month } },
   );
   return data;
 }

@@ -103,11 +103,6 @@ export async function getCompetencyRefs(includeArchived?: boolean): Promise<Comp
   return res.data ?? [];
 }
 
-export async function getCompetencyRef(id: string): Promise<CompetencyRef> {
-  const res = await apiClient.get<CompetencyRef>(`/api/competencies/refs/${id}`);
-  return res.data;
-}
-
 export async function createCompetencyRef(data: CompetencyRefCreate): Promise<CompetencyRef> {
   const res = await apiClient.post<CompetencyRef>("/api/competencies/refs", data);
   return res.data;

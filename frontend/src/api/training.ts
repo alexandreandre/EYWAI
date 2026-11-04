@@ -142,11 +142,6 @@ export async function addTrainingFromCcRecommendation(
   return res.data;
 }
 
-export async function getTraining(id: string): Promise<TrainingCatalog> {
-  const res = await apiClient.get<TrainingCatalog>(`/api/training/catalog/${id}`);
-  return res.data;
-}
-
 export async function createTraining(body: TrainingCatalogCreate): Promise<TrainingCatalog> {
   const res = await apiClient.post<TrainingCatalog>("/api/training/catalog", body);
   return res.data;
@@ -175,11 +170,6 @@ export async function getEnrollments(params?: {
     `/api/training/enrollments${q ? `?${q}` : ""}`,
   );
   return res.data ?? [];
-}
-
-export async function getEnrollment(id: string): Promise<TrainingEnrollment> {
-  const res = await apiClient.get<TrainingEnrollment>(`/api/training/enrollments/${id}`);
-  return res.data;
 }
 
 export async function createEnrollment(body: TrainingEnrollmentCreate): Promise<TrainingEnrollment> {

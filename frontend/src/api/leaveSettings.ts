@@ -66,17 +66,6 @@ export interface EmployeeLeaveAdjustment {
   note: string | null;
 }
 
-export type EmployeeLeaveAdjustmentUpdate = Partial<
-  Pick<
-    EmployeeLeaveAdjustment,
-    | 'cp_n1_opening_balance'
-    | 'cp_n_opening_balance'
-    | 'rtt_opening_balance'
-    | 'jtc_opening_balance'
-    | 'note'
-  >
->;
-
 export interface EmployeeRttSoldeUpdate {
   rtt_solde: number;
   note?: string | null;
@@ -142,17 +131,6 @@ export type LeaveNotificationSettingsUpdate = Partial<
   >
 >;
 
-export interface LeaveAdjustmentImportRow {
-  email?: string;
-  matricule?: string;
-  first_name?: string;
-  last_name?: string;
-  cp_n1_solde: number;
-  cp_n_solde: number;
-  rtt_solde: number;
-  year: number;
-}
-
 export async function getLeaveSettings(): Promise<LeaveSettings> {
   const { data } = await apiClient.get<LeaveSettings>('/api/absences/leave-settings');
   return data;
@@ -174,30 +152,6 @@ export async function getLeaveBalancesOverview(
   const { data } = await apiClient.get<LeaveBalancesOverview>(
     '/api/absences/leave-settings/balances-overview',
     { params: year ? { year } : undefined },
-  );
-  return data;
-}
-
-export async function getEmployeeLeaveAdjustment(
-  employeeId: string,
-  year: number,
-): Promise<EmployeeLeaveAdjustment> {
-  const { data } = await apiClient.get<EmployeeLeaveAdjustment>(
-    `/api/absences/leave-settings/employees/${employeeId}/adjustment`,
-    { params: { year } },
-  );
-  return data;
-}
-
-export async function updateEmployeeLeaveAdjustment(
-  employeeId: string,
-  year: number,
-  payload: EmployeeLeaveAdjustmentUpdate,
-): Promise<EmployeeLeaveAdjustment> {
-  const { data } = await apiClient.patch<EmployeeLeaveAdjustment>(
-    `/api/absences/leave-settings/employees/${employeeId}/adjustment`,
-    payload,
-    { params: { year } },
   );
   return data;
 }
@@ -266,16 +220,6 @@ export async function updateEmployeeRttSolde(
     `/api/absences/leave-settings/employees/${employeeId}/rtt-solde`,
     payload,
     { params: { year } },
-  );
-  return data;
-}
-
-export async function importLeaveAdjustments(
-  rows: LeaveAdjustmentImportRow[],
-): Promise<{ imported: number; errors: string[] }> {
-  const { data } = await apiClient.post<{ imported: number; errors: string[] }>(
-    '/api/absences/leave-settings/adjustments/import',
-    { rows },
   );
   return data;
 }

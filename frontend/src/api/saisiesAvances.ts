@@ -138,14 +138,6 @@ export interface SalaryAdvanceReject {
   rejection_reason: string;
 }
 
-export interface SeizableAmountCalculation {
-  net_salary: number;
-  dependents_count: number;
-  adjusted_salary: number;
-  seizable_amount: number;
-  minimum_untouchable: number;
-}
-
 export interface AdvanceAvailableAmount {
   advance_type?: AdvanceType;
   daily_salary: number;
@@ -159,30 +151,6 @@ export interface AdvanceAvailableAmount {
   max_advance_from_net: number;
   max_advance_net_ratio: number;
   is_employee_right?: boolean;
-}
-
-export interface SalarySeizureDeduction {
-  id: string;
-  seizure_id: string;
-  payslip_id: string;
-  year: number;
-  month: number;
-  gross_salary: number;
-  net_salary: number;
-  seizable_amount: number;
-  deducted_amount: number;
-  created_at: string;
-}
-
-export interface SalaryAdvanceRepayment {
-  id: string;
-  advance_id: string;
-  payslip_id: string;
-  year: number;
-  month: number;
-  repayment_amount: number;
-  remaining_after: number;
-  created_at: string;
 }
 
 // =====================================================================
@@ -202,11 +170,6 @@ export async function getSalarySeizures(params?: {
   return response.data;
 }
 
-export async function getSalarySeizure(id: string): Promise<SalarySeizure> {
-  const response = await apiClient.get(`/api/saisies-avances/salary-seizures/${id}`);
-  return response.data;
-}
-
 export async function updateSalarySeizure(
   id: string,
   data: SalarySeizureUpdate
@@ -217,22 +180,6 @@ export async function updateSalarySeizure(
 
 export async function deleteSalarySeizure(id: string): Promise<void> {
   await apiClient.delete(`/api/saisies-avances/salary-seizures/${id}`);
-}
-
-export async function calculateSeizableAmount(
-  net_salary: number,
-  dependents_count: number = 0
-): Promise<SeizableAmountCalculation> {
-  const response = await apiClient.post('/api/saisies-avances/salary-seizures/calculate-seizable', {
-    net_salary,
-    dependents_count
-  });
-  return response.data;
-}
-
-export async function getEmployeeSalarySeizures(employee_id: string): Promise<SalarySeizure[]> {
-  const response = await apiClient.get(`/api/saisies-avances/employees/${employee_id}/salary-seizures`);
-  return response.data;
 }
 
 // =====================================================================
@@ -273,11 +220,6 @@ export async function getSalaryAdvances(params?: {
   }));
 }
 
-export async function getSalaryAdvance(id: string): Promise<SalaryAdvance> {
-  const response = await apiClient.get(`/api/saisies-avances/salary-advances/${id}`);
-  return response.data;
-}
-
 export async function approveSalaryAdvance(
   id: string
 ): Promise<SalaryAdvance> {
@@ -290,11 +232,6 @@ export async function rejectSalaryAdvance(
   data: SalaryAdvanceReject
 ): Promise<SalaryAdvance> {
   const response = await apiClient.patch(`/api/saisies-avances/salary-advances/${id}/reject`, data);
-  return response.data;
-}
-
-export async function getEmployeeSalaryAdvances(employee_id: string): Promise<SalaryAdvance[]> {
-  const response = await apiClient.get(`/api/saisies-avances/employees/${employee_id}/salary-advances`);
   return response.data;
 }
 
@@ -331,22 +268,6 @@ export async function reconcileAcomptePrime(
     `/api/saisies-avances/salary-advances/${id}/reconcile-prime`,
     data
   );
-  return response.data;
-}
-
-// =====================================================================
-// API FUNCTIONS - INTÉGRATION BULLETINS
-// =====================================================================
-
-export async function getPayslipDeductions(payslip_id: string): Promise<SalarySeizureDeduction[]> {
-  const response = await apiClient.get(`/api/saisies-avances/payslips/${payslip_id}/deductions`);
-  return response.data;
-}
-
-export async function getPayslipAdvanceRepayments(
-  payslip_id: string
-): Promise<SalaryAdvanceRepayment[]> {
-  const response = await apiClient.get(`/api/saisies-avances/payslips/${payslip_id}/advance-repayments`);
   return response.data;
 }
 

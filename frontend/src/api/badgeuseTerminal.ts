@@ -84,18 +84,6 @@ export const activateTerminalDeviceHere = async (
   return response.data;
 };
 
-export const createTerminalDevice = async (
-  companyId: string,
-  label: string
-): Promise<CreateTerminalDeviceResponse> => {
-  const params = new URLSearchParams({ company_id: companyId });
-  const response = await apiClient.post(
-    `/api/badgeuse/terminal-devices?${params.toString()}`,
-    { label }
-  );
-  return response.data;
-};
-
 export const revokeTerminalDevice = async (
   companyId: string,
   deviceId: string
