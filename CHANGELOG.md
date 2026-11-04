@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+(rien)
+
+## paie-2026-11-04.6 — 4 novembre 2026
+
 ### L'aperçu d'un signalement DSN avant envoi
 - Chaque signalement d'arrêt, de reprise ou de fin de contrat a un bouton « Aperçu ».
 - La fenêtre montre le fichier en clair, rubrique par rubrique, avec ce que veut dire chaque code (« 01 = maladie »), et le fichier brut.
