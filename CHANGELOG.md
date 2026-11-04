@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+(rien)
+
+## paie-2026-11-04.5 — 4 novembre 2026
+
 ### Un cadre a toujours sa prévoyance
 - Un cadre sans prévoyance n'a plus de bulletin : le message dit de cocher « Adhésion prévoyance » sur sa fiche et de choisir le contrat.
 - Un bandeau le signale aussi sur la fiche.
