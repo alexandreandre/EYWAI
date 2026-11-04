@@ -172,6 +172,7 @@ export const TRANSMISSION_STATUS_LABELS: Record<TransmissionStatus, string> = {
 
 export const TRANSMISSION_MODE_LABELS: Record<TransmissionMode, string> = {
   manual: 'Manuel',
-  api_certificat: 'API (certificat)',
+  // Ancien réglage, plus proposé : il n'existe pas de certificat pour la DSN.
+  api_certificat: 'API',
   api_declarant: 'API (déclarant)',
 };
