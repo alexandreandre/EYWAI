@@ -42,6 +42,10 @@ CODE_REPLI_SOLDES_CONGES = "repli_soldes_conges"
 CODE_REPLI_VARIABLES_AUTO = "repli_variables_auto"
 CODE_REPLI_REGLAGES_CONGES = "repli_reglages_conges"
 CODE_REPLI_ARRETS_ILLISIBLES = "repli_arrets_illisibles"
+CODE_REPLI_PRETS = "repli_prets"
+CODE_REPLI_AVANTAGE_PRET = "repli_avantage_pret"
+CODE_REPLI_RETENUES_A_RECALCULER = "repli_retenues_a_recalculer"
+CODE_REPLI_RESTE_DU = "repli_reste_du_non_mis_a_jour"
 
 _MESSAGES: Dict[str, str] = {
     CODE_REPLI_MAINTIEN: (
@@ -114,6 +118,32 @@ _MESSAGES: Dict[str, str] = {
         "férié pendant un arrêt ont pu compter comme heures travaillées. Seules celles "
         "des jours d'arrêt du planning sont écartées. "
         "À vérifier avant de valider ce bulletin."
+    ),
+    CODE_REPLI_PRETS: (
+        "Remboursements de prêts non calculés : une erreur a empêché le calcul. "
+        "Aucune échéance de prêt n'est retenue sur ce bulletin. "
+        "À vérifier avant de le valider."
+    ),
+    CODE_REPLI_AVANTAGE_PRET: (
+        "Avantage en nature du prêt non calculé : une erreur a empêché le calcul. "
+        "Le brut ne compte pas l'avantage des intérêts du prêt de l'employeur. "
+        "À vérifier avant de valider ce bulletin."
+    ),
+    # L'enregistrement s'arrête au premier échec, avant de toucher au reste dû :
+    # le recalcul refait la même retenue, une seule fois.
+    CODE_REPLI_RETENUES_A_RECALCULER: (
+        "Retenues du bulletin mal enregistrées : une saisie, une avance ou un prêt "
+        "retenu sur ce bulletin n'a pas été enregistré en entier (historique, "
+        "bulletin ou PDF). Recalculer le bulletin le refait. "
+        "À vérifier avant de le valider."
+    ),
+    # La retenue est enregistrée, mais pas le reste dû : le recalcul ne le
+    # rattrape pas (il défait puis refait d'après la retenue enregistrée).
+    CODE_REPLI_RESTE_DU: (
+        "Reste dû non mis à jour : la retenue de ce bulletin est juste, mais le "
+        "reste dû de l'avance ou du prêt (capital restant, échéancier) n'a pas "
+        "suivi, et recalculer ne le rattrape pas. À vérifier avant de calculer "
+        "le mois suivant : sans correction, sa retenue serait fausse."
     ),
 }
 

@@ -58,7 +58,7 @@ def test_la_fusion_garde_les_alertes_du_bulletin_sans_doublon():
 
 def test_chaque_code_a_son_message():
     codes = [v for k, v in vars(replis).items() if k.startswith("CODE_REPLI_")]
-    assert len(codes) == 15
+    assert len(codes) == 19
     for code in codes:
         message = replis.alerte_de_repli(code)["message"]
         assert "À vérifier avant de" in message

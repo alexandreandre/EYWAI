@@ -31,7 +31,14 @@ def inject_loan_benefit_in_kind(
     year: int,
     month: int,
 ) -> Dict[str, Any]:
-    """Injecte l'avantage en nature prêt employeur dans contrat.json avant moteur paie."""
+    """Injecte l'avantage en nature prêt employeur dans contrat.json avant moteur paie.
+
+    Prêts ou taux illisibles : `LectureIndispensable`, le bulletin n'est pas
+    calculé (plutôt que calculé sans l'avantage). Un autre échec du calcul
+    laisse le brut sans l'avantage, et le bulletin le dit.
+    """
+    from app.modules.payroll.engine.lectures import LectureIndispensable
+
     try:
         from app.modules.employee_loans.infrastructure.payroll_queries import (
             compute_total_loan_benefit_in_kind,
@@ -46,8 +53,14 @@ def inject_loan_benefit_in_kind(
             aen["pret_employeur"] = {"montant_mensuel": loan_an}
             remuneration["avantages_en_nature"] = aen
             logger.debug("Avantage en nature prêt employeur: %s€", loan_an)
-    except Exception as exc:
-        logger.warning("Erreur calcul AN prêt employeur: %s", exc)
+    except LectureIndispensable:
+        raise
+    except Exception:
+        logger.exception("Avantage en nature du prêt employeur non calculé (%s, %02d/%d)",
+                         employee_id, month, year)
+        from app.modules.payroll.engine.replis import CODE_REPLI_AVANTAGE_PRET, noter_repli
+
+        noter_repli(CODE_REPLI_AVANTAGE_PRET)
     return contrat_json
 
 
@@ -61,8 +74,27 @@ def enrich_payslip_after_upsert(
     pdf_regen: Optional[PdfRegenConfig] = None,
 ) -> Dict[str, Any]:
     """
-    Enrichit le bulletin (saisies/avances + prêts), persiste payslip_data et régénère le PDF.
+    Enrichit le bulletin (saisies/avances + prêts), régénère le PDF et persiste payslip_data.
+
+    Chaque échec se voit sur le bulletin (alerte de repli) : avances ou prêts
+    non calculés, PDF non redéposé. Le PDF passe avant l'enregistrement pour
+    que son échec soit enregistré avec le bulletin. Si c'est l'enregistrement
+    qui échoue, l'alerte part avec la réponse de la génération.
     """
+    from app.modules.payroll.engine.replis import (
+        CODE_REPLI_AVANCES,
+        CODE_REPLI_PRETS,
+        CODE_REPLI_RETENUES_A_RECALCULER,
+        fusionner_replis,
+    )
+
+    def _avec_repli(donnees: Dict[str, Any], code: str) -> Dict[str, Any]:
+        donnees = dict(donnees)
+        donnees["alertes_baremes"] = fusionner_replis(
+            donnees.get("alertes_baremes"), [{"code": code}]
+        )
+        return donnees
+
     enriched_data = payslip_data
 
     if payslip_id:
@@ -76,17 +108,11 @@ def enrich_payslip_after_upsert(
                 month,
                 payslip_id=payslip_id,
             )
-        except Exception as exc:
+        except Exception:
             # Les avances ne sont retenues qu'ici : leur échec se voit sur le
             # bulletin, comme tout repli de la génération.
-            logger.warning("Erreur enrichissement saisies/avances: %s", exc)
-            from app.modules.payroll.engine.replis import CODE_REPLI_AVANCES, fusionner_replis
-
-            enriched_data = dict(enriched_data)
-            enriched_data["alertes_baremes"] = fusionner_replis(
-                enriched_data.get("alertes_baremes"),
-                [{"code": CODE_REPLI_AVANCES}],
-            )
+            logger.exception("Enrichissement saisies/avances du bulletin %s en échec", payslip_id)
+            enriched_data = _avec_repli(enriched_data, CODE_REPLI_AVANCES)
 
         try:
             from app.modules.employee_loans.application.enrichment import (
@@ -100,18 +126,23 @@ def enrich_payslip_after_upsert(
                 month,
                 payslip_id=payslip_id,
             )
-        except Exception as exc:
-            logger.warning("Erreur enrichissement prêts employeur: %s", exc)
+        except Exception:
+            # Les prêts ne sont retenus qu'ici aussi : même règle que les avances.
+            logger.exception("Enrichissement prêts employeur du bulletin %s en échec", payslip_id)
+            enriched_data = _avec_repli(enriched_data, CODE_REPLI_PRETS)
+
+        if pdf_regen and not _regenerate_and_upload_pdf(enriched_data, pdf_regen):
+            enriched_data = _avec_repli(enriched_data, CODE_REPLI_RETENUES_A_RECALCULER)
 
         try:
             supabase.table("payslips").update({"payslip_data": enriched_data}).eq(
                 "id", payslip_id
             ).execute()
-        except Exception as exc:
-            logger.warning("Erreur mise à jour payslip_data enrichi: %s", exc)
-
-        if pdf_regen:
-            _regenerate_and_upload_pdf(enriched_data, pdf_regen)
+        except Exception:
+            # En base, le bulletin du moteur, sans ses retenues ; les soldes ont
+            # bougé. Le recalcul remet tout d'accord : l'écran le dit.
+            logger.exception("Bulletin enrichi %s non enregistré", payslip_id)
+            enriched_data = _avec_repli(enriched_data, CODE_REPLI_RETENUES_A_RECALCULER)
 
     return enriched_data
 
@@ -119,7 +150,8 @@ def enrich_payslip_after_upsert(
 def _regenerate_and_upload_pdf(
     enriched_data: Dict[str, Any],
     config: PdfRegenConfig,
-) -> None:
+) -> bool:
+    """Réimprime et redépose le PDF s'il a changé ; False si cela a échoué."""
     try:
         from app.modules.payroll.documents.payslip_editor import regenerate_pdf_from_data
 
@@ -136,7 +168,7 @@ def _regenerate_and_upload_pdf(
         if enriched_pdf_path is None:
             # L'enrichissement n'a rien changé à imprimer : le PDF du moteur,
             # déjà déposé à ce chemin, est le même document.
-            return
+            return True
 
         with open(enriched_pdf_path, "rb") as f:
             supabase.storage.from_("payslips").upload(
@@ -146,5 +178,8 @@ def _regenerate_and_upload_pdf(
             )
 
         logger.info("PDF régénéré avec enrichissements: %s", enriched_pdf_path)
-    except Exception as exc:
-        logger.warning("Régénération PDF enrichi échouée: %s", exc)
+        return True
+    except Exception:
+        # Le PDF déposé reste celui du moteur, sans les retenues.
+        logger.exception("PDF enrichi non régénéré ou non déposé (%s)", config.storage_path)
+        return False
