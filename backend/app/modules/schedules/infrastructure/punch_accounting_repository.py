@@ -230,6 +230,20 @@ def count_pending_reviews(company_id: str, year: int, month: int) -> int:
     return len(rows)
 
 
+def get_overtime_review(employee_id: str, work_date: date) -> dict[str, Any] | None:
+    """Revue existante d'un jour (lecture seule : l'aperçu d'un import n'écrit rien)."""
+    resp = (
+        supabase.table("employee_punch_overtime_reviews")
+        .select("id, status, overtime_hours, reason")
+        .eq("employee_id", employee_id)
+        .eq("work_date", work_date.isoformat())
+        .limit(1)
+        .execute()
+    )
+    rows = (resp.data or []) if resp else []
+    return rows[0] if rows else None
+
+
 def get_overtime_review_status(company_id: str, review_id: str) -> str | None:
     """Statut courant d'une revue (pour appliquer un delta de décision)."""
     resp = (

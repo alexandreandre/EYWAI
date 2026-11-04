@@ -16,6 +16,9 @@ from app.modules.schedules.application.schedule_import_audit import (
     record_schedule_import_run,
 )
 from app.modules.schedules.application.service import get_employee_company_and_statut
+from app.modules.schedules.application.punch_accounting_service import (
+    enregistrer_heures_en_plus_a_valider,
+)
 from app.modules.admin_import.infrastructure import repository as admin_repo
 from app.modules.schedules.infrastructure.arrets_valides import arrets_valides_reader
 from app.modules.schedules.infrastructure.repository import schedule_repository
@@ -184,16 +187,10 @@ def _employees_from_batch(
             continue
         if allowed is not None and emp.employee_id not in allowed:
             continue
+        # Le jour entier : ses notes (heures en plus à valider) servent après
+        # l'écriture ; le planning, lui, n'en garde que type et heures.
         by_employee_id.setdefault(emp.employee_id, []).extend(
-            AiDayEntry(
-                jour=d.jour,
-                heures=d.heures,
-                type=d.type,
-                nature=d.nature,
-                year=d.year,
-                month=d.month,
-            )
-            for d in emp.days
+            d.model_copy() for d in emp.days
         )
     return [
         PersistTimesheetEmployee(employee_id=employee_id, days=days)
@@ -716,6 +713,7 @@ def _commit_multi_month_batch(
         if payloads:
             conflits.extend(group_conflits)
             schedule_repository.bulk_upsert_schedules(payloads)
+            _revues_des_jours_ecrits(company_id, year, month, month_employees, payloads)
             upsert_payloads.extend(payloads)
             recalc_targets.extend(
                 (str(payload["employee_id"]), year, month) for payload in payloads
@@ -829,6 +827,51 @@ def _commit_multi_month_batch(
     }
 
 
+def _revues_des_jours_ecrits(
+    company_id: str,
+    year: int,
+    month: int,
+    employees: List[PersistTimesheetEmployee],
+    payloads: List[Dict[str, Any]],
+) -> None:
+    """Heures en plus à valider : la revue « en attente » naît une fois le jour
+    écrit au planning, jamais à l'aperçu."""
+    ecrits = {str(p.get("employee_id")) for p in payloads if p.get("actual_hours")}
+    concernes = [e for e in employees if e.employee_id in ecrits]
+    if concernes:
+        enregistrer_heures_en_plus_a_valider(company_id, year, month, concernes)
+
+
+# Notes du serveur sur un jour (badges, horaire retenu, heures en plus à
+# valider) : l'écran ne les renvoie pas, la relecture les garde.
+_NOTES_DU_SERVEUR = (
+    "punch_entry_raw",
+    "punch_exit_raw",
+    "shift_code",
+    "punch_break_minutes",
+    "planned_paid_break_minutes",
+    "heures_en_plus_a_valider",
+    "motif_heures_en_plus",
+    "creneau_applique_id",
+)
+_NOTES_DU_JOUR_TRAVAILLE = ("heures_en_plus_a_valider", "motif_heures_en_plus", "creneau_applique_id")
+
+
+def _avec_notes_du_serveur(relu: Dict[str, Any], du_lot: List[Dict[str, Any]]) -> Dict[str, Any]:
+    cle = (relu.get("jour"), relu.get("nature"), relu.get("year"), relu.get("month"))
+    for jour in du_lot:
+        if (jour.get("jour"), jour.get("nature"), jour.get("year"), jour.get("month")) != cle:
+            continue
+        out = dict(relu)
+        for champ in _NOTES_DU_SERVEUR:
+            if out.get(champ) is None and jour.get(champ) is not None:
+                if champ in _NOTES_DU_JOUR_TRAVAILLE and relu.get("type") != "travail":
+                    continue
+                out[champ] = jour[champ]
+        return out
+    return relu
+
+
 def appliquer_revue_au_lot(
     batch_id: str,
     *,
@@ -884,7 +927,11 @@ def appliquer_revue_au_lot(
         if eid in deja:
             entree["days"] = []
             continue
-        entree["days"] = [d.model_dump(mode="json") for d in relus[eid].days]
+        du_lot = [dict(d) for d in entree.get("days") or []]
+        entree["days"] = [
+            _avec_notes_du_serveur(d.model_dump(mode="json"), du_lot)
+            for d in relus[eid].days
+        ]
         deja.add(eid)
     preview["employees"] = entrees
     modifications: Dict[str, Any] = {"preview_json": preview}
@@ -1011,6 +1058,7 @@ def commit_batch_bulk(
         )
         if payloads:
             schedule_repository.bulk_upsert_schedules(payloads)
+            _revues_des_jours_ecrits(company_id, annee, mois, employes_du_mois, payloads)
         upsert_payloads.extend(payloads)
         total_days += jours_ecrits
         errors.extend(erreurs)

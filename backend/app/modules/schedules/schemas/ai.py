@@ -85,6 +85,12 @@ class AiDayEntry(BaseModel):
     # la pause du créneau (une demi-journée sans déjeuner ne perd pas 45 min).
     punch_break_minutes: Optional[int] = None
     planned_paid_break_minutes: Optional[int] = None
+    # Heures en plus à valider, notées par la comptabilisation à l'aperçu : la
+    # revue « en attente » n'est créée qu'à l'enregistrement du jour (un aperçu
+    # abandonné ne laisse rien derrière lui).
+    heures_en_plus_a_valider: Optional[float] = None
+    motif_heures_en_plus: Optional[str] = None
+    creneau_applique_id: Optional[str] = None
     # Mois/année réels du jour si différents du (year, month) de la proposition
     # (semaine hebdomadaire à cheval sur deux mois). None = utiliser le mois de
     # la proposition, pour compatibilité avec les imports non ancrés.
