@@ -34,6 +34,7 @@ from app.modules.payroll.engine.calcul_reduction_generale import (
     heures_retablies_par_les_rappels_de_maintien,
     rapport_salaires_forfait_jours,
 )
+from app.modules.payroll.engine.forfait_individuel import jours_du_forfait_de_la_fiche
 from app.modules.payroll.engine.lectures import lire_ou_arreter
 from app.modules.payroll.engine.ijss_bulletin import build_rappel_ijss_net_prime
 from app.modules.payroll.engine.frais_professionnels import ligne_de_frais_professionnels
@@ -98,14 +99,20 @@ def jours_du_forfait_pour_reduction(contexte: ContextePaie, company_id: str | No
 
     D'abord le forfait propre au salarié, déjà réduit de ses congés d'ancienneté
     quand la société le prévoit (`forfait_annual_days_adjusted`, posé plus haut
-    dans ce calcul) ; sinon le forfait de la société, celui que l'application
+    dans ce calcul) ; puis le forfait inscrit sur sa fiche, un forfait réduit
+    par exemple (`specificites_paie.forfait_annual_days`, 43 jours pour un jour
+    par semaine) ; sinon le forfait de la société, celui que l'application
     retient aussi pour ses jours de repos (`company_leave_settings`). Sans
     réglage enregistré, c'est la valeur par défaut de ces réglages. Une lecture
-    ratée arrête le calcul : sans ce nombre, le SMIC de la réduction serait faux.
+    ratée, ou un forfait de fiche illisible, arrête le calcul : sans ce nombre,
+    le SMIC de la réduction serait faux.
     """
     ajuste = (contexte.contrat or {}).get("forfait_annual_days_adjusted")
     if ajuste:
         return float(ajuste)
+    de_la_fiche = jours_du_forfait_de_la_fiche((contexte.contrat or {}).get("specificites_paie"))
+    if de_la_fiche is not None:
+        return de_la_fiche
     from app.modules.absences.domain.leave_policy import DEFAULT_LEAVE_POLICY
 
     if not company_id:
