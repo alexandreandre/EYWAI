@@ -70,7 +70,7 @@ Avant toute modification, capture l'état actuel :
 
    d. Après résolution de tous les conflits d'un commit :
       ```
-      git add .
+      git add -- <fichiers résolus, nommés un par un>
       git rebase --continue
       ```
 

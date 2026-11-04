@@ -3,6 +3,13 @@
 
 import os
 
+# Garde réseau, AVANT tout import applicatif : les valeurs factices de la CI
+# remplacent celles du `.env` du poste, qui désigne la base où un client fait sa
+# vraie paie. Sans cela, un test qui oublie une doublure y écrit (03/11/2026).
+from tests._garde_base_reelle import imposer_la_base_factice
+
+imposer_la_base_factice()
+
 # Clé de chiffrement déterministe pour la suite : secret_store l'exige désormais
 # (plus de repli sur les clés Supabase), et des fixtures chiffrent dès l'import.
 # Posée AVANT tout import applicatif : sur un runner CI il n'y a pas de .env, et

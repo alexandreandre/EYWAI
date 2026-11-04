@@ -421,3 +421,10 @@ frontend/playwright-report/
 # Rapports de backtest : ils contiennent des données nominatives (noms,
 # salaires, NIR) et ce dépôt est PUBLIC. Ils vivent sous data/, gitignoré.
 docs/backtest/
+
+# Audits sur données réelles (textes extraits de bulletins, tableaux nominatifs) :
+# dépôt PUBLIC, ils restent sur le poste. Les rapports d'audit vont sous data/_rapports/.
+docs/audit-*/
+docs/**/donnees/
+# Propositions commerciales : documents de la cession, jamais publics.
+docs/commercial/*.docx

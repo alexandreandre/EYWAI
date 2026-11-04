@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+from app.core import settings
 from app.modules.accounting_integration.application import service
 from app.modules.accounting_integration.schemas.responses import TransmitComptaResult
 
@@ -61,7 +62,10 @@ class TestAccountingIntegrationService:
         resolve_mock.assert_not_called()
         assert result.status == "manual"
 
-    def test_api_failure_manual_fallback(self):
+    def test_api_failure_manual_fallback(self, monkeypatch):
+        # Hors environnement de test : sinon la garde retombe en manuel avant
+        # même d'appeler le connecteur (APP_ENV=test sur les postes).
+        monkeypatch.setattr(settings, "APP_ENV", "prod")
         connector = MagicMock()
         connector.submit_files.return_value = MagicMock(
             success=False,

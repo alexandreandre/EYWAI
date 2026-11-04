@@ -32,10 +32,12 @@ Si l’utilisateur a passé une branche dans les arguments (ex. `dev-alex`, `mai
 
 ---
 
-## Étape 3 — Staging global puis découpage en commits
+## Étape 3 — Staging par chemins explicites, puis découpage en commits
 
-1. `git add -A` à la racine du dépôt (sauf exclusions convenues avec l’utilisateur).
-2. `git diff --cached --stat` et `git diff --cached --name-only` pour lister ce qui est indexé.
+**Jamais `git add -A`, `git add .` ni `git add --all`** : le dépôt est public, et des dossiers non suivis du poste (`docs/audit-*/`, textes extraits de bulletins, `data/`) ou le travail en cours d’une autre session partiraient avec le commit.
+
+1. `git status --short` : lister les fichiers modifiés, puis `git add -- <chemin> <chemin> …` pour ceux de l’étape 2, nommés un par un.
+2. `git diff --cached --stat` et `git diff --cached --name-only` pour vérifier que seul ce qui est voulu est indexé.
 
 **Découpage (plusieurs commits)** quand le diff mélange **des intentions distinctes**. Stratégie par défaut, dans cet ordre, **une intention = un commit** :
 
@@ -47,9 +49,9 @@ Si l’utilisateur a passé une branche dans les arguments (ex. `dev-alex`, `mai
 | `frontend/` | `feat|fix|style|refactor|chore(frontend): …` selon le diff réel |
 | Autres racines (`docs/`, scripts, etc.) | `docs:|chore:|ci:` etc. avec scope explicite si utile |
 
-Pour appliquer le découpage après un `git add -A` :
+Pour appliquer le découpage :
 
-1. `git reset` (sans `--hard`) pour **désindexer** tout en **gardant** les modifications dans l’arbre de travail.
+1. Si plusieurs lots sont déjà indexés : `git reset` (sans `--hard`) pour **désindexer** tout en **gardant** les modifications dans l’arbre de travail.
 2. Pour chaque lot : `git add -- <chemins du lot>`, puis `git status` pour vérifier que seul ce lot est stagé.
 3. `git commit` avec un message qui respecte **tous** les points suivants :
 
