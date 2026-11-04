@@ -215,6 +215,12 @@ export function EmployeeLoanDetailDrawer({
               <dd>{loan.duration_months} mois</dd>
               <dt className="text-muted-foreground">Jour de prélèvement</dt>
               <dd>Le {loan.repayment_day} de chaque mois</dd>
+              {loan.accounting_account && (
+                <>
+                  <dt className="text-muted-foreground">Compte comptable</dt>
+                  <dd className="col-span-1 font-mono">{loan.accounting_account}</dd>
+                </>
+              )}
               {loan.reason && (
                 <>
                   <dt className="text-muted-foreground">Motif</dt>

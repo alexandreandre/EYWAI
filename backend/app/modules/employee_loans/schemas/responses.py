@@ -68,6 +68,8 @@ class EmployeeLoan(BaseModel):
     declared_2062: bool = False
     contract_file_path: Optional[str] = None
     notes: Optional[str] = None
+    # Un compte par prêt (OD de paie) ; vide : le compte de la société.
+    accounting_account: Optional[str] = None
     created_by: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

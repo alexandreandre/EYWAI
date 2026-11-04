@@ -359,3 +359,68 @@ class TestRetenuesReprises:
         comptes = _par_compte(ecritures)
         assert comptes["425100"] == (0.0, 800.0)
         assert comptes["421000"] == (0.0, 750.0)  # net 330,25 + report 419,75
+
+
+class TestUnCompteParPret:
+    """Un compte par prêt, comme la comptable du groupe (« on crée un 425 à chaque
+    fois qu'un nouveau salarié nous demande un prêt ») : OD de septembre 2026,
+    un 4251xxxx par prêt chez l'une, huit 4259xxxx nominatifs chez une autre."""
+
+    COMPTES = {"pret-1": "42511000", "pret-2": "42512000"}
+
+    @staticmethod
+    def _bulletin_deux_prets():
+        bulletin = _bulletin_complet()
+        bulletin["remboursements_prets"] = {
+            "total_rembourse": 212.5,
+            "total_capital": 200.0,
+            "total_interets": 12.5,
+            "avantage_nature_interets": 0.0,
+            "prets": [
+                {"loan_id": "pret-1", "montant_capital": 150.0, "montant_interets": 12.5},
+                {"loan_id": "pret-2", "montant_capital": 50.0, "montant_interets": 0.0},
+                {"loan_id": "pret-3", "montant_capital": 0.0, "montant_interets": 0.0},
+            ],
+        }
+        return bulletin
+
+    def _ligne_avec_prets(self, comptes):
+        return ligne_od_du_bulletin(
+            payslip_id="bulletin-A",
+            employee={"id": "salarie-A", "first_name": "Salarié", "last_name": "A"},
+            payslip_data=self._bulletin_deux_prets(),
+            saisies_du_salarie=list(SAISIES_DU_MOIS_A),
+            compte_de_saisie=lambda type_saisie: "4271",
+            compte_de_pret=lambda loan_id: comptes.get(loan_id, ""),
+        )
+
+    def test_chaque_pret_sur_son_compte(self):
+        ecritures, od_totals, _ = _construire([self._ligne_avec_prets(self.COMPTES)])
+        comptes = _par_compte(ecritures)
+        assert comptes["42511000"] == (0.0, 150.0)
+        assert comptes["42512000"] == (0.0, 50.0)
+        assert "274000" not in comptes
+        assert od_totals["equilibre"] is True
+
+    def test_le_compte_du_pret_passe_devant_celui_de_la_societe(self):
+        """Une ligne société « prêt » ne regroupe pas les prêts qui ont leur
+        compte ; elle reçoit ceux qui n'en ont pas."""
+        mappings = dict(MAPPINGS_PLATEFORME)
+        mappings["pret_employeur"] = {
+            "company_id": "societe",
+            "compte_comptable": "42510000",
+            "compte_tiers": "42510000",
+        }
+        ecritures, od_totals, _ = _construire(
+            [self._ligne_avec_prets({"pret-1": "42511000"})], mappings
+        )
+        comptes = _par_compte(ecritures)
+        assert comptes["42511000"] == (0.0, 150.0)
+        assert comptes["42510000"] == (0.0, 50.0)
+        assert od_totals["equilibre"] is True
+
+    def test_sans_compte_de_pret_rien_ne_change(self):
+        ecritures, od_totals, _ = _construire([self._ligne_avec_prets({})])
+        comptes = _par_compte(ecritures)
+        assert comptes["274000"] == (0.0, 200.0)
+        assert od_totals["equilibre"] is True

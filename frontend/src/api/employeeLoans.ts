@@ -25,6 +25,8 @@ export interface EmployeeLoan {
   declared_2062: boolean;
   contract_file_path: string | null;
   notes: string | null;
+  /** Compte comptable propre au prêt (OD de paie) ; vide : celui de la société. */
+  accounting_account?: string | null;
   created_by: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -85,6 +87,7 @@ export interface EmployeeLoanCreate {
   repayment_day?: number;
   reason?: string;
   notes?: string;
+  accounting_account?: string;
   activate?: boolean;
 }
 
@@ -92,6 +95,7 @@ export type EmployeeLoanUpdate = Partial<{
   status: LoanStatus;
   declared_2062: boolean;
   notes: string;
+  accounting_account: string | null;
 }>;
 
 export const LOAN_STATUS_LABELS: Record<LoanStatus, string> = {

@@ -104,8 +104,12 @@ def create_loan(
     status = "active" if data.activate else "draft"
     remaining = principal if status == "active" else Decimal("0")
 
+    # Le compte n'est écrit que s'il est saisi : un prêt sans compte se crée
+    # aussi avant la migration de la colonne.
+    compte = {"accounting_account": data.accounting_account} if getattr(data, "accounting_account", None) else {}
     loan_row = employee_loans_repository.create(
         {
+            **compte,
             "company_id": company_id,
             "employee_id": data.employee_id,
             "principal_amount": float(principal),
