@@ -10,6 +10,7 @@ import { useEmployeePayslipsQuery } from '@/hooks/queries/useEmployeePayslipsQue
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { deletePayslip, getEmployeePayslips, telechargerPdfDuMois, type PayslipInfo } from '@/api/payslips';
 import { getExportHistory, marquerDsnHorsMartine } from '@/api/exports';
+import { getNetEntreprisesTransmissions } from '@/api/netEntreprises';
 import { queryKeys } from '@/lib/queryKeys';
 import { showErrorToast } from '@/lib/errorMessages';
 import { toast } from '@/hooks/use-toast';
@@ -75,6 +76,7 @@ import {
   lectureConflitsArret,
   listeControleDuMois,
   type ExportPourControle,
+  type TransmissionPourControle,
   type Lecture,
 } from '@/features/payroll/utils/listeControleMois';
 import {
@@ -817,6 +819,18 @@ export default function Payroll() {
       });
     },
   });
+  // Le suivi des dépôts : la DSN n'est « faite » qu'une fois marquée déposée.
+  const transmissionsDuMoisQuery = useQuery({
+    queryKey: ['net-entreprises-transmissions', companyId, periodeExports],
+    queryFn: () => getNetEntreprisesTransmissions(periodeExports),
+    enabled: Boolean(companyId),
+    staleTime: 30_000,
+  });
+  const lectureTransmissions = useMemo((): Lecture<readonly TransmissionPourControle[]> => {
+    if (transmissionsDuMoisQuery.isError && transmissionsDuMoisQuery.data === undefined) return { statut: 'erreur' };
+    if (transmissionsDuMoisQuery.data === undefined) return { statut: 'chargement' };
+    return { statut: 'ok', valeur: transmissionsDuMoisQuery.data.transmissions ?? [] };
+  }, [transmissionsDuMoisQuery.isError, transmissionsDuMoisQuery.data]);
   const lectureExports = useMemo((): Lecture<readonly ExportPourControle[]> => {
     if (exportsDuMoisQuery.isError && exportsDuMoisQuery.data === undefined) return { statut: 'erreur' };
     if (exportsDuMoisQuery.data === undefined) return { statut: 'chargement' };
@@ -842,6 +856,7 @@ export default function Payroll() {
       conflitsArret: lectureConflits,
       absentsATyper: lectureAbsents,
       exportsDuMois: lectureExports,
+      transmissionsDuMois: lectureTransmissions,
     });
   }, [
     loadingEmployees,
@@ -855,6 +870,7 @@ export default function Payroll() {
     lectureConflits,
     lectureAbsents,
     lectureExports,
+    lectureTransmissions,
   ]);
 
   const generatedCount = useMemo(

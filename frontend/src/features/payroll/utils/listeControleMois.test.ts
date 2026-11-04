@@ -19,6 +19,7 @@ import {
   listeControleDuMois,
   phraseListeControle,
   type ExportPourControle,
+  type TransmissionPourControle,
   type EntreeListeControle,
   type Lecture,
 } from './listeControleMois';
@@ -412,7 +413,17 @@ describe('« c’est fini » : bulletins validés, DSN et export comptable faits
     const declarations = etape(resultat, ETAPE_DECLARATIONS);
     expect(declarations.etat).toBe('a_faire');
     expect(declarations.detail).toBe('La DSN est à refaire : un bulletin du mois a changé depuis.');
-    expect(resultat.actions.find((a) => a.id === ETAPE_DECLARATIONS)?.href).toBe('/exports?month=2026-09');
+    // La DSN se fait dans l'onglet Déclarations : le lien l'ouvre, sur le mois.
+    const action = resultat.actions.find((a) => a.id === ETAPE_DECLARATIONS);
+    expect(action?.href).toBe('/exports?tab=declarations&month=2026-09');
+    expect(action?.ouCliquer).toBe('Exports, onglet Déclarations');
+  });
+
+  it('seul l’export comptable manque : le lien ouvre l’onglet Paie & Comptabilité', () => {
+    const resultat = listeControleDuMois(entree({ exportsDuMois: OK([DSN]) }));
+    const action = resultat.actions.find((a) => a.id === ETAPE_DECLARATIONS);
+    expect(action?.href).toBe('/exports?month=2026-09');
+    expect(action?.ouCliquer).toBe('Exports, onglet Paie & Comptabilité');
   });
 
   it('historique des exports illisible ou non lu : à confirmer', () => {
@@ -488,7 +499,7 @@ describe('actions en attente', () => {
     const lien = (id: string) => resultat.actions.find((a) => a.id === id)?.href;
     expect(lien('calendriers')).toBe('/schedules?month=2026-09');
     expect(lien('conflits')).toBe('/schedules?month=2026-09');
-    expect(lien(ETAPE_DECLARATIONS)).toBe('/exports?month=2026-09');
+    expect(lien(ETAPE_DECLARATIONS)).toBe('/exports?tab=declarations&month=2026-09');
   });
 
   it('chaque étape non cochée devient une ligne : quoi, où cliquer, ce qu’elle doit voir', () => {
@@ -699,5 +710,58 @@ describe('jours marqués « absent » sans type (retour d’Elsa du 28/10)', () 
 
   it('sans lecture fournie, rien ne change', () => {
     expect(etape(listeControleDuMois(entree()), ETAPE_CALENDRIERS).etat).toBe('fait');
+  });
+});
+
+describe('DSN « faite » seulement une fois déposée (audit R1, geste 8)', () => {
+  const transmission = (status: string, overrides: Partial<TransmissionPourControle> = {}): TransmissionPourControle => ({
+    status,
+    dsn_type: 'dsn_mensuelle_normale',
+    created_at: '2026-10-05T08:00:00Z',
+    submitted_at: null,
+    acknowledged_at: null,
+    ...overrides,
+  });
+  const declarations = (transmissionsDuMois: EntreeListeControle['transmissionsDuMois']) =>
+    etape(listeControleDuMois(entree({ exportsDuMois: OK([DSN, COMPTA]), transmissionsDuMois })), ETAPE_DECLARATIONS);
+
+  it('générée mais pas marquée déposée : à faire, avec le geste', () => {
+    const e = declarations(OK([transmission('manual')]));
+    expect(e.etat).toBe('a_faire');
+    expect(e.detail).toBe(
+      'La DSN est générée mais pas encore marquée déposée : déposez-la sur net-entreprises, puis cliquez « Marquer déposée ».',
+    );
+    const resultat = listeControleDuMois(entree({ exportsDuMois: OK([DSN, COMPTA]), transmissionsDuMois: OK([transmission('manual')]) }));
+    expect(resultat.actions.find((a) => a.id === ETAPE_DECLARATIONS)?.href).toBe('/exports?tab=declarations&month=2026-09');
+  });
+
+  it('marquée déposée (ou envoyée) : faite, avec la date', () => {
+    const e = declarations(OK([transmission('acknowledged', { acknowledged_at: '2026-10-06T09:00:00Z' })]));
+    expect(e.etat).toBe('fait');
+    expect(e.detail).toBe('La DSN, déposée le 06/10/2026, et l’export comptable du mois sont faits.');
+    expect(declarations(OK([transmission('sent', { submitted_at: '2026-10-06T09:00:00Z' })])).etat).toBe('fait');
+  });
+
+  it('rejetée : à faire', () => {
+    expect(declarations(OK([transmission('rejected')])).detail).toBe(
+      'La DSN a été rejetée : corrigez-la, générez-la à nouveau et déposez-la.',
+    );
+  });
+
+  it('la dernière transmission compte ; les signalements ne comptent pas', () => {
+    const e = declarations(
+      OK([
+        transmission('acknowledged', { created_at: '2026-10-05T08:00:00Z' }),
+        transmission('manual', { created_at: '2026-10-07T08:00:00Z' }),
+        transmission('acknowledged', { created_at: '2026-10-08T08:00:00Z', dsn_type: 'signalement_arret' }),
+      ]),
+    );
+    expect(e.etat).toBe('a_faire');
+  });
+
+  it('aucun suivi de dépôt (DSN d’avant le suivi) ou suivi illisible : la règle d’avant', () => {
+    expect(declarations(OK([])).etat).toBe('fait');
+    expect(declarations(ERREUR).etat).toBe('fait');
+    expect(declarations(undefined).etat).toBe('fait');
   });
 });
