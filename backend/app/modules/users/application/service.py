@@ -59,12 +59,6 @@ def get_default_system_template_id(base_role: str):
     return role_template_repository.get_default_system_template_id(base_role)
 
 
-def get_credentials_logo_path():
-    from pathlib import Path
-
-    return Path(credentials_pdf_provider.get_logo_path())
-
-
 # --- Repositories / providers exposés pour commands et queries ---
 def get_user_repository():
     return user_repository

@@ -4,7 +4,6 @@ Providers : services externes (Auth, PDF, Storage).
 Comportement identique aux appels des anciens routers.
 """
 
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 from app.core.database import get_supabase_admin_client, supabase
@@ -49,12 +48,12 @@ class SupabaseAuthProvider(IAuthProvider):
 
 
 class CredentialsPdfProvider(ICredentialsPdfProvider):
-    """Génération PDF création de compte (services.pdf_generator)."""
+    """Génération PDF création de compte (services.pdf_generator).
 
-    def get_logo_path(self) -> str:
-        # backend_api/app/modules/users/infrastructure/providers.py -> backend_api
-        backend_root = Path(__file__).resolve().parent.parent.parent.parent.parent
-        return str(backend_root / "frontend" / "public" / "Colorplast.png")
+    Le logo est celui de la société (`logo_url`), sinon aucun. Le chemin de logo
+    « par défaut » d'avant visait un fichier absent du backend
+    (backend/frontend/public/…) et n'était appelé par personne.
+    """
 
     def generate(
         self,

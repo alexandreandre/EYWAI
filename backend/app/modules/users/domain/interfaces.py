@@ -141,9 +141,6 @@ class ICredentialsPdfProvider(ABC):
     """Génération du PDF de création de compte."""
 
     @abstractmethod
-    def get_logo_path(self) -> str: ...
-
-    @abstractmethod
     def generate(
         self,
         first_name: str,

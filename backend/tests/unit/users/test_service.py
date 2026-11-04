@@ -5,7 +5,6 @@ Délégation aux règles du domain et aux repositories/providers.
 Dépendances mockées.
 """
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -101,21 +100,33 @@ class TestServiceGetDefaultSystemTemplateId:
             assert result is None
 
 
-# ----- get_credentials_logo_path -----
+# ----- Logo des PDF d'identifiants -----
 
 
-class TestServiceGetCredentialsLogoPath:
-    """get_credentials_logo_path() -> Path."""
+class TestPasDeLogoParDefaut:
+    """Le logo d'un PDF est celui de la société, sinon aucun : plus de logo
+    d'une société cliente codé en dur comme défaut (audit du 03/11/2026)."""
 
-    def test_returns_path_from_provider(self):
-        with patch.object(
-            user_service.credentials_pdf_provider,
-            "get_logo_path",
-            return_value="/some/logo.png",
-        ):
-            result = user_service.get_credentials_logo_path()
-            assert isinstance(result, Path)
-            assert str(result) == "/some/logo.png"
+    def test_plus_de_chemin_de_logo_par_defaut(self):
+        assert not hasattr(user_service, "get_credentials_logo_path")
+        assert not hasattr(user_service.credentials_pdf_provider, "get_logo_path")
+
+    def test_le_pdf_prend_le_logo_de_la_societe_sinon_aucun(self):
+        from app.shared.infrastructure.pdf import credentials
+
+        vus = []
+
+        def entete(societe, logo_bytes=None):
+            vus.append(logo_bytes)
+            return ""
+
+        with patch.object(credentials, "build_branding_header_html", side_effect=entete), \
+             patch.object(credentials, "resolve_company_logo", side_effect=lambda s: s.get("logo")), \
+             patch.object(credentials, "HTML") as html:
+            html.return_value.write_pdf.return_value = b"%PDF"
+            user_service.credentials_pdf_provider.generate("A", "B", "a.b", "x", company_data={"logo": b"png"})
+            user_service.credentials_pdf_provider.generate("A", "B", "a.b", "x", company_data={})
+        assert vus == [b"png", None]
 
 
 # ----- Getters repositories / providers -----
