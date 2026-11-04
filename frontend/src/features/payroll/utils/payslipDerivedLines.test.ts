@@ -31,15 +31,13 @@ describe('estLigneHeuresSupConjoncturelle', () => {
 });
 
 describe('lienVariablesDuMois', () => {
-  it('cible la page Primes sur le bon mois et le bon salarié', () => {
+  it('cible la page Primes sur le bon mois et le bon salarié, sous la forme unique month=AAAA-MM', () => {
     expect(lienVariablesDuMois({ employeeId: 'abc', year: 2026, month: 7 })).toBe(
-      '/saisies?year=2026&month=7&employee=abc'
+      '/saisies?month=2026-07&employee=abc'
     );
   });
 
   it('reste utilisable sans salarié', () => {
-    expect(lienVariablesDuMois({ year: 2026, month: 12 })).toBe(
-      '/saisies?year=2026&month=12'
-    );
+    expect(lienVariablesDuMois({ year: 2026, month: 12 })).toBe('/saisies?month=2026-12');
   });
 });

@@ -46,7 +46,8 @@ import {
 } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { proposeLeChoixDuFormat } from "@/components/exports/exportFileFormats";
-import { anneesProposees, optionsDeMois } from "@/components/exports/periodesExport";
+import { anneesProposees, optionsDeMois, periodeParDefaut } from "@/components/exports/periodesExport";
+import { moisDePaieRetenu } from "@/features/payroll/utils/moisDePaie";
 import { regroupementsProposes, type OdRegroupement } from "@/components/exports/odRegroupements";
 import { getAccountingMappings, previewExport, generateExport, ExportPreviewResponse, ExportGenerateResponse, ExportType } from "@/api/exports";
 import { fetchEmployeesSummary } from "@/api/employees";
@@ -328,11 +329,13 @@ export function ExportCommonModel({
     setAcompteDateFin("");
   }, [exportType]);
 
-  // Initialiser avec le mois actuel
+  // Initialiser avec le mois de paie (celui de l'adresse, sinon de l'écran
+  // précédent, sinon le mois de paie du jour), comme la Paie et le Calendrier :
+  // le 4 novembre, la DSN proposée est celle d'octobre, plus celle de novembre.
   useEffect(() => {
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    setSelectedPeriod(currentMonth);
+    const { periode, annee } = periodeParDefaut(window.location.search, moisDePaieRetenu(), new Date());
+    setAnneePeriode(annee);
+    setSelectedPeriod(periode);
   }, []);
 
   const runPreview = useCallback(

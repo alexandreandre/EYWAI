@@ -1,4 +1,5 @@
 import { moisDePaieParDefaut } from './payrollMonth';
+import type { MoisDePaie } from './moisDePaie';
 
 export type VuePaie = 'employee' | 'month';
 
@@ -52,10 +53,15 @@ export function avecRevue(prev: URLSearchParams, actif: boolean): URLSearchParam
 }
 
 /**
- * Le mois affiché : celui de l'adresse, sinon le mois de paie (jusqu'au 15, le
- * mois précédent), comme les Saisies, le mode groupé et le tableau de bord.
+ * Le mois affiché : celui de l'adresse, sinon celui de l'écran précédent (le
+ * mois retenu pour la session : Calendrier, Primes), sinon le mois de paie
+ * (jusqu'au 15, le mois précédent).
  */
-export function moisAffiche(params: ParamsVuePaie, maintenant: Date): { year: number; month: number } {
+export function moisAffiche(
+  params: ParamsVuePaie,
+  maintenant: Date,
+  retenu: MoisDePaie | null = null,
+): { year: number; month: number } {
   if (params.year != null && params.month != null) return { year: params.year, month: params.month };
-  return moisDePaieParDefaut(maintenant);
+  return retenu ?? moisDePaieParDefaut(maintenant);
 }

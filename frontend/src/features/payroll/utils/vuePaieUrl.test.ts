@@ -69,5 +69,15 @@ describe('le mois choisi ne se perd plus — revue du 05/10', () => {
       year: 2026,
       month: 7,
     });
+    expect(
+      moisAffiche(lireParamsVuePaie('month=2026-07'), new Date(2026, 9, 3), { year: 2026, month: 5 }),
+    ).toEqual({ year: 2026, month: 7 });
+  });
+
+  it('sans mois dans l’adresse, la paie reprend le mois de l’écran précédent (Calendrier, Primes)', () => {
+    expect(moisAffiche(lireParamsVuePaie(''), new Date(2026, 10, 4), { year: 2026, month: 9 })).toEqual({
+      year: 2026,
+      month: 9,
+    });
   });
 });
