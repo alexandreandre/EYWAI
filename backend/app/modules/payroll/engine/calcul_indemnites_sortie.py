@@ -11,12 +11,18 @@ from app.core.logging import get_logger, log_payroll_debug
 
 logger = get_logger("modules.payroll.engine.calcul_indemnites_sortie")
 
+import json
 from calendar import monthrange
 from typing import Any, Dict, Optional
 from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
 from app.modules.payroll.engine.cp_solde_sortie import get_cp_solde_a_la_sortie
+from app.modules.payroll.engine.indemnite_licenciement_metallurgie import (
+    IDCC_METALLURGIE,
+    groupe_d_emplois,
+    indemnite_licenciement_metallurgie,
+)
 from app.modules.payroll.engine.iccp_arbitrage import (
     arbitrer_iccp_complet,
     lire_parametres_conges,
@@ -409,6 +415,7 @@ def calculer_indemnite_rupture_conventionnelle(
     anciennete_annees: float,
     salaire_reference: float,
     montant_negocie_saisi: Optional[float] = None,
+    plancher_conventionnel: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Calcule l'indemnité de rupture conventionnelle
@@ -436,9 +443,35 @@ def calculer_indemnite_rupture_conventionnelle(
 
     montant_minimum = indemnite_licenciement["montant"]
     alertes: list[str] = []
-    if montant_negocie_saisi is None:
+    minimum_legal = montant_minimum
+    # Le plancher de la convention de branche, s'il est plus élevé (métallurgie,
+    # art. 76.2 : « au moins égale à l'indemnité de licenciement » de l'art. 75.3).
+    conventionnel = (plancher_conventionnel or {}).get("montant")
+    minimum_conventionnel = conventionnel is not None and conventionnel > montant_minimum
+    if minimum_conventionnel:
+        montant_minimum = round(float(conventionnel), 2)
+        alertes.extend((plancher_conventionnel or {}).get("alertes") or [])
+    if montant_negocie_saisi is None and minimum_conventionnel:
+        montant_negocie = montant_minimum
+        calcul = (
+            f"Minimum conventionnel = {montant_minimum:.2f} € "
+            f"({plancher_conventionnel.get('calcul')}) ; minimum légal : {minimum_legal:.2f} €"
+        )
+    elif montant_negocie_saisi is None:
         montant_negocie = montant_minimum
         calcul = f"Minimum légal = {montant_minimum:.2f} € (indemnité de licenciement)"
+    elif minimum_conventionnel and round(float(montant_negocie_saisi), 2) < montant_minimum:
+        montant_negocie = round(float(montant_negocie_saisi), 2)
+        calcul = (
+            f"Montant de la convention saisi : {montant_negocie:.2f} € "
+            f"(minimum conventionnel : {montant_minimum:.2f} €)"
+        )
+        alertes.append(
+            f"Montant de la convention ({montant_negocie:.2f} €) inférieur au minimum de la "
+            f"convention collective ({montant_minimum:.2f} €, "
+            f"{plancher_conventionnel.get('calcul')}) : la rupture conventionnelle ne peut pas "
+            "descendre sous l'indemnité conventionnelle de licenciement."
+        )
     else:
         montant_negocie = round(float(montant_negocie_saisi), 2)
         calcul = (
@@ -458,6 +491,8 @@ def calculer_indemnite_rupture_conventionnelle(
 
     return {
         "montant_minimum": montant_minimum,
+        "minimum_legal": minimum_legal,
+        "minimum_conventionnel": conventionnel if minimum_conventionnel else None,
         "montant_negocie": montant_negocie,
         "montant_negocie_saisi": montant_negocie_saisi,
         "anciennete": anciennete_annees,
@@ -1088,6 +1123,84 @@ def _salaire_de_reference_des_bulletins(
     )
 
 
+def _fiche_conventionnelle(
+    employee_data: Dict[str, Any], supabase_client: Any
+) -> Dict[str, Any]:
+    """Classification, convention et naissance du salarié : celles du dossier,
+    sinon relues sur la fiche (le dossier de départ ne les porte pas toujours)."""
+    fiche = dict(employee_data or {})
+    if "classification_conventionnelle" in fiche or not fiche.get("id") or supabase_client is None:
+        return fiche
+    try:
+        lignes = (
+            supabase_client.table("employees")
+            .select("classification_conventionnelle, collective_agreement_id, company_id, date_naissance")
+            .eq("id", str(fiche["id"]))
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:  # noqa: BLE001 — sans fiche, le minimum légal reste
+        logger.warning("Fiche conventionnelle illisible (%s)", fiche.get("id"), exc_info=True)
+        return fiche
+    if lignes:
+        fiche = {**{k: v for k, v in lignes[0].items() if v is not None}, **fiche}
+        fiche.setdefault("classification_conventionnelle", lignes[0].get("classification_conventionnelle"))
+    return fiche
+
+
+def _age_au(date_naissance: Any, jour: date) -> Optional[int]:
+    naissance = _date_ou_none(date_naissance)
+    if naissance is None:
+        return None
+    return jour.year - naissance.year - ((jour.month, jour.day) < (naissance.month, naissance.day))
+
+
+def _plancher_conventionnel(
+    employee_data: Dict[str, Any],
+    supabase_client: Any,
+    *,
+    mois_d_anciennete: Optional[int],
+    salaire_reference: float,
+    a_la_date: date,
+) -> Optional[Dict[str, Any]]:
+    """L'indemnité de licenciement de la convention de branche, quand Martine sait
+    la calculer (métallurgie : `indemnite_licenciement_metallurgie`), sinon None."""
+    fiche = _fiche_conventionnelle(employee_data, supabase_client)
+    classification = fiche.get("classification_conventionnelle")
+    if isinstance(classification, str):
+        try:
+            classification = json.loads(classification)
+        except ValueError:
+            classification = {}
+    if not isinstance(classification, dict):
+        classification = {}
+    idcc = str(classification.get("idcc") or fiche.get("idcc") or "").strip()
+    if not idcc and fiche.get("company_id"):
+        try:
+            from app.modules.collective_agreements.application.idcc_resolution import (
+                resolve_employee_idcc,
+            )
+
+            idcc = str(
+                resolve_employee_idcc(
+                    fiche, {"id": fiche.get("company_id")}, supabase_client=supabase_client
+                )
+                or ""
+            )
+        except Exception:  # noqa: BLE001 — sans convention, le minimum légal reste
+            idcc = ""
+    if idcc.zfill(4) != IDCC_METALLURGIE:
+        return None
+    return indemnite_licenciement_metallurgie(
+        groupe=groupe_d_emplois(classification),
+        mois_d_anciennete=mois_d_anciennete,
+        salaire_reference=salaire_reference,
+        age=_age_au(fiche.get("date_naissance"), a_la_date),
+    )
+
+
 ALERTE_MONTANT_CONVENTIONNEL = (
     "Minimum légal versé : si la convention collective de branche prévoit un montant "
     "conventionnel plus élevé, saisissez-le dans « Indemnité conventionnelle » ; le plus "
@@ -1571,6 +1684,15 @@ def calculer_indemnites_sortie(
             )
 
     conventionnelle = _indemnite_conventionnelle_saisie(exit_data)
+    plancher = None
+    if exit_type in ("licenciement", "rupture_conventionnelle"):
+        plancher = _plancher_conventionnel(
+            employee_data,
+            supabase_client,
+            mois_d_anciennete=mois_d_anciennete,
+            salaire_reference=salaire_reference,
+            a_la_date=_date_ou_none(exit_data.get("exit_request_date")) or exit_date,
+        )
     if exit_type == "licenciement":
         indemnite_licenciement = calculer_indemnite_licenciement(
             anciennete,
@@ -1585,16 +1707,30 @@ def calculer_indemnites_sortie(
                     "Faute grave ou lourde : l'indemnité conventionnelle saisie n'est pas versée."
                 ]
         else:
+            automatique = (plancher or {}).get("montant")
+            retenue = conventionnelle
+            if automatique is not None and (conventionnelle is None or automatique > conventionnelle):
+                retenue = automatique
             indemnite_licenciement = _retenir_le_plus_eleve(
                 indemnite_licenciement,
-                conventionnelle,
+                retenue,
                 libelle="Indemnité conventionnelle de licenciement",
                 description="Indemnité conventionnelle de licenciement (convention collective de branche)",
             )
+            if plancher and retenue == automatique:
+                # Calculée par Martine, pas saisie : le calcul le dit.
+                if indemnite_licenciement.get("base_calcul") == "Conventionnelle":
+                    indemnite_licenciement["calcul"] = (
+                        f"{plancher['calcul']}, plus élevée que le minimum légal de "
+                        f"{_euros(indemnite_licenciement.get('montant_legal') or 0.0)}"
+                    )
+                indemnite_licenciement["alertes"] = list(
+                    indemnite_licenciement.get("alertes") or []
+                ) + list(plancher.get("alertes") or [])
 
     elif exit_type == "rupture_conventionnelle":
         indemnite_rupture = calculer_indemnite_rupture_conventionnelle(
-            anciennete, salaire_reference, _montant_negocie_saisi(exit_data)
+            anciennete, salaire_reference, _montant_negocie_saisi(exit_data), plancher
         )
         indemnite_rupture["alertes"] = (
             alertes_reference

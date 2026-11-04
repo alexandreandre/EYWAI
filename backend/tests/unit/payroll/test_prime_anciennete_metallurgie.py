@@ -52,7 +52,12 @@ def _contexte(
     company = {
         "adresse_code_postal": cp,
         "identification": {"adresse": {"code_postal": cp}},
-        "parametres_paie": {"effectif": 50},
+        # Les bulletins de référence d'avril 2026 de l'ancien logiciel sont au
+        # point de 2025 (5,70 €), une erreur relevée par l'audit du 03/11/2026
+        # (le point de 5,80 € vaut pour tous depuis le 06/03/2026) : le cas fixe
+        # ce point pour garder la mécanique du prorata vérifiée au centime. Le
+        # point du mois : `collective_agreements/test_valeur_point_2026.py`.
+        "parametres_paie": {"effectif": 50, "prime_anciennete": {"valeur_point_override": 5.70}},
     }
     return ChargerContexte(employee, company, _metallurgie_baremes())
 

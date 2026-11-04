@@ -313,8 +313,13 @@ def calculer_prime_anciennete_plein_mois(
 def resolve_prime_anciennete_config(
     regles_prime: dict[str, Any],
     entreprise: dict[str, Any] | None,
+    *,
+    a_la_date: Any = None,
 ) -> dict[str, Any]:
-    """Fusionne règles CCN et surcharges entreprise (parametres_paie.prime_anciennete)."""
+    """Fusionne règles CCN et surcharges entreprise (parametres_paie.prime_anciennete).
+
+    `a_la_date` : le mois du bulletin, pour la valeur du point datée.
+    """
     from app.modules.collective_agreements.rules.resolver import (
         code_postal_from_entreprise,
         resolve_valeur_point,
@@ -338,6 +343,7 @@ def resolve_prime_anciennete_config(
         regles_prime,
         code_postal=cp,
         override=vp_override_f,
+        a_la_date=a_la_date,
     )
 
     prorata_raw = dict(regles_prime.get("prorata") or {})

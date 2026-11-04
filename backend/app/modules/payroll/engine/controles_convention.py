@@ -291,7 +291,7 @@ def controle_prime_anciennete(contexte) -> List[Dict[str, Any]]:
     from datetime import date as date_cls
 
     ref = getattr(contexte, "date_fin_periode", None) or date_cls.today()
-    resolved = resolve_prime_anciennete_config(regles_prime, contexte.entreprise)
+    resolved = resolve_prime_anciennete_config(regles_prime, contexte.entreprise, a_la_date=ref)
     anciennete = compute_anciennete_annees(date_entree, ref, mode="floor")
     from app.modules.collective_agreements.rules.prime_calcul import cap_anciennete_annees
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Optional
 
 
@@ -82,15 +83,42 @@ def resolve_salaires_minima(
     return list(legacy) if isinstance(legacy, list) else []
 
 
+def _date_effet(zone: dict[str, Any]) -> date | None:
+    try:
+        return date.fromisoformat(str(zone.get("date_effet") or "")[:10])
+    except ValueError:
+        return None
+
+
+def _zones_a_la_date(zones: list[Any], a_la_date: date | None) -> list[Any]:
+    """Les zones dans l'ordre où les lire à cette date.
+
+    Une zone datée vaut à partir de sa date d'effet ; la plus récente passe
+    avant les autres, et avant toute zone sans date (celle d'avant). Sans date
+    de lecture, une zone datée ne compte pas : la lecture d'avant est gardée.
+    """
+    if a_la_date is None:
+        return [z for z in zones if not (isinstance(z, dict) and _date_effet(z))]
+    datees = [
+        z for z in zones
+        if isinstance(z, dict) and _date_effet(z) and _date_effet(z) <= a_la_date
+    ]
+    datees.sort(key=lambda z: _date_effet(z), reverse=True)
+    sans_date = [z for z in zones if not (isinstance(z, dict) and _date_effet(z))]
+    return datees + sans_date
+
+
 def _resolve_valeur_from_zones(
     zones: list[Any],
     *,
     code_postal: str | None = None,
     departement: str | None = None,
+    a_la_date: date | None = None,
 ) -> float | None:
     """Résout une valeur numérique depuis une liste de zones (VP, etc.)."""
     if not zones:
         return None
+    zones = _zones_a_la_date(zones, a_la_date)
 
     dept = departement or departement_from_code_postal(code_postal)
     if dept:
@@ -145,11 +173,14 @@ def resolve_valeur_point(
     code_postal: str | None = None,
     departement: str | None = None,
     override: float | None = None,
+    a_la_date: date | None = None,
 ) -> float | None:
     """
     Retourne la valeur du point applicable pour la prime d'ancienneté.
 
     Priorité : override entreprise → zone département → national → base_de_calcul.valeur.
+    `a_la_date` : le mois du bulletin ; une zone datée (`date_effet`) n'y vaut
+    qu'à partir de sa date.
     """
     if override is not None:
         try:
@@ -160,7 +191,7 @@ def resolve_valeur_point(
     zones = regles_prime.get("valeurs_point") or []
     if isinstance(zones, list) and zones:
         resolved = _resolve_valeur_from_zones(
-            zones, code_postal=code_postal, departement=departement
+            zones, code_postal=code_postal, departement=departement, a_la_date=a_la_date
         )
         if resolved is not None:
             return resolved

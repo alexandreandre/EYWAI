@@ -128,6 +128,10 @@ class ValeurPointZone(BaseModel):
     zone_libelle: str = ""
     departements: list[str] = Field(default_factory=list)
     valeur: float
+    #: Date (AAAA-MM-JJ) à partir de laquelle la valeur vaut pour tous les
+    #: employeurs (publication de l'arrêté d'extension). Sans date : la valeur
+    #: vaut tant qu'aucune zone datée plus récente ne la remplace.
+    date_effet: str | None = None
 
     @field_validator("zone_type")
     @classmethod
@@ -458,6 +462,7 @@ def document_to_engine_rules(doc: CCRulesDocument) -> dict[str, Any]:
                     "zone_libelle": v.zone_libelle,
                     "departements": v.departements,
                     "valeur": v.valeur,
+                    **({"date_effet": v.date_effet} if v.date_effet else {}),
                 }
                 for v in doc.prime_anciennete.valeurs_point
             ]

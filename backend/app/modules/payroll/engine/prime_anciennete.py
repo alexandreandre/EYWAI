@@ -109,7 +109,11 @@ def calculer_ligne_prime_anciennete(
     if not regles_prime:
         return None
 
-    resolved = resolve_prime_anciennete_config(regles_prime, contexte.entreprise)
+    # La valeur du point du mois : un point territorial nouveau vaut dès la
+    # publication de son extension (audit du 03/11/2026, B 3).
+    resolved = resolve_prime_anciennete_config(
+        regles_prime, contexte.entreprise, a_la_date=date_fin_periode
+    )
     anciennete_annees = compute_anciennete_annees(
         date_entree, date_fin_periode, mode="floor"
     )
