@@ -9,6 +9,7 @@ import { deleteEmployee, updateEmployee } from "@/api/employees";
 import apiClient from "@/api/apiClient";
 import { EmployeeOnboardingCompletion } from "@/features/employee-detail/components/EmployeeOnboardingCompletion";
 import { EmployeePendingExitBanner } from "@/features/employee-detail/components/EmployeePendingExitBanner";
+import { EmployeeAlertesPaieBanner } from "@/features/employee-detail/components/EmployeeAlertesPaieBanner";
 import { EmployeeProfileEditDialog } from "@/features/employee-detail/components/EmployeeProfileEditDialog";
 import { ouvreLaModification } from "@/features/employee-detail/utils/lienModification";
 import { isProfileIncomplete } from "@/features/employee-detail/components/employeeProfileFormUtils";
@@ -664,6 +665,11 @@ export default function EmployeeDetail() {
           employee={employee}
           onOpenEdit={() => setProfileEditOpen(true)}
         />
+      )}
+
+      {/* Prévoyance que la loi impose : sans elle, le bulletin ne se génère pas. */}
+      {employeeId && employee && (
+        <EmployeeAlertesPaieBanner employee={employee} onOpenEdit={() => setProfileEditOpen(true)} />
       )}
 
       {employeeId && showEmployeeCSEBlock && (

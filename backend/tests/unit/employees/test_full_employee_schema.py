@@ -62,3 +62,10 @@ def test_les_dates_de_contrat_et_le_matricule_sont_relus():
     assert reponse["date_conclusion_contrat"] == "2026-04-01"
     assert reponse["matricule"] == "LANUMET"
     assert reponse["sexe"] == "M"
+
+
+def test_la_reponse_garde_les_alertes_de_paie():
+    """L'alerte « cadre sans prévoyance » est calculée à la lecture : Pydantic la
+    jetterait si la réponse ne la déclarait pas."""
+    alertes = [{"code": "prevoyance_cadre_absente", "message": "Cadre sans prévoyance."}]
+    assert _lanumet(alertes_paie=alertes).model_dump()["alertes_paie"] == alertes

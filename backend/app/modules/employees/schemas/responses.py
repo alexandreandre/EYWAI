@@ -180,6 +180,10 @@ class FullEmployee(BaseModel):
     # Complétude fiche paie (calculé à la lecture — onboarding)
     profile_complete: bool | None = None
     missing_payroll_fields: List[str] | None = None
+    # Ce que la loi impose et que la fiche n'a pas (prévoyance des cadres) :
+    # `[{code, message}]`, calculé à la lecture de la fiche ; le bulletin ne se
+    # génère pas tant que la liste n'est pas vide.
+    alertes_paie: List[Dict[str, str]] | None = None
     # Matricule badgeuse / GTA (import pointages Cegid)
     time_tracking_id: str | None = None
 

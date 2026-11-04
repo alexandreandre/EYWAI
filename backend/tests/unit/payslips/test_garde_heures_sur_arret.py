@@ -155,7 +155,12 @@ class TestGardeHeuresSurJourDArret:
     def test_le_forfait_jour_est_garde_aussi(self):
         """Un jour d'arrêt marqué travaillé efface l'arrêt du bulletin forfait de la même façon."""
         row = _arret_de_septembre({7: 1.0})
-        salariee = {**_SALARIEE, "statut": "Cadre forfait jour", "is_forfait_jour": True}
+        # Cadre couvert par sa prévoyance : seule la garde des heures est en cause.
+        prevoyance = {"adhesion": True, "lignes_specifiques": [{"libelle": "Prévoyance cadre TA", "patronal": 0.015}]}
+        salariee = {
+            **_SALARIEE, "statut": "Cadre forfait jour", "is_forfait_jour": True,
+            "specificites_paie": {"prevoyance": prevoyance},
+        }
         with _generation(row, statut="Cadre forfait jour", employee=salariee) as generateur:
             with pytest.raises(PayslipHeuresSurArretError):
                 generate_payslip(GeneratePayslipInput(employee_id="emp-1", year=2026, month=9))
