@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+(rien)
+
+## paie-2026-11-04.2 — 4 novembre 2026
+
 ### Le montant net social de 2026
 - Le « Montant net social » des bulletins ne compte plus les parts de l'employeur pour la mutuelle et la prévoyance.
 - En 2026, la règle les exclut ; elles n'entreront que pour les salaires de 2027, si le décret paraît.
@@ -24,6 +28,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - Le requin disparaît : chaque chargement montre une barre fine et ce qui charge, en mots.
 - La génération de la paie et l'écran de démarrage gardent leur compteur et leurs textes, sans requin.
 - L'onglet du navigateur et l'aperçu des liens montrent le « M » de Martine.
+
+## paie-2026-11-04.1 — 4 novembre 2026
+
+Déployée depuis la branche `deploy/c1-2026-11-04` (import des pointages : case « absent », tableur de LEWIS, badges dans la revue). Entrée non rédigée au moment du déploiement.
 
 ## paie-2026-11-03.1 — 3 novembre 2026
 
