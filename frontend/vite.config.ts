@@ -30,7 +30,6 @@ export default defineConfig(() => ({
           }
           // Heavy libs only — never split other React wrappers here (causes circular chunks).
           if (id.includes("recharts")) return "vendor-recharts";
-          if (id.includes("@fullcalendar")) return "vendor-fullcalendar";
           if (id.includes("react-pdf") || id.includes("pdfjs")) return "vendor-pdf";
           if (id.includes("exceljs")) return "vendor-exceljs";
         },
