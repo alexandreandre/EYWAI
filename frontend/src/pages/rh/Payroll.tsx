@@ -723,6 +723,18 @@ export default function Payroll() {
     employees.length === 0
       ? loadingEmployees
       : payslipQueries.some((q) => q.isLoading && q.data === undefined);
+  const error = employeesQuery.error
+    ? 'Impossible de charger la liste des collaborateurs. Réessayez.'
+    : null;
+
+  const lectureBulletins = useMemo((): Lecture<Record<string, LigneBulletinPaie[]>> => {
+    if (loadingMonthData) return { statut: 'chargement' };
+    const map: Record<string, LigneBulletinPaie[]> = {};
+    for (const emp of salariesDuMois) {
+      map[emp.id] = payslipsByEmployee[emp.id] ?? [];
+    }
+    return { statut: 'ok', valeur: map };
+  }, [loadingMonthData, salariesDuMois, payslipsByEmployee]);
 
   // « Recalculer maintenant » d'un message de saisie (?recalculer=id,id) : une
   // fois les bulletins relus (la saisie vient de les rendre « À recalculer »),
@@ -757,18 +769,6 @@ export default function Payroll() {
       { replace: true }
     );
   }, [recalculerDemande, bulletinsRelus, generation, jobsPerimesDuMois, setSearchParams]);
-  const error = employeesQuery.error
-    ? 'Impossible de charger la liste des collaborateurs. Réessayez.'
-    : null;
-
-  const lectureBulletins = useMemo((): Lecture<Record<string, LigneBulletinPaie[]>> => {
-    if (loadingMonthData) return { statut: 'chargement' };
-    const map: Record<string, LigneBulletinPaie[]> = {};
-    for (const emp of salariesDuMois) {
-      map[emp.id] = payslipsByEmployee[emp.id] ?? [];
-    }
-    return { statut: 'ok', valeur: map };
-  }, [loadingMonthData, salariesDuMois, payslipsByEmployee]);
 
   const lectureDeparts = useMemo((): Lecture<NonNullable<typeof exitsQuery.data>> => {
     if (exitsQuery.isError && exitsQuery.data === undefined) return { statut: 'erreur' };
