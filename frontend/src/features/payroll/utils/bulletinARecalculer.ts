@@ -347,3 +347,43 @@ export function phraseSuiteARecalculer(
   const mois = `${monthLabel(suite.month).toLowerCase()} ${suite.year}`;
   return `Le bulletin ${deDevant(mois)} part des cumuls de celui-ci, qui ont changé : il est à recalculer (« Recalculer tout ce qui a changé » dans la Paie).`;
 }
+
+/** Paramètre d'adresse de « Recalculer maintenant » : les salariés à recalculer. */
+export const PARAM_RECALCULER = 'recalculer';
+
+/**
+ * Le lien du bouton « Recalculer maintenant » d'un message « bulletin à
+ * recalculer » (audit R1, geste 3) : la vue Par mois du bulletin, qui lance le
+ * recalcul avec la file habituelle (ordre des mois, suite, refus, validés exclus).
+ * Plusieurs mois : le plus ancien, les cumuls partent de lui.
+ */
+export function lienRecalculerMaintenant(
+  cibles: ReadonlyArray<{ employee_id: string; year: number; month: number }> | null | undefined
+): string | null {
+  if (!cibles || cibles.length === 0) return null;
+  const premier = [...cibles].sort((a, b) => a.year - b.year || a.month - b.month)[0];
+  const ids = [
+    ...new Set(
+      cibles.filter((c) => c.year === premier.year && c.month === premier.month).map((c) => c.employee_id)
+    ),
+  ];
+  const params = new URLSearchParams({
+    view: 'month',
+    month: `${premier.year}-${String(premier.month).padStart(2, '0')}`,
+    [PARAM_RECALCULER]: ids.join(','),
+  });
+  return `/payroll?${params.toString()}`;
+}
+
+export function idsARecalculerMaintenant(params: URLSearchParams): string[] {
+  return (params.get(PARAM_RECALCULER) ?? '').split(',').filter(Boolean);
+}
+
+/** Les bulletins périmés du mois des salariés nommés, et eux seuls. */
+export function jobsARecalculerMaintenant<T extends { employeeId: string }>(
+  jobsPerimes: readonly T[],
+  ids: readonly string[]
+): T[] {
+  const voulus = new Set(ids);
+  return jobsPerimes.filter((job) => voulus.has(job.employeeId));
+}

@@ -1,5 +1,5 @@
 import { isPresentDuringMonth } from '@/lib/employmentStatus';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RhPageHeader } from '@/components/layout';
@@ -52,6 +52,9 @@ import {
   nomsDesValidesChanges,
   estPerime,
   montantsDepuisLigne,
+  idsARecalculerMaintenant,
+  jobsARecalculerMaintenant,
+  PARAM_RECALCULER,
   type LigneBulletinPaie,
 } from '@/features/payroll/utils/bulletinARecalculer';
 import { CreateEmployeeForm } from '@/features/employees/components/CreateEmployeeForm';
@@ -718,6 +721,40 @@ export default function Payroll() {
     employees.length === 0
       ? loadingEmployees
       : payslipQueries.some((q) => q.isLoading && q.data === undefined);
+
+  // « Recalculer maintenant » d'un message de saisie (?recalculer=id,id) : une
+  // fois les bulletins relus (la saisie vient de les rendre « À recalculer »),
+  // la file habituelle recalcule ceux des salariés nommés, puis l'adresse oublie
+  // la demande (un rechargement ne relance rien).
+  const recalculerDemande = searchParams.get(PARAM_RECALCULER);
+  const bulletinsRelus = !loadingMonthData && !payslipQueries.some((q) => q.isFetching);
+  const recalculDejaLance = useRef<string | null>(null);
+  useEffect(() => {
+    if (!recalculerDemande || !bulletinsRelus || generation.phase === 'running') return;
+    if (recalculDejaLance.current === recalculerDemande) return;
+    recalculDejaLance.current = recalculerDemande;
+    const jobs = jobsARecalculerMaintenant(
+      jobsPerimesDuMois,
+      idsARecalculerMaintenant(new URLSearchParams({ [PARAM_RECALCULER]: recalculerDemande }))
+    );
+    if (jobs.length > 0) {
+      generation.generateJobs(jobs);
+    } else {
+      toast({
+        title: 'Rien à recalculer',
+        description:
+          'Ces bulletins sont déjà à jour, ou validés : un bulletin validé se régénère depuis son écran.',
+      });
+    }
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.delete(PARAM_RECALCULER);
+        return params;
+      },
+      { replace: true }
+    );
+  }, [recalculerDemande, bulletinsRelus, generation, jobsPerimesDuMois, setSearchParams]);
   const error = employeesQuery.error
     ? 'Impossible de charger la liste des collaborateurs. Réessayez.'
     : null;

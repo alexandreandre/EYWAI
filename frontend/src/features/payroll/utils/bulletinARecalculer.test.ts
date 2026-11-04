@@ -17,6 +17,9 @@ import {
   montantsDepuisLigne,
   montantsDepuisReponse,
   toastsDeFinDeRecalcul,
+  lienRecalculerMaintenant,
+  idsARecalculerMaintenant,
+  jobsARecalculerMaintenant,
 } from './bulletinARecalculer';
 
 describe('estPerime', () => {
@@ -386,5 +389,50 @@ describe('phraseSuiteARecalculer : l’écran du bulletin nomme le mois suivant'
     );
     expect(phraseSuiteARecalculer({ year: 2027, month: 1 })).toContain('Le bulletin de janvier 2027');
     expect(phraseSuiteARecalculer(null)).toBeNull();
+  });
+});
+
+describe('« Recalculer maintenant » depuis le message d’une saisie', () => {
+  it('mène à la vue Par mois du bulletin, avec les salariés à recalculer', () => {
+    expect(
+      lienRecalculerMaintenant([
+        { employee_id: 'e1', year: 2026, month: 10 },
+        { employee_id: 'e2', year: 2026, month: 10 },
+      ]),
+    ).toBe('/payroll?view=month&month=2026-10&recalculer=e1%2Ce2');
+  });
+
+  it('plusieurs mois : le plus ancien d’abord (les cumuls partent de lui)', () => {
+    expect(
+      lienRecalculerMaintenant([
+        { employee_id: 'e1', year: 2026, month: 10 },
+        { employee_id: 'e1', year: 2026, month: 9 },
+      ]),
+    ).toBe('/payroll?view=month&month=2026-09&recalculer=e1');
+  });
+
+  it('rien à recalculer, ou serveur qui n’a pas pu chercher : pas de bouton', () => {
+    expect(lienRecalculerMaintenant([])).toBeNull();
+    expect(lienRecalculerMaintenant(null)).toBeNull();
+    expect(lienRecalculerMaintenant(undefined)).toBeNull();
+  });
+
+  it('relit les salariés de l’adresse', () => {
+    expect(idsARecalculerMaintenant(new URLSearchParams('recalculer=e1%2Ce2'))).toEqual(['e1', 'e2']);
+    expect(idsARecalculerMaintenant(new URLSearchParams('view=month'))).toEqual([]);
+  });
+
+  it('ne recalcule que les bulletins périmés des salariés nommés', () => {
+    const job = (employeeId: string) => ({
+      employeeId,
+      employeeName: employeeId,
+      year: 2026,
+      month: 10,
+      montantsAvant: { heures_sup: null, salaire_brut: null, net_a_payer: null },
+    });
+    expect(jobsARecalculerMaintenant([job('e1'), job('e2'), job('e3')], ['e3', 'e1']).map((j) => j.employeeId)).toEqual([
+      'e1',
+      'e3',
+    ]);
   });
 });
