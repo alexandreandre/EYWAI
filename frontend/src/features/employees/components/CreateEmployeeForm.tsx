@@ -1471,7 +1471,10 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                   <FormItem>
                                     <FormLabel>Classification</FormLabel>
                                     <Select
-                                      value={valeurDuChoix(field.value)}
+                                      // '' plutôt qu'undefined : la liste reste contrôlée et montre
+                                      // « Choisir une classification » quand la classification se vide,
+                                      // au lieu de réafficher l'ancien choix.
+                                      value={valeurDuChoix(field.value) ?? ''}
                                       onValueChange={(val) => {
                                         const c = grilleClassifications.find((x) => valeurDuChoix(x) === val);
                                         if (c) field.onChange({ groupe_emploi: c.groupe_emploi, classe_emploi: c.classe_emploi, coefficient: c.coefficient });
@@ -1483,7 +1486,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                         </SelectTrigger>
                                       </FormControl>
                                       <SelectContent>
-                                        {grilleClassifications.map((c) => (
+                                        {grilleClassifications.filter((c) => valeurDuChoix(c)).map((c) => (
                                           <SelectItem key={valeurDuChoix(c)} value={valeurDuChoix(c) ?? ''}>
                                             {libelleClassification(c)}
                                           </SelectItem>

@@ -582,13 +582,15 @@ export function EmployeeProfileEditForm({
                         coefficient: c.coefficient,
                       });
                     }}
-                    value={valeurDuChoix(field.value)}
+                    // '' : la liste reste contrôlée et montre « Choisir une classification »
+                    // quand rien n'est choisi, au lieu d'un ancien choix.
+                    value={valeurDuChoix(field.value) ?? ''}
                   >
                     <FormControl>
                       <SelectTrigger><SelectValue placeholder="Choisir une classification" /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {classificationsCc.map((c) => {
+                      {classificationsCc.filter((c) => valeurDuChoix(c)).map((c) => {
                         const key = valeurDuChoix(c) ?? '';
                         return (
                           <SelectItem key={key} value={key}>
