@@ -558,6 +558,12 @@ def _base_pas_du_mois(contexte: ContextePaie, net_imposable_mois: float) -> floa
     SMIC annuel (comportement correct sur l'année).
     """
     net_imposable_mois = _get_safe_float(net_imposable_mois)
+    if net_imposable_mois < 0:
+        # Un net imposable négatif ne donne lieu à aucun prélèvement : assiette
+        # et montant du PAS à zéro, le net fiscal se déclare signé (fiche
+        # DSN-info n° 1810 ; CT DSN 2026.1, 50.009 et 50.013 jamais négatifs).
+        # Le moteur rendait l'impôt au salarié (audit du 03/11/2026, D 4a).
+        return 0.0
 
     exo = contexte_exoneration_apprenti(contexte)
     if exo is not None:
