@@ -21,7 +21,7 @@ const MINIMAL = {
   is_temps_partiel: false,
   duree_hebdomadaire: 39,
   salaire_de_base: { valeur: 1990 },
-  classification_conventionnelle: { groupe_emploi: 'C', classe_emploi: 710, coefficient: 710 },
+  classification_conventionnelle: { groupe_emploi: '', classe_emploi: undefined, coefficient: undefined },
   collective_agreement_id: null,
   avantages_en_nature: { repas: { nombre_par_mois: 0 }, logement: { beneficie: false }, vehicule: { beneficie: false } },
   specificites_paie: {
@@ -142,5 +142,50 @@ describe('titre de séjour à la création ([D6-1], 12/10/2026)', () => {
   it('avec sa date, ou non soumis : accepté', () => {
     expect(erreurs({ is_subject_to_residence_permit: true, residence_permit_expiry_date: '2027-03-31' })).toEqual([]);
     expect(erreurs({ is_subject_to_residence_permit: false, residence_permit_expiry_date: '' })).toEqual([]);
+  });
+});
+
+describe('classification conventionnelle : rien d’office (retour du 03/11)', () => {
+  const classification = (c: Record<string, unknown>) => ({ classification_conventionnelle: c });
+  const VIDE = { groupe_emploi: '', classe_emploi: '', coefficient: '' };
+
+  it('sans convention, aucune classification n’est demandée', () => {
+    expect(erreurs({ collective_agreement_id: null, ...classification(VIDE) })).toEqual([]);
+  });
+
+  it('avec une convention, la classification est demandée', () => {
+    expect(erreurs({ collective_agreement_id: 'cc-plasturgie', ...classification(VIDE) })).toEqual([
+      'classification_conventionnelle: Classification conventionnelle requise.',
+    ]);
+  });
+
+  it('avec une convention, un coefficient suffit : le groupe peut rester « Non précisé »', () => {
+    expect(
+      erreurs({ collective_agreement_id: 'cc-plasturgie', ...classification({ groupe_emploi: '', coefficient: 700 }) }),
+    ).toEqual([]);
+    expect(
+      erreurs({
+        collective_agreement_id: 'cc-plasturgie',
+        ...classification({ groupe_emploi: 'Non précisé', classe_emploi: 0, coefficient: 700 }),
+      }),
+    ).toEqual([]);
+  });
+
+  it('un champ vide reste vide : il ne devient pas 0', () => {
+    const r = createEmployeeFormSchema.safeParse({ ...MINIMAL, ...classification(VIDE) });
+    expect(r.success && r.data.classification_conventionnelle).toEqual({
+      groupe_emploi: '',
+      classe_emploi: undefined,
+      coefficient: undefined,
+    });
+  });
+
+  it('un coefficient illisible ou nul est refusé', () => {
+    expect(erreurs(classification({ groupe_emploi: '', coefficient: 'abc' }))).toEqual([
+      'classification_conventionnelle.coefficient: Le coefficient est un nombre entier.',
+    ]);
+    expect(erreurs(classification({ groupe_emploi: '', coefficient: 0 }))).toEqual([
+      'classification_conventionnelle.coefficient: Le coefficient est un nombre positif.',
+    ]);
   });
 });

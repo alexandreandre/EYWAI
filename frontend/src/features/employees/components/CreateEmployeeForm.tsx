@@ -27,14 +27,21 @@ import { signalerErreurEcran } from "@/api/clientErrors";
 import {
   avecValeursDeLaSociete,
   champsFacultatifsPourEnvoi,
-  cleClassification,
   erreursAPlat,
   erreursDansLOrdre,
-  grilleAvecClassificationHabituelle,
   libelleDErreur,
   mutuellesPourStatut,
   ongletDuChamp,
 } from "@/features/employees/utils/valeursEmbauche";
+import {
+  CLASSIFICATION_VIDE,
+  GROUPE_NON_PRECISE,
+  classificationGardee,
+  classificationPourEnvoi,
+  grilleAvecClassificationHabituelle,
+  libelleClassification,
+  valeurDuChoix,
+} from "@/features/employees/utils/classificationConventionnelle";
 import {
   MESSAGE_FERMETURE_SANS_ENREGISTRER,
   NOM_DES_ONGLETS,
@@ -192,11 +199,8 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       salaire_de_base: {
         valeur: "" as unknown as number
       },
-      classification_conventionnelle: {
-        groupe_emploi: "C",
-        classe_emploi: 6,
-        coefficient: 240
-      },
+      // Aucune classification d'office : la RH la choisit (retour du 03/11).
+      classification_conventionnelle: { ...CLASSIFICATION_VIDE },
       collective_agreement_id: null as string | null,
       avantages_en_nature: {
         repas: { nombre_par_mois: 0 },
@@ -300,15 +304,16 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
         .then((res) => {
           const list = res.data || [];
           setClassificationsCc(list);
-          // Pré-sélectionner la première classification si la valeur actuelle
-          // n'est ni dans la grille ni celle des salariés de la société.
+          // La classification choisie reste si la grille la connaît ; sinon elle
+          // se vide et la RH choisit. Plus de première ligne prise d'office.
           if (list.length > 0) {
             const current = form.getValues("classification_conventionnelle");
-            const currentKey = current ? cleClassification(current) : "";
-            const exists = grilleAvecClassificationHabituelle(list, valeurs?.classification_conventionnelle as never)
-              .some((c) => cleClassification(c) === currentKey);
-            if (!exists) {
-              form.setValue("classification_conventionnelle", { groupe_emploi: list[0].groupe_emploi, classe_emploi: list[0].classe_emploi, coefficient: list[0].coefficient });
+            const gardee = classificationGardee(
+              current,
+              grilleAvecClassificationHabituelle(list, valeurs?.classification_conventionnelle),
+            );
+            if (gardee !== current) {
+              form.setValue("classification_conventionnelle", { ...gardee });
             }
           }
         })
@@ -319,7 +324,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   }, [selectedCcId, valeurs, form]);
   const grilleClassifications = grilleAvecClassificationHabituelle(
     classificationsCc,
-    valeurs?.classification_conventionnelle as never
+    valeurs?.classification_conventionnelle
   );
 
   const watchedContractType = form.watch("contract_type");
@@ -737,6 +742,9 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   // On prépare le payload final pour le backend
   const payload = {
     ...champsFacultatifsPourEnvoi(values),
+    // Rien de saisi : aucune classification ; un coefficient seul se range en
+    // « Non précisé », classe 0.
+    classification_conventionnelle: classificationPourEnvoi(values.classification_conventionnelle),
     team_id: values.team_id?.trim() ? values.team_id.trim() : null,
     // La période d'essai est créée côté serveur, à partir du barème société
     // que cette saisie surcharge éventuellement.
@@ -915,7 +923,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
               <DialogTitle>Nouveau Collaborateur</DialogTitle>
               <DialogDescription>
                 Seuls le nom, le prénom, le poste, la date d&apos;entrée et le salaire sont obligatoires
-                <Requis />. Le reste peut attendre : la fiche sera « à compléter » et sa paie bloquée tant
+                <Requis />, et la classification quand une convention collective s&apos;applique. Le reste peut attendre : la fiche sera « à compléter » et sa paie bloquée tant
                 que manquent n° de sécurité sociale, date de naissance, adresse et RIB.
                 {valeurs ? " Durée, convention, mutuelle et prévoyance reprennent celles de vos salariés." : ""}
               </DialogDescription>
@@ -1430,7 +1438,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                 onValueChange={(v) => {
                                   field.onChange(v === "__aucune__" ? null : v);
                                   if (v === "__aucune__") {
-                                    form.setValue("classification_conventionnelle", { groupe_emploi: "C", classe_emploi: 6, coefficient: 240 });
+                                    form.setValue("classification_conventionnelle", { ...CLASSIFICATION_VIDE });
                                   }
                                 }}
                               >
@@ -1463,11 +1471,9 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                   <FormItem>
                                     <FormLabel>Classification</FormLabel>
                                     <Select
-                                      value={[field.value?.groupe_emploi, field.value?.classe_emploi, field.value?.coefficient].join("-")}
+                                      value={valeurDuChoix(field.value)}
                                       onValueChange={(val) => {
-                                        const c = grilleClassifications.find(
-                                          (x) => `${x.groupe_emploi}-${x.classe_emploi}-${x.coefficient}` === val
-                                        );
+                                        const c = grilleClassifications.find((x) => valeurDuChoix(x) === val);
                                         if (c) field.onChange({ groupe_emploi: c.groupe_emploi, classe_emploi: c.classe_emploi, coefficient: c.coefficient });
                                       }}
                                     >
@@ -1478,11 +1484,8 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                       </FormControl>
                                       <SelectContent>
                                         {grilleClassifications.map((c) => (
-                                          <SelectItem
-                                            key={`${c.groupe_emploi}-${c.classe_emploi}-${c.coefficient}`}
-                                            value={`${c.groupe_emploi}-${c.classe_emploi}-${c.coefficient}`}
-                                          >
-                                            Groupe {c.groupe_emploi} - Classe {c.classe_emploi} - Coeff. {c.coefficient}
+                                          <SelectItem key={valeurDuChoix(c)} value={valeurDuChoix(c) ?? ''}>
+                                            {libelleClassification(c)}
                                           </SelectItem>
                                         ))}
                                       </SelectContent>
@@ -1499,7 +1502,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                   render={({ field }) => (
                                     <FormItem>
                                       <FormLabel>Groupe</FormLabel>
-                                      <FormControl><Input {...field} /></FormControl>
+                                      <FormControl><Input {...field} value={field.value ?? ""} placeholder={GROUPE_NON_PRECISE} /></FormControl>
                                       <FormMessage />
                                     </FormItem>
                                   )} 
@@ -1510,7 +1513,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                   render={({ field }) => (
                                     <FormItem>
                                       <FormLabel>Classe</FormLabel>
-                                      <FormControl><Input type="number" step="any" {...field} /></FormControl>
+                                      <FormControl><Input type="number" step="any" {...field} value={field.value ?? ""} /></FormControl>
                                       <FormMessage />
                                     </FormItem>
                                   )} 
@@ -1521,11 +1524,20 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                   render={({ field }) => (
                                     <FormItem>
                                       <FormLabel>Coefficient</FormLabel>
-                                      <FormControl><Input type="number" step="any" {...field} /></FormControl>
+                                      <FormControl><Input type="number" step="any" {...field} value={field.value ?? ""} /></FormControl>
                                       <FormMessage />
                                     </FormItem>
                                   )} 
                                 />
+                                <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">
+                                  Laissez le groupe et la classe vides si la convention ne classe que par
+                                  coefficient : la fiche portera « {GROUPE_NON_PRECISE} ».
+                                </p>
+                                {form.formState.errors.classification_conventionnelle?.message ? (
+                                  <p className="text-sm font-medium text-destructive sm:col-span-2 lg:col-span-3">
+                                    {form.formState.errors.classification_conventionnelle.message}
+                                  </p>
+                                ) : null}
                               </div>
                             )}
                           </>

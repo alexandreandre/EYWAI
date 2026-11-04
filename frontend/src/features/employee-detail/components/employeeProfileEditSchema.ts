@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { classificationSaisieSchema } from '@/features/employees/utils/classificationConventionnelle';
 import { titresRestaurantSchema } from '@/lib/titresRestaurant';
 import { needsContractEndDate } from '@/constants/contracts';
 import { FORMAT_PCS_ESE } from '@/constants/dsnFiche';
@@ -55,11 +56,9 @@ export const employeeProfileEditSchema = z
         .max(SALAIRE_MENSUEL_MAXIMUM, { message: MESSAGE_SALAIRE_TROP_ELEVE }),
     }),
     collective_agreement_id: z.string().nullable().optional(),
-    classification_conventionnelle: z.object({
-      groupe_emploi: z.string().min(1, { message: 'Groupe requis.' }),
-      classe_emploi: z.coerce.number().int(),
-      coefficient: z.coerce.number().int().positive({ message: 'Coefficient requis.' }),
-    }),
+    // Une fiche sans classification part d'une liste vide (03/11/2026) : rien
+    // d'office, et l'enregistrement des autres champs n'est pas bloqué.
+    classification_conventionnelle: classificationSaisieSchema,
     // Déclaré en DSN (S21.G00.40.004), rangé dans la classification.
     code_pcs: z
       .string()
@@ -130,13 +129,6 @@ export const employeeProfileEditSchema = z
         code: z.ZodIssueCode.custom,
         message: 'Date de fin de contrat requise pour un CDD ou un stage.',
         path: ['contract_end_date'],
-      });
-    }
-    if (data.collective_agreement_id && !data.classification_conventionnelle.groupe_emploi) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Classification conventionnelle requise.',
-        path: ['classification_conventionnelle', 'groupe_emploi'],
       });
     }
     if (isEmployeeCadre(data.statut) && !data.specificites_paie.prevoyance.adhesion) {

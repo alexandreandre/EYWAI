@@ -3,7 +3,7 @@ import type { ValeursEmbauche } from '@/api/employees';
 import type { CreateEmployeeFormValues } from '@/features/employees/components/createEmployeeFormSchema';
 import { avecValeursDeLaSociete, moisEnClair, mutuellesPourStatut } from './valeursEmbauche';
 
-const COLORPLAST: ValeursEmbauche = {
+const SOCIETE: ValeursEmbauche = {
   statut: 'Non-Cadre',
   contract_type: 'CDI',
   duree_hebdomadaire: 39,
@@ -20,7 +20,7 @@ const BASE = {
   contract_type: 'CDI',
   duree_hebdomadaire: 35,
   collective_agreement_id: null,
-  classification_conventionnelle: { groupe_emploi: 'C', classe_emploi: 6, coefficient: 240 },
+  classification_conventionnelle: { groupe_emploi: '', classe_emploi: undefined, coefficient: undefined },
   specificites_paie: {
     titres_restaurant: { beneficie: true, nombre_par_mois: 0 },
     mutuelle: { mutuelle_type_ids: [], lignes_specifiques: [] },
@@ -30,12 +30,20 @@ const BASE = {
 
 describe('avecValeursDeLaSociete', () => {
   it('remplace les valeurs génériques par celles de la société', () => {
-    const v = avecValeursDeLaSociete(BASE, COLORPLAST);
+    const v = avecValeursDeLaSociete(BASE, SOCIETE);
     expect(v.duree_hebdomadaire).toBe(39);
     expect(v.collective_agreement_id).toBe('plasturgie');
-    expect(v.classification_conventionnelle).toEqual({ groupe_emploi: 'C', classe_emploi: 710, coefficient: 710 });
     expect(v.specificites_paie.titres_restaurant.beneficie).toBe(false);
     expect(v.specificites_paie.mutuelle.mutuelle_type_ids).toEqual(['iso-nc']);
+  });
+
+  it('la classification n’est pas reprise d’office : la RH la choisit (retour du 03/11)', () => {
+    const v = avecValeursDeLaSociete(BASE, SOCIETE);
+    expect(v.classification_conventionnelle).toEqual({
+      groupe_emploi: '',
+      classe_emploi: undefined,
+      coefficient: undefined,
+    });
   });
 
   it('sans valeurs, rien ne change', () => {
@@ -43,16 +51,16 @@ describe('avecValeursDeLaSociete', () => {
   });
 
   it('propose le salaire saisi en base 35 h quand les collègues sont payés ainsi', () => {
-    expect(avecValeursDeLaSociete(BASE, COLORPLAST).specificites_paie.salaire_hors_hs_structurelles).toBe(true);
-    const brutComplet = { ...COLORPLAST, salaire_hors_hs_structurelles: false };
+    expect(avecValeursDeLaSociete(BASE, SOCIETE).specificites_paie.salaire_hors_hs_structurelles).toBe(true);
+    const brutComplet = { ...SOCIETE, salaire_hors_hs_structurelles: false };
     expect(avecValeursDeLaSociete(BASE, brutComplet).specificites_paie.salaire_hors_hs_structurelles).toBe(false);
   });
 });
 
 describe('mutuellesPourStatut', () => {
   it('la mutuelle suit la catégorie', () => {
-    expect(mutuellesPourStatut(COLORPLAST, 'Cadre')).toEqual(['iso-c']);
-    expect(mutuellesPourStatut(COLORPLAST, 'Non-Cadre')).toEqual(['iso-nc']);
+    expect(mutuellesPourStatut(SOCIETE, 'Cadre')).toEqual(['iso-c']);
+    expect(mutuellesPourStatut(SOCIETE, 'Non-Cadre')).toEqual(['iso-nc']);
   });
 });
 
@@ -68,25 +76,9 @@ import {
   champsFacultatifsPourEnvoi,
   erreursAPlat,
   erreursDansLOrdre,
-  grilleAvecClassificationHabituelle,
   libelleDErreur,
   ongletDuChamp,
 } from './valeursEmbauche';
-
-describe('grilleAvecClassificationHabituelle', () => {
-  const grille = [
-    { groupe_emploi: 'Non précisé', classe_emploi: 0, coefficient: 700 },
-    { groupe_emploi: 'Non précisé', classe_emploi: 0, coefficient: 710 },
-  ];
-  it('ajoute la classification de la société quand la grille ne la connaît pas', () => {
-    const habituelle = { groupe_emploi: 'C', classe_emploi: 710, coefficient: 710 };
-    expect(grilleAvecClassificationHabituelle(grille, habituelle)[0]).toEqual(habituelle);
-  });
-  it("ne double pas une classification déjà dans la grille", () => {
-    expect(grilleAvecClassificationHabituelle(grille, grille[1])).toBe(grille);
-    expect(grilleAvecClassificationHabituelle(grille, null)).toBe(grille);
-  });
-});
 
 describe('erreurs du formulaire', () => {
   const erreurs = {

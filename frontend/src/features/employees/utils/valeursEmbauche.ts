@@ -4,7 +4,9 @@
  * La fenêtre proposait des valeurs génériques (salaire 2 365,66 €, coefficient
  * 240, titres-restaurant cochés, aucune mutuelle) ; on part de ce que portent les
  * salariés actifs de la société. Le salaire n'est jamais proposé : il est propre à
- * chaque embauche, et un montant prérempli passerait inaperçu.
+ * chaque embauche, et un montant prérempli passerait inaperçu. La classification
+ * non plus : la RH la choisit dans la liste (retour du 03/11), où celle des
+ * collègues est proposée sans être choisie (`grilleAvecClassificationHabituelle`).
  */
 import type { ValeursEmbauche } from '@/api/employees';
 import type { CreateEmployeeFormValues } from '@/features/employees/components/createEmployeeFormSchema';
@@ -21,20 +23,12 @@ export function avecValeursDeLaSociete(
 ): CreateEmployeeFormValues {
   if (!valeurs) return base;
   const statut = valeurs.statut || base.statut;
-  const classification = valeurs.classification_conventionnelle;
   return {
     ...base,
     statut,
     contract_type: valeurs.contract_type || base.contract_type,
     duree_hebdomadaire: valeurs.duree_hebdomadaire ?? base.duree_hebdomadaire,
     collective_agreement_id: valeurs.collective_agreement_id ?? base.collective_agreement_id,
-    classification_conventionnelle: classification
-      ? {
-          groupe_emploi: classification.groupe_emploi || base.classification_conventionnelle.groupe_emploi,
-          classe_emploi: classification.classe_emploi ?? classification.coefficient,
-          coefficient: classification.coefficient,
-        }
-      : base.classification_conventionnelle,
     specificites_paie: {
       ...base.specificites_paie,
       salaire_hors_hs_structurelles: valeurs.salaire_hors_hs_structurelles ?? false,
@@ -65,25 +59,6 @@ export function moisEnClair(mois: string[] | undefined): string | null {
   if (tries.length === 1) return nom(tries[0]);
   return `${nom(tries[0]).split(' ')[0]} à ${nom(tries[tries.length - 1])}`;
 }
-
-type Classification = { groupe_emploi: string; classe_emploi: number; coefficient: number };
-
-const cleClassification = (c: Partial<Classification>) => `${c.groupe_emploi}-${c.classe_emploi}-${c.coefficient}`;
-
-/**
- * La grille de la convention, plus la classification que portent déjà les
- * salariés de la société si elle n'y figure pas (Colorplast : « C / 710 » alors
- * que la grille de test ne connaît que « Non précisé / 700, 710, 720 »).
- */
-export function grilleAvecClassificationHabituelle<T extends Classification>(
-  grille: T[],
-  habituelle: Classification | null | undefined
-): Classification[] {
-  if (!habituelle || grille.some((c) => cleClassification(c) === cleClassification(habituelle))) return grille;
-  return [habituelle, ...grille];
-}
-
-export { cleClassification };
 
 /** L'onglet du formulaire qui porte un champ, pour y conduire en cas d'erreur. */
 export function ongletDuChamp(chemin: string): string {
