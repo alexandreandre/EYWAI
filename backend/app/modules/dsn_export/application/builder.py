@@ -174,6 +174,17 @@ def _siren_nic(siret: str) -> Tuple[str, str]:
     return clean[:9], (clean[9:] or "00000").zfill(5)[:5]
 
 
+def _montant_signe(montant: float) -> str:
+    """Un montant au format signé du CT (`-?…`), sans « -0.00 »."""
+    arrondi = round(float(montant or 0), 2)
+    return f"{arrondi:.2f}" if arrondi != 0 else "0.00"
+
+
+def _montant_positif(montant: float) -> str:
+    """Un montant au format non signé du CT (`[0]*…`) : un négatif vaut 0.00."""
+    return _montant_signe(max(0.0, round(float(montant or 0), 2)))
+
+
 def _net_imposable(payslip_data: Dict[str, Any]) -> float:
     synthese = payslip_data.get("synthese_net")
     if isinstance(synthese, dict):
@@ -1167,15 +1178,18 @@ def build_individu_from_payroll(
         # CT 50.008 : CDD de deux mois au plus, ou à terme imprécis : « -1 ».
         pas_identifiant = "-1"
 
+    # Net fiscal négatif (fiche DSN-info n° 1810) : 50.002 se déclare signé ;
+    # l'assiette (50.013) et le prélèvement (50.009), au format non signé du
+    # CT 2026.1, valent alors 0.00 (audit du 03/11/2026, D 4a).
     rubriques_versement = {
         "S21.G00.50.001": date_versement,
-        "S21.G00.50.002": f"{net_fiscal:.2f}",
+        "S21.G00.50.002": _montant_signe(net_fiscal),
         "S21.G00.50.003": "01",
         "S21.G00.50.004": f"{net_verse:.2f}",
         "S21.G00.50.006": f"{pas_taux:.2f}",
         "S21.G00.50.007": pas_type,
-        "S21.G00.50.009": f"{pas_montant:.2f}",
-        "S21.G00.50.013": f"{(net_fiscal if pas_assiette is None else pas_assiette):.2f}",
+        "S21.G00.50.009": _montant_positif(pas_montant),
+        "S21.G00.50.013": _montant_positif(net_fiscal if pas_assiette is None else pas_assiette),
         "activites": rem_build.activites,
     }
     if pas_identifiant and (pas_type == "01" or pas_identifiant == "-1"):
