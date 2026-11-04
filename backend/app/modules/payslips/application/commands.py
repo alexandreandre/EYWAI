@@ -67,7 +67,14 @@ from app.modules.employees.application.contrat_du_mois import (
 )
 from app.shared.cle_du_bulletin import du_contrat
 from app.shared.domain.employment_rules import payslip_employment_period_block_reason
-from app.shared.domain.prevoyance_obligatoire import prevoyance_manquante
+from app.shared.domain.prevoyance_obligatoire import (
+    dernier_jour_du_mois,
+    idcc_de_la_classification,
+    prevoyance_manquante,
+)
+from app.modules.collective_agreements.application.idcc_resolution import (
+    resolve_employee_idcc,
+)
 from app.shared.reprise_paie import (
     CLE_DEPART_A_ZERO,
     raison_de_blocage_avant_bascule,
@@ -595,6 +602,17 @@ def _raison_de_blocage_du_salarie(
     return payroll_block_reason(employee)
 
 
+def _idcc_du_salarie(employee: dict[str, Any]) -> str | None:
+    """La convention du salarié (fiche, puis société), sinon celle que porte sa
+    classification reprise de la DSN."""
+    try:
+        idcc = resolve_employee_idcc(employee, {"id": employee.get("company_id")})
+    except Exception:  # noqa: BLE001 — lecture du catalogue ; la classification reste
+        logger.warning("Convention de l'employé %s illisible.", employee.get("id"), exc_info=True)
+        idcc = None
+    return idcc or idcc_de_la_classification(employee) or None
+
+
 def salarie_generable(
     employee_id: str, year: int, month: int, contract_period_id: str | None = None
 ) -> dict[str, Any]:
@@ -632,9 +650,14 @@ def salarie_generable(
     )
     if bascule_block_reason:
         raise PayslipBadRequestError(bascule_block_reason)
-    # Prévoyance que la loi impose (cadres : ANI du 17/11/2017) : sans elle, le
+    # Prévoyance que la loi impose (cadres : ANI du 17/11/2017 ; non-cadres de
+    # la plasturgie après trois mois : accord du 29/10/2014) : sans elle, le
     # bulletin serait faux. Aucun forçage ; la RH la coche sur la fiche.
-    prevoyance = prevoyance_manquante(employee)
+    prevoyance = prevoyance_manquante(
+        employee,
+        idcc=lambda: _idcc_du_salarie(employee),
+        fin_du_mois=dernier_jour_du_mois(year, month),
+    )
     if prevoyance:
         logger.info(
             "[generation] Refus %s pour l'employé %s (%02d/%d).",
