@@ -63,6 +63,8 @@ export function RecalageCpDialog({ open, onOpenChange, employeeId, suitBulletin 
         note: note.trim(),
       }),
     onSuccess: (reponse) => onRecale(reponse),
+    // L'échec est écrit dans la fenêtre (recalage.isError).
+    meta: { erreurAffichee: true },
   });
   const { reset } = recalage;
 

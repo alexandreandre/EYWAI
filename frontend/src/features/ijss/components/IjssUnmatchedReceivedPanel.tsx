@@ -33,6 +33,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { getUserErrorMessage } from '@/lib/errorMessages';
 import { Link2 } from 'lucide-react';
 
 function eur(n: number) {
@@ -95,7 +96,8 @@ export function IjssUnmatchedReceivedPanel({
       setExpectedLineId('');
       onMatched();
     },
-    onError: (e: Error) => toast({ variant: 'destructive', title: e.message }),
+    onError: (e: unknown) =>
+      toast({ variant: 'destructive', title: 'Rapprochement impossible', description: getUserErrorMessage(e) }),
   });
 
   if (lines.length === 0) return null;

@@ -136,6 +136,8 @@ export default function Teams() {
       invalidateTeams();
       toast({ title: 'Équipe créée' });
     },
+    // L'appelant (onCreate du panneau) attrape l'erreur et l'affiche.
+    meta: { erreurAffichee: true },
   });
 
   const updateMutation = useMutation({
@@ -150,6 +152,8 @@ export default function Teams() {
       invalidateTeams();
       toast({ title: 'Équipe mise à jour' });
     },
+    // L'appelant (onUpdate du panneau) attrape l'erreur et l'affiche.
+    meta: { erreurAffichee: true },
   });
 
   const archiveMutation = useMutation({

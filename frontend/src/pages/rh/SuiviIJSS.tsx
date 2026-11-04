@@ -50,6 +50,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { useToast } from '@/hooks/use-toast';
 import { downloadBlob } from '@/lib/downloadBlob';
+import { getUserErrorMessage } from '@/lib/errorMessages';
+import { ControleIndisponible } from '@/features/payroll/components/ControleIndisponible';
 import {
   libelleIjssDuPanneau,
   phraseAppliqueSansEffet,
@@ -65,6 +67,11 @@ import {
   RefreshCw,
   Upload,
 } from 'lucide-react';
+
+/** Un échec IJSS dit ce qui n'a pas été fait, et pourquoi, en clair (jamais le message d'axios). */
+function echecIjss(titre: string, e: unknown) {
+  return { variant: 'destructive' as const, title: titre, description: getUserErrorMessage(e) };
+}
 
 const MONTHS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -88,7 +95,7 @@ function Kpi({
   tone,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   icon: typeof CheckCircle2;
   tone?: 'ok' | 'warn' | 'muted';
 }) {
@@ -139,7 +146,7 @@ function DetailPanel({
       onJustified();
       onClose();
     },
-    onError: (e: Error) => toast({ variant: 'destructive', title: e.message }),
+    onError: (e: unknown) => toast(echecIjss('Écart non justifié', e)),
   });
   const validateMut = useMutation({
     mutationFn: () => {
@@ -150,7 +157,7 @@ function DetailPanel({
       toast({ title: 'Montant brut validé' });
       onValidated();
     },
-    onError: (e: Error) => toast({ variant: 'destructive', title: e.message }),
+    onError: (e: unknown) => toast(echecIjss('Montant brut non validé', e)),
   });
   const applyMut = useMutation({
     mutationFn: () => applyIjssToPayslip(row!.expected_line_id!),
@@ -158,7 +165,7 @@ function DetailPanel({
       toast({ title: 'Montant appliqué sur le bulletin' });
       onUpdated();
     },
-    onError: (e: Error) => toast({ variant: 'destructive', title: e.message }),
+    onError: (e: unknown) => toast(echecIjss('Montant non appliqué sur le bulletin', e)),
   });
 
   if (!row) return null;
@@ -307,7 +314,7 @@ export default function SuiviIJSSPage() {
       toast({ title: `${res.synced_count} bulletin(s) synchronisé(s)` });
       invalidate();
     },
-    onError: (e: Error) => toast({ variant: 'destructive', title: e.message }),
+    onError: (e: unknown) => toast(echecIjss('Synchronisation des bulletins impossible', e)),
   });
 
   const cpamSyncMut = useMutation({
@@ -324,6 +331,7 @@ export default function SuiviIJSSPage() {
       }
       invalidate();
     },
+    onError: (e: unknown) => toast(echecIjss('Synchronisation Net-Entreprises impossible', e)),
   });
 
   const closeMut = useMutation({
@@ -332,7 +340,7 @@ export default function SuiviIJSSPage() {
       toast({ title: 'Période clôturée' });
       invalidate();
     },
-    onError: (e: Error) => toast({ variant: 'destructive', title: e.message }),
+    onError: (e: unknown) => toast(echecIjss('Clôture du mois impossible', e)),
   });
 
   const importMut = useMutation({
@@ -351,7 +359,7 @@ export default function SuiviIJSSPage() {
       });
       invalidate();
     },
-    onError: (e: Error) => toast({ variant: 'destructive', title: e.message }),
+    onError: (e: unknown) => toast(echecIjss('Import non enregistré', e)),
   });
 
   const exportMut = useMutation({
@@ -359,6 +367,7 @@ export default function SuiviIJSSPage() {
     onSuccess: (blob) => {
       downloadBlob(blob, `suivi_ijss_${year}_${String(month).padStart(2, '0')}.xlsx`);
     },
+    onError: (e: unknown) => toast(echecIjss('Export du suivi IJSS impossible', e)),
   });
 
   const applyAllMut = useMutation({
@@ -367,13 +376,15 @@ export default function SuiviIJSSPage() {
       toast({ title: `${res.applied_count ?? 0} bulletin(s) mis à jour` });
       invalidate();
     },
-    onError: (e: Error) => toast({ variant: 'destructive', title: e.message }),
+    onError: (e: unknown) => toast(echecIjss('Application des montants validés impossible', e)),
   });
 
   const rows = dashboardQuery.data?.rows ?? [];
   const unmatchedReceived = dashboardQuery.data?.unmatched_received ?? [];
   const summary = dashboardQuery.data?.summary ?? { ok: 0, variance: 0, pending: 0 };
   const periodClosed = dashboardQuery.data?.period?.status === 'closed';
+  /** Lecture du mois en échec : ne jamais afficher « aucune ligne » ni des compteurs à 0. */
+  const lectureEnEchec = dashboardQuery.isError && !dashboardQuery.data;
 
   const yearOptions = useMemo(
     () => [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1],
@@ -507,9 +518,9 @@ export default function SuiviIJSSPage() {
       <PageFetchIndicator isFetching={dashboardQuery.isFetching && !dashboardQuery.isLoading} />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Kpi label="Arrêts OK" value={summary.ok} icon={CheckCircle2} tone="ok" />
-        <Kpi label="Écarts à traiter" value={summary.variance} icon={AlertCircle} tone="warn" />
-        <Kpi label="En attente CPAM" value={summary.pending} icon={Clock} />
+        <Kpi label="Arrêts OK" value={lectureEnEchec ? '—' : summary.ok} icon={CheckCircle2} tone="ok" />
+        <Kpi label="Écarts à traiter" value={lectureEnEchec ? '—' : summary.variance} icon={AlertCircle} tone="warn" />
+        <Kpi label="En attente CPAM" value={lectureEnEchec ? '—' : summary.pending} icon={Clock} />
       </div>
 
       <Card>
@@ -526,6 +537,13 @@ export default function SuiviIJSSPage() {
         <CardContent>
           {dashboardQuery.isLoading ? (
             <TableSkeleton rows={6} columns={6} />
+          ) : lectureEnEchec ? (
+            <ControleIndisponible
+              titre="Le suivi IJSS de ce mois n'a pas pu être lu"
+              description={getUserErrorMessage(dashboardQuery.error)}
+              onRetry={() => void dashboardQuery.refetch()}
+              isRetrying={dashboardQuery.isFetching}
+            />
           ) : rows.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center">
               Aucune ligne IJSS pour ce mois. Générez les bulletins puis cliquez sur « Sync bulletins ».
