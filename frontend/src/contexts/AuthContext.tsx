@@ -204,12 +204,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       startKeepAlive();
       return me;
     } catch (error) {
-      await logout();
+      // Sans recharger la page : l'écran de connexion doit pouvoir dire pourquoi.
+      await fermerSession({ quitterLaPage: false });
       throw error;
     }
   };
 
-  const logout = async () => {
+  /** Ferme la session ici et côté serveur ; `quitterLaPage` : la page va être rechargée. */
+  const fermerSession = async ({ quitterLaPage }: { quitterLaPage: boolean }) => {
     boot?.resetBoot();
     stopKeepAlive();
 
@@ -225,7 +227,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     delete apiClient.defaults.headers.common['Authorization'];
     // Purge synchrone avant la redirection : la sauvegarde différée du cache
     // n'avait pas le temps de passer et l'ancien cache était restauré.
-    purgePersistedQueryCache({ beforeLeaving: true });
+    purgePersistedQueryCache({ beforeLeaving: quitterLaPage });
+  };
+
+  const logout = async () => {
+    await fermerSession({ quitterLaPage: true });
     window.location.assign('/login');
   };
 

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import apiClient from '@/api/apiClient';
 import { Loader2 } from 'lucide-react';
 import { log } from '@/lib/logger';
+import { messageEchecConnexion } from '@/lib/messageEchecConnexion';
 import { resolvePostLoginPath, safeReturnPath } from '@/lib/routeAccess';
 
 export default function LoginPage() {
@@ -72,7 +73,8 @@ export default function LoginPage() {
         'Connexion échouée',
         err instanceof Error ? err.message : err,
       );
-      setError('Identifiant ou mot de passe incorrect.');
+      // Une erreur distincte par cas : une panne ne dit plus « mot de passe incorrect ».
+      setError(messageEchecConnexion(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -132,7 +134,11 @@ export default function LoginPage() {
                 required
               />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && (
+              <p className="text-sm text-destructive" role="alert">
+                {error}
+              </p>
+            )}
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Se connecter
