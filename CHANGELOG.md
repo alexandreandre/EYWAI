@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+(rien)
+
+## paie-2026-11-04.7 — 4 novembre 2026
+
 ### Les prêts et les avances ne se perdent plus en silence
 - Si une retenue de prêt ou d'avance ne s'enregistre pas, le bulletin le dit par une alerte.
 - Une avance ne peut plus être retenue deux fois au recalcul.
