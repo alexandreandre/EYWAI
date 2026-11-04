@@ -19,17 +19,37 @@ et l'alerte sur la fiche ; c'est la RH qui coche la prévoyance, jamais Martine.
 « Cadre » se lit comme pour l'APEC : statut de paie cadre, sauf si la
 classification de la fiche le déclare non-cadre (forfait jours non-cadre de la
 plasturgie). Un mandataire social n'est pas un salarié de l'accord.
+
+Non-cadres de la plasturgie (IDCC 0292). Accord du 29 octobre 2014 instaurant un
+régime de prévoyance, étendu par arrêté du 17 avril 2015 (JORF 27 mai 2015),
+art. 3 : « L'accord bénéficie aux salariés (y compris ceux en cumul
+emploi-retraite) », hors cadres de l'ANI, « ayant une ancienneté d'au moins
+trois mois dans l'entreprise » ; art. 5 : cotisation de 0,8 % du brut, dont
+« une cotisation patronale minimale de 0,4 % » (Légifrance KALITEXT000030370171,
+ouvert le 04/11/2026). Audit du 03/11/2026 : un CDD non-cadre sans prévoyance
+après ses trois mois. Avant trois mois, la loi n'impose rien : la fiche peut
+l'affilier plus tôt (contrat de l'entreprise), Martine ne l'exige pas.
+L'ancienneté part de la date de reprise si la fiche en porte une, sinon de
+l'embauche ; elle est atteinte dès qu'elle l'est dans le mois du bulletin.
 """
 
 from __future__ import annotations
 
+import calendar
 from dataclasses import dataclass
+from datetime import date
 from typing import Any, Dict, Optional
 
 from app.shared.domain.employment_rules import is_cadre
+from app.shared.seniority_reference import resolve_date_anciennete_prime
 
 CODE_CADRE_SANS_PREVOYANCE = "prevoyance_cadre_absente"
 CODE_CADRE_SANS_LIGNE = "prevoyance_cadre_sans_ligne"
+CODE_PLASTURGIE_SANS_PREVOYANCE = "prevoyance_plasturgie_absente"
+
+IDCC_PLASTURGIE = "0292"
+#: Accord du 29/10/2014, art. 3 : « une ancienneté d'au moins trois mois ».
+MOIS_D_ANCIENNETE_PLASTURGIE = 3
 
 
 @dataclass(frozen=True)
@@ -75,6 +95,21 @@ _CADRE_SANS_LIGNE = PrevoyanceManquante(
 )
 
 
+_PLASTURGIE_SANS_PREVOYANCE = PrevoyanceManquante(
+    code=CODE_PLASTURGIE_SANS_PREVOYANCE,
+    fiche=(
+        "Sans prévoyance après 3 mois d'ancienneté : la convention de la plasturgie "
+        "l'impose (au moins 0,8 % du brut, moitié employeur). Cochez « Adhésion "
+        "prévoyance ». D'ici là, son bulletin ne se génère pas."
+    ),
+    refus=(
+        "Bulletin non généré : {prenom} a 3 mois d'ancienneté, sans prévoyance sur "
+        "sa fiche. La convention de la plasturgie l'impose. Cochez « Adhésion "
+        "prévoyance » sur la fiche, puis relancez."
+    ),
+)
+
+
 def _dict(valeur: Any) -> Dict[str, Any]:
     return valeur if isinstance(valeur, dict) else {}
 
@@ -106,20 +141,84 @@ def _prevoyance(employee: Dict[str, Any]) -> Dict[str, Any]:
     return _dict(_dict(employee.get("specificites_paie")).get("prevoyance"))
 
 
-def prevoyance_manquante(employee: Dict[str, Any]) -> Optional[PrevoyanceManquante]:
-    """La prévoyance que la loi impose et que la fiche n'a pas, ou None."""
-    if not cadre_de_la_prevoyance(employee):
+def _idcc(valeur: Any) -> str:
+    texte = str(valeur or "").strip()
+    return texte.zfill(4) if texte.isdigit() else texte
+
+
+def _stagiaire(employee: Dict[str, Any]) -> bool:
+    return "stage" in str(employee.get("contract_type") or "").lower()
+
+
+def _date(valeur: Any) -> Optional[date]:
+    try:
+        return date.fromisoformat(str(valeur or "")[:10])
+    except ValueError:
         return None
+
+
+def _plus_mois(jour: date, mois: int) -> date:
+    rang = jour.month - 1 + mois
+    annee, mois_cible = jour.year + rang // 12, rang % 12 + 1
+    return date(annee, mois_cible, min(jour.day, calendar.monthrange(annee, mois_cible)[1]))
+
+
+def anciennete_plasturgie_atteinte(employee: Dict[str, Any], fin_du_mois: date) -> bool:
+    """Les trois mois d'ancienneté sont-ils atteints au plus tard le dernier jour du mois ?"""
+    debut = _date(resolve_date_anciennete_prime(employee))
+    if debut is None:
+        return False
+    return _plus_mois(debut, MOIS_D_ANCIENNETE_PLASTURGIE) <= fin_du_mois
+
+
+def prevoyance_manquante(
+    employee: Dict[str, Any],
+    *,
+    idcc: Any = None,
+    fin_du_mois: Optional[date] = None,
+) -> Optional[PrevoyanceManquante]:
+    """La prévoyance que la loi impose et que la fiche n'a pas, ou None.
+
+    `idcc` : la convention du salarié, ou une fonction qui la lit (appelée
+    seulement pour un non-cadre sans prévoyance qui a ses trois mois) ; sans
+    elle, seule la règle des cadres s'applique. `fin_du_mois` : le dernier jour
+    du mois du bulletin, ou du jour où la fiche est lue.
+    """
     prevoyance = _prevoyance(employee)
-    if not prevoyance.get("adhesion"):
-        return _CADRE_SANS_PREVOYANCE
-    lignes = prevoyance.get("lignes_specifiques")
-    if not (isinstance(lignes, list) and lignes):
-        return _CADRE_SANS_LIGNE
+    if cadre_de_la_prevoyance(employee):
+        if not prevoyance.get("adhesion"):
+            return _CADRE_SANS_PREVOYANCE
+        lignes = prevoyance.get("lignes_specifiques")
+        if not (isinstance(lignes, list) and lignes):
+            return _CADRE_SANS_LIGNE
+        return None
+    if (
+        fin_du_mois is not None
+        and not prevoyance.get("adhesion")
+        and not _mandataire(employee)
+        and not _stagiaire(employee)
+        and anciennete_plasturgie_atteinte(employee, fin_du_mois)
+        and _idcc(idcc() if callable(idcc) else idcc) == IDCC_PLASTURGIE
+    ):
+        return _PLASTURGIE_SANS_PREVOYANCE
     return None
 
 
-def alertes_prevoyance_de_la_fiche(employee: Dict[str, Any]) -> list[Dict[str, str]]:
+def idcc_de_la_classification(employee: Dict[str, Any]) -> str:
+    """L'IDCC que la classification de la fiche porte (reprise de la DSN), ou « »."""
+    return _idcc(_dict(employee.get("classification_conventionnelle")).get("idcc"))
+
+
+def alertes_prevoyance_de_la_fiche(
+    employee: Dict[str, Any],
+    *,
+    idcc: Any = None,
+    fin_du_mois: Optional[date] = None,
+) -> list[Dict[str, str]]:
     """Les alertes à montrer sur la fiche : `[{code, message}]`, vide si rien ne manque."""
-    manque = prevoyance_manquante(employee)
+    manque = prevoyance_manquante(employee, idcc=idcc, fin_du_mois=fin_du_mois)
     return [{"code": manque.code, "message": manque.fiche}] if manque else []
+
+
+def dernier_jour_du_mois(annee: int, mois: int) -> date:
+    return date(annee, mois, calendar.monthrange(annee, mois)[1])
