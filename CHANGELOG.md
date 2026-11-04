@@ -5,7 +5,20 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
-(rien)
+### Les prêts et les avances ne se perdent plus en silence
+- Si une retenue de prêt ou d'avance ne s'enregistre pas, le bulletin le dit par une alerte.
+- Une avance ne peut plus être retenue deux fois au recalcul.
+- Un taux ou un barème illisible arrête le calcul au lieu de prendre une valeur par défaut.
+
+### Plus rapide, sans rien changer aux montants
+- Les barèmes ne sont plus relus en entier à chaque bulletin : seulement quand l'un d'eux a changé.
+- Trois index accélèrent l'import DSN, les absences et l'import des pointages.
+- Des appels à des tables qui n'existent pas sont retirés.
+
+### La connexion dit pourquoi elle échoue
+- Compte sans accès actif, trop de tentatives, service indisponible : chaque cas a son message.
+- Un mot de passe faux et un compte inconnu gardent le même message, pour ne pas dire qu'un compte existe.
+- Rien ne change pour une connexion qui réussit.
 
 ## paie-2026-11-04.6 — 4 novembre 2026
 
