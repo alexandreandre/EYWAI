@@ -4,6 +4,7 @@ import { ecartAvecMoisPrecedent, type BulletinPourRevue, type LigneDuMois } from
 import {
   estPretAValider,
   libelleBoutonValider,
+  raisonRienAValider,
   resumeValidationGroupee,
 } from './validationGroupee';
 
@@ -137,5 +138,42 @@ describe('estPretAValider après acquittement', () => {
     expect(
       estPretAValider({ statut: 'success', bulletin: { ...b, alertes_acquittees: [] }, ecart: ecartAvecMoisPrecedent({ ...b, alertes_acquittees: [] }, precedent) })
     ).toBe(false);
+  });
+});
+
+describe('raisonRienAValider — le bouton grisé dit pourquoi', () => {
+  const lignes = (...l: LigneDuMois[]) => l;
+
+  it('pendant le chargement du mois', () => {
+    expect(raisonRienAValider([], true)).toBe('Chargement des bulletins du mois…');
+  });
+
+  it('compte ce qui reste à revoir et à générer', () => {
+    const aRevoir: LigneDuMois = { statut: 'success', bulletin: bulletin(), ecart: { fort: true } };
+    const aGenerer: LigneDuMois = { statut: 'idle' };
+    const enEchec: LigneDuMois = { statut: 'error' };
+    expect(raisonRienAValider(lignes(aRevoir, aRevoir, aGenerer, enEchec), false)).toBe(
+      'Aucun bulletin prêt à valider : 2 à revoir, 2 à générer.',
+    );
+  });
+
+  it('dit quand tout est déjà validé', () => {
+    const valide: LigneDuMois = { statut: 'success', bulletin: bulletin({ status: 'valide' }) };
+    const repris: LigneDuMois = { statut: 'success', bulletin: bulletin({ origine: 'importe' }) };
+    const horsPaie: LigneDuMois = { statut: 'unavailable' };
+    expect(raisonRienAValider(lignes(valide, repris, horsPaie), false)).toBe(
+      'Tous les bulletins du mois sont validés.',
+    );
+  });
+
+  it('sans aucun bulletin attendu ce mois-ci', () => {
+    expect(raisonRienAValider(lignes({ statut: 'unavailable' }), false)).toBe(
+      'Aucun bulletin attendu ce mois-ci.',
+    );
+  });
+
+  it('un seul bulletin à revoir, au singulier', () => {
+    const aRevoir: LigneDuMois = { statut: 'success', bulletin: bulletin({ a_recalculer: true }) };
+    expect(raisonRienAValider(lignes(aRevoir), false)).toBe('Aucun bulletin prêt à valider : 1 à revoir.');
   });
 });

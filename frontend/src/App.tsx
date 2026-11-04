@@ -30,7 +30,8 @@ import { TestEnvBadge } from '@/components/TestEnvBadge';
 import * as Pages from '@/app/lazyPages';
 import { employeeCollaboratorRoutes } from '@/app/employeeRoutes';
 import { isEmployeeOnlyPath } from '@/lib/routeAccess';
-import { isPayrollFocusActive, isPayrollFocusAllowed } from '@/lib/payrollFocus';
+import { etatHorsModePaie, isPayrollFocusActive, isPayrollFocusAllowed } from '@/lib/payrollFocus';
+import { AvisHorsModePaie } from '@/components/AvisHorsModePaie';
 import { BADGEUSE_RH_TERMINAL_PATH } from '@/lib/badgeuseRoutes';
 
 const BadgeuseTerminalGate = lazy(
@@ -129,7 +130,8 @@ function ProtectedRoutes() {
     isPayrollFocusActive(user) &&
     !isPayrollFocusAllowed(location.pathname)
   ) {
-    return <Navigate to="/" replace />;
+    // Jamais muet : l'accueil dit pourquoi on y revient (AvisHorsModePaie).
+    return <Navigate to="/" replace state={etatHorsModePaie(location.pathname)} />;
   }
 
   if (user.role === 'collaborateur') {
@@ -163,6 +165,7 @@ function ProtectedRoutes() {
           )}
           <main className="min-w-0 flex-1 overflow-x-auto overflow-y-auto bg-background p-6 lg:p-8">
             <BackgroundDataIndicator />
+            <AvisHorsModePaie />
             {/* Une page qui plante ne doit jamais laisser un écran blanc : la
                 limite d'erreur montre un message et un bouton pour recharger,
                 et se réarme à chaque changement d'écran (salarié 140, 12/09). */}

@@ -190,7 +190,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = async (session: AuthSessionPayload): Promise<User> => {
-    boot?.resetBoot();
     // Rien de ce qui précède la connexion ne doit suivre le nouvel
     // utilisateur, ni en mémoire ni dans le cache persisté.
     queryClient.clear();
@@ -200,17 +199,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       const me = await fetchCurrentUser();
+      // L'écran de démarrage seulement une fois le profil lu : il remonte toutes
+      // les routes, et l'écran de connexion perdait le message d'un échec de /me.
+      boot?.resetBoot();
       setUser(me);
       startKeepAlive();
       return me;
     } catch (error) {
-      await logout();
+      // Sans recharger la page ni relancer le démarrage : l'écran de connexion,
+      // resté monté, dit pourquoi.
+      await fermerSession({ quitterLaPage: false });
       throw error;
     }
   };
 
-  const logout = async () => {
-    boot?.resetBoot();
+  /** Ferme la session ici et côté serveur ; `quitterLaPage` : la page va être rechargée. */
+  const fermerSession = async ({ quitterLaPage }: { quitterLaPage: boolean }) => {
+    if (quitterLaPage) boot?.resetBoot();
     stopKeepAlive();
 
     try {
@@ -225,7 +230,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     delete apiClient.defaults.headers.common['Authorization'];
     // Purge synchrone avant la redirection : la sauvegarde différée du cache
     // n'avait pas le temps de passer et l'ancien cache était restauré.
-    purgePersistedQueryCache({ beforeLeaving: true });
+    purgePersistedQueryCache({ beforeLeaving: quitterLaPage });
+  };
+
+  const logout = async () => {
+    await fermerSession({ quitterLaPage: true });
     window.location.assign('/login');
   };
 

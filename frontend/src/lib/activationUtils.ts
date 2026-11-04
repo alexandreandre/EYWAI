@@ -60,3 +60,18 @@ export function isPasswordAcceptable(password: string): boolean {
 export function getPasswordStrength(password: string): number {
   return Object.values(getPasswordChecks(password)).filter(Boolean).length;
 }
+
+export const MESSAGE_MOT_DE_PASSE_FAIBLE =
+  'Le mot de passe doit contenir au moins 8 caractères, dont une majuscule, une minuscule et un chiffre.';
+
+/**
+ * Pourquoi « Activer mon compte » est grisé, à écrire sous le bouton ; `null` si
+ * rien n'est encore saisi ou si tout est bon (le bouton ne se grise plus en silence).
+ */
+export function raisonActivationImpossible(password: string, confirmPassword: string): string | null {
+  if (!password && !confirmPassword) return null;
+  if (!isPasswordAcceptable(password)) return MESSAGE_MOT_DE_PASSE_FAIBLE;
+  if (!confirmPassword) return 'Confirmez le mot de passe.';
+  if (password !== confirmPassword) return 'Les deux mots de passe ne sont pas identiques.';
+  return null;
+}

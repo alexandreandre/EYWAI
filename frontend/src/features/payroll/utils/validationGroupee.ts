@@ -55,3 +55,32 @@ export function resumeValidationGroupee(
     })),
   };
 }
+
+/**
+ * Pourquoi « Valider les bulletins prêts » est grisé : le bouton ne disparaît
+ * plus, il dit ce qui manque (revue DA du 03/11, « boutons grisés avec raison »).
+ */
+export function raisonRienAValider(lignes: ReadonlyArray<LigneDuMois>, enChargement: boolean): string {
+  if (enChargement) return 'Chargement des bulletins du mois…';
+  let attendus = 0;
+  let aRevoir = 0;
+  let aGenerer = 0;
+  for (const ligne of lignes) {
+    if (ligne.statut === 'unavailable') continue;
+    attendus += 1;
+    const bulletin = ligne.bulletin;
+    if (ligne.statut !== 'success' || !bulletin) {
+      aGenerer += 1;
+      continue;
+    }
+    if (estBulletinImporte(bulletin) || bulletin.status === 'valide') continue;
+    if (estARevoir(ligne)) aRevoir += 1;
+  }
+  if (attendus === 0) return 'Aucun bulletin attendu ce mois-ci.';
+  const morceaux = [
+    aRevoir > 0 ? `${aRevoir} à revoir` : null,
+    aGenerer > 0 ? `${aGenerer} à générer` : null,
+  ].filter((m): m is string => m !== null);
+  if (morceaux.length === 0) return 'Tous les bulletins du mois sont validés.';
+  return `Aucun bulletin prêt à valider : ${morceaux.join(', ')}.`;
+}

@@ -4,7 +4,9 @@ import {
   PAYROLL_FOCUS_NAV_URLS,
   isPayrollFocusActive,
   isPayrollFocusAllowed,
+  messageHorsModePaie,
   restrictToPayrollFocus,
+  etatHorsModePaie,
 } from './payrollFocus';
 
 describe('PAYROLL_FOCUS_NAV_URLS', () => {
@@ -256,5 +258,20 @@ describe('routes du circuit de validation manager', () => {
     for (const url of ['/planning', '/formation', '/analytics']) {
       expect(isPayrollFocusAllowed(url)).toBe(false);
     }
+  });
+});
+
+describe('renvoi hors du mode paie — jamais muet', () => {
+  it('le renvoi à l’accueil porte la page demandée, et l’accueil le dit', () => {
+    const etat = etatHorsModePaie('/onboarding');
+    expect(messageHorsModePaie(etat)).toBe(
+      'Cette page ne fait pas partie du mode paie. Retour à l’accueil : le menu liste les écrans de la paie.',
+    );
+  });
+
+  it('se tait sans renvoi', () => {
+    expect(messageHorsModePaie(null)).toBeNull();
+    expect(messageHorsModePaie({ from: '/x' })).toBeNull();
+    expect(messageHorsModePaie({ horsModePaie: 42 })).toBeNull();
   });
 });

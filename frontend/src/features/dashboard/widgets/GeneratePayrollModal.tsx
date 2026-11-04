@@ -448,6 +448,11 @@ export function GeneratePayrollModal({
                   Le bouton Générer sera disponible une fois au moins une fiche complète.
                 </p>
               )}
+              {eligibleEmployees.length > 0 && selectedEmployees.size === 0 && (
+                <p className="text-center text-xs text-muted-foreground">
+                  Cochez au moins un collaborateur pour générer ses bulletins.
+                </p>
+              )}
               <div className="flex justify-end gap-2">
                 <Button variant="ghost" onClick={handleClose}>
                   Annuler
