@@ -197,6 +197,40 @@ def lister_signalements(
         )
 
 
+@router.get("/dsn-signalements/apercu")
+def apercu_signalement(
+    employee_id: str,
+    nature: str,
+    debut: str,
+    essai: bool = False,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    """Le fichier d'un signalement à faire, lu en clair avant tout dépôt.
+
+    Lecture seule : rien n'est rangé, inscrit à l'historique ni déposé.
+    """
+    try:
+        _require_exports_company_access(current_user, company_id)
+        return signalements_service.apercu(
+            company_id,
+            employee_id=employee_id,
+            nature=nature,
+            debut=debut,
+            essai=essai,
+        )
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except Exception:
+        logger.exception("Échec de apercu_signalement")
+        raise HTTPException(
+            status_code=500,
+            detail="L'aperçu n'a pas pu être construit : réessayez.",
+        )
+
+
 @router.post("/dsn-signalements")
 def generer_signalement(
     request: SignalementRequest,

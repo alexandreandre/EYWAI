@@ -1,13 +1,15 @@
 // Signalements DSN d'arrêt et de reprise anticipée : la liste à déposer, avec la
 // date limite, et la génération du fichier à déposer sur net-entreprises.
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileWarning } from "lucide-react";
+import { Eye, FileWarning } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { genererSignalement, listerSignalements, type SignalementLigne } from "@/api/exports";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { echeance, libelleFait, libelleSignalement } from "./signalementsArret";
+import { SignalementApercuDialog } from "./SignalementApercuDialog";
 
 function detailErreur(err: unknown): string {
   const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
@@ -20,6 +22,8 @@ export function SignalementsArretCard() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const cle = ["dsn-signalements", companyId];
+  // Aperçu en lecture seule : la ligne dont on montre le fichier, sinon null.
+  const [apercu, setApercu] = useState<SignalementLigne | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: cle,
@@ -90,7 +94,16 @@ export function SignalementsArretCard() {
                   <p className="text-sm text-amber-700 dark:text-amber-400">À vérifier : {ligne.a_verifier}</p>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={enAttente}
+                  onClick={() => setApercu(ligne)}
+                >
+                  <Eye className="mr-1 h-4 w-4" />
+                  Aperçu
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"
@@ -121,6 +134,7 @@ export function SignalementsArretCard() {
           </div>
         )}
       </CardContent>
+      <SignalementApercuDialog ligne={apercu} onClose={() => setApercu(null)} />
     </Card>
   );
 }

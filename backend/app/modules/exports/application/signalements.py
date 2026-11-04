@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.core.database import supabase
 from app.modules.dsn_export.application.signalement_builder import construire_signalement
-from app.modules.dsn_export.domain import etat_conformite
+from app.modules.dsn_export.domain import apercu_signalement, etat_conformite
 from app.modules.dsn_export.domain.evenements import MOTIF_ARRET
 from app.modules.dsn_export.domain.fctu import (
     FinASignaler,
@@ -239,22 +239,13 @@ def _fichier(company_id: str, s: SignalementAFaire, essai: bool) -> str:
     )
 
 
-def generer(
-    company_id: str,
-    user_id: str,
-    *,
-    employee_id: str,
-    nature: str,
-    debut: str,
-    essai: bool,
-    aujourd_hui: Optional[date] = None,
-) -> Dict[str, Any]:
-    """Génère, range et historise le fichier d'un signalement encore à faire."""
-    jour = aujourd_hui or date.today()
-    if not essai and not etat_conformite.SIGNALEMENTS_DEPOSABLES:
-        raise ValueError(etat_conformite.RAISON_SIGNALEMENTS)
+def _construire(
+    company_id: str, *, employee_id: str, nature: str, debut: str, essai: bool, jour: date
+) -> Tuple[str, date, Dict[str, Any]]:
+    """Le texte du fichier d'un signalement encore à faire, sa date limite et ses
+    paramètres d'historique. Lecture seule : rien n'est rangé ni inscrit."""
     if nature == NATURE_FCTU:
-        return _generer_fin(company_id, user_id, employee_id=employee_id, fin=debut, essai=essai, jour=jour)
+        return _construire_fin(company_id, employee_id=employee_id, fin=debut, essai=essai, jour=jour)
     s = next(
         (
             x for x in _a_faire(company_id, jour)
@@ -264,13 +255,10 @@ def generer(
     )
     if s is None:
         raise ValueError("Ce signalement n'est plus à faire : rechargez la liste.")
-    return _ranger(
-        company_id,
-        user_id,
-        _fichier(company_id, s, essai).encode("iso-8859-15"),
-        essai=essai,
-        a_deposer_avant=s.a_deposer_avant,
-        parametres={
+    return (
+        _fichier(company_id, s, essai),
+        s.a_deposer_avant,
+        {
             "employee_id": s.employee_id,
             "nature": s.nature,
             "motif": s.motif,
@@ -283,9 +271,9 @@ def generer(
     )
 
 
-def _generer_fin(
-    company_id: str, user_id: str, *, employee_id: str, fin: str, essai: bool, jour: date
-) -> Dict[str, Any]:
+def _construire_fin(
+    company_id: str, *, employee_id: str, fin: str, essai: bool, jour: date
+) -> Tuple[str, date, Dict[str, Any]]:
     """La fin de contrat : la DSN du mois de sortie du salarié, passée en nature 07."""
     f = next(
         (x for x in _fins(company_id, jour) if x.employee_id == employee_id and x.fin.isoformat() == fin),
@@ -312,13 +300,10 @@ def _generer_fin(
     texte = fctu_depuis_mensuelle(
         mensuelle.decode("iso-8859-15"), mois_solde=f.fin, preavis=bloc_preavis(sortie)
     )
-    return _ranger(
-        company_id,
-        user_id,
-        texte.encode("iso-8859-15"),
-        essai=essai,
-        a_deposer_avant=f.a_deposer_avant,
-        parametres={
+    return (
+        texte,
+        f.a_deposer_avant,
+        {
             "employee_id": employee_id,
             "nature": NATURE_FCTU,
             "motif": "",
@@ -329,6 +314,59 @@ def _generer_fin(
             "essai": essai,
         },
     )
+
+
+def generer(
+    company_id: str,
+    user_id: str,
+    *,
+    employee_id: str,
+    nature: str,
+    debut: str,
+    essai: bool,
+    aujourd_hui: Optional[date] = None,
+) -> Dict[str, Any]:
+    """Génère, range et historise le fichier d'un signalement encore à faire."""
+    jour = aujourd_hui or date.today()
+    if not essai and not etat_conformite.SIGNALEMENTS_DEPOSABLES:
+        raise ValueError(etat_conformite.RAISON_SIGNALEMENTS)
+    texte, a_deposer_avant, parametres = _construire(
+        company_id, employee_id=employee_id, nature=nature, debut=debut, essai=essai, jour=jour
+    )
+    return _ranger(
+        company_id,
+        user_id,
+        texte.encode("iso-8859-15"),
+        essai=essai,
+        a_deposer_avant=a_deposer_avant,
+        parametres=parametres,
+    )
+
+
+def apercu(
+    company_id: str,
+    *,
+    employee_id: str,
+    nature: str,
+    debut: str,
+    essai: bool = False,
+    aujourd_hui: Optional[date] = None,
+) -> Dict[str, Any]:
+    """Le fichier qui serait généré, montré en clair avant tout dépôt.
+
+    Il se construit comme à la génération, mais rien n'est rangé, inscrit à
+    l'historique ni compté : le signalement reste à faire.
+    """
+    jour = aujourd_hui or date.today()
+    texte, a_deposer_avant, _ = _construire(
+        company_id, employee_id=employee_id, nature=nature, debut=debut, essai=essai, jour=jour
+    )
+    # Le fichier doit pouvoir partir tel quel : même encodage qu'à la génération.
+    texte.encode("iso-8859-15")
+    return {
+        **apercu_signalement.apercu(texte, nature=nature, essai=essai),
+        "a_deposer_avant": a_deposer_avant.isoformat(),
+    }
 
 
 def _ranger(

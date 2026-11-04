@@ -241,6 +241,55 @@ export async function genererSignalement(body: {
   return response.data;
 }
 
+/** Partie de l'aperçu où se range un bloc du fichier. */
+export type SignalementApercuPartie =
+  | "envoi"
+  | "declarant"
+  | "entreprise"
+  | "salarie"
+  | "contrat"
+  | "evenement"
+  | "remuneration"
+  | "autre";
+
+export interface SignalementApercuRubrique {
+  /** Rubrique du cahier technique, ex. « S21.G00.60.001 ». */
+  code: string;
+  libelle: string;
+  valeur: string;
+  /** Sens du code quand la valeur en est un (motif d'arrêt, de rupture…). */
+  traduction: string | null;
+}
+
+export interface SignalementApercuBloc {
+  /** Bloc du cahier technique, ex. « S21.G00.60 ». */
+  code: string;
+  libelle: string;
+  partie: SignalementApercuPartie;
+  rubriques: SignalementApercuRubrique[];
+}
+
+/** Aperçu d'un signalement avant tout envoi : rien n'est écrit ni déposé. */
+export interface SignalementApercu {
+  nature: string;
+  libelle_nature: string;
+  essai: boolean;
+  nir_masque: boolean;
+  blocs: SignalementApercuBloc[];
+  /** Texte du fichier tel qu'il serait déposé (NIR masqué). */
+  brut: string;
+}
+
+/** Lecture seule : le fichier est construit pour être lu, jamais enregistré. */
+export async function apercuSignalement(params: {
+  employee_id: string;
+  nature: string;
+  debut: string;
+}): Promise<SignalementApercu> {
+  const response = await apiClient.get('/api/exports/dsn-signalements/apercu', { params });
+  return response.data;
+}
+
 export async function marquerDsnHorsMartine(period: string, note?: string): Promise<void> {
   await apiClient.post('/api/exports/dsn-hors-martine', { period, note: note ?? null });
 }
