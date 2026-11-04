@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getNetEntreprisesConfig,
   updateNetEntreprisesConfig,
-  testNetEntreprisesConnection,
   getAdminNetEntreprisesConfig,
   updateAdminNetEntreprisesConfig,
   type NetEntreprisesConfig,
@@ -34,29 +33,15 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, Circle, ExternalLink, ShieldCheck } from 'lucide-react';
 import NetEntreprisesLogo from './NetEntreprisesLogo';
+import { optionModeDepot, optionsModeDepot } from '../utils/modesDepot';
 
 const NET_ENTREPRISES_URL = 'https://www.net-entreprises.fr';
 const NET_ENTREPRISES_DSN_URL =
   'https://www.net-entreprises.fr/declaration/dsn-tableau-de-bord/';
 
-const MODE_OPTIONS: { value: TransmissionMode; label: string; hint: string }[] = [
-  {
-    value: 'manual',
-    label: 'Dépôt manuel',
-    hint: 'Le fichier DSN est généré puis déposé à la main sur net-entreprises.fr.',
-  },
-  {
-    value: 'api_certificat',
-    label: 'API — certificat',
-    hint: 'Envoi automatique via certificat électronique (à activer une fois branché).',
-  },
-  {
-    value: 'api_declarant',
-    label: 'API — déclarant',
-    hint: 'Envoi automatique via identifiants déclarant (à activer une fois branché).',
-  },
-];
-
+// L'envoi direct par l'API n'est pas branché : la carte ne demande ni secret ni
+// mot de passe, et ne propose pas de « tester la connexion ». Les champs de
+// l'ancien mode certificat restent en base, intacts (ils ne sont plus envoyés).
 type FormState = {
   enabled: boolean;
   mode: TransmissionMode;
@@ -64,9 +49,6 @@ type FormState = {
   raison_sociale_declarant: string;
   identifiant: string;
   contact_email: string;
-  certificat_label: string;
-  certificat_expires_at: string;
-  secret: string;
 };
 
 function configToForm(c: NetEntreprisesConfig): FormState {
@@ -77,27 +59,18 @@ function configToForm(c: NetEntreprisesConfig): FormState {
     raison_sociale_declarant: c.raison_sociale_declarant ?? '',
     identifiant: c.identifiant ?? '',
     contact_email: c.contact_email ?? '',
-    certificat_label: c.certificat_label ?? '',
-    certificat_expires_at: c.certificat_expires_at ?? '',
-    secret: '',
   };
 }
 
 function formToPayload(form: FormState): NetEntreprisesConfigUpdate {
-  const payload: NetEntreprisesConfigUpdate = {
+  return {
     enabled: form.enabled,
     mode: form.mode,
     siret_declarant: form.siret_declarant.trim() || null,
     raison_sociale_declarant: form.raison_sociale_declarant.trim() || null,
     identifiant: form.identifiant.trim() || null,
     contact_email: form.contact_email.trim() || null,
-    certificat_label: form.certificat_label.trim() || null,
-    certificat_expires_at: form.certificat_expires_at.trim() || null,
   };
-  if (form.secret.trim()) {
-    payload.secret = form.secret.trim();
-  }
-  return payload;
 }
 
 function StateBadge({ state }: { state: NetEntreprisesConfig['connection_state'] }) {
@@ -174,31 +147,11 @@ export function NetEntreprisesConfigCard({
     },
   });
 
-  const testMutation = useMutation({
-    mutationFn: testNetEntreprisesConnection,
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey });
-      toast({
-        title: res.success ? 'Connexion OK' : 'Connexion non disponible',
-        description: res.message,
-        variant: res.success ? 'default' : 'destructive',
-      });
-    },
-    onError: (e: unknown) => {
-      const err = e as { response?: { data?: { detail?: string } } };
-      toast({
-        title: 'Erreur',
-        description: err.response?.data?.detail ?? 'Test impossible.',
-        variant: 'destructive',
-      });
-    },
-  });
-
   if (isError) {
     return (
       <Card className="border-destructive/40">
         <CardHeader>
-          <CardTitle>Télétransmission Net-entreprises</CardTitle>
+          <CardTitle>Dépôt de la DSN — Net-entreprises</CardTitle>
           <CardDescription className="text-destructive">
             Chargement de la configuration impossible.
           </CardDescription>
@@ -222,7 +175,8 @@ export function NetEntreprisesConfigCard({
     );
   }
 
-  const isApiMode = form.mode === 'api_certificat' || form.mode === 'api_declarant';
+  const modeOptions = optionsModeDepot(form.mode);
+  const modeActuel = optionModeDepot(form.mode);
   const disabled = readOnly || saveMutation.isPending;
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -235,11 +189,12 @@ export function NetEntreprisesConfigCard({
           <div className="space-y-1">
             <CardTitle className="flex items-center gap-2 text-base">
               <ShieldCheck className="h-5 w-5 text-primary" />
-              Télétransmission DSN — Net-entreprises
+              Dépôt de la DSN — Net-entreprises
             </CardTitle>
             <CardDescription>
-              Renseignez les informations de connexion de l'entreprise. Tant que la
-              connexion API n'est pas activée, la DSN reste à déposer manuellement.
+              Renseignez le déclarant de l'entreprise. Martine prépare le fichier DSN ; le
+              déclarant le dépose lui-même sur net-entreprises.fr, avec son compte. L'envoi
+              direct depuis Martine n'est pas encore disponible.
             </CardDescription>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -252,16 +207,13 @@ export function NetEntreprisesConfigCard({
       <CardContent className="space-y-6">
         {/* Onboarding */}
         <div className="rounded-lg border bg-muted/30 p-4">
-          <p className="mb-2 text-sm font-medium">Activer la télétransmission en 3 étapes</p>
+          <p className="mb-2 text-sm font-medium">Préparer le dépôt en 2 étapes</p>
           <ul className="space-y-1.5">
             <OnboardingStep done={Boolean(form.siret_declarant && form.raison_sociale_declarant)}>
               Renseigner le SIRET et la raison sociale du déclarant
             </OnboardingStep>
-            <OnboardingStep done={data.has_secret || Boolean(form.identifiant)}>
-              Ajouter l'identifiant / certificat Net-entreprises
-            </OnboardingStep>
-            <OnboardingStep done={data.connection_state === 'connected'}>
-              Activer le mode API et tester la connexion
+            <OnboardingStep done={Boolean(form.identifiant.trim())}>
+              Renseigner l'identifiant Net-entreprises du déclarant
             </OnboardingStep>
           </ul>
           <div className="mt-3 flex flex-wrap gap-3">
@@ -297,23 +249,22 @@ export function NetEntreprisesConfigCard({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {MODE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
+                {modeOptions.map((o) => (
+                  <SelectItem key={o.value} value={o.value} disabled={!o.selectionnable}>
                     {o.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              {MODE_OPTIONS.find((o) => o.value === form.mode)?.hint}
-            </p>
+            <p className="text-xs text-muted-foreground">{modeActuel.hint}</p>
           </div>
 
           <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
             <div>
-              <Label htmlFor="ne-enabled">Activer la télétransmission</Label>
+              <Label htmlFor="ne-enabled">Configuration active</Label>
               <p className="text-sm text-muted-foreground">
-                En mode API, autorise l'envoi automatique (sinon dépôt manuel).
+                Le déclarant est prêt à déposer. Rien ne part automatiquement : la DSN se
+                dépose à la main sur net-entreprises.fr.
               </p>
             </div>
             <Switch
@@ -370,68 +321,11 @@ export function NetEntreprisesConfigCard({
           </div>
         </div>
 
-        {/* Bloc API (certificat / secret) */}
-        {isApiMode && (
-          <div className="grid gap-4 rounded-lg border border-dashed p-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="ne-cert-label">Libellé du certificat</Label>
-              <Input
-                id="ne-cert-label"
-                value={form.certificat_label}
-                onChange={(e) => set('certificat_label', e.target.value)}
-                disabled={disabled}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="ne-cert-exp">Échéance du certificat</Label>
-              <Input
-                id="ne-cert-exp"
-                type="date"
-                value={form.certificat_expires_at}
-                onChange={(e) => set('certificat_expires_at', e.target.value)}
-                disabled={disabled}
-              />
-            </div>
-            <div className="grid gap-2 md:col-span-2">
-              <Label htmlFor="ne-secret">
-                Secret / mot de passe {data.has_secret && '(déjà enregistré)'}
-              </Label>
-              <Input
-                id="ne-secret"
-                type="password"
-                value={form.secret}
-                onChange={(e) => set('secret', e.target.value)}
-                placeholder={data.has_secret ? '•••••••• (laisser vide pour conserver)' : ''}
-                autoComplete="new-password"
-                disabled={disabled}
-              />
-              <p className="text-xs text-muted-foreground">
-                Le secret est stocké côté serveur et n'est jamais réaffiché.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {data.last_test_message && (
-          <p className="text-xs text-muted-foreground">
-            Dernier test : {data.last_test_status} — {data.last_test_message}
-          </p>
-        )}
-
         {!readOnly && (
           <div className="flex flex-wrap items-center gap-3">
             <Button onClick={() => form && saveMutation.mutate(formToPayload(form))} disabled={disabled}>
               {saveMutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
             </Button>
-            {!isAdmin && (
-              <Button
-                variant="outline"
-                onClick={() => testMutation.mutate()}
-                disabled={testMutation.isPending}
-              >
-                {testMutation.isPending ? 'Test en cours…' : 'Tester la connexion'}
-              </Button>
-            )}
           </div>
         )}
       </CardContent>
