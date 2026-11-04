@@ -729,7 +729,8 @@ describe('DSN « faite » seulement une fois déposée (audit R1, geste 8)', () 
     const e = declarations(OK([transmission('manual')]));
     expect(e.etat).toBe('a_faire');
     expect(e.detail).toBe(
-      'La DSN est générée mais pas encore marquée déposée : déposez-la sur net-entreprises, puis cliquez « Marquer déposée ».',
+      'La DSN est générée mais pas encore marquée déposée : déposez-la sur net-entreprises, puis cliquez « Marquer déposée ». ' +
+        'Déjà déposée ailleurs : « Marquer faite : DSN déposée hors de Martine ».',
     );
     const resultat = listeControleDuMois(entree({ exportsDuMois: OK([DSN, COMPTA]), transmissionsDuMois: OK([transmission('manual')]) }));
     expect(resultat.actions.find((a) => a.id === ETAPE_DECLARATIONS)?.href).toBe('/exports?tab=declarations&month=2026-09');
@@ -748,10 +749,24 @@ describe('DSN « faite » seulement une fois déposée (audit R1, geste 8)', () 
     );
   });
 
-  it('la dernière transmission compte ; les signalements ne comptent pas', () => {
+  it('régénérée après un dépôt : à confirmer, sans pousser à un second dépôt ; les signalements ne comptent pas', () => {
     const e = declarations(
       OK([
-        transmission('acknowledged', { created_at: '2026-10-05T08:00:00Z' }),
+        transmission('acknowledged', { created_at: '2026-10-05T08:00:00Z', acknowledged_at: '2026-10-05T09:00:00Z' }),
+        transmission('manual', { created_at: '2026-10-07T08:00:00Z' }),
+        transmission('acknowledged', { created_at: '2026-10-08T08:00:00Z', dsn_type: 'signalement_arret' }),
+      ]),
+    );
+    expect(e.etat).toBe('a_confirmer');
+    expect(e.detail).toBe(
+      'Une DSN de ce mois a été déposée le 05/10/2026 ; la dernière générée ne l’est pas. ' +
+        'Si elle remplace la première, déposez-la puis cliquez « Marquer déposée » ; sinon, rien à faire.',
+    );
+  });
+
+  it('un signalement déposé ne vaut pas DSN mensuelle déposée', () => {
+    const e = declarations(
+      OK([
         transmission('manual', { created_at: '2026-10-07T08:00:00Z' }),
         transmission('acknowledged', { created_at: '2026-10-08T08:00:00Z', dsn_type: 'signalement_arret' }),
       ]),
