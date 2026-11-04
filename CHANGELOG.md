@@ -5,6 +5,18 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Moins de code inutile
+- Rien ne change à l'écran ni dans les bulletins.
+- 36 fichiers et 101 fonctions qui ne servaient plus sont retirés, avec 19 bibliothèques.
+- Moins de code à vérifier, et trois failles connues de bibliothèques disparaissent avec elles.
+
+### La base de paie fermée aux accès directs
+- Rien ne change à l'écran ni dans les bulletins.
+- Les tables de la paie ne s'ouvrent plus qu'au serveur de Martine, plus à un accès public.
+- Une fonction qui permettait d'exécuter n'importe quelle requête est supprimée.
+
+## paie-2026-11-04.3 — 4 novembre 2026
+
 ### « Groupe C » ne s'invente plus
 - La classification d'un salarié n'est plus remplie d'office, ni à la création ni à la modification de la fiche.
 - Sous une convention à coefficient seul (plasturgie), la fiche affiche « Coeff. 700 », sans groupe ni classe.
