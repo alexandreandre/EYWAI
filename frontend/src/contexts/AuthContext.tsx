@@ -190,7 +190,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = async (session: AuthSessionPayload): Promise<User> => {
-    boot?.resetBoot();
     // Rien de ce qui précède la connexion ne doit suivre le nouvel
     // utilisateur, ni en mémoire ni dans le cache persisté.
     queryClient.clear();
@@ -200,11 +199,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       const me = await fetchCurrentUser();
+      // L'écran de démarrage seulement une fois le profil lu : il remonte toutes
+      // les routes, et l'écran de connexion perdait le message d'un échec de /me.
+      boot?.resetBoot();
       setUser(me);
       startKeepAlive();
       return me;
     } catch (error) {
-      // Sans recharger la page : l'écran de connexion doit pouvoir dire pourquoi.
+      // Sans recharger la page ni relancer le démarrage : l'écran de connexion,
+      // resté monté, dit pourquoi.
       await fermerSession({ quitterLaPage: false });
       throw error;
     }
@@ -212,7 +215,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   /** Ferme la session ici et côté serveur ; `quitterLaPage` : la page va être rechargée. */
   const fermerSession = async ({ quitterLaPage }: { quitterLaPage: boolean }) => {
-    boot?.resetBoot();
+    if (quitterLaPage) boot?.resetBoot();
     stopKeepAlive();
 
     try {

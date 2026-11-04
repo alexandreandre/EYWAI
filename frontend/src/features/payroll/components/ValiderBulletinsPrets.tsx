@@ -115,12 +115,14 @@ export function ValiderBulletinsPrets({
 
   const rienAValider = idsPrets.length === 0 && !enCours;
   // Le bouton ne disparaît plus : grisé, il dit pourquoi (jamais d'état silencieux).
+  // Pendant un calcul, la raison est le calcul (les lignes en cours compteraient
+  // sinon comme « à générer »).
   const raison = enCours
     ? null
-    : rienAValider
-      ? (raisonRienAValider ?? 'Aucun bulletin prêt à valider.')
-      : disabled
-        ? raisonDesactive
+    : disabled && raisonDesactive
+      ? raisonDesactive
+      : rienAValider
+        ? (raisonRienAValider ?? 'Aucun bulletin prêt à valider.')
         : null;
 
   const valider = async () => {
