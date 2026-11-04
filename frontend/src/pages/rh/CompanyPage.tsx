@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -28,12 +28,8 @@ import {
   CompanyComplianceBand,
   CompanyOverviewAlerts,
   CompanyRhStatsBand,
-  CompanyPilotageSection,
   CompanyIdentityTab,
-  CompanyPayrollTab,
   CompanyGroupPositionBand,
-  MutuelleManagementTab,
-  DocumentLibraryTab,
   useCompanyPeriod,
   computePeriodPayroll,
 } from "@/features/company";
@@ -49,6 +45,18 @@ import {
   type CompanyPageTab,
 } from "@/features/company/lib/companyPageTabs";
 import { estRoleRh } from '@/lib/rolesRh';
+
+// Les onglets lourds (graphiques, une trentaine de cartes de réglages) se
+// chargent à leur ouverture : l'onglet par défaut est « Fiche » (audit R2).
+const CompanyPilotageSection = lazy(() =>
+  import("@/features/company/components/CompanyPilotageSection").then((m) => ({ default: m.CompanyPilotageSection }))
+);
+const CompanyPayrollTab = lazy(() =>
+  import("@/features/company/components/CompanyPayrollTab").then((m) => ({ default: m.CompanyPayrollTab }))
+);
+const MutuelleManagementTab = lazy(() => import("@/features/company/components/MutuelleManagementTab"));
+const DocumentLibraryTab = lazy(() => import("@/features/company/components/DocumentLibraryTab"));
+const chargementOnglet = <Chargement label="Chargement de l’onglet…" />;
 
 function trimOrNull(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
@@ -332,12 +340,14 @@ export default function CompanyPage() {
         ) : null}
 
         <TabsContent value="indicateurs" className="space-y-4 mt-0">
-          <CompanyPilotageSection
-            kpis={kpis}
-            period={period}
-            onPeriodChange={setPeriod}
-            periodLabel={periodBounds.label}
-          />
+          <Suspense fallback={chargementOnglet}>
+            <CompanyPilotageSection
+              kpis={kpis}
+              period={period}
+              onPeriodChange={setPeriod}
+              periodLabel={periodBounds.label}
+            />
+          </Suspense>
           {overview && payrollPeriod ? (
             <CompanyRhStatsBand
               overview={overview}
@@ -378,24 +388,30 @@ export default function CompanyPage() {
         </TabsContent>
 
         <TabsContent value="paie" className="mt-0">
-          <CompanyPayrollTab
-            company={company}
-            scrollAnchor={payrollScrollAnchor}
-            cseObligation={overview?.compliance.cse_obligation}
-            dsnCoverage={overview?.dsn_coverage ?? null}
-            canEditDsn={canEdit}
-            canEditPayrollParams={canEdit}
-            onDsnUpdated={() => void overviewQuery.refetch()}
-            onPayrollParamsUpdated={() => void detailsQuery.refetch()}
-          />
+          <Suspense fallback={chargementOnglet}>
+            <CompanyPayrollTab
+              company={company}
+              scrollAnchor={payrollScrollAnchor}
+              cseObligation={overview?.compliance.cse_obligation}
+              dsnCoverage={overview?.dsn_coverage ?? null}
+              canEditDsn={canEdit}
+              canEditPayrollParams={canEdit}
+              onDsnUpdated={() => void overviewQuery.refetch()}
+              onPayrollParamsUpdated={() => void detailsQuery.refetch()}
+            />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="mutuelle" className="mt-0">
-          <MutuelleManagementTab />
+          <Suspense fallback={chargementOnglet}>
+            <MutuelleManagementTab />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="modeles" className="mt-0">
-          <DocumentLibraryTab />
+          <Suspense fallback={chargementOnglet}>
+            <DocumentLibraryTab />
+          </Suspense>
         </TabsContent>
       </Tabs>
     </div>
