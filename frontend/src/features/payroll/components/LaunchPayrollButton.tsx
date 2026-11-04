@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { etatPourModeGroupe } from '@/features/payroll/utils/retourModeGroupe';
 import { RefreshCw, Rocket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { titreBoutonLancerLaPaie } from '@/features/payroll/lib/controleAvantPaie';
 import { useCanLaunchPayroll } from '@/features/payroll/hooks/useCanLaunchPayroll';
@@ -49,7 +50,8 @@ export function LaunchPayrollButton({
     );
   }
 
-  return (
+  const titre = pipelineLoading ? titreBoutonLancerLaPaie('verification') : titreBoutonLancerLaPaie(etat);
+  const bouton = (
     <Button
       size={size}
       disabled={!showAsReady}
@@ -61,7 +63,7 @@ export function LaunchPayrollButton({
           : 'cursor-not-allowed bg-muted text-muted-foreground hover:bg-muted disabled:opacity-100',
         className,
       )}
-      title={pipelineLoading ? titreBoutonLancerLaPaie('verification') : titreBoutonLancerLaPaie(etat)}
+      title={showAsReady ? titre : undefined}
       asChild={showAsReady}
     >
       {showAsReady ? (
@@ -76,5 +78,18 @@ export function LaunchPayrollButton({
         </>
       )}
     </Button>
+  );
+  if (showAsReady) return bouton;
+  // Grisé, il dit pourquoi : un bouton désactivé ne montre pas son « title »
+  // partout, l'infobulle passe par un conteneur qui reçoit le survol et le focus.
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span tabIndex={0} className={cn('inline-flex', fullWidth && 'w-full')} aria-label={`Lancer la paie : ${titre}`}>
+          {bouton}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">{titre}</TooltipContent>
+    </Tooltip>
   );
 }

@@ -82,7 +82,7 @@ import {
   type VuePaie,
 } from '@/features/payroll/utils/vuePaieUrl';
 import { moisDePaieRetenu, retenirMoisDePaie } from '@/features/payroll/utils/moisDePaie';
-import { estPretAValider } from '@/features/payroll/utils/validationGroupee';
+import { estPretAValider, raisonRienAValider } from '@/features/payroll/utils/validationGroupee';
 import {
   bulletinDuMois,
   bulletinsDuContratPrecedent,
@@ -721,6 +721,20 @@ export default function Payroll() {
     employees.length === 0
       ? loadingEmployees
       : payslipQueries.some((q) => q.isLoading && q.data === undefined);
+  // Le bouton « Valider les bulletins prêts » grisé dit pourquoi.
+  const raisonValidation = useMemo(
+    () =>
+      raisonRienAValider(
+        monthEmployeeStates.map((row) => ({
+          statut: row.state.status,
+          bulletin: row.state.payslip,
+          alertes: row.state.warnings,
+          ecart: row.ecart ? { fort: row.ecart.fort } : null,
+        })),
+        loadingMonthData
+      ),
+    [monthEmployeeStates, loadingMonthData]
+  );
   const error = employeesQuery.error
     ? 'Impossible de charger la liste des collaborateurs. Réessayez.'
     : null;
@@ -1022,6 +1036,8 @@ export default function Payroll() {
                   mois={selectedMonth}
                   idsSortie={idsSortiePrets}
                   disabled={generation.phase === 'running'}
+                  raisonDesactive="Calcul des bulletins en cours : la validation attendra la fin."
+                  raisonRienAValider={raisonValidation}
                   onTermine={() => invaliderApresBulletin(queryClient, companyId, undefined)}
                 />
               }

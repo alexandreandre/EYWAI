@@ -7,6 +7,7 @@ import {
   getPasswordStrength,
   isEmployeeInvitable,
   isPasswordAcceptable,
+  raisonActivationImpossible,
 } from './activationUtils';
 
 describe('isEmployeeInvitable', () => {
@@ -84,5 +85,31 @@ describe('getPasswordStrength', () => {
     expect(getPasswordStrength('abcdefgh')).toBe(2); // + longueur
     expect(getPasswordStrength('Abcdefgh')).toBe(3); // + majuscule
     expect(getPasswordStrength('Abcdefg1')).toBe(4); // + chiffre
+  });
+});
+
+describe('raisonActivationImpossible — le bouton grisé dit pourquoi', () => {
+  it('rien à dire tant que rien n’est saisi', () => {
+    expect(raisonActivationImpossible('', '')).toBeNull();
+  });
+
+  it('un mot de passe trop faible renvoie à la jauge', () => {
+    expect(raisonActivationImpossible('abc', '')).toBe(
+      'Le mot de passe doit contenir au moins 8 caractères, dont une majuscule, une minuscule et un chiffre.',
+    );
+  });
+
+  it('attend la confirmation', () => {
+    expect(raisonActivationImpossible('Martine2026', '')).toBe('Confirmez le mot de passe.');
+  });
+
+  it('dit que les deux mots de passe diffèrent', () => {
+    expect(raisonActivationImpossible('Martine2026', 'Martine2025')).toBe(
+      'Les deux mots de passe ne sont pas identiques.',
+    );
+  });
+
+  it('se tait quand tout est bon', () => {
+    expect(raisonActivationImpossible('Martine2026', 'Martine2026')).toBeNull();
   });
 });

@@ -54,6 +54,10 @@ type Props = {
   /** Mois précédent à recalculer pour certains salariés : dit sans bloquer. */
   avertissement?: string | null;
   disabled?: boolean;
+  /** Pourquoi le bouton est grisé quand `disabled` (ex. calcul en cours). */
+  raisonDesactive?: string | null;
+  /** Pourquoi rien n'est prêt (« 2 à revoir, 1 à générer ») : le bouton reste visible, grisé. */
+  raisonRienAValider?: string | null;
   /** Recharge les bulletins du mois, réussite ou échec. */
   onTermine: () => Promise<void> | void;
 };
@@ -69,6 +73,8 @@ export function ValiderBulletinsPrets({
   idsSortie = [],
   avertissement = null,
   disabled = false,
+  raisonDesactive = null,
+  raisonRienAValider = null,
   onTermine,
 }: Props) {
   const [confirmation, setConfirmation] = useState(false);
@@ -107,7 +113,15 @@ export function ValiderBulletinsPrets({
   };
   const textesConfirmation = textesDuLot(idsPrets);
 
-  if (idsPrets.length === 0 && !enCours && !recap) return null;
+  const rienAValider = idsPrets.length === 0 && !enCours;
+  // Le bouton ne disparaît plus : grisé, il dit pourquoi (jamais d'état silencieux).
+  const raison = enCours
+    ? null
+    : rienAValider
+      ? (raisonRienAValider ?? 'Aucun bulletin prêt à valider.')
+      : disabled
+        ? raisonDesactive
+        : null;
 
   const valider = async () => {
     setConfirmation(false);
@@ -138,24 +152,32 @@ export function ValiderBulletinsPrets({
 
   return (
     <>
-      {idsPrets.length > 0 || enCours ? (
-        <Button
-          size="sm"
-          className="gap-1.5 bg-sky-600 text-white hover:bg-sky-700"
-          disabled={disabled || enCours}
-          onClick={() => {
-            setConfirmation(true);
-            void reglages.refetch();
-          }}
-          data-testid="valider-bulletins-prets"
+      <Button
+        size="sm"
+        className="gap-1.5 bg-sky-600 text-white hover:bg-sky-700"
+        disabled={disabled || enCours || rienAValider}
+        aria-describedby={raison ? 'valider-bulletins-prets-raison' : undefined}
+        onClick={() => {
+          setConfirmation(true);
+          void reglages.refetch();
+        }}
+        data-testid="valider-bulletins-prets"
+      >
+        {enCours ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+        ) : (
+          <CheckCheck className="h-3.5 w-3.5" aria-hidden />
+        )}
+        {enCours ? 'Validation en cours…' : libelleBoutonValider(idsPrets.length)}
+      </Button>
+      {raison ? (
+        <p
+          id="valider-bulletins-prets-raison"
+          className="text-xs text-muted-foreground"
+          data-testid="valider-bulletins-prets-raison"
         >
-          {enCours ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-          ) : (
-            <CheckCheck className="h-3.5 w-3.5" aria-hidden />
-          )}
-          {enCours ? 'Validation en cours…' : libelleBoutonValider(idsPrets.length)}
-        </Button>
+          {raison}
+        </p>
       ) : null}
 
       <AlertDialog open={confirmation} onOpenChange={setConfirmation}>

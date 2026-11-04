@@ -27,6 +27,8 @@ import {
   getPasswordChecks,
   getPasswordStrength,
   isPasswordAcceptable,
+  MESSAGE_MOT_DE_PASSE_FAIBLE,
+  raisonActivationImpossible,
 } from '@/lib/activationUtils';
 import { cn } from '@/lib/utils';
 import { Loader2, CheckCircle2, AlertCircle, Eye, EyeOff } from 'lucide-react';
@@ -78,6 +80,8 @@ export default function ActivationPage() {
   const [error, setError] = useState('');
 
   const emailRequise = Boolean(welcome?.email_requise);
+  // Le bouton grisé dit pourquoi (mots de passe différents, trop faible…).
+  const raisonActivation = raisonActivationImpossible(password, confirmPassword);
 
   useEffect(() => {
     const validateToken = async () => {
@@ -109,9 +113,7 @@ export default function ActivationPage() {
       return;
     }
     if (!isPasswordAcceptable(password)) {
-      setError(
-        'Le mot de passe doit contenir au moins 8 caractères, dont une majuscule, une minuscule et un chiffre.',
-      );
+      setError(MESSAGE_MOT_DE_PASSE_FAIBLE);
       return;
     }
     if (password !== confirmPassword) {
@@ -313,6 +315,7 @@ export default function ActivationPage() {
                 !isPasswordAcceptable(password) ||
                 password !== confirmPassword
               }
+              aria-describedby={raisonActivation ? 'activation-raison' : undefined}
             >
               {isSubmitting ? (
                 <>
@@ -323,6 +326,11 @@ export default function ActivationPage() {
                 'Activer mon compte'
               )}
             </Button>
+            {raisonActivation && !isSubmitting ? (
+              <p id="activation-raison" className="text-center text-sm text-muted-foreground">
+                {raisonActivation}
+              </p>
+            ) : null}
           </form>
         </CardContent>
       </Card>
