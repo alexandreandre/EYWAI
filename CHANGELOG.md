@@ -5,7 +5,25 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
-(rien)
+### Le montant net social de 2026
+- Le « Montant net social » des bulletins ne compte plus les parts de l'employeur pour la mutuelle et la prévoyance.
+- En 2026, la règle les exclut ; elles n'entreront que pour les salaires de 2027, si le décret paraît.
+- Le brut, les cotisations, le net imposable et le net à payer ne changent pas.
+
+### Le jour où le salarié voit son bulletin
+- La fenêtre « Valider les bulletins prêts » dit le vrai jour où les salariés verront leurs bulletins.
+- Une paie validée après ce jour (octobre validé en novembre, par exemple) est visible et figée dès la validation : la fenêtre le dit.
+- Un bulletin de sortie est visible dès sa validation : la fenêtre le nomme.
+
+### Pas de certificat pour la DSN
+- La carte Net-entreprises ne propose plus « API — certificat » : il n'y a pas de certificat à demander.
+- Elle ne demande plus de mot de passe et ne propose plus de « tester la connexion » : l'envoi direct n'est pas encore branché.
+- La DSN se dépose à la main sur net-entreprises.fr, comme avant.
+
+### Les chargements disent ce qui se passe
+- Le requin disparaît : chaque chargement montre une barre fine et ce qui charge, en mots.
+- La génération de la paie et l'écran de démarrage gardent leur compteur et leurs textes, sans requin.
+- L'onglet du navigateur et l'aperçu des liens montrent le « M » de Martine.
 
 ## paie-2026-11-03.1 — 3 novembre 2026
 
