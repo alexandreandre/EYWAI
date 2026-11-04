@@ -3,6 +3,8 @@ import { useConfirmation } from '@/hooks/useConfirmation';
 import { libelleMontantSaisie, montantAEditer, montantAEnvoyer } from './sensSaisie';
 import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { actionRecalculerMaintenant } from './actionRecalculerMaintenant';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { invaliderApresSaisie } from '@/features/payroll/utils/invalidationsBulletin';
 import { Button } from "@/components/ui/button";
@@ -60,6 +62,7 @@ export function PrimesTab({
   onClearFocusEmployee,
 }: PrimesTabProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { demander, fenetre } = useConfirmation();
   const queryClient = useQueryClient();
   const companyIdActif = useActiveCompanyId();
@@ -130,6 +133,7 @@ export function PrimesTab({
           `${pluriel(correctedPayloads.length, 'saisie')} ${accord(correctedPayloads.length, 'ajoutée')} avec succès.`,
           phraseARecalculer(reponse.data?.bulletins_a_recalculer),
         ].filter(Boolean).join(' '),
+        action: actionRecalculerMaintenant(reponse.data?.bulletins_a_recalculer, navigate),
       });
       fetchData();
       apresSaisie();
@@ -150,6 +154,7 @@ export function PrimesTab({
     try {
       const reponse = await saisiesApi.deleteMonthlyInput(id);
       const aRecalculer = phraseARecalculer(reponse.data?.bulletins_a_recalculer);
+      const action = actionRecalculerMaintenant(reponse.data?.bulletins_a_recalculer, navigate);
       toast(
         reponse.data?.retiree
           ? {
@@ -158,10 +163,12 @@ export function PrimesTab({
                 "Elle reste à 0 € pour que la préparation du mois ne la recrée pas.",
                 aRecalculer ?? "Recalculez le bulletin.",
               ].join(' '),
+              action,
             }
           : {
               title: "Supprimée",
               description: ["La saisie a été supprimée.", aRecalculer].filter(Boolean).join(' '),
+              action,
             },
       );
       fetchData();
@@ -189,6 +196,7 @@ export function PrimesTab({
           "Elle ne sera plus écrasée par la préparation du mois.",
           phraseARecalculer(reponse.data?.bulletins_a_recalculer),
         ].filter(Boolean).join(' '),
+        action: actionRecalculerMaintenant(reponse.data?.bulletins_a_recalculer, navigate),
       });
       setEditingId(null);
       fetchData();

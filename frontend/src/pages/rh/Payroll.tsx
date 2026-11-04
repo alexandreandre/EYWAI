@@ -1,5 +1,5 @@
 import { isPresentDuringMonth } from '@/lib/employmentStatus';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RhPageHeader } from '@/components/layout';
@@ -10,6 +10,7 @@ import { useEmployeePayslipsQuery } from '@/hooks/queries/useEmployeePayslipsQue
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { deletePayslip, getEmployeePayslips, telechargerPdfDuMois, type PayslipInfo } from '@/api/payslips';
 import { getExportHistory, marquerDsnHorsMartine } from '@/api/exports';
+import { getNetEntreprisesTransmissions } from '@/api/netEntreprises';
 import { queryKeys } from '@/lib/queryKeys';
 import { showErrorToast } from '@/lib/errorMessages';
 import { toast } from '@/hooks/use-toast';
@@ -52,6 +53,10 @@ import {
   nomsDesValidesChanges,
   estPerime,
   montantsDepuisLigne,
+  etapeDuRecalculDemande,
+  idsARecalculerMaintenant,
+  jobsARecalculerMaintenant,
+  PARAM_RECALCULER,
   type LigneBulletinPaie,
 } from '@/features/payroll/utils/bulletinARecalculer';
 import { CreateEmployeeForm } from '@/features/employees/components/CreateEmployeeForm';
@@ -72,6 +77,7 @@ import {
   lectureConflitsArret,
   listeControleDuMois,
   type ExportPourControle,
+  type TransmissionPourControle,
   type Lecture,
 } from '@/features/payroll/utils/listeControleMois';
 import {
@@ -337,11 +343,8 @@ export default function Payroll() {
       setSearchParams(
         (prev) => {
           const params = new URLSearchParams(prev);
-          if (next === 'month') {
-            params.set('view', 'month');
-          } else {
-            params.delete('view');
-          }
+          // Toujours écrite : sans elle, l'adresse ouvre « Par mois ».
+          params.set('view', next);
           return params;
         },
         { replace: true }
@@ -748,6 +751,70 @@ export default function Payroll() {
     return { statut: 'ok', valeur: map };
   }, [loadingMonthData, salariesDuMois, payslipsByEmployee]);
 
+  // « Recalculer maintenant » d'un message de saisie (?recalculer=id,id) : une
+  // fois les bulletins relus (la saisie vient de les rendre « À recalculer »),
+  // la file habituelle recalcule ceux des salariés nommés, puis l'adresse oublie
+  // la demande (un rechargement ne relance rien).
+  const recalculerDemande = searchParams.get(PARAM_RECALCULER);
+  const etapeRecalcul = etapeDuRecalculDemande({
+    demande: Boolean(recalculerDemande),
+    societe: Boolean(companyId),
+    salaries: employeesQuery.isError
+      ? 'erreur'
+      : employeesQuery.isSuccess && !employeesQuery.isFetching
+        ? 'lus'
+        : 'en_cours',
+    bulletins: payslipQueries.some((q) => q.isError && !q.isFetching)
+      ? 'erreur'
+      : payslipQueries.every((q) => q.isSuccess && !q.isFetching)
+        ? 'lus'
+        : 'en_cours',
+    moisDeLAdresse: paramsVue.year === selectedYear && paramsVue.month === selectedMonth,
+    calculEnCours: generation.phase === 'running',
+  });
+  const recalculDejaLance = useRef<string | null>(null);
+  useEffect(() => {
+    if (!recalculerDemande) {
+      // Demande traitée ou retirée : un nouveau clic sur le même lien relancera.
+      recalculDejaLance.current = null;
+      return;
+    }
+    if (etapeRecalcul === 'attendre' || etapeRecalcul === 'aucune') return;
+    if (recalculDejaLance.current === recalculerDemande) return;
+    recalculDejaLance.current = recalculerDemande;
+    if (etapeRecalcul === 'lecture_impossible') {
+      // La demande reste dans l'adresse : un rechargement la relance.
+      toast({
+        variant: 'destructive',
+        title: 'Recalcul non lancé',
+        description:
+          'Les bulletins du mois n’ont pas pu être relus. Rechargez la page pour relancer le recalcul.',
+      });
+      return;
+    }
+    const jobs = jobsARecalculerMaintenant(
+      jobsPerimesDuMois,
+      idsARecalculerMaintenant(new URLSearchParams({ [PARAM_RECALCULER]: recalculerDemande }))
+    );
+    if (jobs.length > 0) {
+      generation.generateJobs(jobs);
+    } else {
+      toast({
+        title: 'Rien à recalculer',
+        description:
+          'Ces bulletins sont déjà à jour, ou validés : un bulletin validé se régénère depuis son écran.',
+      });
+    }
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.delete(PARAM_RECALCULER);
+        return params;
+      },
+      { replace: true }
+    );
+  }, [recalculerDemande, etapeRecalcul, generation, jobsPerimesDuMois, setSearchParams]);
+
   const lectureDeparts = useMemo((): Lecture<NonNullable<typeof exitsQuery.data>> => {
     if (exitsQuery.isError && exitsQuery.data === undefined) return { statut: 'erreur' };
     if (exitsQuery.isLoading && exitsQuery.data === undefined) return { statut: 'chargement' };
@@ -797,6 +864,18 @@ export default function Payroll() {
       });
     },
   });
+  // Le suivi des dépôts : la DSN n'est « faite » qu'une fois marquée déposée.
+  const transmissionsDuMoisQuery = useQuery({
+    queryKey: ['net-entreprises-transmissions', companyId, periodeExports],
+    queryFn: () => getNetEntreprisesTransmissions(periodeExports),
+    enabled: Boolean(companyId),
+    staleTime: 30_000,
+  });
+  const lectureTransmissions = useMemo((): Lecture<readonly TransmissionPourControle[]> => {
+    if (transmissionsDuMoisQuery.isError && transmissionsDuMoisQuery.data === undefined) return { statut: 'erreur' };
+    if (transmissionsDuMoisQuery.data === undefined) return { statut: 'chargement' };
+    return { statut: 'ok', valeur: transmissionsDuMoisQuery.data.transmissions ?? [] };
+  }, [transmissionsDuMoisQuery.isError, transmissionsDuMoisQuery.data]);
   const lectureExports = useMemo((): Lecture<readonly ExportPourControle[]> => {
     if (exportsDuMoisQuery.isError && exportsDuMoisQuery.data === undefined) return { statut: 'erreur' };
     if (exportsDuMoisQuery.data === undefined) return { statut: 'chargement' };
@@ -822,6 +901,7 @@ export default function Payroll() {
       conflitsArret: lectureConflits,
       absentsATyper: lectureAbsents,
       exportsDuMois: lectureExports,
+      transmissionsDuMois: lectureTransmissions,
     });
   }, [
     loadingEmployees,
@@ -835,6 +915,7 @@ export default function Payroll() {
     lectureConflits,
     lectureAbsents,
     lectureExports,
+    lectureTransmissions,
   ]);
 
   const generatedCount = useMemo(

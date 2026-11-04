@@ -17,6 +17,10 @@ import {
   montantsDepuisLigne,
   montantsDepuisReponse,
   toastsDeFinDeRecalcul,
+  lienRecalculerMaintenant,
+  idsARecalculerMaintenant,
+  jobsARecalculerMaintenant,
+  etapeDuRecalculDemande,
 } from './bulletinARecalculer';
 
 describe('estPerime', () => {
@@ -386,5 +390,82 @@ describe('phraseSuiteARecalculer : l’écran du bulletin nomme le mois suivant'
     );
     expect(phraseSuiteARecalculer({ year: 2027, month: 1 })).toContain('Le bulletin de janvier 2027');
     expect(phraseSuiteARecalculer(null)).toBeNull();
+  });
+});
+
+describe('« Recalculer maintenant » depuis le message d’une saisie', () => {
+  it('mène à la vue Par mois du bulletin, avec les salariés à recalculer', () => {
+    expect(
+      lienRecalculerMaintenant([
+        { employee_id: 'e1', year: 2026, month: 10 },
+        { employee_id: 'e2', year: 2026, month: 10 },
+      ]),
+    ).toBe('/payroll?view=month&month=2026-10&recalculer=e1%2Ce2');
+  });
+
+  it('plusieurs mois : le plus ancien d’abord (les cumuls partent de lui)', () => {
+    expect(
+      lienRecalculerMaintenant([
+        { employee_id: 'e1', year: 2026, month: 10 },
+        { employee_id: 'e1', year: 2026, month: 9 },
+      ]),
+    ).toBe('/payroll?view=month&month=2026-09&recalculer=e1');
+  });
+
+  it('rien à recalculer, ou serveur qui n’a pas pu chercher : pas de bouton', () => {
+    expect(lienRecalculerMaintenant([])).toBeNull();
+    expect(lienRecalculerMaintenant(null)).toBeNull();
+    expect(lienRecalculerMaintenant(undefined)).toBeNull();
+  });
+
+  it('relit les salariés de l’adresse', () => {
+    expect(idsARecalculerMaintenant(new URLSearchParams('recalculer=e1%2Ce2'))).toEqual(['e1', 'e2']);
+    expect(idsARecalculerMaintenant(new URLSearchParams('view=month'))).toEqual([]);
+  });
+
+  it('ne recalcule que les bulletins périmés des salariés nommés', () => {
+    const job = (employeeId: string) => ({
+      employeeId,
+      employeeName: employeeId,
+      year: 2026,
+      month: 10,
+      montantsAvant: { heures_sup: null, salaire_brut: null, net_a_payer: null },
+    });
+    expect(jobsARecalculerMaintenant([job('e1'), job('e2'), job('e3')], ['e3', 'e1']).map((j) => j.employeeId)).toEqual([
+      'e1',
+      'e3',
+    ]);
+  });
+});
+
+describe('etapeDuRecalculDemande — jamais « rien à recalculer » sans avoir relu', () => {
+  const pret = {
+    demande: true,
+    societe: true,
+    salaries: 'lus' as const,
+    bulletins: 'lus' as const,
+    moisDeLAdresse: true,
+    calculEnCours: false,
+  };
+
+  it('tout est relu, sur le mois de l’adresse : on lance', () => {
+    expect(etapeDuRecalculDemande(pret)).toBe('lancer');
+  });
+
+  it('sans demande, rien', () => {
+    expect(etapeDuRecalculDemande({ ...pret, demande: false })).toBe('aucune');
+  });
+
+  it('société pas encore choisie, salariés ou bulletins en lecture, autre mois affiché, calcul en cours : on attend', () => {
+    expect(etapeDuRecalculDemande({ ...pret, societe: false })).toBe('attendre');
+    expect(etapeDuRecalculDemande({ ...pret, salaries: 'en_cours' })).toBe('attendre');
+    expect(etapeDuRecalculDemande({ ...pret, bulletins: 'en_cours' })).toBe('attendre');
+    expect(etapeDuRecalculDemande({ ...pret, moisDeLAdresse: false })).toBe('attendre');
+    expect(etapeDuRecalculDemande({ ...pret, calculEnCours: true })).toBe('attendre');
+  });
+
+  it('une lecture en échec : on le dit, sans prétendre que tout est à jour', () => {
+    expect(etapeDuRecalculDemande({ ...pret, salaries: 'erreur' })).toBe('lecture_impossible');
+    expect(etapeDuRecalculDemande({ ...pret, bulletins: 'erreur' })).toBe('lecture_impossible');
   });
 });

@@ -34,7 +34,7 @@ import {
   type PasApercuLigne,
   type PasSource,
 } from "@/api/pasRates";
-import { INTRO_IMPORT_PAS, SOURCES_IMPORT_PAS } from '@/features/pas-rates/lib/importPas';
+import { INTRO_IMPORT_PAS, SOURCES_IMPORT_PAS, bilanImportPas } from '@/features/pas-rates/lib/importPas';
 import { accord, pluriel } from '@/lib/pluriel';
 
 interface PasImportDialogProps {
@@ -72,10 +72,13 @@ export function PasImportDialog({ open, onOpenChange, onApplied }: PasImportDial
   const [apercu, setApercu] = useState<PasApercu | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
+  // Échecs de l'application : ils restent dans la fenêtre jusqu'à « Fermer ».
+  const [bilan, setBilan] = useState<ReturnType<typeof bilanImportPas>>(null);
 
   const reinitialiser = () => {
     setFile(null);
     setApercu(null);
+    setBilan(null);
     setIsLoading(false);
     setIsApplying(false);
   };
@@ -109,17 +112,18 @@ export function PasImportDialog({ open, onOpenChange, onApplied }: PasImportDial
     setIsApplying(true);
     try {
       const resultat = await applyPasRates(file, source);
+      onApplied();
+      const echecs = bilanImportPas(resultat);
+      if (echecs) {
+        // Ne pas fermer : la liste des échecs et leur raison restent lisibles.
+        setBilan(echecs);
+        setApercu(null);
+        return;
+      }
       toast({
         title: `${resultat.appliques} taux mis à jour`,
-        description:
-          resultat.echecs.length > 0
-            ? `${pluriel(resultat.echecs.length, 'salarié')} en échec : ${resultat.echecs
-                .map((e) => e.salarie)
-                .join(", ")}`
-            : `Période ${resultat.periode}.`,
-        variant: resultat.echecs.length > 0 ? "destructive" : undefined,
+        description: `Période ${resultat.periode}.`,
       });
-      onApplied();
       fermer(false);
     } catch (error) {
       toast({
@@ -200,6 +204,27 @@ export function PasImportDialog({ open, onOpenChange, onApplied }: PasImportDial
             </div>
           )}
 
+          {bilan && (
+            <div
+              className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm"
+              role="alert"
+              data-testid="pas-import-echecs"
+            >
+              <p className="flex items-center gap-2 font-medium text-destructive">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {bilan.titre}
+              </p>
+              <ul className="max-h-48 space-y-1 overflow-y-auto">
+                {bilan.lignes.map((ligne) => (
+                  <li key={`${ligne.salarie}-${ligne.raison}`}>
+                    <span className="font-medium">{ligne.salarie}</span> : {ligne.raison}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted-foreground">{bilan.aide}</p>
+            </div>
+          )}
+
           {apercu && (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -245,6 +270,10 @@ export function PasImportDialog({ open, onOpenChange, onApplied }: PasImportDial
         </div>
 
         <DialogFooter>
+          {bilan ? (
+            <Button onClick={() => fermer(false)}>Fermer</Button>
+          ) : (
+          <>
           <Button variant="outline" onClick={() => fermer(false)} disabled={isApplying}>
             Annuler
           </Button>
@@ -262,6 +291,8 @@ export function PasImportDialog({ open, onOpenChange, onApplied }: PasImportDial
               ? `Appliquer ${changements.length} taux`
               : "Appliquer"}
           </Button>
+          </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

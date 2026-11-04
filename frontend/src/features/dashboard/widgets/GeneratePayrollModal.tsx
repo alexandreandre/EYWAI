@@ -22,7 +22,7 @@ import { OvertimeRoutingPanel } from '@/features/payroll/components/OvertimeRout
 import { phaseModaleApres } from '@/features/payroll/utils/generationEnCours';
 import { usePayrollGeneration } from '@/features/payroll/hooks/usePayrollGeneration';
 import { usePreflightAnomalies } from '@/features/payroll/hooks/usePreflightAnomaliesCount';
-import { messageConfirmationGeneration } from '@/features/payroll/lib/controleAvantPaie';
+import { lancementGroupe } from '@/features/payroll/lib/controleAvantPaie';
 import { PayrollEmployeeEmptyState } from '@/features/payroll/components/PayrollEmployeeEmptyState';
 import { PayrollEmployeeReadinessAlert } from '@/features/payroll/components/PayrollEmployeeReadinessAlert';
 import type { PayrollGenerateEmployee } from '@/features/payroll/types';
@@ -205,11 +205,21 @@ export function GeneratePayrollModal({
   };
 
   const startGeneration = async () => {
+    const [yearStr, monthStr] = selectedMonth.split('-');
     // Un contrôle en panne ne compte pas pour « zéro anomalie » : on demande
-    // une confirmation explicite au lieu de générer sans rien dire.
-    const confirmation = messageConfirmationGeneration({
+    // une confirmation explicite au lieu de générer sans rien dire. Une seule
+    // confirmation : acceptée, elle envoie le forçage des calendriers incomplets.
+    const { confirmation, jobs } = lancementGroupe({
+      ids: Array.from(selectedEmployees),
+      nomDe: (employeeId) => {
+        const employee = employees.find((e) => e.id === employeeId);
+        return employee ? `${employee.first_name} ${employee.last_name}` : employeeId;
+      },
+      year: parseInt(yearStr, 10),
+      month: parseInt(monthStr, 10),
       controleEnErreur: preflightError,
       anomalies: preflightData?.anomalies ?? [],
+      calendriersIncomplets: calendriersDuMois,
     });
     if (
       confirmation &&
@@ -221,19 +231,6 @@ export function GeneratePayrollModal({
     ) {
       return;
     }
-
-    const ids = Array.from(selectedEmployees);
-    const [yearStr, monthStr] = selectedMonth.split('-');
-    const year = parseInt(yearStr, 10);
-    const month = parseInt(monthStr, 10);
-
-    const jobs = ids.map((employeeId) => {
-      const employee = employees.find((e) => e.id === employeeId);
-      const employeeName = employee
-        ? `${employee.first_name} ${employee.last_name}`
-        : employeeId;
-      return { employeeId, employeeName, year, month };
-    });
 
     setUiPhase('running');
     generation.generateJobs(jobs);

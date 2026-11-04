@@ -112,6 +112,17 @@ export type EntreeListeControle = {
   absentsATyper?: Lecture<readonly string[]>;
   /** Absent : non lu, l'étape reste à confirmer. */
   exportsDuMois?: Lecture<readonly ExportPourControle[]>;
+  /** Suivi des dépôts DSN du mois (net-entreprises). Absent ou illisible : non pris en compte. */
+  transmissionsDuMois?: Lecture<readonly TransmissionPourControle[]>;
+};
+
+/** Une ligne du suivi des dépôts DSN (`/api/net-entreprises/transmissions`). */
+export type TransmissionPourControle = {
+  status: string;
+  dsn_type: string;
+  created_at: string | null;
+  submitted_at: string | null;
+  acknowledged_at: string | null;
 };
 
 type AnomalieCalendrier = {
@@ -363,8 +374,52 @@ function dateFr(horodatage: string): string {
   return d.toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' });
 }
 
+/**
+ * Le dépôt de la DSN du mois, d'après la dernière transmission mensuelle : une
+ * DSN générée n'est « faite » qu'une fois déposée (audit R1, geste 8). Sans
+ * suivi (DSN d'avant le suivi) ou suivi illisible : `null`, la règle d'avant.
+ */
+function depotDsn(
+  lecture: Lecture<readonly TransmissionPourControle[]> | undefined
+):
+  | { etat: 'deposee'; le: string }
+  | { etat: 'non_deposee' }
+  | { etat: 'rejetee' }
+  | { etat: 'regeneree_apres_depot'; le: string }
+  | null {
+  if (!lecture || lecture.statut !== 'ok') return null;
+  const mensuelles = lecture.valeur
+    .filter((t) => /mensuelle|neant/.test(t.dsn_type))
+    .sort((a, b) => ((a.created_at ?? '') < (b.created_at ?? '') ? 1 : -1));
+  const derniere = mensuelles[0];
+  if (!derniere) return null;
+  const estDeposee = (t: TransmissionPourControle) => t.status === 'sent' || t.status === 'acknowledged';
+  const dateDuDepot = (t: TransmissionPourControle) => dateFr(t.acknowledged_at ?? t.submitted_at ?? '');
+  if (estDeposee(derniere)) return { etat: 'deposee', le: dateDuDepot(derniere) };
+  if (derniere.status === 'rejected') return { etat: 'rejetee' };
+  // Régénérée après un dépôt (sans bulletin changé, sinon elle serait « à
+  // refaire ») : ne pas pousser à un second dépôt, demander de confirmer.
+  const deposeeAvant = mensuelles.find(estDeposee);
+  if (deposeeAvant) return { etat: 'regeneree_apres_depot', le: dateDuDepot(deposeeAvant) };
+  return { etat: 'non_deposee' };
+}
+
+/** La DSN reste à faire, à refaire ou à déposer : le lien ouvre l'onglet Déclarations. */
+function dsnAFaire(
+  lecture: Lecture<readonly ExportPourControle[]>,
+  transmissions?: Lecture<readonly TransmissionPourControle[]>
+): boolean {
+  if (lecture.statut !== 'ok') return false;
+  if (lecture.valeur.some((e) => e.status === 'generated' && e.export_type === TYPE_DSN_HORS_MARTINE)) return false;
+  if (etatExport(lecture.valeur, [TYPE_EXPORT_DSN]) !== 'fait') return true;
+  const depot = depotDsn(transmissions);
+  // Régénérée après un dépôt aussi : « Marquer déposée » est dans l'onglet Déclarations.
+  return depot !== null && depot.etat !== 'deposee';
+}
+
 function etapeDeclarations(
-  lecture: Lecture<readonly ExportPourControle[]>
+  lecture: Lecture<readonly ExportPourControle[]>,
+  transmissions?: Lecture<readonly TransmissionPourControle[]>
 ): { etat: EtatEtape; detail: string } {
   return etatDepuisLecture(lecture, (exports) => {
     // Marquée faite à la main (DSN déposée hors de Martine) : l'étape est faite,
@@ -382,15 +437,31 @@ function etapeDeclarations(
     }
     const dsn = etatExport(exports, [TYPE_EXPORT_DSN]);
     const compta = etatExport(exports, TYPES_EXPORT_COMPTABLE);
-    if (dsn === 'fait' && compta === 'fait') {
-      return { etat: 'fait', detail: 'La DSN et l’export comptable du mois sont faits.' };
+    const depot = dsn === 'fait' ? depotDsn(transmissions) : null;
+    const deposee = depot === null || depot.etat === 'deposee';
+    if (dsn === 'fait' && deposee && compta === 'fait') {
+      const le = depot?.etat === 'deposee' && depot.le ? `, déposée le ${depot.le},` : '';
+      return { etat: 'fait', detail: `La DSN${le} et l’export comptable du mois sont faits.` };
     }
     const morceaux: string[] = [];
     if (dsn === 'absent') morceaux.push('La DSN du mois n’est pas faite.');
     if (dsn === 'a_refaire') morceaux.push('La DSN est à refaire : un bulletin du mois a changé depuis.');
+    if (depot?.etat === 'non_deposee') {
+      morceaux.push(
+        'La DSN est générée mais pas encore marquée déposée : déposez-la sur net-entreprises, puis cliquez « Marquer déposée ». Déjà déposée ailleurs : « Marquer faite : DSN déposée hors de Martine ».'
+      );
+    }
+    if (depot?.etat === 'rejetee') {
+      morceaux.push('La DSN a été rejetée : corrigez-la, générez-la à nouveau et déposez-la.');
+    }
     if (compta === 'absent') morceaux.push('L’export comptable du mois n’est pas fait.');
     if (compta === 'a_refaire') {
       morceaux.push('L’export comptable est à refaire : un bulletin du mois a changé depuis.');
+    }
+    if (depot?.etat === 'regeneree_apres_depot') {
+      const phrase = `Une DSN de ce mois a été déposée${depot.le ? ` le ${depot.le}` : ''} ; la dernière générée ne l’est pas. Si elle remplace la première, déposez-la puis cliquez « Marquer déposée » ; sinon, rien à faire.`;
+      if (morceaux.length === 0) return { etat: 'a_confirmer', detail: phrase };
+      morceaux.unshift(phrase);
     }
     return { etat: 'a_faire', detail: morceaux.join(' ') };
   });
@@ -473,7 +544,11 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
   const hrefMois = lienMois(year, month);
   // Le Calendrier et les Exports s'ouvrent sur le mois de cette liste.
   const hrefCalendrier = lienAvecMois('/schedules', { year, month });
-  const hrefExports = lienAvecMois('/exports', { year, month });
+  const lectureExports = entree.exportsDuMois ?? { statut: 'indisponible' };
+  // La DSN se fait dans l'onglet Déclarations, l'export comptable dans l'onglet
+  // par défaut : le lien ouvre celui de ce qui manque, sur le mois (audit R1, geste 4).
+  const ongletDsn = dsnAFaire(lectureExports, entree.transmissionsDuMois);
+  const hrefExports = lienAvecMois(ongletDsn ? '/exports?tab=declarations' : '/exports', { year, month });
   const lectureSalaries = entree.lectureSalaries ?? { statut: 'ok', valeur: salaries };
 
   const selonSalaries = (etape: EtapeControle): EtapeControle => {
@@ -529,7 +604,7 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
   const declarations: EtapeControle = {
     id: ETAPE_DECLARATIONS,
     libelle: 'DSN et export comptable faits',
-    ...etapeDeclarations(entree.exportsDuMois ?? { statut: 'indisponible' }),
+    ...etapeDeclarations(lectureExports, entree.transmissionsDuMois),
   };
 
   const etapes = [calendriers, conflits, absences, bulletins, sorties, rib, valides, regularisations, declarations];
@@ -581,7 +656,7 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
     }),
     actionSiNonFaite(declarations, {
       quoi: 'Faites la DSN du mois et l’export comptable.',
-      ouCliquer: 'Exports',
+      ouCliquer: ongletDsn ? 'Exports, onglet Déclarations' : 'Exports, onglet Paie & Comptabilité',
       href: hrefExports,
       ensuite: 'La DSN mensuelle et l’export comptable du mois figurent dans l’historique, sans « à refaire ».',
     }),

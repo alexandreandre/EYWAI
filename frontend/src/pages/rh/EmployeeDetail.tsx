@@ -2,6 +2,7 @@
 
 import { useConfirmation } from '@/hooks/useConfirmation';
 import { messageBulletinsARecalculer } from "@/components/saisies/libellesSaisie";
+import { actionRecalculerMaintenant } from "@/components/saisies/actionRecalculerMaintenant";
 import { log } from '@/lib/logger';
 import { lazy, Suspense, useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
@@ -516,6 +517,7 @@ export default function EmployeeDetail() {
           `${pluriel(data.length, 'saisie')} ${accord(data.length, 'enregistrée')} avec succès.`,
           aRecalculer,
         ].filter(Boolean).join(' '),
+        action: actionRecalculerMaintenant(reponse.data?.bulletins_a_recalculer, navigate),
       });
       fetchSaisies();
       void invaliderApresSaisie(queryClient, activeCompanyId || undefined);

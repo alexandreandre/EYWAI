@@ -288,7 +288,9 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
     if (!(await lienPaie.isVisible())) await page.getByRole('button', { name: /Martine Paie/ }).click();
     await lienPaie.click();
     await expect(page.getByText(/gestion de la paie/i).first()).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(/Fiche à compléter/)).toHaveCount(0, { timeout: 30_000 });
+    // Le menu ouvre la vue « Par mois » : toutes les fiches y sont, seule celle
+    // complétée ici ne doit plus bloquer.
+    await expect(page.getByText(`Fiche à compléter : ${manque.join(', ')}`)).toHaveCount(0, { timeout: 30_000 });
     couperResume();
     couperFiche();
   });
