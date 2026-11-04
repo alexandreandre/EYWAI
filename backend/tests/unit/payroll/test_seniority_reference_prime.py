@@ -119,6 +119,9 @@ class TestSeniorityReferencePrime:
             "identification": {"adresse": {"code_postal": "77000"}},
             "parametres_paie": {"effectif": 50},
         }
+        # Le bulletin de référence (ancien logiciel) est au point de 2025,
+        # 5,24 € ; le point de 5,29 € vaut pour tous depuis le 08/05/2026 (audit
+        # du 03/11/2026, B 3) : 5,29 × 220 × 15 % = 174,57 €.
         ctx = ChargerContexte(employee, company, _metallurgie_baremes())
         ligne = calculer_ligne_prime_anciennete(
             ctx,
@@ -127,4 +130,4 @@ class TestSeniorityReferencePrime:
             date_fin_periode=date(2026, 5, 31),
         )
         assert ligne is not None
-        assert ligne["gain"] == 172.92
+        assert ligne["gain"] == 174.57

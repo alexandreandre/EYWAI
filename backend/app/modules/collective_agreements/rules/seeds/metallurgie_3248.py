@@ -108,11 +108,30 @@ def _build_prime() -> PrimeAnciennete:
                 departements=["79"],
                 valeur=5.70,
             ),
+            # Accord des Deux-Sèvres du 31/10/2025 (5,80 € au 01/01/2026),
+            # étendu par arrêté du 03/03/2026, JORF du 06/03/2026 : pour tous
+            # les employeurs à la publication (audit du 03/11/2026, B 3).
+            ValeurPointZone(
+                zone_type="departemental",
+                zone_libelle="Deux-Sèvres — valeur du point 2026",
+                departements=["79"],
+                valeur=5.80,
+                date_effet="2026-03-06",
+            ),
             ValeurPointZone(
                 zone_type="departemental",
                 zone_libelle="Seine-et-Marne — valeur du point",
                 departements=["77"],
                 valeur=5.24,
+            ),
+            # Avenant de Seine-et-Marne du 23/01/2026 (5,29 € au 01/01/2026),
+            # étendu par arrêté du 04/05/2026, JORF du 08/05/2026.
+            ValeurPointZone(
+                zone_type="departemental",
+                zone_libelle="Seine-et-Marne — valeur du point 2026",
+                departements=["77"],
+                valeur=5.29,
+                date_effet="2026-05-08",
             ),
         ],
     )
