@@ -115,9 +115,10 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
     await page.goto('/payroll');
     await expect(page.getByText(/gestion de la paie/i).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/platforme admin/i)).toHaveCount(0);
-    // Une page hors du périmètre paie renvoie au tableau de bord.
+    // Une page hors du périmètre paie renvoie au tableau de bord, et le dit.
     await page.goto('/recruitment');
     await expect(page).toHaveURL((url) => url.pathname === '/', { timeout: 30_000 });
+    await expect(page.getByText(/ne fait pas partie du mode paie/i).first()).toBeVisible();
   });
 
   await test.step('créer un salarié depuis la page Paie', async () => {

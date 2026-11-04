@@ -98,6 +98,22 @@ export function isPayrollFocusAllowed(pathname: string): boolean {
   );
 }
 
+/** État de navigation posé par le renvoi vers l'accueil d'une page hors mode paie. */
+export function etatHorsModePaie(pathname: string): { horsModePaie: string } {
+  return { horsModePaie: normalizePath(pathname) };
+}
+
+/**
+ * Le message de l'accueil après un renvoi hors mode paie ; `null` sans renvoi.
+ * Avant, la page demandée renvoyait à l'accueil sans rien dire (revue DA du 03/11).
+ */
+export function messageHorsModePaie(state: unknown): string | null {
+  if (!state || typeof state !== 'object') return null;
+  const chemin = (state as { horsModePaie?: unknown }).horsModePaie;
+  if (typeof chemin !== 'string' || !chemin) return null;
+  return 'Cette page ne fait pas partie du mode paie. Retour à l’accueil : le menu liste les écrans de la paie.';
+}
+
 /** Le mode paie s'applique-t-il à cet utilisateur ? */
 export function isPayrollFocusActive(
   user: PayrollFocusUser | null | undefined,
