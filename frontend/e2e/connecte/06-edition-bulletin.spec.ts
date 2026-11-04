@@ -381,7 +381,7 @@ test.describe('Corriger à la source', () => {
   test('les saisies du mois s’ouvrent filtrées sur le salarié', async ({ page }) => {
     await preparerBulletin(page);
     await page.getByTestId('corriger-les-variables').click();
-    await expect(page).toHaveURL(new RegExp('/saisies\\?year=2026&month=7&employee='));
+    await expect(page).toHaveURL(new RegExp('/saisies\\?month=2026-07&employee='));
     await expect(page.getByTestId('filtre-salarie-primes')).toBeVisible();
   });
 
@@ -401,7 +401,7 @@ test.describe('Corriger à la source', () => {
     // « Abandonner » : on part vers les saisies du mois.
     await page.getByTestId('corriger-les-variables').click();
     await question.getByRole('button', { name: 'Abandonner les corrections' }).click();
-    await expect(page).toHaveURL(new RegExp('/saisies\\?year=2026&month=7&employee='));
+    await expect(page).toHaveURL(new RegExp('/saisies\\?month=2026-07&employee='));
   });
 
   test('régénérer refait calculer le bulletin par le moteur', async ({ page }) => {

@@ -412,7 +412,7 @@ describe('« c’est fini » : bulletins validés, DSN et export comptable faits
     const declarations = etape(resultat, ETAPE_DECLARATIONS);
     expect(declarations.etat).toBe('a_faire');
     expect(declarations.detail).toBe('La DSN est à refaire : un bulletin du mois a changé depuis.');
-    expect(resultat.actions.find((a) => a.id === ETAPE_DECLARATIONS)?.href).toBe('/exports');
+    expect(resultat.actions.find((a) => a.id === ETAPE_DECLARATIONS)?.href).toBe('/exports?month=2026-09');
   });
 
   it('historique des exports illisible ou non lu : à confirmer', () => {
@@ -477,6 +477,20 @@ describe('« DSN déposée hors de Martine » : l’étape marquée faite à la 
 });
 
 describe('actions en attente', () => {
+  it('les liens vers le Calendrier et les Exports emportent le mois de la liste', () => {
+    const resultat = listeControleDuMois(
+      entree({
+        calendriersASaisir: OK(['e-1']),
+        conflitsArret: OK(['e-1']),
+        exportsDuMois: OK([]),
+      })
+    );
+    const lien = (id: string) => resultat.actions.find((a) => a.id === id)?.href;
+    expect(lien('calendriers')).toBe('/schedules?month=2026-09');
+    expect(lien('conflits')).toBe('/schedules?month=2026-09');
+    expect(lien(ETAPE_DECLARATIONS)).toBe('/exports?month=2026-09');
+  });
+
   it('chaque étape non cochée devient une ligne : quoi, où cliquer, ce qu’elle doit voir', () => {
     const resultat = listeControleDuMois(
       entree({

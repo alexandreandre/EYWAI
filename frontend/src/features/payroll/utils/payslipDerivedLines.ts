@@ -11,6 +11,7 @@
  *   contractuel (39 h) et non d'une variable du mois ;
  * - les heures **complémentaires** du temps partiel, autre régime.
  */
+import { periodeDuMois } from './moisDePaie';
 
 const HEURES_SUPP = /heures\s+suppl/i;
 const STRUCTURELLES = /structurelle/i;
@@ -33,7 +34,7 @@ export function lienVariablesDuMois({
   year: number;
   month: number;
 }): string {
-  const params = new URLSearchParams({ year: String(year), month: String(month) });
+  const params = new URLSearchParams({ month: periodeDuMois({ year, month }) });
   if (employeeId) params.set('employee', employeeId);
   return `/saisies?${params.toString()}`;
 }

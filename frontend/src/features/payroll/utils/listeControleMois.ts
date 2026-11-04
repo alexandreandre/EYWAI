@@ -9,6 +9,7 @@
  * DSN et export comptable faits (revue du 05/10 : rien ne le disait).
  */
 
+import { lienAvecMois } from '@/features/payroll/utils/moisDePaie';
 import {
   MENTION_RIB_A_COMPLETER,
   mentionsListeSalarie,
@@ -470,6 +471,9 @@ function etapeRegularisations(
 export function listeControleDuMois(entree: EntreeListeControle): ListeControleMois {
   const { year, month, salaries } = entree;
   const hrefMois = lienMois(year, month);
+  // Le Calendrier et les Exports s'ouvrent sur le mois de cette liste.
+  const hrefCalendrier = lienAvecMois('/schedules', { year, month });
+  const hrefExports = lienAvecMois('/exports', { year, month });
   const lectureSalaries = entree.lectureSalaries ?? { statut: 'ok', valeur: salaries };
 
   const selonSalaries = (etape: EtapeControle): EtapeControle => {
@@ -534,13 +538,13 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
     actionSiNonFaite(calendriers, {
       quoi: 'Complétez les jours encore à saisir dans les calendriers, et donnez leur type aux jours marqués « absent ».',
       ouCliquer: 'Calendrier',
-      href: '/schedules',
+      href: hrefCalendrier,
       ensuite: 'Plus aucun jour de la fenêtre n’est marqué à saisir.',
     }),
     actionSiNonFaite(conflits, {
       quoi: 'Réglez les heures saisies un jour d’arrêt.',
       ouCliquer: 'Calendrier',
-      href: '/schedules',
+      href: hrefCalendrier,
       ensuite:
         'Le calendrier signale les jours qui portent des heures pendant l’arrêt. Le choix « effacer ces heures » ou « modifier l’arrêt » est proposé à la génération du bulletin. Après correction, le conflit disparaît.',
     }),
@@ -578,7 +582,7 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
     actionSiNonFaite(declarations, {
       quoi: 'Faites la DSN du mois et l’export comptable.',
       ouCliquer: 'Exports',
-      href: '/exports',
+      href: hrefExports,
       ensuite: 'La DSN mensuelle et l’export comptable du mois figurent dans l’historique, sans « à refaire ».',
     }),
   ].filter((a): a is ActionEnAttente => a !== null);

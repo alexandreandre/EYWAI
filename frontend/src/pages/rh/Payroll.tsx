@@ -81,6 +81,7 @@ import {
   moisAffiche,
   type VuePaie,
 } from '@/features/payroll/utils/vuePaieUrl';
+import { moisDePaieRetenu, retenirMoisDePaie } from '@/features/payroll/utils/moisDePaie';
 import { estPretAValider } from '@/features/payroll/utils/validationGroupee';
 import {
   bulletinDuMois,
@@ -193,12 +194,13 @@ export default function Payroll() {
   );
   // ?month=YYYY-MM : posé par « Voir les bulletins », par la liste de contrôle
   // et par le choix du mois. Relu à chaque changement d’URL. Sans lui, le mois
-  // de paie (jusqu’au 15, le mois précédent), pas le mois civil.
+  // de l’écran précédent (Calendrier, Primes), sinon le mois de paie (jusqu’au
+  // 15, le mois précédent), pas le mois civil.
   const [selectedYear, setSelectedYear] = useState(
-    () => moisAffiche(paramsVue, new Date()).year
+    () => moisAffiche(paramsVue, new Date(), moisDePaieRetenu()).year
   );
   const [selectedMonth, setSelectedMonth] = useState(
-    () => moisAffiche(paramsVue, new Date()).month
+    () => moisAffiche(paramsVue, new Date(), moisDePaieRetenu()).month
   );
   const [pdfDuMoisEnCours, setPdfDuMoisEnCours] = useState(false);
   const aRevoirSeulement = paramsVue.aRevoir;
@@ -267,6 +269,15 @@ export default function Payroll() {
     if (paramsVue.year != null) setSelectedYear(paramsVue.year);
     if (paramsVue.month != null) setSelectedMonth(paramsVue.month);
   }, [paramsVue.year, paramsVue.month]);
+
+  // Un seul mois de paie d’un écran à l’autre : le mois affiché est retenu pour
+  // la session (le Calendrier et les Primes le reprennent) et écrit dans l’adresse.
+  useEffect(() => {
+    retenirMoisDePaie({ year: selectedYear, month: selectedMonth });
+    if (paramsVue.year == null || paramsVue.month == null) {
+      setSearchParams((prev) => avecMois(prev, selectedYear, selectedMonth), { replace: true });
+    }
+  }, [selectedYear, selectedMonth, paramsVue.year, paramsVue.month, setSearchParams]);
 
   useEffect(() => {
     if (employees.length === 0) return;

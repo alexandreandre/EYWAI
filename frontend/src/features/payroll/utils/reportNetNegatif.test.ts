@@ -55,7 +55,7 @@ describe('vueDuReport : ce que propose le bouton', () => {
     expect(vue.texte).toBe('Reporté sur octobre 2026 (115,43 €)');
     expect(vue.action).toBeNull();
     expect(vue.bouton).toBeNull();
-    expect(vue.lien).toBe('/saisies?year=2026&month=10&employee=e1');
+    expect(vue.lien).toBe('/saisies?month=2026-10&employee=e1');
   });
 
   it('montant différent : « Report à mettre à jour : a € → b € » sur la même saisie', () => {
@@ -111,7 +111,7 @@ describe('vueDuReport : ce que propose le bouton', () => {
     expect(vue.texte).toBe('Reporté sur octobre 2026 (115,43 €)');
     expect(vue.action).toBeNull();
     expect(vue.bouton).toBeNull();
-    expect(vue.lien).toBe('/saisies?year=2026&month=10&employee=e1');
+    expect(vue.lien).toBe('/saisies?month=2026-10&employee=e1');
     expect(vue.explication).toBe(
       'Le bulletin d’octobre 2026 est déjà validé : impossible d’y reporter la somme.'
     );
@@ -127,7 +127,7 @@ describe('vueDuReport : ce que propose le bouton', () => {
     );
     expect(vue.action).toBeNull();
     expect(vue.bouton).toBeNull();
-    expect(vue.lien).toBe('/saisies?year=2026&month=10&employee=e1');
+    expect(vue.lien).toBe('/saisies?month=2026-10&employee=e1');
   });
 
   it('plusieurs reports reconnus : chaque montant, chacun déduit, chemin pour n’en garder qu’un', () => {
@@ -139,7 +139,7 @@ describe('vueDuReport : ce que propose le bouton', () => {
     );
     expect(vue.action).toBeNull();
     expect(vue.bouton).toBeNull();
-    expect(vue.lien).toBe('/saisies?year=2026&month=10&employee=e1');
+    expect(vue.lien).toBe('/saisies?month=2026-10&employee=e1');
   });
 });
 

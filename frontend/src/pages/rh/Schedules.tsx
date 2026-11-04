@@ -51,6 +51,7 @@ import type {
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { invalidateRhSidebarBadges } from '@/lib/invalidateRhSidebarBadges';
 import { accord, pluriel } from '@/lib/pluriel';
+import { useMoisDePaie } from '@/features/payroll/hooks/useMoisDePaie';
 
 function employeesLoadErrorMessage(error: unknown): string {
   if (isAxiosError(error)) {
@@ -77,8 +78,11 @@ export default function Schedules() {
   const queryClient = useQueryClient();
   const companyId = useActiveCompanyId();
   const now = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  // Le mois de paie, comme la Paie et les Primes (jusqu'au 15, le mois
+  // précédent), et le même d'un écran à l'autre ; écrit dans l'adresse.
+  const { mois: moisDePaie, choisir: choisirMois } = useMoisDePaie();
+  const selectedMonth = moisDePaie.month;
+  const selectedYear = moisDePaie.year;
 
   const employeesQuery = useEmployeesQuery();
   const employees = useMemo(
@@ -124,7 +128,7 @@ export default function Schedules() {
   } = usePlanningImportJobs();
   const handledPlanningImportJobsRef = useRef<Set<string>>(new Set());
   const [planningWeekIndex, setPlanningWeekIndex] = useState(() =>
-    defaultPlanningWeekIndex(now.getFullYear(), now.getMonth() + 1, now),
+    defaultPlanningWeekIndex(selectedYear, selectedMonth, now),
   );
   const [planningHighlightDays, setPlanningHighlightDays] = useState<number[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>('name');
@@ -261,14 +265,14 @@ export default function Schedules() {
   const visibleIds = sortedRows.map((r) => r.employee.id);
 
   const handleYearChange = useCallback((year: number) => {
-    setSelectedYear(year);
+    choisirMois({ year, month: selectedMonth });
     setPlanningWeekIndex(defaultPlanningWeekIndex(year, selectedMonth));
-  }, [selectedMonth]);
+  }, [choisirMois, selectedMonth]);
 
   const handleMonthChange = useCallback((month: number) => {
-    setSelectedMonth(month);
+    choisirMois({ year: selectedYear, month });
     setPlanningWeekIndex(defaultPlanningWeekIndex(selectedYear, month));
-  }, [selectedYear]);
+  }, [choisirMois, selectedYear]);
 
   // Compteurs sur tout le mois (avant filtres) : les segments de statut
   // doivent rester stables quand on filtre par équipe ou recherche.
@@ -725,8 +729,7 @@ export default function Schedules() {
           }
         }}
         onNavigateToMonth={(y, m) => {
-          setSelectedYear(y);
-          setSelectedMonth(m);
+          choisirMois({ year: y, month: m });
         }}
         onFocusPlanningWeek={(weekIndex) => {
           setPlanningWeekIndex(weekIndex);

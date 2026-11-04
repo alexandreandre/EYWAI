@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { anneesProposees, optionsDeMois } from './periodesExport';
+import { anneesProposees, optionsDeMois, periodeParDefaut } from './periodesExport';
 
 const OCTOBRE_2026 = new Date(2026, 9, 12);
 
@@ -36,5 +36,25 @@ describe('optionsDeMois', () => {
 describe('anneesProposees', () => {
   it('remonte de l’année en cours à six ans en arrière', () => {
     expect(anneesProposees(OCTOBRE_2026)).toEqual([2026, 2025, 2024, 2023, 2022, 2021, 2020]);
+  });
+});
+
+describe('periodeParDefaut : les exports s’ouvrent sur le mois de paie', () => {
+  const LE_4_NOVEMBRE = new Date(2026, 10, 4);
+
+  it('sans rien : le mois de paie (octobre le 4 novembre), plus le mois civil', () => {
+    expect(periodeParDefaut('', null, LE_4_NOVEMBRE)).toEqual({ periode: '2026-10', annee: null });
+  });
+
+  it('le mois de l’adresse (lien de la liste de contrôle), puis celui de l’écran précédent', () => {
+    expect(periodeParDefaut('month=2026-09', { year: 2026, month: 8 }, LE_4_NOVEMBRE)).toEqual({
+      periode: '2026-09',
+      annee: null,
+    });
+    expect(periodeParDefaut('', { year: 2026, month: 8 }, LE_4_NOVEMBRE)).toEqual({ periode: '2026-08', annee: null });
+  });
+
+  it('un mois hors des mois récents ouvre la liste de son année', () => {
+    expect(periodeParDefaut('month=2024-03', null, LE_4_NOVEMBRE)).toEqual({ periode: '2024-03', annee: 2024 });
   });
 });
