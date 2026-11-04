@@ -29,7 +29,13 @@ from app.modules.employees.infrastructure.queries import (
 from app.core.database import supabase
 from app.modules.employees.infrastructure.repository import EmployeeRepository
 from app.modules.onboarding.domain.profile import enrich_employee_profile_completeness
-from app.shared.domain.prevoyance_obligatoire import alertes_prevoyance_de_la_fiche
+from app.modules.collective_agreements.application.idcc_resolution import resolve_employee_idcc
+from app.shared.domain.prevoyance_obligatoire import (
+    alertes_prevoyance_de_la_fiche,
+    dernier_jour_du_mois,
+    idcc_de_la_classification,
+)
+from app.shared.domain.temps_local import aujourd_hui_local
 
 # Repository partagé (pas d'injection pour l'instant, comportement identique)
 _employee_repository = EmployeeRepository()
@@ -234,6 +240,14 @@ def _est_parti(employment_status: Any) -> bool:
     return str(employment_status or "actif").lower() in ("en_sortie", "parti", "sorti", "inactif")
 
 
+def _idcc_de_la_fiche(employee: Dict[str, Any]) -> Optional[str]:
+    try:
+        idcc = resolve_employee_idcc(employee, {"id": employee.get("company_id")})
+    except Exception:  # noqa: BLE001 — l'alerte se lit alors sur la classification
+        idcc = None
+    return idcc or idcc_de_la_classification(employee) or None
+
+
 def get_employee_by_id(employee_id: str, company_id: str) -> Optional[Dict[str, Any]]:
     """
     Détail d'un employé (enrichi titre de séjour + entretien annuel).
@@ -246,7 +260,12 @@ def get_employee_by_id(employee_id: str, company_id: str) -> Optional[Dict[str, 
     data = enrich_employee_with_trial_period_status(data)
     data = enrich_employee_with_annual_review(data)
     data = enrich_employee_with_exit_context(data)
-    data["alertes_paie"] = alertes_prevoyance_de_la_fiche(data)
+    aujourd_hui = aujourd_hui_local()
+    data["alertes_paie"] = alertes_prevoyance_de_la_fiche(
+        data,
+        idcc=lambda: _idcc_de_la_fiche(data),
+        fin_du_mois=dernier_jour_du_mois(aujourd_hui.year, aujourd_hui.month),
+    )
     return enrich_employee_profile_completeness(data)
 
 
