@@ -48,6 +48,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { VersionDuSite } from "@/components/VersionDuSite";
+import { ALT_LOGO_MARTINE, LOGO_MARTINE } from '@/lib/logoMartine';
 
 type NavItem = {
   to: string;
@@ -116,14 +117,15 @@ export function EmployeeSidebar() {
   };
   const [displayedLogo, setDisplayedLogo] = useState<{ url: string; scale: number } | null>(null);
 
+  // Une société sans logo montre celui de Martine (avant, le précédent restait).
   useEffect(() => {
-    if (activeCompany?.logo_url) {
-      setDisplayedLogo({
-        url: activeCompany.logo_url,
-        scale: activeCompany.logo_scale || 1.0,
-      });
-    }
-  }, [activeCompany?.logo_url, activeCompany?.logo_scale]);
+    if (!activeCompany) return;
+    setDisplayedLogo(
+      activeCompany.logo_url
+        ? { url: activeCompany.logo_url, scale: activeCompany.logo_scale || 1.0 }
+        : null,
+    );
+  }, [activeCompany]);
 
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
@@ -223,7 +225,7 @@ export function EmployeeSidebar() {
                 />
               </div>
             ) : (
-              <img src="/Colorplast.png" alt="Logo par défaut" className="h-10 w-auto" />
+              <img src={LOGO_MARTINE} alt={ALT_LOGO_MARTINE} className="h-10 w-10" />
             )}
             <p className="text-xs text-muted-foreground">Espace Collaborateur</p>
           </div>
