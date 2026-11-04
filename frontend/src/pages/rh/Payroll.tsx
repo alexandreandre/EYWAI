@@ -140,7 +140,7 @@ function buildRowState(
     };
   }
   if (logEntry?.status === 'error' || persistedError) {
-    return { status: 'error', errorMessage: logEntry?.error ?? persistedError };
+    return { status: 'error', errorMessage: logEntry?.error ?? persistedError, refus: logEntry?.refus };
   }
   return { status: 'idle' };
 }

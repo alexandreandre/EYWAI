@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { fenetreDeSuppression } from '@/features/payroll/utils/suppressionBulletin';
+import { presentationLigneEnErreur } from '@/features/payroll/utils/ligneEnErreur';
 import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -38,6 +39,8 @@ export type PayslipRowState = {
   status: PayslipRowStatus;
   payslip?: PayslipInfo;
   errorMessage?: string;
+  /** Refus d'une garde de la paie (pas une panne) : « Refusé », bouton neutre. */
+  refus?: boolean;
   warnings?: string[];
 };
 
@@ -133,7 +136,7 @@ export function PayrollPayslipRow({
       </Badge>
     ) : state.status === 'error' ? (
       <Badge variant="outline" className="border-red-200 bg-red-50 text-red-800">
-        Échec
+        {presentationLigneEnErreur(state.refus).badge}
       </Badge>
     ) : state.status === 'unavailable' ? (
       <Badge variant="outline" className="text-muted-foreground">
@@ -304,9 +307,16 @@ export function PayrollPayslipRow({
       </>
     );
   } else if (state.status === 'error') {
+    const enErreur = presentationLigneEnErreur(state.refus);
     actions = (
-      <Button size="sm" variant="destructive" onClick={onGenerate} disabled={generationEnCours} title={motifGeneration}>
-        Réessayer
+      <Button
+        size="sm"
+        variant={enErreur.boutonRouge ? 'destructive' : 'outline'}
+        onClick={onGenerate}
+        disabled={generationEnCours}
+        title={motifGeneration}
+      >
+        {enErreur.bouton}
       </Button>
     );
   } else {
