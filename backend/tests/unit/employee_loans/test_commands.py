@@ -172,3 +172,61 @@ def test_update_loan_rejects_invalid_transition(mock_loans_repo, active_loan_row
 
     with pytest.raises(ValueError, match="Transition"):
         update_loan("loan-1", EmployeeLoanUpdate(status="active"))
+
+
+# --- Un compte par prêt (OD de paie, 04/11/2026) ----------------------------
+
+
+@patch("app.modules.employee_loans.application.commands.employee_loan_installments_repository")
+@patch("app.modules.employee_loans.application.commands.employee_loans_repository")
+@patch("app.modules.employee_loans.application.commands._get_employee_company_id")
+def test_le_compte_du_pret_est_enregistre(
+    mock_company, mock_loans_repo, mock_installments_repo, loan_create_payload, active_loan_row
+):
+    mock_company.return_value = "company-1"
+    mock_loans_repo.create.return_value = {**active_loan_row, "accounting_account": "42511000"}
+    payload = loan_create_payload.model_copy(update={"accounting_account": "42511000"})
+
+    result = create_loan("company-1", payload, "user-1")
+
+    assert mock_loans_repo.create.call_args[0][0]["accounting_account"] == "42511000"
+    assert result.accounting_account == "42511000"
+
+
+@patch("app.modules.employee_loans.application.commands.employee_loan_installments_repository")
+@patch("app.modules.employee_loans.application.commands.employee_loans_repository")
+@patch("app.modules.employee_loans.application.commands._get_employee_company_id")
+def test_sans_compte_la_colonne_n_est_pas_ecrite(
+    mock_company, mock_loans_repo, mock_installments_repo, loan_create_payload, active_loan_row
+):
+    """Un prêt sans compte se crée même avant la migration de la colonne."""
+    mock_company.return_value = "company-1"
+    mock_loans_repo.create.return_value = active_loan_row
+
+    create_loan("company-1", loan_create_payload, "user-1")
+
+    assert "accounting_account" not in mock_loans_repo.create.call_args[0][0]
+
+
+@pytest.mark.parametrize("saisi, attendu", [(" 4251 1000 ", "42511000"), ("", None), (None, None)])
+def test_le_compte_saisi_est_nettoye(saisi, attendu):
+    assert EmployeeLoanUpdate(accounting_account=saisi).accounting_account == attendu
+
+
+@pytest.mark.parametrize("saisi", ["4251-1000", "compte courant", "1" * 21])
+def test_un_compte_illisible_est_refuse(saisi):
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="compte"):
+        EmployeeLoanUpdate(accounting_account=saisi)
+
+
+@patch("app.modules.employee_loans.application.commands.employee_loans_repository")
+def test_le_compte_se_pose_sur_un_pret_existant(mock_loans_repo, active_loan_row):
+    mock_loans_repo.get_by_id.return_value = active_loan_row
+    mock_loans_repo.update.return_value = {**active_loan_row, "accounting_account": "42590009"}
+
+    result = update_loan("loan-1", EmployeeLoanUpdate(accounting_account="42590009"))
+
+    mock_loans_repo.update.assert_called_once_with("loan-1", {"accounting_account": "42590009"})
+    assert result.accounting_account == "42590009"

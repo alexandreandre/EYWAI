@@ -345,6 +345,51 @@ class TestRetenuesDuBulletin:
             "interets_pret_employeur": -12.5,
         }
 
+    def test_un_element_par_pret_avec_son_identifiant(self):
+        """Un compte par prêt (OD des sociétés du groupe : un 4251xxxx ou 4259xxxx
+        par prêt) : chaque prêt sort à part, avec l'identifiant qui donne son
+        compte ; les intérêts restent un seul produit."""
+        from app.modules.exports.infrastructure.payslip_accounting_extract import (
+            extract_elements_hors_brut,
+        )
+
+        payslip = {
+            "remboursements_prets": {
+                "total_rembourse": 237.5,
+                "total_capital": 225.0,
+                "total_interets": 12.5,
+                "prets": [
+                    {"loan_id": "pret-1", "montant_capital": 150.0, "montant_interets": 12.5},
+                    {"loan_id": "pret-2", "montant_capital": 75.0, "montant_interets": 0.0},
+                ],
+            }
+        }
+        elements = extract_elements_hors_brut(payslip)
+        prets = [e for e in elements if e["famille"] == "pret_employeur"]
+        assert prets == [
+            {"famille": "pret_employeur", "libelle": "Remboursement prêt employeur", "montant": -150.0, "loan_id": "pret-1"},
+            {"famille": "pret_employeur", "libelle": "Remboursement prêt employeur", "montant": -75.0, "loan_id": "pret-2"},
+        ]
+        assert _par_famille(elements)["interets_pret_employeur"] == -12.5
+
+    def test_detail_qui_ne_redonne_pas_le_total_reste_en_une_ligne(self):
+        """Le total du bulletin fait foi : un détail qui ne le redonne pas au
+        centime n'est pas découpé."""
+        from app.modules.exports.infrastructure.payslip_accounting_extract import (
+            extract_elements_hors_brut,
+        )
+
+        payslip = {
+            "remboursements_prets": {
+                "total_rembourse": 225.0,
+                "total_capital": 225.0,
+                "total_interets": 0.0,
+                "prets": [{"loan_id": "pret-1", "montant_capital": 150.0}],
+            }
+        }
+        prets = [e for e in extract_elements_hors_brut(payslip) if e["famille"] == "pret_employeur"]
+        assert prets == [{"famille": "pret_employeur", "libelle": "Remboursement prêt employeur", "montant": -225.0}]
+
     def test_retenues_reprises_lues_et_acompte_pas_double(self):
         """Bulletin repris : `retenues_sur_net` détaille ce que l'ancien logiciel
         a retenu ; `acompte_verse` y répète l'acompte."""

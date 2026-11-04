@@ -1,3 +1,4 @@
+import { compteDuPretSaisi } from './compteDuPret';
 import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import {
@@ -74,6 +75,8 @@ export function EmployeeLoanFormModal({
   const [repaymentDay, setRepaymentDay] = useState('1');
   const [saveAsDraft, setSaveAsDraft] = useState(false);
   const [reason, setReason] = useState('');
+  const [compte, setCompte] = useState('');
+  const compteSaisi = compteDuPretSaisi(compte);
   const [preview, setPreview] = useState<AmortizationPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
@@ -130,6 +133,10 @@ export function EmployeeLoanFormModal({
       toast({ title: 'Erreur', description: 'Sélectionnez un salarié.', variant: 'destructive' });
       return;
     }
+    if (compteSaisi.erreur) {
+      toast({ title: 'Compte du prêt', description: compteSaisi.erreur, variant: 'destructive' });
+      return;
+    }
     createMutation.mutate({
       employee_id: employeeId,
       principal_amount: Number(principal),
@@ -138,6 +145,7 @@ export function EmployeeLoanFormModal({
       duration_months: Number(duration),
       repayment_day: Number(repaymentDay),
       reason: reason || undefined,
+      accounting_account: compteSaisi.compte ?? undefined,
       activate: !saveAsDraft,
     });
   };
@@ -236,6 +244,21 @@ export function EmployeeLoanFormModal({
             <Label htmlFor="save_draft" className="font-normal">
               Enregistrer en brouillon (activation manuelle ultérieure)
             </Label>
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="accounting_account">Compte comptable du prêt</Label>
+            <Input
+              id="accounting_account"
+              value={compte}
+              onChange={(e) => setCompte(e.target.value)}
+              inputMode="numeric"
+              placeholder="Compte « prêt » de la société"
+              aria-invalid={Boolean(compteSaisi.erreur)}
+            />
+            <p className={`text-xs ${compteSaisi.erreur ? 'text-destructive' : 'text-muted-foreground'}`}>
+              {compteSaisi.erreur ??
+                "Le compte que la comptabilité a ouvert pour ce prêt (ex. 42511000). Chaque remboursement le solde dans l'écriture de paie. Vide : le compte « prêt » de la société."}
+            </p>
           </div>
           <div className="sm:col-span-2">
             <Label htmlFor="reason">Motif</Label>

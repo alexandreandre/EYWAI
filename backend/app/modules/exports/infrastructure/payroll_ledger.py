@@ -367,6 +367,10 @@ def _compte_element(
     famille = str(element.get("famille") or FAMILLE_INCONNUE)
     if famille == FAMILLE_INCONNUE:
         return ""
+    # Un compte par prêt : le compte propre du prêt (celui où il a été versé)
+    # passe devant la ligne société, qui sinon regrouperait tous les prêts.
+    if famille == FAMILLE_PRET and element.get("compte"):
+        return str(element["compte"])
     mapping = (
         mappings.get(famille)
         or mappings.get(FAMILY_MAPPING_ALIASES.get(famille, ""))

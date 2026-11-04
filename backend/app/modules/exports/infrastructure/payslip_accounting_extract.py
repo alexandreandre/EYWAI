@@ -103,7 +103,26 @@ def _retenues_des_modules(payslip_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         interets = float(prets.get("total_interets", 0) or 0)
         if capital == 0 and interets == 0:
             capital = float(prets.get("total_rembourse", 0) or 0)
-        if capital != 0:
+        # Un compte par prêt : chaque prêt sort à part avec son identifiant,
+        # qui donne son compte à l'OD. Le total du bulletin fait foi : un
+        # détail qui ne le redonne pas au centime n'est pas découpé.
+        par_pret = [
+            (str(p["loan_id"]), round(float(p.get("montant_capital", 0) or 0), 2))
+            for p in prets.get("prets") or []
+            if isinstance(p, dict) and p.get("loan_id")
+        ]
+        if capital != 0 and par_pret and round(sum(m for _, m in par_pret), 2) == round(capital, 2):
+            for loan_id, montant in par_pret:
+                if montant != 0:
+                    elements.append(
+                        {
+                            "famille": FAMILLE_PRET,
+                            "libelle": "Remboursement prêt employeur",
+                            "montant": -montant,
+                            "loan_id": loan_id,
+                        }
+                    )
+        elif capital != 0:
             elements.append(
                 {
                     "famille": FAMILLE_PRET,

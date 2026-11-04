@@ -107,6 +107,30 @@ def get_default_mapping(rubrique_code: str) -> Optional[Dict[str, Any]]:
     return DEFAULT_MAPPINGS.get(rubrique_code)
 
 
+def comptes_des_prets_de_la_societe(company_id: str) -> Dict[str, str]:
+    """Compte propre de chaque prêt de la société (`employee_loans.accounting_account`).
+
+    Lu à l'export, comme le plan comptable : un compte posé après le bulletin
+    vaut pour l'OD. Lecture en `*` : avant la migration de la colonne, aucun
+    prêt n'a de compte et tous suivent celui de la société.
+    """
+    from app.core.database import supabase
+
+    try:
+        lignes = (
+            supabase.table("employee_loans").select("*").eq("company_id", company_id).execute().data
+            or []
+        )
+    except Exception as e:  # noqa: BLE001 — l'OD reste juste, au compte de la société
+        logger.warning(f"Comptes des prêts non lus pour l'OD : {e}")
+        return {}
+    return {
+        str(ligne["id"]): str(ligne.get("accounting_account") or "").strip()
+        for ligne in lignes
+        if ligne.get("id") and str(ligne.get("accounting_account") or "").strip()
+    }
+
+
 def ligne_od_du_bulletin(
     *,
     payslip_id: Any,
@@ -115,13 +139,16 @@ def ligne_od_du_bulletin(
     saisies_du_salarie: List[Dict[str, Any]],
     compte_de_saisie: Callable[[str], str],
     establishment_label: str = "Principal",
+    compte_de_pret: Callable[[str], str] = lambda _loan_id: "",
 ) -> Dict[str, Any]:
     """Ce que l'OD lit d'un bulletin : montants, cotisations et éléments hors brut.
 
     `compte_de_saisie(type)` donne le compte d'opposition d'un type de saisie
     (paramétrage du module Saisies) ; il n'est appelé que s'il y a une saisie.
+    `compte_de_pret(id)` donne le compte propre d'un prêt (celui où il a été
+    versé, un par prêt) ; vide, le prêt suit le compte de la société.
     """
-    from app.modules.exports.domain.accounting_plan import FAMILLE_SAISIE
+    from app.modules.exports.domain.accounting_plan import FAMILLE_PRET, FAMILLE_SAISIE
 
     brut = float(payslip_data.get("salaire_brut", 0) or 0)
     net_a_payer = float(payslip_data.get("net_a_payer", 0) or 0)
@@ -140,6 +167,10 @@ def ligne_od_du_bulletin(
             and not element.get("compte")
         ):
             element["compte"] = compte_de_saisie(str(element["type_saisie"]))
+        elif element.get("famille") == FAMILLE_PRET and element.get("loan_id"):
+            compte = compte_de_pret(str(element["loan_id"]))
+            if compte:
+                element["compte"] = compte
 
     return {
         "payslip_id": payslip_id,
@@ -241,6 +272,14 @@ def get_payslip_data_for_od(
             )
         return comptes_de_saisie[type_saisie]
 
+    comptes_des_prets: Dict[str, str] | None = None
+
+    def compte_de_pret(loan_id: str) -> str:
+        nonlocal comptes_des_prets
+        if comptes_des_prets is None:
+            comptes_des_prets = comptes_des_prets_de_la_societe(company_id)
+        return comptes_des_prets.get(loan_id, "")
+
     for payslip in payslips:
         employee = payslip.get("employees", {})
         payslip_data = payslip.get("payslip_data", {})
@@ -266,6 +305,7 @@ def get_payslip_data_for_od(
             ),
             compte_de_saisie=compte_de_saisie,
             establishment_label=establishment_label,
+            compte_de_pret=compte_de_pret,
         )
         payslip_list.append(ligne)
         totals["total_brut"] += ligne["brut"]
