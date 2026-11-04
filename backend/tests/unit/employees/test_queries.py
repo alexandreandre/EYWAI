@@ -171,3 +171,29 @@ def test_get_employee_rh_access_delegates_to_provider(mock_get_rh):
     mock_get_rh.assert_called_once_with(employee_id="emp-1", company_id="c1")
     assert result["has_access"] is True
     assert result["current_role"] == "rh"
+
+
+@patch("app.modules.employees.application.queries.enrich_employee_with_exit_context", side_effect=lambda d: d)
+@patch("app.modules.employees.application.queries.enrich_employee_with_trial_period_status", side_effect=lambda d: d)
+@patch("app.modules.employees.application.queries.enrich_employee_with_annual_review", side_effect=lambda d: d)
+@patch("app.modules.employees.application.queries.enrich_employee_with_residence_permit_status", side_effect=lambda d: d)
+@patch("app.modules.employees.application.queries._employee_repository")
+def test_la_fiche_d_un_cadre_sans_prevoyance_porte_l_alerte(mock_repo, *_):
+    """Audit du 03/11/2026 : la prévoyance des cadres manquante se dit sur la fiche."""
+    mock_repo.get_by_id.return_value = {
+        "id": "e1", "company_id": "c1", "statut": "Cadre",
+        "specificites_paie": {"prevoyance": {"adhesion": False}},
+    }
+    result = queries_module.get_employee_by_id("e1", "c1")
+    assert [a["code"] for a in result["alertes_paie"]] == ["prevoyance_cadre_absente"]
+    assert "Adhésion prévoyance" in result["alertes_paie"][0]["message"]
+
+
+@patch("app.modules.employees.application.queries.enrich_employee_with_exit_context", side_effect=lambda d: d)
+@patch("app.modules.employees.application.queries.enrich_employee_with_trial_period_status", side_effect=lambda d: d)
+@patch("app.modules.employees.application.queries.enrich_employee_with_annual_review", side_effect=lambda d: d)
+@patch("app.modules.employees.application.queries.enrich_employee_with_residence_permit_status", side_effect=lambda d: d)
+@patch("app.modules.employees.application.queries._employee_repository")
+def test_la_fiche_d_un_non_cadre_n_a_pas_d_alerte_de_prevoyance(mock_repo, *_):
+    mock_repo.get_by_id.return_value = {"id": "e1", "company_id": "c1", "statut": "Non-Cadre"}
+    assert queries_module.get_employee_by_id("e1", "c1")["alertes_paie"] == []

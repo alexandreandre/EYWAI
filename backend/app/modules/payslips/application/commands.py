@@ -67,6 +67,7 @@ from app.modules.employees.application.contrat_du_mois import (
 )
 from app.shared.cle_du_bulletin import du_contrat
 from app.shared.domain.employment_rules import payslip_employment_period_block_reason
+from app.shared.domain.prevoyance_obligatoire import prevoyance_manquante
 from app.shared.reprise_paie import (
     CLE_DEPART_A_ZERO,
     raison_de_blocage_avant_bascule,
@@ -631,6 +632,18 @@ def salarie_generable(
     )
     if bascule_block_reason:
         raise PayslipBadRequestError(bascule_block_reason)
+    # Prévoyance que la loi impose (cadres : ANI du 17/11/2017) : sans elle, le
+    # bulletin serait faux. Aucun forçage ; la RH la coche sur la fiche.
+    prevoyance = prevoyance_manquante(employee)
+    if prevoyance:
+        logger.info(
+            "[generation] Refus %s pour l'employé %s (%02d/%d).",
+            prevoyance.code,
+            employee_id,
+            month,
+            year,
+        )
+        raise PayslipBadRequestError(prevoyance.refus_pour(_prenom(employee)))
     # Ce que le bulletin du mois a retenu (prêts…) doit pouvoir être défait avant
     # d'être refait : sinon, refus ici, avant la moindre écriture.
     if contract_period_id:
@@ -649,6 +662,8 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     délègue au provider (services legacy).
 
     Gardes (lot 3 — génération sûre), côté serveur, jamais dans les générateurs :
+    - cadre sans prévoyance (adhésion ou lignes absentes de la fiche) →
+      PayslipBadRequestError, sans forçage possible (`salarie_generable`) ;
     - heures saisies un jour d'arrêt ou d'absence non travaillée →
       PayslipHeuresSurArretError (422), sans forçage possible ;
     - jour marqué « absent » à l'import sans type → PayslipAbsentATyperError

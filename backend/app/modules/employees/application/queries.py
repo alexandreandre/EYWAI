@@ -29,6 +29,7 @@ from app.modules.employees.infrastructure.queries import (
 from app.core.database import supabase
 from app.modules.employees.infrastructure.repository import EmployeeRepository
 from app.modules.onboarding.domain.profile import enrich_employee_profile_completeness
+from app.shared.domain.prevoyance_obligatoire import alertes_prevoyance_de_la_fiche
 
 # Repository partagé (pas d'injection pour l'instant, comportement identique)
 _employee_repository = EmployeeRepository()
@@ -245,6 +246,7 @@ def get_employee_by_id(employee_id: str, company_id: str) -> Optional[Dict[str, 
     data = enrich_employee_with_trial_period_status(data)
     data = enrich_employee_with_annual_review(data)
     data = enrich_employee_with_exit_context(data)
+    data["alertes_paie"] = alertes_prevoyance_de_la_fiche(data)
     return enrich_employee_profile_completeness(data)
 
 

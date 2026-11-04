@@ -584,7 +584,9 @@ def alerte_prevoyance_cadre(
     Pour un non-cadre adhérent sans ligne, le barème national s'applique. Pour
     un cadre, le moteur ne pose que les lignes de sa fiche : sans ligne, ou sans
     adhésion, aucune cotisation de prévoyance, et rien ne le disait. L'alerte
-    n'arrête pas le calcul : refuser la génération reste une décision à prendre.
+    n'arrête pas le calcul : c'est la génération qui refuse, avant lui
+    (`shared/domain/prevoyance_obligatoire`, audit du 03/11/2026) ; le bac à
+    sable, qui n'y passe pas, garde l'alerte.
     """
     if not cadre:
         return None

@@ -42,6 +42,8 @@ export interface Employee {
   exit_status?: string | null;
   profile_complete?: boolean | null;
   missing_payroll_fields?: string[] | null;
+  /** Ce que la loi impose et que la fiche n'a pas (prévoyance des cadres), dit par le serveur. */
+  alertes_paie?: { code: string; message: string }[] | null;
   time_tracking_id?: string | null;
   // Titre de séjour (données calculées par le backend)
   is_subject_to_residence_permit?: boolean | null;
