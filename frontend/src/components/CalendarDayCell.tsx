@@ -1,7 +1,6 @@
 // src/components/CalendarDayCell.tsx
 
 import { useState, useEffect, useRef } from 'react';
-import { DayCellContentArg } from '@fullcalendar/core';
 import { PlannedEventData, ActualHoursData } from '@/api/calendar';
 import { DayData } from '@/components/ScheduleModal';
 import { Input } from '@/components/ui/input';
@@ -31,8 +30,15 @@ import {
   estJourEnConflit,
 } from '@/features/payroll/utils/heuresSurArret';
 
+/** Jour de la grille du mois, construit par l'écran qui affiche la cellule. */
+interface JourDeLaGrille {
+  date: Date;
+  dayNumberText: string;
+  isToday: boolean;
+}
+
 interface CalendarDayCellProps {
-  arg: DayCellContentArg;
+  arg: JourDeLaGrille;
   plannedCalendar: PlannedEventData[];
   actualHours: ActualHoursData[];
   updateDayData: (day: Partial<DayData>) => void;

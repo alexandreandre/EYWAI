@@ -85,13 +85,6 @@ export const suggestCatalog = (
   );
 };
 
-/**
- * Récupère une convention du catalogue par son ID
- */
-export const getCatalogItem = (agreementId: string) => {
-  return apiClient.get<CollectiveAgreementCatalog>(`/api/collective-agreements/catalog/${agreementId}`);
-};
-
 export interface ClassificationConventionnelle {
   groupe_emploi: string;
   classe_emploi: number;
@@ -328,20 +321,6 @@ export const importFromLegifrance = (
 };
 
 /**
- * Import batch depuis Légifrance
- */
-export const importFromLegifranceBatch = (data: {
-  idcc_list?: string[];
-  priority_only?: boolean;
-  extract_rules?: boolean;
-}) => {
-  return apiClient.post<KaliImportBatchResponse>(
-    '/api/collective-agreements/catalog/import-legifrance/batch',
-    data
-  );
-};
-
-/**
  * Synchronise toutes les CC actives du catalogue depuis Légifrance
  */
 export const syncCatalogFromLegifrance = (
@@ -412,24 +391,6 @@ export interface KaliImportBatchResponse {
   cancelled?: number;
 }
 
-export interface ExtractRulesResponse {
-  success: boolean;
-  idcc: string;
-  agreement_id?: string | null;
-  rules?: Record<string, unknown> | null;
-  error?: string | null;
-  tokens_used?: number;
-  confidence?: string | null;
-  log_id?: string | null;
-}
-
-export interface ExtractRulesBatchResponse {
-  results: ExtractRulesResponse[];
-  total: number;
-  succeeded: number;
-  failed: number;
-}
-
 export interface RulesStatusResponse {
   idcc: string;
   agreement_id: string;
@@ -443,32 +404,6 @@ export interface RulesStatusResponse {
   confidence?: string | null;
   text_source?: string | null;
 }
-
-/**
- * Extrait les règles paie depuis le texte CC (super admin)
- */
-export const extractRules = (agreementId: string, dryRun = false) => {
-  return apiClient.post<ExtractRulesResponse>(
-    `/api/collective-agreements/catalog/${agreementId}/extract-rules`,
-    null,
-    { params: { dry_run: dryRun } }
-  );
-};
-
-/**
- * Extraction batch des règles paie (super admin)
- */
-export const extractRulesBatch = (data: {
-  idcc_list?: string[];
-  all_catalog?: boolean;
-  priority_only?: boolean;
-  dry_run?: boolean;
-}) => {
-  return apiClient.post<ExtractRulesBatchResponse>(
-    '/api/collective-agreements/catalog/extract-rules/batch',
-    data
-  );
-};
 
 /**
  * Statut des règles paie pour une convention (super admin)

@@ -43,12 +43,6 @@ export interface NetEntreprisesConfigUpdate {
   secret?: string | null;
 }
 
-export interface ConnectionTestResult {
-  success: boolean;
-  status: string;
-  message: string;
-}
-
 export interface DSNTransmission {
   id: string;
   period: string;
@@ -88,13 +82,6 @@ export async function updateNetEntreprisesConfig(
   data: NetEntreprisesConfigUpdate,
 ): Promise<NetEntreprisesConfig> {
   const res = await apiClient.put<NetEntreprisesConfig>('/api/net-entreprises/config', data);
-  return res.data;
-}
-
-export async function testNetEntreprisesConnection(): Promise<ConnectionTestResult> {
-  const res = await apiClient.post<ConnectionTestResult>(
-    '/api/net-entreprises/config/test-connection',
-  );
   return res.data;
 }
 

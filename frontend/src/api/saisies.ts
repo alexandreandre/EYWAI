@@ -84,19 +84,6 @@ export const updateMonthlyInput = (
   return apiClient.patch<MonthlyInput & BulletinsARecalculer>(`/api/monthly-inputs/${id}`, data, enTeteSociete(companyId));
 };
 
-/** Une saisie pour un salarié, dans la société donnée (sinon la société active). */
-export const createEmployeeMonthlyInput = (
-  employeeId: string,
-  data: Omit<MonthlyInputCreate, 'employee_id'>,
-  companyId?: string | null,
-) => {
-  return apiClient.post<MonthlyInput>(
-    `/api/employees/${employeeId}/monthly-inputs`,
-    data,
-    enTeteSociete(companyId),
-  );
-};
-
 export const getEmployeeMonthlyInputs = (employeeId: string, year: number, month: number) => {
   return apiClient.get(`/api/employees/${employeeId}/monthly-inputs`, {
     params: { year, month },

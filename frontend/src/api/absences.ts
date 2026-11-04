@@ -109,14 +109,6 @@ export interface AbsencePageData {
 
 // --- FONCTIONS API ---
 
-/**
- * (POUR LES RH) Récupère les demandes d'absence, potentiellement filtrées par statut.
- */
-export const getAbsenceRequests = (status?: 'pending' | 'validated' | 'rejected') => {
-  const params = status ? { status } : {};
-  return apiClient.get<AbsenceRequestWithEmployee[]>('/api/absences', { params });
-};
-
 /** Absences d'un collaborateur (lecture seule, fiche RH). */
 export const getAbsencesForEmployee = (employeeId: string) => {
   return apiClient.get<AbsenceRequest[]>(`/api/absences/employees/${employeeId}`);

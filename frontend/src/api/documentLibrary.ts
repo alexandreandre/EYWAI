@@ -81,11 +81,6 @@ export async function getTemplates(status?: string): Promise<DocumentTemplate[]>
   return response.data;
 }
 
-export async function getTemplate(id: string): Promise<DocumentTemplate> {
-  const response = await apiClient.get<DocumentTemplate>(`/api/document-library/${id}`);
-  return response.data;
-}
-
 export async function getMissingTypes(): Promise<string[]> {
   const response = await apiClient.get<string[]>('/api/document-library/missing-types');
   return response.data;

@@ -103,11 +103,6 @@ export async function getDocuments(filters?: DocumentsFilters): Promise<Generate
   return response.data;
 }
 
-export async function getDocument(id: string): Promise<GeneratedDocument> {
-  const response = await apiClient.get<GeneratedDocument>(`/api/documents/${id}`);
-  return response.data;
-}
-
 export async function generateDocument(data: GenerateDocumentPayload): Promise<GeneratedDocument> {
   const response = await apiClient.post<GeneratedDocument>('/api/documents/generate', data);
   return response.data;

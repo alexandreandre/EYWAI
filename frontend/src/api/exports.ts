@@ -415,17 +415,6 @@ export async function runScheduledExportNow(
   return data;
 }
 
-export async function getScheduledExportHistory(
-  scheduleId: string,
-  companyId: string | null | undefined,
-): Promise<ExportHistoryResponse> {
-  const { data } = await apiClient.get<ExportHistoryResponse>(
-    `/api/exports/scheduled/${scheduleId}/history`,
-    { headers: scheduledHeaders(companyId) },
-  );
-  return data;
-}
-
 export interface AccountingMapping {
   id: string;
   company_id?: string | null;

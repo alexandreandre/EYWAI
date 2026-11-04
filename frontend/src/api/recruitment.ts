@@ -182,41 +182,6 @@ export async function getPipelineStages(jobId: string): Promise<PipelineStage[]>
   return res.data ?? [];
 }
 
-export async function createPipelineStage(
-  jobId: string,
-  body: { name: string }
-): Promise<PipelineStage> {
-  const res = await apiClient.post<PipelineStage>(`/api/recruitment/jobs/${jobId}/stages`, body);
-  return res.data;
-}
-
-export async function updatePipelineStage(
-  jobId: string,
-  stageId: string,
-  body: { name?: string; is_final?: boolean }
-): Promise<PipelineStage> {
-  const res = await apiClient.patch<PipelineStage>(
-    `/api/recruitment/jobs/${jobId}/stages/${stageId}`,
-    body
-  );
-  return res.data;
-}
-
-export async function deletePipelineStage(jobId: string, stageId: string): Promise<void> {
-  await apiClient.delete(`/api/recruitment/jobs/${jobId}/stages/${stageId}`);
-}
-
-export async function reorderPipelineStages(
-  jobId: string,
-  stageIds: string[]
-): Promise<PipelineStage[]> {
-  const res = await apiClient.post<PipelineStage[]>(
-    `/api/recruitment/jobs/${jobId}/stages/reorder`,
-    { stage_ids: stageIds }
-  );
-  return res.data ?? [];
-}
-
 // ─── Candidates ─────────────────────────────────────────────────────
 
 export async function getCandidates(params?: {
@@ -233,11 +198,6 @@ export async function getCandidates(params?: {
   return res.data ?? [];
 }
 
-export async function getCandidate(candidateId: string): Promise<Candidate> {
-  const res = await apiClient.get<Candidate>(`/api/recruitment/candidates/${candidateId}`);
-  return res.data;
-}
-
 export async function createCandidate(body: {
   job_id: string;
   first_name: string;
@@ -247,14 +207,6 @@ export async function createCandidate(body: {
   source?: string;
 }): Promise<Candidate> {
   const res = await apiClient.post<Candidate>("/api/recruitment/candidates", body);
-  return res.data;
-}
-
-export async function updateCandidate(
-  candidateId: string,
-  body: Partial<Pick<Candidate, "first_name" | "last_name" | "email" | "phone" | "source">>
-): Promise<Candidate> {
-  const res = await apiClient.patch<Candidate>(`/api/recruitment/candidates/${candidateId}`, body);
   return res.data;
 }
 
@@ -371,10 +323,6 @@ export async function getCandidateScore(
     }
   );
   return res.data;
-}
-
-export async function archiveCandidate(candidateId: string): Promise<void> {
-  await apiClient.post(`/api/recruitment/candidates/${candidateId}/archive`, {});
 }
 
 // ─── Interviews ─────────────────────────────────────────────────────

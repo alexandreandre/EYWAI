@@ -78,11 +78,6 @@ export async function getCertificationRefs(): Promise<CertificationRef[]> {
   return res.data ?? [];
 }
 
-export async function getCertificationRef(id: string): Promise<CertificationRef> {
-  const res = await apiClient.get<CertificationRef>(`/api/certifications/refs/${id}`);
-  return res.data;
-}
-
 export async function createCertificationRef(
   body: CertificationRefCreate,
 ): Promise<CertificationRef> {
@@ -114,11 +109,6 @@ export async function getEmployeeCertifications(params?: {
     `/api/certifications${q ? `?${q}` : ""}`,
   );
   return res.data ?? [];
-}
-
-export async function getEmployeeCertification(id: string): Promise<EmployeeCertification> {
-  const res = await apiClient.get<EmployeeCertification>(`/api/certifications/${id}`);
-  return res.data;
 }
 
 export async function createEmployeeCertification(

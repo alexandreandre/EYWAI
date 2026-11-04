@@ -136,24 +136,6 @@ export interface PromotionReject {
   rejection_reason: string;
 }
 
-// Interface pour l'accès RH d'un employé
-export interface EmployeeRhAccess {
-  has_access: boolean;
-  current_role: string | null;
-  can_grant_access: boolean;
-  available_roles: RhAccessRole[];
-}
-
-// Interface pour les statistiques des promotions
-export interface PromotionStats {
-  total_promotions: number;
-  promotions_by_month: Record<string, number>; // { "YYYY-MM": count }
-  approval_rate: number; // Pourcentage (0-100)
-  promotions_by_type: Record<string, number>;
-  average_salary_increase: number | null; // Pourcentage moyen
-  promotions_with_rh_access: number;
-}
-
 // Interface pour les paramètres de filtrage
 export interface PromotionFilters {
   year?: number;
@@ -340,28 +322,5 @@ export const downloadPromotionDocument = async (promotionId: string) => {
 export const getEmployeePromotions = (employeeId: string) => {
   return apiClient.get<PromotionListItem[]>(
     `/api/employees/${employeeId}/promotions`
-  );
-};
-
-/**
- * Récupère les informations d'accès RH d'un employé
- */
-export const getEmployeeRhAccess = (employeeId: string) => {
-  return apiClient.get<EmployeeRhAccess>(
-    `/api/employees/${employeeId}/rh-access`
-  );
-};
-
-/**
- * Récupère les statistiques des promotions
- */
-export const getPromotionStats = (year?: number) => {
-  const searchParams = new URLSearchParams();
-  if (year != null) {
-    searchParams.set("year", String(year));
-  }
-  const qs = searchParams.toString();
-  return apiClient.get<PromotionStats>(
-    `/api/promotions/stats${qs ? `?${qs}` : ""}`
   );
 };

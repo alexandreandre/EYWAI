@@ -114,21 +114,6 @@ export interface SimulationCreateResponse {
   pdf_url?: string;
 }
 
-export interface SimulationDetail {
-  id: string;
-  employee_id: string;
-  company_id: string;
-  month: number;
-  year: number;
-  simulation_type: string;
-  scenario_name?: string;
-  scenario_data: any;
-  payslip_data: any;
-  created_at: string;
-  created_by?: string;
-  updated_at: string;
-}
-
 export interface SimulationInfo {
   id: string;
   employee_id: string;
@@ -138,36 +123,6 @@ export interface SimulationInfo {
   scenario_name?: string;
   net_a_payer?: number;
   created_at: string;
-}
-
-export interface DifferenceItem {
-  field: string;
-  label: string;
-  simulated_value: number;
-  real_value: number;
-  ecart: number;
-  ecart_percent: number;
-}
-
-export interface ComparisonSummary {
-  ecart_brut: number;
-  ecart_cotisations: number;
-  ecart_net: number;
-  ecart_net_imposable: number;
-  ecart_cout_employeur: number;
-  nombre_differences: number;
-}
-
-export interface ComparisonResponse {
-  differences: DifferenceItem[];
-  summary: ComparisonSummary;
-  ecart_total: number;
-}
-
-export interface PredefinedScenario {
-  name: string;
-  description: string;
-  params: ScenarioParams;
 }
 
 export const SIMULATION_ARRET_MALADIE_TYPES = [
@@ -266,64 +221,6 @@ export const createPayslipSimulation = async (
 };
 
 /**
- * Récupère les détails d'une simulation
- */
-export const getSimulation = async (simulationId: string): Promise<SimulationDetail> => {
-  const response = await apiClient.get(`/api/simulation/${simulationId}`);
-  return response.data;
-};
-
-/**
- * Récupère les simulations d'un employé
- */
-export const getEmployeeSimulations = async (
-  employeeId: string,
-  month?: number,
-  year?: number
-): Promise<SimulationInfo[]> => {
-  const params: any = {};
-  if (month !== undefined) params.month = month;
-  if (year !== undefined) params.year = year;
-
-  const response = await apiClient.get(`/api/simulation/employee/${employeeId}`, {
-    params,
-  });
-  return response.data;
-};
-
-/**
- * Compare une simulation avec un bulletin réel
- */
-export const compareSimulation = async (
-  simulationId: string,
-  payslipId: string
-): Promise<ComparisonResponse> => {
-  const response = await apiClient.post(`/api/simulation/${simulationId}/compare`, {
-    payslip_id: payslipId,
-  });
-  return response.data;
-};
-
-/**
- * Supprime une simulation
- */
-export const deleteSimulation = async (simulationId: string): Promise<void> => {
-  await apiClient.delete(`/api/simulation/${simulationId}`);
-};
-
-/**
- * Récupère les scénarios prédéfinis pour un employé
- */
-export const getPredefinedScenarios = async (
-  employeeId: string
-): Promise<PredefinedScenario[]> => {
-  const response = await apiClient.get(
-    `/api/simulation/predefined-scenarios/${employeeId}`
-  );
-  return response.data.scenarios;
-};
-
-/**
  * Télécharge le PDF d'une simulation
  */
 export const downloadSimulationPDF = async (simulationId: string): Promise<void> => {
@@ -350,14 +247,4 @@ export const simulerArretMaladie = async (
     params
   );
   return response.data;
-};
-
-export const previewSimulationHTML = (simulationId: string): void => {
-  // Construire l'URL pour l'aperçu HTML
-  const baseURL = apiClient.defaults.baseURL || '';
-  const previewURL = `${baseURL}/api/simulation/${simulationId}/html`;
-
-  // Ouvrir dans un nouvel onglet
-  // Note: L'authentification sera gérée par les cookies de session
-  window.open(previewURL, '_blank');
 };

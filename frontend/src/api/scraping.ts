@@ -167,25 +167,6 @@ export interface ExecuteScraperRequest {
   use_orchestrator?: boolean;
 }
 
-export interface CreateScheduleRequest {
-  source_id: string;
-  schedule_type: 'cron' | 'interval';
-  cron_expression?: string;
-  interval_days?: number;
-  notify_on_success?: boolean;
-  notify_on_failure?: boolean;
-  notification_emails?: string[];
-}
-
-export interface UpdateScheduleRequest {
-  is_enabled?: boolean;
-  cron_expression?: string;
-  interval_days?: number;
-  notify_on_success?: boolean;
-  notify_on_failure?: boolean;
-  notification_emails?: string[];
-}
-
 // =====================================================
 // API DASHBOARD
 // =====================================================
@@ -205,11 +186,6 @@ export async function listSources(params?: {
   is_active?: boolean;
 }): Promise<{ sources: ScrapingSource[]; total: number }> {
   const response = await apiClient.get('/api/scraping/sources', { params });
-  return response.data;
-}
-
-export async function getSourceDetails(sourceId: string): Promise<ScrapingSource> {
-  const response = await apiClient.get(`/api/scraping/sources/${sourceId}`);
   return response.data;
 }
 
@@ -248,42 +224,6 @@ export async function listJobs(params?: {
   offset?: number;
 }): Promise<{ jobs: ScrapingJob[]; total: number }> {
   const response = await apiClient.get('/api/scraping/jobs', { params });
-  return response.data;
-}
-
-export async function getJobDetails(jobId: string): Promise<ScrapingJob> {
-  const response = await apiClient.get(`/api/scraping/jobs/${jobId}`);
-  return response.data;
-}
-
-// =====================================================
-// API SCHEDULES
-// =====================================================
-
-export async function listSchedules(params?: {
-  is_enabled?: boolean;
-}): Promise<{ schedules: ScrapingSchedule[]; total: number }> {
-  const response = await apiClient.get('/api/scraping/schedules', { params });
-  return response.data;
-}
-
-export async function createSchedule(
-  schedule: CreateScheduleRequest
-): Promise<{ success: boolean; schedule: ScrapingSchedule }> {
-  const response = await apiClient.post('/api/scraping/schedules', schedule);
-  return response.data;
-}
-
-export async function updateSchedule(
-  scheduleId: string,
-  update: UpdateScheduleRequest
-): Promise<{ success: boolean; schedule: ScrapingSchedule }> {
-  const response = await apiClient.patch(`/api/scraping/schedules/${scheduleId}`, update);
-  return response.data;
-}
-
-export async function deleteSchedule(scheduleId: string): Promise<{ success: boolean; message: string }> {
-  const response = await apiClient.delete(`/api/scraping/schedules/${scheduleId}`);
   return response.data;
 }
 
@@ -329,13 +269,6 @@ export async function listPendingChanges(params?: {
   return response.data;
 }
 
-export async function getPendingChange(
-  pendingId: string
-): Promise<ScrapingPendingChange> {
-  const response = await apiClient.get(`/api/scraping/pending/${pendingId}`);
-  return response.data;
-}
-
 export async function approvePendingChange(
   pendingId: string,
   overrideValue?: any
@@ -368,48 +301,5 @@ export async function runTripwire(
   const response = await apiClient.post('/api/scraping/tripwire', null, {
     params: sourceKey ? { source_key: sourceKey } : undefined,
   });
-  return response.data;
-}
-
-// =====================================================
-// API AGENT RÉPARATION AUTONOME
-// =====================================================
-
-export interface ScrapingRepairJob {
-  id: string;
-  scraper_name: string;
-  source_id?: string;
-  trigger: string;
-  status: 'queued' | 'running' | 'tests_failed' | 'tests_passed' | 'merged' | 'aborted';
-  error_message?: string;
-  context?: Record<string, unknown>;
-  attempts: number;
-  model_used?: string;
-  diff_summary?: string;
-  history?: string[];
-  pr_url?: string;
-  ci_run_url?: string;
-  created_at: string;
-  started_at?: string;
-  completed_at?: string;
-  scraping_sources?: {
-    source_name: string;
-    source_key: string;
-    primary_url?: string;
-  };
-}
-
-export async function listRepairJobs(params?: {
-  status?: string;
-  scraper_name?: string;
-  limit?: number;
-  offset?: number;
-}): Promise<{ jobs: ScrapingRepairJob[]; total: number; active: number }> {
-  const response = await apiClient.get('/api/scraping/repair-jobs', { params });
-  return response.data;
-}
-
-export async function getRepairJob(jobId: string): Promise<ScrapingRepairJob> {
-  const response = await apiClient.get(`/api/scraping/repair-jobs/${jobId}`);
   return response.data;
 }

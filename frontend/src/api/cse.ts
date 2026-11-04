@@ -193,19 +193,6 @@ export interface DelegationHourCreate {
   origin_month?: string | null;
 }
 
-export interface DelegationQuota {
-  id: string;
-  company_id: string;
-  collective_agreement_id: string | null;
-  quota_hours_per_month: number;
-  notes: string | null;
-  collective_agreement_name?: string | null;
-  credit_base?: number | null;
-  monthly_cap?: number | null;
-  reference_headcount?: number | null;
-  role?: string | null;
-}
-
 export interface DelegationConfig {
   id: string;
   company_id: string;
@@ -266,28 +253,6 @@ export interface DelegationTransferCreate {
   period_year: number;
   period_month: number;
   hours: number;
-  employer_notified_at?: string | null;
-}
-
-export interface DelegationRequest {
-  id: string;
-  company_id: string;
-  employee_id: string;
-  planned_date: string;
-  planned_hours: number;
-  reason: string;
-  status: 'planifie' | 'realise' | 'annule';
-  realized_hours: number | null;
-  employer_notified_at: string | null;
-  delegation_hour_id: string | null;
-  created_at: string;
-}
-
-export interface DelegationRequestCreate {
-  employee_id?: string | null;
-  planned_date: string;
-  planned_hours: number;
-  reason: string;
   employer_notified_at?: string | null;
 }
 
@@ -431,10 +396,6 @@ export async function updateElectedMember(
   return response.data;
 }
 
-export async function deleteElectedMember(memberId: string): Promise<void> {
-  await apiClient.delete(`/api/cse/elected-members/${memberId}`);
-}
-
 export async function getMandateAlerts(monthsBefore: number = 3): Promise<MandateAlert[]> {
   const response = await apiClient.get("/api/cse/elected-members/alerts", {
     params: { months_before: monthsBefore },
@@ -511,13 +472,6 @@ export async function addMeetingParticipants(
   return response.data;
 }
 
-export async function removeMeetingParticipant(
-  meetingId: string,
-  employeeId: string
-): Promise<void> {
-  await apiClient.delete(`/api/cse/meetings/${meetingId}/participants/${employeeId}`);
-}
-
 export async function updateMeetingParticipantAttendance(
   meetingId: string,
   employeeId: string,
@@ -548,16 +502,6 @@ export async function deleteMeeting(meetingId: string): Promise<void> {
 // API Functions - Heures de délégation
 // ============================================================================
 
-export async function getDelegationQuota(
-  employeeId?: string
-): Promise<DelegationQuota | null> {
-  const params: Record<string, any> = {};
-  if (employeeId) params.employee_id = employeeId;
-  
-  const response = await apiClient.get("/api/cse/delegation/quota", { params });
-  return response.data;
-}
-
 export async function getDelegationHours(
   employeeId?: string,
   periodStart?: string,
@@ -587,11 +531,6 @@ export async function getDelegationSummary(
   return response.data;
 }
 
-export async function getDelegationQuotas(): Promise<DelegationQuota[]> {
-  const response = await apiClient.get("/api/cse/delegation/quotas");
-  return response.data;
-}
-
 export async function getDelegationConfig(): Promise<DelegationConfig> {
   const response = await apiClient.get("/api/cse/delegation/config");
   return response.data;
@@ -615,39 +554,10 @@ export async function getDelegationCredit(
   return response.data;
 }
 
-export async function getDelegationTransfers(
-  employeeId?: string,
-  periodYear?: number,
-  periodMonth?: number
-): Promise<DelegationTransfer[]> {
-  const params: Record<string, string | number> = {};
-  if (employeeId) params.employee_id = employeeId;
-  if (periodYear) params.period_year = periodYear;
-  if (periodMonth) params.period_month = periodMonth;
-  const response = await apiClient.get("/api/cse/delegation/transfers", { params });
-  return response.data;
-}
-
 export async function createDelegationTransfer(
   data: DelegationTransferCreate
 ): Promise<DelegationTransfer> {
   const response = await apiClient.post("/api/cse/delegation/transfers", data);
-  return response.data;
-}
-
-export async function getDelegationRequests(
-  employeeId?: string
-): Promise<DelegationRequest[]> {
-  const params: Record<string, string> = {};
-  if (employeeId) params.employee_id = employeeId;
-  const response = await apiClient.get("/api/cse/delegation/requests", { params });
-  return response.data;
-}
-
-export async function createDelegationRequest(
-  data: DelegationRequestCreate
-): Promise<DelegationRequest> {
-  const response = await apiClient.post("/api/cse/delegation/requests", data);
   return response.data;
 }
 
@@ -712,11 +622,6 @@ export async function getElectionCycles(): Promise<ElectionCycle[]> {
 
 export async function createElectionCycle(data: ElectionCycleCreate): Promise<ElectionCycle> {
   const response = await apiClient.post("/api/cse/election-cycles", data);
-  return response.data;
-}
-
-export async function getElectionCycleById(cycleId: string): Promise<ElectionCycle> {
-  const response = await apiClient.get(`/api/cse/election-cycles/${cycleId}`);
   return response.data;
 }
 

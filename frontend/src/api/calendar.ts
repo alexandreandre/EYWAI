@@ -572,54 +572,6 @@ export const waitForTimesheetExtractJob = async (
   throw new Error("Délai d'attente dépassé (extraction trop longue).");
 };
 
-/**
- * Analyse un relevé de pointeuse (PDF / image) et renvoie une proposition
- * d'heures réelles (non persistée) — chemin async hybride IA.
- */
-export const extractTimesheet = async (
-  file: File,
-  year: number,
-  month: number,
-  employees: RosterEmployee[],
-  options: ExtractTimesheetOptions = {},
-): Promise<AiCalendarProposal> => {
-  const started = await startTimesheetExtract(file, year, month, employees, options);
-  return waitForTimesheetExtractJob(started.job_id, options.onProgress, {
-    signal: options.signal,
-  });
-};
-
-/** @deprecated Sync endpoint — préférer extractTimesheet (async). */
-export const extractTimesheetSync = async (
-  file: File,
-  year: number,
-  month: number,
-  employees: RosterEmployee[],
-  options: ExtractTimesheetOptions = {},
-): Promise<AiCalendarProposal> => {
-  const {
-    singleEmployee = false,
-    documentScope = 'auto',
-    weekAnchorDate = null,
-  } = options;
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('year', String(year));
-  formData.append('month', String(month));
-  formData.append('employees', JSON.stringify(employees));
-  formData.append('single_employee', String(singleEmployee));
-  formData.append('document_scope', documentScope);
-  if (weekAnchorDate) {
-    formData.append('week_anchor_date', weekAnchorDate);
-  }
-  const { data } = await apiClient.post<AiCalendarProposal>(
-    '/api/schedules/assisted-fill/extract-timesheet',
-    formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
-  );
-  return data;
-};
-
 export const persistTimesheetBatch = async (
   year: number,
   month: number,
@@ -636,25 +588,6 @@ export const persistTimesheetBatch = async (
       allow_partial: options?.allowPartial ?? false,
       recalculate_payroll: options?.recalculatePayroll ?? false,
     },
-  );
-  return data;
-};
-
-export interface ColumnDetectionResult {
-  headers: string[];
-  sample_rows: Record<string, string | null>[];
-  suggested_mapping: Record<string, string>;
-  mapping_complete: boolean;
-  source_type: string;
-}
-
-export const detectTimesheetColumns = async (file: File): Promise<ColumnDetectionResult> => {
-  const formData = new FormData();
-  formData.append('file', file);
-  const { data } = await apiClient.post<ColumnDetectionResult>(
-    '/api/schedules/timesheet-import/detect-columns',
-    formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
   );
   return data;
 };

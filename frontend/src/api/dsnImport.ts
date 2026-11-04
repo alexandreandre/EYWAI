@@ -326,14 +326,6 @@ export async function listDsnImportBatches(limit = 50): Promise<DsnImportBatchSu
   return data.batches;
 }
 
-export async function listPendingDsnImportBatches(limit = 20): Promise<DsnImportBatchSummary[]> {
-  const { data } = await apiClient.get<{ batches: DsnImportBatchSummary[] }>(
-    '/api/dsn-import/batches/pending',
-    { params: { limit } },
-  );
-  return data.batches;
-}
-
 export async function fetchDsnCoverage(companyId: string): Promise<DsnCoverage> {
   const { data } = await apiClient.get<DsnCoverage>('/api/dsn-import/coverage', {
     params: { company_id: companyId },

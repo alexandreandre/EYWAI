@@ -562,14 +562,6 @@ export const restorePayslipVersion = async (
   return response.data;
 };
 
-/**
- * Récupère la liste des bulletins de l'utilisateur connecté
- */
-export const getMyPayslips = async (): Promise<PayslipInfo[]> => {
-  const response = await apiClient.get<PayslipInfo[]>('/api/me/payslips');
-  return response.data;
-};
-
 export interface AlerteRevue {
   rule_id: string;
   level: 'CRITIQUE' | 'AVERTISSEMENT' | 'INFO';

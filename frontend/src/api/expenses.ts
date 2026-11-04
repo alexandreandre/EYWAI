@@ -111,10 +111,6 @@ export const getReceiptSignedUrl = async (path: string): Promise<string> => {
   return data.url;
 };
 
-export const getMyExpenses = () => {
-  return apiClient.get<Expense[]>('/api/expenses/me');
-};
-
 /**
  * (RH) Récupère toutes les notes de frais.
  */

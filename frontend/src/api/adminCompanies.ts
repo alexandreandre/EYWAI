@@ -77,15 +77,6 @@ export interface DeleteAllCompanyEmployeesResult {
   failed: Array<{ employee_id: string; employee_name: string; error: string }>;
 }
 
-export async function deleteAllCompanyEmployees(
-  companyId: string,
-): Promise<DeleteAllCompanyEmployeesResult> {
-  const { data } = await apiClient.delete<DeleteAllCompanyEmployeesResult>(
-    `/api/super-admin/companies/${companyId}/employees`,
-  );
-  return data;
-}
-
 export interface PurgeAllCompanyEmployeesOptions {
   onEvent?: (event: PurgeEmployeesStreamEvent) => void;
   signal?: AbortSignal;

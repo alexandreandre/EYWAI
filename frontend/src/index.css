@@ -155,38 +155,6 @@ All colors MUST be HSL.
     @apply bg-background text-foreground antialiased;
     max-width: 100vw;
   }
-
-  /* HR App specific styles */
-  .hr-gradient {
-    background: var(--gradient-primary);
-  }
-
-  .hr-card {
-    background: var(--gradient-card);
-    box-shadow: var(--shadow-card);
-    transition: var(--transition-smooth);
-  }
-
-  .hr-card:hover {
-    box-shadow: var(--shadow-elegant);
-    transform: translateY(-2px);
-  }
-
-  .kpi-card {
-    @apply hr-card p-6 rounded-xl border-0;
-  }
-
-  .status-badge-success {
-    @apply bg-gradient-to-r from-green-500 to-green-600 text-white;
-  }
-
-  .status-badge-warning {
-    @apply bg-gradient-to-r from-yellow-500 to-yellow-600 text-white;
-  }
-
-  .status-badge-danger {
-    @apply bg-gradient-to-r from-red-500 to-red-600 text-white;
-  }
 }
 
 /* ── Chargement : un segment parcourt la barre fine quand l'avancement est inconnu ── */

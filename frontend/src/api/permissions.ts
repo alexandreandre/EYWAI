@@ -5,23 +5,6 @@ import apiClient from './apiClient';
 // TYPES
 // =====================================================
 
-export interface PermissionCategory {
-  id: string;
-  code: string;
-  label: string;
-  description?: string;
-  display_order: number;
-  is_active: boolean;
-}
-
-export interface PermissionAction {
-  id: string;
-  code: string;
-  label: string;
-  description?: string;
-  is_active: boolean;
-}
-
 export interface Permission {
   id: string;
   category_id: string;
@@ -160,13 +143,6 @@ export interface UserUpdateWithPermissions {
   grants?: PermissionGrantInput[];
 }
 
-export interface RoleHierarchyCheckResponse {
-  is_allowed: boolean;
-  creator_role: string;
-  target_role: string;
-  message: string;
-}
-
 export interface PermissionCheckResponse {
   has_permission: boolean;
   permission_code: string;
@@ -184,28 +160,6 @@ export interface AccessibleCompany {
 // =====================================================
 // API CALLS - CATÉGORIES & ACTIONS
 // =====================================================
-
-export const getPermissionCategories = async (): Promise<PermissionCategory[]> => {
-  const response = await apiClient.get('/api/access-control/permission-categories');
-  return response.data;
-};
-
-export const getPermissionActions = async (): Promise<PermissionAction[]> => {
-  const response = await apiClient.get('/api/access-control/permission-actions');
-  return response.data;
-};
-
-export const getAllPermissions = async (
-  categoryId?: string,
-  requiredRole?: string
-): Promise<Permission[]> => {
-  const params = new URLSearchParams();
-  if (categoryId) params.append('category_id', categoryId);
-  if (requiredRole) params.append('required_role', requiredRole);
-
-  const response = await apiClient.get(`/api/access-control/permissions?${params.toString()}`);
-  return response.data;
-};
 
 export const getPermissionsMatrix = async (
   companyId: string,
@@ -239,19 +193,6 @@ export const getUserPermissionGrants = async (
   const response = await apiClient.get(
     `/api/access-control/users/${userId}/permission-grants?company_id=${companyId}`
   );
-  return response.data;
-};
-
-export const grantUserPermissions = async (
-  userId: string,
-  companyId: string,
-  permissionIds: string[]
-): Promise<{ message: string }> => {
-  const response = await apiClient.post(`/api/access-control/users/${userId}/permissions`, {
-    user_id: userId,
-    company_id: companyId,
-    permission_ids: permissionIds,
-  });
   return response.data;
 };
 
@@ -307,17 +248,6 @@ export const syncPermissionGrants = (
   return buildPermissionGrantsPayload(selectedPermissionIds, currentGrants);
 };
 
-export const revokeUserPermission = async (
-  userId: string,
-  permissionId: string,
-  companyId: string
-): Promise<{ message: string }> => {
-  const response = await apiClient.delete(
-    `/api/access-control/users/${userId}/permissions/${permissionId}?company_id=${companyId}`
-  );
-  return response.data;
-};
-
 // =====================================================
 // API CALLS - TEMPLATES DE RÔLES
 // =====================================================
@@ -341,18 +271,6 @@ export const getRoleTemplate = async (templateId: string): Promise<RoleTemplateW
   return response.data;
 };
 
-export const createRoleTemplate = async (data: {
-  company_id?: string;
-  name: string;
-  description?: string;
-  job_title?: string;
-  base_role: string;
-  permission_ids: string[];
-}): Promise<RoleTemplate> => {
-  const response = await apiClient.post('/api/access-control/role-templates', data);
-  return response.data;
-};
-
 export const quickCreateRoleTemplate = async (data: {
   company_id: string;
   name: string;
@@ -365,39 +283,9 @@ export const quickCreateRoleTemplate = async (data: {
   return response.data;
 };
 
-export const updateRoleTemplate = async (
-  templateId: string,
-  data: {
-    name?: string;
-    description?: string;
-    job_title?: string;
-    base_role?: string;
-    is_active?: boolean;
-    permission_ids?: string[];
-  }
-): Promise<RoleTemplate> => {
-  const response = await apiClient.put(`/api/access-control/role-templates/${templateId}`, data);
-  return response.data;
-};
-
-export const deleteRoleTemplate = async (templateId: string): Promise<{ message: string }> => {
-  const response = await apiClient.delete(`/api/access-control/role-templates/${templateId}`);
-  return response.data;
-};
-
 // =====================================================
 // API CALLS - VÉRIFICATIONS
 // =====================================================
-
-export const checkRoleHierarchy = async (
-  targetRole: string,
-  companyId: string
-): Promise<RoleHierarchyCheckResponse> => {
-  const response = await apiClient.get(
-    `/api/access-control/check-hierarchy?target_role=${targetRole}&company_id=${companyId}`
-  );
-  return response.data;
-};
 
 export const checkUserPermission = async (
   userId: string,

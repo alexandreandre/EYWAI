@@ -411,11 +411,6 @@ export interface UpdateEmployeeExitRequest {
   precarite_non_due?: MotifPrecariteNonDue | null;
 }
 
-export interface StatusUpdateRequest {
-  new_status: ExitStatus;
-  notes?: string;
-}
-
 export interface DocumentUploadUrlRequest {
   filename: string;
   document_type: DocumentType;
@@ -436,17 +431,6 @@ export interface CreateExitDocumentRequest {
   mime_type?: string;
   file_size_bytes?: number;
   upload_notes?: string;
-}
-
-export interface CreateChecklistItemRequest {
-  exit_id: string;
-  item_code: string;
-  item_label: string;
-  item_description?: string;
-  item_category: 'administratif' | 'materiel' | 'acces' | 'legal' | 'autre';
-  is_required?: boolean;
-  due_date?: string;
-  display_order?: number;
 }
 
 export interface UpdateChecklistItemRequest {
@@ -522,17 +506,6 @@ export async function updateEmployeeExit(
 }
 
 /**
- * Met à jour le statut d'une sortie
- */
-export async function updateExitStatus(
-  exitId: string,
-  statusRequest: StatusUpdateRequest
-): Promise<{ success: boolean; exit: EmployeeExit; message?: string }> {
-  const response = await apiClient.patch(`/api/employee-exits/${exitId}/status`, statusRequest);
-  return response.data;
-}
-
-/**
  * Clôture et archive un départ (enchaîne les transitions jusqu'à « archivée »).
  * Marque le salarié comme « parti ».
  */
@@ -599,14 +572,6 @@ export async function createExitDocument(data: CreateExitDocumentRequest): Promi
 }
 
 /**
- * Liste les documents d'une sortie
- */
-export async function getExitDocuments(exitId: string): Promise<ExitDocument[]> {
-  const response = await apiClient.get(`/api/employee-exits/${exitId}/documents`);
-  return response.data;
-}
-
-/**
  * Génère automatiquement un document
  */
 export async function generateExitDocument(
@@ -666,16 +631,6 @@ export async function publishExitDocuments(
 }
 
 /**
- * Dépublie un document de sortie (le retire de l'espace collaborateur)
- */
-export async function unpublishExitDocument(exitId: string, documentId: string): Promise<ExitDocument> {
-  const response = await apiClient.post<ExitDocument>(
-    `/api/employee-exits/${exitId}/documents/${documentId}/unpublish`
-  );
-  return response.data;
-}
-
-/**
  * Récupère les détails complets d'un document avec ses données éditables
  */
 export async function getExitDocumentDetails(exitId: string, documentId: string): Promise<ExitDocumentDetails> {
@@ -700,44 +655,9 @@ export async function editExitDocument(
   return response.data;
 }
 
-/**
- * Récupère l'historique des modifications d'un document
- */
-export async function getExitDocumentHistory(exitId: string, documentId: string): Promise<{
-  document_id: string;
-  total_versions: number;
-  history: Array<{
-    version: number;
-    edited_by?: string;
-    edited_at: string;
-    changes_summary: string;
-  }>;
-}> {
-  const response = await apiClient.get(
-    `/api/employee-exits/${exitId}/documents/${documentId}/history`
-  );
-  return response.data;
-}
-
 // ============================================================================
 // API FUNCTIONS - CHECKLIST
 // ============================================================================
-
-/**
- * Récupère la checklist d'une sortie
- */
-export async function getExitChecklist(exitId: string): Promise<ChecklistItem[]> {
-  const response = await apiClient.get(`/api/employee-exits/${exitId}/checklist`);
-  return response.data;
-}
-
-/**
- * Ajoute un item à la checklist
- */
-export async function addChecklistItem(data: CreateChecklistItemRequest): Promise<ChecklistItem> {
-  const response = await apiClient.post(`/api/employee-exits/${data.exit_id}/checklist`, data);
-  return response.data;
-}
 
 /**
  * Met à jour un item de checklist (marquer complété, etc.)
@@ -749,13 +669,6 @@ export async function updateChecklistItem(
 ): Promise<ChecklistItem> {
   const response = await apiClient.patch(`/api/employee-exits/${exitId}/checklist/${itemId}/complete`, data);
   return response.data;
-}
-
-/**
- * Supprime un item de checklist
- */
-export async function deleteChecklistItem(exitId: string, itemId: string): Promise<void> {
-  await apiClient.delete(`/api/employee-exits/${exitId}/checklist/${itemId}`);
 }
 
 // ============================================================================

@@ -144,17 +144,6 @@ export async function createPayrollVariableRule(
   return data;
 }
 
-export async function updatePayrollVariableRule(
-  ruleId: string,
-  payload: PayrollVariableRule,
-): Promise<PayrollVariableRule> {
-  const { data } = await apiClient.put<PayrollVariableRule>(
-    `/api/payroll-variables/rules/${ruleId}`,
-    payload,
-  );
-  return data;
-}
-
 export async function deletePayrollVariableRule(ruleId: string): Promise<void> {
   await apiClient.delete(`/api/payroll-variables/rules/${ruleId}`);
 }
