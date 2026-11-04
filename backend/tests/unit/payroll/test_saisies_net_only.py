@@ -32,20 +32,30 @@ def test_avance_sur_salaire_recuperee_reste_nette():
 
 
 def test_note_de_frais_sndf_hors_net_social():
-    # « Rbst note de frais » (SNDF) : au net à payer, hors MNS — mais pas
-    # « Remboursement de notes de frais » (Colorplast), qui reste dans le MNS.
+    # « Rbst note de frais » (SNDF) : au net à payer, hors MNS. « Remboursement de
+    # notes de frais » aussi depuis l'audit du 03/11/2026 (verdict D 1c), sauf
+    # dans la société qui garde ses frais dans le MNS par réglage (S27).
     assert _is_frais_pro_non_soumis_input(
         {"name": "Rbst note de frais", "amount": 566.58, "is_socially_taxed": False}
     )
-    assert not _is_frais_pro_non_soumis_input(
-        {"name": "Remboursement de notes de frais", "amount": 84.59, "is_socially_taxed": False}
-    )
+    remboursement = {"name": "Remboursement de notes de frais", "amount": 84.59, "is_socially_taxed": False}
+    assert _is_frais_pro_non_soumis_input(remboursement)
+    assert not _is_frais_pro_non_soumis_input(remboursement, frais_dans_mns=True)
 
 
 def test_prime_non_soumise_ordinaire_n_est_ni_nette_ni_frais_pro():
-    row = {"name": "Remboursement transport", "amount": 11.25, "is_socially_taxed": False}
+    row = {"name": "Prime exceptionnelle exonérée", "amount": 11.25, "is_socially_taxed": False}
     assert not _is_net_a_payer_only_correction_input(row)
     assert not _is_frais_pro_non_soumis_input(row)
+
+
+def test_le_remboursement_de_transport_est_un_frais_pas_un_revenu():
+    """Trajet domicile-travail : un frais, hors MNS (BOSS, Montant net social,
+    II.A.1 ; audit du 03/11/2026, verdict D 1c). Il restait une prime non soumise
+    ordinaire, dans le MNS, comme chez l'ancien logiciel."""
+    row = {"name": "Remboursement transport", "amount": 11.25, "is_socially_taxed": False}
+    assert not _is_net_a_payer_only_correction_input(row)
+    assert _is_frais_pro_non_soumis_input(row)
 
 
 class TestSaisieMarqueeSurLeNet:

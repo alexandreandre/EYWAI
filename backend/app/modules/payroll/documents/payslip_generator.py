@@ -47,6 +47,7 @@ from app.modules.payroll.domain.report_nap_negatif import (
 )
 from app.modules.payroll.engine.lectures import LectureIndispensable
 from app.modules.payroll.engine.frais_professionnels import (
+    est_une_saisie_de_frais,
     entree_de_frais_professionnels,
     entree_de_note_de_frais,
     notes_de_frais_dans_le_mns,
@@ -275,57 +276,32 @@ def _is_net_a_payer_only_correction_input(row: dict) -> bool:
 
 def _is_cantine_input(row: dict) -> bool:
     """True si la saisie est une retenue « Cantine » (participation salariale aux
-    repas). N'entre pas dans l'assiette brute (le brut reste la base sans cantine)
-    ni au net imposable, MAIS réduit le montant net social ET le net à payer
-    (cf. Cegid salarié 145/salarié 238/salarié 039 Mont Blanc Composite mai 2026 : la retenue
-    apparaît juste avant la ligne MONTANT NET SOCIAL, qui l'inclut). On la route
-    donc comme une prime NON soumise (montant négatif) plutôt qu'un acompte pur
-    (net à payer seulement), pour que le MNS la reflète comme chez Cegid."""
+    repas). N'entre ni dans l'assiette brute (le brut reste la base sans cantine)
+    ni au net imposable ; elle réduit le net à payer. Routée comme une prime non
+    soumise négative, elle ne réduit PAS le montant net social : une retenue n'y
+    entre pas (`calculer_montant_net_social`, 03/11/2026), et le BOSS ne déduit
+    ni la participation salariale aux titres-restaurant ni la participation à un
+    restaurant d'entreprise (Montant net social, question 22, version du
+    08/01/2026 ; audit du 03/11/2026, verdict D). L'ancien logiciel la retirait
+    du MNS (Cegid, Mont Blanc Composite, mai 2026) : Martine ne le suit plus."""
     if float(row.get("amount") or 0) >= 0:
         return False
     label = " ".join(str(row.get(key) or "") for key in ("name", "description")).lower()
     return "cantine" in label
 
 
-def _is_frais_pro_non_soumis_input(row: dict) -> bool:
-    """True si la saisie est un remboursement de frais professionnels non soumis
-    (panier repas, indemnité de déplacement forfaitaire, etc.) : ajouté au net à
-    payer, mais exclu du montant net social et du net imposable (frais pro, pas de
-    la rémunération).
+def _is_frais_pro_non_soumis_input(row: dict, *, frais_dans_mns: bool = False) -> bool:
+    """True si la saisie rembourse des frais professionnels non soumis (panier,
+    déplacement forfaitaire, note de frais, trajet) : ajoutée au net à payer,
+    exclue du montant net social et du net imposable (frais pro, pas de la
+    rémunération). Règle dans `frais_professionnels.est_une_saisie_de_frais`.
 
     Cf. Cegid salarié 008 Mont Blanc Composite mai 2026 : « Paniers Jours non soumis »
     120 € présent au net à payer (1781,38 €) mais absent du montant net social
     (1661,38 €) — écart de 120 € exactement. Même constat sur salarié 208 pour une
     « Indemnité forfaitaire dep. » (déplacement) de 100 €.
     """
-    if float(row.get("amount") or 0) <= 0:
-        return False
-    if row.get("is_socially_taxed", True):
-        return False
-    label = " ".join(
-        str(row.get(key) or "") for key in ("name", "description")
-    ).lower()
-    # "Remboursement de notes de frais" (dépenses réelles avec justificatif) reste
-    # dans le net social normal (cf. Cegid salarié 044 mai 2026 : inclus dans le MNS) —
-    # seules les indemnités forfaitaires (panier, déplacement forfaitaire) en sont
-    # exclues. Exclusion explicite pour ne pas les confondre.
-    # « Remboursement de notes de frais » (salarié 044 Colorplast) reste dans le MNS ;
-    # « Rbst note de frais » (SNDF, salarié 174/salarié 029 MBC) est un frais pro hors MNS.
-    if "remboursement de note" in label:
-        return False
-    return any(
-        term in label
-        for term in ("panier", "indemnité forfaitaire", "indemnite forfaitaire",
-                     "déplacement", "deplacement", "rbst note de frais", "note de frais")
-    )
-
-
-def _is_panier_input(row: dict) -> bool:
-    """True si la saisie est un panier repas (indemnité de panier)."""
-    label = " ".join(
-        str(row.get(key) or "") for key in ("name", "description")
-    ).lower()
-    return "panier" in label
+    return est_une_saisie_de_frais(row, frais_dans_mns=frais_dans_mns)
 
 
 def _is_ijss_override_input(row: dict) -> bool:
@@ -972,9 +948,9 @@ def process_payslip_generation(
         if isinstance(summary, dict) and summary:
             saisies_data["shift_payroll_summary"] = summary
 
-        paniers_non_soumis_dans_mns = bool(
-            (company_data.get("settings") or {}).get("paniers_non_soumis_dans_mns")
-        )
+        # Une société qui garde ses frais dans le MNS (S27) garde aussi le
+        # classement d'avant de ses saisies de frais.
+        frais_dans_mns = notes_de_frais_dans_le_mns(company_data)
         net_a_payer_only_correction_total = 0.0
         reports_nap_negatif: list = []
         for row in saisies_res.data:
@@ -993,7 +969,7 @@ def process_payslip_generation(
             if _is_heures_sup_conjoncturelle_input(row):
                 continue
             if _is_cantine_input(row):
-                # Retenue repas : réduit MNS + net à payer, hors brut/imposable.
+                # Retenue repas : réduit le net à payer, jamais le MNS, hors brut/imposable.
                 saisies_data["primes"].append({
                     "prime_id": row.get("catalog_prime_id") or row["name"].replace(" ", "_").lower(),
                     "libelle": row["name"],
@@ -1006,26 +982,13 @@ def process_payslip_generation(
                 net_a_payer_only_correction_total += -float(row["amount"])
                 reports_nap_negatif.extend(reports_du_mois([row]))
                 continue
-            if _is_frais_pro_non_soumis_input(row):
-                # Convention (paramétrable) : selon la CCN, le panier repas non
-                # soumis est soit un remboursement de frais professionnels (exclu
-                # du montant net social — défaut, ex. CCN plasturgie SPAN), soit un
-                # complément de rémunération inclus au MNS et au net à payer (ex.
-                # CCN métallurgie panier équipe SPAJ). Piloté par le paramètre
-                # entreprise `paniers_non_soumis_dans_mns`.
-                if paniers_non_soumis_dans_mns and _is_panier_input(row):
-                    saisies_data["primes"].append({
-                        "prime_id": row.get("catalog_prime_id")
-                        or row["name"].replace(" ", "_").lower(),
-                        "libelle": row["name"],
-                        "montant": float(row["amount"]),
-                        "soumise_a_cotisations": False,
-                        "soumise_a_impot": False,
-                    })
-                    continue
-                # Ligne à son libellé, ajoutée au net à payer, hors brut, hors
-                # cotisations et hors montant net social. Elle se fondait dans
-                # l'acompte, sans ligne au bulletin (vidéo G, 11/10/2026, D1).
+            if _is_frais_pro_non_soumis_input(row, frais_dans_mns=frais_dans_mns):
+                # Panier, déplacement, note de frais, trajet : un frais, quelle
+                # que soit la convention (BOSS, Montant net social, II.A.1 ;
+                # audit du 03/11/2026, verdict D 1c). Ligne à son libellé, ajoutée
+                # au net à payer, hors brut, hors cotisations et hors montant net
+                # social. Elle se fondait dans l'acompte, sans ligne au bulletin
+                # (vidéo G, 11/10/2026, D1).
                 saisies_data["primes"].append(entree_de_frais_professionnels(row))
                 continue
             if _is_ijss_override_input(row):
