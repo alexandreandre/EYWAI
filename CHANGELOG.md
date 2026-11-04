@@ -5,7 +5,35 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
-(rien)
+### Un cadre a toujours sa prévoyance
+- Un cadre sans prévoyance n'a plus de bulletin : le message dit de cocher « Adhésion prévoyance » sur sa fiche et de choisir le contrat.
+- Un bandeau le signale aussi sur la fiche.
+- En plasturgie, même règle pour un non-cadre qui a atteint 3 mois d'ancienneté.
+
+### Des calculs repris de l'audit de paie
+- Un net imposable négatif ne donne plus d'impôt prélevé ; en DSN, l'assiette et le prélèvement ne sont plus jamais négatifs.
+- La participation et l'intéressement sortent de la part saisissable du salaire.
+- L'indemnité de fin de CDD se calcule sur toute la rémunération du contrat, renouvellements compris.
+
+### Métallurgie
+- La prime d'ancienneté suit la valeur du point 2026 de chaque territoire, à sa date.
+- L'indemnité de licenciement ou de rupture conventionnelle ne descend plus sous le plancher de la convention.
+- Rien ne change pour les autres conventions.
+
+### Une erreur ne passe plus en silence
+- Une action qui échoue le dit toujours ; trois messages peuvent s'afficher à la fois.
+- Les boutons inactifs disent pourquoi, et la connexion dit pourquoi elle échoue.
+- Le suivi IJSS, la badgeuse et l'import des taux d'impôt disent leurs erreurs.
+
+### La paie du mois d'abord
+- La page Paie s'ouvre sur la vue « Par mois ».
+- Le mode groupé ne demande qu'une confirmation, qui nomme les calendriers incomplets.
+- La DSN n'est cochée « faite » qu'une fois marquée déposée.
+
+### Plus rapide au démarrage
+- Le premier chargement du site passe d'environ 2,3 Mo à 0,9 Mo.
+- La barre latérale ne relit plus tous ses compteurs à chaque écran.
+- Sans logo de société, c'est le « M » de Martine qui s'affiche.
 
 ## paie-2026-11-04.4 — 4 novembre 2026
 
