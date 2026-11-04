@@ -5,7 +5,25 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
-(rien)
+### « Groupe C » ne s'invente plus
+- La classification d'un salarié n'est plus remplie d'office, ni à la création ni à la modification de la fiche.
+- Sous une convention à coefficient seul (plasturgie), la fiche affiche « Coeff. 700 », sans groupe ni classe.
+- Sous une convention, la création demande de choisir la classification.
+
+### Le même mois sur tous les écrans
+- Calendrier, Primes, Paie et export s'ouvrent sur le même mois de paie, écrit dans l'adresse.
+- Du 1er au 15 du mois, c'est le mois précédent : celui qu'on paie.
+- Le mois choisi suit d'un écran à l'autre.
+
+### Le forfait jours réduit
+- La fiche d'un salarié au forfait jours accepte son propre nombre de jours (par exemple 43 pour un jour par semaine).
+- La réduction générale se calcule sur ce forfait, et non plus sur celui de la société.
+- Sans valeur sur la fiche, rien ne change.
+
+### Un compte par prêt
+- Un prêt peut porter son propre compte comptable, saisi à sa création.
+- L'écriture de paie crédite ce compte de chaque remboursement.
+- Sans compte, le prêt suit le compte « prêt » de la société, comme avant.
 
 ## paie-2026-11-04.2 — 4 novembre 2026
 
