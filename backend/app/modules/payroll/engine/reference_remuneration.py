@@ -233,60 +233,58 @@ def lire_brut_total_contrat(
     return round(total_brut, 2), alertes
 
 
-def brut_du_contrat_avant_le_mois(
-    employee_id: str,
-    debut_du_contrat: date,
-    annee: int,
-    mois: int,
-    supabase_client: Any,
-) -> dict:
-    """Le brut des bulletins du contrat de la fiche, de son premier mois au mois
-    d'avant le bulletin : `{montant, mois_sans_bulletin}` (« MM/AAAA »).
+def cumul_avant_le_contrat(
+    employee_id: str, debut_du_contrat: date, supabase_client: Any
+) -> dict | None:
+    """Le cumul `brut_total` laissé avant le premier mois du contrat de la fiche :
+    `{brut_total_avant, brut_total_au_debut}`, ou None si les cumuls sont illisibles.
 
-    Base de l'indemnité de fin de CDD (L1243-8 : la rémunération totale brute du
-    contrat, renouvellements compris, une année civile précédente comprise). Les
-    bulletins d'un contrat rangé (`contract_period_id`) n'en sont pas [D3]. Une
-    lecture ratée compte comme un mois sans bulletin : le cumul reste alors.
+    `brut_total_avant` : le cumul du dernier mois de la même année avant le début
+    du contrat (0 sans ligne) ; `brut_total_au_debut` : celui du premier mois du
+    contrat (None sans ligne). Base de l'indemnité de fin de CDD : la
+    rémunération du contrat est le cumul du mois d'avant le bulletin moins ce
+    qu'un contrat précédent y a laissé (L1243-8). On lit les cumuls, pas les
+    bulletins : les mois repris suivent le cumul du cabinet, et un brouillon
+    ancien peut ne plus y correspondre.
     """
-    debut = date(debut_du_contrat.year, debut_du_contrat.month, 1)
-    fin = date(annee - 1, 12, 1) if mois == 1 else date(annee, mois - 1, 1)
-    if fin < debut:
-        return {"montant": 0.0, "mois_sans_bulletin": []}
-    total = 0.0
-    manquants: list[str] = []
-    for an, m in _iter_months_in_period(debut, fin):
-        try:
-            resp = (
-                supabase_client.table("payslips")
-                .select("payslip_data")
-                .match({"employee_id": employee_id, "year": an, "month": m})
-                .is_("contract_period_id", "null")
-                .maybe_single()
-                .execute()
-            )
-            row = resp.data if resp and hasattr(resp, "data") else None
-        except Exception:  # noqa: BLE001 — un mois illisible n'est pas un mois à zéro
-            import logging
+    try:
+        lignes = (
+            supabase_client.table("employee_schedules")
+            .select("month, cumuls")
+            .eq("employee_id", employee_id)
+            .eq("year", debut_du_contrat.year)
+            .lte("month", debut_du_contrat.month)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:  # noqa: BLE001 — le cumul seul reste, comme avant
+        import logging
 
-            logging.getLogger(__name__).warning(
-                "Bulletin %02d/%s illisible pour la base de l'indemnité de fin de contrat",
-                m,
-                an,
-                exc_info=True,
-            )
-            row = None
-        if row and row.get("payslip_data"):
-            total += lire_brut_payslip(row["payslip_data"])
-        else:
-            manquants.append(f"{m:02d}/{an}")
-    return {"montant": round(total, 2), "mois_sans_bulletin": manquants}
+        logging.getLogger(__name__).warning(
+            "Cumuls illisibles avant le contrat de %s", employee_id, exc_info=True
+        )
+        return None
+
+    def _brut(ligne: dict) -> float:
+        cumuls = (ligne.get("cumuls") or {}).get("cumuls") or {}
+        return _safe_float(cumuls.get("brut_total", 0))
+
+    avant = [l for l in lignes if int(l.get("month") or 0) < debut_du_contrat.month]
+    au_debut = [l for l in lignes if int(l.get("month") or 0) == debut_du_contrat.month]
+    dernier = max(avant, key=lambda l: int(l.get("month") or 0)) if avant else None
+    return {
+        "debut": debut_du_contrat.isoformat(),
+        "brut_total_avant": round(_brut(dernier), 2) if dernier else 0.0,
+        "brut_total_au_debut": round(_brut(au_debut[0]), 2) if au_debut else None,
+    }
 
 
 def base_precarite_du_bulletin(
     employee_data: dict, annee: int, mois: int, supabase_client: Any
 ) -> dict | None:
-    """`brut_du_contrat_avant_le_mois` pour le bulletin du dernier mois d'un CDD
-    (le contrat de la fiche finit ce mois-ci), None sinon."""
+    """`cumul_avant_le_contrat` pour le bulletin du dernier mois d'un CDD (le
+    contrat de la fiche finit ce mois-ci), None sinon."""
     type_contrat = str(employee_data.get("contract_type") or "").lower()
     if "cdd" not in type_contrat or "cdi" in type_contrat:
         return None
@@ -304,7 +302,7 @@ def base_precarite_du_bulletin(
     employee_id = employee_data.get("id")
     if not employee_id:
         return None
-    return brut_du_contrat_avant_le_mois(str(employee_id), debut, annee, mois, supabase_client)
+    return cumul_avant_le_contrat(str(employee_id), debut, supabase_client)
 
 
 def estimer_extras_fin_contrat(

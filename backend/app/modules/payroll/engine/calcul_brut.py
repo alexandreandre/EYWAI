@@ -433,32 +433,39 @@ def _calculer_prime_precarite_cdd(
         if isinstance(contexte.cumuls, dict)
         else {}
     )
-    # Base : la rémunération totale brute du contrat (L1243-8), lue sur ses
-    # bulletins, de son premier mois au mois d'avant (le générateur la pose,
-    # `brut_du_contrat_avant_le_mois`). Le cumul `brut_total` d'un mois repris de
-    # l'ancien logiciel est celui de l'année civile : il porte un contrat d'avant
-    # et oublie l'année précédente (audit du 03/11/2026, F 2 et 3). Il ne sert
-    # plus que si un bulletin du contrat manque, et le bulletin le dit.
-    base_du_contrat = (contexte.contrat.get("contrat", {}) or {}).get(
-        "brut_du_contrat_avant_le_mois"
-    )
-    if isinstance(base_du_contrat, dict) and not base_du_contrat.get("mois_sans_bulletin"):
-        brut_avant = float(base_du_contrat.get("montant") or 0.0)
-    else:
-        brut_avant = float(cumuls.get("brut_total", 0.0))
-        manquants = (base_du_contrat or {}).get("mois_sans_bulletin") if isinstance(base_du_contrat, dict) else None
-        if manquants and isinstance(getattr(contexte, "alertes_baremes", None), list):
+    # Base : la rémunération totale brute du contrat (L1243-8), renouvellements
+    # compris : le cumul `brut_total` du mois d'avant, moins ce qu'un contrat
+    # précédent y a laissé la même année (le générateur le pose,
+    # `cumul_avant_le_contrat`). Pour un mois repris de l'ancien logiciel, le
+    # cumul est celui de l'année civile : un CDI de janvier-février restait dans
+    # la base d'un CDD de juin-septembre (audit du 03/11/2026, F 2).
+    brut_avant = float(cumuls.get("brut_total", 0.0))
+    avant_le_contrat = (contexte.contrat.get("contrat", {}) or {}).get("cumul_avant_le_contrat")
+    if isinstance(avant_le_contrat, dict):
+        deja = float(avant_le_contrat.get("brut_total_avant") or 0.0)
+        au_debut = avant_le_contrat.get("brut_total_au_debut")
+        # Un cumul reparti de zéro au premier mois du contrat [D3] ne porte pas
+        # le contrat d'avant : rien à retirer.
+        repart_de_zero = au_debut is not None and float(au_debut) < deja
+        if deja > 0 and not repart_de_zero:
+            brut_avant = max(0.0, brut_avant - deja)
+        debut = str(avant_le_contrat.get("debut") or "")[:4]
+        if (
+            debut.isdigit()
+            and int(debut) < date_fin_periode.year
+            and isinstance(getattr(contexte, "alertes_baremes", None), list)
+        ):
             contexte.alertes_baremes.append(
                 {
-                    "code": "precarite_base_incomplete",
+                    "code": "precarite_base_annee_precedente",
                     "critique": False,
                     "severity": "warning",
                     "message": (
-                        "Indemnité de fin de contrat : pas de bulletin du contrat pour "
-                        f"{', '.join(manquants)}. Sa base reprend le cumul des bruts du mois "
-                        f"d'avant ({_euros_fr(brut_avant)}), qui peut compter un autre contrat "
-                        "ou en oublier un mois. Vérifiez qu'il fait bien toute la rémunération "
-                        "du contrat (article L1243-8 du Code du travail)."
+                        f"Indemnité de fin de contrat : le contrat a commencé en {debut}. "
+                        "Si ses premiers mois ont été payés par l'ancien logiciel, le cumul "
+                        f"repris ne compte que l'année civile : vérifiez que la base "
+                        f"({_euros_fr(brut_avant + salaire_brut_hors_precarite)}) fait bien toute "
+                        "la rémunération du contrat (article L1243-8 du Code du travail)."
                     ),
                 }
             )

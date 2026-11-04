@@ -1262,14 +1262,15 @@ def process_payslip_generation(
                     "Complétez sa fiche employé (contrat, rémunération, temps de travail)."
                 ),
             )
-        # Dernier mois d'un CDD : la base de l'indemnité de fin de contrat se lit
-        # sur les bulletins du contrat (L1243-8 ; audit du 03/11/2026, F 2 et 3).
+        # Dernier mois d'un CDD : ce qu'un contrat précédent a laissé dans le cumul
+        # sort de la base de l'indemnité de fin de contrat (L1243-8 ; audit du
+        # 03/11/2026, F 2).
         # Le bulletin d'un contrat rangé [D3] garde le cumul de son contrat.
         base_precarite = None if contract_period_id else base_precarite_du_bulletin(
             {**employee_data, "id": employee_data.get("id") or employee_id}, year, month, supabase
         )
         if base_precarite is not None:
-            contrat_json_content["contrat"]["brut_du_contrat_avant_le_mois"] = base_precarite
+            contrat_json_content["contrat"]["cumul_avant_le_contrat"] = base_precarite
         log_payroll_debug(logger, '\n' + '=' * 30 + ' DEBUG contrat.json ' + '=' * 30)
         try:
             specificites = contrat_json_content.get("specificites_paie")
