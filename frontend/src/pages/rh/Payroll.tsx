@@ -59,7 +59,11 @@ import { lireNouveauSalarie, salariesAvecNouveauEnTete } from '@/features/employ
 import { CreateExitDialog } from '@/components/exits/CreateExitDialog';
 import { BandeauxSortieGuidee } from '@/features/payroll/components/BandeauxSortieGuidee';
 import { useEmployeeExitsQuery } from '@/hooks/queries/useEmployeeExitsQuery';
-import { bandeauxSortieDuMois, type BandeauSortieGuidee } from '@/features/payroll/utils/sortieGuidee';
+import {
+  bandeauxSortieDuMois,
+  partDansLeMois,
+  type BandeauSortieGuidee,
+} from '@/features/payroll/utils/sortieGuidee';
 import { ListeControleMois } from '@/features/payroll/components/ListeControleMois';
 import { usePreflightAnomalies } from '@/features/payroll/hooks/usePreflightAnomaliesCount';
 import {
@@ -491,6 +495,19 @@ export default function Payroll() {
         .filter((row) => row.pret && row.state.payslip)
         .map((row) => row.state.payslip!.id),
     [monthEmployeeStates]
+  );
+  // Bulletins de sortie parmi les prêts : remis dès leur validation.
+  const idsSortiePrets = useMemo(
+    () =>
+      monthEmployeeStates
+        .filter(
+          (row) =>
+            row.pret &&
+            row.state.payslip &&
+            partDansLeMois(row.employee, exitsQuery.data ?? [], selectedYear, selectedMonth)
+        )
+        .map((row) => row.state.payslip!.id),
+    [monthEmployeeStates, exitsQuery.data, selectedYear, selectedMonth]
   );
   // Prêts à valider, mais partis des cumuls d'un mois précédent à recalculer.
   const avertissementValidation = useMemo(
@@ -990,6 +1007,9 @@ export default function Payroll() {
                   avertissement={avertissementValidation}
                   companyId={companyId}
                   titreMois={monthYearLabel(selectedMonth, selectedYear)}
+                  annee={selectedYear}
+                  mois={selectedMonth}
+                  idsSortie={idsSortiePrets}
                   disabled={generation.phase === 'running'}
                   onTermine={() => invaliderApresBulletin(queryClient, companyId, undefined)}
                 />

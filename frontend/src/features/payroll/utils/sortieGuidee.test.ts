@@ -8,6 +8,7 @@ import {
   dateDeFinDuContrat,
   messageCreerLeDepart,
   messageGenererBulletinSortie,
+  partDansLeMois,
 } from './sortieGuidee';
 
 const JEANNE = {
@@ -196,5 +197,21 @@ describe('texte du bandeau', () => {
     expect(dateDeFinDuContrat(JEANNE)).toBe('2026-09-15');
     expect(dateDeFinDuContrat({ exit_last_working_day: '2026-09-20' })).toBe('2026-09-20');
     expect(dateDeFinDuContrat({})).toBeNull();
+  });
+});
+
+describe('bulletin de sortie du mois, comme le moteur', () => {
+  it('fin de contrat dans le mois : bulletin de sortie', () => {
+    expect(partDansLeMois(JEANNE, [], 2026, 9)).toBe(true);
+    expect(partDansLeMois(JEANNE, [], 2026, 8)).toBe(false);
+  });
+
+  it('départ dont le dernier jour tombe dans le mois, sauf départ annulé', () => {
+    const cdi = { id: 'e-cdi', first_name: 'Paul', last_name: 'Exemple' };
+    const depart = { employee_id: 'e-cdi', last_working_day: '2026-10-31', status: 'en_cours' };
+    expect(partDansLeMois(cdi, [depart], 2026, 10)).toBe(true);
+    expect(partDansLeMois(cdi, [depart], 2026, 11)).toBe(false);
+    expect(partDansLeMois(cdi, [{ ...depart, status: 'annulee' }], 2026, 10)).toBe(false);
+    expect(partDansLeMois(cdi, [{ ...depart, employee_id: 'autre' }], 2026, 10)).toBe(false);
   });
 });
