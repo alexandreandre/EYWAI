@@ -10,6 +10,8 @@ from __future__ import annotations
 import copy
 from typing import Dict, List, Tuple
 
+import pytest
+
 from app.modules.dsn_export.application.builder import (
     build_parsed_dsn_from_payroll,
     heures_cumulees_avant,
@@ -176,6 +178,54 @@ def test_pas_de_58_type_01_sans_heures_sup_exonerees():
     bulletin = copy.deepcopy(BULLETIN)
     bulletin["synthese_net"]["montant_net_hs_exonerees"] = 0.0
     assert [b["003"] for b in _blocs(_lignes(bulletin=bulletin), "S21.G00.58")] == ["03"]
+
+
+# Montant net social (58 type 03) : le bulletin le calcule, la DSN le reprend.
+# Les parts patronales santé, prévoyance et retraite supplémentaire n'y entrent
+# que pour les revenus dus à partir du 01/01/2027 (mise à jour du BOSS du
+# 02/10/2026, sous réserve du décret) ; elles restent déclarées en autres
+# éléments de revenu brut (54 types 92 et 93) quelle que soit la période.
+
+
+def _dsn_calculee_par_le_moteur(periode: str):
+    from app.modules.payroll.engine import calcul_net
+    from tests.unit.payroll.helpers import build_test_contexte
+
+    annee, mois = (int(x) for x in periode.split("-"))
+    contexte = build_test_contexte()
+    contexte.year, contexte.month = annee, mois
+    structure = BULLETIN["structure_cotisations"]
+    lignes = structure["bloc_principales"] + structure["bloc_csg_non_deductible"]
+    cotisations = round(sum(float(l.get("montant_salarial") or 0) for l in lignes), 2)
+    nets = calcul_net.calculer_net_et_impot(contexte, BULLETIN["salaire_brut"], lignes, cotisations, [], 0.0)
+    bulletin = copy.deepcopy(BULLETIN)
+    bulletin["synthese_net"]["montant_net_social"] = nets["montant_net_social"]
+    return nets, _lignes(bulletin=bulletin, periode=periode)
+
+
+def _net_social_declare(lignes) -> str:
+    return next(b["004"] for b in _blocs(lignes, "S21.G00.58") if b["003"] == "03")
+
+
+def test_dsn_d_octobre_2026_net_social_sans_les_parts_patronales():
+    """3 855,98 - 623,11 de cotisations salariales = 3 232,87 : ni la mutuelle
+    (29,23), ni la prévoyance (17,93), ni la retraite supplémentaire (96,40)."""
+    nets, lignes = _dsn_calculee_par_le_moteur("2026-10")
+    assert nets["montant_net_social"] == 3232.87
+    assert _net_social_declare(lignes) == "3232.87"
+
+
+def test_dsn_de_janvier_2027_net_social_avec_les_parts_patronales():
+    """3 232,87 + 29,23 + 17,93 + 96,40 = 3 376,43."""
+    nets, lignes = _dsn_calculee_par_le_moteur("2027-01")
+    assert nets["montant_net_social"] == 3376.43
+    assert _net_social_declare(lignes) == "3376.43"
+
+
+@pytest.mark.parametrize("periode", ["2026-10", "2027-01"])
+def test_les_parts_patronales_restent_en_autres_elements_de_revenu_brut(periode):
+    _, lignes = _dsn_calculee_par_le_moteur(periode)
+    assert [(b["001"], b["002"]) for b in _blocs(lignes, "S21.G00.54")] == [("92", "29.23"), ("93", "114.33")]
 
 
 # --------------------------------------------------------------------------

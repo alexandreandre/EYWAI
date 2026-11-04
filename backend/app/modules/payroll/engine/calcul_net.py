@@ -14,7 +14,10 @@ from datetime import date
 from typing import Dict, Any, List, Optional
 from app.modules.payroll.engine.mutuelles import mutuelles_du_salarie
 from app.modules.payroll.engine.frais_professionnels import est_un_frais_professionnel
-from app.modules.payroll.engine.protection_sociale import parts_patronales_protection_sociale
+from app.modules.payroll.engine.protection_sociale import (
+    parts_patronales_dans_le_net_social,
+    parts_patronales_protection_sociale,
+)
 from app.modules.payroll.engine.corrections_manuelles import corriger_le_taux_d_impot, journal_du_contexte
 
 
@@ -222,6 +225,23 @@ def _csg_des_primes_imposables(
     return deductible, totale
 
 
+def _mois_de_paie(contexte: ContextePaie) -> Optional[date]:
+    """Premier jour du mois du bulletin, posé par les run_* (`year`, `month`).
+
+    Sans mois, celui de la fin de période ; sans rien, None (période inconnue).
+    """
+    annee = getattr(contexte, "year", None)
+    mois = getattr(contexte, "month", None)
+    if annee and mois:
+        return date(int(annee), int(mois), 1)
+    fin = getattr(contexte, "date_fin_periode", None)
+    if isinstance(fin, date):
+        return date(fin.year, fin.month, 1)
+    if annee:
+        return date(int(annee), 1, 1)
+    return None
+
+
 def calculer_montant_net_social(
     contexte: ContextePaie,
     salaire_brut: float,
@@ -257,11 +277,13 @@ def calculer_montant_net_social(
     subrogées imposables). Vérifié sur salarié 014 (Lewis, mai 2026) : le MNS réel
     Cegid inclut bien le remboursement de prévoyance imposable net-only.
 
-    + parts patronales santé et prévoyance des lignes de cotisation (BOSS,
-      « Montant net social », II.A.1 et II.C.29 ; arrêté du 25/02/2016
-      modifié, art. 1er, II, 1°). L'ancien logiciel ne les ajoutait pas
-      (MNS = net à payer avant impôt) et Martine l'imitait jusqu'au
-      01/11/2026 : l'audit de ce jour l'a trouvé faux dans les 7 sociétés.
+    + parts patronales santé, prévoyance et retraite supplémentaire des lignes
+      de cotisation, SEULEMENT pour un mois de paie à partir de janvier 2027
+      (`protection_sociale.DEBUT_PARTS_PATRONALES_DANS_LE_NET_SOCIAL`). En
+      2026, le BOSS les exclut (« ne doivent pas être prises en compte ») ; sa
+      mise à jour du 02/10/2026 les fait entrer pour les revenus dus à compter
+      du 01/01/2027, sous réserve du décret. Du 01/11 au 04/11/2026, Martine
+      les ajoutait sans condition de date (commit 697daa44) : faux en 2026.
 
     Hors PAS et remboursements de frais professionnels : une ligne marquée
     `frais_professionnels` (note de frais du module, indemnité forfaitaire)
@@ -283,7 +305,9 @@ def calculer_montant_net_social(
         _get_safe_float(p.get("montant")) for p in (primes_soumises_impot or [])
     ) - _csg_des_primes_imposables(primes_soumises_impot)[1]
     _, _, net_social_participation = _participation_aggregats(participations)
-    part_sante, part_prevoyance = parts_patronales_protection_sociale(lignes_cotisations or [])
+    part_sante = part_prevoyance = 0.0
+    if parts_patronales_dans_le_net_social(_mois_de_paie(contexte)):
+        part_sante, part_prevoyance = parts_patronales_protection_sociale(lignes_cotisations or [])
     mns = (
         _get_safe_float(salaire_brut)
         + part_sante
