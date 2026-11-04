@@ -53,6 +53,7 @@ import {
   nomsDesValidesChanges,
   estPerime,
   montantsDepuisLigne,
+  etapeDuRecalculDemande,
   idsARecalculerMaintenant,
   jobsARecalculerMaintenant,
   PARAM_RECALCULER,
@@ -741,12 +742,42 @@ export default function Payroll() {
   // la file habituelle recalcule ceux des salariés nommés, puis l'adresse oublie
   // la demande (un rechargement ne relance rien).
   const recalculerDemande = searchParams.get(PARAM_RECALCULER);
-  const bulletinsRelus = !loadingMonthData && !payslipQueries.some((q) => q.isFetching);
+  const etapeRecalcul = etapeDuRecalculDemande({
+    demande: Boolean(recalculerDemande),
+    societe: Boolean(companyId),
+    salaries: employeesQuery.isError
+      ? 'erreur'
+      : employeesQuery.isSuccess && !employeesQuery.isFetching
+        ? 'lus'
+        : 'en_cours',
+    bulletins: payslipQueries.some((q) => q.isError && !q.isFetching)
+      ? 'erreur'
+      : payslipQueries.every((q) => q.isSuccess && !q.isFetching)
+        ? 'lus'
+        : 'en_cours',
+    moisDeLAdresse: paramsVue.year === selectedYear && paramsVue.month === selectedMonth,
+    calculEnCours: generation.phase === 'running',
+  });
   const recalculDejaLance = useRef<string | null>(null);
   useEffect(() => {
-    if (!recalculerDemande || !bulletinsRelus || generation.phase === 'running') return;
+    if (!recalculerDemande) {
+      // Demande traitée ou retirée : un nouveau clic sur le même lien relancera.
+      recalculDejaLance.current = null;
+      return;
+    }
+    if (etapeRecalcul === 'attendre' || etapeRecalcul === 'aucune') return;
     if (recalculDejaLance.current === recalculerDemande) return;
     recalculDejaLance.current = recalculerDemande;
+    if (etapeRecalcul === 'lecture_impossible') {
+      // La demande reste dans l'adresse : un rechargement la relance.
+      toast({
+        variant: 'destructive',
+        title: 'Recalcul non lancé',
+        description:
+          'Les bulletins du mois n’ont pas pu être relus. Rechargez la page pour relancer le recalcul.',
+      });
+      return;
+    }
     const jobs = jobsARecalculerMaintenant(
       jobsPerimesDuMois,
       idsARecalculerMaintenant(new URLSearchParams({ [PARAM_RECALCULER]: recalculerDemande }))
@@ -768,7 +799,7 @@ export default function Payroll() {
       },
       { replace: true }
     );
-  }, [recalculerDemande, bulletinsRelus, generation, jobsPerimesDuMois, setSearchParams]);
+  }, [recalculerDemande, etapeRecalcul, generation, jobsPerimesDuMois, setSearchParams]);
 
   const lectureDeparts = useMemo((): Lecture<NonNullable<typeof exitsQuery.data>> => {
     if (exitsQuery.isError && exitsQuery.data === undefined) return { statut: 'erreur' };

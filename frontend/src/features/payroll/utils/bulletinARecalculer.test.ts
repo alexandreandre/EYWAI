@@ -20,6 +20,7 @@ import {
   lienRecalculerMaintenant,
   idsARecalculerMaintenant,
   jobsARecalculerMaintenant,
+  etapeDuRecalculDemande,
 } from './bulletinARecalculer';
 
 describe('estPerime', () => {
@@ -434,5 +435,37 @@ describe('« Recalculer maintenant » depuis le message d’une saisie', () => {
       'e1',
       'e3',
     ]);
+  });
+});
+
+describe('etapeDuRecalculDemande — jamais « rien à recalculer » sans avoir relu', () => {
+  const pret = {
+    demande: true,
+    societe: true,
+    salaries: 'lus' as const,
+    bulletins: 'lus' as const,
+    moisDeLAdresse: true,
+    calculEnCours: false,
+  };
+
+  it('tout est relu, sur le mois de l’adresse : on lance', () => {
+    expect(etapeDuRecalculDemande(pret)).toBe('lancer');
+  });
+
+  it('sans demande, rien', () => {
+    expect(etapeDuRecalculDemande({ ...pret, demande: false })).toBe('aucune');
+  });
+
+  it('société pas encore choisie, salariés ou bulletins en lecture, autre mois affiché, calcul en cours : on attend', () => {
+    expect(etapeDuRecalculDemande({ ...pret, societe: false })).toBe('attendre');
+    expect(etapeDuRecalculDemande({ ...pret, salaries: 'en_cours' })).toBe('attendre');
+    expect(etapeDuRecalculDemande({ ...pret, bulletins: 'en_cours' })).toBe('attendre');
+    expect(etapeDuRecalculDemande({ ...pret, moisDeLAdresse: false })).toBe('attendre');
+    expect(etapeDuRecalculDemande({ ...pret, calculEnCours: true })).toBe('attendre');
+  });
+
+  it('une lecture en échec : on le dit, sans prétendre que tout est à jour', () => {
+    expect(etapeDuRecalculDemande({ ...pret, salaries: 'erreur' })).toBe('lecture_impossible');
+    expect(etapeDuRecalculDemande({ ...pret, bulletins: 'erreur' })).toBe('lecture_impossible');
   });
 });

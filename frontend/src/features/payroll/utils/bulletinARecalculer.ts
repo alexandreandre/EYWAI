@@ -387,3 +387,26 @@ export function jobsARecalculerMaintenant<T extends { employeeId: string }>(
   const voulus = new Set(ids);
   return jobsPerimes.filter((job) => voulus.has(job.employeeId));
 }
+
+type EtatDeLecture = 'en_cours' | 'lus' | 'erreur';
+
+/**
+ * Où en est une demande « Recalculer maintenant » : on ne lance (ou on ne dit
+ * « rien à recalculer ») qu'une fois la société choisie, les salariés et les
+ * bulletins relus, sur le mois de l'adresse, hors calcul en cours. Une lecture
+ * en échec se dit, au lieu de passer pour « déjà à jour ».
+ */
+export function etapeDuRecalculDemande(etat: {
+  demande: boolean;
+  societe: boolean;
+  salaries: EtatDeLecture;
+  bulletins: EtatDeLecture;
+  moisDeLAdresse: boolean;
+  calculEnCours: boolean;
+}): 'aucune' | 'attendre' | 'lecture_impossible' | 'lancer' {
+  if (!etat.demande) return 'aucune';
+  if (!etat.societe || etat.calculEnCours || !etat.moisDeLAdresse) return 'attendre';
+  if (etat.salaries === 'erreur' || etat.bulletins === 'erreur') return 'lecture_impossible';
+  if (etat.salaries !== 'lus' || etat.bulletins !== 'lus') return 'attendre';
+  return 'lancer';
+}
