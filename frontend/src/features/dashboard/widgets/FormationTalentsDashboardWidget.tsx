@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { GraduationCap } from 'lucide-react';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { useFormationDashboardQueries } from '@/hooks/queries/useFormationDashbo
 import type { TrainingBudgetAlertLevel } from '@/api/trainingBudget';
 
 function FormationTalentsCellLoader() {
-  return <SharkFinLoader variant="compact" className="mt-3 min-h-[40px]" label="Chargement…" />;
+  return <Chargement variant="compact" className="mt-3 min-h-[40px]" label="Chargement…" />;
 }
 
 function countBadgeClass(n: number, tone: 'red' | 'orange') {

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { AnnualReviewBadge } from "@/components/AnnualReviewBadge";
 import { AnnualReviewForm } from "@/components/AnnualReviewForm";
 import { AnnualReviewWorkflowStepper } from "@/components/annual-reviews/AnnualReviewWorkflowStepper";
@@ -427,7 +427,7 @@ export default function AnnualReviewDetail() {
   };
 
   if (isLoading) {
-    return <SharkFinLoader variant="fullPage" label="Chargement de l'entretien…" />;
+    return <Chargement variant="fullPage" label="Chargement de l'entretien…" />;
   }
 
   if (isError) {

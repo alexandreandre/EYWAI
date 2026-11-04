@@ -2,7 +2,7 @@ import { RhPageHeader } from '@/components/layout';
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileSignature, FileText, TrendingUp } from "lucide-react";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 
 import type { Promotion } from "@/api/promotions";
 import { CareerActivityTable } from "@/components/career/CareerActivityTable";
@@ -206,7 +206,7 @@ export default function AugmentationsEtPromotions() {
           )}
 
           {isLoading ? (
-            <SharkFinLoader label="Chargement du registre…" />
+            <Chargement label="Chargement du registre…" />
           ) : isError ? (
             <div className="flex flex-col items-center justify-center py-12 text-center text-destructive">
               <p className="font-medium">Erreur de chargement</p>

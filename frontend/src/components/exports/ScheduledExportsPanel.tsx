@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { SharkFinLoader } from "@/components/SharkFinLoader";
+import { Chargement } from "@/components/Chargement";
 import { ExportCardRefreshOverlay } from "@/components/exports/ExportCardRefreshOverlay";
 import { exportsLiveQueryOptions, refreshExportsPageQueries } from "@/lib/exportsQuery";
 
@@ -188,7 +188,7 @@ export function ScheduledExportsPanel() {
         </Button>
 
         {isLoading ? (
-          <SharkFinLoader
+          <Chargement
             className="min-h-[160px]"
             label="Chargement des exports planifiés…"
           />

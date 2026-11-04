@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { History, Loader2, Download } from "lucide-react";
-import { SharkFinLoader } from "@/components/SharkFinLoader";
+import { Chargement } from "@/components/Chargement";
 import { ExportCardRefreshOverlay } from "@/components/exports/ExportCardRefreshOverlay";
 import {
   getExportHistory,
@@ -165,7 +165,7 @@ export function ExportHistory({ exportType, hideHeader = false }: ExportHistoryP
       )}
       <CardContent>
         {isLoading ? (
-          <SharkFinLoader className="min-h-[160px]" label="Chargement de l'historique…" />
+          <Chargement className="min-h-[160px]" label="Chargement de l'historique…" />
         ) : error ? (
           <div className="text-center py-8 text-destructive">
             <p>{error}</p>

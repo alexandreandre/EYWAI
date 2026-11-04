@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import apiClient from '../../../api/apiClient';
 
 import { log } from '@/lib/logger';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 const DRAG_THRESHOLD_MS = 180;
 
 interface TestChild {
@@ -289,7 +289,7 @@ export default function Tests() {
   };
 
   if (loadingTree) {
-    return <SharkFinLoader variant="fullPage" label="Chargement des cibles de test…" />;
+    return <Chargement variant="fullPage" label="Chargement des cibles de test…" />;
   }
 
   return (

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import apiClient from '../../../api/apiClient';
 
 import { log } from '@/lib/logger';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 interface SystemHealth {
   status: string;
   checks: {
@@ -47,7 +47,7 @@ export default function Monitoring() {
   };
 
   if (loading) {
-    return <SharkFinLoader variant="fullPage" label="Chargement du monitoring…" />;
+    return <Chargement variant="fullPage" label="Chargement du monitoring…" />;
   }
 
   return (

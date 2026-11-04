@@ -18,7 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { useToast } from '@/hooks/use-toast';
 
 function formatCurrency(amount: number): string {
@@ -189,7 +189,7 @@ export default function EmployeeParticipationPage() {
   const history = bulletins.filter((b) => b.status !== 'sent');
 
   if (isLoading) {
-    return <SharkFinLoader variant="fullPage" label="Chargement…" />;
+    return <Chargement variant="fullPage" label="Chargement…" />;
   }
 
   return (

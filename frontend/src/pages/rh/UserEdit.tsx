@@ -19,7 +19,7 @@ import {
 } from '../../api/permissions';
 import PermissionsMatrix from '../../components/PermissionsMatrix';
 import { PermissionScopeEditor } from '@/features/access-control';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { cn } from '../../lib/utils';
 import { useCompany } from '../../contexts/CompanyContext';
 import { AppUserRole, getRoleDisplayLabel } from '../../lib/userRoleLabels';
@@ -203,7 +203,7 @@ const UserEdit: React.FC = () => {
   };
 
   if (loading) {
-    return <SharkFinLoader variant="fullPage" label="Chargement de l'utilisateur…" />;
+    return <Chargement variant="fullPage" label="Chargement de l'utilisateur…" />;
   }
 
   return (

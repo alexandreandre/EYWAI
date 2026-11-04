@@ -21,7 +21,7 @@ import { getElectedMembers, type ElectedMemberListItem } from "@/api/cse";
 import { ROLE_LABELS, ROLE_BADGE_CLASSES } from "@/lib/cseLabels";
 import { useCsePage } from "@/contexts/CsePageContext";
 import { Plus, Users, Calendar, AlertTriangle, Edit, ExternalLink } from "lucide-react";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { ElectedMemberModal } from "@/components/cse/ElectedMemberModal";
 import { cn } from "@/lib/utils";
 
@@ -132,7 +132,7 @@ export default function ElectedMembersTab() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <SharkFinLoader label="Chargement des élus…" />
+            <Chargement label="Chargement des élus…" />
           ) : filteredMembers.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">Aucun élu trouvé</div>
           ) : (

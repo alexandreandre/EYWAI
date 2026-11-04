@@ -1,7 +1,7 @@
 import type { DelegationHour } from '@/api/cse';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCseDate } from '@/lib/employeeCseUtils';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 
 interface EmployeeCseDelegationTabProps {
   hours: DelegationHour[];
@@ -31,7 +31,7 @@ export function EmployeeCseDelegationTab({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <SharkFinLoader label="Chargement des heures de délégation…" />
+          <Chargement label="Chargement des heures de délégation…" />
         ) : hours.length === 0 ? (
           <p className="py-8 text-center text-muted-foreground">
             Aucune heure de délégation saisie ce mois-ci.

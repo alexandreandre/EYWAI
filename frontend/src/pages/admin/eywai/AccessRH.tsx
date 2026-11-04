@@ -12,7 +12,7 @@ import {
 } from "@/api/permissions";
 import { PermissionsMatrix } from "@/components/PermissionsMatrix";
 import { PermissionScopeEditor } from "@/features/access-control";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { AdminPageHeader } from "@/features/admin/components/eywai/AdminPageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -238,7 +238,7 @@ export default function AccessRH() {
             </CardHeader>
             <CardContent className="p-0">
               {usersLoading ? (
-                <SharkFinLoader label="Chargement des utilisateurs…" />
+                <Chargement label="Chargement des utilisateurs…" />
               ) : (
                 <Table>
                   <TableHeader>
@@ -292,7 +292,7 @@ export default function AccessRH() {
           <Card>
             <CardContent className="pt-6">
               {templatesLoading || companiesLoading || !selectedCompanyId ? (
-                <SharkFinLoader label="Chargement des modèles…" />
+                <Chargement label="Chargement des modèles…" />
               ) : templates.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Aucun modèle pour cette entreprise. Créez-en depuis l&apos;application RH ou via un

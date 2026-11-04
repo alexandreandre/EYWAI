@@ -23,7 +23,7 @@ import {
 } from '@/api/accountingIntegration';
 import { ProviderLogo } from '@/components/integrations/ProviderLogo';
 import { ExportCardRefreshOverlay } from '@/components/exports/ExportCardRefreshOverlay';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { TransmissionStatusBadge } from '@/features/accounting-integration/components/TransmissionStatusBadge';
 import { CegidConnectWizard } from '@/features/accounting-integration/components/CegidConnectWizard';
 import { getProviderMeta } from '@/features/accounting-integration/providers';
@@ -297,7 +297,7 @@ export function AccountingIntegrationPanel() {
       </CardHeader>
       <CardContent className="space-y-6">
         {isLoading ? (
-          <SharkFinLoader className="min-h-[160px]" label="Chargement…" />
+          <Chargement className="min-h-[160px]" label="Chargement…" />
         ) : (
           <>
             {step === 'choose' && (

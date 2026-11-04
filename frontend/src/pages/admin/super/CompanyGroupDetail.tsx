@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LogoUploader } from '@/components/LogoUploader';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import {
   Dialog,
   DialogContent,
@@ -459,7 +459,7 @@ export default function CompanyGroupDetail() {
   };
 
   if (isLoading) {
-    return <SharkFinLoader variant="fullPage" label="Chargement du groupe…" />;
+    return <Chargement variant="fullPage" label="Chargement du groupe…" />;
   }
 
   if (error) {

@@ -31,7 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { useToast } from '@/hooks/use-toast';
 import { companyQueryKey, queryKeys } from '@/lib/queryKeys';
 import {
@@ -195,7 +195,7 @@ export function EmployeeDetailLeaveBalancesTab({
         <CardContent>
           {balancesQuery.isLoading ? (
             <div className="flex min-h-[120px] items-center justify-center">
-              <SharkFinLoader variant="compact" label="" />
+              <Chargement variant="compact" label="" />
             </div>
           ) : balancesQuery.isError ? (
             <Alert variant="destructive">

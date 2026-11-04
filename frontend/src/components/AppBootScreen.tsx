@@ -1,8 +1,8 @@
-import { SharkFinBootProgress } from '@/components/SharkFinBootProgress';
+import { BarreDeProgression } from '@/components/BarreDeProgression';
 import { useBoot } from '@/contexts/BootContext';
 
 export function AppBootScreen() {
-  const { stepLabel, progress } = useBoot();
+  const { stepLabel } = useBoot();
 
   return (
     <div
@@ -10,7 +10,6 @@ export function AppBootScreen() {
       role="status"
       aria-live="polite"
       aria-busy="true"
-      aria-label={stepLabel}
     >
       <div className="flex w-full max-w-sm flex-col items-center gap-8 px-6">
         <img
@@ -21,7 +20,9 @@ export function AppBootScreen() {
           height={48}
         />
         <div className="w-full space-y-3">
-          <SharkFinBootProgress value={progress} className="pt-6 pb-2" />
+          {/* L'avancement du démarrage saute d'une étape à l'autre : la barre dit
+              seulement que ça avance, l'étape s'écrit dessous. */}
+          <BarreDeProgression libelle="Démarrage de Martine" />
           <p className="text-center text-sm font-medium text-foreground">{stepLabel}</p>
           <p className="text-center text-xs text-muted-foreground">
             Préparation de vos données pour une navigation plus fluide

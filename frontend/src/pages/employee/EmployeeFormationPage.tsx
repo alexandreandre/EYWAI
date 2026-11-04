@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 
 import {
   EmployeePageHeader,
@@ -78,7 +78,7 @@ export default function EmployeeFormationPage() {
   }
 
   if (isLoading) {
-    return <SharkFinLoader variant="fullPage" label="Chargement de votre profil…" />;
+    return <Chargement variant="fullPage" label="Chargement de votre profil…" />;
   }
 
   if (isError) {

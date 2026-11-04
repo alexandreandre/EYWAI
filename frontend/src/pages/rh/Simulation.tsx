@@ -8,7 +8,7 @@ import { getUserErrorMessage, showErrorToast } from '@/lib/errorMessages';
 import { RhPageHeader } from '@/components/layout';
 import React, { useState, useEffect, useRef } from 'react';
 import { Calculator, FileText, Loader2, Stethoscope } from 'lucide-react';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { Button } from '../../components/ui/button';
 import {
@@ -120,7 +120,7 @@ const Simulation: React.FC = () => {
 
 
   if (loadingEmployees) {
-    return <SharkFinLoader label="Chargement des effectifs…" />;
+    return <Chargement label="Chargement des effectifs…" />;
   }
 
   return (

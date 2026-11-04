@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { Plus, Pause, Play, X, Eye, Scale, AlertCircle, CheckCircle } from "lucide-react";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { getSalarySeizures, deleteSalarySeizure, updateSalarySeizure } from '@/api/saisiesAvances';
 import type { SalarySeizure, SalarySeizureStatus } from '@/api/saisiesAvances';
 import { SalarySeizureForm } from '@/components/saisies-avances/SalarySeizureForm';
@@ -219,7 +219,7 @@ export default function SalarySeizures() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <SharkFinLoader label="Chargement des saisies…" />
+            <Chargement label="Chargement des saisies…" />
           ) : (
             <Table>
               <TableHeader>

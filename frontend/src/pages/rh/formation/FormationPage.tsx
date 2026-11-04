@@ -5,7 +5,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +47,7 @@ function parseParametresSubFromSearch(): ParametresSubTab | undefined {
 function TabFallback() {
   return (
     <div className="rounded-lg border border-dashed bg-muted/20">
-      <SharkFinLoader variant="fullPage" label="Chargement de l'onglet…" className="min-h-[240px]" />
+      <Chargement variant="fullPage" label="Chargement de l'onglet…" className="min-h-[240px]" />
     </div>
   );
 }

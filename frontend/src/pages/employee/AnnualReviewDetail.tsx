@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { EmployeePageHeader, EmployeePageShell } from "@/components/employee/EmployeePageHeader";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { AnnualReviewBadge } from "@/components/AnnualReviewBadge";
 import {
   getAnnualReview,
@@ -223,7 +223,7 @@ export default function EmployeeAnnualReviewDetail() {
           <ArrowLeft className="mr-2 h-4 w-4" />
           Retour
         </Button>
-        <SharkFinLoader variant="fullPage" label="Chargement de l'entretien…" />
+        <Chargement variant="fullPage" label="Chargement de l'entretien…" />
       </div>
     );
   }

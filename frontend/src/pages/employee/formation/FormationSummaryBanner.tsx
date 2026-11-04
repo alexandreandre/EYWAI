@@ -1,4 +1,4 @@
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 
 import { Button } from "@/components/ui/button";
 import type { EmployeeFormationTabId } from "@/lib/employeeFormationUtils";
@@ -20,7 +20,7 @@ export function FormationSummaryBanner({ counts, onNavigateTab }: FormationSumma
   if (counts.isLoading) {
     return (
       <div className="rounded-lg border bg-muted/30 px-4 py-2">
-        <SharkFinLoader variant="compact" label="Chargement de votre synthèse…" />
+        <Chargement variant="compact" label="Chargement de votre synthèse…" />
       </div>
     );
   }

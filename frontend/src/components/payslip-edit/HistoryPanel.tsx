@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { History, RotateCcw, Loader2, User, Clock } from 'lucide-react';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { getPayslipHistory, restorePayslipVersion, HistoryEntry } from '@/api/payslips';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -125,7 +125,7 @@ export default function HistoryPanel({
     aConfirmer !== null ? textesConfirmationRestauration(aConfirmer, versionAConfirmer?.restauration) : null;
 
   if (isLoading) {
-    return <SharkFinLoader label="Chargement de l'historique…" className="p-12" />;
+    return <Chargement label="Chargement de l'historique…" className="p-12" />;
   }
 
   if (history.length === 0) {

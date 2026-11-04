@@ -19,7 +19,7 @@ import {
 } from '../../api/permissions';
 import PermissionsMatrix from '../../components/PermissionsMatrix';
 import { PermissionScopeEditor } from '@/features/access-control';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { cn } from '../../lib/utils';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -539,7 +539,7 @@ const UserCreation: React.FC = () => {
   };
 
   if (loadingCompanies) {
-    return <SharkFinLoader variant="fullPage" label="Chargement des entreprises…" />;
+    return <Chargement variant="fullPage" label="Chargement des entreprises…" />;
   }
 
   if (accessibleCompanies.length === 0) {

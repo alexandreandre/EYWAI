@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { ExportCardRefreshOverlay } from '@/components/exports/ExportCardRefreshOverlay';
 import { exportsLiveQueryOptions, refreshExportsPageQueries } from '@/lib/exportsQuery';
 import { Switch } from '@/components/ui/switch';
@@ -133,7 +133,7 @@ export function AccountingIntegrationCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading ? (
-          <SharkFinLoader className="min-h-[120px]" label="Chargement de l'intégration comptable…" />
+          <Chargement className="min-h-[120px]" label="Chargement de l'intégration comptable…" />
         ) : (
           <>
             <div className="flex items-center justify-between gap-4">

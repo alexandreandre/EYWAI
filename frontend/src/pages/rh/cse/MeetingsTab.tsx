@@ -47,7 +47,7 @@ import {
   MEETING_TYPE_LABELS,
 } from "@/lib/cseLabels";
 import { Plus, Calendar, Users, Eye, Pencil, Play, Archive, Loader2, Trash2 } from "lucide-react";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { MeetingModal } from "@/components/cse/MeetingModal";
 import { cn } from "@/lib/utils";
 
@@ -234,7 +234,7 @@ export default function MeetingsTab() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <SharkFinLoader label="Chargement des réunions…" />
+            <Chargement label="Chargement des réunions…" />
           ) : filteredMeetings.length === 0 ? (
             <div className="text-center py-10 space-y-3">
               <p className="text-muted-foreground">Aucune réunion ne correspond à vos critères.</p>

@@ -19,7 +19,7 @@ import {
   type ReadinessLevel,
 } from '@/lib/collectiveAgreementReadiness';
 import { cn } from '@/lib/utils';
-import { SharkFinBootProgress } from '@/components/SharkFinBootProgress';
+import { BarreDeProgression } from '@/components/BarreDeProgression';
 import {
   Building2,
   CheckCircle2,
@@ -262,7 +262,7 @@ export function CollectiveAgreementRow({
               </button>
             )}
             <div className="w-full max-w-sm px-5">
-              <SharkFinBootProgress className="pt-5 pb-1" />
+              <BarreDeProgression className="mt-5" />
               <p className="mt-2 text-center text-xs text-muted-foreground">
                 Mise à jour depuis Légifrance…
               </p>

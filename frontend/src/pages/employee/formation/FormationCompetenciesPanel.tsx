@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 
 import { getEvaluations, type EmployeeCompetency } from "@/api/competencies";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +25,7 @@ export function FormationCompetenciesPanel({ employeeId }: { employeeId: string 
   }, [q.data, gapsOnly]);
 
   if (q.isLoading) {
-    return <SharkFinLoader label="Chargement des compétences…" />;
+    return <Chargement label="Chargement des compétences…" />;
   }
   if (q.isError) {
     return <p className="text-sm text-destructive">Impossible de charger vos compétences.</p>;

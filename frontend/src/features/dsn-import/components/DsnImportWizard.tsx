@@ -62,7 +62,7 @@ import {
 import { DsnCoverageTimeline } from './DsnCoverageTimeline';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { SharkFinBootProgress } from '@/components/SharkFinBootProgress';
+import { BarreDeProgression } from '@/components/BarreDeProgression';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -365,7 +365,7 @@ function DsnImportLoadingState({
     <Card>
       <CardContent className="space-y-3 py-10">
         {variant === 'analyze' ? (
-          <SharkFinBootProgress />
+          <BarreDeProgression />
         ) : (
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
         )}
@@ -1307,10 +1307,7 @@ export function DsnImportWizard({
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="space-y-2">
-                <SharkFinBootProgress
-                  value={commitProgress?.percent ?? 0}
-                  determinate={Boolean(commitProgress)}
-                />
+                <BarreDeProgression valeur={commitProgress ? commitProgress.percent : null} />
                 <div className="flex items-center justify-between gap-3 text-xs">
                   <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
                     {commitProgress?.phase_label ?? 'Préparation…'}
@@ -1419,7 +1416,7 @@ export function DsnImportWizard({
               )}
               {parseMutation.isPending && (
                 <div className="space-y-2 rounded-lg border bg-muted/20 p-4">
-                  <SharkFinBootProgress />
+                  <BarreDeProgression />
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     Analyse {selectedFiles.length > 1 ? `des ${selectedFiles.length} fichiers` : 'du fichier'} en cours…

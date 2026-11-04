@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../../api/apiClient';
 import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHeader';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -58,7 +58,7 @@ export default function Users() {
   };
 
   if (loading) {
-    return <SharkFinLoader variant="fullPage" label="Chargement des utilisateurs…" />;
+    return <Chargement variant="fullPage" label="Chargement des utilisateurs…" />;
   }
 
   return (

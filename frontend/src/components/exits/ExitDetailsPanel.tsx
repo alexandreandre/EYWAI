@@ -42,7 +42,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { useToast } from '@/hooks/use-toast';
 import { toastDeGeneration } from '@/features/employee-exits/utils/alertesDuRecu';
 import {
@@ -760,7 +760,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
     return (
       <Sheet open={open} onOpenChange={onClose}>
         <SheetContent className="sm:max-w-3xl overflow-y-auto">
-          <SharkFinLoader variant="fullPage" label="Chargement du départ…" />
+          <Chargement variant="fullPage" label="Chargement du départ…" />
         </SheetContent>
       </Sheet>
     );

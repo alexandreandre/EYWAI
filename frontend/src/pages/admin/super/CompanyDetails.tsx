@@ -19,7 +19,7 @@ import { DeleteAllEmployeesDialog } from '@/pages/admin/eywai/companies/DeleteAl
 import CollectiveAgreementCard from '@/components/CollectiveAgreementCard';
 import { LogoUploader } from '../../../components/LogoUploader';
 import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHeader';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { Button } from '@/components/ui/button';
 import NetEntreprisesConfigCard from '@/features/net-entreprises/components/NetEntreprisesConfigCard';
 import {
@@ -329,7 +329,7 @@ export default function CompanyDetails() {
   };
 
   if (loading) {
-    return <SharkFinLoader variant="fullPage" label="Chargement de l'entreprise…" />;
+    return <Chargement variant="fullPage" label="Chargement de l'entreprise…" />;
   }
 
   if (!company) {
@@ -678,7 +678,7 @@ export default function CompanyDetails() {
         )}
 
         {loadingUsers ? (
-          <SharkFinLoader label="Chargement des utilisateurs…" />
+          <Chargement label="Chargement des utilisateurs…" />
         ) : (
           <>
             <div className="w-full overflow-x-auto">

@@ -1,6 +1,6 @@
 import { Check, Circle, Loader2 } from 'lucide-react';
 import type { PlanningImportCommitProgress } from '@/api/adminImport';
-import { SharkFinBootProgress } from '@/components/SharkFinBootProgress';
+import { BarreDeProgression } from '@/components/BarreDeProgression';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -63,7 +63,7 @@ export function PlanningImportCommitOverlay({ progress, status, errorMessage, on
         {status === 'committing' ? (
           <>
             <div className="space-y-2 rounded-md border bg-muted/20 p-3">
-              <SharkFinBootProgress value={percent} determinate={determinate} />
+              <BarreDeProgression valeur={determinate ? percent : null} />
               <div className="flex items-center justify-between gap-3 text-xs">
                 <span className="min-w-0 truncate text-muted-foreground">
                   {progress?.phase_label ?? 'Préparation…'}

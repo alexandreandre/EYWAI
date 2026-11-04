@@ -27,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { SharkFinLoader } from "@/components/SharkFinLoader";
+import { Chargement } from "@/components/Chargement";
 import { ExportCardRefreshOverlay } from "@/components/exports/ExportCardRefreshOverlay";
 import { exportsLiveQueryOptions, refreshExportsPageQueries } from "@/lib/exportsQuery";
 
@@ -79,7 +79,7 @@ export function AccountingMappingsPanel() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <SharkFinLoader className="min-h-[160px]" label="Chargement des comptes comptables…" />
+          <Chargement className="min-h-[160px]" label="Chargement des comptes comptables…" />
         ) : (
           <div className="overflow-x-auto">
             <Table>

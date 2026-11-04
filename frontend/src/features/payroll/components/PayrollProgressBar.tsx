@@ -1,5 +1,5 @@
 import { AlertTriangle, Check, Loader2, X } from 'lucide-react';
-import { SharkFinBootProgress } from '@/components/SharkFinBootProgress';
+import { BarreDeProgression } from '@/components/BarreDeProgression';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type {
@@ -126,7 +126,7 @@ export function PayrollProgressBar({
         </div>
       </div>
 
-      <SharkFinBootProgress value={progress} determinate />
+      <BarreDeProgression valeur={progress} libelle="Génération des bulletins" />
 
       {currentLabel && phase === 'running' && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
