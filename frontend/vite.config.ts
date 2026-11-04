@@ -28,10 +28,15 @@ export default defineConfig(() => ({
           ) {
             return "vendor-react";
           }
+          // clsx sert aux boutons dès le premier écran ET à recharts : rangé avec
+          // React, il ne fait plus précharger recharts par index.html.
+          if (/node_modules\/clsx\//.test(id)) return "vendor-react";
           // Heavy libs only — never split other React wrappers here (causes circular chunks).
           if (id.includes("recharts")) return "vendor-recharts";
-          if (id.includes("react-pdf") || id.includes("pdfjs")) return "vendor-pdf";
-          if (id.includes("exceljs")) return "vendor-exceljs";
+          // Pas de chunk forcé pour exceljs ni pour le lecteur PDF : chargés à la
+          // demande (import dynamique), Rollup les isole seul. Forcés ici, ils
+          // embarquaient des aides partagées et index.html les préchargeait dès
+          // l'écran de connexion (1,4 Mo, audit R2 geste 1).
         },
       },
     },

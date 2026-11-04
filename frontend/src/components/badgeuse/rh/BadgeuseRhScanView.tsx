@@ -13,6 +13,7 @@ import type { BadgeuseTerminalSession } from "@/lib/badgeuseTerminalAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatTimeFr, eventTypeLabel } from "@/lib/badgeuseFormat";
+import { ALT_LOGO_MARTINE, LOGO_MARTINE } from '@/lib/logoMartine';
 
 function apiErrorDetail(error: unknown, fallback: string): string {
   if (isAxiosError(error)) {
@@ -60,7 +61,7 @@ export function BadgeuseRhScanView({
       className="h-9 w-auto max-w-[160px] object-contain"
     />
   ) : (
-    <img src="/Colorplast.png" alt="Logo" className="h-9 w-auto" />
+    <img src={LOGO_MARTINE} alt={ALT_LOGO_MARTINE} className="h-9 w-9" />
   );
 
   const {

@@ -33,12 +33,28 @@ import { isEmployeeOnlyPath } from '@/lib/routeAccess';
 import { etatHorsModePaie, isPayrollFocusActive, isPayrollFocusAllowed } from '@/lib/payrollFocus';
 import { AvisHorsModePaie } from '@/components/AvisHorsModePaie';
 import { BADGEUSE_RH_TERMINAL_PATH } from '@/lib/badgeuseRoutes';
+import { ALT_LOGO_MARTINE, LOGO_MARTINE } from '@/lib/logoMartine';
 
 const BadgeuseTerminalGate = lazy(
   () => import('@/components/badgeuse/rh/BadgeuseTerminalGate').then((m) => ({
     default: m.BadgeuseTerminalGate,
   }))
 );
+
+/** En-tête mobile RH : le logo de la société active, sinon le monogramme de Martine. */
+function LogoEnTeteRh() {
+  const { activeCompany } = useCompany();
+  return activeCompany?.logo_url ? (
+    <img
+      src={activeCompany.logo_url}
+      alt={`Logo ${activeCompany.company_name}`}
+      className="h-8 w-auto max-w-[140px] object-contain"
+      style={{ transform: `scale(${activeCompany.logo_scale || 1})` }}
+    />
+  ) : (
+    <img src={LOGO_MARTINE} alt={ALT_LOGO_MARTINE} className="h-8 w-8" />
+  );
+}
 
 function EmployeeLayout() {
   const location = useLocation();
@@ -53,7 +69,7 @@ function EmployeeLayout() {
       style={{ transform: `scale(${activeCompany.logo_scale || 1})` }}
     />
   ) : (
-    <img src="/Colorplast.png" alt="Logo par défaut" className="h-8 w-auto" />
+    <img src={LOGO_MARTINE} alt={ALT_LOGO_MARTINE} className="h-8 w-8" />
   );
 
   return (
@@ -158,7 +174,7 @@ function ProtectedRoutes() {
                 </Button>
               </SidebarTrigger>
               <div className="flex-1">
-                <img src="/Colorplast.png" alt="Logo Colorplast" className="h-8 w-auto" />
+                <LogoEnTeteRh />
               </div>
               <CompanySwitcherCompact />
             </header>

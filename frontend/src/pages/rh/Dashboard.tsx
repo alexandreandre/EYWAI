@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,7 +31,7 @@ import {
 import { CSEDashboardBlock } from '@/components/CSEDashboardBlock';
 import { RhParticipationCampaignWidget } from '@/components/dashboard/RhParticipationCampaignWidget';
 import { PendingSignaturesWidget } from '@/components/dashboard/PendingSignaturesWidget';
-import TeamAnalyticsSection from '@/components/dashboard/TeamAnalyticsSection';
+import { Chargement } from '@/components/Chargement';
 import { queryKeys } from '@/lib/queryKeys';
 import { RIB_ALERTS_UI_ENABLED } from '@/lib/productFeatureFlags';
 import { FormationTalentsDashboardWidget } from '@/features/dashboard/widgets/FormationTalentsDashboardWidget';
@@ -45,6 +45,10 @@ import { IncompleteEmployeesCard } from '@/features/dashboard/widgets/Incomplete
 import { EffectifPanorama } from '@/features/dashboard/widgets/EffectifPanorama';
 import { CoutsCard } from '@/features/dashboard/widgets/CoutsCard';
 import type { DashboardData } from '@/features/dashboard/types';
+
+// Analyses par équipe : dans un accordéon fermé (et absent en mode paie),
+// chargées seulement à l'ouverture.
+const TeamAnalyticsSection = lazy(() => import('@/components/dashboard/TeamAnalyticsSection'));
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -255,7 +259,9 @@ export default function Dashboard() {
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="pb-4">
-                  <TeamAnalyticsSection />
+                  <Suspense fallback={<Chargement label="Chargement des analyses par équipe…" />}>
+                    <TeamAnalyticsSection />
+                  </Suspense>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>

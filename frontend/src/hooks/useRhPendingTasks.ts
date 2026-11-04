@@ -193,10 +193,14 @@ export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string |
     staleTime: STALE,
   });
 
+  // Compteur du seul tableau de bord (dashboardOnlyIds), encart absent en mode
+  // paie : pas d'appel en mode paie. Côté serveur, la route interroge une table
+  // de configuration de signature qui n'existe pas (une erreur de la base à
+  // chaque appel, relancé à chaque écran ; audit R2, tables fantômes).
   const pendingSignaturesQuery = useQuery({
     queryKey: ['signatures', 'pending-rh', 'sidebar-badges', companyId],
     queryFn: getPendingSignaturesRH,
-    enabled: companyEnabled,
+    enabled: companyEnabled && !payrollFocus,
     staleTime: STALE,
   });
 

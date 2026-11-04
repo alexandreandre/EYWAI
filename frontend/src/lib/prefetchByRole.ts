@@ -13,6 +13,8 @@ import { queryKeys } from '@/lib/queryKeys';
 import { currentWeekStartIso } from '@/lib/planningWeek';
 import { isPlatformAdmin, type PlatformAdminUser } from '@/lib/platformAdmin';
 import type { CompanyAccess } from '@/contexts/CompanyContext';
+import { isPayrollFocusActive } from '@/lib/payrollFocus';
+import { pagesCourantesAPrecharger, type PageCourante } from '@/lib/pagesAPrecharger';
 import {
   prefetchEmployeeCritical,
   prefetchEmployeeSecondary,
@@ -21,6 +23,7 @@ import {
 type PrefetchUser = PlatformAdminUser & {
   id: string;
   role?: string;
+  email?: string;
 };
 
 export type BootPrefetchProgress = {
@@ -57,7 +60,7 @@ function prefetchRhCritical(queryClient: QueryClient, companyId: string) {
 }
 
 /** Données secondaires RH (widgets dashboard, alertes). */
-export function prefetchRhSecondary(queryClient: QueryClient, companyId: string) {
+export function prefetchRhSecondary(queryClient: QueryClient, companyId: string, modePaie = false) {
   return Promise.allSettled([
     queryClient.prefetchQuery({
       queryKey: queryKeys.residencePermitStats(companyId),
@@ -79,10 +82,15 @@ export function prefetchRhSecondary(queryClient: QueryClient, companyId: string)
           }),
         ]
       : []),
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.pendingSignaturesRh(companyId),
-      queryFn: getPendingSignaturesRH,
-    }),
+    // Signatures en attente : un encart du tableau de bord, absent en mode paie.
+    ...(modePaie
+      ? []
+      : [
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.pendingSignaturesRh(companyId),
+            queryFn: getPendingSignaturesRH,
+          }),
+        ]),
     queryClient.prefetchQuery({
       queryKey: queryKeys.medicalSettings(companyId),
       queryFn: getMedicalSettings,
@@ -165,17 +173,23 @@ function prefetchPlatformAdminSecondary(queryClient: QueryClient) {
   ]);
 }
 
-/** Précharge les chunks des pages fréquentes (hors chemin critique). */
-function prefetchCommonChunks() {
-  return Promise.allSettled([
-    import('@/pages/rh/Dashboard'),
-    import('@/pages/rh/Employees'),
-    import('@/pages/rh/EmployeeDetail'),
-    import('@/pages/rh/Absences'),
-    import('@/pages/rh/Planning'),
-    import('@/pages/rh/Payroll'),
-    import('@/pages/rh/Analytics'),
-  ]);
+const CHARGEURS_DES_PAGES_COURANTES: Record<PageCourante, () => Promise<unknown>> = {
+  '/': () => import('@/pages/rh/Dashboard'),
+  '/employees': () => import('@/pages/rh/Employees'),
+  '/employees/:id': () => import('@/pages/rh/EmployeeDetail'),
+  '/leaves': () => import('@/pages/rh/Absences'),
+  '/planning': () => import('@/pages/rh/Planning'),
+  '/payroll': () => import('@/pages/rh/Payroll'),
+  '/analytics': () => import('@/pages/rh/Analytics'),
+};
+
+/** Précharge les chunks des pages fréquentes que la personne peut ouvrir (hors chemin critique). */
+function prefetchCommonChunks(user: PrefetchUser) {
+  const pages = pagesCourantesAPrecharger({
+    rh: isRhLikeRole(user),
+    modePaie: isPayrollFocusActive(user),
+  });
+  return Promise.allSettled(pages.map((page) => CHARGEURS_DES_PAGES_COURANTES[page]()));
 }
 
 /**
@@ -239,7 +253,7 @@ export function prefetchInBackground(
     const companyId = activeCompany?.company_id;
 
     if (isRhLikeRole(user) && companyId) {
-      await prefetchRhSecondary(queryClient, companyId);
+      await prefetchRhSecondary(queryClient, companyId, isPayrollFocusActive(user));
       void prefetchRhDeferred(queryClient, companyId);
       void prefetchPlanningWeek(queryClient, companyId);
     }
@@ -252,7 +266,7 @@ export function prefetchInBackground(
       void prefetchEmployeeSecondary(queryClient, user.id, companyId);
     }
 
-    void prefetchCommonChunks();
+    void prefetchCommonChunks(user);
   };
 
   if (typeof requestIdleCallback !== 'undefined') {

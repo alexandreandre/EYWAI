@@ -87,6 +87,7 @@ import { Separator } from "@/components/ui/separator";
 import { NotificationBell } from "@/components/NotificationBell";
 import { VersionDuSite } from "@/components/VersionDuSite";
 import type { LucideIcon } from "lucide-react";
+import { ALT_LOGO_MARTINE, LOGO_MARTINE } from '@/lib/logoMartine';
 
 type SidebarLinkItem = {
   title: string;
@@ -769,15 +770,16 @@ export function AppSidebar() {
       ? computeAccessibleGroups(companyContext.accessibleCompanies)
       : [];
 
-  // Mettre à jour le logo affiché seulement quand un nouveau logo est disponible
+  // Le logo de la société active ; une société sans logo montre celui de
+  // Martine (avant, le logo de la société précédente restait affiché).
   useEffect(() => {
-    if (activeCompany?.logo_url) {
-      setDisplayedLogo({
-        url: activeCompany.logo_url,
-        scale: activeCompany.logo_scale || 1.0
-      });
-    }
-  }, [activeCompany?.logo_url, activeCompany?.logo_scale]);
+    if (!activeCompany) return;
+    setDisplayedLogo(
+      activeCompany.logo_url
+        ? { url: activeCompany.logo_url, scale: activeCompany.logo_scale || 1.0 }
+        : null
+    );
+  }, [activeCompany]);
 
   const isActive = (path: string) => {
     if (path === "/") {
@@ -938,11 +940,7 @@ export function AppSidebar() {
                 />
               </div>
             ) : (
-              <img
-                src="/Colorplast.png"
-                alt="Logo par défaut"
-                className="h-10 w-auto"
-              />
+              <img src={LOGO_MARTINE} alt={ALT_LOGO_MARTINE} className="h-10 w-10" />
             )}
           </div>
         )}

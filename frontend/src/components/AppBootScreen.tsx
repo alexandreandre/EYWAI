@@ -1,5 +1,6 @@
 import { BarreDeProgression } from '@/components/BarreDeProgression';
 import { useBoot } from '@/contexts/BootContext';
+import { ALT_LOGO_MARTINE, LOGO_MARTINE } from '@/lib/logoMartine';
 
 export function AppBootScreen() {
   const { stepLabel } = useBoot();
@@ -12,13 +13,7 @@ export function AppBootScreen() {
       aria-busy="true"
     >
       <div className="flex w-full max-w-sm flex-col items-center gap-8 px-6">
-        <img
-          src="/Colorplast.png"
-          alt="Martine"
-          className="h-12 w-auto object-contain"
-          width={160}
-          height={48}
-        />
+        <img src={LOGO_MARTINE} alt={ALT_LOGO_MARTINE} className="h-12 w-12" width={48} height={48} />
         <div className="w-full space-y-3">
           {/* L'avancement du démarrage saute d'une étape à l'autre : la barre dit
               seulement que ça avance, l'étape s'écrit dessous. */}
