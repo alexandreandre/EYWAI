@@ -18,7 +18,7 @@ import {
   TIMELINE_STEP_STATUS_LABELS,
 } from "@/lib/cseLabels";
 import { ElectionCycleModal } from "@/components/cse/ElectionCycleModal";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import {
   CalendarDays,
   AlertTriangle,
@@ -82,7 +82,7 @@ export default function ElectionCalendarTab({
   });
 
   if (loadingCycles || loadingAlerts) {
-    return <SharkFinLoader label="Chargement du calendrier électoral…" />;
+    return <Chargement label="Chargement du calendrier électoral…" />;
   }
 
   return (

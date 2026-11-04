@@ -1,4 +1,4 @@
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 
 type ExportCardRefreshOverlayProps = {
   visible: boolean;
@@ -16,7 +16,7 @@ export function ExportCardRefreshOverlay({ visible, label }: ExportCardRefreshOv
       aria-live="polite"
       aria-busy="true"
     >
-      <SharkFinLoader variant="compact" label={label} />
+      <Chargement variant="compact" label={label} />
     </div>
   );
 }

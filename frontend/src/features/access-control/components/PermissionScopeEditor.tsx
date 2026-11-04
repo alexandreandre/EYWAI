@@ -10,7 +10,7 @@ import {
 } from '@/api/permissions';
 import { getEmployeesLite, type EmployeeLite } from '@/api/employees';
 import { getTeams, type Team } from '@/api/teams';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -185,7 +185,7 @@ export const PermissionScopeEditor: React.FC<PermissionScopeEditorProps> = ({
   };
 
   if (loading) {
-    return <SharkFinLoader label="Chargement des périmètres…" className="p-8" />;
+    return <Chargement label="Chargement des périmètres…" className="p-8" />;
   }
 
   if (selectedPermissionIds.length === 0) {

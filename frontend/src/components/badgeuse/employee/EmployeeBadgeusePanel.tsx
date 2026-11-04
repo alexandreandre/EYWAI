@@ -22,7 +22,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 
 const PAGE_ROOT = employeePageClassName;
 /** Cartes centrées ; le titre reste aligné à gauche sur toute la largeur du main */
@@ -63,7 +63,7 @@ export function EmployeeBadgeusePanel() {
       <div className={PAGE_ROOT}>
         {pageHeader()}
         <div className={CONTENT_COLUMN}>
-          <SharkFinLoader label="Chargement de la badgeuse…" />
+          <Chargement label="Chargement de la badgeuse…" />
         </div>
       </div>
     );

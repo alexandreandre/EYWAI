@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { ChevronDown } from "lucide-react";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 
 import { getObjectives, type EmployeeObjective } from "@/api/objectives";
 import { Button } from "@/components/ui/button";
@@ -214,7 +214,7 @@ export function FormationObjectivesPanel({ employeeId }: { employeeId: string })
 
   const renderYearBlock = (q: typeof currentQuery, emptyHint: string) => {
     if (q.isLoading) {
-      return <SharkFinLoader label="Chargement des objectifs…" />;
+      return <Chargement label="Chargement des objectifs…" />;
     }
     if (q.isError) {
       return <p className="text-sm text-destructive">Impossible de charger vos objectifs.</p>;

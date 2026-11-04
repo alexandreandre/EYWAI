@@ -18,7 +18,7 @@ import { YearCalendarView } from '@/components/schedules/YearCalendarView';
 import { BulkDayActionPanel } from '@/components/schedules/BulkDayActionPanel';
 import { useCalendar } from '@/hooks/useCalendar';
 import { Loader2, Save, ChevronLeft, ChevronRight, CalendarDays, Grid3x3 } from 'lucide-react';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { cn } from '@/lib/utils';
 
 interface EmployeeCalendarPanelProps {
@@ -199,7 +199,7 @@ export function EmployeeCalendarPanel({
           )}
 
           {isCalendarLoading ? (
-            <SharkFinLoader label="Chargement du calendrier…" className="h-48" />
+            <Chargement label="Chargement du calendrier…" className="h-48" />
           ) : calendarView === 'month' ? (
             <div className="flex flex-col gap-3 p-2">
               <div className="grid grid-cols-7 text-center text-xs font-medium text-muted-foreground">

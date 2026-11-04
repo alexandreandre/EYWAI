@@ -9,7 +9,7 @@ import {
   Play, Calendar, Bell, Database, TrendingUp, AlertCircle, ShieldCheck, ExternalLink
 } from 'lucide-react';
 import apiClient from '@/api/apiClient';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -370,7 +370,7 @@ export default function ScrapingPage() {
   };
 
   if (loading && !dashboardStats) {
-    return <SharkFinLoader variant="fullPage" label="Chargement du système de scraping…" />;
+    return <Chargement variant="fullPage" label="Chargement du système de scraping…" />;
   }
 
   if (error && !dashboardStats) {

@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { NewExpenseModal } from "@/components/NewExpenseModal";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import axios from 'axios';
 import { downloadBlob } from '@/lib/downloadBlob';
 import * as expensesApi from '@/api/expenses';
@@ -313,8 +313,8 @@ export default function ExpensesPage() {
           <TabsTrigger value="pending"><Clock className="mr-2 h-4 w-4" /> En attente <Badge className="ml-2">{pending.length}</Badge></TabsTrigger>
           <TabsTrigger value="processed">Historique <Badge className="ml-2">{processed.length}</Badge></TabsTrigger>
         </TabsList>
-        <TabsContent value="pending"><Card><CardHeader><CardTitle>Demandes à valider</CardTitle></CardHeader><CardContent>{isLoading ? <SharkFinLoader label="Chargement des demandes…" /> : renderRequestsTable(pending)}</CardContent></Card></TabsContent>
-        <TabsContent value="processed"><Card><CardHeader><CardTitle>Demandes traitées</CardTitle></CardHeader><CardContent>{isLoading ? <SharkFinLoader label="Chargement des demandes…" /> : renderRequestsTable(processed)}</CardContent></Card></TabsContent>
+        <TabsContent value="pending"><Card><CardHeader><CardTitle>Demandes à valider</CardTitle></CardHeader><CardContent>{isLoading ? <Chargement label="Chargement des demandes…" /> : renderRequestsTable(pending)}</CardContent></Card></TabsContent>
+        <TabsContent value="processed"><Card><CardHeader><CardTitle>Demandes traitées</CardTitle></CardHeader><CardContent>{isLoading ? <Chargement label="Chargement des demandes…" /> : renderRequestsTable(processed)}</CardContent></Card></TabsContent>
       </Tabs>
     </div>
   );

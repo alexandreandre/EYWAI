@@ -26,7 +26,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { BDES_TYPE_LABELS } from '@/lib/cseLabels';
 import { formatCseDate, formatPublishedAt } from '@/lib/employeeCseUtils';
 import { Download, FileText, Loader2 } from 'lucide-react';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 
 type DocumentListItem =
   | { kind: 'bdes'; doc: BDESDocument; sortDate: string }
@@ -231,7 +231,7 @@ export function EmployeeCseDocumentsTab({
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <SharkFinLoader label="Chargement des documents…" />
+            <Chargement label="Chargement des documents…" />
           ) : groupedByYear.length === 0 ? (
             <p className="py-8 text-center text-muted-foreground">
               Aucun document trouvé pour ces critères.

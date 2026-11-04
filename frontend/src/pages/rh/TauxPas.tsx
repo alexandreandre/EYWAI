@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 
 import { RhPageHeader } from "@/components/layout";
-import { SharkFinLoader } from "@/components/SharkFinLoader";
+import { Chargement } from "@/components/Chargement";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -229,7 +229,7 @@ export default function TauxPas() {
             </p>
           ) : null}
           {isLoading ? (
-            <SharkFinLoader label="Chargement des taux…" />
+            <Chargement label="Chargement des taux…" />
           ) : isError ? (
             <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
               <p className="text-sm font-medium text-destructive">Erreur de chargement</p>

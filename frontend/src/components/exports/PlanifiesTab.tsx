@@ -66,7 +66,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SharkFinLoader } from "@/components/SharkFinLoader";
+import { Chargement } from "@/components/Chargement";
 import { Switch } from "@/components/ui/switch";
 import {
   Table,
@@ -223,7 +223,7 @@ function DispatchChannelCard({
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading ? (
-          <SharkFinLoader
+          <Chargement
             variant="compact"
             className="min-h-[88px]"
             label="Chargement du statut…"
@@ -377,7 +377,7 @@ function DispatchScheduleBlock({
       <CardContent className="relative space-y-3">
         {busy ? (
           <div className="bg-background/80 absolute inset-0 z-10 flex items-center justify-center rounded-md backdrop-blur-[1px]">
-            <SharkFinLoader variant="compact" label="Traitement en cours…" />
+            <Chargement variant="compact" label="Traitement en cours…" />
           </div>
         ) : null}
         <div className="flex items-center justify-between">
@@ -596,7 +596,7 @@ function DispatchWizardDialog({ open, channel, period, companyId, onClose, onDon
         </DialogHeader>
 
         {showPreviewLoader ? (
-          <SharkFinLoader
+          <Chargement
             className="min-h-[180px]"
             label={
               channel === "compta"
@@ -724,7 +724,7 @@ function DispatchWizardDialog({ open, channel, period, companyId, onClose, onDon
         ) : null}
 
         {step === "generating" ? (
-          <SharkFinLoader
+          <Chargement
             className="min-h-[160px]"
             label="Génération des fichiers…"
           />
@@ -734,7 +734,7 @@ function DispatchWizardDialog({ open, channel, period, companyId, onClose, onDon
           <div className="relative space-y-4">
             {actionLoading ? (
               <div className="bg-background/80 absolute inset-0 z-10 flex items-center justify-center rounded-md backdrop-blur-[1px]">
-                <SharkFinLoader variant="compact" label="Enregistrement de la transmission…" />
+                <Chargement variant="compact" label="Enregistrement de la transmission…" />
               </div>
             ) : null}
             <div className="space-y-2">
@@ -887,7 +887,7 @@ function DispatchHistoryTable({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <SharkFinLoader
+          <Chargement
             className="min-h-[180px]"
             label="Chargement de l'historique des envois…"
           />
@@ -1083,7 +1083,7 @@ export function PlanifiesTab() {
           <>
             <Card>
               <CardContent className="pt-6">
-                <SharkFinLoader
+                <Chargement
                   className="min-h-[200px]"
                   label="Chargement de la planification comptabilité…"
                 />
@@ -1091,7 +1091,7 @@ export function PlanifiesTab() {
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <SharkFinLoader
+                <Chargement
                   className="min-h-[200px]"
                   label="Chargement de la planification banque…"
                 />

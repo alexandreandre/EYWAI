@@ -31,7 +31,7 @@ import {
 } from "@/api/cse";
 import { getMonthPeriod } from "@/lib/csePeriod";
 import { Plus, Clock, Loader2, ExternalLink, ChevronDown, ChevronRight, Share2 } from "lucide-react";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { DelegationHourModal } from "@/components/cse/DelegationHourModal";
 import { DelegationConfigCard } from "@/components/cse/DelegationConfigCard";
 import { DelegationTransferModal } from "@/components/cse/DelegationTransferModal";
@@ -152,7 +152,7 @@ export default function DelegationHoursTab() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <SharkFinLoader label="Chargement des heures de délégation…" />
+            <Chargement label="Chargement des heures de délégation…" />
           ) : filteredSummary.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">Aucun élu sur cette période</div>
           ) : (

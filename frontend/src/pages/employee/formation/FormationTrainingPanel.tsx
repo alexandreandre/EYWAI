@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ExternalLink, FileText, Loader2 } from "lucide-react";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 
 import {
   getEnrollments,
@@ -299,7 +299,7 @@ export function FormationTrainingPanel({ employeeId }: { employeeId: string }) {
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">Mes inscriptions</h2>
         {enrollQ.isLoading ? (
-          <SharkFinLoader label="Chargement de vos inscriptions…" />
+          <Chargement label="Chargement de vos inscriptions…" />
         ) : enrollQ.isError ? (
           <p className="text-sm text-destructive">Impossible de charger vos inscriptions.</p>
         ) : (enrollQ.data ?? []).length === 0 ? (
@@ -335,7 +335,7 @@ export function FormationTrainingPanel({ employeeId }: { employeeId: string }) {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Catalogue</h2>
         {catalogQ.isLoading ? (
-          <SharkFinLoader label="Chargement du catalogue…" />
+          <Chargement label="Chargement du catalogue…" />
         ) : catalogQ.isError ? (
           <p className="text-sm text-destructive">Impossible de charger le catalogue.</p>
         ) : catalogTrainings.length === 0 ? (

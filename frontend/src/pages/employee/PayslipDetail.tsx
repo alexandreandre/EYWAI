@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Download } from 'lucide-react';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { getPayslipDetails, type PayslipDetail } from '@/api/payslips';
 import {
   EmployeePageBackLink,
@@ -56,7 +56,7 @@ export default function EmployeePayslipDetail() {
   }, [payslipId, navigate, toast]);
 
   if (loading || !payslip) {
-    return <SharkFinLoader variant="fullPage" label="Chargement du bulletin…" />;
+    return <Chargement variant="fullPage" label="Chargement du bulletin…" />;
   }
 
   return (

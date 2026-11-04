@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { Link } from "react-router-dom";
 
 import { getEmployeeStatus } from "@/api/legalObligations";
@@ -15,7 +15,7 @@ export function FormationLegalPanel({ employeeId }: { employeeId: string }) {
   });
 
   if (q.isLoading) {
-    return <SharkFinLoader label="Chargement des obligations légales…" />;
+    return <Chargement label="Chargement des obligations légales…" />;
   }
   if (q.isError || !q.data) {
     return <p className="text-sm text-destructive">Impossible de charger vos obligations légales.</p>;

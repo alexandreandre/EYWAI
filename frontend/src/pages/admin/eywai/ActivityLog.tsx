@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { getPlatformAuditLogs, type PlatformAuditLogEntry } from "@/api/adminMartine";
 import { getActionLabel } from "@/lib/auditLabels";
 import { AdminPageHeader } from "@/features/admin/components/eywai/AdminPageHeader";
@@ -110,7 +110,7 @@ export default function ActivityLog() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <SharkFinLoader label="Chargement du journal…" />
+            <Chargement label="Chargement du journal…" />
           ) : loadError && logs.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm text-destructive">{loadError}</p>

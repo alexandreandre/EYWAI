@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Shield } from "lucide-react";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { listSuperAdmins } from "@/api/adminMartine";
 import { AdminPageHeader } from "@/features/admin/components/eywai/AdminPageHeader";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ export default function SuperAdminsPage() {
       <Card>
         <CardContent className="p-0 pt-0">
           {isLoading ? (
-            <SharkFinLoader label="Chargement de l'équipe Martine…" />
+            <Chargement label="Chargement de l'équipe Martine…" />
           ) : isError && rows.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm text-destructive">

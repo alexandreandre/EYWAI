@@ -33,7 +33,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 
 import {
   editPayslip,
@@ -402,7 +402,7 @@ export default function PayslipEdit() {
   };
 
   if (isLoading) {
-    return <SharkFinLoader variant="fullPage" label="Chargement du bulletin…" />;
+    return <Chargement variant="fullPage" label="Chargement du bulletin…" />;
   }
   if (echecChargement) {
     return (

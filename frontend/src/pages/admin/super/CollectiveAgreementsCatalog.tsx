@@ -54,7 +54,7 @@ import type { CollectiveAgreementAssignResult } from '@/components/collective-ag
 import { ConventionDocumentViewerDialog } from '@/components/collective-agreements/ConventionDocumentViewerDialog';
 import type { DocumentLoadingKind } from '@/components/collective-agreements/CollectiveAgreementRow';
 import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHeader';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { formatCatalogConventionName } from '@/lib/collectiveAgreementDisplay';
 import { filterCollectiveAgreements } from '@/lib/collectiveAgreementSearch';
 import {
@@ -1022,7 +1022,7 @@ export default function CollectiveAgreementsCatalog() {
   };
 
   if (isLoading) {
-    return <SharkFinLoader variant="fullPage" label="Chargement du catalogue…" />;
+    return <Chargement variant="fullPage" label="Chargement du catalogue…" />;
   }
 
   return (

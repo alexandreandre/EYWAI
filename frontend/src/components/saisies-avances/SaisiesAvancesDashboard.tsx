@@ -4,7 +4,7 @@ import { log } from '@/lib/logger';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, CheckCircle, Clock, Scale, Wallet } from "lucide-react";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { getSalarySeizures, getSalaryAdvances } from '@/api/saisiesAvances';
 import type { SalarySeizure, SalaryAdvance } from '@/api/saisiesAvances';
 
@@ -42,7 +42,7 @@ export function SaisiesAvancesDashboard() {
   }, []);
 
   if (isLoading) {
-    return <SharkFinLoader label="Chargement du tableau de bord…" />;
+    return <Chargement label="Chargement du tableau de bord…" />;
   }
 
   return (

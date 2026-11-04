@@ -2,7 +2,7 @@ import { useConfirmation } from '@/hooks/useConfirmation';
 import { log } from '@/lib/logger';
 import { deDevant } from '@/features/payroll/utils/elision';
 import { RhPageHeader } from '@/components/layout';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
@@ -214,7 +214,7 @@ const EmployeeExitsPage = () => {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <SharkFinLoader label="Chargement des départs…" />
+                <Chargement label="Chargement des départs…" />
               ) : loadError ? (
                 <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
                   <p className="text-sm text-destructive">{loadError}</p>

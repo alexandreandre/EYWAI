@@ -1,7 +1,7 @@
 import { log } from '@/lib/logger';
 import React, { useState, useEffect } from 'react';
 import { Info, ChevronDown, ChevronRight, CheckSquare, Square } from 'lucide-react';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { getPermissionsMatrix, PermissionMatrix, PermissionMatrixCategory } from '../api/permissions';
 import { cn } from '../lib/utils';
 
@@ -121,7 +121,7 @@ export const PermissionsMatrix: React.FC<PermissionsMatrixProps> = ({
   };
 
   if (loading) {
-    return <SharkFinLoader label="Chargement des permissions…" className="p-12" />;
+    return <Chargement label="Chargement des permissions…" className="p-12" />;
   }
 
   if (!matrix || matrix.categories.length === 0) {

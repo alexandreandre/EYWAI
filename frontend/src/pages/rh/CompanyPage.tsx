@@ -9,7 +9,7 @@ import {
   Calculator,
   HeartHandshake,
 } from "lucide-react";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 
 import {
   downloadCompanyExport,
@@ -247,7 +247,7 @@ export default function CompanyPage() {
   };
 
   if (detailsQuery.isLoading) {
-    return <SharkFinLoader variant="fullPage" label="Chargement de l'entreprise…" />;
+    return <Chargement variant="fullPage" label="Chargement de l'entreprise…" />;
   }
 
   if (detailsQuery.error) {

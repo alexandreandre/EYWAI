@@ -9,7 +9,7 @@ import {
   isRhLeaveBalanceVisible,
   balanceUsesHours,
 } from '@/lib/employeeAbsencesUtils';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import {
   Tooltip,
   TooltipContent,
@@ -52,7 +52,7 @@ export function EmployeeDetailLeaveBalancesSummary({
 
       {balancesQuery.isLoading ? (
         <div className="flex min-h-[56px] items-center">
-          <SharkFinLoader variant="compact" label="" />
+          <Chargement variant="compact" label="" />
         </div>
       ) : balancesQuery.isError ? (
         <p className="flex items-center gap-2 text-sm text-destructive">

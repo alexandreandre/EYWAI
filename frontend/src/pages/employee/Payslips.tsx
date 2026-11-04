@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { Download, BarChart2, Euro, CalendarDays, TrendingUp, LineChart } from 'lucide-react';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip } from 'recharts';
 import { useAuth } from '@/contexts/AuthContext';
 import { Label } from '@/components/ui/label';
@@ -80,7 +80,7 @@ export default function PayslipsPage() {
         </CardHeader>
         <CardContent>
           {profileQuery.isLoading ? (
-            <SharkFinLoader label="Chargement du salaire…" />
+            <Chargement label="Chargement du salaire…" />
           ) : salaryInfo ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -106,7 +106,7 @@ export default function PayslipsPage() {
         </CardHeader>
         <CardContent>
           {cumulsQuery.isLoading ? (
-            <SharkFinLoader label="Chargement des cumuls…" />
+            <Chargement label="Chargement des cumuls…" />
           ) : cumuls?.cumuls ? (
             <div className="grid grid-cols-1 gap-y-4 gap-x-6 sm:grid-cols-3">
               <div>
@@ -144,7 +144,7 @@ export default function PayslipsPage() {
         </CardHeader>
         <CardContent className="h-[250px] w-full">
           {payslipsQuery.isLoading ? (
-            <SharkFinLoader label="Chargement du graphique…" />
+            <Chargement label="Chargement du graphique…" />
           ) : salaryEvolutionData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={salaryEvolutionData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
@@ -184,7 +184,7 @@ export default function PayslipsPage() {
         </CardHeader>
         <CardContent>
           {payslipsQuery.isLoading ? (
-            <SharkFinLoader label="Chargement des bulletins…" />
+            <Chargement label="Chargement des bulletins…" />
           ) : payslips.length > 0 ? (
             <Table>
               <TableHeader>

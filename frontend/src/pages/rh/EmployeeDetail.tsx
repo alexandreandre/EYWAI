@@ -17,7 +17,7 @@ import { useCalendar } from "@/hooks/useCalendar";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, ArrowLeft, ClipboardEdit, MessageSquare, Calendar as CalendarIcon, FileText, TrendingUp, Stethoscope, ScanLine, Palmtree } from "lucide-react";
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { EmployeeDetailBadgeuseSection } from "@/components/badgeuse/rh/EmployeeDetailBadgeuseSection";
 import { getEmployeeDaysSummary } from "@/api/badgeuse";
 import { periodRangeLastDays } from "@/lib/badgeuseApiUtils";
@@ -546,7 +546,7 @@ export default function EmployeeDetail() {
   );
 
   if (isInitialLoad) {
-    return <SharkFinLoader variant="fullPage" label="Chargement du collaborateur…" />;
+    return <Chargement variant="fullPage" label="Chargement du collaborateur…" />;
   }
   if (employeeQuery.isError && !employee) {
     return (

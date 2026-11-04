@@ -28,7 +28,7 @@ import { NewDocumentsDashboardAlert } from '@/components/dashboard/NewDocumentsD
 import { EmployeeBadgeuseDashboardCard } from '@/components/dashboard/EmployeeBadgeuseDashboardCard';
 import { EmployeeCseDashboardCard } from '@/components/employee-cse/EmployeeCseDashboardCard';
 import { EmployeeAbsenceBalanceRow } from '@/components/employee-absences/EmployeeAbsenceBalanceRow';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
+import { Chargement } from '@/components/Chargement';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -56,7 +56,7 @@ import { cn } from '@/lib/utils';
 function DashboardMetricCardLoader() {
   return (
     <CardContent className="flex min-h-[88px] items-center justify-center">
-      <SharkFinLoader variant="compact" label="" />
+      <Chargement variant="compact" label="" />
     </CardContent>
   );
 }
@@ -453,7 +453,7 @@ export default function EmployeeDashboard() {
               <CardContent>
                 {expensesQuery.isLoading ? (
                   <div className="flex min-h-[88px] items-center justify-center">
-                    <SharkFinLoader variant="compact" label="" />
+                    <Chargement variant="compact" label="" />
                   </div>
                 ) : showExpensesEmptyState ? (
                   <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-6 text-center">
@@ -501,7 +501,7 @@ export default function EmployeeDashboard() {
               <CardContent className="space-y-3">
                 {initialAbsencesQuery.isLoading ? (
                   <div className="flex min-h-[72px] items-center justify-center">
-                    <SharkFinLoader variant="compact" label="" />
+                    <Chargement variant="compact" label="" />
                   </div>
                 ) : leaveBalances.length > 0 ? (
                   leaveBalances.map((balance) => (
@@ -528,7 +528,7 @@ export default function EmployeeDashboard() {
               <CardContent className="flex flex-col items-center">
                 {initialAbsencesQuery.isLoading ? (
                   <div className="flex min-h-[280px] w-full items-center justify-center">
-                    <SharkFinLoader variant="section" label="Chargement du calendrier…" />
+                    <Chargement variant="section" label="Chargement du calendrier…" />
                   </div>
                 ) : (
                   <>
