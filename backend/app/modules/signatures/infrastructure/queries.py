@@ -83,23 +83,12 @@ def get_pending_signatures_employee(
 
 def get_yousign_config(company_id: str) -> Optional[Dict[str, Any]]:
     """
-    Vérifie si Yousign est configuré pour l'entreprise (table yousign_configs ou équivalent).
-    Repli : clé API globale YOUSIGN_API_KEY → considéré comme configuré (sans ligne BDD).
-    Retourne None seulement si ni table/ligne ni variable d'environnement.
+    Yousign est configuré si la clé API globale YOUSIGN_API_KEY est posée.
+
+    Il n'y a pas de réglage par société : la table `yousign_configs` que l'on
+    interrogeait d'abord n'existe pas (915 réponses 404 par jour, audit du
+    03/11/2026). Retourne None sans clé.
     """
-    try:
-        r = (
-            supabase.table("yousign_configs")
-            .select("id, company_id")
-            .eq("company_id", company_id)
-            .maybe_single()
-            .execute()
-        )
-        row = r.data if r else None
-        if row and isinstance(row, dict):
-            return dict(row)
-    except Exception:
-        pass
     if os.getenv("YOUSIGN_API_KEY", "").strip():
         return {"id": "env", "company_id": company_id}
     return None

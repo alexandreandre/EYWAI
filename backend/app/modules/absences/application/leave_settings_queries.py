@@ -20,8 +20,6 @@ from app.modules.absences.application.cp_seniority_queries import (
     build_employee_cp_seniority_context,
     compute_and_persist_grant,
     employee_cp_seniority_select,
-    employee_cp_seniority_select_without_cadre_dirigeant,
-    is_missing_cadre_dirigeant_column_error,
 )
 from app.modules.absences.application.queries import _cp_balance_extras
 from app.modules.absences.infrastructure.cp_seniority_repository import (
@@ -304,26 +302,13 @@ def _list_active_employees(company_id: str) -> list[dict[str, Any]]:
     select_fields = (
         f"{employee_cp_seniority_select(include_id=True, include_status=True)}, email"
     )
-    try:
-        resp = (
-            supabase.table("employees")
-            .select(select_fields)
-            .eq("company_id", company_id)
-            .in_("employment_status", ["actif", "active", "en_onboarding"])
-            .execute()
-        )
-    except Exception as exc:
-        if not is_missing_cadre_dirigeant_column_error(exc):
-            raise
-        resp = (
-            supabase.table("employees")
-            .select(
-                f"{employee_cp_seniority_select_without_cadre_dirigeant(include_id=True, include_status=True)}, email"
-            )
-            .eq("company_id", company_id)
-            .in_("employment_status", ["actif", "active", "en_onboarding"])
-            .execute()
-        )
+    resp = (
+        supabase.table("employees")
+        .select(select_fields)
+        .eq("company_id", company_id)
+        .in_("employment_status", ["actif", "active", "en_onboarding"])
+        .execute()
+    )
     return resp.data or []
 
 

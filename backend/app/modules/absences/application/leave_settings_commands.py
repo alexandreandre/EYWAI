@@ -14,8 +14,6 @@ from app.modules.absences.application.leave_settings_queries import (
 from app.modules.absences.application.cp_seniority_queries import (
     build_employee_cp_seniority_context,
     employee_cp_seniority_select,
-    employee_cp_seniority_select_without_cadre_dirigeant,
-    is_missing_cadre_dirigeant_column_error,
 )
 from app.modules.absences.domain.rules import (
     _rtt_eligible_for_employee,
@@ -811,33 +809,16 @@ def close_rtt_year_end(
         )
         validated = absence_repository.list_validated_for_employees([employee_id])
         adj = get_employee_adjustment(employee_id, body.year)
-        try:
-            emp_resp = (
-                supabase.table("employees")
-                .select(
-                    employee_cp_seniority_select(include_id=True, include_status=True)
-                )
-                .eq("id", employee_id)
-                .eq("company_id", company_id)
-                .limit(1)
-                .execute()
+        emp_resp = (
+            supabase.table("employees")
+            .select(
+                employee_cp_seniority_select(include_id=True, include_status=True)
             )
-        except Exception as exc:
-            if not is_missing_cadre_dirigeant_column_error(exc):
-                raise
-            emp_resp = (
-                supabase.table("employees")
-                .select(
-                    employee_cp_seniority_select_without_cadre_dirigeant(
-                        include_id=True,
-                        include_status=True,
-                    )
-                )
-                .eq("id", employee_id)
-                .eq("company_id", company_id)
-                .limit(1)
-                .execute()
-            )
+            .eq("id", employee_id)
+            .eq("company_id", company_id)
+            .limit(1)
+            .execute()
+        )
         emp_rows = emp_resp.data or []
         employee_ctx = (
             build_employee_cp_seniority_context(emp_rows[0]) if emp_rows else None
