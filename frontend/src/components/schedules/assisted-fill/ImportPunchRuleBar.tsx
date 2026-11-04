@@ -24,10 +24,13 @@ function toRule(settings: PunchAccountingSettings): PunchBreakRule {
 }
 
 interface ImportPunchRuleBarProps {
-  onApply: (prev: PunchBreakRule, next: PunchBreakRule) => void;
+  /** `aDesHoraires` : la société a des créneaux ; la revue ne recalcule alors pas à l'écran. */
+  onApply: (prev: PunchBreakRule, next: PunchBreakRule, aDesHoraires: boolean) => void;
+  /** Avis après un changement de règle (heures non recalculées ici). */
+  avis?: string | null;
 }
 
-export function ImportPunchRuleBar({ onApply }: ImportPunchRuleBarProps) {
+export function ImportPunchRuleBar({ onApply, avis = null }: ImportPunchRuleBarProps) {
   const { user } = useAuth();
   const { activeCompany } = useCompany();
   const companyId = activeCompany?.company_id ?? '';
@@ -60,7 +63,7 @@ export function ImportPunchRuleBar({ onApply }: ImportPunchRuleBarProps) {
       const prev = settings ? toRule(settings) : toRule(saved);
       queryClient.setQueryData(queryKeys.punchAccountingSettings(companyId), saved);
       setForm(saved);
-      onApply(prev, toRule(saved));
+      onApply(prev, toRule(saved), slots.length > 0);
     },
     onError: () => {
       toast({
@@ -151,6 +154,11 @@ export function ImportPunchRuleBar({ onApply }: ImportPunchRuleBarProps) {
                 `${s.label || s.code || 'créneau'} −${s.break_deduct_minutes} min`,
             )
             .join(' · ')}
+        </p>
+      )}
+      {avis && (
+        <p className="mt-1 text-[11px] font-medium text-amber-800" data-testid="avis-regle-pause">
+          {avis}
         </p>
       )}
     </div>

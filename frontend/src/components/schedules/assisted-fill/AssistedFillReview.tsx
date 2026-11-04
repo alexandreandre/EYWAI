@@ -68,6 +68,7 @@ import {
 } from './casesAbsent';
 import { TYPE_ABSENT_A_TYPER } from '@/lib/absentATyper';
 import { libelleBadges } from './badgesDuJour';
+import { avertissementsDuJour, phraseResume, resumeAvertissements } from './avertissementsDuJour';
 import {
   cleJourExistant,
   joursRemplaces,
@@ -93,7 +94,7 @@ import {
 } from './lignesIgnorees';
 import { ReimportBanner } from './ReimportBanner';
 import { bilanReimport, cleJour, libelleImportRefait } from './reimport';
-import { reapplyPauseOnDay, type PunchBreakRule } from '@/lib/punchBreakHours';
+import { appliquerRegleALaRevue, type PunchBreakRule } from '@/lib/punchBreakHours';
 import {
   getActualHours,
   persistTimesheetBatch,
@@ -428,6 +429,7 @@ export function AssistedFillReview({
   // Jours cochés « absent » et enregistrés : listés au récapitulatif, avec le
   // chemin pour leur donner leur type (la paie est bloquée jusque-là).
   const [absentsEnregistres, setAbsentsEnregistres] = useState<AbsentsDuSalarie[]>([]);
+  const [avisRegleDePause, setAvisRegleDePause] = useState<string | null>(null);
   // Relecture d'un fichier déjà importé : les jours corrigés à la main depuis
   // l'import ne seront pas réécrits (le serveur les retire à l'enregistrement).
   const reimport = proposal.reimport ?? null;
@@ -794,7 +796,7 @@ export function AssistedFillReview({
     });
   };
 
-  const applyPunchBreakRule = (prev: PunchBreakRule, next: PunchBreakRule) => {
+  const applyPunchBreakRule = (prev: PunchBreakRule, next: PunchBreakRule, aDesHoraires: boolean) => {
     if (
       prev.enabled === next.enabled &&
       prev.breakMinutes === next.breakMinutes &&
@@ -802,10 +804,12 @@ export function AssistedFillReview({
     ) {
       return;
     }
+    setAvisRegleDePause(aDesHoraires ? appliquerRegleALaRevue([], prev, next, true).avis : null);
+    if (aDesHoraires) return;
     setRows((rows) =>
       rows.map((row) => ({
         ...row,
-        days: row.days.map((day) => reapplyPauseOnDay(day, prev, next)),
+        days: appliquerRegleALaRevue(row.days, prev, next, false).days,
       })),
     );
   };
@@ -1282,7 +1286,7 @@ export function AssistedFillReview({
         />
       )}
 
-      {!isTextInstruction && <ImportPunchRuleBar onApply={applyPunchBreakRule} />}
+      {!isTextInstruction && <ImportPunchRuleBar onApply={applyPunchBreakRule} avis={avisRegleDePause} />}
 
       {/* Barre outils — masquée pour une consigne texte sur peu de salariés */}
       {showToolbar && (
@@ -1471,6 +1475,12 @@ export function AssistedFillReview({
                   </button>
                 </div>
 
+                {status === 'ok' && phraseResume(resumeAvertissements(row.warnings)) && (
+                  <p className="mt-0.5 pl-6 text-[11px] font-medium text-amber-800" data-testid="resume-pointage">
+                    {phraseResume(resumeAvertissements(row.warnings))}
+                    {!expanded && ' — dépliez la ligne pour voir chaque jour.'}
+                  </p>
+                )}
                 {visibleRowWarnings(row.warnings, status).map((warning) => (
                   <p key={warning} className="mt-0.5 pl-6 text-[11px] text-amber-700">
                     {warning}
@@ -1581,6 +1591,15 @@ export function AssistedFillReview({
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
+                        {avertissementsDuJour(row.warnings, day.jour).map((message) => (
+                          <p
+                            key={message}
+                            className="basis-full pl-[5.5rem] text-[10px] text-amber-800"
+                            data-testid="avertissement-du-jour"
+                          >
+                            {message}
+                          </p>
+                        ))}
                       </div>
                       );
                     })}
