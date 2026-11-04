@@ -5,6 +5,8 @@ Chargement centralisé des barèmes payroll_config (moteur + simulation + tests)
 from __future__ import annotations
 
 import json
+import logging
+import threading
 import unicodedata
 from datetime import date
 from typing import Any, Dict, List, Optional
@@ -61,17 +63,133 @@ def charger_db_baremes(supabase) -> Dict[str, Any]:
 
     Dans un calcul en lecture seule (le brut d'une prime rejoue le bulletin
     plusieurs fois, lot 31), les 4 Mo de barèmes ne se décodent qu'une fois.
+    Entre deux calculs, le processus les garde tant que leur empreinte en base
+    n'a pas changé (`_lire_db_baremes_gardes`).
     """
     from app.core.lecture_seule import lire_une_fois
 
-    return lire_une_fois(
-        (
-            "payroll_config",
-            getattr(supabase, "supabase_url", None),
-            getattr(supabase, "supabase_key", None),
-        ),
-        lambda: _lire_db_baremes(supabase),
+    cle = (
+        "payroll_config",
+        getattr(supabase, "supabase_url", None),
+        getattr(supabase, "supabase_key", None),
     )
+    return lire_une_fois(cle, lambda: _lire_db_baremes_gardes(supabase, cle))
+
+
+# ── Barèmes gardés par processus ───────────────────────────────────────────
+#
+# Chaque génération, aperçu ou simulation relisait les 4 Mo des barèmes actifs
+# (`taux_vmrr` en fait 99 %) : 43 % du temps base du backend (audit de
+# modernisation du 03/11/2026, R2 geste 4a). Le processus les garde désormais,
+# et vérifie à chaque chargement, par une requête de quelques centaines
+# d'octets, qu'aucune ligne active n'a changé : l'empreinte est la liste des
+# (id, xmin) des lignes actives. Postgres donne un nouveau `xmin` à toute ligne
+# écrite (UPDATE, même sans changer `version`, comme le font les migrations),
+# une ligne ajoutée, retirée ou désactivée change la liste. Le cache se vide
+# donc à la première lecture qui suit n'importe quelle écriture, quel qu'en soit
+# l'auteur (autre instance du backend, script, migration, SQL à la main) : une
+# invalidation à l'écriture ne verrait que celles de ce processus, une durée
+# courte servirait des barèmes périmés pendant cette durée.
+#
+# Les barèmes sont gardés en JSON et rendus en copie neuve à chaque appel : le
+# moteur peut modifier les siens sans toucher ceux du calcul suivant. Si la base
+# ne donne pas `xmin`, rien n'est gardé : chaque appel relit tout, comme avant.
+
+_COLONNES_EMPREINTE = "id, xmin"
+_BAREMES_GARDES: Dict[tuple, tuple[tuple, str]] = {}
+_SANS_EMPREINTE: set[tuple] = set()
+_VERROU_BAREMES = threading.Lock()
+
+
+def vider_baremes_gardes() -> None:
+    """Oublie les barèmes gardés par ce processus (tests, outils)."""
+    with _VERROU_BAREMES:
+        _BAREMES_GARDES.clear()
+        _SANS_EMPREINTE.clear()
+
+
+def _empreinte(lignes: Any) -> Optional[tuple]:
+    """(id, xmin) triés des lignes actives ; None si une ligne n'en a pas."""
+    try:
+        return tuple(sorted((str(ligne["id"]), str(ligne["xmin"])) for ligne in lignes))
+    except (KeyError, TypeError):
+        return None
+
+
+def _xmin_refuse(exc: Exception) -> bool:
+    """La base (PostgREST) ne sait pas rendre `xmin` : on lit sans garder."""
+    code = str(getattr(exc, "code", "") or "")
+    return code in {"42703", "PGRST100", "PGRST204"} or "xmin" in str(exc)
+
+
+def _empreinte_en_base(supabase) -> Optional[tuple]:
+    """L'empreinte des barèmes actifs en base ; None si elle n'a pas pu être lue."""
+    try:
+        reponse = (
+            supabase.table("payroll_config")
+            .select(_COLONNES_EMPREINTE)
+            .eq("is_active", True)
+            .execute()
+        )
+    except Exception:  # sans empreinte, on relit tout, comme avant
+        logging.getLogger(__name__).warning(
+            "Empreinte des barèmes illisible : barèmes relus en entier", exc_info=True
+        )
+        return None
+    return _empreinte(reponse.data or [])
+
+
+def _lire_db_baremes_gardes(supabase, cle: tuple) -> dict[str, Any]:
+    """Les barèmes actifs : ceux gardés si leur empreinte n'a pas bougé, sinon relus."""
+    with _VERROU_BAREMES:
+        gardes = _BAREMES_GARDES.get(cle)
+        sans_empreinte = cle in _SANS_EMPREINTE
+    if sans_empreinte:
+        return _lire_db_baremes(supabase)
+    if gardes is not None:
+        empreinte_gardee, texte = gardes
+        if _empreinte_en_base(supabase) == empreinte_gardee:
+            return json.loads(texte)
+    try:
+        baremes, empreinte = _lire_db_baremes_et_empreinte(supabase)
+    except Exception as exc:
+        if not _xmin_refuse(exc):
+            raise
+        logging.getLogger(__name__).warning(
+            "La base ne rend pas xmin : barèmes relus à chaque calcul (%s)", exc
+        )
+        with _VERROU_BAREMES:
+            _SANS_EMPREINTE.add(cle)
+        return _lire_db_baremes(supabase)
+    with _VERROU_BAREMES:
+        if empreinte:
+            _BAREMES_GARDES[cle] = (empreinte, json.dumps(baremes, ensure_ascii=False))
+        else:
+            _BAREMES_GARDES.pop(cle, None)
+    return baremes
+
+
+def _baremes_des_lignes(lignes: List[Dict[str, Any]]) -> dict[str, Any]:
+    if not lignes:
+        raise RuntimeError(
+            "Aucune configuration de paie active trouvée dans Supabase."
+        )
+    return {
+        c["config_key"]: ensure_config_data(c.get("config_data"))
+        for c in lignes
+    }
+
+
+def _lire_db_baremes_et_empreinte(supabase) -> tuple[dict[str, Any], Optional[tuple]]:
+    """Les barèmes et leur empreinte, d'une seule requête (même instantané)."""
+    configs = (
+        supabase.table("payroll_config")
+        .select(f"{_COLONNES_EMPREINTE}, config_key, config_data")
+        .eq("is_active", True)
+        .execute()
+    )
+    lignes = configs.data or []
+    return _baremes_des_lignes(lignes), _empreinte(lignes)
 
 
 def _lire_db_baremes(supabase) -> dict[str, Any]:
@@ -81,14 +199,7 @@ def _lire_db_baremes(supabase) -> dict[str, Any]:
         .eq("is_active", True)
         .execute()
     )
-    if not configs.data:
-        raise RuntimeError(
-            "Aucune configuration de paie active trouvée dans Supabase."
-        )
-    return {
-        c["config_key"]: ensure_config_data(c.get("config_data"))
-        for c in configs.data
-    }
+    return _baremes_des_lignes(configs.data or [])
 
 
 def charger_conventions_collectives(supabase) -> Dict[str, Any]:
