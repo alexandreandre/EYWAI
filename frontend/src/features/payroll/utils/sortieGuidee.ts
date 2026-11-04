@@ -159,3 +159,24 @@ export function bandeauxSortieDuMois(
   }
   return bandeaux;
 }
+
+/**
+ * Le bulletin de ce mois est-il un bulletin de sortie ? Même lecture que le
+ * moteur (`_est_bulletin_de_sortie`) : un départ dont le dernier jour tombe dans
+ * le mois, ou la fin du contrat dans le mois. La liste des bulletins ne porte
+ * pas la marque ; l'écran la déduit de la fiche et des départs.
+ */
+export function partDansLeMois(
+  salarie: SalariePourSortieGuidee,
+  departs: readonly DepartPourSortieGuidee[],
+  year: number,
+  month: number
+): boolean {
+  const dateFin = dateDeFinDuContrat(salarie);
+  if (dateFin && tombeDansLeMois(dateFin, year, month)) return true;
+  return departs.some((d) => {
+    if (d.employee_id !== salarie.id || statutAnnule(d.status)) return false;
+    const lwd = sliceDate(d.last_working_day);
+    return Boolean(lwd && tombeDansLeMois(lwd, year, month));
+  });
+}
