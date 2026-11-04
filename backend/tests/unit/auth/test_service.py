@@ -48,17 +48,18 @@ class TestLoginWithEmail:
 
     def test_email_and_invalid_password_raises_400(self):
         """Email + mauvais mot de passe → HTTP 400."""
+        from supabase_auth.errors import AuthApiError
+
         with patch("app.modules.auth.application.service.auth_provider") as auth:
-            auth.sign_in_with_password.side_effect = Exception("Invalid login")
+            auth.sign_in_with_password.side_effect = AuthApiError(
+                "Invalid login credentials", 400, "invalid_credentials"
+            )
 
             with pytest.raises(HTTPException) as exc_info:
                 login("user@example.com", "WrongPass")
 
         assert exc_info.value.status_code == 400
-        assert (
-            "Identifiant" in exc_info.value.detail
-            or "mot de passe" in exc_info.value.detail
-        )
+        assert "Identifiant ou mot de passe incorrect" in exc_info.value.detail["message"]
 
 
 class TestLoginWithUsername:
