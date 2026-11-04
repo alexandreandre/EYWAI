@@ -6,6 +6,7 @@ Remboursement glissant : reprise de l'échéance non soldée mois après mois.
 from __future__ import annotations
 
 from decimal import Decimal
+from functools import partial
 from typing import Any, Dict, List, Optional
 
 from app.core.logging import get_logger
@@ -30,6 +31,12 @@ from app.modules.employee_loans.infrastructure.repository import (
     employee_loan_repayments_repository,
     employee_loans_repository,
 )
+from app.modules.payroll.engine.lectures import lire_ou_arreter
+from app.modules.payroll.engine.replis import (
+    CODE_REPLI_RESTE_DU,
+    CODE_REPLI_RETENUES_A_RECALCULER,
+    ajouter_repli,
+)
 from app.modules.saisies_avances.domain.rules import (
     base_saisissable,
     calculate_seizable_amount,
@@ -46,9 +53,17 @@ def process_suspended_loan_installments(
     employee_id: str,
     year: int,
     month: int,
-) -> None:
-    """Marque skipped les échéances pending/partial des prêts suspendus pour ce mois."""
-    suspended = get_suspended_loans_with_pending_installment(employee_id, year, month)
+) -> int:
+    """Marque skipped les échéances pending/partial des prêts suspendus pour ce mois.
+
+    Rend le nombre d'échéances qui n'ont pas pu être marquées : restées dues,
+    elles seraient retenues à la reprise du prêt.
+    """
+    suspended = lire_ou_arreter(
+        lambda: get_suspended_loans_with_pending_installment(employee_id, year, month),
+        "Les prêts suspendus du salarié n'ont pas pu être lus",
+    )
+    echecs = 0
     for item in suspended:
         installment = item.get("installment") or {}
         inst_id = installment.get("id")
@@ -57,8 +72,13 @@ def process_suspended_loan_installments(
                 employee_loan_installments_repository.update(
                     inst_id, {"status": "skipped"}
                 )
-            except Exception:
-                pass
+            except Exception:  # l'échéance reste due, le bulletin le dit
+                logger.exception(
+                    "Échéance %s du prêt suspendu %s non marquée sautée (%02d/%d)",
+                    inst_id, item.get("id"), month, year,
+                )
+                echecs += 1
+    return echecs
 
 
 def enrich_payslip_loans(
@@ -76,7 +96,11 @@ def enrich_payslip_loans(
     Une échéance retenue en partie, ou pas du tout, le dit au bulletin
     (`alertes_baremes`) : combien, sur combien, la règle et le reliquat.
     """
-    process_suspended_loan_installments(employee_id, year, month)
+    def _signaler(code: str) -> None:
+        ajouter_repli(payslip_json_data.setdefault("alertes_baremes", []), code)
+
+    if process_suspended_loan_installments(employee_id, year, month):
+        _signaler(CODE_REPLI_RESTE_DU)
 
     net_a_payer = Decimal(str(payslip_json_data.get("net_a_payer", 0)))
     quotite_du_mois, annee_bareme, pris_par_les_saisies = _quotite_du_mois(
@@ -85,7 +109,10 @@ def enrich_payslip_loans(
     net_restant = net_a_payer
     pris_par_les_prets = Decimal("0")
 
-    loans_due = get_unsettled_installments_for_payroll(employee_id, year, month)
+    loans_due = lire_ou_arreter(
+        lambda: get_unsettled_installments_for_payroll(employee_id, year, month),
+        "Les échéances de prêt du salarié n'ont pas pu être lues",
+    )
     legal_rate = get_legal_interest_rate()
 
     total_capital = Decimal("0")
@@ -130,8 +157,9 @@ def enrich_payslip_loans(
         inst_id = installment.get("id")
 
         if payslip_id:
-            existing = employee_loan_repayments_repository.get_existing(
-                loan_id, payslip_id
+            existing = lire_ou_arreter(
+                partial(employee_loan_repayments_repository.get_existing, loan_id, payslip_id),
+                "Les retenues de prêt déjà enregistrées pour ce bulletin n'ont pas pu être lues",
             )
             if existing:
                 cap = Decimal(str(existing.get("capital_amount", 0)))
@@ -192,8 +220,11 @@ def enrich_payslip_loans(
                     employee_loan_installments_repository.update(
                         inst_id, {"status": "paid", "payslip_id": payslip_id}
                     )
-                except Exception:
-                    pass
+                except Exception:  # l'échéance soldée reste ouverte, le bulletin le dit
+                    logger.exception(
+                        "Échéance soldée %s du prêt %s non marquée payée", inst_id, loan_id
+                    )
+                    _signaler(CODE_REPLI_RESTE_DU)
             continue
 
         capital_paid_this, interest_paid_this = retenue_dans_le_plafond(
@@ -271,6 +302,11 @@ def enrich_payslip_loans(
             ) or remaining_after <= 0
             inst_status = "paid" if settled else "partial"
 
+            # La ligne de retenue d'abord : c'est d'après elle qu'un recalcul
+            # défait le bulletin (`annulation.defaire_retenues_du_bulletin`).
+            # Sans elle, le capital et l'échéance ne bougent pas : le recalcul
+            # refait la même retenue, au lieu de la perdre (échéance déjà payée)
+            # ou de la doubler.
             try:
                 repayment_payload: Dict[str, Any] = {
                     "loan_id": loan_id,
@@ -285,8 +321,12 @@ def enrich_payslip_loans(
                 if inst_id:
                     repayment_payload["installment_id"] = inst_id
                 employee_loan_repayments_repository.create(repayment_payload)
-            except Exception:
-                pass
+            except Exception:  # rien n'est enregistré, le bulletin dit de recalculer
+                logger.exception(
+                    "Retenue du prêt %s non enregistrée pour le bulletin %s", loan_id, payslip_id
+                )
+                _signaler(CODE_REPLI_RETENUES_A_RECALCULER)
+                continue
 
             try:
                 update_loan: Dict[str, Any] = {
@@ -295,8 +335,11 @@ def enrich_payslip_loans(
                 if remaining_after <= 0:
                     update_loan["status"] = "repaid"
                 employee_loans_repository.update(loan_id, update_loan)
-            except Exception:
-                pass
+            except Exception:  # retenue enregistrée, capital non suivi : le bulletin le dit
+                logger.exception(
+                    "Capital restant du prêt %s non mis à jour (bulletin %s)", loan_id, payslip_id
+                )
+                _signaler(CODE_REPLI_RESTE_DU)
 
             if inst_id:
                 try:
@@ -307,8 +350,12 @@ def enrich_payslip_loans(
                         inst_status,
                         payslip_id=payslip_id if settled else None,
                     )
-                except Exception:
-                    pass
+                except Exception:  # retenue enregistrée, échéance non suivie : le bulletin le dit
+                    logger.exception(
+                        "Échéance %s du prêt %s non mise à jour (bulletin %s)",
+                        inst_id, loan_id, payslip_id,
+                    )
+                    _signaler(CODE_REPLI_RESTE_DU)
 
     total_rembourse = total_capital + total_interest
     payslip_json_data["remboursements_prets"] = {
@@ -343,10 +390,14 @@ def _quotite_du_mois(
     pris = Decimal(str(saisies.get("total_preleve") or 0)) + Decimal(
         str(saisies.get("total_en_variables") or 0)
     )
+    # Une lecture ratée n'est pas un barème absent : elle arrête l'enrichissement
+    # des prêts, et le bulletin le dit (`CODE_REPLI_PRETS`).
+    lignes_bareme = lire_ou_arreter(
+        get_bareme_quotite_saisissable,
+        "Le barème de la quotité saisissable n'a pas pu être lu",
+    )
     try:
-        bareme, _messages = resoudre_bareme_quotite(
-            get_bareme_quotite_saisissable(), year, month
-        )
+        bareme, _messages = resoudre_bareme_quotite(lignes_bareme, year, month)
     except Exception:  # noqa: BLE001 — sans barème, rien n'est retenu et le bulletin le dit
         logger.warning("Barème de la quotité saisissable illisible", exc_info=True)
         bareme = None
@@ -367,10 +418,14 @@ def _capital_du_au_debut_du_mois(
     à défaut de date de début, le capital restant du prêt."""
     if not loan.get("start_date") or loan.get("principal_amount") is None:
         return remaining_capital
+    remboursements = lire_ou_arreter(
+        partial(get_capital_repayments, [str(loan["id"])]),
+        "Les remboursements du prêt n'ont pas pu être lus",
+    )
     try:
-        remboursements = get_capital_repayments([str(loan["id"])])
         return capital_du_au_debut_du_mois(loan, remboursements, year, month)
     except Exception:  # noqa: BLE001 — l'avantage retombe sur le capital restant
+        logger.exception("Capital du prêt %s au début du mois non calculé", loan.get("id"))
         return remaining_capital
 
 

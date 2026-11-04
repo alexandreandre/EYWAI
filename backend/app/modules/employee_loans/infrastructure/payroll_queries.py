@@ -16,25 +16,31 @@ from app.modules.employee_loans.infrastructure.queries import (
     TABLE_EMPLOYEE_LOAN_REPAYMENTS,
     TABLE_EMPLOYEE_LOANS,
 )
+from app.modules.payroll.engine.lectures import lire_ou_arreter
 
 
 def get_legal_interest_rate() -> Decimal:
-    """Taux d'intérêt légal annuel depuis payroll_config."""
-    try:
-        res = (
+    """Taux d'intérêt légal annuel depuis payroll_config.
+
+    Sans ligne en base, le taux par défaut. Une lecture ratée n'est pas une
+    ligne absente : relue, puis `LectureIndispensable` (l'avantage en nature
+    du prêt ne se calcule pas sur un taux supposé).
+    """
+    res = lire_ou_arreter(
+        lambda: (
             supabase.table("payroll_config")
             .select("config_data")
             .eq("config_key", "taux_interet_legal")
             .is_("company_id", "null")
             .maybe_single()
             .execute()
-        )
-        if res and res.data:
-            rate = (res.data.get("config_data") or {}).get("taux_annuel")
-            if rate is not None:
-                return Decimal(str(rate))
-    except Exception:
-        pass
+        ),
+        "Le taux de l'intérêt légal n'a pas pu être lu",
+    )
+    if res and res.data:
+        rate = (res.data.get("config_data") or {}).get("taux_annuel")
+        if rate is not None:
+            return Decimal(str(rate))
     return DEFAULT_LEGAL_INTEREST_RATE
 
 
@@ -158,9 +164,18 @@ def compute_total_loan_benefit_in_kind(
     capital restant dû au début du mois du bulletin — jamais sur celui du jour
     de la génération (septembre recevait l'avantage d'un prêt du 01/10).
     """
+    loans = lire_ou_arreter(
+        lambda: get_loans_for_benefit_in_kind(employee_id),
+        "Les prêts du salarié n'ont pas pu être lus",
+    )
+    if not loans:
+        # Sans prêt, rien à lire de plus : le taux légal ne servirait à rien.
+        return 0.0
     legal_rate = get_legal_interest_rate()
-    loans = get_loans_for_benefit_in_kind(employee_id)
-    repayments = get_capital_repayments([str(loan["id"]) for loan in loans])
+    repayments = lire_ou_arreter(
+        lambda: get_capital_repayments([str(loan["id"]) for loan in loans]),
+        "Les remboursements des prêts du salarié n'ont pas pu être lus",
+    )
     total = Decimal("0")
     for loan in loans:
         capital = capital_du_au_debut_du_mois(

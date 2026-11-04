@@ -12,8 +12,15 @@ import os
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from functools import partial
 from typing import Any, Dict, List, Optional
 
+from app.modules.payroll.engine.lectures import lire_ou_arreter
+from app.modules.payroll.engine.replis import (
+    CODE_REPLI_RESTE_DU,
+    CODE_REPLI_RETENUES_A_RECALCULER,
+    ajouter_repli,
+)
 from app.modules.saisies_avances.application.dto import (
     ForbiddenError,
     NotFoundError,
@@ -581,6 +588,14 @@ def delete_advance_payment(payment_id: str) -> Dict[str, bool]:
     return {"success": True}
 
 
+def _lire_bareme_quotite() -> Optional[Dict[str, Any]]:
+    """Le barème de la quotité saisissable, relu sur erreur réseau passagère."""
+    return lire_ou_arreter(
+        lambda: get_bareme_quotite_saisissable(),
+        "Le barème de la quotité saisissable n'a pas pu être lu",
+    )
+
+
 # Enrichissement bulletin (logique autonome, plus de dépendance legacy)
 def enrich_payslip(
     payslip_json_data: Dict[str, Any],
@@ -601,10 +616,16 @@ def enrich_payslip(
     # différence n'était ni retenue ni reportée (enquête du 11/10/2026, [G8]).
     net_disponible = max(Decimal("0"), net_a_payer)
 
+    def _signaler(code: str) -> None:
+        ajouter_repli(payslip_json_data.setdefault("alertes_baremes", []), code)
+
     # 1. Traitement des saisies : quotité au barème légal de l'année (lu en
     # base, comme le SMIC), sur la base saisissable (sans frais, acompte non
     # déduit, avantages en nature compris), seuils relevés par personne à charge.
-    seizures = get_seizures_for_period(employee_id, year, month)
+    seizures = lire_ou_arreter(
+        lambda: get_seizures_for_period(employee_id, year, month),
+        "Les saisies sur salaire du salarié n'ont pas pu être lues",
+    )
     seizures = domain_rules.apply_priority_order(seizures)
     dependents_count = max(
         (int(s.get("dependents_count") or 0) for s in seizures), default=0
@@ -613,7 +634,7 @@ def enrich_payslip(
     seizable_amount = Decimal("0")
     if seizures:
         bareme, messages = domain_rules.resoudre_bareme_quotite(
-            get_bareme_quotite_saisissable(), year, month
+            _lire_bareme_quotite(), year, month
         )
         if bareme is not None:
             seizable_amount = domain_rules.calculate_seizable_amount(
@@ -641,11 +662,11 @@ def enrich_payslip(
         try:
             supprimer_deductions_du_bulletin(payslip_id)
         except Exception:  # noqa: BLE001 — le bulletin garde sa retenue, l'historique au pire un doublon
-            logger.warning(
+            logger.exception(
                 "Prélèvements de saisie du bulletin %s non retirés avant recalcul",
                 payslip_id,
-                exc_info=True,
             )
+            _signaler(CODE_REPLI_RETENUES_A_RECALCULER)
 
     for seizure in seizures:
         net_avant = net_disponible
@@ -703,8 +724,13 @@ def enrich_payslip(
                         float(seizable_amount),
                         float(deduction),
                     )
-                except Exception:
-                    pass
+                except Exception:  # l'historique manque, le bulletin dit de recalculer
+                    logger.exception(
+                        "Prélèvement de la saisie %s non enregistré pour le bulletin %s",
+                        seizure.get("id"),
+                        payslip_id,
+                    )
+                    _signaler(CODE_REPLI_RETENUES_A_RECALCULER)
 
     # 1 bis. Saisies entrées en variables « sur le net » : le moteur les a déjà
     # retirées du net, rien ne les plafonne. Au-delà de la quotité saisissable
@@ -720,7 +746,7 @@ def enrich_payslip(
     total_saisies_variables = sum((m for _n, m in saisies_variables), Decimal("0"))
     if saisies_variables:
         bareme_variables, _ = domain_rules.resoudre_bareme_quotite(
-            get_bareme_quotite_saisissable(), year, month
+            _lire_bareme_quotite(), year, month
         )
         if bareme_variables is not None:
             quotite_restante = (
@@ -744,7 +770,10 @@ def enrich_payslip(
     # 2. Traitement des avances à rembourser. Le moteur ne les connaît pas : elles
     # ne sortent du net qu'ici, une fois. (Le générateur heures les retirait
     # aussi : 800 € d'avance faisaient perdre 1 600 € au net, audit 04/10/2026.)
-    advances = get_advances_to_repay(employee_id, year, month)
+    advances = lire_ou_arreter(
+        lambda: get_advances_to_repay(employee_id, year, month),
+        "Les avances à rembourser du salarié n'ont pas pu être lues",
+    )
     total_repayments = Decimal("0")
     remboursements_appliques: List[Dict[str, Any]] = []
     total_par_compte: Dict[str, Decimal] = {}
@@ -759,7 +788,11 @@ def enrich_payslip(
         type_label = domain_rules.advance_type_label(adv_type, prime_label)
         existing_repayment = None
         if payslip_id:
-            existing_repayment = get_existing_repayment(advance["id"], payslip_id)
+            existing_repayment = lire_ou_arreter(
+                partial(get_existing_repayment, advance["id"], payslip_id),
+                "Les remboursements d'avance déjà enregistrés pour ce bulletin "
+                "n'ont pas pu être lus",
+            )
             if existing_repayment:
                 repayment_already = Decimal(
                     str(existing_repayment.get("repayment_amount", 0))
@@ -812,6 +845,31 @@ def enrich_payslip(
             total_par_compte[compte] = (
                 total_par_compte.get(compte, Decimal("0")) + repayment_to_use
             )
+            # La ligne de remboursement d'abord, le reste dû ensuite. Un recalcul
+            # défait le bulletin d'après cette ligne
+            # (`annulation.defaire_remboursements_du_bulletin`) : un reste dû
+            # baissé sans elle n'était jamais rendu, et le recalcul retenait
+            # l'avance une seconde fois. Sans bulletin enregistré (aperçu), rien
+            # n'est écrit.
+            if not payslip_id:
+                continue
+            try:
+                insert_advance_repayment(
+                    advance["id"],
+                    payslip_id,
+                    year,
+                    month,
+                    float(repayment_to_use),
+                    float(remaining_after_to_use),
+                )
+            except Exception:  # rien n'est enregistré, le bulletin dit de recalculer
+                logger.exception(
+                    "Remboursement de l'avance %s non enregistré pour le bulletin %s",
+                    advance.get("id"),
+                    payslip_id,
+                )
+                _signaler(CODE_REPLI_RETENUES_A_RECALCULER)
+                continue
             try:
                 update_data: Dict[str, Any] = {
                     "remaining_amount": float(remaining_after_to_use)
@@ -820,20 +878,13 @@ def enrich_payslip(
                     update_data["status"] = "paid"
                     update_data["payment_date"] = date(year, month, 1).isoformat()
                 advance_repository.update(advance["id"], update_data)
-            except Exception:
-                pass
-            if payslip_id:
-                try:
-                    insert_advance_repayment(
-                        advance["id"],
-                        payslip_id,
-                        year,
-                        month,
-                        float(repayment_to_use),
-                        float(remaining_after_to_use),
-                    )
-                except Exception:
-                    pass
+            except Exception:  # remboursement enregistré, reste dû non suivi : le bulletin le dit
+                logger.exception(
+                    "Reste dû de l'avance %s non mis à jour (bulletin %s)",
+                    advance.get("id"),
+                    payslip_id,
+                )
+                _signaler(CODE_REPLI_RESTE_DU)
 
     # 3. Enrichissement du payslip_data
     payslip_json_data["retenues_saisies"] = {
