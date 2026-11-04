@@ -98,6 +98,8 @@ export interface Employee {
   specificites_paie?: {
     /** Salaire saisi = base à 35 h, heures structurelles payées en plus (moteur). */
     salaire_hors_hs_structurelles?: boolean;
+    /** Forfait jours réduit : jours par an du contrat ; absent, le forfait de la société. */
+    forfait_annual_days?: number | string | null;
     prelevement_a_la_source?: {
       is_personnalise?: boolean;
       taux?: number | null;

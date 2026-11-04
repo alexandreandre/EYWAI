@@ -148,6 +148,7 @@ export function EmployeeProfileEditForm({
   const nationalite = useWatch({ control, name: 'nationalite' });
   const avertissementNaissance = avertissementNaissanceDsn({ lieu_naissance: lieuNaissance, nationalite });
   const contractType = useWatch({ control, name: 'contract_type' });
+  const isForfaitJour = useWatch({ control, name: 'is_forfait_jour' });
   const salaireBase = useWatch({ control, name: 'salaire_de_base.valeur' });
   const modePaiement = useWatch({ control, name: 'salary_payment_method' });
   // Le salaire de la fiche à l'ouverture : ce que le champ direct remplacerait.
@@ -396,6 +397,25 @@ export function EmployeeProfileEditForm({
           />
         </div>
         <EmployeeContractConfigFormFields control={control} />
+        {isForfaitJour && (
+          <FormField
+            control={control}
+            name="specificites_paie.forfait_annual_days"
+            render={({ field }) => (
+              <FormItem className="sm:max-w-sm">
+                <FormLabel>Jours du forfait annuel (forfait réduit)</FormLabel>
+                <FormControl>
+                  <Input {...field} value={field.value ?? ''} inputMode="decimal" placeholder="Forfait de la société" />
+                </FormControl>
+                <p className="text-xs text-muted-foreground">
+                  Seulement si le contrat prévoit moins de jours que la société (ex. 43 pour un jour par
+                  semaine). Vide : le forfait de la société. Sert au calcul de la réduction générale.
+                </p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField
             control={control}

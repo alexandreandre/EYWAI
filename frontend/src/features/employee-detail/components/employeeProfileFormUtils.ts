@@ -1,3 +1,4 @@
+import { joursDuForfaitSaisis } from './forfaitReduit';
 import { titresPourEnvoi } from '@/lib/titresRestaurant';
 import {
   GROUPE_NON_PRECISE,
@@ -236,6 +237,10 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       maintien_regime_apprenti: Boolean(spec.maintien_regime_apprenti),
       personnel_rd_eligible_jei: Boolean(spec.personnel_rd_eligible_jei),
       salaire_hors_hs_structurelles: Boolean(spec.salaire_hors_hs_structurelles),
+      forfait_annual_days:
+        spec.forfait_annual_days === null || spec.forfait_annual_days === undefined
+          ? ''
+          : String(spec.forfait_annual_days),
       deplacement_astreinte: {
         enabled: Boolean(deplacementAstreinte?.enabled),
         distance_km_one_way: deplacementAstreinte?.distance_km_one_way ?? undefined,
@@ -325,6 +330,23 @@ export function fusionnerClassification<T extends Record<string, unknown>>(
   return fusion;
 }
 
+/**
+ * Jours du forfait réduit envoyés : le nombre saisi ; null pour effacer celui
+ * de la fiche (case vidée, salarié sorti du forfait jours) ; sinon rien, pour
+ * qu'une fiche sans forfait réduit garde son empreinte (« À recalculer »).
+ * La fiche se fusionne côté serveur : une clé omise garde sa valeur.
+ */
+function forfaitReduitPourEnvoi(
+  values: EmployeeProfileEditFormValues,
+  existant: unknown,
+): number | null | undefined {
+  const jours = values.is_forfait_jour
+    ? joursDuForfaitSaisis(values.specificites_paie.forfait_annual_days)
+    : null;
+  if (jours !== null && !Number.isNaN(jours)) return jours;
+  return existant === null || existant === undefined || existant === '' ? undefined : null;
+}
+
 export function buildUpdatePayload(
   values: EmployeeProfileEditFormValues,
   employee: Employee,
@@ -409,6 +431,7 @@ export function buildUpdatePayload(
       maintien_regime_apprenti: Boolean(values.specificites_paie.maintien_regime_apprenti),
       personnel_rd_eligible_jei: Boolean(values.specificites_paie.personnel_rd_eligible_jei),
       salaire_hors_hs_structurelles: Boolean(values.specificites_paie.salaire_hors_hs_structurelles),
+      forfait_annual_days: forfaitReduitPourEnvoi(values, existingSpec.forfait_annual_days),
     },
   };
 

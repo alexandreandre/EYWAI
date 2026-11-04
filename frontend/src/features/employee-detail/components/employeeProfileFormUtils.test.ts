@@ -8,6 +8,7 @@ import {
 } from '@/features/employee-detail/components/employeeProfileFormUtils';
 import type { Employee } from '@/features/employee-detail/types';
 import type { EmployeeProfileEditFormValues } from '@/features/employee-detail/components/employeeProfileEditSchema';
+import { employeeProfileEditSchema } from '@/features/employee-detail/components/employeeProfileEditSchema';
 
 const baseEmployee: Employee = {
   id: 'emp-1',
@@ -441,5 +442,72 @@ describe('titres-restaurant sur la fiche ([B5], 12/10/2026)', () => {
       valeur_faciale: 9,
       part_patronale: 5.4,
     });
+  });
+});
+
+describe('forfait jours réduit sur la fiche (04/11/2026)', () => {
+  // Un jour par semaine : 43 jours par an. Le moteur en tire le SMIC de la
+  // réduction générale (BOSS § 860) ; vide, c'est le forfait de la société.
+  const auForfait: Employee = { ...baseEmployee, statut: 'Cadre', is_forfait_jour: true };
+
+  const avecJours = (jours: string, forfait = true): EmployeeProfileEditFormValues => {
+    const defaults = buildDefaultValues(auForfait);
+    return {
+      ...defaults,
+      is_forfait_jour: forfait,
+      specificites_paie: { ...defaults.specificites_paie, forfait_annual_days: jours },
+    };
+  };
+
+  it('le formulaire lit les jours de la fiche', () => {
+    const values = buildDefaultValues({
+      ...auForfait,
+      specificites_paie: { ...auForfait.specificites_paie, forfait_annual_days: 43 },
+    });
+    expect(values.specificites_paie.forfait_annual_days).toBe('43');
+  });
+
+  it('une fiche sans forfait réduit part d’une case vide', () => {
+    expect(buildDefaultValues(auForfait).specificites_paie.forfait_annual_days).toBe('');
+  });
+
+  it('les jours partent en nombre, virgule comprise', () => {
+    expect(buildUpdatePayload(avecJours('43'), auForfait).specificites_paie?.forfait_annual_days).toBe(43);
+    expect(buildUpdatePayload(avecJours('43,5'), auForfait).specificites_paie?.forfait_annual_days).toBe(43.5);
+  });
+
+  it('une case vide efface le forfait réduit', () => {
+    const fiche = { ...auForfait, specificites_paie: { ...auForfait.specificites_paie, forfait_annual_days: 43 } };
+    expect(buildUpdatePayload(avecJours(''), fiche).specificites_paie?.forfait_annual_days).toBeNull();
+  });
+
+  it('sorti du forfait jours, le forfait réduit est effacé', () => {
+    const fiche = { ...auForfait, specificites_paie: { ...auForfait.specificites_paie, forfait_annual_days: 43 } };
+    expect(buildUpdatePayload(avecJours('43', false), fiche).specificites_paie?.forfait_annual_days).toBeNull();
+  });
+
+  it('une fiche sans forfait réduit s’enregistre sans la clé (empreinte des bulletins inchangée)', () => {
+    for (const forfait of [true, false]) {
+      const envoye = JSON.parse(JSON.stringify(buildUpdatePayload(avecJours('', forfait), auForfait)));
+      expect(Object.keys(envoye.specificites_paie)).not.toContain('forfait_annual_days');
+    }
+  });
+
+  it.each(['0', 'un jour', '219'])('« %s » est refusé sous le champ', (jours) => {
+    const resultat = employeeProfileEditSchema.safeParse(avecJours(jours));
+    expect(resultat.success).toBe(false);
+    if (!resultat.success) {
+      expect(resultat.error.issues.map((i) => i.path.join('.'))).toContain('specificites_paie.forfait_annual_days');
+    }
+  });
+
+  it('43 jours et une case vide passent la validation du champ', () => {
+    for (const jours of ['43', '']) {
+      const resultat = employeeProfileEditSchema.safeParse(avecJours(jours));
+      const surLeChamp = resultat.success
+        ? []
+        : resultat.error.issues.filter((i) => i.path.join('.') === 'specificites_paie.forfait_annual_days');
+      expect(surLeChamp).toEqual([]);
+    }
   });
 });

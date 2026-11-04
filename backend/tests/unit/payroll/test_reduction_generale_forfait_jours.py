@@ -192,6 +192,66 @@ class TestJoursDuForfait:
         )
         assert run.jours_du_forfait_pour_reduction(self._ctx(), "societe") == 216.0
 
+    def _ctx_reduit(self, jours, ajuste=None):
+        ctx = self._ctx(ajuste)
+        ctx.contrat.setdefault("specificites_paie", {})["forfait_annual_days"] = jours
+        return ctx
+
+    @staticmethod
+    def _sans_lecture_de_la_societe(monkeypatch):
+        def interdit(_company_id):
+            raise AssertionError("pas de lecture quand le forfait du salarié est connu")
+
+        monkeypatch.setattr(
+            "app.modules.absences.infrastructure.leave_settings_repository.get_leave_policy",
+            interdit,
+        )
+
+    def test_forfait_reduit_de_la_fiche_avant_celui_de_la_societe(self, monkeypatch):
+        """Un jour par semaine : 43 jours prévus au forfait du salarié (§ 860),
+        pas les 216 ou 218 jours de la société."""
+        from app.modules.payroll.documents import payslip_run_forfait as run
+
+        self._sans_lecture_de_la_societe(monkeypatch)
+        assert run.jours_du_forfait_pour_reduction(self._ctx_reduit(43), "societe") == 43.0
+
+    def test_forfait_de_la_fiche_saisi_en_texte(self, monkeypatch):
+        from app.modules.payroll.documents import payslip_run_forfait as run
+
+        self._sans_lecture_de_la_societe(monkeypatch)
+        assert run.jours_du_forfait_pour_reduction(self._ctx_reduit("43,5"), "societe") == 43.5
+
+    def test_le_forfait_ajuste_des_conges_d_anciennete_reste_premier(self, monkeypatch):
+        """Le forfait ajusté part déjà du forfait de la fiche, moins les jours
+        de congés d'ancienneté : il passe devant."""
+        from app.modules.payroll.documents import payslip_run_forfait as run
+
+        self._sans_lecture_de_la_societe(monkeypatch)
+        assert run.jours_du_forfait_pour_reduction(self._ctx_reduit(43, ajuste=41.0), "societe") == 41.0
+
+    @pytest.mark.parametrize("valeur", ["un jour", -5, 0])
+    def test_forfait_de_la_fiche_illisible_arrete_le_calcul(self, monkeypatch, valeur):
+        """Jamais de repli silencieux sur le forfait de la société."""
+        from app.modules.payroll.documents import payslip_run_forfait as run
+
+        self._sans_lecture_de_la_societe(monkeypatch)
+        with pytest.raises(ValueError, match="forfait"):
+            run.jours_du_forfait_pour_reduction(self._ctx_reduit(valeur), "societe")
+
+    @pytest.mark.parametrize("valeur", [None, ""])
+    def test_forfait_de_la_fiche_vide_suit_la_societe(self, monkeypatch, valeur):
+        import dataclasses
+
+        from app.modules.absences.domain.leave_policy import DEFAULT_LEAVE_POLICY
+        from app.modules.payroll.documents import payslip_run_forfait as run
+
+        politique = dataclasses.replace(DEFAULT_LEAVE_POLICY, rtt_forfait_annual_days=216)
+        monkeypatch.setattr(
+            "app.modules.absences.infrastructure.leave_settings_repository.get_leave_policy",
+            lambda _company_id: politique,
+        )
+        assert run.jours_du_forfait_pour_reduction(self._ctx_reduit(valeur), "societe") == 216.0
+
     def test_lecture_impossible_arrete_le_calcul(self, monkeypatch):
         from app.modules.payroll.documents import payslip_run_forfait as run
         from app.modules.payroll.engine.lectures import LectureIndispensable
@@ -336,3 +396,44 @@ class TestOuvertureSansHeures:
             },
         )
         calculer_reduction_generale(ctx, 10000.00, 150.28)
+
+
+class TestForfaitReduitUnJourParSemaine:
+    """Cas réel d'octobre 2026 (cadre, un jour par semaine, 1 396,18 € par mois).
+
+    Quadra : « Forfait annuel : 43.00 jours » sur le bulletin, quotité 4,27 jours
+    sur 21,67 en DSN, aucune réduction générale. Martine comptait le forfait de
+    la société (216 jours) : SMIC de référence 1 806 € pour 1 396,18 € de
+    salaire, soit 523,70 € de réduction à tort sur un premier mois sans cumul.
+    À 43 jours, le SMIC de référence tombe à 29,92 h × 12,02 € ≈ 360 € : la
+    rémunération dépasse 3 SMIC, la réduction est nulle.
+    """
+
+    SALAIRE = 1396.18
+
+    def test_heures_du_smic_a_43_jours(self):
+        assert heures_reduction_forfait_jours(43) == round(35 * 52 / 12 * 43 / 218, 2) == 29.92
+
+    def test_aucune_reduction_au_forfait_de_43_jours(self):
+        ligne = calculer_reduction_generale(_contexte_2026(10, {}), self.SALAIRE, heures_reduction_forfait_jours(43))
+        assert ligne is None or ligne["montant_patronal"] == 0.0
+
+    def test_au_forfait_plein_la_reduction_etait_forte(self):
+        """Témoin du défaut : à 216 jours, plus de 500 € de réduction (−523,70 €
+        sur le vrai bulletin, −555,82 € avec les barèmes de ce test)."""
+        ligne = calculer_reduction_generale(_contexte_2026(10, {}), self.SALAIRE, heures_reduction_forfait_jours(216))
+        assert ligne["montant_patronal"] < -500
+
+    def test_le_bulletin_lit_le_forfait_de_la_fiche(self, monkeypatch):
+        """De la fiche aux heures du SMIC du bulletin forfait."""
+        from app.modules.payroll.documents import payslip_run_forfait as run
+
+        monkeypatch.setattr(
+            "app.modules.absences.infrastructure.leave_settings_repository.get_leave_policy",
+            lambda _company_id: (_ for _ in ()).throw(AssertionError("forfait de la fiche connu")),
+        )
+        ctx = build_test_contexte(statut="Cadre", salaire_base=self.SALAIRE)
+        ctx.contrat["specificites_paie"]["forfait_annual_days"] = 43
+        jours = run.jours_du_forfait_pour_reduction(ctx, "societe")
+        brut = {"salaire_forfait_mois": self.SALAIRE, "retenues_absence_mois": 0.0}
+        assert run.heures_reduction_du_mois(brut, None, jours) == 29.92

@@ -1,3 +1,4 @@
+import { MESSAGE_FORFAIT_REDUIT, joursDuForfaitSaisis } from './forfaitReduit';
 import { z } from 'zod';
 import { classificationSaisieSchema } from '@/features/employees/utils/classificationConventionnelle';
 import { titresRestaurantSchema } from '@/lib/titresRestaurant';
@@ -90,6 +91,8 @@ export const employeeProfileEditSchema = z
       personnel_rd_eligible_jei: z.boolean().optional(),
       // Au-delà de 35 h : salaire saisi en base 35 h (moteur : salaire_hors_hs_structurelles).
       salaire_hors_hs_structurelles: z.boolean().optional(),
+      // Forfait jours réduit (jours par an) ; vide : le forfait de la société.
+      forfait_annual_days: z.string().optional().default(''),
       deplacement_astreinte: z
         .object({
           enabled: z.boolean().optional().default(false),
@@ -148,6 +151,16 @@ export const employeeProfileEditSchema = z
             path: ['specificites_paie', 'prevoyance', 'lignes_specifiques', index, 'libelle'],
           });
         }
+      });
+    }
+    if (
+      data.is_forfait_jour &&
+      Number.isNaN(joursDuForfaitSaisis(data.specificites_paie.forfait_annual_days))
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: MESSAGE_FORFAIT_REDUIT,
+        path: ['specificites_paie', 'forfait_annual_days'],
       });
     }
     // Titre de séjour sans date : la fiche s'enregistre, le titre se dit
