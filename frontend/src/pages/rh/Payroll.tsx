@@ -337,11 +337,8 @@ export default function Payroll() {
       setSearchParams(
         (prev) => {
           const params = new URLSearchParams(prev);
-          if (next === 'month') {
-            params.set('view', 'month');
-          } else {
-            params.delete('view');
-          }
+          // Toujours écrite : sans elle, l'adresse ouvre « Par mois ».
+          params.set('view', next);
           return params;
         },
         { replace: true }

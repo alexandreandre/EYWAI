@@ -3,17 +3,26 @@ import { describe, expect, it } from 'vitest';
 import { avecMois, avecRevue, lireParamsVuePaie, moisAffiche } from './vuePaieUrl';
 
 describe('lireParamsVuePaie — l’URL courante décide de l’onglet', () => {
-  it('sans paramètre, l’onglet est Par collaborateur', () => {
+  it('sans paramètre, l’onglet est Par mois (le lien du menu, comme le dit la vidéo)', () => {
     expect(lireParamsVuePaie('')).toEqual({
-      view: 'employee',
+      view: 'month',
       year: null,
       month: null,
       aRevoir: false,
     });
   });
 
+  it('un salarié dans l’adresse, sans vue, ouvre Par collaborateur (lien « Voir les bulletins »)', () => {
+    expect(lireParamsVuePaie('employee=e-1&month=2026-09').view).toBe('employee');
+  });
+
+  it('la vue écrite dans l’adresse l’emporte sur le salarié', () => {
+    expect(lireParamsVuePaie('view=month&employee=e-1').view).toBe('month');
+    expect(lireParamsVuePaie('view=employee').view).toBe('employee');
+  });
+
   it('après navigation vers ?view=month&month=, l’onglet devient Par mois', () => {
-    const avant = lireParamsVuePaie('');
+    const avant = lireParamsVuePaie('view=employee');
     expect(avant.view).toBe('employee');
 
     const apresClic = lireParamsVuePaie('view=month&month=2026-09');
@@ -23,7 +32,7 @@ describe('lireParamsVuePaie — l’URL courante décide de l’onglet', () => {
   });
 
   it('un changement d’URL relit la vue, elle n’est pas figée au premier rendu', () => {
-    const premierRendu = lireParamsVuePaie('');
+    const premierRendu = lireParamsVuePaie('view=employee');
     const apresLienChecklist = lireParamsVuePaie(
       new URLSearchParams('view=month&month=2026-07')
     );

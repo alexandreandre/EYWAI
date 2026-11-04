@@ -17,10 +17,21 @@ function searchParams(search: string | URLSearchParams): URLSearchParams {
   return new URLSearchParams(trimmed);
 }
 
+/**
+ * La vue : celle de l'adresse ; sinon « Par collaborateur » si un salarié y est
+ * (« Voir les bulletins »), sinon « Par mois » — le lien du menu, la vue que la
+ * vidéo de formation demande de prendre (audit R1, geste 1).
+ */
+function vueDeLAdresse(params: URLSearchParams): VuePaie {
+  const vue = params.get('view');
+  if (vue === 'month' || vue === 'employee') return vue;
+  return params.has('employee') ? 'employee' : 'month';
+}
+
 /** Relit la recherche à chaque appel : l’onglet n’est pas figé au premier rendu. */
 export function lireParamsVuePaie(search: string | URLSearchParams): ParamsVuePaie {
   const params = searchParams(search);
-  const view: VuePaie = params.get('view') === 'month' ? 'month' : 'employee';
+  const view = vueDeLAdresse(params);
   const aRevoir = params.get('revue') === '1';
   const raw = params.get('month');
   if (!raw) return { view, year: null, month: null, aRevoir };
