@@ -8,8 +8,10 @@ import { extractDetail, getApiErrorStatus, sanitizeBackendMessage } from '@/lib/
  *
  * D'après ce que l'API renvoie vraiment (`/api/auth/login` puis `/api/auth/me`) :
  * - 400 « Identifiant ou mot de passe incorrect » : mauvais mot de passe, compte
- *   inconnu, et aussi compte bloqué ou trop de tentatives (le serveur ne les
- *   distingue pas encore) ;
+ *   inconnu, et aussi compte bloqué dans l'authentification (volontaire : un
+ *   statut à part dirait qu'un compte existe) ;
+ * - 403 `compte_desactive` : mot de passe juste, plus aucun accès actif ;
+ * - 429 `trop_de_tentatives` : limite de l'authentification ;
  * - 401 / 404 « Utilisateur non trouvé » / « Profil utilisateur non trouvé » :
  *   authentifié, mais sans profil Martine ;
  * - 503, 5xx, ou pas de réponse : panne, le mot de passe n'est pas en cause.
