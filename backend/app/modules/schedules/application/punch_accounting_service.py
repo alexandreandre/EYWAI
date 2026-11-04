@@ -155,44 +155,78 @@ def apply_punch_accounting_to_proposal(
                 )
 
             heures_jour = result.accounted_hours
+            notes: dict[str, Any] = {}
             if result.needs_review and emp.employee_id:
+                motif = result.overtime_reason or "daily_excess"
+                notes = {
+                    "heures_en_plus_a_valider": round(result.overtime_hours, 2),
+                    "motif_heures_en_plus": motif,
+                    "creneau_applique_id": result.applied_slot_id,
+                }
+                # Aperçu en lecture seule : la revue « en attente » ne naît qu'à
+                # l'enregistrement (enregistrer_heures_en_plus_a_valider). Une
+                # décision déjà APPROUVÉE pour le même excédent reste effective
+                # au ré-import, comme le garde upsert_overtime_review.
                 work_date = date(
                     day.year or proposal.year, day.month or proposal.month, day.jour
                 )
-                entry_min = parse_hhmm_value(entry_raw)
-                exit_min = parse_hhmm_value(exit_raw)
-                resultat_upsert = repo.upsert_overtime_review(
-                    company_id,
-                    employee_id=emp.employee_id,
-                    work_date=work_date,
-                    overtime_hours=result.overtime_hours,
-                    reason=result.overtime_reason or "daily_excess",
-                    raw_entry_time=(
-                        minutes_to_time_string(entry_min) if entry_min else None
-                    ),
-                    raw_exit_time=(
-                        minutes_to_time_string(exit_min) if exit_min else None
-                    ),
-                    applied_slot_id=result.applied_slot_id,
-                    status="pending",
-                )
-                # Miroir du canal badgeuse : une revue déjà APPROUVÉE (même
-                # excédent) reste effective au ré-import — sans ça, le jour
-                # repartait au théorique avec un statut approved figé, et
-                # plus rien ne re-créditait jamais.
-                if (
-                    isinstance(resultat_upsert, dict)
-                    and str(resultat_upsert.get("status") or "") == "approved"
+                existante = repo.get_overtime_review(emp.employee_id, work_date)
+                if _decision_approuvee_au_meme_contenu(
+                    existante, result.overtime_hours, motif
                 ):
                     heures_jour = round(heures_jour + result.overtime_hours, 2)
 
-            new_days.append(day.model_copy(update={"heures": heures_jour}))
+            new_days.append(day.model_copy(update={"heures": heures_jour, **notes}))
 
         employees_out.append(emp.model_copy(update={"days": new_days, "warnings": warnings}))
 
     return proposal.model_copy(
         update={"employees": employees_out, "quality_checks": quality_checks}
     )
+
+
+def _decision_approuvee_au_meme_contenu(
+    revue: dict[str, Any] | None, heures: float, motif: str
+) -> bool:
+    if not revue or str(revue.get("status") or "") != "approved":
+        return False
+    return round(float(revue.get("overtime_hours") or 0), 2) == round(heures, 2) and str(
+        revue.get("reason") or ""
+    ) == str(motif or "")
+
+
+def enregistrer_heures_en_plus_a_valider(
+    company_id: str,
+    year: int,
+    month: int,
+    employees: List[Any],
+) -> int:
+    """Crée (ou met à jour) la revue « en attente » de chaque jour enregistré
+    qui porte des heures en plus notées à l'aperçu. Un jour retypé à la
+    relecture (congé, absence…) ou seulement prévu n'en crée pas."""
+    n = 0
+    for emp in employees:
+        if not getattr(emp, "employee_id", None):
+            continue
+        for day in emp.days:
+            heures = day.heures_en_plus_a_valider or 0
+            if day.nature != "reel" or day.type != "travail" or heures <= 0:
+                continue
+            entree = parse_hhmm_value(day.punch_entry_raw)
+            sortie = parse_hhmm_value(day.punch_exit_raw)
+            repo.upsert_overtime_review(
+                company_id,
+                employee_id=emp.employee_id,
+                work_date=date(day.year or year, day.month or month, day.jour),
+                overtime_hours=heures,
+                reason=day.motif_heures_en_plus or "daily_excess",
+                raw_entry_time=minutes_to_time_string(entree) if entree else None,
+                raw_exit_time=minutes_to_time_string(sortie) if sortie else None,
+                applied_slot_id=day.creneau_applique_id,
+                status="pending",
+            )
+            n += 1
+    return n
 
 
 def compute_accounted_hours_for_badgeuse_day(

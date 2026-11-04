@@ -88,3 +88,22 @@ export function reapplyPauseOnDay<T extends PunchTimedDay>(
   if (day.heures == null || day.heures <= 0) return day;
   return { ...day, heures: reapplyPauseOnHours(day.heures, prev, next) };
 }
+
+export const AVIS_HORAIRES_NON_RECALCULES =
+  "Réglage enregistré pour la société. Les heures ci-dessous suivent les horaires de la société : elles ne sont pas recalculées ici. Refaites l'import du fichier pour les recalculer avec la nouvelle règle.";
+
+/**
+ * Règle de pause changée pendant la revue. Avec des horaires (créneaux), les
+ * heures viennent de l'horaire retenu côté serveur : un recalcul à l'écran
+ * partirait des badges et ignorerait l'horaire (payé 7,95 h au lieu de 7 h).
+ * On ne touche donc pas aux heures, et l'avis dit comment les recalculer.
+ */
+export function appliquerRegleALaRevue<T extends PunchTimedDay>(
+  days: T[],
+  prev: PunchBreakRule,
+  next: PunchBreakRule,
+  aDesHoraires: boolean,
+): { days: T[]; avis: string | null } {
+  if (aDesHoraires) return { days, avis: AVIS_HORAIRES_NON_RECALCULES };
+  return { days: days.map((day) => reapplyPauseOnDay(day, prev, next)), avis: null };
+}

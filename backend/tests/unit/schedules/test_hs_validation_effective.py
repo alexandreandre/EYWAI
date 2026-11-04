@@ -270,14 +270,22 @@ def test_le_canal_feuilles_reapplique_aussi_l_excedent_approuve():
             )
         ],
     )
+    # L'aperçu ne crée plus la revue (04/11) : il lit la décision déjà prise.
     with (
         p_.object(svc.repo, "get_settings", return_value=settings),
         p_.object(svc.repo, "list_slots", return_value=[slot_from_row(slot)]),
-        p_.object(
-            svc.repo,
-            "upsert_overtime_review",
-            return_value={"status": "approved", "overtime_hours": 2.0},
-        ),
+        p_.object(svc.repo, "get_overtime_review", return_value=None),
+    ):
+        brut = svc.apply_punch_accounting_to_proposal(proposal, "comp-1").employees[0].days[0]
+    approuvee = {
+        "status": "approved",
+        "overtime_hours": brut.heures_en_plus_a_valider,
+        "reason": brut.motif_heures_en_plus,
+    }
+    with (
+        p_.object(svc.repo, "get_settings", return_value=settings),
+        p_.object(svc.repo, "list_slots", return_value=[slot_from_row(slot)]),
+        p_.object(svc.repo, "get_overtime_review", return_value=approuvee),
     ):
         out = svc.apply_punch_accounting_to_proposal(proposal, "comp-1")
     jour = out.employees[0].days[0]
