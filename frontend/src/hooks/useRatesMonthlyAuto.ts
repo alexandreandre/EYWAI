@@ -29,6 +29,8 @@ export function useRatesMonthlyAuto() {
     onSuccess: (next) => {
       queryClient.setQueryData(queryKeys.ratesMonthly(), next);
     },
+    // L'appelant de setEnabled (page Taux) attrape l'échec et l'affiche.
+    meta: { erreurAffichee: true },
   });
 
   const state: MonthlyAutoSyncState = {

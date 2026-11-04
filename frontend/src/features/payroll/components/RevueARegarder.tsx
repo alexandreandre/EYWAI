@@ -125,6 +125,8 @@ function Acquitter({
         queryKey: queryKeys.revueDuMois(companyId, year, month),
       });
     },
+    // L'échec est écrit sous le motif (mutation.isError).
+    meta: { erreurAffichee: true },
   });
   if (!bulletinId) return null;
   return (
