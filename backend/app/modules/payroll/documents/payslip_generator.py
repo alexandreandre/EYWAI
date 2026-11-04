@@ -17,6 +17,7 @@ from app.modules.collective_agreements.application.idcc_resolution import (
 )
 from app.core.constants import MESSAGE_ERREUR_GENERATION
 from app.core.database import supabase
+from app.modules.payroll.engine.reference_remuneration import base_precarite_du_bulletin
 from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
 from app.shared.reprise_paie import (
     CLE_DEPART_A_ZERO,
@@ -1261,6 +1262,15 @@ def process_payslip_generation(
                     "Complétez sa fiche employé (contrat, rémunération, temps de travail)."
                 ),
             )
+        # Dernier mois d'un CDD : ce qu'un contrat précédent a laissé dans le cumul
+        # sort de la base de l'indemnité de fin de contrat (L1243-8 ; audit du
+        # 03/11/2026, F 2).
+        # Le bulletin d'un contrat rangé [D3] garde le cumul de son contrat.
+        base_precarite = None if contract_period_id else base_precarite_du_bulletin(
+            {**employee_data, "id": employee_data.get("id") or employee_id}, year, month, supabase
+        )
+        if base_precarite is not None:
+            contrat_json_content["contrat"]["cumul_avant_le_contrat"] = base_precarite
         log_payroll_debug(logger, '\n' + '=' * 30 + ' DEBUG contrat.json ' + '=' * 30)
         try:
             specificites = contrat_json_content.get("specificites_paie")
