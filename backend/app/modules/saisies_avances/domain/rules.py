@@ -156,6 +156,44 @@ def _est_un_remboursement_de_frais(prime: Dict[str, Any]) -> bool:
     return any(mot in texte for mot in _MOTS_FRAIS)
 
 
+def _participation_au_net(bulletin: Dict[str, Any]) -> Decimal:
+    """Ce que la participation et l'intéressement ajoutent au net à payer du mois.
+
+    Part versée (hors plan d'épargne), nette de sa CSG/CRDS, moins l'acompte
+    déjà versé, qu'il soit porté sur la participation ou en retenue « Acompte
+    sur participation » : le même calcul que le moteur
+    (`calcul_net._participation_aggregats`).
+    """
+
+    def _d(valeur: Any) -> Decimal:
+        try:
+            return Decimal(str(valeur or 0))
+        except Exception:  # noqa: BLE001 — une valeur illisible ne compte pas
+            return Decimal("0")
+
+    total = Decimal("0")
+    for p in bulletin.get("participations") or []:
+        if not isinstance(p, dict):
+            continue
+        brut = _d(p.get("brut"))
+        versee = max(Decimal("0"), brut - _d(p.get("part_pee")))
+        csg = _d(p.get("csg_total")) if p.get("csg_total") is not None else (
+            _d(p.get("csg_deductible")) + _d(p.get("csg_non_deductible"))
+        )
+        csg_versee = csg * versee / brut if brut > 0 else Decimal("0")
+        total += versee - csg_versee - _d(p.get("acompte"))
+    for prime in bulletin.get("primes_non_soumises") or []:
+        if not isinstance(prime, dict):
+            continue
+        libelle = str(prime.get("libelle") or "").lower()
+        montant = _d(prime.get("montant"))
+        if montant < 0 and "acompte" in libelle and (
+            "participation" in libelle or "intéressement" in libelle or "interessement" in libelle
+        ):
+            total += montant
+    return total
+
+
 def composition_base_saisissable(
     bulletin: Dict[str, Any],
 ) -> Tuple[Decimal, List[Tuple[str, Decimal]]]:
@@ -215,6 +253,12 @@ def composition_base_saisissable(
     rupture = _d((bulletin.get("indemnites_sortie") or {}).get("total_exonerees"))
     if rupture > 0:
         elements.append(("indemnités de rupture", -rupture))
+    # La participation et l'intéressement ne font pas partie du revenu
+    # saisissable (service-public, F115, vérifié le 01/04/2026 ; audit du
+    # 03/11/2026, lot D).
+    participation = _participation_au_net(bulletin)
+    if participation > 0:
+        elements.append(("participation et intéressement", -participation))
     return net, [(libelle, _centimes(montant)) for libelle, montant in elements]
 
 
@@ -228,7 +272,8 @@ def base_saisissable(bulletin: Dict[str, Any]) -> Decimal:
       net porté en acompte négatif (panier, déplacement, avance versée) en sort ;
     - l'avantage en nature, retiré du net à payer, y revient ;
     - le remboursement de transport et les notes de frais en sortent ;
-    - les indemnités de rupture du bulletin de sortie en sortent.
+    - les indemnités de rupture du bulletin de sortie en sortent ;
+    - la participation et l'intéressement versés en sortent.
     """
     net, elements = composition_base_saisissable(bulletin)
     return _centimes(net + sum((m for _l, m in elements), Decimal("0")))
