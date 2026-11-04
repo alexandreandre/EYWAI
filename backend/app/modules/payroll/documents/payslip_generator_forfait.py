@@ -62,6 +62,7 @@ from app.modules.payroll.documents.pdf_du_bulletin import (
 )
 
 from app.core.database import supabase
+from app.modules.payroll.engine.reference_remuneration import base_precarite_du_bulletin
 from app.modules.collective_agreements.application.idcc_resolution import (
     build_convention_collective_payload,
 )
@@ -516,6 +517,15 @@ def process_payslip_generation_forfait(
         contrat_json_content = inject_loan_benefit_in_kind(
             contrat_json_content, employee_id, year, month
         )
+
+        # Dernier mois d'un CDD : la base de l'indemnité de fin de contrat se lit
+        # sur les bulletins du contrat (L1243-8 ; audit du 03/11/2026, F 2 et 3).
+        # Le bulletin d'un contrat rangé [D3] garde le cumul de son contrat.
+        base_precarite = None if contract_period_id else base_precarite_du_bulletin(
+            {**employee_data, "id": employee_data.get("id") or employee_id}, year, month, supabase
+        )
+        if base_precarite is not None:
+            contrat_json_content["contrat"]["brut_du_contrat_avant_le_mois"] = base_precarite
 
         write_temp_json(employee_path / "contrat.json", contrat_json_content)
 

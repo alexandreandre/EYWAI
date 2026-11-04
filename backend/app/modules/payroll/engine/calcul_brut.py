@@ -393,6 +393,10 @@ def _jour_ferie_est_paye(contexte: ContextePaie, evenement: Dict[str, Any]) -> b
     return mois_anciennete >= seuil_mois
 
 
+def _euros_fr(montant: float) -> str:
+    return f"{montant:,.2f}".replace(",", " ").replace(".", ",") + " €"
+
+
 def _calculer_prime_precarite_cdd(
     contexte: ContextePaie,
     salaire_brut_hors_precarite: float,
@@ -429,7 +433,36 @@ def _calculer_prime_precarite_cdd(
         if isinstance(contexte.cumuls, dict)
         else {}
     )
-    brut_cumule_contrat = float(cumuls.get("brut_total", 0.0)) + salaire_brut_hors_precarite
+    # Base : la rémunération totale brute du contrat (L1243-8), lue sur ses
+    # bulletins, de son premier mois au mois d'avant (le générateur la pose,
+    # `brut_du_contrat_avant_le_mois`). Le cumul `brut_total` d'un mois repris de
+    # l'ancien logiciel est celui de l'année civile : il porte un contrat d'avant
+    # et oublie l'année précédente (audit du 03/11/2026, F 2 et 3). Il ne sert
+    # plus que si un bulletin du contrat manque, et le bulletin le dit.
+    base_du_contrat = (contexte.contrat.get("contrat", {}) or {}).get(
+        "brut_du_contrat_avant_le_mois"
+    )
+    if isinstance(base_du_contrat, dict) and not base_du_contrat.get("mois_sans_bulletin"):
+        brut_avant = float(base_du_contrat.get("montant") or 0.0)
+    else:
+        brut_avant = float(cumuls.get("brut_total", 0.0))
+        manquants = (base_du_contrat or {}).get("mois_sans_bulletin") if isinstance(base_du_contrat, dict) else None
+        if manquants and isinstance(getattr(contexte, "alertes_baremes", None), list):
+            contexte.alertes_baremes.append(
+                {
+                    "code": "precarite_base_incomplete",
+                    "critique": False,
+                    "severity": "warning",
+                    "message": (
+                        "Indemnité de fin de contrat : pas de bulletin du contrat pour "
+                        f"{', '.join(manquants)}. Sa base reprend le cumul des bruts du mois "
+                        f"d'avant ({_euros_fr(brut_avant)}), qui peut compter un autre contrat "
+                        "ou en oublier un mois. Vérifiez qu'il fait bien toute la rémunération "
+                        "du contrat (article L1243-8 du Code du travail)."
+                    ),
+                }
+            )
+    brut_cumule_contrat = brut_avant + salaire_brut_hors_precarite
     montant = round(brut_cumule_contrat * taux, 2)
     if montant <= 0:
         return None
