@@ -18,6 +18,8 @@ import {
 import { importActualHoursFromBadgeuse } from "@/api/calendar";
 import { formatSecondsToHoursMinutes, formatTimeFr, eventTypeLabel, sourceLabel } from "@/lib/badgeuseFormat";
 import { apiErrorDetail, isBadgeuseSchemaMissing, BADGEUSE_MIGRATION_FILE } from "@/lib/badgeuseApiUtils";
+import { bilanValidationSemaine } from "@/lib/validationSemaineBadgeuse";
+import { getUserErrorMessage } from "@/lib/errorMessages";
 import { EmployeeBadgeuseDayDetail } from "@/components/badgeuse/rh/EmployeeBadgeuseDayDetail";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -181,11 +183,21 @@ export default function BadgeuseRhPage() {
     setValidatingWeek(true);
     try {
       const daysToValidate = employeeDays.map((d) => d.date);
-      await Promise.all(
+      const resultats = await Promise.allSettled(
         daysToValidate.map((d) =>
           validateEmployeeDay(selectedEmployeeId as string, companyId as string, d)
         )
       );
+      // Chaque jour est validé à part : le bilan dit ce qui est passé, et pourquoi
+      // un jour ne l'est pas (avant, un échec ne disait rien).
+      const bilan = bilanValidationSemaine(resultats, daysToValidate);
+      if (bilan.reussi) {
+        toast.success(bilan.message);
+      } else {
+        toast.error(`${bilan.message} ${getUserErrorMessage(bilan.premierEchec)}`);
+      }
+    } finally {
+      // Les jours validés se relisent même si d'autres ont échoué.
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: ["badgeuse", "employee-day-detail", companyId, selectedEmployeeId, selectedDay],
@@ -194,7 +206,6 @@ export default function BadgeuseRhPage() {
           queryKey: ["badgeuse", "employee-days", companyId, selectedEmployeeId, from, to],
         }),
       ]);
-    } finally {
       setValidatingWeek(false);
     }
   };
@@ -657,7 +668,7 @@ export default function BadgeuseRhPage() {
                     <Button
                       size={null}
                       variant="outline"
-                      onClick={validateWeek}
+                      onClick={() => void validateWeek()}
                       disabled={validatingWeek}
                     >
                       {validatingWeek ? "Validation en cours..." : "Valider la semaine"}

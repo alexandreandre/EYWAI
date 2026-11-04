@@ -48,6 +48,8 @@ import {
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
+import { useConfirmation } from '@/hooks/useConfirmation';
+import { confirmationClotureIjss } from '@/lib/clotureIjss';
 import { useToast } from '@/hooks/use-toast';
 import { downloadBlob } from '@/lib/downloadBlob';
 import {
@@ -280,6 +282,7 @@ function DetailPanel({
 }
 
 export default function SuiviIJSSPage() {
+  const { demander, fenetre: fenetreConfirmation } = useConfirmation();
   const companyId = useActiveCompanyId();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -382,6 +385,7 @@ export default function SuiviIJSSPage() {
 
   return (
     <div className="space-y-6">
+      {fenetreConfirmation}
       <RhPageHeader
         title="Suivi IJSS / CPAM"
         description="Rapprochez les IJSS théoriques (paie), les décomptes CPAM et les virements reçus sur le compte entreprise."
@@ -474,7 +478,16 @@ export default function SuiviIJSSPage() {
           <Button
             size="sm"
             disabled={!periodId || closeMut.isPending || periodClosed}
-            onClick={() => closeMut.mutate()}
+            onClick={async () => {
+              const confirme = await demander(
+                confirmationClotureIjss({
+                  libelleMois: `${MONTHS[month - 1]} ${year}`,
+                  ecarts: summary.variance,
+                  enAttente: summary.pending,
+                })
+              );
+              if (confirme) closeMut.mutate();
+            }}
           >
             Clôturer le mois
           </Button>
