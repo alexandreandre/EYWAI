@@ -182,12 +182,13 @@ def _lire_bulletins(
 class BulletinDuMois:
     """Ce que la provision lit d'un bulletin pour le dixième et le maintien."""
 
-    __slots__ = ("brut", "lignes", "importe")
+    __slots__ = ("brut", "lignes", "importe", "bulletins")
 
     def __init__(self, brut: float = 0.0, lignes: Optional[List[Dict[str, Any]]] = None, importe: bool = False):
         self.brut = brut
         self.lignes = lignes or []
         self.importe = importe
+        self.bulletins: List[Dict[str, Any]] = []
 
 
 def _lire_details_bulletins(
@@ -226,10 +227,12 @@ def _lire_details_bulletins(
                 pass
             from app.modules.payroll.infrastructure.reference_dixieme import lignes_pour_dixieme
 
-            mois.lignes += lignes_pour_dixieme(
+            lignes_du_bulletin = lignes_pour_dixieme(
                 {"calcul_du_brut": ligne.get("lignes"), "details_absences": ligne.get("absences")},
                 importe=ligne.get("origine") == "importe",
             )
+            mois.lignes += lignes_du_bulletin
+            mois.bulletins.append({"annee": cle[0], "mois": cle[1], "brut": ligne.get("brut"), "lignes": lignes_du_bulletin})
             mois.importe = mois.importe or ligne.get("origine") == "importe"
         if len(lot) < TAILLE_PAGE:
             return resultat
@@ -302,7 +305,7 @@ def _bases_detaillees_du_dixieme(
             resultats.append(BaseDixieme(0.0))
             continue
         resultats.append(calculer_base_periode(
-            [{"annee": a, "mois": m, "brut": b.brut, "lignes": b.lignes} for (a, m), b in bulletins.items()],
+            [detail for (a, m), b in bulletins.items() for detail in (b.bulletins or [{"annee": a, "mois": m, "brut": b.brut, "lignes": b.lignes}])],
             debut=debut_effectif, fin=fin, brut_repris=brut_repris,
         ))
     return resultats

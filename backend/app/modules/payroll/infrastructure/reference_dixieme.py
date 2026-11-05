@@ -12,7 +12,12 @@ from dataclasses import asdict
 from datetime import date, timedelta
 from typing import Any
 
-from app.shared.domain.dixieme_conges import BaseDixieme, calculer_base_periode
+from app.shared.domain.dixieme_conges import (
+    BaseDixieme,
+    calculer_base_periode,
+    part_reconstituee,
+    texte_normalise,
+)
 
 CLE_REFERENCE_DIXIEME = "reference_dixieme_conges"
 logger = logging.getLogger(__name__)
@@ -24,13 +29,31 @@ def lignes_pour_dixieme(donnees: Mapping[str, Any], *, importe: bool = False) ->
 
     lignes = []
     for bloc in ("calcul_du_brut", "details_absences"):
+        part_de_la_ligne_precedente = None
         for ligne in donnees.get(bloc) or []:
             if not isinstance(ligne, Mapping):
                 continue
             copie = dict(ligne)
+            code = str(ligne.get("code_dixieme") or ligne.get("code") or "")
+            if not code.startswith("brut:"):
+                code = code_de_ligne_de_gain(ligne) or ""
+            famille = code.split(":")[1] if code.startswith("brut:") else ""
             if not importe:
-                code = str(ligne.get("code") or "")
-                copie["code_dixieme"] = ligne.get("code_dixieme") or (code if code.startswith("brut:") else code_de_ligne_de_gain(ligne))
+                copie["code_dixieme"] = code or None
+                if famille in {"retenue_absence_integrale", "retenue_absence_mois_complet", "complement_absence_integrale", "reduction_hs_absence"}:
+                    # Dans calcul_brut, les CP sont retenus ensuite, avec
+                    # leurs propres HS. Cette retenue concerne les autres absences.
+                    copie["dixieme_hors_conges_payes"] = True
+            elif famille == "reduction_hs_absence" and part_de_la_ligne_precedente is not None:
+                # Le bulletin repris détaille chaque retenue puis sa ligne
+                # d'HS immédiatement suivante (PDF vérifiés). Aucune affectation
+                # à distance, ni déduction de nature depuis le seul montant.
+                copie["dixieme_part_reconstituee"] = part_de_la_ligne_precedente
+            texte = texte_normalise(ligne.get("libelle"))
+            if ligne.get("perte") and texte.startswith(("absence", "h absence", "jours absence")):
+                part_de_la_ligne_precedente = part_reconstituee(texte)
+            else:
+                part_de_la_ligne_precedente = None
             lignes.append(copie)
     return lignes
 

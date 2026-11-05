@@ -91,8 +91,10 @@ def calculer_base_dixieme(brut: float | None, lignes: Iterable[Mapping[str, Any]
     est reconstituée : déduction de L3141-24 I, signalée dans le rapport.
     Une régularisation sans affectation exploitable reste incluse et signalée.
     """
-    absences: list[tuple[float, float]] = []
-    annexes = complement = exclusions = regularisation = 0.0
+    absences: list[tuple[float, float, bool]] = []
+    annexes: list[tuple[float, Any, bool]] = []
+    complement = exclusions = regularisation = 0.0
+    affectation_inconnue = False
     alertes: list[str] = []
     for ligne in lignes or []:
         if not isinstance(ligne, Mapping) or ligne.get("is_sous_total") or ligne.get("is_informative"):
@@ -101,10 +103,10 @@ def calculer_base_dixieme(brut: float | None, lignes: Iterable[Mapping[str, Any]
         famille = _famille(ligne)
         perte, gain = _montant(ligne, "perte"), _montant(ligne, "gain")
         if famille in {"retenue_absence_integrale", "retenue_absence_mois_complet", "complement_absence_integrale", "reduction_hs_absence"}:
-            annexes += perte - gain
+            annexes.append((perte - gain, ligne.get("dixieme_part_reconstituee"), bool(ligne.get("dixieme_hors_conges_payes"))))
             continue
         if not famille and "absence" in texte and not texte.startswith(("absence", "h absence", "jours absence")):
-            annexes += perte - gain
+            annexes.append((perte - gain, ligne.get("dixieme_part_reconstituee"), False))
             continue
         est_absence = famille in {"arret", "absence_maladie", "absence_ferie_non_paye", "absence_non_remuneree", "absence_injustifiee", "absence_entree_sortie", "absence_conges_payes", "absence_evenement_familial"} or texte.startswith(("absence", "h absence", "jours absence"))
         if est_absence and perte > 0:
@@ -112,7 +114,8 @@ def calculer_base_dixieme(brut: float | None, lignes: Iterable[Mapping[str, Any]
             part = part_reconstituee(nature)
             if famille in {"arret", "absence_maladie"} and not part and "therapeutique" not in texte_normalise(nature):
                 part = 0.8
-            absences.append((perte, part))
+            hors_annexe = famille in {"absence_conges_payes", "absence_entree_sortie", "absence_evenement_familial"} or any(mot in texte for mot in ("conges payes", "entree ou sortie", "evenement familial"))
+            absences.append((perte, part, hors_annexe))
             continue
         if gain > 0 and _complement(texte, famille):
             complement += gain
@@ -135,17 +138,26 @@ def calculer_base_dixieme(brut: float | None, lignes: Iterable[Mapping[str, Any]
                 regularisation += float(deja)
             else:
                 alertes.append("Régularisation de salaire sans période et absence identifiables : vérifier un double compte dans le dixième.")
-    retenues = sum(perte for perte, _ in absences)
-    reconstitution = sum(perte * part for perte, part in absences)
-    if retenues:
-        reconstitution += annexes * reconstitution / retenues
+    reconstitution = sum(perte * part for perte, part, _ in absences)
+    for montant, part_explicite, hors_conges in annexes:
+        if isinstance(part_explicite, (int, float)) and 0 <= part_explicite <= 1:
+            reconstitution += montant * float(part_explicite)
+            continue
+        cible = [(perte, part) for perte, part, exclue in absences if not (hors_conges and exclue)]
+        if not hors_conges and any(exclue for _, _, exclue in absences) and any(part > 0 for _, part, _ in absences):
+            affectation_inconnue = True
+            alertes.append("Retenue annexe mêlant congés indemnisés et autres absences sans affectation lisible : base du dixième inconnue.")
+            continue
+        retenues = sum(perte for perte, _ in cible)
+        if retenues:
+            reconstitution += montant * sum(perte * part for perte, part in cible) / retenues
     reconstitution = round(reconstitution, 2)
     if reconstitution <= 0 and complement:
         alertes.append("Complément employeur sans absence reconstituable : conservé dans le dixième, vérifier son affectation.")
         complement = 0.0
     ajustement = round(reconstitution - complement - exclusions - regularisation, 2)
     return BaseDixieme(
-        None if brut is None else round(float(brut) + ajustement, 2),
+        None if brut is None or affectation_inconnue else round(float(brut) + ajustement, 2),
         reconstitution, round(complement, 2), round(exclusions, 2), round(regularisation, 2),
         tuple(dict.fromkeys(alertes)),
     )
@@ -189,7 +201,9 @@ def calculer_base_periode(
     manquants = sorted(mois - presents)
     for annee, numero in manquants:
         alertes.append(f"Bulletin {numero:02d}/{annee} absent : rémunération ou reconstitution du dixième inconnue.")
-    if brut_repris is not None:
+    if any(r.base is None for r in resultats):
+        base = None
+    elif brut_repris is not None:
         base = round(float(brut_repris) + sum(r.ajustement for r in resultats), 2)
     elif manquants or any(r.base is None for r in resultats) or not resultats:
         base = None

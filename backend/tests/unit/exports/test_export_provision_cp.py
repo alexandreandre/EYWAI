@@ -1,5 +1,6 @@
 """Tests de l'export provision congés payés (infrastructure) : la règle légale du 05/11/2026."""
 
+from datetime import date
 from unittest.mock import patch
 
 import pytest
@@ -200,6 +201,21 @@ class TestCollecterLignes:
 
 
 class TestBasesDuDixieme:
+    def test_deux_contrats_du_mois_ne_partagent_pas_leurs_retenues_annexes(self):
+        b = BulletinDuMois(2500.0, [])
+        b.bulletins = [
+            {"annee": 2026, "mois": 9, "brut": 1000.0, "lignes": [
+                {"libelle": "Absence maladie", "perte": 1000.0},
+                {"code": "brut:reduction_hs_absence", "perte": 100.0},
+            ]},
+            {"annee": 2026, "mois": 9, "brut": 1500.0, "lignes": [
+                {"libelle": "Absence non rémunérée", "perte": 500.0},
+                {"code": "brut:reduction_hs_absence", "perte": 150.0},
+            ]},
+        ]
+        periodes = ((date(2026, 8, 1), date(2026, 8, 31)), (date(2026, 9, 1), date(2026, 9, 30)))
+        assert module.bases_du_dixieme({(2026, 9): b}, None, None, periodes)[1] == 3380.0
+
     PERIODES = ((module.date(2025, 6, 1), module.date(2026, 5, 31)), (module.date(2026, 6, 1), module.date(2026, 9, 30)))
 
     def test_le_cumul_de_la_periode_fait_foi(self):

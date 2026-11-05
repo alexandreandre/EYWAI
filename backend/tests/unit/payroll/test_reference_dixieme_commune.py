@@ -56,3 +56,23 @@ def test_iccp_ne_transforme_pas_un_passe_inconnu_en_zero():
     resultat = _iccp_legale_par_periode(ctx, 2500.0, 0.1, None, None, 100.0)
     assert resultat.total == 1000.0
     assert resultat.periodes[0].dixieme is None
+
+
+def test_bulletin_repris_mixant_conges_et_maladie_affecte_chaque_retenue_hs():
+    lignes = lignes_pour_dixieme({"calcul_du_brut": [
+        {"libelle": "H.Absence Congés Payés", "perte": 920.01},
+        {"libelle": "Réduction HS structurelles (jours d'absence)", "perte": 131.43},
+        {"libelle": "Absence maladie 170826-310826", "perte": 1012.01},
+        {"libelle": "Réduction HS structurelles (jours d'absence)", "perte": 146.22},
+    ]}, importe=True)
+    resultat = calculer_base_dixieme(1162.72, lignes)
+    assert resultat.base == 2089.30  # 1162,72 + 80 % de (1012,01 + 146,22)
+
+
+def test_retenue_hs_calculee_hors_conges_payes_ne_se_repartit_pas_sur_eux():
+    lignes = lignes_pour_dixieme({"details_absences": [
+        {"libelle": "Absence maladie du 01/09", "perte": 1000.0},
+        {"libelle": "Réduction HS structurelles (jours d'absence)", "perte": 100.0},
+        {"libelle": "Absence congés payés", "perte": 500.0},
+    ]})
+    assert calculer_base_dixieme(2000.0, lignes).base == 2880.0
