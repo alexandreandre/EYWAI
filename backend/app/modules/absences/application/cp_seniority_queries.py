@@ -25,6 +25,9 @@ from app.modules.absences.infrastructure.leave_settings_repository import (
 from app.modules.collective_agreements.application.idcc_resolution import (
     resolve_employee_idcc,
 )
+from app.modules.payroll.engine.indemnite_licenciement_metallurgie import (
+    groupe_d_emplois,
+)
 
 # `employees.is_cadre_dirigeant` n'existe dans aucune migration ni en base : la
 # lecture la demandait, échouait (42703), puis relisait sans elle, deux
@@ -32,7 +35,8 @@ from app.modules.collective_agreements.application.idcc_resolution import (
 # 03/11/2026). Elle n'est plus demandée ; le contexte la garde à False.
 _EMPLOYEE_CP_CONTEXT_SELECT = (
     "hire_date, date_naissance, statut, prior_service_months, "
-    "specificites_paie, seniority_reference_date, is_forfait_jour"
+    "specificites_paie, seniority_reference_date, is_forfait_jour, "
+    "classification_conventionnelle"
 )
 
 
@@ -157,6 +161,10 @@ def build_employee_cp_seniority_context(
         is_cadre_dirigeant=bool(employee_row.get("is_cadre_dirigeant")),
         forfait_annual_days_override=forfait_override,
         is_forfait_jour=bool(employee_row.get("is_forfait_jour")),
+        groupe_emploi=groupe_d_emplois(
+            employee_row.get("classification_conventionnelle")
+        )
+        or None,
     )
 
 

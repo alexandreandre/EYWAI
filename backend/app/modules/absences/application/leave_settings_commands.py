@@ -139,6 +139,7 @@ def _soldes_a_la_reprise(
         hire_date, validated, ref, policy=policy,
         adjustment=EmployeeLeaveAdjustment(cp_n1_opening_balance=n1, cp_n_opening_balance=n),
         _skip_adjustment_roll=True,
+        reprise_au=ref,
     )
     return float(calcul["n1_remaining"]), float(calcul["n_remaining_brut"])
 
@@ -553,6 +554,8 @@ def apply_cp_solde_import(
         ref,
         policy=policy,
         adjustment=EmployeeLeaveAdjustment.empty(),
+        # Les arrêts maladie jusqu'à la reprise sont dans le solde importé.
+        reprise_au=ref,
     )
     cp_n1_opening = cp_n1_solde - max(0.0, float(periods["n1_remaining"]))
     # Sans plancher : pour un solde repris de −0,43 j face à un décompte théorique
