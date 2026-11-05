@@ -40,7 +40,7 @@ import { countRhDetailFolderItems } from '@/components/documents/employeeDocumen
 import { matchesFileSemantic } from '@/components/documents/companyDocumentsExplorerUtils';
 import type { GeneratedDocument } from '@/api/documents';
 import { rhEmployeeDocumentsAccessMessage } from '@/lib/employeeExitDocumentsAccess';
-import { parseEmployeeDocumentDeepLink } from '@/lib/documentGenerationConfig';
+import { attestationsDuSalarie, parseEmployeeDocumentDeepLink } from '@/lib/documentGenerationConfig';
 
 interface ContractUrlResponse {
   url: string | null;
@@ -219,6 +219,7 @@ export function EmployeeDetailDocumentsTab({
   const payslips = payslipsQuery.data ?? [];
 
   const generatedByFolder = useMemo(() => groupGeneratedByFolder(generatedRows), [generatedRows]);
+  const attestations = useMemo(() => attestationsDuSalarie(generatedRows), [generatedRows]);
 
   const folderCounts = useMemo(() => {
     const opts = { contractUrl, identityUrl, payslips, credentialsPdfUrl, generatedByFolder };
@@ -609,15 +610,37 @@ export function EmployeeDetailDocumentsTab({
       />
 
       {bulletinsSeulement ? (
-        <div className="rounded-lg border bg-card">
-          <div className="border-b px-4 py-3">
-            <p className="text-sm font-medium">Bulletins de paie</p>
-            <p className="text-xs text-muted-foreground">
-              Les autres documents du salarié (contrat, identité…) sont hors du
-              périmètre paie.
-            </p>
+        <div className="space-y-4">
+          <div className="rounded-lg border bg-card">
+            <div className="border-b px-4 py-3">
+              <p className="text-sm font-medium">Bulletins de paie</p>
+              <p className="text-xs text-muted-foreground">
+                Les autres documents du salarié (contrat, identité…) sont hors du
+                périmètre paie.
+              </p>
+            </div>
+            {renderBulletinsFiles('')}
           </div>
-          {renderBulletinsFiles('')}
+          <section aria-label="Attestations" className="rounded-lg border bg-card">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+              <div>
+                <p className="text-sm font-medium">Attestations</p>
+                <p className="text-xs text-muted-foreground">
+                  Attestation de travail ou de salaire, à remettre au salarié qui la demande.
+                </p>
+              </div>
+              <Button size="sm" onClick={handlers.openAttestation}>
+                Générer une attestation
+              </Button>
+            </div>
+            {attestations.length ? (
+              <div className="p-2">{attestations.map(renderGeneratedRow)}</div>
+            ) : (
+              <p className="px-4 py-3 text-sm text-muted-foreground">
+                Aucune attestation générée pour ce salarié.
+              </p>
+            )}
+          </section>
         </div>
       ) : (
       <EmployeeDocumentsFolderExplorer

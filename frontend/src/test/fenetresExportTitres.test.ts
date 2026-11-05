@@ -17,7 +17,7 @@ describe('Exports : chaque fenêtre porte le nom de sa carte, jamais un identifi
     ['fec', 'FEC'],
     ['saisies', 'Saisies sur salaire'],
     ['prets_employeur', 'Prêts employeur'],
-    ['"attestations-annexes"', 'Attestations & annexes'],
+    ['"attestations-annexes"', 'Récapitulatif des salaires du mois'],
     ['"provision-cp"', 'Provision congés payés'],
     ['"paiement-organismes"', 'Paiement organismes'],
   ])('%s s’intitule « %s »', (identifiant, titre) => {

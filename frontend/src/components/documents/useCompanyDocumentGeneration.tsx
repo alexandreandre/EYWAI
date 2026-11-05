@@ -38,11 +38,11 @@ import type { EmployeeDocumentGenerationHandlers } from '@/components/employee-d
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { queryKeys } from '@/lib/queryKeys';
 import { Loader2 } from 'lucide-react';
+import { AttestationDialog } from './AttestationDialog';
 
 import {
   CONTRACT_TYPES,
   AVENANT_TYPES,
-  ATTESTATION_COURANTE_TYPES,
   type DocumentGenMode,
 } from '@/lib/documentGenerationConfig';
 
@@ -262,19 +262,6 @@ export function useCompanyDocumentGeneration() {
     });
   };
 
-  const submitAttestation = () => {
-    if (!genEmployeeId || !genDocType) {
-      toast({ title: 'Champs requis', variant: 'destructive' });
-      return;
-    }
-    genMut.mutate({
-      employee_id: genEmployeeId,
-      document_type: genDocType,
-      category: 'attestation_courante',
-      template_id: genTemplate === '__martine__' ? null : genTemplate,
-    });
-  };
-
   const handlers: EmployeeDocumentGenerationHandlers = {
     openContrat: () => openGen('contrat'),
     openAvenant: () => openGen('avenant'),
@@ -470,62 +457,11 @@ export function useCompanyDocumentGeneration() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={genMode === 'attestation'} onOpenChange={(o) => !o && setGenMode(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Générer une attestation</DialogTitle>
-            <DialogDescription>
-              {displayName || 'Sélectionnez un collaborateur ci-dessous.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            {employeeSelect}
-            <div className="space-y-2">
-              <Label>Type d&apos;attestation</Label>
-              <Select value={genDocType || undefined} onValueChange={setGenDocType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choisir…" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  {ATTESTATION_COURANTE_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {DOCUMENT_TYPE_LABELS[t] ?? t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Modèle</Label>
-              <Select value={genTemplate} onValueChange={setGenTemplate}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__martine__">Standard Martine</SelectItem>
-                  {templatesForType.map((tpl) => (
-                    <SelectItem key={tpl.id} value={tpl.id}>
-                      {tpl.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setGenMode(null)}>
-              Annuler
-            </Button>
-            <Button
-              onClick={submitAttestation}
-              disabled={!genEmployeeId || !genDocType || genMut.isPending}
-            >
-              {genMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Générer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AttestationDialog
+        open={genMode === 'attestation'}
+        onOpenChange={(o) => !o && setGenMode(null)}
+        onGenerated={invalidateExplorer}
+      />
 
       <Dialog open={genMode === 'fiche_poste'} onOpenChange={(o) => !o && setGenMode(null)}>
         <DialogContent className="sm:max-w-md">
