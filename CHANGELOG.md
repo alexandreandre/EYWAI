@@ -10,6 +10,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - Les congés d'un départ déjà payé par l'ancien logiciel se recomptent depuis l'entrée, et le dossier le dit ; un départ en juin ne mélange plus deux périodes de congés sur le bulletin.
 - Au choix d'un salarié en CDD, le formulaire de départ propose « Fin de CDD » et la date de fin du contrat ; tout reste modifiable.
 
+## paie-2026-11-05.10 — 5 novembre 2026
+
 ### Une attestation pour un salarié, en PDF prêt à signer
 - Fiche du salarié > Documents > « Générer une attestation » (aussi en mode paie), ou Exports > Déclarations > « Attestation pour un salarié ».
 - Deux lettres : l'attestation de travail (poste, contrat, date d'entrée, ancienneté du bulletin, temps de travail, rémunération, période d'essai en cours) et l'attestation de salaire (brut et net avant impôt des derniers bulletins remis, 3 mois par défaut, jusqu'à 12).
