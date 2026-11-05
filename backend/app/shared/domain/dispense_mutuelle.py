@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import calendar
 from datetime import date
-from typing import Any, Optional
+from typing import Any
 
 #: Code -> libellé de l'écran (le même que frontend dispenseMutuelle.ts).
 MOTIFS_DISPENSE: dict[str, str] = {
@@ -53,7 +53,7 @@ CONTRATS_CONTROLES = frozenset({"CDI", "CDD"})
 _OU = "dans sa fiche (Modifier la fiche, Paie sociale)"
 
 
-def _date(valeur: Any) -> Optional[date]:
+def _date(valeur: Any) -> date | None:
     if not isinstance(valeur, str):
         return None
     try:
@@ -74,8 +74,8 @@ def _un_an_apres(jour: date) -> date:
 
 
 def alerte_mutuelle(
-    mutuelle: Any, contract_type: Optional[str], annee: int, mois: int
-) -> Optional[str]:
+    mutuelle: Any, contract_type: str | None, annee: int, mois: int
+) -> str | None:
     """La phrase à montrer pour la mutuelle du mois, ou None s'il n'y a rien à faire.
 
     ``mutuelle`` est le bloc ``specificites_paie.mutuelle`` de la fiche du mois.

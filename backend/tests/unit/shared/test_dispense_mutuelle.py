@@ -34,7 +34,9 @@ def test_contrat_hors_perimetre_rien_a_dire(contrat):
     assert alerte_mutuelle({}, contrat, 2026, 9) is None
 
 
-@pytest.mark.parametrize("mutuelle", [None, {}, {"adhesion": False}, {"dispense": None}])
+@pytest.mark.parametrize(
+    "mutuelle", [None, {}, {"adhesion": False}, {"dispense": None}]
+)
 def test_ni_formule_ni_dispense_dit_quoi_faire(mutuelle):
     alerte = alerte_mutuelle(mutuelle, "CDI", 2026, 9)
     assert alerte.startswith("mutuelle absente")
@@ -43,12 +45,20 @@ def test_ni_formule_ni_dispense_dit_quoi_faire(mutuelle):
 
 
 def test_dispense_valable_rien_a_dire():
-    assert alerte_mutuelle(_dispense(justificatif_recu_le="2026-08-01"), "CDI", 2026, 9) is None
+    assert (
+        alerte_mutuelle(_dispense(justificatif_recu_le="2026-08-01"), "CDI", 2026, 9)
+        is None
+    )
 
 
 @pytest.mark.parametrize(
     "champs",
-    [{"motif": None}, {"motif": "inconnu"}, {"demande_recue_le": None}, {"demande_recue_le": "pas une date"}],
+    [
+        {"motif": None},
+        {"motif": "inconnu"},
+        {"demande_recue_le": None},
+        {"demande_recue_le": "pas une date"},
+    ],
 )
 def test_dispense_sans_motif_ou_sans_demande_est_incomplete(champs):
     alerte = alerte_mutuelle(_dispense(**champs), "CDI", 2026, 9)
@@ -64,23 +74,32 @@ def test_motif_a_echeance_sans_date_de_fin_est_incomplet(motif):
 
 
 def test_dispense_finie_avant_le_mois():
-    alerte = alerte_mutuelle(_dispense(motif="css", fin_le="2026-08-31"), "CDI", 2026, 9)
+    alerte = alerte_mutuelle(
+        _dispense(motif="css", fin_le="2026-08-31"), "CDI", 2026, 9
+    )
     assert alerte.startswith("dispense de mutuelle finie le 31/08/2026")
 
 
 def test_dispense_qui_finit_dans_le_mois_vaut_encore():
-    assert alerte_mutuelle(_dispense(motif="css", fin_le="2026-09-15"), "CDI", 2026, 9) is None
+    assert (
+        alerte_mutuelle(_dispense(motif="css", fin_le="2026-09-15"), "CDI", 2026, 9)
+        is None
+    )
 
 
 def test_justificatif_annuel_a_redemander_au_bout_d_un_an():
-    mutuelle = _dispense(demande_recue_le="2025-09-01", justificatif_recu_le="2025-09-01")
+    mutuelle = _dispense(
+        demande_recue_le="2025-09-01", justificatif_recu_le="2025-09-01"
+    )
     alerte = alerte_mutuelle(mutuelle, "CDI", 2026, 9)
     assert alerte.startswith("justificatif de sa mutuelle collective à redemander")
     assert "01/09/2025" in alerte
 
 
 def test_justificatif_de_moins_d_un_an_vaut_encore():
-    mutuelle = _dispense(demande_recue_le="2025-10-01", justificatif_recu_le="2025-10-01")
+    mutuelle = _dispense(
+        demande_recue_le="2025-10-01", justificatif_recu_le="2025-10-01"
+    )
     assert alerte_mutuelle(mutuelle, "CDI", 2026, 9) is None
 
 
@@ -90,7 +109,9 @@ def test_sans_date_de_justificatif_la_demande_en_tient_lieu():
 
 
 def test_justificatif_du_29_fevrier():
-    mutuelle = _dispense(demande_recue_le="2024-02-29", justificatif_recu_le="2024-02-29")
+    mutuelle = _dispense(
+        demande_recue_le="2024-02-29", justificatif_recu_le="2024-02-29"
+    )
     assert alerte_mutuelle(mutuelle, "CDI", 2025, 1) is None
     assert alerte_mutuelle(mutuelle, "CDI", 2025, 2).startswith("justificatif")
 
