@@ -5,7 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
-(rien)
+### Le repos compensateur entre dans la provision des congés
+- L'état de provision a une colonne « Solde jrs repos compensateur », comptée dans le total des jours.
+- Les heures de repos acquises et pas encore prises sont converties en jours (7 h par jour, ou le réglage de la société) et valorisées au même prix que les congés.
+- Un repos pris sans crédit ne diminue pas la provision : la colonne « Anomalie » le signale.
 
 ## paie-2026-11-05.1 — 5 novembre 2026
 
