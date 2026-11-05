@@ -55,6 +55,9 @@ export interface SimpleEmployee {
   job_title?: string;
   /** Vrai si aucun contrat n'a été généré dans MARTINE (salarié repris de l'ancien logiciel). */
   contrat_absent?: boolean;
+  /** Le formulaire propose « Fin de CDD » à la date de fin d'un CDD. */
+  contract_type?: string | null;
+  contract_end_date?: string | null;
 }
 
 export type NoticePeriodSource = 'legal' | 'convention' | 'none' | 'not_applicable';
