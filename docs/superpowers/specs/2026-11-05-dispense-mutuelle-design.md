@@ -98,14 +98,18 @@ La dispense se range dans le bloc mutuelle de la fiche,
 - Il n'y a pas de migration : `specificites_paie` est un JSON libre
   (`employees/schemas/requests.py`).
 - Une formule de mutuelle choisie (`adhesion: true`) l'emporte : l'enregistrement
-  écrit alors `dispense: null`.
+  écrit alors `dispense: null`. Le serveur fusionne le bloc mutuelle clé par clé
+  (`employees/application/commands.py`, `_merge_json_dicts`) : `null` efface donc
+  la dispense, et un import DSN, qui n'écrit que `adhesion`, la garde.
 
 ## Le contrôle (une seule fonction)
 
 Une fonction pure, `backend/app/shared/domain/dispense_mutuelle.py` :
 `alerte_mutuelle(mutuelle, contract_type, annee, mois) -> str | None`. Elle
 renvoie la phrase à afficher, ou `None`. Elle remplace le test en dur de
-`check_dsn_data`, et sa copie morte dans `payroll/exports/dsn.py` l'appelle aussi.
+`check_dsn_data`. La copie de `payroll/exports/dsn.py` n'est plus appelée (le
+paquet `payroll/exports` réexporte `exports/infrastructure/export_dsn.py`) : elle
+reste telle quelle.
 
 Pour un CDI ou un CDD sans adhésion (le périmètre actuel, inchangé) :
 
@@ -147,9 +151,6 @@ fait déjà pour les autres champs).
 - Le signalement DSN « fin de dispense d'affiliation », quand un salarié dispensé
   adhère en cours d'emploi.
 - Le versement santé des CDD très courts (L911-7 III).
-- L'import DSN qui réécrit `specificites_paie` d'une fiche existante pourrait
-  effacer une dispense. Ce n'est pas silencieux : l'alerte revient. À traiter si
-  cela arrive.
 - À signaler seulement : sur une fiche de MAJI, le statut dit « Non-Cadre » mais
   la classification dit « Cadre ».
 

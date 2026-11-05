@@ -67,3 +67,39 @@ def test_sans_aucune_specificite_les_deux_sont_signalees():
     warnings = _avertissements({})
     assert len(_sur(warnings, "mutuelle absente")) == 1
     assert len(_sur(warnings, "prévoyance absente")) == 1
+
+
+DISPENSE_CONJOINT = {
+    "motif": "couverture_collective",
+    "demande_recue_le": "2026-08-01",
+    "justificatif_recu_le": "2026-08-01",
+    "fin_le": None,
+}
+
+
+def test_dispense_valable_plus_d_alerte_mutuelle():
+    warnings = _avertissements(
+        {"mutuelle": {"adhesion": False, "dispense": DISPENSE_CONJOINT}, "prevoyance": {"adhesion": True}}
+    )
+    assert _sur(warnings, "mutuelle") == []
+
+
+def test_la_dispense_de_mutuelle_ne_tait_pas_la_prevoyance():
+    warnings = _avertissements(
+        {"mutuelle": {"adhesion": False, "dispense": DISPENSE_CONJOINT}, "prevoyance": {"adhesion": False}}
+    )
+    assert _sur(warnings, "mutuelle") == []
+    assert len(_sur(warnings, "prévoyance absente")) == 1
+
+
+def test_sans_dispense_l_alerte_dit_quoi_faire():
+    warnings = _avertissements({"mutuelle": {"adhesion": False}, "prevoyance": {"adhesion": True}})
+    (alerte,) = _sur(warnings, "mutuelle absente")
+    assert alerte.startswith("Salarié Camille Exemple : mutuelle absente")
+    assert "posez sa dispense" in alerte
+
+
+def test_justificatif_perime_dans_l_apercu():
+    perime = {**DISPENSE_CONJOINT, "demande_recue_le": "2025-08-01", "justificatif_recu_le": "2025-08-01"}
+    warnings = _avertissements({"mutuelle": {"adhesion": False, "dispense": perime}, "prevoyance": {"adhesion": True}})
+    assert len(_sur(warnings, "justificatif de sa mutuelle collective")) == 1
