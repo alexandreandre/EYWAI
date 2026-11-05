@@ -20,6 +20,11 @@ from app.modules.document_library.schemas.requests import (
     DOCUMENT_TYPE_LABELS,
     KNOWN_DOCUMENT_TYPES,
 )
+from app.modules.documents.domain.attestation_salaire import (
+    NOMBRE_DE_MOIS_PAR_DEFAUT,
+    mois_a_attester,
+)
+from app.modules.documents.infrastructure import attestation_queries
 from app.services.document_variables import enrich_context_from_recruitment_job
 from app.modules.notifications.application.employee_document_alerts import (
     notify_employee_new_document,
@@ -189,6 +194,46 @@ def _load_recruitment_job(job_id: str, company_id: str) -> Dict[str, Any]:
     return dict(row)
 
 
+def _nom_du_salarie(employee: Dict[str, Any]) -> str:
+    parties = (str(employee.get("first_name") or "").strip(), str(employee.get("last_name") or "").strip())
+    return " ".join(p for p in parties if p) or "Ce salarié"
+
+
+def _contexte_attestation(
+    document_type: str,
+    employee_id: str,
+    employee_data: Dict[str, Any],
+    company_id: str,
+    nombre_mois: Optional[int],
+) -> Dict[str, Any]:
+    """Ce que la lettre atteste, lu avant toute écriture ; refuse ce qu'elle ne peut pas dire."""
+    nom = _nom_du_salarie(employee_data)
+    if document_type == "attestation_emploi":
+        # L1234-19 : à la fin du contrat, c'est le certificat de travail qui atteste.
+        if str(employee_data.get("employment_status") or "").lower() == "parti":
+            raise ValueError(
+                f"{nom} a quitté l'entreprise : c'est le certificat de travail qui "
+                "atteste de son emploi (Départs)."
+            )
+        return {
+            "periode_essai_fin": attestation_queries.fin_de_periode_d_essai_en_cours(
+                employee_id, company_id
+            )
+        }
+    if document_type == "attestation_salaire":
+        nombre = nombre_mois or NOMBRE_DE_MOIS_PAR_DEFAUT
+        mois = mois_a_attester(
+            attestation_queries.bulletins_remis_du_salarie(employee_id, company_id), nombre
+        )
+        if not mois:
+            raise ValueError(
+                f"Aucun bulletin remis à {nom} : Martine n'atteste que des salaires "
+                "de bulletins validés et remis."
+            )
+        return {"mois_de_paie": mois, "nombre_mois_demande": nombre}
+    return {}
+
+
 def generate_document(
     company_id: str,
     current_user_id: str,
@@ -232,7 +277,13 @@ def generate_document(
     employee_data = _load_employee(request.employee_id, company_id)
     company_data = _load_company(company_id)
 
-    ctx: Dict[str, Any] = {}
+    ctx: Dict[str, Any] = _contexte_attestation(
+        request.document_type,
+        request.employee_id,
+        employee_data,
+        company_id,
+        request.nombre_mois,
+    )
     if request.custom_fields:
         ctx["custom_fields"] = {
             str(k): str(v) for k, v in request.custom_fields.items() if str(k).strip()
