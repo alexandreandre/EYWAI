@@ -18,6 +18,7 @@ civilité vient de la fiche (sexe), sinon la phrase reste neutre.
 from __future__ import annotations
 
 import io
+import re
 from datetime import date, datetime
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 from xml.sax.saxutils import escape
@@ -159,7 +160,10 @@ def adresse_du_salarie(employee: Mapping[str, Any]) -> str:
         return adresse.strip()
     if not isinstance(adresse, Mapping):
         return ""
-    rue = " ".join(p for p in (_texte(adresse.get("numero")), _texte(adresse.get("rue"))) if p)
+    numero, rue = _texte(adresse.get("numero")), _texte(adresse.get("rue"))
+    # La rue porte souvent déjà son numéro (les 271 fiches du test au 05/11).
+    if numero and not re.match(rf"{re.escape(numero)}\b", rue):
+        rue = f"{numero} {rue}".strip()
     ville = " ".join(
         p for p in (_texte(adresse.get("code_postal")), _texte(adresse.get("ville"))) if p
     )
