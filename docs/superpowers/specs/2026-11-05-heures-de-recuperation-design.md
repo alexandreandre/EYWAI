@@ -11,16 +11,24 @@ L'inventaire nominatif des compteurs que Quadra affiche, société par société
 | Règle | Texte |
 |---|---|
 | Une heure sup ouvre droit à une majoration **ou** à un repos compensateur équivalent. | C. trav. L3121-28 |
-| Le remplacement porte sur le paiement des heures **et des majorations** : le repos est « équivalent ». Une heure à 25 % donne 1 h 15 de repos ; une heure à 50 % donne 1 h 30. | L3121-28, L3121-33 II 2° |
+| Le remplacement porte sur le paiement des heures **et des majorations** : le repos est « équivalent ». Une heure à 25 % donne 1 h 15 de repos ; une heure à 50 % donne 1 h 30. Le Code dit « équivalent » ; le chiffre est écrit dans les fiches officielles (Code du travail numérique : « chaque heure majorée à 25 % ouvre droit à 1h15 de repos » ; ministère : une heure à 150 % « peut être remplacé[e] par un repos d'une durée d'1h30 » ; service-public F2391 : « équivalente à la rémunération majorée »). | L3121-28, L3121-33 II 2°, L3121-37 |
 | Taux à défaut d'accord : 25 % pour les 8 premières heures, 50 % au-delà. | L3121-36 |
 | Les heures compensées par un repos équivalent ne s'imputent pas sur le contingent annuel. | L3121-30, al. 3 |
 | **Sans accord collectif** : dans une entreprise sans délégué syndical, l'employeur peut mettre en place le remplacement, à condition que le CSE, s'il existe, ne s'y oppose pas. Il fixe aussi les modalités d'attribution et de prise, après avis du CSE. | L3121-37 |
-| Le salarié est informé des heures de repos compensateur de remplacement portées à son crédit par un document annexé au bulletin ; dès 7 heures, ce document notifie l'ouverture du droit et l'obligation de le prendre dans un délai maximum de deux mois. | D3171-11 |
+| Le salarié est informé des heures de repos compensateur de remplacement portées à son crédit par un document annexé au bulletin ; dès 7 heures, ce document notifie l'ouverture du droit et l'obligation de le prendre dans un délai maximum de deux mois. C'est la seule règle réglementaire du repos de remplacement à défaut d'accord. | D3171-11 (annexe électronique possible : D3171-15) |
+| Les règles de prise D3121-17 à D3121-23 (demi-journée au choix, demande une semaine avant, report limité, indemnité de fin de contrat) visent la seule **contrepartie obligatoire en repos**, pas le repos de remplacement. Martine les prend comme réglages par défaut raisonnables, pas comme obligations. | D3121-17 à D3121-23 |
+| Les mentions obligatoires du bulletin ne comprennent aucun solde de repos. | R3243-1 |
 | Une heure mise en repos (puis payée faute d'être prise) n'a ni la réduction salariale, ni la déduction patronale, ni l'exonération d'impôt ; une heure payée directement les garde. | BOSS, rubrique heures supplémentaires (§ 220-230) ; BOFiP BOI-RSA-CHAMP-20-50-20-40 |
+
+**Relu le 05/11 par curl** sur code.travail.gouv.fr et service-public.fr : texte et date identiques aux copies du 02/11. Deux pages ne se sont pas ouvertes ce jour-là : le BOSS (connexion refusée, la citation est celle lue le 03/11) et Légifrance (page Cloudflare ; L3121-37 lu sur code.travail.gouv.fr).
 
 **Ce que la loi permet aux sept sociétés.** Aucune n'a d'accord sur le temps de travail (Elsa, 02/11). Le repos de remplacement reste possible par décision de l'employeur (L3121-37), à deux conditions que Martine ne peut pas connaître : pas de délégué syndical ; un CSE, s'il existe, qui ne s'y oppose pas. **On ne bloque pas** : le réglage dit ces deux conditions au moment où la RH l'active, et l'activation vaut confirmation (une question, posée une fois). Les modalités de prise (délai, demi-journée) restent celles que l'employeur fixe ; Martine applique la mention légale des deux mois dès 7 heures (D3171-11).
 
-**Forme de l'information.** Le D3171-11 demande un document annexé au bulletin, « à défaut de précision conventionnelle contraire ». Martine imprime l'information dans le cadre des compteurs du bulletin lui-même, comme Quadra : heures acquises du mois, heures prises avec leur date, solde, et la mention des deux mois dès 7 heures. Le bulletin est remis avec ; rien n'est perdu pour le salarié.
+**Sans CSE**, le texte n'impose aucune condition ni aucune forme ; les modalités de prise sont fixées par l'employeur (lecture de L3121-37 al. 2, qui ne prévoit que l'avis du CSE quand il existe).
+
+**Plasturgie (IDCC 292 : Colorplast, Comitech).** La fiche du Code du travail numérique indique que la convention prévoit un repos de remplacement pour les non-cadres et un délai de prise de 2 à 6 mois. Le texte de la convention n'a pas pu être ouvert (Légifrance fermé ce jour-là) : à lire avant d'activer le compteur chez ces deux sociétés. Martine imprime la mention légale des deux mois (D3171-11, « à défaut de précision conventionnelle contraire ») ; si la convention fixe un autre délai, c'est la mention à adapter.
+
+**Forme de l'information.** Le D3171-11 demande un document annexé au bulletin ; R3243-1 ne met aucun solde de repos parmi les mentions du bulletin, et rien n'interdit de l'y imprimer. Martine imprime l'information dans le cadre des compteurs du bulletin lui-même, comme Quadra : le cumul de l'année (acquis, pris) et le solde dans le tableau, et en note le détail du mois (« 9 h acquises, 7 h prises le 13/07 », heures payées) et, dès 7 heures, la mention des deux mois. Le salarié a la même information, sur la même feuille.
 
 ## 2. Ce que Martine avait
 
@@ -58,7 +66,9 @@ La conséquence est écrite à côté du bouton, à partir du BOSS : « Payées 
 
 Sur le bulletin, quand le compteur a un solde : **« Payer le solde »** (en janvier pour Elsa, ou à tout moment). Martine pose un débit « paiement » au compteur pour le mois, et le bulletin de ce mois porte la ligne « Paiement solde heures de récupération » = heures × taux horaire de base, **en prime**, sans les régimes des heures sup (tranché le 03/11, spec `2026-11-03-rubrique-paiement-recup-hs-design.md`). Annuler le paiement rend les heures au compteur.
 
-Au départ du salarié, un solde non pris est dû (il a le caractère de salaire : D3121-23 le dit pour la contrepartie obligatoire) : l'alerte du bulletin de sortie le signale, la RH paie le solde du même bouton.
+Au départ du salarié, un solde non pris est payé : D3121-23 le dit pour la contrepartie obligatoire ; pour le repos de remplacement, aucun texte lu ne le dit, mais ce repos remplace un salaire déjà gagné (notre lecture). L'alerte du bulletin de sortie le signale, la RH paie le solde du même bouton.
+
+Le solde du compteur entre aussi dans la provision des congés, avec le repos compensateur (demande d'Elsa du 05/11 : « N-1 + N + repos compensateur + ancienneté »).
 
 ### 3.5 La récupération prise
 
