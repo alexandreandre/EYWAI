@@ -19,6 +19,10 @@ describe('formulaire de départ : motif proposé par Martine', () => {
     expect(t).toContain('motifChoisiParLaRh.current = true;');
   });
 
+  it('une proposition qui s’efface remet aussi la date de demande qu’elle avait posée', () => {
+    expect(t).toContain('if (exitRequestDate === precedent.dateDeDemande) setExitRequestDate(aujourdhuiLocal());');
+  });
+
   it('dit que la proposition vient de Martine', () => {
     expect(t).toContain('data-testid="motif-propose-info"');
     expect(t).toContain('{motifPropose.phrase}');

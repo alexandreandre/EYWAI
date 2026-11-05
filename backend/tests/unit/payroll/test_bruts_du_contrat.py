@@ -139,3 +139,12 @@ def test_un_contrat_d_un_seul_mois_estime_ne_dit_pas_qu_il_manque_des_bulletins(
 
     assert total == 200.0
     assert alertes == []
+
+
+def test_un_mois_de_sortie_sans_salaire_connu_le_dit():
+    total, _, alertes = bruts_du_contrat(
+        "emp-1", date(2026, 9, 1), date(2026, 9, 30), _Base({}), salaire=0.0, estimer_le_dernier_mois=True
+    )
+
+    assert total == 0.0
+    assert alertes == ["Mois de sortie 09/2026 non estimé — salaire du contrat inconnu."]

@@ -117,7 +117,12 @@ def bruts_du_contrat(
     for rang, (annee, mois) in enumerate(mois_du_contrat):
         part = _jours_sous_contrat(annee, mois, depuis, jusqu_au)
         if estimer_le_dernier_mois and rang == len(mois_du_contrat) - 1:
-            total += salaire * part
+            if salaire > 0:
+                total += salaire * part
+            else:
+                alertes.append(
+                    f"Mois de sortie {mois:02d}/{annee} non estimé — salaire du contrat inconnu."
+                )
             continue
         try:
             brut = _brut_du_bulletin(employee_id, annee, mois, supabase_client)

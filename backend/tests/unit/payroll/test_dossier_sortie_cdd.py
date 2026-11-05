@@ -106,3 +106,26 @@ def test_sans_cumuls_le_brut_avant_le_mois_est_la_somme_des_bulletins_de_la_peri
     args = mock_bruts.call_args
     assert args.args[1:3] == (date(2026, 6, 29), date(2026, 8, 31))
     assert args.kwargs["estimer_le_dernier_mois"] is False
+
+
+@patch.object(module, "calculer_base_reference_dixieme")
+@patch.object(module, "get_cp_solde_a_la_sortie", return_value=None)
+@patch.object(module, "_conges_par_periode_a_la_sortie", return_value=None)
+@patch.object(module, "lire_brut_total_contrat", return_value=(200.0, []))
+def test_le_repli_estime_au_salaire_habituel_comme_la_prime(_, __, ___, mock_ref):
+    from app.modules.payroll.engine.reference_remuneration import ReferenceRemunerationResult
+
+    mock_ref.return_value = ReferenceRemunerationResult(
+        base_totale=0.0, periode_debut=date(2026, 6, 1), periode_fin=date(2026, 9, 30), periode_label="x"
+    )
+    employe_39h = {**EMPLOYE, "duree_hebdomadaire": 39}
+    with (
+        patch("app.modules.absences.infrastructure.leave_settings_repository.get_leave_policy") as policy,
+        patch.object(module, "_salaire_habituel_et_taux_horaire", return_value=(3400.0, 20.0, 39.0)),
+    ):
+        policy.return_value.cp_reference_period_start_month = 6
+        calculer_indemnite_conges_restants(
+            employe_39h, {"last_working_day": "2026-09-30", "exit_type": "fin_cdd"}, supabase_client=MagicMock()
+        )
+
+    assert mock_ref.call_args.kwargs["salaire_contractuel_fallback"] == 3400.0

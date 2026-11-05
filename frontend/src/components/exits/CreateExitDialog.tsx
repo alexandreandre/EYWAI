@@ -106,7 +106,8 @@ export function CreateExitDialog({
   // Un motif choisi par la RH n'est jamais remplacé par la proposition de Martine.
   const motifChoisiParLaRh = useRef(false);
   const [motifPropose, setMotifPropose] = useState<MotifPropose | null>(null);
-  const motifProposeApplique = useRef<MotifPropose | null>(null);
+  // La proposition posée et la date de demande qu'elle a posée avec elle.
+  const motifProposeApplique = useRef<(MotifPropose & { dateDeDemande: string }) | null>(null);
 
   // Form state
   const [employeeId, setEmployeeId] = useState<string>('');
@@ -285,20 +286,25 @@ export function CreateExitDialog({
     if (!open || initialExitType || motifChoisiParLaRh.current) return;
     const propose = motifProposeAuDepart(selectedEmployee);
     const precedent = motifProposeApplique.current;
-    motifProposeApplique.current = propose;
+    motifProposeApplique.current = null;
     setMotifPropose(propose);
     if (propose) {
       handleExitTypeChange(propose.motif);
+      let dateDeDemande = exitRequestDate;
       if (!lastWorkingDay || lastWorkingDay === precedent?.dernierJour) {
         setLastWorkingDay(propose.dernierJour);
-        setExitRequestDate(
-          dateDeDemandeProposee({ aujourdHui: aujourdhuiLocal(), dernierJour: propose.dernierJour })
-        );
+        dateDeDemande = dateDeDemandeProposee({
+          aujourdHui: aujourdhuiLocal(),
+          dernierJour: propose.dernierJour,
+        });
+        setExitRequestDate(dateDeDemande);
       }
+      motifProposeApplique.current = { ...propose, dateDeDemande };
     } else if (precedent) {
-      // Un autre salarié, sans CDD à terme : la proposition précédente s'efface.
+      // Un autre salarié, sans contrat à terme : la proposition précédente s'efface.
       handleExitTypeChange('demission');
       if (lastWorkingDay === precedent.dernierJour) setLastWorkingDay('');
+      if (exitRequestDate === precedent.dateDeDemande) setExitRequestDate(aujourdhuiLocal());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, selectedEmployee?.id, selectedEmployee?.contract_type, selectedEmployee?.contract_end_date]);

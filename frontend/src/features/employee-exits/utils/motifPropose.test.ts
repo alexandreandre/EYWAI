@@ -16,6 +16,16 @@ describe('motif proposé au départ', () => {
     expect(motifProposeAuDepart({ contract_type: 'CDI', contract_end_date: null })).toBeNull();
   });
 
+  it("un contrat d'apprentissage qui porte sa fin : Fin de CDD, comme le bandeau de la Paie", () => {
+    expect(
+      motifProposeAuDepart({ contract_type: 'Apprentissage', contract_end_date: '2027-08-31' })?.motif
+    ).toBe('fin_cdd');
+  });
+
+  it('un CDI qui porterait une date de fin : rien de proposé', () => {
+    expect(motifProposeAuDepart({ contract_type: 'CDI', contract_end_date: '2026-09-30' })).toBeNull();
+  });
+
   it('un CDD sans date de fin : rien de proposé', () => {
     expect(motifProposeAuDepart({ contract_type: 'CDD', contract_end_date: null })).toBeNull();
   });

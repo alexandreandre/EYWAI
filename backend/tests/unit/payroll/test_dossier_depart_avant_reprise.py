@@ -41,8 +41,8 @@ CUMULS_DE_SEPTEMBRE = {
 def _dossier(depart: date):
     with (
         patch(
-            "app.modules.absences.infrastructure.leave_settings_repository.get_applicable_adjustment",
-            return_value=REPRISE,
+            "app.modules.absences.infrastructure.planning_cp_repository.get_cp_opening_reference_dates",
+            return_value={EMPLOYE: REPRISE.cp_opening_reference_date},
         ),
         patch(
             "app.modules.absences.application.queries.get_absence_balances_for_payslip",
@@ -117,8 +117,8 @@ def test_sans_la_reprise_les_compteurs_partent_d_un_ajustement_vide_et_du_planni
 def test_la_phrase_de_l_ancien_logiciel_reste_quand_la_base_se_lit_sur_les_bulletins():
     with (
         patch(
-            "app.modules.absences.infrastructure.leave_settings_repository.get_applicable_adjustment",
-            return_value=REPRISE,
+            "app.modules.absences.infrastructure.planning_cp_repository.get_cp_opening_reference_dates",
+            return_value={EMPLOYE: REPRISE.cp_opening_reference_date},
         ),
         patch("app.modules.absences.application.queries.get_absence_balances_for_payslip", return_value=COMPTEURS),
         patch.object(module, "_cumuls_du_mois_precedent", return_value=None),
@@ -131,3 +131,24 @@ def test_la_phrase_de_l_ancien_logiciel_reste_quand_la_base_se_lit_sur_les_bulle
 
     assert any("ancien logiciel" in a for a in cfg["alertes"])
     assert "Bulletin 06/2026 absent — salaire du contrat utilisé." in cfg["alertes"]
+
+
+def test_la_date_de_reprise_est_celle_des_compteurs_toutes_annees_confondues():
+    """Même source que la garde des compteurs (`get_cp_opening_reference_dates`) :
+    une reprise rangée sur l'année suivante compte aussi."""
+    with patch(
+        "app.modules.absences.infrastructure.planning_cp_repository.get_cp_opening_reference_dates",
+        return_value={EMPLOYE: date(2027, 1, 31)},
+    ):
+        assert module._date_de_reprise_des_conges(EMPLOYE) == date(2027, 1, 31)
+
+
+def test_sans_compteurs_le_dossier_ne_lit_aucun_bulletin():
+    with (
+        patch.object(module, "_date_de_reprise_des_conges", return_value=None),
+        patch("app.modules.absences.application.queries.get_absence_balances_for_payslip", return_value=None),
+        patch.object(module, "_cumuls_du_mois_precedent", return_value=None),
+        patch.object(module, "bruts_du_contrat") as bruts,
+    ):
+        assert module._conges_par_periode_a_la_sortie(EMPLOYE, date(2026, 9, 30), MagicMock()) is None
+    bruts.assert_not_called()

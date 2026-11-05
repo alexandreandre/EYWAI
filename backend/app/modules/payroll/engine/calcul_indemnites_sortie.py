@@ -592,14 +592,15 @@ def _cumuls_du_mois_precedent(employee_id: str, exit_date: date, supabase_client
     return (lignes[0].get("cumuls") if lignes else None) or None
 
 
-def _date_de_reprise_des_conges(employee_id: str, annee: int) -> Optional[date]:
-    """La date de référence de la reprise des soldes de congés, ou None."""
-    from app.modules.absences.infrastructure.leave_settings_repository import (
-        get_applicable_adjustment,
+def _date_de_reprise_des_conges(employee_id: str) -> Optional[date]:
+    """La date de référence de la reprise des soldes de congés, ou None : la
+    même source que la garde des compteurs (toutes années confondues)."""
+    from app.modules.absences.infrastructure.planning_cp_repository import (
+        get_cp_opening_reference_dates,
     )
 
     try:
-        return get_applicable_adjustment(employee_id, annee).cp_opening_reference_date
+        return get_cp_opening_reference_dates([employee_id]).get(employee_id)
     except Exception:
         logger.warning("Reprise des congés illisible pour %s", employee_id, exc_info=True)
         return None
@@ -629,7 +630,7 @@ def _conges_par_periode_a_la_sortie(
         remuneration_des_periodes,
     )
 
-    reprise = _date_de_reprise_des_conges(employee_id, exit_date.year)
+    reprise = _date_de_reprise_des_conges(employee_id)
     sans_la_reprise = reprise is not None and exit_date <= reprise
     try:
         compteurs = (
@@ -652,6 +653,8 @@ def _conges_par_periode_a_la_sortie(
             employee_id,
             exc_info=True,
         )
+        return None
+    if not compteurs:
         return None
     precedente, avant_le_mois = remuneration_des_periodes(employee_id, cumuls, compteurs)
     alertes: list[str] = []
@@ -899,7 +902,7 @@ def calculer_indemnite_conges_restants(
             exit_date,
             supabase_client,
             start_month=start_month,
-            salaire_contractuel_fallback=salaire_base,
+            salaire_contractuel_fallback=salaire_habituel,
             is_cdd=is_cdd,
             montant_precarite=montant_precarite,
             montant_ifm=montant_ifm,

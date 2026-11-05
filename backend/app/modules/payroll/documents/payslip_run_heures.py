@@ -570,10 +570,18 @@ def remuneration_des_periodes(
             employee_id, {"cumuls": {"brut_reference_period_start": debut_en_cours.isoformat()}}
         )
         return precedente, 0.0
-    precedente = _brut_de_la_periode_precedente(employee_id, cumuls)
     if debut_des_cumuls is None:
+        # Mois repris sans cumul : la période précédente se lit quand même à sa
+        # fin (cumul ou bulletins), pour comparer dixième et maintien.
+        precedente = (
+            _brut_de_la_periode_precedente(
+                employee_id, {"cumuls": {"brut_reference_period_start": debut_en_cours.isoformat()}}
+            )
+            if debut_en_cours is not None
+            else None
+        )
         return precedente, None
-    return precedente, lire_brut_reference_depuis_cumuls(cumuls)
+    return _brut_de_la_periode_precedente(employee_id, cumuls), lire_brut_reference_depuis_cumuls(cumuls)
 
 
 def cp_fin_de_contrat(

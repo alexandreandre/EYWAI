@@ -84,3 +84,13 @@ def test_des_cumuls_sans_periode_ne_disent_rien_de_la_periode_en_cours(monkeypat
     monkeypatch.setattr(database, "supabase", _Base([]))
 
     assert remuneration_des_periodes("emp-1", None, COMPTEURS_DE_JUIN) == (None, None)
+
+
+def test_sans_cumuls_la_periode_precedente_se_lit_quand_meme_a_sa_fin(monkeypatch):
+    """Mois repris sans cumul : la période précédente se lit sur le cumul de fin
+    de période (ou ses bulletins), sinon les jours N-1 ne se comparent qu'au
+    maintien (L3141-24 : le plus favorable)."""
+    monkeypatch.setattr(database, "supabase", _Base(CUMUL_DE_MAI_EN_BASE))
+    compteurs = {"conges_payes": {"pris": 0, "solde": 8.33, "periode": "01/06/2026 – 31/05/2027"}}
+
+    assert remuneration_des_periodes("emp-1", None, compteurs) == (36000.0, None)
