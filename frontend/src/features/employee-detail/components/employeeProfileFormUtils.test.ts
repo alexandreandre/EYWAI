@@ -511,3 +511,79 @@ describe('forfait jours réduit sur la fiche (04/11/2026)', () => {
     }
   });
 });
+
+describe('dispense de mutuelle sur la fiche (05/11/2026)', () => {
+  const dispense = {
+    motif: 'couverture_collective',
+    demande_recue_le: '2026-08-01',
+    justificatif_recu_le: '2026-08-01',
+    fin_le: null,
+  };
+  const ficheDispensee: Employee = {
+    ...baseEmployee,
+    specificites_paie: {
+      ...baseEmployee.specificites_paie,
+      mutuelle: { adhesion: false, mutuelle_type_ids: [], dispense },
+    },
+  };
+
+  it('lit la dispense et la renvoie telle quelle', () => {
+    const values = buildDefaultValues(ficheDispensee);
+    expect(values.specificites_paie.mutuelle.dispense.active).toBe(true);
+    const payload = buildUpdatePayload(values, ficheDispensee);
+    expect(payload.specificites_paie?.mutuelle).toMatchObject({ adhesion: false, dispense });
+  });
+
+  it('une formule choisie efface la dispense (null, la fiche fusionne le bloc)', () => {
+    const defaults = buildDefaultValues(ficheDispensee);
+    const values: EmployeeProfileEditFormValues = {
+      ...defaults,
+      specificites_paie: {
+        ...defaults.specificites_paie,
+        mutuelle: { ...defaults.specificites_paie.mutuelle, mutuelle_type_ids: ['formule-1'] },
+      },
+    };
+    const payload = buildUpdatePayload(values, ficheDispensee);
+    expect(payload.specificites_paie?.mutuelle).toMatchObject({ adhesion: true, dispense: null });
+  });
+
+  it('une fiche sans dispense enregistre dispense: null', () => {
+    const payload = buildUpdatePayload(buildDefaultValues(baseEmployee), baseEmployee);
+    expect(payload.specificites_paie?.mutuelle).toMatchObject({ dispense: null });
+  });
+
+  it('le schéma refuse une dispense sans date de demande, sous le champ', () => {
+    const defaults = buildDefaultValues(ficheDispensee);
+    const values = {
+      ...defaults,
+      specificites_paie: {
+        ...defaults.specificites_paie,
+        mutuelle: {
+          ...defaults.specificites_paie.mutuelle,
+          dispense: { ...defaults.specificites_paie.mutuelle.dispense, demande_recue_le: '' },
+        },
+      },
+    };
+    const result = employeeProfileEditSchema.safeParse(values);
+    expect(result.success).toBe(false);
+    const chemins = result.success ? [] : result.error.issues.map((i) => i.path.join('.'));
+    expect(chemins).toContain('specificites_paie.mutuelle.dispense.demande_recue_le');
+  });
+
+  it('une dispense incomplète cachée par une formule ne bloque pas', () => {
+    const defaults = buildDefaultValues(ficheDispensee);
+    const values = {
+      ...defaults,
+      specificites_paie: {
+        ...defaults.specificites_paie,
+        mutuelle: {
+          mutuelle_type_ids: ['formule-1'],
+          dispense: { ...defaults.specificites_paie.mutuelle.dispense, motif: '', demande_recue_le: '' },
+        },
+      },
+    };
+    const result = employeeProfileEditSchema.safeParse(values);
+    const chemins = result.success ? [] : result.error.issues.map((i) => i.path.join('.'));
+    expect(chemins.filter((c) => c.includes('dispense'))).toEqual([]);
+  });
+});

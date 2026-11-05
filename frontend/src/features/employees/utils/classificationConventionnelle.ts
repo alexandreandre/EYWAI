@@ -136,6 +136,16 @@ export function classificationPourEnvoi(c: ClassificationSaisie | null | undefin
   return envoi;
 }
 
+/** La classification envoyée à la création, avec le code PCS-ESE choisi dans la liste. */
+export function classificationAvecPcs(
+  c: ClassificationSaisie | null | undefined,
+  pcs: string | null | undefined,
+): Record<string, unknown> {
+  const envoi = classificationPourEnvoi(c);
+  const code = (pcs ?? '').trim();
+  return code ? { ...envoi, pcs: code } : envoi;
+}
+
 /** Un nombre entier facultatif : un champ vide reste vide, il ne devient pas 0. */
 const entierFacultatif = (message: string) =>
   z.preprocess(

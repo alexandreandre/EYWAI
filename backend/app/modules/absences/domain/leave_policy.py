@@ -6,6 +6,7 @@ from datetime import date
 from dataclasses import dataclass
 from typing import Literal
 
+from app.modules.absences.domain.cp_arret_maladie import AssimilationMaladie
 from app.modules.absences.domain.jtc import (
     JTC_ABSENCE_THRESHOLD_DAYS_DEFAULT,
     JTC_ABSENCE_TYPES_DEFAULT,
@@ -59,6 +60,10 @@ class LeavePolicySettings:
     jtc_annual_days: int = JTC_ANNUAL_DAYS_DEFAULT
     jtc_absence_threshold_days: int = JTC_ABSENCE_THRESHOLD_DAYS_DEFAULT
     jtc_absence_types: tuple[str, ...] = JTC_ABSENCE_TYPES_DEFAULT
+    #: Arrêt maladie ordinaire compté comme travail effectif par la convention
+    #: de la société (métallurgie, art. 84) ; None : la loi seule, 2 jours
+    #: ouvrables par mois d'arrêt (C. trav. L3141-5-1).
+    cp_maladie_assimilation: AssimilationMaladie | None = None
 
     @property
     def cp_acquisition_rate_internal(self) -> float:

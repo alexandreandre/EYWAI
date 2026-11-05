@@ -8,13 +8,10 @@ lisent les mêmes sources que le constructeur, dans le même ordre.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-# Trois chiffres et une lettre minuscule, ou « 9999 » (profession non connue ou non
-# communiquée), le seul code de la table DSN PCSESE à quatre chiffres.
-_PCS_ESE = re.compile(r"^(\d{3}[a-z]|9999)$")
+from app.modules.pcs_ese.domain.referentiel import code_valide
 _DISPOSITIFS_APPRENTISSAGE = {"64", "65", "66", "81"}
 
 
@@ -50,11 +47,13 @@ def manques_fiche_dsn(employee: Dict[str, Any]) -> List[ManqueFiche]:
             "Code PCS-ESE (S21.G00.40.004) manquant : rubrique obligatoire, "
             "à saisir sur la fiche (classification)",
         ))
-    elif not _PCS_ESE.match(pcs):
+    elif not code_valide(pcs):
+        # CRE-11 (cahier technique 2026.1.2, p. 183) : seules les 430 valeurs de la table DSN
+        # PCSESE passent, « 9999 » compris, minuscules et majuscules comptées (p. 88).
         manques.append(ManqueFiche(
-            f"code PCS-ESE « {pcs} » hors format",
-            f"Code PCS-ESE (S21.G00.40.004) « {pcs} » hors format "
-            "(trois chiffres et une lettre, ou 9999) : à vérifier sur la fiche",
+            f"code PCS-ESE « {pcs} » hors liste",
+            f"Code PCS-ESE (S21.G00.40.004) « {pcs} » absent de la liste officielle "
+            "(table DSN PCSESE, contrôle CRE-11) : à choisir dans la liste sur la fiche",
         ))
 
     if not (employee.get("date_naissance") or employee.get("birth_date")):

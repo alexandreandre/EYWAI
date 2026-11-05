@@ -1,5 +1,6 @@
 # Export « État de provision des congés payés » — valorisation en euros de la dette de CP.
-# Modèle : état Cegid transmis par Elsa le 27/07/2026 (CARTOL, 71 salariés, 394 121,22 €).
+# Ce que chaque salarié toucherait s'il partait à la fin du mois demandé : la règle légale,
+# décrite dans `exports/domain/provision_cp.py` (retour d'Elsa du 05/11/2026).
 from __future__ import annotations
 
 import calendar
@@ -7,20 +8,33 @@ from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.database import supabase
-from app.modules.absences.application.queries import _leave_context, _parse_hire_date
-from app.modules.absences.domain.rules import compute_cp_balances_for_bulletin
+from app.modules.absences.application.queries import (
+    _hours_per_rest_day,
+    _leave_context,
+    _parse_hire_date,
+)
+from app.modules.absences.domain.rules import (
+    compute_cp_period_balances,
+    heures_repos_prises,
+)
 from app.modules.absences.infrastructure import fractionnement_repository as frac_repo
 from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.exports.domain.provision_cp import (
-    FENETRE_REFERENCE_MOIS,
+    JOURS_OUVRES_PAR_MOIS,
     LigneProvision,
+    PeriodeProvision,
+    ajustement_dixieme,
+    bornes_des_periodes,
     calculer_ligne,
     calculer_totaux,
     en_jours_ouvres,
     mois_de_reference,
+    mois_entre,
     patronal_du_bulletin,
     present_a_la_date,
+    primes_recurrentes,
     reference_du_salarie,
+    repos_en_jours,
 )
 from app.shared.reprise_paie import lire_bascule as _lire_bascule
 from app.shared.reprise_paie import rang_du_mois
@@ -36,15 +50,26 @@ EXPORT_HEADERS = [
     "Date d'entrée",
     "Solde jrs N-1",
     "Solde jrs N",
+    "Solde jrs repos compensateur",
     "Solde jours",
-    "Salaire de référence",
+    "Valeur d'un jour (maintien)",
+    "Dont primes récurrentes (par mois)",
+    "Base dixième N-1",
+    "Base dixième N",
+    "Dont absences reconstituées",
+    "Provision N-1",
+    "Provision N",
+    "Provision repos",
+    "Méthode",
+    "Provision",
     "Taux Ch. soc.",
     "Montant charges sociales",
-    "Provision",
     "Total",
     "Mois retenus",
     "Anomalie",
 ]
+
+Mois = Tuple[int, int]
 
 
 def _fin_de_mois(period: str) -> date:
@@ -76,8 +101,8 @@ def _lire_salaries(
     requete = (
         supabase.table("employees")
         .select(
-            "id, matricule, first_name, last_name, hire_date, "
-            "employment_status, salaire_de_base"
+            "id, matricule, first_name, last_name, hire_date, employment_status, "
+            "salaire_de_base, duree_hebdomadaire, specificites_paie"
         )
         .eq("company_id", company_id)
     )
@@ -117,13 +142,13 @@ def _lire_salaries(
 def _lire_bulletins(
     company_id: str, mois_cibles: List[Tuple[int, int]]
 ) -> Dict[str, Dict[Tuple[int, int], Tuple[float, float]]]:
-    """Brut et cotisations patronales par salarié et par mois, sur la fenêtre demandée.
+    """Brut et cotisations patronales par salarié et par mois, sur la fenêtre demandée : le
+    taux de charges de l'état, et le salaire moyen de repli.
 
     La lecture est paginée : PostgREST plafonne une réponse à 1000 lignes sans
     le signaler. Une société de 90 salariés dépasse ce seuil dès douze mois
     d'historique, et les bulletins tombés dans la troncature ne sont pas
-    « manquants » — ils font chuter le salaire de référence, donc la provision,
-    sans la moindre anomalie affichée.
+    « manquants » — ils faussent le taux de charges sans la moindre anomalie affichée.
     """
     annees = sorted({a for a, _ in mois_cibles})
     lignes: List[Dict[str, Any]] = []
@@ -141,7 +166,6 @@ def _lire_bulletins(
         if len(lot) < TAILLE_PAGE:
             break
         decalage += TAILLE_PAGE
-
     attendus = set(mois_cibles)
     resultat: Dict[str, Dict[Tuple[int, int], Tuple[float, float]]] = {}
     for ligne in lignes:
@@ -157,13 +181,148 @@ def _lire_bulletins(
     return resultat
 
 
-def _lire_soldes_ouvres(
+class BulletinDuMois:
+    """Ce que la provision lit d'un bulletin pour le dixième et le maintien."""
+
+    __slots__ = ("brut", "lignes", "importe")
+
+    def __init__(self, brut: float = 0.0, lignes: Optional[List[Dict[str, Any]]] = None, importe: bool = False):
+        self.brut = brut
+        self.lignes = lignes or []
+        self.importe = importe
+
+
+def _lire_details_bulletins(
+    company_id: str, annees: List[int]
+) -> Dict[str, Dict[Mois, BulletinDuMois]]:
+    """Brut, lignes du brut et origine de chaque bulletin des années demandées, par salarié.
+
+    Seuls `salaire_brut`, `calcul_du_brut` et `details_absences` sont lus (chemins JSON), pas
+    tout le bulletin. Le moteur porte ses retenues d'absence dans `details_absences` ; un
+    bulletin repris les a dans `calcul_du_brut` et `details_absences` vide (la lecture de
+    `solde_de_tout_compte/common/bulletin_de_sortie.lignes_du_bulletin`) : les deux se lisent
+    ensemble. Sans cela, un arrêt au forfait jours de MAJI (avril 2026) retirait le maintien
+    de salaire sans reconstituer l'absence. Paginé comme `_lire_bulletins`. Deux bulletins le
+    même mois (deux contrats) s'ajoutent."""
+    resultat: Dict[str, Dict[Mois, BulletinDuMois]] = {}
+    decalage = 0
+    while True:
+        lot = (
+            supabase.table("payslips")
+            .select(
+                "employee_id, year, month, origine, brut:payslip_data->salaire_brut, "
+                "lignes:payslip_data->calcul_du_brut, absences:payslip_data->details_absences"
+            )
+            .eq("company_id", company_id)
+            .in_("year", annees)
+            .order("id")
+            .range(decalage, decalage + TAILLE_PAGE - 1)
+            .execute()
+        ).data or []
+        for ligne in lot:
+            cle = (int(ligne["year"]), int(ligne["month"]))
+            mois = resultat.setdefault(ligne["employee_id"], {}).setdefault(cle, BulletinDuMois())
+            try:
+                mois.brut = round(mois.brut + float(ligne.get("brut") or 0), 2)
+            except (TypeError, ValueError):
+                pass
+            for bloc in ("lignes", "absences"):
+                if isinstance(ligne.get(bloc), list):
+                    mois.lignes = mois.lignes + list(ligne[bloc])
+            mois.importe = mois.importe or ligne.get("origine") == "importe"
+        if len(lot) < TAILLE_PAGE:
+            return resultat
+        decalage += TAILLE_PAGE
+
+
+def _lire_cumuls(employee_ids: List[str], annee: int, mois: int) -> Dict[str, Dict[str, Any]]:
+    """Les cumuls de paie du mois (`employee_schedules.cumuls.cumuls`) par salarié."""
+    if not employee_ids:
+        return {}
+    lignes = (
+        supabase.table("employee_schedules")
+        .select("employee_id, cumuls")
+        .eq("year", annee)
+        .eq("month", mois)
+        .in_("employee_id", employee_ids)
+        .execute()
+        .data
+    ) or []
+    resultat: Dict[str, Dict[str, Any]] = {}
+    for ligne in lignes:
+        cumuls = ligne.get("cumuls") or {}
+        imbrique = cumuls.get("cumuls", cumuls) if isinstance(cumuls, dict) else {}
+        if isinstance(imbrique, dict):
+            resultat[ligne["employee_id"]] = imbrique
+    return resultat
+
+
+def _mois_debut_periode(company_id: str) -> int:
+    from app.modules.absences.infrastructure.leave_settings_repository import get_leave_policy
+
+    try:
+        return int(get_leave_policy(str(company_id)).cp_reference_period_start_month or 6)
+    except Exception:
+        return 6
+
+
+def _brut_des_bulletins(bulletins: Dict[Mois, BulletinDuMois], mois: List[Mois]) -> Optional[float]:
+    presents = [bulletins[m].brut for m in mois if m in bulletins]
+    return round(sum(presents), 2) if presents else None
+
+
+def _base_dans_les_cumuls(cumuls: Optional[Dict[str, Any]], debut: date, fin: date) -> Optional[float]:
+    """`brut_reference_n_1` des cumuls quand ils portent sur la période [debut, fin]."""
+    if not cumuls or cumuls.get("brut_reference_n_1") is None:
+        return None
+    if str(cumuls.get("brut_reference_period_start") or "")[:10] != debut.isoformat():
+        return None
+    try:
+        return round(float(cumuls["brut_reference_n_1"]), 2)
+    except (TypeError, ValueError):
+        return None
+
+
+def bases_du_dixieme(
+    bulletins: Dict[Mois, BulletinDuMois],
+    cumuls_fin_n1: Optional[Dict[str, Any]],
+    cumuls_du_mois: Optional[Dict[str, Any]],
+    periodes: Tuple[Tuple[date, date], Tuple[date, date]],
+) -> Tuple[Optional[float], Optional[float], float]:
+    """(base N-1, base N, absences reconstituées) : la rémunération de chaque période pour le
+    dixième, plus la reconstitution des absences de ses bulletins.
+
+    La rémunération suit le bulletin de sortie (`payslip_run_heures._brut_de_la_periode_
+    precedente`) : quand le dernier mois de la période a été payé par l'ancien logiciel
+    (bulletin importé), ses bulletins font foi ; sinon le cumul `brut_reference_n_1` de la
+    période ; à défaut la somme des bulletins ; sinon inconnue (maintien seul)."""
+    (debut_n1, fin_n1), (debut_n, fin_n) = periodes
+    bases: List[Optional[float]] = []
+    reconstitution = 0.0
+    for debut, fin, cumuls in ((debut_n1, fin_n1, cumuls_fin_n1), (debut_n, fin_n, cumuls_du_mois)):
+        mois = mois_entre(debut, fin)
+        dernier = bulletins.get((fin.year, fin.month))
+        if dernier is not None and dernier.importe:
+            base = _brut_des_bulletins(bulletins, mois)
+        else:
+            base = _base_dans_les_cumuls(cumuls, debut, fin)
+            if base is None:
+                base = _brut_des_bulletins(bulletins, mois)
+        ajout = round(sum(ajustement_dixieme(bulletins[m].lignes) for m in mois if m in bulletins), 2)
+        reconstitution += ajout
+        bases.append(None if base is None else round(base + ajout, 2))
+    return bases[0], bases[1], round(reconstitution, 2)
+
+
+def _lire_conges_ouvres(
     employee_id: str, company_id: str, ref_date: date
-) -> Tuple[float, float]:
-    """Soldes CP période précédente et période en cours, en jours ouvrés."""
+) -> Tuple[PeriodeProvision, PeriodeProvision]:
+    """Congés N-1 et N à la date, en jours ouvrés : restants (le solde de l'écran) et droits
+    légaux acquis (sans les jours d'ancienneté), sans encore de base du dixième."""
+    vide = PeriodeProvision(restants=0.0, droits=0.0, base=None)
     hire_date = _parse_hire_date(employee_id)
     if not hire_date:
-        return (0.0, 0.0)
+        return vide, vide
     policy, adjustment, _, cp_seniority = _leave_context(
         employee_id, ref_date.year, company_id
     )
@@ -173,7 +332,7 @@ def _lire_soldes_ouvres(
 
     contexte = build_employee_cp_seniority_context_from_db(employee_id)
     validees = absence_repository.list_validated_for_employees([employee_id])
-    soldes = compute_cp_balances_for_bulletin(
+    periodes = compute_cp_period_balances(
         hire_date,
         validees,
         ref_date,
@@ -186,9 +345,95 @@ def _lire_soldes_ouvres(
     ratio = float(reglages.get("ouvres_to_ouvrables_ratio") or 1.2)
     # Le solde est dans l'unité de la société : seul un solde en ouvrables se convertit.
     unite = getattr(policy, "cp_counting_unit", None)
-    n1 = en_jours_ouvres(float(soldes["periode_precedente"].get("solde") or 0), unite, ratio)
-    n = en_jours_ouvres(float(soldes["periode_courante"].get("solde") or 0), unite, ratio)
-    return (n1, n)
+
+    def periode(cle: str, cle_anciennete: str) -> PeriodeProvision:
+        p = periodes[cle]
+        acquis = float(p.get("acquis") or 0) - float(periodes.get(cle_anciennete) or 0)
+        return PeriodeProvision(
+            restants=en_jours_ouvres(float(p.get("solde") or 0), unite, ratio),
+            droits=en_jours_ouvres(max(acquis, 0.0), unite, ratio),
+            base=None,
+        )
+
+    return (
+        periode("periode_precedente", "cp_seniority_n1"),
+        periode("periode_courante", "cp_seniority_n"),
+    )
+
+
+def _valeur_jour_du_contrat(salarie: Dict[str, Any]) -> float:
+    """Un jour de congé au maintien d'après la fiche : base et heures sup structurelles
+    majorées, la règle du bulletin de sortie (`iccp_fin_contrat.valeur_jour_maintien`)."""
+    salaire = _montant_contractuel(salarie)
+    if not salaire or salaire <= 0:
+        return 0.0
+    from app.modules.payroll.engine.calcul_indemnites_sortie import (
+        MAJORATION_HS_STRUCTURELLES,
+        _salaire_habituel_et_taux_horaire,
+    )
+    from app.modules.payroll.engine.iccp_fin_contrat import valeur_jour_maintien
+
+    _, taux_horaire, duree = _salaire_habituel_et_taux_horaire(salarie, float(salaire))
+    if taux_horaire <= 0:
+        return 0.0
+    return round(valeur_jour_maintien(taux_horaire, duree, MAJORATION_HS_STRUCTURELLES), 2)
+
+
+def _lire_credits_repos(company_id: str, annee: int, mois: int) -> Dict[str, float]:
+    """Heures de repos compensateur créditées par salarié, de janvier au mois demandé inclus.
+
+    Le compteur est celui de l'écran des soldes (l'année civile), arrêté au mois de la
+    provision : un crédit d'octobre n'existe pas encore au 30/09. Lecture paginée, comme
+    les bulletins (PostgREST tronque à 1000 lignes sans le dire)."""
+    heures: Dict[str, float] = {}
+    decalage = 0
+    while True:
+        lot = (
+            supabase.table("repos_compensateur_credits")
+            .select("employee_id, heures")
+            .eq("company_id", company_id)
+            .eq("year", annee)
+            .lte("month", mois)
+            .order("id")
+            .range(decalage, decalage + TAILLE_PAGE - 1)
+            .execute()
+        ).data or []
+        for credit in lot:
+            eid = credit.get("employee_id")
+            heures[eid] = round(heures.get(eid, 0.0) + float(credit.get("heures") or 0), 2)
+        if len(lot) < TAILLE_PAGE:
+            return heures
+        decalage += TAILLE_PAGE
+
+
+def _lire_repos(
+    company_id: str, ref_date: date, employee_ids: List[str]
+) -> Dict[str, Tuple[float, str]]:
+    """Solde de repos compensateur en jours à la date, et son anomalie, par salarié.
+
+    Acquis : les crédits de l'année jusqu'au mois demandé. Pris : les repos validés de
+    l'année jusqu'à la date, une journée valant le réglage de la société."""
+    if not employee_ids:
+        return {}
+    credits = _lire_credits_repos(company_id, ref_date.year, ref_date.month)
+    par_salarie: Dict[str, List[Dict[str, Any]]] = {}
+    for demande in absence_repository.list_validated_for_employees(employee_ids):
+        if demande.get("type") == "repos_compensateur":
+            par_salarie.setdefault(demande.get("employee_id"), []).append(demande)
+    heures_par_jour = _hours_per_rest_day(company_id)
+    resultat: Dict[str, Tuple[float, str]] = {}
+    for eid in employee_ids:
+        prises = heures_repos_prises(
+            par_salarie.get(eid, []),
+            ref_date,
+            hours_per_rest_day=heures_par_jour,
+            period_start=date(ref_date.year, 1, 1),
+            period_end=date(ref_date.year, 12, 31),
+        )
+        acquises = credits.get(eid, 0.0)
+        if acquises or prises:
+            resultat[eid] = repos_en_jours(acquises, prises, heures_par_jour)
+    return resultat
 
 
 def collecter_lignes(
@@ -196,46 +441,82 @@ def collecter_lignes(
 ) -> Tuple[List[LigneProvision], List[str]]:
     ref_date = _fin_de_mois(period)
     mois_cibles = mois_de_reference(ref_date.year, ref_date.month)
+    periodes = bornes_des_periodes(ref_date, _mois_debut_periode(company_id))
+    (debut_n1, fin_n1), _ = periodes
     salaries = _lire_salaries(company_id, employee_ids, ref_date=ref_date)
     bascule = _lire_bascule(company_id)
     # À partir du mois de la reprise, les soldes sont ceux du logiciel précédent.
     soldes_repris = bool(bascule) and rang_du_mois(ref_date.year, ref_date.month) >= bascule.rang
     bulletins = _lire_bulletins(company_id, mois_cibles)
+    avec_date = [s["id"] for s in salaries if s.get("hire_date")]
+    details = _lire_details_bulletins(company_id, list(range(debut_n1.year, ref_date.year + 1)))
+    cumuls_fin_n1 = _lire_cumuls(avec_date, fin_n1.year, fin_n1.month)
+    cumuls_du_mois = _lire_cumuls(avec_date, ref_date.year, ref_date.month)
+    repos = _lire_repos(company_id, ref_date, avec_date)
 
     lignes: List[LigneProvision] = []
     sans_date = 0
-    mois_max = 0
+    maintien_seul = 0
 
     for salarie in salaries:
         if not salarie.get("hire_date"):
             sans_date += 1
             continue
-        n1, n = _lire_soldes_ouvres(salarie["id"], company_id, ref_date)
-        if round(n1 + n, 2) == 0:
+        eid = salarie["id"]
+        n1, n = _lire_conges_ouvres(eid, company_id, ref_date)
+        jours_repos, anomalie_repos = repos.get(eid, (0.0, ""))
+        if round(n1.restants + n.restants + jours_repos, 2) == 0 and not anomalie_repos:
             continue
         reference = reference_du_salarie(
-            bulletins.get(salarie["id"], {}),
+            bulletins.get(eid, {}),
             mois_cibles,
             _montant_contractuel(salarie),
             date.fromisoformat(str(salarie["hire_date"])[:10]),
         )
-        mois_max = max(mois_max, int(reference.mois_retenus.split("/")[0]))
-        anomalie = reference.anomalie
-        if round(n1 + n, 2) < 0:
-            anomalie = "; ".join(
-                filter(None, [anomalie, "solde négatif : congés pris d'avance"])
-            )
+        anomalies = [reference.anomalie]
+
+        bulletins_du_salarie = details.get(eid, {})
+        base_n1, base_n, reconstitution = bases_du_dixieme(
+            bulletins_du_salarie, cumuls_fin_n1.get(eid), cumuls_du_mois.get(eid), periodes
+        )
+        n1 = PeriodeProvision(restants=n1.restants, droits=n1.droits, base=base_n1)
+        n = PeriodeProvision(restants=n.restants, droits=n.droits, base=base_n)
+        for libelle, p in (("N-1", n1), ("N", n)):
+            if p.restants > 0 and (p.base is None or p.droits <= 0):
+                maintien_seul += 1
+                anomalies.append(f"rémunération de la période {libelle} inconnue : maintien seul")
+
+        # Un mois entier d'absence n'a pas de prime : il ne dit rien de ce qui revient chaque mois.
+        derniers = [
+            bulletins_du_salarie[m].lignes
+            for m in sorted(bulletins_du_salarie)
+            if m <= (ref_date.year, ref_date.month) and bulletins_du_salarie[m].brut > 0
+        ]
+        primes = primes_recurrentes(derniers)
+        valeur_contrat = _valeur_jour_du_contrat(salarie)
+        if valeur_contrat <= 0:
+            valeur_contrat = round(reference.salaire_reference / JOURS_OUVRES_PAR_MOIS, 2)
+            anomalies.append("pas de salaire contractuel : jour valorisé sur la moyenne des bulletins")
+            primes = 0.0  # la moyenne des bulletins les contient déjà
+        valeur_jour = round(valeur_contrat + primes / JOURS_OUVRES_PAR_MOIS, 2)
+
+        if round(n1.restants + n.restants, 2) < 0:
+            anomalies.append("solde négatif : congés pris d'avance")
+        anomalies.append(anomalie_repos)
         lignes.append(
             calculer_ligne(
                 matricule=salarie.get("matricule") or "",
                 nom=f"{salarie.get('first_name') or ''} {salarie.get('last_name') or ''}".strip(),
                 date_entree=str(salarie["hire_date"])[:10],
-                solde_n1=n1,
-                solde_n=n,
-                salaire_reference=reference.salaire_reference,
+                n1=n1,
+                n=n,
+                valeur_jour=valeur_jour,
                 taux_charges=reference.taux_charges,
                 mois_retenus=reference.mois_retenus,
-                anomalie=anomalie,
+                solde_repos=jours_repos,
+                primes_recurrentes=primes,
+                reconstitution=reconstitution,
+                anomalie="; ".join(a for a in anomalies if a),
             )
         )
 
@@ -251,11 +532,17 @@ def collecter_lignes(
             "la paie actuelle : les congés antérieurs à janvier 2026 n'y sont pas. La provision "
             "est indicative tant que les reports n'ont pas été chargés."
         )
-    if lignes and mois_max < FENETRE_REFERENCE_MOIS:
+    if lignes:
+        premiers = [min(mois) for mois in details.values() if mois]
+        if not premiers or min(premiers) > (debut_n1.year, debut_n1.month):
+            avertissements.append(
+                "Martine n'a pas tous les bulletins de la période précédente : les absences des "
+                "mois sans bulletin ne sont pas reconstituées dans le dixième."
+            )
+    if maintien_seul:
         avertissements.append(
-            f"Salaire de référence calculé sur {mois_max} mois sur "
-            f"{FENETRE_REFERENCE_MOIS} — Martine ne contient de la paie que depuis "
-            "janvier 2026."
+            f"{pluriel(maintien_seul, 'période')} au maintien seul : rémunération de la période "
+            "inconnue de Martine (colonne Anomalie)."
         )
     if sans_date:
         avertissements.append(
@@ -313,14 +600,14 @@ def preview_provision_cp(
         )
     elif totaux["provision"] == 0:
         # Des soldes existent (une ligne à solde nul est hors périmètre) mais rien n'a pu
-        # être valorisé : ni bulletin, ni salaire contractuel. Un fichier entièrement à
+        # être valorisé : ni salaire contractuel, ni bulletin. Un fichier entièrement à
         # zéro se lirait comme « aucune dette », ce qui est faux.
         anomalies.append(
             {
                 "type": "error",
                 "message": (
-                    "Aucun salaire de référence disponible : ni bulletin ni salaire "
-                    "contractuel pour les salariés concernés"
+                    "Aucune valeur disponible pour les jours : ni salaire contractuel ni "
+                    "bulletin pour les salariés concernés"
                 ),
                 "severity": "blocking",
             }
@@ -349,9 +636,14 @@ def preview_provision_cp(
             "montant_charges": totaux["montant_charges"],
             "total": totaux["total"],
             "solde_jours": totaux["solde_jours"],
+            "solde_repos": totaux["solde_repos"],
             "taux_charges_moyen": totaux["taux_charges"],
         },
     }
+
+
+def _cellule(valeur: Optional[float]) -> Any:
+    return "" if valeur is None else valeur
 
 
 def _lignes_export(lignes: List[LigneProvision]) -> List[Dict[str, Any]]:
@@ -362,11 +654,20 @@ def _lignes_export(lignes: List[LigneProvision]) -> List[Dict[str, Any]]:
             "Date d'entrée": l.date_entree,
             "Solde jrs N-1": l.solde_n1,
             "Solde jrs N": l.solde_n,
+            "Solde jrs repos compensateur": l.solde_repos,
             "Solde jours": l.solde_jours,
-            "Salaire de référence": l.salaire_reference,
+            "Valeur d'un jour (maintien)": l.valeur_jour,
+            "Dont primes récurrentes (par mois)": l.primes_recurrentes,
+            "Base dixième N-1": _cellule(l.base_n1),
+            "Base dixième N": _cellule(l.base_n),
+            "Dont absences reconstituées": l.reconstitution,
+            "Provision N-1": l.provision_n1,
+            "Provision N": l.provision_n,
+            "Provision repos": l.provision_repos,
+            "Méthode": l.methode,
+            "Provision": l.provision,
             "Taux Ch. soc.": l.taux_charges,
             "Montant charges sociales": l.montant_charges,
-            "Provision": l.provision,
             "Total": l.total,
             "Mois retenus": l.mois_retenus,
             "Anomalie": l.anomalie,
@@ -381,11 +682,20 @@ def _lignes_export(lignes: List[LigneProvision]) -> List[Dict[str, Any]]:
             "Date d'entrée": "",
             "Solde jrs N-1": totaux["solde_n1"],
             "Solde jrs N": totaux["solde_n"],
+            "Solde jrs repos compensateur": totaux["solde_repos"],
             "Solde jours": totaux["solde_jours"],
-            "Salaire de référence": totaux["salaire_reference"],
+            "Valeur d'un jour (maintien)": "",
+            "Dont primes récurrentes (par mois)": "",
+            "Base dixième N-1": "",
+            "Base dixième N": "",
+            "Dont absences reconstituées": totaux["reconstitution"],
+            "Provision N-1": totaux["provision_n1"],
+            "Provision N": totaux["provision_n"],
+            "Provision repos": totaux["provision_repos"],
+            "Méthode": "",
+            "Provision": totaux["provision"],
             "Taux Ch. soc.": totaux["taux_charges"],
             "Montant charges sociales": totaux["montant_charges"],
-            "Provision": totaux["provision"],
             "Total": totaux["total"],
             "Mois retenus": "",
             "Anomalie": "",

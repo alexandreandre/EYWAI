@@ -21,6 +21,19 @@ from app.shared.reprise_paie import Bascule
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture(autouse=True)
+def sans_base(monkeypatch):
+    """Lectures en base : aucun repos, aucun cumul, aucun détail de bulletin, période au 1er juin."""
+    monkeypatch.setattr(module, "_lire_repos", lambda *a, **k: {})
+    monkeypatch.setattr(module, "_lire_cumuls", lambda *a, **k: {})
+    monkeypatch.setattr(module, "_lire_details_bulletins", lambda *a, **k: {})
+    monkeypatch.setattr(module, "_mois_debut_periode", lambda company_id: 6)
+
+
+def _conges(n1, n):
+    return (domaine.PeriodeProvision(n1, 25.0, None), domaine.PeriodeProvision(n, n, None))
+
+
 # --- 1. unité ---------------------------------------------------------------------------------
 
 def test_un_solde_en_jours_ouvres_n_est_pas_converti():
@@ -76,7 +89,7 @@ def _lecture(bascule):
     return (
         patch.object(module, "_lire_salaries", return_value=[SALARIE]),
         patch.object(module, "_lire_bulletins", return_value={"e1": {(2026, 9): (3000.0, 900.0)}}),
-        patch.object(module, "_lire_soldes_ouvres", return_value=(20.5, 8.32)),
+        patch.object(module, "_lire_conges_ouvres", return_value=_conges(20.5, 8.32)),
         patch.object(module, "_lire_bascule", return_value=bascule),
     )
 
@@ -101,7 +114,7 @@ def test_sans_reprise_ni_bulletin_la_provision_est_bloquee():
     """Cartol, LEWIS, Mont Blanc (03/11) : Quadra fait la paie, Martine n'a ni soldes ni charges."""
     with patch.object(module, "_lire_salaries", return_value=[SALARIE]), \
          patch.object(module, "_lire_bulletins", return_value={}), \
-         patch.object(module, "_lire_soldes_ouvres", return_value=(25.0, 8.32)), \
+         patch.object(module, "_lire_conges_ouvres", return_value=_conges(25.0, 8.32)), \
          patch.object(module, "_lire_bascule", return_value=None):
         apercu = module.preview_provision_cp("c", "2026-09")
     assert apercu["can_generate"] is False

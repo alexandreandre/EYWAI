@@ -89,6 +89,7 @@ from app.modules.notifications.api.hr_deadline_reminders_router import (
 from app.modules.notifications.api.router import router as notifications_router
 from app.modules.objectives.api.router import router as objectives_router
 from app.modules.oeth_settings.api.router import router as oeth_settings_router
+from app.modules.pcs_ese.api.router import router as pcs_ese_router
 from app.modules.onboarding.api.router import router as onboarding_router
 from app.modules.participation.api.router import router as participation_router
 from app.modules.pas_rates.api.router import router as pas_rates_router
@@ -193,6 +194,7 @@ router.include_router(jei_settings_router)
 router.include_router(work_medal_settings_router)
 router.include_router(work_medals_router)
 router.include_router(oeth_settings_router)
+router.include_router(pcs_ese_router)
 router.include_router(document_library_router)
 router.include_router(documents_router)
 router.include_router(expenses_router)

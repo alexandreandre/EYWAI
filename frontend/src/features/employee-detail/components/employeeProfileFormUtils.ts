@@ -15,6 +15,10 @@ import {
   normalizeContractType,
 } from '@/constants/contracts';
 import { isEmployeeCadre } from '@/lib/mutuelleUtils';
+import {
+  dispenseVersFiche,
+  dispenseVersFormulaire,
+} from '@/features/employee-detail/components/dispenseMutuelle';
 import { avecTauxRenseignes } from '@/features/employees/utils/formulesPrevoyance';
 
 export function normalizeNir(value: string | null | undefined): string {
@@ -146,7 +150,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
     date_debut_execution?: string | null;
     date_conclusion_contrat?: string | null;
   };
-  const mutuelle = spec.mutuelle as { mutuelle_type_ids?: string[] } | undefined;
+  const mutuelle = spec.mutuelle as { mutuelle_type_ids?: string[]; dispense?: unknown } | undefined;
   const prevoyance = spec.prevoyance as {
     adhesion?: boolean;
     formule_id?: string | null;
@@ -220,6 +224,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       },
       mutuelle: {
         mutuelle_type_ids: mutuelle?.mutuelle_type_ids ?? [],
+        dispense: dispenseVersFormulaire(mutuelle?.dispense),
       },
       prevoyance: {
         adhesion: prevoyance?.adhesion ?? false,
@@ -415,6 +420,12 @@ export function buildUpdatePayload(
         ...(existingSpec.mutuelle as object),
         adhesion: mutuelleIds.length > 0,
         mutuelle_type_ids: mutuelleIds,
+        // Toujours écrit : la fiche fusionne le bloc, null efface une dispense.
+        dispense: dispenseVersFiche(
+          values.specificites_paie.mutuelle.dispense,
+          mutuelleIds.length > 0,
+          (existingSpec.mutuelle as { dispense?: unknown } | undefined)?.dispense,
+        ),
       },
       prevoyance: {
         ...(existingSpec.prevoyance as object),

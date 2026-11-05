@@ -37,6 +37,10 @@ from app.modules.onboarding.domain.profile import (
     missing_payroll_fields,
 )
 from app.modules.employees.infrastructure.mappers import prepare_employee_insert_data
+from app.modules.dsn_export.domain.contract_map import debut_du_contrat
+from app.modules.pcs_ese.domain.changement import appliquer_changement_pcs
+from app.modules.pcs_ese.domain.referentiel import code_valide
+from app.modules.pcs_ese.infrastructure.transmissions import periodes_deposees
 from app.modules.employees.infrastructure.providers import (
     generate_contract_pdf,
     generate_credentials_pdf,
@@ -186,6 +190,9 @@ async def create_employee(
     Comportement identique à create_employee (router legacy).
     Utilise IAuthProvider, IProfileRepository, IEmployeeRepository, IStorageProvider, ICompanyReader.
     """
+    classification = employee_data.get("classification_conventionnelle")
+    if isinstance(classification, dict):
+        _refuser_pcs_hors_liste(str(classification.get("pcs") or "").strip())
     new_user_id = None
     auth = get_auth_provider()
     storage = get_storage_provider()
@@ -751,14 +758,66 @@ def _demarquer_pas_saisi_a_la_main(
     return merged
 
 
-def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, Any]:
+def _aujourd_hui() -> _date:
+    return _date.today()
+
+
+def _refuser_pcs_hors_liste(code: str) -> None:
+    """CRE-11 (cahier technique DSN 2026.1.2, p. 183) : seules les 430 valeurs de la table
+    PCSESE passent ; un code saisi hors liste ferait refuser la DSN."""
+    if code and not code_valide(code):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Code PCS-ESE « {code} » absent de la liste officielle (table DSN PCSESE) : "
+                "choisissez-le dans la liste. Rien n'a été enregistré."
+            ),
+        )
+
+
+def _avec_changement_pcs(
+    employee_id: str, update_data: Dict[str, Any], depuis_import: bool
+) -> None:
+    """Code PCS-ESE changé : l'ancien code et la date restent sur la fiche pour le bloc
+    S21.G00.41 de la DSN (guide OETH de l'Urssaf, v2.5, p. 46). Un import DSN ne note rien
+    (le cabinet a déjà déclaré) et ne remet jamais « 9999 » sur un vrai code."""
+    apres = update_data.get("classification_conventionnelle")
+    if not isinstance(apres, dict):
+        return
+    curr = _employee_repository.get_by_id_only(employee_id) or {}
+    avant = curr.get("classification_conventionnelle")
+    avant = avant if isinstance(avant, dict) else {}
+    code_avant = str(avant.get("pcs") or "").strip()
+    code_apres = str(apres.get("pcs") or "").strip()
+    if not depuis_import and code_apres and code_apres != code_avant:
+        _refuser_pcs_hors_liste(code_apres)
+    deposees: frozenset = frozenset()
+    if not depuis_import and code_apres and code_apres != code_avant and curr.get("company_id"):
+        deposees = periodes_deposees(str(curr["company_id"]))
+    update_data["classification_conventionnelle"] = appliquer_changement_pcs(
+        avant,
+        apres,
+        aujourd_hui=_aujourd_hui(),
+        depuis_import=depuis_import,
+        periodes_declarees=deposees,
+        debut_contrat=debut_du_contrat(curr) if curr else None,
+    )
+
+
+def update_employee(
+    employee_id: str, update_data: Dict[str, Any], *, depuis_import: bool = False
+) -> Dict[str, Any]:
     """
     Met à jour un employé (dont alertes RIB si coordonnées bancaires modifiées).
     Comportement identique à update_employee (router legacy).
+
+    `depuis_import` : la mise à jour vient d'une DSN importée (ce que le cabinet a déclaré).
     """
     for _key, _val in list(update_data.items()):
         if isinstance(_val, _date):
             update_data[_key] = _val.isoformat()
+
+    _avec_changement_pcs(employee_id, update_data, depuis_import)
 
     if "is_temps_partiel" in update_data or "duree_hebdomadaire" in update_data:
         curr = _employee_repository.get_by_id_only(employee_id) or {}

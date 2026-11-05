@@ -1,3 +1,5 @@
+import { PcsEseField } from "@/features/pcs-ese/PcsEseField";
+import { SUIVI_PCS_INITIAL, type SuiviPcs } from "@/features/pcs-ese/pcsEse";
 import { log } from '@/lib/logger';
 import { AvertissementIban } from '@/components/employees/AvertissementIban';
 import { useState, useEffect, useRef } from "react";
@@ -37,7 +39,7 @@ import {
   CLASSIFICATION_VIDE,
   GROUPE_NON_PRECISE,
   classificationGardee,
-  classificationPourEnvoi,
+  classificationAvecPcs,
   grilleAvecClassificationHabituelle,
   libelleClassification,
   valeurDuChoix,
@@ -182,7 +184,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       residence_permit_number: "",
       // Pas de date par défaut : une date d'entrée fausse fausse le prorata.
       hire_date: "",
-      contract_type: "CDI", statut: "Non-Cadre", is_forfait_jour: false, job_title: "",
+      contract_type: "CDI", statut: "Non-Cadre", is_forfait_jour: false, job_title: "", code_pcs: "",
       date_conclusion_contrat: "",
       date_debut_execution: "",
       contract_end_date: "",
@@ -371,6 +373,9 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   });
 
   const employeeStatut = form.watch("statut");
+  // Le champ PCS-ESE vit dans l'onglet « Contrat », démonté quand on en sort : ce qu'il a
+  // pré-rempli et ce que la RH a choisi restent ici.
+  const [suiviPcs, setSuiviPcs] = useState<SuiviPcs>(SUIVI_PCS_INITIAL);
   const avertissementNaissance = avertissementNaissanceDsn({
     lieu_naissance: form.watch("lieu_naissance"),
     nationalite: form.watch("nationalite"),
@@ -740,11 +745,13 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   setServerFieldErrors(null);
   
   // On prépare le payload final pour le backend
+  // Le code PCS-ESE se range dans la classification, pas dans une colonne.
+  const { code_pcs: codePcs, ...valeursSansPcs } = values;
   const payload = {
-    ...champsFacultatifsPourEnvoi(values),
+    ...champsFacultatifsPourEnvoi(valeursSansPcs),
     // Rien de saisi : aucune classification ; un coefficient seul se range en
     // « Non précisé », classe 0.
-    classification_conventionnelle: classificationPourEnvoi(values.classification_conventionnelle),
+    classification_conventionnelle: classificationAvecPcs(values.classification_conventionnelle, codePcs),
     team_id: values.team_id?.trim() ? values.team_id.trim() : null,
     // La période d'essai est créée côté serveur, à partir du barème société
     // que cette saisie surcharge éventuellement.
@@ -1298,6 +1305,29 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                         <FormField control={form.control} name="hire_date" render={({ field }) => (<FormItem><FormLabel>Date d'entrée<Requis /></FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="job_title" render={({ field }) => (<FormItem><FormLabel>Intitulé du poste<Requis /></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <EmployeeContractConfigFormFields control={form.control} />
+                        <FormField
+                          control={form.control}
+                          name="code_pcs"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Code PCS-ESE</FormLabel>
+                              <FormControl>
+                                <PcsEseField
+                                  value={field.value ?? ""}
+                                  onChange={field.onChange}
+                                  poste={form.watch("job_title") ?? ""}
+                                  statut={employeeStatut ?? ""}
+                                  suivi={suiviPcs}
+                                  onSuivi={setSuiviPcs}
+                                />
+                              </FormControl>
+                              <p className="text-xs text-muted-foreground">
+                                Déclaré en DSN (S21.G00.40.004). Martine le propose d'après le poste et le statut ; vous pouvez le changer.
+                              </p>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                         <div className="space-y-4 rounded-md border border-dashed p-4">
                           <FormField
                             control={form.control}

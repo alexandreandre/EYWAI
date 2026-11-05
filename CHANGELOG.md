@@ -15,6 +15,41 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - La colonne « Matricule » donne le vrai matricule du salarié ; les colonnes « Type attestation » et « Statut » disparaissent.
 - Les attestations de salaire pour la CPAM et France Travail partent toujours dans la DSN.
 
+## paie-2026-11-05.9 — 5 novembre 2026
+
+### Un arrêt maladie ordinaire acquiert 2 jours de congés par mois
+- Depuis la loi du 22 avril 2024, un mois d'arrêt maladie ordinaire donne 2 jours ouvrables de congés, contre 2,5 pour un mois travaillé ; Martine comptait 2,5.
+- Un accident du travail, une maladie professionnelle, une maternité ou une paternité gardent 2,5 jours ; les arrêts d'avant la reprise des soldes ne changent rien.
+- En métallurgie, la convention (article 84) compte l'arrêt comme du travail, de 2 à 8 mois selon l'ancienneté : les compteurs de LEWIS et de Cartol ne bougent pas.
+
+## paie-2026-11-05.8 — 5 novembre 2026
+
+### Martine trouve le code PCS-ESE
+- Sur la fiche et à la création, le code se choisit dans la liste officielle des 430 codes, en cherchant un code, un intitulé ou un métier (« soudeur »).
+- Quand des collègues au même poste ont tous le même code, Martine le remplit et dit pourquoi ; sinon elle propose trois codes. Vous pouvez toujours le changer.
+- Quand un code change, la DSN suivante déclare l'ancien code, comme le demande l'Urssaf ; un nouvel import de DSN ne remet plus « 9999 » sur un code trouvé.
+
+## paie-2026-11-05.6 — 5 novembre 2026
+
+### La provision des congés suit la règle légale
+- Chaque période de congés vaut le plus élevé du maintien de salaire et du dixième, comme au départ d'un salarié : un mois d'absence ne fait plus baisser la valeur des jours.
+- Dans le dixième, le salaire des absences est reconstitué : en entier pour un accident du travail, une maternité ou une paternité, à 80 % pour un arrêt maladie.
+- Le maintien compte le salaire du contrat et les primes versées chaque mois ; de nouvelles colonnes montrent la valeur du jour, les bases du dixième et la méthode retenue.
+
+## paie-2026-11-05.4 — 5 novembre 2026 (et .3)
+
+### Un salarié peut être dispensé de mutuelle
+- Modifier la fiche > Paie sociale, sans formule choisie : « Le salarié ne veut pas adhérer (dispense) », un motif parmi les cas de la loi, et la date de sa demande signée.
+- Avec une dispense valable, l'aperçu de la DSN ne dit plus « mutuelle absente » ; sans formule ni dispense, il dit où aller et quoi faire.
+- Pour un salarié couvert par la mutuelle de son conjoint ou d'un autre employeur, le justificatif se redemande chaque année : la DSN le rappelle au bout d'un an.
+
+## paie-2026-11-05.2 — 5 novembre 2026
+
+### Le repos compensateur entre dans la provision des congés
+- L'état de provision a une colonne « Solde jrs repos compensateur », comptée dans le total des jours.
+- Les heures de repos acquises et pas encore prises sont converties en jours (7 h par jour, ou le réglage de la société) et valorisées au même prix que les congés.
+- Un repos pris sans crédit ne diminue pas la provision : la colonne « Anomalie » le signale.
+
 ## paie-2026-11-05.1 — 5 novembre 2026
 
 ### Le code PCS-ESE « 9999 » est accepté

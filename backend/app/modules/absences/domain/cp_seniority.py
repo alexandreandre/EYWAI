@@ -91,6 +91,8 @@ class EmployeeCpSeniorityContext:
     is_cadre_dirigeant: bool = False
     forfait_annual_days_override: float | None = None
     is_forfait_jour: bool = False
+    #: Lettre du groupe d'emplois de la classification (métallurgie : A à I).
+    groupe_emploi: str | None = None
 
     @property
     def is_forfait(self) -> bool:

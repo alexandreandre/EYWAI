@@ -942,7 +942,7 @@ def _commit_employee(
         # Ne jamais écraser le statut RH (en_sortie / parti) via l'import DSN.
         clean_payload.pop("employment_status", None)
         employee_id = str(existing["id"])
-        update_employee(employee_id, clean_payload)
+        update_employee(employee_id, clean_payload, depuis_import=True)
         try:
             sync_employee_psc_catalog(company_id, employee_id, payload)
         except Exception:

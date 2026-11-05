@@ -1,3 +1,5 @@
+import { PcsEseField } from '@/features/pcs-ese/PcsEseField';
+import type { ChangementPcs } from '@/features/pcs-ese/pcsEse';
 import { Loader2 } from 'lucide-react';
 import { libelleClassification, valeurDuChoix } from '@/features/employees/utils/classificationConventionnelle';
 import { aideCodeDsn } from './aideCodesDsn';
@@ -34,6 +36,7 @@ import { normalizeNir } from '@/features/employee-detail/components/employeeProf
 import type { EmployeeProfileEditFormValues } from '@/features/employee-detail/components/employeeProfileEditSchema';
 import { queryKeys } from '@/lib/queryKeys';
 import { MutuelleSelectionField } from '@/components/mutuelle/MutuelleSelectionField';
+import { DispenseMutuelleFields } from '@/features/employee-detail/components/DispenseMutuelleFields';
 import { AIDE_INDEMNITE_TRAJET, LIBELLE_INDEMNITE_TRAJET } from '@/features/company/lib/reglesVariables';
 import {
   filterMutuellesForEmployee,
@@ -75,6 +78,8 @@ interface EmployeeProfileEditFormProps {
   employeeId?: string;
   /** Statut déjà calculé par le serveur. La fiche ne le recalcule pas. */
   titreSejour?: TitreSejourConnu | null;
+  /** Ancien code PCS-ESE noté par le serveur, déclaré dans la prochaine DSN. */
+  changementPcs?: ChangementPcs | null;
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -141,9 +146,11 @@ export function EmployeeProfileEditForm({
   salairePlanifie = null,
   employeeId,
   titreSejour = null,
+  changementPcs = null,
 }: EmployeeProfileEditFormProps) {
   const majorationHs = useMajorationHs();
   const statut = useWatch({ control, name: 'statut' });
+  const poste = useWatch({ control, name: 'job_title' });
   const lieuNaissance = useWatch({ control, name: 'lieu_naissance' });
   const nationalite = useWatch({ control, name: 'nationalite' });
   const avertissementNaissance = avertissementNaissanceDsn({ lieu_naissance: lieuNaissance, nationalite });
@@ -160,6 +167,8 @@ export function EmployeeProfileEditForm({
   const isResidencePermit = useWatch({ control, name: 'is_subject_to_residence_permit' });
   const statutTitre = libelleStatutTitre(titreSejour ?? {});
   const filteredMutuelles = filterMutuellesForEmployee(availableMutuelles, statut);
+  const mutuelleIdsChoisies =
+    useWatch({ control, name: 'specificites_paie.mutuelle.mutuelle_type_ids' }) ?? [];
   const companyId = useActiveCompanyId();
   const { data: jeiSettings } = useQuery({
     queryKey: ['jei-settings', companyId],
@@ -423,8 +432,17 @@ export function EmployeeProfileEditForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Code PCS-ESE</FormLabel>
-                <FormControl><Input {...field} placeholder="ex. 674a" maxLength={4} /></FormControl>
-                <p className="text-xs text-muted-foreground">Déclaré en DSN : trois chiffres et une lettre, ou 9999 si la profession est inconnue.</p>
+                <FormControl>
+                  <PcsEseField
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    poste={poste ?? ''}
+                    statut={statut ?? ''}
+                    employeeId={employeeId}
+                    changement={changementPcs}
+                  />
+                </FormControl>
+                <p className="text-xs text-muted-foreground">Déclaré en DSN (S21.G00.40.004). Choisi dans la liste officielle ; 9999 si la profession est inconnue.</p>
                 <FormMessage />
               </FormItem>
             )}
@@ -702,6 +720,7 @@ export function EmployeeProfileEditForm({
                 )}
               />
             )}
+            {mutuelleIdsChoisies.length === 0 ? <DispenseMutuelleFields control={control} /> : null}
           </div>
 
           <div>
