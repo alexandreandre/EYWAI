@@ -536,6 +536,46 @@ def _brut_de_la_periode_precedente(employee_id: str, cumuls: dict | None) -> flo
         return None
 
 
+def _debut_de_la_periode_en_cours(compteurs: dict | None) -> date | None:
+    """« 01/06/2026 – 31/05/2027 » → 01/06/2026 : la période des compteurs."""
+    en_cours = (compteurs or {}).get("conges_payes") if isinstance(compteurs, dict) else None
+    trouve = re.search(r"(\d{2})/(\d{2})/(\d{4})", str((en_cours or {}).get("periode") or ""))
+    if not trouve:
+        return None
+    jour, mois, annee = (int(x) for x in trouve.groups())
+    return date(annee, mois, jour)
+
+
+def remuneration_des_periodes(
+    employee_id: str, cumuls: dict | None, compteurs: dict | None
+) -> tuple[float | None, float | None]:
+    """(brut de la période précédente, brut de la période en cours avant le
+    mois de sortie), alignés sur la période des compteurs.
+
+    Les cumuls lus sont ceux du mois précédent. Au premier mois d'une période
+    (départ en juin), ils appartiennent à la période close : la période en
+    cours part de 0 et la période précédente prend ce cumul (L3141-24 I). Le
+    brut de la période en cours vaut None quand les cumuls ne portent aucune
+    période (mois repris de l'ancien logiciel sans cumul)."""
+    from app.modules.payroll.engine.reference_remuneration import lire_brut_reference_depuis_cumuls
+
+    nested = (cumuls or {}).get("cumuls", cumuls) if isinstance(cumuls, dict) else {}
+    try:
+        debut_des_cumuls = date.fromisoformat(str((nested or {}).get("brut_reference_period_start")))
+    except (TypeError, ValueError):
+        debut_des_cumuls = None
+    debut_en_cours = _debut_de_la_periode_en_cours(compteurs)
+    if debut_des_cumuls is not None and debut_en_cours is not None and debut_des_cumuls < debut_en_cours:
+        precedente = _brut_de_la_periode_precedente(
+            employee_id, {"cumuls": {"brut_reference_period_start": debut_en_cours.isoformat()}}
+        )
+        return precedente, 0.0
+    precedente = _brut_de_la_periode_precedente(employee_id, cumuls)
+    if debut_des_cumuls is None:
+        return precedente, None
+    return precedente, lire_brut_reference_depuis_cumuls(cumuls)
+
+
 def cp_fin_de_contrat(
     contexte, employee_id: str | None, year: int, month: int, *, depart_du_mois: bool = False
 ) -> dict | None:
@@ -561,12 +601,11 @@ def cp_fin_de_contrat(
 
         signaler_repli(contexte, CODE_REPLI_CONGES_FIN_CONTRAT)
         return None
-    from app.modules.payroll.engine.reference_remuneration import lire_brut_reference_depuis_cumuls
-
+    precedente, avant_le_mois = remuneration_des_periodes(employee_id, contexte.cumuls, compteurs)
     return periodes_depuis_compteurs(
         compteurs,
-        brut_periode_precedente=_brut_de_la_periode_precedente(employee_id, contexte.cumuls),
-        brut_en_cours_avant_mois=lire_brut_reference_depuis_cumuls(contexte.cumuls),
+        brut_periode_precedente=precedente,
+        brut_en_cours_avant_mois=avant_le_mois or 0.0,
     )
 
 
