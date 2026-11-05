@@ -5,6 +5,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Les documents de départ n'inventent plus les heures d'un bulletin incomplet
+- L'attestation France Travail indique « Non renseigné » si le bulletin repris ne porte pas son temps de travail ; une retenue d'entrée ou de sortie ne devient plus une absence.
+- La phrase sur les organismes complémentaires reste lisible quand leur nom manque.
+- La mention légale du certificat de travail reste en pied de page, sans créer une deuxième page presque vide.
+
 ### Le code PCS d'un collègue d'une autre société n'est plus posé sans l'accord de l'Insee
 - Le code d'un collègue de la société reste sûr. Celui d'un collègue d'une autre société ne l'est plus que si l'Insee range ce poste dans ce code.
 - Sinon la fiche le propose, avec la raison, sans le remplir ; un métier exact de l'Insee passe devant (« Responsable qualité » en 387d).
