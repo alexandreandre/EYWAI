@@ -1,4 +1,9 @@
-"""Tests des formules de provision CP — valeurs réelles de l'état Cegid CARTOL du 21/07/2026."""
+"""Formules de la provision des congés : la règle légale (retour d'Elsa du 05/11/2026).
+
+Chaque période vaut le plus élevé du maintien et du dixième (C. trav. L3141-24) ; le dixième
+reconstitue les absences assimilées (en entier) et la maladie ordinaire (80 %) ; le maintien
+compte les primes versées chaque mois. Sources : service-public F33359 et F37482.
+"""
 
 import pytest
 
@@ -7,122 +12,185 @@ from app.modules.exports.domain import provision_cp as module
 pytestmark = pytest.mark.unit
 
 
+def _periode(restants, droits=25.0, base=None):
+    return module.PeriodeProvision(restants=restants, droits=droits, base=base)
+
+
+class TestValoriserPeriode:
+    def test_le_dixieme_quand_il_est_plus_eleve(self):
+        v = module.valoriser_periode(_periode(10.0, 25.0, 36000.0), valeur_jour=120.0)
+        assert v.montant == 1440.0  # 10 % de 36 000 × 10/25, contre 1 200 au maintien
+        assert v.methode == "dixième"
+
+    def test_le_maintien_quand_il_est_plus_eleve(self):
+        v = module.valoriser_periode(_periode(10.0, 25.0, 24000.0), valeur_jour=120.0)
+        assert v.montant == 1200.0  # 960 au dixième
+        assert v.methode == "maintien"
+
+    def test_sans_remuneration_de_la_periode_le_maintien_seul(self):
+        v = module.valoriser_periode(_periode(10.0, 25.0, None), valeur_jour=120.0)
+        assert (v.montant, v.methode) == (1200.0, "maintien seul")
+
+    def test_sans_droits_legaux_le_maintien_seul(self):
+        v = module.valoriser_periode(_periode(3.0, 0.0, 9000.0), valeur_jour=100.0)
+        assert (v.montant, v.methode) == (300.0, "maintien seul")
+
+    def test_des_conges_pris_d_avance_diminuent_la_dette(self):
+        v = module.valoriser_periode(_periode(-2.0, 25.0, 30000.0), valeur_jour=100.0)
+        assert (v.montant, v.methode) == (-200.0, "pris d'avance")
+
+    def test_aucun_jour_restant(self):
+        assert module.valoriser_periode(_periode(0.0), valeur_jour=100.0).montant == 0.0
+
+    @pytest.mark.parametrize(
+        "restants,droits,base,valeur",
+        [(10.0, 25.0, 36000.0, 120.0), (10.0, 25.0, 24000.0, 120.0), (2.78, 3.78, 4171.35, 98.48),
+         (4.0, 0.0, 5000.0, 90.0), (7.5, 20.83, None, 101.1)],
+    )
+    def test_meme_regle_que_le_bulletin_de_sortie(self, restants, droits, base, valeur):
+        from app.modules.payroll.engine.iccp_fin_contrat import PeriodeConges, indemnite_par_periode
+
+        moteur = indemnite_par_periode(
+            PeriodeConges(libelle="", brut=base, droits=droits, restants=restants),
+            taux=0.10, valeur_jour=valeur,
+        )
+        assert module.valoriser_periode(_periode(restants, droits, base), valeur_jour=valeur).montant == moteur.retenu
+
+
+class TestReconstitution:
+    def test_la_maladie_ordinaire_compte_a_80_pour_cent(self):
+        lignes = [{"libelle": "Salaire de base", "gain": 3551.41},
+                  {"libelle": "Absence maladie 240926-280926", "perte": 484.28}]
+        assert module.ajustement_dixieme(lignes) == round(484.28 * 0.8, 2)
+
+    def test_un_libelle_de_martine_se_lit_pareil(self):
+        assert module.ajustement_dixieme(
+            [{"libelle": "Absence arrêt maladie du 01/09 au 30/09", "perte": 1000.0}]
+        ) == 800.0
+
+    @pytest.mark.parametrize("libelle", [
+        "Absence accident du travail du 02/09", "Absence maladie professionnelle du 02/09",
+        "Absence congé maternité du 01/09 au 30/09", "Absence congé paternité du 01/09",
+        "Absence congé d'adoption du 01/09",
+    ])
+    def test_les_absences_assimilees_comptent_en_entier(self, libelle):
+        assert module.ajustement_dixieme([{"libelle": libelle, "perte": 500.0}]) == 500.0
+
+    @pytest.mark.parametrize("libelle", [
+        "Absence congés payés ", "Absence non rémunérée du 03/09", "Absence pour entrée ou sortie",
+        "Absence injustifiée du 03/09 (journee)", "Absence événement familial du 03/09",
+    ])
+    def test_les_autres_absences_ne_sont_pas_reconstituees(self, libelle):
+        assert module.ajustement_dixieme([{"libelle": libelle, "perte": 500.0}]) == 0.0
+
+    def test_la_retenue_des_heures_structurelles_suit_l_absence_du_mois(self):
+        lignes = [{"libelle": "Absence maladie 010926-300926", "perte": 1964.73},
+                  {"libelle": "Réduction HS structurelles (jours d'absence)", "perte": 280.62}]
+        assert module.ajustement_dixieme(lignes) == round((1964.73 + 280.62) * 0.8, 2)
+
+    def test_le_complement_employeur_est_remplace_par_la_reconstitution(self):
+        lignes = [{"libelle": "Absence maladie 010926-150926", "perte": 1000.0},
+                  {"libelle": "Maintien de salaire", "gain": 900.0}]
+        assert module.ajustement_dixieme(lignes) == -100.0  # 800 reconstitués, 900 retirés
+
+    def test_le_maintien_d_un_evenement_familial_reste(self):
+        lignes = [{"libelle": "Absence événement familial du 03/09", "perte": 100.0},
+                  {"libelle": "Maintien de salaire (événement familial)", "gain": 100.0}]
+        assert module.ajustement_dixieme(lignes) == 0.0
+
+    def test_un_bulletin_sans_absence(self):
+        assert module.ajustement_dixieme([{"libelle": "Salaire de base", "gain": 2000.0}]) == 0.0
+
+
+class TestPrimesRecurrentes:
+    def test_une_prime_presente_chaque_mois_au_montant_moyen(self):
+        mois = [[{"libelle": "Prime ancienneté", "gain": 60.0}],
+                [{"libelle": "Prime ancienneté", "gain": 60.0}, {"libelle": "Prime exceptionnelle", "gain": 500.0}],
+                [{"libelle": "Prime ancienneté", "gain": 63.0}]]
+        assert module.primes_recurrentes(mois) == 61.0
+
+    def test_une_prime_absente_un_mois_n_est_pas_recurrente(self):
+        mois = [[{"libelle": "Prime injection", "gain": 80.0}], [], [{"libelle": "Prime injection", "gain": 80.0}]]
+        assert module.primes_recurrentes(mois) == 0.0
+
+    def test_une_prime_ponctuelle_n_est_pas_recurrente_meme_repetee(self):
+        mois = [[{"libelle": "Prime exceptionnelle", "gain": 100.0}]] * 3
+        assert module.primes_recurrentes(mois) == 0.0
+
+    def test_seuls_les_trois_derniers_mois_comptent(self):
+        mois = [[]] + [[{"libelle": "Prime poste difficile", "gain": 45.0}]] * 3
+        assert module.primes_recurrentes(mois) == 45.0
+
+    def test_un_seul_bulletin_ne_dit_pas_ce_qui_revient(self):
+        assert module.primes_recurrentes([[{"libelle": "Prime ancienneté", "gain": 60.0}]]) == 0.0
+
+
 class TestCalculerLigne:
-    def test_barumet_ligne_reelle_du_modele_cegid(self):
+    def test_conges_et_repos_valorises_et_charges(self):
         ligne = module.calculer_ligne(
-            matricule="BARUMET",
-            nom="DALANDE BARUMET",
-            date_entree="2010-03-01",
-            solde_n1=28.00,
-            solde_n=4.16,
-            salaire_reference=2640.86,
-            taux_charges=25.74,
-            mois_retenus="12/12",
+            matricule="M", nom="A B", date_entree="2020-01-01",
+            n1=_periode(20.0, 25.0, 30000.0), n=_periode(8.32, 8.32, 9000.0),
+            valeur_jour=120.0, taux_charges=25.0, mois_retenus="9/12", solde_repos=2.0,
         )
-        assert ligne.solde_jours == 32.16
-        assert ligne.provision == 3860.46
-        assert ligne.montant_charges == 993.68
-        assert ligne.total == 4854.14
+        assert ligne.provision_n1 == 2400.0  # dixième 2 400 contre 2 400 au maintien
+        assert ligne.provision_n == 998.4  # maintien 998,40 contre 900 au dixième
+        assert ligne.provision_repos == 240.0
+        assert ligne.provision == 3638.4
+        assert ligne.montant_charges == 909.6
+        assert ligne.total == 4548.0
+        assert ligne.solde_jours == 30.32
+        assert ligne.methode == "N-1 : dixième ; N : maintien ; repos : maintien"
 
-    def test_blin_ligne_reelle_du_modele_cegid(self):
+    def test_sans_repos_ni_conges_n_1(self):
         ligne = module.calculer_ligne(
-            matricule="CAVOUIN",
-            nom="Fabien CAVOUIN",
-            date_entree="2022-09-05",
-            solde_n1=3.00,
-            solde_n=4.16,
-            salaire_reference=2978.39,
-            taux_charges=36.33,
-            mois_retenus="12/12",
+            matricule="M", nom="A B", date_entree="2026-05-01",
+            n1=_periode(0.0, 0.0), n=_periode(2.08, 2.08, 1900.0),
+            valeur_jour=87.69, taux_charges=0.0, mois_retenus="1/12",
         )
-        assert ligne.solde_jours == 7.16
-        assert ligne.provision == 969.33
-        assert ligne.montant_charges == 352.16
-        assert ligne.total == 1321.49
+        assert ligne.methode == "N : dixième"  # 190 au dixième contre 182,40 au maintien
+        assert ligne.provision == 190.0
 
-    def test_lanival_ligne_reelle_du_modele_cegid(self):
+    def test_une_base_inconnue_reste_vide(self):
         ligne = module.calculer_ligne(
-            matricule="LANIVAL",
-            nom="FERURAT LANIVAL",
-            date_entree="2015-01-05",
-            solde_n1=27.00,
-            solde_n=4.16,
-            salaire_reference=12797.15,
-            taux_charges=48.92,
-            mois_retenus="12/12",
+            matricule="M", nom="A B", date_entree="2020-01-01",
+            n1=_periode(5.0, 25.0, None), n=_periode(1.0, 2.0, 500.0),
+            valeur_jour=100.0, taux_charges=0.0, mois_retenus="0/12",
         )
-        assert ligne.solde_jours == 31.16
-        assert ligne.provision == 18125.42
-        assert ligne.montant_charges == 8866.96
-        assert ligne.total == 26992.38
-
-    def test_diviseur_non_standard(self):
-        ligne = module.calculer_ligne(
-            matricule="X",
-            nom="X",
-            date_entree="2020-01-01",
-            solde_n1=20.0,
-            solde_n=0.0,
-            salaire_reference=2200.0,
-            taux_charges=0.0,
-            mois_retenus="12/12",
-            diviseur=21.67,
-        )
-        assert ligne.provision == round(20.0 * 2200.0 / 21.67, 2)
-
-    def test_solde_negatif_donne_une_provision_negative(self):
-        ligne = module.calculer_ligne(
-            matricule="X",
-            nom="X",
-            date_entree="2026-01-01",
-            solde_n1=0.0,
-            solde_n=-2.08,
-            salaire_reference=2200.0,
-            taux_charges=30.0,
-            mois_retenus="6/12",
-        )
-        assert ligne.solde_jours == -2.08
-        assert ligne.provision < 0
-        assert ligne.total < 0
-
-    def test_anomalie_conservee_telle_quelle(self):
-        ligne = module.calculer_ligne(
-            matricule="X",
-            nom="X",
-            date_entree="2026-05-01",
-            solde_n1=0.0,
-            solde_n=2.08,
-            salaire_reference=1800.0,
-            taux_charges=30.0,
-            mois_retenus="0/12",
-            anomalie="aucun bulletin",
-        )
-        assert ligne.anomalie == "aucun bulletin"
+        assert ligne.base_n1 is None
+        assert ligne.base_n == 500.0
 
 
 class TestCalculerTotaux:
     def test_totaux_et_taux_moyen_pondere(self):
         lignes = [
-            module.calculer_ligne("A", "A", "2020-01-01", 10.0, 2.0, 2000.0, 20.0, "12/12"),
-            module.calculer_ligne("B", "B", "2020-01-01", 20.0, 2.0, 3000.0, 40.0, "12/12"),
+            module.calculer_ligne(matricule=m, nom=m, date_entree="2020-01-01",
+                                  n1=_periode(r, 25.0, None), n=_periode(0.0),
+                                  valeur_jour=100.0, taux_charges=t, mois_retenus="1/12")
+            for m, r, t in (("A", 10.0, 20.0), ("B", 5.0, 50.0))
         ]
         totaux = module.calculer_totaux(lignes)
-
-        assert totaux["solde_n1"] == 30.0
-        assert totaux["solde_n"] == 4.0
-        assert totaux["solde_jours"] == 34.0
-        assert totaux["provision"] == round(sum(l.provision for l in lignes), 2)
-        assert totaux["montant_charges"] == round(sum(l.montant_charges for l in lignes), 2)
-        assert totaux["total"] == round(totaux["provision"] + totaux["montant_charges"], 2)
-        # taux moyen = charges totales / provision totale, jamais la moyenne des taux
-        assert totaux["taux_charges"] == round(
-            totaux["montant_charges"] / totaux["provision"] * 100, 2
-        )
+        assert totaux["provision"] == 1500.0
+        assert totaux["montant_charges"] == 450.0
+        assert totaux["taux_charges"] == 30.0
+        assert totaux["total"] == 1950.0
 
     def test_totaux_sur_liste_vide(self):
-        totaux = module.calculer_totaux([])
-        assert totaux["provision"] == 0.0
-        assert totaux["taux_charges"] == 0.0
+        assert module.calculer_totaux([])["taux_charges"] == 0.0
+
+
+class TestBornesDesPeriodes:
+    def test_septembre_2026(self):
+        (d1, f1), (d, f) = module.bornes_des_periodes(module.date(2026, 9, 30))
+        assert (d1, f1, d, f) == (module.date(2025, 6, 1), module.date(2026, 5, 31),
+                                  module.date(2026, 6, 1), module.date(2026, 9, 30))
+
+    def test_avant_juin(self):
+        (d1, _), (d, _) = module.bornes_des_periodes(module.date(2026, 3, 31))
+        assert (d1, d) == (module.date(2024, 6, 1), module.date(2025, 6, 1))
+
+    def test_une_periode_qui_commence_en_janvier(self):
+        (_, f1), (d, _) = module.bornes_des_periodes(module.date(2026, 9, 30), mois_debut=1)
+        assert (f1, d) == (module.date(2025, 12, 31), module.date(2026, 1, 1))
 
 
 class TestMoisDeReference:

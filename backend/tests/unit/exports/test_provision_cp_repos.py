@@ -48,37 +48,45 @@ def test_un_compteur_vide_ne_dit_rien():
 
 # --- domaine : la ligne et le total ------------------------------------------------------------
 
-def test_le_repos_s_ajoute_aux_jours_provisionnes():
+def _p(restants, droits=25.0, base=None):
+    return domaine.PeriodeProvision(restants=restants, droits=droits, base=base)
+
+
+def test_le_repos_s_ajoute_aux_jours_provisionnes_au_maintien():
     ligne = domaine.calculer_ligne(
         matricule="M", nom="A B", date_entree="2020-01-01",
-        solde_n1=10.0, solde_n=2.0, solde_repos=2.0,
-        salaire_reference=2200.0, taux_charges=25.0, mois_retenus="9/12",
+        n1=_p(10.0), n=_p(2.0, 2.0), solde_repos=2.0,
+        valeur_jour=100.0, taux_charges=25.0, mois_retenus="9/12",
     )
     assert ligne.solde_repos == 2.0
     assert ligne.solde_jours == 14.0
+    assert ligne.provision_repos == 200.0
     assert ligne.provision == 1400.0
     assert ligne.total == 1750.0
 
 
-def test_sans_repos_la_ligne_ne_change_pas():
+def test_sans_repos_la_ligne_n_en_a_pas():
     ligne = domaine.calculer_ligne(
         matricule="M", nom="A B", date_entree="2020-01-01",
-        solde_n1=10.0, solde_n=2.0,
-        salaire_reference=2200.0, taux_charges=25.0, mois_retenus="9/12",
+        n1=_p(10.0), n=_p(2.0, 2.0),
+        valeur_jour=100.0, taux_charges=25.0, mois_retenus="9/12",
     )
     assert ligne.solde_repos == 0.0
+    assert ligne.provision_repos == 0.0
     assert ligne.solde_jours == 12.0
 
 
 def test_le_total_somme_le_repos():
     lignes = [
         domaine.calculer_ligne(
-            matricule=m, nom=m, date_entree="2020-01-01", solde_n1=1.0, solde_n=1.0,
-            solde_repos=r, salaire_reference=2200.0, taux_charges=0.0, mois_retenus="1/12",
+            matricule=m, nom=m, date_entree="2020-01-01", n1=_p(1.0), n=_p(1.0, 1.0),
+            solde_repos=r, valeur_jour=100.0, taux_charges=0.0, mois_retenus="1/12",
         )
         for m, r in (("A", 1.5), ("B", 0.5))
     ]
-    assert domaine.calculer_totaux(lignes)["solde_repos"] == 2.0
+    totaux = domaine.calculer_totaux(lignes)
+    assert totaux["solde_repos"] == 2.0
+    assert totaux["provision_repos"] == 200.0
 
 
 # --- lecture : crédits jusqu'au mois demandé, prises jusqu'à la date ---------------------------
@@ -161,14 +169,25 @@ def test_le_solde_de_repos_par_salarie_a_la_fin_du_mois():
 # --- l'état ------------------------------------------------------------------------------------
 
 SALARIE = {"id": "e1", "matricule": "M", "first_name": "A", "last_name": "B", "hire_date": "2020-01-01",
-           "employment_status": "actif", "salaire_de_base": {"valeur": 2200.0}}
+           "employment_status": "actif", "salaire_de_base": None}
+
+
+@pytest.fixture(autouse=True)
+def sans_base(monkeypatch):
+    monkeypatch.setattr(module, "_lire_cumuls", lambda *a, **k: {})
+    monkeypatch.setattr(module, "_lire_details_bulletins", lambda *a, **k: {})
+    monkeypatch.setattr(module, "_mois_debut_periode", lambda company_id: 6)
 
 
 def _etat(soldes_cp, repos):
+    """Sans salaire contractuel, la valeur du jour est la moyenne des bulletins ÷ 21,67 :
+    2 166,67 € de brut donnent 100 € le jour."""
+    n1, n = soldes_cp
     return (
         patch.object(module, "_lire_salaries", return_value=[SALARIE]),
-        patch.object(module, "_lire_bulletins", return_value={"e1": {(2026, 9): (2200.0, 550.0)}}),
-        patch.object(module, "_lire_soldes_ouvres", return_value=soldes_cp),
+        patch.object(module, "_lire_bulletins", return_value={"e1": {(2026, 9): (2166.67, 550.0)}}),
+        patch.object(module, "_lire_conges_ouvres",
+                     return_value=(domaine.PeriodeProvision(n1, 25.0, None), domaine.PeriodeProvision(n, n, None))),
         patch.object(module, "_lire_bascule", return_value=None),
         patch.object(module, "_lire_repos", return_value=repos),
     )
