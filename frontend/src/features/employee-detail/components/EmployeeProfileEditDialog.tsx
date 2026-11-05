@@ -1,3 +1,4 @@
+import { changementPcsDe } from '@/features/pcs-ese/pcsEse';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -240,6 +241,7 @@ export function EmployeeProfileEditDialog({
               salaireVerrouille={salaireFige}
               salairePlanifie={salairePlanifie}
               employeeId={employeeId}
+              changementPcs={changementPcsDe(employee.classification_conventionnelle)}
               titreSejour={{
                 is_subject_to_residence_permit: employee.is_subject_to_residence_permit,
                 residence_permit_status: employee.residence_permit_status,

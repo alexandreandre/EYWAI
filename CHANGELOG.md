@@ -15,6 +15,18 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - La colonne « Matricule » donne le vrai matricule du salarié ; les colonnes « Type attestation » et « Statut » disparaissent.
 - Les attestations de salaire pour la CPAM et France Travail partent toujours dans la DSN.
 
+### Martine trouve le code PCS-ESE
+- Sur la fiche et à la création, le code se choisit dans la liste officielle des 430 codes, en cherchant un code, un intitulé ou un métier (« soudeur »).
+- Quand des collègues au même poste ont tous le même code, Martine le remplit et dit pourquoi ; sinon elle propose trois codes. Vous pouvez toujours le changer.
+- Quand un code change, la DSN suivante déclare l'ancien code, comme le demande l'Urssaf ; un nouvel import de DSN ne remet plus « 9999 » sur un code trouvé.
+
+## paie-2026-11-05.6 — 5 novembre 2026
+
+### La provision des congés suit la règle légale
+- Chaque période de congés vaut le plus élevé du maintien de salaire et du dixième, comme au départ d'un salarié : un mois d'absence ne fait plus baisser la valeur des jours.
+- Dans le dixième, le salaire des absences est reconstitué : en entier pour un accident du travail, une maternité ou une paternité, à 80 % pour un arrêt maladie.
+- Le maintien compte le salaire du contrat et les primes versées chaque mois ; de nouvelles colonnes montrent la valeur du jour, les bases du dixième et la méthode retenue.
+
 ## paie-2026-11-05.4 — 5 novembre 2026 (et .3)
 
 ### Un salarié peut être dispensé de mutuelle

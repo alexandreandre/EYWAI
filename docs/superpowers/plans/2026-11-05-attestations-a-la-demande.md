@@ -178,6 +178,7 @@ Un seul parcours, en mode paie (réécriture de `/api/auth/me` comme dans `08-mo
 - fiche d'un salarié actif > Documents > « Générer une attestation » > travail > Générer : l'aperçu s'ouvre, et on note l'identifiant du document ;
 - salaire : l'encadré « Aucun bulletin remis » s'affiche ;
 - Exports > Déclarations > « Attestation pour un salarié » : la fenêtre propose la liste des salariés ;
-- à la fin, suppression des documents générés (`DELETE /api/documents/{id}`).
+- la génération est simulée (`page.route` + `route.fulfill`) : la garde `e2e/helpers/garde.ts` bloque toute écriture réelle ;
+- le serveur déployé est vérifié à part par l'API (refus, vraie lettre lue puis supprimée, récapitulatif).
 
 - [ ] Suite backend et frontend verte, push, puis `gh workflow run deploy-test-env.yml --ref feat/attestations-a-la-demande`. Suivre le run, vérifier `/health`, puis lancer le parcours contre le site de test.
