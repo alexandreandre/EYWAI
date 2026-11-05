@@ -70,3 +70,21 @@ def test_un_code_hors_liste_deja_sur_la_fiche_ne_bloque_pas_une_autre_modificati
     with _fiche({"pcs": "311a"}) as (repo, _):
         commands.update_employee("emp-1", {"classification_conventionnelle": {"pcs": "311a", "idcc": "0292"}})
     assert _ecrit(repo)["pcs"] == "311a"
+
+
+def test_creation_avec_un_code_hors_liste_refusee_avant_tout():
+    import asyncio
+
+    import pytest
+    from fastapi import HTTPException
+
+    with patch.object(commands, "get_auth_provider") as auth:
+        with pytest.raises(HTTPException) as refus:
+            asyncio.run(
+                commands.create_employee(
+                    {"first_name": "Ana", "last_name": "Fictive", "classification_conventionnelle": {"pcs": "999a"}},
+                    "soc-1",
+                )
+            )
+    assert refus.value.status_code == 400 and "999a" in refus.value.detail
+    auth.assert_not_called()

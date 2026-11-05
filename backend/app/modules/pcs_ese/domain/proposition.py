@@ -110,20 +110,19 @@ def proposer(
     cadre = est_cadre(statut)
 
     def vrais(fiches: Sequence[FicheCollegue]) -> List[FicheCollegue]:
-        # Un code de cadre (groupe 3) ne vaut pas pour un non-cadre, ni l'inverse (R3).
-        return [
-            f
-            for f in fiches
-            if f.code in ref and f.code != "9999" and _compatible(f.code, cadre)
-        ]
+        return [f for f in fiches if f.code in ref and f.code != "9999"]
 
-    societe = vrais(collegues_societe)
-    if societe:
-        return _par_collegues(societe, "a", f"de {societe[0].societe}", poste, cadre, ref)
-    groupe = vrais(collegues_groupe)
-    if groupe:
-        noms = ", ".join(sorted({f.societe for f in groupe}))
-        return _par_collegues(groupe, "b", f"du groupe ({noms})", poste, cadre, ref)
+    for regle, fiches in (("a", vrais(collegues_societe)), ("b", vrais(collegues_groupe))):
+        # Un code de cadre (groupe 3) ne vaut pas pour un non-cadre, ni l'inverse (R3) : il
+        # ne se propose pas, mais à côté d'un bon code il compte comme un désaccord.
+        bons = [f for f in fiches if _compatible(f.code, cadre)]
+        if not bons:
+            continue
+        if regle == "a":
+            ou = f"de {bons[0].societe}"
+        else:
+            ou = "du groupe (" + ", ".join(sorted({f.societe for f in bons})) + ")"
+        return _par_collegues(bons, regle, ou, poste, cadre, ref, desaccord=len(bons) < len(fiches))
     return _par_metiers(poste, cadre, ref)
 
 
@@ -149,10 +148,11 @@ def _par_collegues(
     poste: str,
     cadre: bool,
     ref: Dict[str, Rubrique],
+    desaccord: bool = False,
 ) -> Proposition:
     compte = Counter(f.code for f in fiches)
     n = len(fiches)
-    if len(compte) == 1:
+    if len(compte) == 1 and not desaccord:
         code = fiches[0].code
         rubrique = ref[code]
         if n == 1:

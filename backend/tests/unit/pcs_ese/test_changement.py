@@ -86,3 +86,23 @@ def test_en_attente():
     assert not en_attente(c, {"2026-11"})
     assert not en_attente(c, {"2026-10", "2026-12"})
     assert not en_attente(None, frozenset())
+
+
+def test_contrat_commence_ce_mois_rien_a_declarer():
+    # Embauché le 03/11, code corrigé le 06/11 : le contrat n'a jamais été déclaré avec
+    # l'ancien code, aucun bloc ne partira ; la fiche ne doit pas l'annoncer.
+    r = appliquer_changement_pcs(
+        {"pcs": "674a"}, {"pcs": "674b"}, aujourd_hui=J, depuis_import=False,
+        periodes_declarees=frozenset(), debut_contrat="2026-11-03",
+    )
+    assert "pcs_changement" not in r
+    r = appliquer_changement_pcs(
+        {"pcs": "674a"}, {"pcs": "674b"}, aujourd_hui=J, depuis_import=False,
+        periodes_declarees=frozenset(), debut_contrat="2026-10-31",
+    )
+    assert r["pcs_changement"] == {"ancien": "674a", "date": "2026-11-06"}
+
+
+def test_ancien_code_hors_liste_rien_a_declarer():
+    # « 311a » tapé autrefois dans la case libre : S21.G00.41.019 le ferait refuser (CRE-11).
+    assert "pcs_changement" not in ap({"pcs": "311a"}, {"pcs": "674a"})

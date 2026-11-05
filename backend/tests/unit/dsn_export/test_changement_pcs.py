@@ -154,3 +154,11 @@ def test_la_dsn_d_un_mois_avant_le_changement_declare_l_ancien_code():
     dsn_file, _ = build_parsed_dsn_from_payroll(_sample_company(), [_ligne_employe_change()], "2026-10")
     texte = serialize_dsn_file(dsn_file)
     assert "S21.G00.40.004,'9999'" in texte and "S21.G00.41" not in texte
+
+
+def test_ancien_code_hors_liste_ni_bloc_ni_ancien_code_declare():
+    from app.modules.dsn_export.domain.changement_pcs import pcs_du_mois
+
+    faux = {"pcs": "674a", "pcs_changement": {"ancien": "311a", "date": "2026-11-06"}}
+    assert b(faux, "674a", "2026-11", RIEN, DEBUT) is None
+    assert pcs_du_mois(faux, "674a", "2026-10") == "674a"

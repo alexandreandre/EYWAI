@@ -37,6 +37,7 @@ from app.modules.onboarding.domain.profile import (
     missing_payroll_fields,
 )
 from app.modules.employees.infrastructure.mappers import prepare_employee_insert_data
+from app.modules.dsn_export.domain.contract_map import debut_du_contrat
 from app.modules.pcs_ese.domain.changement import appliquer_changement_pcs
 from app.modules.pcs_ese.domain.referentiel import code_valide
 from app.modules.pcs_ese.infrastructure.transmissions import periodes_deposees
@@ -189,6 +190,9 @@ async def create_employee(
     Comportement identique à create_employee (router legacy).
     Utilise IAuthProvider, IProfileRepository, IEmployeeRepository, IStorageProvider, ICompanyReader.
     """
+    classification = employee_data.get("classification_conventionnelle")
+    if isinstance(classification, dict):
+        _refuser_pcs_hors_liste(str(classification.get("pcs") or "").strip())
     new_user_id = None
     auth = get_auth_provider()
     storage = get_storage_provider()
@@ -758,6 +762,19 @@ def _aujourd_hui() -> _date:
     return _date.today()
 
 
+def _refuser_pcs_hors_liste(code: str) -> None:
+    """CRE-11 (cahier technique DSN 2026.1.2, p. 183) : seules les 430 valeurs de la table
+    PCSESE passent ; un code saisi hors liste ferait refuser la DSN."""
+    if code and not code_valide(code):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Code PCS-ESE « {code} » absent de la liste officielle (table DSN PCSESE) : "
+                "choisissez-le dans la liste. Rien n'a été enregistré."
+            ),
+        )
+
+
 def _avec_changement_pcs(
     employee_id: str, update_data: Dict[str, Any], depuis_import: bool
 ) -> None:
@@ -772,16 +789,8 @@ def _avec_changement_pcs(
     avant = avant if isinstance(avant, dict) else {}
     code_avant = str(avant.get("pcs") or "").strip()
     code_apres = str(apres.get("pcs") or "").strip()
-    if not depuis_import and code_apres and code_apres != code_avant and not code_valide(code_apres):
-        # CRE-11 (cahier technique DSN 2026.1.2, p. 183) : seules les 430 valeurs de la table
-        # PCSESE passent ; un code changé hors liste ferait refuser la DSN.
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Code PCS-ESE « {code_apres} » absent de la liste officielle (table DSN "
-                "PCSESE) : choisissez-le dans la liste. Rien n'a été enregistré."
-            ),
-        )
+    if not depuis_import and code_apres and code_apres != code_avant:
+        _refuser_pcs_hors_liste(code_apres)
     deposees: frozenset = frozenset()
     if not depuis_import and code_apres and code_apres != code_avant and curr.get("company_id"):
         deposees = periodes_deposees(str(curr["company_id"]))
@@ -791,6 +800,7 @@ def _avec_changement_pcs(
         aujourd_hui=_aujourd_hui(),
         depuis_import=depuis_import,
         periodes_declarees=deposees,
+        debut_contrat=debut_du_contrat(curr) if curr else None,
     )
 
 

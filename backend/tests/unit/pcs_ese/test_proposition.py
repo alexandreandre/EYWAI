@@ -224,3 +224,9 @@ def test_a_un_code_incompatible_avec_le_statut_ne_compte_pas():
     assert (p.code, p.regle) == ("674a", "b")
     p = proposer(poste="x", statut="Cadre", collegues_societe=[f("674a", statut="Cadre")], collegues_groupe=[])
     assert p.regle != "a"
+
+
+def test_a_un_code_incompatible_a_cote_d_un_bon_est_un_desaccord():
+    p = proposer(poste="x", statut="Non-Cadre", collegues_societe=[f("674a"), f("387c")], collegues_groupe=[])
+    assert not p.sur and p.regle == "a"
+    assert [c.code for c in p.candidats][:1] == ["674a"] and "387c" not in [c.code for c in p.candidats]

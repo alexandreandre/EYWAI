@@ -15,6 +15,8 @@ from __future__ import annotations
 from datetime import date
 from typing import AbstractSet, Any, Dict, Optional
 
+from app.modules.pcs_ese.domain.referentiel import code_valide
+
 CLE = "pcs_changement"
 
 
@@ -45,8 +47,12 @@ def appliquer_changement_pcs(
     aujourd_hui: date,
     depuis_import: bool,
     periodes_declarees: AbstractSet[str],
+    debut_contrat: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """La classification à écrire, avec le changement de code posé, gardé ou retiré."""
+    """La classification à écrire, avec le changement de code posé, gardé ou retiré.
+
+    Rien n'est noté pour un contrat commencé ce mois-ci (jamais déclaré avec l'ancien code) ni
+    pour un ancien code hors de la table DSN (S21.G00.41.019 le ferait refuser, CRE-11)."""
     if not isinstance(apres, dict):
         return apres
     avant = avant if isinstance(avant, dict) else {}
@@ -74,5 +80,8 @@ def appliquer_changement_pcs(
             return resultat
         resultat[CLE] = {"ancien": premier, "date": aujourd_hui.isoformat()}
     else:
+        debut_du_mois = f"{aujourd_hui:%Y-%m}-01"
+        if not code_valide(ancien) or (debut_contrat and str(debut_contrat)[:10] >= debut_du_mois):
+            return resultat
         resultat[CLE] = {"ancien": ancien, "date": aujourd_hui.isoformat()}
     return resultat

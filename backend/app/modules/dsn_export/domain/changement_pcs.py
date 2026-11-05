@@ -20,11 +20,16 @@ from typing import AbstractSet, Any, Dict, Optional
 from app.modules.dsn_export.domain.contract_map import debut_du_contrat
 from app.modules.dsn_import.domain.model import ChangementContratBlock
 from app.modules.pcs_ese.domain.changement import CLE, mois_du, valide
+from app.modules.pcs_ese.domain.referentiel import code_valide
 
 
 def _changement(classification: Any) -> Optional[Dict[str, Any]]:
+    """Le changement noté, si son ancien code est de la table DSN (sinon CRE-11 refuserait
+    S21.G00.41.019 comme S21.G00.40.004)."""
     changement = classification.get(CLE) if isinstance(classification, dict) else None
-    return changement if valide(changement) else None
+    if not valide(changement) or not code_valide(str(changement["ancien"]).strip()):
+        return None
+    return changement
 
 
 def pcs_du_mois(classification: Any, pcs_actuel: str, period: str) -> str:
