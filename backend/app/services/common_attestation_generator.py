@@ -31,8 +31,10 @@ from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.modules.documents.domain.attestation_salaire import total
+from app.modules.documents.domain.fin_de_contrat import terme_du_contrat
 from app.shared.domain.pluriel import pluriel
 from app.shared.domain.temps_local import aujourd_hui_local
+from app.shared.seniority_reference import resolve_seniority_reference_date
 from app.shared.infrastructure.pdf.helpers import (
     build_branding_header_reportlab,
     format_date,
@@ -142,8 +144,36 @@ def nature_du_contrat(employee: Mapping[str, Any]) -> str:
     libelle = _CONTRATS.get(cle)
     if not libelle:
         return brut
-    fin = _date_longue(employee.get("contract_end_date"))
+    fin = _date_longue(terme_du_contrat(employee))
     return f"{libelle} jusqu'au {fin}" if fin else libelle
+
+
+def anciennete_du_bulletin(employee: Mapping[str, Any], jour: date) -> str:
+    """L'ancienneté que le bulletin imprime : la reprise de la fiche (ou de la DSN) si elle
+    est antérieure à l'entrée. Plus tardive, elle n'en retire pas (voir _date_anciennete
+    du moteur). 120 fiches du test ont une reprise antérieure au 05/11."""
+    entree = _date(employee.get("hire_date"))
+    reprise = _date(resolve_seniority_reference_date(dict(employee)))
+    if reprise and (entree is None or reprise < entree):
+        duree = anciennete(reprise, jour)
+        return f"{duree} (depuis le {date_fr(reprise)})" if duree else ""
+    return anciennete(entree, jour)
+
+
+def temps_de_travail(employee: Mapping[str, Any]) -> str:
+    """Tel que la fiche le dit ; vide si elle ne le dit pas : la durée n'est jamais devinée."""
+    partiel = employee.get("is_temps_partiel") is True
+    if employee.get("is_forfait_jour") is True:
+        return "Forfait jours réduit" if partiel else "Forfait jours"
+    try:
+        heures = float(employee.get("duree_hebdomadaire"))
+    except (TypeError, ValueError):
+        return "Temps partiel" if partiel else ""
+    texte = f"{heures:g}".replace(".", ",")
+    if heures < 35:
+        return f"Temps partiel ({texte} h par semaine)"
+    # Une fiche « temps partiel » à 35 h se contredit : on n'imprime pas ces heures.
+    return "Temps partiel" if partiel else f"Temps plein ({texte} h par semaine)"
 
 
 def naissance(employee: Mapping[str, Any]) -> str:
@@ -161,6 +191,7 @@ def adresse_du_salarie(employee: Mapping[str, Any]) -> str:
     if not isinstance(adresse, Mapping):
         return ""
     numero, rue = _texte(adresse.get("numero")), _texte(adresse.get("rue"))
+    rue = re.sub(r"^(\d+\w*)\s+\1\b", r"\1", rue)
     # La rue porte souvent déjà son numéro (les 271 fiches du test au 05/11).
     if numero and not re.match(rf"{re.escape(numero)}\b", rue):
         rue = f"{numero} {rue}".strip()
@@ -245,12 +276,20 @@ class CommonAttestationGenerator:
             ("Emploi occupé", _texte(employee.get("job_title"))),
             ("Nature du contrat", nature_du_contrat(employee)),
             ("Date d'entrée", _date_longue(employee.get("hire_date"))),
-            ("Ancienneté", anciennete(_date(employee.get("hire_date")), jour)),
+            ("Ancienneté", anciennete_du_bulletin(employee, jour)),
+            ("Temps de travail", temps_de_travail(employee)),
             ("Rémunération brute mensuelle", remuneration_mensuelle(employee)),
         ]
+        entree = _date(employee.get("hire_date"))
+        a_venir = entree is not None and entree > jour
+        if a_venir:
+            lignes = [ligne for ligne in lignes if ligne[0] != "Ancienneté"]
         fin_essai = _date_longue(ctx.get("periode_essai_fin"))
         if fin_essai:
             lignes.append(("Période d'essai", f"en cours jusqu'au {fin_essai}"))
+        depart_prevu = _date_longue(ctx.get("depart_prevu"))
+        if depart_prevu:
+            lignes.append(("Départ prévu le", depart_prevu))
         tableau = Table(
             [
                 [Paragraph(f"<b>{escape(libelle)}</b>", styles["AttCorps"]),
@@ -270,10 +309,14 @@ class CommonAttestationGenerator:
         )
         story.append(tableau)
         story.append(Spacer(1, 0.5 * cm))
+        presence = (
+            f"rejoindra nos effectifs le {date_fr(entree)}."
+            if a_venir
+            else f"fait toujours partie de nos effectifs à la date du {date_fr(jour)}."
+        )
         story.append(
             Paragraph(
-                f"<b>{_ou_a_completer(nom_complet(employee))}</b> fait toujours partie de nos "
-                f"effectifs à la date du {date_fr(jour)}.",
+                f"<b>{_ou_a_completer(nom_complet(employee))}</b> {presence}",
                 styles["AttCorps"],
             )
         )
@@ -285,12 +328,19 @@ class CommonAttestationGenerator:
         periode = (
             "son dernier mois de paie" if len(mois) == 1 else f"ses {len(mois)} derniers mois de paie"
         )
+        emploi = _ou_a_completer(_texte(employee.get("job_title")))
+        entree = _ou_a_completer(_date_longue(employee.get("hire_date")))
+        sortie = _date_longue(ctx.get("date_de_sortie"))
+        if not ctx.get("a_quitte"):
+            poste = f"qui occupe l'emploi « {emploi} » depuis le {entree}"
+        elif sortie:
+            poste = f"qui a occupé l'emploi « {emploi} » du {entree} au {sortie}"
+        else:
+            poste = f"qui a occupé l'emploi « {emploi} » à partir du {entree}"
         story.append(
             Paragraph(
                 f"{self._ouverture(company)} <b>{_ou_a_completer(nom_complet(employee))}</b>, "
-                f"qui occupe l'emploi « {_ou_a_completer(_texte(employee.get('job_title')))} » "
-                f"depuis le {_ou_a_completer(_date_longue(employee.get('hire_date')))}, a perçu "
-                f"les rémunérations suivantes au cours de {periode} :",
+                f"{poste}, a perçu les rémunérations suivantes au cours de {periode} :",
                 styles["AttCorps"],
             )
         )

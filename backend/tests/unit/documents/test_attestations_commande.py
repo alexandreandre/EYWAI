@@ -7,6 +7,8 @@ bulletins ; leur libellé reste pour les documents déjà générés.
 """
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 from pydantic import ValidationError
 
@@ -66,7 +68,7 @@ JEANNE = {
 def generation(monkeypatch):
     """Lecteurs et service remplacés ; renvoie les appels faits au service."""
     appels: list[dict] = []
-    lecteurs = {"bulletins": [], "fin_essai": None, "salarie": dict(JEANNE)}
+    lecteurs = {"bulletins": [], "fin_essai": None, "salarie": dict(JEANNE), "depart": None}
 
     monkeypatch.setattr(commands, "_load_employee", lambda *_: dict(lecteurs["salarie"]))
     monkeypatch.setattr(commands, "_load_company", lambda *_: {"company_name": "Société Exemple"})
@@ -80,6 +82,13 @@ def generation(monkeypatch):
         "fin_de_periode_d_essai_en_cours",
         lambda employee_id, company_id: lecteurs["fin_essai"],
     )
+
+    monkeypatch.setattr(
+        commands.attestation_queries,
+        "dernier_jour_de_depart",
+        lambda employee_id, company_id: lecteurs["depart"],
+    )
+    monkeypatch.setattr(commands, "aujourd_hui_local", lambda: date(2026, 11, 5))
 
     def _generer(**kwargs):
         appels.append(kwargs)
@@ -142,3 +151,69 @@ def test_un_salarie_parti_garde_son_attestation_de_salaire(generation):
     lecteurs["bulletins"] = [_bulletin(2026, 9)]
     commands.generate_document("soc-1", "rh-1", _demande("attestation_salaire"))
     assert len(appels) == 1
+
+
+# --- Une lettre signée ne dit jamais faux : 27 fiches du test au 05/11 ------------
+
+
+def test_un_dernier_jour_passe_vaut_un_depart_meme_si_la_fiche_dit_en_sortie(generation):
+    lecteurs, appels = generation
+    lecteurs["salarie"].update(employment_status="en_sortie", hire_date="2024-01-15")
+    lecteurs["depart"] = date(2026, 10, 31)
+    with pytest.raises(ValueError, match="Jeanne Essai a quitté l'entreprise le 31 octobre 2026 : c'est le certificat"):
+        commands.generate_document("soc-1", "rh-1", _demande("attestation_emploi"))
+    assert appels == []
+
+
+def test_un_contrat_fini_sur_une_fiche_active_dit_quoi_corriger(generation):
+    lecteurs, appels = generation
+    lecteurs["salarie"].update(contract_type="CDD", hire_date="2024-01-15", contract_end_date="2026-06-30")
+    with pytest.raises(ValueError) as refus:
+        commands.generate_document("soc-1", "rh-1", _demande("attestation_emploi"))
+    message = str(refus.value)
+    assert "le contrat de Jeanne Essai a pris fin le 30 juin 2026" in message
+    assert "certificat de travail" in message
+    assert "Modifier la fiche" in message
+    assert appels == []
+
+
+def test_un_depart_a_venir_est_passe_a_la_lettre(generation):
+    lecteurs, appels = generation
+    lecteurs["salarie"].update(employment_status="en_sortie", hire_date="2024-01-15")
+    lecteurs["depart"] = date(2026, 11, 30)
+    commands.generate_document("soc-1", "rh-1", _demande("attestation_emploi"))
+    assert appels[0]["context"]["depart_prevu"] == "2026-11-30"
+
+
+def test_le_dernier_jour_du_contrat_est_encore_dans_les_effectifs(generation):
+    lecteurs, appels = generation
+    lecteurs["salarie"].update(contract_type="CDD", hire_date="2024-01-15", contract_end_date="2026-11-05")
+    commands.generate_document("soc-1", "rh-1", _demande("attestation_emploi"))
+    assert len(appels) == 1
+
+
+def test_un_salarie_revenu_garde_son_attestation(generation):
+    lecteurs, appels = generation
+    lecteurs["salarie"].update(contract_type="CDI", hire_date="2024-01-15")
+    lecteurs["depart"] = date(2023, 6, 30)
+    commands.generate_document("soc-1", "rh-1", _demande("attestation_emploi"))
+    assert "depart_prevu" not in appels[0]["context"]
+
+
+def test_l_attestation_de_salaire_sait_si_le_salarie_est_parti(generation):
+    lecteurs, appels = generation
+    lecteurs["salarie"].update(employment_status="parti", hire_date="2024-01-15")
+    lecteurs["depart"] = date(2026, 10, 31)
+    lecteurs["bulletins"] = [_bulletin(2026, 9)]
+    commands.generate_document("soc-1", "rh-1", _demande("attestation_salaire"))
+    contexte = appels[0]["context"]
+    assert contexte["a_quitte"] is True
+    assert contexte["date_de_sortie"] == "2026-10-31"
+
+
+def test_l_attestation_de_salaire_d_un_salarie_en_poste(generation):
+    lecteurs, appels = generation
+    lecteurs["salarie"].update(hire_date="2024-01-15")
+    lecteurs["bulletins"] = [_bulletin(2026, 9)]
+    commands.generate_document("soc-1", "rh-1", _demande("attestation_salaire"))
+    assert appels[0]["context"]["a_quitte"] is False

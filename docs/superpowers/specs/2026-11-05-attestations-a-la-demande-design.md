@@ -33,6 +33,8 @@ d'attestation, et si ce format est légal.
 4. **Banque** : aucune règle officielle ne fixe les pièces. Le prêteur vérifie les revenus « en se référant notamment à des documents vérifiables » (articles L313-16 et suivants du Code de la consommation ; service-public F16123).
 5. **net-entreprises** : rien d'autre que l'attestation de salaire pour les IJ.
 
+Légifrance refuse curl : L1234-19 et L313-16 ont été lus par un outil qui résume, et sont à relire à la main avant d'être cités dans un document opposable. Les pages du Code du travail numérique et de service-public ont été lues directement.
+
 ## Décisions
 
 Alexandre a choisi le 05/11 : deux types (travail et salaire), et 3 mois par défaut, modifiables de 1 à 12. Il a ensuite demandé que je tranche le reste en suivant mes recommandations. Ces points sont marqués « (choix) » : ce sont des choix, pas des règles.
@@ -53,32 +55,38 @@ Alexandre a choisi le 05/11 : deux types (travail et salaire), et 3 mois par dé
 Elle suit le modèle du ministère (source 1). On y ajoute la rémunération et la période d'essai, que le décret demande pour un bailleur (source 3) :
 
 - l'en-tête de la société : logo, raison sociale, adresse, SIRET (`build_branding_header_reportlab`, déjà utilisé) ;
-- « Je soussigné(e), {signataire}, {fonction}, agissant pour le compte de la société {raison sociale}, dont le siège est situé {adresse}, immatriculée sous le numéro SIRET {siret}, atteste que : » ;
+- « {signataire}, {fonction}, agissant pour le compte de la société {raison sociale}, dont le siège est situé {adresse}, immatriculée sous le numéro SIRET {siret}, atteste que : ». Pas de « Je soussigné(e) » : le sexe du signataire n'est pas connu, et Martine n'écrit pas d'accord entre parenthèses ;
 - un tableau :
   - nom et prénom ;
   - date et lieu de naissance ;
   - adresse ;
   - emploi occupé ;
-  - nature du contrat : « CDI » ; « CDD jusqu'au {contract_end_date} » ; « Contrat d'apprentissage jusqu'au {contract_end_date} » ; pour un CDD sans date de fin, « CDD » seul ;
+  - nature du contrat : « Contrat à durée indéterminée (CDI) » ; « Contrat à durée déterminée (CDD) jusqu'au {terme} » ; « Contrat d'apprentissage jusqu'au {terme} » ; sans terme connu, le libellé seul. Le terme vient de `contract_end_date` et, pour un apprenti, de `specificites_paie.dsn_reprise.date_fin_contrat`, où l'écran l'écrit ;
   - date d'entrée ;
-  - ancienneté (« x ans et y mois », comptée depuis `hire_date`) ;
-  - temps de travail ;
+  - ancienneté (« x ans et y mois ») : celle du bulletin. C'est la reprise de la fiche ou de la DSN si elle est antérieure à l'entrée, suivie de « (depuis le {date}) » ; 120 fiches du test sont dans ce cas. Plus tardive, elle n'en retire pas (`_date_anciennete` du moteur) ;
+  - temps de travail, tel que la fiche le dit : « Forfait jours », « Forfait jours réduit », « Temps plein (39 h par semaine) », « Temps partiel (24,5 h par semaine) ». Une durée absente n'est jamais devinée ;
   - rémunération brute mensuelle (`salaire_de_base`) ;
-  - la ligne « Période d'essai : en cours jusqu'au {end_date} », seulement si `trial_periods` a une période `en_cours` (lue par `get_active_trial_period`) ;
-- « L'intéressé(e) fait toujours partie de nos effectifs à la date du {jour}. » ;
-- « La présente attestation est délivrée à la demande de l'intéressé(e) pour servir et valoir ce que de droit. » ;
+  - la ligne « Période d'essai : en cours jusqu'au {end_date} », seulement si `trial_periods` a une période `en_cours` ;
+  - la ligne « Départ prévu le {date} », si un départ à venir est enregistré ;
+- « {Madame ou Monsieur selon `sexe`, sinon rien} {Prénom Nom} fait toujours partie de nos effectifs à la date du {jour}. » Pour une embauche à venir, « rejoindra nos effectifs le {date} », sans ligne d'ancienneté ;
+- « La présente attestation lui est délivrée à sa demande, pour servir et valoir ce que de droit. » ;
 - « Fait à {ville}, le {jour}. », puis le nom et la fonction du signataire, puis « Signature et cachet de l'employeur ».
 
 Donnée absente : la ligne garde des pointillés « ………… », à compléter à la main. Martine n'invente jamais une valeur et ne laisse jamais une ligne vide sans le montrer. Sans signataire réglé, on lit « Nom et fonction du signataire : ………… ».
 
-Salarié parti (`employment_status = 'parti'`) : refus, avec le message « {Prénom Nom} a quitté l'entreprise : c'est le certificat de travail qui atteste de son emploi (Départs). » Source : L1234-19.
+Contrat fini : refus avant toute écriture, car la lettre dirait faux (L1234-19). Le statut de la fiche ne suffit pas : au 05/11, 26 fiches non marquées « parti » avaient une fin passée (3 « en sortie », 23 contrats temporaires « actifs », sans bulletin après leur fin).
+
+- Salarié parti, ou dernier jour de départ passé : « {Prénom Nom} a quitté l'entreprise le {date} : c'est le certificat de travail qui atteste de son emploi (Départs). »
+- Terme passé sur une fiche active : « D'après sa fiche, le contrat de {Prénom Nom} a pris fin le {date} : c'est le certificat de travail qui atteste de son emploi (Départs). Si le contrat continue, corrigez « Date de fin prévue du contrat » dans Modifier la fiche. »
+
+Ne comptent pas : un départ antérieur à l'entrée (salarié revenu), un départ annulé, la date de fin d'un CDI (l'écran ne montre pas ce champ et le vide à l'enregistrement).
 
 ### 3. Attestation de salaire
 
 - Le même en-tête et le même bloc de signature que l'attestation de travail.
-- « … atteste que {salarié}, employé(e) en qualité de {poste} depuis le {date d'entrée}, a perçu les rémunérations suivantes au cours des {n} derniers mois de paie : »
+- « … atteste que {salarié}, qui occupe l'emploi « {poste} » depuis le {date d'entrée}, a perçu les rémunérations suivantes au cours de ses {n} derniers mois de paie : ». Pour un salarié parti : « qui a occupé l'emploi « {poste} » du {entrée} au {sortie} », ou « à partir du {entrée} » sans date de sortie.
 - Un tableau Mois | Salaire brut | Net à payer avant impôt sur le revenu, puis une ligne Total.
-- « Montants repris des bulletins de paie remis au salarié. »
+- « Montants repris de ses bulletins de paie. »
 
 Règles :
 
@@ -113,7 +121,9 @@ Côté serveur : `GenerateDocumentRequest` gagne `nombre_mois` (entier de 1 à 1
 - refuse les types retirés et le salarié parti avant toute écriture ;
 - lit la période d'essai et les bulletins remis, puis les passe au générateur dans le contexte.
 
-Le générateur reste pur : il ne lit pas la base.
+Le générateur reste pur : il ne lit pas la base. Il n'a pas de lettre de repli : s'il échoue, l'erreur remonte à l'écran (`document_service` sortait auparavant une lettre générique sans le dire).
+
+La demande était de réutiliser le générateur des documents de sortie. On garde `common_attestation_generator`, qui existait déjà pour ces lettres et partage avec eux l'en-tête et les styles (`app/shared/infrastructure/pdf/helpers.py`). (choix)
 
 ### 5. Le tableau du mois dans Exports
 
@@ -137,6 +147,8 @@ Le générateur reste pur : il ne lit pas la base.
   - Exports > Déclarations : la carte ouvre la même fenêtre.
 
   La garde des tests e2e interdit toute écriture sur le test : la génération y est simulée. Le serveur déployé se vérifie à part, par l'API : refus (type retiré, salaire sans bulletin remis, 13 mois), une vraie attestation de travail lue puis supprimée, et l'aperçu du récapitulatif.
+
+- **Sur les vraies fiches, en lecture seule** : les deux lettres passées sur les 309 fiches du test (les brouillons tenant lieu de bulletins remis, pour la forme des données).
 
 ## Hors périmètre, signalé
 
