@@ -110,7 +110,12 @@ def proposer(
     cadre = est_cadre(statut)
 
     def vrais(fiches: Sequence[FicheCollegue]) -> List[FicheCollegue]:
-        return [f for f in fiches if f.code in ref and f.code != "9999"]
+        # Un code de cadre (groupe 3) ne vaut pas pour un non-cadre, ni l'inverse (R3).
+        return [
+            f
+            for f in fiches
+            if f.code in ref and f.code != "9999" and _compatible(f.code, cadre)
+        ]
 
     societe = vrais(collegues_societe)
     if societe:
@@ -120,6 +125,10 @@ def proposer(
         noms = ", ".join(sorted({f.societe for f in groupe}))
         return _par_collegues(groupe, "b", f"du groupe ({noms})", poste, cadre, ref)
     return _par_metiers(poste, cadre, ref)
+
+
+def _compatible(code: str, cadre: bool) -> bool:
+    return code[0] not in "456" if cadre else code[0] != "3"
 
 
 def _completer(candidats: List[Candidat], autres: Iterable[Candidat]) -> Tuple[Candidat, ...]:
@@ -228,7 +237,7 @@ def _index(ref: Dict[str, Rubrique]) -> List[_Metier]:
                 return
             if _PUBLIC.search(metier) and "sauf" not in metier.lower():
                 return
-            mots = tuple(m for m in mots_metier(tete(metier)) if m != "apprenti")
+            mots = tuple(mots_metier(tete(metier)))
             if mots:
                 metiers.append(
                     _Metier(
@@ -270,7 +279,7 @@ def _chercher(
     poste: str, cadre: bool, ref: Dict[str, Rubrique]
 ) -> Tuple[List[_Metier], List[_Metier]]:
     """Les métiers égaux à l'intitulé, puis les métiers proches, du plus proche au moins proche."""
-    titre = [m for m in mots_metier(poste) if m != "apprenti"]
+    titre = mots_metier(poste)
     if not titre:
         return [], []
     coupe = len(str(poste or "").strip()) >= _LONGUEUR_COUPEE
@@ -317,10 +326,26 @@ def _candidats_metiers(poste: str, cadre: bool, ref: Dict[str, Rubrique]) -> Lis
     return [_candidat(m, ref, False) for m in exacts] + [_candidat(m, ref, True) for m in proches]
 
 
+def _precision_lisible(metier: str) -> bool:
+    """Après la virgule, l'Insee précise le niveau (« ouvrier qualifié », « employé »…), que
+    l'intitulé du poste ne dit pas ; seul « cadre » ou « non cadre » se lit dans le statut."""
+    if "," not in metier:
+        return True
+    return metier.split(",", 1)[1].strip().lower() in ("cadre", "non cadre")
+
+
 def _par_metiers(poste: str, cadre: bool, ref: Dict[str, Rubrique]) -> Proposition:
     exacts, proches = _chercher(poste, cadre, ref)
     codes_exacts = {m.code for m in exacts}
-    if len(codes_exacts) == 1 and not any(m.secteur for m in exacts):
+    # Sûre seulement pour un métier exact, sans secteur ni niveau à deviner, à un seul code,
+    # hors apprenti (l'Insee le range à part) et hors code ECAP (il baisse la contribution
+    # OETH : jamais posé sans collègues).
+    if (
+        len(codes_exacts) == 1
+        and "apprenti" not in mots_metier(poste)
+        and not any(m.secteur or not _precision_lisible(m.metier) for m in exacts)
+        and not ref[exacts[0].code].ecap
+    ):
         m = exacts[0]
         raison = f"Métier Insee : « {m.metier} » (rubrique {m.code})."
         rubrique = ref[m.code]

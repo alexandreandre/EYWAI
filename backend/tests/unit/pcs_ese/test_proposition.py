@@ -90,9 +90,35 @@ def test_ecap_deux_collegues_pose():
 
 
 def test_c_metier_exact_sans_secteur():
-    p = p_metier("Contrôleur de gestion - apprenti")
+    p = p_metier("Contrôleur de gestion")
     assert (p.code, p.sur, p.regle) == ("461d", True, "c")
     assert p.raison == "Métier Insee : « Contrôleur de gestion, non cadre » (rubrique 461d)."
+
+
+def test_c_un_apprenti_n_est_jamais_sur():
+    # L'Insee code l'apprenti à part (« Apprenti charpentier » en 681a, non qualifié) :
+    # l'intitulé seul ne dit pas où le ranger.
+    p = p_metier("Contrôleur de gestion - apprenti")
+    assert not p.sur and "461d" in [c.code for c in p.candidats]
+
+
+def test_c_le_metier_apprenti_ne_vaut_pas_pour_le_metier():
+    # « Apprenti charpentier » (681a) ne rend pas Martine sûre pour un charpentier.
+    p = p_metier("Charpentier")
+    assert not (p.sur and p.code == "681a")
+
+
+def test_c_niveau_de_qualification_inconnu_jamais_sur():
+    # « Maçon, ouvrier qualifié », « …, ouvrier non qualifié » : le niveau ne se lit pas
+    # dans l'intitulé du poste.
+    for poste in ("Maçon", "Mécanicien auto", "Peintre en bâtiment"):
+        assert not p_metier(poste).sur, poste
+
+
+def test_c_un_code_ecap_n_est_jamais_pose_par_l_insee():
+    for poste in ("Agent de sécurité", "Grutier", "Cariste"):
+        p = p_metier(poste)
+        assert not (p.sur and p.ecap), poste
 
 
 def test_c_cadre_ecarte_les_non_cadres():
@@ -188,3 +214,13 @@ def test_le_metier_le_plus_complet_en_premier():
 def test_un_mot_precis_seul_suffit():
     p = p_metier("Magasinier / cariste")
     assert {"652a", "653a"} <= {c.code for c in p.candidats}
+
+
+def test_a_un_code_incompatible_avec_le_statut_ne_compte_pas():
+    # Un non-cadre ne prend pas un code de cadre (groupe 3), même chez un collègue.
+    p = proposer(
+        poste="x", statut="Non-Cadre", collegues_societe=[f("387c")], collegues_groupe=[f("674a", cid="c2")]
+    )
+    assert (p.code, p.regle) == ("674a", "b")
+    p = proposer(poste="x", statut="Cadre", collegues_societe=[f("674a", statut="Cadre")], collegues_groupe=[])
+    assert p.regle != "a"
