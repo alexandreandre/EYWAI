@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   changementPcsDe,
   doitPreRemplir,
+  prochainEtat,
   filtrerRubriques,
   libelleCode,
   texteChangement,
@@ -50,9 +51,9 @@ describe('doitPreRemplir', () => {
 });
 
 describe('texteChangement', () => {
-  it('dit l’ancien code et la date, si le code a bien changé', () => {
+  it('dit l’ancien code, la date et la DSN qui le déclare, si le code a bien changé', () => {
     expect(texteChangement({ ancien: '9999', date: '2026-11-06' }, '674a')).toBe(
-      'Code changé le 06/11/2026 (avant : 9999). Martine déclare ce changement dans la DSN.',
+      'Code changé le 06/11/2026 (avant : 9999) : Martine déclare l’ancien code dans la DSN de novembre 2026.',
     );
     expect(texteChangement({ ancien: '9999', date: '2026-11-06' }, '9999')).toBeNull();
     expect(texteChangement(undefined, '674a')).toBeNull();
@@ -76,5 +77,45 @@ describe('changementPcsDe', () => {
     expect(changementPcsDe({ pcs: '674a' })).toBeNull();
     expect(changementPcsDe(null)).toBeNull();
     expect(changementPcsDe({ pcs_changement: 'n’importe quoi' })).toBeNull();
+  });
+});
+
+const pasSure = (): PropositionPcs => ({
+  code: null, sur: false, raison: 'Les collègues…', regle: 'a', nb_collegues: 2,
+  candidats: [{ code: '674a', libelle: 'x', raison: 'y', ecap: false }], ecap: false,
+});
+
+describe('prochainEtat : le pré-remplissage suit la proposition sans écraser la RH', () => {
+  it('remplit un code vide ou 9999 quand Martine est sûre', () => {
+    expect(prochainEtat({ valeur: '9999', prerempli: null, rhAChoisi: false, proposition: sure('674a') })).toEqual({
+      code: '674a',
+      prerempli: { code: '674a', avant: '9999' },
+    });
+  });
+  it('remplace son propre code quand la proposition change (statut passé à cadre)', () => {
+    expect(
+      prochainEtat({ valeur: '674a', prerempli: { code: '674a', avant: '' }, rhAChoisi: false, proposition: sure('387c') }),
+    ).toEqual({ code: '387c', prerempli: { code: '387c', avant: '' } });
+  });
+  it('retire son propre code quand elle n’est plus sûre', () => {
+    expect(
+      prochainEtat({ valeur: '674a', prerempli: { code: '674a', avant: '9999' }, rhAChoisi: false, proposition: pasSure() }),
+    ).toEqual({ code: '9999', prerempli: null });
+  });
+  it('remplit de nouveau après une remise à zéro du formulaire', () => {
+    expect(
+      prochainEtat({ valeur: '9999', prerempli: { code: '674a', avant: '9999' }, rhAChoisi: false, proposition: sure('674a') }),
+    ).toEqual({ code: '674a', prerempli: { code: '674a', avant: '9999' } });
+  });
+  it('ne touche jamais au choix de la RH', () => {
+    expect(prochainEtat({ valeur: '9999', prerempli: null, rhAChoisi: true, proposition: sure('674a') })).toBeNull();
+    expect(
+      prochainEtat({ valeur: '625h', prerempli: { code: '674a', avant: '' }, rhAChoisi: true, proposition: sure('387c') }),
+    ).toBeNull();
+  });
+  it('ne fait rien pendant le chargement, ni sur un vrai code déjà là', () => {
+    expect(prochainEtat({ valeur: '674a', prerempli: { code: '674a', avant: '' }, rhAChoisi: false, proposition: undefined })).toBeNull();
+    expect(prochainEtat({ valeur: '625h', prerempli: null, rhAChoisi: false, proposition: sure('674a') })).toBeNull();
+    expect(prochainEtat({ valeur: '674a', prerempli: { code: '674a', avant: '' }, rhAChoisi: false, proposition: sure('674a') })).toBeNull();
   });
 });

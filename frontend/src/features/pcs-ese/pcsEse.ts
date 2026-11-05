@@ -79,10 +79,55 @@ export function doitPreRemplir(codeActuel: string, proposition: PropositionPcs |
   return (actuel === '' || actuel === '9999') && proposition.code !== actuel;
 }
 
+const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
 export function texteChangement(changement: ChangementPcs | null | undefined, codeActuel: string): string | null {
   if (!changement?.ancien || !changement.date || changement.ancien === codeActuel.trim()) return null;
   const [annee, mois, jour] = changement.date.slice(0, 10).split('-');
-  return `Code changé le ${jour}/${mois}/${annee} (avant : ${changement.ancien}). Martine déclare ce changement dans la DSN.`;
+  return (
+    `Code changé le ${jour}/${mois}/${annee} (avant : ${changement.ancien}) : ` +
+    `Martine déclare l’ancien code dans la DSN de ${MOIS[Number(mois) - 1]} ${annee}.`
+  );
+}
+
+/** Le code que Martine a mis elle-même, et la valeur qu'il a remplacée. */
+export interface PreRemplissage {
+  code: string;
+  avant: string;
+}
+
+const codeVide = (code: string) => code.trim() === '' || code.trim() === '9999';
+
+/**
+ * Ce que Martine fait du champ quand la proposition ou la valeur change. Elle remplit un code
+ * vide ou « 9999 » quand elle est sûre ; elle remplace ou retire son propre code si la
+ * proposition change (le statut passe à cadre, par exemple) ; elle remplit de nouveau après une
+ * remise à zéro du formulaire ; elle ne touche jamais à un code choisi par la RH.
+ */
+export function prochainEtat(p: {
+  valeur: string;
+  prerempli: PreRemplissage | null;
+  rhAChoisi: boolean;
+  proposition: PropositionPcs | undefined;
+}): { code: string; prerempli: PreRemplissage | null } | null {
+  const { valeur, rhAChoisi, proposition } = p;
+  if (rhAChoisi || !proposition) return null;
+  let prerempli = p.prerempli;
+  if (prerempli && valeur !== prerempli.code) {
+    if (!codeVide(valeur)) return null;
+    prerempli = null; // le formulaire a été remis à zéro
+  }
+  if (prerempli) {
+    if (proposition.sur && proposition.code && proposition.code !== valeur) {
+      return { code: proposition.code, prerempli: { code: proposition.code, avant: prerempli.avant } };
+    }
+    if (!proposition.sur) return { code: prerempli.avant, prerempli: null };
+    return null;
+  }
+  if (doitPreRemplir(valeur, proposition) && proposition.code) {
+    return { code: proposition.code, prerempli: { code: proposition.code, avant: valeur } };
+  }
+  return null;
 }
 
 export function libelleCode(rubriques: RubriquePcs[], code: string): string {

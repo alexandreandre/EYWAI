@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { getPropositionPcsEse, getReferentielPcsEse } from '@/api/pcsEse';
@@ -14,11 +14,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import {
   MENTION_ECAP,
-  doitPreRemplir,
   filtrerRubriques,
   libelleCode,
+  prochainEtat,
   texteChangement,
   type ChangementPcs,
+  type PreRemplissage,
 } from '@/features/pcs-ese/pcsEse';
 
 /** Lignes affichées à la fois : la recherche affine, la liste reste rapide. */
@@ -68,15 +69,20 @@ export function PcsEseField({ value, onChange, poste, statut, employeeId, change
     staleTime: 60_000,
   });
 
-  // Une proposition sûre ne remplit le champ qu'une fois : la RH garde la main.
-  const dejaRempli = useRef<string | null>(null);
+  // Martine suit sa proposition tant que la RH n'a rien choisi ; un choix de la RH est définitif.
+  const [prerempli, setPrerempli] = useState<PreRemplissage | null>(null);
+  const [rhAChoisi, setRhAChoisi] = useState(false);
   useEffect(() => {
-    if (!proposition?.code) return;
-    const cle = `${proposition.code}|${posteRetarde}|${statut}`;
-    if (dejaRempli.current === cle || !doitPreRemplir(value, proposition)) return;
-    dejaRempli.current = cle;
-    onChange(proposition.code);
-  }, [proposition, value, onChange, posteRetarde, statut]);
+    const suite = prochainEtat({ valeur: value, prerempli, rhAChoisi, proposition });
+    if (!suite) return;
+    setPrerempli(suite.prerempli);
+    if (suite.code !== value) onChange(suite.code);
+  }, [proposition, value, prerempli, rhAChoisi, onChange]);
+  const choisir = (code: string) => {
+    setRhAChoisi(true);
+    setPrerempli(null);
+    onChange(code);
+  };
 
   const lignes = useMemo(
     () => filtrerRubriques(rubriques, recherche).slice(0, LIGNES_AFFICHEES),
@@ -84,7 +90,7 @@ export function PcsEseField({ value, onChange, poste, statut, employeeId, change
   );
   const horsListe = !!value && rubriques.length > 0 && !rubriques.some((r) => r.code === value);
   const codeVide = value.trim() === '' || value.trim() === '9999';
-  const proposeParMartine = !!proposition?.sur && proposition.code === value && dejaRempli.current !== null;
+  const proposeParMartine = !!proposition?.sur && !!prerempli && prerempli.code === value;
   const changementTexte = texteChangement(changement, value);
 
   return (
@@ -120,7 +126,7 @@ export function PcsEseField({ value, onChange, poste, statut, employeeId, change
                   key={rubrique.code}
                   value={rubrique.code}
                   onSelect={() => {
-                    onChange(rubrique.code);
+                    choisir(rubrique.code);
                     setOuvert(false);
                     setRecherche('');
                   }}
@@ -153,9 +159,11 @@ export function PcsEseField({ value, onChange, poste, statut, employeeId, change
         </p>
       ) : null}
 
-      {!proposition?.sur && codeVide && proposition?.candidats.length ? (
+      {codeVide && proposition?.candidats.length ? (
         <div className="space-y-1">
-          <p className="text-xs text-muted-foreground">{proposition.raison} Codes probables :</p>
+          <p className="text-xs text-muted-foreground">
+            {proposition.raison} {proposition.sur ? 'Code proposé :' : 'Codes probables :'}
+          </p>
           <div className="flex flex-col gap-1">
             {proposition.candidats.map((c) => (
               <Button
@@ -164,7 +172,7 @@ export function PcsEseField({ value, onChange, poste, statut, employeeId, change
                 variant="outline"
                 size="sm"
                 className="h-auto justify-start whitespace-normal py-1 text-left font-normal"
-                onClick={() => onChange(c.code)}
+                onClick={() => choisir(c.code)}
               >
                 <span className="flex flex-col">
                   <span>
