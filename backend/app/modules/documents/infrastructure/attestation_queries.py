@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Optional
 
 from app.core.database import supabase
+from app.modules.documents.domain.fin_de_contrat import lire_date
 from app.modules.payslips.domain.mise_a_disposition import bulletins_remis
 from app.modules.payslips.infrastructure.mise_a_disposition_queries import jour_de_la_societe
 from app.shared.domain.temps_local import aujourd_hui_local
@@ -45,3 +47,23 @@ def fin_de_periode_d_essai_en_cours(employee_id: str, company_id: str) -> Option
     )
     lignes = (r.data or []) if r else []
     return (lignes[0].get("end_date") or None) if lignes else None
+
+
+def dernier_jour_de_depart(employee_id: str, company_id: str) -> Optional[date]:
+    """Le dernier jour travaillé du départ le plus récent (un départ annulé ne compte pas).
+
+    Lu sur les départs du salarié : `current_exit_id` est vide une fois le salarié parti.
+    """
+    r = (
+        supabase.table("employee_exits")
+        .select("last_working_day, status")
+        .eq("employee_id", employee_id)
+        .eq("company_id", company_id)
+        .execute()
+    )
+    jours = [
+        jour
+        for ligne in ((r.data or []) if r else [])
+        if ligne.get("status") != "annulee" and (jour := lire_date(ligne.get("last_working_day")))
+    ]
+    return max(jours) if jours else None

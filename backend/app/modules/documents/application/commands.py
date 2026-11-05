@@ -24,7 +24,10 @@ from app.modules.documents.domain.attestation_salaire import (
     NOMBRE_DE_MOIS_PAR_DEFAUT,
     mois_a_attester,
 )
+from app.modules.documents.domain.fin_de_contrat import fin_de_contrat
 from app.modules.documents.infrastructure import attestation_queries
+from app.shared.domain.temps_local import aujourd_hui_local
+from app.shared.infrastructure.pdf.helpers import format_date
 from app.services.document_variables import enrich_context_from_recruitment_job
 from app.modules.notifications.application.employee_document_alerts import (
     notify_employee_new_document,
@@ -199,6 +202,23 @@ def _nom_du_salarie(employee: Dict[str, Any]) -> str:
     return " ".join(p for p in parties if p) or "Ce salarié"
 
 
+def _refus_attestation_de_travail(
+    nom: str, parti: bool, dernier_jour: Optional[date], fin: Optional[date]
+) -> str:
+    """L1234-19 : à la fin du contrat, c'est le certificat de travail qui atteste."""
+    if parti or (fin and fin == dernier_jour):
+        le = f" le {format_date(fin)}" if fin else ""
+        return (
+            f"{nom} a quitté l'entreprise{le} : c'est le certificat de travail qui "
+            "atteste de son emploi (Départs)."
+        )
+    return (
+        f"D'après sa fiche, le contrat de {nom} a pris fin le {format_date(fin)} : c'est le "
+        "certificat de travail qui atteste de son emploi (Départs). Si le contrat continue, "
+        "corrigez « Date de fin prévue du contrat » dans Modifier la fiche."
+    )
+
+
 def _contexte_attestation(
     document_type: str,
     employee_id: str,
@@ -207,31 +227,42 @@ def _contexte_attestation(
     nombre_mois: Optional[int],
 ) -> Dict[str, Any]:
     """Ce que la lettre atteste, lu avant toute écriture ; refuse ce qu'elle ne peut pas dire."""
+    if document_type not in ("attestation_emploi", "attestation_salaire"):
+        return {}
     nom = _nom_du_salarie(employee_data)
+    aujourd_hui = aujourd_hui_local()
+    parti = str(employee_data.get("employment_status") or "").lower() == "parti"
+    dernier_jour = attestation_queries.dernier_jour_de_depart(employee_id, company_id)
+    fin = fin_de_contrat(employee_data, dernier_jour)
+    fini = parti or (fin is not None and fin < aujourd_hui)
+
     if document_type == "attestation_emploi":
-        # L1234-19 : à la fin du contrat, c'est le certificat de travail qui atteste.
-        if str(employee_data.get("employment_status") or "").lower() == "parti":
-            raise ValueError(
-                f"{nom} a quitté l'entreprise : c'est le certificat de travail qui "
-                "atteste de son emploi (Départs)."
-            )
-        return {
+        if fini:
+            raise ValueError(_refus_attestation_de_travail(nom, parti, dernier_jour, fin))
+        contexte: Dict[str, Any] = {
             "periode_essai_fin": attestation_queries.fin_de_periode_d_essai_en_cours(
                 employee_id, company_id
             )
         }
-    if document_type == "attestation_salaire":
-        nombre = nombre_mois or NOMBRE_DE_MOIS_PAR_DEFAUT
-        mois = mois_a_attester(
-            attestation_queries.bulletins_remis_du_salarie(employee_id, company_id), nombre
+        if fin and fin == dernier_jour:
+            contexte["depart_prevu"] = fin.isoformat()
+        return contexte
+
+    nombre = nombre_mois or NOMBRE_DE_MOIS_PAR_DEFAUT
+    mois = mois_a_attester(
+        attestation_queries.bulletins_remis_du_salarie(employee_id, company_id), nombre
+    )
+    if not mois:
+        raise ValueError(
+            f"Aucun bulletin remis à {nom} : Martine n'atteste que des salaires "
+            "de bulletins validés et remis."
         )
-        if not mois:
-            raise ValueError(
-                f"Aucun bulletin remis à {nom} : Martine n'atteste que des salaires "
-                "de bulletins validés et remis."
-            )
-        return {"mois_de_paie": mois, "nombre_mois_demande": nombre}
-    return {}
+    return {
+        "mois_de_paie": mois,
+        "nombre_mois_demande": nombre,
+        "a_quitte": fini,
+        "date_de_sortie": fin.isoformat() if fini and fin else None,
+    }
 
 
 def generate_document(

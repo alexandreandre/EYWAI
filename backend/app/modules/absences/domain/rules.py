@@ -15,6 +15,12 @@ from datetime import date, timedelta
 from typing import Any
 
 from app.modules.absences.domain.enums import SALARY_CERTIFICATE_ABSENCE_TYPES
+from app.modules.absences.domain.cp_arret_maladie import (
+    PERTE_PAR_MOIS_D_ARRET,
+    annees_revolues,
+    jours_d_arret_maladie_ordinaire,
+    mois_d_arret_a_taux_reduit,
+)
 from app.modules.absences.domain.cp_seniority import (
     CpSenioritySettings,
     EmployeeCpSeniorityContext,
@@ -143,6 +149,89 @@ def _prorata_du_mois_d_entree(
     return not (adjustment.cp_n_opening_balance or adjustment.cp_n1_opening_balance)
 
 
+def _moins_les_arrets_maladie(
+    months_worked: float, mois_d_arret_maladie: float
+) -> float:
+    """Un mois d'arrêt maladie ordinaire n'acquiert que 2 jours sur 2,5."""
+    if months_worked <= 0 or mois_d_arret_maladie <= 0:
+        return months_worked
+    return max(0.0, months_worked - PERTE_PAR_MOIS_D_ARRET * mois_d_arret_maladie)
+
+
+def _date_de_reprise_des_arrets(
+    adjustment: EmployeeLeaveAdjustment | None, reprise_au: date | None = None
+) -> date | None:
+    """Jusqu'à quelle date les arrêts sont dans un solde repris du cabinet.
+
+    La date de la reprise de soldes ; pour une reprise « fidèle au bulletin »
+    sans date, la fin du mois du bulletin repris ; `reprise_au` quand l'appelant
+    calcule l'écart d'une reprise en train de se faire. La plus récente gagne."""
+    dates: list[date] = []
+    if adjustment is not None:
+        if adjustment.cp_opening_reference_date is not None:
+            dates.append(adjustment.cp_opening_reference_date)
+        elif _is_bulletin_cp_import(adjustment):
+            match = _BULLETIN_MONTH_RE.search(adjustment.note or "")
+            mois = (
+                _BULLETIN_MONTH_NUM.get(_normalize_month_name(match.group(1)))
+                if match
+                else None
+            )
+            if match and mois:
+                annee = int(match.group(2))
+                dates.append(date(annee, mois, calendar.monthrange(annee, mois)[1]))
+    if reprise_au is not None:
+        dates.append(reprise_au)
+    return max(dates) if dates else None
+
+
+def _mois_d_arret_maladie(
+    hire_date: date,
+    validated_requests: list[dict],
+    period_start: date,
+    acquisition_end: date,
+    *,
+    policy: LeavePolicySettings,
+    employee_ctx: EmployeeCpSeniorityContext | None,
+    reprise_des_arrets: date | None,
+    date_de_sortie: date | None = None,
+) -> float:
+    """Mois d'arrêt maladie ordinaire de la période acquis à 2 jours sur 2,5.
+
+    Les arrêts antérieurs à une reprise de soldes sont dans le solde du cabinet
+    et ne retirent rien. Une convention plus favorable (`policy.
+    cp_maladie_assimilation`) compte d'abord ses mois assimilés, selon
+    l'ancienneté à l'ouverture de la période et le groupe d'emplois."""
+    jours = jours_d_arret_maladie_ordinaire(validated_requests)
+    if date_de_sortie is not None:
+        jours = frozenset(j for j in jours if j <= date_de_sortie)
+    debut = max(hire_date, period_start)
+    if not jours or debut > acquisition_end:
+        return 0.0
+    mois_assimiles = 0.0
+    regle = policy.cp_maladie_assimilation
+    if regle is not None:
+        origine = hire_date
+        groupe = None
+        if employee_ctx is not None:
+            origine = (
+                employee_ctx.seniority_reference_date
+                or employee_ctx.hire_date
+                or hire_date
+            )
+            groupe = employee_ctx.groupe_emploi
+        mois_assimiles = regle.mois_assimiles(
+            anciennete_annees=annees_revolues(origine, period_start), groupe=groupe
+        )
+    return mois_d_arret_a_taux_reduit(
+        jours,
+        debut=debut,
+        fin=acquisition_end,
+        reprise_au=reprise_des_arrets,
+        mois_assimiles=mois_assimiles,
+    )
+
+
 def calculate_acquired_cp(
     hire_date: date,
     ref_date: date,
@@ -150,7 +239,12 @@ def calculate_acquired_cp(
     policy: LeavePolicySettings | None = None,
     date_de_sortie: date | None = None,
     prorata_mois_d_entree: bool = False,
+    mois_d_arret_maladie: float = 0.0,
 ) -> float:
+    """Acquis de la période en cours à `ref_date`.
+
+    `mois_d_arret_maladie` : mois d'arrêt maladie ordinaire acquis à 2 jours
+    sur 2,5 (C. trav. L3141-5-1), cf. `_mois_d_arret_maladie`."""
     policy = policy or DEFAULT_LEAVE_POLICY
     period_start, period_end = get_cp_reference_period(
         ref_date, start_month=policy.cp_reference_period_start_month
@@ -178,6 +272,7 @@ def calculate_acquired_cp(
         months_worked = months_worked - 1 + _fraction_du_mois_de_sortie(
             max(hire_date, period_start), date_de_sortie, policy
         )
+    months_worked = _moins_les_arrets_maladie(months_worked, mois_d_arret_maladie)
     periode_close = acquisition_end >= period_end
     return _acquired_cp_from_months(
         months_worked,
@@ -194,6 +289,7 @@ def calculate_acquired_cp_for_period(
     policy: LeavePolicySettings | None = None,
     periode_close: bool = True,
     prorata_mois_d_entree: bool = False,
+    mois_d_arret_maladie: float = 0.0,
 ) -> float:
     """Acquis sur une période complète — close par défaut, donc arrondie à
     l'entier supérieur quelle que soit l'unité."""
@@ -201,6 +297,7 @@ def calculate_acquired_cp_for_period(
     months_worked = _months_worked_in_period(hire_date, period_start, period_end)
     if prorata_mois_d_entree and months_worked > 0 and period_start <= hire_date:
         months_worked = months_worked - 1 + _fraction_du_mois_d_entree(hire_date)
+    months_worked = _moins_les_arrets_maladie(months_worked, mois_d_arret_maladie)
     return _acquired_cp_from_months(
         months_worked,
         policy.cp_acquisition_rate_internal,
@@ -605,6 +702,7 @@ def _resolve_cp_adjustment_for_ref_date(
     *,
     cp_seniority: CpSenioritySettings | None = None,
     employee_ctx: EmployeeCpSeniorityContext | None = None,
+    reprise_au: date | None = None,
 ) -> EmployeeLeaveAdjustment:
     """
     Après le 1er jour d'une nouvelle période CP (ex. 1er juin), le solde N importé
@@ -650,18 +748,30 @@ def _resolve_cp_adjustment_for_ref_date(
         cp_seniority=cp_seniority,
         employee_ctx=employee_ctx,
         _skip_adjustment_roll=True,
+        reprise_au=reprise_au,
     )
     closing_prev_n = float(prev_periods["n_remaining"])
 
     prev_start, prev_end = get_cp_previous_reference_period(
         ref_date, start_month=start_month
     )
+    # Le même acquis que celui qui a fermé la période : sans ses arrêts
+    # maladie, l'écart roulé les retirerait une seconde fois.
     prev_acquis = calculate_acquired_cp_for_period(
         hire_date,
         prev_start,
         prev_end,
         policy=policy,
         prorata_mois_d_entree=_prorata_du_mois_d_entree(hire_date, adjustment),
+        mois_d_arret_maladie=_mois_d_arret_maladie(
+            hire_date,
+            validated_requests,
+            prev_start,
+            prev_end,
+            policy=policy,
+            employee_ctx=employee_ctx,
+            reprise_des_arrets=_date_de_reprise_des_arrets(adjustment, reprise_au),
+        ),
     )
     prev_supp = _supplemental_cp_for_period_end(
         prev_end,
@@ -695,16 +805,21 @@ def compute_cp_period_balances(
     employee_ctx: EmployeeCpSeniorityContext | None = None,
     _skip_adjustment_roll: bool = False,
     date_de_sortie: date | None = None,
+    reprise_au: date | None = None,
 ) -> dict[str, dict[str, float]]:
     """Soldes CP période N-1 et N avec report optionnel.
 
     `date_de_sortie` : le salarié part ce jour-là (`ref_date`) ; le dernier mois
-    n'acquiert que sa part travaillée."""
+    n'acquiert que sa part travaillée.
+
+    `reprise_au` : l'appelant calcule l'écart d'une reprise de soldes à cette
+    date ; les arrêts maladie jusqu'à elle sont dans le solde repris."""
     policy = policy or DEFAULT_LEAVE_POLICY
     adjustment = adjustment or EmployeeLeaveAdjustment.empty()
     # Décidé sur l'ajustement saisi, avant le roulement de période qui le remet
     # à zéro : sinon un compteur repris serait proratisé l'année suivante.
     prorata_entree = _prorata_du_mois_d_entree(hire_date, adjustment)
+    reprise_des_arrets = _date_de_reprise_des_arrets(adjustment, reprise_au)
     if not _skip_adjustment_roll:
         adjustment = _resolve_cp_adjustment_for_ref_date(
             ref_date,
@@ -714,6 +829,7 @@ def compute_cp_period_balances(
             policy,
             cp_seniority=cp_seniority,
             employee_ctx=employee_ctx,
+            reprise_au=reprise_au,
         )
     start_month = policy.cp_reference_period_start_month
 
@@ -725,7 +841,20 @@ def compute_cp_period_balances(
     )
 
     prev_acquis = calculate_acquired_cp_for_period(
-        hire_date, prev_start, prev_end, policy=policy, prorata_mois_d_entree=prorata_entree
+        hire_date,
+        prev_start,
+        prev_end,
+        policy=policy,
+        prorata_mois_d_entree=prorata_entree,
+        mois_d_arret_maladie=_mois_d_arret_maladie(
+            hire_date,
+            validated_requests,
+            prev_start,
+            prev_end,
+            policy=policy,
+            employee_ctx=employee_ctx,
+            reprise_des_arrets=reprise_des_arrets,
+        ),
     )
     prev_supp = _supplemental_cp_for_period_end(
         prev_end,
@@ -750,6 +879,16 @@ def compute_cp_period_balances(
         policy=policy,
         date_de_sortie=date_de_sortie,
         prorata_mois_d_entree=prorata_entree,
+        mois_d_arret_maladie=_mois_d_arret_maladie(
+            hire_date,
+            validated_requests,
+            current_start,
+            min(ref_date, current_end),
+            policy=policy,
+            employee_ctx=employee_ctx,
+            reprise_des_arrets=reprise_des_arrets,
+            date_de_sortie=date_de_sortie,
+        ),
     )
     current_supp = _supplemental_cp_for_period_end(
         current_end,

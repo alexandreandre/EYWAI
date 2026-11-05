@@ -379,16 +379,14 @@ class DocumentService:
         if not pdf_bytes and document_type in frozenset(
             common_attestation_generator.ATTESTATION_TYPES
         ):
-            try:
-                pdf_bytes = common_attestation_generator.generate(
-                    document_type, employee_data, company_data, ctx
-                )
-                is_eywai_template = True
-                template_id = None
-                template_version_id = None
-            except Exception as e:
-                logger.warning("CommonAttestationGenerator: %s", e)
-                pdf_bytes = None
+            # Pas de repli : une lettre signée ne sort pas en version générique
+            # sans que personne le sache. L'erreur remonte jusqu'à l'écran.
+            pdf_bytes = common_attestation_generator.generate(
+                document_type, employee_data, company_data, ctx
+            )
+            is_eywai_template = True
+            template_id = None
+            template_version_id = None
 
         if not pdf_bytes and document_type.startswith("avenant"):
             try:

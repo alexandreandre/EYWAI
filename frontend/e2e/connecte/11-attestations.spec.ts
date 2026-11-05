@@ -203,3 +203,60 @@ test('attestations : fiche du salarié en mode paie, puis Exports', async ({ pag
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   }
 });
+
+test('attestations : page Documents et fiche du salarié, hors mode paie', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.addInitScript(() => localStorage.removeItem('martine-rq-cache-v2'));
+  await seConnecter(page);
+  await page.route('**/api/client-errors', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    await route.fulfill({ status: 204, body: '' });
+  });
+  const s = surveiller(page);
+
+  const ouvrirLaFenetre = async () => {
+    await page.getByRole('button', { name: /ajouter un document/i }).click();
+    await page.getByRole('menuitem', { name: /générer une attestation/i }).click();
+    const fenetre = page.getByRole('dialog', { name: /générer une attestation/i });
+    await expect(fenetre).toBeVisible();
+    return fenetre;
+  };
+  const deuxTypesSeulement = async (fenetre: ReturnType<Page['getByRole']>) => {
+    await fenetre.getByLabel(/type d'attestation/i).click();
+    await expect(page.getByRole('option')).toHaveText(['Attestation de travail', 'Attestation de salaire']);
+    await page.keyboard.press('Escape');
+    await fenetre.getByRole('button', { name: /annuler/i }).click();
+    await expect(fenetre).toHaveCount(0);
+  };
+
+  try {
+    await test.step('page Documents : la fenêtre propose la liste des salariés et deux types', async () => {
+      await page.goto('/documents');
+      await expect(page.getByRole('button', { name: /ajouter un document/i })).toBeVisible({ timeout: 30_000 });
+      const fenetre = await ouvrirLaFenetre();
+      await fenetre.getByLabel(/^salarié$/i).click();
+      await expect(page.getByRole('option').first()).toBeVisible({ timeout: 15_000 });
+      await page.keyboard.press('Escape');
+      await deuxTypesSeulement(fenetre);
+    });
+
+    await test.step('fiche du salarié : le salarié est connu, deux types', async () => {
+      await expect
+        .poll(() => page.evaluate(() => localStorage.getItem('activeCompanyId')), { timeout: 15_000 })
+        .toBeTruthy();
+      const reponse = await page.request.get(`${API_URL}/api/employees?limit=500`, { headers: await enTetes(page) });
+      expect(reponse.ok()).toBeTruthy();
+      const salaries = (await reponse.json()) as Array<{ id: string; employment_status?: string | null }>;
+      const salarie = salaries.find((e) => (e.employment_status ?? 'actif') === 'actif');
+      await page.goto(`/employees/${salarie!.id}?tab=documents`);
+      await expect(page.getByRole('button', { name: /ajouter un document/i })).toBeVisible({ timeout: 30_000 });
+      const fenetre = await ouvrirLaFenetre();
+      await expect(fenetre.getByLabel(/^salarié$/i)).toHaveCount(0);
+      await deuxTypesSeulement(fenetre);
+    });
+
+    await verifierPageSaine(page, s);
+  } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  }
+});

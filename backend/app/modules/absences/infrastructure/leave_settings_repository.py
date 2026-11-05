@@ -7,6 +7,9 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from app.core.database import supabase
+from app.modules.absences.domain.cp_arret_maladie import (
+    assimilation_maladie_de_la_convention,
+)
 from app.modules.absences.domain.jtc import (
     JTC_ABSENCE_THRESHOLD_DAYS_DEFAULT,
     JTC_ABSENCE_TYPES_DEFAULT,
@@ -19,6 +22,42 @@ from app.modules.absences.domain.leave_policy import (
     RTT_FORFAIT_ANNUAL_DAYS_DEFAULT,
     RTT_FORFAIT_CP_OUVRES_DEDUCTION_DEFAULT,
 )
+from app.modules.absences.infrastructure.short_cache import ShortLivedCache
+
+# Les écrans de campagne relisent la politique pour chaque salarié.
+_idcc_cache = ShortLivedCache()
+
+
+def oublier_les_conventions() -> None:
+    """Oublie les IDCC mémorisés (tests, changement de convention)."""
+    _idcc_cache.clear()
+
+
+def _idcc_de_la_societe(company_id: str) -> str | None:
+    resp = (
+        supabase.table("companies")
+        .select("idcc")
+        .eq("id", company_id)
+        .limit(1)
+        .execute()
+    )
+    rows = resp.data or []
+    idcc = rows[0].get("idcc") if rows and isinstance(rows[0], dict) else None
+    return str(idcc).strip() if isinstance(idcc, str) and idcc.strip() else None
+
+
+def avec_la_convention(
+    policy: LeavePolicySettings, idcc: str | None
+) -> LeavePolicySettings:
+    """La politique complétée des règles de la convention de la société.
+
+    Les congés acquis pendant un arrêt maladie ordinaire suivent la convention
+    quand elle est plus favorable que la loi (métallurgie, art. 84) : c'est un
+    réglage de la convention, pas d'une filiale."""
+    regle = assimilation_maladie_de_la_convention(idcc)
+    if regle is None:
+        return policy
+    return dataclasses.replace(policy, cp_maladie_assimilation=regle)
 
 
 def _row_to_policy(row: dict[str, Any] | None) -> LeavePolicySettings:
@@ -170,7 +209,9 @@ def get_leave_policy(company_id: str) -> LeavePolicySettings:
         .execute()
     )
     rows = resp.data or []
-    return _row_to_policy(rows[0] if rows else None)
+    policy = _row_to_policy(rows[0] if rows else None)
+    idcc = _idcc_cache.get_or_load(company_id, _idcc_de_la_societe)
+    return avec_la_convention(policy, idcc)
 
 
 def get_leave_policy_row(company_id: str) -> dict[str, Any] | None:

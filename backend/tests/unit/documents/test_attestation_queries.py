@@ -75,3 +75,24 @@ def test_la_periode_d_essai_en_cours(monkeypatch):
 def test_sans_periode_d_essai(monkeypatch):
     monkeypatch.setattr(attestation_queries, "supabase", _Base([]))
     assert attestation_queries.fin_de_periode_d_essai_en_cours("sal-1", "soc-1") is None
+
+
+def test_le_dernier_jour_du_dernier_depart(monkeypatch):
+    base = _Base(
+        [
+            {"last_working_day": "2023-06-30", "status": "archivee"},
+            {"last_working_day": "2026-10-31", "status": "demission_effective"},
+            {"last_working_day": None, "status": "demission_effective"},
+            {"last_working_day": "2027-01-31", "status": "annulee"},
+        ]
+    )
+    monkeypatch.setattr(attestation_queries, "supabase", base)
+    assert attestation_queries.dernier_jour_de_depart("sal-1", "soc-1") == date(2026, 10, 31)
+    assert base.tables == ["employee_exits"]
+    assert ("employee_id", "sal-1") in base.filtres
+    assert ("company_id", "soc-1") in base.filtres
+
+
+def test_sans_depart(monkeypatch):
+    monkeypatch.setattr(attestation_queries, "supabase", _Base([]))
+    assert attestation_queries.dernier_jour_de_depart("sal-1", "soc-1") is None

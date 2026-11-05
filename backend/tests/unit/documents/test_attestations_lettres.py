@@ -186,6 +186,15 @@ def test_anciennete(debut, jour, attendu):
     assert anciennete(date.fromisoformat(debut), date.fromisoformat(jour)) == attendu
 
 
+def test_une_rue_saisie_avec_son_numero_en_double():
+    """Une fiche du test au 05/11 : le champ rue lui-même porte le numéro deux fois."""
+    from app.services.common_attestation_generator import adresse_du_salarie
+
+    adresse = {"numero": "12", "rue": "12 12 rue des Lilas", "code_postal": "69003", "ville": "Lyon"}
+    assert adresse_du_salarie({"adresse": adresse}) == "12 rue des Lilas, 69003 Lyon"
+    assert adresse_du_salarie({"adresse": {"rue": "12 12 rue des Lilas"}}) == "12 rue des Lilas"
+
+
 def test_le_numero_deja_dans_la_rue_n_est_pas_repete():
     """Sur le test (05/11), les 271 adresses qui ont un numéro le portent aussi dans la rue."""
     from app.services.common_attestation_generator import adresse_du_salarie
@@ -196,3 +205,148 @@ def test_le_numero_deja_dans_la_rue_n_est_pas_repete():
     assert adresse_du_salarie({"adresse": {**adresse, "numero": "1", "rue": "10 rue des Lilas"}}) == (
         "1 10 rue des Lilas, 69003 Lyon"
     )
+
+
+# --- Une lettre signée ne dit jamais faux (revue du 05/11/2026) ------------------
+
+
+@pytest.mark.parametrize(
+    "fiche, attendu",
+    [
+        ({"is_forfait_jour": True, "duree_hebdomadaire": 35}, "Forfait jours"),
+        ({"is_forfait_jour": True, "is_temps_partiel": True, "duree_hebdomadaire": 28}, "Forfait jours réduit"),
+        ({"duree_hebdomadaire": 39}, "Temps plein (39 h par semaine)"),
+        ({"duree_hebdomadaire": 35}, "Temps plein (35 h par semaine)"),
+        ({"is_temps_partiel": True, "duree_hebdomadaire": 24.5}, "Temps partiel (24,5 h par semaine)"),
+        ({"duree_hebdomadaire": 20}, "Temps partiel (20 h par semaine)"),
+        ({"is_temps_partiel": True, "duree_hebdomadaire": 35}, "Temps partiel"),
+    ],
+)
+def test_le_temps_de_travail_vient_de_la_fiche(fiche, attendu):
+    texte = _travail(employee={**SALARIEE, **fiche})
+    assert f"Temps de travail {attendu} Rémunération" in texte
+
+
+def test_un_temps_de_travail_inconnu_n_est_pas_devine():
+    assert f"Temps de travail {A_COMPLETER}" in _travail()
+
+
+def test_l_anciennete_reprise_est_celle_du_bulletin():
+    """120 fiches du test ont une reprise antérieure à l'entrée : le bulletin imprime cette date."""
+    texte = _travail(employee={**SALARIEE, "seniority_reference_date": "2015-08-01"})
+    assert "Date d'entrée 1er août 2025" in texte
+    assert "Ancienneté 11 ans et 3 mois (depuis le 1er août 2015)" in texte
+
+
+def test_une_reprise_posterieure_ne_retire_pas_d_anciennete():
+    """Même règle que le moteur (_date_anciennete) : la plus favorable des deux."""
+    texte = _travail(employee={**SALARIEE, "seniority_reference_date": "2026-01-01"})
+    assert "Ancienneté 1 an et 3 mois" in texte
+    assert "(depuis le" not in texte
+
+
+def test_la_date_d_anciennete_de_la_dsn_sert_a_defaut():
+    specificites = {"dsn_anciennete": {"date_anciennete": "2020-08-01"}}
+    texte = _travail(employee={**SALARIEE, "specificites_paie": specificites})
+    assert "Ancienneté 6 ans et 3 mois (depuis le 1er août 2020)" in texte
+
+
+def test_le_terme_d_un_apprenti_vient_de_la_reprise_dsn():
+    """Pour un apprenti, l'écran écrit la fin dans dsn_reprise et vide contract_end_date."""
+    apprenti = {
+        **SALARIEE,
+        "contract_type": "Apprentissage",
+        "contract_end_date": None,
+        "specificites_paie": {"dsn_reprise": {"date_fin_contrat": "2027-08-31"}},
+    }
+    assert "Contrat d'apprentissage jusqu'au 31 août 2027" in _travail(employee=apprenti)
+
+
+def test_un_depart_prevu_est_dit():
+    assert "Départ prévu le 30 novembre 2026" in _travail(depart_prevu="2026-11-30")
+    assert "Départ prévu" not in _travail()
+
+
+def test_une_embauche_a_venir_ne_fait_pas_encore_partie_des_effectifs():
+    """Le décret parle de la « date d'entrée en fonctions envisagée » : le cas existe."""
+    texte = _travail(employee={**SALARIEE, "hire_date": "2026-12-01"})
+    assert "Madame Jeanne Essai rejoindra nos effectifs le 1er décembre 2026" in texte
+    assert "fait toujours partie" not in texte
+    assert "Ancienneté" not in texte
+
+
+def _salaire_contexte(**contexte) -> str:
+    return _texte(
+        CommonAttestationGenerator().generate(
+            "attestation_salaire",
+            SALARIEE,
+            SOCIETE,
+            {**LE_5_NOVEMBRE, "mois_de_paie": TROIS_MOIS, "nombre_mois_demande": 3, **contexte},
+        )
+    )
+
+
+def test_un_salarie_parti_n_occupe_plus_l_emploi():
+    texte = _salaire_contexte(a_quitte=True, date_de_sortie="2026-10-31")
+    assert (
+        "qui a occupé l'emploi « Opératrice de production » du 1er août 2025 au 31 octobre 2026, a perçu"
+        in texte
+    )
+    assert "qui occupe" not in texte
+
+
+def test_un_salarie_parti_sans_date_de_sortie():
+    texte = _salaire_contexte(a_quitte=True, date_de_sortie=None)
+    assert "qui a occupé l'emploi « Opératrice de production » à partir du 1er août 2025, a perçu" in texte
+
+
+# --- La lettre passe par le vrai service, sans repli silencieux ------------------
+
+
+@pytest.fixture
+def service_sans_modele(monkeypatch):
+    from app.services import document_service as module
+
+    monkeypatch.setattr(module.document_service, "get_active_template", lambda *_: None)
+    return module
+
+
+def test_la_lettre_de_salaire_traverse_le_service(service_sans_modele):
+    import json
+
+    contexte = {**LE_5_NOVEMBRE, "mois_de_paie": TROIS_MOIS, "nombre_mois_demande": 3, "a_quitte": False}
+    resultat = service_sans_modele.document_service.generate_document(
+        company_id="soc-1",
+        employee_id="sal-1",
+        document_type="attestation_salaire",
+        category="attestation_courante",
+        employee_data=SALARIEE,
+        company_data=SOCIETE,
+        context=contexte,
+        persist=False,
+    )
+    assert "Total 6 750,50 € 5 278,90 €" in _texte(resultat["pdf_bytes"])
+    json.dumps(contexte)  # generation_context part en JSONB
+
+
+def test_une_lettre_qui_plante_ne_sort_pas_en_version_de_repli(service_sans_modele, monkeypatch):
+    def _plante(*_a, **_k):
+        raise RuntimeError("panne du générateur")
+
+    monkeypatch.setattr(service_sans_modele.common_attestation_generator, "generate", _plante)
+    monkeypatch.setattr(
+        service_sans_modele.document_service,
+        "_generate_fallback_pdf",
+        lambda *_: pytest.fail("une attestation ne doit jamais sortir en lettre de repli"),
+    )
+    with pytest.raises(RuntimeError, match="panne du générateur"):
+        service_sans_modele.document_service.generate_document(
+            company_id="soc-1",
+            employee_id="sal-1",
+            document_type="attestation_emploi",
+            category="attestation_courante",
+            employee_data=SALARIEE,
+            company_data=SOCIETE,
+            context=LE_5_NOVEMBRE,
+            persist=False,
+        )
