@@ -8,9 +8,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from xml.sax.saxutils import escape
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.lib.enums import TA_CENTER
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib import colors
 from app.shared.domain.pluriel import pluriel
@@ -288,22 +287,20 @@ class EmployeeExitDocumentGenerator:
             sig += f"<br/><i>{signatory_title}</i>"
         sig += "<br/>Signature et cachet de l'entreprise"
         story.append(Paragraph(sig, self.styles["Signature"]))
-        story.append(Spacer(1, 1.5 * cm))
 
-        story.append(
-            Paragraph(
-                "<i>Article L1234-19 du Code du travail — Certificat de travail</i>",
-                ParagraphStyle(
-                    name="MentionLegale",
-                    parent=self.styles["Normal"],
-                    fontSize=8,
-                    textColor=colors.HexColor("#9ca3af"),
-                    alignment=TA_CENTER,
-                ),
+        def pied_de_page(canvas, document):
+            # Une mention de bas de page ne doit pas créer une page à elle seule.
+            canvas.saveState()
+            canvas.setFont("Helvetica-Oblique", 8)
+            canvas.setFillColor(colors.HexColor("#9ca3af"))
+            canvas.drawCentredString(
+                document.pagesize[0] / 2,
+                1.2 * cm,
+                "Article L1234-19 du Code du travail - Certificat de travail",
             )
-        )
+            canvas.restoreState()
 
-        doc.build(story)
+        doc.build(story, onFirstPage=pied_de_page, onLaterPages=pied_de_page)
         pdf_bytes = buffer.getvalue()
         buffer.close()
 
