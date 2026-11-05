@@ -1,3 +1,5 @@
+import type { DispenseFiche } from '@/features/employee-detail/components/dispenseMutuelle';
+
 export interface Employee {
   id: string; 
   first_name: string; 
@@ -123,6 +125,8 @@ export interface Employee {
       adhesion?: boolean;
       mutuelle_type_ids?: string[];
       lignes_specifiques?: Array<{ libelle?: string; montant_salarial?: number }>;
+      /** Posée par la RH ; null quand une formule est choisie. */
+      dispense?: DispenseFiche | null;
     };
     prevoyance?: {
       adhesion?: boolean;
