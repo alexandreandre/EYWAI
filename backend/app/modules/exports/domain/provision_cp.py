@@ -2,6 +2,8 @@
 # Domaine pur : aucun accès base, aucune dépendance FastAPI.
 # Les quatre formules reproduisent l'état Cegid « État de provision des congés payés »,
 # vérifiées sur les 71 lignes du modèle CARTOL du 21/07/2026.
+# Le repos compensateur s'ajoute aux jours provisionnés (retour d'Elsa du 05/11/2026) : un repos
+# acquis et pas pris est payé au départ du salarié (C. trav. D3121-23), c'est une dette.
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -25,6 +27,25 @@ def en_jours_ouvres(solde: float, unite: str | None, ratio: float) -> float:
     if ratio <= 0:
         return 0.0
     return round(float(solde) / ratio, 2)
+
+
+#: Heures d'une journée de repos quand la société n'a rien réglé (comme l'écran des soldes).
+HEURES_JOURNEE_REPOS_PAR_DEFAUT: float = 7.0
+
+
+def repos_en_jours(
+    heures_acquises: float, heures_prises: float, heures_par_jour: float
+) -> tuple[float, str]:
+    """Le solde de repos compensateur en jours, et ce qu'il faut signaler.
+
+    Le compteur est en heures (le crédit COR naît en heures) ; une journée de repos vaut le
+    réglage de la société. Un repos pris sans crédit laisse un solde négatif : il ne diminue
+    pas la dette de congés, il se signale."""
+    solde = round(float(heures_acquises) - float(heures_prises), 2)
+    if solde < 0:
+        return 0.0, f"repos compensateur pris sans crédit : {-solde:g} h"
+    diviseur = float(heures_par_jour) if heures_par_jour and heures_par_jour > 0 else HEURES_JOURNEE_REPOS_PAR_DEFAUT
+    return round(solde / diviseur, 2), ""
 
 
 def present_a_la_date(entree: date, sorties: Iterable[date], ref: date) -> bool:
@@ -61,6 +82,7 @@ class LigneProvision:
     total: float
     mois_retenus: str
     anomalie: str
+    solde_repos: float = 0.0
 
 
 def calculer_ligne(
@@ -74,16 +96,18 @@ def calculer_ligne(
     mois_retenus: str,
     anomalie: str = "",
     diviseur: float = DIVISEUR_MENSUALISATION,
+    solde_repos: float = 0.0,
 ) -> LigneProvision:
     """Une ligne de l'état, à partir de données déjà résolues.
 
-    solde_n1 / solde_n sont en jours ouvrés. taux_charges est en pourcentage (25.74),
-    pas en fraction.
+    solde_n1 / solde_n sont en jours ouvrés, solde_repos en jours de repos compensateur ;
+    les trois sont valorisés au même salaire journalier. taux_charges est en pourcentage
+    (25.74), pas en fraction.
     """
     if diviseur <= 0:
         raise ValueError(f"Diviseur de mensualisation invalide : {diviseur}")
 
-    solde_jours = round(solde_n1 + solde_n, 2)
+    solde_jours = round(solde_n1 + solde_n + solde_repos, 2)
     provision = round(solde_jours * salaire_reference / diviseur, 2)
     montant_charges = round(provision * taux_charges / 100, 2)
     total = round(provision + montant_charges, 2)
@@ -102,6 +126,7 @@ def calculer_ligne(
         total=total,
         mois_retenus=mois_retenus,
         anomalie=anomalie,
+        solde_repos=round(solde_repos, 2),
     )
 
 
@@ -112,6 +137,7 @@ def calculer_totaux(lignes: list[LigneProvision]) -> dict[str, float]:
     return {
         "solde_n1": round(sum(l.solde_n1 for l in lignes), 2),
         "solde_n": round(sum(l.solde_n for l in lignes), 2),
+        "solde_repos": round(sum(l.solde_repos for l in lignes), 2),
         "solde_jours": round(sum(l.solde_jours for l in lignes), 2),
         "salaire_reference": round(sum(l.salaire_reference for l in lignes), 2),
         "taux_charges": round(montant_charges / provision * 100, 2) if provision else 0.0,

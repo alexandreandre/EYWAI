@@ -7,8 +7,15 @@ from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.database import supabase
-from app.modules.absences.application.queries import _leave_context, _parse_hire_date
-from app.modules.absences.domain.rules import compute_cp_balances_for_bulletin
+from app.modules.absences.application.queries import (
+    _hours_per_rest_day,
+    _leave_context,
+    _parse_hire_date,
+)
+from app.modules.absences.domain.rules import (
+    compute_cp_balances_for_bulletin,
+    heures_repos_prises,
+)
 from app.modules.absences.infrastructure import fractionnement_repository as frac_repo
 from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.exports.domain.provision_cp import (
@@ -21,6 +28,7 @@ from app.modules.exports.domain.provision_cp import (
     patronal_du_bulletin,
     present_a_la_date,
     reference_du_salarie,
+    repos_en_jours,
 )
 from app.shared.reprise_paie import lire_bascule as _lire_bascule
 from app.shared.reprise_paie import rang_du_mois
@@ -36,6 +44,7 @@ EXPORT_HEADERS = [
     "Date d'entrée",
     "Solde jrs N-1",
     "Solde jrs N",
+    "Solde jrs repos compensateur",
     "Solde jours",
     "Salaire de référence",
     "Taux Ch. soc.",
@@ -191,6 +200,63 @@ def _lire_soldes_ouvres(
     return (n1, n)
 
 
+def _lire_credits_repos(company_id: str, annee: int, mois: int) -> Dict[str, float]:
+    """Heures de repos compensateur créditées par salarié, de janvier au mois demandé inclus.
+
+    Le compteur est celui de l'écran des soldes (l'année civile), arrêté au mois de la
+    provision : un crédit d'octobre n'existe pas encore au 30/09. Lecture paginée, comme
+    les bulletins (PostgREST tronque à 1000 lignes sans le dire)."""
+    heures: Dict[str, float] = {}
+    decalage = 0
+    while True:
+        lot = (
+            supabase.table("repos_compensateur_credits")
+            .select("employee_id, heures")
+            .eq("company_id", company_id)
+            .eq("year", annee)
+            .lte("month", mois)
+            .order("id")
+            .range(decalage, decalage + TAILLE_PAGE - 1)
+            .execute()
+        ).data or []
+        for credit in lot:
+            eid = credit.get("employee_id")
+            heures[eid] = round(heures.get(eid, 0.0) + float(credit.get("heures") or 0), 2)
+        if len(lot) < TAILLE_PAGE:
+            return heures
+        decalage += TAILLE_PAGE
+
+
+def _lire_repos(
+    company_id: str, ref_date: date, employee_ids: List[str]
+) -> Dict[str, Tuple[float, str]]:
+    """Solde de repos compensateur en jours à la date, et son anomalie, par salarié.
+
+    Acquis : les crédits de l'année jusqu'au mois demandé. Pris : les repos validés de
+    l'année jusqu'à la date, une journée valant le réglage de la société."""
+    if not employee_ids:
+        return {}
+    credits = _lire_credits_repos(company_id, ref_date.year, ref_date.month)
+    par_salarie: Dict[str, List[Dict[str, Any]]] = {}
+    for demande in absence_repository.list_validated_for_employees(employee_ids):
+        if demande.get("type") == "repos_compensateur":
+            par_salarie.setdefault(demande.get("employee_id"), []).append(demande)
+    heures_par_jour = _hours_per_rest_day(company_id)
+    resultat: Dict[str, Tuple[float, str]] = {}
+    for eid in employee_ids:
+        prises = heures_repos_prises(
+            par_salarie.get(eid, []),
+            ref_date,
+            hours_per_rest_day=heures_par_jour,
+            period_start=date(ref_date.year, 1, 1),
+            period_end=date(ref_date.year, 12, 31),
+        )
+        acquises = credits.get(eid, 0.0)
+        if acquises or prises:
+            resultat[eid] = repos_en_jours(acquises, prises, heures_par_jour)
+    return resultat
+
+
 def collecter_lignes(
     company_id: str, period: str, employee_ids: Optional[List[str]] = None
 ) -> Tuple[List[LigneProvision], List[str]]:
@@ -201,6 +267,9 @@ def collecter_lignes(
     # À partir du mois de la reprise, les soldes sont ceux du logiciel précédent.
     soldes_repris = bool(bascule) and rang_du_mois(ref_date.year, ref_date.month) >= bascule.rang
     bulletins = _lire_bulletins(company_id, mois_cibles)
+    repos = _lire_repos(
+        company_id, ref_date, [s["id"] for s in salaries if s.get("hire_date")]
+    )
 
     lignes: List[LigneProvision] = []
     sans_date = 0
@@ -211,7 +280,8 @@ def collecter_lignes(
             sans_date += 1
             continue
         n1, n = _lire_soldes_ouvres(salarie["id"], company_id, ref_date)
-        if round(n1 + n, 2) == 0:
+        jours_repos, anomalie_repos = repos.get(salarie["id"], (0.0, ""))
+        if round(n1 + n + jours_repos, 2) == 0 and not anomalie_repos:
             continue
         reference = reference_du_salarie(
             bulletins.get(salarie["id"], {}),
@@ -225,6 +295,7 @@ def collecter_lignes(
             anomalie = "; ".join(
                 filter(None, [anomalie, "solde négatif : congés pris d'avance"])
             )
+        anomalie = "; ".join(filter(None, [anomalie, anomalie_repos]))
         lignes.append(
             calculer_ligne(
                 matricule=salarie.get("matricule") or "",
@@ -232,6 +303,7 @@ def collecter_lignes(
                 date_entree=str(salarie["hire_date"])[:10],
                 solde_n1=n1,
                 solde_n=n,
+                solde_repos=jours_repos,
                 salaire_reference=reference.salaire_reference,
                 taux_charges=reference.taux_charges,
                 mois_retenus=reference.mois_retenus,
@@ -349,6 +421,7 @@ def preview_provision_cp(
             "montant_charges": totaux["montant_charges"],
             "total": totaux["total"],
             "solde_jours": totaux["solde_jours"],
+            "solde_repos": totaux["solde_repos"],
             "taux_charges_moyen": totaux["taux_charges"],
         },
     }
@@ -362,6 +435,7 @@ def _lignes_export(lignes: List[LigneProvision]) -> List[Dict[str, Any]]:
             "Date d'entrée": l.date_entree,
             "Solde jrs N-1": l.solde_n1,
             "Solde jrs N": l.solde_n,
+            "Solde jrs repos compensateur": l.solde_repos,
             "Solde jours": l.solde_jours,
             "Salaire de référence": l.salaire_reference,
             "Taux Ch. soc.": l.taux_charges,
@@ -381,6 +455,7 @@ def _lignes_export(lignes: List[LigneProvision]) -> List[Dict[str, Any]]:
             "Date d'entrée": "",
             "Solde jrs N-1": totaux["solde_n1"],
             "Solde jrs N": totaux["solde_n"],
+            "Solde jrs repos compensateur": totaux["solde_repos"],
             "Solde jours": totaux["solde_jours"],
             "Salaire de référence": totaux["salaire_reference"],
             "Taux Ch. soc.": totaux["taux_charges"],
