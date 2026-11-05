@@ -97,8 +97,16 @@ _MOTIFS_DE_GAIN: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
         ("absence_evenement_familial", r"^Absence événement familial du (?P<d>.+)$"),
         ("absence_ferie_non_paye", r"^Abs\. jour férié non payé du (?P<d>.+)$"),
         ("absence_maladie", r"^Absence maladie du (?P<d>.+)$"),
-        ("reduction_hs_absence", r"^Réduction HS structurelles \(jours d'absence\)$"),
-        ("reduction_hs_evenement_familial", r"^Réduction HS structurelles \(événement familial\)$"),
+        # Les bulletins déjà enregistrés gardent l'ancien libellé « Réduction HS
+        # structurelles (…) » : le même code doit les reconnaître.
+        (
+            "reduction_hs_absence",
+            r"^(Réduction HS structurelles \(jours d'absence\)|Heures sup\. du contrat non faites \(absence\))$",
+        ),
+        (
+            "reduction_hs_evenement_familial",
+            r"^(Réduction HS structurelles|Heures sup\. du contrat non faites) \(événement familial\)$",
+        ),
         ("maintien_evenement_familial", r"^Maintien de salaire \(événement familial\)$"),
         ("maintien_employeur", r"^Maintien de salaire employeur$"),
         ("complement_absence_integrale", r"^Complément retenue absence intégrale du mois"),

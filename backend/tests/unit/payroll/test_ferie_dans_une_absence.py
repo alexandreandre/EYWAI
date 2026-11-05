@@ -82,7 +82,7 @@ def test_les_feries_d_un_arret_sont_retenus_avec_lui_comme_le_maintien_les_compt
     # 12 journées du 05 au 20/05, fériés compris : 84 h à 12,8740 et 9,60 h
     # structurelles à 16,0925, la valeur que le maintien leur donne (1 235,91).
     assert _pertes(result, "Absence arrêt maladie") == 1081.42
-    assert _pertes(result, "Réduction HS structurelles") == 154.49
+    assert _pertes(result, "Heures sup. du contrat non faites") == 154.49
     assert "Absence arrêt maladie du 05/05 au 20/05" in _libelles(result)
 
 

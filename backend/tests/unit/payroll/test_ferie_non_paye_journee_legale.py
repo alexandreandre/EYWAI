@@ -61,7 +61,7 @@ def test_la_retenue_vaut_sept_heures_et_non_l_horaire_du_jour():
 
 def test_la_quote_part_structurelle_suit_la_journee_entiere():
     """Deux journées pleines : 2 × 0,80 h, et non 2 × 0,89."""
-    pertes = _pertes(_resultat(["2026-05-08", "2026-05-14"]), "Réduction HS structurelles")
+    pertes = _pertes(_resultat(["2026-05-08", "2026-05-14"]), "Heures sup. du contrat non faites")
     assert pertes == [(1.6, 24.40)]
 
 

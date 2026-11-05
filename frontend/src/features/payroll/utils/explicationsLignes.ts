@@ -45,6 +45,11 @@ function collecter(lignes: unknown, acc: LigneExpliquee[]): void {
   }
 }
 
+function ajouterTexte(acc: LigneExpliquee[], libelle: string, texte: unknown): void {
+  if (typeof texte !== 'string' || !texte.trim()) return;
+  acc.push({ libelle, explication: texte.trim() });
+}
+
 export function lignesAvecExplication(
   data: Record<string, unknown> | null | undefined
 ): LigneExpliquee[] {
@@ -64,6 +69,16 @@ export function lignesAvecExplication(
         collecter((rubrique as { lignes?: unknown }).lignes, acc);
       }
     }
+  }
+  // Ces deux textes ne s'impriment plus sur le PDF : l'écran RH seul les porte.
+  ajouterTexte(acc, 'Indemnité de congés payés', data.arbitrage_conges);
+  const compensation = data.compensation_semaines;
+  if (compensation && typeof compensation === 'object') {
+    ajouterTexte(
+      acc,
+      'Heures compensées entre semaines',
+      (compensation as { mention?: unknown }).mention
+    );
   }
   const vus = new Set<string>();
   return acc.filter((ligne) => {

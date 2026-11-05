@@ -2028,7 +2028,7 @@ def calculer_salaire_brut(
             # planifiées du jour (souvent 7,5 h contractuelles issues d'un
             # template) : le salaire de base est mensualisé sur 151,67 h légales
             # et la quote-part d'HS structurelle est déjà retirée séparément par
-            # la ligne « Réduction HS structurelles ». Déduire 7,5 h au taux de
+            # la ligne « Heures sup. du contrat non faites ». Déduire 7,5 h au taux de
             # base retirerait deux fois la part structurelle (sur-déduction, cf.
             # salarié 222 MBC mai 2026 : 7,5 h vs 7 h → −0,5 h/jour de trop). Le
             # `min` préserve les arrêts fractionnaires (demi-journée < réf.
@@ -2124,7 +2124,7 @@ def calculer_salaire_brut(
             montant_absence_pleine_total += montant_reduction_hs
             lignes_composants_brut.append(
                 {
-                    "libelle": "Réduction HS structurelles (jours d'absence)",
+                    "libelle": "Heures sup. du contrat non faites (absence)",
                     "quantite": heures_hs_perdues,
                     "taux": round(taux_horaire_majore, 4),
                     "gain": None,
@@ -2163,7 +2163,7 @@ def calculer_salaire_brut(
                 montant_evenement_familial += montant_hs_evenement_familial
                 lignes_composants_brut.append(
                     {
-                        "libelle": "Réduction HS structurelles (événement familial)",
+                        "libelle": "Heures sup. du contrat non faites (événement familial)",
                         "quantite": heures_hs_evenement_familial,
                         "taux": round(taux_horaire_majore, 4),
                         "gain": None,
@@ -2578,7 +2578,7 @@ def calculer_salaire_brut(
         # SMIC de référence de la réduction générale (arrêt maladie exclu).
         "heures_absence_non_payees": round(heures_absence_non_payees, 2),
         # Part « heures sup structurelles » de ces absences, déjà retirée du brut
-        # par la ligne « Réduction HS structurelles ». Le compteur d'heures sup
+        # par la ligne « Heures sup. du contrat non faites ». Le compteur d'heures sup
         # imprimé la retranche aussi (salarié 068 16,97 et non 17,33 ; salarié 140
         # 16,20). Ne pas la soustraire une seconde fois du SMIC de référence :
         # `heures_absence_non_payees` la contient déjà.

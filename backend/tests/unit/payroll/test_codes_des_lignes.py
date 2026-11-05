@@ -71,6 +71,8 @@ def _gain(libelle, **champs):
         (_gain("Absence maladie du 16/03/26", quantite=1.0, taux=164.0, perte=164.0), "brut:absence_maladie:16-03-26"),
         (_gain("Réduction HS structurelles (jours d'absence)", quantite=0.36, taux=15.31, perte=5.51), "brut:reduction_hs_absence"),
         (_gain("Réduction HS structurelles (événement familial)", quantite=2.4, taux=15.31, perte=36.74), "brut:reduction_hs_evenement_familial"),
+        (_gain("Heures sup. du contrat non faites (absence)", quantite=0.36, taux=15.31, perte=5.51), "brut:reduction_hs_absence"),
+        (_gain("Heures sup. du contrat non faites (événement familial)", quantite=2.4, taux=15.31, perte=36.74), "brut:reduction_hs_evenement_familial"),
         (_gain("Maintien de salaire (événement familial)", gain=151.0), "brut:maintien_evenement_familial"),
         (_gain("Complément retenue absence intégrale du mois (fériés et repos)", perte=80.0), "brut:complement_absence_integrale"),
         (_gain("Retenue absence intégrale du mois limitée au salaire mensuel", gain=-12.0), "brut:retenue_absence_integrale"),

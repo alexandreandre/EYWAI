@@ -59,5 +59,5 @@ def test_chaque_nature_d_arret_est_deduite(type_arret, libelle):
 
 def test_la_quote_part_structurelle_est_retiree_une_fois():
     """Quatre journées : 3,20 h structurelles, comme le cabinet."""
-    structurelles = [p for p in _pertes("arret_at") if "Réduction HS" in p[0]]
-    assert structurelles == [("Réduction HS structurelles (jours d'absence)", 3.2, 48.80)]
+    structurelles = [p for p in _pertes("arret_at") if "Heures sup. du contrat" in p[0]]
+    assert structurelles == [("Heures sup. du contrat non faites (absence)", 3.2, 48.80)]

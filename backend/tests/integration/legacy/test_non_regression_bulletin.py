@@ -313,7 +313,7 @@ class TestAbsenceInjustifieeRepartitionBaseHs:
         reduction = [
             L
             for L in lignes
-            if "Réduction HS structurelles" in (L.get("libelle") or "")
+            if "Heures sup. du contrat" in (L.get("libelle") or "")
         ]
         assert len(reduction) == 1
         # 8,5 h × 4/39 = 0,87 h sur les HS structurelles
@@ -340,7 +340,7 @@ class TestAbsenceInjustifieeRepartitionBaseHs:
         reduction = [
             L
             for L in lignes
-            if "Réduction HS structurelles" in (L.get("libelle") or "")
+            if "Heures sup. du contrat" in (L.get("libelle") or "")
         ]
         assert len(reduction) == 1
         assert reduction[0]["quantite"] == pytest.approx(0.03, abs=0.005)
@@ -360,7 +360,7 @@ class TestAbsenceInjustifieeRepartitionBaseHs:
         reduction = [
             L
             for L in r["lignes_composants_brut"]
-            if "Réduction HS structurelles" in (L.get("libelle") or "")
+            if "Heures sup. du contrat" in (L.get("libelle") or "")
         ]
         assert reduction == []
 

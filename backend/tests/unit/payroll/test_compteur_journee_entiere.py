@@ -79,7 +79,7 @@ def test_le_brut_ne_bouge_pas():
     pertes = {l["libelle"]: (l["quantite"], l["perte"])
               for l in res["lignes_composants_brut"] if l.get("perte")}
     assert pertes["Abs. jour férié non payé du 08/05/26"] == (7.0, 85.40)
-    assert pertes["Réduction HS structurelles (jours d'absence)"] == (0.8, 12.20)
+    assert pertes["Heures sup. du contrat non faites (absence)"] == (0.8, 12.20)
 
 
 def test_une_absence_fractionnee_n_est_pas_comptee_deux_fois():

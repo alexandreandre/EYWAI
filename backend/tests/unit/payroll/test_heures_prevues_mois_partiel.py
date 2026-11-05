@@ -302,7 +302,7 @@ def test_les_absences_ne_bougent_pas():
               25: ("ferie", 0.0)}
     avant = resultat(None)
     apres = resultat(_mois(2026, 5, HORAIRE_8_5_ET_5, feries))
-    for fragment in ("jour férié non payé", "Réduction HS structurelles"):
+    for fragment in ("jour férié non payé", "Heures sup. du contrat non faites"):
         assert _lignes(apres, fragment) == _lignes(avant, fragment) != []
     # 5 + 34 + 5 + 25,5 + 8,5 + 5 = 83 h du 1er au 15/05 (11 jours × 7,80 avant).
     assert _ligne(avant, "Salaire de base")["quantite"] == 77.0

@@ -140,7 +140,7 @@ def ajustement_dixieme(lignes: Iterable[Mapping[str, Any]]) -> float:
     """Ce qu'il faut ajouter au brut d'un bulletin pour la base du dixième.
 
     Plus la part reconstituée de chaque absence (sa retenue × 100 % ou 80 %) ; une retenue
-    annexe qui ne dit pas sa nature (« Réduction HS structurelles (jours d'absence) »,
+    annexe qui ne dit pas sa nature (« Heures sup. du contrat non faites (absence) »,
     « Complément retenue absence intégrale du mois ») suit celle des absences du mois. Moins le
     complément employeur versé pendant un arrêt, que la reconstitution remplace."""
     absences: list[tuple[float, float]] = []
