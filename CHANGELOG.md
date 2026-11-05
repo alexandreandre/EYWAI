@@ -5,6 +5,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Les heures de récupération sont suivies
+- Un seul réglage par société (Entreprise > Paie > Organisation du temps) : heures sup payées, ou mises au compteur. Une heure à 25 % donne 1 h 15 de repos, à 50 % 1 h 30.
+- Sur le bulletin : heures acquises, heures prises avec leur date, solde. Et sur chaque bulletin, un bouton pour payer les heures du mois au lieu de les mettre au compteur (ou l'inverse), payer le solde, ou revenir en arrière. La conséquence est écrite à côté : une heure mise en repos puis payée perd l'exonération d'impôt et les réductions.
+- La récupération se pose comme une absence, à la journée ou en heures. Le solde entre dans la provision des congés. Tant que les soldes de Quadra ne sont pas repris, rien ne change pour personne.
+
 ### Une attestation pour un salarié, en PDF prêt à signer
 - Fiche du salarié > Documents > « Générer une attestation » (aussi en mode paie), ou Exports > Déclarations > « Attestation pour un salarié ».
 - Deux lettres : l'attestation de travail (poste, contrat, date d'entrée, ancienneté du bulletin, temps de travail, rémunération, période d'essai en cours) et l'attestation de salaire (brut et net avant impôt des derniers bulletins remis, 3 mois par défaut, jusqu'à 12).
