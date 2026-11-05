@@ -58,6 +58,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   DOCUMENT_TYPE_LABELS,
+  typesDeModeleProposes,
   archiveTemplate,
   createTemplate,
   downloadFichePosteExample,
@@ -750,7 +751,7 @@ export default function DocumentLibraryTab() {
                   <SelectValue placeholder="Choisir…" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
-                  {Object.entries(DOCUMENT_TYPE_LABELS).map(([k, v]) => (
+                  {typesDeModeleProposes().map(([k, v]) => (
                     <SelectItem key={k} value={k}>
                       {v}
                     </SelectItem>

@@ -59,6 +59,8 @@ export interface GenerateDocumentPayload {
   nouveau_lieu?: string | null;
   custom_fields?: Record<string, string> | null;
   recruitment_job_id?: string | null;
+  /** Attestation de salaire : nombre de mois de paie repris (1 à 12, 3 par défaut). */
+  nombre_mois?: number | null;
 }
 
 export interface ExplorerPayslipItem {
