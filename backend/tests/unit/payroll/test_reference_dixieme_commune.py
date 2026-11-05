@@ -112,3 +112,28 @@ def test_abreviation_reprise_accident_du_travail():
         {"libelle": "Réduction HS structurelles (jours d'absence)", "perte": 200.0},
     ]}, importe=True)
     assert calculer_base_dixieme(0.0, lignes).base == 2200.0
+
+
+def test_hs_reprises_par_groupes_separes_par_le_salaire():
+    lignes = lignes_pour_dixieme({"calcul_du_brut": [
+        {"libelle": "H.Absence Congés Payés", "perte": 100.0},
+        {"libelle": "Réduction HS structurelles (jours d'absence)", "perte": 10.0},
+        {"libelle": "Salaire de base", "gain": 2000.0},
+        {"libelle": "Abs. JF non payé 080526", "perte": 100.0},
+        {"libelle": "Abs. JF non payé 140526", "perte": 100.0},
+        {"libelle": "Absence A.T. 230526-290526", "perte": 400.0},
+        {"libelle": "Réduction HS structurelles (jours d'absence)", "perte": 60.0},
+    ]}, importe=True)
+    assert calculer_base_dixieme(1000.0, lignes).base == 1440.0
+
+
+def test_hs_reprises_du_groupe_maladie_et_absence_non_payee():
+    lignes = lignes_pour_dixieme({"calcul_du_brut": [
+        {"libelle": "H.Absence Congés Payés", "perte": 500.0},
+        {"libelle": "Réduction HS structurelles (jours d'absence)", "perte": 50.0},
+        {"libelle": "Salaire de base", "gain": 2000.0},
+        {"libelle": "Abs. Abs aut nonpayé 310726", "perte": 100.0},
+        {"libelle": "Absence maladie 170826-310826", "perte": 1000.0},
+        {"libelle": "Réduction HS structurelles (jours d'absence)", "perte": 110.0},
+    ]}, importe=True)
+    assert calculer_base_dixieme(1000.0, lignes).base == 1880.0

@@ -37,10 +37,7 @@ def lignes_pour_dixieme(donnees: Mapping[str, Any], *, importe: bool = False) ->
                 if not code.startswith("brut:"):
                     code = code_de_ligne_de_gain(ligne) or ""
                 lignes_codees.append((ligne, code))
-        nombre_hs = sum(code.startswith("brut:reduction_hs_absence") for _, code in lignes_codees)
-        nombre_absences = sum(bool(ligne.get("perte")) and est_libelle_absence(ligne.get("libelle")) for ligne, _ in lignes_codees)
-        affectation_individuelle = nombre_hs == nombre_absences
-        part_de_la_ligne_precedente = None
+        groupe_absences: list[tuple[float, float]] = []
         for ligne, code in lignes_codees:
             copie = dict(ligne)
             famille = code.split(":")[1] if code.startswith("brut:") else ""
@@ -50,16 +47,19 @@ def lignes_pour_dixieme(donnees: Mapping[str, Any], *, importe: bool = False) ->
                     # Dans calcul_brut, les CP sont retenus ensuite, avec
                     # leurs propres HS. Cette retenue concerne les autres absences.
                     copie["dixieme_hors_conges_payes"] = True
-            elif famille == "reduction_hs_absence" and affectation_individuelle and part_de_la_ligne_precedente is not None:
-                # Le bulletin repris détaille chaque retenue puis sa ligne
-                # d'HS immédiatement suivante (PDF vérifiés). Aucune affectation
-                # à distance, ni déduction de nature depuis le seul montant.
-                copie["dixieme_part_reconstituee"] = part_de_la_ligne_precedente
+            elif famille == "reduction_hs_absence" and groupe_absences:
+                # Une retenue d'HS clôt le groupe d'absences qui la précède.
+                # Les CP, avant le salaire de base, ont leur groupe propre ;
+                # le groupe suivant peut mêler maladie, AT et jours non payés.
+                # La ventilation suit leurs retenues, jamais la dernière ligne
+                # seule ni les absences d'un autre groupe (PDF vérifiés).
+                retenues = sum(perte for perte, _ in groupe_absences)
+                copie["dixieme_part_reconstituee"] = sum(perte * part for perte, part in groupe_absences) / retenues
             texte = texte_normalise(ligne.get("libelle"))
             if ligne.get("perte") and est_libelle_absence(texte):
-                part_de_la_ligne_precedente = part_reconstituee(texte)
+                groupe_absences.append((float(ligne["perte"]), part_reconstituee(texte)))
             else:
-                part_de_la_ligne_precedente = None
+                groupe_absences = []
             lignes.append(copie)
     return lignes
 
