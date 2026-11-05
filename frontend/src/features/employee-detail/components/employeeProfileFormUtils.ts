@@ -424,6 +424,7 @@ export function buildUpdatePayload(
         dispense: dispenseVersFiche(
           values.specificites_paie.mutuelle.dispense,
           mutuelleIds.length > 0,
+          (existingSpec.mutuelle as { dispense?: unknown } | undefined)?.dispense,
         ),
       },
       prevoyance: {

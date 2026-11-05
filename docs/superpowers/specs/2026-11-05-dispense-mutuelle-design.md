@@ -102,6 +102,16 @@ La dispense se range dans le bloc mutuelle de la fiche,
   (`employees/application/commands.py`, `_merge_json_dicts`) : `null` efface donc
   la dispense, et un import DSN, qui n'écrit que `adhesion`, la garde.
 
+### Dispenses déjà posées le 25/10/2026
+
+Quatre fiches de CDD (Colorplast, Comitech) portent déjà une `dispense`, posée
+avant ce format : motif en toutes lettres (« CDD de moins de douze mois »),
+`depuis`, `fondement`, `decidee_le`, `piece_a_conserver`, et pas de date de
+demande. Martine lit ce libellé comme le motif `cdd_moins_12_mois` (même table
+côté serveur et côté écran). L'alerte ne demande donc que la date de la demande
+signée, et l'enregistrement de la fiche garde ces notes. Les données ne sont pas
+réécrites.
+
 ## Le contrôle (une seule fonction)
 
 Une fonction pure, `backend/app/shared/domain/dispense_mutuelle.py` :
@@ -116,7 +126,8 @@ Pour un CDI ou un CDD sans adhésion (le périmètre actuel, inchangé) :
 | Situation | Message (après « Salarié X : ») |
 |---|---|
 | ni formule ni dispense | mutuelle absente. Dans sa fiche (Modifier la fiche, Paie sociale), choisissez sa formule ou, s'il ne veut pas adhérer, posez sa dispense. |
-| dispense sans motif ou sans date de demande | dispense de mutuelle incomplète : indiquez le motif et la date de la demande signée dans sa fiche. |
+| dispense sans motif connu | dispense de mutuelle incomplète : indiquez le motif et la date de la demande signée dans sa fiche. |
+| motif connu, sans date de demande | dispense de mutuelle incomplète : indiquez la date de la demande signée par le salarié dans sa fiche. |
 | motif `css` ou `assurance_individuelle` sans date de fin | dispense de mutuelle incomplète : indiquez la date de fin dans sa fiche. |
 | `fin_le` antérieure au 1er jour du mois déclaré | dispense de mutuelle finie le JJ/MM/AAAA : choisissez sa formule ou mettez la dispense à jour dans sa fiche. |
 | `couverture_collective` dont le justificatif a plus d'un an au dernier jour du mois | justificatif de sa mutuelle collective à redemander (le dernier date du JJ/MM/AAAA, il se renouvelle chaque année). Une fois reçu, mettez sa date dans la fiche. |

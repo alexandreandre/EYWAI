@@ -81,6 +81,9 @@ test('poser une dispense de mutuelle sur la fiche', async ({ page }) => {
     await route.fulfill({ status: 204, body: '' });
   });
   const s = surveiller(page);
+  // La page Paie pose la société active de la session avant toute lecture.
+  await page.goto('/payroll');
+  await expect(page.getByText(/gestion de la paie/i).first()).toBeVisible({ timeout: 30_000 });
 
   const salaries = await lireApi<Salarie[]>(page, '/api/employees/summary?status=payroll');
   const cible = salaries.find(

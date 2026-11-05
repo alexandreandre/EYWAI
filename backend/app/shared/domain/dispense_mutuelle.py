@@ -41,6 +41,10 @@ MOTIFS_DISPENSE: dict[str, str] = {
     "anterieur_decision_unilaterale": "Embauché avant une mutuelle mise en place par décision unilatérale",
 }
 
+#: Motifs en toutes lettres des dispenses posées le 25/10/2026, avant ce format
+#: (CDD de Colorplast et Comitech, fondement R242-1-6 2° b).
+ANCIENS_LIBELLES: dict[str, str] = {"CDD de moins de douze mois": "cdd_moins_12_mois"}
+
 #: D911-2 1° et 2° : la dispense ne joue que jusqu'à une date.
 MOTIFS_A_ECHEANCE = frozenset({"css", "assurance_individuelle"})
 #: R242-1-6 2° f : « à condition de le justifier chaque année ».
@@ -95,11 +99,17 @@ def alerte_mutuelle(
         )
 
     motif = dispense.get("motif")
+    motif = ANCIENS_LIBELLES.get(motif, motif) if isinstance(motif, str) else None
     demande = _date(dispense.get("demande_recue_le"))
-    if motif not in MOTIFS_DISPENSE or demande is None:
+    if motif not in MOTIFS_DISPENSE:
         return (
             "dispense de mutuelle incomplète : indiquez le motif et la date de la "
             f"demande signée {_OU}."
+        )
+    if demande is None:
+        return (
+            "dispense de mutuelle incomplète : indiquez la date de la demande signée "
+            f"par le salarié {_OU}."
         )
 
     if motif in MOTIFS_A_ECHEANCE:
