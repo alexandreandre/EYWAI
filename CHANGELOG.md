@@ -5,6 +5,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### La provision des congés suit la règle légale
+- Chaque période de congés vaut le plus élevé du maintien de salaire et du dixième, comme au départ d'un salarié : un mois d'absence ne fait plus baisser la valeur des jours.
+- Dans le dixième, le salaire des absences est reconstitué : en entier pour un accident du travail, une maternité ou une paternité, à 80 % pour un arrêt maladie.
+- Le maintien compte le salaire du contrat et les primes versées chaque mois ; de nouvelles colonnes montrent la valeur du jour, les bases du dixième et la méthode retenue.
+
 ### Une attestation pour un salarié, en PDF prêt à signer
 - Fiche du salarié > Documents > « Générer une attestation » (aussi en mode paie), ou Exports > Déclarations > « Attestation pour un salarié ».
 - Deux lettres : l'attestation de travail (poste, contrat, date d'entrée, ancienneté, rémunération, période d'essai en cours) et l'attestation de salaire (brut et net avant impôt des derniers bulletins remis, 3 mois par défaut, jusqu'à 12).

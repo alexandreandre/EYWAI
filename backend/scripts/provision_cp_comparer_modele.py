@@ -1,7 +1,9 @@
 """Compare l'export provision CP au modèle Cegid transmis par Elsa.
 
-Lecture seule, aucune écriture. À relancer quand MARTINE aura douze mois d'historique
-de paie (juin 2027) : c'est à ce moment-là seulement que l'égalité au centime a un sens.
+Lecture seule, aucune écriture. Depuis le 05/11/2026, Martine provisionne à la règle légale
+(le plus élevé du maintien et du dixième par période) et non plus comme Quadra (moyenne des
+bruts ÷ 22) : les montants diffèrent du modèle par construction. Seuls les jours et le taux
+de charges doivent coïncider.
 
 Usage :
     ./venv/bin/python scripts/provision_cp_comparer_modele.py \\
@@ -105,7 +107,7 @@ def main() -> int:
     if not apparies:
         return 0
 
-    for champ in ("solde_jours", "salaire_reference", "taux_charges", "provision", "total"):
+    for champ in ("solde_jours", "taux_charges", "provision", "total"):
         ecarts = [abs(getattr(n, champ) - m[champ]) for m, n in apparies]
         exacts = sum(1 for e in ecarts if e < 0.01)
         print(
@@ -120,8 +122,8 @@ def main() -> int:
         f"écart {total_eywai - total_modele:+12.2f} EUR "
         f"({(total_eywai - total_modele) / total_modele * 100:+.1f} %)"
     )
-    print("\nRappel : l'écart sur le salaire de référence est attendu tant que Martine n'a")
-    print("pas la paie 2025. Ne pas corriger le moteur sur cette base.")
+    print("\nRappel : l'écart sur les montants est attendu, la méthode n'est plus celle de")
+    print("Quadra. Ne pas corriger Martine vers le modèle.")
     return 0
 
 
