@@ -5,6 +5,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Un arrêt maladie ordinaire acquiert 2 jours de congés par mois
+- Depuis la loi du 22 avril 2024, un mois d'arrêt maladie ordinaire donne 2 jours ouvrables de congés, contre 2,5 pour un mois travaillé ; Martine comptait 2,5.
+- Un accident du travail, une maladie professionnelle, une maternité ou une paternité gardent 2,5 jours ; les arrêts d'avant la reprise des soldes ne changent rien.
+- En métallurgie, la convention (article 84) compte l'arrêt comme du travail, de 2 à 8 mois selon l'ancienneté : les compteurs de LEWIS et de Cartol ne bougent pas.
+
 ### Une attestation pour un salarié, en PDF prêt à signer
 - Fiche du salarié > Documents > « Générer une attestation » (aussi en mode paie), ou Exports > Déclarations > « Attestation pour un salarié ».
 - Deux lettres : l'attestation de travail (poste, contrat, date d'entrée, ancienneté, rémunération, période d'essai en cours) et l'attestation de salaire (brut et net avant impôt des derniers bulletins remis, 3 mois par défaut, jusqu'à 12).
