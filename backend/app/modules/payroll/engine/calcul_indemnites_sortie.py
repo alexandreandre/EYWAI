@@ -592,6 +592,19 @@ def _cumuls_du_mois_precedent(employee_id: str, exit_date: date, supabase_client
     return (lignes[0].get("cumuls") if lignes else None) or None
 
 
+def _date_de_reprise_des_conges(employee_id: str, annee: int) -> Optional[date]:
+    """La date de référence de la reprise des soldes de congés, ou None."""
+    from app.modules.absences.infrastructure.leave_settings_repository import (
+        get_applicable_adjustment,
+    )
+
+    try:
+        return get_applicable_adjustment(employee_id, annee).cp_opening_reference_date
+    except Exception:
+        logger.warning("Reprise des congés illisible pour %s", employee_id, exc_info=True)
+        return None
+
+
 def _conges_par_periode_a_la_sortie(
     employee_id: str,
     exit_date: date,
@@ -616,9 +629,21 @@ def _conges_par_periode_a_la_sortie(
         remuneration_des_periodes,
     )
 
+    reprise = _date_de_reprise_des_conges(employee_id, exit_date.year)
+    sans_la_reprise = reprise is not None and exit_date <= reprise
     try:
-        compteurs = get_absence_balances_for_payslip(
-            employee_id, exit_date.year, exit_date.month, date_de_sortie=exit_date
+        compteurs = (
+            get_absence_balances_for_payslip(
+                employee_id,
+                exit_date.year,
+                exit_date.month,
+                date_de_sortie=exit_date,
+                sans_la_reprise=True,
+            )
+            if sans_la_reprise
+            else get_absence_balances_for_payslip(
+                employee_id, exit_date.year, exit_date.month, date_de_sortie=exit_date
+            )
         )
         cumuls = _cumuls_du_mois_precedent(employee_id, exit_date, supabase_client)
     except Exception:
@@ -630,6 +655,13 @@ def _conges_par_periode_a_la_sortie(
         return None
     precedente, avant_le_mois = remuneration_des_periodes(employee_id, cumuls, compteurs)
     alertes: list[str] = []
+    if sans_la_reprise:
+        alertes.append(
+            "Départ payé par l'ancien logiciel : les soldes de congés repris le "
+            f"{reprise:%d/%m/%Y} sont ceux d'après son solde de tout compte ; Martine "
+            "recompte les congés depuis l'entrée (les congés pris avant la reprise "
+            "ne comptent que s'ils sont au planning)."
+        )
     if avant_le_mois is None:
         debut = _debut_de_la_periode_en_cours(compteurs) or exit_date.replace(day=1)
         depuis = max(debut, entree) if entree else debut
