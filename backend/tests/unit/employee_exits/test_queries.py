@@ -429,6 +429,13 @@ class TestListExitEligibleEmployees:
         assert [e["id"] for e in result] == ["e1"]
         assert result[0]["contrat_absent"] is False
 
+    def test_le_contrat_est_transmis_pour_proposer_la_fin_de_cdd(self):
+        # Le formulaire propose « Fin de CDD » et la date de fin d'un CDD.
+        row = {**self._row("e1"), "contract_type": "CDD", "contract_end_date": "2026-09-30"}
+        result = self._run([row], {"e1": True})
+        assert result[0]["contract_type"] == "CDD"
+        assert result[0]["contract_end_date"] == "2026-09-30"
+
     @pytest.mark.parametrize("statut", ["parti", "en_sortie"])
     def test_salarie_parti_ou_en_sortie_nest_pas_eligible(self, statut):
         result = self._run(
@@ -450,3 +457,12 @@ class TestListExitEligibleEmployees:
             )
             result = queries.list_exit_eligible_employees(COMPANY_ID)
         assert [e["id"] for e in result] == ["e1", "e2"]
+
+
+def test_la_reponse_de_la_liste_garde_le_contrat():
+    from app.modules.employee_exits.schemas.responses import SimpleEmployee
+
+    vu = SimpleEmployee(
+        id="e1", first_name="P", last_name="N", contract_type="CDD", contract_end_date="2026-09-30"
+    ).model_dump()
+    assert vu["contract_type"] == "CDD" and vu["contract_end_date"] == "2026-09-30"
