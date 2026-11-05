@@ -41,6 +41,12 @@ class GenerateDocumentRequest(BaseModel):
     nouveau_lieu: Optional[str] = None
     custom_fields: Optional[Dict[str, str]] = None
     recruitment_job_id: Optional[str] = None
+    nombre_mois: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=12,
+        description="Attestation de salaire : nombre de mois de paie repris (3 par défaut).",
+    )
 
 
 class UpdateDocumentStatusRequest(BaseModel):

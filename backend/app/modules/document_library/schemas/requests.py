@@ -16,7 +16,7 @@ DOCUMENT_TYPE_LABELS: dict[str, str] = {
     "avenant_temps": "Avenant - Modification du temps de travail",
     "avenant_lieu": "Avenant - Changement de lieu de travail",
     "avenant_general": "Avenant - Modification générale",
-    "attestation_emploi": "Attestation d'emploi",
+    "attestation_emploi": "Attestation de travail",
     "attestation_presence": "Attestation de présence",
     "attestation_anciennete": "Attestation d'ancienneté",
     "attestation_poste": "Attestation de poste",
@@ -31,7 +31,24 @@ DOCUMENT_TYPE_LABELS: dict[str, str] = {
     "bulletin_interessement": "Bulletin d'option intéressement",
 }
 
-KNOWN_DOCUMENT_TYPES: frozenset[str] = frozenset(DOCUMENT_TYPE_LABELS.keys())
+# Retirées le 05/11/2026 : elles disaient la même chose que l'attestation de
+# travail, ou reprenaient le salaire de la fiche au lieu des bulletins. Leur
+# libellé reste, pour afficher les documents déjà générés.
+ATTESTATIONS_RETIREES: frozenset[str] = frozenset(
+    {
+        "attestation_presence",
+        "attestation_anciennete",
+        "attestation_poste",
+        "attestation_revenus",
+        "attestation_location",
+        "attestation_pret",
+        "attestation_retraite",
+    }
+)
+
+KNOWN_DOCUMENT_TYPES: frozenset[str] = (
+    frozenset(DOCUMENT_TYPE_LABELS.keys()) - ATTESTATIONS_RETIREES
+)
 
 MARTINE_DEFAULT_TYPES: frozenset[str] = frozenset(
     dt

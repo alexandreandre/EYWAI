@@ -16,6 +16,7 @@ from app.modules.documents.schemas.requests import (
     UpdateDocumentStatusRequest,
 )
 from app.modules.document_library.schemas.requests import (
+    ATTESTATIONS_RETIREES,
     DOCUMENT_TYPE_LABELS,
     KNOWN_DOCUMENT_TYPES,
 )
@@ -193,6 +194,11 @@ def generate_document(
     current_user_id: str,
     request: GenerateDocumentRequest,
 ) -> dict:
+    if request.document_type in ATTESTATIONS_RETIREES:
+        raise ValueError(
+            "Ce type d'attestation n'existe plus : choisissez l'attestation "
+            "de travail ou l'attestation de salaire."
+        )
     if request.document_type not in KNOWN_DOCUMENT_TYPES:
         raise ValueError(f"Type de document inconnu : {request.document_type}")
 
