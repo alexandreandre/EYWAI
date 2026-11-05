@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Set
 
 from app.core.database import supabase
 from app.modules.oeth_settings.domain.constants import DEFAULT_OETH_CONFIG
+from app.modules.oeth_settings.domain.rules import smic_au_31_decembre
 from app.modules.oeth_settings.infrastructure.boeth_repository import (
     boeth_profiles_repository,
 )
@@ -37,12 +38,8 @@ def load_smic_horaire(year: int) -> float:
         .maybe_single()
         .execute()
     )
-    if r and r.data:
-        data = r.data.get("config_data") or {}
-        horaire = data.get("horaire") or data.get("smic_horaire")
-        if horaire:
-            return float(horaire)
-    return 11.88 if year >= 2025 else 11.65
+    bareme = (r.data.get("config_data") or {}) if r and r.data else {}
+    return smic_au_31_decembre(bareme, year)
 
 
 def _pcs_code_from_employee(emp: Dict[str, Any]) -> str:

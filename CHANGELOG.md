@@ -26,6 +26,21 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ### Provision des congés
 - « Mois retenus » s'écrit « 9 mois sur 12 » : Excel n'en fait plus une date.
+## paie-2026-11-05.13 — 5 novembre 2026
+
+### Les documents de départ n'inventent plus les heures d'un bulletin incomplet
+- L'attestation France Travail indique « Non renseigné » si le bulletin repris ne porte pas son temps de travail ; une retenue d'entrée ou de sortie ne devient plus une absence.
+- La phrase sur les organismes complémentaires reste lisible quand leur nom manque.
+- La mention légale du certificat de travail reste en pied de page, sans créer une deuxième page presque vide.
+
+## paie-2026-11-05.12 — 5 novembre 2026
+
+### Le code PCS d'un collègue d'une autre société n'est plus posé sans l'accord de l'Insee
+- Le code d'un collègue de la société reste sûr. Celui d'un collègue d'une autre société ne l'est plus que si l'Insee range ce poste dans ce code.
+- Sinon la fiche le propose, avec la raison, sans le remplir ; un métier exact de l'Insee passe devant (« Responsable qualité » en 387d).
+
+### Contribution OETH : le Smic du 31 décembre de l'année due
+- Martine lit le Smic au 31 décembre de l'année, comme le demande le guide de l'Urssaf : 11,88 € pour 2025, inchangé, et 12,31 € pour 2026 au lieu de 11,88 €.
 
 ## paie-2026-11-05.11 — 5 novembre 2026
 

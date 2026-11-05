@@ -6,8 +6,9 @@ b) personne dans la société : les mêmes collègues dans les autres sociétés
 c) personne dans le groupe : l'intitulé cherché dans les métiers de l'Insee.
 
 Sûre quand les collègues ont tous le même code (au moins 2 pour un code ECAP, qui baisse la
-contribution OETH), ou quand l'intitulé est exactement un métier Insee sans secteur et qu'il ne
-reste qu'un code. Sinon, 3 codes probables. Le statut écarte les mauvais codes : « La
+contribution OETH) et, s'ils sont d'une autre société, que l'Insee confirme : un mot du poste figure
+dans la rubrique du code ; ou quand l'intitulé est exactement un métier Insee sans secteur et qu'il
+ne reste qu'un code. Sinon, 3 codes probables. Le statut écarte les mauvais codes : « La
 qualification de cadre ou d'ingénieur est définie par les conventions collectives » et les non
 cadres sont exclus de la catégorie 37 ; « les cadres au sens des conventions collectives » sont
 « toujours exclus » de la catégorie 46 (Insee, PCS-ESE 2017, 19/12/2025).
@@ -176,6 +177,24 @@ def _par_collegues(
                 candidats=_completer([candidat], _candidats_metiers(poste, cadre, ref)),
                 ecap=True,
             )
+        if regle == "b" and not _insee_confirme(poste, rubrique):
+            # Le 05/11/2026, un collègue d'une autre société a donné « Soudeurs manuels » à des
+            # opérateurs de pliage et « méthodes » à des responsables qualité.
+            insee = _par_metiers(poste, cadre, ref)
+            if insee.sur:
+                return insee
+            return Proposition(
+                code=None,
+                sur=False,
+                raison=f"{raison} L'Insee ne range pas ce poste dans ce code : à confirmer.",
+                regle=regle,
+                nb_collegues=n,
+                candidats=_completer(
+                    [Candidat(code, rubrique.libelle, raison, rubrique.ecap)],
+                    _candidats_metiers(poste, cadre, ref),
+                ),
+                ecap=rubrique.ecap,
+            )
         return Proposition(
             code=code,
             sur=True,
@@ -314,6 +333,16 @@ def _chercher(
     exacts.sort(key=lambda m: (-_bonus(titre, m), m.secteur, m.rang))
     proches.sort(key=lambda p: (-p[0], -_bonus(titre, p[1]), p[1].secteur, p[1].rang))
     return exacts, [m for _, m in proches]
+
+
+def _insee_confirme(poste: str, rubrique: Rubrique) -> bool:
+    """Un mot du poste, hors mots génériques, figure dans l'intitulé de la rubrique ou ses métiers."""
+    mots = [m for m in mots_metier(poste) if m not in _GENERIQUES]
+    connus = {
+        w for texte in (rubrique.libelle, *rubrique.typiques, *rubrique.assimilees)
+        for w in mots_metier(texte)
+    }
+    return any(_meme_racine(m, w) for m in mots for w in connus)
 
 
 def _candidat(m: _Metier, ref: Dict[str, Rubrique], proche: bool) -> Candidat:

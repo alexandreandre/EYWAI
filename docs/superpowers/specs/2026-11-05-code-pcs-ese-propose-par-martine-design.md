@@ -118,7 +118,12 @@ On lui donne : la société, l'intitulé du poste et le statut (cadre ou non cad
 a) **Les collègues de la société** : même poste, même statut, avec un vrai code (ni « 9999 », ni
    vide), sans compter le salarié lui-même. Si tous ont le même code, Martine est sûre.
 b) **Personne dans la société** : Martine cherche le même poste, au même statut, dans les autres
-   sociétés du groupe, avec la même règle.
+   sociétés du groupe, avec la même règle. **L'Insee doit confirmer** : un mot du poste, hors mots
+   génériques, figure dans l'intitulé de la rubrique ou ses métiers. Sinon, un métier Insee sûr
+   (règle c) l'emporte ; à défaut, le code du collègue est proposé, pas posé. (Contrôle du 05/11
+   après l'écriture : un collègue d'une autre société avait donné « Soudeurs manuels » à des
+   opérateurs de pliage, « méthodes » à des responsables qualité, que l'Insee range en 387d, et
+   « Employés administratifs » à des chefs de projet.)
 c) **Personne dans le groupe** : Martine cherche l'intitulé dans les métiers Insee (R2), en lisant
    les professions typiques, puis les assimilées, puis les exclues (pour une exclue, elle prend le
    code « voir »). Elle applique les filtres R3 et R4. **Elle n'est sûre que si l'intitulé est égal
@@ -194,6 +199,13 @@ demande au moins 2 collègues d'accord. Sinon le code ECAP est proposé, pas pos
 - **Écriture seulement après « lance … » d'Alexandre**, et seulement quand le lot du bloc 41 est en
   ligne sur le test.
 - Sans code sûr, la fiche garde « 9999 », et elle proposera 3 codes.
+
+**Correction du 05/11** (`~/dev/eywai-filet/pcs-ese/simuler-correction.sh` puis
+`appliquer-correction.sh`) : relues contre l'Insee et le statut déclaré par Quadra
+(S21.G00.40.002), 8 des 68 fiches repassent à « 9999 » : 5 que la règle b) resserrée ne garde plus,
+et 3 cadres sur la fiche que la DSN déclare en statut 05, dont le code de cadre n'est pas sûr. Le
+calcul repart des fiches d'avant l'écriture : un code posé ce jour-là ne prouve rien pour son
+voisin. La note `pcs_changement` s'efface d'elle-même, le code revenant à l'ancien avant toute DSN.
 
 ### 3.5 OETH : effet mesuré
 
