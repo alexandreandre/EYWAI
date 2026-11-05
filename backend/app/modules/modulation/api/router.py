@@ -9,6 +9,7 @@ from app.modules.access_control.application.service import access_control_servic
 from app.modules.modulation.application import commands, queries
 from app.modules.modulation.application import hour_account_commands, hour_account_queries
 from app.modules.modulation.schemas.requests import (
+    ChoixDuMoisRecuperation,
     ManualAdjustmentCreate,
     ModulationBalanceResponse,
     ModulationMovementSchema,
@@ -18,6 +19,7 @@ from app.modules.modulation.schemas.requests import (
     OpeningBalanceCreate,
     OvertimeRoutingDecisionUpdate,
     OvertimeRoutingRow,
+    PaiementSoldeRecuperation,
     WeekTemplateSchema,
     WorkTimePeriodSchema,
     WorkTimePeriodUpdate,
@@ -447,3 +449,65 @@ def put_overtime_routing(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return OvertimeRoutingRow(**row)
+
+
+# --- Heures de récupération (spec 2026-11-05) --------------------------------
+
+
+@router.put("/recuperation/{employee_id}/mois")
+def put_choix_du_mois_recuperation(
+    employee_id: str,
+    body: ChoixDuMoisRecuperation,
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    """Payer les heures sup du mois au lieu de les mettre au compteur, ou
+    revenir à la règle de la société. Le bulletin se recalcule ensuite."""
+    cid = _resolve_company_id(company_id, current_user)
+    _require_rh_on_employee(current_user, cid, employee_id)
+    hour_account_commands.choisir_le_mois(
+        cid,
+        employee_id,
+        year,
+        month,
+        payer=body.payer,
+        heures_sup=body.heures_sup,
+        par=str(current_user.id),
+    )
+    return {"status": "ok"}
+
+
+@router.post("/recuperation/{employee_id}/paiement")
+def post_paiement_solde_recuperation(
+    employee_id: str,
+    body: PaiementSoldeRecuperation,
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    cid = _resolve_company_id(company_id, current_user)
+    _require_rh_on_employee(current_user, cid, employee_id)
+    try:
+        hour_account_commands.payer_le_solde(
+            cid, employee_id, year, month, body.heures, par=str(current_user.id)
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"status": "ok"}
+
+
+@router.delete("/recuperation/{employee_id}/paiement")
+def delete_paiement_solde_recuperation(
+    employee_id: str,
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    cid = _resolve_company_id(company_id, current_user)
+    _require_rh_on_employee(current_user, cid, employee_id)
+    annules = hour_account_commands.annuler_paiement_du_mois(cid, employee_id, year, month)
+    return {"status": "ok", "annules": annules}

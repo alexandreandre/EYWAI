@@ -163,3 +163,16 @@ class ManualAdjustmentCreate(BaseModel):
     hours: float = Field(..., ge=-2000, le=2000)
     note: Optional[str] = None
     year: Optional[int] = None
+
+
+class ChoixDuMoisRecuperation(BaseModel):
+    """« Payer ces heures ce mois-ci » (payer=True) ou « Remettre au compteur »."""
+
+    payer: bool
+    heures_sup: float = Field(0, ge=0, le=300)
+
+
+class PaiementSoldeRecuperation(BaseModel):
+    """Heures du compteur à payer sur le bulletin du mois."""
+
+    heures: float = Field(..., gt=0, le=1000)

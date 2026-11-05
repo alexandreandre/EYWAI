@@ -88,9 +88,10 @@ class AbsenceRequestCreate(BaseModel):
     def heures_par_jour_reservees_aux_repos(self) -> "AbsenceRequestCreate":
         if not self.heures_par_jour:
             return self
-        if self.type != "repos_compensateur":
+        if self.type not in ("repos_compensateur", "recuperation_modulation"):
             raise ValueError(
-                "La prise en heures n'est disponible que pour le repos compensateur."
+                "La prise en heures n'est disponible que pour le repos "
+                "compensateur et la récupération."
             )
         jours = set(self.selected_days)
         hors_selection = [d for d in self.heures_par_jour if d not in jours]

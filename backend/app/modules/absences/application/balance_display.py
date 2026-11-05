@@ -116,7 +116,7 @@ def balances_to_api_list(
         mod_row = _official_balance_row(mod)
         result.append(
             {
-                "type": "Compte modulation",
+                "type": "Récupération (heures sup)",
                 **mod_row,
             }
         )

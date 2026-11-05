@@ -299,6 +299,40 @@ def supprimer_credits_de_paie(employee_id: str, year: int, month: int) -> list[d
     return resp.data or []
 
 
+def annuler_mouvements_de_reference(
+    reference_id: str, movement_type: str
+) -> list[dict[str, Any]]:
+    """Passe à « cancelled » les mouvements actifs liés à une demande."""
+    now = datetime.now(timezone.utc).isoformat()
+    resp = (
+        supabase.table("employee_modulation_movements")
+        .update({"status": "cancelled", "updated_at": now})
+        .eq("reference_id", reference_id)
+        .eq("movement_type", movement_type)
+        .in_("status", ["pending", "validated", "applied_payroll"])
+        .execute()
+    )
+    return resp.data or []
+
+
+def annuler_paiements_du_mois(
+    employee_id: str, year: int, month: int
+) -> list[dict[str, Any]]:
+    """Passe à « cancelled » les paiements de solde du mois."""
+    now = datetime.now(timezone.utc).isoformat()
+    resp = (
+        supabase.table("employee_modulation_movements")
+        .update({"status": "cancelled", "updated_at": now})
+        .eq("employee_id", employee_id)
+        .eq("year", year)
+        .eq("month", month)
+        .eq("movement_type", "debit_payout")
+        .in_("status", ["pending", "validated", "applied_payroll"])
+        .execute()
+    )
+    return resp.data or []
+
+
 def mark_movements_applied_payroll(movement_ids: list[str]) -> None:
     if not movement_ids:
         return

@@ -215,7 +215,7 @@ export default function AbsencesPage() {
     'jtc': 'JTC',
     'sans_solde': 'Congé sans solde', 
     'repos_compensateur': 'Repos compensateur',
-    'recuperation_modulation': 'Récupération modulation',
+    'recuperation_modulation': 'Récupération (heures sup)',
     'evenement_familial': 'Événement familial',
     'arret_maladie': 'Arrêt maladie',
     'arret_at': 'Accident du travail',

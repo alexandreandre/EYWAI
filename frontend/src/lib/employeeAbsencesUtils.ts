@@ -7,7 +7,7 @@ export const ABSENCE_TYPE_LABELS: Record<AbsenceRequest['type'], string> = {
   jtc: 'JTC',
   sans_solde: 'Congé sans solde',
   repos_compensateur: 'Repos compensateur',
-  recuperation_modulation: 'Récupération modulation',
+  recuperation_modulation: 'Récupération (heures sup)',
   evenement_familial: 'Événement familial',
   arret_maladie: 'Arrêt maladie',
   arret_at: 'Accident du travail',
@@ -247,7 +247,7 @@ export function formatBalanceRemaining(
 
 /** Soldes exprimés en heures (compte modulation, repos compensateur). */
 export function balanceUsesHours(balanceType: string): boolean {
-  return balanceType === 'Compte modulation' || balanceType === 'Repos compensateur';
+  return balanceType === 'Récupération (heures sup)' || balanceType === 'Repos compensateur';
 }
 
 const RH_LEAVE_BALANCE_SHORT_LABELS: Record<string, string> = {
@@ -258,7 +258,7 @@ const RH_LEAVE_BALANCE_SHORT_LABELS: Record<string, string> = {
   'Congés Payés (fractionnement)': 'CP fractionnement',
   RTT: 'RTT',
   'Repos compensateur': 'Repos comp.',
-  'Compte modulation': 'Modulation',
+  'Récupération (heures sup)': 'Récupération',
   'Événement familial': 'Évén. familial',
 };
 

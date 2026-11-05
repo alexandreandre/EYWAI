@@ -86,3 +86,15 @@ def mark_applied_payroll(employee_id: str, year: int, month: int) -> None:
         .eq("month", month)
         .execute()
     )
+
+
+def supprimer_decision(employee_id: str, year: int, month: int) -> None:
+    """« Remettre au compteur » : sans décision, la règle de la société joue."""
+    (
+        supabase.table("employee_overtime_routing_decisions")
+        .delete()
+        .eq("employee_id", employee_id)
+        .eq("year", year)
+        .eq("month", month)
+        .execute()
+    )

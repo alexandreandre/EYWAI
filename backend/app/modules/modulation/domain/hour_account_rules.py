@@ -447,3 +447,35 @@ def etat_du_mois(
         "pris_annee": round(pris_annee, 2),
         "prises": prises,
     }
+
+
+def heures_payees_du_mois(
+    movements: list[dict[str, Any]], annee: int, mois: int
+) -> float:
+    """Heures du compteur que la RH a choisi de payer sur le bulletin du mois."""
+    total = 0.0
+    for m in movements:
+        if str(m.get("movement_type") or "") != "debit_payout":
+            continue
+        if str(m.get("status") or "") not in _ACTIVE_STATUSES:
+            continue
+        if int(m.get("year") or 0) != annee or m.get("month") is None or int(m["month"]) != mois:
+            continue
+        total += abs(float(m.get("hours") or 0))
+    return round(total, 2)
+
+
+def saisie_paiement_solde(heures: float, taux_horaire_base: float) -> dict[str, Any]:
+    """La ligne du bulletin qui paie un solde de récupération : une prime au
+    taux horaire de base (le repos est déjà l'équivalent majoré), soumise
+    comme un salaire, SANS les régimes des heures sup — une heure mise en
+    repos puis payée les a perdus (BOSS heures sup ; BOFiP
+    BOI-RSA-CHAMP-20-50-20-40 ; spec 2026-11-03 « Tranché le 03/11 »)."""
+    return {
+        "prime_id": "paiement_solde_recuperation",
+        "libelle": "Paiement solde heures de récupération",
+        "montant": round(float(heures) * float(taux_horaire_base), 2),
+        "quantity": round(float(heures), 2),
+        "soumise_a_cotisations": True,
+        "soumise_a_impot": True,
+    }

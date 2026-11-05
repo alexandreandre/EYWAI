@@ -412,7 +412,7 @@ class TestModulationRecoveryOnValidation:
                     mock_bal.return_value = type(
                         "B", (), {"account_balance_hours": 2.0}
                     )()
-                    with pytest.raises(ValueError, match="Solde modulation insuffisant"):
+                    with pytest.raises(ValueError, match="Solde de récupération insuffisant"):
                         commands._apply_modulation_recovery_on_validation(
                             data, "req-mod-1"
                         )
@@ -455,6 +455,53 @@ class TestModulationRecoveryOnValidation:
                         )
                         mock_debit.assert_called_once()
                         assert mock_debit.call_args[0][4] == 7.0  # 1 jour × 35/5
+                        # La date de la prise va sur le bulletin (« 7 h le 10/03 »).
+                        assert mock_debit.call_args.kwargs["metadata"] == {
+                            "jours": {"2026-03-10": 7.0}
+                        }
+
+    def test_recuperation_prise_en_heures(self):
+        """« 3,5 h le 14/08 » : le compteur est débité des heures saisies."""
+        data = {
+            "company_id": "company-1",
+            "employee_id": "emp-1",
+            "selected_days": ["2026-08-14"],
+            "heures_par_jour": {"2026-08-14": 3.5},
+        }
+        with patch(
+            "app.modules.modulation.infrastructure.repository.get_modulation_settings"
+        ) as mock_settings:
+            mock_settings.return_value = type(
+                "S",
+                (),
+                {
+                    "hour_account_enabled": True,
+                    "recovery_absence_enabled": True,
+                    "recovery_debit_timing": "on_validation",
+                },
+            )()
+            with patch(
+                "app.modules.absences.application.commands.supabase"
+            ) as mock_sb:
+                mock_sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = type(
+                    "R", (), {"data": [{"duree_hebdomadaire": 35}]}
+                )()
+                with patch(
+                    "app.modules.modulation.application.hour_account_queries.get_employee_account_balance"
+                ) as mock_bal:
+                    mock_bal.return_value = type(
+                        "B", (), {"account_balance_hours": 4.0}
+                    )()
+                    with patch(
+                        "app.modules.modulation.application.hour_account_commands.create_debit_recovery_movement"
+                    ) as mock_debit:
+                        commands._apply_modulation_recovery_on_validation(
+                            data, "req-mod-2"
+                        )
+                        assert mock_debit.call_args[0][4] == 3.5
+                        assert mock_debit.call_args.kwargs["metadata"] == {
+                            "jours": {"2026-08-14": 3.5}
+                        }
 
 
 class TestGenerateSalaryCertificate:
@@ -647,8 +694,9 @@ class TestCancelValidatedAbsence:
         _, ordre = self._annuler(req_before, [])
         assert ordre == ["restore", "update"]
 
-    def test_annulation_d_une_recup_modulation_refusee(self):
-        """Pas de re-crédit modulation : l'annulation doit être bloquée."""
+    def test_annuler_une_recuperation_rend_ses_heures_au_compteur(self):
+        """Spec 2026-11-05 § 3.5 : annuler une récupération validée rend ses
+        heures (le débit est annulé) avant de rendre les jours au planning."""
         req_before = {
             "id": "req-recup",
             "employee_id": "emp-1",
@@ -657,14 +705,11 @@ class TestCancelValidatedAbsence:
             "selected_days": ["2026-08-14"],
         }
         with patch(
-            "app.modules.absences.application.commands.absence_repository"
-        ) as repo:
-            repo.get_by_id.return_value = req_before
-            with pytest.raises(ValueError, match="re-crédit"):
-                commands.update_absence_request_status(
-                    "req-recup", "cancelled", current_user_id="user-1"
-                )
-        repo.update.assert_not_called()
+            "app.modules.modulation.application.hour_account_commands.annuler_debits_de_recuperation"
+        ) as annuler:
+            _, ordre = self._annuler(req_before, [])
+        annuler.assert_called_once_with("req-recup")
+        assert ordre[-1] == "update"
 
     def test_annulation_d_une_demande_pending_ne_restaure_rien(self):
         req_before = {

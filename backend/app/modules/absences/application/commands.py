@@ -91,7 +91,15 @@ def _trace_attestation_salaire_ijss_after_generation(
         logger.exception("Exception")
 
 
-def _hours_for_modulation_absence(employee_id: str, selected_days: list) -> float:
+def _heures_par_jour_de_recuperation(
+    employee_id: str, selected_days: list, heures_par_jour: dict | None = None
+) -> dict[str, float]:
+    """{jour ISO: heures} d'une récupération : les heures saisies (« 3,5 h le
+    14/08 »), sinon la journée = durée hebdomadaire ÷ 5."""
+    if heures_par_jour:
+        return {
+            str(jour)[:10]: round(float(h), 2) for jour, h in heures_par_jour.items()
+        }
     resp = (
         supabase.table("employees")
         .select("duree_hebdomadaire")
@@ -101,8 +109,15 @@ def _hours_for_modulation_absence(employee_id: str, selected_days: list) -> floa
     )
     rows = resp.data or []
     duree = float(rows[0].get("duree_hebdomadaire") or 35) if rows else 35.0
-    daily = duree / 5.0
-    return round(len(selected_days) * daily, 2)
+    daily = round(duree / 5.0, 2)
+    return {str(d)[:10]: daily for d in selected_days}
+
+
+def _hours_for_modulation_absence(
+    employee_id: str, selected_days: list, heures_par_jour: dict | None = None
+) -> float:
+    jours = _heures_par_jour_de_recuperation(employee_id, selected_days, heures_par_jour)
+    return round(sum(jours.values()), 2)
 
 
 def _verifier_modulation_recovery(data: dict[str, Any]):
@@ -127,17 +142,20 @@ def _verifier_modulation_recovery(data: dict[str, Any]):
             "La récupération sur compte modulation n'est pas activée pour cette entreprise."
         )
     days = data.get("selected_days") or []
-    hours = _hours_for_modulation_absence(employee_id, days)
+    jours = _heures_par_jour_de_recuperation(
+        employee_id, days, data.get("heures_par_jour") or None
+    )
+    hours = round(sum(jours.values()), 2)
     if hours <= 0:
-        raise ValueError("Aucun jour sélectionné pour la récupération modulation.")
+        raise ValueError("Aucun jour sélectionné pour la récupération.")
 
     balance = get_employee_account_balance(company_id, employee_id)
     if not can_debit_recovery(balance.account_balance_hours, hours):
         raise ValueError(
-            f"Solde modulation insuffisant ({balance.account_balance_hours:.2f} h "
-            f"disponibles pour {hours:.2f} h demandées)."
+            f"Solde de récupération insuffisant : {balance.account_balance_hours:.2f} h "
+            f"disponibles pour {hours:.2f} h demandées."
         )
-    return hours, settings
+    return hours, settings, jours
 
 
 def _apply_modulation_recovery_on_validation(
@@ -156,7 +174,7 @@ def _apply_modulation_recovery_on_validation(
     company_id = str(data.get("company_id") or "")
     employee_id = str(data["employee_id"])
     days = data.get("selected_days") or []
-    hours, settings = (
+    hours, settings, jours = (
         precheck if precheck is not None else _verifier_modulation_recovery(data)
     )
 
@@ -175,7 +193,9 @@ def _apply_modulation_recovery_on_validation(
         ref.month,
         hours,
         reference_id=request_id,
-        note="Récupération modulation (absence validée)",
+        note="Récupération (absence validée)",
+        # Les dates vont sur le bulletin (« 7 h le 13/07 », D3171-11).
+        metadata={"jours": jours},
     )
 
 
@@ -361,12 +381,13 @@ def update_absence_request_status(
 
     if status == "cancelled" and req_before.get("status") == "validated":
         if req_before.get("type") == "recuperation_modulation":
-            # Le re-crédit du compte modulation n'existe pas encore : annuler
-            # laisserait le salarié débité pour une absence disparue.
-            raise ValueError(
-                "Annulation impossible pour une récupération modulation : le "
-                "re-crédit des heures n'est pas encore géré."
+            # Les heures reviennent au compteur : le débit de la demande est
+            # annulé (spec 2026-11-05 § 3.5), avant l'écriture du statut.
+            from app.modules.modulation.application.hour_account_commands import (
+                annuler_debits_de_recuperation,
             )
+
+            annuler_debits_de_recuperation(request_id)
         # Restauration AVANT l'écriture du statut : si elle échoue, la demande
         # reste validée et l'annulation peut être rejouée — l'inverse laisse
         # des jours gelés sans recours (retour Gaëlle 03/09, RC de salarié 044).

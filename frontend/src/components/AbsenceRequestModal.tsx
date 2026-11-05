@@ -41,6 +41,11 @@ import {
 import { formatPeriodeArret } from "@/lib/arretPeriode";
 import { accord } from '@/lib/pluriel';
 
+/** Les absences qui se prennent aussi en heures (« 3,5 h le 14/08 »). */
+function priseEnHeures(type: string): boolean {
+  return type === 'repos_compensateur' || type === 'recuperation_modulation';
+}
+
 export type AbsenceRequestModalMode = "employee" | "rh_arret" | "rh_leave";
 
 /** Types d’absence pour lesquels la qualification d’arrêt est obligatoire. */
@@ -106,7 +111,7 @@ function BalanceHint({
   return (
     <p className="text-xs text-muted-foreground">
       Solde {typeLabel} restant :{' '}
-      {formatQuantiteFr(rest, absenceType === 'repos_compensateur' ? 'h' : 'j')}
+      {formatQuantiteFr(rest, priseEnHeures(absenceType) ? 'h' : 'j')}
     </p>
   );
 }
@@ -195,13 +200,13 @@ export function AbsenceRequestModal({
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(false);
 
   // Soldes RH de l'employé choisi (mode « Nouveau congé ») : la ligne
-  // « Compte modulation » n'existe que si la société a activé le compte ET la
+  // « Récupération (heures sup) » n'existe que si la société a activé le compte ET la
   // récupération — c'est le gating serveur, pas une devinette côté client.
   const { data: rhBalances } = useEmployeeAbsenceBalancesQuery(
     isRhLeave && selectedEmployeeId ? selectedEmployeeId : undefined,
   );
   const modulationRhRow = (rhBalances ?? []).find(
-    (b) => b.type === "Compte modulation",
+    (b) => b.type === "Récupération (heures sup)",
   );
   const hasJtcRh = (rhBalances ?? []).some((b) => b.type === "JTC");
   // Soldes qui jugent la pose d'un congé payé : ceux du salarié choisi pour la
@@ -370,7 +375,7 @@ export function AbsenceRequestModal({
           payload.demi_journees = demi;
         }
       }
-      if (absenceType === 'repos_compensateur') {
+      if (priseEnHeures(absenceType)) {
         const jours = new Set(
           (selectedDays ?? []).map((day) => format(day, 'yyyy-MM-dd')),
         );
@@ -455,7 +460,7 @@ export function AbsenceRequestModal({
       return;
     }
 
-    if (absenceType === 'repos_compensateur') {
+    if (priseEnHeures(absenceType)) {
       const jours = (selectedDays ?? []).map((d) => format(d, 'yyyy-MM-dd'));
       const remplis = jours.filter((iso) => {
         const n = Number.parseFloat((heuresParJour[iso] ?? '').replace(',', '.'));
@@ -463,7 +468,7 @@ export function AbsenceRequestModal({
       });
       if (remplis.length > 0 && remplis.length < jours.length) {
         setError(
-          'Repos en heures : saisissez les heures pour chaque jour sélectionné, ' +
+          'Prise en heures : saisissez les heures pour chaque jour sélectionné, ' +
             'ou laissez tout vide pour des journées entières.',
         );
         return;
@@ -504,11 +509,11 @@ export function AbsenceRequestModal({
     rtt: 'RTT',
     jtc: 'JTC',
     repos_compensateur: 'Repos Compensateur',
-    recuperation_modulation: 'Récupération modulation',
+    recuperation_modulation: 'Récupération (heures sup)',
     evenement_familial: 'Événement Familial',
   };
 
-  const modBalance = balances.find((b) => b.type === 'Compte modulation');
+  const modBalance = balances.find((b) => b.type === 'Récupération (heures sup)');
   const modRestant =
     typeof modBalance?.remaining === 'number' ? modBalance.remaining : 0;
   // Le JTC n'existe que chez les sociétés qui l'ont activé : sans compteur
@@ -526,13 +531,13 @@ export function AbsenceRequestModal({
           { value: "rtt" as const, label: "RTT" },
           ...(hasJtcRh ? [{ value: "jtc" as const, label: "JTC" }] : []),
           { value: "repos_compensateur" as const, label: "Repos Compensateur" },
-          // « Heures de récup » : récupération d'heures du compte modulation —
-          // la ligne de solde n'existe que si la société l'a activée.
+          // Récupération des heures sup mises au compteur : la ligne de solde
+          // n'existe que si la société met ses heures sup au compteur.
           ...(modulationRhRow
             ? [
                 {
                   value: "recuperation_modulation" as const,
-                  label: "Heures de récup (modulation)",
+                  label: "Récupération (heures sup)",
                 },
               ]
             : []),
@@ -832,10 +837,12 @@ export function AbsenceRequestModal({
                 )}
               </PopoverContent>
             </Popover>
-            {absenceType === 'repos_compensateur' && (selectedDays?.length ?? 0) > 0 && (
+            {priseEnHeures(absenceType) && (selectedDays?.length ?? 0) > 0 && (
               <div className="space-y-1 rounded-md border p-2">
                 <p className="text-xs text-muted-foreground">
-                  Heures de repos par jour (vide = journée entière) :
+                  {absenceType === 'recuperation_modulation'
+                    ? 'Heures de récupération par jour (vide = journée entière) :'
+                    : 'Heures de repos par jour (vide = journée entière) :'}
                 </p>
                 {[...(selectedDays ?? [])]
                   .sort((a, b) => a.getTime() - b.getTime())

@@ -744,6 +744,23 @@ def run_payslip_generation_heures(
             month,
             credit_du_calcul=(modulation_result.repos_credite if modulation_result else 0.0),
         )
+        heures_payees = float((contexte.recuperation_du_mois or {}).get("paye") or 0.0)
+        if heures_payees > 0:
+            # Solde de récupération payé ce mois-ci (choix de la RH) : une
+            # prime au taux horaire de base, sans les régimes des heures sup.
+            from app.modules.modulation.domain.hour_account_rules import (
+                saisie_paiement_solde,
+            )
+            from app.modules.payroll.engine.calcul_brut import _get_salaire_horaire_base
+
+            taux_de_base = _get_salaire_horaire_base(contexte, contexte.duree_hebdo_contrat)
+            saisie_du_mois = {
+                **saisie_du_mois,
+                "primes": [
+                    *(saisie_du_mois.get("primes") or []),
+                    saisie_paiement_solde(heures_payees, taux_de_base),
+                ],
+            }
     cet_movement_ids: list[str] = []
     cet_withdrawal_ids: list[str] = []
     if employee_id:
