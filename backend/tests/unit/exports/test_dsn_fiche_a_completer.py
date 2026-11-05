@@ -42,6 +42,18 @@ def test_pcs_9999_profession_inconnue_est_accepte():
     assert fiche_a_completer(_cdi(classification_conventionnelle={"pcs": "9999"})) == []
 
 
+@pytest.mark.parametrize("code", ["674A", "999a", "100a"])
+def test_pcs_bien_forme_mais_absent_de_la_liste_officielle(code):
+    # CRE-11 (cahier technique 2026.1.2, p. 183) : seules les valeurs de la table DSN PCSESE
+    # passent, minuscules comprises (p. 88). « 999a » a la forme d'un code sans en être un.
+    manques = manques_fiche_dsn(_cdi(classification_conventionnelle={"pcs": code}))
+    assert [m.champ for m in manques] == [f"code PCS-ESE « {code} » hors liste"]
+    assert manques[0].message == (
+        f"Code PCS-ESE (S21.G00.40.004) « {code} » absent de la liste officielle "
+        "(table DSN PCSESE, contrôle CRE-11) : à choisir dans la liste sur la fiche"
+    )
+
+
 def test_cdd_sans_date_de_fin_ni_motif():
     manques = fiche_a_completer(_cdi(contract_type="CDD"))
     assert any("S21.G00.40.010" in m for m in manques)
