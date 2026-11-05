@@ -424,7 +424,7 @@ export function EmployeeProfileEditForm({
               <FormItem>
                 <FormLabel>Code PCS-ESE</FormLabel>
                 <FormControl><Input {...field} placeholder="ex. 674a" maxLength={4} /></FormControl>
-                <p className="text-xs text-muted-foreground">Déclaré en DSN : trois chiffres et une lettre.</p>
+                <p className="text-xs text-muted-foreground">Déclaré en DSN : trois chiffres et une lettre, ou 9999 si la profession est inconnue.</p>
                 <FormMessage />
               </FormItem>
             )}

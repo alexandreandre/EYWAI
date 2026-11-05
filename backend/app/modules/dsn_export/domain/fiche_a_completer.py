@@ -12,7 +12,9 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-_PCS_ESE = re.compile(r"^\d{3}[a-z]$")
+# Trois chiffres et une lettre minuscule, ou « 9999 » (profession non connue ou non
+# communiquée), le seul code de la table DSN PCSESE à quatre chiffres.
+_PCS_ESE = re.compile(r"^(\d{3}[a-z]|9999)$")
 _DISPOSITIFS_APPRENTISSAGE = {"64", "65", "66", "81"}
 
 
@@ -52,7 +54,7 @@ def manques_fiche_dsn(employee: Dict[str, Any]) -> List[ManqueFiche]:
         manques.append(ManqueFiche(
             f"code PCS-ESE « {pcs} » hors format",
             f"Code PCS-ESE (S21.G00.40.004) « {pcs} » hors format "
-            "(trois chiffres et une lettre) : à vérifier sur la fiche",
+            "(trois chiffres et une lettre, ou 9999) : à vérifier sur la fiche",
         ))
 
     if not (employee.get("date_naissance") or employee.get("birth_date")):

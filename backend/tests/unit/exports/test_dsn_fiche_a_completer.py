@@ -31,8 +31,15 @@ def test_pcs_absent_est_signale():
 
 
 def test_pcs_hors_format_est_signale_sans_etre_corrige():
-    manques = fiche_a_completer(_cdi(classification_conventionnelle={"pcs": "9999"}))
-    assert any("S21.G00.40.004" in m and "9999" in m for m in manques)
+    # « 54A1 » est un code PCS 2020 : la DSN ne connaît que la PCS-ESE 2017.
+    manques = fiche_a_completer(_cdi(classification_conventionnelle={"pcs": "54A1"}))
+    assert any("S21.G00.40.004" in m and "54A1" in m for m in manques)
+
+
+def test_pcs_9999_profession_inconnue_est_accepte():
+    # « 9999 - Profession et catégorie professionnelle non connue ou non communiquée »
+    # est dans la table DSN PCSESE (net-entreprises, P26V01 et P27V01) : DSN-VAL l'accepte.
+    assert fiche_a_completer(_cdi(classification_conventionnelle={"pcs": "9999"})) == []
 
 
 def test_cdd_sans_date_de_fin_ni_motif():
