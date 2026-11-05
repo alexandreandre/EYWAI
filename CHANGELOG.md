@@ -5,6 +5,28 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Le bulletin ne porte plus que ce qu'il doit porter
+- « Heures compensées entre semaines (option société) » et « … plus favorable que la règle du 1/10ème » ne s'impriment plus : ces deux phrases restent à l'écran, dans « D'où viennent ces lignes ».
+- « Réduction HS structurelles (jours d'absence) » devient « Heures sup. du contrat non faites (absence) » sur les nouveaux bulletins. Le calcul ne change pas.
+
+### L'attestation de salaire maison disparaît, l'arrêt montre son signalement DSN
+- Plus de PDF d'attestation pour la CPAM : le signalement d'arrêt en DSN le remplace, et ce document inventait le salaire de la fiche pour les mois sans bulletin.
+- À la place, chaque arrêt validé dit où en est son signalement : à déposer avant telle date, en retard, ou fichier généré tel jour. Le dépôt se fait hors de Martine : elle ne le voit pas et ne le prétend pas.
+
+### Plus de montant inventé sans le dire quand un bulletin manque
+- Le reçu pour solde de tout compte se refuse sans le bulletin du mois de sortie. L'attestation employeur garde 0 € pour un bulletin sans salaire.
+- Des IJ estimées disent combien de mois de référence n'ont pas de bulletin. Une avance sans bulletin dit que sa référence est le brut de la fiche.
+
+### Forfait jours : un jour resté « Prévu » n'est plus une absence
+- Dans un mois confirmé en partie, un jour prévu sans réel restait retenu en absence injustifiée. Seul un 0 posé à l'écran dit « non travaillé ».
+
+### Deux messages qui ne demandent rien se taisent
+- « Plasturgie : un an d'ancienneté requis… » : le motif se lit sous la ligne d'absence, à l'aperçu et au détail du maintien.
+- Le net ne se compare plus à un mois d'entrée incomplet (« +508 % ») : ni orange, ni écart à acquitter avant de valider.
+
+### Provision des congés
+- « Mois retenus » s'écrit « 9 mois sur 12 » : Excel n'en fait plus une date.
+
 ## paie-2026-11-05.11 — 5 novembre 2026
 
 ### Le dossier de départ d'un CDD estime la prime et les congés selon la loi
