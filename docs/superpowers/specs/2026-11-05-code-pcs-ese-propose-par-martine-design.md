@@ -127,7 +127,8 @@ c) **Personne dans le groupe** : Martine cherche l'intitulé dans les métiers I
 Quand les collègues ne sont pas d'accord, Martine ne passe pas à l'étape suivante : elle propose
 leurs codes.
 
-**Point à trancher, avec un seuil de collègues (voir § 4).**
+**Seuil (décidé le 05/11, voir § 4)** : un seul collègue suffit, sauf pour un code ECAP (R6), qui
+demande au moins 2 collègues d'accord. Sinon le code ECAP est proposé, pas posé.
 
 **Ce qui s'affiche :**
 - Sûre, et le code actuel est vide ou « 9999 » : Martine pré-remplit le code et écrit la raison
@@ -163,9 +164,9 @@ leurs codes.
 
 ### 3.4 Les 198 fiches à « 9999 »
 
-- Le script `backend/scripts/pcs_ese/remplacer_9999.py` utilise la même fonction que l'écran
-  (§ 3.2). Il ne retient que les codes sûrs et écrit par `update_employee` : le § 3.3 note donc
-  chaque changement.
+- Le script `~/dev/eywai-filet/pcs-ese/remplacer_9999.py` (hors dépôt, comme les autres scripts
+  d'écriture) utilise la même fonction que l'écran (§ 3.2). Il ne retient que les codes sûrs et
+  écrit par `update_employee` : le § 3.3 note donc chaque changement.
 - On le lance par `~/dev/eywai-filet/pcs-ese/simuler.sh`, puis par `appliquer.sh`. Le script
   sauvegarde les fiches en JSON avant d'écrire, s'arrête à la première erreur et tient un journal
   par initiales.
@@ -194,7 +195,9 @@ leurs codes.
   plutôt qu'une saisie à la main. Et il prend un Smic de 11,88 € : `load_smic_horaire` cherche
   `horaire` ou `smic_horaire`, alors que la base range 12,31 € sous `smic_horaire_brut`.
 
-## 4. Mesures sur les 198 (base de test, 05/11) et point à trancher
+## 4. Mesures sur les 198 (base de test, 05/11) et seuil retenu
+
+**Décision du 05/11** : Alexandre a demandé d'appliquer la recommandation ci-dessous.
 
 | Règle | Sûrs | Collègues pas d'accord ou plusieurs codes | Rien |
 |---|---|---|---|
