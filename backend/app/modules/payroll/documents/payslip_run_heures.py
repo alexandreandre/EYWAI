@@ -1584,10 +1584,17 @@ def run_payslip_generation_heures(
             "hs_realisees": modulation_result.hs_realisees,
             "hs_credited": modulation_result.hs_credited,
             "hs_paid": modulation_result.hs_paid,
-            "repos_credite": modulation_result.repos_credite,
-            "paye_ce_mois": modulation_result.paye_ce_mois,
-            "au_compteur_ce_mois": modulation_result.au_compteur_ce_mois,
-            "regle": modulation_result.regle,
         }
+        if modulation_result.regle:
+            # Compteur ouvert : ce que la carte du bulletin lit. Rien de plus pour
+            # une société sans compteur, dont le bulletin ne change pas.
+            bulletin_final["modulation_account"].update(
+                {
+                    "repos_credite": modulation_result.repos_credite,
+                    "paye_ce_mois": modulation_result.paye_ce_mois,
+                    "au_compteur_ce_mois": modulation_result.au_compteur_ce_mois,
+                    "regle": modulation_result.regle,
+                }
+            )
 
     return bulletin_final
