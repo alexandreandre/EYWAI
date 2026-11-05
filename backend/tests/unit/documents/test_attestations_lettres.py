@@ -184,3 +184,15 @@ def test_anciennete(debut, jour, attendu):
     from datetime import date
 
     assert anciennete(date.fromisoformat(debut), date.fromisoformat(jour)) == attendu
+
+
+def test_le_numero_deja_dans_la_rue_n_est_pas_repete():
+    """Sur le test (05/11), les 271 adresses qui ont un numéro le portent aussi dans la rue."""
+    from app.services.common_attestation_generator import adresse_du_salarie
+
+    adresse = {"numero": "10", "rue": "10 rue des Lilas", "code_postal": "69003", "ville": "Lyon"}
+    assert adresse_du_salarie({"adresse": adresse}) == "10 rue des Lilas, 69003 Lyon"
+    assert adresse_du_salarie({"adresse": {**adresse, "rue": "rue des Lilas"}}) == "10 rue des Lilas, 69003 Lyon"
+    assert adresse_du_salarie({"adresse": {**adresse, "numero": "1", "rue": "10 rue des Lilas"}}) == (
+        "1 10 rue des Lilas, 69003 Lyon"
+    )

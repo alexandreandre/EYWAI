@@ -7,8 +7,9 @@ import { API_URL } from '../helpers/env';
 // (« mode paie ») : le compte QA, administrateur plateforme, passe pour une
 // gestionnaire en réécrivant /api/auth/me ; le serveur garde ses droits.
 //
-// Le parcours écrit une seule chose, l'attestation de travail générée sur le
-// test, et la supprime à la fin : tout est remis en état.
+// Rien n'est écrit (garde anti-écriture) : la génération est simulée. La lettre
+// réelle et le refus réel du serveur se vérifient à part, contre l'API
+// déployée (voir le compte rendu du 05/11/2026).
 //
 // Un seul parcours, sur une seule page (voir 08-mode-paie : des tests séparés
 // repartant de la même session se verraient refuser son renouvellement).
@@ -66,13 +67,75 @@ test('attestations : fiche du salarié en mode paie, puis Exports', async ({ pag
     await route.fulfill({ status: 204, body: '' });
   });
   const s = surveiller(page);
-  const aSupprimer: string[] = [];
+
+  // Génération simulée : une lettre de travail produite, une lettre de salaire
+  // refusée comme le fait le serveur quand aucun bulletin n'est remis.
+  const ID_SIMULE = '00000000-0000-4000-8000-0000000000a1';
+  const demandes: Array<Record<string, unknown>> = [];
+  let documentSimule: Record<string, unknown> | null = null;
+  await page.route('**/api/documents/generate', async (route) => {
+    const corps = route.request().postDataJSON() as Record<string, unknown>;
+    demandes.push(corps);
+    if (corps.document_type === 'attestation_salaire') {
+      await route.fulfill({
+        status: 400,
+        json: {
+          detail:
+            "Aucun bulletin remis à Jeanne Essai : Martine n'atteste que des salaires de bulletins validés et remis.",
+        },
+      });
+      return;
+    }
+    const maintenant = new Date().toISOString();
+    documentSimule = {
+      id: ID_SIMULE,
+      company_id: '',
+      employee_id: corps.employee_id,
+      document_type: corps.document_type,
+      category: 'attestation_courante',
+      template_id: null,
+      template_version_id: null,
+      is_eywai_template: true,
+      file_url: null,
+      file_name: 'attestation_de_travail.pdf',
+      status: 'brouillon',
+      generation_context: {},
+      generated_by: null,
+      created_at: maintenant,
+      updated_at: maintenant,
+    };
+    await route.fulfill({ status: 201, json: documentSimule });
+  });
+  await page.route(`**/api/documents/${ID_SIMULE}/preview`, async (route) => {
+    await route.fulfill({
+      json: { signed_url: 'https://stockage.invalid/attestation.pdf', file_name: 'attestation_de_travail.pdf' },
+    });
+  });
+  await page.route('https://stockage.invalid/**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/pdf',
+      body: '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 200 200]/Parent 2 0 R>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF',
+    });
+  });
+  // La liste des documents du salarié montre la lettre simulée une fois produite.
+  await page.route(/\/api\/documents\/\?/, async (route) => {
+    if (route.request().method() !== 'GET' || !documentSimule) return route.fallback();
+    const reponse = await route.fetch();
+    const liste = (await reponse.json()) as unknown[];
+    await route.fulfill({ response: reponse, json: [documentSimule, ...liste] });
+  });
 
   try {
+    // La société active n'est connue qu'après le premier écran chargé.
+    await page.goto('/payroll');
+    await expect(page.getByText(/gestion de la paie/i).first()).toBeVisible({ timeout: 30_000 });
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem('activeCompanyId')), { timeout: 15_000 })
+      .toBeTruthy();
     const reponse = await page.request.get(`${API_URL}/api/employees?limit=500`, {
       headers: await enTetes(page),
     });
-    expect(reponse.ok()).toBeTruthy();
+    expect(reponse.ok(), `liste des salariés : ${reponse.status()} ${(await reponse.text()).slice(0, 200)}`).toBeTruthy();
     const salaries = (await reponse.json()) as Array<{ id: string; employment_status?: string | null }>;
     const salarie = salaries.find((e) => (e.employment_status ?? 'actif') === 'actif');
     expect(salarie, 'un salarié actif sur le test').toBeTruthy();
@@ -91,16 +154,14 @@ test('attestations : fiche du salarié en mode paie, puis Exports', async ({ pag
       await expect(fenetre.getByText(/signataire réglé dans Entreprise > Fiche/i)).toBeVisible();
       await choisir(page, fenetre, /type d'attestation/i, /^attestation de travail$/i);
       await expect(fenetre.getByLabel(/nombre de mois/i)).toHaveCount(0);
-      const generation = page.waitForResponse(
-        (r) => r.url().includes('/api/documents/generate') && r.request().method() === 'POST',
-      );
       await fenetre.getByRole('button', { name: /^générer$/i }).click();
-      const reponseGeneration = await generation;
-      expect(reponseGeneration.status(), await reponseGeneration.text()).toBe(201);
-      const doc = (await reponseGeneration.json()) as { id: string; document_type: string };
-      aSupprimer.push(doc.id);
-      expect(doc.document_type).toBe('attestation_emploi');
       await expect(page.getByText(/attestation de travail de .+ prête/i).first()).toBeVisible();
+      expect(demandes.at(-1)).toEqual({
+        employee_id: salarie!.id,
+        document_type: 'attestation_emploi',
+        category: 'attestation_courante',
+        template_id: null,
+      });
       await expect(page.getByRole('dialog', { name: /attestation de travail/i })).toBeVisible({ timeout: 30_000 });
       await page.keyboard.press('Escape');
       await expect(
@@ -113,21 +174,12 @@ test('attestations : fiche du salarié en mode paie, puis Exports', async ({ pag
       const fenetre = page.getByRole('dialog', { name: /générer une attestation/i });
       await choisir(page, fenetre, /type d'attestation/i, /^attestation de salaire$/i);
       await expect(fenetre.getByLabel(/nombre de mois/i)).toHaveValue('3');
-      const generation = page.waitForResponse(
-        (r) => r.url().includes('/api/documents/generate') && r.request().method() === 'POST',
-      );
       await fenetre.getByRole('button', { name: /^générer$/i }).click();
-      const reponseGeneration = await generation;
-      if (reponseGeneration.status() === 201) {
-        // Un bulletin a été validé et remis depuis : la lettre est produite.
-        aSupprimer.push(((await reponseGeneration.json()) as { id: string }).id);
-      } else {
-        // Au 05/11/2026, tous les bulletins du test sont en brouillon.
-        expect(reponseGeneration.status()).toBe(400);
-        await expect(fenetre.getByRole('alert')).toContainText(/aucun bulletin remis à .+ : Martine n'atteste/i);
-        await expect(fenetre).toBeVisible();
-        await fenetre.getByRole('button', { name: /annuler/i }).click();
-      }
+      // Le refus reste dans la fenêtre, qui reste ouverte.
+      await expect(fenetre.getByRole('alert')).toContainText(/aucun bulletin remis à .+ : Martine n'atteste/i);
+      await expect(fenetre).toBeVisible();
+      expect(demandes.at(-1)).toMatchObject({ document_type: 'attestation_salaire', nombre_mois: 3 });
+      await fenetre.getByRole('button', { name: /annuler/i }).click();
     });
 
     await test.step('Exports > Déclarations : la carte ouvre la même fenêtre, avec la liste des salariés', async () => {
@@ -148,12 +200,6 @@ test('attestations : fiche du salarié en mode paie, puis Exports', async ({ pag
     s.erreurs = s.erreurs.filter((e) => !/status of 400 .*\/api\/documents\/generate/.test(e));
     await verifierPageSaine(page, s);
   } finally {
-    for (const id of aSupprimer) {
-      const suppression = await page.request.delete(`${API_URL}/api/documents/${id}`, {
-        headers: await enTetes(page),
-      });
-      expect(suppression.status(), `suppression de l'attestation ${id}`).toBe(204);
-    }
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   }
 });
