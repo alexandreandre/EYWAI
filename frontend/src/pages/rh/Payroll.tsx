@@ -97,6 +97,7 @@ import { avertissementMoisPrecedentGroupe } from '@/features/payroll/utils/valid
 import { ValiderBulletinsPrets } from '@/features/payroll/components/ValiderBulletinsPrets';
 import {
   ecartAvecMoisPrecedent,
+  entreEnCoursDeMois,
   estARevoir,
   libelleEcart,
   moisPrecedent,
@@ -458,7 +459,12 @@ export default function Payroll() {
         unavailableReason && state.status !== 'success' && state.status !== 'loading'
           ? { status: 'unavailable' as const, errorMessage: unavailableReason }
           : state;
-      const ecart = payslip ? ecartAvecMoisPrecedent(payslip, payslipPrecedent) : null;
+      const moisDAvant = moisPrecedent(selectedYear, selectedMonth);
+      const ecart = payslip
+        ? ecartAvecMoisPrecedent(payslip, payslipPrecedent, {
+            precedentIncomplet: entreEnCoursDeMois(emp.hire_date, moisDAvant.year, moisDAvant.month),
+          })
+        : null;
       return {
         employee: emp,
         state: rowState,

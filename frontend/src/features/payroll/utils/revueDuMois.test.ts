@@ -4,6 +4,7 @@ import {
   SEUIL_ECART_NET_PCT,
   SEUIL_HEURES_SUP,
   ecartAvecMoisPrecedent,
+  entreEnCoursDeMois,
   estARevoir,
   moisPrecedent,
   motifsAlerte,
@@ -210,5 +211,28 @@ describe('revue du mois — acquittement, validation, motifs', () => {
 
   it('aucun motif sur un bulletin calme', () => {
     expect(motifsAlerte({ statut: 'success', bulletin: bulletin() })).toEqual([]);
+  });
+});
+
+describe('mois d’avant incomplet (entrée en cours de mois)', () => {
+  it('le net ne se compare pas : rien à revoir', () => {
+    const courant = bulletin({ month: 10, net_a_payer: 1567.04 });
+    const precedent = bulletin({ month: 9, net_a_payer: 257.74 });
+    expect(ecartAvecMoisPrecedent(courant, precedent).fort).toBe(true);
+    const ecart = ecartAvecMoisPrecedent(courant, precedent, { precedentIncomplet: true });
+    expect(ecart).toEqual({ netPct: null, fort: false, raison: null });
+  });
+
+  it('les heures sup restent signalées', () => {
+    const courant = bulletin({ month: 10, heures_sup: 30 });
+    const ecart = ecartAvecMoisPrecedent(courant, bulletin({ month: 9 }), { precedentIncomplet: true });
+    expect(ecart.fort).toBe(true);
+  });
+
+  it('reconnaît le mois d’entrée, sauf une entrée le 1er', () => {
+    expect(entreEnCoursDeMois('2026-09-28', 2026, 9)).toBe(true);
+    expect(entreEnCoursDeMois('2026-09-01', 2026, 9)).toBe(false);
+    expect(entreEnCoursDeMois('2026-08-28', 2026, 9)).toBe(false);
+    expect(entreEnCoursDeMois(null, 2026, 9)).toBe(false);
   });
 });

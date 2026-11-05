@@ -4,7 +4,7 @@ Cas d'usage comparaison N vs N-1, tendance, acquittements, validation.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from typing import Any, Callable, Iterable
 
@@ -148,6 +148,29 @@ def _avec_noms_des_acquitteurs(resultat: dict[str, Any]) -> dict[str, Any]:
     return resultat
 
 
+def _entre_en_cours_de_mois(employee_id: Any, precedent: dict[str, Any] | None) -> bool:
+    """Le bulletin de comparaison est celui du mois d'entrée, entrée après le 1er."""
+    if not precedent:
+        return False
+    try:
+        resp = (
+            supabase.table("employees")
+            .select("hire_date")
+            .eq("id", str(employee_id))
+            .maybe_single()
+            .execute()
+        )
+        entree = date.fromisoformat(str(((resp.data if resp else None) or {}).get("hire_date"))[:10])
+    except Exception:  # noqa: BLE001 — sans date lisible, la comparaison reste entière
+        logger.warning("Date d'entrée illisible pour la comparaison du net", exc_info=True)
+        return False
+    return (
+        entree.year == int(precedent["year"])
+        and entree.month == int(precedent["month"])
+        and entree.day > 1
+    )
+
+
 def get_payslip_comparison_for_user(payslip_id: str, ctx: UserContext) -> dict[str, Any]:
     detail = _ensure_view_detail(get_payslip_details(payslip_id), ctx)
     if not _voit_comme_rh(detail, ctx):
@@ -181,6 +204,7 @@ def get_payslip_comparison_for_user(payslip_id: str, ctx: UserContext) -> dict[s
         "year_n1": int(prev["year"]) if prev else None,
         "is_forfait_jour": is_forfait_jour(statut),
         "has_contract_change": False,
+        "mois_precedent_incomplet": _entre_en_cours_de_mois(emp_id, prev),
         "has_declared_advance": None,
         "recent_nets_asc": recent_nets,
     }
@@ -344,6 +368,7 @@ def validate_payslip_for_user(payslip_id: str, ctx: UserContext) -> None:
         "year_n1": int(prev["year"]) if prev else None,
         "is_forfait_jour": is_forfait_jour(statut),
         "has_contract_change": False,
+        "mois_precedent_incomplet": _entre_en_cours_de_mois(emp_id, prev),
         "has_declared_advance": None,
         "recent_nets_asc": recent_nets,
     }
