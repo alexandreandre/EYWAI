@@ -72,6 +72,8 @@ export const createEmployeeFormSchema = z.object({
   statut: z.string().min(2),
   is_forfait_jour: z.boolean().default(false),
   job_title: z.string().trim().min(2, { message: "Poste requis." }),
+  /** Code PCS-ESE choisi dans la liste officielle ; rangé dans la classification à l'envoi. */
+  code_pcs: z.string().optional().default(""),
   /** Équipe (optionnel, vide = aucune) — affecté à la création si supporté par l’API */
   team_id: z.string().optional(),
   has_periode_essai: z.boolean(),

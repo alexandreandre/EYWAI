@@ -625,6 +625,9 @@ def write_contrat(ctr: ContratBlock, out: List[str]) -> None:
     s'écrivent après tous les contrats de l'individu (`write_individu`)."""
     if ctr.rubriques:
         _emit_rubriques_dict(ctr.rubriques, out)
+        # Changements du contrat (41) : juste sous le contrat, avant les arrêts (60).
+        for changement in ctr.changements:
+            _emit_rubriques_dict(changement.rubriques, out)
         # Ordre de la norme, celui du cabinet, que le validateur exige :
         # contrat (40), arrêts (60), fin du contrat (62), autres suspensions
         # (65), affiliations (70), retraite complémentaire (71), puis le
@@ -658,6 +661,8 @@ def write_contrat(ctr: ContratBlock, out: List[str]) -> None:
         _emit(R_S21_CTR_MODALITE_TEMPS, ctr.modalite_temps, out)
         _emit(R_S21_CTR_IDCC, ctr.idcc, out)
         _emit(R_S21_CTR_POSITION, ctr.position_conv, out)
+    for changement in ctr.changements:
+        _emit_rubriques_dict(changement.rubriques, out)
     for arret in ctr.arrets:
         write_arret(arret, out)
     for aff in ctr.affiliations:

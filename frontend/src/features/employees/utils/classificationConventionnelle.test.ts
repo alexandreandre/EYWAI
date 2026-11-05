@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  classificationAvecPcs,
   CLASSIFICATION_VIDE,
   GROUPE_NON_PRECISE,
   classificationGardee,
@@ -118,5 +119,23 @@ describe('ce qui part au serveur', () => {
       groupe_emploi: 'D',
       coefficient: 190,
     });
+  });
+});
+
+describe('le code PCS-ESE choisi à la création part avec la classification', () => {
+  it('ajoute le code sans toucher au reste', () => {
+    expect(classificationAvecPcs({ groupe_emploi: 'C', classe_emploi: 6, coefficient: 240 }, '674a')).toEqual({
+      groupe_emploi: 'C',
+      classe_emploi: 6,
+      coefficient: 240,
+      pcs: '674a',
+    });
+  });
+  it('sans code, rien de plus', () => {
+    expect(classificationAvecPcs({ groupe_emploi: '', classe_emploi: undefined, coefficient: undefined }, '')).toEqual({});
+    expect(classificationAvecPcs(undefined, '  ')).toEqual({});
+  });
+  it('un code seul, sans classification', () => {
+    expect(classificationAvecPcs(undefined, '9999')).toEqual({ pcs: '9999' });
   });
 });
