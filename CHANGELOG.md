@@ -5,6 +5,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+## paie-2026-11-05.13 — 5 novembre 2026
+
 ### Les documents de départ n'inventent plus les heures d'un bulletin incomplet
 - L'attestation France Travail indique « Non renseigné » si le bulletin repris ne porte pas son temps de travail ; une retenue d'entrée ou de sortie ne devient plus une absence.
 - La phrase sur les organismes complémentaires reste lisible quand leur nom manque.
