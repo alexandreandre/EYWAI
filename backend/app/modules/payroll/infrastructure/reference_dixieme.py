@@ -15,6 +15,7 @@ from typing import Any
 from app.shared.domain.dixieme_conges import (
     BaseDixieme,
     calculer_base_periode,
+    est_libelle_absence,
     part_reconstituee,
     texte_normalise,
 )
@@ -29,14 +30,19 @@ def lignes_pour_dixieme(donnees: Mapping[str, Any], *, importe: bool = False) ->
 
     lignes = []
     for bloc in ("calcul_du_brut", "details_absences"):
-        part_de_la_ligne_precedente = None
+        lignes_codees = []
         for ligne in donnees.get(bloc) or []:
-            if not isinstance(ligne, Mapping):
-                continue
+            if isinstance(ligne, Mapping):
+                code = str(ligne.get("code_dixieme") or ligne.get("code") or "")
+                if not code.startswith("brut:"):
+                    code = code_de_ligne_de_gain(ligne) or ""
+                lignes_codees.append((ligne, code))
+        nombre_hs = sum(code.startswith("brut:reduction_hs_absence") for _, code in lignes_codees)
+        nombre_absences = sum(bool(ligne.get("perte")) and est_libelle_absence(ligne.get("libelle")) for ligne, _ in lignes_codees)
+        affectation_individuelle = nombre_hs == nombre_absences
+        part_de_la_ligne_precedente = None
+        for ligne, code in lignes_codees:
             copie = dict(ligne)
-            code = str(ligne.get("code_dixieme") or ligne.get("code") or "")
-            if not code.startswith("brut:"):
-                code = code_de_ligne_de_gain(ligne) or ""
             famille = code.split(":")[1] if code.startswith("brut:") else ""
             if not importe:
                 copie["code_dixieme"] = code or None
@@ -44,13 +50,13 @@ def lignes_pour_dixieme(donnees: Mapping[str, Any], *, importe: bool = False) ->
                     # Dans calcul_brut, les CP sont retenus ensuite, avec
                     # leurs propres HS. Cette retenue concerne les autres absences.
                     copie["dixieme_hors_conges_payes"] = True
-            elif famille == "reduction_hs_absence" and part_de_la_ligne_precedente is not None:
+            elif famille == "reduction_hs_absence" and affectation_individuelle and part_de_la_ligne_precedente is not None:
                 # Le bulletin repris détaille chaque retenue puis sa ligne
                 # d'HS immédiatement suivante (PDF vérifiés). Aucune affectation
                 # à distance, ni déduction de nature depuis le seul montant.
                 copie["dixieme_part_reconstituee"] = part_de_la_ligne_precedente
             texte = texte_normalise(ligne.get("libelle"))
-            if ligne.get("perte") and texte.startswith(("absence", "h absence", "jours absence")):
+            if ligne.get("perte") and est_libelle_absence(texte):
                 part_de_la_ligne_precedente = part_reconstituee(texte)
             else:
                 part_de_la_ligne_precedente = None

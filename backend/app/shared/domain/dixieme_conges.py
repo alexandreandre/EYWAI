@@ -24,6 +24,12 @@ def texte_normalise(valeur: Any) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", texte.lower())).strip()
 
 
+def est_libelle_absence(libelle: Any) -> bool:
+    return texte_normalise(libelle).startswith((
+        "absence", "h absence", "jours absence", "abs jf non paye", "abs jour ferie non paye",
+    ))
+
+
 def _montant(ligne: Mapping[str, Any], cle: str) -> float:
     try:
         return float(ligne.get(cle) or 0.0)
@@ -105,10 +111,10 @@ def calculer_base_dixieme(brut: float | None, lignes: Iterable[Mapping[str, Any]
         if famille in {"retenue_absence_integrale", "retenue_absence_mois_complet", "complement_absence_integrale", "reduction_hs_absence"}:
             annexes.append((perte - gain, ligne.get("dixieme_part_reconstituee"), bool(ligne.get("dixieme_hors_conges_payes"))))
             continue
-        if not famille and "absence" in texte and not texte.startswith(("absence", "h absence", "jours absence")):
+        if not famille and "absence" in texte and not est_libelle_absence(texte):
             annexes.append((perte - gain, ligne.get("dixieme_part_reconstituee"), False))
             continue
-        est_absence = famille in {"arret", "absence_maladie", "absence_ferie_non_paye", "absence_non_remuneree", "absence_injustifiee", "absence_entree_sortie", "absence_conges_payes", "absence_evenement_familial"} or texte.startswith(("absence", "h absence", "jours absence"))
+        est_absence = famille in {"arret", "absence_maladie", "absence_ferie_non_paye", "absence_non_remuneree", "absence_injustifiee", "absence_entree_sortie", "absence_conges_payes", "absence_evenement_familial"} or est_libelle_absence(texte)
         if est_absence and perte > 0:
             nature = ligne.get("arret_type") or ligne.get("nature_absence") or texte
             part = part_reconstituee(nature)

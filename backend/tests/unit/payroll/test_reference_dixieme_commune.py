@@ -76,3 +76,21 @@ def test_retenue_hs_calculee_hors_conges_payes_ne_se_repartit_pas_sur_eux():
         {"libelle": "Absence congés payés", "perte": 500.0},
     ]})
     assert calculer_base_dixieme(2000.0, lignes).base == 2880.0
+
+
+def test_ferie_non_paye_repris_partage_les_hs_sans_reconstitution():
+    lignes = lignes_pour_dixieme({"calcul_du_brut": [
+        {"libelle": "Absence maladie 050526-080526", "perte": 341.60},
+        {"libelle": "Abs. JF non payé 140526", "perte": 85.40},
+        {"libelle": "Réduction HS structurelles (jours d'absence)", "perte": 61.0},
+    ]}, importe=True)
+    assert calculer_base_dixieme(1664.78, lignes).base == 1977.10
+
+
+def test_retenue_hs_unique_reprise_ne_depende_pas_de_la_derniere_absence():
+    lignes = lignes_pour_dixieme({"calcul_du_brut": [
+        {"libelle": "Absence non rémunérée", "perte": 500.0},
+        {"libelle": "Absence maladie 050526-080526", "perte": 1000.0},
+        {"libelle": "Réduction HS structurelles (jours d'absence)", "perte": 150.0},
+    ]}, importe=True)
+    assert calculer_base_dixieme(2000.0, lignes).base == 2880.0
