@@ -25,8 +25,8 @@ _HOOK = "app.modules.modulation.application.payroll_hook"
 @patch(f"{_HOOK}.sync_employee_modulation_counter")
 @patch(f"{_HOOK}.sync_account_balance_cache")
 @patch(f"{_HOOK}.repo.insert_movement")
-@patch(f"{_HOOK}.repo.get_franchise_consumed_in_period", return_value=0.0)
-@patch(f"{_HOOK}.repo.list_movements_for_employee_year", return_value=[])
+@patch(f"{_HOOK}._decision_du_mois", return_value=None)
+@patch(f"{_HOOK}.repo.list_movements_for_employee", return_value=[])
 @patch(f"{_HOOK}.repo.get_modulation_settings")
 def test_sans_persister_le_routage_est_calcule_mais_rien_n_est_ecrit(
     mock_settings, _movements, _consumed, mock_insert, mock_sync_cache, mock_sync_counter

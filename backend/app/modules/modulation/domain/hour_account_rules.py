@@ -228,3 +228,222 @@ def reduce_hs_in_calendar(
 
     updated.reverse()
     return updated, deferred
+
+
+# ---------------------------------------------------------------------------
+# Heures de récupération (repos compensateur de remplacement) — 05/11/2026.
+# Spec : docs/superpowers/specs/2026-11-05-heures-de-recuperation-design.md
+# ---------------------------------------------------------------------------
+
+#: Taux légaux à défaut d'accord (C. trav. L3121-36) : repli quand le barème
+#: de la société ne donne pas le sien.
+MAJORATIONS_LEGALES: dict[str, float] = {"travail_hs25": 0.25, "travail_hs50": 0.5}
+
+
+@dataclass(frozen=True)
+class MiseAuCompteur:
+    calendrier: list[dict[str, Any]]
+    heures_sup_au_compteur: float
+    heures_sup_payees: float
+    repos_credite: float
+    heures_par_type: dict[str, float]
+
+
+def _date_de(ev: dict[str, Any]) -> Any:
+    from datetime import date as _date
+
+    brut = ev.get("date_complete")
+    if not brut:
+        return None
+    try:
+        return _date.fromisoformat(str(brut)[:10])
+    except ValueError:
+        return None
+
+
+def mettre_hs_au_compteur(
+    calendrier: list[dict[str, Any]],
+    *,
+    majorations: dict[str, float] | None = None,
+    bornes: tuple[Any, Any] | None = None,
+    solde: float = 0.0,
+    plafond: float | None = None,
+    heures_a_payer: float = 0.0,
+) -> MiseAuCompteur:
+    """Retire du calendrier de paie les heures sup qui vont au compteur et
+    calcule le repos crédité, à l'équivalent majoré (L3121-28, L3121-33 II 2° :
+    « paiement des heures supplémentaires, ainsi que des majorations » remplacé
+    par un repos équivalent — 1 h à 25 % = 1 h 15).
+
+    - `bornes` : la fenêtre des variables ; les heures sup hors fenêtre ne
+      sont pas de ce bulletin et ne bougent pas.
+    - `plafond` : solde maximal du compteur, en heures de repos ; au-delà, les
+      heures restent payées.
+    - `heures_a_payer` : heures sup que la RH a choisi de payer ce mois-ci.
+    Les derniers jours partent au compteur en premier.
+    """
+    taux = {**MAJORATIONS_LEGALES, **(majorations or {})}
+    eligibles: list[int] = []
+    for i, ev in enumerate(calendrier):
+        if str(ev.get("type") or "") not in taux:
+            continue
+        if float(ev.get("heures") or 0) <= 0:
+            continue
+        if bornes is not None:
+            d = _date_de(ev)
+            if d is None or not (bornes[0] <= d <= bornes[1]):
+                continue
+        eligibles.append(i)
+
+    total = round(sum(float(calendrier[i].get("heures") or 0) for i in eligibles), 2)
+    a_mettre = round(max(0.0, total - max(0.0, float(heures_a_payer or 0))), 2)
+    place = (
+        None
+        if plafond is None
+        else round(max(0.0, float(plafond) - float(solde or 0)), 2)
+    )
+
+    def _cle(i: int) -> tuple:
+        d = _date_de(calendrier[i])
+        return (d.toordinal() if d else 0, i)
+
+    nouveau = [dict(ev) for ev in calendrier]
+    repos = 0.0
+    mises = 0.0
+    par_type: dict[str, float] = {}
+    for i in sorted(eligibles, key=_cle, reverse=True):
+        if a_mettre <= 0 or (place is not None and place <= 0):
+            break
+        ev = nouveau[i]
+        t = str(ev["type"])
+        coef = 1.0 + float(taux[t])
+        heures = float(ev.get("heures") or 0)
+        prise = min(heures, a_mettre)
+        if place is not None:
+            prise = min(prise, round(place / coef, 2))
+        prise = round(prise, 2)
+        if prise <= 0:
+            break
+        ev["heures"] = round(heures - prise, 2)
+        a_mettre = round(a_mettre - prise, 2)
+        mises = round(mises + prise, 2)
+        credit = round(prise * coef, 2)
+        repos = round(repos + credit, 2)
+        if place is not None:
+            place = round(place - credit, 2)
+        par_type[t] = round(par_type.get(t, 0.0) + prise, 2)
+
+    if mises <= 0:
+        sortie = list(calendrier)
+    else:
+        vides = {i for i in eligibles if float(nouveau[i].get("heures") or 0) <= 0}
+        sortie = [ev for i, ev in enumerate(nouveau) if i not in vides]
+    return MiseAuCompteur(
+        calendrier=sortie,
+        heures_sup_au_compteur=mises,
+        heures_sup_payees=round(total - mises, 2),
+        repos_credite=repos,
+        heures_par_type=par_type,
+    )
+
+
+def _avant_ou_egal(m: dict[str, Any], annee: int, mois: int) -> bool:
+    a = int(m.get("year") or 0)
+    mm = m.get("month")
+    # Un mouvement sans mois (ancien solde d'ouverture) vaut pour janvier.
+    mm = int(mm) if mm is not None else 1
+    return (a, mm) <= (annee, mois)
+
+
+def solde_au(movements: list[dict[str, Any]], annee: int, mois: int) -> float:
+    """Solde du compteur à la fin du mois : tous les mouvements actifs jusqu'au
+    mois inclus, toutes années confondues. Un repos non pris ne se perd pas au
+    1er janvier ; il reste dû jusqu'à ce qu'il soit pris ou payé."""
+    return compute_balance_from_movements(
+        [m for m in movements if _avant_ou_egal(m, annee, mois)]
+    )
+
+
+def mouvements_hors_paie_du_mois(
+    movements: list[dict[str, Any]], annee: int, mois: int
+) -> list[dict[str, Any]]:
+    """Les mouvements sans les crédits que la paie du mois a déjà posés : un
+    recalcul (ou le bac à sable) refait ce crédit, il ne doit pas compter deux
+    fois dans le solde ni dans le plafond."""
+    return [
+        m
+        for m in movements
+        if not (
+            str(m.get("movement_type") or "") == "credit_hs"
+            and str(m.get("source") or "") == "payroll_auto"
+            and int(m.get("year") or 0) == annee
+            and m.get("month") is not None
+            and int(m["month"]) == mois
+        )
+    ]
+
+
+def etat_du_mois(
+    movements: list[dict[str, Any]],
+    annee: int,
+    mois: int,
+    *,
+    credit_du_calcul: float | None = None,
+) -> dict[str, Any]:
+    """Ce que le bulletin imprime : heures acquises du mois, heures prises (avec
+    leur date), heures payées, solde à la fin du mois (C. trav. D3171-11).
+
+    `credit_du_calcul` : le crédit que le calcul en cours pose pour ce mois ;
+    il remplace celui d'une génération précédente."""
+    base = movements
+    if credit_du_calcul is not None:
+        base = mouvements_hors_paie_du_mois(movements, annee, mois)
+        if credit_du_calcul > 0:
+            base = [
+                *base,
+                {
+                    "movement_type": "credit_hs",
+                    "hours": float(credit_du_calcul),
+                    "year": annee,
+                    "month": mois,
+                    "status": "validated",
+                    "source": "payroll_auto",
+                },
+            ]
+    acquis = pris = paye = 0.0
+    acquis_annee = pris_annee = 0.0
+    prises: list[dict[str, Any]] = []
+    for m in base:
+        if str(m.get("status") or "") not in _ACTIVE_STATUSES:
+            continue
+        if int(m.get("year") or 0) == annee and m.get("month") is not None and int(m["month"]) <= mois:
+            t_ = str(m.get("movement_type") or "")
+            h_ = float(m.get("hours") or 0)
+            if t_ == "credit_hs" or (t_ == "adjustment" and h_ > 0):
+                acquis_annee += abs(h_)
+            elif t_ in ("debit_recovery", "debit_payout") or (t_ == "adjustment" and h_ < 0):
+                pris_annee += abs(h_)
+        if int(m.get("year") or 0) != annee or m.get("month") is None or int(m["month"]) != mois:
+            continue
+        t = str(m.get("movement_type") or "")
+        h = float(m.get("hours") or 0)
+        if t == "credit_hs" or (t == "adjustment" and h > 0):
+            acquis += abs(h)
+        elif t == "adjustment" and h < 0:
+            pris += abs(h)
+        elif t == "debit_recovery":
+            pris += abs(h)
+            jours = (m.get("metadata") or {}).get("jours") or {}
+            for jour, heures in sorted(jours.items()):
+                prises.append({"date": str(jour)[:10], "heures": round(float(heures), 2)})
+        elif t == "debit_payout":
+            paye += abs(h)
+    return {
+        "acquis": round(acquis, 2),
+        "pris": round(pris, 2),
+        "paye": round(paye, 2),
+        "solde": solde_au(base, annee, mois),
+        "acquis_annee": round(acquis_annee, 2),
+        "pris_annee": round(pris_annee, 2),
+        "prises": prises,
+    }

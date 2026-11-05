@@ -223,6 +223,44 @@ def _compteur_alimente(compteur: Any) -> bool:
     return any(float(donnees.get(cle) or 0.0) for cle in ("acquis", "pris", "solde"))
 
 
+def _heures_recup_fr(heures: float) -> str:
+    texte = f"{float(heures):.2f}".rstrip("0").rstrip(".")
+    return f"{texte.replace('.', ',')} h"
+
+
+def _notes_recuperation(recuperation: Dict[str, Any]) -> List[str]:
+    """Le détail du mois (acquises, prises avec leur date, payées), et dès 7 h
+    la mention de l'ouverture du droit et du délai de deux mois (C. trav.
+    D3171-11)."""
+    notes: List[str] = []
+    morceaux: List[str] = []
+    acquis = float(recuperation.get("acquis") or 0.0)
+    if acquis > 0:
+        morceaux.append(f"{_heures_recup_fr(acquis)} acquises")
+    prises = [p for p in recuperation.get("prises") or [] if isinstance(p, dict)]
+    if prises:
+        dates = []
+        for prise in prises:
+            jour = str(prise.get("date") or "")[:10]
+            date_courte = f"{jour[8:10]}/{jour[5:7]}" if len(jour) == 10 else jour
+            dates.append(f"{_heures_recup_fr(prise.get('heures') or 0)} prises le {date_courte}")
+        morceaux.append(", ".join(dates))
+    elif float(recuperation.get("pris") or 0.0) > 0:
+        morceaux.append(f"{_heures_recup_fr(recuperation['pris'])} prises")
+    paye = float(recuperation.get("paye") or 0.0)
+    if paye > 0:
+        morceaux.append(f"{_heures_recup_fr(paye)} payées")
+    if morceaux:
+        notes.append("Récupération ce mois-ci : " + ", ".join(morceaux))
+    solde = float(recuperation.get("solde") or 0.0)
+    if solde >= 7:
+        notes.append(
+            f"Droit à repos ouvert : {_heures_recup_fr(solde)} de récupération à prendre "
+            "dans un délai maximum de deux mois (C. trav. D3171-11)."
+        )
+    return notes
+
+
 def construire_compteurs(bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     solde = ((bulletin.get("pied_de_page") or {}).get("solde_conges")) or {}
     if not solde:
@@ -242,8 +280,24 @@ def construire_compteurs(bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         colonnes.append(
             _colonne_compteur("Repos comp. (h)", solde.get("repos_compensateur"))
         )
+    # Heures de récupération (repos compensateur de remplacement) : présent dès
+    # que le réglage de la société est actif, même à zéro (C. trav. D3171-11).
+    recuperation = solde.get("recuperation")
+    if isinstance(recuperation, dict):
+        # Le tableau se lit en cumul, comme les congés : acquis et pris de
+        # l'année ; le détail du mois va en note.
+        colonnes.append(
+            {
+                "titre": "Récup. (h)",
+                "acquis": float(recuperation.get("acquis_annee", recuperation.get("acquis")) or 0.0),
+                "pris": float(recuperation.get("pris_annee", recuperation.get("pris")) or 0.0),
+                "solde": float(recuperation.get("solde") or 0.0),
+            }
+        )
 
     notes: List[str] = []
+    if isinstance(recuperation, dict):
+        notes.extend(_notes_recuperation(recuperation))
     # Reprise ou recalage : le solde ne se retrouve plus par « acquis − pris ».
     # La clé n'existe que sur les bulletins calculés depuis le 12/10/2026.
     for titre, cle in (("CP N-1", "conges_payes_periode_precedente"), ("CP N", "conges_payes")):

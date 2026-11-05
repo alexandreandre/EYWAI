@@ -757,6 +757,12 @@ def creer_bulletin_final(
     solde_conges = build_solde_conges_pied_de_page(
         _extraire_employee_id(contexte), annee, mois, date_fin_variables
     )
+    recuperation = getattr(contexte, "recuperation_du_mois", None)
+    if isinstance(recuperation, dict) and isinstance(solde_conges, dict):
+        # Heures de récupération (C. trav. D3171-11) : posé seulement quand la
+        # société met ses heures sup au compteur. Sans compteurs de congés (mois
+        # antérieur à une reprise), le bulletin n'en imprime aucun.
+        solde_conges = {**solde_conges, "recuperation": recuperation}
     bulletin_de_sortie = _est_bulletin_de_sortie(contexte, annee, mois)
     alertes_baremes.extend(
         alertes_des_compteurs_de_conges(solde_conges, bulletin_de_sortie=bulletin_de_sortie)

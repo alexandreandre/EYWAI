@@ -7,6 +7,7 @@ from datetime import date
 from app.modules.modulation.domain.hour_account_rules import (
     compute_acquired_and_taken,
     compute_balance_from_movements,
+    solde_au,
 )
 from app.modules.modulation.infrastructure import repository as repo
 from app.modules.modulation.schemas.requests import (
@@ -23,9 +24,13 @@ def get_employee_account_balance(
     month: int | None = None,
 ) -> ModulationBalanceResponse:
     ref_year = year or date.today().year
-    movements = repo.list_movements_for_employee_year(employee_id, ref_year)
-    balance = compute_balance_from_movements(movements)
-    acquired, taken = compute_acquired_and_taken(movements)
+    # Le solde se reporte d'une année sur l'autre (repos non pris = dû) ;
+    # acquis et pris restent ceux de l'année demandée.
+    tous = repo.list_movements_for_employee(employee_id)
+    balance = compute_balance_from_movements(tous)
+    acquired, taken = compute_acquired_and_taken(
+        [m for m in tous if int(m.get("year") or 0) == ref_year]
+    )
 
     settings = repo.get_modulation_settings(company_id)
     franchise = float(settings.hs_franchise_hours_per_period or 0)
@@ -79,9 +84,10 @@ def sync_account_balance_cache(
     employee_id: str,
     year: int,
 ) -> float:
-    """Recalcule le solde compte depuis les mouvements et met à jour le cache compteur."""
-    movements = repo.list_movements_for_employee_year(employee_id, year)
-    balance = compute_balance_from_movements(movements)
+    """Recalcule le solde compte depuis les mouvements et met à jour le cache compteur.
+
+    Solde à la fin de l'année `year`, reports des années précédentes compris."""
+    balance = solde_au(repo.list_movements_for_employee(employee_id), year, 12)
     counters = repo.list_employee_counters(company_id, year)
     existing = next(
         (c for c in counters if str(c.get("employee_id")) == employee_id),

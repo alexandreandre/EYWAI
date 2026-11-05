@@ -12,7 +12,6 @@ from app.modules.modulation.application.hour_account_queries import (
 )
 from app.modules.modulation.domain.entities import ModulationSettings
 from app.modules.modulation.domain.hour_account_rules import (
-    reduce_hs_in_calendar,
     route_hs_for_period,
     sum_hs_from_payroll_events,
 )
@@ -30,6 +29,8 @@ class ModulationPayrollResult:
     hs_credited: float = 0.0
     hs_paid: float = 0.0
     movement_ids: tuple[str, ...] = ()
+    #: Heures de repos créditées (équivalent majoré des heures sup au compteur).
+    repos_credite: float = 0.0
 
 
 def _monday_of_week(d: date) -> date:
@@ -130,6 +131,19 @@ def _sum_hs_from_extended_calendar(calendrier: list[dict[str, Any]]) -> float:
     return round(total, 2)
 
 
+def _decision_du_mois(employee_id: str, year: int, month: int) -> dict[str, Any] | None:
+    """La décision de la RH pour ce salarié et ce mois (« payer ces heures »).
+
+    Validée ou déjà appliquée par une génération : un recalcul en bac à sable
+    (qui ne rouvre rien) doit la lire comme la génération réelle."""
+    from app.modules.modulation.infrastructure import overtime_routing_repository as otr_repo
+
+    decision = otr_repo.get_decision(employee_id, year, month)
+    if decision and str(decision.get("status")) in ("validated", "applied_payroll"):
+        return decision
+    return None
+
+
 def apply_modulation_hour_account_to_calendar(
     company_id: str,
     employee_id: str,
@@ -138,11 +152,15 @@ def apply_modulation_hour_account_to_calendar(
     calendrier_etendu: list[dict[str, Any]],
     *,
     persister: bool = True,
+    bornes_variables: tuple[date, date] | None = None,
+    majorations: dict[str, float] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str], ModulationPayrollResult]:
-    """
-    Applique la franchise compte modulation : crédit HS différées, réduction calendrier paie.
-    `persister=False` (bac à sable) : le routage est calculé et le calendrier
-    réduit à l'identique, mais aucun mouvement n'est créé ni compteur écrit.
+    """Met au compteur de récupération les heures sup du mois que la paie ne
+    paie pas, à l'équivalent majoré (spec 2026-11-05-heures-de-recuperation).
+
+    - `bornes_variables` : la fenêtre où la paie compte les heures sup ;
+    - `majorations` : les taux du barème de la société (25 % / 50 % à défaut).
+    `persister=False` (bac à sable) : même calcul, aucun mouvement écrit.
     """
     settings = repo.get_modulation_settings(company_id)
     if settings.hs_routing_policy == "pay_all":
@@ -150,55 +168,60 @@ def apply_modulation_hour_account_to_calendar(
     if not settings.hour_account_enabled:
         return calendrier_etendu, [], ModulationPayrollResult()
 
-    total_hs = _sum_hs_from_extended_calendar(calendrier_etendu)
+    from app.modules.modulation.domain.hour_account_rules import (
+        mettre_hs_au_compteur,
+        mouvements_hors_paie_du_mois,
+        solde_au,
+    )
+
+    # Le crédit qu'une génération précédente du mois a posé est refait ici :
+    # il ne compte ni dans le solde ni dans la franchise (recalcul, bac à sable).
+    mouvements = mouvements_hors_paie_du_mois(
+        repo.list_movements_for_employee(employee_id), year, month
+    )
+    solde = solde_au(mouvements, year, month)
+
+    sonde = mettre_hs_au_compteur(
+        calendrier_etendu, majorations=majorations, bornes=bornes_variables
+    )
+    total_hs = round(sonde.heures_sup_au_compteur, 2)
     if total_hs <= 0:
         return calendrier_etendu, [], ModulationPayrollResult(hs_realisees=0.0)
 
-    from app.modules.modulation.domain.hour_account_rules import (
-        compute_balance_from_movements,
+    policy = settings.hs_routing_policy
+    decision = _decision_du_mois(employee_id, year, month)
+    plafond = settings.max_account_balance_hours
+    if decision is not None:
+        # Choix du mois par la RH (« payer ces heures ce mois-ci »), quelle que
+        # soit la règle de la société.
+        a_payer = max(0.0, total_hs - float(decision.get("hours_to_account") or 0))
+    elif policy == "manual":
+        # Sans décision, rien ne part au compteur.
+        a_payer = total_hs
+    elif policy == "franchise":
+        split = route_hs_for_period(
+            total_hs,
+            "franchise",
+            float(settings.hs_franchise_hours_per_period or 0),
+            0.0,
+            solde,
+            None,
+        )
+        a_payer = split.to_pay
+    else:  # account_all
+        a_payer = 0.0
+
+    mise = mettre_hs_au_compteur(
+        calendrier_etendu,
+        majorations=majorations,
+        bornes=bornes_variables,
+        solde=solde,
+        plafond=plafond,
+        heures_a_payer=a_payer,
     )
 
-    movements = repo.list_movements_for_employee_year(employee_id, year)
-    current_balance = compute_balance_from_movements(movements)
-    franchise = float(settings.hs_franchise_hours_per_period or 0)
-    consumed = repo.get_franchise_consumed_in_period(employee_id, year, month)
-
-    manual_to_account: float | None = None
-    manual_to_pay: float | None = None
-    if settings.hs_routing_policy == "manual":
-        from app.modules.modulation.infrastructure import overtime_routing_repository as otr_repo
-
-        decision = otr_repo.get_decision(employee_id, year, month)
-        if not decision or str(decision.get("status")) != "validated":
-            return calendrier_etendu, [], ModulationPayrollResult(
-                hs_realisees=total_hs,
-                hs_credited=0.0,
-                hs_paid=total_hs,
-            )
-        manual_to_account = float(decision.get("hours_to_account") or 0)
-        manual_to_pay = float(decision.get("hours_to_pay") or 0)
-
-    max_cap = (
-        None
-        if settings.hs_routing_policy == "account_all"
-        else settings.max_account_balance_hours
-    )
-    split = route_hs_for_period(
-        total_hs,
-        settings.hs_routing_policy,
-        franchise,
-        consumed,
-        current_balance,
-        max_cap,
-        manual_to_account=manual_to_account,
-        manual_to_pay=manual_to_pay,
-    )
-
-    updated_calendar = calendrier_etendu
     movement_ids: list[str] = []
-    if split.to_account > 0:
-        updated_calendar, _ = reduce_hs_in_calendar(calendrier_etendu, split.to_account)
-    if split.to_account > 0 and persister:
+    if mise.repos_credite > 0 and persister:
         row = repo.insert_movement(
             {
                 "company_id": company_id,
@@ -206,12 +229,14 @@ def apply_modulation_hour_account_to_calendar(
                 "year": year,
                 "month": month,
                 "movement_type": "credit_hs",
-                "hours": split.to_account,
+                "hours": mise.repos_credite,
                 "status": "validated",
                 "source": "payroll_auto",
                 "metadata": {
                     "hs_realisees": total_hs,
-                    "hs_paid": split.to_pay,
+                    "hs_au_compteur": mise.heures_sup_au_compteur,
+                    "hs_paid": mise.heures_sup_payees,
+                    "heures_par_type": mise.heures_par_type,
                 },
             }
         )
@@ -224,19 +249,43 @@ def apply_modulation_hour_account_to_calendar(
             employee_id,
             year,
             settings=settings,
-            period_credited_hours=split.to_account,
-            period_paid_hours=split.to_pay,
+            period_credited_hours=mise.repos_credite,
+            period_paid_hours=mise.heures_sup_payees,
         )
 
     return (
-        updated_calendar,
+        mise.calendrier,
         movement_ids,
         ModulationPayrollResult(
             hs_realisees=total_hs,
-            hs_credited=split.to_account,
-            hs_paid=split.to_pay,
+            hs_credited=mise.heures_sup_au_compteur,
+            hs_paid=mise.heures_sup_payees,
             movement_ids=tuple(movement_ids),
+            repos_credite=mise.repos_credite,
         ),
+    )
+
+
+def etat_recuperation_du_bulletin(
+    company_id: str,
+    employee_id: str,
+    year: int,
+    month: int,
+    *,
+    credit_du_calcul: float = 0.0,
+) -> dict[str, Any] | None:
+    """Le compteur de récupération que le bulletin du mois imprime ; None
+    quand la société paie ses heures sup (rien ne change sur son bulletin)."""
+    settings = repo.get_modulation_settings(company_id)
+    if not settings.hour_account_enabled or settings.hs_routing_policy == "pay_all":
+        return None
+    from app.modules.modulation.domain.hour_account_rules import etat_du_mois
+
+    return etat_du_mois(
+        repo.list_movements_for_employee(employee_id),
+        year,
+        month,
+        credit_du_calcul=float(credit_du_calcul or 0.0),
     )
 
 

@@ -15,8 +15,8 @@ def _hs_calendar(*hours: float) -> list[dict]:
 @patch("app.modules.modulation.application.payroll_hook.sync_employee_modulation_counter")
 @patch("app.modules.modulation.application.payroll_hook.sync_account_balance_cache")
 @patch("app.modules.modulation.application.payroll_hook.repo.insert_movement")
-@patch("app.modules.modulation.application.payroll_hook.repo.get_franchise_consumed_in_period")
-@patch("app.modules.modulation.application.payroll_hook.repo.list_movements_for_employee_year")
+@patch("app.modules.modulation.application.payroll_hook._decision_du_mois", return_value=None)
+@patch("app.modules.modulation.application.payroll_hook.repo.list_movements_for_employee")
 @patch("app.modules.modulation.application.payroll_hook.repo.get_modulation_settings")
 def test_apply_hour_account_franchise_14_of_20(
     mock_settings,
@@ -31,7 +31,7 @@ def test_apply_hour_account_franchise_14_of_20(
         hs_franchise_hours_per_period=14,
     )
     mock_movements.return_value = []
-    mock_consumed.return_value = 0.0
+    mock_consumed.return_value = None
     mock_insert.return_value = {"id": "mov-1"}
 
     calendar = _hs_calendar(12, 8)

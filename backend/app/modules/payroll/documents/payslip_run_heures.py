@@ -707,6 +707,18 @@ def run_payslip_generation_heures(
             apply_modulation_hour_account_to_calendar,
         )
 
+        from app.modules.payroll.engine.calcul_brut import _taux_majoration_hs
+
+        # Heures de récupération : la fenêtre où la paie compte les heures sup,
+        # et les taux qu'elle leur aurait appliqués (équivalent majoré).
+        majorations_hs = {
+            cle: taux
+            for cle, taux in (
+                ("travail_hs25", _taux_majoration_hs(contexte, 0)),
+                ("travail_hs50", _taux_majoration_hs(contexte, 1)),
+            )
+            if taux
+        }
         calendrier_etendu, modulation_movement_ids, modulation_result = (
             apply_modulation_hour_account_to_calendar(
                 str(company_id),
@@ -715,7 +727,22 @@ def run_payslip_generation_heures(
                 month,
                 calendrier_etendu,
                 persister=persister,
+                bornes_variables=(date_debut_variables, date_fin_variables),
+                majorations=majorations_hs,
             )
+        )
+        from app.modules.modulation.application.payroll_hook import (
+            etat_recuperation_du_bulletin,
+        )
+
+        # Lu par le pied du bulletin (compteur « Récup. (h) ») ; None quand la
+        # société paie ses heures sup.
+        contexte.recuperation_du_mois = etat_recuperation_du_bulletin(
+            str(company_id),
+            employee_id,
+            year,
+            month,
+            credit_du_calcul=(modulation_result.repos_credite if modulation_result else 0.0),
         )
     cet_movement_ids: list[str] = []
     cet_withdrawal_ids: list[str] = []
@@ -1088,7 +1115,7 @@ def run_payslip_generation_heures(
     if modulation_result and modulation_result.hs_credited > 0:
         details_brut.append(
             {
-                "libelle": "HS reportées au compte modulation",
+                "libelle": "Heures sup mises au compteur de récupération",
                 "quantite": modulation_result.hs_credited,
                 "taux": None,
                 "gain": None,
@@ -1518,6 +1545,7 @@ def run_payslip_generation_heures(
             "hs_realisees": modulation_result.hs_realisees,
             "hs_credited": modulation_result.hs_credited,
             "hs_paid": modulation_result.hs_paid,
+            "repos_credite": modulation_result.repos_credite,
         }
 
     return bulletin_final

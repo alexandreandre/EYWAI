@@ -313,7 +313,8 @@ ETAT_APRES_GENERATION = {
         "net_a_payer": 1975.0,
         "acomptes_et_avances": 800.0,
         "pret": 225.0,
-        # 140 h − 4 h déposées au CET ; 15 h sup − 10 h créditées en modulation.
+        # 140 h − 4 h déposées au CET ; 15 h sup − 10 h mises au compteur, qui
+        # créditent 12,5 h de repos (équivalent majoré à 25 %, L3121-28).
         "heures_payees": 136.0,
         "heures_sup_payees": 5.0,
     },
@@ -323,7 +324,7 @@ ETAT_APRES_GENERATION = {
     "echeances": [(1, "paid", 225.0), (2, "pending", 0.0)],
     "retenues_pret": [225.0],
     "cet": "applied_payroll",
-    "credits_modulation": [10.0],
+    "credits_modulation": [12.5],
 }
 
 
@@ -424,7 +425,8 @@ def test_une_decision_de_routage_redevient_valide_pour_le_recalcul(base):
     _generer()
 
     assert _etat(base)["bulletin"]["heures_sup_payees"] == 3.0
-    assert _etat(base)["credits_modulation"] == [12.0]
+    # 12 h sup au compteur = 15 h de repos (équivalent majoré à 25 %).
+    assert _etat(base)["credits_modulation"] == [15.0]
     assert base.ligne("employee_overtime_routing_decisions", id="decision-1")["status"] == "applied_payroll"
 
     commands.delete_payslip(_bulletin_id(base))

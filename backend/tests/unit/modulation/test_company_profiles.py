@@ -11,8 +11,8 @@ from app.modules.modulation.domain.entities import ModulationSettings
 @patch("app.modules.modulation.application.payroll_hook.sync_employee_modulation_counter")
 @patch("app.modules.modulation.application.payroll_hook.sync_account_balance_cache")
 @patch("app.modules.modulation.application.payroll_hook.repo.insert_movement")
-@patch("app.modules.modulation.application.payroll_hook.repo.get_franchise_consumed_in_period")
-@patch("app.modules.modulation.application.payroll_hook.repo.list_movements_for_employee_year")
+@patch("app.modules.modulation.application.payroll_hook._decision_du_mois", return_value=None)
+@patch("app.modules.modulation.application.payroll_hook.repo.list_movements_for_employee")
 @patch("app.modules.modulation.application.payroll_hook.repo.get_modulation_settings")
 def test_hour_account_only_no_modulation(
     mock_settings,
@@ -29,7 +29,7 @@ def test_hour_account_only_no_modulation(
         hs_routing_policy="account_all",
     )
     mock_movements.return_value = []
-    mock_consumed.return_value = 0.0
+    mock_consumed.return_value = None
     mock_insert.return_value = {"id": "mov-1"}
 
     calendar = [{"type": "travail_hs25", "heures": 6.0}]

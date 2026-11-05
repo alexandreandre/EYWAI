@@ -248,6 +248,17 @@ def list_movements_for_employee_year(employee_id: str, year: int) -> list[dict[s
     return resp.data or []
 
 
+def list_movements_for_employee(employee_id: str) -> list[dict[str, Any]]:
+    """Tous les mouvements du salarié, toutes années : le solde se reporte."""
+    resp = (
+        supabase.table("employee_modulation_movements")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+    return resp.data or []
+
+
 def get_franchise_consumed_in_period(
     employee_id: str,
     year: int,
