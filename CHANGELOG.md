@@ -15,6 +15,13 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - La colonne « Matricule » donne le vrai matricule du salarié ; les colonnes « Type attestation » et « Statut » disparaissent.
 - Les attestations de salaire pour la CPAM et France Travail partent toujours dans la DSN.
 
+## paie-2026-11-05.4 — 5 novembre 2026 (et .3)
+
+### Un salarié peut être dispensé de mutuelle
+- Modifier la fiche > Paie sociale, sans formule choisie : « Le salarié ne veut pas adhérer (dispense) », un motif parmi les cas de la loi, et la date de sa demande signée.
+- Avec une dispense valable, l'aperçu de la DSN ne dit plus « mutuelle absente » ; sans formule ni dispense, il dit où aller et quoi faire.
+- Pour un salarié couvert par la mutuelle de son conjoint ou d'un autre employeur, le justificatif se redemande chaque année : la DSN le rappelle au bout d'un an.
+
 ## paie-2026-11-05.2 — 5 novembre 2026
 
 ### Le repos compensateur entre dans la provision des congés
