@@ -12,7 +12,15 @@ from app.modules.modulation.domain.hour_account_rules import (
 
 pytestmark = pytest.mark.unit
 
+_VRAIE_GARDE = cmd._exiger_un_bulletin_qui_porte_le_compteur
+
 _C = "app.modules.modulation.application.hour_account_commands"
+
+
+@pytest.fixture(autouse=True)
+def compteur_ouvert():
+    with patch(f"{_C}._exiger_un_bulletin_qui_porte_le_compteur"):
+        yield
 
 
 def _mvt(t, h, annee, mois, statut="validated", source="manual_rh"):
@@ -104,6 +112,7 @@ def test_le_credit_du_mois_ne_se_paie_pas_comme_un_solde(mock_list, mock_insert)
         ({"status": "brouillon", "origine": "genere", "year": 2026, "month": 10, "company_id": "c"}, None),
         ({"status": "valide", "origine": "genere", "year": 2026, "month": 10, "company_id": "c"}, "validé"),
         ({"status": "brouillon", "origine": "importe", "year": 2026, "month": 9, "company_id": "c"}, "repris"),
+        ({"status": "brouillon", "origine": "calcule", "manually_edited": True, "year": 2026, "month": 10, "company_id": "c"}, "retouches"),
     ],
 )
 def test_un_bulletin_fige_refuse_le_geste(ligne, attendu):
@@ -126,3 +135,54 @@ def test_mettre_au_compteur_enregistre_les_heures_au_compteur(mock_upsert):
     decision = mock_upsert.call_args[0][0]
     assert decision["hours_to_account"] == 4.0
     assert decision["hours_to_pay"] == 0
+
+
+@pytest.mark.parametrize(
+    "ouvert, forfait, message",
+    [(False, False, "pas ouvert"), (True, True, "forfait jours"), (True, False, None)],
+)
+def test_un_geste_que_le_bulletin_ne_porterait_pas_est_refuse(ouvert, forfait, message):
+    from unittest.mock import MagicMock
+
+    # La vraie garde, sous le patch de la fixture.
+    vraie = _VRAIE_GARDE
+    with patch(f"{_C}.repo.get_modulation_settings", return_value=MagicMock(hour_account_enabled=ouvert)), patch(
+        f"{_C}.repo.est_au_forfait_jours", return_value=forfait
+    ):
+        if message:
+            with pytest.raises(ValueError, match=message):
+                vraie("soc", "emp")
+        else:
+            vraie("soc", "emp")
+
+
+@patch(f"{_C}.sync_account_balance_cache")
+@patch(f"{_C}.repo.insert_movements", return_value=[])
+def test_les_debits_d_une_recuperation_partent_ensemble(mock_insert, _sync):
+    cmd.create_debit_recovery_movements(
+        "soc", "emp", {(2026, 8): {"2026-08-03": 7.0}, (2026, 7): {"2026-07-31": 7.0}},
+        reference_id="r",
+    )
+    mock_insert.assert_called_once()
+    lignes = mock_insert.call_args[0][0]
+    assert [(l["month"], l["hours"], l["metadata"]) for l in lignes] == [
+        (7, 7.0, {"jours": {"2026-07-31": 7.0}}),
+        (8, 7.0, {"jours": {"2026-08-03": 7.0}}),
+    ]
+
+
+def test_le_solde_se_recale_sur_les_annees_suivantes():
+    from app.modules.modulation.application import hour_account_queries as q
+
+    Q = "app.modules.modulation.application.hour_account_queries"
+    mvts = [_mvt("opening_balance", 2.0, 2026, 9), _mvt("debit_payout", 1.0, 2026, 12)]
+    with patch(f"{Q}.repo.list_movements_for_employee", return_value=mvts), patch(
+        f"{Q}.repo.annees_de_compteur", return_value=[2026, 2027]
+    ), patch(f"{Q}.repo.list_employee_counters", return_value=[]), patch(
+        f"{Q}.repo.upsert_employee_counter"
+    ) as ecrire:
+        assert q.sync_account_balance_cache("soc", "emp", 2026) == 1.0
+    assert [(c.args[2], c.kwargs["account_balance_hours"]) for c in ecrire.call_args_list] == [
+        (2026, 1.0),
+        (2027, 1.0),
+    ]

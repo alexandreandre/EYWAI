@@ -79,6 +79,23 @@ def _movement_row_to_schema(row: dict) -> ModulationMovementSchema:
     )
 
 
+def _poser_le_solde_en_cache(company_id: str, employee_id: str, year: int, balance: float) -> None:
+    counters = repo.list_employee_counters(company_id, year)
+    existing = next(
+        (c for c in counters if str(c.get("employee_id")) == employee_id),
+        None,
+    )
+    repo.upsert_employee_counter(
+        company_id,
+        employee_id,
+        year,
+        float((existing or {}).get("theoretical_hours") or 0),
+        float((existing or {}).get("actual_hours") or 0),
+        float((existing or {}).get("balance_hours") or 0),
+        account_balance_hours=balance,
+    )
+
+
 def sync_account_balance_cache(
     company_id: str,
     employee_id: str,
@@ -86,33 +103,16 @@ def sync_account_balance_cache(
 ) -> float:
     """Recalcule le solde compte depuis les mouvements et met à jour le cache compteur.
 
-    Solde à la fin de l'année `year`, reports des années précédentes compris."""
-    balance = solde_au(repo.list_movements_for_employee(employee_id), year, 12)
-    counters = repo.list_employee_counters(company_id, year)
-    existing = next(
-        (c for c in counters if str(c.get("employee_id")) == employee_id),
-        None,
-    )
-    if existing:
-        repo.upsert_employee_counter(
-            company_id,
-            employee_id,
-            year,
-            float(existing.get("theoretical_hours") or 0),
-            float(existing.get("actual_hours") or 0),
-            float(existing.get("balance_hours") or 0),
-            account_balance_hours=balance,
-        )
-    else:
-        repo.upsert_employee_counter(
-            company_id,
-            employee_id,
-            year,
-            0.0,
-            0.0,
-            0.0,
-            account_balance_hours=balance,
-        )
+    Solde à la fin de l'année `year`, reports des années précédentes compris. Le
+    solde se reportant, les lignes des années suivantes se recalent aussi."""
+    mouvements = repo.list_movements_for_employee(employee_id)
+    balance = solde_au(mouvements, year, 12)
+    _poser_le_solde_en_cache(company_id, employee_id, year, balance)
+    for suivante in repo.annees_de_compteur(employee_id):
+        if suivante > year:
+            _poser_le_solde_en_cache(
+                company_id, employee_id, suivante, solde_au(mouvements, suivante, 12)
+            )
     return balance
 
 
@@ -122,7 +122,7 @@ def _bulletin_du_mois(employee_id: str, year: int, month: int) -> dict | None:
 
     resp = (
         supabase.table("payslips")
-        .select("id, company_id, status, origine, year, month")
+        .select("id, company_id, status, origine, year, month, manually_edited")
         .eq("employee_id", employee_id)
         .eq("year", year)
         .eq("month", month)
@@ -154,6 +154,11 @@ def raison_bulletin_fige(
         return (
             f"Le bulletin de {periode} est validé : ce choix se fait sur un bulletin "
             "pas encore validé."
+        )
+    if bulletin.get("manually_edited"):
+        return (
+            f"Le bulletin de {periode} a des retouches à la main : ce choix le "
+            "recalculerait et les écraserait. Régénérez-le d'abord."
         )
     detail = enrich_payslip_detail_with_edit_lock(bulletin, bypass_lock=bypass_lock)
     if detail.get("manual_edit_locked"):

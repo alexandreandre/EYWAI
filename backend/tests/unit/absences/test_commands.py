@@ -448,17 +448,14 @@ class TestModulationRecoveryOnValidation:
                         "B", (), {"account_balance_hours": 20.0}
                     )()
                     with patch(
-                        "app.modules.modulation.application.hour_account_commands.create_debit_recovery_movement"
+                        "app.modules.modulation.application.hour_account_commands.create_debit_recovery_movements"
                     ) as mock_debit:
                         commands._apply_modulation_recovery_on_validation(
                             data, "req-mod-1"
                         )
                         mock_debit.assert_called_once()
-                        assert mock_debit.call_args[0][4] == 7.0  # 1 jour × 35/5
-                        # La date de la prise va sur le bulletin (« 7 h le 10/03 »).
-                        assert mock_debit.call_args.kwargs["metadata"] == {
-                            "jours": {"2026-03-10": 7.0}
-                        }
+                        # 1 jour × 35/5, avec sa date pour le bulletin.
+                        assert mock_debit.call_args[0][2] == {(2026, 3): {"2026-03-10": 7.0}}
 
     def test_une_recuperation_a_cheval_debite_chaque_mois(self):
         """31/07 et 03/08 : 7 h sur chaque bulletin, pas 14 h en juillet."""
@@ -478,14 +475,14 @@ class TestModulationRecoveryOnValidation:
         )()
         precheck = (14.0, reglage, {"2026-07-31": 7.0, "2026-08-03": 7.0})
         with patch(
-            "app.modules.modulation.application.hour_account_commands.create_debit_recovery_movement"
+            "app.modules.modulation.application.hour_account_commands.create_debit_recovery_movements"
         ) as mock_debit:
             commands._apply_modulation_recovery_on_validation(data, "r", precheck=precheck)
-        appels = [(c.args[2], c.args[3], c.args[4], c.kwargs["metadata"]) for c in mock_debit.call_args_list]
-        assert appels == [
-            (2026, 7, 7.0, {"jours": {"2026-07-31": 7.0}}),
-            (2026, 8, 7.0, {"jours": {"2026-08-03": 7.0}}),
-        ]
+        mock_debit.assert_called_once()
+        assert mock_debit.call_args[0][2] == {
+            (2026, 7): {"2026-07-31": 7.0},
+            (2026, 8): {"2026-08-03": 7.0},
+        }
 
     def test_recuperation_prise_en_heures(self):
         """« 3,5 h le 14/08 » : le compteur est débité des heures saisies."""
@@ -520,15 +517,12 @@ class TestModulationRecoveryOnValidation:
                         "B", (), {"account_balance_hours": 4.0}
                     )()
                     with patch(
-                        "app.modules.modulation.application.hour_account_commands.create_debit_recovery_movement"
+                        "app.modules.modulation.application.hour_account_commands.create_debit_recovery_movements"
                     ) as mock_debit:
                         commands._apply_modulation_recovery_on_validation(
                             data, "req-mod-2"
                         )
-                        assert mock_debit.call_args[0][4] == 3.5
-                        assert mock_debit.call_args.kwargs["metadata"] == {
-                            "jours": {"2026-08-14": 3.5}
-                        }
+                        assert mock_debit.call_args[0][2] == {(2026, 8): {"2026-08-14": 3.5}}
 
 
 class TestGenerateSalaryCertificate:
@@ -737,6 +731,20 @@ class TestCancelValidatedAbsence:
             _, ordre = self._annuler(req_before, [])
         annuler.assert_called_once_with("req-recup")
         assert ordre == ["restore", "update"]
+
+    def test_refuser_une_recuperation_validee_est_refuse(self):
+        req_before = {
+            "id": "req-recup",
+            "employee_id": "emp-1",
+            "type": "recuperation_modulation",
+            "status": "validated",
+            "selected_days": ["2026-08-14"],
+        }
+        with patch("app.modules.absences.application.commands.absence_repository") as repo:
+            repo.get_by_id.return_value = req_before
+            with pytest.raises(ValueError, match="annulez"):
+                commands.update_absence_request_status("req-recup", "rejected", current_user_id="u")
+        repo.update.assert_not_called()
 
     def test_annulation_rejouable_si_la_restauration_echoue(self):
         """Le planning d'abord : s'il échoue, les heures restent débitées et la

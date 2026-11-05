@@ -431,12 +431,19 @@ def _lire_repos(
             period_start=date(ref_date.year, 1, 1),
             period_end=date(ref_date.year, 12, 31),
         )
-        # Heures de récupération (repos compensateur de remplacement) : le solde
-        # du compteur à la fin du mois, toujours dû tant qu'il n'est ni pris ni
-        # payé (spec 2026-11-05-heures-de-recuperation).
-        acquises = credits.get(eid, 0.0) + recuperation.get(eid, 0.0)
+        acquises = credits.get(eid, 0.0)
+        jours, anomalie = (0.0, "")
         if acquises or prises:
-            resultat[eid] = repos_en_jours(acquises, prises, heures_par_jour)
+            jours, anomalie = repos_en_jours(acquises, prises, heures_par_jour)
+        # Heures de récupération (repos compensateur de remplacement) : le solde
+        # du compteur à la fin du mois, dû tant qu'il n'est ni pris ni payé (spec
+        # 2026-11-05-heures-de-recuperation). À part : un repos pris sans crédit
+        # ne vient pas le diminuer, il se signale.
+        heures_recup = recuperation.get(eid, 0.0)
+        if heures_recup:
+            jours = round(jours + repos_en_jours(heures_recup, 0.0, heures_par_jour)[0], 2)
+        if acquises or prises or heures_recup:
+            resultat[eid] = (jours, anomalie)
     return resultat
 
 

@@ -464,6 +464,23 @@ def _refuser_si_bulletin_fige(
         raise HTTPException(status_code=409, detail=raison)
 
 
+@router.get("/recuperation/{employee_id}/etat")
+def get_etat_recuperation(
+    employee_id: str,
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    """Le compteur tel qu'il est en base : la carte du bulletin le compare au
+    solde imprimé, qui a pu changer depuis le calcul."""
+    from app.modules.modulation.application.payroll_hook import etat_recuperation_du_bulletin
+
+    cid = _resolve_company_id(company_id, current_user)
+    _require_rh_on_employee(current_user, cid, employee_id)
+    return etat_recuperation_du_bulletin(cid, employee_id, year, month) or {}
+
+
 @router.put("/recuperation/{employee_id}/mois")
 def put_choix_du_mois_recuperation(
     employee_id: str,
@@ -478,15 +495,18 @@ def put_choix_du_mois_recuperation(
     cid = _resolve_company_id(company_id, current_user)
     _require_rh_on_employee(current_user, cid, employee_id)
     _refuser_si_bulletin_fige(employee_id, year, month, current_user)
-    hour_account_commands.choisir_le_mois(
-        cid,
-        employee_id,
-        year,
-        month,
-        choix=body.choix,
-        heures_sup=body.heures_sup,
-        par=str(current_user.id),
-    )
+    try:
+        hour_account_commands.choisir_le_mois(
+            cid,
+            employee_id,
+            year,
+            month,
+            choix=body.choix,
+            heures_sup=body.heures_sup,
+            par=str(current_user.id),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "ok"}
 
 

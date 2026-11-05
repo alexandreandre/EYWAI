@@ -131,15 +131,6 @@ def sync_employee_modulation_counter(
     )
 
 
-def _sum_hs_from_extended_calendar(calendrier: list[dict[str, Any]]) -> float:
-    total = 0.0
-    for jour in calendrier:
-        ev_type = str(jour.get("type") or "")
-        if ev_type in ("travail_hs25", "travail_hs50"):
-            total += float(jour.get("heures") or 0)
-    return round(total, 2)
-
-
 def _decision_du_mois(employee_id: str, year: int, month: int) -> dict[str, Any] | None:
     """La décision de la RH pour ce salarié et ce mois (« payer ces heures »).
 
@@ -339,24 +330,30 @@ def etat_recuperation_du_bulletin(
     year: int,
     month: int,
     *,
-    credit_du_calcul: float = 0.0,
+    credit_du_calcul: float | None = None,
 ) -> dict[str, Any] | None:
-    """Le compteur de récupération que le bulletin du mois imprime ; None
-    quand la société paie ses heures sup (rien ne change sur son bulletin)."""
+    """Le compteur de récupération que le bulletin du mois imprime ; None quand
+    la société n'a pas de compteur (rien ne change sur son bulletin).
+
+    `credit_du_calcul` : le crédit du calcul en cours, qui remplace celui d'une
+    génération précédente ; None pour lire le compteur tel qu'il est en base."""
     settings = repo.get_modulation_settings(company_id)
     if not settings.hour_account_enabled:
         return None
     from app.modules.modulation.domain.hour_account_rules import etat_du_mois, solde_payable
 
     mouvements = repo.list_movements_for_employee(employee_id)
-    if settings.hs_routing_policy == "pay_all" and not mouvements and credit_du_calcul <= 0:
+    if settings.hs_routing_policy == "pay_all" and not mouvements and not credit_du_calcul:
         # Société qui paie ses heures sup, salarié sans compteur : rien à imprimer.
         # S'il a un solde (reprise de Quadra, société repassée en « payées »), il
         # reste dû et visible.
         return None
     return {
         **etat_du_mois(
-            mouvements, year, month, credit_du_calcul=float(credit_du_calcul or 0.0)
+            mouvements,
+            year,
+            month,
+            credit_du_calcul=None if credit_du_calcul is None else float(credit_du_calcul),
         ),
         "payable": solde_payable(mouvements, year, month),
     }

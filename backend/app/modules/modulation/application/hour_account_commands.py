@@ -94,34 +94,38 @@ def create_credit_hs_movement(
     )
 
 
-def create_debit_recovery_movement(
+def create_debit_recovery_movements(
     company_id: str,
     employee_id: str,
-    year: int,
-    month: int,
-    hours: float,
+    par_mois: dict[tuple[int, int], dict[str, float]],
     *,
     reference_id: str,
     note: str | None = None,
-    metadata: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    row = repo.insert_movement(
-        {
-            "company_id": company_id,
-            "employee_id": employee_id,
-            "year": year,
-            "month": month,
-            "movement_type": "debit_recovery",
-            "hours": round(float(hours), 2),
-            "status": "validated",
-            "source": "absence",
-            "reference_id": reference_id,
-            "note": note,
-            "metadata": metadata or {},
-        }
+) -> list[dict[str, Any]]:
+    """Les débits d'une récupération, un par mois (chaque bulletin imprime ses
+    prises et son solde), en un seul appel : tous ou aucun."""
+    lignes = repo.insert_movements(
+        [
+            {
+                "company_id": company_id,
+                "employee_id": employee_id,
+                "year": annee,
+                "month": mois,
+                "movement_type": "debit_recovery",
+                "hours": round(sum(jours.values()), 2),
+                "status": "validated",
+                "source": "absence",
+                "reference_id": reference_id,
+                "note": note,
+                # Les dates vont sur le bulletin (« 7 h le 13/07 », D3171-11).
+                "metadata": {"jours": jours},
+            }
+            for (annee, mois), jours in sorted(par_mois.items())
+        ]
     )
-    sync_account_balance_cache(company_id, employee_id, year)
-    return row
+    for annee in sorted({a for a, _ in par_mois}):
+        sync_account_balance_cache(company_id, employee_id, annee)
+    return lignes
 
 
 def annuler_debits_de_recuperation(request_id: str) -> int:
@@ -135,6 +139,15 @@ def annuler_debits_de_recuperation(request_id: str) -> int:
     return len(lignes)
 
 
+def _exiger_un_bulletin_qui_porte_le_compteur(company_id: str, employee_id: str) -> None:
+    """Sans cela, le geste serait enregistré et le bulletin n'en dirait rien : le
+    compteur fermé ne s'imprime pas, le bulletin au forfait ne le lit pas."""
+    if not repo.get_modulation_settings(company_id).hour_account_enabled:
+        raise ValueError("Le compteur de récupération n'est pas ouvert pour cette société.")
+    if repo.est_au_forfait_jours(employee_id):
+        raise ValueError("Un salarié au forfait jours n'a pas de compteur de récupération.")
+
+
 def payer_le_solde(
     company_id: str,
     employee_id: str,
@@ -146,16 +159,19 @@ def payer_le_solde(
 ) -> dict[str, Any]:
     """Payer des heures du compteur sur le bulletin du mois (solde de janvier,
     départ…) : un débit « paiement » ; le bulletin du mois porte la prime."""
-    from app.modules.modulation.domain.hour_account_rules import solde_payable
+    from app.modules.modulation.domain.hour_account_rules import (
+        heures_en_texte,
+        solde_payable,
+    )
 
+    _exiger_un_bulletin_qui_porte_le_compteur(company_id, employee_id)
     heures = round(float(heures), 2)
     if heures <= 0:
         raise ValueError("Indiquez un nombre d'heures à payer.")
     solde = solde_payable(repo.list_movements_for_employee(employee_id), year, month)
     if heures > solde:
-        texte = f"{solde:.2f}".rstrip("0").rstrip(".").replace(".", ",")
         raise ValueError(
-            f"Il n'y a que {texte} h à payer comme solde sur ce bulletin : les heures "
+            f"Il n'y a que {heures_en_texte(solde)} à payer comme solde sur ce bulletin : les heures "
             "mises au compteur ce mois-ci se paient avec « Payer ces heures ce mois-ci »."
         )
     row = repo.insert_movement(
@@ -201,6 +217,7 @@ def choisir_le_mois(
     if choix == "regle":
         otr_repo.supprimer_decision(employee_id, year, month)
         return
+    _exiger_un_bulletin_qui_porte_le_compteur(company_id, employee_id)
     heures = round(max(0.0, float(heures_sup or 0)), 2)
     au_compteur = choix == "compteur"
     otr_repo.upsert_decision(

@@ -113,13 +113,6 @@ def _heures_par_jour_de_recuperation(
     return {str(d)[:10]: daily for d in selected_days}
 
 
-def _hours_for_modulation_absence(
-    employee_id: str, selected_days: list, heures_par_jour: dict | None = None
-) -> float:
-    jours = _heures_par_jour_de_recuperation(employee_id, selected_days, heures_par_jour)
-    return round(sum(jours.values()), 2)
-
-
 def _verifier_modulation_recovery(data: dict[str, Any]):
     """Vérifie settings + solde d'une récup modulation. Raises ValueError.
 
@@ -168,7 +161,7 @@ def _apply_modulation_recovery_on_validation(
     laisser l'absence validée sans débit.
     """
     from app.modules.modulation.application.hour_account_commands import (
-        create_debit_recovery_movement,
+        create_debit_recovery_movements,
     )
 
     company_id = str(data.get("company_id") or "")
@@ -186,18 +179,13 @@ def _apply_modulation_recovery_on_validation(
     for jour, heures_du_jour in sorted(jours.items()):
         ref = date.fromisoformat(jour)
         par_mois.setdefault((ref.year, ref.month), {})[jour] = heures_du_jour
-    for (annee, mois), jours_du_mois in sorted(par_mois.items()):
-        create_debit_recovery_movement(
-            company_id,
-            employee_id,
-            annee,
-            mois,
-            round(sum(jours_du_mois.values()), 2),
-            reference_id=request_id,
-            note="Récupération (absence validée)",
-            # Les dates vont sur le bulletin (« 7 h le 13/07 », D3171-11).
-            metadata={"jours": jours_du_mois},
-        )
+    create_debit_recovery_movements(
+        company_id,
+        employee_id,
+        par_mois,
+        reference_id=request_id,
+        note="Récupération (absence validée)",
+    )
 
 
 def create_absence_request(
@@ -335,6 +323,15 @@ def update_absence_request_status(
         # re-débiterait le compte modulation.
         raise ValueError("Demande déjà validée.")
 
+    if (
+        status == "rejected"
+        and req_before.get("status") == "validated"
+        and req_before.get("type") == "recuperation_modulation"
+    ):
+        # Refuser après coup garderait le débit et le jour posé : l'annulation,
+        # elle, rend les heures et le planning.
+        raise ValueError("Cette récupération est déjà validée : annulez-la pour rendre ses heures.")
+
     update_dict: dict[str, Any] = {"status": status}
 
     precheck_modulation = None
@@ -395,13 +392,17 @@ def update_absence_request_status(
             # déjà protégés par le contrôle type/origine de la restauration.
             resp = (
                 supabase.table("absence_requests")
-                .select("id, type, selected_days")
+                .select("id, type, selected_days, heures_par_jour")
                 .eq("employee_id", employee_id)
                 .eq("status", "validated")
                 .neq("id", request_id)
                 .execute()
             )
             for r in resp.data or []:
+                if r.get("heures_par_jour"):
+                    # Prise en heures : la journée reste travaillée, elle ne
+                    # possède aucune case du planning.
+                    continue
                 if (
                     type_calendrier_projete(str(r.get("type") or ""))
                     != type_projete
@@ -754,7 +755,7 @@ def create_absences_from_planning(
 
     validated = (
         supabase.table("absence_requests")
-        .select("id, type, selected_days")
+        .select("id, type, selected_days, heures_par_jour")
         .eq("employee_id", employee_id)
         .eq("status", "validated")
         .execute()
@@ -763,7 +764,8 @@ def create_absences_from_planning(
     couverts_tous_types: set[str] = set()
     for r in validated:
         proj = type_calendrier_projete(str(r.get("type") or ""))
-        if proj:
+        # Prise en heures : rien de projeté, la journée reste travaillée.
+        if proj and not r.get("heures_par_jour"):
             couverts_par_type.setdefault(proj, set()).update(
                 str(d)[:10] for d in r.get("selected_days") or []
             )

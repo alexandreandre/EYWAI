@@ -237,17 +237,6 @@ def list_movements(
     return resp.data or []
 
 
-def list_movements_for_employee_year(employee_id: str, year: int) -> list[dict[str, Any]]:
-    resp = (
-        supabase.table("employee_modulation_movements")
-        .select("*")
-        .eq("employee_id", employee_id)
-        .eq("year", year)
-        .execute()
-    )
-    return resp.data or []
-
-
 def list_movements_for_employee(employee_id: str) -> list[dict[str, Any]]:
     """Tous les mouvements du salarié, toutes années : le solde se reporte."""
     resp = (
@@ -320,6 +309,37 @@ def supprimer_credits_de_paie(employee_id: str, year: int, month: int) -> list[d
         .execute()
     )
     return resp.data or []
+
+
+def insert_movements(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Plusieurs mouvements en un seul appel : tous ou aucun."""
+    now = datetime.now(timezone.utc).isoformat()
+    payload = [{**row, "created_at": now, "updated_at": now} for row in rows]
+    resp = supabase.table("employee_modulation_movements").insert(payload).execute()
+    return resp.data or []
+
+
+def annees_de_compteur(employee_id: str) -> list[int]:
+    """Les années pour lesquelles le salarié a une ligne de compteur."""
+    resp = (
+        supabase.table("employee_modulation_counters")
+        .select("year")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+    return sorted({int(r["year"]) for r in (resp.data or [])})
+
+
+def est_au_forfait_jours(employee_id: str) -> bool:
+    resp = (
+        supabase.table("employees")
+        .select("is_forfait_jour")
+        .eq("id", employee_id)
+        .limit(1)
+        .execute()
+    )
+    rows = resp.data or []
+    return bool(rows and rows[0].get("is_forfait_jour"))
 
 
 def annuler_mouvements_de_reference(

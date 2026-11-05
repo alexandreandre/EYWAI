@@ -181,6 +181,16 @@ def test_le_solde_de_recuperation_entre_dans_le_repos_provisionne():
     assert repos["e2"] == (1.0, "")
 
 
+def test_un_repos_pris_sans_credit_ne_diminue_pas_le_solde_de_recuperation():
+    prises = [{"employee_id": "e1", "type": "repos_compensateur", "selected_days": ["2026-09-07"]}]
+    with patch.object(module, "_lire_credits_repos", return_value={}), \
+         patch.object(module.absence_repository, "list_validated_for_employees", return_value=prises), \
+         patch.object(module, "_hours_per_rest_day", return_value=7.0), \
+         patch.object(module, "_soldes_recuperation", return_value={"e1": 14.0}):
+        repos = module._lire_repos("c", date(2026, 9, 30), ["e1"])
+    assert repos["e1"] == (2.0, "repos compensateur pris sans crédit : 7 h")
+
+
 # --- l'état ------------------------------------------------------------------------------------
 
 SALARIE = {"id": "e1", "matricule": "M", "first_name": "A", "last_name": "B", "hire_date": "2020-01-01",

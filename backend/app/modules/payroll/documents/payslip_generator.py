@@ -503,6 +503,35 @@ def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> lis
         for r in toutes
         if r.get("type") in _TYPES_DEMANDE_PROJETES_EN_CONGES_PAYES
     ]
+    if any(r.get("type") == "recuperation_modulation" for r in rows):
+        # Lu à part, seulement s'il y en a : les demandes rendues ici nourrissent
+        # l'empreinte d'entrée, qui ne doit pas changer. Une récupération prise en
+        # heures n'a rien projeté : elle n'étiquette pas le congé du même jour.
+        en_heures = (
+            supabase.table("absence_requests")
+            .select("selected_days, heures_par_jour")
+            .eq("employee_id", employee_id)
+            .eq("status", "validated")
+            .eq("type", "recuperation_modulation")
+            .execute()
+        ).data or []
+        jours_en_heures = {
+            str(d)[:10]
+            for r in en_heures
+            if r.get("heures_par_jour")
+            for d in r.get("selected_days") or []
+        }
+        rows = [
+            r
+            if r.get("type") != "recuperation_modulation"
+            else {
+                **r,
+                "selected_days": [
+                    d for d in r.get("selected_days") or [] if str(d)[:10] not in jours_en_heures
+                ],
+            }
+            for r in rows
+        ]
     source_par_date = _source_conges_par_date(rows)
     for e in jours_cp:
         try:

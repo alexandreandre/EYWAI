@@ -223,9 +223,10 @@ def _compteur_alimente(compteur: Any) -> bool:
     return any(float(donnees.get(cle) or 0.0) for cle in ("acquis", "pris", "solde"))
 
 
-def _heures_recup_fr(heures: float) -> str:
-    texte = f"{float(heures):.2f}".rstrip("0").rstrip(".")
-    return f"{texte.replace('.', ',')} h"
+def heures_en_texte(heures: Any) -> str:
+    from app.modules.modulation.domain.hour_account_rules import heures_en_texte as texte
+
+    return texte(float(heures or 0))
 
 
 def _notes_recuperation(recuperation: Dict[str, Any]) -> List[str]:
@@ -236,26 +237,26 @@ def _notes_recuperation(recuperation: Dict[str, Any]) -> List[str]:
     morceaux: List[str] = []
     acquis = float(recuperation.get("acquis") or 0.0)
     if acquis > 0:
-        morceaux.append(f"{_heures_recup_fr(acquis)} acquises")
+        morceaux.append(f"{heures_en_texte(acquis)} acquises")
     prises = [p for p in recuperation.get("prises") or [] if isinstance(p, dict)]
     if prises:
         dates = []
         for prise in prises:
             jour = str(prise.get("date") or "")[:10]
             date_courte = f"{jour[8:10]}/{jour[5:7]}" if len(jour) == 10 else jour
-            dates.append(f"{_heures_recup_fr(prise.get('heures') or 0)} prises le {date_courte}")
+            dates.append(f"{heures_en_texte(prise.get('heures') or 0)} prises le {date_courte}")
         morceaux.append(", ".join(dates))
     elif float(recuperation.get("pris") or 0.0) > 0:
-        morceaux.append(f"{_heures_recup_fr(recuperation['pris'])} prises")
+        morceaux.append(f"{heures_en_texte(recuperation['pris'])} prises")
     paye = float(recuperation.get("paye") or 0.0)
     if paye > 0:
-        morceaux.append(f"{_heures_recup_fr(paye)} payées")
+        morceaux.append(f"{heures_en_texte(paye)} payées")
     if morceaux:
         notes.append("Récupération ce mois-ci : " + ", ".join(morceaux))
     solde = float(recuperation.get("solde") or 0.0)
     if solde >= 7:
         notes.append(
-            f"Droit à repos ouvert : {_heures_recup_fr(solde)} de récupération à prendre "
+            f"Droit à repos ouvert : {heures_en_texte(solde)} de récupération à prendre "
             "dans un délai maximum de deux mois (C. trav. D3171-11)."
         )
     return notes

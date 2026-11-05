@@ -190,16 +190,18 @@ def alertes_des_compteurs_de_conges(
     if bulletin_de_sortie and isinstance(recuperation, dict):
         reste = float(recuperation.get("solde") or 0.0)
         if reste > 0:
-            heures = f"{reste:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+            from app.modules.modulation.domain.hour_account_rules import heures_en_texte
+
             alertes.append(
                 {
                     "code": "recuperation_non_prise_au_depart",
                     "severity": "warning",
                     "critique": False,
                     "message": (
-                        f"Départ : {heures} h de récupération non prises restent au "
-                        "compteur. Elles sont dues : payez le solde depuis la carte "
-                        "« Heures de récupération » du bulletin."
+                        f"Départ : {heures_en_texte(reste)} de récupération non prises "
+                        "restent au compteur. Elles sont dues : payez-les depuis la carte "
+                        "« Heures de récupération » du bulletin (« Payer le solde », et "
+                        "« Payer ces heures ce mois-ci » pour celles du mois)."
                     ),
                 }
             )

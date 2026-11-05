@@ -199,42 +199,6 @@ def reduce_payroll_hs_events(
     return out, deferred
 
 
-def reduce_hs_in_calendar(
-    calendrier: list[dict[str, Any]],
-    hours_to_defer: float,
-) -> tuple[list[dict[str, Any]], float]:
-    """Réduit les heures HS dans le calendrier étendu bulletin (comme hook CET)."""
-    remaining = round(max(0.0, float(hours_to_defer)), 2)
-    if remaining <= 0:
-        return calendrier, 0.0
-
-    deferred = 0.0
-    updated: list[dict[str, Any]] = []
-
-    for jour in reversed(calendrier):
-        if remaining <= 0:
-            updated.append(jour)
-            continue
-        entry = dict(jour)
-        ev_type = str(entry.get("type") or "")
-        if ev_type not in _HS_EVENT_TYPES:
-            updated.append(entry)
-            continue
-        heures = float(entry.get("heures") or 0)
-        if heures <= 0:
-            updated.append(entry)
-            continue
-        deduct = min(heures, remaining)
-        entry["heures"] = round(heures - deduct, 2)
-        remaining = round(remaining - deduct, 2)
-        deferred = round(deferred + deduct, 2)
-        if entry["heures"] > 0:
-            updated.append(entry)
-
-    updated.reverse()
-    return updated, deferred
-
-
 # ---------------------------------------------------------------------------
 # Heures de récupération (repos compensateur de remplacement) — 05/11/2026.
 # Spec : docs/superpowers/specs/2026-11-05-heures-de-recuperation-design.md
@@ -528,3 +492,9 @@ def remplacer_hs_par_declaration(
                 }
             )
     return sortie
+
+
+def heures_en_texte(heures: float) -> str:
+    """« 7 h », « 4,38 h » : les heures imprimées sur le bulletin et les messages."""
+    texte = f"{float(heures):.2f}".rstrip("0").rstrip(".")
+    return f"{texte.replace('.', ',')} h"
