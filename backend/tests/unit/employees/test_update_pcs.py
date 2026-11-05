@@ -52,3 +52,21 @@ def test_sans_classification_rien_n_est_lu():
         commands.update_employee("emp-1", {"job_title": "Soudeur"})
     assert "classification_conventionnelle" not in repo.update.call_args[0][1]
     deposee.assert_not_called()
+
+
+def test_un_code_hors_liste_choisi_par_la_rh_est_refuse():
+    import pytest
+    from fastapi import HTTPException
+
+    with _fiche({"pcs": "9999"}) as (repo, _):
+        with pytest.raises(HTTPException) as refus:
+            commands.update_employee("emp-1", {"classification_conventionnelle": {"pcs": "999a"}})
+    assert refus.value.status_code == 400
+    assert "999a" in refus.value.detail and "liste officielle" in refus.value.detail
+    repo.update.assert_not_called()
+
+
+def test_un_code_hors_liste_deja_sur_la_fiche_ne_bloque_pas_une_autre_modification():
+    with _fiche({"pcs": "311a"}) as (repo, _):
+        commands.update_employee("emp-1", {"classification_conventionnelle": {"pcs": "311a", "idcc": "0292"}})
+    assert _ecrit(repo)["pcs"] == "311a"

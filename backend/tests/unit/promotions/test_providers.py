@@ -128,6 +128,40 @@ class TestEmployeeUpdaterApplyPromotionChanges:
             "classification_conventionnelle": new_classif
         }
 
+    @patch("app.modules.promotions.infrastructure.providers.supabase")
+    def test_classification_garde_le_reste_de_la_fiche(self, mock_supabase):
+        # La promotion change le coefficient : le code PCS-ESE, l'IDCC et le changement de
+        # code à déclarer (bloc DSN S21.G00.41) restent sur la fiche.
+        actuelle = {
+            "coefficient": 240,
+            "classe_emploi": 6,
+            "pcs": "674a",
+            "idcc": "0292",
+            "pcs_changement": {"ancien": "9999", "date": "2026-11-06"},
+        }
+        mock_table = MagicMock()
+        mock_supabase.table.return_value = mock_table
+        (
+            mock_table.select.return_value.eq.return_value.eq.return_value
+            .maybe_single.return_value.execute.return_value
+        ) = MagicMock(data={"classification_conventionnelle": actuelle})
+        mock_table.update.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
+            data=[{"id": EMPLOYEE_ID}]
+        )
+
+        EmployeeUpdater().apply_promotion_changes(
+            _promotion_mock(new_classification={"coefficient": 280, "classe_emploi": 8}),
+            COMPANY_ID,
+        )
+
+        assert mock_table.update.call_args[0][0] == {
+            "classification_conventionnelle": {
+                **actuelle,
+                "coefficient": 280,
+                "classe_emploi": 8,
+            }
+        }
+
     @patch(
         "app.modules.employees.application.commands.apply_salary_update",
         return_value={"id": "hist-1"},

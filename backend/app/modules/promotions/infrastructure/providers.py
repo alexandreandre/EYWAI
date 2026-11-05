@@ -108,9 +108,27 @@ class EmployeeUpdater(IEmployeeUpdater):
             if promotion.new_statut:
                 update_data["statut"] = promotion.new_statut
             if promotion.new_classification:
-                update_data["classification_conventionnelle"] = (
-                    promotion.new_classification
+                # La promotion change groupe, classe ou coefficient : le reste de la
+                # classification (code PCS-ESE, IDCC, changement de code à déclarer en
+                # DSN) reste sur la fiche. Le remplacer l'effaçait.
+                lue = (
+                    supabase.table("employees")
+                    .select("classification_conventionnelle")
+                    .eq("id", promotion.employee_id)
+                    .eq("company_id", company_id)
+                    .maybe_single()
+                    .execute()
                 )
+                ligne = getattr(lue, "data", None) if lue is not None else None
+                actuelle = (
+                    ligne.get("classification_conventionnelle")
+                    if isinstance(ligne, dict)
+                    else None
+                )
+                update_data["classification_conventionnelle"] = {
+                    **(actuelle if isinstance(actuelle, dict) else {}),
+                    **promotion.new_classification,
+                }
 
             if update_data:
                 response = (

@@ -38,6 +38,7 @@ from app.modules.onboarding.domain.profile import (
 )
 from app.modules.employees.infrastructure.mappers import prepare_employee_insert_data
 from app.modules.pcs_ese.domain.changement import appliquer_changement_pcs
+from app.modules.pcs_ese.domain.referentiel import code_valide
 from app.modules.pcs_ese.infrastructure.transmissions import periodes_deposees
 from app.modules.employees.infrastructure.providers import (
     generate_contract_pdf,
@@ -771,6 +772,16 @@ def _avec_changement_pcs(
     avant = avant if isinstance(avant, dict) else {}
     code_avant = str(avant.get("pcs") or "").strip()
     code_apres = str(apres.get("pcs") or "").strip()
+    if not depuis_import and code_apres and code_apres != code_avant and not code_valide(code_apres):
+        # CRE-11 (cahier technique DSN 2026.1.2, p. 183) : seules les 430 valeurs de la table
+        # PCSESE passent ; un code changé hors liste ferait refuser la DSN.
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Code PCS-ESE « {code_apres} » absent de la liste officielle (table DSN "
+                "PCSESE) : choisissez-le dans la liste. Rien n'a été enregistré."
+            ),
+        )
     deposees: frozenset = frozenset()
     if not depuis_import and code_apres and code_apres != code_avant and curr.get("company_id"):
         deposees = periodes_deposees(str(curr["company_id"]))
