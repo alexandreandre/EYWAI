@@ -48,7 +48,7 @@ Le compte d'heures du module `modulation` (`domain/hour_account_rules.py`, `appl
 
 « Heures supplémentaires : **payées** au bulletin, ou **mises au compteur de récupération** », avec un plafond facultatif du solde (en heures de repos). Au-delà du plafond, les heures sont payées. Rien d'autre à régler : la récupération par absence est ouverte d'office, le débit se fait à la validation.
 
-En base : `company_modulation_settings.hour_account_enabled` + `hs_routing_policy = 'account_all'` + `max_account_balance_hours`. Aucune migration. Les réglages de modulation annuelle et de franchise restent pour plus tard, repliés.
+En base : `company_modulation_settings.hour_account_enabled` + `hs_routing_policy` (`account_all` ou `pay_all`) + `max_account_balance_hours`. Aucune migration. Repasser en « payées » garde le compte ouvert : un solde acquis reste dû, visible, à prendre ou à payer. Les réglages de modulation annuelle et de franchise restent pour plus tard, repliés.
 
 ### 3.2 Ce que Martine fait seule chaque mois
 
@@ -56,15 +56,17 @@ En base : `company_modulation_settings.hour_account_enabled` + `hs_routing_polic
 - Elle n'impute pas ces heures sur le contingent (elles ne sont plus dans les heures sup payées).
 - Elle imprime au bulletin le compteur « Récup. (h) » : acquis du mois, pris du mois, solde ; les prises avec leur date (« 7 h le 13/07 ») ; dès 7 h de solde, la mention légale des deux mois.
 
+Des heures sup saisies à la main (variables du mois, ou depuis le bulletin) font foi sur le planning, pour le compteur comme pour la paie : sinon elles seraient payées et mises au compteur.
+
 ### 3.3 Le choix du mois, salarié par salarié (demande d'Elsa du 02/11)
 
-Sur le bulletin du mois, la RH voit « X h d'heures sup mises au compteur (= Y h de repos) » et un bouton **« Payer ces heures ce mois-ci »**. Le bouton enregistre la décision (`employee_overtime_routing_decisions`, heures à payer = toutes) et recalcule le bulletin. Elle peut revenir en arrière (« Remettre au compteur »).
+Sur le bulletin du mois, la RH voit « X h d'heures sup mises au compteur (= Y h de repos) » et un bouton **« Payer ces heures ce mois-ci »**. Le bouton enregistre la décision (`employee_overtime_routing_decisions`, heures à payer = toutes) et recalcule le bulletin. Elle peut revenir en arrière (« Remettre au compteur »). Dans une société qui paie, c'est l'inverse : « X h d'heures sup payées ce mois-ci » et **« Mettre ces heures au compteur »**. Un bulletin validé, repris de Quadra ou verrouillé refuse ces gestes et dit pourquoi.
 
 La conséquence est écrite à côté du bouton, à partir du BOSS : « Payées ce mois-ci, ces heures gardent l'exonération d'impôt et les réductions des heures sup. Mises au compteur puis payées plus tard (solde de janvier, départ), elles les perdent. » C'est notre conseil du 03/11 à Elsa : payer directement les heures qui ne seront pas prises en repos.
 
 ### 3.4 Payer un solde
 
-Sur le bulletin, quand le compteur a un solde : **« Payer le solde »** (en janvier pour Elsa, ou à tout moment). Martine pose un débit « paiement » au compteur pour le mois, et le bulletin de ce mois porte la ligne « Paiement solde heures de récupération » = heures × taux horaire de base, **en prime**, sans les régimes des heures sup (tranché le 03/11, spec `2026-11-03-rubrique-paiement-recup-hs-design.md`). Annuler le paiement rend les heures au compteur.
+Sur le bulletin, quand le compteur a un solde : **« Payer le solde »** (en janvier pour Elsa, ou à tout moment). Le crédit du mois n'en fait pas partie : ces heures-là se paient avec « Payer ces heures ce mois-ci » et gardent leurs régimes. Martine pose un débit « paiement » au compteur pour le mois, et le bulletin de ce mois porte la ligne « Paiement solde heures de récupération » = heures × taux horaire de base, **en prime**, sans les régimes des heures sup (tranché le 03/11, spec `2026-11-03-rubrique-paiement-recup-hs-design.md`). Annuler le paiement rend les heures au compteur.
 
 Au départ du salarié, un solde non pris est payé : D3121-23 le dit pour la contrepartie obligatoire ; pour le repos de remplacement, aucun texte lu ne le dit, mais ce repos remplace un salaire déjà gagné (notre lecture). L'alerte du bulletin de sortie le signale, la RH paie le solde du même bouton.
 
@@ -80,7 +82,7 @@ Une absence « Récupération » (type `recuperation_modulation`, libellé à l'
 
 ### 3.6 Reprise des soldes de Quadra au 30/09
 
-Un mouvement « solde d'ouverture » daté de septembre 2026 par salarié, au solde que Quadra imprime (on suit Quadra même quand son arithmétique diffère : « les cumuls de reprise suivent le cabinet »). C'est une écriture dans la vraie paie : script simulé d'abord, écriture sur « lance ».
+Un mouvement « solde d'ouverture » daté de septembre 2026 par salarié, au solde que Quadra imprime, négatif compris (on suit Quadra même quand son arithmétique diffère : « les cumuls de reprise suivent le cabinet »). C'est une écriture dans la vraie paie : script simulé d'abord, écriture sur « lance ».
 
 ## 4. Ce qui ne change pas
 
@@ -88,6 +90,27 @@ Un mouvement « solde d'ouverture » daté de septembre 2026 par salarié, au so
 - Le repos compensateur « contrepartie obligatoire » (hors contingent, module `repos_compensateur`) reste un compteur distinct : le droit les distingue (L3121-30, L3121-38).
 - La DSN : une heure mise au compteur n'est pas payée, donc n'est pas déclarée en heure sup ; une récupération prise est une absence payée sans suspension ; le paiement d'un solde sort comme une prime.
 
-## 5. Hors périmètre (écrit au récapitulatif)
+Le bulletin d'un contrat rangé (mois à deux contrats) ne touche pas au compteur : ses heures sup restent payées (cas rare, corrigeable à la main).
 
-Les autres compteurs de l'inventaire pour lesquels Martine n'a pas de mécanisme sont listés au récapitulatif avec le nombre de salariés ; rien n'est bâti pour eux dans ce lot.
+## 5. Ce que chaque société fait, mesuré sur ses bulletins
+
+Mettre « au compteur » envoie **toutes** les heures sup de la société au compteur : on ne le décide pas sur la seule présence d'un solde, mais sur ce que Quadra a fait de janvier à septembre (bulletins dont le « montant net des heures compl/suppl exo. » du mois n'est pas nul).
+
+| Société | Bulletins avec heures sup payées | Soldes de récup. au 30/09 | Réglage |
+|---|---|---|---|
+| MAJI | 6 sur 174 | 2 | **au compteur** |
+| Comitech | 138 sur 233 | 1 | payées, soldes suivis |
+| Mont-Blanc | 586 sur 1 112 | 14 | payées, soldes suivis |
+| Cartol | 372 sur 952 | 1 | payées, soldes suivis |
+| Colorplast | 68 sur 109 | 0 | rien ne change (Colorplast est intouchable sans accord) |
+| LEWIS | 88 sur 658 | 0 | rien ne change |
+| Zone 404 | 0 sur 79 | 0 | rien ne change |
+
+La seule ligne de MAJI sans valeur en septembre reprise quand même est celle demandée par Alexandre (1 h en août, aucune ligne ensuite).
+
+## 6. Les autres compteurs de l'inventaire
+
+- **RTT et repos du forfait** (MAJI, Zone 404, Comitech, Mont-Blanc, Cartol, LEWIS) : Martine les a sous le nom RTT. L'ouverture est calée pour que le solde au 30/09 égale celui de Quadra, vérifié par le calcul de Martine lui-même.
+- **JTC** (Mont-Blanc) et **CET** (Mont-Blanc, Cartol) : mécanismes existants, activés, soldes repris.
+- **Modulation de Cartol** : pas reprise. L'activer changerait le calcul des heures sup de toute la société, et une vraie modulation suppose un accord collectif qu'aucune société n'a (Elsa, 02/11). À décider à part.
+- **« Solde rep.comp. » de Mont-Blanc** (une valeur, −7,50, sans unité) : pas reprise, on ne sait pas ce que c'est.
