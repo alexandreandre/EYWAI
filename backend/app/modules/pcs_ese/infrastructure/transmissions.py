@@ -34,7 +34,8 @@ def derniere_periode_deposee(company_id: str) -> Optional[str]:
             .eq("company_id", company_id)
             .execute()
         )
+        lignes = r.data if isinstance(r.data, list) else []
+        return periode_la_plus_recente(ligne for ligne in lignes if isinstance(ligne, dict))
     except Exception:
         logger.exception("Lecture dsn_transmissions échouée (company=%s)", company_id)
         return None
-    return periode_la_plus_recente(r.data or [])

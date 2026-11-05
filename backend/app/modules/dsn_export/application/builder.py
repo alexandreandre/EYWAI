@@ -8,6 +8,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.shared.domain.effectif_seuils import effectif_retenu
+from app.modules.dsn_export.domain.changement_pcs import bloc_changement_pcs
 from app.modules.dsn_export.domain.settings import (
     DsnSettings,
     normaliser_idcc,
@@ -1720,11 +1721,14 @@ def build_parsed_dsn_from_payroll(
     require_cotisation_codes: bool = False,
     settings: Optional[DsnSettings] = None,
     cotisations_complementaires_avant: Optional[Dict[str, Decimal]] = None,
+    derniere_periode_deposee: Optional[str] = None,
 ) -> Tuple[DsnFile, List[str]]:
     """Construit un DsnFile P26 à partir de données déjà chargées (sans DB).
 
     ``employees_data`` : liste de dicts
     ``{employee: {...}, payslip_data: {...}}`` ou format ``get_dsn_employees_data``.
+    ``derniere_periode_deposee`` : dernière DSN mensuelle partie (« AAAA-MM ») ; un
+    changement de code PCS-ESE déjà déclaré n'est pas redéclaré.
     """
     warnings: List[str] = []
     parametres = settings or DsnSettings()
@@ -1804,6 +1808,15 @@ def build_parsed_dsn_from_payroll(
         try:
             ind, w = build_individu_from_payroll(employee, payslip_data, **options)
             warnings.extend(w)
+            if ind.contrats:
+                changement = bloc_changement_pcs(
+                    _classification(employee),
+                    ind.contrats[0].pcs,
+                    period,
+                    derniere_periode_deposee,
+                )
+                if changement:
+                    ind.contrats[0].changements = [changement]
             precedent = row.get("contrat_precedent")
             if isinstance(precedent, dict):
                 # Mois à deux contrats (D3.2) : le bulletin du contrat rangé, sur
