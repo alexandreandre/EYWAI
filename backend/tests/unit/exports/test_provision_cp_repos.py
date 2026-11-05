@@ -21,6 +21,8 @@ from app.modules.exports.infrastructure import export_provision_cp as module
 
 pytestmark = pytest.mark.unit
 
+_VRAIE_LECTURE_RECUPERATION = module._soldes_recuperation
+
 
 # --- domaine : conversion du compteur ---------------------------------------------------------
 
@@ -240,3 +242,21 @@ def test_le_fichier_porte_la_colonne_du_repos_et_son_total():
     assert lignes[0][rang] == "2.0"
     total = next(l for l in lignes if l[1] == "Total")
     assert total[rang] == "2.0"
+
+
+def test_les_soldes_de_recuperation_se_lisent_en_une_requete():
+    mouvements = [
+        {"employee_id": "e1", "movement_type": "opening_balance", "hours": 2.0, "year": 2026,
+         "month": 9, "status": "validated"},
+        {"employee_id": "e1", "movement_type": "credit_hs", "hours": 5.0, "year": 2026,
+         "month": 11, "status": "validated"},
+        {"employee_id": "e2", "movement_type": "opening_balance", "hours": 0.0, "year": 2026,
+         "month": 9, "status": "validated"},
+    ]
+    reglage = MagicMock(hour_account_enabled=True)
+    lire = "app.modules.modulation.infrastructure.repository"
+    fonction = _VRAIE_LECTURE_RECUPERATION
+    with patch(f"{lire}.get_modulation_settings", return_value=reglage), \
+         patch(f"{lire}.list_movements_for_employees", return_value=mouvements) as lecture:
+        assert fonction("c", ["e1", "e2"], 2026, 9) == {"e1": 2.0}
+    lecture.assert_called_once_with(["e1", "e2"])

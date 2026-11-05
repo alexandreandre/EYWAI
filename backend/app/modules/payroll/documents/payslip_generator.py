@@ -1451,6 +1451,7 @@ def process_payslip_generation(
             company_id=str(company_id),
             employee_id=str(employee_id),
             persister=bac_a_sable is None,
+            contract_period_id=contract_period_id,
         )
 
         from app.modules.modulation.application.payroll_hook import (

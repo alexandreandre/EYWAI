@@ -47,7 +47,12 @@ def _validate_settings_coherence(payload: dict[str, Any]) -> None:
 def update_modulation_settings(
     company_id: str, payload: dict[str, Any]
 ) -> dict[str, Any]:
-    filtered = {k: v for k, v in payload.items() if k in _WRITABLE_KEYS and v is not None}
+    # Le plafond se vide : une valeur nulle explicite compte (sans plafond).
+    filtered = {
+        k: v
+        for k, v in payload.items()
+        if k in _WRITABLE_KEYS and (v is not None or k == "max_account_balance_hours")
+    }
     if filtered:
         existing = repo.get_modulation_settings(company_id)
         merged = {

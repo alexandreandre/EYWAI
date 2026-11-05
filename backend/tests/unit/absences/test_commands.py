@@ -460,6 +460,33 @@ class TestModulationRecoveryOnValidation:
                             "jours": {"2026-03-10": 7.0}
                         }
 
+    def test_une_recuperation_a_cheval_debite_chaque_mois(self):
+        """31/07 et 03/08 : 7 h sur chaque bulletin, pas 14 h en juillet."""
+        data = {
+            "company_id": "company-1",
+            "employee_id": "emp-1",
+            "selected_days": ["2026-08-03", "2026-07-31"],
+        }
+        reglage = type(
+            "S",
+            (),
+            {
+                "hour_account_enabled": True,
+                "recovery_absence_enabled": True,
+                "recovery_debit_timing": "on_validation",
+            },
+        )()
+        precheck = (14.0, reglage, {"2026-07-31": 7.0, "2026-08-03": 7.0})
+        with patch(
+            "app.modules.modulation.application.hour_account_commands.create_debit_recovery_movement"
+        ) as mock_debit:
+            commands._apply_modulation_recovery_on_validation(data, "r", precheck=precheck)
+        appels = [(c.args[2], c.args[3], c.args[4], c.kwargs["metadata"]) for c in mock_debit.call_args_list]
+        assert appels == [
+            (2026, 7, 7.0, {"jours": {"2026-07-31": 7.0}}),
+            (2026, 8, 7.0, {"jours": {"2026-08-03": 7.0}}),
+        ]
+
     def test_recuperation_prise_en_heures(self):
         """« 3,5 h le 14/08 » : le compteur est débité des heures saisies."""
         data = {
@@ -709,7 +736,34 @@ class TestCancelValidatedAbsence:
         ) as annuler:
             _, ordre = self._annuler(req_before, [])
         annuler.assert_called_once_with("req-recup")
-        assert ordre[-1] == "update"
+        assert ordre == ["restore", "update"]
+
+    def test_annulation_rejouable_si_la_restauration_echoue(self):
+        """Le planning d'abord : s'il échoue, les heures restent débitées et la
+        demande reste validée, l'annulation se rejoue."""
+        req_before = {
+            "id": "req-recup",
+            "employee_id": "emp-1",
+            "type": "recuperation_modulation",
+            "status": "validated",
+            "selected_days": ["2026-08-14"],
+        }
+        with patch(
+            "app.modules.modulation.application.hour_account_commands.annuler_debits_de_recuperation"
+        ) as annuler, patch(
+            "app.modules.absences.application.commands.absence_repository"
+        ) as repo, patch(
+            "app.modules.absences.application.commands.calendar_update_provider"
+        ) as cal, patch("app.modules.absences.application.commands.supabase") as sb:
+            repo.get_by_id.return_value = req_before
+            sb.table.return_value.select.return_value.eq.return_value.eq.return_value.neq.return_value.execute.return_value = MagicMock(data=[])
+            cal.restore_calendar_from_days.side_effect = RuntimeError("panne")
+            with pytest.raises(RuntimeError):
+                commands.update_absence_request_status(
+                    "req-recup", "cancelled", current_user_id="user-1"
+                )
+        annuler.assert_not_called()
+        repo.update.assert_not_called()
 
     def test_annulation_d_une_demande_pending_ne_restaure_rien(self):
         req_before = {

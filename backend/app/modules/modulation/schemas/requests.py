@@ -166,9 +166,9 @@ class ManualAdjustmentCreate(BaseModel):
 
 
 class ChoixDuMoisRecuperation(BaseModel):
-    """« Payer ces heures ce mois-ci » (payer=True) ou « Remettre au compteur »."""
+    """Le choix du mois : payer, mettre au compteur, ou revenir à la règle."""
 
-    payer: bool
+    choix: Literal["payer", "compteur", "regle"]
     heures_sup: float = Field(0, ge=0, le=300)
 
 

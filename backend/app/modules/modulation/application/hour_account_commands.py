@@ -146,16 +146,17 @@ def payer_le_solde(
 ) -> dict[str, Any]:
     """Payer des heures du compteur sur le bulletin du mois (solde de janvier,
     départ…) : un débit « paiement » ; le bulletin du mois porte la prime."""
-    from app.modules.modulation.domain.hour_account_rules import solde_au
+    from app.modules.modulation.domain.hour_account_rules import solde_payable
 
     heures = round(float(heures), 2)
     if heures <= 0:
         raise ValueError("Indiquez un nombre d'heures à payer.")
-    solde = solde_au(repo.list_movements_for_employee(employee_id), year, month)
+    solde = solde_payable(repo.list_movements_for_employee(employee_id), year, month)
     if heures > solde:
         texte = f"{solde:.2f}".rstrip("0").rstrip(".").replace(".", ",")
         raise ValueError(
-            f"Le compteur n'a que {texte} h : impossible d'en payer davantage."
+            f"Il n'y a que {texte} h à payer comme solde sur ce bulletin : les heures "
+            "mises au compteur ce mois-ci se paient avec « Payer ces heures ce mois-ci »."
         )
     row = repo.insert_movement(
         {
@@ -189,18 +190,19 @@ def choisir_le_mois(
     year: int,
     month: int,
     *,
-    payer: bool,
+    choix: str,
     heures_sup: float,
     par: str | None = None,
 ) -> None:
-    """« Payer ces heures ce mois-ci » (payer=True) ou « Remettre au compteur ».
+    """Le choix du mois pour un salarié : « payer » ces heures, les mettre au
+    « compteur », ou revenir à la « regle » de la société.
 
-    La décision du mois l'emporte sur la règle de la société ; sans décision,
-    c'est la règle de la société qui joue."""
-    if not payer:
+    La décision du mois l'emporte sur la règle ; sans décision, la règle joue."""
+    if choix == "regle":
         otr_repo.supprimer_decision(employee_id, year, month)
         return
     heures = round(max(0.0, float(heures_sup or 0)), 2)
+    au_compteur = choix == "compteur"
     otr_repo.upsert_decision(
         {
             "company_id": company_id,
@@ -208,10 +210,10 @@ def choisir_le_mois(
             "year": year,
             "month": month,
             "total_hs_hours": heures,
-            "hours_to_pay": heures,
-            "hours_to_account": 0,
+            "hours_to_pay": 0 if au_compteur else heures,
+            "hours_to_account": heures if au_compteur else 0,
             "status": "validated",
             "decided_by": par,
-            "note": "Payées ce mois-ci au lieu du compteur",
+            "note": "Mises au compteur ce mois-ci" if au_compteur else "Payées ce mois-ci au lieu du compteur",
         }
     )

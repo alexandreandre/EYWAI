@@ -114,3 +114,48 @@ def sync_account_balance_cache(
             account_balance_hours=balance,
         )
     return balance
+
+
+def _bulletin_du_mois(employee_id: str, year: int, month: int) -> dict | None:
+    """Le bulletin du contrat de la fiche pour ce mois (sans ses données)."""
+    from app.core.database import supabase
+
+    resp = (
+        supabase.table("payslips")
+        .select("id, company_id, status, origine, year, month")
+        .eq("employee_id", employee_id)
+        .eq("year", year)
+        .eq("month", month)
+        .is_("contract_period_id", "null")
+        .limit(1)
+        .execute()
+    )
+    rows = resp.data or []
+    return rows[0] if rows else None
+
+
+def raison_bulletin_fige(
+    employee_id: str, year: int, month: int, *, bypass_lock: bool = False
+) -> str | None:
+    """Pourquoi on ne peut plus changer le compteur sur le bulletin de ce mois ;
+    None si on peut. Sans ce refus, le compteur serait débité alors que le
+    bulletin, qui ne se recalcule plus, ne porterait jamais le paiement."""
+    from app.modules.payslips.application.period_edit_lock import (
+        enrich_payslip_detail_with_edit_lock,
+    )
+
+    bulletin = _bulletin_du_mois(employee_id, year, month)
+    if not bulletin:
+        return None
+    periode = f"{int(bulletin['month']):02d}/{bulletin['year']}"
+    if str(bulletin.get("origine") or "") == "importe":
+        return f"Le bulletin de {periode} est repris de l'ancien logiciel : il ne se recalcule pas."
+    if str(bulletin.get("status") or "") == "valide":
+        return (
+            f"Le bulletin de {periode} est validé : ce choix se fait sur un bulletin "
+            "pas encore validé."
+        )
+    detail = enrich_payslip_detail_with_edit_lock(bulletin, bypass_lock=bypass_lock)
+    if detail.get("manual_edit_locked"):
+        return str(detail.get("manual_edit_lock_reason") or f"Le bulletin de {periode} est verrouillé.")
+    return None

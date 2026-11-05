@@ -100,6 +100,9 @@ def route_hs_for_period(
 
 def _movement_signed_hours(movement_type: str, hours: float) -> float:
     h = abs(float(hours))
+    if movement_type == "opening_balance":
+        # Repris tel quel de l'ancien logiciel, même négatif (on suit le cabinet).
+        return float(hours)
     if movement_type in _CREDIT_TYPES:
         return h
     if movement_type in _DEBIT_TYPES:
@@ -131,7 +134,9 @@ def compute_acquired_and_taken(movements: list[dict[str, Any]]) -> tuple[float, 
             continue
         mtype = str(m.get("movement_type") or "")
         hours = abs(float(m.get("hours") or 0))
-        if mtype in _CREDIT_TYPES or (mtype == "adjustment" and float(m.get("hours") or 0) > 0):
+        if mtype == "opening_balance" and float(m.get("hours") or 0) < 0:
+            taken += hours
+        elif mtype in _CREDIT_TYPES or (mtype == "adjustment" and float(m.get("hours") or 0) > 0):
             acquired += hours
         elif mtype == "debit_recovery":
             taken += hours
@@ -479,3 +484,47 @@ def saisie_paiement_solde(heures: float, taux_horaire_base: float) -> dict[str, 
         "soumise_a_cotisations": True,
         "soumise_a_impot": True,
     }
+
+
+def solde_payable(movements: list[dict[str, Any]], annee: int, mois: int) -> float:
+    """Ce qui se paie comme un solde sur le bulletin du mois : le solde sans le
+    crédit de la paie de ce mois (ces heures-là se paient directement et gardent
+    leurs régimes ; le recalcul défait ce crédit), et sans dépasser ce que les
+    débits déjà posés sur les mois suivants laissent."""
+    base = mouvements_hors_paie_du_mois(movements, annee, mois)
+    return max(0.0, min(solde_au(base, annee, mois), compute_balance_from_movements(base)))
+
+
+def remplacer_hs_par_declaration(
+    calendrier: list[dict[str, Any]],
+    heures_25: float,
+    heures_50: float,
+    bornes: tuple[Any, Any] | None,
+) -> list[dict[str, Any]]:
+    """Heures sup saisies à la main : elles font foi sur le planning (le moteur
+    les paie à sa place). Pour le compteur, elles remplacent donc les heures sup
+    du planning de la fenêtre ; sinon elles seraient payées et mises au compteur."""
+    fin = bornes[1] if bornes else None
+
+    def _du_mois(ev: dict[str, Any]) -> bool:
+        if bornes is None:
+            return True
+        d = _date_de(ev)
+        return d is not None and bornes[0] <= d <= bornes[1]
+
+    sortie = [
+        ev
+        for ev in calendrier
+        if not (str(ev.get("type") or "") in MAJORATIONS_LEGALES and _du_mois(ev))
+    ]
+    for type_hs, heures in (("travail_hs25", heures_25), ("travail_hs50", heures_50)):
+        if float(heures or 0) > 0:
+            sortie.append(
+                {
+                    "type": type_hs,
+                    "heures": round(float(heures), 2),
+                    "declaree": True,
+                    **({"date_complete": fin.isoformat()} if fin else {}),
+                }
+            )
+    return sortie

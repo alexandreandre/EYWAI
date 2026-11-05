@@ -47,8 +47,10 @@ def test_hour_account_only_no_modulation(
     assert paid_hs == 0.0
 
 
+@patch("app.modules.modulation.application.payroll_hook._decision_du_mois", return_value=None)
+@patch("app.modules.modulation.application.payroll_hook.repo.list_movements_for_employee", return_value=[])
 @patch("app.modules.modulation.application.payroll_hook.repo.get_modulation_settings")
-def test_pay_all_skips_account(mock_settings):
+def test_pay_all_skips_account(mock_settings, _mv, _dec):
     mock_settings.return_value = ModulationSettings(
         hour_account_enabled=True,
         hs_routing_policy="pay_all",

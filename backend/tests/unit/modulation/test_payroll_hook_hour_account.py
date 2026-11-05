@@ -130,3 +130,108 @@ def test_tout_au_compteur_respecte_le_plafond(mock_settings, mock_movements, _de
     assert result.repos_credite == 1.0
     assert result.hs_credited == 0.8
     assert result.hs_paid == 3.2
+
+
+@patch("app.modules.modulation.application.payroll_hook._decision_du_mois", return_value=None)
+@patch("app.modules.modulation.application.payroll_hook.repo.list_movements_for_employee", return_value=[])
+@patch("app.modules.modulation.application.payroll_hook.repo.get_modulation_settings")
+def test_les_heures_declarees_vont_au_compteur_une_seule_fois(mock_settings, _mv, _dec):
+    """8 h saisies à la main, 2 h au planning : 8 h au compteur, plus rien à
+    payer, et la déclaration restante revient à 0 pour le moteur."""
+    from datetime import date
+
+    mock_settings.return_value = ModulationSettings(
+        hour_account_enabled=True, hs_routing_policy="account_all"
+    )
+    fenetre = (date(2026, 10, 1), date(2026, 10, 31))
+    cal = [{"type": "travail_hs25", "heures": 2.0, "date_complete": "2026-10-05"}]
+    updated, _, result = apply_modulation_hour_account_to_calendar(
+        "c", "e", 2026, 10, cal, persister=False, bornes_variables=fenetre,
+        majorations={"travail_hs25": 0.25}, heures_declarees=(8.0, 0.0),
+    )
+    assert result.repos_credite == 10.0
+    assert result.declaration_restante == (0.0, 0.0)
+    assert [e for e in updated if e["type"].startswith("travail_hs")] == []
+
+
+@patch("app.modules.modulation.application.payroll_hook._decision_du_mois", return_value=None)
+@patch("app.modules.modulation.application.payroll_hook.repo.list_movements_for_employee", return_value=[])
+@patch("app.modules.modulation.application.payroll_hook.repo.get_modulation_settings")
+def test_sans_compteur_la_declaration_ne_bouge_pas(mock_settings, _mv, _dec):
+    mock_settings.return_value = ModulationSettings()
+    cal = [{"type": "travail_hs25", "heures": 2.0, "date_complete": "2026-10-05"}]
+    updated, _, result = apply_modulation_hour_account_to_calendar(
+        "c", "e", 2026, 10, cal, heures_declarees=(8.0, 0.0),
+    )
+    assert updated == cal
+    assert result.declaration_restante is None
+
+
+@patch("app.modules.modulation.application.payroll_hook.repo.list_movements_for_employee")
+@patch("app.modules.modulation.application.payroll_hook.repo.get_modulation_settings")
+def test_societe_repassee_en_paye_le_solde_reste_visible(mock_settings, mock_mv):
+    from app.modules.modulation.application.payroll_hook import etat_recuperation_du_bulletin
+
+    mock_settings.return_value = ModulationSettings(
+        hour_account_enabled=True, hs_routing_policy="pay_all"
+    )
+    mock_mv.return_value = [
+        {"movement_type": "opening_balance", "hours": 20.0, "year": 2026, "month": 9,
+         "status": "validated", "source": "manual_rh"},
+    ]
+    assert etat_recuperation_du_bulletin("c", "e", 2026, 10)["solde"] == 20.0
+    mock_mv.return_value = []
+    assert etat_recuperation_du_bulletin("c", "e", 2026, 10) is None
+    mock_settings.return_value = ModulationSettings()
+    mock_mv.return_value = [{"movement_type": "opening_balance", "hours": 20.0, "year": 2026, "month": 9, "status": "validated"}]
+    assert etat_recuperation_du_bulletin("c", "e", 2026, 10) is None
+
+
+@patch("app.modules.modulation.application.payroll_hook._decision_du_mois")
+@patch("app.modules.modulation.application.payroll_hook.repo.list_movements_for_employee", return_value=[])
+@patch("app.modules.modulation.application.payroll_hook.repo.get_modulation_settings")
+def test_une_decision_partielle_n_est_pas_un_mois_paye(mock_settings, _mv, mock_dec):
+    mock_settings.return_value = ModulationSettings(
+        hour_account_enabled=True, hs_routing_policy="manual"
+    )
+    mock_dec.return_value = {"hours_to_account": 2, "status": "validated"}
+    _, _, result = apply_modulation_hour_account_to_calendar(
+        "c", "e", 2026, 10, _hs_calendar(4), persister=False,
+    )
+    assert result.hs_credited == 2.0
+    assert result.paye_ce_mois is False
+    assert result.regle == "manual"
+
+
+@patch("app.modules.modulation.application.payroll_hook.sync_employee_modulation_counter")
+@patch("app.modules.modulation.application.payroll_hook.sync_account_balance_cache")
+@patch("app.modules.modulation.application.payroll_hook.repo.insert_movement", return_value={"id": "m"})
+@patch("app.modules.modulation.application.payroll_hook._decision_du_mois")
+@patch("app.modules.modulation.application.payroll_hook.repo.list_movements_for_employee", return_value=[])
+@patch("app.modules.modulation.application.payroll_hook.repo.get_modulation_settings")
+def test_societe_qui_paie_le_mois_au_compteur_se_choisit(
+    mock_settings, _mv, mock_dec, mock_insert, _c, _s
+):
+    """Comitech, Mont-Blanc, Cartol : tout est payé, sauf le mois qu'on met au
+    compteur pour un salarié ; sans décision, le calendrier n'est pas touché."""
+    mock_settings.return_value = ModulationSettings(
+        hour_account_enabled=True, hs_routing_policy="pay_all"
+    )
+    cal = _hs_calendar(4)
+    mock_dec.return_value = None
+    updated, ids, result = apply_modulation_hour_account_to_calendar(
+        "c", "e", 2026, 10, cal, heures_declarees=(6.0, 0.0),
+    )
+    assert updated == cal
+    assert ids == []
+    assert (result.hs_realisees, result.hs_paid, result.regle) == (6.0, 6.0, "pay_all")
+    assert result.declaration_restante is None
+    mock_insert.assert_not_called()
+
+    mock_dec.return_value = {"hours_to_account": 4, "status": "validated"}
+    updated, ids, result = apply_modulation_hour_account_to_calendar(
+        "c", "e", 2026, 10, cal, majorations={"travail_hs25": 0.25},
+    )
+    assert updated == []
+    assert result.repos_credite == 5.0
+    assert result.au_compteur_ce_mois is True

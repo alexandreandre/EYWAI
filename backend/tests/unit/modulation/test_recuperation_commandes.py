@@ -71,7 +71,7 @@ def test_payer_plus_que_le_solde_est_refuse(mock_list, mock_insert):
 
 @patch(f"{_C}.otr_repo.upsert_decision")
 def test_payer_ce_mois_enregistre_une_decision_toutes_heures_payees(mock_upsert):
-    cmd.choisir_le_mois("soc", "emp", 2026, 10, payer=True, heures_sup=4.0, par="rh-1")
+    cmd.choisir_le_mois("soc", "emp", 2026, 10, choix="payer", heures_sup=4.0, par="rh-1")
     decision = mock_upsert.call_args[0][0]
     assert decision["hours_to_account"] == 0
     assert decision["hours_to_pay"] == 4.0
@@ -79,6 +79,50 @@ def test_payer_ce_mois_enregistre_une_decision_toutes_heures_payees(mock_upsert)
 
 
 @patch(f"{_C}.otr_repo.supprimer_decision")
-def test_remettre_au_compteur_supprime_la_decision(mock_suppr):
-    cmd.choisir_le_mois("soc", "emp", 2026, 10, payer=False, heures_sup=4.0, par="rh-1")
+def test_revenir_a_la_regle_supprime_la_decision(mock_suppr):
+    cmd.choisir_le_mois("soc", "emp", 2026, 10, choix="regle", heures_sup=4.0, par="rh-1")
     mock_suppr.assert_called_once_with("emp", 2026, 10)
+
+
+@patch(f"{_C}.repo.insert_movement")
+@patch(f"{_C}.repo.list_movements_for_employee")
+def test_le_credit_du_mois_ne_se_paie_pas_comme_un_solde(mock_list, mock_insert):
+    """Sinon : prime + heures sup payées si la RH paie ensuite les heures du mois."""
+    mock_list.return_value = [
+        _mvt("opening_balance", 2.0, 2026, 9),
+        _mvt("credit_hs", 5.0, 2026, 10, source="payroll_auto"),
+    ]
+    with pytest.raises(ValueError, match="2 h"):
+        cmd.payer_le_solde("soc", "emp", 2026, 10, 7.0)
+    mock_insert.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "ligne, attendu",
+    [
+        (None, None),
+        ({"status": "brouillon", "origine": "genere", "year": 2026, "month": 10, "company_id": "c"}, None),
+        ({"status": "valide", "origine": "genere", "year": 2026, "month": 10, "company_id": "c"}, "validé"),
+        ({"status": "brouillon", "origine": "importe", "year": 2026, "month": 9, "company_id": "c"}, "repris"),
+    ],
+)
+def test_un_bulletin_fige_refuse_le_geste(ligne, attendu):
+    from app.modules.modulation.application import hour_account_queries as q
+
+    with patch.object(q, "_bulletin_du_mois", return_value=ligne), patch(
+        "app.modules.payslips.application.period_edit_lock.enrich_payslip_detail_with_edit_lock",
+        side_effect=lambda d, **k: {**d, "manual_edit_locked": False},
+    ):
+        raison = q.raison_bulletin_fige("e", 2026, 10)
+    if attendu is None:
+        assert raison is None
+    else:
+        assert attendu in raison
+
+
+@patch(f"{_C}.otr_repo.upsert_decision")
+def test_mettre_au_compteur_enregistre_les_heures_au_compteur(mock_upsert):
+    cmd.choisir_le_mois("soc", "emp", 2026, 10, choix="compteur", heures_sup=4.0, par="rh-1")
+    decision = mock_upsert.call_args[0][0]
+    assert decision["hours_to_account"] == 4.0
+    assert decision["hours_to_pay"] == 0

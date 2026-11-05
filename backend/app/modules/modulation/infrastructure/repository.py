@@ -259,6 +259,29 @@ def list_movements_for_employee(employee_id: str) -> list[dict[str, Any]]:
     return resp.data or []
 
 
+def list_movements_for_employees(employee_ids: list[str]) -> list[dict[str, Any]]:
+    """Tous les mouvements de plusieurs salariés, en une lecture paginée."""
+    if not employee_ids:
+        return []
+    lignes: list[dict[str, Any]] = []
+    debut = 0
+    pas = 1000
+    while True:
+        resp = (
+            supabase.table("employee_modulation_movements")
+            .select("*")
+            .in_("employee_id", employee_ids)
+            .order("id")
+            .range(debut, debut + pas - 1)
+            .execute()
+        )
+        page = resp.data or []
+        lignes.extend(page)
+        if len(page) < pas:
+            return lignes
+        debut += pas
+
+
 def get_franchise_consumed_in_period(
     employee_id: str,
     year: int,

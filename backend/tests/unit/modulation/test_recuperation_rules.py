@@ -7,6 +7,8 @@ from datetime import date
 
 from app.modules.modulation.domain.hour_account_rules import (
     etat_du_mois,
+    remplacer_hs_par_declaration,
+    solde_payable,
     mettre_hs_au_compteur,
     mouvements_hors_paie_du_mois,
     solde_au,
@@ -175,3 +177,40 @@ def test_etat_du_mois_donne_aussi_le_cumul_de_l_annee():
     assert etat["acquis_annee"] == 6.25
     assert etat["pris_annee"] == 4.0
     assert etat["solde"] == 4.25
+
+
+def test_les_heures_declarees_remplacent_celles_du_planning():
+    """Des heures sup saisies à la main font foi : le planning ne compte plus,
+    sinon elles seraient payées ET mises au compteur."""
+    fenetre = (date(2026, 10, 1), date(2026, 10, 31))
+    cal = [_hs(28, 3, mois=9), _hs(5, 2), {"type": "travail", "heures": 7, "jour": 5}]
+    sortie = remplacer_hs_par_declaration(cal, 8.0, 1.0, fenetre)
+    hs = [e for e in sortie if e["type"].startswith("travail_hs") and e.get("declaree")]
+    assert {e["type"]: e["heures"] for e in hs} == {"travail_hs25": 8.0, "travail_hs50": 1.0}
+    assert all(e["date_complete"] == "2026-10-31" for e in hs)
+    # Le jour de septembre (hors fenêtre) et le jour travaillé restent.
+    assert cal[0] in sortie and cal[2] in sortie
+    assert cal[1] not in sortie
+
+
+def test_le_solde_payable_exclut_le_credit_du_mois_et_les_debits_a_venir():
+    mvts = [
+        _mvt("opening_balance", 2.0, 2026, 9),
+        _mvt("credit_hs", 5.0, 2026, 10, source="payroll_auto"),
+        _mvt("debit_recovery", 1.5, 2026, 11, source="absence"),
+    ]
+    # En octobre : 2 h d'ouverture, sans le crédit du mois, moins le débit de novembre.
+    assert solde_payable(mvts, 2026, 10) == 0.5
+    # En novembre : le crédit d'octobre est acquis.
+    assert solde_payable(mvts, 2026, 11) == 5.5
+    assert solde_payable([_mvt("debit_recovery", 3.0, 2026, 10, source="absence")], 2026, 10) == 0.0
+
+
+def test_un_solde_d_ouverture_negatif_reste_negatif():
+    """Quadra écrit parfois un solde négatif : on le reprend tel quel."""
+    mvts = [
+        _mvt("opening_balance", -3.0, 2026, 9),
+        _mvt("credit_hs", 5.0, 2026, 10, source="payroll_auto"),
+    ]
+    assert solde_au(mvts, 2026, 9) == -3.0
+    assert solde_au(mvts, 2026, 10) == 2.0

@@ -451,9 +451,12 @@ def _soldes_recuperation(
     reglage = modulation_repo.get_modulation_settings(company_id)
     if not reglage.hour_account_enabled:
         return {}
+    par_salarie: Dict[str, List[Dict[str, Any]]] = {}
+    for mouvement in modulation_repo.list_movements_for_employees(employee_ids):
+        par_salarie.setdefault(str(mouvement.get("employee_id")), []).append(mouvement)
     soldes: Dict[str, float] = {}
-    for eid in employee_ids:
-        solde = solde_au(modulation_repo.list_movements_for_employee(eid), annee, mois)
+    for eid, mouvements in par_salarie.items():
+        solde = solde_au(mouvements, annee, mois)
         if solde > 0:
             soldes[eid] = solde
     return soldes

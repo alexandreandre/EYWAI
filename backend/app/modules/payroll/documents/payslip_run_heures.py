@@ -596,6 +596,17 @@ def poser_le_depart_du_mois(
     )
 
 
+def heures_sup_saisies(saisie_du_mois: dict) -> tuple[float, float] | None:
+    """Les heures sup saisies à la main (25 %, 50 %), None sans saisie : elles
+    font foi sur le planning (`calcul_brut`), donc aussi pour le compteur de
+    récupération, sans quoi elles seraient payées et mises au compteur."""
+    h25 = float(saisie_du_mois.get("heures_supplementaires_conjoncturelles") or 0)
+    h50 = float(saisie_du_mois.get("heures_supplementaires_conjoncturelles_50") or 0)
+    if saisie_du_mois.get("heures_sup_declarees_au_bulletin") or h25 > 0 or h50 > 0:
+        return h25, h50
+    return None
+
+
 def run_payslip_generation_heures(
     employee_path: Path,
     year: int,
@@ -605,9 +616,12 @@ def run_payslip_generation_heures(
     employee_id: str | None = None,
     baremes_override: dict | None = None,
     persister: bool = True,
+    contract_period_id: str | None = None,
 ) -> dict:
     """
     Génère un bulletin heures en processus (sans subprocess).
+    `contract_period_id` : bulletin du contrat rangé d'un mois partagé [D3] : le
+    compteur de récupération est celui du contrat de la fiche, on n'y touche pas.
     `persister=False` (bac à sable) : même calcul, mais aucun mouvement de
     modulation ou de CET n'est créé ni finalisé, aucun compteur synchronisé,
     et le bulletin n'est pas imprimé en PDF.
@@ -702,7 +716,7 @@ def run_payslip_generation_heures(
     )
     modulation_movement_ids: list[str] = []
     modulation_result = None
-    if employee_id and company_id:
+    if employee_id and company_id and not contract_period_id:
         from app.modules.modulation.application.payroll_hook import (
             apply_modulation_hour_account_to_calendar,
         )
@@ -729,8 +743,16 @@ def run_payslip_generation_heures(
                 persister=persister,
                 bornes_variables=(date_debut_variables, date_fin_variables),
                 majorations=majorations_hs,
+                heures_declarees=heures_sup_saisies(saisie_du_mois),
             )
         )
+        if modulation_result and modulation_result.declaration_restante is not None:
+            # Ce qui reste à payer des heures saisies : le moteur le lira là.
+            saisie_du_mois = {
+                **saisie_du_mois,
+                "heures_supplementaires_conjoncturelles": modulation_result.declaration_restante[0],
+                "heures_supplementaires_conjoncturelles_50": modulation_result.declaration_restante[1],
+            }
         from app.modules.modulation.application.payroll_hook import (
             etat_recuperation_du_bulletin,
         )
@@ -1564,6 +1586,8 @@ def run_payslip_generation_heures(
             "hs_paid": modulation_result.hs_paid,
             "repos_credite": modulation_result.repos_credite,
             "paye_ce_mois": modulation_result.paye_ce_mois,
+            "au_compteur_ce_mois": modulation_result.au_compteur_ce_mois,
+            "regle": modulation_result.regle,
         }
 
     return bulletin_final

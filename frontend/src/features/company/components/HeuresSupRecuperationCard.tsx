@@ -42,16 +42,23 @@ export default function HeuresSupRecuperationCard() {
     );
   }, [actuel, data?.max_account_balance_hours]);
 
+  const plafondTexte = plafond.trim();
+  const plafondSaisi = plafondTexte === '' ? null : Number.parseFloat(plafondTexte.replace(',', '.'));
+  const plafondInvalide =
+    choix === 'compteur' && plafondSaisi !== null && !(Number.isFinite(plafondSaisi) && plafondSaisi > 0);
+
   const enregistrer = useMutation({
     mutationFn: () => {
       if (choix === 'payees') {
-        return updateModulationSettings({ hour_account_enabled: false, hs_routing_policy: 'pay_all' });
+        // Le compte reste ouvert : un solde déjà acquis reste dû, visible, et
+        // se prend ou se paie toujours.
+        return updateModulationSettings({ hs_routing_policy: 'pay_all' });
       }
-      const n = Number.parseFloat(plafond.replace(',', '.'));
+      const n = plafondSaisi;
       return updateModulationSettings({
         hour_account_enabled: true,
         hs_routing_policy: 'account_all',
-        max_account_balance_hours: Number.isFinite(n) && n > 0 ? n : null,
+        max_account_balance_hours: n,
         recovery_absence_enabled: true,
         recovery_debit_timing: 'on_validation',
       });
@@ -110,6 +117,11 @@ export default function HeuresSupRecuperationCard() {
               />
               <span>h de repos ; au-delà, les heures sont payées.</span>
             </div>
+            {plafondInvalide ? (
+              <p className="text-xs text-destructive">
+                Indiquez un nombre d’heures, ou laissez vide pour ne pas mettre de plafond.
+              </p>
+            ) : null}
             {actuel !== 'compteur' ? (
               <p className="text-xs text-muted-foreground">
                 Sans accord collectif, la loi permet ce choix si l’entreprise n’a pas de délégué
@@ -119,7 +131,7 @@ export default function HeuresSupRecuperationCard() {
             ) : null}
           </div>
         ) : null}
-        <Button size="sm" disabled={enregistrer.isPending} onClick={() => enregistrer.mutate()}>
+        <Button size="sm" disabled={enregistrer.isPending || plafondInvalide} onClick={() => enregistrer.mutate()}>
           Enregistrer
         </Button>
       </CardContent>

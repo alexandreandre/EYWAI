@@ -31,8 +31,15 @@ class ModulationPayrollResult:
     movement_ids: tuple[str, ...] = ()
     #: Heures de repos créditées (équivalent majoré des heures sup au compteur).
     repos_credite: float = 0.0
-    #: La RH a choisi, pour ce mois, de payer au lieu de mettre au compteur.
+    #: La RH a choisi, pour ce mois, de tout payer au lieu de mettre au compteur.
     paye_ce_mois: bool = False
+    #: La RH a choisi, pour ce mois, de mettre au compteur (société qui paie).
+    au_compteur_ce_mois: bool = False
+    #: La règle de la société : l'écran du bulletin offre le choix du mois pour
+    #: « tout au compteur » et « tout payer ».
+    regle: str = ""
+    #: Heures saisies à la main qui restent à payer (25 %, 50 %) ; None sans saisie.
+    declaration_restante: tuple[float, float] | None = None
 
 
 def _monday_of_week(d: date) -> date:
@@ -156,25 +163,33 @@ def apply_modulation_hour_account_to_calendar(
     persister: bool = True,
     bornes_variables: tuple[date, date] | None = None,
     majorations: dict[str, float] | None = None,
+    heures_declarees: tuple[float, float] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str], ModulationPayrollResult]:
     """Met au compteur de récupération les heures sup du mois que la paie ne
     paie pas, à l'équivalent majoré (spec 2026-11-05-heures-de-recuperation).
 
     - `bornes_variables` : la fenêtre où la paie compte les heures sup ;
-    - `majorations` : les taux du barème de la société (25 % / 50 % à défaut).
+    - `majorations` : les taux du barème de la société (25 % / 50 % à défaut) ;
+    - `heures_declarees` : heures sup saisies à la main (25 %, 50 %), qui font foi
+      sur le planning ; ce qu'il en reste à payer revient dans le résultat.
     `persister=False` (bac à sable) : même calcul, aucun mouvement écrit.
     """
     settings = repo.get_modulation_settings(company_id)
-    if settings.hs_routing_policy == "pay_all":
-        return calendrier_etendu, [], ModulationPayrollResult(hs_realisees=0.0)
     if not settings.hour_account_enabled:
         return calendrier_etendu, [], ModulationPayrollResult()
+    calendrier_d_origine = calendrier_etendu
 
     from app.modules.modulation.domain.hour_account_rules import (
         mettre_hs_au_compteur,
         mouvements_hors_paie_du_mois,
+        remplacer_hs_par_declaration,
         solde_au,
     )
+
+    if heures_declarees is not None:
+        calendrier_etendu = remplacer_hs_par_declaration(
+            calendrier_etendu, heures_declarees[0], heures_declarees[1], bornes_variables
+        )
 
     # Le crédit qu'une génération précédente du mois a posé est refait ici :
     # il ne compte ni dans le solde ni dans la franchise (recalcul, bac à sable).
@@ -188,11 +203,35 @@ def apply_modulation_hour_account_to_calendar(
     )
     total_hs = round(sonde.heures_sup_au_compteur, 2)
     if total_hs <= 0:
-        return calendrier_etendu, [], ModulationPayrollResult(hs_realisees=0.0)
+        if settings.hs_routing_policy == "pay_all":
+            return (
+                calendrier_d_origine,
+                [],
+                ModulationPayrollResult(hs_realisees=0.0, regle="pay_all"),
+            )
+        return (
+            calendrier_etendu,
+            [],
+            ModulationPayrollResult(
+                hs_realisees=0.0,
+                regle=settings.hs_routing_policy,
+                declaration_restante=(0.0, 0.0) if heures_declarees is not None else None,
+            ),
+        )
 
     policy = settings.hs_routing_policy
     decision = _decision_du_mois(employee_id, year, month)
     plafond = settings.max_account_balance_hours
+    if policy == "pay_all" and (
+        decision is None or float(decision.get("hours_to_account") or 0) <= 0
+    ):
+        # La société paie ses heures sup : calendrier et saisies ne bougent pas.
+        # Le total sert à l'écran (« Mettre ces heures au compteur »).
+        return (
+            calendrier_d_origine,
+            [],
+            ModulationPayrollResult(hs_realisees=total_hs, hs_paid=total_hs, regle=policy),
+        )
     if decision is not None:
         # Choix du mois par la RH (« payer ces heures ce mois-ci »), quelle que
         # soit la règle de la société.
@@ -255,8 +294,26 @@ def apply_modulation_hour_account_to_calendar(
             period_paid_hours=mise.heures_sup_payees,
         )
 
+    calendrier_final = mise.calendrier
+    restante: tuple[float, float] | None = None
+    if heures_declarees is not None:
+        # Ce qui reste des heures saisies retourne au moteur par la saisie :
+        # elles sortent du calendrier, qui ne doit pas les compter en plus.
+        def _reste(type_hs: str) -> float:
+            return round(
+                sum(
+                    float(e.get("heures") or 0)
+                    for e in calendrier_final
+                    if e.get("declaree") and e.get("type") == type_hs
+                ),
+                2,
+            )
+
+        restante = (_reste("travail_hs25"), _reste("travail_hs50"))
+        calendrier_final = [e for e in calendrier_final if not e.get("declaree")]
+
     return (
-        mise.calendrier,
+        calendrier_final,
         movement_ids,
         ModulationPayrollResult(
             hs_realisees=total_hs,
@@ -264,7 +321,14 @@ def apply_modulation_hour_account_to_calendar(
             hs_paid=mise.heures_sup_payees,
             movement_ids=tuple(movement_ids),
             repos_credite=mise.repos_credite,
-            paye_ce_mois=decision is not None,
+            paye_ce_mois=(
+                decision is not None and float(decision.get("hours_to_account") or 0) <= 0
+            ),
+            au_compteur_ce_mois=(
+                decision is not None and float(decision.get("hours_to_account") or 0) > 0
+            ),
+            regle=policy,
+            declaration_restante=restante,
         ),
     )
 
@@ -280,16 +344,22 @@ def etat_recuperation_du_bulletin(
     """Le compteur de récupération que le bulletin du mois imprime ; None
     quand la société paie ses heures sup (rien ne change sur son bulletin)."""
     settings = repo.get_modulation_settings(company_id)
-    if not settings.hour_account_enabled or settings.hs_routing_policy == "pay_all":
+    if not settings.hour_account_enabled:
         return None
-    from app.modules.modulation.domain.hour_account_rules import etat_du_mois
+    from app.modules.modulation.domain.hour_account_rules import etat_du_mois, solde_payable
 
-    return etat_du_mois(
-        repo.list_movements_for_employee(employee_id),
-        year,
-        month,
-        credit_du_calcul=float(credit_du_calcul or 0.0),
-    )
+    mouvements = repo.list_movements_for_employee(employee_id)
+    if settings.hs_routing_policy == "pay_all" and not mouvements and credit_du_calcul <= 0:
+        # Société qui paie ses heures sup, salarié sans compteur : rien à imprimer.
+        # S'il a un solde (reprise de Quadra, société repassée en « payées »), il
+        # reste dû et visible.
+        return None
+    return {
+        **etat_du_mois(
+            mouvements, year, month, credit_du_calcul=float(credit_du_calcul or 0.0)
+        ),
+        "payable": solde_payable(mouvements, year, month),
+    }
 
 
 def apply_modulation_to_payroll_events(

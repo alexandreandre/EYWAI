@@ -776,14 +776,19 @@ def get_my_absence_balances(employee_id: str) -> List[dict]:
                 and mod_settings.recovery_absence_enabled
             ):
                 bal = get_employee_account_balance(company_id, employee_id, today.year)
-                soldes = {
-                    **soldes,
-                    "compte_modulation": {
-                        "acquis": bal.acquired_hours,
-                        "pris": bal.taken_hours,
-                        "solde": bal.account_balance_hours,
-                    },
-                }
+                # Société qui paie ses heures sup : la ligne n'existe que pour
+                # qui a des heures au compteur, pas une ligne à zéro pour tous.
+                if mod_settings.hs_routing_policy != "pay_all" or (
+                    bal.account_balance_hours or bal.acquired_hours or bal.taken_hours
+                ):
+                    soldes = {
+                        **soldes,
+                        "compte_modulation": {
+                            "acquis": bal.acquired_hours,
+                            "pris": bal.taken_hours,
+                            "solde": bal.account_balance_hours,
+                        },
+                    }
         except Exception:
             pass
     if company_id:

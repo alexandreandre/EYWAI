@@ -266,12 +266,12 @@ export async function upsertOvertimeRouting(
   return data;
 }
 
-/** « Payer ces heures ce mois-ci » (payer=true) ou « Remettre au compteur ». */
+/** Le choix du mois : payer, mettre au compteur, ou revenir à la règle de la société. */
 export async function choisirLeMoisRecuperation(
   employeeId: string,
   year: number,
   month: number,
-  payload: { payer: boolean; heures_sup: number },
+  payload: { choix: 'payer' | 'compteur' | 'regle'; heures_sup: number },
   companyId?: string | null,
 ): Promise<void> {
   await apiClient.put(`/api/modulation/recuperation/${employeeId}/mois`, payload, {

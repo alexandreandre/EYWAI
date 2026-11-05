@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { getPayrollGenerationErrorMessage, getUserErrorMessage } from '@/lib/errorMessages';
 import {
+  CONDITIONS_DU_COMPTEUR,
   CONSEQUENCE_DU_CHOIX,
   heuresFr,
   lireRecuperation,
@@ -103,6 +104,18 @@ export function RecuperationDuMoisCard({
   };
 
   const bloque = disabled || enCours;
+  const choisir = (choix: 'payer' | 'compteur' | 'regle', fait: string) =>
+    agir(
+      () =>
+        choisirLeMoisRecuperation(
+          employeeId,
+          year,
+          month,
+          { choix, heures_sup: etat.heuresSupDuMois },
+          companyId,
+        ),
+      fait,
+    );
 
   return (
     <Card data-testid="carte-recuperation">
@@ -116,24 +129,7 @@ export function RecuperationDuMoisCard({
               Les {heuresFr(etat.heuresSupDuMois)} d’heures sup de ce mois sont payées sur ce
               bulletin, au lieu d’aller au compteur.
             </p>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={bloque}
-              onClick={() =>
-                agir(
-                  () =>
-                    choisirLeMoisRecuperation(
-                      employeeId,
-                      year,
-                      month,
-                      { payer: false, heures_sup: etat.heuresSupDuMois },
-                      companyId,
-                    ),
-                  'Heures remises au compteur',
-                )
-              }
-            >
+            <Button size="sm" variant="outline" disabled={bloque} onClick={() => choisir('regle', 'Heures remises au compteur')}>
               Remettre au compteur
             </Button>
           </div>
@@ -143,7 +139,7 @@ export function RecuperationDuMoisCard({
               {heuresFr(etat.heuresSupAuCompteur)} d’heures sup mises au compteur ce mois-ci, soit{' '}
               {heuresFr(etat.reposCredite)} de repos.
               {etat.heuresSupDuMois > etat.heuresSupAuCompteur
-                ? ` Les ${heuresFr(etat.heuresSupDuMois - etat.heuresSupAuCompteur)} au-delà du plafond sont payées.`
+                ? ` Les ${heuresFr(etat.heuresSupDuMois - etat.heuresSupAuCompteur)} restantes sont payées.`
                 : ''}
             </p>
             <Button
@@ -151,31 +147,31 @@ export function RecuperationDuMoisCard({
               variant="outline"
               disabled={bloque}
               onClick={() =>
-                agir(
-                  () =>
-                    choisirLeMoisRecuperation(
-                      employeeId,
-                      year,
-                      month,
-                      { payer: true, heures_sup: etat.heuresSupDuMois },
-                      companyId,
-                    ),
-                  'Heures sup payées ce mois-ci',
-                )
+                etat.auCompteurCeMois
+                  ? choisir('regle', 'Heures sup payées ce mois-ci')
+                  : choisir('payer', 'Heures sup payées ce mois-ci')
               }
             >
               Payer ces heures ce mois-ci
             </Button>
             <p className="text-xs text-muted-foreground">{CONSEQUENCE_DU_CHOIX}</p>
           </div>
-        ) : etat.heuresSupDuMois > 0 ? (
+        ) : etat.regle === 'payees' && etat.heuresSupDuMois > 0 ? (
+          <div className="space-y-2">
+            <p>{heuresFr(etat.heuresSupDuMois)} d’heures sup payées ce mois-ci.</p>
+            <Button size="sm" variant="outline" disabled={bloque} onClick={() => choisir('compteur', 'Heures mises au compteur')}>
+              Mettre ces heures au compteur
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              {CONSEQUENCE_DU_CHOIX} {CONDITIONS_DU_COMPTEUR}
+            </p>
+          </div>
+        ) : etat.regle === 'compteur' && etat.heuresSupDuMois > 0 ? (
           <p>
             Compteur au plafond : les {heuresFr(etat.heuresSupDuMois)} d’heures sup de ce mois sont
             payées.
           </p>
-        ) : (
-          <p>Aucune heure sup ce mois-ci.</p>
-        )}
+        ) : null}
 
         <div className="space-y-2 border-t pt-3">
           <p>
@@ -198,7 +194,7 @@ export function RecuperationDuMoisCard({
                 Annuler le paiement
               </Button>
             </div>
-          ) : etat.solde > 0 ? (
+          ) : etat.soldePayable > 0 ? (
             <div className="space-y-1">
               <Button
                 size="sm"
@@ -207,12 +203,12 @@ export function RecuperationDuMoisCard({
                 onClick={() =>
                   agir(
                     () =>
-                      payerSoldeRecuperation(employeeId, year, month, etat.solde, companyId),
-                    `Solde de ${heuresFr(etat.solde)} payé sur ce bulletin`,
+                      payerSoldeRecuperation(employeeId, year, month, etat.soldePayable, companyId),
+                    `Solde de ${heuresFr(etat.soldePayable)} payé sur ce bulletin`,
                   )
                 }
               >
-                Payer le solde ({heuresFr(etat.solde)})
+                Payer le solde ({heuresFr(etat.soldePayable)})
               </Button>
               <p className="text-xs text-muted-foreground">
                 Payé en prime, au taux horaire de base : des heures mises en repos n’ont plus

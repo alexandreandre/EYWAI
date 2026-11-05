@@ -173,7 +173,6 @@ def _apply_modulation_recovery_on_validation(
 
     company_id = str(data.get("company_id") or "")
     employee_id = str(data["employee_id"])
-    days = data.get("selected_days") or []
     hours, settings, jours = (
         precheck if precheck is not None else _verifier_modulation_recovery(data)
     )
@@ -181,22 +180,24 @@ def _apply_modulation_recovery_on_validation(
     if settings.recovery_debit_timing != "on_validation":
         return
 
-    first_day = days[0]
-    if isinstance(first_day, str):
-        ref = date.fromisoformat(first_day[:10])
-    else:
-        ref = first_day
-    create_debit_recovery_movement(
-        company_id,
-        employee_id,
-        ref.year,
-        ref.month,
-        hours,
-        reference_id=request_id,
-        note="Récupération (absence validée)",
-        # Les dates vont sur le bulletin (« 7 h le 13/07 », D3171-11).
-        metadata={"jours": jours},
-    )
+    # Un débit par mois : le bulletin de chaque mois imprime ses prises et son
+    # solde (une demande à cheval sur juillet et août se répartit).
+    par_mois: dict[tuple[int, int], dict[str, float]] = {}
+    for jour, heures_du_jour in sorted(jours.items()):
+        ref = date.fromisoformat(jour)
+        par_mois.setdefault((ref.year, ref.month), {})[jour] = heures_du_jour
+    for (annee, mois), jours_du_mois in sorted(par_mois.items()):
+        create_debit_recovery_movement(
+            company_id,
+            employee_id,
+            annee,
+            mois,
+            round(sum(jours_du_mois.values()), 2),
+            reference_id=request_id,
+            note="Récupération (absence validée)",
+            # Les dates vont sur le bulletin (« 7 h le 13/07 », D3171-11).
+            metadata={"jours": jours_du_mois},
+        )
 
 
 def create_absence_request(
@@ -380,14 +381,6 @@ def update_absence_request_status(
             update_dict["subrogation_active"] = resolved_sub
 
     if status == "cancelled" and req_before.get("status") == "validated":
-        if req_before.get("type") == "recuperation_modulation":
-            # Les heures reviennent au compteur : le débit de la demande est
-            # annulé (spec 2026-11-05 § 3.5), avant l'écriture du statut.
-            from app.modules.modulation.application.hour_account_commands import (
-                annuler_debits_de_recuperation,
-            )
-
-            annuler_debits_de_recuperation(request_id)
         # Restauration AVANT l'écriture du statut : si elle échoue, la demande
         # reste validée et l'annulation peut être rejouée — l'inverse laisse
         # des jours gelés sans recours (retour Gaëlle 03/09, RC de salarié 044).
@@ -424,6 +417,15 @@ def update_absence_request_status(
             calendar_update_provider.restore_calendar_from_days(
                 employee_id, a_restaurer, str(req_before.get("type") or "")
             )
+        if req_before.get("type") == "recuperation_modulation":
+            # Les heures reviennent au compteur (spec 2026-11-05 § 3.5). Après le
+            # planning, avant le statut : rien n'est rendu si le planning échoue,
+            # et l'annulation se rejoue (un débit déjà annulé n'est plus touché).
+            from app.modules.modulation.application.hour_account_commands import (
+                annuler_debits_de_recuperation,
+            )
+
+            annuler_debits_de_recuperation(request_id)
 
     data = absence_repository.update(request_id, update_dict)
     if not data:

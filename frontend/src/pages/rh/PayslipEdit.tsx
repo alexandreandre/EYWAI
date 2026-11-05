@@ -672,7 +672,7 @@ export default function PayslipEdit() {
             contractPeriodId={payslip.contract_period_id}
             companyId={payslip.company_id}
             manuallyEdited={payslip.manually_edited}
-            disabled={isEditLocked}
+            disabled={isEditLocked || payslip.status === 'valide'}
             onRegenerated={rechargements.apresRegeneration}
           />
           <LignesExpliquees payslipData={payslip.payslip_data} />

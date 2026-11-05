@@ -95,3 +95,13 @@ def test_au_depart_un_solde_de_recuperation_se_signale():
     assert alertes_des_compteurs_de_conges(
         {"recuperation": {"solde": 0.0, "paye": 2.0}}, bulletin_de_sortie=True
     ) == []
+
+
+def test_heures_sup_saisies_a_la_main():
+    from app.modules.payroll.documents.payslip_run_heures import heures_sup_saisies
+
+    assert heures_sup_saisies({}) is None
+    assert heures_sup_saisies({"heures_supplementaires_conjoncturelles": 8}) == (8.0, 0.0)
+    assert heures_sup_saisies({"heures_supplementaires_conjoncturelles_50": 2}) == (0.0, 2.0)
+    # Déclarées nulles depuis le bulletin : elles font foi quand même.
+    assert heures_sup_saisies({"heures_sup_declarees_au_bulletin": True}) == (0.0, 0.0)

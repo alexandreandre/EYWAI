@@ -454,6 +454,16 @@ def put_overtime_routing(
 # --- Heures de récupération (spec 2026-11-05) --------------------------------
 
 
+def _refuser_si_bulletin_fige(
+    employee_id: str, year: int, month: int, current_user: User
+) -> None:
+    raison = hour_account_queries.raison_bulletin_fige(
+        employee_id, year, month, bypass_lock=current_user.is_platform_admin
+    )
+    if raison:
+        raise HTTPException(status_code=409, detail=raison)
+
+
 @router.put("/recuperation/{employee_id}/mois")
 def put_choix_du_mois_recuperation(
     employee_id: str,
@@ -463,16 +473,17 @@ def put_choix_du_mois_recuperation(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    """Payer les heures sup du mois au lieu de les mettre au compteur, ou
-    revenir à la règle de la société. Le bulletin se recalcule ensuite."""
+    """Payer les heures sup du mois, les mettre au compteur, ou revenir à la
+    règle de la société. Le bulletin se recalcule ensuite."""
     cid = _resolve_company_id(company_id, current_user)
     _require_rh_on_employee(current_user, cid, employee_id)
+    _refuser_si_bulletin_fige(employee_id, year, month, current_user)
     hour_account_commands.choisir_le_mois(
         cid,
         employee_id,
         year,
         month,
-        payer=body.payer,
+        choix=body.choix,
         heures_sup=body.heures_sup,
         par=str(current_user.id),
     )
@@ -490,6 +501,7 @@ def post_paiement_solde_recuperation(
 ):
     cid = _resolve_company_id(company_id, current_user)
     _require_rh_on_employee(current_user, cid, employee_id)
+    _refuser_si_bulletin_fige(employee_id, year, month, current_user)
     try:
         hour_account_commands.payer_le_solde(
             cid, employee_id, year, month, body.heures, par=str(current_user.id)
@@ -509,5 +521,6 @@ def delete_paiement_solde_recuperation(
 ):
     cid = _resolve_company_id(company_id, current_user)
     _require_rh_on_employee(current_user, cid, employee_id)
+    _refuser_si_bulletin_fige(employee_id, year, month, current_user)
     annules = hour_account_commands.annuler_paiement_du_mois(cid, employee_id, year, month)
     return {"status": "ok", "annules": annules}
