@@ -36,5 +36,6 @@ export const NIVEAUX_DIPLOME_PREPARE: readonly CodeDsn[] = [
   { code: '08', libelle: 'Bac +8 (doctorat)' },
 ];
 
-/** Code PCS-ESE (S21.G00.40.004) : trois chiffres et une lettre minuscule. */
-export const FORMAT_PCS_ESE = /^\d{3}[a-z]$/;
+/** Code PCS-ESE (S21.G00.40.004) : trois chiffres et une lettre minuscule, ou « 9999 »
+ * (profession non connue ou non communiquée), le seul code à quatre chiffres de la table DSN. */
+export const FORMAT_PCS_ESE = /^(\d{3}[a-z]|9999)$/;

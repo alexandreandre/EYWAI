@@ -65,7 +65,7 @@ export const employeeProfileEditSchema = z
       .string()
       .trim()
       .refine((v) => !v || FORMAT_PCS_ESE.test(v), {
-        message: 'Code PCS-ESE : trois chiffres et une lettre minuscule (ex. 674a).',
+        message: 'Code PCS-ESE : trois chiffres et une lettre minuscule (ex. 674a), ou 9999 si la profession est inconnue.',
       }),
     team_id: z.string().optional(),
     specificites_paie: z.object({

@@ -191,4 +191,10 @@ describe('code PCS-ESE sur la fiche', () => {
     expect(champ.safeParse('67a').success).toBe(false);
     expect(champ.safeParse('6741').success).toBe(false);
   });
+
+  it('accepte 9999, « profession non connue ou non communiquée » de la table DSN', () => {
+    const champ = employeeProfileEditSchema.innerType().shape.code_pcs;
+    expect(champ.safeParse('9999').success).toBe(true);
+    expect(champ.safeParse('9998').success).toBe(false);
+  });
 });

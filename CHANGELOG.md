@@ -5,7 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
-(rien)
+### Le code PCS-ESE « 9999 » est accepté
+- « 9999 » veut dire « profession inconnue » : c'est un code officiel de la DSN.
+- La fiche d'un salarié qui a ce code peut de nouveau être enregistrée, et l'aperçu DSN ne le dit plus faux.
+- Les salariés repris de Quadra avec ce code gardent un vrai code à trouver.
 
 ## paie-2026-11-04.7 — 4 novembre 2026
 
