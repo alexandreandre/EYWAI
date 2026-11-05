@@ -113,7 +113,7 @@ class TestCablageDuGenerateurHeures:
 
     def test_un_contrat_en_cours_garde_ses_cumuls(self, monkeypatch, moteur):  # noqa: F811
         cumuls = _generer_avec_entree(monkeypatch, "2026-01-19", CUMULS_DU_CDD)
-        assert cumuls == CUMULS_DU_CDD
+        assert {k: v for k, v in cumuls.items() if k != "reference_dixieme_conges"} == CUMULS_DU_CDD
 
 
 def test_le_generateur_forfait_applique_la_meme_regle():

@@ -433,7 +433,7 @@ def periodes_depuis_compteurs(
     compteurs: dict | None,
     *,
     brut_periode_precedente: float | None,
-    brut_en_cours_avant_mois: float,
+    brut_en_cours_avant_mois: float | None,
 ) -> dict | None:
     """Met en forme, pour calcul_brut, les compteurs du pied de page et la
     rémunération des périodes de référence.
@@ -459,14 +459,14 @@ def periodes_depuis_compteurs(
         solde = float(en_cours.get("solde") or 0.0)
         sortie["periode_en_cours"] = {
             "libelle": _libelle_periode(en_cours.get("periode")) or "période en cours",
-            "brut_avant_mois": round(float(brut_en_cours_avant_mois or 0.0), 2),
+            "brut_avant_mois": None if brut_en_cours_avant_mois is None else round(float(brut_en_cours_avant_mois), 2),
             "droits": round(pris + solde, 2),
             "restants": round(solde, 2),
         }
     return sortie or None
 
 
-def _brut_de_la_periode_precedente(employee_id: str, cumuls: dict | None) -> float | None:
+def _brut_de_la_periode_precedente(employee_id: str, cumuls: dict | None, *, entree: date | None = None) -> float | None:
     """La rémunération brute de la période de référence précédente : le
     `brut_reference_n_1` des cumuls du dernier mois de cette période ; à défaut
     la somme des bruts des bulletins de la période ; sinon inconnue.
@@ -486,52 +486,15 @@ def _brut_de_la_periode_precedente(employee_id: str, cumuls: dict | None) -> flo
     fin_precedente = debut - timedelta(days=1)
     debut_precedente = date(debut.year - 1, debut.month, debut.day)
     try:
-        bulletins = (
-            supabase.table("payslips")
-            .select("year, month, origine, payslip_data")
-            .eq("employee_id", employee_id)
-            .gte("year", debut_precedente.year)
-            .lte("year", fin_precedente.year)
-            .execute()
-            .data
-        ) or []
-        dernier_mois_repris = any(
-            (int(b["year"]), int(b["month"])) == (fin_precedente.year, fin_precedente.month)
-            and b.get("origine") == "importe"
-            for b in bulletins
-        )
-        rows = (
-            []
-            if dernier_mois_repris
-            else (
-                supabase.table("employee_schedules")
-                .select("cumuls")
-                .match({"employee_id": employee_id, "year": fin_precedente.year, "month": fin_precedente.month})
-                .execute()
-                .data
-            )
-            or []
-        )
-        if rows:
-            c = ((rows[0].get("cumuls") or {}).get("cumuls")) or {}
-            fin_txt = str(c.get("brut_reference_period_end") or "")
-            valeur = c.get("brut_reference_n_1")
-            if valeur is not None and fin_txt and date.fromisoformat(fin_txt) <= fin_precedente:
-                return round(float(valeur), 2)
-        total = 0.0
-        trouve = False
-        for b in bulletins:
-            mois = date(int(b["year"]), int(b["month"]), 1)
-            if debut_precedente.replace(day=1) <= mois <= fin_precedente.replace(day=1):
-                brut = (b.get("payslip_data") or {}).get("salaire_brut")
-                if isinstance(brut, (int, float)):
-                    total += float(brut)
-                    trouve = True
-        return round(total, 2) if trouve else None
-    except Exception as exc:  # noqa: BLE001 — la période se réglera au maintien seul
+        from app.modules.payroll.infrastructure.reference_dixieme import base_de_reference
+        resultat = base_de_reference(supabase, employee_id, debut_precedente, fin_precedente, entree=entree)
+        if resultat.alertes:
+            from app.modules.payroll.engine.replis import CODE_REPLI_REFERENCE_CONGES, noter_repli
+            noter_repli(CODE_REPLI_REFERENCE_CONGES)
+        return resultat.base
+    except Exception as exc:
         logger.warning("Rémunération de la période de congés précédente indisponible : %s", exc)
         from app.modules.payroll.engine.replis import CODE_REPLI_CONGES_FIN_CONTRAT, noter_repli
-
         noter_repli(CODE_REPLI_CONGES_FIN_CONTRAT)
         return None
 
@@ -557,6 +520,12 @@ def remuneration_des_periodes(
     cours part de 0 et la période précédente prend ce cumul (L3141-24 I). Le
     brut de la période en cours vaut None quand les cumuls ne portent aucune
     période (mois repris de l'ancien logiciel sans cumul)."""
+    photographie = (cumuls or {}).get("reference_dixieme_conges") if isinstance(cumuls, dict) else None
+    if isinstance(photographie, dict):
+        return (
+            (photographie.get("periode_precedente") or {}).get("base"),
+            (photographie.get("periode_en_cours") or {}).get("base_avant_mois"),
+        )
     from app.modules.payroll.engine.reference_remuneration import lire_brut_reference_depuis_cumuls
 
     nested = (cumuls or {}).get("cumuls", cumuls) if isinstance(cumuls, dict) else {}
@@ -613,7 +582,7 @@ def cp_fin_de_contrat(
     return periodes_depuis_compteurs(
         compteurs,
         brut_periode_precedente=precedente,
-        brut_en_cours_avant_mois=avant_le_mois or 0.0,
+        brut_en_cours_avant_mois=avant_le_mois,
     )
 
 

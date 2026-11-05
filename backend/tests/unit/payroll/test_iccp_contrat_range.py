@@ -51,6 +51,7 @@ def fiche_en_cdi(monkeypatch):
     """La fiche porte le CDI du 01/11/2026, sans fin ni départ en cours ; le
     CDD est rangé dans les contrats passés."""
     monkeypatch.setattr(q, "get_employee_hire_date", lambda _id: "2026-11-01")
+    monkeypatch.setattr(payslip_run_heures, "_brut_de_la_periode_precedente", lambda *_a: None)
     monkeypatch.setattr(q, "_date_de_sortie", lambda _id: None)
     monkeypatch.setattr(q, "_reprise_posterieure_au_bulletin", lambda *_a: False)
     monkeypatch.setattr(q.absence_repository, "list_validated_for_employees", lambda _ids: [])
@@ -120,7 +121,7 @@ def test_h5_le_bulletin_d_octobre_garde_son_indemnite_de_conges(fiche_en_cdi):
     assert gains["Salaire de base"] == pytest.approx(989.98, abs=0.005)
     assert gains["Prime de précarité (CDD)"] == pytest.approx(684.00, abs=0.005)
     assert gains["Indemnité compensatrice de congés payés (CDD)"] == pytest.approx(810.00, abs=0.005)
-    assert ctx.detail_iccp_fin_contrat["periodes"][0]["methode"] == "maintien"
+    assert ctx.detail_iccp_fin_contrat["periodes"][0]["methode"] == "maintien_seul"
     assert sum(gains.values()) == pytest.approx(2483.98, abs=0.005)
 
 

@@ -5,6 +5,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Les congés payés utilisent la rémunération de leur période d'acquisition
+- Les congés pris, les indemnités de départ et la provision partagent le calcul légal du dixième, comparé au maintien de salaire.
+- Les absences assimilées sont reconstituées et les primes exclues retirées, en distinguant les jours ouvrés des jours ouvrables.
+- Une rémunération manquante ou une régularisation ambiguë est signalée ; les cumuls repris de l'ancien logiciel sont conservés.
+
 ## paie-2026-11-05.13 — 5 novembre 2026
 
 ### Les documents de départ n'inventent plus les heures d'un bulletin incomplet

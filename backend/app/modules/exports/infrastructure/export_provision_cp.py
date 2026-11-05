@@ -23,13 +23,11 @@ from app.modules.exports.domain.provision_cp import (
     JOURS_OUVRES_PAR_MOIS,
     LigneProvision,
     PeriodeProvision,
-    ajustement_dixieme,
     bornes_des_periodes,
     calculer_ligne,
     calculer_totaux,
     en_jours_ouvres,
     mois_de_reference,
-    mois_entre,
     patronal_du_bulletin,
     present_a_la_date,
     primes_recurrentes,
@@ -226,9 +224,12 @@ def _lire_details_bulletins(
                 mois.brut = round(mois.brut + float(ligne.get("brut") or 0), 2)
             except (TypeError, ValueError):
                 pass
-            for bloc in ("lignes", "absences"):
-                if isinstance(ligne.get(bloc), list):
-                    mois.lignes = mois.lignes + list(ligne[bloc])
+            from app.modules.payroll.infrastructure.reference_dixieme import lignes_pour_dixieme
+
+            mois.lignes += lignes_pour_dixieme(
+                {"calcul_du_brut": ligne.get("lignes"), "details_absences": ligne.get("absences")},
+                importe=ligne.get("origine") == "importe",
+            )
             mois.importe = mois.importe or ligne.get("origine") == "importe"
         if len(lot) < TAILLE_PAGE:
             return resultat
@@ -283,35 +284,39 @@ def _base_dans_les_cumuls(cumuls: Optional[Dict[str, Any]], debut: date, fin: da
         return None
 
 
+def _bases_detaillees_du_dixieme(
+    bulletins: Dict[Mois, BulletinDuMois],
+    cumuls_fin_n1: Optional[Dict[str, Any]],
+    cumuls_du_mois: Optional[Dict[str, Any]],
+    periodes: Tuple[Tuple[date, date], Tuple[date, date]],
+    *, entree: Optional[date] = None,
+):
+    from app.shared.domain.dixieme_conges import BaseDixieme, calculer_base_periode
+
+    resultats = []
+    for (debut, fin), cumuls in zip(periodes, (cumuls_fin_n1, cumuls_du_mois)):
+        dernier = bulletins.get((fin.year, fin.month))
+        brut_repris = None if dernier is not None and dernier.importe else _base_dans_les_cumuls(cumuls, debut, fin)
+        debut_effectif = max(debut, entree) if entree else debut
+        if debut_effectif > fin:
+            resultats.append(BaseDixieme(0.0))
+            continue
+        resultats.append(calculer_base_periode(
+            [{"annee": a, "mois": m, "brut": b.brut, "lignes": b.lignes} for (a, m), b in bulletins.items()],
+            debut=debut_effectif, fin=fin, brut_repris=brut_repris,
+        ))
+    return resultats
+
+
 def bases_du_dixieme(
     bulletins: Dict[Mois, BulletinDuMois],
     cumuls_fin_n1: Optional[Dict[str, Any]],
     cumuls_du_mois: Optional[Dict[str, Any]],
     periodes: Tuple[Tuple[date, date], Tuple[date, date]],
 ) -> Tuple[Optional[float], Optional[float], float]:
-    """(base N-1, base N, absences reconstituées) : la rémunération de chaque période pour le
-    dixième, plus la reconstitution des absences de ses bulletins.
-
-    La rémunération suit le bulletin de sortie (`payslip_run_heures._brut_de_la_periode_
-    precedente`) : quand le dernier mois de la période a été payé par l'ancien logiciel
-    (bulletin importé), ses bulletins font foi ; sinon le cumul `brut_reference_n_1` de la
-    période ; à défaut la somme des bulletins ; sinon inconnue (maintien seul)."""
-    (debut_n1, fin_n1), (debut_n, fin_n) = periodes
-    bases: List[Optional[float]] = []
-    reconstitution = 0.0
-    for debut, fin, cumuls in ((debut_n1, fin_n1, cumuls_fin_n1), (debut_n, fin_n, cumuls_du_mois)):
-        mois = mois_entre(debut, fin)
-        dernier = bulletins.get((fin.year, fin.month))
-        if dernier is not None and dernier.importe:
-            base = _brut_des_bulletins(bulletins, mois)
-        else:
-            base = _base_dans_les_cumuls(cumuls, debut, fin)
-            if base is None:
-                base = _brut_des_bulletins(bulletins, mois)
-        ajout = round(sum(ajustement_dixieme(bulletins[m].lignes) for m in mois if m in bulletins), 2)
-        reconstitution += ajout
-        bases.append(None if base is None else round(base + ajout, 2))
-    return bases[0], bases[1], round(reconstitution, 2)
+    """La base légale unique ; un mois absent sans cumul déclaré reste inconnu."""
+    n1, n = _bases_detaillees_du_dixieme(bulletins, cumuls_fin_n1, cumuls_du_mois, periodes)
+    return n1.base, n.base, round(n1.reconstitution - n1.complement_remplace + n.reconstitution - n.complement_remplace, 2)
 
 
 def _lire_conges_ouvres(
@@ -476,9 +481,14 @@ def collecter_lignes(
         anomalies = [reference.anomalie]
 
         bulletins_du_salarie = details.get(eid, {})
-        base_n1, base_n, reconstitution = bases_du_dixieme(
-            bulletins_du_salarie, cumuls_fin_n1.get(eid), cumuls_du_mois.get(eid), periodes
+        detail_n1, detail_n = _bases_detaillees_du_dixieme(
+            bulletins_du_salarie, cumuls_fin_n1.get(eid), cumuls_du_mois.get(eid), periodes,
+            entree=date.fromisoformat(str(salarie["hire_date"])[:10]),
         )
+        base_n1, base_n = detail_n1.base, detail_n.base
+        reconstitution = round(detail_n1.reconstitution - detail_n1.complement_remplace + detail_n.reconstitution - detail_n.complement_remplace, 2)
+        anomalies.extend(detail_n1.alertes)
+        anomalies.extend(detail_n.alertes)
         n1 = PeriodeProvision(restants=n1.restants, droits=n1.droits, base=base_n1)
         n = PeriodeProvision(restants=n.restants, droits=n.droits, base=base_n)
         for libelle, p in (("N-1", n1), ("N", n)):

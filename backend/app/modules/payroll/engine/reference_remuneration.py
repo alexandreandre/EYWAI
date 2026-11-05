@@ -58,6 +58,7 @@ class ReferenceRemunerationResult:
     prime_precarite_incluse: float = 0.0
     alertes: list[str] = field(default_factory=list)
     source: str = "payslips"
+    connue: bool = True
 
 
 def lire_brut_payslip(payslip_data: dict | None) -> float:
@@ -462,34 +463,41 @@ def calculer_base_reference_dixieme(
     montant_ifm: float = 0.0,
     entree: date | None = None,
     sortie: date | None = None,
+    sur_contrat: bool = False,
 ) -> ReferenceRemunerationResult:
-    ref = lire_bruts_periode_reference(
-        employee_id,
-        ref_date,
-        supabase_client,
-        start_month=start_month,
-        salaire_contractuel_fallback=salaire_contractuel_fallback,
-        entree=entree,
-        sortie=sortie,
-    )
+    from datetime import timedelta
+    from app.modules.payroll.infrastructure.reference_dixieme import base_de_reference
 
-    if ref.base_totale <= 0 and employee_path is not None:
-        period_start, period_end = get_cp_reference_period_bounds(
-            ref_date, start_month=start_month
-        )
-        ref_cumuls = lire_bruts_depuis_cumuls(employee_path, period_start, period_end)
-        if ref_cumuls.base_totale > 0:
-            ref = ref_cumuls
-
+    debut, fin_theorique = get_cp_reference_period_bounds(ref_date, start_month=start_month)
+    debut = entree if sur_contrat and entree else max(debut, entree) if entree else debut
+    fin = min(ref_date, sortie or ref_date, fin_theorique)
+    # Le dossier ne lit pas l'ICCP déjà payée dans son propre mois de sortie.
+    # Le mois de sortie seul est explicitement estimé au salaire connu ; jamais
+    # les mois passés absents, ni les mois futurs de la période de référence.
+    avant = fin.replace(day=1) - timedelta(days=1) if sortie else fin
+    resultat = base_de_reference(supabase_client, employee_id, debut, avant, entree=entree)
+    alertes = list(resultat.alertes)
+    base = resultat.base
+    if sortie and base is not None:
+        if salaire_contractuel_fallback > 0:
+            base += salaire_contractuel_fallback * _jours_sous_contrat(fin.year, fin.month, debut, fin)
+            alertes.append("Mois de sortie estimé au salaire du contrat ; mois passés lus sans estimation.")
+        else:
+            base = None
+            alertes.append("Salaire du mois de sortie inconnu : comparaison au dixième impossible.")
+    if base is None:
+        alertes.append("Rémunération de la période de référence inconnue : maintien seul, vérifier le dixième.")
     base_avec_extras, extras = ajouter_prime_precarite_si_cdd(
-        ref.base_totale,
-        is_cdd=is_cdd,
-        montant_precarite=montant_precarite,
-        montant_ifm=montant_ifm,
+        base or 0.0, is_cdd=is_cdd,
+        montant_precarite=montant_precarite if base is not None else 0.0,
+        montant_ifm=montant_ifm if base is not None else 0.0,
     )
-    ref.base_totale = base_avec_extras
-    ref.prime_precarite_incluse = extras
-    return ref
+    return ReferenceRemunerationResult(
+        base_totale=base_avec_extras, periode_debut=debut, periode_fin=fin,
+        periode_label=_format_periode(debut, fin), prime_precarite_incluse=extras,
+        alertes=alertes, source="payslips" if base is not None else "inconnue",
+        connue=base is not None,
+    )
 
 
 def calculer_iccp_l1243_8(

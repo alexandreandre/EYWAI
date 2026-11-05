@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from app.shared.domain.dixieme_conges import montant_dixieme
+
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -92,7 +94,7 @@ def calculer_dixieme(
     if jours <= 0 or base_reference <= 0 or jours_reference <= 0:
         return 0.0, 0.0
     valeur_jour = (base_reference * taux) / jours_reference
-    return round(jours * valeur_jour, 2), round(valeur_jour, 4)
+    return montant_dixieme(base_reference, jours, jours_reference, taux=taux) or 0.0, round(valeur_jour, 4)
 
 
 def arbitrer_iccp(

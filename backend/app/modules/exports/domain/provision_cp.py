@@ -96,37 +96,10 @@ def _texte(libelle: Any) -> str:
     return re.sub(r"\s+", " ", texte).strip()
 
 
-_ASSIMILEES_EN_ENTIER = ("accident", "professionnel", "maternite", "paternite", "adoption", "trajet")
-_MALADIE_ORDINAIRE = ("maladie", "therapeutique")
-
-
-def part_reconstituee(libelle: Any) -> float:
-    """Part du salaire d'une absence reconstituée dans le dixième (C. trav. L3141-24).
-
-    En entier pour les absences assimilées à du travail effectif (accident du travail ou de
-    trajet, maladie professionnelle, maternité, paternité, adoption) ; 80 % pour un arrêt de
-    maladie ordinaire ; rien pour les autres (congés payés, absence non rémunérée, entrée ou
-    sortie en cours de mois, événement familial déjà payé)."""
-    texte = _texte(libelle)
-    if any(m in texte for m in _ASSIMILEES_EN_ENTIER):
-        return 1.0
-    if any(m in texte for m in _MALADIE_ORDINAIRE):
-        return 0.8
-    return 0.0
-
-
-def _est_complement_d_arret(texte: str) -> bool:
-    """Le complément de salaire versé par l'employeur pendant un arrêt : la reconstitution le
-    remplace dans le dixième. Le maintien d'un événement familial n'en est pas un."""
-    if "evenement familial" in texte:
-        return False
-    return (
-        texte.startswith("maintien de salaire")
-        or texte.startswith("rappel maintien de salaire")
-        or texte.startswith("complement employeur")
-        or texte.startswith("indemnite complementaire")
-        or texte.startswith("garantie nette")
-    )
+# Calcul unique, importable sans charger le moteur ni la base.
+from app.shared.domain.dixieme_conges import ajustement_dixieme as ajustement_dixieme
+from app.shared.domain.dixieme_conges import montant_dixieme
+from app.shared.domain.dixieme_conges import part_reconstituee as part_reconstituee
 
 
 def _montant(ligne: Mapping[str, Any], cle: str) -> float:
@@ -134,35 +107,6 @@ def _montant(ligne: Mapping[str, Any], cle: str) -> float:
         return float(ligne.get(cle) or 0)
     except (TypeError, ValueError):
         return 0.0
-
-
-def ajustement_dixieme(lignes: Iterable[Mapping[str, Any]]) -> float:
-    """Ce qu'il faut ajouter au brut d'un bulletin pour la base du dixième.
-
-    Plus la part reconstituée de chaque absence (sa retenue × 100 % ou 80 %) ; une retenue
-    annexe qui ne dit pas sa nature (« Réduction HS structurelles (jours d'absence) »,
-    « Complément retenue absence intégrale du mois ») suit celle des absences du mois. Moins le
-    complément employeur versé pendant un arrêt, que la reconstitution remplace."""
-    absences: list[tuple[float, float]] = []
-    annexes = 0.0
-    complement = 0.0
-    for ligne in lignes or []:
-        if not isinstance(ligne, Mapping):
-            continue
-        texte = _texte(ligne.get("libelle"))
-        perte = _montant(ligne, "perte")
-        gain = _montant(ligne, "gain")
-        if texte.startswith("absence") and perte > 0:
-            absences.append((perte, part_reconstituee(texte)))
-        elif "absence" in texte and perte > 0:
-            annexes += perte
-        elif gain > 0 and _est_complement_d_arret(texte):
-            complement += gain
-    retenues = sum(p for p, _ in absences)
-    reconstitue = sum(p * part for p, part in absences)
-    if annexes and retenues:
-        reconstitue += annexes * reconstitue / retenues
-    return round(reconstitue - complement, 2)
 
 
 _PONCTUELLES = (
@@ -231,7 +175,8 @@ def valoriser_periode(
     droits = float(periode.droits or 0.0)
     if periode.base is None or droits <= 0:
         return Valorisation(maintien, "maintien seul")
-    dixieme = round(float(periode.base) * float(taux) * restants / droits, 2)
+    dixieme = montant_dixieme(periode.base, restants, droits, taux=taux)
+    assert dixieme is not None
     if dixieme >= maintien:
         return Valorisation(dixieme, "dixième")
     return Valorisation(maintien, "maintien")

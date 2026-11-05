@@ -18,6 +18,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from app.shared.domain.dixieme_conges import montant_dixieme
+
 from . import legal_constants as lc
 from .iccp_arbitrage import calculer_maintien_horaire
 
@@ -80,7 +82,8 @@ def indemnite_par_periode(
     droits = float(periode.droits or 0.0)
     if periode.brut is None or droits <= 0:
         return DetailPeriode(periode, None, maintien, maintien, "maintien_seul")
-    dixieme = round(float(periode.brut) * float(taux) * restants / droits, 2)
+    dixieme = montant_dixieme(periode.brut, restants, droits, taux=taux)
+    assert dixieme is not None
     if dixieme >= maintien:
         return DetailPeriode(periode, dixieme, maintien, dixieme, "dixieme")
     return DetailPeriode(periode, dixieme, maintien, maintien, "maintien")
