@@ -10,7 +10,7 @@ export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   avenant_temps: 'Avenant - Modification du temps de travail',
   avenant_lieu: 'Avenant - Changement de lieu de travail',
   avenant_general: 'Avenant - Modification générale',
-  attestation_emploi: "Attestation d'emploi",
+  attestation_emploi: 'Attestation de travail',
   attestation_presence: 'Attestation de présence',
   attestation_anciennete: "Attestation d'ancienneté",
   attestation_poste: 'Attestation de poste',
@@ -24,6 +24,26 @@ export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   bulletin_participation: "Bulletin d'option participation",
   bulletin_interessement: "Bulletin d'option intéressement",
 };
+
+/**
+ * Retirées le 05/11/2026 (elles disaient la même chose que l'attestation de
+ * travail, ou reprenaient le salaire de la fiche). Leur libellé reste pour
+ * afficher les documents déjà générés ; on ne les propose plus.
+ */
+export const ATTESTATIONS_RETIREES: ReadonlySet<string> = new Set([
+  'attestation_presence',
+  'attestation_anciennete',
+  'attestation_poste',
+  'attestation_revenus',
+  'attestation_location',
+  'attestation_pret',
+  'attestation_retraite',
+]);
+
+/** Les types qu'on peut importer comme modèle dans la bibliothèque. */
+export function typesDeModeleProposes(): [string, string][] {
+  return Object.entries(DOCUMENT_TYPE_LABELS).filter(([cle]) => !ATTESTATIONS_RETIREES.has(cle));
+}
 
 export interface DocumentTemplateVersion {
   id: string;

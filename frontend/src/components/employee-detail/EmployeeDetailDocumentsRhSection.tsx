@@ -27,7 +27,6 @@ import { toast } from '@/components/ui/use-toast';
 import {
   CONTRACT_TYPES,
   AVENANT_TYPES,
-  ATTESTATION_COURANTE_TYPES,
   type DocumentGenMode,
 } from '@/lib/documentGenerationConfig';
 import {
@@ -44,6 +43,7 @@ import {
 } from '@/api/documents';
 import { DOCUMENT_TYPE_LABELS, getTemplates, type DocumentTemplate } from '@/api/documentLibrary';
 import { cn } from '@/lib/utils';
+import { AttestationDialog } from '@/components/documents/AttestationDialog';
 import { resolveGeneratedContractDocType } from '@/lib/employeeContractSetup';
 import {
   ArrowDownToLine,
@@ -351,19 +351,6 @@ export function useEmployeeDocumentGeneration(
     });
   };
 
-  const submitAttestation = () => {
-    if (!genDocType) {
-      toast({ title: 'Type d’attestation requis', variant: 'destructive' });
-      return;
-    }
-    genMut.mutate({
-      employee_id: employeeId,
-      document_type: genDocType,
-      category: 'attestation_courante',
-      template_id: genTemplate === '__martine__' ? null : genTemplate,
-    });
-  };
-
   const handleView = async (id: string) => {
     setLoadingAction({ id, kind: 'view' });
     try {
@@ -412,7 +399,6 @@ export function useEmployeeDocumentGeneration(
 
   const canSubmitContrat = genMode === 'contrat' && !!genDocType && !!genDateEffet;
   const canSubmitAvenant = genMode === 'avenant' && !!genDocType && !!genDateEffet;
-  const canSubmitAttestation = genMode === 'attestation' && !!genDocType;
   const canSubmitFichePoste = genMode === 'fiche_poste' && !!genTemplate;
 
   const handlers: EmployeeDocumentGenerationHandlers = {
@@ -547,58 +533,12 @@ export function useEmployeeDocumentGeneration(
         </DialogContent>
       </Dialog>
 
-      <Dialog open={genMode === 'attestation'} onOpenChange={(o) => !o && setGenMode(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {employee.last_name} {employee.first_name}
-            </DialogTitle>
-            <DialogDescription>Générer une attestation courante</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-2">
-              <Label>Type d&apos;attestation</Label>
-              <Select value={genDocType || undefined} onValueChange={setGenDocType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choisir…" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  {ATTESTATION_COURANTE_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {DOCUMENT_TYPE_LABELS[t] ?? t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Modèle</Label>
-              <Select value={genTemplate} onValueChange={setGenTemplate}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__martine__">Standard Martine</SelectItem>
-                  {templatesForType.map((tpl) => (
-                    <SelectItem key={tpl.id} value={tpl.id}>
-                      {tpl.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setGenMode(null)}>
-              Annuler
-            </Button>
-            <Button onClick={submitAttestation} disabled={!canSubmitAttestation || genMut.isPending}>
-              {genMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Générer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AttestationDialog
+        open={genMode === 'attestation'}
+        onOpenChange={(o) => !o && setGenMode(null)}
+        employee={{ id: employeeId, first_name: employee.first_name, last_name: employee.last_name }}
+        onGenerated={invalidateDocs}
+      />
 
       <Dialog open={genMode === 'fiche_poste'} onOpenChange={(o) => !o && setGenMode(null)}>
         <DialogContent className="sm:max-w-md">

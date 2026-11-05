@@ -152,7 +152,7 @@ const exportTypeLabels: Record<string, string> = {
   prets_employeur: "Prêts employeur",
   // Déclarations
   dsn_mensuelle: "DSN mensuelle",
-  "attestations-annexes": "Attestations & annexes",
+  "attestations-annexes": "Récapitulatif des salaires du mois",
   // Paiements
   "virement-salaires": "Virement salaires",
   "virement-acomptes": "Virement acomptes",

@@ -4,16 +4,18 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, Shield, FileCheck, History, type LucideIcon } from "lucide-react";
+import { FileText, Table2, FileCheck, FilePenLine, History, type LucideIcon } from "lucide-react";
 import { ExportCommonModel } from "./ExportCommonModel";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ExportHistoryModal } from "./ExportHistoryModal";
 import DsnTransmissionsPanel from "@/features/net-entreprises/components/DsnTransmissionsPanel";
 import { SignalementsArretCard } from "./SignalementsArretCard";
+import { AttestationDialog } from "@/components/documents/AttestationDialog";
 
 export function DeclarationsTab() {
   const [selectedExport, setSelectedExport] = useState<string | null>(null);
   const [historyModal, setHistoryModal] = useState<{ exportType: string; exportName: string } | null>(null);
+  const [attestationOuverte, setAttestationOuverte] = useState(false);
 
   // Mapping entre les IDs des cartes et les types d'export de l'API
   const exportTypeMapping: Record<string, string> = {
@@ -37,10 +39,10 @@ export function DeclarationsTab() {
     },
     {
       id: "attestations-annexes",
-      name: "Attestations & annexes",
+      name: "Récapitulatif des salaires du mois",
       description:
-        "Brut, net imposable et net payé de chaque salarié pour le mois (justificatif pour une mutuelle, une banque…). Les attestations pour la CPAM et France Travail partent dans la DSN.",
-      icon: Shield,
+        "Brut, net imposable et net à payer de chaque salarié pour le mois. Ce n'est pas une attestation : pour en remettre une à un salarié, utilisez « Attestation pour un salarié » ci-dessous.",
+      icon: Table2,
     },
   ];
 
@@ -51,8 +53,9 @@ export function DeclarationsTab() {
         <CardHeader>
           <CardTitle>Déclarations</CardTitle>
           <CardDescription>
-            Production des déclarations sociales obligatoires (DSN) et des attestations nécessaires.
-            Ces exports sont en lecture seule et ne déclenchent aucune déclaration automatique.
+            Production des déclarations sociales obligatoires (DSN) et du récapitulatif des salaires du mois.
+            Ces exports sont en lecture seule et ne déclenchent aucune déclaration automatique. Les attestations
+            de salaire pour la CPAM et France Travail partent dans la DSN.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -105,6 +108,28 @@ export function DeclarationsTab() {
           );
         })}
       </div>
+
+      {/* Attestations remises à la demande d'un salarié (banque, bailleur…) */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <FilePenLine className="h-5 w-5 text-primary" />
+            </div>
+            <CardTitle className="text-lg">Attestation pour un salarié</CardTitle>
+          </div>
+          <CardDescription className="mt-2">
+            Attestation de travail ou de salaire, en PDF prêt à signer, pour une banque ou un bailleur.
+            Elle est rangée dans les documents du salarié.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={() => setAttestationOuverte(true)} className="w-full sm:w-auto">
+            Générer une attestation
+          </Button>
+        </CardContent>
+      </Card>
+      <AttestationDialog open={attestationOuverte} onOpenChange={setAttestationOuverte} />
 
       {/* Signalements d'arrêt et de reprise à déposer */}
       <SignalementsArretCard />

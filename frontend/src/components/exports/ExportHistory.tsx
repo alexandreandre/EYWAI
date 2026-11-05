@@ -50,7 +50,7 @@ const exportTypeLabels: Record<string, string> = {
   fec: "FEC",
   prets_employeur: "Prêts employeur",
   paiement_organismes: "Paiement organismes",
-  attestations_annexes: "Attestations & annexes",
+  attestations_annexes: "Récapitulatif des salaires du mois",
   // Anciens formats (pour compatibilité)
   ecritures_comptables: "Écritures comptables",
 };

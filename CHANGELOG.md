@@ -5,7 +5,15 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
-(rien)
+### Une attestation pour un salarié, en PDF prêt à signer
+- Fiche du salarié > Documents > « Générer une attestation » (aussi en mode paie), ou Exports > Déclarations > « Attestation pour un salarié ».
+- Deux lettres : l'attestation de travail (poste, contrat, date d'entrée, ancienneté, rémunération, période d'essai en cours) et l'attestation de salaire (brut et net avant impôt des derniers bulletins remis, 3 mois par défaut, jusqu'à 12).
+- Une information absente de la fiche laisse des pointillés à remplir à la main ; sans bulletin validé et remis, l'attestation de salaire est refusée et le dit.
+
+### « Attestations & annexes » devient « Récapitulatif des salaires du mois »
+- Ce tableau n'a jamais été une attestation : il porte maintenant son vrai nom.
+- La colonne « Matricule » donne le vrai matricule du salarié ; les colonnes « Type attestation » et « Statut » disparaissent.
+- Les attestations de salaire pour la CPAM et France Travail partent toujours dans la DSN.
 
 ## paie-2026-11-05.2 — 5 novembre 2026
 

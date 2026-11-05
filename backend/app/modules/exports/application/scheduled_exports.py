@@ -53,7 +53,7 @@ EXPORT_TYPE_LABELS: Dict[str, str] = {
     "saisies": "Saisies sur salaire",
     "prets_employeur": "Prêts employeur",
     "paiement_organismes": "Paiement organismes",
-    "attestations_annexes": "Attestations & annexes",
+    "attestations_annexes": "Récapitulatif des salaires du mois",
     "fec": "FEC",
     "dsn_mensuelle": "DSN mensuelle",
     "dsn_hors_martine": "DSN déposée hors de Martine",
