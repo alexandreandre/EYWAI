@@ -5,7 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
-(rien)
+### Martine trouve le code PCS-ESE
+- Sur la fiche et à la création, le code se choisit dans la liste officielle des 430 codes, en cherchant un code, un intitulé ou un métier (« soudeur »).
+- Quand des collègues au même poste ont tous le même code, Martine le remplit et dit pourquoi ; sinon elle propose trois codes. Vous pouvez toujours le changer.
+- Quand un code change, la DSN suivante déclare l'ancien code, comme le demande l'Urssaf ; un nouvel import de DSN ne remet plus « 9999 » sur un code trouvé.
 
 ## paie-2026-11-05.1 — 5 novembre 2026
 
