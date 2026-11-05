@@ -14,6 +14,12 @@ def sans_reprise(monkeypatch):
     """La reprise se lit en base (`company_payroll_takeover`) : ici, une société sans reprise."""
     monkeypatch.setattr(module, "_lire_bascule", lambda company_id: None)
 
+
+@pytest.fixture(autouse=True)
+def sans_repos(monkeypatch):
+    """Le repos compensateur se lit en base : ici, aucun crédit ni repos pris."""
+    monkeypatch.setattr(module, "_lire_repos", lambda *a, **k: {})
+
 SALARIES = [
     {
         "id": "emp-1",

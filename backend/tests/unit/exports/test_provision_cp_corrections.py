@@ -21,6 +21,12 @@ from app.shared.reprise_paie import Bascule
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture(autouse=True)
+def sans_repos(monkeypatch):
+    """Le repos compensateur se lit en base : ici, aucun crédit ni repos pris."""
+    monkeypatch.setattr(module, "_lire_repos", lambda *a, **k: {})
+
+
 # --- 1. unité ---------------------------------------------------------------------------------
 
 def test_un_solde_en_jours_ouvres_n_est_pas_converti():
