@@ -20,6 +20,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - La colonne « Matricule » donne le vrai matricule du salarié ; les colonnes « Type attestation » et « Statut » disparaissent.
 - Les attestations de salaire pour la CPAM et France Travail partent toujours dans la DSN.
 
+## paie-2026-11-05.8 — 5 novembre 2026
+
 ### Martine trouve le code PCS-ESE
 - Sur la fiche et à la création, le code se choisit dans la liste officielle des 430 codes, en cherchant un code, un intitulé ou un métier (« soudeur »).
 - Quand des collègues au même poste ont tous le même code, Martine le remplit et dit pourquoi ; sinon elle propose trois codes. Vous pouvez toujours le changer.
