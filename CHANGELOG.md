@@ -5,6 +5,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+## paie-2026-11-05.11 — 5 novembre 2026
+
 ### Le dossier de départ d'un CDD estime la prime et les congés selon la loi
 - La prime de fin de contrat se calcule sur les salaires de ce contrat seulement, le dernier mois estimé au salaire ; plus aucun mois inventé après le départ.
 - Les congés d'un départ déjà payé par l'ancien logiciel se recomptent depuis l'entrée, et le dossier le dit ; un départ en juin ne mélange plus deux périodes de congés sur le bulletin.
