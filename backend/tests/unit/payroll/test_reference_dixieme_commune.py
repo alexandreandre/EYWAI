@@ -94,3 +94,21 @@ def test_retenue_hs_unique_reprise_ne_depende_pas_de_la_derniere_absence():
         {"libelle": "Réduction HS structurelles (jours d'absence)", "perte": 150.0},
     ]}, importe=True)
     assert calculer_base_dixieme(2000.0, lignes).base == 2880.0
+
+
+def test_abreviations_reprises_parentalite_et_autres_absences():
+    lignes = lignes_pour_dixieme({"calcul_du_brut": [
+        {"libelle": "Abs. Evt familli 160226-180226", "perte": 300.0},
+        {"libelle": "Abs. paternité 190226-280226", "perte": 700.0},
+        {"libelle": "Abs. Abs injustifiée 130726", "perte": 100.0},
+        {"libelle": "Réduction HS structurelles (jours d'absence)", "perte": 110.0},
+    ]}, importe=True)
+    assert calculer_base_dixieme(2000.0, lignes).base == 2770.0
+
+
+def test_abreviation_reprise_accident_du_travail():
+    lignes = lignes_pour_dixieme({"calcul_du_brut": [
+        {"libelle": "Absence A.T. 010526-310526", "perte": 2000.0},
+        {"libelle": "Réduction HS structurelles (jours d'absence)", "perte": 200.0},
+    ]}, importe=True)
+    assert calculer_base_dixieme(0.0, lignes).base == 2200.0

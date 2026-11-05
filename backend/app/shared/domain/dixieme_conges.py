@@ -26,7 +26,7 @@ def texte_normalise(valeur: Any) -> str:
 
 def est_libelle_absence(libelle: Any) -> bool:
     return texte_normalise(libelle).startswith((
-        "absence", "h absence", "jours absence", "abs jf non paye", "abs jour ferie non paye",
+        "absence", "h absence", "jours absence", "abs ",
     ))
 
 
@@ -51,6 +51,8 @@ def part_reconstituee(libelle: Any) -> float:
         return 0.0
     if "non professionnel" in texte or "non professionnelle" in texte:
         return 0.8
+    if texte in {"at", "a t", "at mp"} or re.search(r"\b(?:absence|arret) (?:at|a t)\b", texte):
+        return 1.0
     if any(mot in texte for mot in (
         "accident travail", "accident du travail", "accident trajet", "accident de trajet",
         "rechute at", "maladie professionnelle", "maternite", "paternite", "adoption",
