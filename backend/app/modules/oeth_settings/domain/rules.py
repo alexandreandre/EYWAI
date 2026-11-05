@@ -6,6 +6,33 @@ from datetime import date
 from typing import Optional
 
 
+def smic_au_31_decembre(bareme: dict, annee: int) -> float:
+    """Le Smic horaire brut de la contribution de l'année `annee`.
+
+    Guide OETH de l'Urssaf (v2.5, 7 avril 2026, p. 26) : « Le Smic brut applicable est le salaire
+    applicable au 31 décembre de l'année au titre de laquelle la contribution est due », soit
+    11,88 € pour 2025. Le barème en base n'a de paliers datés que depuis 2026 : pour une année
+    antérieure, sa valeur courante serait fausse.
+    """
+    fin = date(annee, 12, 31)
+    paliers = []
+    for palier in bareme.get("historique") or []:
+        try:
+            debut = date.fromisoformat(str(palier.get("date_debut"))[:10])
+            valeur = float(palier.get("cas_general"))
+        except (TypeError, ValueError):
+            continue
+        if debut <= fin:
+            paliers.append((debut, valeur))
+    if paliers:
+        return max(paliers)[1]
+    if bareme.get("annee") == annee:
+        valeur = bareme.get("smic_horaire_brut") or bareme.get("cas_general")
+        if valeur:
+            return float(valeur)
+    return 11.88 if annee >= 2025 else 11.65
+
+
 def coefficient_taille(ema_assujettissement: float, config: dict) -> int:
     """Coefficient 400 / 500 / 600 selon l'EMA d'assujettissement."""
     coeffs = config.get("coefficients", {})

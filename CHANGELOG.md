@@ -5,6 +5,13 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Le code PCS d'un collègue d'une autre société n'est plus posé sans l'accord de l'Insee
+- Le code d'un collègue de la société reste sûr. Celui d'un collègue d'une autre société ne l'est plus que si l'Insee range ce poste dans ce code.
+- Sinon la fiche le propose, avec la raison, sans le remplir ; un métier exact de l'Insee passe devant (« Responsable qualité » en 387d).
+
+### Contribution OETH : le Smic du 31 décembre de l'année due
+- Martine lit le Smic au 31 décembre de l'année, comme le demande le guide de l'Urssaf : 11,88 € pour 2025, inchangé, et 12,31 € pour 2026 au lieu de 11,88 €.
+
 ## paie-2026-11-05.11 — 5 novembre 2026
 
 ### Le dossier de départ d'un CDD estime la prime et les congés selon la loi
