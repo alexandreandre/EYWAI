@@ -53,10 +53,12 @@ def _sample_employee_row():
     }
 
 C = {"pcs": "674a", "pcs_changement": {"ancien": "9999", "date": "2026-11-06"}}
+DEBUT = "2020-01-01"
+RIEN = frozenset()
 
 
 def test_bloc_du_mois():
-    bloc = b(C, "674a", "2026-11", None)
+    bloc = b(C, "674a", "2026-11", RIEN, DEBUT)
     assert bloc.date_modification == "06112026"
     assert bloc.rubriques == {
         "S21.G00.41.001": "06112026",
@@ -65,23 +67,45 @@ def test_bloc_du_mois():
     }
 
 
-def test_mois_suivant_tant_que_rien_n_est_depose():
-    assert b(C, "674a", "2026-12", "2026-10") is not None
+def test_dsn_du_mois_regeneree_garde_le_bloc():
+    # Chaque génération enregistre une transmission « manual » : la DSN du mois régénérée
+    # après correction doit garder le bloc (relecture du 05/11).
+    assert b(C, "674a", "2026-11", {"2026-11"}, DEBUT) is not None
 
 
-def test_deja_declare():
-    assert b(C, "674a", "2026-12", "2026-11") is None
+def test_mois_suivant_tant_que_rien_n_est_parti_entre_deux():
+    assert b(C, "674a", "2026-12", {"2026-10"}, DEBUT) is not None
+
+
+def test_deja_declare_dans_un_mois_precedent():
+    assert b(C, "674a", "2026-12", {"2026-11"}, DEBUT) is None
 
 
 def test_changement_apres_le_mois_declare():
-    assert b(C, "674a", "2026-10", None) is None
+    assert b(C, "674a", "2026-10", RIEN, DEBUT) is None
+
+
+def test_contrat_commence_dans_le_mois_du_changement():
+    # Jamais déclaré avec l'ancien code ; et la profondeur (01/11) précéderait le début du
+    # contrat, ce que CCH-14 interdit (cahier technique 2026.1.2, S21.G00.41.028).
+    assert b(C, "674a", "2026-11", RIEN, "2026-11-03") is None
+    assert b(C, "674a", "2026-11", RIEN, "2026-11-10") is None
+    assert b(C, "674a", "2026-11", RIEN, "2026-10-31") is not None
 
 
 def test_ancien_egal_actuel_ou_absent():
     meme = {"pcs": "9999", "pcs_changement": {"ancien": "9999", "date": "2026-11-06"}}
-    assert b(meme, "9999", "2026-11", None) is None
-    assert b({"pcs": "674a"}, "674a", "2026-11", None) is None
-    assert b({}, "", "2026-11", None) is None
+    assert b(meme, "9999", "2026-11", RIEN, DEBUT) is None
+    assert b({"pcs": "674a"}, "674a", "2026-11", RIEN, DEBUT) is None
+    assert b({}, "", "2026-11", RIEN, DEBUT) is None
+
+
+def test_un_mois_avant_le_changement_declare_l_ancien_code():
+    from app.modules.dsn_export.domain.changement_pcs import pcs_du_mois
+
+    assert pcs_du_mois(C, "674a", "2026-10") == "9999"
+    assert pcs_du_mois(C, "674a", "2026-11") == "674a"
+    assert pcs_du_mois({"pcs": "674a"}, "674a", "2026-10") == "674a"
 
 
 def _ligne_employe_change():
@@ -104,7 +128,7 @@ def test_la_dsn_porte_le_bloc_juste_apres_le_contrat():
 
 def test_rien_d_ecrit_quand_le_changement_est_deja_parti():
     dsn_file, _ = build_parsed_dsn_from_payroll(
-        _sample_company(), [_ligne_employe_change()], "2026-12", derniere_periode_deposee="2026-11"
+        _sample_company(), [_ligne_employe_change()], "2026-12", periodes_declarees={"2026-11"}
     )
     assert "S21.G00.41" not in serialize_dsn_file(dsn_file)
 
@@ -118,9 +142,15 @@ def test_avis_de_l_apercu():
     from app.modules.dsn_export.domain.changement_pcs import avis_changements_pcs
 
     lignes = [_ligne_employe_change(), _ligne_employe_change(), _sample_employee_row()]
-    assert avis_changements_pcs(lignes, "2026-11", None) == (
+    assert avis_changements_pcs(lignes, "2026-11", RIEN) == (
         "Code PCS-ESE changé pour 2 salariés : la DSN déclare l'ancien code "
         "(bloc Changements Contrat, S21.G00.41)."
     )
-    assert avis_changements_pcs(lignes[:1], "2026-11", None).startswith("Code PCS-ESE changé pour 1 salarié :")
-    assert avis_changements_pcs(lignes, "2026-12", "2026-11") is None
+    assert avis_changements_pcs(lignes[:1], "2026-11", RIEN).startswith("Code PCS-ESE changé pour 1 salarié :")
+    assert avis_changements_pcs(lignes, "2026-12", {"2026-11"}) is None
+
+
+def test_la_dsn_d_un_mois_avant_le_changement_declare_l_ancien_code():
+    dsn_file, _ = build_parsed_dsn_from_payroll(_sample_company(), [_ligne_employe_change()], "2026-10")
+    texte = serialize_dsn_file(dsn_file)
+    assert "S21.G00.40.004,'9999'" in texte and "S21.G00.41" not in texte

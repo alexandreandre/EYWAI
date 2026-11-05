@@ -16,7 +16,7 @@ def _fiche(classification):
         patch.object(commands, "sync_auth_email_for_employee"),
         patch.object(commands, "_maybe_activate_after_onboarding"),
         patch.object(commands, "enrich_employee_profile_completeness", side_effect=lambda x: x),
-        patch.object(commands, "derniere_periode_deposee", return_value=None) as deposee,
+        patch.object(commands, "periodes_deposees", return_value=frozenset()) as deposee,
         patch.object(commands, "_aujourd_hui", return_value=date(2026, 11, 6)),
     ):
         repo.get_by_id_only.return_value = {

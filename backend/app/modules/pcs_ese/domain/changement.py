@@ -13,17 +13,25 @@ serveur le pose ; ce que le client renvoie est ignoré.
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Dict, Optional
+from typing import AbstractSet, Any, Dict, Optional
 
 CLE = "pcs_changement"
 
 
-def en_attente(changement: Any, derniere_periode_deposee: Optional[str]) -> bool:
-    """Le changement n'est pas encore parti : aucune DSN déposée pour son mois ou après."""
-    if not isinstance(changement, dict) or not changement.get("ancien") or not changement.get("date"):
+def valide(changement: Any) -> bool:
+    return isinstance(changement, dict) and bool(changement.get("ancien")) and bool(changement.get("date"))
+
+
+def mois_du(changement: Dict[str, Any]) -> str:
+    return str(changement["date"])[:7]
+
+
+def en_attente(changement: Any, periodes_declarees: AbstractSet[str]) -> bool:
+    """Le changement n'est pas encore parti : aucune DSN partie pour son mois ou après."""
+    if not valide(changement):
         return False
-    mois = str(changement["date"])[:7]
-    return derniere_periode_deposee is None or mois > derniere_periode_deposee
+    mois = mois_du(changement)
+    return not any(p >= mois for p in periodes_declarees)
 
 
 def _code(classification: Dict[str, Any]) -> str:
@@ -36,7 +44,7 @@ def appliquer_changement_pcs(
     *,
     aujourd_hui: date,
     depuis_import: bool,
-    derniere_periode_deposee: Optional[str],
+    periodes_declarees: AbstractSet[str],
 ) -> Optional[Dict[str, Any]]:
     """La classification à écrire, avec le changement de code posé, gardé ou retiré."""
     if not isinstance(apres, dict):
@@ -60,7 +68,7 @@ def appliquer_changement_pcs(
         return garder()
     if not nouveau or nouveau == ancien or not ancien:
         return garder()
-    if en_attente(existant, derniere_periode_deposee):
+    if en_attente(existant, periodes_declarees):
         premier = str(existant["ancien"])
         if premier == nouveau:
             return resultat

@@ -12,9 +12,9 @@ from app.modules.pcs_ese.domain.changement import appliquer_changement_pcs, en_a
 J = date(2026, 11, 6)
 
 
-def ap(avant, apres, *, depuis_import=False, deposee=None):
+def ap(avant, apres, *, depuis_import=False, deposees=frozenset()):
     return appliquer_changement_pcs(
-        avant, apres, aujourd_hui=J, depuis_import=depuis_import, derniere_periode_deposee=deposee
+        avant, apres, aujourd_hui=J, depuis_import=depuis_import, periodes_declarees=deposees
     )
 
 
@@ -48,7 +48,7 @@ def test_retour_a_l_ancien_rien_a_declarer():
 
 def test_changement_deja_declare_remplace():
     avant = {"pcs": "674a", "pcs_changement": {"ancien": "9999", "date": "2026-09-10"}}
-    r = ap(avant, {"pcs": "625h"}, deposee="2026-09")
+    r = ap(avant, {"pcs": "625h"}, deposees={"2026-09"})
     assert r["pcs_changement"] == {"ancien": "674a", "date": "2026-11-06"}
 
 
@@ -81,7 +81,8 @@ def test_classification_absente_inchangee():
 
 def test_en_attente():
     c = {"ancien": "9999", "date": "2026-11-06"}
-    assert en_attente(c, None)
-    assert en_attente(c, "2026-10")
-    assert not en_attente(c, "2026-11")
-    assert not en_attente(None, None)
+    assert en_attente(c, frozenset())
+    assert en_attente(c, {"2026-10"})
+    assert not en_attente(c, {"2026-11"})
+    assert not en_attente(c, {"2026-10", "2026-12"})
+    assert not en_attente(None, frozenset())

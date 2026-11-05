@@ -10,7 +10,7 @@ from app.modules.dsn_export.application.builder import (
     build_parsed_dsn_from_payroll,
 )
 from app.modules.dsn_export.domain.changement_pcs import avis_changements_pcs
-from app.modules.pcs_ese.infrastructure.transmissions import derniere_periode_deposee
+from app.modules.pcs_ese.infrastructure.transmissions import periodes_deposees
 from app.modules.dsn_export.domain.affiliations import Collegue, deduire_affiliations
 from app.modules.dsn_export.domain.contract_map import numero_du_contrat
 from app.modules.dsn_export.domain.deux_contrats import evenements_du_contrat
@@ -696,9 +696,7 @@ def preview_dsn(
     anomalies, warnings = check_dsn_data(
         company_id, period, employees_data, company_data, essai=essai
     )
-    avis_pcs = avis_changements_pcs(
-        employees_data, period, derniere_periode_deposee(company_id)
-    )
+    avis_pcs = avis_changements_pcs(employees_data, period, periodes_deposees(company_id))
     if avis_pcs:
         warnings = [*warnings, avis_pcs]
 
@@ -898,7 +896,7 @@ def generate_dsn_file(
             cotisations_complementaires_avant=cotisations_complementaires_avant(
                 company_id, company_data, period, parametres
             ),
-            derniere_periode_deposee=derniere_periode_deposee(company_id),
+            periodes_declarees=periodes_deposees(company_id),
         )
     except DsnBuildError as exc:
         raise ValueError(str(exc)) from exc

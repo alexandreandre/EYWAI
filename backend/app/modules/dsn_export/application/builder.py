@@ -5,10 +5,10 @@ from __future__ import annotations
 import re
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, Dict, List, Optional, Tuple
+from typing import AbstractSet, Any, Dict, List, Optional, Tuple
 
 from app.shared.domain.effectif_seuils import effectif_retenu
-from app.modules.dsn_export.domain.changement_pcs import bloc_changement_pcs
+from app.modules.dsn_export.domain.changement_pcs import bloc_changement_pcs, pcs_du_mois
 from app.modules.dsn_export.domain.settings import (
     DsnSettings,
     normaliser_idcc,
@@ -1336,6 +1336,8 @@ def build_individu_from_payroll(
             )
 
     pcs = str(classification.get("pcs") or employee.get("pcs") or employee.get("code_pcs") or "")
+    # Un mois antérieur au changement de code se déclare avec l'ancien code.
+    pcs = pcs_du_mois(classification, pcs, period)
     if not pcs:
         warnings.append(
             f"Code PCS-ESE (S21.G00.40.004) manquant pour le NIR {nir_dsn} : "
@@ -1721,14 +1723,14 @@ def build_parsed_dsn_from_payroll(
     require_cotisation_codes: bool = False,
     settings: Optional[DsnSettings] = None,
     cotisations_complementaires_avant: Optional[Dict[str, Decimal]] = None,
-    derniere_periode_deposee: Optional[str] = None,
+    periodes_declarees: AbstractSet[str] = frozenset(),
 ) -> Tuple[DsnFile, List[str]]:
     """Construit un DsnFile P26 à partir de données déjà chargées (sans DB).
 
     ``employees_data`` : liste de dicts
     ``{employee: {...}, payslip_data: {...}}`` ou format ``get_dsn_employees_data``.
-    ``derniere_periode_deposee`` : dernière DSN mensuelle partie (« AAAA-MM ») ; un
-    changement de code PCS-ESE déjà déclaré n'est pas redéclaré.
+    ``periodes_declarees`` : mois (« AAAA-MM ») dont une DSN mensuelle est partie ; un
+    changement de code PCS-ESE déjà déclaré un mois précédent n'est pas redéclaré.
     """
     warnings: List[str] = []
     parametres = settings or DsnSettings()
@@ -1813,7 +1815,8 @@ def build_parsed_dsn_from_payroll(
                     _classification(employee),
                     ind.contrats[0].pcs,
                     period,
-                    derniere_periode_deposee,
+                    periodes_declarees,
+                    debut_du_contrat(employee),
                 )
                 if changement:
                     ind.contrats[0].changements = [changement]

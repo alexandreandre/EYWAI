@@ -38,7 +38,7 @@ from app.modules.onboarding.domain.profile import (
 )
 from app.modules.employees.infrastructure.mappers import prepare_employee_insert_data
 from app.modules.pcs_ese.domain.changement import appliquer_changement_pcs
-from app.modules.pcs_ese.infrastructure.transmissions import derniere_periode_deposee
+from app.modules.pcs_ese.infrastructure.transmissions import periodes_deposees
 from app.modules.employees.infrastructure.providers import (
     generate_contract_pdf,
     generate_credentials_pdf,
@@ -771,15 +771,15 @@ def _avec_changement_pcs(
     avant = avant if isinstance(avant, dict) else {}
     code_avant = str(avant.get("pcs") or "").strip()
     code_apres = str(apres.get("pcs") or "").strip()
-    deposee = None
+    deposees: frozenset = frozenset()
     if not depuis_import and code_apres and code_apres != code_avant and curr.get("company_id"):
-        deposee = derniere_periode_deposee(str(curr["company_id"]))
+        deposees = periodes_deposees(str(curr["company_id"]))
     update_data["classification_conventionnelle"] = appliquer_changement_pcs(
         avant,
         apres,
         aujourd_hui=_aujourd_hui(),
         depuis_import=depuis_import,
-        derniere_periode_deposee=deposee,
+        periodes_declarees=deposees,
     )
 
 
