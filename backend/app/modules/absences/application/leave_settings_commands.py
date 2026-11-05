@@ -547,12 +547,18 @@ def apply_cp_solde_import(
     policy = get_leave_policy(company_id)
     validated = absence_repository.list_validated_for_employees([employee_id])
     ref = bulletin_reference_date(year, month)
+    # L'acquis théorique se calcule avec la règle qui relira l'ouverture : une
+    # reprise datée (mois d'entrée entier derrière une reprise datée après
+    # l'entrée, rules._prorata_du_mois_d_entree). Avec un ajustement vide, le
+    # mois d'entrée se comptait au prorata puis se relisait entier.
     periods = compute_cp_period_balances(
         hire_date,
         validated,
         ref,
         policy=policy,
-        adjustment=EmployeeLeaveAdjustment.empty(),
+        adjustment=dataclasses.replace(
+            EmployeeLeaveAdjustment.empty(), cp_opening_reference_date=ref
+        ),
     )
     cp_n1_opening = cp_n1_solde - max(0.0, float(periods["n1_remaining"]))
     # Sans plancher : pour un solde repris de −0,43 j face à un décompte théorique
