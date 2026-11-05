@@ -308,7 +308,9 @@ def lire_brut_total_contrat(
         salaire=salaire_contractuel_fallback,
         estimer_le_dernier_mois=estimer_le_mois_de_sortie,
     )
-    if lus == 0 and salaire_contractuel_fallback > 0:
+    # Seulement s'il y avait des bulletins à lire : le mois de sortie estimé
+    # n'en est pas un.
+    if lus == 0 and alertes and salaire_contractuel_fallback > 0:
         alertes.append("Aucun bulletin sur le contrat — estimation sur salaire contractuel.")
     return total, alertes
 

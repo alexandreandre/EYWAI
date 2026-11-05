@@ -123,3 +123,19 @@ def test_le_repli_du_dossier_s_arrete_a_la_sortie_et_part_de_l_entree():
     assert ref.base_totale == 200.0  # juin estimé : 2/30 × 3 000, rien après
     assert base.mois_lus == []
     assert not any("2027" in a or "07/2026" in a for a in ref.alertes)
+
+
+def test_un_contrat_d_un_seul_mois_estime_ne_dit_pas_qu_il_manque_des_bulletins():
+    from app.modules.payroll.engine.reference_remuneration import lire_brut_total_contrat
+
+    total, alertes = lire_brut_total_contrat(
+        "emp-1",
+        date(2026, 6, 29),
+        date(2026, 6, 30),
+        _Base(BULLETINS),
+        salaire_contractuel_fallback=3000.0,
+        estimer_le_mois_de_sortie=True,
+    )
+
+    assert total == 200.0
+    assert alertes == []

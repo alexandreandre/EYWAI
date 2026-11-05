@@ -666,7 +666,7 @@ def _conges_par_periode_a_la_sortie(
         debut = _debut_de_la_periode_en_cours(compteurs) or exit_date.replace(day=1)
         depuis = max(debut, entree) if entree else debut
         fin_du_mois_precedent = exit_date.replace(day=1) - timedelta(days=1)
-        avant_le_mois, _, alertes = bruts_du_contrat(
+        avant_le_mois, _, alertes_des_bulletins = bruts_du_contrat(
             employee_id,
             depuis,
             fin_du_mois_precedent,
@@ -674,6 +674,7 @@ def _conges_par_periode_a_la_sortie(
             salaire=salaire,
             estimer_le_dernier_mois=False,
         )
+        alertes.extend(alertes_des_bulletins)
     cfg = periodes_depuis_compteurs(
         compteurs,
         brut_periode_precedente=precedente,

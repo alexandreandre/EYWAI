@@ -112,3 +112,22 @@ def test_sans_la_reprise_les_compteurs_partent_d_un_ajustement_vide_et_du_planni
 
     assert lectures == [{"avec_coupure_de_reprise": False}]
     assert vus == [EmployeeLeaveAdjustment.empty()]
+
+
+def test_la_phrase_de_l_ancien_logiciel_reste_quand_la_base_se_lit_sur_les_bulletins():
+    with (
+        patch(
+            "app.modules.absences.infrastructure.leave_settings_repository.get_applicable_adjustment",
+            return_value=REPRISE,
+        ),
+        patch("app.modules.absences.application.queries.get_absence_balances_for_payslip", return_value=COMPTEURS),
+        patch.object(module, "_cumuls_du_mois_precedent", return_value=None),
+        patch("app.modules.payroll.documents.payslip_run_heures._brut_de_la_periode_precedente", return_value=None),
+        patch.object(module, "bruts_du_contrat", return_value=(6200.0, 2, ["Bulletin 06/2026 absent — salaire du contrat utilisé."])),
+    ):
+        cfg = module._conges_par_periode_a_la_sortie(
+            EMPLOYE, date(2026, 9, 30), MagicMock(), entree=date(2026, 6, 29), salaire=3000.0
+        )
+
+    assert any("ancien logiciel" in a for a in cfg["alertes"])
+    assert "Bulletin 06/2026 absent — salaire du contrat utilisé." in cfg["alertes"]
