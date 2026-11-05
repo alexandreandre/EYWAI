@@ -7,6 +7,10 @@ import { FORMAT_PCS_ESE } from '@/constants/dsnFiche';
 import { ibanBienForme, ibanProblem } from '@/lib/iban';
 import { bicFieldSchema } from '@/lib/ibanSchema';
 import { isEmployeeCadre } from '@/lib/mutuelleUtils';
+import {
+  DISPENSE_VIDE,
+  problemesDispense,
+} from '@/features/employee-detail/components/dispenseMutuelle';
 import { prevoyanceFicheSchema } from '@/features/employees/utils/prevoyanceSchema';
 import { MESSAGE_SALAIRE_TROP_ELEVE, SALAIRE_MENSUEL_MAXIMUM } from '@/lib/salaireVraisemblable';
 
@@ -77,6 +81,16 @@ export const employeeProfileEditSchema = z
       titres_restaurant: titresRestaurantSchema,
       mutuelle: z.object({
         mutuelle_type_ids: z.array(z.string()).optional(),
+        // Dispense posée par la RH (D911-2, R242-1-6) : voir dispenseMutuelle.ts.
+        dispense: z
+          .object({
+            active: z.boolean().default(false),
+            motif: z.string().default(''),
+            demande_recue_le: z.string().default(''),
+            justificatif_recu_le: z.string().default(''),
+            fin_le: z.string().default(''),
+          })
+          .default({ ...DISPENSE_VIDE }),
       }),
       prevoyance: prevoyanceFicheSchema,
       // Déclarés en DSN seulement : motif de recours d'un CDD (S21.G00.40.021),
@@ -140,6 +154,17 @@ export const employeeProfileEditSchema = z
         message: 'Adhésion prévoyance requise pour un cadre.',
         path: ['specificites_paie', 'prevoyance', 'adhesion'],
       });
+    }
+    // La dispense ne se montre que sans formule : cachée, elle ne bloque rien.
+    const mutuelle = data.specificites_paie.mutuelle;
+    if ((mutuelle.mutuelle_type_ids ?? []).length === 0) {
+      for (const { champ, message } of problemesDispense(mutuelle.dispense)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message,
+          path: ['specificites_paie', 'mutuelle', 'dispense', champ],
+        });
+      }
     }
     if (data.specificites_paie.prevoyance.adhesion) {
       const lignes = data.specificites_paie.prevoyance.lignes_specifiques ?? [];

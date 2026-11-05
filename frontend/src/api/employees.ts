@@ -71,6 +71,8 @@ export type UpdateEmployeePayload = {
       adhesion?: boolean;
       mutuelle_type_ids?: string[];
       lignes_specifiques?: unknown[];
+      /** Dispense posée par la RH (D911-2, R242-1-6) ; null l'efface. */
+      dispense?: { motif: string; demande_recue_le: string; justificatif_recu_le: string | null; fin_le: string | null } | null;
     };
     prevoyance?: {
       adhesion?: boolean;

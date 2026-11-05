@@ -34,6 +34,7 @@ import { normalizeNir } from '@/features/employee-detail/components/employeeProf
 import type { EmployeeProfileEditFormValues } from '@/features/employee-detail/components/employeeProfileEditSchema';
 import { queryKeys } from '@/lib/queryKeys';
 import { MutuelleSelectionField } from '@/components/mutuelle/MutuelleSelectionField';
+import { DispenseMutuelleFields } from '@/features/employee-detail/components/DispenseMutuelleFields';
 import { AIDE_INDEMNITE_TRAJET, LIBELLE_INDEMNITE_TRAJET } from '@/features/company/lib/reglesVariables';
 import {
   filterMutuellesForEmployee,
@@ -160,6 +161,8 @@ export function EmployeeProfileEditForm({
   const isResidencePermit = useWatch({ control, name: 'is_subject_to_residence_permit' });
   const statutTitre = libelleStatutTitre(titreSejour ?? {});
   const filteredMutuelles = filterMutuellesForEmployee(availableMutuelles, statut);
+  const mutuelleIdsChoisies =
+    useWatch({ control, name: 'specificites_paie.mutuelle.mutuelle_type_ids' }) ?? [];
   const companyId = useActiveCompanyId();
   const { data: jeiSettings } = useQuery({
     queryKey: ['jei-settings', companyId],
@@ -702,6 +705,7 @@ export function EmployeeProfileEditForm({
                 )}
               />
             )}
+            {mutuelleIdsChoisies.length === 0 ? <DispenseMutuelleFields control={control} /> : null}
           </div>
 
           <div>
