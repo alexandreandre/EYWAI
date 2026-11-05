@@ -136,7 +136,7 @@ Le générateur reste pur : il ne lit pas la base.
   - salaire : le refus « Aucun bulletin remis » s'affiche ;
   - Exports > Déclarations : la carte ouvre la même fenêtre.
 
-  Les attestations générées par le test sont supprimées à la fin, pour que tout soit remis en état sur le test.
+  La garde des tests e2e interdit toute écriture sur le test : la génération y est simulée. Le serveur déployé se vérifie à part, par l'API : refus (type retiré, salaire sans bulletin remis, 13 mois), une vraie attestation de travail lue puis supprimée, et l'aperçu du récapitulatif.
 
 ## Hors périmètre, signalé
 
