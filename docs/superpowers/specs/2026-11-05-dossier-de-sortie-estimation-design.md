@@ -142,9 +142,10 @@ contrat. Le bandeau de la Paie propose déjà « Fin de CDD » ; la page Départ
   référence). Le recalage reste pour les congés d'ancienneté et le
   fractionnement.
 - **R8 — Fin de CDD proposée d'office.** Dans le formulaire de départ, un
-  salarié en CDD avec une date de fin : motif « Fin de CDD » et dernier jour à
-  la fin du contrat, avec la phrase « Proposé par Martine : CDD qui finit le
-  JJ/MM/AAAA. » La RH peut tout changer ; rien ne bloque. Un choix de la RH
+  salarié dont la fiche porte une date de fin, sauf un CDI (même lecture que le
+  bandeau de la Paie) : motif « Fin de CDD » et dernier jour à la fin du
+  contrat, avec la phrase « Proposé par Martine : CDD qui finit le
+  JJ/MM/AAAA. » (« contrat » hors CDD). La RH peut tout changer ; rien ne bloque. Un choix de la RH
   n'est jamais écrasé. Le motif 031 d'une DSN importée devient déjà
   « fin_cdd » (`dsn_absence_exit_mapping`) et la date de fin vient du bloc 62.
 
@@ -168,6 +169,15 @@ Hors périmètre, noté :
 prime ajoute janvier-février (818,18 + 3 000), payés sur un contrat antérieur
 clos le 28/02. L1243-8 et F40 limitent la base à la rémunération versée durant
 *ce* contrat : +381,82 € de prime, +38,18 € de congés par contrecoup.
+
+## Filet avant/après (353 bulletins 2026 de 4 sociétés, au bac à sable)
+
+Un seul bulletin bouge, celui du défaut : un CDI de Comitech parti en juin 2026.
+Indemnité de congés 4 648,27 → 3 461,58 € (−1 186,69 €) : la période 2026-2027
+(4,08 j) avait pour base 16 416,86 €, la période close comprise ; elle a
+désormais 2 706,21 €, et la période 2025-2026 retrouve sa base de 13 710,65 €.
+Ce mois a été payé par Quadra (bulletin importé) : aucune paie réelle touchée.
+Aucune écriture au piège. Trois erreurs connues, identiques des deux côtés.
 
 ## Données
 
