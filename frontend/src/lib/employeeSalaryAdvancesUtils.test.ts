@@ -38,3 +38,17 @@ describe('plafond d’une avance sur salaire', () => {
     );
   });
 });
+
+describe('avance sans aucun bulletin', () => {
+  it('dit que la référence est le brut de la fiche, pas un net', () => {
+    expect(
+      formatAdvancePlafondSummary(
+        disponible({
+          reference_payslip_year: null,
+          reference_payslip_month: null,
+          reference_depuis_fiche: true,
+        })
+      )
+    ).toBe('50 % du salaire brut de la fiche (aucun bulletin encore)');
+  });
+});

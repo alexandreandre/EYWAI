@@ -26,6 +26,7 @@ def to_advance_available_amount(data: Dict[str, Any]) -> AdvanceAvailableAmount:
         reference_net_salary=data.get("reference_net_salary", Decimal("0")),
         reference_payslip_year=data.get("reference_payslip_year"),
         reference_payslip_month=data.get("reference_payslip_month"),
+        reference_depuis_fiche=bool(data.get("reference_depuis_fiche")),
         max_advance_from_net=data.get("max_advance_from_net", Decimal("0")),
         max_advance_net_ratio=data.get("max_advance_net_ratio", Decimal("0.5")),
         is_employee_right=data.get("is_employee_right", False),

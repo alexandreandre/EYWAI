@@ -431,6 +431,22 @@ def _ijss_extras_mi_temps_forfait(
 DEBUT_PLAFOND_SJB_SMIC = date(2025, 4, 1)
 
 
+def alerte_ij_mois_sans_bulletin(arret: Dict[str, Any], ij_du_mois: float) -> Optional[str]:
+    """Le salaire journalier de base compte le salaire de la fiche pour un mois sans
+    bulletin : une estimation qui finit sur le bulletin. Rien sans bruts fournis
+    (aperçu) ni sans IJ."""
+    bruts = arret.get("salaires_bruts_reference")
+    if not isinstance(bruts, list) or ij_du_mois <= 0:
+        return None
+    presents = sum(1 for brut in bruts[:3] if brut is not None)
+    if presents >= 3:
+        return None
+    return (
+        f"IJSS estimées : {3 - presents} mois de référence sans bulletin, salaire de la "
+        "fiche retenu. Reportez le décompte de la CPAM dans Suivi IJSS."
+    )
+
+
 def _salaire_journalier_de_base_maladie(
     arret: Dict[str, Any],
     salaire_mensuel: float,
@@ -2696,6 +2712,9 @@ def calculer_maintien(
         alertes.append(
             "Subrogation demandée sans maintien applicable — vérifier la cohérence"
         )
+    alerte_ij = alerte_ij_mois_sans_bulletin(arret, float(ijss.get("ijss_theorique") or 0.0))
+    if alerte_ij:
+        alertes.append(alerte_ij)
     # Un arrêt tout entier dans la carence n'a aucun jour indemnisé : 0 € est
     # alors la bonne réponse, pas un calcul impossible.
     if (

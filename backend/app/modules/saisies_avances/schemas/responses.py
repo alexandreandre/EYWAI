@@ -110,6 +110,8 @@ class AdvanceAvailableAmount(BaseModel):
     reference_net_salary: Montant = Decimal("0")
     reference_payslip_year: Optional[int] = None
     reference_payslip_month: Optional[int] = None
+    #: Aucun bulletin : la référence est le brut de la fiche, pas un net.
+    reference_depuis_fiche: bool = False
     max_advance_from_net: Montant = Decimal("0")
     max_advance_net_ratio: Montant = Decimal("0.5")
     is_employee_right: bool = False

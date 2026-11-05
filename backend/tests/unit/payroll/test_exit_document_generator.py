@@ -84,6 +84,29 @@ def test_get_salary_history_fallback_without_payslips() -> None:
     assert history["total_brut"] == pytest.approx(7200.0)
 
 
+def test_un_mois_sans_salaire_sur_son_bulletin_ne_prend_pas_le_salaire_de_la_fiche() -> None:
+    """Un bulletin qui ne porte que des sommes de rupture : 0 € de salaire, pas 2 400 €."""
+    bulletin = MagicMock()
+    bulletin.data = [
+        {"year": 2025, "month": 6, "payslip_data": {"salaire_brut": 0.0}},
+    ]
+    client = MagicMock()
+    client.table.return_value.select.return_value.eq.return_value.gte.return_value.lte.return_value.execute.return_value = bulletin
+    client.table.return_value.select.return_value.eq.return_value.execute.return_value = bulletin
+    client.table.return_value.select.return_value.eq.return_value.is_.return_value.execute.return_value = bulletin
+    history = get_salary_history(
+        employee_id="emp-1",
+        employee_data=_EMP,
+        end_date="2025-06-30",
+        supabase_client=client,
+        month_count=1,
+    )
+    mois = history["months"][-1]
+    assert mois["has_payslip"] is True
+    assert mois["gross_salary"] == 0.0
+    assert mois["is_estimated"] is False
+
+
 def test_get_salary_history_from_payslips_mock() -> None:
     mock_sb = MagicMock()
     mock_execute = MagicMock()

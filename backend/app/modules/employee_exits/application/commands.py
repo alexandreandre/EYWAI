@@ -1033,6 +1033,12 @@ def _remplacer_les_versions_precedentes(
         doc_repo.delete(doc["id"], exit_id, company_id)
 
 
+_RECU_SANS_BULLETIN = (
+    "Le solde de tout compte reprend les sommes du bulletin du mois de sortie : "
+    "générez d'abord ce bulletin."
+)
+
+
 def generate_exit_document(
     exit_id: str,
     company_id: str,
@@ -1086,9 +1092,9 @@ def generate_exit_document(
         )
     elif document_type == "solde_tout_compte":
         indemnities = exit_data.get("calculated_indemnities") or {}
-        # Avec le bulletin du mois de sortie, le reçu en reprend les sommes : les
-        # indemnités du dossier ne servent qu'à l'estimation, faute de bulletin
-        # (départs clos par la réconciliation DSN, qui ne les calcule pas).
+        # Le reçu reprend les sommes du bulletin du mois de sortie. Il se signe : sans
+        # ce bulletin, ses montants seraient inventés (salaire de la fiche, net égal au
+        # brut, primes d'un autre mois).
         from app.modules.payroll.solde_de_tout_compte.common.bulletin_de_sortie import (
             alertes_du_recu,
             bulletin_du_mois_de_sortie,
@@ -1096,11 +1102,8 @@ def generate_exit_document(
 
         bulletin_de_sortie = bulletin_du_mois_de_sortie(employee_data.get("id"), exit_data, sb)
         alertes = alertes_du_recu(bulletin_de_sortie)
-        if not indemnities and bulletin_de_sortie is None:
-            raise EmployeeExitApplicationError(
-                400,
-                "Les indemnités doivent être calculées avant de générer le solde de tout compte. Veuillez d'abord calculer les indemnités dans l'onglet 'Indemnités'.",
-            )
+        if bulletin_de_sortie is None:
+            raise EmployeeExitApplicationError(400, _RECU_SANS_BULLETIN)
         pdf_bytes = generator.generate_solde_tout_compte(
             employee_data, company_data, exit_data, indemnities, sb
         )
@@ -1307,6 +1310,12 @@ def edit_exit_document(
         indemnities = merged_data.get("indemnities") or exit_data.get(
             "calculated_indemnities", {}
         )
+        from app.modules.payroll.solde_de_tout_compte.common.bulletin_de_sortie import (
+            bulletin_du_mois_de_sortie as bulletin_de_sortie_du_mois,
+        )
+
+        if bulletin_de_sortie_du_mois(gen_employee.get("id"), gen_exit, sb) is None:
+            raise EmployeeExitApplicationError(400, _RECU_SANS_BULLETIN)
         pdf_bytes = generator.generate_solde_tout_compte(
             gen_employee, gen_company, gen_exit, indemnities, sb
         )

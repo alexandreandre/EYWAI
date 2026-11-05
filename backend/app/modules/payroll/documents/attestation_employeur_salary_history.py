@@ -259,9 +259,9 @@ def get_salary_history(
                 brut -= sum(
                     s["montant"] for s in sommes_de_rupture_du_bulletin(pdata) if s["dans_le_brut"]
                 )
-                brut = round(brut, 2)
-                if brut <= 0:
-                    brut = fallback_salary
+                # Un bulletin sans salaire (sommes de rupture seules) vaut 0 : le salaire
+                # de la fiche ne remplace que le mois sans bulletin, signalé plus bas.
+                brut = max(round(brut, 2), 0.0)
                 months.append(
                     {
                         "year": year,
@@ -272,7 +272,7 @@ def get_salary_history(
                         "gross_salary": brut,
                         "primes": _extract_primes(pdata),
                         "has_payslip": True,
-                        "is_estimated": brut <= 0,
+                        "is_estimated": False,
                     }
                 )
             else:

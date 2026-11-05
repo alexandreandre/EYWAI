@@ -740,6 +740,31 @@ class TestGenerateExitDocument:
                 )
                 assert resultat["document_id"] == "doc-stc"
 
+    def test_sans_bulletin_le_recu_est_refuse_meme_avec_des_indemnites(
+        self,
+        mock_exit_repo_class,
+        mock_doc_repo_class,
+        mock_company,
+        mock_storage,
+        mock_generator,
+    ):
+        """Le reçu est signé : sans bulletin de sortie, ses montants seraient inventés."""
+        exit_data = _make_exit_record(exit_type="fin_cdd")
+        exit_data["calculated_indemnities"] = {"total_gross_indemnities": 100.0}
+        exit_data["employees"] = {"id": "emp-1", "first_name": "Jean", "last_name": "Dupont"}
+        mock_exit_repo_class.return_value.get_with_employee.return_value = exit_data
+        with patch(
+            "app.modules.payroll.solde_de_tout_compte.common.bulletin_de_sortie.bulletin_du_mois_de_sortie",
+            return_value=None,
+        ):
+            with pytest.raises(EmployeeExitApplicationError) as exc_info:
+                generate_exit_document(
+                    EXIT_ID, COMPANY_ID, "solde_tout_compte", USER_ID, supabase_client=MagicMock()
+                )
+        assert exc_info.value.status_code == 400
+        assert "bulletin du mois de sortie" in exc_info.value.detail
+        mock_generator.return_value.generate_solde_tout_compte.assert_not_called()
+
     def test_regenerer_remplace_la_version_non_envoyee(
         self,
         mock_exit_repo_class,

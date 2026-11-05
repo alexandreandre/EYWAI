@@ -336,6 +336,8 @@ def get_reference_net_salary_context(employee_id: str) -> Dict[str, Any]:
             "reference_net_salary": net,
             "reference_payslip_year": None,
             "reference_payslip_month": None,
+            # Aucun bulletin : c'est le brut de la fiche, pas un net. L'écran le dit.
+            "reference_depuis_fiche": True,
         }
     return {
         "reference_net_salary": Decimal("0"),
@@ -407,6 +409,7 @@ def build_advance_available(
         "reference_net_salary": reference_net_salary,
         "reference_payslip_year": ref.get("reference_payslip_year"),
         "reference_payslip_month": ref.get("reference_payslip_month"),
+        "reference_depuis_fiche": bool(ref.get("reference_depuis_fiche")),
         "max_advance_from_net": max_advance_from_net,
         "max_advance_net_ratio": MAX_ADVANCE_NET_RATIO,
         "is_employee_right": is_employee_right(advance_type),  # type: ignore[arg-type]

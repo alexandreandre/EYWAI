@@ -148,6 +148,8 @@ export interface AdvanceAvailableAmount {
   reference_net_salary: number;
   reference_payslip_year?: number | null;
   reference_payslip_month?: number | null;
+  /** Aucun bulletin : la référence est le brut de la fiche, pas un net. */
+  reference_depuis_fiche?: boolean;
   max_advance_from_net: number;
   max_advance_net_ratio: number;
   is_employee_right?: boolean;
