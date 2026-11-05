@@ -186,6 +186,23 @@ def alertes_des_compteurs_de_conges(
                     ),
                 }
             )
+    recuperation = solde_conges.get("recuperation")
+    if bulletin_de_sortie and isinstance(recuperation, dict):
+        reste = float(recuperation.get("solde") or 0.0)
+        if reste > 0:
+            heures = f"{reste:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+            alertes.append(
+                {
+                    "code": "recuperation_non_prise_au_depart",
+                    "severity": "warning",
+                    "critique": False,
+                    "message": (
+                        f"Départ : {heures} h de récupération non prises restent au "
+                        "compteur. Elles sont dues : payez le solde depuis la carte "
+                        "« Heures de récupération » du bulletin."
+                    ),
+                }
+            )
     for cle, code, quoi, solde_de in (
         ("conges_payes", "conge_au_dela_du_solde", "Congés payés pris", "de congés payés"),
         ("rtt", "rtt_au_dela_du_solde", "RTT pris", "de RTT"),

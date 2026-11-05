@@ -21,6 +21,7 @@ import CetSettingsCard from "@/features/company/components/CetSettingsCard";
 import CpFractionnementSettingsCard from "@/features/company/components/CpFractionnementSettingsCard";
 import CpSenioritySettingsCard from "@/features/company/components/CpSenioritySettingsCard";
 import ModulationSettingsCard from "@/features/company/components/ModulationSettingsCard";
+import HeuresSupRecuperationCard from "@/features/company/components/HeuresSupRecuperationCard";
 import WorkTimePeriodsCard from "@/features/company/components/WorkTimePeriodsCard";
 import WeekTemplatesSettingsCard from "@/features/company/components/WeekTemplatesSettingsCard";
 import { CompanySetupCalendarsPanel } from "@/features/admin-import/components/CompanySetupCalendarsPanel";
@@ -359,9 +360,10 @@ export function CompanyPayrollTab({
           <PayrollSettingsSection
             nested
             title="Organisation du temps & compte d'heures"
-            description="Modulation, périodes horaires, plafond HS, CET"
+            description="Heures sup payées ou au compteur, modulation, périodes horaires, CET"
             defaultOpen={false}
           >
+            <HeuresSupRecuperationCard />
             <ModulationSettingsCard />
             <WorkTimePeriodsCard />
             <OvertimeContingentSettingsCard />

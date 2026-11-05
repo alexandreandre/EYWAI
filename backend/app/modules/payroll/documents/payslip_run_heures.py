@@ -1563,6 +1563,7 @@ def run_payslip_generation_heures(
             "hs_credited": modulation_result.hs_credited,
             "hs_paid": modulation_result.hs_paid,
             "repos_credite": modulation_result.repos_credite,
+            "paye_ce_mois": modulation_result.paye_ce_mois,
         }
 
     return bulletin_final

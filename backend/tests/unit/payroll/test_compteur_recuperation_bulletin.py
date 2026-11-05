@@ -80,3 +80,18 @@ def test_heures_payees_dites_en_note():
         _bulletin({"acquis": 0.0, "pris": 0.0, "paye": 2.0, "solde": 0.0, "prises": []})
     )
     assert "Récupération ce mois-ci : 2 h payées" in compteurs["notes"]
+
+
+def test_au_depart_un_solde_de_recuperation_se_signale():
+    from app.modules.payroll.engine.bulletin import alertes_des_compteurs_de_conges
+
+    solde = {"recuperation": {"solde": 2.0, "paye": 0.0}}
+    alertes = alertes_des_compteurs_de_conges(solde, bulletin_de_sortie=True)
+    codes = {a["code"]: a for a in alertes}
+    assert "recuperation_non_prise_au_depart" in codes
+    assert "2 h" in codes["recuperation_non_prise_au_depart"]["message"]
+    # Hors départ, ou solde payé : rien.
+    assert alertes_des_compteurs_de_conges(solde, bulletin_de_sortie=False) == []
+    assert alertes_des_compteurs_de_conges(
+        {"recuperation": {"solde": 0.0, "paye": 2.0}}, bulletin_de_sortie=True
+    ) == []

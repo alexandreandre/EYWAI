@@ -265,3 +265,43 @@ export async function upsertOvertimeRouting(
   );
   return data;
 }
+
+/** « Payer ces heures ce mois-ci » (payer=true) ou « Remettre au compteur ». */
+export async function choisirLeMoisRecuperation(
+  employeeId: string,
+  year: number,
+  month: number,
+  payload: { payer: boolean; heures_sup: number },
+  companyId?: string | null,
+): Promise<void> {
+  await apiClient.put(`/api/modulation/recuperation/${employeeId}/mois`, payload, {
+    params: { year, month, ...(companyId ? { company_id: companyId } : {}) },
+  });
+}
+
+/** Payer des heures du compteur sur le bulletin du mois. */
+export async function payerSoldeRecuperation(
+  employeeId: string,
+  year: number,
+  month: number,
+  heures: number,
+  companyId?: string | null,
+): Promise<void> {
+  await apiClient.post(
+    `/api/modulation/recuperation/${employeeId}/paiement`,
+    { heures },
+    { params: { year, month, ...(companyId ? { company_id: companyId } : {}) } },
+  );
+}
+
+/** Les heures payées sur le bulletin du mois reviennent au compteur. */
+export async function annulerPaiementRecuperation(
+  employeeId: string,
+  year: number,
+  month: number,
+  companyId?: string | null,
+): Promise<void> {
+  await apiClient.delete(`/api/modulation/recuperation/${employeeId}/paiement`, {
+    params: { year, month, ...(companyId ? { company_id: companyId } : {}) },
+  });
+}

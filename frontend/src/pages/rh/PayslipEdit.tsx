@@ -73,6 +73,7 @@ import { invaliderApresBulletin } from '@/features/payroll/utils/invalidationsBu
 import { rechargementsDuBulletin } from '@/features/payroll/utils/rechargementBulletin';
 import HistoryPanel from '@/components/payslip-edit/HistoryPanel';
 import { ONGLET_D_OUVERTURE } from '@/components/payslip-edit/ongletsBulletin';
+import { RecuperationDuMoisCard } from '@/components/payslip-edit/RecuperationDuMoisCard';
 import NotesSection from '@/components/payslip-edit/NotesSection';
 import PayslipPreviewFrame from '@/components/payslip-edit/PayslipPreviewFrame';
 import RegeneratePayslipButton from '@/components/payslip-edit/RegeneratePayslipButton';
@@ -662,6 +663,17 @@ export default function PayslipEdit() {
             comparaison={payslip.comparaison_mois_dernier}
             annee={payslip.year}
             mois={payslip.month}
+          />
+          <RecuperationDuMoisCard
+            payslipData={payslip.payslip_data}
+            employeeId={payslip.employee_id}
+            year={payslip.year}
+            month={payslip.month}
+            contractPeriodId={payslip.contract_period_id}
+            companyId={payslip.company_id}
+            manuallyEdited={payslip.manually_edited}
+            disabled={isEditLocked}
+            onRegenerated={rechargements.apresRegeneration}
           />
           <LignesExpliquees payslipData={payslip.payslip_data} />
           {/* Clé : l'aperçu se refait après chaque rechargement du bulletin. */}

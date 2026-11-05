@@ -31,6 +31,8 @@ class ModulationPayrollResult:
     movement_ids: tuple[str, ...] = ()
     #: Heures de repos créditées (équivalent majoré des heures sup au compteur).
     repos_credite: float = 0.0
+    #: La RH a choisi, pour ce mois, de payer au lieu de mettre au compteur.
+    paye_ce_mois: bool = False
 
 
 def _monday_of_week(d: date) -> date:
@@ -262,6 +264,7 @@ def apply_modulation_hour_account_to_calendar(
             hs_paid=mise.heures_sup_payees,
             movement_ids=tuple(movement_ids),
             repos_credite=mise.repos_credite,
+            paye_ce_mois=decision is not None,
         ),
     )
 
