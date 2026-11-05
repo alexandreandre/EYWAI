@@ -18,8 +18,9 @@ import {
   libelleCode,
   prochainEtat,
   texteChangement,
+  SUIVI_PCS_INITIAL,
   type ChangementPcs,
-  type PreRemplissage,
+  type SuiviPcs,
 } from '@/features/pcs-ese/pcsEse';
 
 /** Lignes affichées à la fois : la recherche affine, la liste reste rapide. */
@@ -33,6 +34,9 @@ type Props = {
   employeeId?: string;
   changement?: ChangementPcs | null;
   disabled?: boolean;
+  /** État gardé par le parent, pour survivre au démontage du champ (onglets). */
+  suivi?: SuiviPcs;
+  onSuivi?: (suivi: SuiviPcs) => void;
 };
 
 function useRetarde(valeur: string, delaiMs: number): string {
@@ -48,7 +52,17 @@ function useRetarde(valeur: string, delaiMs: number): string {
  * Le code PCS-ESE choisi dans la liste officielle, avec la proposition de Martine :
  * pré-rempli quand elle est sûre (et la raison dite), sinon trois codes probables.
  */
-export function PcsEseField({ value, onChange, poste, statut, employeeId, changement, disabled }: Props) {
+export function PcsEseField({
+  value,
+  onChange,
+  poste,
+  statut,
+  employeeId,
+  changement,
+  disabled,
+  suivi: suiviParent,
+  onSuivi,
+}: Props) {
   const [ouvert, setOuvert] = useState(false);
   const [recherche, setRecherche] = useState('');
   const { data: rubriques = [], isLoading } = useQuery({
@@ -70,17 +84,18 @@ export function PcsEseField({ value, onChange, poste, statut, employeeId, change
   });
 
   // Martine suit sa proposition tant que la RH n'a rien choisi ; un choix de la RH est définitif.
-  const [prerempli, setPrerempli] = useState<PreRemplissage | null>(null);
-  const [rhAChoisi, setRhAChoisi] = useState(false);
+  const [suiviLocal, setSuiviLocal] = useState<SuiviPcs>(SUIVI_PCS_INITIAL);
+  const suivi = suiviParent ?? suiviLocal;
+  const setSuivi = onSuivi ?? setSuiviLocal;
+  const { prerempli, rhAChoisi } = suivi;
   useEffect(() => {
     const suite = prochainEtat({ valeur: value, prerempli, rhAChoisi, proposition });
     if (!suite) return;
-    setPrerempli(suite.prerempli);
+    if (suite.prerempli !== prerempli) setSuivi({ prerempli: suite.prerempli, rhAChoisi });
     if (suite.code !== value) onChange(suite.code);
-  }, [proposition, value, prerempli, rhAChoisi, onChange]);
+  }, [proposition, value, prerempli, rhAChoisi, onChange, setSuivi]);
   const choisir = (code: string) => {
-    setRhAChoisi(true);
-    setPrerempli(null);
+    setSuivi({ prerempli: null, rhAChoisi: true });
     onChange(code);
   };
 

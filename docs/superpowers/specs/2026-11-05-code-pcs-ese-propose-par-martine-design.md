@@ -122,10 +122,14 @@ b) **Personne dans la société** : Martine cherche le même poste, au même sta
 c) **Personne dans le groupe** : Martine cherche l'intitulé dans les métiers Insee (R2), en lisant
    les professions typiques, puis les assimilées, puis les exclues (pour une exclue, elle prend le
    code « voir »). Elle applique les filtres R3 et R4. **Elle n'est sûre que si l'intitulé est égal
-   à un métier Insee sans secteur entre parenthèses, et s'il ne reste qu'un seul code.**
+   à un métier Insee sans secteur entre parenthèses ni niveau après la virgule (sauf « cadre » ou
+   « non cadre »), s'il ne reste qu'un seul code, si ce n'est pas un apprenti et si le code n'est
+   pas un code ECAP.** (Relecture du 05/11 : « Maçon, ouvrier qualifié » ou « Apprenti
+   charpentier » rendaient Martine sûre à tort.)
 
 Quand les collègues ne sont pas d'accord, Martine ne passe pas à l'étape suivante : elle propose
-leurs codes.
+leurs codes. Le filtre R3 vaut aussi pour les collègues : un code incompatible avec le statut ne se
+propose pas, et à côté d'un bon code il compte comme un désaccord.
 
 **Seuil (décidé le 05/11, voir § 4)** : un seul collègue suffit, sauf pour un code ECAP (R6), qui
 demande au moins 2 collègues d'accord. Sinon le code ECAP est proposé, pas posé.
@@ -148,19 +152,32 @@ demande au moins 2 collègues d'accord. Sinon le code ECAP est proposé, pas pos
   dernière date. Si le code revient à A, il n'y a plus rien à déclarer.
 - **Un code reçu par un import DSN** ne crée rien à déclarer : le cabinet l'a déjà déclaré. Et
   **un import ne remplace jamais un vrai code par « 9999 »**.
-- **Dans la DSN d'un mois** : pour chaque contrat qui a un changement non encore déclaré, daté au
-  plus tard du dernier jour du mois, Martine écrit un bloc S21.G00.41 après le bloc S21.G00.40 :
+- **Rien n'est noté** pour un contrat commencé dans le mois du changement (il n'a jamais été
+  déclaré avec A) ni pour un ancien code hors de la table DSN (S21.G00.41.019 est soumis à CRE-11).
+- **Dans la DSN d'un mois M** : Martine écrit un bloc S21.G00.41 après le bloc S21.G00.40 si le
+  changement est du mois M, ou d'un mois antérieur sans qu'aucune DSN d'un mois intermédiaire ne
+  soit partie :
   - .001 = la date du changement (JJMMAAAA) ;
   - .019 = A ;
-  - .028 = le 1er jour du mois de cette date.
-- **« Déjà déclaré »** veut dire : une DSN mensuelle de la société, pour ce mois ou un mois
-  suivant, a été envoyée, reçue ou déposée à la main (table `dsn_transmissions`). Jusque-là,
-  chaque DSN générée porte le bloc, aperçu compris. Martine n'a encore déposé aucune DSN : le bloc
-  partira dans la première.
+  - .028 = le 1er jour du mois de cette date, jamais avant le début du contrat (CCH-14) ni après
+    la modification (CCH-15).
+- **« Partie »** veut dire : DSN mensuelle de la société envoyée, reçue ou remise pour un dépôt à
+  la main (table `dsn_transmissions`). Chaque génération est enregistrée « manual » : une DSN du
+  mois régénérée garde donc le bloc. Martine n'a encore déposé aucune DSN.
+- **La DSN d'un mois antérieur au changement** déclare A en S21.G00.40.004 : c'est le code en
+  vigueur ce mois-là.
 - **Sur la fiche**, sous le code : « Ancien code 9999 jusqu'au 06/11/2026 : la prochaine DSN le
   déclarera. »
 - **Hors de ce chantier** : les autres modalités du bloc 41 (statut, temps de travail…). Martine
   n'en déclare aucune aujourd'hui. À traiter à part.
+- **Limites connues (cas étroits, corrigeables à la main)** : un seul changement est gardé par
+  fiche. Si le code change deux fois de part et d'autre d'une DSN, puis que la DSN du premier mois
+  est régénérée, le premier changement n'y figure plus. Un mois à deux contrats ne déclare pas le
+  changement de l'ancien contrat.
+- **Promotion** : une promotion de classification ne change plus que groupe, classe et
+  coefficient ; elle remplaçait toute la classification et effaçait le code PCS-ESE et l'IDCC.
+- **Contrôle « un des 430 »** : aussi à l'enregistrement de la fiche (code changé) et à la
+  création, côté serveur.
 
 ### 3.4 Les 198 fiches à « 9999 »
 
@@ -219,7 +236,8 @@ d'atelier classé 486d d'après le métier « Chef d'atelier (transport et répa
 nombre de collègues, et la liste du script passe sous les yeux d'Alexandre avant « lance ».
 **Une seule exception : un code ECAP n'est sûr qu'avec au moins 2 collègues d'accord.** Sinon il est
 proposé, pas posé, parce qu'il baisse une contribution sans que personne ne le voie.
-Résultat : **61 fiches changent seules**, 137 gardent « 9999 » avec 3 propositions.
+Résultat mesuré par la simulation du 05/11, avec toutes les règles : **68 fiches changent
+seules** (a 17, b 50, c 1), aucune avec un code ECAP ; 130 gardent « 9999 » et la fiche propose.
 
 ## 5. Tests (TDD)
 

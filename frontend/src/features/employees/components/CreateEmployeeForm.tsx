@@ -1,4 +1,5 @@
 import { PcsEseField } from "@/features/pcs-ese/PcsEseField";
+import { SUIVI_PCS_INITIAL, type SuiviPcs } from "@/features/pcs-ese/pcsEse";
 import { log } from '@/lib/logger';
 import { AvertissementIban } from '@/components/employees/AvertissementIban';
 import { useState, useEffect, useRef } from "react";
@@ -372,6 +373,9 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   });
 
   const employeeStatut = form.watch("statut");
+  // Le champ PCS-ESE vit dans l'onglet « Contrat », démonté quand on en sort : ce qu'il a
+  // pré-rempli et ce que la RH a choisi restent ici.
+  const [suiviPcs, setSuiviPcs] = useState<SuiviPcs>(SUIVI_PCS_INITIAL);
   const avertissementNaissance = avertissementNaissanceDsn({
     lieu_naissance: form.watch("lieu_naissance"),
     nationalite: form.watch("nationalite"),
@@ -1313,6 +1317,8 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                   onChange={field.onChange}
                                   poste={form.watch("job_title") ?? ""}
                                   statut={employeeStatut ?? ""}
+                                  suivi={suiviPcs}
+                                  onSuivi={setSuiviPcs}
                                 />
                               </FormControl>
                               <p className="text-xs text-muted-foreground">

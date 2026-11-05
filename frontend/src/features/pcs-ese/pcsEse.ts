@@ -96,6 +96,17 @@ export interface PreRemplissage {
   avant: string;
 }
 
+/**
+ * Ce que le champ doit retenir entre deux affichages : gardé par le formulaire parent quand le
+ * champ peut être démonté (onglet inactif de la création), sinon par le champ lui-même.
+ */
+export interface SuiviPcs {
+  prerempli: PreRemplissage | null;
+  rhAChoisi: boolean;
+}
+
+export const SUIVI_PCS_INITIAL: SuiviPcs = { prerempli: null, rhAChoisi: false };
+
 const codeVide = (code: string) => code.trim() === '' || code.trim() === '9999';
 
 /**
