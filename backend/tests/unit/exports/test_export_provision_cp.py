@@ -114,7 +114,7 @@ class TestCollecterLignes:
         maintien_n = round(4.16 * barumet.valeur_jour, 2)
         assert barumet.provision_n == max(dixieme_n, maintien_n)
         assert barumet.provision == round(barumet.provision_n1 + barumet.provision_n, 2)
-        assert barumet.mois_retenus == "7/12"
+        assert barumet.mois_retenus == "7 mois sur 12"
 
     def test_un_mois_d_absence_ne_fait_plus_baisser_la_valeur_du_jour(self):
         """L'écart signalé par Elsa : chez Quadra, un mois d'absence baissait la moyenne."""
@@ -145,7 +145,7 @@ class TestCollecterLignes:
             lignes, _ = module.collecter_lignes("company-1", "2026-07")
 
         neuf = lignes[1]
-        assert neuf.mois_retenus == "0/12"
+        assert neuf.mois_retenus == "0 mois sur 12"
         assert "aucun bulletin" in neuf.anomalie
         assert neuf.provision == round(2.08 * neuf.valeur_jour, 2)
 

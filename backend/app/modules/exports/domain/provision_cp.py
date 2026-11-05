@@ -376,6 +376,11 @@ def mois_de_reference(
     return list(reversed(couples))
 
 
+def _mois_sur(retenus: int, total: int) -> str:
+    """« 9 mois sur 12 » : écrit « 9/12 », Excel français en faisait la date « 09-déc »."""
+    return f"{retenus} mois sur {total}"
+
+
 @dataclass(frozen=True)
 class Reference:
     salaire_reference: float
@@ -409,13 +414,13 @@ def resoudre_reference(
             return Reference(
                 salaire_reference=round(float(salaire_contractuel), 2),
                 taux_charges=round(float(taux_societe or 0.0), 2),
-                mois_retenus=f"0/{total_mois}",
+                mois_retenus=_mois_sur(0, total_mois),
                 anomalie="aucun bulletin : salaire contractuel et taux société utilisés",
             )
         return Reference(
             salaire_reference=0.0,
             taux_charges=0.0,
-            mois_retenus=f"0/{total_mois}",
+            mois_retenus=_mois_sur(0, total_mois),
             anomalie="aucun bulletin et aucun salaire contractuel",
         )
 
@@ -424,7 +429,7 @@ def resoudre_reference(
     return Reference(
         salaire_reference=round(somme_brut / len(retenus), 2),
         taux_charges=round(somme_patronal / somme_brut * 100, 2),
-        mois_retenus=f"{len(retenus)}/{total_mois}",
+        mois_retenus=_mois_sur(len(retenus), total_mois),
         anomalie="",
     )
 
@@ -457,6 +462,6 @@ def reference_du_salarie(
     return Reference(
         salaire_reference=round(float(salaire_contractuel), 2),
         taux_charges=round(patronal / brut * 100, 2),
-        mois_retenus=f"0/{len(mois_cibles)}",
+        mois_retenus=_mois_sur(0, len(mois_cibles)),
         anomalie="premier mois incomplet : salaire contractuel utilisé, taux du premier bulletin",
     )

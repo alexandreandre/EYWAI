@@ -146,7 +146,7 @@ def test_le_mois_d_entree_incomplet_est_ecarte_quand_d_autres_mois_existent():
         [(2026, 8), (2026, 9), (2026, 10)], 2000.0, date(2026, 8, 20),
     )
     assert ref.salaire_reference == 2000.0
-    assert ref.mois_retenus == "2/3"
+    assert ref.mois_retenus == "2 mois sur 3"
 
 
 def test_sans_reprise_l_avertissement_des_soldes_recalcules_reste():

@@ -221,7 +221,7 @@ class TestResoudreReference:
         attendu = sum(2000.0 + m for m in range(1, 7)) / 6
         assert ref.salaire_reference == round(attendu, 2)
         assert ref.taux_charges == round(600.0 * 6 / (attendu * 6) * 100, 2)
-        assert ref.mois_retenus == "6/12"
+        assert ref.mois_retenus == "6 mois sur 12"
         assert ref.anomalie == ""
 
     def test_mois_a_brut_nul_ignore(self):
@@ -233,7 +233,7 @@ class TestResoudreReference:
             taux_societe=35.0,
         )
         assert ref.salaire_reference == 2000.0
-        assert ref.mois_retenus == "1/12"
+        assert ref.mois_retenus == "1 mois sur 12"
 
     def test_aucun_bulletin_repli_sur_le_contractuel(self):
         ref = module.resoudre_reference(
@@ -244,7 +244,7 @@ class TestResoudreReference:
         )
         assert ref.salaire_reference == 1900.0
         assert ref.taux_charges == 35.0
-        assert ref.mois_retenus == "0/12"
+        assert ref.mois_retenus == "0 mois sur 12"
         assert ref.anomalie == "aucun bulletin : salaire contractuel et taux société utilisés"
 
     def test_aucun_bulletin_et_aucun_contractuel(self):
@@ -267,4 +267,4 @@ class TestResoudreReference:
             taux_societe=None,
         )
         assert ref.salaire_reference == 2000.0
-        assert ref.mois_retenus == "1/12"
+        assert ref.mois_retenus == "1 mois sur 12"
