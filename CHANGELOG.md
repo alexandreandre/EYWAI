@@ -5,6 +5,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+## paie-2026-11-05.14 — 5 novembre 2026
+
 ### Les congés payés utilisent la rémunération de leur période d'acquisition
 - Les congés pris, les indemnités de départ et la provision partagent le calcul légal du dixième, comparé au maintien de salaire.
 - Les absences assimilées sont reconstituées et les primes exclues retirées, en distinguant les jours ouvrés des jours ouvrables.
