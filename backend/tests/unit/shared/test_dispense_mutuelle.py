@@ -125,3 +125,23 @@ def test_le_justificatif_annuel_ne_vaut_que_pour_la_couverture_collective():
 def test_motif_cdd_sur_un_cdi(motif):
     alerte = alerte_mutuelle(_dispense(motif=motif), "CDI", 2026, 9)
     assert alerte.startswith("dispense « CDD » sur un CDI")
+
+
+def test_dispense_ecrite_le_25_10_au_motif_en_toutes_lettres():
+    # Format des dispenses posées le 25/10/2026 (CDD de Colorplast et Comitech) :
+    # le motif est reconnu, seule manque la date de la demande signée.
+    ancienne = {
+        "adhesion": False,
+        "dispense": {
+            "motif": "CDD de moins de douze mois",
+            "depuis": "2026-09-14",
+            "fondement": "Code de la sécurité sociale, art. R242-1-6, 2° b",
+            "decidee_le": "2026-10-25",
+        },
+    }
+    alerte = alerte_mutuelle(ancienne, "CDD", 2026, 10)
+    assert alerte.startswith("dispense de mutuelle incomplète")
+    assert "motif" not in alerte
+    assert "demande signée" in alerte
+    ancienne["dispense"]["demande_recue_le"] = "2026-09-14"
+    assert alerte_mutuelle(ancienne, "CDD", 2026, 10) is None

@@ -100,4 +100,26 @@ describe('dispense de mutuelle (05/11/2026)', () => {
     ).toEqual([]);
     expect(problemesDispense(DISPENSE_VIDE)).toEqual([]);
   });
+
+  it('reprend une dispense du 25/10 (motif en toutes lettres) et garde ses notes', () => {
+    const ancienne = {
+      motif: 'CDD de moins de douze mois',
+      depuis: '2026-09-14',
+      fondement: 'Code de la sécurité sociale, art. R242-1-6, 2° b',
+      decidee_le: '2026-10-25',
+    };
+    const formulaire = dispenseVersFormulaire(ancienne);
+    expect(formulaire).toMatchObject({ active: true, motif: 'cdd_moins_12_mois', demande_recue_le: '' });
+    expect(problemesDispense(formulaire).map((p) => p.champ)).toEqual(['demande_recue_le']);
+    const fiche = dispenseVersFiche({ ...formulaire, demande_recue_le: '2026-09-14' }, false, ancienne);
+    expect(fiche).toEqual({
+      depuis: '2026-09-14',
+      fondement: 'Code de la sécurité sociale, art. R242-1-6, 2° b',
+      decidee_le: '2026-10-25',
+      motif: 'cdd_moins_12_mois',
+      demande_recue_le: '2026-09-14',
+      justificatif_recu_le: null,
+      fin_le: null,
+    });
+  });
 });

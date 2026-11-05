@@ -98,6 +98,14 @@ export const DISPENSE_VIDE: DispenseFormulaire = {
   fin_le: '',
 };
 
+/**
+ * Motifs en toutes lettres des dispenses posées le 25/10/2026, avant ce format
+ * (CDD de Colorplast et Comitech) ; même table côté serveur.
+ */
+const ANCIENS_LIBELLES: Record<string, string> = {
+  'CDD de moins de douze mois': 'cdd_moins_12_mois',
+};
+
 export function motifDispense(code: string): MotifDispense | undefined {
   return MOTIFS_DISPENSE_MUTUELLE.find((m) => m.code === code);
 }
@@ -111,22 +119,28 @@ export function dispenseVersFormulaire(dispense: unknown): DispenseFormulaire {
   const d = dispense as Record<string, unknown>;
   return {
     active: true,
-    motif: typeof d.motif === 'string' ? d.motif : '',
+    motif: typeof d.motif === 'string' ? (ANCIENS_LIBELLES[d.motif] ?? d.motif) : '',
     demande_recue_le: jour(d.demande_recue_le),
     justificatif_recu_le: jour(d.justificatif_recu_le),
     fin_le: jour(d.fin_le),
   };
 }
 
-/** `null` efface la dispense : une formule est choisie, ou la case est décochée. */
+/**
+ * `null` efface la dispense : une formule est choisie, ou la case est décochée.
+ * Les notes d'une dispense déjà sur la fiche (`existante`) sont gardées.
+ */
 export function dispenseVersFiche(
   saisie: Partial<DispenseFormulaire> | undefined,
   aUneFormule: boolean,
+  existante?: unknown,
 ): DispenseFiche | null {
   const formulaire = { ...DISPENSE_VIDE, ...saisie };
   if (aUneFormule || !formulaire.active) return null;
   const besoin = motifDispense(formulaire.motif)?.besoin ?? null;
+  const notes = existante && typeof existante === 'object' ? (existante as Record<string, unknown>) : {};
   return {
+    ...notes,
     motif: formulaire.motif,
     demande_recue_le: formulaire.demande_recue_le,
     justificatif_recu_le:
