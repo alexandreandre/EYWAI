@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+(rien)
+
+## paie-2026-11-05.1 — 5 novembre 2026
+
 ### Le code PCS-ESE « 9999 » est accepté
 - « 9999 » veut dire « profession inconnue » : c'est un code officiel de la DSN.
 - La fiche d'un salarié qui a ce code peut de nouveau être enregistrée, et l'aperçu DSN ne le dit plus faux.
