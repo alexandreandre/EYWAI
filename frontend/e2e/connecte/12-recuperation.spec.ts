@@ -41,7 +41,8 @@ test('compteur de récupération : réglage, bulletin, choix du mois', async ({ 
   await page.goto('/company');
   await expect(page.getByText(/société|entreprise/i).first()).toBeVisible({ timeout: 30_000 });
   await page.getByRole('tab', { name: /paie/i }).first().click();
-  await page.getByText(/organisation du temps & compte d'heures/i).first().click();
+  await page.getByRole('button', { name: /^temps de travail/i }).first().click();
+  await page.getByRole('button', { name: /organisation du temps & compte d'heures/i }).first().click();
   const carte = page.getByTestId('reglage-heures-sup');
   await expect(carte).toBeVisible({ timeout: 20_000 });
   await carte.getByLabel(/mises au compteur de récupération/i).click();

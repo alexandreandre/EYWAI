@@ -35,9 +35,9 @@ import { queryKeys } from '@/lib/queryKeys';
 import { ArrowRight } from 'lucide-react';
 
 const MOVEMENT_LABELS: Record<string, string> = {
-  credit_hs: 'Crédit HS (paie)',
+  credit_hs: 'Heures sup au compteur',
   debit_recovery: 'Récupération',
-  debit_payout: 'Liquidation',
+  debit_payout: 'Paiement du solde',
   adjustment: 'Ajustement RH',
   opening_balance: 'Solde initial',
 };
