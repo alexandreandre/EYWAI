@@ -51,8 +51,6 @@ export interface AbsenceRequest {
   heures_par_jour?: Record<string, number> | null;
   arret_type?: ArretType | null;
   /** Statut attestation salaire / IJSS (API module Documents). */
-  certificate_status?: 'generated' | 'not_required' | 'pending' | null;
-  certificate_id?: string | null;
 }
 
 export interface AbsenceRequestWithEmployee extends AbsenceRequest {
@@ -238,53 +236,6 @@ export const uploadFile = async (signedUrl: string, file: File) => {
  */
 export const createAbsenceRequest = (payload: AbsenceCreationPayload) => {
   return apiClient.post('/api/absences/requests', payload);
-};
-
-// =====================================================
-// ATTESTATIONS DE SALAIRE
-// =====================================================
-
-export interface SalaryCertificate {
-  id: string;
-  employee_id: string;
-  absence_request_id: string;
-  company_id: string;
-  storage_path: string;
-  filename: string;
-  generated_at: string;
-  generated_by?: string | null;
-  transmitted_to_cpam: boolean;
-  transmission_date?: string | null;
-  /** URL pour ouvrir le PDF dans le navigateur (visualisation) */
-  view_url?: string;
-  /** URL pour télécharger le PDF */
-  download_url?: string;
-}
-
-/**
- * Génère manuellement une attestation de salaire pour un arrêt validé.
- */
-export const generateSalaryCertificate = (absenceId: string) => {
-  return apiClient.post<{ certificate_id: string; message: string }>(
-    `/api/absences/${absenceId}/generate-certificate`
-  );
-};
-
-/**
- * Récupère les informations de l'attestation de salaire pour un arrêt.
- */
-export const getSalaryCertificate = (absenceId: string) => {
-  return apiClient.get<SalaryCertificate>(`/api/absences/${absenceId}/certificate`);
-};
-
-/**
- * Télécharge le PDF de l'attestation de salaire.
- */
-export const downloadSalaryCertificate = async (absenceId: string): Promise<Blob> => {
-  const response = await apiClient.get(`/api/absences/${absenceId}/certificate/download`, {
-    responseType: 'blob',
-  });
-  return response.data;
 };
 
 // =====================================================

@@ -70,28 +70,10 @@ class IEvenementFamilialQuotaProvider(ABC):
         ...
 
 
-class ISalaryCertificateProvider(ABC):
-    """
-    Génération et enregistrement des attestations de salaire (arrêts maladie, AT, etc.).
-    Source : api/routers/absences._generate_salary_certificate_for_absence + SalaryCertificateGenerator.
-    """
-
-    @abstractmethod
-    def generate_for_absence(
-        self,
-        absence_request_id: str,
-        generated_by: Optional[str] = None,
-        *,
-        replace_existing: bool = False,
-    ) -> Optional[str]:
-        """Génère l'attestation pour une demande validée. Retourne certificate_id ou None."""
-        ...
-
-
 class IStorageProvider(ABC):
     """
     URLs signées (upload justificatifs, lecture attestations).
-    Buckets : leave_attachments, salary_certificates.
+    Bucket : leave_attachments.
     """
 
     @abstractmethod

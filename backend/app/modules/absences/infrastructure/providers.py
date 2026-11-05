@@ -2,7 +2,7 @@
 Providers — storage, attestations de salaire, calendrier, événements familiaux.
 
 Implémentations des interfaces du domain. Utilise uniquement app.core et
-app.modules.absences.infrastructure (evenements_familiaux, salary_certificate_generator).
+app.modules.absences.infrastructure (evenements_familiaux).
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from app.core.logging import get_logger
 logger = get_logger("modules.absences.infrastructure.providers")
 
 import calendar as cal_module
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
@@ -28,7 +28,6 @@ from app.shared.domain.absence_calendar import (
 from app.modules.absences.domain.interfaces import (
     ICalendarUpdateService,
     IEvenementFamilialQuotaProvider,
-    ISalaryCertificateProvider,
     IStorageProvider,
 )
 from app.modules.absences.infrastructure.evenements_familiaux import (
@@ -36,13 +35,7 @@ from app.modules.absences.infrastructure.evenements_familiaux import (
     get_solde_evenement,
 )
 
-# Source de vérité attestation de salaire : app.modules.payroll.documents
-from app.modules.payroll.documents.salary_certificate_generator import (
-    SalaryCertificateGenerator,
-)
-
 BUCKET_LEAVE_ATTACHMENTS = "leave_attachments"
-BUCKET_SALARY_CERTIFICATES = "salary_certificates"
 
 
 class StorageProvider(IStorageProvider):
@@ -89,141 +82,6 @@ class StorageProvider(IStorageProvider):
 
     def download(self, bucket: str, path: str) -> Any:
         return supabase.storage.from_(bucket).download(path)
-
-
-class SalaryCertificateProvider(ISalaryCertificateProvider):
-    """Génération attestation de salaire + upload + enregistrement."""
-
-    def generate_for_absence(
-        self,
-        absence_request_id: str,
-        generated_by: Optional[str] = None,
-        *,
-        replace_existing: bool = False,
-    ) -> Optional[str]:
-        try:
-            absence_resp = (
-                supabase.table("absence_requests")
-                .select("*")
-                .eq("id", absence_request_id)
-                .single()
-                .execute()
-            )
-            if not absence_resp or not absence_resp.data:
-                return None
-
-            absence_data = absence_resp.data
-            employee_id = absence_data["employee_id"]
-            company_id = absence_data.get("company_id")
-
-            employee_resp = (
-                supabase.table("employees")
-                .select("*")
-                .eq("id", employee_id)
-                .single()
-                .execute()
-            )
-            if not employee_resp or not employee_resp.data:
-                return None
-            employee_data = employee_resp.data
-
-            if not company_id:
-                company_id = employee_data.get("company_id")
-            if company_id:
-                company_resp = (
-                    supabase.table("companies")
-                    .select("*")
-                    .eq("id", company_id)
-                    .single()
-                    .execute()
-                )
-                company_data = (
-                    company_resp.data if company_resp and company_resp.data else {}
-                )
-            else:
-                company_data = {}
-
-            existing = (
-                supabase.table("salary_certificates")
-                .select("id, storage_path")
-                .eq("absence_request_id", absence_request_id)
-                .maybe_single()
-                .execute()
-            )
-            existing_row = existing.data if existing and existing.data else None
-            if existing_row and not replace_existing:
-                return existing_row["id"]
-
-            selected_days = absence_data.get("selected_days", [])
-            if not selected_days:
-                return None
-            # Le premier jour de l'arrêt, pas le premier de la liste : elle
-            # n'est pas forcément triée, et les mois de référence en dépendent.
-            first_date_str = min(
-                d if isinstance(d, str) else d.isoformat() for d in selected_days
-            )
-            absence_start_date = (
-                date.fromisoformat(first_date_str)
-                if isinstance(first_date_str, str)
-                else first_date_str
-            )
-
-            generator = SalaryCertificateGenerator()
-            reference_salary = generator.get_reference_salary(
-                employee_id, absence_start_date
-            )
-            pdf_bytes = generator.generate_salary_certificate(
-                employee_data, company_data, absence_data, reference_salary
-            )
-
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"attestation_salaire_{absence_request_id}_{timestamp}.pdf"
-            storage_path = f"{employee_id}/{filename}"
-            supabase.storage.from_(BUCKET_SALARY_CERTIFICATES).upload(
-                storage_path, pdf_bytes, {"content-type": "application/pdf"}
-            )
-
-            certificate_data = {
-                "employee_id": employee_id,
-                "absence_request_id": absence_request_id,
-                "company_id": company_id,
-                "storage_path": storage_path,
-                "filename": filename,
-                "generated_by": generated_by,
-            }
-            if existing_row:
-                old_path = existing_row.get("storage_path")
-                # La date affichée doit être celle de la nouvelle version :
-                # sinon « générée le 03/09 » laisse croire que rien n'a changé.
-                certificate_data["generated_at"] = datetime.now(timezone.utc).isoformat()
-                cert_resp = (
-                    supabase.table("salary_certificates")
-                    .update(certificate_data)
-                    .eq("id", existing_row["id"])
-                    .execute()
-                )
-                if old_path and old_path != storage_path:
-                    try:
-                        supabase.storage.from_(BUCKET_SALARY_CERTIFICATES).remove(
-                            [old_path]
-                        )
-                    except Exception:
-                        logger.warning(
-                            "Ancien PDF attestation non supprimé: %s", old_path
-                        )
-                if cert_resp.data:
-                    return cert_resp.data[0]["id"]
-                return existing_row["id"]
-            cert_resp = (
-                supabase.table("salary_certificates").insert(certificate_data).execute()
-            )
-            if cert_resp.data:
-                return cert_resp.data[0]["id"]
-            return None
-        except Exception as e:
-            logger.warning(f"⚠️ Erreur lors de la génération de l'attestation: {e}")
-            logger.exception("Exception")
-            return None
 
 
 class CalendarUpdateProvider(ICalendarUpdateService):
@@ -701,6 +559,5 @@ class EvenementFamilialQuotaProvider(IEvenementFamilialQuotaProvider):
 
 
 storage_provider = StorageProvider()
-salary_certificate_provider = SalaryCertificateProvider()
 calendar_update_provider = CalendarUpdateProvider()
 evenement_familial_provider = EvenementFamilialQuotaProvider()

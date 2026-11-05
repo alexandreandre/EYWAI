@@ -5,7 +5,7 @@ import { displayNamePrenomNom } from '@/lib/employeeName';
 import { formatQuantiteFr, formatQuotiteJours, quotiteJoursDemande } from '@/lib/employeeAbsencesUtils';
 import { RhPageHeader } from '@/components/layout';
 import { useState, useEffect, useMemo } from 'react';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { useAbsencesQueries } from '@/hooks/queries/useAbsencesQuery';
 import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
 import { PageFetchIndicator } from '@/components/skeletons/PageFetchIndicator';
@@ -20,7 +20,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { isPayrollFocusActive } from "@/lib/payrollFocus";
 import { AbsenceRequestModal } from "@/components/AbsenceRequestModal";
-import { Loader2, Check, X, Clock, Info, Download, Eye, FilePlus, RefreshCw, ExternalLink, ChevronDown } from "lucide-react";
+import { Loader2, Check, X, Clock, Info, Download, Eye, ExternalLink, ChevronDown } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   Collapsible,
@@ -41,15 +41,16 @@ import {
 import type * as absencesApi from '@/api/absences'; // <-- CHANGER en 'import type'
 import * as absencesApiFunctions from '@/api/absences';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
-import { downloadBlob, openBlobInNewTab } from '@/lib/downloadBlob';
+import { downloadBlob } from '@/lib/downloadBlob';
 import {
   MaintenancePreviewBlock,
   ABSENCE_TYPES_MAINTIEN_PREVIEW,
 } from '@/components/absences/MaintenancePreviewBlock';
-import { AbsenceCertificateStatusBadge } from '@/components/absences/AbsenceCertificateStatusBadge';
+import { AbsenceSignalementBadge } from '@/components/absences/AbsenceSignalementBadge';
+import { listerSignalements } from '@/api/exports';
 import { AbsenceIjssStatusBadge } from '@/components/absences/AbsenceIjssStatusBadge';
 import { getAbsenceIjssStatus } from '@/api/ijssTracking';
-import { requiresSalaryCertificate } from '@/lib/employeeAbsencesUtils';
+import { estArretIjss } from '@/lib/employeeAbsencesUtils';
 import { LeaveCampaignSection } from '@/features/absences/components/LeaveCampaignSection';
 import { LeaveNotificationSettingsPanel } from '@/features/absences/components/LeaveNotificationSettingsPanel';
 import { RttYearEndRhSection } from '@/features/absences/components/RttYearEndRhSection';
@@ -148,15 +149,17 @@ export default function AbsencesPage() {
       ).includes(terme),
     );
   };
-  const [certificates, setCertificates] = useState<Record<string, absencesApi.SalaryCertificate>>({});
-  const [loadingCertificates, setLoadingCertificates] = useState<Set<string>>(new Set());
   const [pendingSubrogation, setPendingSubrogation] = useState<Record<string, boolean | undefined>>({});
-  const [certConfirmId, setCertConfirmId] = useState<string | null>(null);
+  const { data: signalements } = useQuery({
+    queryKey: ['dsn-signalements'],
+    queryFn: listerSignalements,
+    staleTime: 60_000,
+  });
 
   const ijssAbsenceIds = useMemo(() => {
     const all = [...pending, ...processed];
     return all
-      .filter((r) => r.status === 'validated' && requiresSalaryCertificate(r.type))
+      .filter((r) => r.status === 'validated' && estArretIjss(r.type))
       .map((r) => r.id);
   }, [pending, processed]);
 
@@ -176,19 +179,6 @@ export default function AbsencesPage() {
     });
     return map;
   }, [ijssAbsenceIds, ijssStatusQueries]);
-
-  // Charger les attestations existantes après le chargement des données
-  useEffect(() => {
-    const validatedRequests = processed.filter(req => req.status === 'validated' && requiresCertificate(req.type));
-    for (const req of validatedRequests) {
-      if (!certificates[req.id] && !loadingCertificates.has(req.id)) {
-        loadCertificate(req.id).catch(() => {
-          // Ignorer les erreurs 404 (attestation pas encore générée)
-        });
-      }
-    }
-  }, [processed]); // Se déclenche quand les demandes traitées changent
-  
 
   const handleUpdateStatus = async (
     id: string,
@@ -305,93 +295,6 @@ export default function AbsencesPage() {
     );
   }
 
-  const requiresCertificate = (type: string) => {
-    return ['arret_maladie', 'arret_at', 'arret_paternite', 'arret_maternite', 'arret_maladie_pro'].includes(type);
-  };
-
-  const loadCertificate = async (absenceId: string) => {
-    if (certificates[absenceId] || loadingCertificates.has(absenceId)) return;
-    
-    setLoadingCertificates(prev => new Set(prev).add(absenceId));
-    try {
-      const cert = await absencesApiFunctions.getSalaryCertificate(absenceId);
-      setCertificates(prev => ({ ...prev, [absenceId]: cert.data }));
-    } catch (error: any) {
-      if (error.response?.status !== 404) {
-        log.error('Erreur chargement attestation:', error);
-      }
-    } finally {
-      setLoadingCertificates(prev => {
-        const next = new Set(prev);
-        next.delete(absenceId);
-        return next;
-      });
-    }
-  };
-
-  const handleViewCertificate = async (absenceId: string) => {
-    try {
-      // Toujours récupérer le PDF en blob et ouvrir une URL objet pour afficher
-      // dans le navigateur (visualisation) sans déclencher de téléchargement
-      const blob = await absencesApiFunctions.downloadSalaryCertificate(absenceId);
-      openBlobInNewTab(new Blob([blob], { type: 'application/pdf' }), 60000);
-    } catch (error: any) {
-      log.error('Erreur ouverture attestation:', error);
-      if (error.response?.status === 404) {
-        toast({ title: 'Information', description: 'L\'attestation n\'a pas encore été générée pour cet arrêt.', variant: 'default' });
-      } else {
-        toast({ title: 'Erreur', description: 'Impossible d\'ouvrir l\'attestation.', variant: 'destructive' });
-      }
-    }
-  };
-
-  const handleGenerateCertificate = async (absenceId: string) => {
-    try {
-      setLoadingCertificates(prev => new Set(prev).add(absenceId));
-      await absencesApiFunctions.generateSalaryCertificate(absenceId);
-      toast({ title: 'Succès', description: 'Attestation générée avec succès.' });
-      // Recharger l'attestation
-      await loadCertificate(absenceId);
-    } catch (error) {
-      log.error('Erreur génération attestation:', error);
-      toast({ title: 'Erreur', description: 'Impossible de générer l\'attestation.', variant: 'destructive' });
-    } finally {
-      setLoadingCertificates(prev => {
-        const next = new Set(prev);
-        next.delete(absenceId);
-        return next;
-      });
-    }
-  };
-
-  const handleDownloadCertificate = async (absenceId: string) => {
-    try {
-      // Charger l'attestation si elle n'est pas déjà chargée
-      if (!certificates[absenceId]) {
-        await loadCertificate(absenceId);
-      }
-      
-      const blob = await absencesApiFunctions.downloadSalaryCertificate(absenceId);
-      const cert = certificates[absenceId];
-      const filename = cert?.filename || `attestation_salaire_${absenceId}.pdf`;
-      
-      downloadBlob(blob, filename);
-      
-      toast({ title: 'Succès', description: 'Attestation téléchargée avec succès.' });
-    } catch (error: any) {
-      log.error('Erreur téléchargement attestation:', error);
-      if (error.response?.status === 404) {
-        toast({ 
-          title: 'Attestation non trouvée', 
-          description: 'L\'attestation n\'existe pas encore. Cliquez sur le bouton de génération pour la créer.',
-          variant: 'default'
-        });
-      } else {
-        toast({ title: 'Erreur', description: 'Impossible de télécharger l\'attestation.', variant: 'destructive' });
-      }
-    }
-  };
-
   const handleDownload = async (absence: AbsenceRequest) => {
     const signedUrl = absence.attachment_url;
     if (!signedUrl) {
@@ -422,7 +325,7 @@ export default function AbsencesPage() {
           <TableHead className="min-w-0 max-w-[220px]">Demande</TableHead>
           <TableHead>Solde aujourd&apos;hui</TableHead>
           <TableHead>Justificatif</TableHead>
-          <TableHead>Attestation</TableHead>
+          <TableHead>Signalement DSN</TableHead>
           <TableHead className="text-right">Actions</TableHead>
       </TableRow></TableHeader>
       <TableBody>
@@ -468,106 +371,22 @@ export default function AbsencesPage() {
               )}
             </TableCell>
             <TableCell>
-              {requiresCertificate(req.type) && (
+              {estArretIjss(req.type) && req.status === 'validated' && (
                 <div className="flex flex-col gap-2">
-                  {(req.status === 'validated' || req.certificate_status) && (
-                    <div className="flex flex-wrap gap-1">
-                      <AbsenceCertificateStatusBadge
-                        certificateStatus={req.certificate_status}
-                        absenceType={req.type}
-                        absenceStatus={req.status}
-                        hasCertificateFile={Boolean(certificates[req.id])}
-                      />
-                      {req.status === 'validated' && ijssStatusMap[req.id] && (
-                        <AbsenceIjssStatusBadge status={ijssStatusMap[req.id]!} />
-                      )}
-                    </div>
-                  )}
-                  {req.status === 'validated' && (
-                <div className="flex flex-wrap gap-2 items-center">
-                  {loadingCertificates.has(req.id) ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : certificates[req.id] ? (
-                    <>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => handleViewCertificate(req.id)}
-                              title="Voir l'attestation de salaire"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Voir l'attestation de salaire</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => handleDownloadCertificate(req.id)}
-                              title="Télécharger l'attestation de salaire"
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Télécharger l'attestation de salaire</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => setCertConfirmId(req.id)}
-                              title="Régénérer l'attestation de salaire"
-                            >
-                              <RefreshCw className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Régénérer l'attestation de salaire</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </>
-                  ) : (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => setCertConfirmId(req.id)}
-                            title="Générer l'attestation de salaire"
-                          >
-                            <FilePlus className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Générer l'attestation de salaire</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to="/suivi-ijss">
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Suivi IJSS
-                    </Link>
-                  </Button>
-                </div>
-                  )}
+                  <div className="flex flex-wrap gap-1">
+                    <AbsenceSignalementBadge arret={req} signalements={signalements} />
+                    {ijssStatusMap[req.id] && (
+                      <AbsenceIjssStatusBadge status={ijssStatusMap[req.id]!} />
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to="/suivi-ijss">
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Suivi IJSS
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
               )}
             </TableCell>
@@ -754,33 +573,6 @@ export default function AbsencesPage() {
         <TabsContent value="pending"><Card><CardHeader><CardTitle>Demandes à valider</CardTitle></CardHeader><CardContent>{isLoading ? <TableSkeleton rows={5} columns={5} /> : renderRequestsTable(filtrerParSalarie(pending))}</CardContent></Card></TabsContent>
         <TabsContent value="processed"><Card><CardHeader><CardTitle>Demandes traitées</CardTitle></CardHeader><CardContent>{isLoading ? <TableSkeleton rows={5} columns={5} /> : renderRequestsTable(filtrerParSalarie(processed))}</CardContent></Card></TabsContent>
       </Tabs>
-      <AlertDialog open={Boolean(certConfirmId)} onOpenChange={(o) => !o && setCertConfirmId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Générer l&apos;attestation de salaire</AlertDialogTitle>
-            <AlertDialogDescription>
-              Confirmez la génération (ou la régénération) de l&apos;attestation de
-              salaire pour la CPAM : salaires rétablis en maladie / maternité /
-              paternité, salaires nets en AT / maladie professionnelle. Un PDF déjà
-              créé sera remplacé. La subrogation enregistrée sur l&apos;arrêt sera
-              utilisée pour la suite du circuit IJSS.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (certConfirmId) {
-                  void handleGenerateCertificate(certConfirmId);
-                  setCertConfirmId(null);
-                }
-              }}
-            >
-              Générer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

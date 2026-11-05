@@ -6,13 +6,11 @@ Validation des entrées (schémas), résolution utilisateur (Depends), appel app
 Comportement HTTP identique à api/routers/absences.py.
 """
 
-import io
 import logging
 from typing import List, Literal
 
 from postgrest.exceptions import APIError
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
 
 from app.core.security import get_current_user
 from app.modules.employees.api.deps import assert_can_read_employee_profile
@@ -74,7 +72,6 @@ from app.modules.absences.schemas.requests import (
     AbsenceRequestCreate,
     AbsenceRequestStatusUpdate,
     ManagerApprovalRequest,
-    SalaryCertificateTransmissionUpdate,
 )
 from app.modules.absences.schemas.responses import (
     AbsenceBalancesResponse,
@@ -166,50 +163,6 @@ def _ensure_absence_in_active_company(request_id: str, company_id: str) -> dict:
             status_code=403, detail="Demande hors périmètre entreprise."
         )
     return row
-
-
-_CERTIFICATE_NOT_FOUND = "Aucune attestation trouvée pour cet arrêt."
-
-
-def _require_salary_certificate_access(
-    absence_id: str,
-    current_user: User,
-    *,
-    rh_only: bool,
-    not_found_detail: str = _CERTIFICATE_NOT_FOUND,
-) -> dict:
-    """Arrêt de la société active, vu par une RH de cette société ou par son titulaire.
-
-    Les routes d'attestation de salaire n'utilisaient pas `current_user` :
-    n'importe quel compte lisait, téléchargeait ou régénérait (en écrasant
-    l'existante) l'attestation d'un arrêt d'une autre société (audit du
-    25/09/2026, E3). Hors périmètre, on répond 404 avec le libellé du cas
-    « rien trouvé », comme l'aperçu maintien voisin : on ne révèle pas
-    l'existence de l'arrêt. `rh_only` réserve la route aux RH (403 sinon,
-    comme les autres routes RH du module).
-    """
-    if rh_only:
-        company_id = _require_rh_company_context(current_user)
-    else:
-        company_id = _require_active_company_absences(current_user)
-    absence = absence_router.get_absence_by_id(absence_id)
-    if not absence or str(absence.get("company_id") or "") != company_id:
-        raise HTTPException(status_code=404, detail=not_found_detail)
-    if current_user.is_platform_admin or current_user.has_rh_access_in_company(
-        company_id
-    ):
-        return absence
-    # Titulaire de l'arrêt : l'espace salarié lit et télécharge sa propre
-    # attestation (pages/employee/Absences.tsx).
-    owner = str(absence.get("employee_id") or "")
-    if owner and owner == str(current_user.id):
-        return absence
-    my_employee_id = absence_router.resolve_employee_id_for_user(
-        str(current_user.id), company_id
-    )
-    if my_employee_id and owner == str(my_employee_id):
-        return absence
-    raise HTTPException(status_code=404, detail=not_found_detail)
 
 
 def _enrich_single_absence_row(row: dict) -> dict:
@@ -849,106 +802,6 @@ def post_absence_regularisation_at(
         _handle_application_errors(e)
     except Exception as e:
         logger.exception("Échec de post_absence_regularisation_at")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ----- Attestations de salaire -----
-
-
-@router.post("/{absence_id}/generate-certificate")
-def generate_salary_certificate(
-    absence_id: str,
-    current_user: User = Depends(get_current_user),
-):
-    """Génère manuellement une attestation de salaire pour un arrêt validé."""
-    _require_salary_certificate_access(
-        absence_id, current_user, rh_only=True, not_found_detail="Arrêt non trouvé."
-    )
-    try:
-        cert_id = commands.generate_salary_certificate(
-            absence_id, generated_by=str(current_user.id)
-        )
-        return {
-            "certificate_id": cert_id,
-            "message": "Attestation générée avec succès",
-        }
-    except (ValueError, LookupError, RuntimeError) as e:
-        _handle_application_errors(e)
-    except Exception as e:
-        logger.exception("Échec de generate_salary_certificate")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/{absence_id}/certificate/download")
-def download_salary_certificate(
-    absence_id: str,
-    current_user: User = Depends(get_current_user),
-):
-    """Télécharge le PDF de l'attestation de salaire."""
-    _require_salary_certificate_access(absence_id, current_user, rh_only=False)
-    try:
-        result = queries.download_salary_certificate(absence_id)
-        if not result:
-            raise HTTPException(
-                status_code=404,
-                detail="Aucune attestation trouvée pour cet arrêt.",
-            )
-        pdf_bytes, filename = result
-        return StreamingResponse(
-            io.BytesIO(pdf_bytes),
-            media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Échec de download_salary_certificate")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/{absence_id}/certificate")
-def get_salary_certificate(
-    absence_id: str,
-    current_user: User = Depends(get_current_user),
-):
-    """Récupère les informations de l'attestation de salaire pour un arrêt."""
-    _require_salary_certificate_access(absence_id, current_user, rh_only=False)
-    try:
-        cert_data = queries.get_salary_certificate_info(absence_id)
-        if not cert_data:
-            raise HTTPException(
-                status_code=404,
-                detail="Aucune attestation trouvée pour cet arrêt.",
-            )
-        return cert_data
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Échec de get_salary_certificate")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.patch("/{absence_id}/certificate/transmission")
-def mark_salary_certificate_transmitted(
-    absence_id: str,
-    body: SalaryCertificateTransmissionUpdate,
-    current_user: User = Depends(get_current_user),
-):
-    """Marque l'attestation comme transmise à la CPAM (Net-Entreprises)."""
-    # Hors du try : son `except Exception` changerait le refus en 500.
-    _require_salary_certificate_access(
-        absence_id, current_user, rh_only=True, not_found_detail="Arrêt non trouvé."
-    )
-    try:
-        return commands.mark_salary_certificate_transmitted(
-            absence_id,
-            transmitted=body.transmitted_to_cpam,
-            user_id=str(current_user.id),
-        )
-    except (ValueError, LookupError) as e:
-        _handle_application_errors(e)
-    except Exception as e:
-        logger.exception("Échec de mark_salary_certificate_transmitted")
         raise HTTPException(status_code=500, detail=str(e))
 
 

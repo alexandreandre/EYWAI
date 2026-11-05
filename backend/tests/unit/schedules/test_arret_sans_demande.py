@@ -28,7 +28,7 @@ def test_un_arret_pose_au_calendrier_sans_demande_alerte():
     assert alerte["message"] == (
         "Arrêt maladie posé au calendrier sans demande d'arrêt les 15 et 16 septembre : "
         "ces journées sont retenues sans maintien de salaire ni IJSS, et l'arrêt manque "
-        "à l'attestation de salaire et à la DSN. Enregistrez l'arrêt dans Congés & "
+        "à la DSN. Enregistrez l'arrêt dans Congés & "
         "absences (« + Enregistrer un arrêt », avec son type d'arrêt), puis recalculez "
         "ce bulletin."
     )

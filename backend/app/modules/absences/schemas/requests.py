@@ -44,7 +44,7 @@ ArretType = Literal[
     "adoption",
 ]
 
-# Liste canonique du domaine (arrêts avec attestation / IJSS) : le front
+# Liste canonique du domaine (arrêts ouvrant les IJSS) : le front
 # (ARRET_PRINCIPAL_TYPES) et le script de réparation gardent la même source.
 _ARRETS_TYPES_PRINCIPAUX = IJSS_ELIGIBLE_TYPES
 
@@ -185,12 +185,6 @@ class AbsenceRequestStatusUpdate(BaseModel):
 
     status: AbsenceStatus
     subrogation_active: Optional[bool] = None
-
-
-class SalaryCertificateTransmissionUpdate(BaseModel):
-    """Marquage transmission attestation vers CPAM / Net-Entreprises."""
-
-    transmitted_to_cpam: bool = True
 
 
 class ManagerApprovalRequest(BaseModel):

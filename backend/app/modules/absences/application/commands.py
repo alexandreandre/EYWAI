@@ -22,13 +22,10 @@ from app.modules.absences.domain.enums import (
 from app.modules.absences.domain.nature_arret import incoherence_nature_type_d_arret
 from app.modules.absences.domain.rules import (
     quotite_demi_journees,
-    requires_salary_certificate,
 )
-from app.services.document_service import document_service
 from app.modules.absences.infrastructure.providers import (
     calendar_update_provider,
     evenement_familial_provider,
-    salary_certificate_provider,
 )
 from app.modules.absences.infrastructure.queries import (
     get_employee_company_id,
@@ -44,51 +41,6 @@ from app.modules.absences.application.queries import (
     get_cp_solde_restant,
     resolve_nombre_enfants_employee,
 )
-
-
-def _trace_attestation_salaire_ijss_after_generation(
-    absence_id: str,
-    certificate_id: str | None,
-    absence_type: str,
-    employee_id: str,
-    company_id: str,
-    generated_by: str | None,
-) -> None:
-    """Trace l'attestation dans generated_documents (ne lève pas)."""
-    if not certificate_id or not company_id or not employee_id:
-        return
-    try:
-        cert_r = (
-            supabase.table("salary_certificates")
-            .select("storage_path, filename")
-            .eq("id", certificate_id)
-            .maybe_single()
-            .execute()
-        )
-        row = cert_r.data if cert_r and cert_r.data else None
-        if not row:
-            logger.warning(f'⚠️ trace IJSS: certificat {certificate_id} introuvable après génération')
-            return
-        storage_path = row.get("storage_path") or ""
-        document_service.trace_existing_document(
-            company_id=company_id,
-            employee_id=employee_id,
-            document_type="attestation_salaire_ijss",
-            category="attestation_situation",
-            file_url=storage_path,
-            file_name="attestation_salaire_ijss.pdf",
-            is_eywai_template=True,
-            generation_context={
-                "absence_id": str(absence_id),
-                "absence_type": absence_type,
-                "certificate_id": str(certificate_id),
-                "source": "absence_ijss_auto",
-            },
-            generated_by=generated_by,
-        )
-    except Exception as e:
-        logger.warning(f'⚠️ trace generated_documents attestation IJSS: {e}')
-        logger.exception("Exception")
 
 
 def _hours_for_modulation_absence(employee_id: str, selected_days: list) -> float:
@@ -464,100 +416,8 @@ def update_absence_request_status(
                 historique_arrets_annee=historique or None,
                 demi_journees=data.get("demi_journees") or None,
             )
-        # Types IJSS / attestation : alignés sur IJSS_ELIGIBLE_TYPES (= arrêts avec attestation).
-        if requires_salary_certificate(absence_type) and absence_type in IJSS_ELIGIBLE_TYPES:
-            try:
-                generated_by = str(current_user_id) if current_user_id else None
-                certificate_id = salary_certificate_provider.generate_for_absence(
-                    request_id, generated_by=generated_by
-                )
-                if certificate_id:
-                    _trace_attestation_salaire_ijss_after_generation(
-                        absence_id=request_id,
-                        certificate_id=certificate_id,
-                        absence_type=absence_type,
-                        employee_id=str(data.get("employee_id") or ""),
-                        company_id=str(data.get("company_id") or ""),
-                        generated_by=generated_by,
-                    )
-            except Exception as cert_error:
-                logger.warning(f"⚠️ Erreur lors de la génération automatique de l'attestation: {cert_error}")
-                logger.exception("Exception")
 
     return data
-
-
-def generate_salary_certificate(
-    absence_id: str, generated_by: str | None = None
-) -> str:
-    """
-    Génère une attestation de salaire pour un arrêt validé.
-    Raises: LookupError (arrêt non trouvé), ValueError (non validé ou type non éligible), RuntimeError (échec génération).
-    """
-    absence = absence_repository.get_by_id(absence_id)
-    if not absence:
-        raise LookupError("Arrêt non trouvé.")
-    if absence.get("status") != "validated":
-        raise ValueError("L'arrêt doit être validé pour générer une attestation.")
-    if not requires_salary_certificate(absence.get("type", "")):
-        raise ValueError("Ce type d'arrêt ne nécessite pas d'attestation de salaire.")
-    cert_id = salary_certificate_provider.generate_for_absence(
-        absence_id, generated_by=generated_by, replace_existing=True
-    )
-    if not cert_id:
-        raise RuntimeError("Erreur lors de la génération de l'attestation")
-    try:
-        _trace_attestation_salaire_ijss_after_generation(
-            absence_id=absence_id,
-            certificate_id=cert_id,
-            absence_type=absence.get("type", ""),
-            employee_id=str(absence.get("employee_id") or ""),
-            company_id=str(absence.get("company_id") or ""),
-            generated_by=generated_by,
-        )
-    except Exception as e:
-        logger.warning(f'⚠️ trace attestation IJSS (manuelle): {e}')
-        logger.exception("Exception")
-    return cert_id
-
-
-def mark_salary_certificate_transmitted(
-    absence_id: str,
-    *,
-    transmitted: bool,
-    user_id: str | None = None,
-) -> dict:
-    """Marque ou démarque la transmission CPAM d'une attestation."""
-    absence = absence_repository.get_by_id(absence_id)
-    if not absence:
-        raise LookupError("Arrêt non trouvé.")
-    cert_resp = (
-        supabase.table("salary_certificates")
-        .select("id")
-        .eq("absence_request_id", absence_id)
-        .maybe_single()
-        .execute()
-    )
-    if not cert_resp or not cert_resp.data:
-        raise LookupError("Aucune attestation trouvée pour cet arrêt.")
-    from datetime import datetime, timezone
-
-    payload: dict[str, Any] = {
-        "transmitted_to_cpam": bool(transmitted),
-        "transmission_date": datetime.now(timezone.utc).isoformat()
-        if transmitted
-        else None,
-    }
-    supabase.table("salary_certificates").update(payload).eq(
-        "absence_request_id", absence_id
-    ).execute()
-    return {
-        "absence_id": absence_id,
-        "transmitted_to_cpam": bool(transmitted),
-        "message": "Transmission CPAM enregistrée."
-        if transmitted
-        else "Transmission CPAM annulée.",
-    }
 
 
 def create_reconciliation_absence(

@@ -22,7 +22,7 @@ AbsenceType = Literal[
 ]
 AbsenceStatus = Literal["pending", "validated", "rejected", "cancelled"]
 
-# Types d'arrêt nécessitant une attestation de salaire (règle domain).
+# Types d'arrêt qui ouvrent les IJSS et se signalent en DSN.
 SALARY_CERTIFICATE_ABSENCE_TYPES: tuple[str, ...] = (
     "arret_maladie",
     "arret_at",
@@ -31,7 +31,7 @@ SALARY_CERTIFICATE_ABSENCE_TYPES: tuple[str, ...] = (
     "arret_maladie_pro",
 )
 
-# Types éligibles attestation / maintien IJSS (alignés sur l'attestation de salaire).
+# Types éligibles au maintien et aux IJSS.
 IJSS_ELIGIBLE_TYPES: frozenset[str] = frozenset(SALARY_CERTIFICATE_ABSENCE_TYPES)
 
 

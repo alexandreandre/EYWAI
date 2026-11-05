@@ -138,7 +138,7 @@ export type EmployeeRequestableAbsenceType =
 export const EMPLOYER_REGISTERED_ABSENCE_HINT =
   'Les arrêts maladie, accidents du travail, congés maternité et paternité (délais selon la convention collective) et maladies professionnelles ne se déclarent pas ici. Contactez votre employeur ou remettez vos justificatifs (certificat médical, etc.) : c’est lui qui enregistre l’absence.';
 
-export function requiresSalaryCertificate(type: string): boolean {
+export function estArretIjss(type: string): boolean {
   return (RH_ONLY_ABSENCE_TYPES as readonly string[]).includes(type);
 }
 

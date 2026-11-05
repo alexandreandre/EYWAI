@@ -477,8 +477,8 @@ def alerte_arret_sans_demande(
     Le type d'arrêt d'un jour n'est posé que par la validation d'une demande
     d'arrêt : un jour typé « Arrêt maladie » à la main n'en a pas. Le moteur le
     retient comme un arrêt (jour ouvré, ou jour de repos qui porte des heures)
-    mais sans maintien, carence payée ni IJSS, et l'arrêt n'existe ni pour
-    l'attestation ni pour la DSN. On le dit, sans créer la demande à la place
+    mais sans maintien, carence payée ni IJSS, et l'arrêt n'existe pas pour
+    la DSN. On le dit, sans créer la demande à la place
     de la gestionnaire. Un jour couvert par une demande validée n'est pas
     concerné (une demande sans type d'arrêt relève d'un autre défaut).
     """
@@ -519,7 +519,7 @@ def alerte_arret_sans_demande(
         "message": (
             f"Arrêt maladie posé au calendrier sans demande d'arrêt {quand} : "
             f"{retenue} sans maintien de salaire ni IJSS, et l'arrêt manque à "
-            "l'attestation de salaire et à la DSN. Enregistrez l'arrêt dans Congés & "
+            "la DSN. Enregistrez l'arrêt dans Congés & "
             "absences (« + Enregistrer un arrêt », avec son type d'arrêt), puis "
             "recalculez ce bulletin."
         ),
