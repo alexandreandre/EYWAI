@@ -89,3 +89,12 @@ export function libelleCode(rubriques: RubriquePcs[], code: string): string {
   const rubrique = rubriques.find((r) => r.code === code);
   return rubrique ? `${rubrique.code} — ${rubrique.libelle}` : code;
 }
+
+/** Le changement de code noté par le serveur dans la classification de la fiche. */
+export function changementPcsDe(classification: unknown): ChangementPcs | null {
+  if (!classification || typeof classification !== 'object') return null;
+  const c = (classification as Record<string, unknown>).pcs_changement;
+  if (!c || typeof c !== 'object') return null;
+  const { ancien, date } = c as Record<string, unknown>;
+  return typeof ancien === 'string' && typeof date === 'string' ? { ancien, date } : null;
+}

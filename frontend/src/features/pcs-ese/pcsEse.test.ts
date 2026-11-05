@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  changementPcsDe,
   doitPreRemplir,
   filtrerRubriques,
   libelleCode,
@@ -63,5 +64,17 @@ describe('libelleCode', () => {
     expect(libelleCode(RUBRIQUES, '674a')).toBe('674a — Ouvriers de production non qualifiés : chimie, pharmacie, plasturgie');
     expect(libelleCode(RUBRIQUES, '999a')).toBe('999a');
     expect(libelleCode(RUBRIQUES, '')).toBe('');
+  });
+});
+
+describe('changementPcsDe', () => {
+  it('lit le changement rangé dans la classification', () => {
+    expect(changementPcsDe({ pcs: '674a', pcs_changement: { ancien: '9999', date: '2026-11-06' } })).toEqual({
+      ancien: '9999',
+      date: '2026-11-06',
+    });
+    expect(changementPcsDe({ pcs: '674a' })).toBeNull();
+    expect(changementPcsDe(null)).toBeNull();
+    expect(changementPcsDe({ pcs_changement: 'n’importe quoi' })).toBeNull();
   });
 });
