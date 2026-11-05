@@ -1468,7 +1468,7 @@ def _generate_attestations(
         company_id, request.period, request.employee_ids, request.format
     )
     period_formatted = request.period.replace("-", "_")
-    filename = _horodater(f"attestations_{period_formatted}.{request.format}")
+    filename = _horodater(f"recapitulatif_salaires_{period_formatted}.{request.format}")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
         BUCKET, storage_path, file_content, _content_type(request.format)

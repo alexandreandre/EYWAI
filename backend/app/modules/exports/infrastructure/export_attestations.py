@@ -1,4 +1,8 @@
-# Export « Attestations & annexes » — attestations employeur et salaire.
+# Export « Récapitulatif des salaires du mois » (clé interne : attestations_annexes).
+#
+# Ce tableau n'est pas une attestation (05/11/2026) : les lettres remises au
+# salarié se génèrent depuis sa fiche > Documents, ou depuis la carte
+# « Attestation pour un salarié » d'Exports > Déclarations.
 from __future__ import annotations
 
 import io
@@ -10,14 +14,12 @@ from app.core.database import supabase
 from app.shared.utils.export import format_period, generate_csv
 
 HEADERS = [
-    "Employé",
     "Matricule",
-    "Type attestation",
+    "Employé",
     "Période",
     "Brut",
     "Net imposable",
     "Net à payer",
-    "Statut",
 ]
 
 
@@ -32,7 +34,7 @@ def _fetch_attestation_rows(
         .select(
             """
             id, employee_id, payslip_data,
-            employees!inner(id, first_name, last_name, company_id)
+            employees!inner(id, first_name, last_name, matricule, company_id)
             """
         )
         .eq("company_id", company_id)
@@ -53,14 +55,12 @@ def _fetch_attestation_rows(
         net_imp = float(synthese.get("net_imposable", 0) or 0) if isinstance(synthese, dict) else 0
         rows.append(
             {
+                "Matricule": str(emp.get("matricule") or ""),
                 "Employé": name,
-                "Matricule": str(emp.get("id", ""))[:8],
-                "Type attestation": "Attestation de salaire",
                 "Période": format_period(period),
                 "Brut": float(pd.get("salaire_brut", 0) or 0),
                 "Net imposable": net_imp,
                 "Net à payer": float(pd.get("net_a_payer", 0) or 0),
-                "Statut": "Généré",
             }
         )
     return rows
@@ -74,7 +74,7 @@ def preview_attestations(
     rows = _fetch_attestation_rows(company_id, period, employee_ids)
     warnings: List[str] = []
     if not rows:
-        warnings.append("Aucun bulletin trouvé pour générer les attestations.")
+        warnings.append("Aucun bulletin pour ce mois.")
     return {
         "employees_count": len(rows),
         "totals": {
@@ -99,7 +99,7 @@ def generate_attestations_export(
     if file_format == "xlsx":
         wb = Workbook()
         ws = wb.active
-        ws.title = "Attestations"
+        ws.title = "Récapitulatif"
         for col_idx, h in enumerate(HEADERS, start=1):
             ws.cell(row=1, column=col_idx, value=h)
         for row_idx, row in enumerate(rows, start=2):
