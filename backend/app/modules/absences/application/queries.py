@@ -588,13 +588,19 @@ def get_absence_balances_for_payslip(
     month: int,
     date_fin_prises: date | None = None,
     date_de_sortie: date | None = None,
+    sans_la_reprise: bool = False,
 ) -> dict[str, object] | None:
     """Soldes affichés sur le bulletin : acquis à la fin du mois de paie, congés
     pris jusqu'à la fin de la fenêtre des variables (`date_fin_prises`).
 
     `date_de_sortie` : le dernier jour d'un départ connu de l'appelant (dossier
     de départ calculé avant que la fiche ne le porte) ; à défaut, la fin du
-    contrat rangé qui couvre le mois, sinon celui de la fiche."""
+    contrat rangé qui couvre le mois, sinon celui de la fiche.
+
+    `sans_la_reprise` : les droits recomptés depuis l'entrée, sans le solde
+    repris ni la coupure du planning à sa date — pour un départ payé par
+    l'ancien logiciel, dont le solde repris est celui d'après le solde de tout
+    compte (dossier de départ seulement)."""
     hire_date, fin_du_contrat_range = _contrat_du_mois(employee_id, year, month)
     if not hire_date:
         return None
@@ -624,15 +630,20 @@ def get_absence_balances_for_payslip(
     # 50 jours de solde pour 25 acquis et 0 pris, sur une reprise datée du
     # 31/08/2026. On ne produit donc aucun compteur : une case vide dit la
     # vérité, un solde faux serait lu comme un droit par le salarié.
-    if _reprise_posterieure_au_bulletin(employee_id, ref_date):
+    if not sans_la_reprise and _reprise_posterieure_au_bulletin(employee_id, ref_date):
         return None
 
-    validated_list = conges_jusqu_a(
-        absence_repository.list_validated_for_employees([employee_id]), date_fin_prises
+    demandes = (
+        absence_repository.list_validated_for_employees([employee_id], avec_coupure_de_reprise=False)
+        if sans_la_reprise
+        else absence_repository.list_validated_for_employees([employee_id])
     )
+    validated_list = conges_jusqu_a(demandes, date_fin_prises)
     repos_credits = get_repos_credits_by_employee_year([employee_id], ref_date.year)
     repos_acquis = repos_credits.get(employee_id, 0.0)
     policy, adjustment, rtt_base, cp_seniority = _leave_context(employee_id, ref_date.year)
+    if sans_la_reprise:
+        adjustment = EmployeeLeaveAdjustment.empty()
     extras = _cp_balance_extras(employee_id, ref_date, None, policy, cp_seniority)
     cp_lines = compute_cp_balances_for_bulletin(
         hire_date,

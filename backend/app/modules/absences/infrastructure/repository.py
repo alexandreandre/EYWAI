@@ -28,7 +28,10 @@ def oublier_dates_de_reprise() -> None:
 
 
 def _with_planning_conges_payes(
-    validated: List[Dict[str, Any]], employee_ids: List[str]
+    validated: List[Dict[str, Any]],
+    employee_ids: List[str],
+    *,
+    avec_coupure_de_reprise: bool = True,
 ) -> List[Dict[str, Any]]:
     """
     Complète les demandes validées par les congés payés saisis au planning.
@@ -47,11 +50,15 @@ def _with_planning_conges_payes(
         )
         if not planning:
             return validated
-        cutoffs = _cutoff_cache.get_or_load(
-            cle,
-            lambda ids: planning_cp_repository.get_cp_opening_reference_dates(
-                list(ids)
-            ),
+        cutoffs = (
+            _cutoff_cache.get_or_load(
+                cle,
+                lambda ids: planning_cp_repository.get_cp_opening_reference_dates(
+                    list(ids)
+                ),
+            )
+            if avec_coupure_de_reprise
+            else {}
         )
         return merge_planning_cp_days(validated, planning, cutoffs)
     except Exception:
@@ -211,8 +218,11 @@ class SupabaseAbsenceRepository(IAbsenceRepository):
         return updated
 
     def list_validated_for_employees(
-        self, employee_ids: List[str]
+        self, employee_ids: List[str], *, avec_coupure_de_reprise: bool = True
     ) -> List[Dict[str, Any]]:
+        """Demandes validées et congés du planning. `avec_coupure_de_reprise` :
+        les congés du planning datés au plus tard de la reprise des soldes sont
+        écartés (le solde repris les comprend) ; sans elle, tout le planning."""
         if not employee_ids:
             return []
         result = (
@@ -233,7 +243,9 @@ class SupabaseAbsenceRepository(IAbsenceRepository):
         validated = result.data or []
         for row in validated:
             row.setdefault("status", "validated")
-        return _with_planning_conges_payes(validated, employee_ids)
+        return _with_planning_conges_payes(
+            validated, employee_ids, avec_coupure_de_reprise=avec_coupure_de_reprise
+        )
 
     def list_by_employee_id(self, employee_id: str) -> List[Dict[str, Any]]:
         result = (

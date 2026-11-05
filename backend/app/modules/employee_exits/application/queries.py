@@ -77,6 +77,9 @@ def list_exit_eligible_employees(
                 "last_name": employee.get("last_name") or "",
                 "job_title": employee.get("job_title"),
                 "contrat_absent": not has_contract,
+                # Le formulaire propose « Fin de CDD » à la date de fin d'un CDD.
+                "contract_type": employee.get("contract_type"),
+                "contract_end_date": employee.get("contract_end_date"),
             }
         )
     return eligible

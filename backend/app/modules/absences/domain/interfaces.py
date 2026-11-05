@@ -37,9 +37,12 @@ class IAbsenceRepository(ABC):
 
     @abstractmethod
     def list_validated_for_employees(
-        self, employee_ids: List[str]
+        self, employee_ids: List[str], *, avec_coupure_de_reprise: bool = True
     ) -> List[Dict[str, Any]]:
-        """Liste les demandes validées (type, selected_days, jours_payes) pour calcul soldes."""
+        """Liste les demandes validées (type, selected_days, jours_payes) pour calcul soldes.
+
+        `avec_coupure_de_reprise=False` : le planning entier, sans écarter les
+        congés absorbés par une reprise de soldes."""
         ...
 
     @abstractmethod
