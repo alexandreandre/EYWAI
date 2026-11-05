@@ -197,16 +197,21 @@ def _lire_details_bulletins(
 ) -> Dict[str, Dict[Mois, BulletinDuMois]]:
     """Brut, lignes du brut et origine de chaque bulletin des années demandées, par salarié.
 
-    Seuls `salaire_brut` et `calcul_du_brut` sont lus (chemins JSON), pas tout le bulletin.
-    Paginé comme `_lire_bulletins`. Deux bulletins le même mois (deux contrats) s'ajoutent."""
+    Seuls `salaire_brut`, `calcul_du_brut` et `details_absences` sont lus (chemins JSON), pas
+    tout le bulletin. Le moteur porte ses retenues d'absence dans `details_absences` ; un
+    bulletin repris les a dans `calcul_du_brut` et `details_absences` vide (la lecture de
+    `solde_de_tout_compte/common/bulletin_de_sortie.lignes_du_bulletin`) : les deux se lisent
+    ensemble. Sans cela, un arrêt au forfait jours de MAJI (avril 2026) retirait le maintien
+    de salaire sans reconstituer l'absence. Paginé comme `_lire_bulletins`. Deux bulletins le
+    même mois (deux contrats) s'ajoutent."""
     resultat: Dict[str, Dict[Mois, BulletinDuMois]] = {}
     decalage = 0
     while True:
         lot = (
             supabase.table("payslips")
             .select(
-                "employee_id, year, month, origine, "
-                "brut:payslip_data->salaire_brut, lignes:payslip_data->calcul_du_brut"
+                "employee_id, year, month, origine, brut:payslip_data->salaire_brut, "
+                "lignes:payslip_data->calcul_du_brut, absences:payslip_data->details_absences"
             )
             .eq("company_id", company_id)
             .in_("year", annees)
@@ -221,8 +226,9 @@ def _lire_details_bulletins(
                 mois.brut = round(mois.brut + float(ligne.get("brut") or 0), 2)
             except (TypeError, ValueError):
                 pass
-            if isinstance(ligne.get("lignes"), list):
-                mois.lignes = mois.lignes + list(ligne["lignes"])
+            for bloc in ("lignes", "absences"):
+                if isinstance(ligne.get(bloc), list):
+                    mois.lignes = mois.lignes + list(ligne[bloc])
             mois.importe = mois.importe or ligne.get("origine") == "importe"
         if len(lot) < TAILLE_PAGE:
             return resultat

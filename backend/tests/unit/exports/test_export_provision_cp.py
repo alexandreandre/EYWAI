@@ -337,3 +337,56 @@ class TestCablage:
 
         assert callable(providers.preview_provision_cp)
         assert callable(providers.generate_provision_cp_export)
+
+
+class TestLectureDesBulletins:
+    """Le moteur range ses retenues d'absence dans `details_absences`, un bulletin repris dans
+    `calcul_du_brut` : la provision lit les deux (MAJI, forfait jours, avril 2026)."""
+
+    class _Table:
+        def __init__(self, lignes):
+            self._lignes = lignes
+
+        def select(self, *a, **k):
+            return self
+
+        def eq(self, *a, **k):
+            return self
+
+        def in_(self, *a, **k):
+            return self
+
+        def order(self, *a, **k):
+            return self
+
+        def range(self, *a, **k):
+            return self
+
+        def execute(self):
+            from unittest.mock import MagicMock
+
+            lignes, self._lignes = self._lignes, []
+            return MagicMock(data=lignes)
+
+    def test_un_arret_au_forfait_jours_est_reconstitue(self):
+        from app.modules.exports.domain.provision_cp import ajustement_dixieme
+
+        bulletin = {
+            "employee_id": "e1", "year": 2026, "month": 4, "origine": "calcule", "brut": 15603.73,
+            "lignes": [{"libelle": "Salaire de base (forfait jour)", "gain": 6666.66},
+                       {"libelle": "Maintien de salaire", "gain": 2121.21}],
+            "absences": [{"libelle": f"Absence maladie du 0{j}/04/26", "perte": 303.03} for j in range(1, 8)],
+        }
+        with patch.object(module.supabase, "table", return_value=self._Table([bulletin])):
+            lus = module._lire_details_bulletins("c", [2026])
+        mois = lus["e1"][(2026, 4)]
+        assert mois.brut == 15603.73 and not mois.importe
+        # 80 % des 2 121,21 € d'absence reconstitués, le maintien de 2 121,21 € retiré.
+        assert ajustement_dixieme(mois.lignes) == round(0.8 * 7 * 303.03 - 2121.21, 2)
+
+    def test_un_bulletin_repris_de_quadra(self):
+        bulletin = {"employee_id": "e1", "year": 2026, "month": 9, "origine": "importe", "brut": 3067.13,
+                    "lignes": [{"libelle": "Absence maladie 240926-280926", "perte": 484.28}], "absences": []}
+        with patch.object(module.supabase, "table", return_value=self._Table([bulletin])):
+            mois = module._lire_details_bulletins("c", [2026])["e1"][(2026, 9)]
+        assert mois.importe and len(mois.lignes) == 1
