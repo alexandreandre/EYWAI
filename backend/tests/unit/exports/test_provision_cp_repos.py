@@ -166,6 +166,19 @@ def test_le_solde_de_repos_par_salarie_a_la_fin_du_mois():
     assert repos.get("e3", (0.0, "")) == (0.0, "")
 
 
+def test_le_solde_de_recuperation_entre_dans_le_repos_provisionne():
+    """Heures de récupération (repos compensateur de remplacement, spec
+    2026-11-05) : un repos non pris reste dû, comme la contrepartie
+    obligatoire. Le solde du compteur s'ajoute aux heures acquises."""
+    with patch.object(module, "_lire_credits_repos", return_value={"e1": 7.0}), \
+         patch.object(module.absence_repository, "list_validated_for_employees", return_value=[]), \
+         patch.object(module, "_hours_per_rest_day", return_value=7.0), \
+         patch.object(module, "_soldes_recuperation", return_value={"e1": 3.5, "e2": 7.0}):
+        repos = module._lire_repos("c", date(2026, 9, 30), ["e1", "e2"])
+    assert repos["e1"] == (1.5, "")
+    assert repos["e2"] == (1.0, "")
+
+
 # --- l'état ------------------------------------------------------------------------------------
 
 SALARIE = {"id": "e1", "matricule": "M", "first_name": "A", "last_name": "B", "hire_date": "2020-01-01",
@@ -177,6 +190,7 @@ def sans_base(monkeypatch):
     monkeypatch.setattr(module, "_lire_cumuls", lambda *a, **k: {})
     monkeypatch.setattr(module, "_lire_details_bulletins", lambda *a, **k: {})
     monkeypatch.setattr(module, "_mois_debut_periode", lambda company_id: 6)
+    monkeypatch.setattr(module, "_soldes_recuperation", lambda *a, **k: {})
 
 
 def _etat(soldes_cp, repos):

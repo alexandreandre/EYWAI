@@ -421,6 +421,7 @@ def _lire_repos(
         if demande.get("type") == "repos_compensateur":
             par_salarie.setdefault(demande.get("employee_id"), []).append(demande)
     heures_par_jour = _hours_per_rest_day(company_id)
+    recuperation = _soldes_recuperation(company_id, employee_ids, ref_date.year, ref_date.month)
     resultat: Dict[str, Tuple[float, str]] = {}
     for eid in employee_ids:
         prises = heures_repos_prises(
@@ -430,10 +431,32 @@ def _lire_repos(
             period_start=date(ref_date.year, 1, 1),
             period_end=date(ref_date.year, 12, 31),
         )
-        acquises = credits.get(eid, 0.0)
+        # Heures de récupération (repos compensateur de remplacement) : le solde
+        # du compteur à la fin du mois, toujours dû tant qu'il n'est ni pris ni
+        # payé (spec 2026-11-05-heures-de-recuperation).
+        acquises = credits.get(eid, 0.0) + recuperation.get(eid, 0.0)
         if acquises or prises:
             resultat[eid] = repos_en_jours(acquises, prises, heures_par_jour)
     return resultat
+
+
+def _soldes_recuperation(
+    company_id: str, employee_ids: List[str], annee: int, mois: int
+) -> Dict[str, float]:
+    """Solde du compteur de récupération de chaque salarié à la fin du mois ;
+    vide quand la société paie ses heures sup."""
+    from app.modules.modulation.domain.hour_account_rules import solde_au
+    from app.modules.modulation.infrastructure import repository as modulation_repo
+
+    reglage = modulation_repo.get_modulation_settings(company_id)
+    if not reglage.hour_account_enabled:
+        return {}
+    soldes: Dict[str, float] = {}
+    for eid in employee_ids:
+        solde = solde_au(modulation_repo.list_movements_for_employee(eid), annee, mois)
+        if solde > 0:
+            soldes[eid] = solde
+    return soldes
 
 
 def collecter_lignes(
