@@ -288,6 +288,9 @@ def parametres_societe_pour_empreinte(
         "taux_fnal": societe.get("taux_fnal"),
         "paie_jour_de_fin": societe.get("paie_jour_de_fin"),
         "paie_occurrence": societe.get("paie_occurrence"),
+        # Plus lu par le calcul depuis le 04/11/2026 (un panier non soumis est
+        # toujours un frais) ; la clé reste : la retirer périmerait tous les
+        # bulletins déjà générés.
         "paniers_non_soumis_dans_mns": reglages.get("paniers_non_soumis_dans_mns"),
         "jour_solidarite": reglages.get("jour_solidarite"),
         "date_paiement": reglages.get("date_paiement"),

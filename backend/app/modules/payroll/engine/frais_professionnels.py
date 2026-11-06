@@ -16,9 +16,28 @@ from typing import Any, Mapping
 #: Marque d'une ligne non soumise qui rembourse des frais professionnels.
 CLE_FRAIS_PROFESSIONNELS = "frais_professionnels"
 
-#: Réglage de société : garder les notes de frais du module dans le montant net
-#: social, comme Quadra le fait chez Colorplast (spécificité S27).
+#: Réglage de société : garder ses frais dans le montant net social, comme
+#: l'ancien logiciel le fait dans cette société (spécificité S27) : les notes de
+#: frais du module, et ses saisies de frais classées comme avant le 04/11/2026
+#: (`est_une_saisie_de_frais`). Ne se retire qu'avec l'accord d'Alexandre.
 REGLAGE_NOTES_DANS_MNS = "notes_de_frais_dans_mns"
+
+#: Libellés d'une saisie non soumise qui rembourse des frais (repas, déplacement,
+#: notes de frais).
+_LIBELLES_FRAIS = (
+    "panier",
+    "indemnité forfaitaire",
+    "indemnite forfaitaire",
+    "déplacement",
+    "deplacement",
+    "rbst note de frais",
+    "note de frais",
+)
+#: Notes de frais au pluriel, trajet domicile-travail et indemnités
+#: kilométriques : des frais aussi (BOSS, Montant net social, II.A.1 : « trajet
+#: domicile-travail »), restés dans le MNS jusqu'au 04/11/2026 (audit, verdict
+#: D 1c).
+_LIBELLES_FRAIS_AJOUTES = ("notes de frais", "transport", "kilom", " kms")
 
 
 def notes_de_frais_dans_le_mns(company_data: Mapping[str, Any] | None) -> bool:
@@ -28,6 +47,32 @@ def notes_de_frais_dans_le_mns(company_data: Mapping[str, Any] | None) -> bool:
 
 def est_un_frais_professionnel(ligne: Mapping[str, Any]) -> bool:
     return bool(ligne.get(CLE_FRAIS_PROFESSIONNELS))
+
+
+def est_une_saisie_de_frais(row: Mapping[str, Any], *, frais_dans_mns: bool = False) -> bool:
+    """Une saisie du mois qui rembourse des frais professionnels : non soumise,
+    positive, au libellé de frais (panier, note de frais, déplacement, trajet).
+
+    Versée au net à payer, jamais dans le montant net social (BOSS, II.A.1 et
+    question 26) : paniers non soumis compris, quelle que soit la convention
+    (audit du 03/11/2026, verdict D 1c ; le réglage de société qui les y
+    remettait n'est plus lu).
+
+    `frais_dans_mns` : la société garde ses frais dans le MNS (réglage
+    `notes_de_frais_dans_mns`, S27). Son classement d'avant ne bouge pas : ses
+    « Remboursement de notes de frais » et ses indemnités de trajet restent des
+    éléments du MNS, comme dans l'ancien logiciel.
+    """
+    if float(row.get("amount") or 0) <= 0:
+        return False
+    if row.get("is_socially_taxed", True):
+        return False
+    libelle = " ".join(str(row.get(cle) or "") for cle in ("name", "description")).lower()
+    if frais_dans_mns:
+        if "remboursement de note" in libelle:
+            return False
+        return any(terme in libelle for terme in _LIBELLES_FRAIS)
+    return any(terme in libelle for terme in _LIBELLES_FRAIS + _LIBELLES_FRAIS_AJOUTES)
 
 
 def libelle_de_note_de_frais(type_de_frais: Any, jour: Any) -> str:

@@ -310,7 +310,7 @@ def process_payslip_generation_forfait(
             if _is_heures_sup_conjoncturelle_input(row):
                 continue
             if _is_cantine_input(row):
-                # Retenue repas : réduit MNS + net à payer, hors brut/imposable.
+                # Retenue repas : réduit le net à payer, jamais le MNS, hors brut/imposable.
                 saisies_data["primes"].append({
                     "prime_id": row["name"].replace(" ", "_"),
                     "libelle": row["name"],
@@ -323,8 +323,11 @@ def process_payslip_generation_forfait(
                 net_a_payer_only_correction_total += -float(row["amount"])
                 reports_nap_negatif.extend(reports_du_mois([row]))
                 continue
-            if _is_frais_pro_non_soumis_input(row):
-                # Ligne à son libellé, au net, hors montant net social (D1).
+            if _is_frais_pro_non_soumis_input(
+                row, frais_dans_mns=notes_de_frais_dans_le_mns(company_data)
+            ):
+                # Ligne à son libellé, au net, hors montant net social (D1) ;
+                # paniers et trajet compris (audit du 03/11/2026, verdict D 1c).
                 saisies_data["primes"].append(entree_de_frais_professionnels(row))
                 continue
             if _is_ijss_override_input(row):
