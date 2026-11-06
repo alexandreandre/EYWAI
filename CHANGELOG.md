@@ -5,13 +5,7 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
-## paie-2026-11-05.14 — 5 novembre 2026
-
-### Les congés payés utilisent la rémunération de leur période d'acquisition
-- Les congés pris, les indemnités de départ et la provision partagent le calcul légal du dixième, comparé au maintien de salaire.
-- Les absences assimilées sont reconstituées et les primes exclues retirées, en distinguant les jours ouvrés des jours ouvrables.
-- Une rémunération manquante ou une régularisation ambiguë est signalée ; les cumuls repris de l'ancien logiciel sont conservés.
-
+## paie-2026-11-06.1 — 6 novembre 2026
 
 ### Le bulletin ne porte plus que ce qu'il doit porter
 - « Heures compensées entre semaines (option société) » et « … plus favorable que la règle du 1/10ème » ne s'impriment plus : ces deux phrases restent à l'écran, dans « D'où viennent ces lignes ».
@@ -34,6 +28,14 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ### Provision des congés
 - « Mois retenus » s'écrit « 9 mois sur 12 » : Excel n'en fait plus une date.
+## paie-2026-11-05.14 — 5 novembre 2026
+
+### Les congés payés utilisent la rémunération de leur période d'acquisition
+- Les congés pris, les indemnités de départ et la provision partagent le calcul légal du dixième, comparé au maintien de salaire.
+- Les absences assimilées sont reconstituées et les primes exclues retirées, en distinguant les jours ouvrés des jours ouvrables.
+- Une rémunération manquante ou une régularisation ambiguë est signalée ; les cumuls repris de l'ancien logiciel sont conservés.
+
+
 ## paie-2026-11-05.13 — 5 novembre 2026
 
 ### Les documents de départ n'inventent plus les heures d'un bulletin incomplet
