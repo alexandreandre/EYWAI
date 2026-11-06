@@ -535,6 +535,7 @@ def _iccp_legale_par_periode(
     taux_horaire_base: float | None,
     majoration_hs25: float | None,
     valeur_jour: float | None = None,
+    lignes_brut: List[Dict[str, Any]] | None = None,
 ) -> Any:
     """Règle légale : par période de référence, sur les jours restants, dixième
     contre maintien (engine/iccp_fin_contrat). Le run a posé les compteurs et la
@@ -550,6 +551,14 @@ def _iccp_legale_par_periode(
         valeur_jour = valeur_jour_maintien(
             taux_horaire_base, contexte.duree_hebdo_contrat, float(majoration_hs25 or 0.0)
         )
+    from app.shared.domain.dixieme_conges import calculer_base_dixieme
+    from app.modules.payroll.infrastructure.reference_dixieme import lignes_pour_dixieme
+
+    correction = calculer_base_dixieme(brut_du_mois, lignes_pour_dixieme({"calcul_du_brut": lignes_brut or []}))
+    brut_du_mois = correction.base if correction.base is not None else brut_du_mois
+    for message in correction.alertes:
+        if isinstance(getattr(contexte, "alertes_baremes", None), list):
+            contexte.alertes_baremes.append({"code": "dixieme_sortie_a_verifier", "message": message})
     periodes: List[PeriodeConges] = []
     precedente = periodes_cfg.get("periode_precedente")
     if isinstance(precedente, dict):
@@ -566,7 +575,7 @@ def _iccp_legale_par_periode(
         periodes.append(
             PeriodeConges(
                 libelle=str(en_cours.get("libelle") or "période en cours"),
-                brut=round(float(en_cours.get("brut_avant_mois") or 0.0) + brut_du_mois, 2),
+                brut=None if en_cours.get("brut_avant_mois") is None else round(float(en_cours["brut_avant_mois"]) + brut_du_mois, 2),
                 droits=float(en_cours.get("droits") or 0.0),
                 restants=float(en_cours.get("restants") or 0.0),
             )
@@ -646,6 +655,7 @@ def _calculer_iccp_depart(
     taux_horaire_base: float | None = None,
     majoration_hs25: float | None = None,
     valeur_jour: float | None = None,
+    lignes_brut: List[Dict[str, Any]] | None = None,
 ) -> tuple[bool, Dict[str, Any] | None]:
     """Départ autre qu'une fin de CDD ou de mission (démission, licenciement,
     rupture, retraite, fin de période d'essai) : la même règle légale par
@@ -663,7 +673,7 @@ def _calculer_iccp_depart(
     # quelle que soit la cause de la rupture (C. trav. L3141-28).
     taux = lire_parametres_conges(contexte.baremes)["taux_dixieme"]
     resultat = _iccp_legale_par_periode(
-        contexte, brut_du_mois, taux, taux_horaire_base, majoration_hs25, valeur_jour
+        contexte, brut_du_mois, taux, taux_horaire_base, majoration_hs25, valeur_jour, lignes_brut
     )
     if resultat is None:
         return False, None
@@ -734,7 +744,7 @@ def _calculer_iccp_cdd(
     )
     brut_du_mois = salaire_brut_hors_precarite + max(montant_precarite, 0.0)
     resultat = _iccp_legale_par_periode(
-        contexte, brut_du_mois, taux, taux_horaire_base, majoration_hs25, valeur_jour
+        contexte, brut_du_mois, taux, taux_horaire_base, majoration_hs25, valeur_jour, lignes_brut
     )
     quantite_affichee, taux_affiche = None, taux
     if resultat is not None:
@@ -744,7 +754,18 @@ def _calculer_iccp_cdd(
     else:
         # Repli sans compteurs (bac à sable sans base, tests) : le dixième de
         # toute la rémunération du contrat, précarité comprise.
-        base = float(cumuls.get("brut_total", 0.0)) + brut_du_mois
+        from app.shared.domain.dixieme_conges import calculer_base_dixieme
+        from app.modules.payroll.infrastructure.reference_dixieme import lignes_pour_dixieme
+
+        reference = (contexte.cumuls or {}).get("reference_dixieme_conges")
+        if isinstance(reference, dict):
+            base_avant = (reference.get("contrat") or {}).get("base")
+            if base_avant is None:
+                raise ValueError("Rémunération du contrat inconnue : indemnité de congés non calculable sans compteurs ni bulletins de référence complets.")
+        else:
+            base_avant = float(cumuls.get("brut_total", 0.0))
+        mois = calculer_base_dixieme(brut_du_mois, lignes_pour_dixieme({"calcul_du_brut": lignes_brut or []}))
+        base = float(base_avant) + (mois.base or 0.0)
         montant = round(base * taux, 2)
         contexte.detail_iccp_fin_contrat = {
             "methode": "dixieme_global",
@@ -2447,6 +2468,7 @@ def calculer_salaire_brut(
         date_fin_periode,
         taux_horaire_base=taux_horaire_de_base,
         majoration_hs25=majoration_hs25,
+        lignes_brut=lignes_composants_brut,
     )
     if ligne_iccp_depart:
         lignes_composants_brut.append(ligne_iccp_depart)

@@ -96,16 +96,19 @@ def test_le_repli_est_borne_par_l_entree_et_la_sortie(_, __, ___, mock_ref):
 @patch.object(module, "_cumuls_du_mois_precedent", return_value=None)
 @patch("app.modules.absences.application.queries.get_absence_balances_for_payslip", return_value=COMPTEURS)
 @patch("app.modules.payroll.documents.payslip_run_heures._brut_de_la_periode_precedente", return_value=None)
-@patch.object(module, "bruts_du_contrat", return_value=(6272.73, 3, []))
+@patch("app.modules.payroll.infrastructure.reference_dixieme.base_de_reference")
 def test_sans_cumuls_le_brut_avant_le_mois_est_la_somme_des_bulletins_de_la_periode(mock_bruts, *_):
+    from app.shared.domain.dixieme_conges import BaseDixieme
+    mock_bruts.return_value = BaseDixieme(6272.73)
     cfg = _conges_par_periode_a_la_sortie(
         "emp-1", date(2026, 9, 30), MagicMock(), entree=date(2026, 6, 29), salaire=3000.0
     )
 
     assert cfg["periode_en_cours"]["brut_avant_mois"] == 6272.73
     args = mock_bruts.call_args
-    assert args.args[1:3] == (date(2026, 6, 29), date(2026, 8, 31))
-    assert args.kwargs["estimer_le_dernier_mois"] is False
+    assert args.args[2:4] == (date(2026, 6, 1), date(2026, 8, 31))
+    assert args.kwargs["entree"] == date(2026, 6, 29)
+    assert args.kwargs["lire_cumul"] is False
 
 
 @patch.object(module, "calculer_base_reference_dixieme")

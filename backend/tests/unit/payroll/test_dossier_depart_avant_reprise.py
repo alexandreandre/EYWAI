@@ -115,6 +115,7 @@ def test_sans_la_reprise_les_compteurs_partent_d_un_ajustement_vide_et_du_planni
 
 
 def test_la_phrase_de_l_ancien_logiciel_reste_quand_la_base_se_lit_sur_les_bulletins():
+    from app.shared.domain.dixieme_conges import BaseDixieme
     with (
         patch(
             "app.modules.absences.infrastructure.planning_cp_repository.get_cp_opening_reference_dates",
@@ -123,14 +124,15 @@ def test_la_phrase_de_l_ancien_logiciel_reste_quand_la_base_se_lit_sur_les_bulle
         patch("app.modules.absences.application.queries.get_absence_balances_for_payslip", return_value=COMPTEURS),
         patch.object(module, "_cumuls_du_mois_precedent", return_value=None),
         patch("app.modules.payroll.documents.payslip_run_heures._brut_de_la_periode_precedente", return_value=None),
-        patch.object(module, "bruts_du_contrat", return_value=(6200.0, 2, ["Bulletin 06/2026 absent — salaire du contrat utilisé."])),
+        patch("app.modules.payroll.infrastructure.reference_dixieme.base_de_reference", return_value=BaseDixieme(None, alertes=("Bulletin 06/2026 absent : rémunération du dixième inconnue.",))),
     ):
         cfg = module._conges_par_periode_a_la_sortie(
             EMPLOYE, date(2026, 9, 30), MagicMock(), entree=date(2026, 6, 29), salaire=3000.0
         )
 
     assert any("ancien logiciel" in a for a in cfg["alertes"])
-    assert "Bulletin 06/2026 absent — salaire du contrat utilisé." in cfg["alertes"]
+    assert "Bulletin 06/2026 absent : rémunération du dixième inconnue." in cfg["alertes"]
+    assert cfg["periode_en_cours"]["brut_avant_mois"] is None
 
 
 def test_la_date_de_reprise_est_celle_des_compteurs_toutes_annees_confondues():

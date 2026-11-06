@@ -1,5 +1,6 @@
 """Tests de l'export provision congés payés (infrastructure) : la règle légale du 05/11/2026."""
 
+from datetime import date
 from unittest.mock import patch
 
 import pytest
@@ -102,14 +103,15 @@ class TestCollecterLignes:
             lignes, _ = module.collecter_lignes("company-1", "2026-07")
 
         barumet = lignes[0]
-        # N-1 (juin 2025 - mai 2026) : bulletins de janvier à mai, l'arrêt de mars à 80 %.
-        assert barumet.base_n1 == round(5 * 2640.86 + 400.0, 2)
+        # N-1 : les mois de juin à décembre 2025 manquent. Une somme partielle
+        # ne prouve pas la rémunération de la période entière.
+        assert barumet.base_n1 is None
         assert barumet.reconstitution == 400.0
         # N (juin - juillet 2026) : deux bulletins.
         assert barumet.base_n == round(2 * 2640.86, 2)
-        dixieme_n1 = round(barumet.base_n1 * 0.10 * 28.0 / 25.0, 2)
         maintien_n1 = round(28.0 * barumet.valeur_jour, 2)
-        assert barumet.provision_n1 == max(dixieme_n1, maintien_n1)
+        assert barumet.provision_n1 == maintien_n1
+        assert "rémunération de la période N-1 inconnue" in barumet.anomalie
         dixieme_n = round(barumet.base_n * 0.10, 2)
         maintien_n = round(4.16 * barumet.valeur_jour, 2)
         assert barumet.provision_n == max(dixieme_n, maintien_n)
@@ -199,6 +201,21 @@ class TestCollecterLignes:
 
 
 class TestBasesDuDixieme:
+    def test_deux_contrats_du_mois_ne_partagent_pas_leurs_retenues_annexes(self):
+        b = BulletinDuMois(2500.0, [])
+        b.bulletins = [
+            {"annee": 2026, "mois": 9, "brut": 1000.0, "lignes": [
+                {"libelle": "Absence maladie", "perte": 1000.0},
+                {"code": "brut:reduction_hs_absence", "perte": 100.0},
+            ]},
+            {"annee": 2026, "mois": 9, "brut": 1500.0, "lignes": [
+                {"libelle": "Absence non rémunérée", "perte": 500.0},
+                {"code": "brut:reduction_hs_absence", "perte": 150.0},
+            ]},
+        ]
+        periodes = ((date(2026, 8, 1), date(2026, 8, 31)), (date(2026, 9, 1), date(2026, 9, 30)))
+        assert module.bases_du_dixieme({(2026, 9): b}, None, None, periodes)[1] == 3380.0
+
     PERIODES = ((module.date(2025, 6, 1), module.date(2026, 5, 31)), (module.date(2026, 6, 1), module.date(2026, 9, 30)))
 
     def test_le_cumul_de_la_periode_fait_foi(self):
@@ -216,7 +233,7 @@ class TestBasesDuDixieme:
     def test_un_cumul_d_une_autre_periode_ne_compte_pas(self):
         bulletins = {(2026, 9): BulletinDuMois(3000.0, [])}
         cumuls_n = {"brut_reference_n_1": 99999.0, "brut_reference_period_start": "2025-06-01"}
-        assert module.bases_du_dixieme(bulletins, None, cumuls_n, self.PERIODES)[1] == 3000.0
+        assert module.bases_du_dixieme(bulletins, None, cumuls_n, self.PERIODES)[1] is None
 
     def test_sans_cumul_ni_bulletin_la_base_est_inconnue(self):
         assert module.bases_du_dixieme({}, None, None, self.PERIODES) == (None, None, 0.0)
@@ -227,7 +244,7 @@ class TestBasesDuDixieme:
             (2026, 9): BulletinDuMois(2000.0, [{"libelle": "Absence accident du travail du 01/09", "perte": 500.0}]),
         }
         base_n1, base_n, reconstitution = module.bases_du_dixieme(bulletins, None, None, self.PERIODES)
-        assert (base_n1, base_n, reconstitution) == (2300.0, 2500.0, 1300.0)
+        assert (base_n1, base_n, reconstitution) == (None, None, 1300.0)
 
 
 class TestValeurJourDuContrat:

@@ -58,6 +58,8 @@ def mettre_a_jour_cumuls(
 ) -> None:
     """Écrit le fichier cumuls du mois avec les valeurs du bulletin."""
     nouveaux_cumuls_data = json.loads(json.dumps(contexte.cumuls))
+    # Photographie de lecture du dixième : ce n'est pas un cumul déclaré.
+    nouveaux_cumuls_data.pop("reference_dixieme_conges", None)
     nouveau_fichier_path = chemin_employe / "cumuls" / f"{mois:02d}.json"
     nouveaux_cumuls_data.setdefault("periode", {})["dernier_mois_calcule"] = mois
     cumuls = nouveaux_cumuls_data.setdefault("cumuls", {})

@@ -9,6 +9,8 @@ sur son bulletin importé, pas sur un cumul calculé par Martine.
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 from app.core import database
@@ -46,7 +48,13 @@ CUMUL_DE_MAI_PERIME = [
 def test_un_mois_repris_se_lit_sur_le_bulletin_importe(monkeypatch):
     bulletins = [{"year": 2026, "month": 5, "origine": "importe", "payslip_data": {"salaire_brut": 1966.83}}]
     monkeypatch.setattr(database, "supabase", _Base(CUMUL_DE_MAI_PERIME, bulletins))
-    assert _brut_de_la_periode_precedente("emp-1", CUMULS_DE_JUIN) == 1966.83
+    assert _brut_de_la_periode_precedente("emp-1", CUMULS_DE_JUIN, entree=date(2026, 5, 1)) == 1966.83
+
+
+def test_un_bulletin_isole_sans_date_d_entree_ne_prouve_pas_douze_mois(monkeypatch):
+    bulletins = [{"year": 2026, "month": 5, "origine": "importe", "payslip_data": {"salaire_brut": 1966.83}}]
+    monkeypatch.setattr(database, "supabase", _Base(CUMUL_DE_MAI_PERIME, bulletins))
+    assert _brut_de_la_periode_precedente("emp-1", CUMULS_DE_JUIN) is None
 
 
 def test_un_mois_calcule_par_martine_garde_son_cumul(monkeypatch):
