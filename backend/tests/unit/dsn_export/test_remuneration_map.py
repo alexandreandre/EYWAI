@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from app.modules.dsn_export.domain.evenements import suspensions_du_bulletin
 from app.modules.dsn_export.domain.remuneration_map import (
+    analyser_absences,
     analyze_calcul_du_brut,
     build_remunerations_from_payslip,
 )
@@ -168,3 +170,55 @@ def test_skip_zero_brut_employee():
     dsn, warnings = build_parsed_dsn_from_payroll(company, [ok, zero], "2026-01")
     assert len(dsn.etablissement.individus) == 1
     assert any("brut ≤ 0" in w.lower() for w in warnings)
+
+
+def _bulletin_cp_puis_reduction(libelle_reduction: str) -> dict:
+    return {
+        "calcul_du_brut": [
+            {"libelle": "Absence congés payés du 01/10 au 01/10", "quantite": 7.0, "perte": 98.48},
+            {"libelle": libelle_reduction, "quantite": 2.17, "perte": 40.60},
+        ]
+    }
+
+
+def test_reduction_hs_apres_conges_ignoree_ancien_et_nouveau_libelle():
+    """Les heures du contrat retirées d'un congé payé ne sont pas une absence non payée,
+    quel que soit le libellé, car les bulletins enregistrés gardent l'ancien."""
+    for libelle in (
+        "Réduction HS structurelles (jours d'absence)",
+        "Heures sup. du contrat non faites (absence)",
+    ):
+        absences = analyser_absences(_bulletin_cp_puis_reduction(libelle))
+        assert absences.heures_non_payees == 0, libelle
+        assert absences.retenues == 0, libelle
+
+
+def test_reduction_hs_apres_absence_injustifiee_suit_le_nouveau_libelle():
+    for libelle in (
+        "Réduction HS structurelles (jours d'absence)",
+        "Heures sup. du contrat non faites (absence)",
+    ):
+        absences = analyser_absences(
+            {
+                "calcul_du_brut": [
+                    {"libelle": "Absence injustifiée du 01/10/26", "quantite": 7.0, "perte": 98.48},
+                    {"libelle": libelle, "quantite": 2.17, "perte": 40.60},
+                ]
+            }
+        )
+        assert absences.retenues_injustifiees == 139.08, libelle
+
+
+def test_reduction_hs_evenement_familial_ne_cree_pas_de_suspension():
+    """Seule la ligne d'absence datée porte la suspension."""
+    for libelle in (
+        "Réduction HS structurelles (événement familial)",
+        "Heures sup. du contrat non faites (événement familial)",
+    ):
+        lignes = {
+            "calcul_du_brut": [
+                {"libelle": "Absence événement familial du 01/10/26 au 02/10/26", "quantite": 14.0, "perte": 196.96},
+                {"libelle": libelle, "quantite": 1.6, "perte": 30.0},
+            ]
+        }
+        assert len(suspensions_du_bulletin(lignes)) == 1, libelle

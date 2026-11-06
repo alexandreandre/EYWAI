@@ -102,6 +102,14 @@ class Absences:
     entree_sortie: bool = False
 
 
+def _est_reduction_hs_du_contrat(libelle: str) -> bool:
+    """Heures sup du contrat retirées pour une absence, en libellé minuscule.
+
+    Les bulletins enregistrés gardent l'ancien libellé « Réduction HS structurelles ».
+    """
+    return "structurell" in libelle or "heures sup. du contrat non faites" in libelle
+
+
 def _est_conges_payes(libelle: str) -> bool:
     texte = libelle.replace("é", "e").replace("É", "E").lower()
     return "conges payes" in texte or "absence cp" in texte
@@ -135,11 +143,11 @@ def analyser_absences(payslip_data: Dict[str, Any]) -> Absences:
         if _est_conges_payes(libelle):
             ligne_precedente_cp = True
             continue
-        if "structurell" in libelle and ligne_precedente_cp:
+        if _est_reduction_hs_du_contrat(libelle) and ligne_precedente_cp:
             continue
         ligne_precedente_cp = False
         injustifiee = "injustifi" in libelle or (
-            "structurell" in libelle and ligne_precedente_injustifiee
+            _est_reduction_hs_du_contrat(libelle) and ligne_precedente_injustifiee
         )
         ligne_precedente_injustifiee = injustifiee
         resultat.heures_non_payees += heures
