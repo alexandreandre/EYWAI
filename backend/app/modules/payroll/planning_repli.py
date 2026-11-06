@@ -31,7 +31,7 @@ def _jours_prevus_sans_reel_completes(
     annee: int,
     mois: int,
 ) -> List[Dict[str, Any]]:
-    """Mois confirmé en partie : un jour prévu sans réel reste travaillé.
+    """Forfait jours, mois confirmé en partie : un jour prévu sans réel reste travaillé.
 
     Seul un 0 posé à l'écran dit « non travaillé » : sans lui, le jour resté
     « Prévu » devenait une absence injustifiée, retenue sur le salaire.
@@ -122,9 +122,12 @@ def reel_heures_avec_repli_planning_si_sans_pointage(
     Les heures reprises alimentent le compteur hebdomadaire au niveau du planning
     prévu (pas d'heures sup. inventées au-delà de ce que le pointage réel aurait
     produit sur les jours prévus).
+
+    Mois pointé en partie : rien à ajouter, `jour_du_calendrier_final` tient déjà
+    un jour sans réel pour travaillé. Le 1 du forfait jours serait lu ici comme une heure.
     """
     if not mois_sans_pointage(reel_data, annee=annee, mois=mois):
-        return _jours_prevus_sans_reel_completes(prevu_data, reel_data, annee=annee, mois=mois)
+        return reel_data
 
     prevu_travail = [
         j
