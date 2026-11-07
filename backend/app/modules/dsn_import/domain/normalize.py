@@ -87,7 +87,7 @@ def map_temps_partiel_dsn(
     - Modalité S21.G00.40.014 : 10 = temps plein, 20/21 = temps partiel.
     - Quotité contrat .013 vs quotité de référence entreprise .012 : si la quotité
       du contrat est inférieure à la référence, c'est un temps partiel.
-    - Unité .011 : 10 = heures (mensualisées), 12 = forfait jours.
+    - Unité .011 : 10 = heures (mensualisées), 12 = journée, 20 = forfait jour.
     Les quotités horaires DSN sont mensuelles (ex. 151,67) ; on les convertit en
     durée hebdomadaire (× 12 / 52). Sans information exploitable, on retombe sur le
     temps plein 35 h pour rester cohérent avec le comportement historique.

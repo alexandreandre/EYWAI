@@ -57,3 +57,25 @@ def test_un_cadre_importe_reste_cadre():
     payload = _payload("04")
     assert payload["statut"] == "Cadre"
     assert payload["classification_conventionnelle"]["statut_categoriel"] == "Cadre"
+
+
+def _payload_unite(statut: str, unite: str) -> dict:
+    individu = IndividuBlock(
+        nom="FICTIF",
+        prenom="Jean",
+        nir="185017512345678",
+        date_naissance="01011985",
+        contrats=[
+            ContratBlock(date_debut="01092026", nature="01", statut=statut, unite_quotite=unite)
+        ],
+    )
+    return map_employee_payload(individu, EtablissementBlock(siret=SIRET), SIRET)
+
+
+@pytest.mark.parametrize(
+    ("statut", "unite", "forfait"),
+    [("03", "10", False), ("04", "99", False), ("06", "20", True), ("03", "20", True)],
+)
+def test_le_forfait_jours_vient_de_l_unite_declaree_pas_du_statut(statut, unite, forfait):
+    """S21.G00.40.011 : 20 = forfait jour. Un cadre en heures n'est pas au forfait (E4, 06/11)."""
+    assert _payload_unite(statut, unite)["is_forfait_jour"] is forfait

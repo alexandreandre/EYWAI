@@ -467,7 +467,8 @@ def map_employee_payload(
         "contract_type": contract_type,
         "contract_end_date": end,
         "statut": statut_categoriel,
-        "is_forfait_jour": statut_categoriel == "Cadre",
+        # S21.G00.40.011 = 20 : forfait jour. Le statut cadre ne le dit pas (E4, 06/11).
+        "is_forfait_jour": (contrat.unite_quotite or "").strip() == "20",
         "job_title": contrat.libelle_emploi or contrat.pcs or "Salarié",
         "is_temps_partiel": is_tp,
         "duree_hebdomadaire": heures,
