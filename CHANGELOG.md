@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Une avance sur salaire se retient au dixième du net
+- La retenue d'une avance en espèces ne dépasse plus le dixième du net du mois, comme le prévoit le Code du travail. Le reste se retient sur les bulletins suivants, et le bulletin le dit.
+- Les acomptes sur un travail en cours ne changent pas : ils restent retenus en entier.
+
 ### Martine connaît la convention Syntec
 - La grille des salaires minima Syntec est prête, pour les sociétés qui passent sous cette convention.
 - Un salarié au forfait jours sous Syntec est signalé si sa position ne l'autorise pas ou si son salaire est sous le plancher de la convention (122 % ou 120 % du minimum). Le bulletin ne change pas : la correction se fait par avenant.

@@ -777,6 +777,11 @@ def enrich_payslip(
     total_repayments = Decimal("0")
     remboursements_appliques: List[Dict[str, Any]] = []
     total_par_compte: Dict[str, Decimal] = {}
+    # Les acomptes sur un travail en cours ne sont pas des avances (L3251-3) :
+    # seule l'avance en espèces consomme ce dixième.
+    dixieme_restant = domain_rules.dixieme_du_salaire(net_a_payer)
+    retenu_sur_le_dixieme = Decimal("0")
+    reporte_par_le_dixieme = Decimal("0")
 
     for advance in advances:
         remaining = Decimal(str(advance.get("remaining_amount", 0)))
@@ -816,6 +821,9 @@ def enrich_payslip(
                     total_par_compte.get(compte, Decimal("0")) + repayment_already
                 )
                 net_disponible = max(Decimal("0"), net_disponible - repayment_already)
+                if adv_type == "avance_salaire":
+                    dixieme_restant = max(Decimal("0"), dixieme_restant - repayment_already)
+                    retenu_sur_le_dixieme += repayment_already
                 continue
         if advance.get("repayment_mode") == "single":
             repayment_to_use = remaining
@@ -827,6 +835,13 @@ def enrich_payslip(
         # Le reste dû baisse de ce qui est réellement retenu : ce que le net ne
         # permet pas reste dû pour les bulletins suivants.
         repayment_to_use = min(repayment_to_use, net_disponible)
+        if adv_type == "avance_salaire":
+            au_dixieme = min(repayment_to_use, dixieme_restant)
+            if au_dixieme < repayment_to_use:
+                reporte_par_le_dixieme += remaining - au_dixieme
+            repayment_to_use = au_dixieme
+            dixieme_restant -= au_dixieme
+            retenu_sur_le_dixieme += au_dixieme
         remaining_after_to_use = remaining - repayment_to_use
         if repayment_to_use > 0:
             net_disponible -= repayment_to_use
@@ -885,6 +900,18 @@ def enrich_payslip(
                     payslip_id,
                 )
                 _signaler(CODE_REPLI_RESTE_DU)
+
+    if reporte_par_le_dixieme > 0:
+        payslip_json_data.setdefault("alertes_baremes", []).append(
+            {
+                "code": "avance_retenue_au_dixieme",
+                "severity": "info",
+                "critique": False,
+                "message": domain_rules.message_avance_au_dixieme(
+                    retenu_sur_le_dixieme, reporte_par_le_dixieme
+                ),
+            }
+        )
 
     # 3. Enrichissement du payslip_data
     payslip_json_data["retenues_saisies"] = {

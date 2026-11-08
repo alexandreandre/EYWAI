@@ -52,7 +52,7 @@ def _passagere():
 AVANCE = {
     "id": "avance-1",
     "status": "approved",
-    "advance_type": "avance_salaire",
+    "advance_type": "acompte_salaire",
     "accounting_account": "425",
     "approved_amount": 800.0,
     "remaining_amount": 800.0,

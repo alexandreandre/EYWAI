@@ -32,7 +32,7 @@ def _avance(montant: float) -> dict:
     return {
         "id": "avance-1",
         "status": "paid",
-        "advance_type": "avance_salaire",
+        "advance_type": "acompte_salaire",
         "accounting_account": "4251",
         "approved_amount": montant,
         "remaining_amount": montant,

@@ -6,7 +6,7 @@ Comportement identique à services.saisies_avances_calculator pour les calculs p
 """
 
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Literal, Tuple
 
 from app.modules.payroll.domain.report_nap_negatif import (
@@ -476,6 +476,27 @@ def avance_retenable_sur_le_mois(
 def compute_max_advance_from_net(reference_net_salary: Decimal) -> Decimal:
     """Plafond légal interne : 50 % du salaire net de référence."""
     return reference_net_salary * MAX_ADVANCE_NET_RATIO
+
+
+def dixieme_du_salaire(net_a_payer: Decimal) -> Decimal:
+    """Retenue maximale du mois pour les avances en espèces (art. L3251-3).
+
+    « Le dixième du montant des salaires exigibles » : le net à payer du mois,
+    avant les retenues. Arrondi au centime inférieur pour ne jamais le dépasser.
+    """
+    return (max(Decimal("0"), net_a_payer) / 10).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+
+
+def message_avance_au_dixieme(retenu: Decimal, reporte: Decimal) -> str:
+    """Ce que le bulletin dit quand une avance est retenue en partie."""
+
+    def euros(valeur: Decimal) -> str:
+        return f"{valeur:,.2f}".replace(",", " ").replace(".", ",")
+
+    return (
+        f"Avance sur salaire : {euros(retenu)} € retenus ce mois, soit le dixième du net au "
+        f"plus (art. L3251-3). {euros(reporte)} € restent à retenir sur les bulletins suivants."
+    )
 
 
 def is_employee_right(advance_type: AdvanceType) -> bool:
