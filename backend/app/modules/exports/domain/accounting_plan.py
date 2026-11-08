@@ -162,6 +162,9 @@ FAMILLE_REGULARISATION_NET = "regularisation_net"
 # jamais devinées depuis un libellé.
 FAMILLE_AVANCE = "avance_salaire"
 FAMILLE_INTERETS_PRET = "interets_pret_employeur"
+# L'avantage entre au brut et sort du net sans être versé. Sa contrepartie dépend
+# du plan de chaque société : aucun compte par défaut, l'export le réclame.
+FAMILLE_AVANTAGE_EN_NATURE = "avantage_en_nature"
 FAMILLE_INCONNUE = "INCONNUE"
 
 # Familles déjà portées par un autre champ du bulletin : ne pas les reprendre

@@ -563,3 +563,44 @@ class TestFraisProfessionnelsSansFamilleConnue:
         )
 
         assert [e["famille"] for e in elements] == [FAMILLE_INCONNUE]
+
+
+class TestAvantageEnNature:
+    """L'avantage en nature entre au brut et sort du net : l'OD doit le porter."""
+
+    def test_l_avantage_est_un_element_hors_brut_a_part(self):
+        from app.modules.exports.infrastructure.payslip_accounting_extract import (
+            extract_elements_hors_brut,
+        )
+
+        elements = extract_elements_hors_brut({"synthese_net": {"avantages_en_nature": 100.0}})
+        assert _par_famille(elements) == {"avantage_en_nature": -100.0}
+
+    def test_sans_avantage_aucun_element(self):
+        from app.modules.exports.infrastructure.payslip_accounting_extract import (
+            extract_elements_hors_brut,
+        )
+
+        assert extract_elements_hors_brut({"synthese_net": {"avantages_en_nature": 0}}) == []
+
+    def test_le_bulletin_redevient_coherent(self):
+        from app.modules.exports.domain.controle_comptable import residu_du_bulletin
+        from app.modules.exports.infrastructure.payslip_accounting_extract import (
+            extract_elements_hors_brut,
+        )
+
+        elements = extract_elements_hors_brut({"synthese_net": {"avantages_en_nature": 100.0}})
+        ligne = {
+            "brut": 2100.0,
+            "pas": 0.0,
+            "net_a_payer": 1600.0,
+            "cotisations_detail": [{"montant_salarial": 400.0}],
+            "elements_hors_brut": elements,
+        }
+        assert residu_du_bulletin(ligne) == 0.0
+
+    def test_le_compte_n_est_pas_devine(self):
+        """Aucune imputation par défaut : l'export la réclame, société par société."""
+        from app.modules.exports.domain.accounting_plan import FAMILY_ACCOUNTS
+
+        assert "avantage_en_nature" not in FAMILY_ACCOUNTS
