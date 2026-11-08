@@ -270,9 +270,18 @@ def analyser_horaires_du_mois(
         heures_assimilees = 0.0
         for jour_non_travaille in data["jours_non_travailles"]:
             if jour_non_travaille.get("type") in ["conges_payes", "ferie"]:
-                heures_assimilees += (
-                    jour_non_travaille.get("heures_prevues") or 0.0
-                )  # Robuste à None
+                heures_du_jour = jour_non_travaille.get("heures_prevues") or 0.0  # Robuste à None
+                if jour_non_travaille.get("type") == "conges_payes" and not heures_du_jour:
+                    # Un congé posé à l'écran arrive à 0 h. Cass. soc. 10/09/2025
+                    # n° 23-14.455 : le salarié touche les majorations qu'il aurait
+                    # eues s'il avait travaillé toute la semaine ; le congé compte
+                    # donc pour sa journée (arrêt maladie : non).
+                    try:
+                        quotite = float(jour_non_travaille.get("quotite_absence") or 1.0)
+                    except (TypeError, ValueError):
+                        quotite = 1.0
+                    heures_du_jour = duree_hebdo_semaine / 5.0 * quotite
+                heures_assimilees += heures_du_jour
 
         compteur_heures_semaine_centiemes = int(heures_assimilees * 100)
 
