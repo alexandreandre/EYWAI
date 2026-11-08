@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Le contrat signé se dépose depuis la fiche en mode paie
+- Sur la fiche d'un salarié, l'onglet Documents montre maintenant le contrat de travail à côté des bulletins et des attestations.
+- Déposez le PDF signé, ou remplacez celui qui est là. Vous n'avez plus besoin de nous l'envoyer.
+
 ### Prime d'ancienneté de la métallurgie au forfait jours
 - Elle sortait à zéro pour les salariés au forfait jours non cadres : les jours du forfait n'étaient pas comptés.
 - Elle suit maintenant la convention (article 142) : valeur du point × taux de la classe × années, majorée de 30 % au forfait jours.

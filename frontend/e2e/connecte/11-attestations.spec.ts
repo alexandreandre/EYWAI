@@ -145,6 +145,8 @@ test('attestations : fiche du salarié en mode paie, puis Exports', async ({ pag
       const bloc = page.getByRole('region', { name: 'Attestations' });
       await expect(bloc).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(/hors du périmètre paie/i)).toBeVisible();
+      // Le contrat signé se dépose en mode paie : une fiche s'y complète sans nous.
+      await expect(page.getByRole('region', { name: 'Contrat de travail' })).toBeVisible();
     });
 
     await test.step("attestation d'emploi : la lettre se génère et s’ouvre", async () => {

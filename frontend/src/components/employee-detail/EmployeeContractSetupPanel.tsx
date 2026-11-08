@@ -5,7 +5,8 @@ import { FileText, Loader2, Sparkles, Upload } from 'lucide-react';
 
 interface EmployeeContractSetupPanelProps {
   onUpload: (file: File) => void;
-  onGenerate: () => void;
+  /** Absent en mode paie : on y dépose le contrat signé, on ne le rédige pas. */
+  onGenerate?: () => void;
   isUploading?: boolean;
   missingFields?: string[];
 }
@@ -30,11 +31,13 @@ export function EmployeeContractSetupPanel({
       <div className="text-center">
         <p className="text-sm font-medium text-foreground">Aucun contrat pour ce collaborateur</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Déposez le contrat signé ou générez-le à partir des informations de la fiche.
+          {onGenerate
+            ? 'Déposez le contrat signé ou générez-le à partir des informations de la fiche.'
+            : 'Déposez ici le contrat signé, en PDF.'}
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className={cn('grid gap-4', onGenerate && 'sm:grid-cols-2')}>
         <div
           className={cn(
             'rounded-lg border-2 border-dashed p-4 transition-colors',
@@ -88,6 +91,7 @@ export function EmployeeContractSetupPanel({
           </div>
         </div>
 
+        {onGenerate ? (
         <div className="rounded-lg border bg-card p-4">
           <div className="mb-3 flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" aria-hidden />
@@ -106,6 +110,7 @@ export function EmployeeContractSetupPanel({
             Générer le contrat
           </Button>
         </div>
+        ) : null}
       </div>
     </div>
   );

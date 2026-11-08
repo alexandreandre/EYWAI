@@ -50,8 +50,8 @@ interface ContractUrlResponse {
 export interface EmployeeDetailDocumentsTabProps {
   employeeId: string;
   employee: EmployeeDetailDocumentsRhEmployee;
-  /** Mode démo paie : ne montrer QUE les bulletins — contrat, identité et
-   * identifiants de connexion restent hors du périmètre paie. */
+  /** Mode paie : les bulletins, les attestations et le contrat signé (la fiche d'un
+   * nouveau salarié s'y complète) — identité et identifiants restent hors périmètre. */
   bulletinsSeulement?: boolean;
 }
 
@@ -319,7 +319,7 @@ export function EmployeeDetailDocumentsTab({
       return (
         <EmployeeContractSetupPanel
           onUpload={handleContractUpload}
-          onGenerate={handlers.openContrat}
+          onGenerate={bulletinsSeulement ? undefined : handlers.openContrat}
           isUploading={uploadContractMut.isPending}
           missingFields={missingContractFields}
         />
@@ -615,12 +615,33 @@ export function EmployeeDetailDocumentsTab({
             <div className="border-b px-4 py-3">
               <p className="text-sm font-medium">Bulletins de paie</p>
               <p className="text-xs text-muted-foreground">
-                Les autres documents du salarié (contrat, identité…) sont hors du
+                Les autres documents du salarié (pièce d'identité…) sont hors du
                 périmètre paie.
               </p>
             </div>
             {renderBulletinsFiles('')}
           </div>
+          <section aria-label="Contrat de travail" className="rounded-lg border bg-card">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+              <div>
+                <p className="text-sm font-medium">Contrat de travail</p>
+                <p className="text-xs text-muted-foreground">
+                  Le contrat signé du salarié, en PDF.
+                </p>
+              </div>
+              {contractUrl ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={uploadContractMut.isPending}
+                  onClick={openContractUploadPicker}
+                >
+                  Remplacer le contrat
+                </Button>
+              ) : null}
+            </div>
+            {renderContratFiles('')}
+          </section>
           <section aria-label="Attestations" className="rounded-lg border bg-card">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
               <div>
