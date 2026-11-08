@@ -25,6 +25,7 @@ from app.modules.payroll.engine.codes_des_lignes import (
 )
 from app.modules.payroll.engine.corrections_manuelles import (
     CLE_CORRECTIONS_EN_ATTENTE,
+    CLE_MARTINE_A_LA_CORRECTION,
     CorrectionDeLigne,
     CorrectionInvalide,
 )
@@ -52,6 +53,8 @@ class LigneCorrigeable:
     montant_patronal: float | None = None
     correction: dict[str, Any] | None = None
     valeur_calculee: dict[str, Any] | None = None
+    #: Martine calcule autre chose qu'à la correction : à relire, rien n'est bloqué.
+    alerte: str | None = None
 
     def en_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -94,6 +97,61 @@ def _impot(data: Mapping[str, Any]) -> Mapping[str, Any] | None:
     return impot if isinstance(impot, Mapping) else None
 
 
+def valeur_de_martine(ligne: LigneCorrigeable) -> dict[str, Any]:
+    """Ce que Martine a calculé sur cette ligne, dans la forme de `valeur_calculee`."""
+    if ligne.valeur_calculee:
+        return dict(ligne.valeur_calculee)
+    if ligne.bloc == BLOC_BRUT:
+        return {
+            "quantite": ligne.base,
+            "taux": ligne.taux,
+            "gain": None if ligne.retenue else ligne.montant,
+            "perte": ligne.montant if ligne.retenue else None,
+        }
+    if ligne.bloc == BLOC_IMPOT:
+        return {"taux": ligne.taux, "montant": ligne.montant}
+    return {
+        "base": ligne.base,
+        "taux_salarial": ligne.taux_salarial,
+        "taux_patronal": ligne.taux_patronal,
+        "montant_salarial": ligne.montant_salarial,
+        "montant_patronal": ligne.montant_patronal,
+    }
+
+
+#: Le champ corrigé, et la valeur de Martine à laquelle le comparer, par bloc.
+_CHAMPS_COMPARES = {
+    BLOC_BRUT: {"base": ("quantite",), "taux": ("taux",), "montant": ("gain", "perte")},
+    BLOC_COTISATIONS: {cle: (cle,) for cle in ("base", "taux_salarial", "taux_patronal", "montant_salarial", "montant_patronal")},
+    BLOC_IMPOT: {"taux": ("taux",)},
+}
+_TOLERANCE_MARTINE = 0.005
+
+
+def alerte_valeur_de_martine(bloc: str, correction: Any, valeur_calculee: Any) -> str | None:
+    """Une phrase si Martine calcule autre chose qu'au moment de la correction.
+
+    Seul ce que la correction remplace compte : une correction de taux n'a pas
+    à s'alarmer que la quantité ait bougé.
+    """
+    if not isinstance(correction, Mapping) or not isinstance(valeur_calculee, Mapping):
+        return None
+    notee = correction.get(CLE_MARTINE_A_LA_CORRECTION)
+    if not isinstance(notee, Mapping):
+        return None
+    for champ, cles in _CHAMPS_COMPARES.get(bloc, {}).items():
+        if correction.get(champ) is None:
+            continue
+        cle = next((c for c in cles if notee.get(c) is not None or valeur_calculee.get(c) is not None), cles[0])
+        if abs((_nombre(notee.get(cle)) or 0.0) - (_nombre(valeur_calculee.get(cle)) or 0.0)) > _TOLERANCE_MARTINE:
+            return (
+                f"Martine calcule maintenant {valeur_calculee_fr(bloc, valeur_calculee)} sur cette ligne, "
+                f"contre {valeur_calculee_fr(bloc, notee)} quand elle a été corrigée à la main. "
+                "La correction reste appliquée : retirez-la si elle n'a plus lieu d'être."
+            )
+    return None
+
+
 def lignes_corrigeables(payslip_data: Any) -> list[LigneCorrigeable]:
     """Chaque ligne du bulletin, son code, par quoi elle se corrige, et sa correction."""
     data = _donnees(payslip_data)
@@ -115,6 +173,7 @@ def lignes_corrigeables(payslip_data: Any) -> list[LigneCorrigeable]:
                 montant=_nombre(ligne.get(champ)),
                 correction=_dict(ligne.get("correction")),
                 valeur_calculee=_dict(ligne.get("valeur_calculee")),
+                alerte=alerte_valeur_de_martine(BLOC_BRUT, ligne.get("correction"), ligne.get("valeur_calculee")),
             )
         )
     cotisations = _lignes_de_cotisation(data)
@@ -134,6 +193,7 @@ def lignes_corrigeables(payslip_data: Any) -> list[LigneCorrigeable]:
                 montant_patronal=_nombre(ligne.get("montant_patronal")),
                 correction=_dict(ligne.get("correction")),
                 valeur_calculee=_dict(ligne.get("valeur_calculee")),
+                alerte=alerte_valeur_de_martine(BLOC_COTISATIONS, ligne.get("correction"), ligne.get("valeur_calculee")),
             )
         )
     impot = _impot(data)
@@ -149,9 +209,59 @@ def lignes_corrigeables(payslip_data: Any) -> list[LigneCorrigeable]:
                 montant=_nombre(impot.get("montant")),
                 correction=_dict(impot.get("correction")),
                 valeur_calculee=_dict(impot.get("valeur_calculee")),
+                alerte=alerte_valeur_de_martine(BLOC_IMPOT, impot.get("correction"), impot.get("valeur_calculee")),
             )
         )
     return sortie
+
+
+_SOURCE_PRIMES = "« Primes du mois » (onglet Corriger), ou la fiche du salarié pour une prime fixe"
+
+
+def _bloc(libelle: str, montant: Any, source: str) -> dict[str, Any] | None:
+    valeur = _nombre(montant)
+    return {"libelle": libelle, "montant": valeur, "source": source} if valeur else None
+
+
+def _blocs_listes(lignes: Any, libelle_par_defaut: str, source: str) -> list[dict[str, Any]]:
+    if not isinstance(lignes, list):
+        return []
+    trouves = (
+        _bloc(str(l.get("libelle") or libelle_par_defaut), l.get("montant"), source)
+        for l in lignes
+        if isinstance(l, Mapping)
+    )
+    return [b for b in trouves if b]
+
+
+def _total(data: Mapping[str, Any], cle: str, champ: str) -> Any:
+    bloc = data.get(cle)
+    return bloc.get(champ) if isinstance(bloc, Mapping) else None
+
+
+def blocs_a_la_source(payslip_data: Any) -> list[dict[str, Any]]:
+    """Ce qui porte de l'argent sur le bulletin sans être une ligne de la carte, et où le corriger.
+
+    Ces montants viennent de leur module : les corriger là les corrige partout.
+    """
+    data = _donnees(payslip_data)
+    synthese = data.get("synthese_net") if isinstance(data.get("synthese_net"), Mapping) else {}
+    blocs = [
+        *_blocs_listes(data.get("primes_non_soumises"), "Prime non soumise", _SOURCE_PRIMES),
+        *_blocs_listes(data.get("revenus_hors_brut_imposables"), "Revenu imposable hors brut", _SOURCE_PRIMES),
+        *_blocs_listes(data.get("participations"), "Participation", "« Participation »"),
+        _bloc("Avances remboursées", _total(data, "remboursements_avances", "total_rembourse"), "« Avances & acomptes »"),
+        _bloc("Saisies sur salaire", _total(data, "retenues_saisies", "total_preleve"), "« Saisies & Avances »"),
+        _bloc("Prêt employeur", _total(data, "remboursements_prets", "total_rembourse"), "« Prêts employeur »"),
+        *_blocs_listes(
+            data["indemnites_sortie"].get("lignes_exonerees") if isinstance(data.get("indemnites_sortie"), Mapping) else None,
+            "Indemnité de rupture",
+            "« Sorties de salarié » (dossier de départ)",
+        ),
+        _bloc("Indemnités journalières nettes", synthese.get("ijss_net"), "« Absences & Congés » (arrêt)"),
+        _bloc("Acomptes du mois", synthese.get("acompte_verse"), "« Avances & acomptes »"),
+    ]
+    return [b for b in blocs if b]
 
 
 def corrections_en_attente_du_bulletin(payslip_data: Any) -> list[dict[str, Any]]:

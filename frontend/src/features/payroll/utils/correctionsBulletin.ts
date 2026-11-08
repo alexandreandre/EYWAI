@@ -461,6 +461,18 @@ export function titreDuBulletin(payslipData: unknown, month: number, year: numbe
 }
 
 /** Ce qui se tape pour corriger une ligne, selon la règle 3. */
+/** Ce qu'un enregistrement fait suivre, et ce qu'il ne fait pas (R-187). */
+export const CE_QUI_SUIT_LA_CORRECTION =
+  'À l’enregistrement, le bulletin est recalculé en entier : le net et les cumuls de ce mois suivent. La DSN et les exports du mois repartent de ce bulletin s’ils ne sont pas encore faits ; une DSN déjà déposée ou un export déjà sorti ne changent pas seuls, ils sont à refaire.';
+
+/** Ce que la correction de cette ligne ne fait pas d'elle-même, à dire avant d'enregistrer. */
+export function avisSurLaLigne(ligne: Pick<LigneCorrigeable, 'code' | 'bloc' | 'libelle' | 'mode'>): string | null {
+  if (ligne.code?.startsWith('cotisation:reduction_generale')) {
+    return 'La réduction générale se recalcule sur le cumul de l’année : l’écart corrigé ici revient le mois suivant. Pour une correction durable, corrigez les heures ou le brut.';
+  }
+  return null;
+}
+
 export type ChampCorrigeable =
   | 'base'
   | 'taux'
@@ -664,16 +676,6 @@ export function libelleDeLOption(ligne: LigneCorrigeable): string {
 }
 
 /** Pourquoi « Ajouter la correction » est grisé, dit près du champ ; null quand tout est prêt. */
-/**
- * Ce que la correction d'une ligne ne fera pas, à dire avant d'enregistrer.
- * La réduction générale se recalcule chaque mois depuis janvier : l'écart posé
- * à la main ce mois-ci est repris le mois suivant.
- */
-export function avertissementDeLaLigne(code: string | null | undefined): string | null {
-  if (code !== 'cotisation:reduction_generale') return null;
-  return 'Cette correction vaut pour ce mois : la réduction se recalcule depuis janvier, donc l’écart est repris le mois suivant. Pour un écart durable, corrigez les heures ou le brut.';
-}
-
 export function aideDeLaCorrection(
   valeur: string,
   motif: string

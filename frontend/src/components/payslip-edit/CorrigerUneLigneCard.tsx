@@ -21,7 +21,8 @@ import { Label } from '@/components/ui/label';
 import {
   aideDeLaCorrection,
   apercuDuMontant,
-  avertissementDeLaLigne,
+  avisSurLaLigne,
+  CE_QUI_SUIT_LA_CORRECTION,
   champsDeLaLigne,
   correctionDeLigne,
   type ChampCorrigeable,
@@ -69,6 +70,7 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
 
   const lignes = query.data?.lignes ?? [];
   const enAttente = query.data?.en_attente ?? [];
+  const aLaSource = query.data?.a_la_source ?? [];
   const corrigees = lignes.filter((l) => l.correction?.saisie_id);
   const retirees = new Set(etat.correctionsRetirees);
   const ligne = lignes.find((l) => l.code === code && l.mode);
@@ -79,7 +81,6 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
   const saisieDeLaLigne = ligne?.correction?.saisie_id ? String(ligne.correction.saisie_id) : null;
   const dejaCorrigee = saisieDeLaLigne !== null && !retirees.has(saisieDeLaLigne);
   const aide = aideDeLaCorrection(valeur, motif);
-  const avertissement = avertissementDeLaLigne(ligne?.code);
   const pret = !!ligne && !!champ && aide === null && !dejaCorrigee;
 
   const basculer = (saisieId: string) =>
@@ -110,11 +111,24 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
         </CardTitle>
         <CardDescription>
           Une ligne fausse ? Choisissez-la, corrigez sa base ou son taux (son montant si elle n’en a pas) et écrivez le
-          motif. Le montant suit au centime. À l’enregistrement, le bulletin est recalculé en entier : net, cumuls, DSN
-          et exports suivent.
+          motif. Le montant suit au centime. {CE_QUI_SUIT_LA_CORRECTION}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        {aLaSource.length > 0 ? (
+          <div className="rounded-md border p-3 text-xs text-muted-foreground" data-testid="blocs-a-la-source">
+            <p className="font-medium">Ne se corrige pas ici, mais à sa source :</p>
+            <ul className="mt-1 space-y-0.5">
+              {aLaSource.map((bloc) => (
+                <li key={`${bloc.libelle}-${bloc.source}`}>
+                  {bloc.libelle}
+                  {bloc.montant != null ? ` (${eurosFr(bloc.montant)})` : ''} : {bloc.source}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1">Les titres-restaurant se corrigent sur la fiche du salarié.</p>
+          </div>
+        ) : null}
         {query.isLoading ? <p className="text-sm text-muted-foreground">Lecture des lignes du bulletin…</p> : null}
         {query.isError ? (
           <p className="text-sm text-destructive">Les lignes du bulletin n’ont pas pu être lues. Rechargez la page.</p>
@@ -165,6 +179,11 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
                 <div className="text-xs text-muted-foreground">
                   {resumeDeLaCorrection(l)} — {l.correction?.motif}
                 </div>
+                {l.alerte ? (
+                  <div className="mt-1 text-xs text-destructive" data-testid="correction-a-relire">
+                    {l.alerte}
+                  </div>
+                ) : null}
               </div>
               {disabled ? null : (
                 <Button variant="ghost" size="sm" onClick={() => basculer(id)}>
@@ -237,6 +256,11 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
                   Cette ligne est déjà corrigée : retirez sa correction ci-dessus pour la refaire.
                 </p>
               ) : null}
+              {ligne && avisSurLaLigne(ligne) ? (
+                <p className="text-xs text-muted-foreground" data-testid="avis-sur-la-ligne">
+                  {avisSurLaLigne(ligne)}
+                </p>
+              ) : null}
             </div>
             {ligne && champ ? (
               <>
@@ -268,11 +292,6 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
                   />
                   {aide?.champ === 'valeur' ? <p className="text-xs text-destructive">{aide.message}</p> : null}
                 </div>
-                {avertissement ? (
-                  <p className="text-sm text-amber-700 sm:col-span-2" data-testid="avertissement-ligne">
-                    {avertissement}
-                  </p>
-                ) : null}
                 <div className="space-y-1 sm:col-span-2">
                   <Label htmlFor="motif-correction">Motif (obligatoire)</Label>
                   <Input

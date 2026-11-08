@@ -19,6 +19,11 @@ correction doit se poser sur la ligne que le bulletin lit sous ce code, et sur
 elle seule (la numérotation du calcul et celle du bulletin concordent). Les
 doublons du bulletin enregistré sont comparés à ceux du recalcul.
 
+Un test sans cas n'est pas vert : une société sans salarié joué, ou dont tous
+les salariés sont sautés, sort en échec (code 1). Les salariés se lisent sur la
+fiche, pas sur les bulletins : un mois sans bulletin se joue aussi. Un mois
+repris de l'ancien logiciel, que l'écran refuse de corriger, est refusé (code 2).
+
 Le rapport JSON reste hors du dépôt. Depuis backend/ :
 
     PYTHONPATH=. .venv/bin/python scripts/theoreme_correction_a_la_main.py "<Société>" 2026 9 <sortie.json> [tout|regularisations|directes]
@@ -31,6 +36,7 @@ import sys
 import traceback
 
 sys.path.insert(0, "scripts/verification_rgdu")
+sys.path.insert(0, "scripts")
 from piege import poser_le_piege  # noqa: E402
 
 poser_le_piege()
@@ -68,6 +74,14 @@ from app.modules.payroll.engine.corrections_manuelles import CorrectionDeLigne, 
 from app.modules.payslips.domain.coherence import (  # noqa: E402
     MESSAGE_CORRECTION_EN_ATTENTE,
     raisons_de_ne_pas_valider,
+)
+from app.shared.reprise_paie import raison_de_blocage_avant_bascule  # noqa: E402
+from theoreme_preuves import (  # noqa: E402
+    bilan,
+    compta_garde_les_patronales,
+    constats_independants,
+    cumuls_du_mois_suivant_a_verifier,
+    salaries_a_jouer,
 )
 
 
@@ -146,15 +160,18 @@ def _indemnites_suivies(payslip_data: dict) -> float:
     return round(total, 2)
 
 
-def _residu(payslip_data: dict, employee: dict) -> float:
-    ligne = ligne_od_du_bulletin(
+def _ligne_od(payslip_data: dict, employee: dict) -> dict:
+    return ligne_od_du_bulletin(
         payslip_id="theoreme",
         employee=employee,
         payslip_data=payslip_data,
         saisies_du_salarie=[],
         compte_de_saisie=lambda _type: "421000",
     )
-    return residu_du_bulletin(ligne)
+
+
+def _residu(payslip_data: dict, employee: dict) -> float:
+    return residu_du_bulletin(_ligne_od(payslip_data, employee))
 
 
 def _regularisation(ligne: dict) -> RegularisationCotisation:
@@ -474,8 +491,10 @@ def _le_mois_suivant_part_des_cumuls(employee_id: str, year: int, month: int, re
         if exc.status_code in (400, 422):
             return None
         raise
-    brut = float(suivant["payslip_data"].get("salaire_brut") or 0.0)
-    return abs((_cumul(suivant, "brut_total") - brut) - _cumul(res, "brut_total")) < 0.011
+    return all(
+        abs((_cumul(suivant, cle) - valeur) - _cumul(res, cle)) < 0.011
+        for cle, valeur in cumuls_du_mois_suivant_a_verifier(suivant["payslip_data"]).items()
+    )
 
 
 def _racine(code: str | None) -> str:
@@ -593,8 +612,11 @@ def _corrections_directes(
                 )
             ),
             "residu": abs(_residu(data1, employee) - residu0) < 0.005,
+            "residu_nul": abs(_residu(data1, employee)) < 0.015,
+            "compta_patronales": compta_garde_les_patronales(_ligne_od(data1, employee)),
             "rien_en_attente": not data1.get("corrections_en_attente"),
             **_cumuls_suivent(base, res, ligne, apres, cumuls),
+            **constats_independants(data0, data1, bloc=ligne.bloc, famille=famille_du_code(ligne.code)),
         }
         if doublon:
             # La numérotation du calcul et celle du bulletin concordent : la
@@ -632,16 +654,24 @@ def main(societe: str, year: int, month: int, sortie: str, partie: str = "tout")
     if partie not in ("tout", "regularisations", "directes"):
         raise SystemExit("partie : tout, regularisations ou directes")
     company = supabase.table("companies").select("id").eq("company_name", societe).single().execute().data
-    bulletins = (
-        supabase.table("payslips")
+    # Un mois repris de l'ancien logiciel ne se corrige pas à l'écran : le jouer
+    # ne prouverait rien sur ce que Gaëlle peut faire (R-178).
+    refus = raison_de_blocage_avant_bascule(company["id"], year, month)
+    if refus:
+        print(f"MOIS NON CORRIGEABLE : {refus}", flush=True)
+        return 2
+    employes = supabase.table("employees").select("*").eq("company_id", company["id"]).execute().data
+    enregistres = {
+        str(ligne["employee_id"]): ligne.get("payslip_data")
+        for ligne in supabase.table("payslips")
         .select("employee_id, payslip_data")
         .match({"company_id": company["id"], "year": year, "month": month})
         .execute()
         .data
-    )
+    }
     rapport: list[dict] = []
-    for bulletin in bulletins:
-        employee_id = bulletin["employee_id"]
+    for employe in salaries_a_jouer(employes, year, month):
+        employee_id = employe["id"]
         print(f"salarie {employee_id[:8]}", flush=True)
         try:
             with lecture_seule():
@@ -649,7 +679,7 @@ def main(societe: str, year: int, month: int, sortie: str, partie: str = "tout")
                     _un_salarie(company["id"], employee_id, year, month, rapport)
                 if partie in ("tout", "directes"):
                     _corrections_directes(
-                        company["id"], employee_id, year, month, rapport, bulletin.get("payslip_data")
+                        company["id"], employee_id, year, month, rapport, enregistres.get(str(employee_id))
                     )
         except Exception as exc:  # noqa: BLE001 — une erreur d'un salarié n'arrête pas la société ; elle compte en échec
             _noter(
@@ -663,11 +693,11 @@ def main(societe: str, year: int, month: int, sortie: str, partie: str = "tout")
         # Le rapport s'écrit au fil de l'eau : un arrêt en route garde ce qui est fait.
         with open(sortie, "w", encoding="utf-8") as fichier:
             json.dump(rapport, fichier, ensure_ascii=False, indent=1)
-    echecs = sum(1 for cas in rapport if not cas["ok"])
     with open(sortie, "w", encoding="utf-8") as fichier:
         json.dump(rapport, fichier, ensure_ascii=False, indent=1)
-    print(f"{len(rapport)} cas, {echecs} échec(s)", flush=True)
-    return 1 if echecs else 0
+    resultat = bilan(rapport)
+    print(resultat.phrase, flush=True)
+    return resultat.code
 
 
 if __name__ == "__main__":

@@ -104,7 +104,10 @@ def _corriger(corrections, **kwargs):
 def test_corriger_une_ligne_ecrit_une_saisie_du_mois_puis_recalcule(base):
     _corriger(CorrectionsBulletin(corrections_ajoutees=(_c(),)))
     saisie = base.de("monthly_inputs", "insert")[0][2][0]
-    assert saisie["correction_ligne"] == {**_c().charge_utile()}
+    assert saisie["correction_ligne"] == {
+        **_c().charge_utile(),
+        "martine_a_la_correction": {"quantite": 151.67, "taux": 16.4832, "gain": 2500.0, "perte": None},
+    }
     assert saisie["employee_id"] == "emp-1" and saisie["month"] == 8
     assert base.generer.called
 
@@ -174,3 +177,14 @@ def test_une_saisie_portee_par_le_bulletin_n_est_pas_listee():
     with patch.object(lecture, "supabase", client), patch.object(lecture, "_saisies_de_correction", return_value=saisies):
         modele = LignesCorrigeablesResponse(**lecture.lire_lignes_corrigeables("ps-1"))
     assert modele.en_attente == []
+
+
+def test_la_lecture_des_lignes_dit_les_blocs_a_la_source():
+    client = MagicMock()
+    client.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = MagicMock(
+        data={"payslip_data": {**DONNEES, "remboursements_prets": {"total_rembourse": 45.0}}}
+    )
+    with patch.object(lecture, "supabase", client):
+        reponse = lecture.lire_lignes_corrigeables("ps-1")
+    assert reponse["a_la_source"][0]["libelle"] == "Prêt employeur"
+    assert LignesCorrigeablesResponse(**reponse).a_la_source[0].source

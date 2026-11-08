@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   aDesModifications,
+  avisSurLaLigne,
   avecSaisiesSurLeNet,
+  CE_QUI_SUIT_LA_CORRECTION,
   descriptionHeuresSupDuMois,
   MESSAGE_AUCUNE_PRIME,
   saisiesApresLeCalcul,
@@ -17,7 +19,6 @@ import {
   repasseEnBrouillon,
   requeteDeCorrection,
   type EtatCorrections,
-  avertissementDeLaLigne,
 } from './correctionsBulletin';
 
 const base = { libelle: 'Salaire de base', quantite: 151.67, taux: 14.28, gain: 2165.85 };
@@ -486,15 +487,21 @@ describe('heures sup du mois : les champs partent des heures déclarées, jamais
   });
 });
 
-describe('avertissementDeLaLigne : ce que la correction ne fera pas', () => {
-  it('dit que la réduction générale est reprise le mois suivant', () => {
-    const phrase = avertissementDeLaLigne('cotisation:reduction_generale');
-    expect(phrase).toContain('mois suivant');
-    expect(phrase).toContain('heures ou le brut');
+describe('ce que la correction fait suivre', () => {
+  it('ne promet pas une DSN déjà déposée ni un export déjà sorti', () => {
+    expect(CE_QUI_SUIT_LA_CORRECTION).toContain('net et les cumuls');
+    expect(CE_QUI_SUIT_LA_CORRECTION).toContain('déjà déposée');
+    expect(CE_QUI_SUIT_LA_CORRECTION).toContain('à refaire');
+    expect(CE_QUI_SUIT_LA_CORRECTION).not.toMatch(/DSN et exports suivent/);
   });
 
-  it('ne dit rien sur une autre ligne', () => {
-    expect(avertissementDeLaLigne('brut:salaire_base')).toBeNull();
-    expect(avertissementDeLaLigne(null)).toBeNull();
+  it('dit sur la réduction générale que l’écart revient le mois suivant', () => {
+    const avis = avisSurLaLigne({ code: 'cotisation:reduction_generale', bloc: 'cotisations', libelle: 'Réduction', mode: 'montant' });
+    expect(avis).toContain('le mois suivant');
+    expect(avis).toContain('heures');
+  });
+
+  it('ne dit rien de plus sur une ligne ordinaire', () => {
+    expect(avisSurLaLigne({ code: 'brut:salaire_base', bloc: 'brut', libelle: 'Salaire', mode: 'base_ou_taux' })).toBeNull();
   });
 });

@@ -9,10 +9,14 @@ primes fixes) se corrige à sa source, sur son propre écran.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
-from app.modules.payroll.engine.corrections_du_bulletin import corrections_du_bulletin, lignes_corrigeables
+from app.modules.payroll.engine.corrections_du_bulletin import (
+    corrections_du_bulletin,
+    lignes_corrigeables,
+    valeur_de_martine,
+)
 from app.modules.payroll.engine.corrections_manuelles import (
     COTI_ID_REDUCTION_GENERALE,
     PAR_MODE,
@@ -204,6 +208,24 @@ def refus_de_la_reduction_generale(
     if round(regularisation - (deja - montant), 2) > 0:
         return MESSAGE_REDUCTION_REGULARISEE_TROP_HAUT
     return None
+
+
+def avec_la_valeur_de_martine(
+    corrections: CorrectionsBulletin, payslip_data: dict[str, Any] | None
+) -> CorrectionsBulletin:
+    """Note, sur chaque correction ajoutée, ce que Martine calcule à cet instant (R-185)."""
+    if not corrections.corrections_ajoutees:
+        return corrections
+    par_code = {ligne.code: ligne for ligne in lignes_corrigeables(payslip_data) if ligne.code}
+    return replace(
+        corrections,
+        corrections_ajoutees=tuple(
+            replace(c, martine_a_la_correction=valeur_de_martine(par_code[c.ligne]))
+            if c.ligne in par_code and c.martine_a_la_correction is None
+            else c
+            for c in corrections.corrections_ajoutees
+        ),
+    )
 
 
 def _declarees(payslip_data: dict[str, Any] | None) -> tuple[float, float] | None:

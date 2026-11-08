@@ -8,6 +8,7 @@ from app.core.database import supabase
 from app.shared.cle_du_bulletin import du_contrat
 from app.modules.payroll.engine.corrections_du_bulletin import (
     corrections_du_bulletin,
+    blocs_a_la_source,
     corrections_en_attente_du_bulletin,
     lignes_corrigeables,
 )
@@ -87,4 +88,5 @@ def lire_lignes_corrigeables(payslip_id: str) -> dict[str, Any]:
     return {
         "lignes": [ligne.en_dict() for ligne in lignes_corrigeables(donnees)],
         "en_attente": en_attente + _non_portees(reponse.data, donnees, connues),
+        "a_la_source": blocs_a_la_source(donnees),
     }

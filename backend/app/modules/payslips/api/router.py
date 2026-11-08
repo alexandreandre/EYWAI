@@ -536,7 +536,7 @@ def _exiger_regle_connue(rule_id: str) -> None:
             detail=(
                 f"Règle d'alerte inconnue : « {rule_id} ». "
                 "Les règles de comparaison vont de R01 à R10, plus R12. "
-                "Les règles du bulletin vont de B01 à B04."
+                "Les règles du bulletin vont de B01 à B07."
             ),
         )
 

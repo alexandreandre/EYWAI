@@ -368,6 +368,15 @@ export interface LigneCorrigeable {
   montant_patronal?: number | null;
   correction?: (CorrectionLigneAjoutee & { saisie_id?: string | null }) | null;
   valeur_calculee?: Record<string, number | null> | null;
+  /** Martine calcule autre chose qu'à la correction : à relire, rien n'est bloqué. */
+  alerte?: string | null;
+}
+
+/** Un montant du bulletin qui ne se corrige pas sur la carte, et l'écran qui le corrige. */
+export interface BlocALaSource {
+  libelle: string;
+  montant: number | null;
+  source: string;
 }
 
 /** Une correction qui ne trouve plus sa ligne : elle bloque la validation. */
@@ -382,6 +391,7 @@ export interface CorrectionEnAttente {
 export interface LignesCorrigeables {
   lignes: LigneCorrigeable[];
   en_attente: CorrectionEnAttente[];
+  a_la_source?: BlocALaSource[];
 }
 
 export interface CorrectionsBulletin {
