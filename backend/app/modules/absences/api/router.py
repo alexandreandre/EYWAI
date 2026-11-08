@@ -70,6 +70,7 @@ from app.modules.absences.schemas.leave_settings_responses import (
 )
 from app.modules.absences.schemas.requests import (
     AbsenceRequestCreate,
+    AbsenceDateAccidentUpdate,
     AbsenceRequestStatusUpdate,
     ManagerApprovalRequest,
 )
@@ -452,6 +453,23 @@ def update_absence_request_status(
     except Exception as e:
         logger.exception("Échec de update_absence_request_status")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/requests/{request_id}/date-accident", response_model=AbsenceRequest)
+def update_absence_date_accident(
+    request_id: str,
+    payload: AbsenceDateAccidentUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    """Date de l'accident ou de la première constatation d'un arrêt déjà saisi (RH)."""
+    company_id = _require_rh_company_context(current_user)
+    try:
+        ligne = commands.definir_date_accident(request_id, company_id, payload.date_accident)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _enrich_single_absence_row(ligne)
 
 
 @router.patch("/{request_id}", response_model=AbsenceRequest)

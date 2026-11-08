@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from app.modules.absences.domain.date_accident import date_accident_de
 from app.modules.dsn_export.domain.motif_rupture import motif_propose, motif_refuse
 
 #: Type de demande d'absence → motif d'arrêt (S21.G00.60.001).
@@ -118,6 +119,8 @@ class Periode:
     debut: date
     fin: date
     subrogation: bool = False
+    date_accident: Optional[date] = None
+    absence_id: Optional[str] = None
 
 
 def _jours(absence: Dict[str, Any]) -> List[date]:
@@ -145,7 +148,14 @@ def periodes_d_arret(absences: Iterable[Dict[str, Any]]) -> List[Periode]:
         if not motif or not jours:
             continue
         brutes.append(
-            Periode(motif, jours[0], jours[-1], bool(absence.get("subrogation_active")))
+            Periode(
+                motif,
+                jours[0],
+                jours[-1],
+                bool(absence.get("subrogation_active")),
+                date_accident_de(absence),
+                str(absence["id"]) if absence.get("id") else None,
+            )
         )
     fusionnees: List[Periode] = []
     for periode in sorted(brutes, key=lambda p: (p.motif, p.debut)):
@@ -157,15 +167,22 @@ def periodes_d_arret(absences: Iterable[Dict[str, Any]]) -> List[Periode]:
         ):
             precedente.fin = max(precedente.fin, periode.fin)
             precedente.subrogation = precedente.subrogation or periode.subrogation
+            precedente.date_accident = precedente.date_accident or periode.date_accident
             continue
         fusionnees.append(periode)
     return sorted(fusionnees, key=lambda p: p.debut)
 
 
-def dernier_jour_travaille(motif: str, debut: date, debut_contrat: Optional[date]) -> date:
+def dernier_jour_travaille(
+    motif: str,
+    debut: date,
+    debut_contrat: Optional[date],
+    date_accident: Optional[date] = None,
+) -> date:
     """La veille de l'arrêt, sauf accident ou maladie professionnelle : le jour
     de l'accident est travaillé (CT, 60.002) ; jamais avant le contrat (CCH-13)."""
-    jour = debut if motif in MOTIFS_ACCIDENT else debut - timedelta(days=1)
+    jour_de_l_accident = motif in MOTIFS_ACCIDENT and not (date_accident and date_accident < debut)
+    jour = debut if jour_de_l_accident else debut - timedelta(days=1)
     if debut_contrat and jour < debut_contrat:
         return debut_contrat
     return jour
@@ -192,7 +209,9 @@ def blocs_arret(
             continue
         if subrogation_paie is not None:
             periode.subrogation = subrogation_paie
-        dernier_jour = dernier_jour_travaille(periode.motif, periode.debut, debut_contrat)
+        dernier_jour = dernier_jour_travaille(
+            periode.motif, periode.debut, debut_contrat, periode.date_accident
+        )
         rubriques = {
             "S21.G00.60.001": periode.motif,
             "S21.G00.60.002": dsn(dernier_jour),

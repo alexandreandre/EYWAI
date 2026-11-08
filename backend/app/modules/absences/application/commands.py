@@ -12,13 +12,14 @@ from app.shared.domain.pluriel import pluriel
 logger = get_logger("modules.absences.application.commands")
 
 from datetime import date
-from typing import Any
+from typing import Any, Dict
 
 from app.core.database import supabase
 from app.modules.absences.domain.enums import (
     IJSS_ELIGIBLE_TYPES,
     type_calendrier_projete,
 )
+from app.modules.absences.domain.date_accident import avec_date_accident, refus_date_accident
 from app.modules.absences.domain.nature_arret import incoherence_nature_type_d_arret
 from app.modules.absences.domain.rules import (
     quotite_demi_journees,
@@ -237,8 +238,10 @@ def create_absence_request(
         "attachment_url": getattr(request_data, "attachment_url", None),
         "filename": getattr(request_data, "filename", None),
     }
-    if demi_journees:
-        db_data["demi_journees"] = demi_journees
+    date_accident = getattr(request_data, "date_accident", None)
+    date_accident = date_accident if isinstance(date_accident, date) else None
+    if demi_journees or date_accident:
+        db_data["demi_journees"] = avec_date_accident(demi_journees, date_accident)
     heures_par_jour_raw = getattr(request_data, "heures_par_jour", None) or {}
     if heures_par_jour_raw:
         db_data["heures_par_jour"] = {
@@ -253,6 +256,23 @@ def create_absence_request(
         db_data["arret_type"] = arret_type
 
     return absence_repository.create(db_data)
+
+
+def definir_date_accident(request_id: str, company_id: str, jour: date | None) -> Dict[str, Any]:
+    """La date de l'accident d'un arrêt déjà saisi ; None la retire. Motif DSN
+    seulement : ni bulletin, ni compteur."""
+    demande = absence_repository.get_by_id(request_id)
+    if not demande or str(demande.get("company_id")) != str(company_id):
+        raise LookupError("Demande d'absence non trouvée.")
+    if jour is not None:
+        jours = sorted(str(j)[:10] for j in demande.get("selected_days") or [])
+        premier = date.fromisoformat(jours[0]) if jours else None
+        refus = refus_date_accident(str(demande.get("type")), jour, premier)
+        if refus:
+            raise ValueError(refus)
+    return absence_repository.update(
+        request_id, {"demi_journees": avec_date_accident(demande.get("demi_journees"), jour)}
+    )
 
 
 def update_absence_request_status(

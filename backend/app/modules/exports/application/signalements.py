@@ -38,7 +38,7 @@ BUCKET = "exports"
 def _arrets(company_id: str) -> List[Dict[str, Any]]:
     return (
         supabase.table("absence_requests")
-        .select("employee_id,type,selected_days,subrogation_active,arret_type,created_at")
+        .select("id,employee_id,type,selected_days,subrogation_active,arret_type,created_at,demi_journees")
         .eq("company_id", company_id)
         .eq("status", "validated")
         .in_("type", sorted(MOTIF_ARRET))
@@ -201,6 +201,8 @@ def _ligne(s: SignalementAFaire, noms: Dict[str, str], aujourd_hui: date) -> Dic
         "date_reprise": _iso(s.date_reprise),
         "en_retard": s.a_deposer_avant < aujourd_hui,
         "a_verifier": s.a_verifier,
+        "date_accident": _iso(s.date_accident),
+        "absence_id": s.absence_id,
     }
 
 

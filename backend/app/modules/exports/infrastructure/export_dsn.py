@@ -118,7 +118,7 @@ def _evenements_dsn(
 
     arrets = (
         supabase.table("absence_requests")
-        .select("employee_id,type,status,selected_days,subrogation_active,arret_type")
+        .select("employee_id,type,status,selected_days,subrogation_active,arret_type,demi_journees")
         .eq("company_id", company_id)
         .eq("status", "validated")
         .in_("type", sorted(MOTIF_ARRET))

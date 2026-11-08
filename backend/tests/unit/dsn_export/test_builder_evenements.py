@@ -179,6 +179,18 @@ def test_accident_du_travail_jour_travaille_sans_date_de_l_accident():
     assert "S21.G00.60.012" not in blocs[0]
 
 
+def test_accident_anterieur_a_l_arret_le_dernier_jour_est_la_veille():
+    """CT 60.002 : la veille de l'arrêt, sauf arrêt prescrit le jour travaillé."""
+    blocs = blocs_arret(
+        [_arret("arret_maladie_pro", "2026-05-23", "2026-05-29",
+                demi_journees={"date_accident": "2026-05-02"})],
+        date(2026, 5, 1),
+        date(2026, 5, 31),
+    )
+    assert blocs[0]["S21.G00.60.002"] == "22052026"
+    assert "S21.G00.60.012" not in blocs[0]
+
+
 def test_subrogation_declare_ses_dates_et_l_arret_sans_reprise_n_en_a_pas():
     blocs = blocs_arret(
         [_arret("arret_maladie", "2026-08-17", "2026-09-30", subrogation_active=True)],

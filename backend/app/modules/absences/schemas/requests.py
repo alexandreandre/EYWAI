@@ -9,6 +9,7 @@ from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, model_validator
 
+from app.modules.absences.domain.date_accident import refus_date_accident
 from app.modules.absences.domain.enums import IJSS_ELIGIBLE_TYPES
 from app.shared.domain.absence_calendar import daterange_days
 
@@ -83,6 +84,19 @@ class AbsenceRequestCreate(BaseModel):
     # Repos compensateur en HEURES : {"2026-09-14": 2.0}. La journée reste
     # travaillée au calendrier, seul le compteur (en heures) est débité.
     heures_par_jour: Optional[Dict[date, float]] = None
+    # Accident du travail ou de trajet, maladie professionnelle : date de
+    # l'accident ou de la première constatation (DSN 60.012). Facultative.
+    date_accident: Optional[date] = None
+
+    @model_validator(mode="after")
+    def date_accident_coherente(self) -> "AbsenceRequestCreate":
+        if self.date_accident is None:
+            return self
+        jours = [d for d in (self.date_debut, *self.selected_days) if d]
+        refus = refus_date_accident(str(self.type), self.date_accident, min(jours) if jours else None)
+        if refus:
+            raise ValueError(refus)
+        return self
 
     @model_validator(mode="after")
     def heures_par_jour_reservees_aux_repos(self) -> "AbsenceRequestCreate":
@@ -179,6 +193,12 @@ class AbsenceRequestCreate(BaseModel):
         # en ValueError → 400 « validation métier », contrat d'API historique
         # (cf. test_create_absence_request_empty_selected_days_returns_400).
         return self
+
+
+class AbsenceDateAccidentUpdate(BaseModel):
+    """Date de l'accident ou de la première constatation d'un arrêt ; None la retire."""
+
+    date_accident: Optional[date] = None
 
 
 class AbsenceRequestStatusUpdate(BaseModel):

@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -49,6 +50,23 @@ def test_un_accident_du_travail_porte_la_date_de_l_accident():
     r = _lignes(construire_signalement(SOCIETE, SALARIE, _signalement(motif="06"), settings=REGLAGES,
                                        essai=True, constitue_le=date(2026, 10, 7)))
     assert r["S21.G00.60.002"] == "'05102026'" and r["S21.G00.60.012"] == "'05102026'"
+
+
+def test_une_maladie_professionnelle_declare_la_date_saisie():
+    """CT 60.012 : date de la première constatation, pas le premier jour d'arrêt."""
+    s = replace(_signalement(motif="05"), date_accident=date(2026, 9, 10))
+    r = _lignes(construire_signalement(SOCIETE, SALARIE, s, settings=REGLAGES,
+                                       essai=True, constitue_le=date(2026, 10, 7)))
+    assert r["S21.G00.60.012"] == "'10092026'"
+    assert r["S21.G00.60.002"] == "'04102026'"  # la veille : l'arrêt ne part pas du jour de l'accident
+
+
+def test_une_date_d_accident_avant_le_contrat_reste_au_contrat():
+    """SIG-14 : 60.012 supérieure ou égale au début du contrat."""
+    s = replace(_signalement(motif="05"), date_accident=date(2026, 8, 1))
+    r = _lignes(construire_signalement(SOCIETE, SALARIE, s, settings=REGLAGES,
+                                       essai=True, constitue_le=date(2026, 10, 7)))
+    assert r["S21.G00.60.012"] == "'01092026'"
 
 
 def test_la_subrogation_porte_les_dates_et_le_compte_de_l_employeur():

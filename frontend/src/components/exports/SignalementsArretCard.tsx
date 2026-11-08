@@ -6,15 +6,19 @@ import { Eye, FileWarning } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { genererSignalement, listerSignalements, type SignalementLigne } from "@/api/exports";
+import { updateAbsenceDateAccident } from "@/api/absences";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { echeance, libelleFait, libelleSignalement } from "./signalementsArret";
 import { SignalementApercuDialog } from "./SignalementApercuDialog";
 
-function detailErreur(err: unknown): string {
+function detailErreur(err: unknown, repli = "Le signalement n'a pas été généré : réessayez."): string {
   const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
-  return detail || "Le signalement n'a pas été généré : réessayez.";
+  return detail || repli;
 }
+
+const MOTIFS_ACCIDENT = new Set(["04", "05", "06"]);
 
 export function SignalementsArretCard() {
   const { activeCompany } = useCompany();
@@ -46,6 +50,22 @@ export function SignalementsArretCard() {
     },
     onError: (err) => {
       toast({ title: "Signalement non généré", description: detailErreur(err), variant: "destructive" });
+    },
+  });
+
+  const saisieAccident = useMutation({
+    mutationFn: (args: { absenceId: string; date: string | null }) =>
+      updateAbsenceDateAccident(args.absenceId, args.date),
+    onSuccess: () => {
+      toast({ title: "Date de l'accident enregistrée" });
+      qc.invalidateQueries({ queryKey: cle });
+    },
+    onError: (err) => {
+      toast({
+        title: "Date non enregistrée",
+        description: detailErreur(err, "La date de l'accident n'a pas été enregistrée : réessayez."),
+        variant: "destructive",
+      });
     },
   });
 
@@ -92,6 +112,23 @@ export function SignalementsArretCard() {
                 </p>
                 {ligne.a_verifier && (
                   <p className="text-sm text-amber-700 dark:text-amber-400">À vérifier : {ligne.a_verifier}</p>
+                )}
+                {MOTIFS_ACCIDENT.has(ligne.motif) && ligne.absence_id && (
+                  <label className="flex flex-wrap items-center gap-2 text-sm">
+                    <span>Date de l&apos;accident ou de la première constatation</span>
+                    <Input
+                      type="date"
+                      className="h-8 w-[160px]"
+                      defaultValue={ligne.date_accident ?? ""}
+                      disabled={saisieAccident.isPending}
+                      onBlur={(e) => {
+                        const valeur = e.target.value || null;
+                        if (valeur !== (ligne.date_accident ?? null) && ligne.absence_id) {
+                          saisieAccident.mutate({ absenceId: ligne.absence_id, date: valeur });
+                        }
+                      }}
+                    />
+                  </label>
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
