@@ -138,3 +138,24 @@ def test_hors_metallurgie_rien_ne_change(_iccp):
     details = dossier["indemnite_rupture_conventionnelle"]["details"]
     assert details["minimum_conventionnel"] is None
     assert details["montant_minimum"] == details["minimum_legal"]
+
+
+@patch(_ICCP, return_value=_SANS_ICCP)
+def test_la_reprise_d_anciennete_de_la_fiche_compte_pour_la_rupture(_iccp):
+    # Le cas de l'audit : entré en septembre 2025, ancienneté reprise au 01/10/2010.
+    salarie = {**_cadre_metallurgie("2025-09-23"), "seniority_reference_date": "2010-10-01"}
+    dossier = calculer_indemnites_sortie(salarie, _rupture(), _douze_mois())
+    rc = dossier["indemnite_rupture_conventionnelle"]
+    attendu = round(dossier["salaire_reference"] * (7 / 5 + (193 / 12 - 7) * 3 / 5), 2)
+    assert rc["montant_minimum"] == rc["montant_negocie"] == attendu
+    assert dossier["calculation_details"]["date_anciennete_retenue"] == "2010-10-01"
+    assert dossier["calculation_details"]["hire_date"] == "2025-09-23"
+    assert any("01/10/2010" in a and "23/09/2025" in a for a in rc["alertes"])
+
+
+@patch(_ICCP, return_value=_SANS_ICCP)
+def test_une_date_d_anciennete_apres_l_embauche_est_ignoree(_iccp):
+    salarie = {**_cadre_metallurgie("2010-10-01"), "seniority_reference_date": "2015-01-01"}
+    dossier = calculer_indemnites_sortie(salarie, _rupture(), _douze_mois())
+    assert dossier["calculation_details"]["date_anciennete_retenue"] == "2010-10-01"
+    assert not any("date d'ancienneté" in a for a in dossier["indemnite_rupture_conventionnelle"]["alertes"])

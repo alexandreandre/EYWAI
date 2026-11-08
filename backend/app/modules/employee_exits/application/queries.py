@@ -39,6 +39,7 @@ from app.modules.employee_exits.infrastructure.repository import (
 from app.modules.employees.application.queries import employee_has_work_contract
 from app.modules.employees.infrastructure.repository import EmployeeRepository
 from app.modules.employee_exits.domain.notice_period import compute_notice_period
+from app.shared.seniority_reference import resolve_seniority_reference_date
 from app.modules.employee_exits.domain.rules import exit_block_reason
 from app.modules.dsn_export.domain.motif_rupture import resume_du_dossier
 from app.modules.collective_agreements.rules.repository import CCRulesRepository
@@ -95,6 +96,15 @@ def _parse_iso_date(value: Any) -> Optional[date]:
         return date.fromisoformat(str(value)[:10])
     except (TypeError, ValueError):
         return None
+
+
+def _debut_anciennete_preavis(employee: Dict[str, Any]) -> Optional[date]:
+    """L'embauche, ou la date d'ancienneté de la fiche quand elle la précède."""
+    embauche = _parse_iso_date(employee.get("hire_date"))
+    reprise = _parse_iso_date(resolve_seniority_reference_date(employee))
+    if embauche and reprise and reprise < embauche:
+        return reprise
+    return embauche
 
 
 def _resolve_employee_collective_agreement(
@@ -175,7 +185,8 @@ def get_notice_period_preview(
 
     result = compute_notice_period(
         exit_type=exit_type,
-        hire_date=_parse_iso_date(employee.get("hire_date")),
+        # L1234-1 : l'ancienneté de services, reprise comprise quand la fiche en porte une.
+        hire_date=_debut_anciennete_preavis(employee),
         reference_date=reference_date,
         statut=employee.get("statut"),
         is_gross_misconduct=is_gross_misconduct,
@@ -326,7 +337,7 @@ def calculate_exit_indemnities(
         exit_id,
         company_id,
         # date_naissance : âge de la retraite (alertes du dossier).
-        "id, first_name, last_name, hire_date, salaire_de_base, job_title, contract_type, company_id, specificites_paie, duree_hebdomadaire, date_naissance",
+        "id, first_name, last_name, hire_date, salaire_de_base, job_title, contract_type, company_id, specificites_paie, duree_hebdomadaire, date_naissance, seniority_reference_date",
     )
     if not exit_data:
         raise EmployeeExitApplicationError(404, "Départ non trouvé")

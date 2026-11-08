@@ -18,6 +18,7 @@ from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
 from app.modules.payroll.engine.cp_solde_sortie import get_cp_solde_a_la_sortie
+from app.shared.seniority_reference import resolve_seniority_reference_date
 from app.modules.payroll.engine.indemnite_licenciement_metallurgie import (
     IDCC_METALLURGIE,
     groupe_d_emplois,
@@ -1197,6 +1198,20 @@ def anciennete_en_mois(debut: date, fin_incluse: date) -> int:
     return max(0, delta.years * 12 + delta.months)
 
 
+def _debut_de_l_anciennete(
+    employee_data: Dict[str, Any], hire_date: date
+) -> tuple[date, Optional[str]]:
+    """Le point de départ de l'ancienneté, et l'alerte quand ce n'est pas l'embauche."""
+    reprise = _date_ou_none(resolve_seniority_reference_date(employee_data))
+    if reprise is None or reprise >= hire_date:
+        return hire_date, None
+    return reprise, (
+        f"Ancienneté comptée depuis le {reprise:%d/%m/%Y} (date d'ancienneté de la fiche), "
+        f"et non depuis l'embauche du {hire_date:%d/%m/%Y}. Si cette reprise ne vaut pas "
+        "pour l'indemnité de rupture, corrigez la date sur la fiche avant de valider."
+    )
+
+
 def _fin_du_contrat(exit_data: Dict[str, Any], dernier_jour: date, notification: date) -> date:
     """Le contrat finit à la fin du préavis, même non exécuté (L1234-4) ; au
     plus tôt le dernier jour travaillé. Faute grave : pas de préavis."""
@@ -1661,12 +1676,12 @@ def calculer_indemnites_sortie(
     # complets (R1234-1) ; les 8 mois du licenciement s'apprécient à la
     # notification (F987) ; salaire de référence tiré des bulletins bruts, le
     # plus favorable des 12 ou 3 derniers mois (R1234-4).
-    # L'ancienneté part de la date d'entrée du contrat (`hire_date`) : la
-    # reprise d'ancienneté de la fiche (`seniority_reference_date`,
-    # `prior_service_months`) n'est pas lue, en attendant de savoir si elle
-    # est contractuelle et vaut pour l'indemnité ([H5], décision d'Alexandre ;
-    # `prior_service_months` porte de plus un double compte connu).
-    alertes_reference: list[str] = []
+    # L'ancienneté part de la date d'ancienneté de la fiche quand elle précède
+    # l'embauche (reprise d'ancienneté, transfert : L1224-1), et le dossier le
+    # dit. `prior_service_months` n'est pas lu : il porte un double compte connu.
+    # Le salaire de référence reste lu sur la présence réelle, depuis l'embauche.
+    debut_anciennete, alerte_reprise = _debut_de_l_anciennete(employee_data, hire_date)
+    alertes_reference: list[str] = [alerte_reprise] if alerte_reprise else []
     phrase_arret: Optional[str] = None
     mois_a_la_notification: Optional[int] = None
     fin_du_contrat = exit_date
@@ -1684,8 +1699,8 @@ def calculer_indemnites_sortie(
         fin_du_contrat = (
             notification if inaptitude_pro else _fin_du_contrat(exit_data, exit_date, notification)
         )
-        mois_d_anciennete = anciennete_en_mois(hire_date, fin_du_contrat)
-        mois_a_la_notification = anciennete_en_mois(hire_date, notification)
+        mois_d_anciennete = anciennete_en_mois(debut_anciennete, fin_du_contrat)
+        mois_a_la_notification = anciennete_en_mois(debut_anciennete, notification)
         anciennete = mois_d_anciennete / 12
         # Départ volontaire : les mois qui précèdent le départ (F13965) ;
         # licenciement, rupture et mise à la retraite : ceux qui précèdent la
@@ -1701,7 +1716,7 @@ def calculer_indemnites_sortie(
         salaire_reference = reference.retenu
         salaire_ref_12 = reference.moyenne_douze_mois
         salaire_ref_3 = reference.tiers_trois_mois
-        alertes_reference = list(reference.alertes)
+        alertes_reference.extend(reference.alertes)
         phrase_arret = reference.arret
         if inaptitude_pro and reference.tiers_trois_mois is not None:
             # L1226-16 : le salaire moyen des trois derniers mois.
@@ -2020,6 +2035,7 @@ def calculer_indemnites_sortie(
         "calculation_date": datetime.now().isoformat(),
         "calculation_details": {
             "hire_date": hire_date.isoformat(),
+            "date_anciennete_retenue": debut_anciennete.isoformat(),
             "exit_date": exit_date.isoformat(),
             "exit_type": exit_type,
             "is_gross_misconduct": is_gross_misconduct,
