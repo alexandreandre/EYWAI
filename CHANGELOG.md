@@ -8,6 +8,7 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 ### Le mois de sortie va jusqu'au dernier jour du contrat
 - Quand un salarié part après l'arrêté des variables, ses heures sup, paniers, absences et congés posés jusqu'à son dernier jour passent sur le bulletin de sortie. Ces jours sont à saisir avant de générer le bulletin.
 - Un repos compensateur obligatoire non pris au départ est signalé sur le bulletin, à ajouter à la page Primes, et le reçu pour solde de tout compte indique les heures dues au lieu de « Néant ».
+
 ### Un import sur plusieurs mois garde ce que vous corrigez à la relecture
 - Quand un fichier couvre plusieurs mois, une case corrigée avant d'enregistrer était perdue : c'était le fichier d'origine qui s'enregistrait. Vos corrections vont maintenant dans le bon mois.
 
