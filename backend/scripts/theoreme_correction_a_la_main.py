@@ -76,7 +76,13 @@ from app.modules.payslips.domain.coherence import (  # noqa: E402
     raisons_de_ne_pas_valider,
 )
 from app.shared.reprise_paie import raison_de_blocage_avant_bascule  # noqa: E402
-from theoreme_preuves import bilan, salaries_a_jouer  # noqa: E402
+from theoreme_preuves import (  # noqa: E402
+    bilan,
+    compta_garde_les_patronales,
+    constats_independants,
+    cumuls_du_mois_suivant_a_verifier,
+    salaries_a_jouer,
+)
 
 
 def _cumuls_precedents(employee_id: str, year: int, month: int) -> dict | None:
@@ -154,15 +160,18 @@ def _indemnites_suivies(payslip_data: dict) -> float:
     return round(total, 2)
 
 
-def _residu(payslip_data: dict, employee: dict) -> float:
-    ligne = ligne_od_du_bulletin(
+def _ligne_od(payslip_data: dict, employee: dict) -> dict:
+    return ligne_od_du_bulletin(
         payslip_id="theoreme",
         employee=employee,
         payslip_data=payslip_data,
         saisies_du_salarie=[],
         compte_de_saisie=lambda _type: "421000",
     )
-    return residu_du_bulletin(ligne)
+
+
+def _residu(payslip_data: dict, employee: dict) -> float:
+    return residu_du_bulletin(_ligne_od(payslip_data, employee))
 
 
 def _regularisation(ligne: dict) -> RegularisationCotisation:
@@ -482,8 +491,10 @@ def _le_mois_suivant_part_des_cumuls(employee_id: str, year: int, month: int, re
         if exc.status_code in (400, 422):
             return None
         raise
-    brut = float(suivant["payslip_data"].get("salaire_brut") or 0.0)
-    return abs((_cumul(suivant, "brut_total") - brut) - _cumul(res, "brut_total")) < 0.011
+    return all(
+        abs((_cumul(suivant, cle) - valeur) - _cumul(res, cle)) < 0.011
+        for cle, valeur in cumuls_du_mois_suivant_a_verifier(suivant["payslip_data"]).items()
+    )
 
 
 def _racine(code: str | None) -> str:
@@ -601,8 +612,11 @@ def _corrections_directes(
                 )
             ),
             "residu": abs(_residu(data1, employee) - residu0) < 0.005,
+            "residu_nul": abs(_residu(data1, employee)) < 0.015,
+            "compta_patronales": compta_garde_les_patronales(_ligne_od(data1, employee)),
             "rien_en_attente": not data1.get("corrections_en_attente"),
             **_cumuls_suivent(base, res, ligne, apres, cumuls),
+            **constats_independants(data0, data1, bloc=ligne.bloc, famille=famille_du_code(ligne.code)),
         }
         if doublon:
             # La numérotation du calcul et celle du bulletin concordent : la
