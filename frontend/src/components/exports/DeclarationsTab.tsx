@@ -119,7 +119,7 @@ export function DeclarationsTab() {
             <CardTitle className="text-lg">Attestation pour un salarié</CardTitle>
           </div>
           <CardDescription className="mt-2">
-            Attestation de travail ou de salaire, en PDF prêt à signer, pour une banque ou un bailleur.
+            Attestation d'emploi ou de salaire, en PDF prêt à signer, pour une banque ou un bailleur.
             Elle est rangée dans les documents du salarié.
           </CardDescription>
         </CardHeader>

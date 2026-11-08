@@ -1,18 +1,22 @@
 """
-Attestations remises à la demande du salarié (modèle Martine, sans modèle client).
+Attestations remises à la demande du salarié.
 
-Deux lettres (décision du 05/11/2026) :
+Deux lettres :
 
-- l'attestation de travail suit le « Modèle de lettre - Attestation d'emploi »
-  du ministère du Travail (https://code.travail.gouv.fr/modeles-de-courriers/attestation-de-travail,
-  mis à jour le 05/06/2023), plus la rémunération et la période d'essai que le
-  décret n° 2015-1437 demande pour un bailleur (service-public F1169) ;
+- l'attestation d'emploi suit le modèle envoyé par la cliente le 06/11/2026
+  (« Attestation_emploi », société LEWIS), rien de plus : en-tête (logo,
+  adresse, SIRET, code NAF), cinq lignes (nom et prénom, n° de sécurité sociale,
+  adresse, emploi occupé, reprise d'ancienneté), la phrase de présence, la
+  formule finale, le lieu et la date, le signataire et la mention du pied de
+  page, reprise telle quelle ;
 - l'attestation de salaire reprend les bulletins remis : la commande de
   génération prépare `mois_de_paie` (documents.domain.attestation_salaire).
 
-Le générateur ne lit pas la base. Une donnée absente laisse des pointillés à
-compléter à la main : rien n'est inventé. Aucun accord entre parenthèses : la
-civilité vient de la fiche (sexe), sinon la phrase reste neutre.
+Le générateur ne lit pas la base. Rien n'est inventé : une ligne de l'attestation
+d'emploi absente de la fiche est dite (« Non renseigné sur la fiche salarié ») ;
+ce qui se complète à la main (lieu, signataire) garde des pointillés. Aucun
+accord entre parenthèses : la civilité vient de la fiche (sexe), sinon la phrase
+reste neutre.
 """
 
 from __future__ import annotations
@@ -28,11 +32,17 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    HRFlowable,
+    Image,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
 from app.modules.documents.domain.attestation_salaire import total
-from app.modules.documents.domain.fin_de_contrat import terme_du_contrat
-from app.shared.domain.pluriel import pluriel
 from app.shared.domain.temps_local import aujourd_hui_local
 from app.shared.seniority_reference import resolve_seniority_reference_date
 from app.shared.infrastructure.pdf.helpers import (
@@ -41,13 +51,14 @@ from app.shared.infrastructure.pdf.helpers import (
     get_company_address,
     get_company_city,
     get_company_name,
+    resolve_company_logo,
     setup_custom_styles,
 )
 
 A_COMPLETER = "…" * 10
 
 TITRES = {
-    "attestation_emploi": "Attestation de travail",
+    "attestation_emploi": "ATTESTATION D'EMPLOI",
     "attestation_salaire": "Attestation de salaire",
 }
 
@@ -56,13 +67,17 @@ _MOIS = [
     "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
 ]
 
-_CONTRATS = {
-    "cdd": "Contrat à durée déterminée (CDD)",
-    "apprentissage": "Contrat d'apprentissage",
-    "professionnalisation": "Contrat de professionnalisation",
-    "alternance": "Contrat d'alternance",
-    "stage": "Convention de stage",
-}
+NON_RENSEIGNE = "Non renseigné sur la fiche salarié"
+NON_RENSEIGNEE = "Non renseignée sur la fiche salarié"
+
+# Pied de page du modèle de la cliente, repris mot pour mot.
+
+GROUPES_NIR = (1, 2, 2, 2, 3, 3, 2)
+
+_BLEU = colors.HexColor("#1f3a8a")
+_GRIS = colors.HexColor("#64748b")
+_TRAIT = colors.HexColor("#cbd5e1")
+_ENCRE = colors.HexColor("#1e293b")
 
 
 def _texte(valeur: Any) -> str:
@@ -120,70 +135,6 @@ def nom_complet(employee: Mapping[str, Any]) -> str:
     return " ".join(p for p in parties if p)
 
 
-def anciennete(debut: Optional[date], jour: date) -> str:
-    """« 1 an et 3 mois », « 8 mois », « 3 ans » ; vide si l'entrée est inconnue."""
-    if not debut or debut > jour:
-        return ""
-    mois = (jour.year - debut.year) * 12 + (jour.month - debut.month)
-    if jour.day < debut.day:
-        mois -= 1
-    ans, reste = divmod(max(mois, 0), 12)
-    parties = []
-    if ans:
-        parties.append(pluriel(ans, "an"))
-    if reste or not ans:
-        parties.append(f"{reste} mois")
-    return " et ".join(parties)
-
-
-def nature_du_contrat(employee: Mapping[str, Any]) -> str:
-    brut = _texte(employee.get("contract_type"))
-    cle = brut.lower()
-    if cle == "cdi":
-        return "Contrat à durée indéterminée (CDI)"
-    libelle = _CONTRATS.get(cle)
-    if not libelle:
-        return brut
-    fin = _date_longue(terme_du_contrat(employee))
-    return f"{libelle} jusqu'au {fin}" if fin else libelle
-
-
-def anciennete_du_bulletin(employee: Mapping[str, Any], jour: date) -> str:
-    """L'ancienneté que le bulletin imprime : la reprise de la fiche (ou de la DSN) si elle
-    est antérieure à l'entrée. Plus tardive, elle n'en retire pas (voir _date_anciennete
-    du moteur). 120 fiches du test ont une reprise antérieure au 05/11."""
-    entree = _date(employee.get("hire_date"))
-    reprise = _date(resolve_seniority_reference_date(dict(employee)))
-    if reprise and (entree is None or reprise < entree):
-        duree = anciennete(reprise, jour)
-        return f"{duree} (depuis le {date_fr(reprise)})" if duree else ""
-    return anciennete(entree, jour)
-
-
-def temps_de_travail(employee: Mapping[str, Any]) -> str:
-    """Tel que la fiche le dit ; vide si elle ne le dit pas : la durée n'est jamais devinée."""
-    partiel = employee.get("is_temps_partiel") is True
-    if employee.get("is_forfait_jour") is True:
-        return "Forfait jours réduit" if partiel else "Forfait jours"
-    try:
-        heures = float(employee.get("duree_hebdomadaire"))
-    except (TypeError, ValueError):
-        return "Temps partiel" if partiel else ""
-    texte = f"{heures:g}".replace(".", ",")
-    if heures < 35:
-        return f"Temps partiel ({texte} h par semaine)"
-    # Une fiche « temps partiel » à 35 h se contredit : on n'imprime pas ces heures.
-    return "Temps partiel" if partiel else f"Temps plein ({texte} h par semaine)"
-
-
-def naissance(employee: Mapping[str, Any]) -> str:
-    le = _date_longue(employee.get("date_naissance"))
-    lieu = _texte(employee.get("lieu_naissance"))
-    if not le:
-        return ""
-    return f"{le} à {lieu}" if lieu else le
-
-
 def adresse_du_salarie(employee: Mapping[str, Any]) -> str:
     adresse = employee.get("adresse")
     if isinstance(adresse, str):
@@ -201,21 +152,178 @@ def adresse_du_salarie(employee: Mapping[str, Any]) -> str:
     return ", ".join(p for p in (rue, _texte(adresse.get("complement")), ville) if p)
 
 
-def remuneration_mensuelle(employee: Mapping[str, Any]) -> str:
-    salaire = employee.get("salaire_de_base")
-    valeur = salaire.get("valeur") if isinstance(salaire, Mapping) else salaire
-    try:
-        montant = float(str(valeur).replace(",", ".").replace(" ", ""))
-    except (TypeError, ValueError):
-        return ""
-    return euros(montant) if montant > 0 else ""
-
-
 def signataire(company: Mapping[str, Any]) -> Tuple[str, str]:
     """Nom et fonction réglés dans Entreprise > Fiche ; vides s'ils ne le sont pas."""
     nom = _texte(company.get("nom_signataire_rh") or company.get("signatory_name"))
     fonction = _texte(company.get("qualite_signataire_rh") or company.get("signatory_title"))
     return nom, fonction
+
+
+def _jj_mm_aaaa(jour: date) -> str:
+    return jour.strftime("%d/%m/%Y")
+
+
+def _feminin(employee: Mapping[str, Any]) -> Optional[bool]:
+    """True pour F, False pour M, None si la fiche ne le dit pas."""
+    return {"F": True, "M": False}.get(_texte(employee.get("sexe")).upper())
+
+
+def nom_du_modele(employee: Mapping[str, Any]) -> str:
+    """« M. Prénom NOM », « Mme Prénom NOM », sans civilité si la fiche n'a pas le sexe."""
+    prenom = _texte(employee.get("first_name"))
+    nom = _texte(employee.get("last_name")).upper()
+    if not (prenom or nom):
+        return ""
+    civ = {True: "Mme", False: "M."}.get(_feminin(employee), "")
+    return " ".join(p for p in (civ, prenom, nom) if p)
+
+
+def nir_du_modele(valeur: Any) -> str:
+    """« 1 76 09 99 352 859 29 » : les groupes du modèle (et du bulletin) ; tel quel sinon."""
+    brut = "".join(c for c in _texte(valeur) if c.isalnum()).upper()
+    if len(brut) != sum(GROUPES_NIR):
+        return brut
+    morceaux, position = [], 0
+    for taille in GROUPES_NIR:
+        morceaux.append(brut[position : position + taille])
+        position += taille
+    return " ".join(morceaux)
+
+
+def siret_du_modele(valeur: Any) -> str:
+    """« 991 177 304 00029 » ; tel quel s'il n'a pas 14 chiffres."""
+    brut = "".join(c for c in _texte(valeur) if c.isdigit())
+    if len(brut) != 14:
+        return _texte(valeur)
+    return f"{brut[:3]} {brut[3:6]} {brut[6:9]} {brut[9:]}"
+
+
+def reprise_d_anciennete(employee: Mapping[str, Any]) -> Optional[date]:
+    """La date de la fiche, ou celle de la reprise DSN à défaut (même source que le bulletin)."""
+    return _date(resolve_seniority_reference_date(dict(employee)))
+
+
+def lignes_du_modele(employee: Mapping[str, Any]) -> List[Tuple[str, str]]:
+    """Les cinq lignes du modèle, dans son ordre ; une ligne absente de la fiche est dite."""
+    reprise = reprise_d_anciennete(employee)
+    return [
+        ("Nom et prénom", nom_du_modele(employee) or NON_RENSEIGNE),
+        ("N° de sécurité sociale", nir_du_modele(employee.get("nir")) or NON_RENSEIGNE),
+        ("Adresse", adresse_du_salarie(employee) or NON_RENSEIGNEE),
+        ("Emploi occupé", _texte(employee.get("job_title")) or NON_RENSEIGNE),
+        ("Reprise d'ancienneté", _jj_mm_aaaa(reprise) if reprise else NON_RENSEIGNEE),
+    ]
+
+
+def phrase_de_presence(employee: Mapping[str, Any], jour: date) -> str:
+    """La phrase du modèle, accordée selon la fiche ; neutre si la fiche n'a pas le sexe."""
+    feminin = _feminin(employee)
+    entree = _date(employee.get("hire_date"))
+    if entree and entree > jour:
+        if feminin is None:
+            return f"rejoindra notre entreprise le {_jj_mm_aaaa(entree)}."
+        employe = "employée" if feminin else "employé"
+        return f"sera {employe} au sein de notre entreprise à compter du {_jj_mm_aaaa(entree)}."
+    depuis = (
+        f"le {_jj_mm_aaaa(entree)}"
+        if entree
+        else "le (date d'entrée non renseignée sur la fiche salarié)"
+    )
+    debut = (
+        "travaille"
+        if feminin is None
+        else ("est employée" if feminin else "est employé")
+    )
+    return (
+        f"{debut} au sein de notre entreprise depuis {depuis} et fait toujours partie "
+        "de nos effectifs à la date de la présente attestation."
+    )
+
+
+def _a_l_interesse(employee: Mapping[str, Any]) -> str:
+    return {True: "à l'intéressée", False: "à l'intéressé"}.get(
+        _feminin(employee), "à la personne intéressée"
+    )
+
+
+def code_naf(company: Mapping[str, Any]) -> str:
+    for cle in ("code_naf", "naf_ape", "naf_code", "ape_code", "naf"):
+        valeur = _texte(company.get(cle))
+        if valeur:
+            return valeur
+    return ""
+
+
+def _en_tete_du_modele(company: Mapping[str, Any], styles) -> Table:
+    """Logo à gauche ; adresse, SIRET et code NAF à droite ; un trait dessous."""
+    gauche: Any = Paragraph(f"<b>{escape(get_company_name(company))}</b>", styles["AttCorps"])
+    logo = resolve_company_logo(dict(company))
+    if logo:
+        try:
+            gauche = Image(io.BytesIO(logo), width=4.5 * cm, height=1.6 * cm, kind="proportional")
+        except Exception:  # un logo illisible laisse le nom de la société
+            pass
+    adresse = get_company_address(company)
+    siret = siret_du_modele(company.get("siret"))
+    naf = code_naf(company)
+    droite = Paragraph(
+        "<br/>".join(
+            (
+                escape(adresse) if adresse else "Adresse : non renseignée",
+                f"SIRET : {escape(siret) if siret else 'non renseigné'}",
+                f"Code NAF : {escape(naf) if naf else 'non renseigné'}",
+            )
+        ),
+        styles["EmpEnTete"],
+    )
+    tableau = Table([[gauche, droite]], colWidths=[7 * cm, 10 * cm])
+    tableau.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (0, 0), (0, 0), "LEFT"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                ("LINEBELOW", (0, 0), (-1, -1), 0.5, _TRAIT),
+            ]
+        )
+    )
+    return tableau
+
+
+def _signature_du_modele(company: Mapping[str, Any], styles) -> Table:
+    """« Nom, qualité et signature de l'employeur », le signataire, un cadre pour signer."""
+    nom, qualite = signataire(company)
+    lignes: List[List[Any]] = [
+        [Paragraph("Nom, qualité et signature de l'employeur", styles["EmpPetit"])]
+    ]
+    if nom:
+        lignes.append([Paragraph(escape(nom), styles["AttCorps"])])
+        lignes.append([Paragraph(escape(qualite) if qualite else A_COMPLETER, styles["AttCorps"])])
+    else:
+        lignes.append([Paragraph(A_COMPLETER, styles["AttCorps"])])
+    lignes.append([""])
+    tableau = Table(lignes, colWidths=[7.5 * cm], rowHeights=[None] * (len(lignes) - 1) + [2.5 * cm])
+    tableau.hAlign = "RIGHT"
+    tableau.setStyle(
+        TableStyle(
+            [
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("BOX", (0, -1), (-1, -1), 0.6, _GRIS, None, (2, 2)),
+            ]
+        )
+    )
+    return tableau
+
+
+def _pied_du_modele(canvas, document) -> None:
+    canvas.saveState()
+    largeur, _ = A4
+    canvas.setStrokeColor(_TRAIT)
+    canvas.setLineWidth(0.5)
+    canvas.line(2 * cm, 1.9 * cm, largeur - 2 * cm, 1.9 * cm)
+    canvas.restoreState()
 
 
 class CommonAttestationGenerator:
@@ -236,23 +344,29 @@ class CommonAttestationGenerator:
         jour = _date(ctx.get("date_generation")) or aujourd_hui_local()
         styles = _styles()
         story: List[Any] = []
-        build_branding_header_reportlab(story, styles, company)
-        story.append(Paragraph(TITRES[attestation_type], styles["AttTitre"]))
-        story.append(Spacer(1, 0.4 * cm))
+        pied = None
         if attestation_type == "attestation_emploi":
-            self._corps_travail(story, styles, employee, company, ctx, jour)
+            self._lettre_emploi(story, styles, employee, company, jour)
+            pied = _pied_du_modele
         else:
+            build_branding_header_reportlab(story, styles, company)
+            story.append(Paragraph(TITRES[attestation_type], styles["AttTitre"]))
+            story.append(Spacer(1, 0.4 * cm))
             self._corps_salaire(story, styles, employee, company, ctx)
-        self._cloture(story, styles, company, jour)
+            self._cloture(story, styles, company, jour)
         tampon = io.BytesIO()
-        SimpleDocTemplate(
+        document = SimpleDocTemplate(
             tampon,
             pagesize=A4,
             leftMargin=2 * cm,
             rightMargin=2 * cm,
             topMargin=2 * cm,
             bottomMargin=2 * cm,
-        ).build(story)
+        )
+        if pied:
+            document.build(story, onFirstPage=pied, onLaterPages=pied)
+        else:
+            document.build(story)
         return tampon.getvalue()
 
     @staticmethod
@@ -266,60 +380,56 @@ class CommonAttestationGenerator:
             f"SIRET {_ou_a_completer(_texte(company.get('siret')))}, atteste que"
         )
 
-    def _corps_travail(self, story, styles, employee, company, ctx, jour: date) -> None:
-        story.append(Paragraph(self._ouverture(company) + " :", styles["AttCorps"]))
+    # --- Attestation d'emploi : le modèle de la cliente (06/11/2026) -------------
+
+    def _lettre_emploi(self, story, styles, employee, company, jour: date) -> None:
+        story.append(_en_tete_du_modele(company, styles))
+        story.append(Spacer(1, 1.2 * cm))
+        story.append(Paragraph(TITRES["attestation_emploi"], styles["EmpTitre"]))
+        story.append(
+            HRFlowable(width=3.5 * cm, thickness=1, color=_BLEU, hAlign="CENTER", spaceBefore=2)
+        )
+        story.append(Spacer(1, 1 * cm))
+        societe = escape(get_company_name(company))
+        story.append(
+            Paragraph(f"Nous soussignés, la société {societe}, certifions que :", styles["AttCorps"])
+        )
         story.append(Spacer(1, 0.3 * cm))
-        lignes = [
-            ("Nom et prénom", nom_complet(employee)),
-            ("Date et lieu de naissance", naissance(employee)),
-            ("Adresse", adresse_du_salarie(employee)),
-            ("Emploi occupé", _texte(employee.get("job_title"))),
-            ("Nature du contrat", nature_du_contrat(employee)),
-            ("Date d'entrée", _date_longue(employee.get("hire_date"))),
-            ("Ancienneté", anciennete_du_bulletin(employee, jour)),
-            ("Temps de travail", temps_de_travail(employee)),
-            ("Rémunération brute mensuelle", remuneration_mensuelle(employee)),
-        ]
-        entree = _date(employee.get("hire_date"))
-        a_venir = entree is not None and entree > jour
-        if a_venir:
-            lignes = [ligne for ligne in lignes if ligne[0] != "Ancienneté"]
-        fin_essai = _date_longue(ctx.get("periode_essai_fin"))
-        if fin_essai:
-            lignes.append(("Période d'essai", f"en cours jusqu'au {fin_essai}"))
-        depart_prevu = _date_longue(ctx.get("depart_prevu"))
-        if depart_prevu:
-            lignes.append(("Départ prévu le", depart_prevu))
         tableau = Table(
             [
-                [Paragraph(f"<b>{escape(libelle)}</b>", styles["AttCorps"]),
-                 Paragraph(_ou_a_completer(valeur), styles["AttCorps"])]
-                for libelle, valeur in lignes
+                [Paragraph(escape(libelle), styles["EmpLibelle"]),
+                 Paragraph(escape(valeur), styles["AttCorps"])]
+                for libelle, valeur in lignes_du_modele(employee)
             ],
-            colWidths=[5.5 * cm, 11 * cm],
+            colWidths=[5 * cm, 12 * cm],
         )
         tableau.setStyle(
             TableStyle(
                 [
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
                     ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("LINEBELOW", (0, 0), (-1, -1), 0.5, _TRAIT),
                 ]
             )
         )
         story.append(tableau)
-        story.append(Spacer(1, 0.5 * cm))
-        presence = (
-            f"rejoindra nos effectifs le {date_fr(entree)}."
-            if a_venir
-            else f"fait toujours partie de nos effectifs à la date du {date_fr(jour)}."
-        )
+        story.append(Spacer(1, 0.4 * cm))
+        story.append(Paragraph(escape(phrase_de_presence(employee, jour)), styles["AttCorps"]))
+        story.append(Spacer(1, 0.3 * cm))
         story.append(
             Paragraph(
-                f"<b>{_ou_a_completer(nom_complet(employee))}</b> {presence}",
+                f"Cette attestation est délivrée {_a_l_interesse(employee)} pour servir et "
+                "valoir ce que de droit.",
                 styles["AttCorps"],
             )
         )
+        story.append(Spacer(1, 1 * cm))
+        lieu = _ou_a_completer(get_company_city(company))
+        story.append(Paragraph(f"Fait à {lieu}, le {_jj_mm_aaaa(jour)}", styles["AttDroite"]))
+        story.append(Spacer(1, 0.8 * cm))
+        story.append(_signature_du_modele(company, styles))
 
     def _corps_salaire(self, story, styles, employee, company, ctx) -> None:
         mois = list(ctx.get("mois_de_paie") or [])
@@ -420,6 +530,28 @@ def _styles():
         )
     )
     styles.add(ParagraphStyle(name="AttDroite", parent=styles["AttCorps"], alignment=TA_RIGHT))
+    styles.add(
+        ParagraphStyle(
+            name="EmpTitre",
+            parent=styles["AttCorps"],
+            fontSize=17,
+            leading=22,
+            alignment=TA_CENTER,
+            textColor=_BLEU,
+        )
+    )
+    styles.add(ParagraphStyle(name="EmpLibelle", parent=styles["AttCorps"], textColor=_GRIS))
+    styles.add(
+        ParagraphStyle(
+            name="EmpEnTete",
+            parent=styles["AttCorps"],
+            fontSize=9,
+            leading=13,
+            alignment=TA_RIGHT,
+            textColor=_GRIS,
+        )
+    )
+    styles.add(ParagraphStyle(name="EmpPetit", parent=styles["AttCorps"], fontSize=9, textColor=_GRIS))
     styles.add(
         ParagraphStyle(
             name="AttPetit",

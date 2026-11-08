@@ -156,7 +156,7 @@ class TestUpdateDocumentStatusNotification:
             )
 
         assert row["status"] == "envoye"
-        notify.assert_called_once_with("emp-1", "co-1", "Attestation de travail")
+        notify.assert_called_once_with("emp-1", "co-1", "Attestation d'emploi")
 
     def test_does_not_notify_when_already_envoye(self):
         from app.modules.documents.application import commands as doc_commands

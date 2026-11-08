@@ -37,6 +37,6 @@ describe('getGeneratedDocumentLabel', () => {
       getGeneratedDocumentLabel(
         doc({ document_type: 'attestation_emploi', generation_context: {} }),
       ),
-    ).toBe('Attestation de travail');
+    ).toBe("Attestation d'emploi");
   });
 });

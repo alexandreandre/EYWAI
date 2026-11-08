@@ -5,6 +5,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### L'attestation d'emploi suit votre modèle
+- Elle reprend votre modèle ligne à ligne : nom et prénom, n° de sécurité sociale, adresse, emploi occupé, reprise d'ancienneté, puis « est employé(e) au sein de notre entreprise depuis le… ». Elle s'appelle désormais « Attestation d'emploi » partout.
+- Elle ne parle plus de la naissance, du contrat, du temps de travail ni du salaire : pour le salaire, c'est l'attestation de salaire.
+- Si la fiche n'a pas le n° de sécurité sociale ou la date de reprise d'ancienneté, la lettre écrit « Non renseigné sur la fiche salarié » : complétez la fiche, puis générez-la de nouveau.
+
 ### Les heures de récupération sont suivies
 - Un seul réglage par société (Entreprise > Paie > Organisation du temps) : heures sup payées, ou mises au compteur. Une heure à 25 % donne 1 h 15 de repos, à 50 % 1 h 30.
 - Sur le bulletin : heures acquises, heures prises avec leur date, solde. Et sur chaque bulletin, un bouton pour payer les heures du mois au lieu de les mettre au compteur (ou l'inverse), payer le solde, ou revenir en arrière. La conséquence est écrite à côté : une heure mise en repos puis payée perd l'exonération d'impôt et les réductions.

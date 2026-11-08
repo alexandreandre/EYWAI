@@ -134,7 +134,7 @@ def test_document_display_label_falls_back_to_type_label():
     label = commands._document_display_label(
         {"document_type": "attestation_emploi", "generation_context": {}}
     )
-    assert label == "Attestation de travail"
+    assert label == "Attestation d'emploi"
 
 
 def test_employee_can_access_status():

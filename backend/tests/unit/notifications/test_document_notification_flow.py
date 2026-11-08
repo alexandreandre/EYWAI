@@ -62,7 +62,7 @@ class TestDocumentNotificationChain:
                 UpdateDocumentStatusRequest(status="envoye"),
             )
 
-        mock_notify.assert_called_once_with("emp-1", "co-1", "Attestation de travail")
+        mock_notify.assert_called_once_with("emp-1", "co-1", "Attestation d'emploi")
 
     def test_notify_never_raises_on_smtp_failure(self):
         from app.modules.notifications.application import employee_document_alerts as mod

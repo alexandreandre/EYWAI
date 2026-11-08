@@ -63,20 +63,6 @@ def test_seuls_les_bulletins_remis_comptent(monkeypatch):
     assert ("status", "valide") in base.filtres
 
 
-def test_la_periode_d_essai_en_cours(monkeypatch):
-    base = _Base([{"end_date": "2026-12-01"}])
-    monkeypatch.setattr(attestation_queries, "supabase", base)
-    assert attestation_queries.fin_de_periode_d_essai_en_cours("sal-1", "soc-1") == "2026-12-01"
-    assert base.tables == ["trial_periods"]
-    assert ("status", "en_cours") in base.filtres
-    assert ("company_id", "soc-1") in base.filtres
-
-
-def test_sans_periode_d_essai(monkeypatch):
-    monkeypatch.setattr(attestation_queries, "supabase", _Base([]))
-    assert attestation_queries.fin_de_periode_d_essai_en_cours("sal-1", "soc-1") is None
-
-
 def test_le_dernier_jour_du_dernier_depart(monkeypatch):
     base = _Base(
         [

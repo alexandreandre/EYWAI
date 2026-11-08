@@ -626,7 +626,7 @@ export function EmployeeDetailDocumentsTab({
               <div>
                 <p className="text-sm font-medium">Attestations</p>
                 <p className="text-xs text-muted-foreground">
-                  Attestation de travail ou de salaire, à remettre au salarié qui la demande.
+                  Attestation d'emploi ou de salaire, à remettre au salarié qui la demande.
                 </p>
               </div>
               <Button size="sm" onClick={handlers.openAttestation}>
