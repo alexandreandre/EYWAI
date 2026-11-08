@@ -434,6 +434,8 @@ def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
             _ligne(
                 "hors_brut",
                 revenu.get("libelle") or "Revenu imposable non soumis",
+                base=revenu.get("quantite"),
+                taux=revenu.get("taux"),
                 montant_salarial=montant,
             )
         )

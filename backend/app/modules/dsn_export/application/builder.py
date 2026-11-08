@@ -46,6 +46,8 @@ from app.modules.dsn_export.domain.evenements import (
     bloc_fin_contrat,
     blocs_arret,
     blocs_suspension,
+    blocs_temps_partiel_therapeutique,
+    declaration_activite_partielle,
     date_de_fin,
     date_dsn,
     dsn as en_date_dsn,
@@ -65,6 +67,7 @@ from app.modules.dsn_import.domain.model import (
     FinContratBlock,
     PrimeBlock,
     SuspensionContratBlock,
+    TempsPartielTherapeutiqueBlock,
     DeclarationBlock,
     DsnFile,
     EtablissementBlock,
@@ -1100,6 +1103,24 @@ def build_individu_from_payroll(
             "(60.007 / 60.008 obligatoires) : paramétrer les versements"
         )
     blocs_65 = blocs_suspension(payslip_data)
+    debut_periode, fin_periode = date_dsn(period_start), date_dsn(period_end)
+    blocs_66: List[Dict[str, str]] = []
+    activite_partielle = None
+    if debut_periode and fin_periode:
+        blocs_602, activite_partielle, avertissements_ap = declaration_activite_partielle(
+            payslip_data, debut_periode, fin_periode
+        )
+        blocs_65 += blocs_602
+        warnings.extend(f"{a} (NIR {nir_dsn})" for a in avertissements_ap)
+    if debut_mois:
+        blocs_66, perte_introuvable = blocs_temps_partiel_therapeutique(
+            absences, payslip_data, debut_mois, fin_mois
+        )
+        if perte_introuvable:
+            warnings.append(
+                f"Temps partiel thérapeutique sans ligne de perte au bulletin pour le NIR "
+                f"{nir_dsn} : 66.003 déclaré à 0,00"
+            )
     dispositif_contrat = str(classification.get("dispositif_politique_publique") or "")
     apprentissage = dispositif_contrat in {"64", "65", "66"} or "apprenti" in str(
         employee.get("contract_type") or ""
@@ -1139,6 +1160,7 @@ def build_individu_from_payroll(
         heures_contrat_mois=heures_contrat_mois,
         mois_incomplet=mois_incomplet,
         mesure_activite=mesure_activite,
+        activite_partielle=activite_partielle,
     )
 
     # Composants de la base 03 : parts patronales santé (04) et retraite
@@ -1440,6 +1462,9 @@ def build_individu_from_payroll(
     )
     ctr.arrets = [ArretTravailBlock(rubriques=bloc) for bloc in blocs_60]
     ctr.suspensions = [SuspensionContratBlock(rubriques=bloc) for bloc in blocs_65]
+    ctr.temps_partiels_therapeutiques = [
+        TempsPartielTherapeutiqueBlock(rubriques=bloc) for bloc in blocs_66
+    ]
     if bloc_62:
         ctr.fin_contrat = FinContratBlock(rubriques=bloc_62)
     # Régime de retraite complémentaire : RUAA, le régime unifié AGIRC-ARRCO,

@@ -8,6 +8,7 @@ logiciel ou dans le cahier technique NEODeS 2026, cité au cas par cas.
 from __future__ import annotations
 
 import copy
+import pytest
 from datetime import date
 from typing import Dict, List, Tuple
 
@@ -372,3 +373,141 @@ def test_jours_du_plafond_retirent_arrets_et_absences_non_payees_a_defaut():
         if r == "S21.G00.53.002" and r2 == "S21.G00.53.003" and v2 == "40"
     )
     assert activite == "22.00"
+
+
+# --------------------------------------------------------------------------
+# Activité partielle (65 motif 602, 51 type 019)
+# --------------------------------------------------------------------------
+# Cahier technique 2026.1.2 : 65.001 SIG-11 (602 exige un 51 type 019), 51.012
+# SIG-11 (heures obligatoires sur 019). DSN de l'ancien logiciel, sept. 2026 :
+# 019 = heures chômées et montant de l'indemnité du bulletin.
+
+
+def _bulletin_activite_partielle() -> Dict:
+    bulletin = copy.deepcopy(BULLETIN)
+    bulletin["calcul_du_brut"].append(
+        {"libelle": "Heures chômées (act. part.)", "quantite": 20.0, "taux": 14.5, "gain": -290.0}
+    )
+    bulletin["revenus_hors_brut_imposables"] = [
+        {"libelle": "Indemnité activité partielle", "montant": 190.4, "prime_id": "indemnite_activite_partielle"}
+    ]
+    return bulletin
+
+
+def test_activite_partielle_saisie_emet_602_et_019():
+    lignes = _lignes(bulletin=_bulletin_activite_partielle())
+    assert _blocs(lignes, "S21.G00.65") == [{"001": "602", "002": "01092026", "003": "30092026"}]
+    types = {b["011"]: b for b in _blocs(lignes, "S21.G00.51")}
+    assert types["019"]["012"] == "20.00"
+    assert types["019"]["013"] == "190.40"
+
+
+def test_activite_partielle_lue_sur_un_bulletin_repris_suit_ses_dates():
+    bulletin = copy.deepcopy(BULLETIN)
+    bulletin["calcul_du_brut"] += [
+        {"libelle": "Act. partiel. 040926", "quantite": 7.0, "taux": 14.74, "perte": 103.2},
+        {"libelle": "Act. partiel. 170926-180926", "quantite": 14.0, "taux": 14.74, "perte": 206.4},
+    ]
+    bulletin["primes_non_soumises"] = [{"libelle": "Indemn. activité partielle", "montant": 199.92}]
+    lignes = _lignes(bulletin=bulletin)
+    assert _blocs(lignes, "S21.G00.65") == [
+        {"001": "602", "002": "04092026", "003": "04092026"},
+        {"001": "602", "002": "17092026", "003": "18092026"},
+    ]
+    types = {b["011"]: b for b in _blocs(lignes, "S21.G00.51")}
+    assert (types["019"]["012"], types["019"]["013"]) == ("21.00", "199.92")
+
+
+def test_activite_partielle_en_jours_ne_se_declare_pas_en_heures():
+    bulletin = copy.deepcopy(BULLETIN)
+    bulletin["calcul_du_brut"].append(
+        {"libelle": "Act. partiel. 030626", "quantite": 1, "taux": 140.9091, "perte": 140.91}
+    )
+    lignes = _lignes(bulletin=bulletin)
+    assert _blocs(lignes, "S21.G00.65") == []
+    assert "019" not in {b["011"] for b in _blocs(lignes, "S21.G00.51")}
+
+
+def test_sans_activite_partielle_rien_ne_change():
+    lignes = _lignes()
+    assert _blocs(lignes, "S21.G00.65") == []
+    assert "019" not in {b["011"] for b in _blocs(lignes, "S21.G00.51")}
+
+
+# --------------------------------------------------------------------------
+# Temps partiel thérapeutique (60 motifs 15 à 18, 66)
+# --------------------------------------------------------------------------
+# Cahier technique 2026.1.2 : 60.001 (valeurs 15 à 18, SIG-13 : bloc 66
+# obligatoire), 60.011 (« 02 - reprise temps partiel thérapeutique »), bloc 66.
+# Ancien logiciel, 2026 : motif 15 ; dernier jour = veille ; 60.011 = 01 à la
+# fin du temps partiel ; 66 borné au mois.
+
+
+def _tpt(nature: str, debut: str, fin: str) -> Dict:
+    return _arret(nature, debut, fin, arret_type="mi_temps_therapeutique")
+
+
+@pytest.mark.parametrize(
+    "nature, motif", [("arret_maladie", "15"), ("arret_at", "16"), ("arret_maladie_pro", "18")]
+)
+def test_temps_partiel_therapeutique_declare_selon_son_origine(nature, motif):
+    blocs = blocs_arret([_tpt(nature, "2026-09-07", "2026-09-25")], date(2026, 9, 1), date(2026, 9, 30))
+    assert blocs[0]["S21.G00.60.001"] == motif
+    # La veille, même sous la nature accident : ce n'est pas le jour de l'accident.
+    assert blocs[0]["S21.G00.60.002"] == "06092026"
+    assert blocs[0]["S21.G00.60.011"] == "01"
+
+
+def test_temps_partiel_apres_un_accident_de_trajet_motif_17():
+    absences = [
+        _arret("arret_at", "2026-08-03", "2026-08-30", arret_type="accident_trajet"),
+        _tpt("arret_at", "2026-09-07", "2026-09-25"),
+    ]
+    blocs = blocs_arret(absences, date(2026, 9, 1), date(2026, 9, 30))
+    assert [b["S21.G00.60.001"] for b in blocs] == ["17"]
+
+
+def test_reprise_en_temps_partiel_therapeutique_motif_de_reprise_02():
+    absences = [
+        _arret("arret_maladie", "2026-09-01", "2026-09-11", arret_type="maladie_simple"),
+        _tpt("arret_maladie", "2026-09-14", "2026-09-30"),
+    ]
+    blocs = blocs_arret(absences, date(2026, 9, 1), date(2026, 9, 30))
+    assert blocs[0]["S21.G00.60.001"] == "01"
+    assert blocs[0]["S21.G00.60.011"] == "02"
+
+
+def test_reprise_normale_quand_un_autre_arret_suit_de_loin():
+    absences = [
+        _arret("arret_maladie", "2026-09-01", "2026-09-04", arret_type="maladie_simple"),
+        _tpt("arret_maladie", "2026-09-21", "2026-09-30"),
+    ]
+    blocs = blocs_arret(absences, date(2026, 9, 1), date(2026, 9, 30))
+    assert blocs[0]["S21.G00.60.011"] == "01"
+
+
+def test_bloc_66_borne_au_mois_et_perte_du_bulletin_repris():
+    bulletin = copy.deepcopy(BULLETIN)
+    bulletin["calcul_du_brut"].append(
+        {"libelle": "Tps.part.théra.070926-300926", "quantite": 60.08, "taux": 15.5, "perte": 932.0}
+    )
+    salarie = {**SALARIE, "absences_dsn": [_tpt("arret_maladie", "2026-09-07", "2026-10-09")]}
+    lignes = _lignes(salarie=salarie, bulletin=bulletin)
+    assert _blocs(lignes, "S21.G00.66") == [{"001": "07092026", "002": "30092026", "003": "932.00"}]
+    ordre = _ordre_des_blocs(lignes)
+    assert ordre.index("S21.G00.60") < ordre.index("S21.G00.66") < ordre.index("S21.G00.50")
+
+
+def test_bloc_66_perte_de_la_ligne_d_arret_du_bulletin_calcule():
+    bulletin = copy.deepcopy(BULLETIN)
+    bulletin["calcul_du_brut"] += [
+        {"libelle": "Absence maladie du 01/09 au 04/09", "perte": 200.0, "is_arret_maladie": True},
+        {"libelle": "Absence maladie du 07/09 au 25/09", "perte": 412.5, "is_arret_maladie": True},
+    ]
+    salarie = {**SALARIE, "absences_dsn": [_tpt("arret_maladie", "2026-09-07", "2026-09-25")]}
+    assert _blocs(_lignes(salarie=salarie, bulletin=bulletin), "S21.G00.66")[0]["003"] == "412.50"
+
+
+def test_pas_de_bloc_66_pour_un_arret_ordinaire():
+    salarie = {**SALARIE, "absences_dsn": [_arret("arret_maladie", "2026-09-07", "2026-09-11")]}
+    assert _blocs(_lignes(salarie=salarie), "S21.G00.66") == []

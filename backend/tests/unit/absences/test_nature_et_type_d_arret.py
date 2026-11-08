@@ -52,7 +52,6 @@ def test_combinaisons_coherentes_acceptees(nature, type_arret):
         ("arret_maladie", "rechute_at"),
         ("arret_at", "maladie_simple"),
         ("arret_at", "maladie_professionnelle"),
-        ("arret_at", "mi_temps_therapeutique"),
         ("arret_maladie_pro", "accident_travail"),
         ("arret_maladie_pro", "maladie_simple"),
         ("arret_maternite", "accident_travail"),
@@ -127,3 +126,10 @@ def test_enregistrement_accepte_un_accident_de_trajet_en_accident_du_travail():
         repo.create.return_value = {"id": "req-1"}
         commands.create_absence_request(_demande("arret_at", "accident_trajet"))
     assert repo.create.call_args[0][0]["arret_type"] == "accident_trajet"
+
+
+@pytest.mark.parametrize("nature", ["arret_maladie", "arret_at", "arret_maladie_pro"])
+def test_temps_partiel_therapeutique_ouvert_sous_chaque_origine(nature):
+    # Cahier technique DSN 2026.1.2, S21.G00.60.001 : motifs 15 (maladie),
+    # 16 (accident du travail), 17 (trajet), 18 (maladie professionnelle).
+    assert incoherence_nature_type_d_arret(nature, "mi_temps_therapeutique") is None

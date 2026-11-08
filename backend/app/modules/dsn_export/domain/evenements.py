@@ -41,7 +41,19 @@ MOTIF_ADOPTION = "09"
 #: travaillé (60.002). Leur date (60.012) relève du signalement d'arrêt.
 MOTIFS_ACCIDENT = {"04", "05", "06"}
 
+#: Temps partiel thérapeutique selon le risque d'origine (60.001, cahier
+#: technique 2026.1.2). Le trajet n'a pas de nature propre : voir `_motif_tpt`.
+TYPE_ARRET_TPT = "mi_temps_therapeutique"
+MOTIF_TPT = {"arret_maladie": "15", "arret_at": "16", "arret_maladie_pro": "18"}
+MOTIF_TPT_TRAJET = "17"
+MOTIFS_TPT = {"15", "16", "17", "18"}
+#: Motif de la reprise (60.011) : modalité du travail après l'arrêt.
+REPRISE_NORMALE = "01"
+REPRISE_TPT = "02"
+
 MOTIF_CONGE_NON_REMUNERE = "501"
+#: Activité partielle : chômage sans rupture du contrat (65.001).
+MOTIF_CHOMAGE_PARTIEL = "602"
 MOTIF_EVENEMENT_FAMILIAL = "637"
 
 #: Type de sortie MARTINE → motif de rupture (S21.G00.62.002).
@@ -136,7 +148,32 @@ def _jours(absence: Dict[str, Any]) -> List[date]:
     return sorted(j for j in jours if j)
 
 
-def _motif_arret(absence: Dict[str, Any]) -> Optional[str]:
+def _motif_tpt(absence: Dict[str, Any], absences: List[Dict[str, Any]]) -> Optional[str]:
+    """15, 16 ou 18 selon la nature ; 17 si l'arrêt d'accident qui précède est
+    un accident de trajet, seule trace de cette origine dans la demande."""
+    motif = MOTIF_TPT.get(str(absence.get("type") or ""))
+    if motif != "16":
+        return motif
+    debut = _jours(absence)[0]
+    precedents = [
+        a
+        for a in absences
+        if isinstance(a, dict)
+        and a.get("type") == "arret_at"
+        and a.get("arret_type") != TYPE_ARRET_TPT
+        and _jours(a)
+        and _jours(a)[-1] < debut
+    ]
+    if precedents and "trajet" in str(
+        max(precedents, key=lambda a: _jours(a)[-1]).get("arret_type") or ""
+    ):
+        return MOTIF_TPT_TRAJET
+    return motif
+
+
+def _motif_arret(absence: Dict[str, Any], absences: List[Dict[str, Any]]) -> Optional[str]:
+    if str(absence.get("arret_type") or "") == TYPE_ARRET_TPT and _jours(absence):
+        return _motif_tpt(absence, absences)
     motif = MOTIF_ARRET.get(str(absence.get("type") or ""))
     if motif == "06" and "trajet" in str(absence.get("arret_type") or ""):
         return MOTIF_ACCIDENT_TRAJET
@@ -148,10 +185,11 @@ def _motif_arret(absence: Dict[str, Any]) -> Optional[str]:
 def periodes_d_arret(absences: Iterable[Dict[str, Any]]) -> List[Periode]:
     """Arrêts continus : une prolongation sans reprise prolonge l'arrêt."""
     brutes: List[Periode] = []
-    for absence in absences or []:
+    toutes = list(absences or [])
+    for absence in toutes:
         if not isinstance(absence, dict):
             continue
-        motif = _motif_arret(absence)
+        motif = _motif_arret(absence, toutes)
         jours = _jours(absence)
         if not motif or not jours:
             continue
@@ -182,6 +220,19 @@ def dernier_jour_travaille(motif: str, debut: date, debut_contrat: Optional[date
     return jour
 
 
+def _reprend_en_tpt(periode: Periode, periodes: List[Periode]) -> bool:
+    """Un temps partiel thérapeutique commence au jour ouvré qui suit l'arrêt."""
+    if periode.motif in MOTIFS_TPT:
+        return False
+    for suivante in periodes:
+        if suivante.motif not in MOTIFS_TPT or suivante.debut <= periode.fin:
+            continue
+        ecart = (suivante.debut - periode.fin).days
+        if all((periode.fin + timedelta(days=k)).weekday() >= 5 for k in range(1, ecart)):
+            return True
+    return False
+
+
 def blocs_arret(
     absences: Iterable[Dict[str, Any]],
     debut_mois: date,
@@ -198,7 +249,8 @@ def blocs_arret(
     mois a appliqué, qui prime sur la case cochée dans la demande d'arrêt.
     """
     blocs: List[Dict[str, str]] = []
-    for periode in periodes_d_arret(absences):
+    periodes = periodes_d_arret(absences)
+    for periode in periodes:
         if periode.fin < debut_mois or periode.debut > fin_mois:
             continue
         if subrogation_paie is not None:
@@ -218,11 +270,81 @@ def blocs_arret(
                 rubriques["S21.G00.60.008"] = compte_employeur[1]
         if periode.fin < fin_mois:
             rubriques["S21.G00.60.010"] = dsn(periode.fin + timedelta(days=1))
-            rubriques["S21.G00.60.011"] = "01"
+            rubriques["S21.G00.60.011"] = (
+                REPRISE_TPT if _reprend_en_tpt(periode, periodes) else REPRISE_NORMALE
+            )
         # La date de l'accident (60.012) ne se déclare qu'au signalement
         # d'arrêt : en DSN mensuelle, DSN-VAL la refuse (CST-04).
         blocs.append(rubriques)
     return blocs
+
+
+# --------------------------------------------------------------------------
+# Temps partiel thérapeutique (66), obligatoire sous les motifs 15 à 18
+# --------------------------------------------------------------------------
+
+_LIGNE_ARRET_MARTINE = re.compile(r" du (\d{2})/(\d{2})(?: au (\d{2})/(\d{2}))?")
+
+
+def _bornes_ligne_d_arret(ligne: Dict[str, Any], annee: int) -> Optional[Tuple[date, date]]:
+    """Les dates d'une ligne d'arrêt : reprise (« 070926-300926 ») ou calculée."""
+    libelle = str(ligne.get("libelle") or "")
+    trouve = _LIGNE_REPRISE.search(libelle)
+    if trouve:
+        debut = _jour_reprise(trouve.group(1))
+        fin = _jour_reprise(trouve.group(2)) if trouve.group(2) else debut
+        return (debut, fin) if debut and fin else None
+    trouve = _LIGNE_ARRET_MARTINE.search(libelle)
+    if not trouve:
+        return None
+    jour, mois, jour_fin, mois_fin = trouve.groups()
+    debut = date(annee, int(mois), int(jour))
+    fin = date(annee, int(mois_fin), int(jour_fin)) if jour_fin else debut
+    return debut, fin
+
+
+def _est_ligne_de_tpt(ligne: Dict[str, Any]) -> bool:
+    libelle = str(ligne.get("libelle") or "").lower()
+    return "tps.part" in libelle or "thérap" in libelle or "therap" in libelle or bool(
+        ligne.get("is_arret_maladie")
+    )
+
+
+def _perte_du_tpt(payslip_data: Dict[str, Any], debut: date, fin: date) -> Optional[float]:
+    """Perte de salaire des lignes d'arrêt du bulletin dans la période (66.003)."""
+    total: Optional[float] = None
+    for ligne in payslip_data.get("calcul_du_brut") or []:
+        if not isinstance(ligne, dict) or not _est_ligne_de_tpt(ligne):
+            continue
+        bornes = _bornes_ligne_d_arret(ligne, debut.year)
+        if bornes and bornes[0] <= fin and bornes[1] >= debut:
+            total = (total or 0.0) + float(ligne.get("perte") or 0)
+    return None if total is None else round(total, 2)
+
+
+def blocs_temps_partiel_therapeutique(
+    absences: Iterable[Dict[str, Any]],
+    payslip_data: Dict[str, Any],
+    debut_mois: date,
+    fin_mois: date,
+) -> Tuple[List[Dict[str, str]], bool]:
+    """Blocs 66, bornés au mois déclaré, et « une perte n'a pas été trouvée »."""
+    blocs: List[Dict[str, str]] = []
+    perte_introuvable = False
+    for periode in periodes_d_arret(absences):
+        if periode.motif not in MOTIFS_TPT or periode.fin < debut_mois or periode.debut > fin_mois:
+            continue
+        debut, fin = max(periode.debut, debut_mois), min(periode.fin, fin_mois)
+        perte = _perte_du_tpt(payslip_data, debut, fin)
+        perte_introuvable = perte_introuvable or perte is None
+        blocs.append(
+            {
+                "S21.G00.66.001": dsn(debut),
+                "S21.G00.66.002": dsn(fin),
+                "S21.G00.66.003": f"{perte or 0.0:.2f}",
+            }
+        )
+    return blocs, perte_introuvable
 
 
 # --------------------------------------------------------------------------
@@ -316,6 +438,103 @@ def blocs_suspension(payslip_data: Dict[str, Any]) -> List[Dict[str, str]]:
         }
         for motif, debut, fin in suspensions_du_bulletin(payslip_data)
     ]
+
+
+# --------------------------------------------------------------------------
+# Activité partielle (65 motif 602, 51 type 019)
+# --------------------------------------------------------------------------
+
+#: Au-delà, la colonne « taux » d'une ligne reprise est un taux journalier et
+#: sa quantité des jours : 1 à 140,91 € pour une journée de 7 h (bulletins
+#: LEWIS de juin 2026). La DSN veut des heures (51.012).
+_TAUX_HORAIRE_MAXIMUM = 100.0
+
+
+@dataclass
+class ActivitePartielle:
+    heures: float
+    indemnite: float
+    periodes: List[Tuple[date, date]]
+    en_heures: bool
+
+
+def _est_chomage_partiel(libelle: str) -> bool:
+    texte = libelle.lower()
+    if "indemn" in texte:
+        return False
+    return "act. partiel" in texte or (
+        ("chôm" in texte or "chom" in texte) and "act" in texte and "part" in texte
+    )
+
+
+def activite_partielle_du_bulletin(payslip_data: Dict[str, Any]) -> Optional[ActivitePartielle]:
+    """Heures chômées et indemnité : la saisie du mois ou les lignes reprises."""
+    heures = 0.0
+    en_heures = True
+    periodes: List[Tuple[date, date]] = []
+    trouve_ligne = False
+    for ligne in payslip_data.get("calcul_du_brut") or []:
+        if not isinstance(ligne, dict) or ligne.get("is_sous_total"):
+            continue
+        libelle = str(ligne.get("libelle") or "")
+        if not _est_chomage_partiel(libelle):
+            continue
+        trouve_ligne = True
+        heures += abs(float(ligne.get("quantite") or 0))
+        if float(ligne.get("taux") or 0) > _TAUX_HORAIRE_MAXIMUM:
+            en_heures = False
+        trouve = _LIGNE_REPRISE.search(libelle)
+        if trouve:
+            debut = _jour_reprise(trouve.group(1))
+            fin = _jour_reprise(trouve.group(2)) if trouve.group(2) else debut
+            if debut and fin:
+                periodes.append((debut, fin))
+    indemnite = sum(
+        float(p.get("montant") or 0)
+        for cle in ("primes_non_soumises", "revenus_hors_brut_imposables")
+        for p in payslip_data.get(cle) or []
+        if isinstance(p, dict)
+        and "indemn" in str(p.get("libelle") or "").lower()
+        and "partiel" in str(p.get("libelle") or "").lower()
+    )
+    if not trouve_ligne:
+        return None
+    return ActivitePartielle(round(heures, 2), round(indemnite, 2), sorted(periodes), en_heures)
+
+
+def declaration_activite_partielle(
+    payslip_data: Dict[str, Any], debut_periode: date, fin_periode: date
+) -> Tuple[List[Dict[str, str]], Optional[Tuple[float, float]], List[str]]:
+    """Blocs 65 (602), (heures, indemnité) du 019 et avertissements.
+
+    Les deux vont ensemble (65.001 SIG-11). Une saisie du mois ne porte pas de
+    dates : le bloc couvre alors la période, et un avertissement le dit.
+    """
+    activite = activite_partielle_du_bulletin(payslip_data)
+    if activite is None:
+        return [], None, []
+    if not activite.en_heures or activite.heures <= 0:
+        return [], None, [
+            "Activité partielle non déclarée (blocs 65 et 51 type 019) : "
+            "heures chômées absentes ou exprimées en jours"
+        ]
+    avertissements: List[str] = []
+    periodes = activite.periodes
+    if not periodes:
+        periodes = [(debut_periode, fin_periode)]
+        avertissements.append(
+            "Activité partielle sans dates de chômage : bloc 602 déclaré sur "
+            "toute la période, à corriger avec les jours réels"
+        )
+    blocs = [
+        {
+            "S21.G00.65.001": MOTIF_CHOMAGE_PARTIEL,
+            "S21.G00.65.002": dsn(debut),
+            "S21.G00.65.003": dsn(fin),
+        }
+        for debut, fin in periodes
+    ]
+    return blocs, (activite.heures, activite.indemnite), avertissements
 
 
 def _chevauchement(debut: date, fin: date, debut_mois: date, fin_mois: date) -> int:

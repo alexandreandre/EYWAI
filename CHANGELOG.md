@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### La DSN déclare l'activité partielle et le temps partiel thérapeutique
+- Les heures chômées et l'indemnité d'activité partielle partent en DSN (motif 602, type 019) et le bulletin imprime les heures et le taux.
+- Le temps partiel thérapeutique a son motif (15 à 18 selon l'origine) et la reprise en temps partiel son code 02, au lieu de la maladie. Il se saisit aussi sous accident du travail et maladie professionnelle.
+
 ### Le mois de sortie va jusqu'au dernier jour du contrat
 - Quand un salarié part après l'arrêté des variables, ses heures sup, paniers, absences et congés posés jusqu'à son dernier jour passent sur le bulletin de sortie. Ces jours sont à saisir avant de générer le bulletin.
 - Un repos compensateur obligatoire non pris au départ est signalé sur le bulletin, à ajouter à la page Primes, et le reçu pour solde de tout compte indique les heures dues au lieu de « Néant ».
