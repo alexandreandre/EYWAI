@@ -230,6 +230,26 @@ def raison_de_blocage_avant_bascule(
     )
 
 
+def raison_de_refus_dsn_mois_repris(
+    company_id: str | None, annee: int, mois: int, bascule: Bascule | None = None
+) -> str | None:
+    """Refuse de déclarer depuis Martine un mois payé par l'ancien logiciel.
+
+    Lecture stricte : base injoignable, l'export s'arrête au lieu de laisser passer
+    le mois (R-252).
+    """
+    bascule = bascule if bascule is not None else lire_bascule(company_id, stricte=True)
+    if bascule is None or not bascule.couvre(annee, mois):
+        return None
+    prem_annee, prem_mois = bascule.premier_mois_calcule
+    logiciel = bascule.logiciel_precedent or "le logiciel précédent"
+    return (
+        f"La DSN de {mois:02d}/{annee:04d} ne se fait pas depuis Martine : ce mois a été "
+        f"payé avec {logiciel}, sa déclaration se fait depuis {logiciel}. Pour déclarer "
+        f"avec Martine, choisissez le mois {prem_mois:02d}/{prem_annee:04d} ou un mois suivant."
+    )
+
+
 def _un_bulletin_existe_avant(employee_id: str, annee: int, mois: int) -> bool:
     """Un bulletin a-t-il déjà été produit à ce mois ou avant ? (chaîne attendue)"""
     borne = rang_du_mois(annee, mois)

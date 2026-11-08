@@ -295,7 +295,12 @@ def _construire_fin(
         None,
     )
     mensuelle = generate_dsn_file(
-        company_id, f"{f.fin:%Y-%m}", "dsn_mensuelle_normale", [employee_id], essai=essai
+        company_id,
+        f"{f.fin:%Y-%m}",
+        "dsn_mensuelle_normale",
+        [employee_id],
+        essai=essai,
+        pour_signalement=True,
     )
     texte = fctu_depuis_mensuelle(
         mensuelle.decode("iso-8859-15"), mois_solde=f.fin, preavis=bloc_preavis(sortie)

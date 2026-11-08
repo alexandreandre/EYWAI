@@ -13,6 +13,10 @@ from app.modules.dsn_export.domain.changement_pcs import avis_changements_pcs
 from app.modules.pcs_ese.infrastructure.transmissions import periodes_deposees
 from app.modules.dsn_export.domain.affiliations import Collegue, deduire_affiliations
 from app.modules.dsn_export.domain.contract_map import numero_du_contrat
+from app.modules.dsn_export.domain.cotisation_mapping import (
+    cotisations_sans_code_dsn,
+    message_cotisation_sans_code,
+)
 from app.modules.dsn_export.domain.deux_contrats import evenements_du_contrat
 from app.modules.dsn_export.domain.etat_conformite import (
     DEPOSABLE,
@@ -44,7 +48,7 @@ from app.modules.payroll.application.monthly_specificites import (
 )
 from app.shared.domain.dispense_mutuelle import alerte_mutuelle
 from app.shared.domain.employment_rules import is_cadre
-from app.shared.reprise_paie import lire_bascule
+from app.shared.reprise_paie import lire_bascule, raison_de_refus_dsn_mois_repris
 from app.shared.dsn_validation import validate_nir, validate_nir_dsn, validate_siret
 
 DSN_NORME = "P26V01"
@@ -579,6 +583,18 @@ def check_dsn_data(
                     "employee_name": employee_name,
                 }
             )
+        for declare in (emp_data, precedent):
+            for cotisation in cotisations_sans_code_dsn(declare.get("cotisations_detail") or []):
+                anomalies.append(
+                    {
+                        "type": "error",
+                        "message": f"Salarié {employee_name} : "
+                        + message_cotisation_sans_code(cotisation["libelle"], cotisation["montant"]),
+                        "severity": "blocking",
+                        "employee_id": employee_id,
+                        "employee_name": employee_name,
+                    }
+                )
         if precedent and float(precedent.get("brut") or 0) <= 0:
             anomalies.append(
                 {
@@ -698,6 +714,19 @@ def preview_dsn(
     anomalies, warnings = check_dsn_data(
         company_id, period, employees_data, company_data, essai=essai
     )
+    annee_dsn, mois_dsn = map(int, period.split("-"))
+    refus_mois_repris = raison_de_refus_dsn_mois_repris(company_id, annee_dsn, mois_dsn)
+    if refus_mois_repris:
+        anomalies.insert(
+            0,
+            {
+                "type": "error",
+                "message": refus_mois_repris,
+                "severity": "blocking",
+                "employee_id": None,
+                "employee_name": None,
+            },
+        )
     avis_pcs = avis_changements_pcs(employees_data, period, periodes_deposees(company_id))
     if avis_pcs:
         warnings = [*warnings, avis_pcs]
@@ -859,8 +888,19 @@ def generate_dsn_file(
     establishment_id: Optional[str] = None,
     *,
     essai: bool = False,
+    pour_signalement: bool = False,
 ) -> bytes:
-    """Génère un fichier DSN plat P26V01, relu et validé avant retour."""
+    """Génère un fichier DSN plat P26V01, relu et validé avant retour.
+
+    ``pour_signalement`` : le fichier sert de matière à un signalement de fin de
+    contrat, qui n'est pas la DSN mensuelle. Les deux gardes de la mensuelle (mois
+    repris, cotisation sans code) ne s'y appliquent pas.
+    """
+    if not pour_signalement:
+        annee_dsn, mois_dsn = map(int, period.split("-"))
+        refus_mois_repris = raison_de_refus_dsn_mois_repris(company_id, annee_dsn, mois_dsn)
+        if refus_mois_repris:
+            raise ValueError(refus_mois_repris)
     company_data = get_company_data(company_id)
     if establishment_id:
         # Filtre multi-établissement : si la fiche société expose des établissements
@@ -893,7 +933,7 @@ def generate_dsn_file(
             dsn_type=dsn_type,
             essai=essai,
             file_name=file_name,
-            require_cotisation_codes=False,
+            require_cotisation_codes=not pour_signalement,
             settings=parametres,
             cotisations_complementaires_avant=cotisations_complementaires_avant(
                 company_id, company_data, period, parametres

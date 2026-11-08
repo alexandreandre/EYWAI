@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### La DSN refuse un mois repris et une cotisation sans code
+- Un mois payé avec l'ancien logiciel ne se déclare plus depuis Martine : l'aperçu l'explique et indique le premier mois à déclarer.
+- Une cotisation qui porte un montant sans avoir de code DSN arrête le fichier au lieu d'être oubliée : l'aperçu nomme le salarié et la cotisation, et dit quoi faire.
+
 ### Le mois de sortie va jusqu'au dernier jour du contrat
 - Quand un salarié part après l'arrêté des variables, ses heures sup, paniers, absences et congés posés jusqu'à son dernier jour passent sur le bulletin de sortie. Ces jours sont à saisir avant de générer le bulletin.
 - Un repos compensateur obligatoire non pris au départ est signalé sur le bulletin, à ajouter à la page Primes, et le reçu pour solde de tout compte indique les heures dues au lieu de « Néant ».

@@ -728,6 +728,64 @@ def _traduire(
 # --------------------------------------------------------------------------
 
 
+def _declaree_ailleurs(ligne: Dict[str, Any]) -> bool:
+    """La ligne a sa place dans la DSN, mais pas par la traduction ligne à ligne.
+
+    L'exonération de l'apprenti se déclare par ses effets, la CSG et la CRDS en
+    bloc, et ce qui n'est pas individuel au niveau de l'établissement.
+    """
+    coti_id = str(ligne.get("coti_id") or "")
+    libelle = str(ligne.get("libelle") or "").lower()
+    return (
+        coti_id == COTI_ID_EXONERATION_APPRENTI
+        or coti_id in COTI_ID_NON_INDIVIDUELS
+        or coti_id in {"csg_deductible", "csg_non_deductible", "crds"}
+        or (not coti_id and ("csg" in libelle or "crds" in libelle))
+    )
+
+
+def _montant_a_declarer(ligne: Dict[str, Any]) -> float:
+    """Le montant de la ligne, 0 si elle n'en porte aucun.
+
+    Les deux parts sont regardées séparément : +10 € salarié et -10 € employeur
+    s'annulent à la somme, mais restent deux montants à déclarer.
+    """
+    _, salarial, patronal, _, _ = _parts(ligne)
+    if abs(salarial) < 0.005 and abs(patronal) < 0.005:
+        return 0.0
+    return round(salarial + patronal, 2) or round(abs(salarial), 2)
+
+
+def message_cotisation_sans_code(intitule: str, montant: float) -> str:
+    """Le refus dit à la gestionnaire ce qui arrive et quoi faire."""
+    somme = f"{montant:.2f}".replace(".", ",")
+    return (
+        f"La cotisation « {intitule} » ({somme} €) n'a pas de code DSN : Martine ne "
+        "saurait pas la déclarer, et elle manquerait aux organismes. La DSN n'est donc "
+        "pas produite. Regardez cette ligne sur le bulletin : si elle n'a rien à y "
+        "faire, corrigez-la à 0 ; sinon, signalez-la au support, qui lui donnera son code."
+    )
+
+
+def cotisations_sans_code_dsn(cotisation_lines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Les cotisations d'un bulletin qui arrêteraient la DSN : `{libelle, montant}`.
+
+    L'aperçu les montre avant que la gestionnaire ne demande le fichier. Une ligne
+    sans montant n'y figure pas : elle n'a rien à déclarer (gratification de stage
+    exonérée, rubrique à zéro).
+    """
+    sans_code: List[Dict[str, Any]] = []
+    for ligne in cotisation_lines:
+        if not isinstance(ligne, dict) or _declaree_ailleurs(ligne):
+            continue
+        montant = _montant_a_declarer(ligne)
+        if montant and not _traduire(ligne, 0.0, 0.0):
+            sans_code.append(
+                {"libelle": str(ligne.get("libelle") or ligne.get("coti_id") or "?"), "montant": montant}
+            )
+    return sans_code
+
+
 def _vieillesse_apprenti(ligne: Dict[str, Any], exoneree: float) -> Tuple[List[LigneDsn], float]:
     """La vieillesse d'un apprenti, scindée à l'assiette exonérée : le seul taux
     patronal sur la part exonérée, le taux plein au-delà (fiche net-entreprises
@@ -861,19 +919,13 @@ def build_bases_and_cotisations(
     for ligne in lignes_valides:
         coti_id = str(ligne.get("coti_id") or "")
         libelle = str(ligne.get("libelle") or "")
-        if coti_id == COTI_ID_EXONERATION_APPRENTI:
-            continue  # déclarée par ses effets, plus bas
+        if _declaree_ailleurs(ligne):
+            continue
         if scinder and REGLES.get(coti_id, Regle("", "")).code == "076":
             vieillesse, exoneration = _vieillesse_apprenti(ligne, exoneree)
             produites.extend(vieillesse)
             exoneration_declaree += exoneration
             continue
-        if coti_id in {"csg_deductible", "csg_non_deductible", "crds"} or (
-            not coti_id and ("csg" in libelle.lower() or "crds" in libelle.lower())
-        ):
-            continue  # traitées en bloc plus bas
-        if coti_id in COTI_ID_NON_INDIVIDUELS:
-            continue  # déclarées au niveau de l'établissement, pas du salarié
         est_regularisation = bool(ligne.get("regularisation"))
         # Une régularisation de la réduction générale ne redéclare pas le brut
         # en assiette : elle n'ajoute que son montant.
@@ -885,10 +937,9 @@ def build_bases_and_cotisations(
             produites.extend(traduites)
             continue
         intitule = libelle or coti_id or "?"
-        if require_codes:
-            raise CotisationMappingError(
-                f"Impossible de traduire la cotisation '{intitule}' en code DSN"
-            )
+        montant = _montant_a_declarer(ligne)
+        if require_codes and montant:
+            raise CotisationMappingError(message_cotisation_sans_code(intitule, montant))
         avertissements.append(f"Cotisation non traduite, ignorée : {intitule}")
 
     produites.extend(_csg_et_crds(lignes_valides))
