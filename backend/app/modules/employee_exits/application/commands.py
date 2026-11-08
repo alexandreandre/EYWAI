@@ -12,6 +12,7 @@ from datetime import date, datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
+from app.modules.dsn_export.domain.motif_rupture import motif_refuse
 from app.shared.domain.pluriel import accord, pluriel
 
 from app.modules.employee_exits.application.dto import (
@@ -676,6 +677,9 @@ def update_employee_exit(
     if not update_data:
         return existing
     update_data = dict(update_data)
+    touche_le_motif = bool(
+        {"motif_dsn", "exit_type", "is_gross_misconduct", "inaptitude_origine"} & update_data.keys()
+    )
     new_exit_type = update_data.get("exit_type")
     exit_type_changed = bool(new_exit_type and new_exit_type != existing.get("exit_type"))
     if exit_type_changed and new_exit_type not in EDITABLE_EXIT_TYPES:
@@ -774,6 +778,29 @@ def update_employee_exit(
             notes.pop("precarite_non_due", None)
         update_data["exit_notes"] = notes
         saisie_du_dossier = True
+
+    # Motif DSN choisi : refusé s'il ne va pas avec le contrat ou le dossier, y
+    # compris quand le type de sortie, la faute ou l'inaptitude viennent de changer.
+    if "motif_dsn" in update_data:
+        notes = dict(update_data.get("exit_notes") or existing.get("exit_notes") or {})
+        motif_dsn = update_data.pop("motif_dsn")
+        if motif_dsn:
+            notes["motif_dsn"] = motif_dsn
+        else:
+            notes.pop("motif_dsn", None)
+        update_data["exit_notes"] = notes
+    notes_finales = update_data.get("exit_notes", existing.get("exit_notes"))
+    motif_du_dossier = notes_finales.get("motif_dsn") if isinstance(notes_finales, dict) else None
+    if motif_du_dossier and touche_le_motif:
+        sortie_finale = {**existing, **update_data}
+        employee_id = str(existing.get("employee_id") or "")
+        refus = motif_refuse(
+            str(motif_du_dossier),
+            sortie_finale,
+            (get_employee_full(employee_id, sb) if employee_id else {}) or {},
+        )
+        if refus:
+            raise EmployeeExitApplicationError(400, refus)
 
     new_last_working_day = update_data.get("last_working_day")
     last_working_day_changed = bool(

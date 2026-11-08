@@ -114,6 +114,8 @@ class EmployeeExitWithDetails(EmployeeExit):
     outstanding_loans: Optional[Dict[str, Any]] = None
     # Sommes du bulletin du mois de sortie, quand il existe (celles des documents).
     bulletin_de_sortie: Optional[Dict[str, Any]] = None
+    # Motif DSN du dossier : choix, proposition, motif retenu, alerte, liste.
+    motif_dsn: Optional[Dict[str, Any]] = None
 
 
 # ============================================================================

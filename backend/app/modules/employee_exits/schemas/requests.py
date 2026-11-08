@@ -152,6 +152,9 @@ class EmployeeExitUpdate(BaseModel):
     # Licenciement pour inaptitude : origine (L1226-14, L1226-4 ; DSN 091 ou 092).
     # Rangé dans `exit_notes.inaptitude_origine`, le dossier est recalculé.
     inaptitude_origine: Optional[Literal["professionnelle", "non_professionnelle"]] = None
+    # Motif de rupture déclaré en DSN (S21.G00.62.002) ; None = motif proposé.
+    # Rangé dans `exit_notes.motif_dsn`, refusé s'il ne va pas avec le contrat.
+    motif_dsn: Optional[str] = None
 
 
 # ============================================================================
