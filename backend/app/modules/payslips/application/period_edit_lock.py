@@ -55,6 +55,11 @@ def refus_avant_remise(bulletin: dict[str, Any], *, today: date | None = None) -
     return message_pas_encore_disponible(remis)
 
 
+def _brouillon_jamais_valide(bulletin: dict[str, Any]) -> bool:
+    """Un brouillon reste corrigeable : le verrou de période ne fige qu'un bulletin validé."""
+    return str(bulletin.get("status") or "") == "brouillon"
+
+
 def enrich_payslip_detail_with_edit_lock(
     detail: dict[str, Any],
     *,
@@ -95,9 +100,9 @@ def enrich_payslip_detail_with_edit_lock(
         out["manual_edit_lock_until"] = None
         return out
     cutoff, enabled = _resolve_lock_settings(cutoff_day, lock_enabled)
-    if not enabled:
-        # Verrou désactivé globalement (réglage admin) : l'édition manuelle
-        # reste ouverte sans limite de date.
+    if not enabled or _brouillon_jamais_valide(detail):
+        # Verrou désactivé globalement (réglage admin), ou bulletin encore en
+        # brouillon : l'édition manuelle reste ouverte sans limite de date.
         out["period_edit_locked"] = False
         out["manual_edit_locked"] = False
         out["manual_edit_lock_reason"] = None
@@ -162,7 +167,7 @@ def assert_payslip_manual_edit_allowed(
     if remis and remis <= (today or aujourd_hui_local()):
         raise ValueError(message_bulletin_remis(year, month, remis))
     cutoff, enabled = _resolve_lock_settings(cutoff_day, lock_enabled)
-    if not enabled:
+    if not enabled or _brouillon_jamais_valide(meta):
         return
     reason = payslip_manual_edit_block_reason(
         year, month, cutoff_day=cutoff, today=today

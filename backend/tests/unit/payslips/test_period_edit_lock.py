@@ -172,3 +172,28 @@ class TestBulletinImporteVerrouille:
             lock_enabled=True,
         )
         assert out["manual_edit_locked"] is False
+
+
+def test_un_brouillon_reste_corrigeable_apres_la_date_du_verrou():
+    from app.modules.payslips.application.period_edit_lock import (
+        assert_payslip_manual_edit_allowed,
+        enrich_payslip_detail_with_edit_lock,
+    )
+
+    brouillon = {"year": 2026, "month": 10, "status": "brouillon"}
+    apres = date(2026, 11, 20)
+    assert_payslip_manual_edit_allowed(brouillon, cutoff_day=15, lock_enabled=True, today=apres)
+    vu = enrich_payslip_detail_with_edit_lock(brouillon, cutoff_day=15, lock_enabled=True, today=apres)
+    assert vu["manual_edit_locked"] is False
+
+
+def test_un_bulletin_valide_se_fige_a_la_date_du_verrou():
+    from app.modules.payslips.application.period_edit_lock import (
+        assert_payslip_manual_edit_allowed,
+    )
+
+    valide = {"year": 2026, "month": 10, "status": "valide", "company_id": "c"}
+    with pytest.raises(ValueError):
+        assert_payslip_manual_edit_allowed(
+            valide, cutoff_day=15, lock_enabled=True, jour_remise=31, today=date(2026, 11, 20)
+        )
