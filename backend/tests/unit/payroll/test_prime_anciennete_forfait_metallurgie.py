@@ -59,3 +59,17 @@ def test_hors_forfait_la_prime_n_est_pas_majoree():
         date_debut_periode=date(2026, 10, 1), date_fin_periode=date(2026, 10, 31))
     assert ligne is not None
     assert ligne["gain"] == pytest.approx(84.10, abs=0.02)
+
+
+def test_la_majoration_vaut_aussi_pour_les_regles_en_valeur_du_point_de_la_metallurgie():
+    """Les règles en base de Cartol et LEWIS décrivent la prime en « valeur_du_point » avec un taux
+    par classe (octobre à blanc : 84,10 € sans majoration) : c'est la convention (IDCC 3248) qui
+    impose la majoration, pas le nom de la méthode."""
+    ctx = _contexte(forfait=True)
+    regles = ctx.baremes["conventions_collectives"]["idcc_3248"]["prime_anciennete"]
+    regles["base_de_calcul"] = {**(regles.get("base_de_calcul") or {}), "methode": "valeur_du_point"}
+    ligne = calculer_ligne_prime_anciennete(
+        ctx, calendrier_saisie=_jours_forfait(),
+        date_debut_periode=date(2026, 10, 1), date_fin_periode=date(2026, 10, 31))
+    assert ligne is not None
+    assert ligne["gain"] == pytest.approx(109.33, abs=0.01)

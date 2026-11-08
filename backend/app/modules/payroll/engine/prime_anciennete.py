@@ -219,9 +219,9 @@ def calculer_ligne_prime_anciennete(
     # CCN métallurgie, art. 142 : la prime « supporte […] les majorations […] au titre des
     # conventions de forfait en jours sur l'année, soit la majoration de 30 % dans les conditions
     # de l'article 139 » (Légifrance KALIARTI000046999200, ouvert le 08/11/2026).
-    if (plein_mois.meta or {}).get("methode") == "metallurgie_prime_anciennete" and getattr(
-        contexte, "is_forfait_jour", False
-    ):
+    # La convention (IDCC 3248) l'impose, quel que soit le nom de la méthode des règles en base
+    # (« valeur_du_point » avec un taux par classe chez Cartol et LEWIS).
+    if str(idcc).strip().lstrip("0") == "3248" and getattr(contexte, "is_forfait_jour", False):
         plein_mois = replace(
             plein_mois,
             montant_plein_mois=round(plein_mois.montant_plein_mois * (1 + MAJORATION_FORFAIT_JOURS_METALLURGIE), 2),
