@@ -121,13 +121,12 @@ def test_toutes_les_rubriques_du_moteur_passent():
     _construire(lignes)
 
 
-def test_l_exoneration_jei_avec_montant_bloque_tant_qu_elle_n_a_pas_de_code():
-    # Vrai positif : son montant ne partirait pas en DSN (code 014 non branché).
+def test_l_exoneration_jei_ne_bloque_pas_la_dsn():
+    # Elle se déclare par ses effets : code 014 sur les cotisations exonérées (R-444).
     ligne = {"coti_id": "exoneration_jei", "libelle": "Exonération JEI (cotisations patronales)",
              "base": 2500, "montant_salarial": 0, "montant_patronal": -300}
-    assert [c["libelle"] for c in cotisations_sans_code_dsn([ligne])] == [ligne["libelle"]]
-    with pytest.raises(CotisationMappingError):
-        _construire([ligne])
+    assert cotisations_sans_code_dsn([ligne]) == []
+    _construire([ligne])
 
 
 def test_seules_les_lignes_a_montant_sans_code_sont_listees():
