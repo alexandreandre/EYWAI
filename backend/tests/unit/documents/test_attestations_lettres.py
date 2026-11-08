@@ -125,11 +125,8 @@ def test_l_attestation_d_emploi_suit_le_modele_de_la_cliente():
             "Directeur des ressources humaines",
         ),
     )
-    # Le pied de page, dessiné sur la page, sort en tête du texte extrait.
-    assert (
-        "La présente attestation a été établie conformément à l'article L1221-10 "
-        "du Code du travail." in texte
-    )
+    # Le pied du modèle cite L1221-10, qui porte sur la DPAE : Martine ne le recopie pas.
+    assert "L1221-10" not in texte
 
 
 def test_cinq_lignes_et_rien_d_autre():

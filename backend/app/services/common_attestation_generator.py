@@ -71,9 +71,6 @@ NON_RENSEIGNE = "Non renseigné sur la fiche salarié"
 NON_RENSEIGNEE = "Non renseignée sur la fiche salarié"
 
 # Pied de page du modèle de la cliente, repris mot pour mot.
-MENTION_DU_MODELE = (
-    "La présente attestation a été établie conformément à l'article L1221-10 du Code du travail."
-)
 
 GROUPES_NIR = (1, 2, 2, 2, 3, 3, 2)
 
@@ -326,9 +323,6 @@ def _pied_du_modele(canvas, document) -> None:
     canvas.setStrokeColor(_TRAIT)
     canvas.setLineWidth(0.5)
     canvas.line(2 * cm, 1.9 * cm, largeur - 2 * cm, 1.9 * cm)
-    canvas.setFont("Helvetica", 8)
-    canvas.setFillColor(_GRIS)
-    canvas.drawCentredString(largeur / 2, 1.4 * cm, MENTION_DU_MODELE)
     canvas.restoreState()
 
 
