@@ -32,6 +32,13 @@ NOMBRE = re.compile(r"-?\d+\.\d{2,4}")
 #: et Comitech, janvier à août), que le contenu (lignes, droite, net, cp, infos,
 #: pages) ne change jamais avec le suffixe restauré — seule la clé se corrige.
 MATRICULE = re.compile(r"Matricule\s*:\s*([A-Z0-9]+)")
+#: Cartol et LEWIS : le matricule Quadra porte des espaces (« ESSAI AB », « LE ESSAI »).
+#: Tronqué au premier mot, il fusionnait deux salariés (deux NIR) dans un seul bulletin
+#: (Cartol : 2 à 5 clés par mois ; LEWIS : une chaque mois). Le matricule va jusqu'à deux
+#: espaces ou la fin de ligne. Les autres sociétés gardent leur clé (vérifié le 08/11 : MBC
+#: a des matricules à deux mots sans homonyme, leurs clés ne bougent pas).
+MATRICULE_A_ESPACES = re.compile(r"Matricule\s*:\s*([A-Z0-9]+(?: [A-Z0-9]+)*)(?=\s{2,}|\s*$)", re.M)
+SOCIETES_MATRICULE_A_ESPACES = frozenset({"cartol", "lewis"})
 CODE = re.compile(r"^\s{0,4}([A-Z][A-Z0-9]{2,3})\s+(\S.*)$")
 
 #: Étiquettes de la colonne de droite (libellé → clé), dans l'ordre du bulletin.
@@ -95,7 +102,10 @@ def pdf_du_mois(annee: int, mois: int, societe: str = "colorplast") -> Path:
     pdfs = sorted(dossier.glob("*.pdf"))
     if not pdfs:
         raise FileNotFoundError(dossier)
-    return pdfs[0]
+    # Septembre 2026 (Cartol, LEWIS) : Elsa a envoyé une « première version » et la définitive ;
+    # la première ne sert que s'il n'y a qu'elle.
+    definitives = [p for p in pdfs if "premiere-version" not in p.name]
+    return (definitives or pdfs)[0]
 
 
 def pages_texte(pdf: Path) -> list[str]:
@@ -245,14 +255,27 @@ def lire_bulletins(annee: int, mois: int, societe: str = "colorplast") -> dict[s
     pages = pages_texte(pdf_du_mois(annee, mois, societe))
     bulletins: dict[str, Bulletin] = {}
     for numero, texte in enumerate(pages, 1):
-        m = MATRICULE.search(texte)
-        if not m:
+        mat = matricule_de_la_page(texte, societe)
+        if not mat:
             continue
-        mat = m.group(1)
         b = bulletins.setdefault(mat, Bulletin(matricule=mat))
+        nir = _ENTETE[0][1].search(texte)
+        if nir and b.infos.get("nir") and b.infos["nir"][:13] != nir.group(1)[:13]:
+            raise ValueError(f"{pdf_du_mois(annee, mois, societe).name}, page {numero} : le matricule {mat} "
+                             "porte deux numéros de sécurité sociale (deux salariés fusionnés)")
         b.pages.append(numero)
         lire_page(texte, numero, b)
     return bulletins
+
+
+def matricule_de_la_page(texte: str, societe: str = "colorplast") -> str | None:
+    """Le matricule Quadra de la page, avec ses espaces chez Cartol et LEWIS."""
+    if societe in SOCIETES_MATRICULE_A_ESPACES:
+        m = MATRICULE_A_ESPACES.search(texte)
+        if m:
+            return m.group(1)
+    m = MATRICULE.search(texte)
+    return m.group(1) if m else None
 
 
 def afficher(b: Bulletin) -> None:
