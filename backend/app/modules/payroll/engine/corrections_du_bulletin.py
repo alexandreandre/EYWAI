@@ -215,6 +215,55 @@ def lignes_corrigeables(payslip_data: Any) -> list[LigneCorrigeable]:
     return sortie
 
 
+_SOURCE_PRIMES = "« Primes du mois » (onglet Corriger), ou la fiche du salarié pour une prime fixe"
+
+
+def _bloc(libelle: str, montant: Any, source: str) -> dict[str, Any] | None:
+    valeur = _nombre(montant)
+    return {"libelle": libelle, "montant": valeur, "source": source} if valeur else None
+
+
+def _blocs_listes(lignes: Any, libelle_par_defaut: str, source: str) -> list[dict[str, Any]]:
+    if not isinstance(lignes, list):
+        return []
+    trouves = (
+        _bloc(str(l.get("libelle") or libelle_par_defaut), l.get("montant"), source)
+        for l in lignes
+        if isinstance(l, Mapping)
+    )
+    return [b for b in trouves if b]
+
+
+def _total(data: Mapping[str, Any], cle: str, champ: str) -> Any:
+    bloc = data.get(cle)
+    return bloc.get(champ) if isinstance(bloc, Mapping) else None
+
+
+def blocs_a_la_source(payslip_data: Any) -> list[dict[str, Any]]:
+    """Ce qui porte de l'argent sur le bulletin sans être une ligne de la carte, et où le corriger.
+
+    Ces montants viennent de leur module : les corriger là les corrige partout.
+    """
+    data = _donnees(payslip_data)
+    synthese = data.get("synthese_net") if isinstance(data.get("synthese_net"), Mapping) else {}
+    blocs = [
+        *_blocs_listes(data.get("primes_non_soumises"), "Prime non soumise", _SOURCE_PRIMES),
+        *_blocs_listes(data.get("revenus_hors_brut_imposables"), "Revenu imposable hors brut", _SOURCE_PRIMES),
+        *_blocs_listes(data.get("participations"), "Participation", "« Participation »"),
+        _bloc("Avances remboursées", _total(data, "remboursements_avances", "total_rembourse"), "« Avances & acomptes »"),
+        _bloc("Saisies sur salaire", _total(data, "retenues_saisies", "total_preleve"), "« Saisies & Avances »"),
+        _bloc("Prêt employeur", _total(data, "remboursements_prets", "total_rembourse"), "« Prêts employeur »"),
+        *_blocs_listes(
+            data["indemnites_sortie"].get("lignes_exonerees") if isinstance(data.get("indemnites_sortie"), Mapping) else None,
+            "Indemnité de rupture",
+            "« Sorties de salarié » (dossier de départ)",
+        ),
+        _bloc("Indemnités journalières nettes", synthese.get("ijss_net"), "« Absences & Congés » (arrêt)"),
+        _bloc("Acomptes du mois", synthese.get("acompte_verse"), "« Avances & acomptes »"),
+    ]
+    return [b for b in blocs if b]
+
+
 def corrections_en_attente_du_bulletin(payslip_data: Any) -> list[dict[str, Any]]:
     entrees = _donnees(payslip_data).get(CLE_CORRECTIONS_EN_ATTENTE) or []
     return [dict(e) for e in entrees if isinstance(e, Mapping)]

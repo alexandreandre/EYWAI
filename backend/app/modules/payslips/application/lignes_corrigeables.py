@@ -6,6 +6,7 @@ from typing import Any
 
 from app.core.database import supabase
 from app.modules.payroll.engine.corrections_du_bulletin import (
+    blocs_a_la_source,
     corrections_en_attente_du_bulletin,
     lignes_corrigeables,
 )
@@ -27,4 +28,5 @@ def lire_lignes_corrigeables(payslip_id: str) -> dict[str, Any]:
             {cle: entree.get(cle) for cle in _CHAMPS_EN_ATTENTE}
             for entree in corrections_en_attente_du_bulletin(donnees)
         ],
+        "a_la_source": blocs_a_la_source(donnees),
     }

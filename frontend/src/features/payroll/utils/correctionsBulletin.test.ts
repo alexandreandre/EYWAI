@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   aDesModifications,
+  avisSurLaLigne,
   avecSaisiesSurLeNet,
+  CE_QUI_SUIT_LA_CORRECTION,
   descriptionHeuresSupDuMois,
   MESSAGE_AUCUNE_PRIME,
   saisiesApresLeCalcul,
@@ -482,5 +484,24 @@ describe('heures sup du mois : les champs partent des heures déclarées, jamais
   it('sans heures déclarées, une ligne corrigée compte pour ce que Martine avait calculé', () => {
     expect(etatInitial({ calcul_du_brut: [base, corrigee, hs50] }, null).hs25).toBe(5);
     expect(quantitesHeuresSup({ calcul_du_brut: [base, corrigee, hs50] })).toEqual([5, 3.5]);
+  });
+});
+
+describe('ce que la correction fait suivre', () => {
+  it('ne promet pas une DSN déjà déposée ni un export déjà sorti', () => {
+    expect(CE_QUI_SUIT_LA_CORRECTION).toContain('net et les cumuls');
+    expect(CE_QUI_SUIT_LA_CORRECTION).toContain('déjà déposée');
+    expect(CE_QUI_SUIT_LA_CORRECTION).toContain('à refaire');
+    expect(CE_QUI_SUIT_LA_CORRECTION).not.toMatch(/DSN et exports suivent/);
+  });
+
+  it('dit sur la réduction générale que l’écart revient le mois suivant', () => {
+    const avis = avisSurLaLigne({ code: 'cotisation:reduction_generale', bloc: 'cotisations', libelle: 'Réduction', mode: 'montant' });
+    expect(avis).toContain('le mois suivant');
+    expect(avis).toContain('heures');
+  });
+
+  it('ne dit rien de plus sur une ligne ordinaire', () => {
+    expect(avisSurLaLigne({ code: 'brut:salaire_base', bloc: 'brut', libelle: 'Salaire', mode: 'base_ou_taux' })).toBeNull();
   });
 });

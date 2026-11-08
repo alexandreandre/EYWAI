@@ -344,6 +344,15 @@ class CorrectionEnAttenteResponse(BaseModel):
     raison: str
 
 
+class BlocALaSourceResponse(BaseModel):
+    """Un montant du bulletin qui n'est pas sur la carte, et l'écran qui le corrige."""
+
+    libelle: str
+    montant: float | None = None
+    source: str
+
+
 class LignesCorrigeablesResponse(BaseModel):
     lignes: list[LigneCorrigeableResponse]
     en_attente: list[CorrectionEnAttenteResponse]
+    a_la_source: list[BlocALaSourceResponse] = []

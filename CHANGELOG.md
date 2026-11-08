@@ -5,6 +5,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Corriger une ligne dit ce qui suit vraiment, et où corriger le reste
+- La carte ne promet plus que la DSN et les exports suivent toujours : une DSN déjà déposée ou un export déjà sorti sont à refaire. Sur la réduction générale, elle prévient que l'écart revient le mois suivant.
+- Si Martine calcule autre chose après une correction (planning changé, par exemple), la ligne corrigée le dit, et la revue du mois aussi. La correction reste appliquée.
+- Les montants hors de la carte (prêts, avances, saisies, indemnités de rupture, indemnités journalières) sont listés avec l'écran où les corriger.
+
 ### La DSN refuse un mois repris et une cotisation sans code
 - Un mois payé avec l'ancien logiciel ne se déclare plus depuis Martine : l'aperçu l'explique et indique le premier mois à déclarer.
 - Une cotisation qui porte un montant sans avoir de code DSN arrête le fichier au lieu d'être oubliée : l'aperçu nomme le salarié et la cotisation, et dit quoi faire.

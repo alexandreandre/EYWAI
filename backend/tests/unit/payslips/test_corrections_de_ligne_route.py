@@ -141,3 +141,14 @@ def test_la_lecture_rend_les_lignes_et_les_corrections_en_attente():
     assert [l.code for l in modele.lignes] == ["brut:salaire_base", "cotisation:allocations_familiales"]
     assert modele.lignes[0].mode == "base_ou_taux"
     assert modele.en_attente[0].saisie_id == "c3" and modele.en_attente[0].raison == "Ligne disparue."
+
+
+def test_la_lecture_des_lignes_dit_les_blocs_a_la_source():
+    client = MagicMock()
+    client.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = MagicMock(
+        data={"payslip_data": {**DONNEES, "remboursements_prets": {"total_rembourse": 45.0}}}
+    )
+    with patch.object(lecture, "supabase", client):
+        reponse = lecture.lire_lignes_corrigeables("ps-1")
+    assert reponse["a_la_source"][0]["libelle"] == "Prêt employeur"
+    assert LignesCorrigeablesResponse(**reponse).a_la_source[0].source

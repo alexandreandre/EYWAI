@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+  CE_QUI_SUIT_LA_CORRECTION,
   cotisationsRegularisables,
   type EtatCorrections,
   type PartRegularisee,
@@ -63,8 +64,7 @@ export default function RegularisationsCotisationCard({ payslipData, etat, onCha
           Régularisations de cotisation
         </CardTitle>
         <CardDescription>
-          Une cotisation fausse ? Choisissez-la, tapez l’écart en euros et le motif. À l’enregistrement, le
-          bulletin est recalculé en entier : net, cumuls, DSN et exports suivent.
+          Une cotisation fausse ? Choisissez-la, tapez l’écart en euros et le motif. {CE_QUI_SUIT_LA_CORRECTION}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
