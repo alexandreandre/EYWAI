@@ -1056,7 +1056,7 @@ def creer_bulletin_sortie(
         if ind_preavis.get("montant", 0) > 0:
             lignes_indemnites_soumises.append(
                 {
-                    "libelle": "Indemnité compensatrice de préavis",
+                    "libelle": ind_preavis.get("libelle_bulletin") or "Indemnité compensatrice de préavis",
                     "description": ind_preavis.get("description", ""),
                     "calcul": ind_preavis.get("calcul", ""),
                     "gain": round(ind_preavis["montant"], 2),

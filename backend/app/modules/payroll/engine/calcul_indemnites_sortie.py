@@ -32,8 +32,20 @@ from app.modules.payroll.engine.iccp_fin_contrat import (
     indemnite_fin_de_contrat,
     valeur_jour_maintien,
 )
+from app.modules.payroll.engine.inaptitude import (
+    ALERTE_PREAVIS_NON_SAISI,
+    ALERTES_ORIGINE_PROFESSIONNELLE,
+    CALCUL_NON_PROFESSIONNELLE,
+    ORIGINE_NON_PROFESSIONNELLE,
+    ORIGINE_PROFESSIONNELLE,
+    indemnite_compensatrice as indemnite_compensatrice_inaptitude,
+    indemnite_speciale as indemnite_speciale_inaptitude,
+    origine_inaptitude,
+)
 from app.modules.payroll.engine.preavis import (
+    DISPENSE_PAR_L_EMPLOYEUR,
     JOURS_PAR_MOIS,
+    SANS_PREAVIS,
     ajouter_les_conges_du_preavis,
     conges_du_preavis_non_execute,
     indemnite_compensatrice_due,
@@ -320,6 +332,7 @@ def calculer_indemnite_licenciement(
     is_gross_misconduct: bool = False,
     *,
     mois_a_la_notification: Optional[int] = None,
+    sans_condition_d_anciennete: bool = False,
 ) -> Dict[str, Any]:
     """
     Calcule l'indemnité légale de licenciement selon le Code du travail français
@@ -358,7 +371,7 @@ def calculer_indemnite_licenciement(
     mois_requis = (
         mois_a_la_notification if mois_a_la_notification is not None else anciennete_annees * 12
     )
-    if mois_requis < 8:  # Moins de 8 mois
+    if mois_requis < 8 and not sans_condition_d_anciennete:  # Moins de 8 mois
         return {
             "montant": 0.0,
             "anciennete": anciennete_annees,
@@ -1659,9 +1672,18 @@ def calculer_indemnites_sortie(
     fin_du_contrat = exit_date
     mois_d_anciennete: Optional[int] = None
     mise_a_la_retraite = exit_type == "depart_retraite" and _initiative_retraite(exit_data) == "employer"
+    origine = origine_inaptitude(exit_data.get("exit_notes")) if exit_type == "licenciement" else None
+    inaptitude_pro = origine == ORIGINE_PROFESSIONNELLE and not is_gross_misconduct
+    inaptitude_non_pro = origine == ORIGINE_NON_PROFESSIONNELLE and not is_gross_misconduct
     if exit_type in ("licenciement", "rupture_conventionnelle", "depart_retraite"):
         notification = _date_ou_none(exit_data.get("exit_request_date")) or exit_date
-        fin_du_contrat = _fin_du_contrat(exit_data, exit_date, notification)
+        # Inaptitude professionnelle : le contrat est rompu à la notification,
+        # l'indemnité compensatrice (L1226-14) n'est pas un préavis. La règle
+        # qui compte le préavis dans l'ancienneté (L1226-4) est celle de
+        # l'origine non professionnelle.
+        fin_du_contrat = (
+            notification if inaptitude_pro else _fin_du_contrat(exit_data, exit_date, notification)
+        )
         mois_d_anciennete = anciennete_en_mois(hire_date, fin_du_contrat)
         mois_a_la_notification = anciennete_en_mois(hire_date, notification)
         anciennete = mois_d_anciennete / 12
@@ -1681,6 +1703,16 @@ def calculer_indemnites_sortie(
         salaire_ref_3 = reference.tiers_trois_mois
         alertes_reference = list(reference.alertes)
         phrase_arret = reference.arret
+        if inaptitude_pro and reference.tiers_trois_mois is not None:
+            # L1226-16 : le salaire moyen des trois derniers mois.
+            salaire_reference = reference.tiers_trois_mois
+        if inaptitude_pro:
+            alertes_reference.extend(ALERTES_ORIGINE_PROFESSIONNELLE)
+        if origine and is_gross_misconduct:
+            alertes_reference.append(
+                "Faute grave cochée sur un licenciement pour inaptitude : les indemnités "
+                "d'inaptitude ne sont pas calculées. Vérifier le dossier."
+            )
     else:
         anciennete = calculer_anciennete_annees(hire_date, exit_date)
         salaire_ref_12 = calculer_salaire_reference_12_mois(employee_data)
@@ -1695,7 +1727,24 @@ def calculer_indemnites_sortie(
     # de l'employeur, sur la rémunération qu'il aurait perçue et pour le temps
     # de préavis restant après le dernier jour travaillé (engine/preavis).
     alertes_preavis: list[str] = []
-    if indemnite_compensatrice_due(notice_indemnity_type, faute_grave=bool(is_gross_misconduct)) and (
+    if inaptitude_pro:
+        jours_inaptitude = int(notice_period_days or 0)
+        if jours_inaptitude <= 0:
+            alertes_reference.append(ALERTE_PREAVIS_NON_SAISI)
+        indemnite_preavis = indemnite_compensatrice_inaptitude(
+            calculer_indemnite_preavis(
+                salaire_reference,
+                jours_inaptitude,
+                DISPENSE_PAR_L_EMPLOYEUR,
+                jours_restants=jours_inaptitude,
+                source_remuneration="salaire moyen des trois derniers mois, L1226-16",
+            ),
+            [] if jours_inaptitude > 0 else [ALERTE_PREAVIS_NON_SAISI],
+        )
+    elif inaptitude_non_pro:
+        indemnite_preavis = calculer_indemnite_preavis(0.0, notice_period_days or 0, SANS_PREAVIS)
+        indemnite_preavis["calcul"] = CALCUL_NON_PROFESSIONNELLE
+    elif indemnite_compensatrice_due(notice_indemnity_type, faute_grave=bool(is_gross_misconduct)) and (
         notice_period_days or 0
     ) > 0:
         remuneration_preavis, source_preavis, alertes_preavis = _remuneration_du_preavis(
@@ -1793,7 +1842,10 @@ def calculer_indemnites_sortie(
             salaire_reference,
             is_gross_misconduct,
             mois_a_la_notification=mois_a_la_notification,
+            sans_condition_d_anciennete=inaptitude_pro,
         )
+        if inaptitude_pro:
+            indemnite_licenciement = indemnite_speciale_inaptitude(indemnite_licenciement)
         indemnite_licenciement["alertes"] = alertes_reference
         if is_gross_misconduct:
             if conventionnelle:

@@ -105,6 +105,9 @@ class EmployeeExitCreate(BaseModel):
     # L1243-8, L1243-10). Rangé dans `exit_notes.precarite_non_due` ; le bulletin
     # de sortie n'en verse pas, le reçu et l'attestation France Travail le disent.
     precarite_non_due: Optional[MotifPrecariteNonDue] = None
+    # Licenciement pour inaptitude : origine (L1226-14, L1226-4 ; DSN 091 ou 092).
+    # Rangé dans `exit_notes.inaptitude_origine`, le dossier est recalculé.
+    inaptitude_origine: Optional[Literal["professionnelle", "non_professionnelle"]] = None
 
     class Config:
         json_schema_extra = {
@@ -146,6 +149,9 @@ class EmployeeExitUpdate(BaseModel):
     # Fin de CDD : motif de la prime de précarité non due (None = due). Rangé
     # dans `exit_notes`, le dossier est recalculé.
     precarite_non_due: Optional[MotifPrecariteNonDue] = None
+    # Licenciement pour inaptitude : origine (L1226-14, L1226-4 ; DSN 091 ou 092).
+    # Rangé dans `exit_notes.inaptitude_origine`, le dossier est recalculé.
+    inaptitude_origine: Optional[Literal["professionnelle", "non_professionnelle"]] = None
 
 
 # ============================================================================

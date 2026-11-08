@@ -45,6 +45,7 @@ import {
 import { Chargement } from '@/components/Chargement';
 import { useToast } from '@/hooks/use-toast';
 import { toastDeGeneration } from '@/features/employee-exits/utils/alertesDuRecu';
+import type { InaptitudeOrigine } from '@/api/employeeExits';
 import {
   getEmployeeExit,
   updateChecklistItem,
@@ -479,6 +480,31 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   };
 
   /** Fin de CDD : « Prime de précarité non due » et son motif ; null = due. */
+  /** Licenciement pour inaptitude : son origine (L1226-14, L1226-4 ; DSN 091 ou 092). */
+  const handleInaptitudeChange = async (origine: InaptitudeOrigine | null) => {
+    if (!exitId) return;
+    try {
+      const updated = await updateEmployeeExit(exitId, { inaptitude_origine: origine });
+      setExitDetails((current) => (current ? { ...current, ...updated } : current));
+      setIndemnities((updated.calculated_indemnities as ExitIndemnityCalculation | undefined) ?? null);
+      toast({
+        title: origine ? 'Inaptitude enregistrée' : 'Licenciement ordinaire',
+        description: 'Les indemnités sont recalculées. Recalculez le bulletin de sortie pour le porter au bulletin.',
+      });
+      fetchExitDetails();
+      onUpdate?.();
+    } catch (error: unknown) {
+      log.error("Erreur lors de la mise à jour de l'inaptitude:", error);
+      toast({
+        title: 'Choix non enregistré',
+        description:
+          (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+          "Impossible d'enregistrer l'inaptitude",
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handlePrecariteNonDueSave = async (motif: MotifPrecariteNonDue | null) => {
     if (!exitId) return;
     try {
@@ -1497,6 +1523,27 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                           </p>
                           <Alertes alertes={indemnities.indemnite_licenciement.alertes} />
                           <RegimeSocial regime={indemnities.indemnite_licenciement.regime_social} />
+                          {exitDetails.exit_type === 'licenciement' && (
+                            <div className="mt-3 space-y-1">
+                              <Label htmlFor="inaptitude-origine">Licenciement pour inaptitude</Label>
+                              <Select
+                                value={(exitDetails.exit_notes?.inaptitude_origine as InaptitudeOrigine | undefined) ?? 'aucune'}
+                                disabled={isArchived || isCancelled}
+                                onValueChange={(valeur) =>
+                                  void handleInaptitudeChange(valeur === 'aucune' ? null : (valeur as InaptitudeOrigine))
+                                }
+                              >
+                                <SelectTrigger id="inaptitude-origine">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="aucune">Non</SelectItem>
+                                  <SelectItem value="non_professionnelle">Oui, origine non professionnelle</SelectItem>
+                                  <SelectItem value="professionnelle">Oui, accident du travail ou maladie professionnelle</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
                           {exitDetails.exit_type === 'licenciement' && !isArchived && !isCancelled && (
                             <SaisieIndemniteConventionnelle
                               aide={aideIndemniteConventionnelle('licenciement')}
