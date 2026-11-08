@@ -11,6 +11,7 @@ import { accord, pluriel } from '@/lib/pluriel';
 
 import { bulletinDuMois } from './bulletinDuMois';
 import { estBulletinImporte } from './bulletinImporte';
+import { splitGenerationWarnings } from './generationGuards';
 import { monthLabel } from './payrollMonth';
 
 /** Quand le serveur ne sait pas quelle donnée a changé (bulletin d'avant l'empreinte par partie). */
@@ -346,6 +347,19 @@ export function phraseSuiteARecalculer(
   if (!suite) return null;
   const mois = `${monthLabel(suite.month).toLowerCase()} ${suite.year}`;
   return `Le bulletin ${deDevant(mois)} part des cumuls de celui-ci, qui ont changé : il est à recalculer (« Recalculer tout ce qui a changé » dans la Paie).`;
+}
+
+/**
+ * Ce qu'une correction ou une restauration doit dire après le recalcul : les
+ * alertes du moteur et le mois suivant, comme le bouton « Régénérer ».
+ */
+export function phrasesApresCorrection(reponse: {
+  warnings?: unknown;
+  mois_suivant_a_recalculer?: MoisSuivantARecalculer | null;
+}): string[] {
+  const { messages, infos } = splitGenerationWarnings(reponse.warnings);
+  const suite = phraseSuiteARecalculer(reponse.mois_suivant_a_recalculer);
+  return [...messages, ...infos, ...(suite ? [suite] : [])];
 }
 
 /** Paramètre d'adresse de « Recalculer maintenant » : les salariés à recalculer. */

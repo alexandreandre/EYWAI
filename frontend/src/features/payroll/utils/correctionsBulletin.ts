@@ -664,6 +664,16 @@ export function libelleDeLOption(ligne: LigneCorrigeable): string {
 }
 
 /** Pourquoi « Ajouter la correction » est grisé, dit près du champ ; null quand tout est prêt. */
+/**
+ * Ce que la correction d'une ligne ne fera pas, à dire avant d'enregistrer.
+ * La réduction générale se recalcule chaque mois depuis janvier : l'écart posé
+ * à la main ce mois-ci est repris le mois suivant.
+ */
+export function avertissementDeLaLigne(code: string | null | undefined): string | null {
+  if (code !== 'cotisation:reduction_generale') return null;
+  return 'Cette correction vaut pour ce mois : la réduction se recalcule depuis janvier, donc l’écart est repris le mois suivant. Pour un écart durable, corrigez les heures ou le brut.';
+}
+
 export function aideDeLaCorrection(
   valeur: string,
   motif: string

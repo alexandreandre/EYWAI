@@ -32,6 +32,7 @@ import {
   choixApresCorrection,
   type RefusApresCorrection,
 } from '@/features/payroll/utils/heuresSurArret';
+import { phrasesApresCorrection } from '@/features/payroll/utils/bulletinARecalculer';
 
 interface HistoryPanelProps {
   payslipId: string;
@@ -106,7 +107,7 @@ export default function HistoryPanel({
           variant: 'destructive',
         });
       } else {
-        toast({ title: 'Version rétablie', description: reponse.message });
+        toast({ title: 'Version rétablie', description: [reponse.message, ...phrasesApresCorrection(reponse)].join(' ') });
       }
       onRestore?.();
     } catch (error: any) {

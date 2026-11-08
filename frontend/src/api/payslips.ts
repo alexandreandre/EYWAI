@@ -423,6 +423,9 @@ export interface PayslipEditResponse {
   recalcul_erreur?: string | null;
   /** Le refus complet quand le recalcul a été refusé par une garde ; `null` sinon. */
   recalcul_refus?: RecalculRefus | null;
+  /** Le même signal que « Régénérer » : alertes du recalcul et mois suivant concerné. */
+  warnings?: PayslipGenerationWarning[];
+  mois_suivant_a_recalculer?: { year: number; month: number } | null;
 }
 
 export interface PayslipRestoreRequest {
@@ -437,6 +440,9 @@ export interface PayslipRestoreResponse {
   recalcule: boolean;
   recalcul_erreur?: string | null;
   recalcul_refus?: RecalculRefus | null;
+  /** Le même signal que « Régénérer » : alertes du recalcul et mois suivant concerné. */
+  warnings?: PayslipGenerationWarning[];
+  mois_suivant_a_recalculer?: { year: number; month: number } | null;
 }
 
 // =====================================================

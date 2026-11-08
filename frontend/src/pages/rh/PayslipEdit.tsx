@@ -99,7 +99,7 @@ import {
 } from '@/features/payroll/utils/correctionsBulletin';
 import { lienVariablesDuMois } from '@/features/payroll/utils/payslipDerivedLines';
 import { bandeauExportsDuMois } from '@/lib/exportsARefaire';
-import { estPerime, messageARecalculer } from '@/features/payroll/utils/bulletinARecalculer';
+import { estPerime, messageARecalculer, phrasesApresCorrection } from '@/features/payroll/utils/bulletinARecalculer';
 import { phraseRemise } from '@/features/payroll/utils/remiseBulletin';
 import {
   messageEnVerification,
@@ -334,7 +334,7 @@ export default function PayslipEdit() {
       } else if (reponse.recalcule) {
         toast({
           title: 'Bulletin corrigé et recalculé',
-          description: 'Brut, cotisations, net et cumuls ont suivi la correction.',
+          description: ['Brut, cotisations, net et cumuls ont suivi la correction.', ...phrasesApresCorrection(reponse)].join(' '),
         });
       } else {
         toast({ title: 'Notes enregistrées' });

@@ -17,6 +17,7 @@ import {
   repasseEnBrouillon,
   requeteDeCorrection,
   type EtatCorrections,
+  avertissementDeLaLigne,
 } from './correctionsBulletin';
 
 const base = { libelle: 'Salaire de base', quantite: 151.67, taux: 14.28, gain: 2165.85 };
@@ -482,5 +483,18 @@ describe('heures sup du mois : les champs partent des heures déclarées, jamais
   it('sans heures déclarées, une ligne corrigée compte pour ce que Martine avait calculé', () => {
     expect(etatInitial({ calcul_du_brut: [base, corrigee, hs50] }, null).hs25).toBe(5);
     expect(quantitesHeuresSup({ calcul_du_brut: [base, corrigee, hs50] })).toEqual([5, 3.5]);
+  });
+});
+
+describe('avertissementDeLaLigne : ce que la correction ne fera pas', () => {
+  it('dit que la réduction générale est reprise le mois suivant', () => {
+    const phrase = avertissementDeLaLigne('cotisation:reduction_generale');
+    expect(phrase).toContain('mois suivant');
+    expect(phrase).toContain('heures ou le brut');
+  });
+
+  it('ne dit rien sur une autre ligne', () => {
+    expect(avertissementDeLaLigne('brut:salaire_base')).toBeNull();
+    expect(avertissementDeLaLigne(null)).toBeNull();
   });
 });

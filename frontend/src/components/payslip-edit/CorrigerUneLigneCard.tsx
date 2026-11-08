@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import {
   aideDeLaCorrection,
   apercuDuMontant,
+  avertissementDeLaLigne,
   champsDeLaLigne,
   correctionDeLigne,
   type ChampCorrigeable,
@@ -78,6 +79,7 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
   const saisieDeLaLigne = ligne?.correction?.saisie_id ? String(ligne.correction.saisie_id) : null;
   const dejaCorrigee = saisieDeLaLigne !== null && !retirees.has(saisieDeLaLigne);
   const aide = aideDeLaCorrection(valeur, motif);
+  const avertissement = avertissementDeLaLigne(ligne?.code);
   const pret = !!ligne && !!champ && aide === null && !dejaCorrigee;
 
   const basculer = (saisieId: string) =>
@@ -123,8 +125,8 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
             <TriangleAlert className="h-4 w-4" />
             <AlertDescription className="space-y-2">
               <p>
-                Ces corrections ne trouvent plus leur ligne. Le bulletin ne peut pas être validé tant qu’elles ne sont
-                pas retirées ou reportées sur une autre ligne.
+                Ces corrections ne sont pas sur le bulletin. Il ne peut pas être validé tant qu’elles ne sont pas
+                retirées ou reportées sur une autre ligne.
               </p>
               {enAttente.map((attente) => {
                 const id = String(attente.saisie_id ?? '');
@@ -266,6 +268,11 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
                   />
                   {aide?.champ === 'valeur' ? <p className="text-xs text-destructive">{aide.message}</p> : null}
                 </div>
+                {avertissement ? (
+                  <p className="text-sm text-amber-700 sm:col-span-2" data-testid="avertissement-ligne">
+                    {avertissement}
+                  </p>
+                ) : null}
                 <div className="space-y-1 sm:col-span-2">
                   <Label htmlFor="motif-correction">Motif (obligatoire)</Label>
                   <Input
