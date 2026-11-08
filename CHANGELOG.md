@@ -8,6 +8,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 ### Le mois de sortie va jusqu'au dernier jour du contrat
 - Quand un salarié part après l'arrêté des variables, ses heures sup, paniers, absences et congés posés jusqu'à son dernier jour passent sur le bulletin de sortie. Ces jours sont à saisir avant de générer le bulletin.
 - Un repos compensateur obligatoire non pris au départ est signalé sur le bulletin, à ajouter à la page Primes, et le reçu pour solde de tout compte indique les heures dues au lieu de « Néant ».
+### Un import sur plusieurs mois garde ce que vous corrigez à la relecture
+- Quand un fichier couvre plusieurs mois, une case corrigée avant d'enregistrer était perdue : c'était le fichier d'origine qui s'enregistrait. Vos corrections vont maintenant dans le bon mois.
+
+### L'import du calendrier dit quels codes il ne comprend pas
+- Un code inconnu (« CHOMAGE PARTIEL », « CP SS », « MODUL »…) devenait un congé sans rien dire. Martine les liste maintenant au moment de l'import, avec le nombre de jours, pour que vous les corrigiez à la relecture.
 
 ### Le maintien légal cumule les arrêts des douze derniers mois
 - Quand un salarié a déjà été indemnisé sur un autre arrêt dans l'année écoulée, les jours déjà pris sont déduits de ses droits, comme le prévoit le Code du travail. Le maintien ne repart plus à zéro à chaque arrêt.
