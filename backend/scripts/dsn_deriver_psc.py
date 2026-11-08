@@ -30,15 +30,8 @@ def lire_lignes(chemin: Path):
         yield rubrique, valeur.strip().strip("'")
 
 
-def analyser(societe: str, mois: str | None = None):
-    """Analyse la DSN cabinet d'un mois (le premier disponible par défaut)."""
-    if mois:
-        dossier = FIXTURES / societe / mois
-    else:
-        dossier = next(iter(sorted((FIXTURES / societe).glob("20*-*"))), None)
-    if not dossier or not (dossier / "reference.dsn").exists():
-        return None
-
+def lire_dsn(chemin: Path) -> tuple[list[dict], list[dict]]:
+    """Le bloc 15 et, salarié par salarié, ce qu'une DSN du cabinet déclare."""
     contrats: list[dict] = []
     individus: list[dict] = []
     courant: dict | None = None
@@ -47,7 +40,7 @@ def analyser(societe: str, mois: str | None = None):
     base_courante: str = ""
     composant_type: str = ""
 
-    for rubrique, valeur in lire_lignes(dossier / "reference.dsn"):
+    for rubrique, valeur in lire_lignes(chemin):
         if not rubrique.startswith("S21.G00.70."):
             # Sortie du groupe 70 : le prochain bloc 70 repart de zéro, même
             # s'il commence par un numéro supérieur au dernier vu.
@@ -61,13 +54,15 @@ def analyser(societe: str, mois: str | None = None):
             if suffixe in cle:
                 contrats[-1][cle[suffixe]] = valeur
         elif rubrique == "S21.G00.30.001":
-            courant = {"nir": valeur, "statut": "", "affiliations": []}
+            courant = {"nir": valeur, "statut": "", "affiliations": [], "nb_contrats": 0}
             individus.append(courant)
             base_courante = ""
         elif rubrique == "S21.G00.30.014" and courant is not None:
             courant["departement_naissance"] = valeur
         elif rubrique == "S21.G00.30.015" and courant is not None:
             courant["pays_naissance"] = valeur
+        elif rubrique == "S21.G00.40.001" and courant is not None:
+            courant["nb_contrats"] += 1
         elif rubrique == "S21.G00.40.002" and courant is not None:
             courant["statut"] = courant["statut"] or valeur
         elif rubrique.startswith("S21.G00.70.") and courant is not None:
@@ -102,6 +97,44 @@ def analyser(societe: str, mois: str | None = None):
             # réduction générale de ce salarié.
             if base_courante == "03" and composant_type == "01":
                 courant.setdefault("smic_retenu", valeur)
+    return contrats, individus
+
+
+def reprise_de(individu: dict) -> dict:
+    """Ce qui, chez un salarié, ne se déduit ni du bulletin ni de la fiche."""
+    reprise = {}
+    # Nés hors de France ou dans les DOM : le cabinet déclare 30.014='99'
+    # (étranger) ou '97' (DOM, Mayotte comprise), et le pays en 30.015 —
+    # 'FR' y compris pour les nés à l'étranger. Repris tels quels : ni le
+    # département ni le pays ne se déduisent de la fiche dans ces cas.
+    if individu.get("departement_naissance") in ("97", "99") and individu.get("pays_naissance"):
+        reprise["departement_naissance"] = individu["departement_naissance"]
+        reprise["pays_naissance"] = individu["pays_naissance"]
+    # Apprentis / alternants : niveau de diplôme préparé (30.025) et date de
+    # fin prévisionnelle (40.010) quand la fiche ne la porte pas.
+    for cle in (
+        "motif_recours",
+        "niveau_diplome_prepare",
+        "date_fin_contrat",
+        "pas_type",
+        "pas_identifiant",
+        "smic_retenu",
+    ):
+        if individu.get(cle):
+            reprise[cle] = individu[cle]
+    return reprise
+
+
+def analyser(societe: str, mois: str | None = None):
+    """Analyse la DSN cabinet d'un mois (le premier disponible par défaut)."""
+    if mois:
+        dossier = FIXTURES / societe / mois
+    else:
+        dossier = next(iter(sorted((FIXTURES / societe).glob("20*-*"))), None)
+    if not dossier or not (dossier / "reference.dsn").exists():
+        return None
+
+    contrats, individus = lire_dsn(dossier / "reference.dsn")
 
     # Statut réel depuis input.json (le 40.002 du cabinet est le conventionnel).
     entree = json.loads((dossier / "input.json").read_text())
@@ -157,28 +190,7 @@ def ecrire_salaries(resultat: dict) -> int:
             continue
         if repris["affiliations"]:
             employe["affiliations_psc"] = repris["affiliations"]
-        reprise = {}
-        # Nés hors de France ou dans les DOM : le cabinet déclare 30.014='99'
-        # (étranger) ou '97' (DOM, Mayotte comprise), et le pays en 30.015 —
-        # 'FR' y compris pour les nés à l'étranger. Repris tels quels : ni le
-        # département ni le pays ne se déduisent de la fiche dans ces cas.
-        if repris.get("departement_naissance") in ("97", "99") and repris.get("pays_naissance"):
-            reprise["departement_naissance"] = repris["departement_naissance"]
-            reprise["pays_naissance"] = repris["pays_naissance"]
-        if repris.get("motif_recours"):
-            reprise["motif_recours"] = repris["motif_recours"]
-        # Apprentis / alternants : niveau de diplôme préparé (30.025) et date
-        # de fin prévisionnelle (40.010) quand la fiche ne la porte pas.
-        if repris.get("niveau_diplome_prepare"):
-            reprise["niveau_diplome_prepare"] = repris["niveau_diplome_prepare"]
-        if repris.get("date_fin_contrat"):
-            reprise["date_fin_contrat"] = repris["date_fin_contrat"]
-        if repris.get("pas_type"):
-            reprise["pas_type"] = repris["pas_type"]
-        if repris.get("pas_identifiant"):
-            reprise["pas_identifiant"] = repris["pas_identifiant"]
-        if repris.get("smic_retenu"):
-            reprise["smic_retenu"] = repris["smic_retenu"]
+        reprise = reprise_de(repris)
         if reprise:
             employe["dsn_reprise"] = reprise
         enrichis += 1
