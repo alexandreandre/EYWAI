@@ -81,14 +81,16 @@ def _contrat(employee: Dict[str, Any], debut: date, siret: str) -> Dict[str, str
 def _arret(s: SignalementAFaire, debut_contrat: Optional[date], settings: DsnSettings) -> Dict[str, str]:
     rubriques = {
         "S21.G00.60.001": s.motif,
-        "S21.G00.60.002": dsn(dernier_jour_travaille(s.motif, s.debut, debut_contrat)),
+        "S21.G00.60.002": dsn(
+            dernier_jour_travaille(s.motif, s.debut, debut_contrat, s.date_accident)
+        ),
         "S21.G00.60.003": dsn(s.fin_prevue),
     }
     if s.motif in MOTIFS_ACCIDENT:
-        # Martine n'a pas de champ « date de l'accident » : le premier jour de
-        # l'arrêt, que la DSN mensuelle tient déjà pour le jour de l'accident,
-        # jamais avant le contrat (SIG-14).
-        rubriques["S21.G00.60.012"] = dsn(max(s.debut, debut_contrat) if debut_contrat else s.debut)
+        # La date saisie sur l'arrêt ; sinon le premier jour d'arrêt, signalé
+        # « à vérifier » sur la ligne. Jamais avant le contrat (SIG-14).
+        accident = s.date_accident or s.debut
+        rubriques["S21.G00.60.012"] = dsn(max(accident, debut_contrat) if debut_contrat else accident)
     if s.nature == NATURE_ARRET:
         rubriques["S21.G00.60.004"] = "01" if s.subrogation else "02"
         if s.subrogation:

@@ -11,6 +11,12 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 ### La DSN déclare l'activité partielle et le temps partiel thérapeutique
 - Les heures chômées et l'indemnité d'activité partielle partent en DSN (motif 602, type 019) et le bulletin imprime les heures et le taux.
 - Le temps partiel thérapeutique a son motif (15 à 18 selon l'origine) et la reprise en temps partiel son code 02, au lieu de la maladie. Il se saisit aussi sous accident du travail et maladie professionnelle.
+### Le motif de fin de contrat se choisit sur le dossier de sortie
+- Le dossier de sortie affiche le motif déclaré en DSN, proposé selon le type de sortie et le contrat. Un motif qui ne va pas avec le contrat est refusé et Martine dit lequel prendre.
+- Une fin de CDD avant son terme ne part plus en « fin de CDD » sans qu'on le sache : Martine demande de choisir le motif.
+
+### La date de l'accident se saisit sur l'arrêt
+- Les arrêts pour accident ou maladie professionnelle ont un champ « date de l'accident ou de la première constatation », repris par le signalement DSN. Sans date, le signalement le dit avant le dépôt.
 
 ### Le mois de sortie va jusqu'au dernier jour du contrat
 - Quand un salarié part après l'arrêté des variables, ses heures sup, paniers, absences et congés posés jusqu'à son dernier jour passent sur le bulletin de sortie. Ces jours sont à saisir avant de générer le bulletin.

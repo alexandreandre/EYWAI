@@ -124,8 +124,18 @@ export interface EmployeeExit {
   updated_at: string;
 }
 
+/** Le motif de rupture DSN du dossier : choix, proposition, motif retenu, alerte, liste. */
+export interface MotifDsnDossier {
+  choisi: string | null;
+  propose: string | null;
+  retenu: string | null;
+  alerte: string | null;
+  options: { code: string; libelle: string }[];
+}
+
 export interface EmployeeExitWithDetails extends EmployeeExit {
   employee?: any;
+  motif_dsn?: MotifDsnDossier | null;
   /** Sommes du bulletin du mois de sortie, reprises par les documents. */
   bulletin_de_sortie?: {
     mois: string;
@@ -419,6 +429,8 @@ export interface UpdateEmployeeExitRequest {
   precarite_non_due?: MotifPrecariteNonDue | null;
   /** Licenciement pour inaptitude : son origine ; null = licenciement ordinaire. */
   inaptitude_origine?: InaptitudeOrigine | null;
+  /** Motif de rupture déclaré en DSN ; null = motif proposé par Martine. */
+  motif_dsn?: string | null;
 }
 
 export interface DocumentUploadUrlRequest {

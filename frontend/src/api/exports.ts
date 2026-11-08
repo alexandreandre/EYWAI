@@ -201,6 +201,9 @@ export interface SignalementLigne {
   en_retard: boolean;
   /** Raison de vérifier avant de déposer (arrêt qui ressemble à une prolongation). */
   a_verifier?: string | null;
+  /** Accident ou maladie professionnelle : la date saisie (60.012). */
+  date_accident?: string | null;
+  absence_id?: string | null;
 }
 
 export interface SignalementFait {

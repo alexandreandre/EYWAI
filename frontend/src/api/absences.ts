@@ -183,7 +183,13 @@ export interface AbsenceCreationPayload {
   demi_journees?: Record<string, 'matin' | 'apres_midi'>;
   /** Repos compensateur en heures : {"2026-09-14": 2} — jour absent = journée entière. */
   heures_par_jour?: Record<string, number>;
+  /** Accident ou maladie professionnelle : date de l'accident ou de la première constatation. */
+  date_accident?: string;
 }
+
+/** (RH) Date de l'accident ou de la première constatation d'un arrêt déjà saisi. */
+export const updateAbsenceDateAccident = (id: string, date_accident: string | null) =>
+  apiClient.patch(`/api/absences/requests/${id}/date-accident`, { date_accident });
 
 /**
  * (POUR L'EMPLOYÉ) Récupère les événements familiaux disponibles avec quota et solde.

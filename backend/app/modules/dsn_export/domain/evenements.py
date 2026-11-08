@@ -26,6 +26,9 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from app.modules.absences.domain.date_accident import date_accident_de
+from app.modules.dsn_export.domain.motif_rupture import motif_propose, motif_refuse
+
 #: Type de demande d'absence → motif d'arrêt (S21.G00.60.001).
 MOTIF_ARRET = {
     "arret_maladie": "01",
@@ -56,19 +59,6 @@ MOTIF_CONGE_NON_REMUNERE = "501"
 MOTIF_CHOMAGE_PARTIEL = "602"
 MOTIF_EVENEMENT_FAMILIAL = "637"
 
-#: Type de sortie MARTINE → motif de rupture (S21.G00.62.002).
-MOTIF_RUPTURE = {
-    "fin_cdd": "031",
-    "demission": "059",
-    "rupture_conventionnelle": "043",
-    "licenciement": "020",
-    "depart_retraite": "039",
-    "mise_retraite": "038",
-    "fin_periode_essai": "034",
-    "deces": "066",
-}
-#: Origine de l'inaptitude saisie au dossier → motif de rupture.
-_MOTIF_INAPTITUDE = {"non_professionnelle": "091", "professionnelle": "092"}
 #: Date de notification obligatoire (62.003, CCH-12).
 MOTIFS_AVEC_NOTIFICATION = {
     "011", "012", "014", "015", "020", "025", "034", "035", "036", "037",
@@ -141,6 +131,8 @@ class Periode:
     debut: date
     fin: date
     subrogation: bool = False
+    date_accident: Optional[date] = None
+    absence_id: Optional[str] = None
 
 
 def _jours(absence: Dict[str, Any]) -> List[date]:
@@ -194,7 +186,14 @@ def periodes_d_arret(absences: Iterable[Dict[str, Any]]) -> List[Periode]:
         if not motif or not jours:
             continue
         brutes.append(
-            Periode(motif, jours[0], jours[-1], bool(absence.get("subrogation_active")))
+            Periode(
+                motif,
+                jours[0],
+                jours[-1],
+                bool(absence.get("subrogation_active")),
+                date_accident_de(absence),
+                str(absence["id"]) if absence.get("id") else None,
+            )
         )
     fusionnees: List[Periode] = []
     for periode in sorted(brutes, key=lambda p: (p.motif, p.debut)):
@@ -206,15 +205,22 @@ def periodes_d_arret(absences: Iterable[Dict[str, Any]]) -> List[Periode]:
         ):
             precedente.fin = max(precedente.fin, periode.fin)
             precedente.subrogation = precedente.subrogation or periode.subrogation
+            precedente.date_accident = precedente.date_accident or periode.date_accident
             continue
         fusionnees.append(periode)
     return sorted(fusionnees, key=lambda p: p.debut)
 
 
-def dernier_jour_travaille(motif: str, debut: date, debut_contrat: Optional[date]) -> date:
+def dernier_jour_travaille(
+    motif: str,
+    debut: date,
+    debut_contrat: Optional[date],
+    date_accident: Optional[date] = None,
+) -> date:
     """La veille de l'arrêt, sauf accident ou maladie professionnelle : le jour
     de l'accident est travaillé (CT, 60.002) ; jamais avant le contrat (CCH-13)."""
-    jour = debut if motif in MOTIFS_ACCIDENT else debut - timedelta(days=1)
+    jour_de_l_accident = motif in MOTIFS_ACCIDENT and not (date_accident and date_accident < debut)
+    jour = debut if jour_de_l_accident else debut - timedelta(days=1)
     if debut_contrat and jour < debut_contrat:
         return debut_contrat
     return jour
@@ -255,7 +261,9 @@ def blocs_arret(
             continue
         if subrogation_paie is not None:
             periode.subrogation = subrogation_paie
-        dernier_jour = dernier_jour_travaille(periode.motif, periode.debut, debut_contrat)
+        dernier_jour = dernier_jour_travaille(
+            periode.motif, periode.debut, debut_contrat, periode.date_accident
+        )
         rubriques = {
             "S21.G00.60.001": periode.motif,
             "S21.G00.60.002": dsn(dernier_jour),
@@ -604,37 +612,22 @@ def bloc_fin_contrat(
     # Une sortie reprise d'une DSN porte son motif d'origine : « Import DSN (039) ».
     repris = _MOTIF_REPRIS.search(str((sortie or {}).get("exit_reason") or ""))
     type_sortie = str((sortie or {}).get("exit_type") or "")
-    if repris:
+    notes = (sortie or {}).get("exit_notes")
+    motif_dsn = notes.get("motif_dsn") if isinstance(notes, dict) else None
+    if motif_dsn:
+        # Choisi au dossier : une sortie reprise ne le porte pas, sinon il prime.
+        refus = motif_refuse(str(motif_dsn), sortie, employee)
+        if refus:
+            avertissements.append(f"{refus} Bloc 62 non émis tant que le motif n'est pas corrigé.")
+            return None, avertissements
+        motif = str(motif_dsn)
+    elif repris:
         motif = repris.group(1)
     elif type_sortie:
-        motif = MOTIF_RUPTURE.get(type_sortie, "")
-        if type_sortie == "licenciement" and (sortie or {}).get("is_gross_misconduct"):
-            motif = "087"
-        notes = (sortie or {}).get("exit_notes")
-        if (
-            type_sortie == "licenciement"
-            and motif == MOTIF_RUPTURE["licenciement"]
-            and isinstance(notes, dict)
-            and notes.get("inaptitude_origine") in _MOTIF_INAPTITUDE
-        ):
-            # Licenciement pour inaptitude (cahier technique 2026.1, 091 et 092).
-            motif = _MOTIF_INAPTITUDE[notes["inaptitude_origine"]]
-        if (
-            type_sortie == "depart_retraite"
-            and isinstance(notes, dict)
-            and notes.get("retirement_initiator") == "employer"
-        ):
-            # Mise à la retraite par l'employeur (cahier technique 2026.1, 038).
-            motif = MOTIF_RUPTURE["mise_retraite"]
-        if (
-            type_sortie == "fin_periode_essai"
-            and isinstance(notes, dict)
-            and notes.get("probation_ended_by") == "employee"
-        ):
-            # Fin de période d'essai à l'initiative du salarié (cahier technique 2026.1, 035).
-            motif = "035"
-        if type_sortie == "fin_cdd" and apprentissage:
-            motif = "081"
+        motif, raison = motif_propose(sortie, employee, apprentissage=apprentissage)
+        if raison:
+            avertissements.append(f"{raison} Bloc 62 non émis tant que le motif n'est pas choisi.")
+            return None, avertissements
     else:
         # Terme d'un CDD sans dossier de sortie.
         motif = "081" if apprentissage else "031"

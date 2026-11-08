@@ -26,6 +26,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MotifDsnCard } from './MotifDsnCard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1330,6 +1331,17 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
 
           {/* Onglet Indemnités */}
           <TabsContent value="indemnities" className="space-y-4">
+            {exitDetails.motif_dsn && (
+              <MotifDsnCard
+                exitId={exitDetails.id}
+                motif={exitDetails.motif_dsn}
+                disabled={isArchived || isCancelled}
+                onSaved={() => {
+                  fetchExitDetails();
+                  onUpdate?.();
+                }}
+              />
+            )}
             {exitDetails.bulletin_de_sortie && (
               <Card className="border-amber-200 bg-amber-50" data-testid="sommes-du-bulletin-de-sortie">
                 <CardHeader>

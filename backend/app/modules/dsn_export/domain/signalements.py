@@ -13,7 +13,12 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Dict, Iterable, List, Mapping, Optional
 
-from app.modules.dsn_export.domain.evenements import MOTIFS_TPT, _jours, periodes_d_arret
+from app.modules.dsn_export.domain.evenements import (
+    MOTIFS_ACCIDENT,
+    MOTIFS_TPT,
+    _jours,
+    periodes_d_arret,
+)
 from app.modules.dsn_export.domain.usages_signalement import NATURE_ARRET, NATURE_REPRISE
 
 #: À partir de 50 salariés, la DSN du mois M est due le 5 de M+1, sinon le 15.
@@ -45,6 +50,9 @@ class SignalementAFaire:
     date_reprise: Optional[date] = None
     #: Raison de vérifier avant de déposer (arrêt qui ressemble à une prolongation).
     a_verifier: Optional[str] = None
+    #: Date de l'accident ou de la première constatation saisie (60.012).
+    date_accident: Optional[date] = None
+    absence_id: Optional[str] = None
 
 
 def echeance_mensuelle(jour: date, effectif: int) -> date:
@@ -100,6 +108,17 @@ def _ressemble_a_une_prolongation(debut: date, fins_precedentes: List[date]) -> 
     )
 
 
+_DATE_ACCIDENT_A_SAISIR = (
+    "date de l'accident ou de la première constatation non saisie : le signalement "
+    "déclarerait le premier jour d'arrêt. Renseignez-la ci-dessous."
+)
+
+
+def _a_verifier(*raisons: Optional[str]) -> Optional[str]:
+    gardees = [r for r in raisons if r]
+    return " ".join(gardees) if gardees else None
+
+
 def signalements_a_faire(
     arrets: Mapping[str, List[Dict[str, Any]]],
     envoyes: Iterable[SignalementEnvoye],
@@ -131,6 +150,11 @@ def signalements_a_faire(
             ]
             arrets_envoyes = [e for e in les_siens if e.nature == NATURE_ARRET]
             connu = _connu_le(absences, periode.debut, periode.fin)
+            sans_date = (
+                _DATE_ACCIDENT_A_SAISIR
+                if periode.motif in MOTIFS_ACCIDENT and not periode.date_accident
+                else None
+            )
             if not arrets_envoyes:
                 limite = (
                     echeance_mensuelle(connu, effectif)
@@ -140,9 +164,12 @@ def signalements_a_faire(
                 resultat.append(SignalementAFaire(
                     employee_id, NATURE_ARRET, periode.motif, periode.debut, periode.fin,
                     periode.subrogation, connu, limite,
-                    a_verifier=_ressemble_a_une_prolongation(
-                        periode.debut, [p.fin for p in periodes]
+                    a_verifier=_a_verifier(
+                        _ressemble_a_une_prolongation(periode.debut, [p.fin for p in periodes]),
+                        sans_date,
                     ),
+                    date_accident=periode.date_accident,
+                    absence_id=periode.absence_id,
                 ))
                 continue
             declaree = max(arrets_envoyes, key=lambda e: e.genere_le).fin_prevue
@@ -152,5 +179,8 @@ def signalements_a_faire(
                 resultat.append(SignalementAFaire(
                     employee_id, NATURE_REPRISE, periode.motif, periode.debut, declaree,
                     periode.subrogation, connu, ajouter_jours_ouvrables(reprise, 5), reprise,
+                    a_verifier=sans_date,
+                    date_accident=periode.date_accident,
+                    absence_id=periode.absence_id,
                 ))
     return sorted(resultat, key=lambda s: (s.a_deposer_avant, s.employee_id))

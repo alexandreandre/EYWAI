@@ -40,6 +40,7 @@ from app.modules.employees.application.queries import employee_has_work_contract
 from app.modules.employees.infrastructure.repository import EmployeeRepository
 from app.modules.employee_exits.domain.notice_period import compute_notice_period
 from app.modules.employee_exits.domain.rules import exit_block_reason
+from app.modules.dsn_export.domain.motif_rupture import resume_du_dossier
 from app.modules.collective_agreements.rules.repository import CCRulesRepository
 
 
@@ -250,6 +251,10 @@ def get_employee_exit(
     except Exception as exc:
         log_app_debug(logger, f"Prêts employeur non chargés pour sortie: {exc}")
     exit_record["bulletin_de_sortie"] = _ce_que_le_bulletin_de_sortie_a_verse(exit_record, sb)
+    if exit_record.get("employee_id"):
+        exit_record["motif_dsn"] = resume_du_dossier(
+            exit_record, get_employee_full(str(exit_record["employee_id"]), sb) or {}
+        )
     return exit_record
 
 

@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { arretAvecDateAccident, refusDateAccident } from "@/lib/dateAccident";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -195,6 +196,7 @@ export function AbsenceRequestModal({
   const [error, setError] = useState("");
   const [confirmSansSoldeOpen, setConfirmSansSoldeOpen] = useState(false);
   const [arretType, setArretType] = useState<absencesApi.ArretType | "">("");
+  const [dateAccident, setDateAccident] = useState("");
   const [employees, setEmployees] = useState<EmployeeLite[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(false);
@@ -227,6 +229,7 @@ export function AbsenceRequestModal({
       setFile(null);
       setError("");
       setArretType("");
+      setDateAccident("");
       if (isRhMode) {
         setSelectedEmployeeId("");
       }
@@ -247,6 +250,7 @@ export function AbsenceRequestModal({
   useEffect(() => {
     if (!isArretPrincipalType(absenceType)) {
       setArretType("");
+      setDateAccident("");
       setArretRange(undefined);
       return;
     }
@@ -362,6 +366,9 @@ export function AbsenceRequestModal({
       if (isArretPrincipalType(absenceType)) {
         payload.arret_type = arretType as absencesApi.ArretType;
       }
+      if (arretAvecDateAccident(absenceType) && dateAccident) {
+        payload.date_accident = dateAccident;
+      }
       if (typeAvecDemiJournees) {
         // Seuls les jours encore sélectionnés partent (une désélection ne
         // doit pas laisser une demi-journée orpheline dans le payload).
@@ -450,6 +457,13 @@ export function AbsenceRequestModal({
       if (!arretRange?.from) {
         setError("Veuillez sélectionner la période d'arrêt (du … au …).");
         return;
+      }
+      if (arretAvecDateAccident(absenceType) && dateAccident) {
+        const refus = refusDateAccident(dateAccident, format(arretRange.from, "yyyy-MM-dd"));
+        if (refus) {
+          setError(refus);
+          return;
+        }
       }
     } else if (!selectedDays || selectedDays.length === 0) {
       setError(
@@ -714,6 +728,21 @@ export function AbsenceRequestModal({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {arretAvecDateAccident(absenceType) && (
+            <div className="grid gap-2">
+              <Label htmlFor="date-accident">Date de l&apos;accident ou de la première constatation</Label>
+              <Input
+                id="date-accident"
+                type="date"
+                value={dateAccident}
+                onChange={(e) => setDateAccident(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Si vous la laissez vide, Martine prendra le premier jour d&apos;arrêt et le signalera avant le dépôt.
+              </p>
             </div>
           )}
 
