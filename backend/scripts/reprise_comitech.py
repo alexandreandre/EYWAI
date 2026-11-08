@@ -156,6 +156,12 @@ def zones(bulletin) -> dict[str, list]:
         if lib.startswith("TOTAL DES RETENUES"):
             zone = "avant_net"
             continue
+        # Sans brut, un gain seul avant le total (CSG sur participation remboursée, Cartol,
+        # mai 2026) est une somme versée, pas une cotisation.
+        if (not a_un_brut and zone == "cotisations" and lg.gain is not None
+                and lg.montant_sal is None and lg.montant_pat is None):
+            rangees["avant_net"].append(lg)
+            continue
         if lib == "NET IMPOSABLE":
             zone = "apres_net"
             continue
@@ -641,7 +647,9 @@ def trous_de_reduction(lus: dict[int, dict], bascule: int, matricule: str) -> li
     return [m for m in mois if reductions[m] == 0 and 0 < bruts[m] <= plafond]
 
 
-def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dict:
+def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str, par_la_somme: bool = False) -> dict:
+    """`par_la_somme` : les cumuls imprimés au mois de bascule contredisent les mois et la DSN
+    (`reprise_mont_blanc.cumuls_imprimes_faux`) ; l'ouverture prend la somme des mois."""
     presents = [m for m in sorted(lus) if m <= bascule and matricule in lus[m]]
     mois_presents = mois_du_contrat_en_cours(lus, bascule, matricule)
     nouveau_contrat = mois_presents != presents
@@ -658,7 +666,7 @@ def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dic
         hs_brut += _heures_sup_brut(b)
         plafonds += float(b.droite.get("plafond") or 0.0)
         bruts += _brut_du_mois(b)
-    if nouveau_contrat:
+    if nouveau_contrat or par_la_somme:
         imprimes = _somme_du_contrat(lus, mois_presents, matricule)
     else:
         imprimes = {
@@ -703,6 +711,9 @@ def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dic
             "fait_foi": True,
         },
     }
+    if par_la_somme:
+        solde["reprise"]["cumul_brut_imprime_par_quadra"] = float(dernier.droite.get("cumul_bruts") or 0.0)
+        solde["reprise"]["cumuls_par_la_somme_des_mois"] = True
     if nouveau_contrat:
         # Même règle que MARTINE au premier mois d'un contrat (cumuls_precedents_du_contrat) :
         # la réduction générale, les tranches et le dixième repartent avec le contrat.
@@ -802,10 +813,15 @@ def _simuler_les_conges(soldes: dict, bascule: int) -> list[str]:
 
 
 def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = (), mois_ecrits: tuple[int, ...] | None = None,
-         complements: dict[int, dict[str, Any]] | None = None) -> int:
+         complements: dict[int, dict[str, Any]] | None = None,
+         remplacements: dict[int, dict[str, Any]] | None = None,
+         par_la_somme: frozenset[str] | set[str] = frozenset()) -> int:
     """`complements` : {mois: {matricule: Bulletin}} pour des mois absents du PDF mais
     déclarés en DSN (Mont Blanc, mars : une page manquante). Ils entrent dans le solde
-    d'ouverture seulement ; aucun bulletin n'est écrit pour eux."""
+    d'ouverture seulement ; aucun bulletin n'est écrit pour eux.
+    `remplacements` : même forme, des mois réédités après l'impression du PDF (LEWIS, avril) :
+    pour l'ouverture, ils passent devant le PDF. `par_la_somme` : les matricules dont le cumul
+    imprimé est faux (`solde_d_ouverture`)."""
     from scripts.reprise_colorplast_import_litteral import etiquette
 
     admin = get_supabase_admin_client()
@@ -822,12 +838,19 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = (), mois_ecrits:
     if not set(mois_ecrits) <= set(mois_repris):
         raise SystemExit(f"Mois hors reprise : {sorted(set(mois_ecrits) - set(mois_repris))}")
     lus = {m: lire_bulletins(ANNEE, m, SOCIETE) for m in mois_repris}
-    lus_ouverture = {m: {**(complements or {}).get(m, {}), **lus[m]} for m in mois_repris}
+    lus_ouverture = {m: {**(complements or {}).get(m, {}), **lus[m], **(remplacements or {}).get(m, {})}
+                     for m in mois_repris}
     for m, ajoutes in sorted((complements or {}).items()):
         absents = set(ajoutes) - set(lus.get(m, {}))
         if absents:
             print(f"  {m:02d} : {len(absents)} bulletin(s) absent(s) du PDF, mois complété(s) depuis la DSN "
                   "(ouverture seulement)")
+    for m, remplaces in sorted((remplacements or {}).items()):
+        print(f"  {m:02d} : {len(remplaces)} bulletin(s) réédité(s) après le PDF, pris dans la DSN "
+              "(ouverture seulement ; le bulletin copié reste celui du PDF)")
+    if par_la_somme:
+        print(f"  {len(par_la_somme)} cumul(s) imprimé(s) au mois de bascule contredit(s) par les mois et la DSN : "
+              "ouverture par la somme des mois")
     anomalies: list[str] = []
     a_ecrire: list[tuple[int, str, Any, dict]] = []
 
@@ -903,7 +926,7 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = (), mois_ecrits:
         fiche = fiche_du_bulletin(b, mat, fiches)
         if not fiche:
             continue
-        solde = solde_d_ouverture(lus_ouverture, bascule, mat)
+        solde = solde_d_ouverture(lus_ouverture, bascule, mat, par_la_somme=mat in par_la_somme)
         trous = trous_de_reduction(lus_ouverture, bascule, mat)
         if trous:
             print(f"  {etiquette(fiche):14s} à vérifier (non bloquant) : aucune réduction générale en "

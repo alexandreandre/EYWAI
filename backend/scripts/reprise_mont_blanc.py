@@ -21,6 +21,12 @@ puis la bascule de la société. Ce qui change pour Mont Blanc :
 
 `--anciennete-seule` : seulement l'étape des fiches (ancienneté et salaire), pour la relecture.
 
+`--societe cartol|lewis` : le même programme pour Cartol Industrie et LEWIS (métallurgie, Quadra,
+bascule au 30/09/2026), réglé par `SOCIETES` (dossier, société, Tdelta, DSN disponibles). Ce que
+leurs bulletins ont en plus : matricules à espaces et deux versions de septembre
+(`colorplast_lignes_quadra`), prévoyance Groupama (EP1 à EP4, tranche B) ou sans code (LEWIS),
+deux salaires de base dans un mois, horaire de 37,5 h payé en entier au salaire de base.
+
 Simulation par défaut. `--apply` écrit (bulletins, ouvertures, congés, bascule, puis
 ancienneté) : à lancer par `~/dev/eywai-filet/reprise-mont-blanc/appliquer.sh`, qui
 sauvegarde avant.
@@ -29,11 +35,13 @@ Usage (depuis backend/, `MARTINE_DATA` vers le data/ du dépôt principal) :
     python -m scripts.reprise_mont_blanc                  # simulation, bascule au 31/07
     python -m scripts.reprise_mont_blanc --bascule 9      # quand août et septembre seront là
     python -m scripts.reprise_mont_blanc --apply          # écrit
+    python -m scripts.reprise_mont_blanc --societe lewis --bascule 9   # LEWIS, simulation
 """
 
 from __future__ import annotations
 
 import calendar
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -41,11 +49,40 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-SOCIETE = "mbc"
-COMPANY_ID = "b541df31-e964-485e-ac36-cf580633fd1d"
 ANNEE = 2026
+#: Les sociétés reprises de Quadra par ce programme. `tdelta` : Tdelta de la réduction 2026
+#: (0,3821 à 50 salariés et plus, 0,3781 en dessous ; `settings.effectif_seuils` 2026 : Cartol 70,
+#: LEWIS 30) ; `dsn_jusqu_a` : dernier mois dont la DSN peut compléter un bulletin absent du PDF ;
+#: `siret` : relu par le garde-fou avant écriture ; `dsn_corrige_le_pdf` : la DSN remplace un mois
+#: réédité après le PDF et refait un cumul imprimé faux (`mois_reedites_depuis_la_dsn`,
+#: `cumuls_imprimes_faux`), vérifié sur Cartol et LEWIS seulement (Mont Blanc inchangé) ;
+#: `aligner_mutuelle` : Cartol et LEWIS non (catalogue sans formule aux montants de Quadra, fiches
+#: à la mutuelle de l'import DSN : chantier à part, l'écart est seulement affiché).
+SOCIETES: dict[str, dict] = {
+    "mbc": {"company_id": "b541df31-e964-485e-ac36-cf580633fd1d", "siret": "75116833700028",
+            "tdelta": 0.3821, "dsn_jusqu_a": 6, "bascule": 7, "dsn_corrige_le_pdf": False,
+            "aligner_mutuelle": True},
+    "cartol": {"company_id": "18de8de4-eb52-4a7c-a9f4-4c7321e6f11f", "siret": "95147478200020",
+               "tdelta": 0.3821, "dsn_jusqu_a": 9, "bascule": 9, "dsn_corrige_le_pdf": True,
+               "aligner_mutuelle": False},
+    "lewis": {"company_id": "b3c747e4-5094-4252-b0e6-5b711a5b4e81", "siret": "99117730400029",
+              "tdelta": 0.3781, "dsn_jusqu_a": 9, "bascule": 9, "dsn_corrige_le_pdf": True,
+              "aligner_mutuelle": False},
+}
+SOCIETE = "mbc"
+COMPANY_ID = SOCIETES["mbc"]["company_id"]
 #: 50 salariés et plus (R-F3, chemins.py) : Tdelta 0,3821, plafond 0,4021.
-TDELTA = 0.3821
+TDELTA = SOCIETES["mbc"]["tdelta"]
+
+
+def regler_pour(societe: str) -> None:
+    """Fait servir ce programme à `societe` (clé de `SOCIETES`), ici et dans `reprise_comitech`."""
+    import scripts.reprise_comitech as rc
+
+    global SOCIETE, COMPANY_ID, TDELTA
+    reglage = SOCIETES[societe]
+    SOCIETE, COMPANY_ID, TDELTA = societe, reglage["company_id"], reglage["tdelta"]
+    rc.regler_pour(SOCIETE, COMPANY_ID, TDELTA)
 #: Plafond mensuel de la sécurité sociale 2026 (imprimé « Plafond Sécu : 4005.00 »).
 PSS_MENSUEL = 4005.0
 #: Dernier mois dont les bulletins Quadra sont arrivés (data/mbc/bulletins/2026-07).
@@ -106,6 +143,86 @@ def complements_depuis_la_dsn(lus: dict[int, dict], bascule: int, bases_par_mois
                 continue
             sortie.setdefault(mois, {})[mat] = bulletin_depuis_la_dsn(mat, mois, base, entree)
     return sortie
+
+
+def _dsn_par_nir(bases: list, mois: int) -> dict[str, Any]:
+    """Les bases 03 du mois (période commençant dans le mois) additionnées par NIR."""
+    from scripts.verification_rgdu.dsn_quadra import BaseReduction
+
+    total: dict[str, Any] = {}
+    for base in bases:
+        if base.debut.month != mois:
+            continue
+        t = total.setdefault(base.nir, BaseReduction(nir=base.nir, nom="", prenom="", debut=base.debut,
+                                                     fin=base.fin, assiette=0.0))
+        t.assiette = round((t.assiette or 0.0) + float(base.assiette or 0.0), 2)
+        t.montant_018 += base.montant_018
+        t.montant_106 += base.montant_106
+    return total
+
+
+def mois_reedites_depuis_la_dsn(lus: dict[int, dict], bascule: int, bases_par_mois: dict[int, list]) -> dict:
+    """{mois: {matricule: Bulletin}} : les mois dont la DSN déclare un autre brut que le PDF.
+
+    LEWIS, avril 2026 : le PDF imprime 3 750,00, la DSN déclare 6 250,00 et le cumul de mai a
+    repris les 2 500 de plus. Le bulletin a été refait après l'envoi du PDF : pour l'ouverture, le
+    mois est celui de la DSN (brut, réduction 018 + 106) ; plafond, en-tête et compteurs restent
+    ceux du PDF. Le contrôle « somme des bruts contre cumul imprimé » dit ensuite si le cumul
+    de Quadra confirme la DSN. Un NIR sous deux matricules dans le mois n'est pas touché."""
+    from scripts.backtest.colorplast_lignes_quadra import Bulletin
+    from scripts.reprise_colorplast_import_litteral import _brut_du_mois
+
+    sortie: dict[int, dict] = {}
+    for mois, bases in sorted(bases_par_mois.items()):
+        if mois > bascule or mois not in lus:
+            continue
+        dsn = _dsn_par_nir(bases, mois)
+        par_nir: dict[str, list] = {}
+        for mat, b in lus[mois].items():
+            par_nir.setdefault(str(b.infos.get("nir") or "")[:13], []).append((mat, b))
+        for nir, bulletins in par_nir.items():
+            if len(bulletins) != 1 or nir not in dsn:
+                continue
+            mat, b = bulletins[0]
+            if abs(float(dsn[nir].assiette or 0.0) - _brut_du_mois(b)) <= 0.01:
+                continue
+            refait = bulletin_depuis_la_dsn(mat, mois, dsn[nir], _date_fr(b.infos.get("entree")))
+            sortie.setdefault(mois, {})[mat] = Bulletin(
+                matricule=mat, lignes=refait.lignes, droite={**b.droite, "plafond": b.droite.get("plafond",
+                refait.droite["plafond"])}, net=dict(b.net), cp=dict(b.cp), pages=list(b.pages),
+                infos={**b.infos, "source": refait.infos["source"], "brut_du_pdf": _brut_du_mois(b)})
+    return sortie
+
+
+def cumuls_imprimes_faux(lus: dict[int, dict], bascule: int, bases_par_mois: dict[int, list]) -> set[str]:
+    """Les matricules dont le cumul brut imprimé au mois de bascule contredit la somme des mois,
+    quand la DSN confirme la somme.
+
+    Cartol, septembre 2026 : le bulletin définitif (« avec nouveaux taux ») compte deux fois le
+    mois d'un salarié dans ses cumuls (brut, net imposable) ; LEWIS : un cumul de septembre resté
+    à celui d'août. La DSN de chaque mois déclare le brut une fois : la somme fait foi. Sans la
+    DSN de chaque mois, ou si elle dit encore autre chose, rien n'est refait (l'écart reste une
+    anomalie, rien n'est écrit)."""
+    import scripts.reprise_comitech as rc
+    from scripts.reprise_colorplast_import_litteral import _brut_du_mois
+
+    dsn = {m: _dsn_par_nir(bases, m) for m, bases in bases_par_mois.items()}
+    faux = set()
+    for mat, dernier in lus.get(bascule, {}).items():
+        presents = [m for m in sorted(lus) if m <= bascule and mat in lus[m]]
+        mois = rc.mois_du_contrat_en_cours(lus, bascule, mat)
+        if mois != presents:
+            continue  # nouveau contrat : déjà par la somme
+        somme = round(sum(_brut_du_mois(lus[m][mat]) for m in mois), 2)
+        if abs(somme - float(dernier.droite.get("cumul_bruts") or 0.0)) <= 0.01:
+            continue
+        nir = str(dernier.infos.get("nir") or "")[:13]
+        if not nir or any(nir not in dsn.get(m, {}) for m in mois):
+            continue
+        declare = round(sum(float(dsn[m][nir].assiette or 0.0) for m in mois), 2)
+        if abs(declare - somme) <= 0.01:
+            faux.add(mat)
+    return faux
 
 
 def anciennete_de_quadra(bulletins: list, fin_de_bascule: date) -> date | None:
@@ -226,6 +343,19 @@ def plan_de_mutuelle(fiche: dict, bulletin, types: list[dict]) -> dict | None:
             "quadra": [f"{lib} {sal:.2f} / {pat:.2f}" for sal, pat, lib in quadra]}
 
 
+#: Tranche B / tranche 2 : « CADRE TB » (Mont Blanc, Cartol), « TU2 » (LEWIS).
+_TRANCHE_B = re.compile(r"\b(TB|TR\.? ?B|TRANCHE B|T2|TU2)\b")
+
+
+def est_une_ligne_de_prevoyance(lg) -> bool:
+    """Une cotisation de prévoyance de Quadra : code « EP… » (Mont Blanc EPR1 à EPR4, Cartol EP1
+    à EP4), ou libellé « PREVOYANCE » sans code (LEWIS, « E_V6 PREVOYANCE NON CADRE TU1 META »).
+    Jamais un remboursement (gain) ni la réintégration « Cotis. Retraite/Prév./F.santé » (sans base)."""
+    if not lg.base or lg.gain is not None or (lg.montant_sal is None and lg.montant_pat is None):
+        return False
+    return (lg.code or "").startswith("EP") or (not lg.code and "PREVOYANCE" in _maj(lg.libelle))
+
+
 def plan_de_prevoyance(fiche: dict, bulletin) -> dict | None:
     """La prévoyance de la fiche aux taux que Quadra prélève (lignes « EPR… », tranche A), ou None.
 
@@ -233,17 +363,21 @@ def plan_de_prevoyance(fiche: dict, bulletin) -> dict | None:
     d'autres taux ; les lignes reprennent la forme de l'import DSN (`prevoyance_dsn`)."""
     lignes, quadra = [], []
     for lg in bulletin.lignes:
-        if (lg.code or "").startswith("EPR") and lg.base:
+        if est_une_ligne_de_prevoyance(lg):
             quadra.append((lg.base, round(lg.montant_sal or 0.0, 2), round(lg.montant_pat or 0.0, 2)))
             lignes.append({
                 "id": "prevoyance_dsn" if not lignes else f"prevoyance_dsn_{len(lignes) + 1}",
-                "base": "brut_plafonne",
+                "base": "tranche_2" if _TRANCHE_B.search(_maj(lg.libelle)) else "brut_plafonne",
                 "libelle": " ".join(lg.libelle.split()),
                 # Le taux salarial imprimé par Quadra ; le patronal, montant ÷ base à cinq
                 # décimales (0,50 %, 1,58 %, 0,904 %) : au-delà, c'est l'arrondi au centime.
                 "salarial": round((lg.taux / 100) if lg.taux and lg.montant_sal else
                                   (lg.montant_sal or 0.0) / lg.base, 5),
-                "patronal": round((lg.montant_pat or 0.0) / lg.base, 5),
+                # À montants égaux (50/50), le taux salarial imprimé : sur une petite base, montant ÷
+                # base décale le patronal d'un arrondi (0,74 / 101,25 = 0,00731 pour 0,73 %).
+                "patronal": (round(lg.taux / 100, 5) if lg.taux and lg.montant_sal is not None
+                             and abs((lg.montant_pat or 0.0) - lg.montant_sal) < 0.005
+                             else round((lg.montant_pat or 0.0) / lg.base, 5)),
                 "forfait_social": 0.08,
             })
     if not lignes:
@@ -271,6 +405,10 @@ def sorties_de_quadra(mois: list[dict], fin_de_bascule: date) -> list[tuple[str,
             d = _date_fr(b.infos.get("sortie"))
             if d is not None and d <= fin_de_bascule:
                 vues[mat] = (mat, b, d)
+            elif mat in vues and (_date_fr(b.infos.get("entree")) or date.min) > vues[mat][2]:
+                # Revenu après sa sortie (Cartol : CDD clos le 31/07, nouveau contrat le 26/08) :
+                # la sortie est close, la fiche reste active.
+                del vues[mat]
     return sorted(vues.values(), key=lambda x: x[0])
 
 
@@ -327,16 +465,23 @@ def plan_de_salaire(fiche: dict, bulletin) -> dict | None:
     l'horaire dépasse 35 h (sinon le moteur prend le salaire pour l'horaire entier). Un mois
     incomplet (entrée, sortie, temps partiel en cours de mois) ne dit pas le salaire du mois
     complet : aucun plan."""
-    ligne = next((lg for lg in bulletin.lignes
-                  if " ".join(str(lg.libelle or "").split()).upper().startswith("SALAIRE DE BASE") and lg.gain), None)
-    if ligne is None:
+    lignes = [lg for lg in bulletin.lignes
+              if " ".join(str(lg.libelle or "").split()).upper().startswith("SALAIRE DE BASE") and lg.gain]
+    # Deux salaires de base dans le mois (changement de taux ou de contrat en cours de mois) :
+    # aucun ne dit à lui seul le salaire du mois complet.
+    if len(lignes) != 1:
         return None
+    ligne = lignes[0]
     duree = float(fiche.get("duree_hebdomadaire") or 35.0)
     heures_contrat = round(min(duree, 35.0) * 52 / 12, 2)
-    if ligne.base is not None and abs(ligne.base - heures_contrat) > 0.02 and abs(ligne.base - HEURES_TEMPS_PLEIN) > 0.02:
+    # Horaire au-delà de 35 h payé en entier au taux de base (Cartol : 162,50 h pour 37,5 h,
+    # sans ligne d'heures structurelles) : la fiche porte le salaire de l'horaire entier.
+    horaire_entier = duree > 35.0 and ligne.base is not None and abs(ligne.base - round(duree * 52 / 12, 2)) <= 0.02
+    if (ligne.base is not None and not horaire_entier and abs(ligne.base - heures_contrat) > 0.02
+            and abs(ligne.base - HEURES_TEMPS_PLEIN) > 0.02):
         return None
     cible = round(float(ligne.gain), 2)
-    hors_hs = True if duree > 35.0 and ligne.base is not None else None
+    hors_hs = True if duree > 35.0 and ligne.base is not None and not horaire_entier else None
     actuel = fiche.get("salaire_de_base") or {}
     actuel_hors = bool((fiche.get("specificites_paie") or {}).get("salaire_hors_hs_structurelles"))
     if abs(float(actuel.get("valeur") or 0.0) - cible) < 0.005 and (hors_hs is None or actuel_hors):
@@ -349,10 +494,22 @@ def plan_de_salaire(fiche: dict, bulletin) -> dict | None:
     }
 
 
+def corrections_de_l_ouverture(lus: dict[int, dict], bascule: int) -> tuple[dict, dict, set[str]]:
+    """(compléments, remplacements, cumuls par la somme) que la DSN apporte aux PDF, pour la
+    société réglée ; Mont Blanc n'a que les compléments (`dsn_corrige_le_pdf`)."""
+    bases = _bases_dsn(bascule)
+    complements = complements_depuis_la_dsn(lus, bascule, bases)
+    if not SOCIETES[SOCIETE].get("dsn_corrige_le_pdf"):
+        return complements, {}, set()
+    remplacements = mois_reedites_depuis_la_dsn(lus, bascule, bases)
+    lus_ouv = {m: {**complements.get(m, {}), **lus[m], **remplacements.get(m, {})} for m in lus}
+    return complements, remplacements, cumuls_imprimes_faux(lus_ouv, bascule, bases)
+
+
 def _bases_dsn(bascule: int) -> dict[int, list]:
     from scripts.verification_rgdu.dsn_quadra import dsn_du_mois
 
-    return {m: dsn_du_mois(SOCIETE, m) for m in range(1, bascule + 1)}
+    return {m: dsn_du_mois(SOCIETE, m) for m in range(1, min(bascule, SOCIETES[SOCIETE]["dsn_jusqu_a"]) + 1)}
 
 
 #: Compte qui signe les écritures de reprise (Alexandre), comme scripts/dsn_arrets_a_reclasser.py.
@@ -382,7 +539,7 @@ def fiches(appliquer: bool, bascule: int) -> int:
     for t in types:
         t["n"] = sum(1 for u in usages if u["mutuelle_type_id"] == t["id"])
     par_nir = {_nir(f["nir"]): f for f in lignes if f.get("nir")}
-    plans, salaires, primes, mutuelles, prevoyances = [], [], [], [], []
+    plans, salaires, primes, mutuelles, prevoyances, mutuelles_hors = [], [], [], [], [], []
     print(f"\n=== Ancienneté au {bascule:02d}/{ANNEE} (date de Quadra, reprise en mois remise à zéro)")
     lus = [lire_bulletins(ANNEE, m, SOCIETE) for m in range(1, bascule + 1)]
     fin = date(ANNEE, bascule, calendar.monthrange(ANNEE, bascule)[1])
@@ -403,7 +560,7 @@ def fiches(appliquer: bool, bascule: int) -> int:
         if encore_la:
             mut = plan_de_mutuelle(fiche, b, types)
             if mut is not None:
-                mutuelles.append((fiche, mut))
+                (mutuelles if SOCIETES[SOCIETE].get("aligner_mutuelle", True) else mutuelles_hors).append((fiche, mut))
             prev = plan_de_prevoyance(fiche, b)
             if prev is not None:
                 prevoyances.append((fiche, prev))
@@ -437,6 +594,12 @@ def fiches(appliquer: bool, bascule: int) -> int:
         print(f"  {etiquette(fiche):14s} prévoyance {'adhérente' if prev['avant']['adhesion'] else 'non adhérente'} "
               f"{prev['avant']['taux']} → {[(l['salarial'], l['patronal']) for l in prev['lignes_specifiques']]}")
     print(f"{len(mutuelles)} mutuelle(s) à aligner sur Quadra.")
+    if mutuelles_hors:
+        print(f"Mutuelle non alignée chez {SOCIETE} (chantier à part) : {len(mutuelles_hors)} fiche(s) dont la "
+              "mutuelle diffère de ce que Quadra prélève en septembre :")
+        for fiche, mut in mutuelles_hors:
+            print(f"  {etiquette(fiche):14s} fiche {[libelles.get(i, i) for i in mut['avant']['mutuelle_type_ids']] or 'aucune'}"
+                  f" ; Quadra {mut['quadra'] or 'aucune'}")
     print(f"{len(prevoyances)} prévoyance(s) à aligner sur Quadra.")
     societe = admin.table("companies").select("settings").eq("id", COMPANY_ID).execute().data[0]
     reglages = dict(societe.get("settings") or {})
@@ -550,15 +713,15 @@ def sorties(appliquer: bool, bascule: int) -> int:
 
 
 def main(appliquer: bool, bascule: int, sans: tuple[str, ...] = (), mois_ecrits: tuple[int, ...] | None = None,
-         anciennete_seule: bool = False) -> int:
+         anciennete_seule: bool = False, societe: str = "mbc") -> int:
     import scripts.reprise_comitech as rc
     from scripts.backtest.colorplast_lignes_quadra import lire_bulletins
 
-    rc.regler_pour(SOCIETE, COMPANY_ID, TDELTA)
+    regler_pour(societe)
     if not anciennete_seule:
         lus = {m: lire_bulletins(ANNEE, m, SOCIETE) for m in range(1, bascule + 1)}
-        complements = complements_depuis_la_dsn(lus, bascule, _bases_dsn(min(bascule, 6)))
-        code = rc.main(appliquer, bascule, sans, mois_ecrits, complements)
+        complements, remplacements, par_la_somme = corrections_de_l_ouverture(lus, bascule)
+        code = rc.main(appliquer, bascule, sans, mois_ecrits, complements, remplacements, par_la_somme)
         if code:
             return code
     code = fiches(appliquer, bascule)
@@ -566,7 +729,8 @@ def main(appliquer: bool, bascule: int, sans: tuple[str, ...] = (), mois_ecrits:
 
 
 if __name__ == "__main__":
-    bascule = BASCULE_PAR_DEFAUT
+    societe = sys.argv[sys.argv.index("--societe") + 1] if "--societe" in sys.argv else "mbc"
+    bascule = SOCIETES[societe]["bascule"]
     if "--bascule" in sys.argv:
         bascule = int(sys.argv[sys.argv.index("--bascule") + 1])
     sans = ()
@@ -575,4 +739,5 @@ if __name__ == "__main__":
     mois_ecrits = None
     if "--mois" in sys.argv:
         mois_ecrits = tuple(int(m) for m in sys.argv[sys.argv.index("--mois") + 1].split(","))
-    raise SystemExit(main("--apply" in sys.argv, bascule, sans, mois_ecrits, "--anciennete-seule" in sys.argv))
+    raise SystemExit(main("--apply" in sys.argv, bascule, sans, mois_ecrits, "--anciennete-seule" in sys.argv,
+                          societe))

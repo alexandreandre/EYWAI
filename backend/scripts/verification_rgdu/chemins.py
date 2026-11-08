@@ -26,6 +26,12 @@ SOCIETES: dict[str, dict] = {
     "comitech": {"company_id": "12cd8c71-da13-43f9-9151-475c4d5e8812", "mois": tuple(range(1, 10)), "dossier": "comitech", "tdelta": 0.3781},
     # company_id de Mont-Blanc : lu en base à la tâche 8 (lecture seule), laissé à None ici.
     "mbc": {"company_id": None, "mois": tuple(range(1, 8)), "dossier": "mbc", "tdelta": 0.3821},
+    # Reprise du 08/11 (scripts/reprise_mont_blanc.py --societe) : effectif 2026 de 70 à Cartol,
+    # de 30 à LEWIS (`settings.effectif_seuils`).
+    "cartol": {"company_id": "18de8de4-eb52-4a7c-a9f4-4c7321e6f11f", "mois": tuple(range(1, 10)), "dossier": "cartol",
+               "tdelta": 0.3821},
+    "lewis": {"company_id": "b3c747e4-5094-4252-b0e6-5b711a5b4e81", "mois": tuple(range(1, 10)), "dossier": "lewis",
+              "tdelta": 0.3781},
 }
 
 
