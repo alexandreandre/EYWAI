@@ -6,6 +6,7 @@ import calendar as cal_mod
 import io
 import re
 import unicodedata
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Dict, List, Sequence, Tuple
@@ -18,7 +19,7 @@ from app.modules.schedules.application.timesheet_import.tabular_period import (
     ImportPeriodConfig,
 )
 from app.modules.schedules.schemas.ai import AiDayEntry, RosterEmployee
-from app.shared.domain.pluriel import pluriel
+from app.shared.domain.pluriel import accord, pluriel
 
 SKIP_SHEETS = frozenset({"SOMMAIRE", "MODELE"})
 
@@ -80,7 +81,8 @@ def _is_holiday_label(label: str) -> bool:
     return any(k in label for k in keywords)
 
 
-def _classify_absence_label(label: str) -> str:
+def _classify_absence_label(label: str) -> str | None:
+    """Type du jour pour un libellé connu, `None` pour un libellé non compris."""
     if _is_holiday_label(label):
         return "ferie"
     if any(k in label for k in ("MALADIE", "CARENCE", "ARRET", "ARRÊT", " AT ", "FIN CDI")):
@@ -108,7 +110,21 @@ def _classify_absence_label(label: str) -> str:
         return "travail"
     if label in ("", " "):
         return "conge"
-    return "conge"
+    return None
+
+
+def _message_codes_non_compris(codes: Counter[str], *, limite: int = 10) -> str | None:
+    if not codes:
+        return None
+    ordonnes = sorted(codes.items(), key=lambda item: (-item[1], item[0]))
+    liste = ", ".join(f"« {code} » ({pluriel(nb, 'jour')})" for code, nb in ordonnes[:limite])
+    reste = len(ordonnes) - limite
+    if reste > 0:
+        liste += f" et {reste} {accord(reste, 'autre')}"
+    return (
+        f"Codes du calendrier non reconnus : {liste}. Ces jours sont notés en congé, "
+        "que la paie ne compte pas : corrigez-les à la relecture si besoin."
+    )
 
 
 def _parse_cp_value(raw: object) -> float | str | None:
@@ -126,6 +142,21 @@ def _parse_cp_value(raw: object) -> float | str | None:
         return float(text.replace(",", "."))
     except ValueError:
         return upper
+
+
+def _code_non_compris(day_date: date, hab_raw: object) -> str | None:
+    """Le libellé d'une case que le parseur ne sait pas lire, normalisé.
+
+    Il devient un congé, que le moteur de paie ne lit pas : la gestionnaire
+    doit le savoir à l'import. Ni les week-ends (la case n'est pas lue), ni une
+    case sans libellé, ni un « CP » simple.
+    """
+    if day_date.weekday() >= 5 or hab_raw is None or isinstance(hab_raw, (int, float)):
+        return None
+    libelle = _normalize_text(str(hab_raw))
+    if not libelle or libelle == "CP" or _classify_absence_label(libelle) is not None:
+        return None
+    return libelle
 
 
 def _day_entry(
@@ -193,7 +224,7 @@ def classify_planned_day(
     if hab_text and hab_norm:
         if _is_holiday_label(hab_norm):
             return _day_entry(jour=jour, day_type="ferie", heures=None)
-        day_type = _classify_absence_label(hab_norm)
+        day_type = _classify_absence_label(hab_norm) or "conge"
         if day_type == "travail":
             return _day_entry(jour=jour, day_type="travail", heures=daily_hours)
         if day_type == "ferie":
@@ -269,6 +300,7 @@ def _parse_employee_sheet_from_rows(
     *,
     year: int,
     daily_hours: float,
+    codes_non_compris: Counter[tuple[int, str]] | None = None,
 ) -> dict[int, list[dict[str, Any]]]:
     by_month: dict[int, list[dict[str, Any]]] = {}
     for month, base_col, _header_row in blocks:
@@ -293,6 +325,9 @@ def _parse_employee_sheet_from_rows(
             hab = values[hab_col] if hab_col < len(values) else None
             cp = values[cp_col] if cp_col < len(values) else None
             entries.append(classify_planned_day(day_date, hab, cp, daily_hours=daily_hours))
+            code = _code_non_compris(day_date, hab)
+            if code and codes_non_compris is not None:
+                codes_non_compris[(month, code)] += 1
         if entries:
             by_month[month] = sorted(entries, key=lambda e: e["jour"])
     return by_month
@@ -491,6 +526,7 @@ def parse_quadra_planning_workbook(
     try:
         target_months = _iter_target_months(period_config)
         warnings: List[str] = []
+        codes_non_compris: Counter[str] = Counter()
         groups_map: Dict[Tuple[int, int], List[Dict[str, Any]]] = {}
         sheets_parsed = 0
         sheets_unmatched: List[str] = []
@@ -548,8 +584,13 @@ def parse_quadra_planning_workbook(
                     values_only=True,
                 )
             ]
+            codes_de_la_feuille: Counter[tuple[int, str]] = Counter()
             parsed = _parse_employee_sheet_from_rows(
-                day_rows, blocks, year=year, daily_hours=daily_hours
+                day_rows,
+                blocks,
+                year=year,
+                daily_hours=daily_hours,
+                codes_non_compris=codes_de_la_feuille,
             )
 
             for month_num, entries in parsed.items():
@@ -558,6 +599,9 @@ def parse_quadra_planning_workbook(
                 days = [_entry_to_ai_day(entry) for entry in entries]
                 if not days:
                     continue
+                for (mois_du_code, code), nombre in codes_de_la_feuille.items():
+                    if mois_du_code == month_num:
+                        codes_non_compris[code] += nombre
                 groups_map.setdefault((year, month_num), []).append(
                     {
                         "employee_id": match.employee_id,
@@ -600,6 +644,9 @@ def parse_quadra_planning_workbook(
         for (y, m), employees in sorted(groups_map.items())
     ]
     anchor_year, anchor_month = month_groups[0]["year"], month_groups[0]["month"]
+    message_codes = _message_codes_non_compris(codes_non_compris)
+    if message_codes:
+        warnings.append(message_codes)
     if sheets_unmatched:
         warnings.append(
             f"{pluriel(len(sheets_unmatched), 'feuille')} sans salarié rapproché : "

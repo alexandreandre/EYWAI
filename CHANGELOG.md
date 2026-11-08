@@ -5,6 +5,12 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Un import sur plusieurs mois garde ce que vous corrigez à la relecture
+- Quand un fichier couvre plusieurs mois, une case corrigée avant d'enregistrer était perdue : c'était le fichier d'origine qui s'enregistrait. Vos corrections vont maintenant dans le bon mois.
+
+### L'import du calendrier dit quels codes il ne comprend pas
+- Un code inconnu (« CHOMAGE PARTIEL », « CP SS », « MODUL »…) devenait un congé sans rien dire. Martine les liste maintenant au moment de l'import, avec le nombre de jours, pour que vous les corrigiez à la relecture.
+
 ### Le maintien légal cumule les arrêts des douze derniers mois
 - Quand un salarié a déjà été indemnisé sur un autre arrêt dans l'année écoulée, les jours déjà pris sont déduits de ses droits, comme le prévoit le Code du travail. Le maintien ne repart plus à zéro à chaque arrêt.
 - Le bulletin dit combien de jours ont été déduits. Les maintiens prévus par la convention ne changent pas.

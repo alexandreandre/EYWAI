@@ -316,3 +316,94 @@ def _workbook_bytes(wb: Workbook) -> bytes:
     buffer = BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
+
+
+def _classeur_avec_codes(jours: list[tuple[int, object, object]]) -> bytes:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "BARENAC"
+    ws.cell(1, 8).value = "BARENAC Ferurat"
+    ws.cell(2, 1).value = "JANVIER"
+    ws.cell(2, 3).value = "H.Abs"
+    ws.cell(2, 4).value = "CP"
+    for ligne, (jour, h_abs, cp) in enumerate(jours, start=3):
+        ws.cell(ligne, 1).value = "x"
+        ws.cell(ligne, 2).value = jour
+        ws.cell(ligne, 3).value = h_abs
+        ws.cell(ligne, 4).value = cp
+    return _workbook_bytes(wb)
+
+
+def _analyser_codes(jours: list[tuple[int, object, object]]):
+    return parse_quadra_planning_workbook(
+        _classeur_avec_codes(jours),
+        "calendrier.xlsx",
+        year=2026,
+        period_config=ImportPeriodConfig(mode="month", year=2026, month=1),
+        roster=[RosterEmployee(id="1", first_name="Ferurat", last_name="BARENAC")],
+    )
+
+
+def _avertissement_codes(parsed) -> str:
+    return next(w for w in parsed.warnings if "non reconnu" in w)
+
+
+def test_un_code_inconnu_est_dit_a_la_gestionnaire() -> None:
+    # 5, 6 et 7 janvier 2026 : lundi, mardi, mercredi.
+    parsed = _analyser_codes(
+        [(5, "CHOMAGE PARTIEL", None), (6, "chomage  partiel", None), (7, "MODUL", None)]
+    )
+
+    message = _avertissement_codes(parsed)
+    assert "« CHOMAGE PARTIEL » (2 jours)" in message
+    assert "« MODUL » (1 jour)" in message
+
+
+def test_un_code_inconnu_avec_un_nombre_en_colonne_cp_est_dit_aussi() -> None:
+    parsed = _analyser_codes([(5, "CP SS", 1.0)])
+
+    assert "« CP SS »" in _avertissement_codes(parsed)
+
+
+@pytest.mark.parametrize(
+    "h_abs,cp",
+    [
+        (None, 1.0),
+        ("CP", 1.0),
+        ("Maladie", None),
+        ("EVF décès", None),
+        ("en récup", None),
+        ("JC", 1.0),
+        ("Formation incendie", None),
+        ("Pentecote", 1.0),
+    ],
+)
+def test_un_code_compris_ne_declenche_pas_d_avertissement(h_abs, cp) -> None:
+    parsed = _analyser_codes([(5, h_abs, cp)])
+
+    assert not [w for w in parsed.warnings if "non reconnu" in w]
+
+
+def test_un_code_inconnu_garde_son_type_d_aujourd_hui() -> None:
+    from datetime import date
+
+    assert classify_planned_day(date(2026, 1, 5), "CHOMAGE PARTIEL", None)["type"] == "conge"
+    assert classify_planned_day(date(2026, 1, 5), "CP SS", 1.0)["type"] == "conge"
+
+
+def test_un_samedi_ne_signale_aucun_code() -> None:
+    # Le 3 janvier 2026 est un samedi : le week-end ne lit pas la cellule.
+    parsed = _analyser_codes([(3, "MODUL", None)])
+
+    assert not [w for w in parsed.warnings if "non reconnu" in w]
+
+
+def test_la_liste_des_codes_est_bornee() -> None:
+    jours = [
+        (j, f"CODE{chr(64 + i)}", None)
+        for i, j in enumerate([5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23], start=1)
+    ]
+
+    message = _avertissement_codes(_analyser_codes(jours))
+
+    assert "et 5 autres" in message
