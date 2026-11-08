@@ -129,9 +129,60 @@ def test_parse_dsn_psc_cegid_dual_affiliation():
     mutuelle = payload["specificites_paie"]["mutuelle"]
     prevoyance = payload["specificites_paie"]["prevoyance"]
 
+    # Corrigé le 08/11 : ce test posait « 841 » = mutuelle et « ENSP » = prévoyance, l'inverse de la
+    # DSN réelle de Cartol. L'affiliation ENSP renvoie (70.013 = 2) à l'adhésion 779558501, une
+    # mutuelle (code sur 9 chiffres) ; l'affiliation 841 renvoie à une adhésion absente du fichier et
+    # rien d'autre ne dit son contrat : aucune prévoyance n'est déduite de l'ordre des cotisations.
     assert mutuelle["adhesion"] is True
     assert mutuelle["lignes_specifiques"][0]["montant_salarial"] == 78.0
-    assert prevoyance["adhesion"] is True
-    assert prevoyance["lignes_specifiques"]
-    assert prevoyance["lignes_specifiques"][0]["patronal"] > 0
+    assert (mutuelle.get("dsn") or {}).get("code_organisme") == "779558501"
+    assert prevoyance["adhesion"] is False
 
+
+
+# --- Adhésions liées (Cartol, DSN de septembre 2026 ; défaut corrigé le 08/11) ------------------
+
+
+def _dsn_liee():
+    from pathlib import Path
+
+    from app.modules.dsn_import.domain.parser import parse_dsn_content
+
+    content = (Path(__file__).parent / "fixtures" / "sample_dsn_psc_adhesions_liees.txt").read_bytes()
+    return parse_dsn_content(content, file_name="sample_dsn_psc_adhesions_liees.txt")
+
+
+def test_le_lien_affiliation_adhesion_et_cotisation_est_lu():
+    """70.013 renvoie au 15.005 de l'adhésion ; 78.005 (base 31) renvoie au 70.012 de l'affiliation,
+    et la cotisation 059 qui suit porte ce lien."""
+    contrat = _dsn_liee().etablissement.individus[0].contrats[0]
+    assert [(a.identifiant_affiliation, a.identifiant_adhesion) for a in contrat.affiliations] == [("2", "1"), ("1", "2")]
+    c059 = [ci for v in contrat.versements for ci in v.cotisations_individuelles if ci.code == "059"]
+    assert [(ci.identifiant_affiliation, ci.montant_salarial) for ci in c059] == [("1", 59.27), ("2", 57.22)]
+
+
+def test_la_prevoyance_d_un_salarie_sans_mutuelle_n_est_pas_prise_pour_une_mutuelle():
+    """Cartol, sept. 2026 : une seule affiliation, au contrat Groupama (prévoyance, base « Tranche A
+    Prévoyance » 79.001 = 11), population « 841 ». L'import posait sa cotisation de prévoyance
+    (46,14 = 1,18 % + 1,18 %) comme mutuelle."""
+    from app.modules.dsn_import.application.mapping import map_employee_payload
+
+    dsn = _dsn_liee()
+    payload = map_employee_payload(dsn.etablissement.individus[1], dsn.etablissement, dsn.etablissement.siret)
+    spec = payload["specificites_paie"]
+    assert spec["mutuelle"]["adhesion"] is False
+    assert not spec["mutuelle"].get("lignes_specifiques")
+    assert spec["prevoyance"]["adhesion"] is True
+
+
+def test_mutuelle_et_prevoyance_suivent_leur_affiliation_et_non_l_ordre_ni_la_population():
+    """Population « ENSP » sur la mutuelle (forfait, 79.001 = 20) et « 841 » sur la prévoyance :
+    c'est l'inverse des listes fixes de codes population."""
+    from app.modules.dsn_import.application.mapping import map_employee_payload
+
+    dsn = _dsn_liee()
+    spec = map_employee_payload(dsn.etablissement.individus[0], dsn.etablissement, dsn.etablissement.siret)["specificites_paie"]
+    assert spec["mutuelle"]["adhesion"] is True
+    assert spec["mutuelle"]["lignes_specifiques"][0]["montant_salarial"] == 59.27
+    assert spec["prevoyance"]["adhesion"] is True
+    assert (spec["mutuelle"].get("dsn") or {}).get("code_organisme") == "779558501"

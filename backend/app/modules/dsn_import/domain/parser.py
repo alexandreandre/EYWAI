@@ -123,6 +123,8 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_AFF_CODE_ORG,
     R_S21_AFF_CODE_POP,
     R_S21_AFF_IDENT,
+    R_S21_AFF_IDENT_ADHESION,
+    R_S21_BA_IDENT_AFF,
     R_S21_AFF_NB_ADULTES,
     R_S21_AFF_NB_ENFANTS,
     R_S21_AFF_REF_CONTRAT,
@@ -363,7 +365,7 @@ class _ParseContext:
     def _ensure_cotisation_ind(self) -> CotisationIndividuelleBlock:
         ver = self._ensure_versement()
         if self.cotisation_ind is None:
-            self.cotisation_ind = CotisationIndividuelleBlock()
+            self.cotisation_ind = CotisationIndividuelleBlock(identifiant_affiliation=self._affiliation_de_la_base_31())
             ver.cotisations_individuelles.append(self.cotisation_ind)
         return self.cotisation_ind
 
@@ -396,10 +398,16 @@ class _ParseContext:
             ver.bases_assujetties.append(self.base_assujettie)
         return self.base_assujettie
 
+    def _affiliation_de_la_base_31(self) -> str:
+        """L'affiliation (78.005) de la base 31 en cours : ses composants (79) et sa cotisation
+        individuelle (81) la portent, pour savoir de quel contrat (mutuelle, prévoyance) ils sont."""
+        ba = self.base_assujettie
+        return ba.identifiant_affiliation if ba is not None and ba.code == "31" else ""
+
     def _ensure_composant_base(self) -> ComposantBaseBlock:
         ver = self._ensure_versement()
         if self.composant_base is None:
-            self.composant_base = ComposantBaseBlock()
+            self.composant_base = ComposantBaseBlock(identifiant_affiliation=self._affiliation_de_la_base_31())
             ver.composants_base.append(self.composant_base)
         return self.composant_base
 
@@ -556,7 +564,7 @@ class _ParseContext:
                 self.cotisation = None
         elif block == "composant_base":
             ver = self._ensure_versement()
-            self.composant_base = ComposantBaseBlock()
+            self.composant_base = ComposantBaseBlock(identifiant_affiliation=self._affiliation_de_la_base_31())
             ver.composants_base.append(self.composant_base)
         elif block == "cotisation_agregee":
             ver = self._ensure_versement()
@@ -568,7 +576,7 @@ class _ParseContext:
             ver.primes.append(self.prime)
         elif block == "cotisation_individuelle":
             ver = self._ensure_versement()
-            self.cotisation_ind = CotisationIndividuelleBlock()
+            self.cotisation_ind = CotisationIndividuelleBlock(identifiant_affiliation=self._affiliation_de_la_base_31())
             ver.cotisations_individuelles.append(self.cotisation_ind)
         elif block == "activite":
             ver = self._ensure_versement()
@@ -866,6 +874,10 @@ class _ParseContext:
                 bases = ver.rubriques.setdefault("bases", {})
                 if isinstance(bases, dict) and ba.code:
                     bases[ba.code] = ba.montant
+        elif rubrique == R_S21_BA_IDENT_AFF and self.dsn_format != "legacy":
+            ba = self._ensure_base_assujettie()
+            ba.identifiant_affiliation = valeur.strip()
+            ba.rubriques[rubrique] = valeur
         elif rubrique == R_S21_COT_MONTANT_SAL and self.dsn_format == "legacy":
             self._ensure_cotisation().montant_salarial = _float_val(valeur)
         elif rubrique == R_S21_COT_MONTANT_PAT and self.dsn_format == "legacy":
@@ -1020,6 +1032,8 @@ class _ParseContext:
                 pass
         elif rubrique == R_S21_AFF_IDENT:
             self._ensure_affiliation().identifiant_affiliation = valeur.strip()
+        elif rubrique == R_S21_AFF_IDENT_ADHESION:
+            self._ensure_affiliation().identifiant_adhesion = valeur.strip()
         elif rubrique == R_S21_BASE_CODE:
             if self.cotisation_ind is not None:
                 ci = self._ensure_cotisation_ind()

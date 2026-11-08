@@ -5,6 +5,14 @@ Références norme DSN :
 - S21.G00.15 : contrats collectifs mutuelle / prévoyance (établissement)
 - S21.G00.70 : affiliation salarié (code option = pack, code population = catégorie)
 - S21.G00.78 / S21.G00.81 : cotisations individuelles (code 059 = PSC)
+
+Le contrat d'une affiliation se lit par ses liens (norme, 08/11) : 70.013 renvoie au 15.005 de
+l'adhésion (organisme), 78.005 d'une base 31 renvoie au 70.012 de l'affiliation, et cette base porte
+ses composants (79) et sa cotisation 059 (81). Une base sur le salaire (79.001 = 10 à 17, 19, 24 :
+salaire brut, tranches, base spécifique) est une prévoyance ; une base forfaitaire seule (18, 20,
+21) est la complémentaire santé. Les codes population (70.005) sont propres à chaque contrat
+d'organisme : Cartol déclare « 841 » sur sa prévoyance et « ENSP » sur sa mutuelle, l'inverse des
+listes fixes ; ils ne servent plus qu'en dernier repli, faute de lien.
 """
 
 from __future__ import annotations
@@ -26,8 +34,10 @@ PSC_COTISATION_CODES = {"059", "031", "032", "033"}
 MUTUELLE_ORGANISME_RE = re.compile(r"^(?:\d{9}|E\d)", re.IGNORECASE)
 PREVOYANCE_ORGANISME_RE = re.compile(r"^P(?:I)?\d", re.IGNORECASE)
 
-MUTUELLE_POPULATION_CODES = {"841", "01", "MUT", "MUTUELLE"}
-PREVOYANCE_POPULATION_CODES = {"ENSP", "056", "02", "PREV", "PREVOYANCE"}
+#: Dernier repli, faute de lien. « 841 » et « ENSP » retirés le 08/11 : ajoutés le 22/06 depuis la DSN
+#: de Cartol lue à l'envers (841 y est la population de la prévoyance Groupama, ENSP celle de la mutuelle).
+MUTUELLE_POPULATION_CODES = {"01", "MUT", "MUTUELLE"}
+PREVOYANCE_POPULATION_CODES = {"056", "02", "PREV", "PREVOYANCE"}
 
 
 @dataclass
@@ -36,6 +46,7 @@ class PscCotisationAmounts:
     montant_patronal: float = 0.0
     base: float = 0.0
     code: str = "059"
+    identifiant_affiliation: str = ""
 
 
 @dataclass
@@ -98,7 +109,61 @@ def _is_mutuelle_organisme(code: str) -> bool:
     return bool(MUTUELLE_ORGANISME_RE.match(clean)) and not _is_prevoyance_organisme(clean)
 
 
-def _affiliation_kind(aff: AffiliationBlock) -> str:
+#: 79.001 d'une base 31 : sur le salaire (prévoyance) ou forfaitaire (santé).
+COMPOSANTS_SUR_SALAIRE = {"10", "11", "12", "13", "14", "15", "16", "17", "19", "24"}
+COMPOSANTS_FORFAITAIRES = {"18", "20", "21"}
+CODE_MUTUELLE_RE = re.compile(r"^\d{9}$")
+CODE_INSTITUTION_PREVOYANCE_RE = re.compile(r"^P\d{4}$", re.IGNORECASE)
+
+
+def _kind_par_composants(aff: AffiliationBlock, contrat: Optional[ContratBlock]) -> Optional[str]:
+    ident = (aff.identifiant_affiliation or "").strip()
+    if not ident or contrat is None:
+        return None
+    codes = {
+        (cb.code or "").strip()
+        for ver in contrat.versements
+        for cb in ver.composants_base
+        if (cb.identifiant_affiliation or "").strip() == ident
+    }
+    if codes & COMPOSANTS_SUR_SALAIRE:
+        return "prevoyance"
+    if codes & COMPOSANTS_FORFAITAIRES:
+        return "mutuelle"
+    return None
+
+
+def _adhesion_de(aff: AffiliationBlock, organismes_psc: Optional[List[OrganismePscBlock]]) -> Optional[OrganismePscBlock]:
+    ident = (aff.identifiant_adhesion or "").strip()
+    if not ident or not organismes_psc:
+        return None
+    return next((o for o in organismes_psc if (o.rang or "").strip() == ident), None)
+
+
+def _kind_par_organisme(code: str) -> Optional[str]:
+    """Code organisme du 15.002 : mutuelle sur 9 chiffres, institution de prévoyance « Pnnnn » ;
+    société d'assurances et organisme non fédéré : les deux, rien n'en est déduit."""
+    code = (code or "").strip()
+    if CODE_MUTUELLE_RE.match(code):
+        return "mutuelle"
+    if CODE_INSTITUTION_PREVOYANCE_RE.match(code):
+        return "prevoyance"
+    return None
+
+
+def _affiliation_kind(
+    aff: AffiliationBlock,
+    contrat: Optional[ContratBlock] = None,
+    organismes_psc: Optional[List[OrganismePscBlock]] = None,
+) -> str:
+    kind = _kind_par_composants(aff, contrat)
+    if kind:
+        return kind
+    adhesion = _adhesion_de(aff, organismes_psc)
+    if adhesion is not None:
+        kind = _kind_par_organisme(adhesion.code_organisme)
+        if kind:
+            return kind
     pop = (aff.code_population or "").strip().upper()
     if pop in PREVOYANCE_POPULATION_CODES:
         return "prevoyance"
@@ -113,11 +178,15 @@ def _affiliation_kind(aff: AffiliationBlock) -> str:
 
 
 def _organisme_kind(org: OrganismePscBlock) -> str:
-    nature = (org.code_nature or "").strip()
+    # 15.004 (`code_nature`) dit si du personnel est couvert (01 oui, 02 non), pas la nature du
+    # contrat : il classait « mutuelle » toute adhésion couvrant quelqu'un.
+    kind = _kind_par_organisme(org.code_organisme)
+    if kind:
+        return kind
     ref = (org.reference_contrat or "").strip()
-    if nature == "02" or _is_prevoyance_organisme(ref):
+    if _is_prevoyance_organisme(ref):
         return "prevoyance"
-    if nature == "01" or _is_mutuelle_organisme(ref):
+    if _is_mutuelle_organisme(ref):
         return "mutuelle"
     return "unknown"
 
@@ -147,6 +216,7 @@ def _collect_psc_cotisations(contrat: ContratBlock) -> List[PscCotisationAmounts
                             montant_patronal=ci.montant_patronal,
                             base=ci.montant_assiette,
                             code=code,
+                            identifiant_affiliation=(ci.identifiant_affiliation or "").strip(),
                         )
                     )
     return amounts
@@ -193,6 +263,18 @@ def _classify_amounts_legacy(
     return mutuelle, prevoyance
 
 
+def _somme(amounts: List[PscCotisationAmounts]) -> Optional[PscCotisationAmounts]:
+    if not amounts:
+        return None
+    return PscCotisationAmounts(
+        montant_salarial=round(sum(a.montant_salarial for a in amounts), 2),
+        montant_patronal=round(sum(a.montant_patronal for a in amounts), 2),
+        base=max(a.base for a in amounts),
+        code=amounts[0].code,
+        identifiant_affiliation=amounts[0].identifiant_affiliation,
+    )
+
+
 def _split_amounts_by_affiliations(
     amounts: List[PscCotisationAmounts],
     mut_affs: List[AffiliationBlock],
@@ -201,6 +283,13 @@ def _split_amounts_by_affiliations(
     affiliation: Optional[AffiliationBlock],
 ) -> tuple[Optional[PscCotisationAmounts], Optional[PscCotisationAmounts]]:
     nonzero = _nonzero_amounts(amounts)
+    # Chaque cotisation liée à son affiliation (78.005) va au contrat de cette affiliation.
+    ids_mut = {(a.identifiant_affiliation or "").strip() for a in mut_affs} - {""}
+    ids_prev = {(a.identifiant_affiliation or "").strip() for a in prev_affs} - {""}
+    lies = [a for a in nonzero if a.identifiant_affiliation and a.identifiant_affiliation in ids_mut | ids_prev]
+    if lies and len(lies) == len(nonzero):
+        return (_somme([a for a in lies if a.identifiant_affiliation in ids_mut]),
+                _somme([a for a in lies if a.identifiant_affiliation in ids_prev]))
     if mut_affs and prev_affs:
         if len(nonzero) >= 2:
             return nonzero[0], nonzero[1]
@@ -275,15 +364,19 @@ def extract_psc_from_contrat(
 ) -> EmployeePscData:
     """Extrait mutuelle / prévoyance depuis affiliations et cotisations PSC du contrat."""
     result = EmployeePscData()
-    mut_affs = [a for a in contrat.affiliations if _affiliation_kind(a) == "mutuelle"]
-    prev_affs = [a for a in contrat.affiliations if _affiliation_kind(a) == "prevoyance"]
+    kinds = [(_affiliation_kind(a, contrat, organismes_psc), a) for a in contrat.affiliations]
+    mut_affs = [a for k, a in kinds if k == "mutuelle"]
+    prev_affs = [a for k, a in kinds if k == "prevoyance"]
     affiliation = mut_affs[0] if mut_affs else (prev_affs[0] if prev_affs else (contrat.affiliations[0] if contrat.affiliations else None))
 
     if affiliation:
+        adhesion = _adhesion_de(affiliation, organismes_psc)
         result.code_option_dsn = affiliation.code_option or None
         result.code_population_dsn = affiliation.code_population or None
-        result.reference_contrat_dsn = affiliation.reference_contrat or None
-        result.code_organisme_dsn = affiliation.code_organisme or None
+        result.reference_contrat_dsn = affiliation.reference_contrat or (
+            adhesion.reference_contrat if adhesion else None) or None
+        result.code_organisme_dsn = affiliation.code_organisme or (
+            adhesion.code_organisme if adhesion else None) or None
         result.code_delegataire_dsn = affiliation.code_delegataire or None
         result.pack_couverture = infer_pack_from_code_option(
             affiliation.code_option,

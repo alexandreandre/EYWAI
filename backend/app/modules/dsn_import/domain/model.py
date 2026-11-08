@@ -32,6 +32,8 @@ class BaseAssujettieBlock:
     date_debut: str = ""
     date_fin: str = ""
     montant: float = 0.0
+    #: S21.G00.78.005 (base 31) : renvoie au 70.012 de l'affiliation prévoyance / santé.
+    identifiant_affiliation: str = ""
     rubriques: Dict[str, str] = field(default_factory=dict)
 
 
@@ -41,6 +43,8 @@ class ComposantBaseBlock:
 
     code: str = ""
     montant: float = 0.0
+    #: Affiliation de la base 31 parente (S21.G00.78.005), vide pour une autre base.
+    identifiant_affiliation: str = ""
     rubriques: Dict[str, str] = field(default_factory=dict)
 
 
@@ -198,6 +202,8 @@ class AffiliationBlock:
     nb_enfants: int = 0
     nb_adultes: int = 0
     identifiant_affiliation: str = ""
+    #: S21.G00.70.013 : renvoie au 15.005 (« Identifiant technique Adhésion ») du contrat.
+    identifiant_adhesion: str = ""
     rubriques: Dict[str, str] = field(default_factory=dict)
 
 
@@ -207,6 +213,7 @@ class OrganismePscBlock:
 
     reference_contrat: str = ""
     code_organisme: str = ""
+    #: S21.G00.15.004, « Personnel couvert » (01 oui, 02 non) : pas la nature du contrat.
     code_nature: str = ""
     rang: str = ""
     rubriques: Dict[str, str] = field(default_factory=dict)
