@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
+from app.modules.dsn_export.domain.norme import norme_de_la_periode
 from app.modules.exports.application import commands
 from app.modules.exports.application import queries
 from app.modules.exports.application.dto import ExportRecordForInsert
@@ -1166,7 +1167,7 @@ def _generate_dsn(
         else [],
         utilisateur_generateur=user_name,
         date_generation=datetime.now(),
-        version_norme_dsn="P26V01",
+        version_norme_dsn=norme_de_la_periode(request.period),
     )
     export_record: ExportRecordForInsert = {
         "company_id": company_id,
