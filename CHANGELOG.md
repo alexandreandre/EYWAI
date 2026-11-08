@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Sorties et verrou
+- Rupture, licenciement et préavis comptent depuis la date d'ancienneté de la fiche quand elle précède l'embauche ; le dossier le dit.
+- Un bulletin encore en brouillon reste corrigeable après la date du verrou ; seul un bulletin validé se fige.
+
 ### Corrections à la main plus sûres
 - Correction à la main : le net suit un avantage en nature corrigé, et l'OD porte l'avantage (compte à renseigner par société).
 - DSN : une assiette de CSG par nature, plus de base 04 doublée après une correction.
