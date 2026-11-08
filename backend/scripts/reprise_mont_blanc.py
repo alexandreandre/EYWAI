@@ -462,9 +462,9 @@ def fiches(appliquer: bool, bascule: int) -> int:
                 apply_salary_update(fiche["id"], COMPANY_ID, sal["avant"]["salaire_de_base"], sal["salaire_de_base"],
                                     f"Reprise Quadra : salaire de base du bulletin de {bascule:02d}/{ANNEE}",
                                     f"{ANNEE:04d}-{bascule:02d}-01", AUTEUR)
-        from app.modules.mutuelle_types.infrastructure.repository import MutuelleTypesRepository
+        from app.modules.mutuelle_types.infrastructure.repository import SupabaseMutuelleTypeRepository
 
-        depot = MutuelleTypesRepository(admin)
+        depot = SupabaseMutuelleTypeRepository(admin)
         for fiche, mut in mutuelles:
             if mut["introuvables"]:
                 print(f"  {etiquette(fiche):14s} mutuelle NON écrite : formule introuvable")
