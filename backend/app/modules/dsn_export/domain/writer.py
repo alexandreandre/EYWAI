@@ -640,6 +640,8 @@ def write_contrat(ctr: ContratBlock, out: List[str]) -> None:
             write_fin_contrat(ctr.fin_contrat, out)
         for susp in ctr.suspensions:
             write_suspension(susp, out)
+        for tpt in ctr.temps_partiels_therapeutiques:
+            _emit_rubriques_dict(tpt.rubriques, out)
         for aff in ctr.affiliations:
             write_affiliation(aff, out)
         regime = str(ctr.rubriques.get("_regime_retraite_complementaire") or "")

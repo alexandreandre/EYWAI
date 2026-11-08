@@ -2407,8 +2407,8 @@ def calculer_salaire_brut(
                 lier_a_la_saisie(
                     {
                         "libelle": prime.get("libelle", "Prime"),
-                        "quantite": None,
-                        "taux": None,
+                        "quantite": prime.get("quantite"),
+                        "taux": prime.get("taux"),
                         "gain": prime.get("montant", 0.0),
                         "perte": None,
                     },

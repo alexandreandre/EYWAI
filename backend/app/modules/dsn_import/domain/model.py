@@ -169,6 +169,13 @@ class SuspensionContratBlock:
 
 
 @dataclass
+class TempsPartielTherapeutiqueBlock:
+    """Bloc S21.G00.66 — temps partiel thérapeutique."""
+
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class FinContratBlock:
     """Bloc S21.G00.62 — fin de contrat."""
 
@@ -270,6 +277,7 @@ class ContratBlock:
     changements: List[ChangementContratBlock] = field(default_factory=list)
     arrets: List[ArretTravailBlock] = field(default_factory=list)
     suspensions: List[SuspensionContratBlock] = field(default_factory=list)
+    temps_partiels_therapeutiques: List[TempsPartielTherapeutiqueBlock] = field(default_factory=list)
     fin_contrat: Optional[FinContratBlock] = None
     versements: List[VersementBlock] = field(default_factory=list)
 

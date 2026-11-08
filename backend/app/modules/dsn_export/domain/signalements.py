@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Dict, Iterable, List, Mapping, Optional
 
-from app.modules.dsn_export.domain.evenements import _jours, periodes_d_arret
+from app.modules.dsn_export.domain.evenements import MOTIFS_TPT, _jours, periodes_d_arret
 from app.modules.dsn_export.domain.usages_signalement import NATURE_ARRET, NATURE_REPRISE
 
 #: À partir de 50 salariés, la DSN du mois M est due le 5 de M+1, sinon le 15.
@@ -118,6 +118,10 @@ def signalements_a_faire(
         periodes = periodes_d_arret(absences)
         for periode in periodes:
             if depuis and periode.debut < depuis:
+                continue
+            # Motifs 15 à 18 interdits en signalement d'arrêt et de reprise
+            # (cahier technique 2026.1.2, 60.001 CCH-14).
+            if periode.motif in MOTIFS_TPT:
                 continue
             les_siens = [
                 e for e in reels

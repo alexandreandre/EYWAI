@@ -5,7 +5,7 @@ from __future__ import annotations
 import calendar
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.modules.dsn_import.domain.model import RemunerationBlock
 
@@ -293,6 +293,7 @@ def build_remunerations_from_payslip(
     heures_contrat_mois: Optional[float] = None,
     mois_incomplet: bool = False,
     mesure_activite: Optional[float] = None,
+    activite_partielle: Optional[Tuple[float, float]] = None,
 ) -> RemunerationBuildResult:
     """Produit les types 001/002/003/010/017/018/028/029 alignés sur Cegid.
 
@@ -305,6 +306,7 @@ def build_remunerations_from_payslip(
     de mois, base proratisée sans ligne d'absence — le rétabli reconstitue le
     mois complet. ``mesure_activite`` : mesure du travail rémunéré (53 type
     01) quand elle ne se compte pas en heures (forfait jours).
+    ``activite_partielle`` : (heures chômées, indemnité) du type 019.
     """
     parts = analyze_calcul_du_brut(payslip_data)
     absences = analyser_absences(payslip_data)
@@ -391,6 +393,18 @@ def build_remunerations_from_payslip(
                 type_code="018",
                 montant=m_018,
                 heures=h_018,
+                period_start=period_start,
+                period_end=period_end,
+                contrat_ref=contrat_ref,
+            )
+        )
+    # 019 : heures chômées et indemnité, comme l'ancien logiciel (LEWIS 2026).
+    if activite_partielle:
+        remus.append(
+            _rem_block(
+                type_code="019",
+                montant=activite_partielle[1],
+                heures=activite_partielle[0],
                 period_start=period_start,
                 period_end=period_end,
                 contrat_ref=contrat_ref,

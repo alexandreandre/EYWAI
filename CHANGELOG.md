@@ -8,6 +8,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 ### La DSN refuse un mois repris et une cotisation sans code
 - Un mois payé avec l'ancien logiciel ne se déclare plus depuis Martine : l'aperçu l'explique et indique le premier mois à déclarer.
 - Une cotisation qui porte un montant sans avoir de code DSN arrête le fichier au lieu d'être oubliée : l'aperçu nomme le salarié et la cotisation, et dit quoi faire.
+### La DSN déclare l'activité partielle et le temps partiel thérapeutique
+- Les heures chômées et l'indemnité d'activité partielle partent en DSN (motif 602, type 019) et le bulletin imprime les heures et le taux.
+- Le temps partiel thérapeutique a son motif (15 à 18 selon l'origine) et la reprise en temps partiel son code 02, au lieu de la maladie. Il se saisit aussi sous accident du travail et maladie professionnelle.
 
 ### Le mois de sortie va jusqu'au dernier jour du contrat
 - Quand un salarié part après l'arrêté des variables, ses heures sup, paniers, absences et congés posés jusqu'à son dernier jour passent sur le bulletin de sortie. Ces jours sont à saisir avant de générer le bulletin.

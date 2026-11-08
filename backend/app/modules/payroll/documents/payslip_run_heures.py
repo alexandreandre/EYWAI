@@ -75,6 +75,7 @@ from .payslip_run_common import (
     prefetch_jours_maintien_prime,
     resolve_exit_state_for_payslip,
 )
+from app.modules.payroll.engine.activite_partielle import heures_et_taux
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 from app.modules.payroll.engine.frais_professionnels import ligne_de_frais_professionnels
 from app.modules.payroll.engine.ppv import classer_ppv, est_une_ppv
@@ -881,6 +882,7 @@ def run_payslip_generation_heures(
                 primes_non_soumises.append(rappel_ijss_net)
 
             _lib_low = f"{prime_id} {libelle}".lower()
+            heures_chomees_saisie = 0.0
             if (
                 montant < 0
                 and ("chôm" in _lib_low or "chom" in _lib_low)
@@ -891,7 +893,8 @@ def run_payslip_generation_heures(
                 # proratisé des heures chômées non rémunérées. Le montant seul
                 # ne permet pas de retrouver ces heures de manière fiable :
                 # elles sont donc portées explicitement par la saisie.
-                heures_activite_partielle += abs(float(saisie.get("quantity") or 0.0))
+                heures_chomees_saisie = abs(float(saisie.get("quantity") or 0.0))
+                heures_activite_partielle += heures_chomees_saisie
             if "indemn" in _lib_low and ("activit" in _lib_low and "partiel" in _lib_low):
                 # Indemnité d'activité partielle : revenu de remplacement (pas une
                 # prime soumise). Routée hors du circuit primes, CSG appliquée plus bas.
@@ -974,6 +977,7 @@ def run_payslip_generation_heures(
                 },
                 saisie,
             )
+            prime_calculee.update(heures_et_taux(montant, heures_chomees_saisie))
             if not soumise_cotis and est_une_ppv(prime_id, libelle):
                 # PPV, du catalogue ou saisie par son nom : effectif des seuils,
                 # 3 Smic, plafond annuel et nombre de primes (`engine.ppv`).
@@ -1000,6 +1004,9 @@ def run_payslip_generation_heures(
                 primes_soumises_impot.append(prime_calculee)
             else:
                 primes_non_soumises.append(prime_calculee)
+
+    for indemnite in indemnites_remplacement:
+        indemnite.update(heures_et_taux(indemnite["montant"], heures_activite_partielle))
 
     # --- Participation / intéressement (part numéraire) : régime CSG 9,7 % seule ---
     # Exonéré de cotisations sociales, soumis à CSG/CRDS (6,8 % déductible + 2,9 %

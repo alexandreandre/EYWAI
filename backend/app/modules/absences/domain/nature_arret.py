@@ -49,8 +49,17 @@ TYPES_D_ARRET_PAR_NATURE: dict[str, tuple[str, ...]] = {
         "mi_temps_therapeutique",
         "arret_exceptionnel",
     ),
-    "arret_at": ("accident_travail", "accident_trajet", "rechute_at"),
-    "arret_maladie_pro": ("maladie_professionnelle", "rechute_at"),
+    "arret_at": (
+        "accident_travail",
+        "accident_trajet",
+        "rechute_at",
+        "mi_temps_therapeutique",
+    ),
+    "arret_maladie_pro": (
+        "maladie_professionnelle",
+        "rechute_at",
+        "mi_temps_therapeutique",
+    ),
     "arret_maternite": ("maternite", "adoption"),
     "arret_paternite": ("paternite", "adoption"),
 }

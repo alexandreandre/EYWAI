@@ -97,3 +97,18 @@ def test_un_arret_bien_apres_le_precedent_n_est_pas_a_verifier():
                      _arret(date(2026, 10, 5), date(2026, 10, 9), date(2026, 10, 6))]}
     (s,) = signalements_a_faire(arrets, [], depuis=date(2026, 10, 1), effectif=20)
     assert s.a_verifier is None
+
+
+def test_le_temps_partiel_therapeutique_ne_se_signale_pas():
+    # Cahier technique 2026.1.2, 60.001 CCH-14 : motifs 15 à 18 interdits hors
+    # DSN mensuelle et fin de contrat unique.
+    arrets = {
+        "e1": [
+            {
+                "type": "arret_maladie",
+                "arret_type": "mi_temps_therapeutique",
+                "selected_days": ["2026-09-07", "2026-09-08"],
+            }
+        ]
+    }
+    assert signalements_a_faire(arrets, [], depuis=None, effectif=20) == []
