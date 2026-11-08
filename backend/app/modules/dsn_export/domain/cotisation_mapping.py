@@ -206,6 +206,22 @@ CODE_EXONERATION_RETRAITE_APPRENTI = "109"
 COTI_ID_RETRAITE_COMP_EXONEREE = {"retraite_comp_t1", "ceg_t1"}
 
 
+#: Ligne du bulletin qui porte l'exonération JEI (montant patronal négatif).
+COTI_ID_EXONERATION_JEI = "exoneration_jei"
+#: Code DSN de l'exonération des entreprises innovantes (cahier technique 2026.1).
+CODE_EXONERATION_JEI = "014"
+#: Rubriques dont la part patronale est exonérée au JEI (mêmes identifiants que
+#: le moteur, alias des catalogues compris) : maladie, vieillesse, famille.
+COTI_ID_EXONERES_JEI = {
+    "securite_sociale_maladie",
+    "allocations_familiales",
+    "retraite_secu_plafond",
+    "retraite_secu_deplafond",
+    "vieillesse_plafonnee",
+    "vieillesse_deplafonnee",
+}
+
+
 class CotisationMappingError(ValueError):
     """Rubrique de cotisation obligatoire non traduisible en code DSN."""
 
@@ -728,6 +744,44 @@ def _traduire(
 # --------------------------------------------------------------------------
 
 
+def _exoneration_jei_totale(lignes: List[Dict[str, Any]], avertissements: List[str]) -> bool:
+    """Vrai si l'exonération JEI du bulletin couvre toute la part patronale.
+
+    Seul ce cas se déclare en `014`, tel que le montrent les DSN de juillet à
+    septembre 2026 de l'ancien logiciel. Une exonération partielle (rémunération
+    au-delà de 4,5 SMIC, plafond annuel, taux réduit) n'a pas de modèle : les
+    cotisations restent pleines et l'avertissement le dit.
+    """
+    exoneration = round(
+        -sum(_parts(l)[2] for l in lignes if l.get("coti_id") == COTI_ID_EXONERATION_JEI), 2
+    )
+    if exoneration <= 0:
+        return False
+    part_patronale = round(
+        sum(_parts(l)[2] for l in lignes if l.get("coti_id") in COTI_ID_EXONERES_JEI), 2
+    )
+    if abs(exoneration - part_patronale) <= 0.05:
+        return True
+    avertissements.append(
+        f"Exonération JEI partielle ({exoneration:.2f} € sur {part_patronale:.2f} € de part "
+        "patronale) : non déclarée en 014, cotisations déclarées pleines, à corriger à la main"
+    )
+    return False
+
+
+def _exoneration_jei(ligne: Dict[str, Any]) -> List[LigneDsn]:
+    """La vieillesse devient un `014` au taux salarial, maladie et famille disparaissent.
+
+    Montant nul comme dans les DSN de référence : la part salariale restant due
+    se paie au CTP 734, que le bordereau calcule depuis cette assiette et ce taux.
+    """
+    regle = REGLES.get(str(ligne.get("coti_id") or ""))
+    if regle is None or regle.code != "076":
+        return []
+    assiette, _, _, taux_sal, _ = _parts(ligne)
+    return [LigneDsn(CODE_EXONERATION_JEI, regle.base, assiette, 0.0, taux_sal)]
+
+
 def _vieillesse_apprenti(ligne: Dict[str, Any], exoneree: float) -> Tuple[List[LigneDsn], float]:
     """La vieillesse d'un apprenti, scindée à l'assiette exonérée : le seul taux
     patronal sur la part exonérée, le taux plein au-delà (fiche net-entreprises
@@ -856,13 +910,17 @@ def build_bases_and_cotisations(
     exoneration_bulletin = round(abs(sum(_parts(l)[1] for l in lignes_exoneration)), 2)
     scinder = bool(code_exoneration_apprenti) and exoneree > 0
     exoneration_declaree = 0.0
+    jei_totale = _exoneration_jei_totale(lignes_valides, avertissements)
 
     produites: List[LigneDsn] = []
     for ligne in lignes_valides:
         coti_id = str(ligne.get("coti_id") or "")
         libelle = str(ligne.get("libelle") or "")
-        if coti_id == COTI_ID_EXONERATION_APPRENTI:
-            continue  # déclarée par ses effets, plus bas
+        if coti_id in (COTI_ID_EXONERATION_APPRENTI, COTI_ID_EXONERATION_JEI):
+            continue  # déclarée par ses effets
+        if jei_totale and coti_id in COTI_ID_EXONERES_JEI:
+            produites.extend(_exoneration_jei(ligne))
+            continue
         if scinder and REGLES.get(coti_id, Regle("", "")).code == "076":
             vieillesse, exoneration = _vieillesse_apprenti(ligne, exoneree)
             produites.extend(vieillesse)
