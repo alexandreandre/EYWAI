@@ -132,25 +132,54 @@ class Bascule:
         return (self.annee, self.mois + 1) if self.mois < 12 else (self.annee + 1, 1)
 
 
-def lire_bascule(company_id: str | None) -> Bascule | None:
-    """La bascule de la société, ou None si elle est calculée depuis le début."""
+def _lire_ou_arreter(lire, quoi: str):
+    """La lecture d'une garde : base injoignable, le calcul s'arrête (R-252).
+
+    Toute autre erreur (table absente) garde le comportement d'avant : la lecture
+    vaut « rien trouvé ». Import retardé : le moteur importe ce module à son chargement.
+    """
+    from app.core.supabase_resilience import is_transient_supabase_error
+    from app.modules.payroll.engine.lectures import LectureIndispensable, lire_ou_arreter
+
+    try:
+        return lire_ou_arreter(lire, quoi)
+    except LectureIndispensable as exc:
+        if is_transient_supabase_error(exc.__cause__):
+            raise
+        logger.warning("%s : erreur non passagère, %s", quoi, exc.__cause__)
+        return None
+
+
+def lire_bascule(company_id: str | None, *, stricte: bool = False) -> Bascule | None:
+    """La bascule de la société, ou None si elle est calculée depuis le début.
+
+    `stricte` : pour les gardes de génération, une base injoignable arrête le
+    calcul. Lue comme « pas de bascule », elle ouvrirait la garde : le mois repris
+    se recalculerait, ou le bulletin partirait de cumuls à zéro (R-252)."""
     if not company_id:
         return None
-    try:
-        res = (
+
+    def lire():
+        return (
             supabase.table("company_payroll_takeover")
             .select("cutoff_year, cutoff_month, source, previous_software, note")
             .eq("company_id", str(company_id))
             .maybe_single()
             .execute()
         )
-    except Exception:  # noqa: BLE001 - table absente ou base injoignable
-        logger.warning(
-            "Bascule de reprise illisible pour la société %s : la paie est traitée "
-            "comme calculée depuis le début.",
-            company_id,
-        )
-        return None
+
+    if stricte:
+        res = _lire_ou_arreter(lire, "La date de reprise de la société n'a pas pu être lue")
+    else:
+        try:
+            res = lire()
+        except Exception:  # noqa: BLE001 - table absente ou base injoignable
+            logger.warning(
+                "Bascule de reprise illisible pour la société %s : la paie est traitée "
+                "comme calculée depuis le début.",
+                company_id,
+            )
+            return None
     ligne = getattr(res, "data", None)
     if not ligne:
         return None
@@ -189,7 +218,7 @@ def raison_de_blocage_avant_bascule(
     company_id: str | None, annee: int, mois: int, bascule: Bascule | None = None
 ) -> str | None:
     """Refuse de calculer un mois que l'ancien logiciel a déjà payé."""
-    bascule = bascule if bascule is not None else lire_bascule(company_id)
+    bascule = bascule if bascule is not None else lire_bascule(company_id, stricte=True)
     if bascule is None or not bascule.couvre(annee, mois):
         return None
     prem_annee, prem_mois = bascule.premier_mois_calcule
@@ -204,16 +233,14 @@ def raison_de_blocage_avant_bascule(
 def _un_bulletin_existe_avant(employee_id: str, annee: int, mois: int) -> bool:
     """Un bulletin a-t-il déjà été produit à ce mois ou avant ? (chaîne attendue)"""
     borne = rang_du_mois(annee, mois)
-    try:
-        res = (
-            supabase.table("payslips")
-            .select("year, month")
-            .eq("employee_id", str(employee_id))
-            .lte("year", annee)
-            .execute()
-        )
-    except Exception:  # noqa: BLE001
-        return False
+    res = _lire_ou_arreter(
+        lambda: supabase.table("payslips")
+        .select("year, month")
+        .eq("employee_id", str(employee_id))
+        .lte("year", annee)
+        .execute(),
+        "Les bulletins précédents du salarié n'ont pas pu être lus",
+    )
     for ligne in getattr(res, "data", None) or []:
         try:
             if rang_du_mois(int(ligne["year"]), int(ligne["month"])) <= borne:
@@ -378,7 +405,7 @@ def raison_de_cumul_manquant(
     if entree is not None and entree > date(prec_annee, prec_mois, monthrange(prec_annee, prec_mois)[1]):
         return None
     precedent = f"{prec_mois:02d}/{prec_annee:04d}"
-    bascule = bascule if bascule is not None else lire_bascule(company_id)
+    bascule = bascule if bascule is not None else lire_bascule(company_id, stricte=True)
 
     if bascule is not None and rang_du_mois(prec_annee, prec_mois) == bascule.rang:
         return (

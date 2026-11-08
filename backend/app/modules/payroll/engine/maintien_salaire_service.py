@@ -2384,7 +2384,8 @@ def compute_jours_avec_maintien_mois(
     arret = _poser_la_chaine(arret, date_debut_arret, date_fin_arret, arret_type)
     jours_deja = _jours_deja_en_arret(arret)
 
-    date_entree = _date_anciennete(contexte) or date(2000, 1, 1)
+    # Sans date d'ancienneté : 0 mois, jamais 26 ans de droits inventés (R-262).
+    date_entree = _date_anciennete(contexte) or date_debut_arret
     anciennete_mois = _mois_anciennete(
         date_entree, _parse_date(arret.get("date_debut_chaine")) or date_debut_arret
     )
@@ -2519,9 +2520,7 @@ def calculer_maintien(
             ijss["ijss_brut_override"] = True
 
     date_anciennete = _date_anciennete(contexte)
-    anciennete_mois = _mois_anciennete(
-        date_anciennete or date(2000, 1, 1), debut_chaine
-    )
+    anciennete_mois = _mois_anciennete(date_anciennete or debut_chaine, debut_chaine)
 
     statut = ""
     try:

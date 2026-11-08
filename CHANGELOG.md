@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Une coupure de base n'ouvre plus la garde de reprise
+- Si la base ne répond pas au moment du calcul, Martine arrête le bulletin et demande de réessayer. Avant, le mois repris pouvait se recalculer, ou le bulletin partir de cumuls à zéro.
+- Le contrôle du taux horaire lit le Smic du mois, et un salarié sans date d'ancienneté n'a plus 26 ans de droits inventés au maintien.
+
 ### La revue d'avant-paie rappelle les primes habituelles à saisir
 - Une prime versée en août et en septembre par l'ancien logiciel (présence, assiduité, poste…) et que rien ne reporte ce mois-ci est signalée, salarié par salarié.
 - Rappel pendant les trois mois qui suivent la reprise, avec un lien vers la saisie. Il ne bloque pas : Martine ne calcule pas ces primes.

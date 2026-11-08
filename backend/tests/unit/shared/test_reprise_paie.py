@@ -408,3 +408,46 @@ class TestLectureDeLHistoriqueDuSalarie:
         with patch("app.shared.reprise_paie.supabase") as faux:
             faux.table.side_effect = RuntimeError("table absente")
             assert historique_du_salarie_avant_martine("soc", "emp", 2026, 10) is None
+
+
+
+import httpx  # noqa: E402
+
+
+class TestGardeSansBase:
+    """R-252 : une base injoignable arrête le calcul, elle n'ouvre pas la garde."""
+
+    def test_bascule_stricte_arrete(self):
+        from app.modules.payroll.engine.lectures import LectureIndispensable
+
+        with patch("app.shared.reprise_paie.supabase") as faux, patch(
+            "app.modules.payroll.engine.lectures.time.sleep"
+        ):
+            faux.table.side_effect = httpx.ConnectError("coupure")
+            with _pytest.raises(LectureIndispensable):
+                lire_bascule("societe", stricte=True)
+
+    def test_mois_repris_non_recalcule_si_la_base_coupe(self):
+        from app.modules.payroll.engine.lectures import LectureIndispensable
+        from app.shared.reprise_paie import raison_de_blocage_avant_bascule
+
+        with patch("app.shared.reprise_paie.supabase") as faux, patch(
+            "app.modules.payroll.engine.lectures.time.sleep"
+        ):
+            faux.table.side_effect = httpx.ConnectError("coupure")
+            with _pytest.raises(LectureIndispensable):
+                raison_de_blocage_avant_bascule("societe", 2026, 9)
+
+    def test_cumul_manquant_arrete_si_la_base_coupe(self):
+        from datetime import date
+
+        from app.modules.payroll.engine.lectures import LectureIndispensable
+
+        with patch("app.shared.reprise_paie.supabase") as faux, patch(
+            "app.modules.payroll.engine.lectures.time.sleep"
+        ):
+            faux.table.side_effect = httpx.ConnectError("coupure")
+            with _pytest.raises(LectureIndispensable):
+                raison_de_cumul_manquant(
+                    "societe", "salarie", 2026, 10, False, date_entree=date(2020, 1, 1)
+                )

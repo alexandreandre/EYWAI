@@ -225,3 +225,38 @@ class TestDelaiValidation:
             validation_workflow_active=True,
         )
         assert "DELAI_VALIDATION" in {item.type for item in out}
+
+
+class TestSmicDuMois:
+    """R-242 : le contrôle du taux horaire lit le Smic de la période."""
+
+    BAREME = {
+        "cas_general": 12.31,
+        "historique": [
+            {"date_debut": "2026-01-01", "cas_general": 12.02},
+            {"date_debut": "2026-06-01", "cas_general": 12.31},
+        ],
+    }
+
+    def test_avant_le_changement(self):
+        from app.modules.payslips.application.anomalies_report import smic_du_mois
+
+        assert smic_du_mois(self.BAREME, 2026, 5) == 12.02
+
+    def test_apres_le_changement(self):
+        from app.modules.payslips.application.anomalies_report import smic_du_mois
+
+        assert smic_du_mois(self.BAREME, 2026, 10) == 12.31
+
+    def test_sans_historique(self):
+        from app.modules.payslips.application.anomalies_report import smic_du_mois
+
+        assert smic_du_mois({"cas_general": 12.5}, 2026, 10) == 12.5
+
+    def test_sans_bareme(self):
+        from app.modules.payslips.application.anomalies_report import (
+            SMIC_HORAIRE_REPLI,
+            smic_du_mois,
+        )
+
+        assert smic_du_mois(None, 2026, 10) == SMIC_HORAIRE_REPLI

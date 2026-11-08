@@ -9,6 +9,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from app.core.logging import get_logger
+
 from app.core.database import supabase
 
 from app.modules.payroll.infrastructure.analytics_repository import (
@@ -38,9 +40,44 @@ from app.modules.payslips.schemas.anomalies import (
     PayslipsAnomaliesReport,
 )
 
-SMIC_HORAIRE_2024 = 11.65
-TAUX_HORAIRE_MIN = SMIC_HORAIRE_2024 * 0.8
+logger = get_logger(__name__)
+
+#: Repli si le barème du Smic ne se lit pas : celui de juin 2026.
+SMIC_HORAIRE_REPLI = 12.31
+TOLERANCE_TAUX_HORAIRE = 0.8
 TAUX_HORAIRE_MAX = 500.0
+
+
+def _barème_smic() -> Dict[str, Any] | None:
+    try:
+        lignes = (
+            supabase.table("payroll_config")
+            .select("config_data")
+            .eq("config_key", "smic")
+            .eq("is_active", True)
+            .limit(1)
+            .execute()
+            .data
+        )
+    except Exception:  # noqa: BLE001 - un contrôle d'analyse ne doit pas faire tomber le rapport
+        logger.warning("Barème du Smic illisible : repli sur la valeur connue.", exc_info=True)
+        return None
+    return lignes[0].get("config_data") if lignes else None
+
+
+def smic_du_mois(config: Dict[str, Any] | None, year: int, month: int) -> float:
+    """Le Smic horaire en vigueur à la fin du mois, d'après l'historique du barème."""
+    config = config or {}
+    fin = f"{year:04d}-{month:02d}-31"
+    dates = [
+        h
+        for h in config.get("historique") or []
+        if isinstance(h, dict) and str(h.get("date_debut") or "") <= fin
+    ]
+    if dates:
+        derniere = max(dates, key=lambda h: str(h.get("date_debut")))
+        return float(derniere.get("cas_general") or SMIC_HORAIRE_REPLI)
+    return float(config.get("cas_general") or SMIC_HORAIRE_REPLI)
 
 
 def _suggestion_net_negatif(net: float, year: int, month: int) -> str:
@@ -177,6 +214,7 @@ def _collect_anomalies_for_row(
     period_closed: bool,
     employee_ctx: EmployeeAnomalyContext,
     validation_workflow_active: bool = True,
+    smic_horaire: float = SMIC_HORAIRE_REPLI,
 ) -> List[AnomaliePayslipItem]:
     payslip_id = str(row.get("id") or "")
     employee_id = str(row.get("employee_id") or "")
@@ -276,7 +314,7 @@ def _collect_anomalies_for_row(
     heures = _sum_travail_base_hours(pdata.get("calcul_du_brut"))
     if heures > 0 and brut > 0:
         th = brut / heures
-        if th < TAUX_HORAIRE_MIN or th > TAUX_HORAIRE_MAX:
+        if th < smic_horaire * TOLERANCE_TAUX_HORAIRE or th > TAUX_HORAIRE_MAX:
             _append(
                 AnomaliePayslipItem(
                     employee_id=employee_id,
@@ -287,8 +325,8 @@ def _collect_anomalies_for_row(
                     message="Taux horaire effectif hors plage attendue.",
                     valeur_detectee=f"{th:.2f} €/h (brut {brut:.2f} € / {heures:.2f} h)",
                     suggestion_correction=(
-                        f"Plage de référence : [{TAUX_HORAIRE_MIN:.2f} ; {TAUX_HORAIRE_MAX:.2f}] €/h "
-                        f"(SMIC horaire 2024 = {SMIC_HORAIRE_2024} €)."
+                        f"Plage de référence : [{smic_horaire * TOLERANCE_TAUX_HORAIRE:.2f} ; "
+                        f"{TAUX_HORAIRE_MAX:.2f}] €/h (Smic horaire du mois = {smic_horaire:.2f} €)."
                     ),
                 )
             )
@@ -389,6 +427,7 @@ def build_payslips_anomalies_report(
         isinstance(row, dict) and str(row.get("status") or "") == "valide"
         for row in rows
     )
+    smic_horaire = smic_du_mois(_barème_smic(), year, month)
     anomalies: List[AnomaliePayslipItem] = []
     payslips_touchés: Set[str] = set()
     included_payslip_count = 0
@@ -409,6 +448,7 @@ def build_payslips_anomalies_report(
             period_closed=period_closed,
             employee_ctx=employee_ctx,
             validation_workflow_active=validation_workflow_active,
+            smic_horaire=smic_horaire,
         )
         if row_an:
             payslips_touchés.add(str(row.get("id") or ""))
