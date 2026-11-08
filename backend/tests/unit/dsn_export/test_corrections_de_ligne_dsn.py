@@ -46,3 +46,48 @@ def test_une_reduction_generale_corrigee_se_declare_pour_son_montant():
     ]
     dsn = _dsn(lignes)
     assert round(dsn["018"] + dsn["106"], 2) == -250.0
+
+
+def _csg(libelle, coti_id, base, taux):
+    return {
+        "coti_id": coti_id,
+        "libelle": libelle,
+        "base": base,
+        "taux_salarial": taux,
+        "taux_patronal": None,
+        "montant_salarial": round(base * taux, 2),
+        "montant_patronal": 0.0,
+    }
+
+
+def _assiette_csg(lignes):
+    bases, _, _ = build_bases_and_cotisations(
+        lignes, brut=4500.0, period_start="2026-10-01", period_end="2026-10-31"
+    )
+    csg = [b for b in bases if str(getattr(b, "code", "")) == "04"]
+    assert len(csg) == 1
+    return round(float(csg[0].montant), 2)
+
+
+def test_la_base_corrigee_d_une_seule_csg_ne_double_pas_l_assiette():
+    """+100 € sur la seule CSG déductible : la base 04 reste une assiette, pas deux."""
+    lignes = [
+        _csg("CSG déductible", "csg_deductible", 3630.99, 0.068),
+        _csg("CSG/CRDS non déductible", "csg_non_deductible", 3530.99, 0.029),
+        _csg("CSG/CRDS sur HS non déductible", "csg_non_deductible", 641.67, 0.097),
+    ]
+    assert _assiette_csg(lignes) == 4172.66
+
+
+def test_deux_natures_de_meme_valeur_comptent_chacune():
+    """Le salaire et les heures sup à la même valeur sont deux assiettes."""
+    lignes = [
+        _csg("CSG déductible", "csg_deductible", 500.0, 0.068),
+        _csg("CSG/CRDS non déductible", "csg_non_deductible", 500.0, 0.029),
+        _csg("CSG/CRDS sur HS non déductible", "csg_non_deductible", 500.0, 0.097),
+    ]
+    assert _assiette_csg(lignes) == 1000.0
+
+
+def test_une_csg_sans_ligne_non_deductible_garde_son_assiette():
+    assert _assiette_csg([_csg("CSG déductible", "csg_deductible", 2000.0, 0.068)]) == 2000.0
