@@ -455,3 +455,68 @@ def test_retirer_une_regularisation_supprime_la_seule_saisie_du_bulletin(base):
     filtres = dict(suppressions[0][3])
     assert filtres["employee_id"] == "emp-1" and filtres["year"] == 2026 and filtres["month"] == 8
     assert filtres["id"] == ("s9",)
+
+
+# --- Le mois suivant : le même signal que « Régénérer » [R-166] ---
+
+
+def test_la_correction_remonte_le_mois_suivant_et_les_alertes(base):
+    avertissement = {"code": "mois_suivant_valide", "severity": "info", "message": "Octobre validé."}
+    suite = {"year": 2026, "month": 9, "salaire_brut": 2000.0}
+    base.generer.return_value = MagicMock(
+        status="success", warnings=[avertissement], mois_suivant_a_recalculer=suite
+    )
+    resultat = _corriger(CorrectionsBulletin(heures_sup=(1.0, 0.0)))
+    assert resultat["mois_suivant_a_recalculer"] == suite
+    assert resultat["warnings"] == [avertissement]
+
+
+def test_sans_recalcul_ni_suite_ni_alerte(base):
+    resultat = _corriger(CorrectionsBulletin(), internal_note="Note")
+    assert resultat["mois_suivant_a_recalculer"] is None
+    assert resultat["warnings"] == []
+
+
+def test_recalcul_refuse_ni_suite_ni_alerte(base):
+    base.generer.side_effect = RuntimeError("Calcul impossible")
+    resultat = _corriger(CorrectionsBulletin(heures_sup=(1.0, 0.0)))
+    assert resultat["mois_suivant_a_recalculer"] is None
+    assert resultat["warnings"] == []
+
+
+# --- La réduction générale se refuse avant d'écrire [R-164] ---
+
+
+def test_reduction_generale_au_dela_du_cumul_rien_n_est_ecrit(base):
+    from app.modules.payroll.engine.corrections_manuelles import CorrectionDeLigne
+
+    rg = "Réduction générale de cotisations patronales"
+    base.etat["bulletin"] = {
+        **BULLETIN,
+        "payslip_data": {
+            "salaire_brut": 2000.0,
+            "cumuls": {"cumuls": {"reduction_generale_patronale": -1300.0}},
+            "cotisations_officielles": [
+                {
+                    "lignes": [
+                        {
+                            "coti_id": "reduction_generale",
+                            "libelle": rg,
+                            "montant_salarial": 0.0,
+                            "montant_patronal": -300.0,
+                        }
+                    ]
+                }
+            ],
+        },
+    }
+    correction = CorrectionDeLigne(
+        ligne="cotisation:reduction_generale",
+        libelle=rg,
+        motif="Erreur",
+        montant_patronal=100000.0,
+    )
+    with pytest.raises(PayslipBadRequestError):
+        _corriger(CorrectionsBulletin(corrections_ajoutees=(correction,)))
+    assert base.de("monthly_inputs", "insert") == []
+    base.generer.assert_not_called()

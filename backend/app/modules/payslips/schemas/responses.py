@@ -251,6 +251,10 @@ class PayslipEditResponse(BaseModel):
     #: que la génération rend en HTTP), pour que l'écran propose la sortie :
     #: « effacer ces heures » pour `heures_sur_jour_d_arret`, par exemple.
     recalcul_refus: dict[str, Any] | None = None
+    #: Le même signal que « Régénérer » : alertes du recalcul, et le mois
+    #: suivant s'il part des cumuls que la correction a changés.
+    warnings: list[Any] = []
+    mois_suivant_a_recalculer: dict[str, Any] | None = None
 
 
 class PayslipRestoreResponse(BaseModel):
@@ -263,6 +267,8 @@ class PayslipRestoreResponse(BaseModel):
     recalcule: bool = False
     recalcul_erreur: str | None = None
     recalcul_refus: dict[str, Any] | None = None
+    warnings: list[Any] = []
+    mois_suivant_a_recalculer: dict[str, Any] | None = None
 
 
 class RefusDeValidation(BaseModel):

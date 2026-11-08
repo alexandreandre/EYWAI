@@ -759,6 +759,8 @@ def edit_payslip_route(
             recalcule=bool(result.get("recalcule")),
             recalcul_erreur=erreur,
             recalcul_refus=result.get("recalcul_refus"),
+            warnings=result.get("warnings") or [],
+            mois_suivant_a_recalculer=result.get("mois_suivant_a_recalculer"),
         )
     except _PAYSLIP_APP_ERRORS as e:
         _map_app_errors(e)
@@ -882,6 +884,8 @@ def restore_payslip_route(
             recalcule=bool(result.get("recalcule")),
             recalcul_erreur=erreur,
             recalcul_refus=result.get("recalcul_refus"),
+            warnings=result.get("warnings") or [],
+            mois_suivant_a_recalculer=result.get("mois_suivant_a_recalculer"),
         )
     except _PAYSLIP_APP_ERRORS as e:
         _map_app_errors(e)

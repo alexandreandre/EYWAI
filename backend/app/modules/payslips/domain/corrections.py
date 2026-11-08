@@ -14,6 +14,7 @@ from typing import Any
 
 from app.modules.payroll.engine.corrections_du_bulletin import corrections_du_bulletin, lignes_corrigeables
 from app.modules.payroll.engine.corrections_manuelles import (
+    COTI_ID_REDUCTION_GENERALE,
     PAR_MODE,
     CorrectionDeLigne,
     RegularisationCotisation,
@@ -26,6 +27,16 @@ from app.modules.payslips.domain.primes_editees import (
 )
 
 _TOLERANCE = 0.005
+
+CODE_REDUCTION_GENERALE = "cotisation:reduction_generale"
+MESSAGE_REDUCTION_CORRIGEE_TROP_HAUT = (
+    "La réduction générale corrigée dépasse la réduction appliquée depuis janvier : "
+    "la réduction de l'année deviendrait négative. Corrigez son montant."
+)
+MESSAGE_REDUCTION_REGULARISEE_TROP_HAUT = (
+    "La régularisation de la réduction générale dépasse la réduction appliquée depuis "
+    "janvier : la réduction de l'année deviendrait négative. Corrigez son montant."
+)
 
 
 @dataclass(frozen=True)
@@ -129,6 +140,69 @@ def refus_des_corrections(corrections: CorrectionsBulletin, payslip_data: dict[s
         if correction.ligne in visees:
             return f"« {ligne.libelle} » est corrigée deux fois : gardez une seule correction."
         visees.add(correction.ligne)
+    return None
+
+
+def _cumul_de_reduction(payslip_data: dict[str, Any] | None) -> float | None:
+    """La réduction appliquée depuis janvier, fin de mois, imprimée sur le bulletin."""
+    bloc = (payslip_data or {}).get("cumuls")
+    if not isinstance(bloc, dict):
+        return None
+    source = bloc.get("cumuls") if isinstance(bloc.get("cumuls"), dict) else bloc
+    valeur = source.get("reduction_generale_patronale")
+    if valeur is None or isinstance(valeur, bool):
+        return None
+    try:
+        return abs(float(valeur))
+    except (TypeError, ValueError):
+        return None
+
+
+def refus_de_la_reduction_generale(
+    corrections: CorrectionsBulletin, payslip_data: dict[str, Any] | None
+) -> str | None:
+    """Le refus du moteur, opposé avant d'écrire.
+
+    Sans lui la saisie reste enregistrée, le moteur la refuse à chaque recalcul
+    et le bulletin reste bloqué. Le moteur reste seul juge quand le bulletin ne
+    dit pas son cumul.
+    """
+    ajoutee = next(
+        (c for c in corrections.corrections_ajoutees if c.ligne == CODE_REDUCTION_GENERALE), None
+    )
+    nouvelles = [
+        r for r in corrections.regularisations_ajoutees if r.coti_id == COTI_ID_REDUCTION_GENERALE
+    ]
+    if ajoutee is None and not nouvelles:
+        return None
+    cumul = _cumul_de_reduction(payslip_data)
+    ligne = next(
+        (l for l in lignes_corrigeables(payslip_data) if l.code == CODE_REDUCTION_GENERALE), None
+    )
+    if cumul is None or ligne is None or ligne.montant_patronal is None:
+        return None
+
+    posees = {
+        sid: r.montants()[1]
+        for sid, r in regularisations_du_bulletin(payslip_data).items()
+        if r.coti_id == COTI_ID_REDUCTION_GENERALE
+    }
+    # Ce qui était appliqué avant ce mois, tel que le moteur le relit.
+    deja = round(cumul + ligne.montant_patronal + sum(posees.values()), 2)
+
+    montant = ligne.montant_patronal
+    saisie = str((ligne.correction or {}).get("saisie_id") or "")
+    if saisie and saisie in corrections.corrections_retirees:
+        montant = float((ligne.valeur_calculee or {}).get("montant_patronal") or 0.0)
+    if ajoutee is not None and ajoutee.montant_patronal is not None:
+        montant = round(float(ajoutee.montant_patronal), 2)
+        if round(deja - montant, 2) < 0:
+            return MESSAGE_REDUCTION_CORRIGEE_TROP_HAUT
+
+    gardees = [m for sid, m in posees.items() if sid not in corrections.regularisations_retirees]
+    regularisation = sum(gardees) + sum(r.montants()[1] for r in nouvelles)
+    if round(regularisation - (deja - montant), 2) > 0:
+        return MESSAGE_REDUCTION_REGULARISEE_TROP_HAUT
     return None
 
 
