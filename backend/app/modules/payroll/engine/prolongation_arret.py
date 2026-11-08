@@ -90,6 +90,73 @@ def chainer_arret(
     return debut_chaine, len(jours)
 
 
+def _un_an_avant(jour: date) -> date:
+    try:
+        return jour.replace(year=jour.year - 1)
+    except ValueError:  # 29 février
+        return jour.replace(year=jour.year - 1, day=28)
+
+
+def _mois_entre(debut: date, fin: date) -> int:
+    return (fin.year - debut.year) * 12 + fin.month - debut.month - (fin.day < debut.day)
+
+
+def jours_legaux_des_12_mois(
+    debut_arret: date,
+    arrets_connus: Iterable[Mapping[str, Any]] | None,
+    *,
+    carence_maladie: int,
+    plafond: int,
+    date_anciennete: date | None = None,
+    min_mois: int = 0,
+) -> int:
+    """Jours de maintien légal déjà indemnisés dans les douze mois avant cet arrêt (D1226-4).
+
+    Maladie et accidents, pas la parentalité. La carence court au début de chaque arrêt
+    (prolongations groupées), sauf accident du travail et maladie professionnelle. Sans
+    l'ancienneté requise à l'époque, l'arrêt n'avait ouvert aucun maintien.
+    """
+    limite = _un_an_avant(debut_arret)
+    connus: list[tuple[date, date, str]] = []
+    for autre in arrets_connus or []:
+        d = _date((autre or {}).get("debut"))
+        f = _date((autre or {}).get("fin")) or d
+        type_arret = str((autre or {}).get("type") or "")
+        if d is None or f is None or d >= debut_arret or famille_d_arret(type_arret) == "parentalite":
+            continue
+        connus.append((d, min(f, debut_arret - timedelta(days=1)), type_arret))
+    connus.sort()
+
+    chaines: list[list[tuple[date, date, str]]] = []
+    for arret in connus:
+        derniere = chaines[-1] if chaines else None
+        if (
+            derniere
+            and famille_d_arret(derniere[0][2]) == famille_d_arret(arret[2])
+            and (arret[0] - max(a[1] for a in derniere)).days <= ECART_MAX_PROLONGATION_JOURS
+        ):
+            derniere.append(arret)
+        else:
+            chaines.append([arret])
+
+    total = 0
+    for chaine in chaines:
+        debut_chaine, type_arret = chaine[0][0], chaine[0][2]
+        if date_anciennete is not None and _mois_entre(date_anciennete, debut_chaine) < min_mois:
+            continue
+        sans_carence = famille_d_arret(type_arret) == "at_mp" and type_arret != "accident_trajet"
+        premier_indemnise = debut_chaine + timedelta(days=0 if sans_carence else carence_maladie)
+        jours: set[date] = set()
+        for d, f, _ in chaine:
+            jour = d
+            while jour <= f:
+                if jour >= premier_indemnise and jour >= limite:
+                    jours.add(jour)
+                jour += timedelta(days=1)
+        total += len(jours)
+    return min(total, plafond)
+
+
 def debut_de_l_arret_prolonge(arret: Mapping[str, Any]) -> date | None:
     """Le début de l'arrêt que prolonge `arret` (le sien s'il n'en prolonge aucun)."""
     debut = _date(arret.get("date_debut"))
@@ -107,4 +174,5 @@ __all__ = [
     "chainer_arret",
     "debut_de_l_arret_prolonge",
     "famille_d_arret",
+    "jours_legaux_des_12_mois",
 ]

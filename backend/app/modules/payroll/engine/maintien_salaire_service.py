@@ -36,7 +36,7 @@ from .contexte import ContextePaie
 from . import legal_constants as lc
 from .garantie_nette import ijss_ramenees_au_brut, taux_csg_crds_ijss, taux_salarial_marginal
 from .paliers_convention import PlanConventionnel, arrets_pour_le_plan, plan_conventionnel
-from .prolongation_arret import chainer_arret
+from .prolongation_arret import chainer_arret, jours_legaux_des_12_mois
 
 #: Réglage société (23/10/2026) : sans subrogation, déduire du maintien les
 #: IJSS des jours maintenus. Absent du dict : le calcul d'avant ce réglage ;
@@ -921,6 +921,29 @@ def _verse_avec_subrogation(
     return max(0.0, maintien_cible - round(retenues, 2))
 
 
+def _jours_legaux_avant(
+    arret: Dict[str, Any],
+    contexte: ContextePaie,
+    settings: Dict[str, Any],
+    date_debut_arret: date,
+    plafond: int,
+    min_mois: int,
+) -> int:
+    """Jours légaux déjà indemnisés sur les douze mois d'avant (D1226-4)."""
+    return jours_legaux_des_12_mois(
+        _parse_date(arret.get("date_debut_chaine")) or date_debut_arret,
+        arret.get("arrets_connus"),
+        carence_maladie=(
+            0
+            if settings.get("remove_employer_waiting")
+            else int(settings.get("employer_waiting_days") or 7)
+        ),
+        plafond=plafond,
+        date_anciennete=_date_anciennete(contexte),
+        min_mois=min_mois,
+    )
+
+
 def _calculer_maintien_employeur(
     arret: Dict[str, Any],
     qualification: Dict[str, Any],
@@ -1020,6 +1043,21 @@ def _calculer_maintien_employeur(
     carence_emp = int(carence.get("carence_employeur_jours") or 0)
     carence_emp_arret = int(carence.get("carence_employeur_jours_arret", carence_emp) or 0)
     jours_deja = _jours_deja_en_arret(arret)
+
+    # D1226-4 : le maintien légal reprend au rang des jours déjà indemnisés sur les
+    # douze mois d'avant. Le conventionnel garde sa propre règle.
+    jours_legaux_12_mois = (
+        _jours_legaux_avant(
+            arret,
+            contexte,
+            settings,
+            date_debut_arret,
+            duree_legale_totale,
+            0 if no_seniority else min_senior,
+        )
+        if apply_legal
+        else 0
+    )
 
     # Durée conventionnelle : durée custom si paramétrée, sinon durée légale.
     custom_d = int(settings.get("custom_duration_days") or 0)
@@ -1121,7 +1159,13 @@ def _calculer_maintien_employeur(
             continue
         rang_maintien = jours_deja + offset + k + 1 - carence_emp_arret
         if rang_maintien >= 1:
-            if apply_legal and _taux_legal_pour_jour_maintien(rang_maintien, duree_par_taux) > 0:
+            if (
+                apply_legal
+                and _taux_legal_pour_jour_maintien(
+                    rang_maintien + jours_legaux_12_mois, duree_par_taux
+                )
+                > 0
+            ):
                 jours_leg.add(jour)
             if taux_conv is not None and rang_maintien <= cap_conv and float(taux_conv) > 0:
                 jours_conv.add(jour)
@@ -1133,7 +1177,7 @@ def _calculer_maintien_employeur(
             continue  # jour couvert par la carence employeur : pas de maintien
 
         t_leg = (
-            _taux_legal_pour_jour_maintien(jour_maintien, duree_par_taux)
+            _taux_legal_pour_jour_maintien(jour_maintien + jours_legaux_12_mois, duree_par_taux)
             if apply_legal
             else 0.0
         )
@@ -1220,6 +1264,7 @@ def _calculer_maintien_employeur(
         "carence_employeur_jours": carence_emp,
         "duree_par_taux_jours": duree_par_taux,
         "duree_maintien_legale_jours": duree_legale_totale,
+        "jours_legaux_des_12_mois": jours_legaux_12_mois,
         **deduction,
     }
 
@@ -1276,6 +1321,7 @@ def _calculer_prevoyance_complement(
     date_fin_periode: date,
     jours_deja_en_arret: int = 0,
     taux_maintien_par_jour: Optional[Dict[date, float]] = None,
+    jours_legaux_12_mois: int = 0,
 ) -> Dict[str, Any]:
     """
     Complément de prévoyance (relais), paramétré par l'entreprise via les settings :
@@ -1372,7 +1418,9 @@ def _calculer_prevoyance_complement(
                     jour_maintien = jour_arret - carence_emp
                     m_leg = (
                         brut_journalier
-                        * _taux_legal_pour_jour_maintien(jour_maintien, duree_par_taux)
+                        * _taux_legal_pour_jour_maintien(
+                            jour_maintien + jours_legaux_12_mois, duree_par_taux
+                        )
                         if apply_legal
                         else 0.0
                     )
@@ -2415,6 +2463,18 @@ def compute_jours_avec_maintien_mois(
     custom_d = int(settings.get("custom_duration_days") or 0)
     cap_conv = custom_d if custom_d > 0 else (2 * duree_par_taux)
     taux_conv = _taux_conventionnel(settings, est_at_mp)
+    jours_legaux_12_mois = (
+        _jours_legaux_avant(
+            arret,
+            contexte,
+            settings,
+            date_debut_arret,
+            2 * duree_par_taux,
+            0 if no_seniority else min_senior,
+        )
+        if apply_legal
+        else 0
+    )
 
     jours_intersection = _compter_jours_calendaires(inter_d, inter_f)
     offset = (inter_d - date_debut_arret).days
@@ -2427,7 +2487,7 @@ def compute_jours_avec_maintien_mois(
         if jour_maintien < 1:
             continue
         t_leg = (
-            _taux_legal_pour_jour_maintien(jour_maintien, duree_par_taux)
+            _taux_legal_pour_jour_maintien(jour_maintien + jours_legaux_12_mois, duree_par_taux)
             if apply_legal
             else 0.0
         )
@@ -2668,6 +2728,7 @@ def calculer_maintien(
         date_fin_periode=date_fin_periode,
         jours_deja_en_arret=jours_deja,
         taux_maintien_par_jour=taux_retenus if plan_conv is not None else None,
+        jours_legaux_12_mois=int(maintien.get("jours_legaux_des_12_mois") or 0),
     )
 
     alertes: List[str] = []
@@ -2697,6 +2758,12 @@ def calculer_maintien(
                 f"Durée maximale du maintien employeur atteinte ({duree_legale} jours "
                 f"selon l'ancienneté). Vérifier l'activation de la prévoyance relais."
             )
+    jours_12_mois = int(maintien.get("jours_legaux_des_12_mois") or 0)
+    if jours_12_mois and plan_conv is None:
+        alertes.append(
+            f"Maintien légal : {jours_12_mois} jours déjà indemnisés sur les douze mois "
+            "précédents sont déduits des droits de cet arrêt (art. D1226-4)."
+        )
     if maintien.get("garantie_nette_non_calculee"):
         alertes.append(ALERTE_GARANTIE_NETTE_NON_CALCULEE)
     if maintien.get("plafond_net_non_calcule"):

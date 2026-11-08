@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Le maintien légal cumule les arrêts des douze derniers mois
+- Quand un salarié a déjà été indemnisé sur un autre arrêt dans l'année écoulée, les jours déjà pris sont déduits de ses droits, comme le prévoit le Code du travail. Le maintien ne repart plus à zéro à chaque arrêt.
+- Le bulletin dit combien de jours ont été déduits. Les maintiens prévus par la convention ne changent pas.
+
 ### La revue d'avant-paie vérifie le minimum annuel de la métallurgie
 - À partir d'octobre, chez Cartol et LEWIS, un salarié dont la rémunération de l'année reste sous le minimum de sa classe est signalé, avec le montant qui manque.
 - Le contrôle suit la convention : prime d'ancienneté et heures supplémentaires écartées, forfait jours majoré de 30 %. Il ne bloque rien : les primes de fin d'année comptent, à vérifier à la clôture de décembre.
