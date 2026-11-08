@@ -284,3 +284,67 @@ def test_la_mutuelle_n_est_pas_alignee_chez_cartol_et_lewis():
     mutuelle de l'import DSN : rien n'est deviné, la mutuelle reste un chantier à part."""
     assert rmb.SOCIETES["mbc"]["aligner_mutuelle"] is True
     assert rmb.SOCIETES["cartol"]["aligner_mutuelle"] is False and rmb.SOCIETES["lewis"]["aligner_mutuelle"] is False
+
+
+# --- Réduction entièrement reprise par Quadra (08/11) -------------------------------------------
+
+
+def _arret(brut: float, reduction: float, cumul: float, cumul_heures: float) -> Bulletin:
+    b = _mois(brut, reduction, cumul)
+    b.droite["cumul_heures"] = cumul_heures
+    return b
+
+
+def _lus_reduction_reprise():
+    """Arrêt long : réduction appliquée en janvier, reprise en entier en février (cumul nul)."""
+    return {8: {"X": _arret(2247.62, -361.42, 2247.62, 151.67)},
+            9: {"X": _arret(1299.87, 361.42, 3547.49, 214.68)}}
+
+
+def test_une_reduction_que_quadra_a_reprise_en_entier_garde_la_base_de_quadra(remise_en_etat):
+    """Cartol, S.S. : Quadra a repris toute sa réduction en avril (SMIC retenu négatif en DSN) ;
+    la formule sur les heures imprimées en rendrait 152,28 € en octobre. On suit Quadra (décision du
+    08/11) : la base de Martine est un SMIC nul, toutes les heures imprimées hors de la réduction."""
+    rmb.regler_pour("cartol")
+    c = rc.solde_d_ouverture(_lus_reduction_reprise(), 9, "X")["cumuls"]
+    assert c["reduction_generale_patronale"] == 0.0
+    assert c["heures_hors_reduction_generale"] == 214.68
+
+
+def test_mont_blanc_garde_la_formule_quand_quadra_n_a_rien_applique(remise_en_etat):
+    rmb.regler_pour("mbc")
+    assert "heures_hors_reduction_generale" not in rc.solde_d_ouverture(_lus_reduction_reprise(), 9, "X")["cumuls"]
+
+
+def test_un_salaire_au_dela_de_trois_smic_sans_reduction_n_est_pas_touche(remise_en_etat):
+    """Aucune réduction et la formule n'en donne pas non plus : rien à poser."""
+    rmb.regler_pour("cartol")
+    lus = {9: {"X": _arret(9000.0, 0.0, 9000.0, 151.67)}}
+    assert "heures_hors_reduction_generale" not in rc.solde_d_ouverture(lus, 9, "X")["cumuls"]
+
+
+# --- Forfait jours réduit (08/11) -----------------------------------------------------------
+
+
+def test_l_en_tete_quadra_donne_les_jours_du_forfait():
+    b = Bulletin(matricule="X")
+    q.lire_page("   Emploi :      Méthodiste          Ancienneté :   08/10/2018     Forfait annuel :     171.00 jours\n",
+                1, b)
+    assert b.infos["forfait_annuel"] == "171.00"
+
+
+def test_un_forfait_reduit_de_quadra_est_pose_sur_la_fiche():
+    """Cartol, D.G. : forfait passé de 214 à 171 jours en septembre (80 %), bulletin « Forfait annuel :
+    171.00 jours », DSN 40.013 = 17,00 sur 21,27. La fiche n'a pas de forfait propre : sans lui, le
+    moteur prend les 214 jours de la société."""
+    b = _bulletin(Ligne(None, "SALAIRE DE BASE", gain=3244.48))
+    b.infos["forfait_annuel"] = "171.00"
+    fiche = {"is_forfait_jour": True, "specificites_paie": {}}
+    plan = rmb.plan_de_forfait(fiche, b, 214.0)
+    assert plan["forfait_annual_days"] == 171.0 and plan["avant"] == 214.0
+    assert rmb.plan_de_forfait(fiche, _bulletin(), 214.0) is None
+    b.infos["forfait_annuel"] = "214.00"
+    assert rmb.plan_de_forfait(fiche, b, 214.0) is None
+    b.infos["forfait_annuel"] = "171.00"
+    assert rmb.plan_de_forfait({"is_forfait_jour": True, "specificites_paie": {"forfait_annual_days": 171}}, b, 214.0) is None
+    assert rmb.plan_de_forfait({"is_forfait_jour": False, "specificites_paie": {}}, b, 214.0) is None

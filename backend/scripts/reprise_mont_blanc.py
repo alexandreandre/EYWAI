@@ -57,17 +57,21 @@ ANNEE = 2026
 #: réédité après le PDF et refait un cumul imprimé faux (`mois_reedites_depuis_la_dsn`,
 #: `cumuls_imprimes_faux`), vérifié sur Cartol et LEWIS seulement (Mont Blanc inchangé) ;
 #: `aligner_mutuelle` : Cartol et LEWIS non (catalogue sans formule aux montants de Quadra, fiches
-#: à la mutuelle de l'import DSN : chantier à part, l'écart est seulement affiché).
+#: à la mutuelle de l'import DSN : chantier à part, l'écart est seulement affiché) ;
+#: `base_nulle_si_reduction_reprise` : une réduction que Quadra a reprise en entier reste nulle
+#: (`reprise_comitech.base_de_la_reduction`, décision du 08/11) ; `aligner_forfait` : les jours du
+#: forfait imprimés par Quadra posés sur la fiche quand ils diffèrent (`plan_de_forfait`).
 SOCIETES: dict[str, dict] = {
     "mbc": {"company_id": "b541df31-e964-485e-ac36-cf580633fd1d", "siret": "75116833700028",
             "tdelta": 0.3821, "dsn_jusqu_a": 6, "bascule": 7, "dsn_corrige_le_pdf": False,
-            "aligner_mutuelle": True},
+            "aligner_mutuelle": True,
+            "aligner_forfait": False},
     "cartol": {"company_id": "18de8de4-eb52-4a7c-a9f4-4c7321e6f11f", "siret": "95147478200020",
                "tdelta": 0.3821, "dsn_jusqu_a": 9, "bascule": 9, "dsn_corrige_le_pdf": True,
-               "aligner_mutuelle": False},
+               "aligner_mutuelle": False, "base_nulle_si_reduction_reprise": True, "aligner_forfait": True},
     "lewis": {"company_id": "b3c747e4-5094-4252-b0e6-5b711a5b4e81", "siret": "99117730400029",
               "tdelta": 0.3781, "dsn_jusqu_a": 9, "bascule": 9, "dsn_corrige_le_pdf": True,
-              "aligner_mutuelle": False},
+              "aligner_mutuelle": False, "base_nulle_si_reduction_reprise": True, "aligner_forfait": True},
 }
 SOCIETE = "mbc"
 COMPANY_ID = SOCIETES["mbc"]["company_id"]
@@ -82,7 +86,7 @@ def regler_pour(societe: str) -> None:
     global SOCIETE, COMPANY_ID, TDELTA
     reglage = SOCIETES[societe]
     SOCIETE, COMPANY_ID, TDELTA = societe, reglage["company_id"], reglage["tdelta"]
-    rc.regler_pour(SOCIETE, COMPANY_ID, TDELTA)
+    rc.regler_pour(SOCIETE, COMPANY_ID, TDELTA, reglage.get("base_nulle_si_reduction_reprise", False))
 #: Plafond mensuel de la sécurité sociale 2026 (imprimé « Plafond Sécu : 4005.00 »).
 PSS_MENSUEL = 4005.0
 #: Dernier mois dont les bulletins Quadra sont arrivés (data/mbc/bulletins/2026-07).
@@ -280,6 +284,25 @@ def taux_de_chomage_de_quadra(bulletins) -> float | None:
             if lib.startswith(("CHÔMAGE", "CHOMAGE")) and lg.base and lg.montant_pat and lg.base > 0:
                 taux[round(lg.montant_pat / lg.base * 100, 2)] += 1
     return taux.most_common(1)[0][0] if taux else None
+
+
+def plan_de_forfait(fiche: dict, bulletin, jours_de_la_societe: float) -> dict | None:
+    """Les jours du forfait que Quadra imprime (« Forfait annuel : 171.00 jours ») sur une fiche au
+    forfait jours qui en retient d'autres (son forfait propre, sinon celui de la société), ou None.
+
+    Cartol, D.G. : forfait réduit à 80 % en septembre (214 → 171 jours, DSN 40.013 = 17,00 sur
+    21,27). Le moteur lit `specificites_paie.forfait_annual_days` (SMIC de la réduction, repos)."""
+    try:
+        quadra = float(bulletin.infos.get("forfait_annuel"))
+    except (TypeError, ValueError):
+        return None
+    if not fiche.get("is_forfait_jour"):
+        return None
+    propre = ((fiche.get("specificites_paie") or {}).get("forfait_annual_days"))
+    retenu = float(propre) if propre not in (None, "") else float(jours_de_la_societe)
+    if abs(retenu - quadra) < 0.005:
+        return None
+    return {"forfait_annual_days": quadra, "avant": retenu, "propre_avant": propre}
 
 
 def plan_prime_anciennete(fiche: dict, bulletin) -> bool:
@@ -530,8 +553,14 @@ def fiches(appliquer: bool, bascule: int) -> int:
     admin = get_supabase_admin_client()
     lignes = admin.table("employees").select(
         "id, first_name, last_name, nir, hire_date, seniority_reference_date, prior_service_months, "
-        "salaire_de_base, duree_hebdomadaire, specificites_paie, employment_status, contract_end_date"
+        "salaire_de_base, duree_hebdomadaire, specificites_paie, employment_status, contract_end_date, is_forfait_jour"
     ).eq("company_id", COMPANY_ID).execute().data
+    reglage_conges = admin.table("company_leave_settings").select("rtt_forfait_annual_days").eq(
+        "company_id", COMPANY_ID).execute().data
+    from app.modules.absences.domain.leave_policy import DEFAULT_LEAVE_POLICY
+
+    jours_societe = float((reglage_conges[0].get("rtt_forfait_annual_days") if reglage_conges else None)
+                          or DEFAULT_LEAVE_POLICY.rtt_forfait_annual_days)
     types = admin.table("company_mutuelle_types").select(
         "id, libelle, montant_salarial, montant_patronal").eq("company_id", COMPANY_ID).eq("is_active", True).execute().data
     usages = admin.table("employee_mutuelle_types").select("mutuelle_type_id").in_(
@@ -539,7 +568,7 @@ def fiches(appliquer: bool, bascule: int) -> int:
     for t in types:
         t["n"] = sum(1 for u in usages if u["mutuelle_type_id"] == t["id"])
     par_nir = {_nir(f["nir"]): f for f in lignes if f.get("nir")}
-    plans, salaires, primes, mutuelles, prevoyances, mutuelles_hors = [], [], [], [], [], []
+    plans, salaires, primes, mutuelles, prevoyances, mutuelles_hors, forfaits = [], [], [], [], [], [], []
     print(f"\n=== Ancienneté au {bascule:02d}/{ANNEE} (date de Quadra, reprise en mois remise à zéro)")
     lus = [lire_bulletins(ANNEE, m, SOCIETE) for m in range(1, bascule + 1)]
     fin = date(ANNEE, bascule, calendar.monthrange(ANNEE, bascule)[1])
@@ -554,6 +583,9 @@ def fiches(appliquer: bool, bascule: int) -> int:
             salaires.append((fiche, salaire))
         if plan_prime_anciennete(fiche, b):
             primes.append(fiche)
+        forfait = plan_de_forfait(fiche, b, jours_societe) if SOCIETES[SOCIETE].get("aligner_forfait") else None
+        if forfait is not None:
+            forfaits.append((fiche, forfait))
         # Mutuelle et prévoyance : seulement pour qui reste payé après la bascule.
         fin_contrat = str(fiche.get("contract_end_date") or "")[:10]
         encore_la = not b.infos.get("sortie") and not (fin_contrat and fin_contrat <= fin.isoformat())
@@ -584,6 +616,9 @@ def fiches(appliquer: bool, bascule: int) -> int:
     for fiche in primes:
         print(f"  {etiquette(fiche):14s} prime d'ancienneté payée à part par Quadra : réglage « incluse dans le salaire » retiré")
     print(f"{len(primes)} prime(s) d'ancienneté à remettre à part.")
+    for fiche, forfait in forfaits:
+        print(f"  {etiquette(fiche):14s} forfait {forfait['avant']:g} → {forfait['forfait_annual_days']:g} jours (Quadra)")
+    print(f"{len(forfaits)} forfait(s) jours à aligner sur Quadra.")
     libelles = {str(t["id"]): t["libelle"] for t in types}
     print(f"\n=== Mutuelle et prévoyance au {bascule:02d}/{ANNEE} (celles que Quadra prélève)")
     for fiche, mut in mutuelles:
@@ -643,7 +678,8 @@ def fiches(appliquer: bool, bascule: int) -> int:
         # après la mutuelle (replace_employee_mutuelle l'a mise à jour).
         relues = {f["id"]: f.get("specificites_paie") or {} for f in admin.table("employees").select(
             "id, specificites_paie").eq("company_id", COMPANY_ID).execute().data}
-        for fiche in [f for f, _ in salaires] + primes + [f for f, _ in mutuelles] + [f for f, _ in prevoyances]:
+        for fiche in ([f for f, _ in salaires] + primes + [f for f, _ in mutuelles] + [f for f, _ in prevoyances]
+                      + [f for f, _ in forfaits]):
             fiche["specificites_paie"] = relues.get(fiche["id"], fiche.get("specificites_paie"))
         specs: dict[str, dict] = {}
         for fiche, mut in mutuelles:
@@ -662,11 +698,14 @@ def fiches(appliquer: bool, bascule: int) -> int:
         for fiche in primes:
             spec = specs.setdefault(fiche["id"], dict(fiche.get("specificites_paie") or {}))
             spec["prime_anciennete"] = {**(spec.get("prime_anciennete") or {}), "incluse_dans_salaire_base": False}
+        for fiche, forfait in forfaits:
+            spec = specs.setdefault(fiche["id"], dict(fiche.get("specificites_paie") or {}))
+            spec["forfait_annual_days"] = forfait["forfait_annual_days"]
         for fid, spec in specs.items():
             admin.table("employees").update({"specificites_paie": spec}).eq("id", fid).eq(
                 "company_id", COMPANY_ID).execute()
         print(f"{len(plans)} ancienneté(s), {len(salaires)} salaire(s), {len(primes)} prime(s), "
-              f"{len(mutuelles)} mutuelle(s) et {len(prevoyances)} prévoyance(s) écrites.")
+              f"{len(mutuelles)} mutuelle(s), {len(prevoyances)} prévoyance(s) et {len(forfaits)} forfait(s) écrits.")
     return 0
 
 

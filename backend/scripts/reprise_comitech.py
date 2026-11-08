@@ -88,15 +88,17 @@ SEAU = "payslips"
 TOLERANCE = 0.011
 
 
-def regler_pour(societe: str, company_id: str, tdelta: float) -> None:
+def regler_pour(societe: str, company_id: str, tdelta: float, base_nulle_si_reduction_reprise: bool = False) -> None:
     """Fait servir ce script à une autre société payée par Quadra (Mont Blanc).
 
     `societe` : dossier sous data/ ; `tdelta` : Tdelta de la réduction générale 2026
     (0,3781 sous 50 salariés, 0,3821 à partir de 50), qui sert à retrouver les heures
-    de SMIC de Quadra (`smic_retrouve_de_la_reduction`)."""
-    global SOCIETE, COMPANY_ID, _RGDU_TDELTA, _RGDU_TMAX
+    de SMIC de Quadra (`smic_retrouve_de_la_reduction`). `base_nulle_si_reduction_reprise` :
+    voir `base_de_la_reduction` (Cartol et LEWIS)."""
+    global SOCIETE, COMPANY_ID, _RGDU_TDELTA, _RGDU_TMAX, _BASE_NULLE_SI_REDUCTION_REPRISE
     SOCIETE, COMPANY_ID = societe, company_id
     _RGDU_TDELTA, _RGDU_TMAX = tdelta, round(_RGDU_TMIN + tdelta, 4)
+    _BASE_NULLE_SI_REDUCTION_REPRISE = base_nulle_si_reduction_reprise
 
 
 def _norme(libelle: Any) -> str:
@@ -533,6 +535,8 @@ def point_de_depart_de_la_reduction(lus: dict[int, dict], bascule: int, matricul
 #: et SMIC horaire du 1er janvier 2026 que la RGDU retient toute l'année.
 _RGDU_TMIN, _RGDU_TDELTA, _RGDU_P, _RGDU_TMAX = 0.02, 0.3781, 1.75, 0.3981
 _SMIC_HORAIRE_RGDU = 12.02
+#: Réglé par société (`regler_pour`) : faux pour Comitech, Colorplast et Mont Blanc.
+_BASE_NULLE_SI_REDUCTION_REPRISE = False
 
 
 def smic_retrouve_de_la_reduction(brut: float, deja: float) -> tuple[float | None, str | None]:
@@ -585,6 +589,19 @@ def base_de_la_reduction(lus: dict[int, dict], bascule: int, matricule: str, cum
             cles["heures_hors_reduction_generale"] = hors
     elif "heures_hors_reduction_generale" in depart:
         cles["heures_hors_reduction_generale"] = depart["heures_hors_reduction_generale"]
+    elif _BASE_NULLE_SI_REDUCTION_REPRISE and deja < 0.005 < brut_base and heures > 0:
+        # Quadra n'a rien laissé de réduction sur l'année alors que la formule, sur les heures
+        # imprimées, en donnerait : Cartol, S.S., arrêt long, réduction de janvier à mars reprise
+        # en entier en avril (SMIC retenu cumulé négatif en DSN). Les cumuls de reprise suivent le
+        # cabinet (décision du 08/11) : la base de Martine est un SMIC nul, toutes les heures hors
+        # de la réduction ; sinon le premier mois rendrait la réduction que Quadra a reprise.
+        from scripts.verification_rgdu.oracle import Parametres, reduction_cumulee
+
+        formule = reduction_cumulee(brut_base, round(heures_imprimees * _SMIC_HORAIRE_RGDU, 2),
+                                    Parametres(tdelta=_RGDU_TDELTA))
+        if formule >= max(1.0, brut_base * 0.0001):
+            cles["heures_hors_reduction_generale"] = round(heures, 2)
+            raison = f"réduction nulle chez Quadra, la formule en donnerait {formule:.2f} : base de Quadra (SMIC nul)"
     return {"cles": cles, "heures_imprimees": heures_imprimees,
             "heures_retrouvees": heures_retrouvees, "raison": raison}
 

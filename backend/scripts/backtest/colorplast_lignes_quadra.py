@@ -90,6 +90,8 @@ _ENTETE = (
     # Date d'ancienneté retenue par Quadra (prime d'ancienneté), parfois antérieure à
     # l'entrée : Mont Blanc reprend l'ancienneté de la société d'origine.
     ("anciennete", re.compile(r"Anciennet[ée]\s*:\s*(\d{2}/\d{2}/\d{4})")),
+    # Jours du forfait annuel (Cartol, LEWIS) : « Forfait annuel : 171.00 jours ».
+    ("forfait_annuel", re.compile(r"Forfait annuel\s*:\s*([\d.]+)\s*jours")),
 )
 
 
