@@ -10,11 +10,11 @@ from app.core.logging import get_logger
 logger = get_logger("modules.companies.api.router")
 
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import PlainTextResponse
 
 from app.core.security import get_current_user
-from app.modules.companies.application import commands, queries
+from app.modules.companies.application import commands, pieces_societe, queries
 from app.modules.users.schemas.responses import User
 from app.modules.companies.application.service import resolve_company_id_for_user
 from app.modules.companies.application.export import build_company_export_csv
@@ -90,6 +90,57 @@ def get_company_overview(current_user: User = Depends(get_current_user)):
         )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+def _societe_pour_les_pieces(current_user: User) -> str:
+    company_id = resolve_company_id_for_user(current_user)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Aucune entreprise active")
+    if not (current_user.is_platform_admin or current_user.has_rh_access_in_company(company_id)):
+        raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
+    return company_id
+
+
+@router.get("/pieces")
+def lister_les_pieces(current_user: User = Depends(get_current_user)):
+    """Les pièces attendues et déposées de la société active."""
+    return pieces_societe.lister(_societe_pour_les_pieces(current_user))
+
+
+@router.post("/pieces", status_code=201)
+async def deposer_une_piece(
+    type_piece: str = Form(...),
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Dépose un fichier (PDF, JPG ou PNG, 15 Mo au plus) pour la société active."""
+    company_id = _societe_pour_les_pieces(current_user)
+    contenu = await file.read()
+    try:
+        pieces_societe.deposer(
+            company_id, type_piece, file.filename or "document", contenu, file.content_type
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"depose": True}
+
+
+@router.get("/pieces/lien")
+def lien_d_une_piece(chemin: str = Query(...), current_user: User = Depends(get_current_user)):
+    """Un lien temporaire vers une pièce de la société active."""
+    try:
+        return {"url": pieces_societe.lien(_societe_pour_les_pieces(current_user), chemin)}
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
+@router.delete("/pieces", status_code=204)
+def retirer_une_piece(chemin: str = Query(...), current_user: User = Depends(get_current_user)):
+    """Retire une pièce de la société active."""
+    try:
+        pieces_societe.retirer(_societe_pour_les_pieces(current_user), chemin)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
 
 @router.patch("/details", response_model=CompanyDetailsResponse)

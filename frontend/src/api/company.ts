@@ -293,3 +293,47 @@ export async function patchCompanySettings(
   );
   return data;
 }
+
+export interface FichierPiece {
+  chemin: string;
+  nom: string;
+  depose_le: string | null;
+}
+
+export interface PieceSociete {
+  type: string;
+  libelle: string;
+  pourquoi: string;
+  attendue: boolean;
+  fichiers: FichierPiece[];
+}
+
+export interface EtatPiecesSociete {
+  pieces: PieceSociete[];
+  manquantes: number;
+}
+
+export async function fetchPiecesSociete(): Promise<EtatPiecesSociete> {
+  const response = await apiClient.get<EtatPiecesSociete>("/api/company/pieces");
+  return response.data;
+}
+
+export async function deposerPieceSociete(typePiece: string, fichier: File): Promise<void> {
+  const formulaire = new FormData();
+  formulaire.append("type_piece", typePiece);
+  formulaire.append("file", fichier);
+  await apiClient.post("/api/company/pieces", formulaire, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+}
+
+export async function lienPieceSociete(chemin: string): Promise<string> {
+  const response = await apiClient.get<{ url: string }>("/api/company/pieces/lien", {
+    params: { chemin },
+  });
+  return response.data.url;
+}
+
+export async function retirerPieceSociete(chemin: string): Promise<void> {
+  await apiClient.delete("/api/company/pieces", { params: { chemin } });
+}

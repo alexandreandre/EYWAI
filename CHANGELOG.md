@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Les pièces de la société se déposent sur la page Entreprise
+- Nouvel encart « Pièces de la société » dans l'onglet Fiche : Kbis, contrats de mutuelle et de prévoyance, adhésion à la fédération, justificatif JEI, accord sur le temps de travail.
+- Martine dit ce qui reste à déposer pour la société et pourquoi. Le dépôt accepte PDF, JPG et PNG, 15 Mo au plus. Rien ne bloque la paie.
+
 ### La revue d'avant-paie rappelle les prêts et les saisies à poser
 - Si l'ancien logiciel retenait un prêt ou une saisie en septembre et que rien n'est ouvert dans Martine, la revue le dit, salarié par salarié, avec le montant et le lien.
 - Rappel pendant les trois mois qui suivent la reprise. Il ne bloque pas : la retenue ne part que si le prêt ou la saisie est posé.

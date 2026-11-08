@@ -23,6 +23,7 @@ import { useActiveCompanyId } from "@/hooks/queries/useCompanyId";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CompanyPiecesCard } from "@/features/company/components/CompanyPiecesCard";
 import {
   CompanyPageHeader,
   CompanyComplianceBand,
@@ -373,7 +374,7 @@ export default function CompanyPage() {
           ) : null}
         </TabsContent>
 
-        <TabsContent value="fiche" className="mt-0">
+        <TabsContent value="fiche" className="mt-0 space-y-4">
           <CompanyIdentityTab
             company={company}
             canEdit={canEdit}
@@ -385,6 +386,7 @@ export default function CompanyPage() {
             saving={saving}
             onGoToPayrollTab={() => goToPayrollTab("convention-collective")}
           />
+          <CompanyPiecesCard canEdit={canEdit} />
         </TabsContent>
 
         <TabsContent value="paie" className="mt-0">
