@@ -411,7 +411,9 @@ def plan_de_prevoyance(fiche: dict, bulletin) -> dict | None:
     memes_taux = len(actuelles) == len(quadra) and all(
         abs(round(base * float(l.get("salarial") or 0), 2) - sal) < 0.005
         and abs(round(base * float(l.get("patronal") or 0), 2) - pat) < 0.005
-        for l, (base, sal, pat) in zip(actuelles, quadra))
+        # et la même base (tranche B sur la tranche 2, Mont Blanc écrit le 07/11 sur `brut_plafonne`)
+        and (l.get("base") or "brut_plafonne") == cible["base"]
+        for l, (base, sal, pat), cible in zip(actuelles, quadra, lignes))
     if prev.get("adhesion") and (memes_taux or not actuelles):
         return None
     return {"adhesion": True, "lignes_specifiques": lignes,

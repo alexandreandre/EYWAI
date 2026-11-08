@@ -348,3 +348,18 @@ def test_un_forfait_reduit_de_quadra_est_pose_sur_la_fiche():
     b.infos["forfait_annuel"] = "171.00"
     assert rmb.plan_de_forfait({"is_forfait_jour": True, "specificites_paie": {"forfait_annual_days": 171}}, b, 214.0) is None
     assert rmb.plan_de_forfait({"is_forfait_jour": False, "specificites_paie": {}}, b, 214.0) is None
+
+
+def test_une_tranche_b_deja_posee_sur_la_base_de_la_tranche_a_est_reprise():
+    """Mont Blanc, reprise écrite le 07/11 : la ligne « CADRE TB » est posée aux bons taux mais sur
+    `brut_plafonne`. Mêmes taux ne suffit pas : la base aussi doit être celle de Quadra."""
+    b = _bulletin(Ligne("EPR1", "GAN PREVOYANCE CADRE TA", base=4000.0, taux=0.75, montant_sal=30.0,
+                        montant_pat=60.0, section="Q802"),
+                  Ligne("EPR2", "GAN PREVOYANCE CADRE TB", base=2741.67, taux=0.75, montant_sal=20.56,
+                        montant_pat=20.56, section="Q802"))
+    plan = rmb.plan_de_prevoyance({"specificites_paie": {}}, b)
+    deja = [dict(l) for l in plan["lignes_specifiques"]]
+    assert rmb.plan_de_prevoyance({"specificites_paie": {"prevoyance": {"adhesion": True, "lignes_specifiques": deja}}}, b) is None
+    deja[1]["base"] = "brut_plafonne"
+    replan = rmb.plan_de_prevoyance({"specificites_paie": {"prevoyance": {"adhesion": True, "lignes_specifiques": deja}}}, b)
+    assert replan is not None and replan["lignes_specifiques"][1]["base"] == "tranche_2"
