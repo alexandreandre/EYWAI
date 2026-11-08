@@ -68,7 +68,7 @@ test('attestations : fiche du salarié en mode paie, puis Exports', async ({ pag
   });
   const s = surveiller(page);
 
-  // Génération simulée : une lettre de travail produite, une lettre de salaire
+  // Génération simulée : une attestation d'emploi produite, une lettre de salaire
   // refusée comme le fait le serveur quand aucun bulletin n'est remis.
   const ID_SIMULE = '00000000-0000-4000-8000-0000000000a1';
   const demandes: Array<Record<string, unknown>> = [];
@@ -97,7 +97,7 @@ test('attestations : fiche du salarié en mode paie, puis Exports', async ({ pag
       template_version_id: null,
       is_eywai_template: true,
       file_url: null,
-      file_name: 'attestation_de_travail.pdf',
+      file_name: 'attestation_d_emploi.pdf',
       status: 'brouillon',
       generation_context: {},
       generated_by: null,
@@ -108,7 +108,7 @@ test('attestations : fiche du salarié en mode paie, puis Exports', async ({ pag
   });
   await page.route(`**/api/documents/${ID_SIMULE}/preview`, async (route) => {
     await route.fulfill({
-      json: { signed_url: 'https://stockage.invalid/attestation.pdf', file_name: 'attestation_de_travail.pdf' },
+      json: { signed_url: 'https://stockage.invalid/attestation.pdf', file_name: 'attestation_d_emploi.pdf' },
     });
   });
   await page.route('https://stockage.invalid/**', async (route) => {
@@ -147,25 +147,25 @@ test('attestations : fiche du salarié en mode paie, puis Exports', async ({ pag
       await expect(page.getByText(/hors du périmètre paie/i)).toBeVisible();
     });
 
-    await test.step('attestation de travail : la lettre se génère et s’ouvre', async () => {
+    await test.step("attestation d'emploi : la lettre se génère et s’ouvre", async () => {
       await page.getByRole('region', { name: 'Attestations' }).getByRole('button', { name: /générer une attestation/i }).click();
       const fenetre = page.getByRole('dialog', { name: /générer une attestation/i });
       await expect(fenetre).toBeVisible();
       await expect(fenetre.getByText(/signataire réglé dans Entreprise > Fiche/i)).toBeVisible();
-      await choisir(page, fenetre, /type d'attestation/i, /^attestation de travail$/i);
+      await choisir(page, fenetre, /type d'attestation/i, /^attestation d'emploi$/i);
       await expect(fenetre.getByLabel(/nombre de mois/i)).toHaveCount(0);
       await fenetre.getByRole('button', { name: /^générer$/i }).click();
-      await expect(page.getByText(/attestation de travail de .+ prête/i).first()).toBeVisible();
+      await expect(page.getByText(/attestation d'emploi de .+ prête/i).first()).toBeVisible();
       expect(demandes.at(-1)).toEqual({
         employee_id: salarie!.id,
         document_type: 'attestation_emploi',
         category: 'attestation_courante',
         template_id: null,
       });
-      await expect(page.getByRole('dialog', { name: /attestation de travail/i })).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByRole('dialog', { name: /attestation d'emploi/i })).toBeVisible({ timeout: 30_000 });
       await page.keyboard.press('Escape');
       await expect(
-        page.getByRole('region', { name: 'Attestations' }).getByText('Attestation de travail').first(),
+        page.getByRole('region', { name: 'Attestations' }).getByText("Attestation d'emploi").first(),
       ).toBeVisible({ timeout: 15_000 });
     });
 
@@ -223,7 +223,7 @@ test('attestations : page Documents et fiche du salarié, hors mode paie', async
   };
   const deuxTypesSeulement = async (fenetre: ReturnType<Page['getByRole']>) => {
     await fenetre.getByLabel(/type d'attestation/i).click();
-    await expect(page.getByRole('option')).toHaveText(['Attestation de travail', 'Attestation de salaire']);
+    await expect(page.getByRole('option')).toHaveText(["Attestation d'emploi", 'Attestation de salaire']);
     await page.keyboard.press('Escape');
     await fenetre.getByRole('button', { name: /annuler/i }).click();
     await expect(fenetre).toHaveCount(0);

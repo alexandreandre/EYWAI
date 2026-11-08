@@ -10,7 +10,7 @@ export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   avenant_temps: 'Avenant - Modification du temps de travail',
   avenant_lieu: 'Avenant - Changement de lieu de travail',
   avenant_general: 'Avenant - Modification générale',
-  attestation_emploi: 'Attestation de travail',
+  attestation_emploi: "Attestation d'emploi",
   attestation_presence: 'Attestation de présence',
   attestation_anciennete: "Attestation d'ancienneté",
   attestation_poste: 'Attestation de poste',

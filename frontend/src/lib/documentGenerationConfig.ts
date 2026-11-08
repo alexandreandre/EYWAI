@@ -16,9 +16,9 @@ export const AVENANT_TYPES = [
 ] as const;
 
 /**
- * Attestations remises à la demande du salarié (05/11/2026) : la lettre de
- * travail (modèle du ministère, plus rémunération et période d'essai) et la
- * lettre de salaire (bulletins remis). Les sept autres types sont retirés.
+ * Attestations remises à la demande du salarié (05/11/2026) : l'attestation
+ * d'emploi (modèle de la cliente du 06/11/2026) et la lettre de salaire
+ * (bulletins remis). Les sept autres types sont retirés.
  */
 export const ATTESTATION_COURANTE_TYPES = ['attestation_emploi', 'attestation_salaire'] as const;
 export type AttestationType = (typeof ATTESTATION_COURANTE_TYPES)[number];

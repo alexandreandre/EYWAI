@@ -44,7 +44,7 @@ export interface AttestationDialogProps {
 
 const AIDE: Record<AttestationType, string> = {
   attestation_emploi:
-    "Poste, contrat, date d'entrée, ancienneté et rémunération : ce que demandent une banque ou un bailleur.",
+    "Nom, n° de sécurité sociale, adresse, emploi, reprise d'ancienneté et date d'entrée. Ce qui manque sur la fiche est écrit « Non renseigné » : complétez la fiche puis régénérez.",
   attestation_salaire:
     'Salaire brut et net avant impôt, repris des derniers bulletins remis au salarié.',
 };

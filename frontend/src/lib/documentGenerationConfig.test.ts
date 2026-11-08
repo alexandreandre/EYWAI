@@ -21,11 +21,11 @@ describe('parseEmployeeDocumentDeepLink', () => {
   });
 });
 
-// Attestations à la demande (05/11/2026) : deux lettres, travail et salaire.
+// Attestations à la demande (05/11/2026) : deux lettres, emploi et salaire.
 describe('attestations', () => {
-  it('deux types seulement, la première est « Attestation de travail »', () => {
+  it("deux types seulement, la première est « Attestation d'emploi »", () => {
     expect([...ATTESTATION_COURANTE_TYPES]).toEqual(['attestation_emploi', 'attestation_salaire']);
-    expect(DOCUMENT_TYPE_LABELS.attestation_emploi).toBe('Attestation de travail');
+    expect(DOCUMENT_TYPE_LABELS.attestation_emploi).toBe("Attestation d'emploi");
     expect(NOMBRE_MOIS_PAR_DEFAUT).toBe(3);
   });
 
