@@ -5,6 +5,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### La part de l'employeur à la mutuelle santé entre toujours dans le net imposable
+- La loi la rend imposable (Code général des impôts, article 83). 68 fiches de Cartol, Mont Blanc et Zone 404 l'en sortaient, comme Quadra.
+- Le net imposable de ces salariés monte du montant de la part employeur ; l'impôt prélevé suit.
+- L'import des DSN lit aussi le forfait jours dans la DSN, et rattache chaque salarié à sa formule de mutuelle même quand les montants varient.
+
 ### L'attestation d'emploi suit votre modèle
 - Elle reprend votre modèle ligne à ligne : nom et prénom, n° de sécurité sociale, adresse, emploi occupé, reprise d'ancienneté, puis « est employé(e) au sein de notre entreprise depuis le… ». Elle s'appelle désormais « Attestation d'emploi » partout.
 - Elle ne parle plus de la naissance, du contrat, du temps de travail ni du salaire : pour le salaire, c'est l'attestation de salaire.
