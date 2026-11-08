@@ -42,6 +42,7 @@ from app.modules.employees.application.contrat_du_mois import (
     fiche_du_mois,
     lecteur_contrats,
 )
+from app.modules.dsn_export.domain.norme import norme_de_la_periode, porte_les_codes_ape
 from app.modules.oeth_settings.application import queries as oeth_queries
 from app.modules.payroll.application.monthly_specificites import (
     resolve_monthly_specificites,
@@ -50,8 +51,6 @@ from app.shared.domain.dispense_mutuelle import alerte_mutuelle
 from app.shared.domain.employment_rules import is_cadre
 from app.shared.reprise_paie import lire_bascule, raison_de_refus_dsn_mois_repris
 from app.shared.dsn_validation import validate_nir, validate_nir_dsn, validate_siret
-
-DSN_NORME = "P26V01"
 
 
 def get_company_data(company_id: str) -> Dict[str, Any]:
@@ -521,7 +520,7 @@ def check_dsn_data(
             }
         )
     code_naf = company_data.get("code_naf")
-    if not code_naf:
+    if not code_naf and porte_les_codes_ape(norme_de_la_periode(period)):
         anomalies.append(
             {
                 "type": "error",
@@ -841,10 +840,6 @@ def preview_dsn(
     }
 
 
-def _neodes_norme_version() -> str:
-    return DSN_NORME
-
-
 def cotisations_complementaires_avant(
     company_id: str,
     company_data: Dict[str, Any],
@@ -959,7 +954,7 @@ def generate_dsn_file(
     content = encode_dsn_bytes(dsn_file)
     # Relecture + validation structurelle
     parsed = parse_dsn_content(content, file_name=file_name)
-    if parsed.envoi.norme != DSN_NORME:
+    if parsed.envoi.norme != norme_de_la_periode(period):
         raise ValueError(f"Norme DSN inattendue après génération : {parsed.envoi.norme}")
     from app.modules.dsn_import.domain.model import ParsedDsnSet
 

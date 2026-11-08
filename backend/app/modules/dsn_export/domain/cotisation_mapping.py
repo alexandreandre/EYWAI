@@ -27,10 +27,11 @@ La nomenclature des codes est publique : voir `nomenclature_cotisation.py`.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.modules.dsn_export.domain.norme import NORME_P26, cet_patronale_sur_son_code
 from app.modules.dsn_import.domain.model import (
     BaseAssujettieBlock,
     CotisationIndividuelleBlock,
@@ -106,6 +107,7 @@ CODE_REDUCTION_RETRAITE_COMP = "106"
 CODE_AGIRC_ARRCO = "131"
 CODE_AGIRC_ARRCO_PAT_T1 = "142"
 CODE_AGIRC_ARRCO_PAT_T2 = "146"
+CODE_CET_PATRONALE = "148"
 CODE_APEC = "132"
 CODE_FORFAIT_SOCIAL = "071"
 
@@ -641,7 +643,11 @@ def _code_depuis_libelle(libelle: str) -> Optional[str]:
 
 
 def _traduire(
-    ligne: Dict[str, Any], tmax: float, assiette_heures_sup: float, brut: float = 0.0
+    ligne: Dict[str, Any],
+    tmax: float,
+    assiette_heures_sup: float,
+    brut: float = 0.0,
+    norme: str = NORME_P26,
 ) -> List[LigneDsn]:
     """Lignes DSN produites par une ligne de bulletin, hors CSG/CRDS."""
     coti_id = str(ligne.get("coti_id") or "")
@@ -663,6 +669,9 @@ def _traduire(
         return _deduction_heures_supplementaires(ligne, assiette_heures_sup)
 
     regle = REGLES.get(coti_id)
+    if coti_id == "cet" and regle is not None and cet_patronale_sur_son_code(norme):
+        # Cahier 2027.1 : 146 devient « hors CET », 148 porte la CET patronale.
+        regle = replace(regle, code_patronal=CODE_CET_PATRONALE)
     if regle is None:
         code = _code_depuis_libelle(libelle)
         if code is None:
@@ -946,6 +955,7 @@ def build_bases_and_cotisations(
     smic_retenu: Optional[float] = None,
     affiliation_ids: Optional[List[str]] = None,
     code_exoneration_apprenti: Optional[str] = None,
+    norme: str = NORME_P26,
 ) -> Tuple[List[BaseAssujettieBlock], List[CotisationIndividuelleBlock], List[str]]:
     """Bases assujetties et cotisations individuelles d'un bulletin.
 
@@ -988,7 +998,9 @@ def build_bases_and_cotisations(
         est_regularisation = bool(ligne.get("regularisation"))
         # Une régularisation de la réduction générale ne redéclare pas le brut
         # en assiette : elle n'ajoute que son montant.
-        traduites = _traduire(ligne, tmax, assiette_hs, 0.0 if est_regularisation else brut)
+        traduites = _traduire(
+            ligne, tmax, assiette_hs, 0.0 if est_regularisation else brut, norme
+        )
         if est_regularisation:
             for traduite in traduites:
                 traduite.regularisation = True

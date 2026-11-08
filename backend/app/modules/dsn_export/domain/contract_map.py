@@ -6,6 +6,10 @@ from datetime import date, datetime
 from typing import Any, Dict, Optional
 
 from app.modules.dsn_import.domain.rubriques import CONTRACT_NATURE_MAP, STATUT_CADRE_CODES
+from app.modules.employees.domain.rules import (
+    DUREE_LEGALE_HEBDO,
+    normalize_temps_travail_fields,
+)
 
 #: Numéro d'un contrat sans numéro repris : le premier de Quadra.
 NUMERO_PREMIER_CONTRAT = "00000"
@@ -268,3 +272,33 @@ def map_modalite_temps(
         return "10", ref, ref, "20" if is_temps_partiel else "10"
     quotite = f"{round(duree_hebdo * 52 / 12, 2):.2f}"
     return "10", ref, quotite, "20" if is_temps_partiel else "10"
+
+
+#: S21.G00.40.084 (cahier technique 2027.1) : le plafond suit-il la quotité ?
+PLAFOND_PRORATISE = "01"
+PLAFOND_NON_PRORATISE = "02"
+
+
+def proratisation_du_plafond(
+    *,
+    is_temps_partiel: Optional[bool],
+    duree_hebdo: Optional[float],
+    is_forfait_jour: bool = False,
+    jours_forfait_salarie: Optional[float] = None,
+) -> Optional[str]:
+    """Ce que le bulletin a fait du plafond, pour S21.G00.40.084 ; None hors champ.
+
+    La rubrique ne concerne que le temps partiel et le forfait jours réduit. Elle
+    répète la règle de la paie (`_calculer_assiettes`) : un temps partiel de moins
+    de 35 h voit son plafond réduit, le calcul au forfait ne le réduit jamais.
+    """
+    if is_forfait_jour:
+        if jours_forfait_salarie is None or jours_forfait_salarie >= JOURS_ANNUELS_FORFAIT_COMPLET:
+            return None
+        return PLAFOND_NON_PRORATISE
+    temps_partiel, duree = normalize_temps_travail_fields(
+        is_temps_partiel, float(duree_hebdo) if duree_hebdo is not None else None
+    )
+    if not temps_partiel:
+        return None
+    return PLAFOND_PRORATISE if duree < DUREE_LEGALE_HEBDO else PLAFOND_NON_PRORATISE

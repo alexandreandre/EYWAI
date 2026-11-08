@@ -1,4 +1,4 @@
-"""Construction d'une DSN P26V01 depuis données société / salariés / bulletins."""
+"""Construction d'une DSN (P26V01, P27V01 selon le mois) depuis société / salariés / bulletins."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from app.modules.dsn_export.domain.contract_map import (
     map_codification_ue,
     map_contract_nature_to_dsn,
     map_modalite_temps,
+    proratisation_du_plafond,
     map_sexe_to_dsn,
     map_statut_categoriel_rc,
     map_statut_to_dsn,
@@ -37,6 +38,12 @@ from app.modules.dsn_export.domain.cotisation_mapping import (
     build_bases_and_cotisations,
 )
 from app.modules.dsn_export.domain.deux_contrats import fusionner
+from app.modules.dsn_export.domain.norme import (
+    NORME_P26,
+    norme_de_la_periode,
+    porte_la_proratisation_du_plafond,
+    porte_les_codes_ape,
+)
 from app.modules.dsn_export.domain.versements_complementaires import (
     bloc_versement_complementaire,
     cotisations_par_contrat,
@@ -699,6 +706,7 @@ def build_envoi(
     dsn_type: str = "dsn_mensuelle_normale",
     essai: bool = False,
     settings: Optional[DsnSettings] = None,
+    norme: str = NORME_P26,
 ) -> EnvoiBlock:
     # S10.G00.00.005 : 01 fichier d'essai, 02 fichier réel. S10.G00.00.007 :
     # point de dépôt, 01 net-entreprises (02 serait la MSA), essai compris.
@@ -713,7 +721,7 @@ def build_envoi(
         "S10.G00.00.003": VERSION_LOGICIEL,
         "S10.G00.00.004": "0",
         "S10.G00.00.005": code_envoi,
-        "S10.G00.00.006": "P26V01",
+        "S10.G00.00.006": norme,
         "S10.G00.00.007": "01",
         "S10.G00.00.008": "01",
     }
@@ -741,7 +749,7 @@ def build_envoi(
         )
     return EnvoiBlock(
         periode=code_envoi,
-        norme="P26V01",
+        norme=norme,
         type_envoi="01",
         rubriques=rubriques,
     )
@@ -787,7 +795,10 @@ def build_declaration(
 
 
 def build_entreprise(
-    company: Dict[str, Any], *, settings: Optional[DsnSettings] = None
+    company: Dict[str, Any],
+    *,
+    settings: Optional[DsnSettings] = None,
+    norme: str = NORME_P26,
 ) -> EntrepriseBlock:
     siret = str(company.get("siret") or "")
     siren, nic = _siren_nic(siret)
@@ -800,16 +811,18 @@ def build_entreprise(
     naf = parametres.naf or normaliser_naf(
         str(company.get("code_naf") or company.get("naf") or "")
     )
-    if not naf:
+    avec_codes_ape = porte_les_codes_ape(norme)
+    if not naf and avec_codes_ape:
         raise DsnBuildError("Code NAF manquant pour l'établissement")
     rubriques = {
         "S21.G00.06.001": siren,
         "S21.G00.06.002": nic,
-        "S21.G00.06.003": naf,
         "S21.G00.06.004": addr["rue"],
         "S21.G00.06.005": addr["code_postal"],
         "S21.G00.06.006": addr["ville"],
     }
+    if avec_codes_ape:
+        rubriques["S21.G00.06.003"] = naf
     if parametres.complement_adresse:
         rubriques["S21.G00.06.007"] = parametres.complement_adresse
     if parametres.commune_implantation:
@@ -833,15 +846,17 @@ def _rubriques_etablissement(
     entreprise: EntrepriseBlock,
     addr: Dict[str, str],
     settings: Optional[DsnSettings],
+    norme: str = NORME_P26,
 ) -> Dict[str, str]:
     parametres = settings or DsnSettings()
     rubriques = {
         "S21.G00.11.001": nic,
-        "S21.G00.11.002": entreprise.code_naf,
         "S21.G00.11.003": addr["rue"],
         "S21.G00.11.004": addr["code_postal"],
         "S21.G00.11.005": addr["ville"],
     }
+    if porte_les_codes_ape(norme):
+        rubriques["S21.G00.11.002"] = entreprise.code_naf
     if parametres.complement_adresse:
         rubriques["S21.G00.11.006"] = parametres.complement_adresse
     if parametres.commune_implantation:
@@ -859,6 +874,7 @@ def build_etablissement(
     entreprise: EntrepriseBlock,
     *,
     settings: Optional[DsnSettings] = None,
+    norme: str = NORME_P26,
 ) -> EtablissementBlock:
     siret = str(company.get("siret") or "")
     siren, nic = _siren_nic(siret)
@@ -873,7 +889,7 @@ def build_etablissement(
         adresse_rue=addr["rue"],
         adresse_cp=addr["code_postal"],
         adresse_ville=addr["ville"],
-        rubriques=_rubriques_etablissement(nic, entreprise, addr, settings),
+        rubriques=_rubriques_etablissement(nic, entreprise, addr, settings, norme),
     )
     # Contrats collectifs (bloc S21.G00.15). Priorité au paramétrage DSN de la
     # société, repris des fiches de paramétrage OC ; l'ancien chemin
@@ -1074,6 +1090,7 @@ def build_individu_from_payroll(
         ]
         or None,
         code_exoneration_apprenti=CODE_EXONERATION_APPRENTI_PAR_DISPOSITIF.get(dispositif),
+        norme=norme_de_la_periode(period),
     )
     warnings.extend(map_warnings)
 
@@ -1494,6 +1511,16 @@ def build_individu_from_payroll(
     if boeth:
         ctr.rubriques["S21.G00.40.072"] = str(boeth)
 
+    if porte_la_proratisation_du_plafond(norme_de_la_periode(period)):
+        proratisation = proratisation_du_plafond(
+            is_temps_partiel=employee.get("is_temps_partiel"),
+            duree_hebdo=employee.get("duree_hebdomadaire"),
+            is_forfait_jour=bool(employee.get("is_forfait_jour")),
+            jours_forfait_salarie=jours_forfait_salarie,
+        )
+        if proratisation:
+            ctr.rubriques["S21.G00.40.084"] = proratisation
+
     lieu_naissance, departement_naissance, pays_naissance, avertissements = _naissance(
         employee, nir
     )
@@ -1765,10 +1792,11 @@ def build_parsed_dsn_from_payroll(
     """
     warnings: List[str] = []
     parametres = settings or DsnSettings()
-    envoi = build_envoi(dsn_type=dsn_type, essai=essai, settings=parametres)
+    norme = norme_de_la_periode(period)
+    envoi = build_envoi(dsn_type=dsn_type, essai=essai, settings=parametres, norme=norme)
     declaration = build_declaration(period, settings=parametres)
-    entreprise = build_entreprise(company, settings=parametres)
-    etab = build_etablissement(company, entreprise, settings=parametres)
+    entreprise = build_entreprise(company, settings=parametres, norme=norme)
+    etab = build_etablissement(company, entreprise, settings=parametres, norme=norme)
     warnings.extend(
         f"Paramétrage DSN incomplet : {manque}" for manque in parametres.manques()
     )

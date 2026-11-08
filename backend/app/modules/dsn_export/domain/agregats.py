@@ -97,8 +97,8 @@ def ctp_du_code(code: str, base: str, taux: float, montant: float = 0.0) -> Opti
 
 
 #: Codes déclarés avec l'OPS Urssaf mais hors bordereau : la part patronale
-#: Agirc-Arrco (142, 146) sert au contrôle de la réduction générale.
-CODES_HORS_BORDEREAU = {"142", "146"}
+#: Agirc-Arrco (142, 146, et 148 pour la CET en P27V01) sert au contrôle de la réduction générale.
+CODES_HORS_BORDEREAU = {"142", "146", "148"}
 
 
 def bordereau_urssaf(
