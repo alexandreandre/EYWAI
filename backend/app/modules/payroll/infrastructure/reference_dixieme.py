@@ -116,7 +116,14 @@ def base_de_reference(
     )
     if not contract_period_id and not dernier_repris and periode_identifiee:
         valeur = c.get("brut_reference_n_1")
-        if isinstance(valeur, (int, float)):
+        # Le cumul de l'année civile (janvier à mai) ne vaut pas une période
+        # commencée l'année d'avant : base inconnue plutôt que cinq mois lus pour douze.
+        cumul_de_l_annee = (
+            debut_effectif.year < fin.year
+            and isinstance(c.get("brut_total"), (int, float))
+            and valeur == c.get("brut_total")
+        )
+        if isinstance(valeur, (int, float)) and not cumul_de_l_annee:
             brut = float(valeur)
     return calculer_base_periode(bulletins, debut=debut_effectif, fin=fin, brut_repris=brut)
 

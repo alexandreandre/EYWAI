@@ -137,3 +137,28 @@ def test_hs_reprises_du_groupe_maladie_et_absence_non_payee():
         {"libelle": "Réduction HS structurelles (jours d'absence)", "perte": 110.0},
     ]}, importe=True)
     assert calculer_base_dixieme(1000.0, lignes).base == 1880.0
+
+
+class TestCumulPartiel:
+    """Le cumul de janvier à mai ne vaut pas la rémunération de juin à mai (R-251)."""
+
+    DEBUT, FIN = date(2025, 6, 1), date(2026, 5, 31)
+    CUMULS = {
+        "brut_reference_n_1": 19357.05,
+        "brut_reference_period_start": "2025-06-01",
+        "brut_total": 19357.05,
+    }
+
+    def _base(self, cumuls, **kw):
+        with patch("app.modules.payroll.infrastructure.reference_dixieme.lire_bulletins_reference", return_value=[]):
+            return base_de_reference(None, "s", self.DEBUT, self.FIN, cumuls=cumuls, **kw)
+
+    def test_cumul_de_l_annee_civile_ecarte(self):
+        assert self._base(self.CUMULS).base is None
+
+    def test_cumul_de_toute_la_periode_garde(self):
+        cumuls = {**self.CUMULS, "brut_reference_n_1": 40000.0}
+        assert self._base(cumuls).base == 40000.0
+
+    def test_entree_dans_l_annee_civile_le_cumul_couvre_la_periode(self):
+        assert self._base(self.CUMULS, entree=date(2026, 1, 5)).base == 19357.05
