@@ -138,3 +138,39 @@ def test_la_lecture_rend_les_lignes_et_les_corrections_en_attente():
     assert [l.code for l in modele.lignes] == ["brut:salaire_base", "cotisation:allocations_familiales"]
     assert modele.lignes[0].mode == "base_ou_taux"
     assert modele.en_attente[0].saisie_id == "c3" and modele.en_attente[0].raison == "Ligne disparue."
+
+
+def test_la_saisie_que_le_bulletin_ne_porte_pas_est_listee_et_retirable():
+    """Un recalcul refusé laisse la saisie écrite et le bulletin inchangé : la table la dit."""
+    reponse = MagicMock(
+        data={"payslip_data": DONNEES, "employee_id": "emp-1", "year": 2026, "month": 8, "contract_period_id": None}
+    )
+    client = MagicMock()
+    client.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = reponse
+    saisies = [
+        {"id": "c7", "correction_ligne": {"type": "correction_ligne", "ligne": "cotisation:reduction_generale",
+                                          "libelle": "Réduction générale", "motif": "Erreur"}},
+        {"id": "r2", "correction_ligne": {"type": "regularisation_cotisation", "coti_id": "reduction_generale",
+                                          "libelle": "Réduction générale", "motif": "Régul"}},
+    ]
+    with patch.object(lecture, "supabase", client), patch.object(lecture, "_saisies_de_correction", return_value=saisies):
+        modele = LignesCorrigeablesResponse(**lecture.lire_lignes_corrigeables("ps-1"))
+    assert [(a.saisie_id, a.ligne) for a in modele.en_attente] == [
+        ("c7", "cotisation:reduction_generale"),
+        ("r2", "reduction_generale"),
+    ]
+    assert all("refusée" in a.raison for a in modele.en_attente)
+
+
+def test_une_saisie_portee_par_le_bulletin_n_est_pas_listee():
+    corrigee = {**SALAIRE, "correction": {**_c().trace(), "saisie_id": "c1"}}
+    donnees = {**DONNEES, "calcul_du_brut": [corrigee]}
+    reponse = MagicMock(
+        data={"payslip_data": donnees, "employee_id": "emp-1", "year": 2026, "month": 8, "contract_period_id": None}
+    )
+    client = MagicMock()
+    client.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = reponse
+    saisies = [{"id": "c1", "correction_ligne": {"type": "correction_ligne", "ligne": "brut:salaire_base"}}]
+    with patch.object(lecture, "supabase", client), patch.object(lecture, "_saisies_de_correction", return_value=saisies):
+        modele = LignesCorrigeablesResponse(**lecture.lire_lignes_corrigeables("ps-1"))
+    assert modele.en_attente == []

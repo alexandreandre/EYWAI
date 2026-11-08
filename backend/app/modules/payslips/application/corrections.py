@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -48,6 +49,7 @@ from app.modules.payslips.application.primes_editees import (
 from app.modules.payslips.domain.corrections import (
     CorrectionsBulletin,
     corrections_pour_revenir,
+    refus_de_la_reduction_generale,
     refus_des_corrections,
     resume_des_corrections,
 )
@@ -294,12 +296,22 @@ def _marquer_recalcul_en_attente(payslip_id: str, erreur: str) -> None:
         logger.exception("[correction] Marque « recalcul en attente » non posée sur %s", payslip_id)
 
 
-def _recalculer(
-    bulletin: dict[str, Any], cmd: CorrigerBulletinInput, motif: str
-) -> tuple[str | None, dict[str, Any] | None]:
+@dataclass(frozen=True)
+class _Recalcul:
+    """Ce que le recalcul rend à l'écran : l'échec, ou la suite du bulletin."""
+
+    erreur: str | None = None
+    refus: dict[str, Any] | None = None
+    warnings: tuple[Any, ...] = ()
+    mois_suivant: dict[str, Any] | None = None
+
+
+def _recalculer(bulletin: dict[str, Any], cmd: CorrigerBulletinInput, motif: str) -> _Recalcul:
     """Régénère le bulletin ; s'il échoue, rend le message d'erreur et, pour un
     refus structuré (heures sur un jour d'arrêt…), son `{code, message, **details}`
-    — celui que la génération rend en HTTP, pour que l'écran propose la sortie."""
+    — celui que la génération rend en HTTP, pour que l'écran propose la sortie.
+    S'il réussit, rend le même signal que « Régénérer » : les cumuls ont pu
+    changer, et le mois suivant part d'eux."""
     try:
         resultat = generate_payslip(
             GeneratePayslipInput(
@@ -324,14 +336,20 @@ def _recalculer(
         erreur = _message_d_erreur(exc)
         _marquer_recalcul_en_attente(str(bulletin["id"]), erreur)
         refus = exc.detail_http() if isinstance(exc, PayslipRefusStructure) else None
-        return erreur, refus
-    return None, None
+        return _Recalcul(erreur=erreur, refus=refus)
+    warnings = getattr(resultat, "warnings", None)
+    mois_suivant = getattr(resultat, "mois_suivant_a_recalculer", None)
+    return _Recalcul(
+        warnings=tuple(warnings) if isinstance(warnings, (list, tuple)) else (),
+        mois_suivant=mois_suivant if isinstance(mois_suivant, dict) else None,
+    )
 
 
 def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
     """Écrit les corrections comme variables du mois, puis recalcule le bulletin.
 
-    Rend `{"payslip", "new_pdf_url", "recalcule", "recalcul_erreur", "recalcul_refus"}`.
+    Rend `{"payslip", "new_pdf_url", "recalcule", "recalcul_erreur", "recalcul_refus",
+    "warnings", "mois_suivant_a_recalculer"}`.
     """
     bulletin = _lire_bulletin(cmd.payslip_id)
     if not bulletin:
@@ -341,7 +359,9 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
 
     corrections = cmd.corrections
     if cmd.verifier_les_lignes:
-        refus = refus_des_corrections(corrections, bulletin.get("payslip_data"))
+        refus = refus_des_corrections(
+            corrections, bulletin.get("payslip_data")
+        ) or refus_de_la_reduction_generale(corrections, bulletin.get("payslip_data"))
         if refus:
             raise PayslipBadRequestError(refus)
     note_pdf_changee = _note_pdf_changee(bulletin, cmd.pdf_notes)
@@ -363,7 +383,7 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
         )
     motif = (cmd.changes_summary or "").strip() or resume_des_corrections(corrections)
 
-    recalcule, erreur, refus = False, None, None
+    recalcule, recalcul = False, _Recalcul()
     with verrou_de_generation(periode["employee_id"], periode["year"], periode["month"]):
         # Une note interne seule ne change pas le bulletin remis : il reste
         # validé [J1]. Un montant ou la note du PDF, si.
@@ -381,8 +401,8 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
         _enregistrer_notes(bulletin, cmd, note_pdf_changee, note_interne)
         if corrections.change_des_variables:
             _ecrire_variables(corrections, periode, bulletin.get("contract_period_id"))
-            erreur, refus = _recalculer(bulletin, cmd, motif)
-            recalcule = erreur is None
+            recalcul = _recalculer(bulletin, cmd, motif)
+            recalcule = recalcul.erreur is None
         elif note_pdf_changee:
             _archiver_avant_reimpression(bulletin, cmd, motif)
             reimprimer_bulletin(cmd.payslip_id)
@@ -392,8 +412,10 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
         "payslip": frais,
         "new_pdf_url": frais.get("url"),
         "recalcule": recalcule,
-        "recalcul_erreur": erreur,
-        "recalcul_refus": refus,
+        "recalcul_erreur": recalcul.erreur,
+        "recalcul_refus": recalcul.refus,
+        "warnings": list(recalcul.warnings),
+        "mois_suivant_a_recalculer": recalcul.mois_suivant,
     }
 
 

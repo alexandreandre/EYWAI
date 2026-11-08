@@ -5,6 +5,13 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Corrections à la main plus sûres
+- Correction à la main : le net suit un avantage en nature corrigé, et l'OD porte l'avantage (compte à renseigner par société).
+- DSN : une assiette de CSG par nature, plus de base 04 doublée après une correction.
+- Une réduction générale corrigée au-delà du cumul est refusée avant d'écrire ; une saisie refusée par le recalcul est listée et se retire.
+- Après une correction, Martine dit le mois suivant à recalculer. La carte dit que la réduction générale est reprise le mois suivant.
+- Revue : impôt et net relus à la génération ; un écart critique non acquitté bloque la validation.
+
 ### La DSN refuse un mois repris et une cotisation sans code
 - Un mois payé avec l'ancien logiciel ne se déclare plus depuis Martine : l'aperçu l'explique et indique le premier mois à déclarer.
 - Une cotisation qui porte un montant sans avoir de code DSN arrête le fichier au lieu d'être oubliée : l'aperçu nomme le salarié et la cotisation, et dit quoi faire.

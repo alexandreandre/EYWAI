@@ -247,3 +247,50 @@ def test_le_total_patronal_imprime_suit_la_somme_des_lignes():
     assert alertes[0].value_n == 139.98
     assert alertes[0].value_n1 == 140.0
     assert alertes[0].delta_eur == -0.02
+
+
+# --- Net et impôt relus [R-170] : les erreurs injectées doivent lever ---
+
+
+def _avec_net(net=1500.0, avant_impot=1600.0, base=1800.0, taux=5.56, impot=100.08):
+    bulletin = _bulletin()
+    bulletin["net_a_payer"] = round(avant_impot - impot, 2) if net is None else net
+    bulletin["synthese_net"] = {
+        "net_social_avant_impot": avant_impot,
+        "impot_prelevement_a_la_source": {"base": base, "taux": taux, "montant": impot},
+    }
+    return bulletin
+
+
+def test_un_bulletin_coherent_avec_impot_ne_leve_rien():
+    assert anomalies_du_bulletin(_avec_net(net=1499.92)) == []
+
+
+def test_un_impot_qui_ne_suit_pas_sa_base_leve_b05():
+    alertes = {a.rule_id: a for a in anomalies_du_bulletin(_avec_net(net=1399.92, impot=200.08))}
+    assert "B05" in alertes
+    assert alertes["B05"].level == "CRITIQUE"
+    assert alertes["B05"].delta_eur == 100.0
+
+
+def test_un_net_gonfle_leve_b06():
+    alertes = {a.rule_id: a for a in anomalies_du_bulletin(_avec_net(net=1599.92))}
+    assert set(alertes) == {"B06"}
+    assert alertes["B06"].delta_eur == 100.0
+
+
+def test_un_centime_sur_le_net_ne_leve_pas():
+    assert anomalies_du_bulletin(_avec_net(net=1499.93)) == []
+
+
+def test_un_bulletin_repris_n_est_pas_relu_sur_son_net():
+    """Repris de l'ancien logiciel : son net avant impôt n'est pas celui du moteur."""
+    bulletin = _avec_net(net=1599.92)
+    bulletin["reprise"] = {"source": "ancien_logiciel"}
+    assert "B06" not in {a.rule_id for a in anomalies_du_bulletin(bulletin)}
+
+
+def test_sans_impot_lisible_aucune_alerte_d_impot():
+    bulletin = _avec_net(net=1499.92)
+    del bulletin["synthese_net"]["impot_prelevement_a_la_source"]["taux"]
+    assert "B05" not in {a.rule_id for a in anomalies_du_bulletin(bulletin)}

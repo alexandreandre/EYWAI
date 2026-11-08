@@ -13,6 +13,7 @@ import {
   infobulleARecalculer,
   jobDeLaSuite,
   messageARecalculer,
+  phrasesApresCorrection,
   phraseSuiteARecalculer,
   montantsDepuisLigne,
   montantsDepuisReponse,
@@ -467,5 +468,24 @@ describe('etapeDuRecalculDemande — jamais « rien à recalculer » sans avoir 
   it('une lecture en échec : on le dit, sans prétendre que tout est à jour', () => {
     expect(etapeDuRecalculDemande({ ...pret, salaries: 'erreur' })).toBe('lecture_impossible');
     expect(etapeDuRecalculDemande({ ...pret, bulletins: 'erreur' })).toBe('lecture_impossible');
+  });
+});
+
+describe('phrasesApresCorrection : la correction dit ce que dit la régénération', () => {
+  it('nomme le mois suivant à recalculer', () => {
+    const phrases = phrasesApresCorrection({ mois_suivant_a_recalculer: { year: 2026, month: 10 } });
+    expect(phrases).toHaveLength(1);
+    expect(phrases[0]).toContain('octobre 2026');
+  });
+
+  it('rend les alertes du recalcul, et le mois suivant validé', () => {
+    const phrases = phrasesApresCorrection({
+      warnings: [{ code: 'mois_suivant_valide', severity: 'info', message: 'Octobre est validé.' }],
+    });
+    expect(phrases).toEqual(['Octobre est validé.']);
+  });
+
+  it('ne dit rien quand il n’y a rien', () => {
+    expect(phrasesApresCorrection({})).toEqual([]);
   });
 });

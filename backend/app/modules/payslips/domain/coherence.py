@@ -15,8 +15,11 @@ from app.modules.payroll.domain.empreinte_entrees import (  # noqa: F401 — ré
     MESSAGE_A_REGENERER,
 )
 from app.modules.payroll.engine.corrections_manuelles import CLE_CORRECTIONS_EN_ATTENTE
+from app.modules.payslips.domain.anomalies_bulletin import anomalies_critiques_actives
 
 _TOLERANCE = 0.011
+
+CONSIGNE_ANOMALIE = "Corrigez le bulletin, ou acquittez cette alerte dans la revue du mois, avant de valider."
 
 MESSAGE_RECALCUL_EN_ATTENTE = (
     "Le bulletin n'a pas été recalculé après la dernière correction : "
@@ -56,6 +59,9 @@ def raisons_de_ne_pas_valider(
         raisons.append(raison_a_recalculer)
     if verification_en_cours:
         raisons.append(MESSAGE_VERIFICATION_EN_COURS)
+    raisons.extend(
+        f"{alerte.message} {CONSIGNE_ANOMALIE}" for alerte in anomalies_critiques_actives(payslip_data)
+    )
     return raisons
 
 

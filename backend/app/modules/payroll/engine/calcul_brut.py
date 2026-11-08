@@ -970,7 +970,13 @@ def montant_avantages_en_nature(contexte: ContextePaie) -> float:
     comme à l'heure, prêt employeur compris.
     """
     ligne = _construire_ligne_avantages_en_nature(contexte)
-    return float(ligne["gain"]) if ligne else 0.0
+    if not ligne:
+        return 0.0
+    # La ligne corrigée à la main fait foi : relire le contrat verserait en
+    # argent l'écart entre sa valeur et la correction. Le journal ne se consomme
+    # pas : la ligne du brut, posée à part, y retrouve la même correction.
+    LignesCorrigees(journal_du_contexte(contexte), BLOC_BRUT, [ligne])
+    return float(ligne.get("gain") or 0.0)
 
 
 def _calculer_prime_anciennete(

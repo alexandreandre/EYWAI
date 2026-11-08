@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from app.core.database import supabase
+from app.modules.payslips.domain.anomalies_bulletin import anomalies_critiques_actives
 from app.modules.employees.infrastructure.repository import EmployeeRepository
 from app.modules.onboarding.domain.profile import (
     missing_payroll_fields,
@@ -774,6 +775,8 @@ def _generer_sous_verrou(
         _signaler_documents_de_sortie(employee, cmd.year, cmd.month)
 
     warnings: list[Any] = list(result.get("warnings") or [])
+    if str(result.get("status") or "") == "success" and result.get("payslip_id"):
+        warnings.extend(_alertes_de_coherence(str(result["payslip_id"])))
     if calendar_warning:
         warnings.append(calendar_warning)
         if str(result.get("status") or "") == "success":
@@ -823,6 +826,30 @@ def _generer_sous_verrou(
         heures_sup=result.get("heures_sup"),
         mois_suivant_a_recalculer=suite,
     )
+
+
+def _alertes_de_coherence(payslip_id: str) -> list[dict[str, Any]]:
+    """La revue relit le bulletin qu'on vient d'écrire : un écart se voit tout de suite.
+
+    Une aide : si la lecture échoue, la génération reste un succès, et la
+    validation repassera par la même règle.
+    """
+    try:
+        lu = (
+            supabase.table("payslips")
+            .select("payslip_data")
+            .eq("id", payslip_id)
+            .maybe_single()
+            .execute()
+        )
+        donnees = lu.data.get("payslip_data") if lu and lu.data else None
+        return [
+            {"code": f"revue_{alerte.rule_id}", "message": alerte.message}
+            for alerte in anomalies_critiques_actives(donnees)
+        ]
+    except Exception:  # noqa: BLE001 — une aide, jamais un échec de la génération
+        logger.warning("Revue du bulletin %s illisible après génération.", payslip_id, exc_info=True)
+        return []
 
 
 def _fetch_payslip_status(payslip_id: str) -> dict[str, Any] | None:

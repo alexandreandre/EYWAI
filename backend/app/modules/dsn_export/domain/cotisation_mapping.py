@@ -27,6 +27,7 @@ La nomenclature des codes est publique : voir `nomenclature_cotisation.py`.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, replace
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Optional, Tuple
@@ -451,6 +452,16 @@ def _tmax_applicable(lignes: List[Dict[str, Any]]) -> float:
     return TMAX_FNAL_MOINS_50
 
 
+def _nature_csg(libelle_bas: str) -> str:
+    """Ce qui reste du libellé sans les mots CSG, CRDS et déductible.
+
+    « CSG déductible IJSS » et « CSG/CRDS IJSS non déductible » portent la même
+    assiette ; « CSG/CRDS sur HS non déductible » en porte une autre.
+    """
+    reste = re.sub(r"csg|crds|non\s+d[ée]ductible|d[ée]ductible|[/—–-]", " ", libelle_bas)
+    return " ".join(reste.split())
+
+
 def _csg_et_crds(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
     """Regroupe toutes les lignes de CSG/CRDS du bulletin en `072` + `079`.
 
@@ -477,11 +488,11 @@ def _csg_et_crds(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
     bulletin repris de l'ancien logiciel, dont l'assiette affichée n'est pas
     celle du calcul) garde ses montants, moins sa CRDS.
     """
-    assiette_salaires = 0.0
+    # nature de la ligne → (assiettes non déductibles, assiettes déductibles)
+    assiettes: Dict[str, Tuple[set, set]] = {}
     crds_isolee = 0.0
     deductibles: Dict[float, List[Tuple[float, float]]] = {}
     non_deductibles: Dict[float, List[Tuple[float, float]]] = {}
-    vues: set = set()
 
     for ligne in lignes:
         coti_id = str(ligne.get("coti_id") or "")
@@ -494,28 +505,29 @@ def _csg_et_crds(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
             continue
         assiette, sal, pat, taux_sal, _ = _parts(ligne)
         montant = round(sal + pat, 2)
-        if coti_id == "crds":
-            crds_isolee += montant
-        elif (
+        est_non_deductible = coti_id == "crds" or (
             coti_id == "csg_non_deductible"
             or "non déductible" in libelle_bas
             or "non deductible" in libelle_bas
             or abs(taux_sal) > TAUX_CSG_DEDUCTIBLE + 1e-9
-        ):
+        )
+        if coti_id == "crds":
+            crds_isolee += montant
+        elif est_non_deductible:
             # Non déductible (2,90 % ou 9,70 %), participation comprise, qui
             # n'a pas d'identifiant : la CRDS y est incluse.
             non_deductibles.setdefault(round(abs(taux_sal), 4), []).append((assiette, montant))
         else:
             deductibles.setdefault(round(abs(taux_sal), 4), []).append((assiette, montant))
-        if assiette <= 0:
-            continue
-        # Une même assiette porte la CSG déductible et la non déductible : ne la
-        # compter qu'une fois.
-        cle = round(assiette, 2)
-        if cle in vues:
-            continue
-        vues.add(cle)
-        assiette_salaires += assiette
+        if assiette > 0:
+            cote = assiettes.setdefault(_nature_csg(libelle_bas), (set(), set()))
+            cote[0 if est_non_deductible else 1].add(round(assiette, 2))
+
+    # Une assiette par nature (salaire, heures sup, IJSS, prime…), lue sur la
+    # ligne non déductible qui la porte entière. Comparer les valeurs doublait
+    # l'assiette dès qu'une correction en écartait les deux lignes, et confondait
+    # deux natures de même valeur.
+    assiette_salaires = sum(sum(nd or ded) for nd, ded in assiettes.values())
 
     def coherent(groupe: List[Tuple[float, float]], taux: float) -> bool:
         return all(abs(_arrondi(a * taux) - m) < 0.005 for a, m in groupe)

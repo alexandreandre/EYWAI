@@ -158,6 +158,7 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
     from app.modules.exports.domain.accounting_plan import (
         FAMILLE_ACOMPTE_VERSE,
         FAMILLE_AVANCE_PARTICIPATION,
+        FAMILLE_AVANTAGE_EN_NATURE,
         FAMILLE_INCONNUE,
         FAMILLE_NOTE_DE_FRAIS,
         FAMILLE_PARTICIPATION,
@@ -170,6 +171,18 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
     synthese = payslip_data.get("synthese_net")
     if not isinstance(synthese, dict):
         synthese = {}
+
+    # Au brut pour porter cotisations et impôt, retirée du net : sans cet
+    # élément, l'OD garde un résidu égal à la valeur de l'avantage.
+    avantages_en_nature = float(synthese.get("avantages_en_nature", 0) or 0)
+    if avantages_en_nature != 0:
+        elements.append(
+            {
+                "famille": FAMILLE_AVANTAGE_EN_NATURE,
+                "libelle": "Avantages en nature",
+                "montant": -avantages_en_nature,
+            }
+        )
 
     retenues_reprises = payslip_data.get("retenues_sur_net")
     if isinstance(retenues_reprises, list):
