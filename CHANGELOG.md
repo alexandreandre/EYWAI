@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### La revue d'avant-paie rappelle les prêts et les saisies à poser
+- Si l'ancien logiciel retenait un prêt ou une saisie en septembre et que rien n'est ouvert dans Martine, la revue le dit, salarié par salarié, avec le montant et le lien.
+- Rappel pendant les trois mois qui suivent la reprise. Il ne bloque pas : la retenue ne part que si le prêt ou la saisie est posé.
+
 ### La liste de contrôle du mois dit ce qui manque encore
 - Deux nouvelles lignes sur la page Paie : les taux d'impôt manquants ou périmés, et le compte bancaire de la société.
 - Chaque ligne dit quoi faire et où. Un taux absent passait à la grille par défaut sans prévenir sur cette page.

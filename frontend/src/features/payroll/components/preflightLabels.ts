@@ -15,6 +15,7 @@ export const PREFLIGHT_ANOMALY_TYPE_LABELS: Record<PreflightAnomalyType, string>
   fenetre_modifiee: 'Fenêtre modifiée',
   fiche_dsn: 'Fiche à compléter (DSN)',
   absent_a_typer: 'Absent sans type',
+  retenue_a_poser: 'Prêt ou saisie à poser',
 };
 
 export const PREFLIGHT_ANOMALY_TYPE_ORDER: PreflightAnomalyType[] = [
@@ -29,6 +30,7 @@ export const PREFLIGHT_ANOMALY_TYPE_ORDER: PreflightAnomalyType[] = [
   'fenetre_modifiee',
   'pointage',
   'conflit_absence',
+  'retenue_a_poser',
 ];
 
 export const PREFLIGHT_RESOLUTION_MOTIF_LABELS: Record<PreflightResolutionMotif, string> = {
@@ -65,6 +67,9 @@ export function verifyPathForAnomaly(anomaly: PreflightAnomaly): string {
   }
   if (anomaly.type === 'fiche_dsn') {
     return lienModifierFiche(anomaly.employee_id);
+  }
+  if (anomaly.type === 'retenue_a_poser') {
+    return anomaly.sub_type === 'pret' ? '/employee-loans' : '/salary-seizures';
   }
   if (anomaly.type === 'fenetre_modifiee') {
     // Le remède est de régénérer : le lancement de paie.

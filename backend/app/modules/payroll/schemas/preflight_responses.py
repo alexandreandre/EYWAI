@@ -17,6 +17,7 @@ PreflightAnomalyType = Literal[
     "fenetre_modifiee",
     "fiche_dsn",
     "absent_a_typer",
+    "retenue_a_poser",
 ]
 
 PreflightAnomalySeverity = Literal["bloquant", "a_verifier"]
@@ -82,6 +83,7 @@ class PreflightAnomalyCounts(BaseModel):
     fenetre_modifiee: int = 0
     fiche_dsn: int = 0
     absent_a_typer: int = 0
+    retenue_a_poser: int = 0
     bloquant: int = 0
     a_verifier: int = 0
 

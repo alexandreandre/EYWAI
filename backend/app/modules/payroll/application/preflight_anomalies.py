@@ -8,12 +8,19 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
 from app.shared.domain.pluriel import pluriel
+from app.shared.reprise_paie import ORIGINE_IMPORTE, lire_bascule, rang_du_mois
 from app.core.database import supabase
+from app.core.logging import get_logger
 from app.modules.badgeuse.application import punch_service as badgeuse_service
 from app.modules.dsn_export.domain.fiche_a_completer import manques_fiche_dsn
 from app.modules.payroll.application.periode_variables_service import (
     bulletins_sur_une_autre_fenetre,
     resoudre_fenetre_variables,
+)
+from app.modules.payroll.domain.retenues_reprises import (
+    MOIS_DE_RAPPEL,
+    message_retenue,
+    retenues_du_bulletin_repris,
 )
 from app.modules.payroll.infrastructure import preflight_repository
 from app.modules.payroll.schemas.preflight_responses import (
@@ -40,6 +47,8 @@ from app.modules.schedules.domain.ecart_rules import (
 from app.modules.schedules.domain.periode_a_saisir import libelle_plages, raisons_en_clair
 from app.shared.domain.employment_rules import is_forfait_jour
 from app.shared.domain.periode_variables import semaines_iso
+
+logger = get_logger(__name__)
 
 OPEN_STATUSES = frozenset({"a_traiter"})
 
@@ -100,6 +109,8 @@ def _build_counts(anomalies: List[PreflightAnomaly]) -> PreflightAnomalyCounts:
             counts.fiche_dsn += 1
         elif a.type == "absent_a_typer":
             counts.absent_a_typer += 1
+        elif a.type == "retenue_a_poser":
+            counts.retenue_a_poser += 1
         if a.severity == "bloquant":
             counts.bloquant += 1
         else:
@@ -150,6 +161,84 @@ def _anomalies_fiche_dsn(
                 message=message,
             )
         )
+    return anomalies
+
+
+def _anomalies_retenues_a_poser(
+    company_id: str, year: int, month: int, employees: List[Dict[str, Any]]
+) -> List[PreflightAnomaly]:
+    """Prêts et saisies du dernier bulletin repris, sans prêt ni saisie ouverts dans Martine.
+
+    Regardé les premiers mois après la bascule. Jamais bloquant, et sans effet sur la
+    revue si la lecture échoue : c'est un rappel, pas un contrôle du calcul.
+    """
+    try:
+        bascule = lire_bascule(company_id)
+        if bascule is None or not 1 <= rang_du_mois(year, month) - bascule.rang <= MOIS_DE_RAPPEL:
+            return []
+        ids = [str(e["id"]) for e in employees]
+        bulletins = (
+            supabase.table("payslips")
+            .select("employee_id, payslip_data")
+            .eq("company_id", company_id)
+            .eq("year", bascule.annee)
+            .eq("month", bascule.mois)
+            .eq("origine", ORIGINE_IMPORTE)
+            .in_("employee_id", ids)
+            .execute()
+            .data
+            or []
+        )
+        prets = (
+            supabase.table("employee_loans")
+            .select("employee_id")
+            .eq("company_id", company_id)
+            .in_("status", ["draft", "active"])
+            .execute()
+            .data
+            or []
+        )
+        saisies = (
+            supabase.table("salary_seizures")
+            .select("employee_id")
+            .eq("company_id", company_id)
+            .eq("status", "active")
+            .execute()
+            .data
+            or []
+        )
+    except Exception:  # noqa: BLE001 - un rappel ne doit pas faire tomber la revue
+        logger.warning("Retenues reprises illisibles pour la société %s", company_id, exc_info=True)
+        return []
+    ouverts = {
+        "pret": {str(p["employee_id"]) for p in prets},
+        "saisie": {str(s["employee_id"]) for s in saisies},
+    }
+    par_id = {str(e["id"]): e for e in employees}
+    anomalies: List[PreflightAnomaly] = []
+    for bulletin in bulletins:
+        eid = str(bulletin["employee_id"])
+        emp = par_id.get(eid)
+        if emp is None:
+            continue
+        retenues = retenues_du_bulletin_repris(bulletin.get("payslip_data"))
+        for nature in ("pret", "saisie"):
+            du_type = [r for r in retenues if r.nature == nature]
+            if not du_type or eid in ouverts[nature]:
+                continue
+            anomalies.append(
+                PreflightAnomaly(
+                    id=_anomaly_id(eid, f"retenue_a_poser_{nature}"),
+                    employee_id=eid,
+                    employee_name=_employee_name(emp.get("first_name"), emp.get("last_name")),
+                    team_id=str(emp["team_id"]) if emp.get("team_id") else None,
+                    type="retenue_a_poser",
+                    sub_type=nature,
+                    severity="a_verifier",
+                    status="a_traiter",
+                    message=" ".join(message_retenue(r, bascule.libelle) for r in du_type),
+                )
+            )
     return anomalies
 
 
@@ -522,6 +611,7 @@ def build_preflight_anomalies(
         )
 
     anomalies.extend(anomalies_fiche_dsn)
+    anomalies.extend(_anomalies_retenues_a_poser(company_id, year, month, employees))
     counts = _build_counts(anomalies)
     total_open = sum(1 for a in anomalies if a.status in OPEN_STATUSES)
     total_treated = len(anomalies) - total_open

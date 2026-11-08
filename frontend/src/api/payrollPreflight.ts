@@ -9,7 +9,8 @@ export type PreflightAnomalyType =
   | 'hs_pointage_a_valider'
   | 'fenetre_modifiee'
   | 'fiche_dsn'
-  | 'absent_a_typer';
+  | 'absent_a_typer'
+  | 'retenue_a_poser';
 
 export type PreflightAnomalySeverity = 'bloquant' | 'a_verifier';
 
@@ -72,6 +73,7 @@ export interface PreflightAnomalyCounts {
   fenetre_modifiee?: number;
   fiche_dsn?: number;
   absent_a_typer?: number;
+  retenue_a_poser?: number;
   bloquant: number;
   a_verifier: number;
 }
