@@ -67,6 +67,18 @@ def _find_existing_type(
     return None
 
 
+def _libelle_pris(client: Any, company_id: str, libelle: str) -> bool:
+    resp = (
+        client.table("company_mutuelle_types")
+        .select("id")
+        .eq("company_id", company_id)
+        .eq("libelle", libelle)
+        .limit(1)
+        .execute()
+    )
+    return bool(resp.data)
+
+
 def sync_employee_psc_catalog(
     company_id: str,
     employee_id: str,
@@ -123,6 +135,14 @@ def sync_employee_psc_catalog(
 
     client = get_supabase_admin_client()
     mutuelle_type_id = _find_existing_type(client, company_id, catalog_row)
+
+    if not mutuelle_type_id and _libelle_pris(client, company_id, catalog_row["libelle"]):
+        # Le libellé est unique par société : un autre montant de la même formule
+        # (option famille, temps partiel) prend son montant dans le libellé.
+        catalog_row["libelle"] = (
+            f"{catalog_row['libelle']} · {montant_sal:.2f} € / {montant_pat:.2f} €"
+        )
+        mutuelle_type_id = _find_existing_type(client, company_id, catalog_row)
 
     if not mutuelle_type_id:
         resp = client.table("company_mutuelle_types").insert(catalog_row).execute()
