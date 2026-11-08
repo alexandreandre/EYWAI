@@ -13,11 +13,12 @@ from typing import Any
 from app.modules.payslips.domain.comparison_engine import (
     REGLES_CONNUES,
     PayslipAlert,
+    _apply_alerts_status_from_bulletin,
     _nombre_fr,
     _pct_change,
 )
 
-REGLES_BULLETIN = frozenset({"B01", "B02", "B03", "B04"})
+REGLES_BULLETIN = frozenset({"B01", "B02", "B03", "B04", "B05", "B06"})
 
 
 def regles_acquittables() -> frozenset[str]:
@@ -38,7 +39,23 @@ def anomalies_du_bulletin(payslip_data: dict | None) -> list[PayslipAlert]:
         alertes.append(alerte_brut)
     alertes.extend(_totaux_contre_leurs_lignes(payslip_data))
     alertes.extend(_rubriques_contre_leurs_lignes(payslip_data))
+    alertes.extend(_impot_contre_sa_base(payslip_data))
+    alertes.extend(_net_contre_l_impot(payslip_data))
     return alertes
+
+
+def anomalies_critiques_actives(payslip_data: dict | None) -> list[PayslipAlert]:
+    """Les écarts qui empêchent de valider : ni acquittés, ni sur un bulletin repris.
+
+    Un bulletin sans ligne de brut n'est pas jugé : il ne vient pas du moteur.
+    """
+    if not isinstance(payslip_data, dict) or "reprise" in payslip_data:
+        return []
+    if not payslip_data.get("calcul_du_brut"):
+        return []
+    alertes = anomalies_du_bulletin(payslip_data)
+    _apply_alerts_status_from_bulletin(alertes, payslip_data.get("alerts_status"))
+    return [a for a in alertes if a.level == "CRITIQUE" and a.status == "active"]
 
 
 def _lignes_cotisation(payslip_data: dict) -> Iterator[dict]:
@@ -250,6 +267,61 @@ def _rubriques_contre_leurs_lignes(payslip_data: dict) -> list[PayslipAlert]:
                 )
             )
     return alertes
+
+
+def _impot_du_bulletin(payslip_data: dict) -> dict:
+    synthese = payslip_data.get("synthese_net")
+    impot = synthese.get("impot_prelevement_a_la_source") if isinstance(synthese, dict) else None
+    return impot if isinstance(impot, dict) else {}
+
+
+def _impot_contre_sa_base(payslip_data: dict) -> list[PayslipAlert]:
+    impot = _impot_du_bulletin(payslip_data)
+    if not all(impot.get(cle) is not None for cle in ("base", "taux", "montant")):
+        return []
+    imprime = _nombre(impot.get("montant"))
+    rejoue = round(_nombre(impot.get("base")) * _nombre(impot.get("taux")) / 100.0, 2)
+    ecart = round(imprime - rejoue, 2)
+    if abs(ecart) <= 0.01:
+        return []
+    return [
+        _alerte(
+            "B05",
+            "impot_prelevement_a_la_source",
+            imprime,
+            rejoue,
+            f"L'impôt imprimé est {_euros(imprime)}. Base × taux donne {_euros(rejoue)} : {_sens(ecart)}.",
+        )
+    ]
+
+
+def _net_contre_l_impot(payslip_data: dict) -> list[PayslipAlert]:
+    """Le net à payer est le net avant impôt moins l'impôt, sur un bulletin du moteur.
+
+    Un bulletin repris porte le net avant impôt de l'ancien logiciel : la relation
+    n'y tient pas (806 bulletins sur 2 087 en base).
+    """
+    synthese = payslip_data.get("synthese_net")
+    if "reprise" in payslip_data or not isinstance(synthese, dict):
+        return []
+    avant_impot, impot = synthese.get("net_social_avant_impot"), _impot_du_bulletin(payslip_data).get("montant")
+    if payslip_data.get("net_a_payer") is None or avant_impot is None or impot is None:
+        return []
+    imprime = _nombre(payslip_data.get("net_a_payer"))
+    rejoue = round(_nombre(avant_impot) - _nombre(impot), 2)
+    ecart = round(imprime - rejoue, 2)
+    if abs(ecart) <= 0.01:
+        return []
+    return [
+        _alerte(
+            "B06",
+            "net_a_payer",
+            imprime,
+            rejoue,
+            f"Le net à payer imprimé est {_euros(imprime)}. "
+            f"Le net avant impôt moins l'impôt donne {_euros(rejoue)} : {_sens(ecart)}.",
+        )
+    ]
 
 
 def _alerte(rule_id: str, field: str, imprime: float, rejoue: float, message: str) -> PayslipAlert:
