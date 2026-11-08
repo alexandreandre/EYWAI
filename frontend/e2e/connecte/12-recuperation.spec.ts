@@ -121,6 +121,10 @@ test('compteur de récupération : réglage, bulletin, choix du mois', async ({ 
     gestes.push({ url: route.request().url(), corps: route.request().postDataJSON() });
     await route.fulfill({ json: { status: 'ok' } });
   });
+  // L'aperçu ne fait que rendre le bulletin (POST sans écriture) : simulé, la garde reste stricte.
+  await page.route(`**/api/payslips/${idBulletin}/preview`, async (route) => {
+    await route.fulfill({ json: { html: '<p>Aperçu QA</p>' } });
+  });
   await page.route('**/api/actions/generate-payslip', async (route) => {
     recalculs += 1;
     etat = 'paye';
