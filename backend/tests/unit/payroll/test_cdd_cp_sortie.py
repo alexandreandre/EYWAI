@@ -217,7 +217,9 @@ def test_sans_compteurs_le_dixieme_global_reste_et_le_detail_le_dit():
     iccp = next(v for k, v in gains.items() if "compensatrice de congés" in k)
     assert iccp == pytest.approx(876.74, abs=0.01)
     assert ctx.detail_iccp_fin_contrat["methode"] == "dixieme_global"
-    assert "mention" not in ctx.detail_iccp_fin_contrat
+    # Le repli se dit sur le bulletin et aux RH (R-249) ; son montant ne bouge pas.
+    assert "ne sont pas déduits" in ctx.detail_iccp_fin_contrat["mention"]
+    assert any(a.get("code") == "repli_dixieme_contrat" for a in ctx.alertes_baremes)
 
 
 def test_sans_jour_restant_pas_de_ligne():

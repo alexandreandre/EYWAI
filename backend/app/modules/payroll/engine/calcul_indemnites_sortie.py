@@ -40,6 +40,7 @@ from app.modules.payroll.engine.preavis import (
     jours_de_preavis_restants,
     phrase_execution_preavis,
 )
+from app.modules.payroll.engine.replis import MESSAGE_DIXIEME_CONTRAT_NON_DEDUIT
 from app.modules.payroll.engine.regime_indemnites_rupture import (
     LICENCIEMENT,
     MISE_A_LA_RETRAITE,
@@ -976,6 +977,10 @@ def calculer_indemnite_conges_restants(
     log_payroll_debug(logger, f'    Indemnité (1/10ème): {arbitrage.indemnite_dixieme:.2f} €')
     log_payroll_debug(logger, f'    Indemnité retenue: {indemnite:.2f} €')
 
+    alertes_du_detail = list(arbitrage.alertes)
+    if methode_label == "dixieme_global":
+        alertes_du_detail.append(MESSAGE_DIXIEME_CONTRAT_NON_DEDUIT)
+
     libelles = {
         "maintien": "maintien",
         "dixieme": "1/10ème",
@@ -1007,7 +1012,7 @@ def calculer_indemnite_conges_restants(
             "source_solde": "absences.compute_cp_period_balances",
             "conges_acquis": cp_acquis,
             "conges_pris": cp_pris,
-            "alertes": arbitrage.alertes,
+            "alertes": alertes_du_detail,
         },
     }
 
