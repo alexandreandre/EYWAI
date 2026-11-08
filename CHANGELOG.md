@@ -5,6 +5,15 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Prime d'ancienneté de la métallurgie au forfait jours
+- Elle sortait à zéro pour les salariés au forfait jours non cadres : les jours du forfait n'étaient pas comptés.
+- Elle suit maintenant la convention (article 142) : valeur du point × taux de la classe × années, majorée de 30 % au forfait jours.
+- Là où Quadra applique encore le point de 2025 ou oublie la majoration, Martine suit le texte : l'écart se voit au premier bulletin.
+
+### L'import des DSN ne prend plus la prévoyance pour une mutuelle
+- Chaque cotisation est rattachée à son contrat par les liens de la DSN, plus par l'ordre des lignes.
+- Contrôlé sur les bulletins de septembre de 5 sociétés : mutuelle présente ou absente à juste titre pour 229 salariés sur 229.
+
 ### La part de l'employeur à la mutuelle santé entre toujours dans le net imposable
 - La loi la rend imposable (Code général des impôts, article 83). 68 fiches de Cartol, Mont Blanc et Zone 404 l'en sortaient, comme Quadra.
 - Le net imposable de ces salariés monte du montant de la part employeur ; l'impôt prélevé suit.
