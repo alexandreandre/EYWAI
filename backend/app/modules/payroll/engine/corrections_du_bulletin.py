@@ -25,6 +25,7 @@ from app.modules.payroll.engine.codes_des_lignes import (
 )
 from app.modules.payroll.engine.corrections_manuelles import (
     CLE_CORRECTIONS_EN_ATTENTE,
+    CLE_MARTINE_A_LA_CORRECTION,
     CorrectionDeLigne,
     CorrectionInvalide,
 )
@@ -52,6 +53,8 @@ class LigneCorrigeable:
     montant_patronal: float | None = None
     correction: dict[str, Any] | None = None
     valeur_calculee: dict[str, Any] | None = None
+    #: Martine calcule autre chose qu'à la correction : à relire, rien n'est bloqué.
+    alerte: str | None = None
 
     def en_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -94,6 +97,61 @@ def _impot(data: Mapping[str, Any]) -> Mapping[str, Any] | None:
     return impot if isinstance(impot, Mapping) else None
 
 
+def valeur_de_martine(ligne: LigneCorrigeable) -> dict[str, Any]:
+    """Ce que Martine a calculé sur cette ligne, dans la forme de `valeur_calculee`."""
+    if ligne.valeur_calculee:
+        return dict(ligne.valeur_calculee)
+    if ligne.bloc == BLOC_BRUT:
+        return {
+            "quantite": ligne.base,
+            "taux": ligne.taux,
+            "gain": None if ligne.retenue else ligne.montant,
+            "perte": ligne.montant if ligne.retenue else None,
+        }
+    if ligne.bloc == BLOC_IMPOT:
+        return {"taux": ligne.taux, "montant": ligne.montant}
+    return {
+        "base": ligne.base,
+        "taux_salarial": ligne.taux_salarial,
+        "taux_patronal": ligne.taux_patronal,
+        "montant_salarial": ligne.montant_salarial,
+        "montant_patronal": ligne.montant_patronal,
+    }
+
+
+#: Le champ corrigé, et la valeur de Martine à laquelle le comparer, par bloc.
+_CHAMPS_COMPARES = {
+    BLOC_BRUT: {"base": ("quantite",), "taux": ("taux",), "montant": ("gain", "perte")},
+    BLOC_COTISATIONS: {cle: (cle,) for cle in ("base", "taux_salarial", "taux_patronal", "montant_salarial", "montant_patronal")},
+    BLOC_IMPOT: {"taux": ("taux",)},
+}
+_TOLERANCE_MARTINE = 0.005
+
+
+def alerte_valeur_de_martine(bloc: str, correction: Any, valeur_calculee: Any) -> str | None:
+    """Une phrase si Martine calcule autre chose qu'au moment de la correction.
+
+    Seul ce que la correction remplace compte : une correction de taux n'a pas
+    à s'alarmer que la quantité ait bougé.
+    """
+    if not isinstance(correction, Mapping) or not isinstance(valeur_calculee, Mapping):
+        return None
+    notee = correction.get(CLE_MARTINE_A_LA_CORRECTION)
+    if not isinstance(notee, Mapping):
+        return None
+    for champ, cles in _CHAMPS_COMPARES.get(bloc, {}).items():
+        if correction.get(champ) is None:
+            continue
+        cle = next((c for c in cles if notee.get(c) is not None or valeur_calculee.get(c) is not None), cles[0])
+        if abs((_nombre(notee.get(cle)) or 0.0) - (_nombre(valeur_calculee.get(cle)) or 0.0)) > _TOLERANCE_MARTINE:
+            return (
+                f"Martine calcule maintenant {valeur_calculee_fr(bloc, valeur_calculee)} sur cette ligne, "
+                f"contre {valeur_calculee_fr(bloc, notee)} quand elle a été corrigée à la main. "
+                "La correction reste appliquée : retirez-la si elle n'a plus lieu d'être."
+            )
+    return None
+
+
 def lignes_corrigeables(payslip_data: Any) -> list[LigneCorrigeable]:
     """Chaque ligne du bulletin, son code, par quoi elle se corrige, et sa correction."""
     data = _donnees(payslip_data)
@@ -115,6 +173,7 @@ def lignes_corrigeables(payslip_data: Any) -> list[LigneCorrigeable]:
                 montant=_nombre(ligne.get(champ)),
                 correction=_dict(ligne.get("correction")),
                 valeur_calculee=_dict(ligne.get("valeur_calculee")),
+                alerte=alerte_valeur_de_martine(BLOC_BRUT, ligne.get("correction"), ligne.get("valeur_calculee")),
             )
         )
     cotisations = _lignes_de_cotisation(data)
@@ -134,6 +193,7 @@ def lignes_corrigeables(payslip_data: Any) -> list[LigneCorrigeable]:
                 montant_patronal=_nombre(ligne.get("montant_patronal")),
                 correction=_dict(ligne.get("correction")),
                 valeur_calculee=_dict(ligne.get("valeur_calculee")),
+                alerte=alerte_valeur_de_martine(BLOC_COTISATIONS, ligne.get("correction"), ligne.get("valeur_calculee")),
             )
         )
     impot = _impot(data)
@@ -149,6 +209,7 @@ def lignes_corrigeables(payslip_data: Any) -> list[LigneCorrigeable]:
                 montant=_nombre(impot.get("montant")),
                 correction=_dict(impot.get("correction")),
                 valeur_calculee=_dict(impot.get("valeur_calculee")),
+                alerte=alerte_valeur_de_martine(BLOC_IMPOT, impot.get("correction"), impot.get("valeur_calculee")),
             )
         )
     return sortie

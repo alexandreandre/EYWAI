@@ -47,6 +47,7 @@ from app.modules.payslips.application.primes_editees import (
 )
 from app.modules.payslips.domain.corrections import (
     CorrectionsBulletin,
+    avec_la_valeur_de_martine,
     corrections_pour_revenir,
     refus_des_corrections,
     resume_des_corrections,
@@ -344,6 +345,7 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
         refus = refus_des_corrections(corrections, bulletin.get("payslip_data"))
         if refus:
             raise PayslipBadRequestError(refus)
+        corrections = avec_la_valeur_de_martine(corrections, bulletin.get("payslip_data"))
     note_pdf_changee = _note_pdf_changee(bulletin, cmd.pdf_notes)
     note_interne = (cmd.internal_note or "").strip() or None
     if not (corrections.change_des_variables or note_pdf_changee or note_interne):

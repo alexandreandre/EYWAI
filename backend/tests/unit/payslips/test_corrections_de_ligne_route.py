@@ -104,7 +104,10 @@ def _corriger(corrections, **kwargs):
 def test_corriger_une_ligne_ecrit_une_saisie_du_mois_puis_recalcule(base):
     _corriger(CorrectionsBulletin(corrections_ajoutees=(_c(),)))
     saisie = base.de("monthly_inputs", "insert")[0][2][0]
-    assert saisie["correction_ligne"] == {**_c().charge_utile()}
+    assert saisie["correction_ligne"] == {
+        **_c().charge_utile(),
+        "martine_a_la_correction": {"quantite": 151.67, "taux": 16.4832, "gain": 2500.0, "perte": None},
+    }
     assert saisie["employee_id"] == "emp-1" and saisie["month"] == 8
     assert base.generer.called
 

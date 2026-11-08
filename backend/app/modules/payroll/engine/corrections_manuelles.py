@@ -262,6 +262,7 @@ PAR_MODE = {
     MODE_TAUX: "son taux",
 }
 
+CLE_MARTINE_A_LA_CORRECTION = "martine_a_la_correction"
 _VALEURS = (
     "base",
     "taux",
@@ -320,6 +321,9 @@ class CorrectionDeLigne:
     montant_salarial: float | None = None
     montant_patronal: float | None = None
     saisie_id: str | None = None
+    #: Ce que Martine calculait quand la correction a été posée : si elle calcule
+    #: autre chose ensuite, le bulletin le dit (R-185). Absent des anciennes corrections.
+    martine_a_la_correction: Mapping[str, Any] | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         if not self.ligne.strip():
@@ -373,6 +377,8 @@ class CorrectionDeLigne:
             "motif": self.motif.strip(),
         }
         charge.update({nom: getattr(self, nom) for nom in _VALEURS if getattr(self, nom) is not None})
+        if self.martine_a_la_correction is not None:
+            charge[CLE_MARTINE_A_LA_CORRECTION] = dict(self.martine_a_la_correction)
         return charge
 
     def trace(self) -> dict[str, Any]:
@@ -388,6 +394,11 @@ class CorrectionDeLigne:
             motif=str(donnees.get("motif") or ""),
             **{nom: _nombre(donnees.get(nom)) for nom in _VALEURS},
             saisie_id=str(identifiant) if identifiant else None,
+            martine_a_la_correction=(
+                dict(donnees[CLE_MARTINE_A_LA_CORRECTION])
+                if isinstance(donnees.get(CLE_MARTINE_A_LA_CORRECTION), Mapping)
+                else None
+            ),
         )
 
     def saisie_du_mois(self, periode: Mapping[str, Any]) -> dict[str, Any]:

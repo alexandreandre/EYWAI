@@ -17,7 +17,7 @@ from app.modules.payslips.domain.comparison_engine import (
     _pct_change,
 )
 
-REGLES_BULLETIN = frozenset({"B01", "B02", "B03", "B04"})
+REGLES_BULLETIN = frozenset({"B01", "B02", "B03", "B04", "B05"})
 
 
 def regles_acquittables() -> frozenset[str]:
@@ -38,7 +38,28 @@ def anomalies_du_bulletin(payslip_data: dict | None) -> list[PayslipAlert]:
         alertes.append(alerte_brut)
     alertes.extend(_totaux_contre_leurs_lignes(payslip_data))
     alertes.extend(_rubriques_contre_leurs_lignes(payslip_data))
+    alertes.extend(_corrections_a_relire(payslip_data))
     return alertes
+
+
+def _corrections_a_relire(payslip_data: dict) -> list[PayslipAlert]:
+    """B05 : Martine calcule autre chose que quand la ligne a été corrigée à la main."""
+    # Import local : le module des corrections importe les codes de lignes.
+    from app.modules.payroll.engine.corrections_du_bulletin import lignes_corrigeables
+
+    return [
+        PayslipAlert(
+            rule_id="B05",
+            level="AVERTISSEMENT",
+            message=f"« {ligne.libelle} » : {ligne.alerte}",
+            field=str(ligne.code),
+            value_n=0.0,
+            value_n1=0.0,
+            delta_pct=0.0,
+        )
+        for ligne in lignes_corrigeables(payslip_data)
+        if ligne.alerte
+    ]
 
 
 def _lignes_cotisation(payslip_data: dict) -> Iterator[dict]:

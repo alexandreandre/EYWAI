@@ -331,6 +331,7 @@ class LigneCorrigeableResponse(BaseModel):
     montant_patronal: float | None = None
     correction: dict[str, Any] | None = None
     valeur_calculee: dict[str, Any] | None = None
+    alerte: str | None = None
 
 
 class CorrectionEnAttenteResponse(BaseModel):
