@@ -1,8 +1,8 @@
 """Attestations à la demande (05/11/2026) : la commande refuse et prépare avant toute écriture.
 
-Deux lettres seulement (décision d'Alexandre) : l'attestation de travail et
+Deux lettres seulement (décision d'Alexandre) : l'attestation d'emploi et
 l'attestation de salaire. Les sept autres types disaient la même chose que
-l'attestation de travail, ou reprenaient le salaire de la fiche au lieu des
+l'attestation d'emploi, ou reprenaient le salaire de la fiche au lieu des
 bulletins ; leur libellé reste pour les documents déjà générés.
 """
 from __future__ import annotations
@@ -38,7 +38,7 @@ def test_deux_types_seulement_les_autres_gardent_leur_libelle():
     assert len(ATTESTATIONS_RETIREES) == 7
     for type_retire in ATTESTATIONS_RETIREES:
         assert DOCUMENT_TYPE_LABELS[type_retire]
-    assert DOCUMENT_TYPE_LABELS["attestation_emploi"] == "Attestation de travail"
+    assert DOCUMENT_TYPE_LABELS["attestation_emploi"] == "Attestation d'emploi"
 
 
 @pytest.mark.parametrize("type_retire", sorted(ATTESTATIONS_RETIREES))
@@ -68,7 +68,7 @@ JEANNE = {
 def generation(monkeypatch):
     """Lecteurs et service remplacés ; renvoie les appels faits au service."""
     appels: list[dict] = []
-    lecteurs = {"bulletins": [], "fin_essai": None, "salarie": dict(JEANNE), "depart": None}
+    lecteurs = {"bulletins": [], "salarie": dict(JEANNE), "depart": None}
 
     monkeypatch.setattr(commands, "_load_employee", lambda *_: dict(lecteurs["salarie"]))
     monkeypatch.setattr(commands, "_load_company", lambda *_: {"company_name": "Société Exemple"})
@@ -77,12 +77,6 @@ def generation(monkeypatch):
         "bulletins_remis_du_salarie",
         lambda employee_id, company_id: list(lecteurs["bulletins"]),
     )
-    monkeypatch.setattr(
-        commands.attestation_queries,
-        "fin_de_periode_d_essai_en_cours",
-        lambda employee_id, company_id: lecteurs["fin_essai"],
-    )
-
     monkeypatch.setattr(
         commands.attestation_queries,
         "dernier_jour_de_depart",
@@ -115,11 +109,12 @@ def test_un_salarie_parti_n_a_pas_d_attestation_de_travail(generation):
     assert appels == []
 
 
-def test_la_periode_d_essai_en_cours_est_passee_a_la_lettre(generation):
-    lecteurs, appels = generation
-    lecteurs["fin_essai"] = "2026-12-01"
+def test_l_attestation_d_emploi_ne_prepare_rien_de_plus_que_le_modele(generation):
+    """Le modèle de la cliente (06/11/2026) ne parle ni de période d'essai ni de départ."""
+    _, appels = generation
     commands.generate_document("soc-1", "rh-1", _demande("attestation_emploi"))
-    assert appels[0]["context"]["periode_essai_fin"] == "2026-12-01"
+    assert appels[0]["context"] == {}
+    assert not hasattr(commands.attestation_queries, "fin_de_periode_d_essai_en_cours")
 
 
 def test_sans_bulletin_remis_pas_d_attestation_de_salaire(generation):
@@ -177,12 +172,13 @@ def test_un_contrat_fini_sur_une_fiche_active_dit_quoi_corriger(generation):
     assert appels == []
 
 
-def test_un_depart_a_venir_est_passe_a_la_lettre(generation):
+def test_un_depart_a_venir_n_empeche_pas_l_attestation(generation):
+    """Encore dans les effectifs le jour de la lettre : c'est ce que dit le modèle."""
     lecteurs, appels = generation
     lecteurs["salarie"].update(employment_status="en_sortie", hire_date="2024-01-15")
     lecteurs["depart"] = date(2026, 11, 30)
     commands.generate_document("soc-1", "rh-1", _demande("attestation_emploi"))
-    assert appels[0]["context"]["depart_prevu"] == "2026-11-30"
+    assert len(appels) == 1
 
 
 def test_le_dernier_jour_du_contrat_est_encore_dans_les_effectifs(generation):

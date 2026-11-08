@@ -34,21 +34,6 @@ def bulletins_remis_du_salarie(employee_id: str, company_id: str) -> list[dict[s
     ]
 
 
-def fin_de_periode_d_essai_en_cours(employee_id: str, company_id: str) -> Optional[str]:
-    """Date de fin de la période d'essai en cours, ou None s'il n'y en a pas."""
-    r = (
-        supabase.table("trial_periods")
-        .select("end_date")
-        .eq("employee_id", employee_id)
-        .eq("company_id", company_id)
-        .eq("status", "en_cours")
-        .limit(1)
-        .execute()
-    )
-    lignes = (r.data or []) if r else []
-    return (lignes[0].get("end_date") or None) if lignes else None
-
-
 def dernier_jour_de_depart(employee_id: str, company_id: str) -> Optional[date]:
     """Le dernier jour travaillé du départ le plus récent (un départ annulé ne compte pas).
 

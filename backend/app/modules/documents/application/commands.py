@@ -239,14 +239,8 @@ def _contexte_attestation(
     if document_type == "attestation_emploi":
         if fini:
             raise ValueError(_refus_attestation_de_travail(nom, parti, dernier_jour, fin))
-        contexte: Dict[str, Any] = {
-            "periode_essai_fin": attestation_queries.fin_de_periode_d_essai_en_cours(
-                employee_id, company_id
-            )
-        }
-        if fin and fin == dernier_jour:
-            contexte["depart_prevu"] = fin.isoformat()
-        return contexte
+        # Le modèle de la cliente (06/11/2026) ne dit ni la période d'essai ni le départ.
+        return {}
 
     nombre = nombre_mois or NOMBRE_DE_MOIS_PAR_DEFAUT
     mois = mois_a_attester(
@@ -273,7 +267,7 @@ def generate_document(
     if request.document_type in ATTESTATIONS_RETIREES:
         raise ValueError(
             "Ce type d'attestation n'existe plus : choisissez l'attestation "
-            "de travail ou l'attestation de salaire."
+            "d'emploi ou l'attestation de salaire."
         )
     if request.document_type not in KNOWN_DOCUMENT_TYPES:
         raise ValueError(f"Type de document inconnu : {request.document_type}")

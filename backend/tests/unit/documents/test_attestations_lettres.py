@@ -1,14 +1,13 @@
-"""Les deux lettres remises à la demande du salarié (05/11/2026).
+"""Les deux lettres remises à la demande du salarié.
 
-Attestation de travail : le « Modèle de lettre - Attestation d'emploi » du
-ministère du Travail (https://code.travail.gouv.fr/modeles-de-courriers/attestation-de-travail,
-mis à jour le 05/06/2023), plus la rémunération et la période d'essai que le
-décret n° 2015-1437 demande pour un bailleur (service-public F1169 : « attestation
-de l'employeur précisant l'emploi et la rémunération proposée, la date d'entrée en
-fonctions envisagée et, si nécessaire, la durée de la période d'essai »).
+Attestation d'emploi (07/11/2026) : le modèle envoyé par la cliente le 06/11/2026
+(« Attestation_emploi », société LEWIS), rien de plus. Cinq lignes dans cet ordre
+(nom et prénom, n° de sécurité sociale, adresse, emploi occupé, reprise
+d'ancienneté), la phrase de présence, la formule finale, le lieu et la date, le
+signataire, la mention du pied de page. Une donnée absente de la fiche est dite
+en toutes lettres : jamais inventée, jamais laissée vide.
 
 Attestation de salaire : les mois préparés par la commande, depuis les bulletins remis.
-Une donnée absente laisse des pointillés : rien n'est inventé.
 """
 from __future__ import annotations
 
@@ -20,7 +19,6 @@ from PyPDF2 import PdfReader
 from app.services.common_attestation_generator import (
     A_COMPLETER,
     CommonAttestationGenerator,
-    anciennete,
 )
 
 pytestmark = pytest.mark.unit
@@ -37,11 +35,14 @@ SALARIEE = {
     "contract_end_date": "2026-12-31",
     "hire_date": "2025-08-01",
     "salaire_de_base": {"valeur": 2200, "type": "mensuel"},
+    "nir": "290046912345678",
+    "seniority_reference_date": "2015-08-01",
 }
 
 SOCIETE = {
     "company_name": "Société Exemple",
     "siret": "12345678900011",
+    "code_naf": "2550B",
     "adresse_rue": "1 avenue de la Gare",
     "adresse_code_postal": "38000",
     "adresse_ville": "Grenoble",
@@ -92,51 +93,141 @@ def test_deux_types_seulement():
         CommonAttestationGenerator().generate("attestation_retraite", SALARIEE, SOCIETE, {})
 
 
-def test_l_attestation_de_travail_suit_le_modele_du_ministere():
+def _dans_l_ordre(texte: str, morceaux) -> None:
+    position = 0
+    for morceau in morceaux:
+        trouve = texte.find(morceau, position)
+        assert trouve >= 0, f"absent ou hors d'ordre : {morceau!r}"
+        position = trouve + len(morceau)
+
+
+def test_l_attestation_d_emploi_suit_le_modele_de_la_cliente():
     texte = _travail()
-    for attendu in (
-        "Attestation de travail",
-        "Paul Signataire, Directeur des ressources humaines, agissant pour le compte "
-        "de la société Société Exemple",
-        "1 avenue de la Gare, 38000 Grenoble",
-        "SIRET 12345678900011",
-        "Madame Jeanne Essai",
-        "12 avril 1990 à Lyon",
-        "12 rue des Lilas, 69003 Lyon",
-        "Opératrice de production",
-        "Contrat à durée déterminée (CDD) jusqu'au 31 décembre 2026",
-        "1er août 2025",
-        "1 an et 3 mois",
-        "2 200,00 €",
-        "fait toujours partie de nos effectifs à la date du 5 novembre 2026",
-        "pour servir et valoir ce que de droit",
-        "Fait à Grenoble, le 5 novembre 2026",
-        "Signature et cachet de l'employeur",
-    ):
-        assert attendu in texte, attendu
-
-
-def test_la_periode_d_essai_n_apparait_que_si_elle_est_en_cours():
-    assert "Période d'essai" not in _travail()
-    assert "Période d'essai en cours jusqu'au 1er décembre 2026" in _travail(
-        periode_essai_fin="2026-12-01"
+    _dans_l_ordre(
+        texte,
+        (
+            "1 avenue de la Gare, 38000 Grenoble",
+            "SIRET : 123 456 789 00011",
+            "Code NAF : 2550B",
+            "ATTESTATION D'EMPLOI",
+            "Nous soussignés, la société Société Exemple, certifions que :",
+            "Nom et prénom Mme Jeanne ESSAI",
+            "N° de sécurité sociale 2 90 04 69 123 456 78",
+            "Adresse 12 rue des Lilas, 69003 Lyon",
+            "Emploi occupé Opératrice de production",
+            "Reprise d'ancienneté 01/08/2015",
+            "est employée au sein de notre entreprise depuis le 01/08/2025 et fait toujours "
+            "partie de nos effectifs à la date de la présente attestation.",
+            "Cette attestation est délivrée à l'intéressée pour servir et valoir ce que de droit.",
+            "Fait à Grenoble, le 05/11/2026",
+            "Nom, qualité et signature de l'employeur",
+            "Paul Signataire",
+            "Directeur des ressources humaines",
+        ),
+    )
+    # Le pied de page, dessiné sur la page, sort en tête du texte extrait.
+    assert (
+        "La présente attestation a été établie conformément à l'article L1221-10 "
+        "du Code du travail." in texte
     )
 
 
-def test_une_donnee_absente_laisse_des_pointilles():
-    salarie = {k: v for k, v in SALARIEE.items() if k not in ("adresse", "sexe")}
+def test_cinq_lignes_et_rien_d_autre():
+    """Le tableau du modèle : cinq lignes, exactement. La fiche en dit plus, la lettre non."""
+    texte = _travail()
+    tableau = texte.split("certifions que :", 1)[1].split(" est employée", 1)[0].strip()
+    assert tableau == (
+        "Nom et prénom Mme Jeanne ESSAI "
+        "N° de sécurité sociale 2 90 04 69 123 456 78 "
+        "Adresse 12 rue des Lilas, 69003 Lyon "
+        "Emploi occupé Opératrice de production "
+        "Reprise d'ancienneté 01/08/2015"
+    )
+    for absent in (
+        "naissance", "1990", "Nature du contrat", "CDD", "Date d'entrée", "Temps de travail",
+        "Rémunération", "2 200", "Période d'essai", "Départ prévu", "Attestation de travail",
+    ):
+        assert absent not in texte, absent
+
+
+def test_la_lettre_d_emploi_ignore_l_essai_et_le_depart():
+    texte = _travail(periode_essai_fin="2026-12-01", depart_prevu="2026-11-30")
+    for absent in ("Période d'essai", "période d'essai", "01/12/2026", "Départ", "30/11/2026"):
+        assert absent not in texte, absent
+
+
+def test_un_nir_absent_est_dit():
+    texte = _travail(employee={**SALARIEE, "nir": None})
+    assert "N° de sécurité sociale Non renseigné sur la fiche salarié Adresse" in texte
+
+
+def test_une_reprise_d_anciennete_absente_est_dite():
+    texte = _travail(employee={**SALARIEE, "seniority_reference_date": None})
+    assert "Reprise d'ancienneté Non renseignée sur la fiche salarié" in texte
+
+
+def test_la_date_d_anciennete_de_la_dsn_sert_a_defaut():
+    specificites = {"dsn_anciennete": {"date_anciennete": "2020-08-01"}}
+    salarie = {**SALARIEE, "seniority_reference_date": None, "specificites_paie": specificites}
+    assert "Reprise d'ancienneté 01/08/2020" in _travail(employee=salarie)
+
+
+def test_chaque_ligne_absente_est_dite():
+    salarie = {**SALARIEE, "adresse": None, "job_title": "", "first_name": None, "last_name": None}
+    texte = _travail(employee=salarie)
+    assert "Nom et prénom Non renseigné sur la fiche salarié" in texte
+    assert "Adresse Non renseignée sur la fiche salarié" in texte
+    assert "Emploi occupé Non renseigné sur la fiche salarié" in texte
+
+
+def test_une_date_d_entree_absente_est_dite():
+    texte = _travail(employee={**SALARIEE, "hire_date": None})
+    assert (
+        "est employée au sein de notre entreprise depuis le (date d'entrée non renseignée "
+        "sur la fiche salarié) et fait toujours partie" in texte
+    )
+
+
+def test_un_nir_deja_espace_est_regroupe_comme_le_modele():
+    texte = _travail(employee={**SALARIEE, "nir": "2 90 04 69 123 456 78"})
+    assert "N° de sécurité sociale 2 90 04 69 123 456 78" in texte
+
+
+def test_un_salarie_au_masculin():
+    texte = _travail(employee={**SALARIEE, "sexe": "M", "first_name": "Paul"})
+    assert "Nom et prénom M. Paul ESSAI" in texte
+    assert "est employé au sein de notre entreprise" in texte
+    assert "délivrée à l'intéressé pour servir" in texte
+
+
+def test_sans_sexe_sur_la_fiche_la_phrase_reste_neutre():
+    texte = _travail(employee={**SALARIEE, "sexe": None})
+    assert "Nom et prénom Jeanne ESSAI" in texte
+    assert "travaille au sein de notre entreprise depuis le 01/08/2025" in texte
+    assert "délivrée à la personne intéressée pour servir" in texte
+    assert "Mme" not in texte and "M." not in texte
+
+
+def test_une_embauche_a_venir_n_est_pas_encore_dans_les_effectifs():
+    texte = _travail(employee={**SALARIEE, "hire_date": "2026-12-01"})
+    assert "sera employée au sein de notre entreprise à compter du 01/12/2026." in texte
+    assert "fait toujours partie" not in texte
+
+
+def test_sans_signataire_la_place_reste_a_remplir():
     societe = {k: v for k, v in SOCIETE.items() if not k.endswith("_signataire_rh")}
-    texte = _travail(employee=salarie, company=societe)
-    assert f"Adresse {A_COMPLETER}" in texte
-    assert f"Nom et fonction du signataire : {A_COMPLETER}" in texte
-    assert "Madame" not in texte and "Monsieur" not in texte
-    assert "Jeanne Essai fait toujours partie" in texte
+    texte = _travail(company=societe)
+    assert f"Nom, qualité et signature de l'employeur {A_COMPLETER}" in texte
 
 
-def test_un_cdi_n_a_pas_de_terme():
-    texte = _travail(employee={**SALARIEE, "contract_type": "CDI"})
-    assert "Contrat à durée indéterminée (CDI)" in texte
-    assert "jusqu'au 31 décembre 2026" not in texte
+def test_une_societe_sans_naf_le_dit():
+    societe = {k: v for k, v in SOCIETE.items() if k != "code_naf"}
+    assert "Code NAF : non renseigné" in _travail(company=societe)
+
+
+def test_le_code_naf_de_la_fiche_entreprise():
+    societe = {**{k: v for k, v in SOCIETE.items() if k != "code_naf"}, "naf_ape": "2550B"}
+    assert "Code NAF : 2550B" in _travail(company=societe)
 
 
 def test_l_attestation_de_salaire_reprend_les_bulletins():
@@ -171,21 +262,6 @@ def test_sans_mois_pas_de_lettre():
         _salaire([])
 
 
-@pytest.mark.parametrize(
-    "debut, jour, attendu",
-    [
-        ("2025-08-01", "2026-11-05", "1 an et 3 mois"),
-        ("2026-10-20", "2026-11-05", "0 mois"),
-        ("2023-11-05", "2026-11-05", "3 ans"),
-        ("2024-01-31", "2026-11-05", "2 ans et 9 mois"),
-    ],
-)
-def test_anciennete(debut, jour, attendu):
-    from datetime import date
-
-    assert anciennete(date.fromisoformat(debut), date.fromisoformat(jour)) == attendu
-
-
 def test_une_rue_saisie_avec_son_numero_en_double():
     """Une fiche du test au 05/11 : le champ rue lui-même porte le numéro deux fois."""
     from app.services.common_attestation_generator import adresse_du_salarie
@@ -205,74 +281,6 @@ def test_le_numero_deja_dans_la_rue_n_est_pas_repete():
     assert adresse_du_salarie({"adresse": {**adresse, "numero": "1", "rue": "10 rue des Lilas"}}) == (
         "1 10 rue des Lilas, 69003 Lyon"
     )
-
-
-# --- Une lettre signée ne dit jamais faux (revue du 05/11/2026) ------------------
-
-
-@pytest.mark.parametrize(
-    "fiche, attendu",
-    [
-        ({"is_forfait_jour": True, "duree_hebdomadaire": 35}, "Forfait jours"),
-        ({"is_forfait_jour": True, "is_temps_partiel": True, "duree_hebdomadaire": 28}, "Forfait jours réduit"),
-        ({"duree_hebdomadaire": 39}, "Temps plein (39 h par semaine)"),
-        ({"duree_hebdomadaire": 35}, "Temps plein (35 h par semaine)"),
-        ({"is_temps_partiel": True, "duree_hebdomadaire": 24.5}, "Temps partiel (24,5 h par semaine)"),
-        ({"duree_hebdomadaire": 20}, "Temps partiel (20 h par semaine)"),
-        ({"is_temps_partiel": True, "duree_hebdomadaire": 35}, "Temps partiel"),
-    ],
-)
-def test_le_temps_de_travail_vient_de_la_fiche(fiche, attendu):
-    texte = _travail(employee={**SALARIEE, **fiche})
-    assert f"Temps de travail {attendu} Rémunération" in texte
-
-
-def test_un_temps_de_travail_inconnu_n_est_pas_devine():
-    assert f"Temps de travail {A_COMPLETER}" in _travail()
-
-
-def test_l_anciennete_reprise_est_celle_du_bulletin():
-    """120 fiches du test ont une reprise antérieure à l'entrée : le bulletin imprime cette date."""
-    texte = _travail(employee={**SALARIEE, "seniority_reference_date": "2015-08-01"})
-    assert "Date d'entrée 1er août 2025" in texte
-    assert "Ancienneté 11 ans et 3 mois (depuis le 1er août 2015)" in texte
-
-
-def test_une_reprise_posterieure_ne_retire_pas_d_anciennete():
-    """Même règle que le moteur (_date_anciennete) : la plus favorable des deux."""
-    texte = _travail(employee={**SALARIEE, "seniority_reference_date": "2026-01-01"})
-    assert "Ancienneté 1 an et 3 mois" in texte
-    assert "(depuis le" not in texte
-
-
-def test_la_date_d_anciennete_de_la_dsn_sert_a_defaut():
-    specificites = {"dsn_anciennete": {"date_anciennete": "2020-08-01"}}
-    texte = _travail(employee={**SALARIEE, "specificites_paie": specificites})
-    assert "Ancienneté 6 ans et 3 mois (depuis le 1er août 2020)" in texte
-
-
-def test_le_terme_d_un_apprenti_vient_de_la_reprise_dsn():
-    """Pour un apprenti, l'écran écrit la fin dans dsn_reprise et vide contract_end_date."""
-    apprenti = {
-        **SALARIEE,
-        "contract_type": "Apprentissage",
-        "contract_end_date": None,
-        "specificites_paie": {"dsn_reprise": {"date_fin_contrat": "2027-08-31"}},
-    }
-    assert "Contrat d'apprentissage jusqu'au 31 août 2027" in _travail(employee=apprenti)
-
-
-def test_un_depart_prevu_est_dit():
-    assert "Départ prévu le 30 novembre 2026" in _travail(depart_prevu="2026-11-30")
-    assert "Départ prévu" not in _travail()
-
-
-def test_une_embauche_a_venir_ne_fait_pas_encore_partie_des_effectifs():
-    """Le décret parle de la « date d'entrée en fonctions envisagée » : le cas existe."""
-    texte = _travail(employee={**SALARIEE, "hire_date": "2026-12-01"})
-    assert "Madame Jeanne Essai rejoindra nos effectifs le 1er décembre 2026" in texte
-    assert "fait toujours partie" not in texte
-    assert "Ancienneté" not in texte
 
 
 def _salaire_contexte(**contexte) -> str:
