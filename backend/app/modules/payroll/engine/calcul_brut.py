@@ -767,12 +767,20 @@ def _calculer_iccp_cdd(
         mois = calculer_base_dixieme(brut_du_mois, lignes_pour_dixieme({"calcul_du_brut": lignes_brut or []}))
         base = float(base_avant) + (mois.base or 0.0)
         montant = round(base * taux, 2)
+        from app.modules.payroll.engine.replis import (
+            CODE_REPLI_DIXIEME_CONTRAT,
+            MESSAGE_DIXIEME_CONTRAT_NON_DEDUIT,
+            signaler_repli,
+        )
+
         contexte.detail_iccp_fin_contrat = {
             "methode": "dixieme_global",
             "base": round(base, 2),
             "taux": taux,
             "montant": montant,
+            "mention": MESSAGE_DIXIEME_CONTRAT_NON_DEDUIT,
         }
+        signaler_repli(contexte, CODE_REPLI_DIXIEME_CONTRAT)
     if montant <= 0:
         return None
 

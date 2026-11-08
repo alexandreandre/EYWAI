@@ -123,6 +123,8 @@ def test_iccp_cdd_sans_compteurs_dixieme_de_la_remuneration_du_contrat(
 
     assert res["montant"] == pytest.approx(1210.0, abs=0.01)
     assert res["details"]["methode_retenue"] == "dixieme_global"
+    # R-249 : le dossier le dit, sans changer le montant.
+    assert any("ne sont pas déduits" in a for a in res["details"]["alertes"])
     assert "iccp_l1243_8" not in res["details"]
     assert "L1243" not in res["calcul"]
     mock_extras.assert_called_once()

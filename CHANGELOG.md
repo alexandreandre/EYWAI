@@ -14,6 +14,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ### L'import du calendrier dit quels codes il ne comprend pas
 - Un code inconnu (« CHOMAGE PARTIEL », « CP SS », « MODUL »…) devenait un congé sans rien dire. Martine les liste maintenant au moment de l'import, avec le nombre de jours, pour que vous les corrigiez à la relecture.
+### Licenciement pour inaptitude et congés de fin de CDD sans compteurs
+- Une case « Licenciement pour inaptitude » dit son origine. Si elle est professionnelle, Martine double l'indemnité légale et ajoute une indemnité compensatrice égale au préavis ; la DSN porte le bon motif.
+- Quand les compteurs de congés manquent à la fin d'un CDD, le bulletin dit que l'indemnité vient du dixième du contrat et que les congés déjà payés ne sont pas déduits. À vérifier avant de valider.
 
 ### Le maintien légal cumule les arrêts des douze derniers mois
 - Quand un salarié a déjà été indemnisé sur un autre arrêt dans l'année écoulée, les jours déjà pris sont déduits de ses droits, comme le prévoit le Code du travail. Le maintien ne repart plus à zéro à chaque arrêt.

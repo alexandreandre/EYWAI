@@ -35,6 +35,7 @@ CODE_REPLI_EVOLUTION_SALAIRE = "repli_evolution_salaire"
 CODE_REPLI_MODULATION = "repli_modulation"
 CODE_REPLI_PRIMES_POSTES = "repli_primes_postes"
 CODE_REPLI_CONGES_FIN_CONTRAT = "repli_conges_fin_contrat"
+CODE_REPLI_DIXIEME_CONTRAT = "repli_dixieme_contrat"
 CODE_REPLI_PRORATA_ANCIENNETE = "repli_prorata_prime_anciennete"
 CODE_REPLI_FORFAIT_ANCIENNETE = "repli_forfait_conges_anciennete"
 CODE_REPLI_REFERENCE_CONGES = "repli_reference_conges"
@@ -47,7 +48,16 @@ CODE_REPLI_AVANTAGE_PRET = "repli_avantage_pret"
 CODE_REPLI_RETENUES_A_RECALCULER = "repli_retenues_a_recalculer"
 CODE_REPLI_RESTE_DU = "repli_reste_du_non_mis_a_jour"
 
+#: Repli de fin de CDD sans compteurs (R-249) : dit sur le bulletin, à la
+#: génération et au dossier de départ.
+MESSAGE_DIXIEME_CONTRAT_NON_DEDUIT = (
+    "Indemnité de congés calculée au dixième de toute la rémunération du contrat, faute de "
+    "compteurs de congés : les congés déjà indemnisés pendant le contrat ne sont pas déduits. "
+    "À vérifier avant de valider ce bulletin."
+)
+
 _MESSAGES: Dict[str, str] = {
+    CODE_REPLI_DIXIEME_CONTRAT: MESSAGE_DIXIEME_CONTRAT_NON_DEDUIT,
     CODE_REPLI_MAINTIEN: (
         "Maintien de salaire non calculé : une erreur a empêché le calcul. "
         "L'arrêt est retiré sans maintien ni indemnités journalières. "

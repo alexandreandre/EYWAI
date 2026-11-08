@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import type { InaptitudeOrigine } from '@/api/employeeExits';
 import {
   createEmployeeExit,
   ExitType,
@@ -116,6 +117,7 @@ export function CreateExitDialog({
   const [lastWorkingDay, setLastWorkingDay] = useState<string>('');
   const [noticePeriodDays, setNoticePeriodDays] = useState<number>(0);
   const [isGrossMisconduct, setIsGrossMisconduct] = useState(false);
+  const [inaptitudeOrigine, setInaptitudeOrigine] = useState<InaptitudeOrigine | 'aucune'>('aucune');
   const [noticeIndemnityType, setNoticeIndemnityType] = useState<TypePreavis>(PREAVIS_PAR_DEFAUT);
   const [exitReason, setExitReason] = useState<string>('');
   const [initiativeRetraite, setInitiativeRetraite] = useState<InitiativeRetraite>(
@@ -150,6 +152,7 @@ export function CreateExitDialog({
     setInitiativeRetraite(INITIATIVE_RETRAITE_PAR_DEFAUT);
     setIndemniteConventionnelle('');
     setPensionLiquidable(false);
+    setInaptitudeOrigine('aucune');
     setInitiativeEssai('');
     setPrecariteNonDue(false);
     setMotifPrecarite('');
@@ -378,6 +381,9 @@ export function CreateExitDialog({
         ...(exitType === 'rupture_conventionnelle' && pensionLiquidable ? { pension_liquidable: true } : {}),
         ...(exitType === 'fin_periode_essai' && initiativeEssai ? { probation_ended_by: initiativeEssai } : {}),
         ...(exitType === 'fin_cdd' && precariteNonDue && motifPrecarite ? { precarite_non_due: motifPrecarite } : {}),
+        ...(exitType === 'licenciement' && inaptitudeOrigine !== 'aucune'
+          ? { inaptitude_origine: inaptitudeOrigine }
+          : {}),
       };
 
       await createEmployeeExit(data);
@@ -745,6 +751,29 @@ export function CreateExitDialog({
                 </Select>
               )}
               <p className="text-sm text-muted-foreground">{AIDE_PRECARITE_NON_DUE}</p>
+            </div>
+          )}
+
+          {exitType === 'licenciement' && (
+            <div className="space-y-2">
+              <Label htmlFor="inaptitude_origine">Licenciement pour inaptitude</Label>
+              <Select
+                value={inaptitudeOrigine}
+                onValueChange={(valeur) => setInaptitudeOrigine(valeur as InaptitudeOrigine | 'aucune')}
+              >
+                <SelectTrigger id="inaptitude_origine">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="aucune">Non</SelectItem>
+                  <SelectItem value="non_professionnelle">Oui, origine non professionnelle</SelectItem>
+                  <SelectItem value="professionnelle">Oui, accident du travail ou maladie professionnelle</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                Origine professionnelle : indemnité doublée et indemnité compensatrice égale au préavis.
+                Saisissez la durée du préavis ci-dessus.
+              </p>
             </div>
           )}
 

@@ -10,6 +10,9 @@ import type { MotifPrecariteNonDue } from '@/features/employee-exits/utils/preca
 // TYPES
 // ============================================================================
 
+/** Origine de l'inaptitude d'un licenciement, rangée dans `exit_notes.inaptitude_origine`. */
+export type InaptitudeOrigine = 'professionnelle' | 'non_professionnelle';
+
 export type ExitType = 'demission' | 'rupture_conventionnelle' | 'licenciement' | 'depart_retraite' | 'fin_periode_essai' | 'fin_cdd' | 'transfert' | 'autre_motif';
 
 export type ExitStatus =
@@ -390,6 +393,8 @@ export interface CreateEmployeeExitRequest {
   probation_ended_by?: 'employer' | 'employee';
   /** Fin de CDD : la prime de précarité n'est pas due, pour ce motif (fiche F40, L1243-10). */
   precarite_non_due?: MotifPrecariteNonDue;
+  /** Licenciement pour inaptitude : son origine (L1226-14, L1226-4 ; DSN 091 ou 092). */
+  inaptitude_origine?: InaptitudeOrigine;
 }
 
 export interface UpdateEmployeeExitRequest {
@@ -412,6 +417,8 @@ export interface UpdateEmployeeExitRequest {
   pension_liquidable?: boolean;
   /** Fin de CDD : motif de la prime de précarité non due ; null = due. */
   precarite_non_due?: MotifPrecariteNonDue | null;
+  /** Licenciement pour inaptitude : son origine ; null = licenciement ordinaire. */
+  inaptitude_origine?: InaptitudeOrigine | null;
 }
 
 export interface DocumentUploadUrlRequest {

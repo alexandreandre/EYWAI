@@ -325,8 +325,10 @@ def compute_preavis_section(
     jours = int(safe_float(exit_data.get("notice_period_days", 0)))
     type_preavis = exit_data.get("notice_indemnity_type", "not_applicable")
     faute_grave = bool(exit_data.get("is_gross_misconduct", False))
-    montant = safe_float((indemnities.get("indemnite_preavis") or {}).get("montant", 0))
-    versee = indemnite_compensatrice_due(type_preavis, faute_grave=faute_grave) and montant > 0
+    bloc_preavis = indemnities.get("indemnite_preavis") or {}
+    montant = safe_float(bloc_preavis.get("montant", 0))
+    inaptitude = bool(bloc_preavis.get("inaptitude_professionnelle"))
+    versee = (inaptitude or indemnite_compensatrice_due(type_preavis, faute_grave=faute_grave)) and montant > 0
 
     if faute_grave:
         texte = "Aucun préavis (faute grave ou lourde)"
@@ -339,8 +341,10 @@ def compute_preavis_section(
         [
             amount_row("Préavis", texte, None),
             amount_row(
-                "Indemnité compensatrice de préavis",
-                "Dispense à l'initiative de l'employeur : indemnité compensatrice"
+                "Indemnité compensatrice d'inaptitude" if inaptitude else "Indemnité compensatrice de préavis",
+                "Inaptitude d'origine professionnelle (L1226-14) : montant égal au préavis"
+                if inaptitude
+                else "Dispense à l'initiative de l'employeur : indemnité compensatrice"
                 if versee
                 else "Non due (préavis exécuté, dispense demandée par le salarié ou pas de préavis)",
                 montant if versee else None,

@@ -55,6 +55,8 @@ MOTIF_RUPTURE = {
     "fin_periode_essai": "034",
     "deces": "066",
 }
+#: Origine de l'inaptitude saisie au dossier → motif de rupture.
+_MOTIF_INAPTITUDE = {"non_professionnelle": "091", "professionnelle": "092"}
 #: Date de notification obligatoire (62.003, CCH-12).
 MOTIFS_AVEC_NOTIFICATION = {
     "011", "012", "014", "015", "020", "025", "034", "035", "036", "037",
@@ -77,6 +79,9 @@ INDEMNITES_RUPTURE: List[Tuple[Tuple[str, ...], str]] = [
     (("compensatrice de préavis", "compensatrice de preavis"), "023"),
     (("rupture conventionnelle",), "001"),
     (("légale de licenciement", "legale de licenciement"), "007"),
+    # Inaptitude d'origine professionnelle (L1226-14 ; cahier technique 2026.1).
+    (("spéciale de licenciement", "speciale de licenciement"), "009"),
+    (("compensatrice d'inaptitude", "compensatrice d’inaptitude"), "032"),
     # Licenciement conventionnel (« conv » → 021) et part soumise d'une
     # indemnité de licenciement.
     (
@@ -387,6 +392,14 @@ def bloc_fin_contrat(
         if type_sortie == "licenciement" and (sortie or {}).get("is_gross_misconduct"):
             motif = "087"
         notes = (sortie or {}).get("exit_notes")
+        if (
+            type_sortie == "licenciement"
+            and motif == MOTIF_RUPTURE["licenciement"]
+            and isinstance(notes, dict)
+            and notes.get("inaptitude_origine") in _MOTIF_INAPTITUDE
+        ):
+            # Licenciement pour inaptitude (cahier technique 2026.1, 091 et 092).
+            motif = _MOTIF_INAPTITUDE[notes["inaptitude_origine"]]
         if (
             type_sortie == "depart_retraite"
             and isinstance(notes, dict)

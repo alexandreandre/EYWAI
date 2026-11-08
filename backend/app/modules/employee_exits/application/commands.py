@@ -101,6 +101,8 @@ def notes_du_dossier_a_la_creation(exit_type: str, exit_data: Dict[str, Any]) ->
         notes["probation_ended_by"] = exit_data["probation_ended_by"]
     if exit_type == "fin_cdd" and exit_data.get("precarite_non_due"):
         notes["precarite_non_due"] = exit_data["precarite_non_due"]
+    if exit_type == "licenciement" and exit_data.get("inaptitude_origine"):
+        notes["inaptitude_origine"] = exit_data["inaptitude_origine"]
     return notes or None
 
 
@@ -740,6 +742,21 @@ def update_employee_exit(
             notes["pension_liquidable"] = True
         else:
             notes.pop("pension_liquidable", None)
+        update_data["exit_notes"] = notes
+        saisie_du_dossier = True
+
+    # Licenciement pour inaptitude et son origine (None = licenciement ordinaire).
+    if "inaptitude_origine" in update_data:
+        if (new_exit_type or existing.get("exit_type")) != "licenciement":
+            raise EmployeeExitApplicationError(
+                400, "L'inaptitude ne concerne qu'un licenciement."
+            )
+        notes = dict(update_data.get("exit_notes") or existing.get("exit_notes") or {})
+        origine = update_data.pop("inaptitude_origine")
+        if origine:
+            notes["inaptitude_origine"] = origine
+        else:
+            notes.pop("inaptitude_origine", None)
         update_data["exit_notes"] = notes
         saisie_du_dossier = True
 
