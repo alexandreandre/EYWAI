@@ -17,7 +17,10 @@ async function entetes(page: Page) {
 
 test('compteur de récupération : réglage, bulletin, choix du mois', async ({ page }) => {
   test.setTimeout(240_000);
-  await page.addInitScript(() => localStorage.removeItem('martine-rq-cache-v2'));
+  // Le script tourne aussi dans l'iframe sans origine de l'aperçu, où localStorage lève.
+  await page.addInitScript(() => {
+    if (window.top === window) localStorage.removeItem('martine-rq-cache-v2');
+  });
   await page.route('**/api/client-errors', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback();
     await route.fulfill({ status: 204, body: '' });
