@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 from typing import Any, Dict, List, Optional, Set
 
@@ -18,6 +19,9 @@ from app.modules.collective_agreements.rules.resolver import (
     resolve_salaires_minima,
 )
 from app.modules.payroll.engine.contexte import ContextePaie
+
+#: Majoration de la prime d'ancienneté au forfait en jours sur l'année (CCN métallurgie, art. 142 et 139).
+MAJORATION_FORFAIT_JOURS_METALLURGIE = 0.30
 from app.modules.payroll.engine.temps_travail_mois import compute_temps_retenu_mois
 from app.shared.seniority_reference import resolve_date_anciennete_from_contrat
 from app.modules.payroll.engine.salaire_contractuel import salaire_du_mois_complet
@@ -211,6 +215,19 @@ def calculer_ligne_prime_anciennete(
                 }
             )
         return None
+
+    # CCN métallurgie, art. 142 : la prime « supporte […] les majorations […] au titre des
+    # conventions de forfait en jours sur l'année, soit la majoration de 30 % dans les conditions
+    # de l'article 139 » (Légifrance KALIARTI000046999200, ouvert le 08/11/2026).
+    # La convention (IDCC 3248) l'impose, quel que soit le nom de la méthode des règles en base
+    # (« valeur_du_point » avec un taux par classe chez Cartol et LEWIS).
+    if str(idcc).strip().lstrip("0") == "3248" and getattr(contexte, "is_forfait_jour", False):
+        plein_mois = replace(
+            plein_mois,
+            montant_plein_mois=round(plein_mois.montant_plein_mois * (1 + MAJORATION_FORFAIT_JOURS_METALLURGIE), 2),
+            libelle=f"{plein_mois.libelle}, majorée de 30 % (forfait jours)",
+            meta={**(plein_mois.meta or {}), "majoration_forfait_jours": MAJORATION_FORFAIT_JOURS_METALLURGIE},
+        )
 
     prorata_cfg = _prorata_config(regles_prime, resolved)
     ratio = 1.0

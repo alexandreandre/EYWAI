@@ -123,8 +123,11 @@ def compute_temps_retenu_mois(
             if j.get("type") not in ("weekend", "ferie")
         )
         reference = float(jours_ouvrables) if jours_ouvrables > 0 else 22.0
+        # Le moteur forfait (analyser_jours_forfait) type ses jours travaillés « travail_base »
+        # (1 jour = 1) ; ne compter que « travail » donnait un ratio nul, donc une prime
+        # d'ancienneté à zéro pour tout forfait jours non cadre (Cartol, LEWIS, octobre 2026).
         jours_travail = sum(
-            1 for j in calendrier_periode if j.get("type") == "travail"
+            1 for j in calendrier_periode if j.get("type") in ("travail", "travail_base")
         )
         jours_maintien_comptes = 0
         if maladie_si_maintien:
