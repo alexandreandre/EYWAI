@@ -127,3 +127,36 @@ class TestTempsTravailMois:
         )
         assert result.temps_retenu == 18.0
         assert 0 < result.ratio <= 1.0
+
+    def test_jours_forfait_compte_les_jours_du_moteur_forfait(self):
+        """Le moteur forfait (analyser_jours_forfait) type ses jours travaillés « travail_base »
+        (1 jour = 1). Seul « travail » était compté : ratio nul, prime d'ancienneté à 0 pour tous
+        les forfaits jours non cadres (Cartol, LEWIS, octobre 2026 à blanc)."""
+        cal = [
+            {"date_complete": f"2026-10-{d:02d}", "type": "travail_base", "heures": 1.0}
+            for d in range(1, 18)
+        ]
+        result = compute_temps_retenu_mois(
+            mode="jours_forfait",
+            calendrier_saisie=cal,
+            duree_hebdo=35.0,
+            date_debut=date(2026, 10, 1),
+            date_fin=date(2026, 10, 31),
+        )
+        assert result.temps_retenu == 17.0
+        assert result.ratio == 1.0
+
+    def test_jours_forfait_un_jour_d_absence_non_maintenu_reste_hors_du_temps(self):
+        cal = [
+            {"date_complete": f"2026-10-{d:02d}", "type": "travail_base", "heures": 1.0}
+            for d in range(1, 17)
+        ] + [{"date_complete": "2026-10-17", "type": "absence_non_remuneree", "heures": 1.0}]
+        result = compute_temps_retenu_mois(
+            mode="jours_forfait",
+            calendrier_saisie=cal,
+            duree_hebdo=35.0,
+            date_debut=date(2026, 10, 1),
+            date_fin=date(2026, 10, 31),
+        )
+        assert result.temps_retenu == 16.0
+        assert result.ratio == round(16 / 17, 6)
