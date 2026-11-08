@@ -46,6 +46,10 @@ def get_seed(idcc: str) -> Optional[CCRulesSeed]:
         )
 
         return PLASTURGIE_0292_SEED
+    if stripped == "1486":
+        from app.modules.collective_agreements.rules.seeds.syntec_1486 import SYNTEC_1486_SEED
+
+        return SYNTEC_1486_SEED
     return None
 
 

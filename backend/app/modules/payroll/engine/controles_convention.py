@@ -254,6 +254,80 @@ def controle_convention_collective(contexte, salaire_brut: float) -> List[Dict[s
     return alertes
 
 
+#: Forfait jours Syntec : coefficients IC qui l'ouvrent (position 2.3 et plus) et
+#: part du minimum à verser. Accord du 22/06/1999, art. 4.1 et 4.4, avenant n° 2
+#: du 13/12/2022 (Légifrance, KALITEXT000047348407).
+_FORFAIT_SYNTEC_PART_DU_MINIMUM = {150.0: 1.22, 170.0: 1.20, 210.0: 1.20, 270.0: 1.20}
+
+
+def controle_forfait_jours_syntec(contexte, salaire_brut: float) -> List[Dict[str, Any]]:
+    """Signale un forfait jours que la convention Syntec n'autorise pas (non bloquant).
+
+    Le texte ouvre aussi le forfait au-delà de 2 PASS annuels et au mandataire social :
+    le premier cas se lit sur le salaire, le second n'existe pas sur la fiche et le
+    message le rappelle. Sans coefficient, `cc_classification_manquante` parle déjà.
+    Le texte vise la rémunération annuelle : le contrôle du mois invite à vérifier.
+    """
+    if not getattr(contexte, "is_forfait_jour", False):
+        return []
+    remuneration = contexte.contrat.get("remuneration", {})
+    idcc = str((remuneration.get("convention_collective") or {}).get("idcc") or "").strip()
+    if idcc.lstrip("0") != "1486":
+        return []
+    classification = remuneration.get("classification_conventionnelle") or {}
+    try:
+        coefficient = float(classification.get("coefficient"))
+    except (TypeError, ValueError):
+        return []
+
+    salaire = _salaire_contractuel_pour_minimum(contexte, salaire_brut)
+    baremes = getattr(contexte, "baremes", None) or {}
+    try:
+        pass_annuel = float((baremes.get("pss") or {}).get("annuel") or 0)
+    except (TypeError, ValueError):
+        pass_annuel = 0.0
+    if pass_annuel > 0 and salaire * 12 > 2 * pass_annuel:
+        return []
+
+    part = _FORFAIT_SYNTEC_PART_DU_MINIMUM.get(coefficient)
+    if part is None:
+        return [
+            _alert(
+                code="cc_forfait_position_insuffisante",
+                critique=True,
+                message=(
+                    f"Forfait jours au coefficient {coefficient:g} : la convention Syntec le "
+                    "réserve à la position 2.3 et au-delà (coefficient 150 minimum), au "
+                    "salarié payé plus de 2 PASS par an ou au mandataire social. À corriger "
+                    "par avenant, ou à vérifier."
+                ),
+            )
+        ]
+
+    regles = baremes.get("conventions_collectives", {}).get(f"idcc_{idcc}", {})
+    minima = resolve_salaires_minima(
+        regles, code_postal=code_postal_from_entreprise(contexte.entreprise)
+    )
+    ligne = resolve_minimum_for_classification(minima, classification, idcc=idcc)
+    if ligne is None:
+        return []
+    plancher = round(float(ligne.get("valeur") or 0) * part, 2)
+    if salaire + 0.01 >= plancher:
+        return []
+    return [
+        _alert(
+            code="cc_forfait_sous_plancher",
+            critique=True,
+            message=(
+                f"Forfait jours : salaire de {_euros_fr(salaire)} € sous le plancher Syntec de "
+                f"{_euros_fr(plancher)} € ({part * 100:.0f} % du minimum du coefficient "
+                f"{coefficient:g}). À corriger par avenant, ou à vérifier sur la "
+                "rémunération de l'année."
+            ),
+        )
+    ]
+
+
 def controle_prime_anciennete(contexte) -> List[Dict[str, Any]]:
     """Alertes non bloquantes liées à la prime d'ancienneté CCN."""
     from app.modules.collective_agreements.rules.prime_calcul import (

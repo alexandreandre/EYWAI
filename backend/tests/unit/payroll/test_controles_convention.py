@@ -4,8 +4,14 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from app.modules.collective_agreements.rules.schema import (
+    CCRulesDocument,
+    document_to_engine_rules,
+)
+from app.modules.collective_agreements.rules.seeds import apply_seed_to_document, get_seed
 from app.modules.payroll.engine.controles_convention import (
     controle_convention_collective,
+    controle_forfait_jours_syntec,
     extraire_alertes_rh_depuis_bulletin,
 )
 
@@ -326,3 +332,83 @@ class TestAlertesNonAnxiogenes:
             },
         }
         assert extraire_alertes_rh_depuis_bulletin(data) == []
+
+
+def _regles_syntec() -> dict:
+    doc = apply_seed_to_document(CCRulesDocument(idcc="1486"), get_seed("1486"))
+    return document_to_engine_rules(doc)
+
+
+def _forfait(*, salaire: float, coeff: float | None = 150, forfait: bool = True, idcc: str = "1486"):
+    return SimpleNamespace(
+        is_forfait_jour=forfait,
+        contrat={
+            "remuneration": {
+                "salaire_de_base": {"valeur": salaire},
+                "convention_collective": {"idcc": idcc, "libelle": "Syntec"},
+                "classification_conventionnelle": {"coefficient": coeff} if coeff else {},
+            }
+        },
+        entreprise={"adresse_code_postal": "75001"},
+        baremes={
+            "pss": {"annuel": 48060.0},
+            "conventions_collectives": {f"idcc_{idcc}": _regles_syntec()},
+        },
+    )
+
+
+class TestGrilleSyntec:
+    def test_la_graine_porte_les_17_lignes_de_la_grille(self):
+        grille = get_seed("1486").grille
+        assert len(grille.minima) == 17
+        valeurs = {m.coefficient: m.valeur for m in grille.minima}
+        assert valeurs[150.0] == 3275.0
+        assert valeurs[500.0] == 2490.0
+        assert valeurs[270.0] == 5755.0
+
+    def test_sans_prime_d_anciennete(self):
+        assert get_seed("1486").prime is None
+        assert "prime_anciennete" not in _regles_syntec()
+
+    def test_minimum_lu_dans_la_grille(self):
+        ctx = _contexte(coeff=150, regles=_regles_syntec())
+        ctx.contrat["remuneration"]["salaire_de_base"] = {"valeur": 3200.0}
+        alertes = controle_convention_collective(ctx, 3200.0)
+        assert [a["code"] for a in alertes] == ["cc_salaire_sous_minimum"]
+
+
+class TestForfaitJoursSyntec:
+    def test_position_23_sous_122_pour_cent(self):
+        alertes = controle_forfait_jours_syntec(_forfait(salaire=3995.0), 3995.0)
+        assert [a["code"] for a in alertes] == ["cc_forfait_sous_plancher"]
+        assert alertes[0]["critique"] is True
+        assert "3 995,50" in alertes[0]["message"]
+        assert "122 %" in alertes[0]["message"]
+
+    def test_position_23_au_plancher(self):
+        assert controle_forfait_jours_syntec(_forfait(salaire=3995.50), 3995.50) == []
+
+    def test_position_31_a_120_pour_cent(self):
+        assert controle_forfait_jours_syntec(_forfait(salaire=4380.0, coeff=170), 4380.0) == []
+        alertes = controle_forfait_jours_syntec(_forfait(salaire=4379.0, coeff=170), 4379.0)
+        assert [a["code"] for a in alertes] == ["cc_forfait_sous_plancher"]
+
+    def test_position_trop_basse(self):
+        alertes = controle_forfait_jours_syntec(_forfait(salaire=4500.0, coeff=130), 4500.0)
+        assert [a["code"] for a in alertes] == ["cc_forfait_position_insuffisante"]
+
+    def test_au_dela_de_deux_pass_le_forfait_est_ouvert(self):
+        assert controle_forfait_jours_syntec(_forfait(salaire=8100.0, coeff=130), 8100.0) == []
+
+    def test_deux_pass_atteints_sans_les_depasser(self):
+        alertes = controle_forfait_jours_syntec(_forfait(salaire=8010.0, coeff=130), 8010.0)
+        assert [a["code"] for a in alertes] == ["cc_forfait_position_insuffisante"]
+
+    def test_salarie_a_35_heures(self):
+        assert controle_forfait_jours_syntec(_forfait(salaire=3000.0, forfait=False), 3000.0) == []
+
+    def test_autre_convention(self):
+        assert controle_forfait_jours_syntec(_forfait(salaire=3000.0, idcc="0292"), 3000.0) == []
+
+    def test_sans_coefficient_le_controle_general_parle_seul(self):
+        assert controle_forfait_jours_syntec(_forfait(salaire=3000.0, coeff=None), 3000.0) == []

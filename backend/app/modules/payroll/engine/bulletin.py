@@ -713,6 +713,7 @@ def creer_bulletin_final(
         contexte.alertes_baremes = []
     from app.modules.payroll.engine.controles_convention import (
         controle_convention_collective,
+        controle_forfait_jours_syntec,
         controle_heures_complementaires,
         controle_net_superieur_brut,
         controle_prime_anciennete,
@@ -724,6 +725,7 @@ def creer_bulletin_final(
     for alerte_legere in (
         *controle_salaire_apprenti(contexte, salaire_brut),
         *controle_heures_complementaires(contexte),
+        *controle_forfait_jours_syntec(contexte, salaire_brut),
     ):
         contexte.alertes_baremes.append(alerte_legere)
 

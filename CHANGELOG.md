@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Martine connaît la convention Syntec
+- La grille des salaires minima Syntec est prête, pour les sociétés qui passent sous cette convention.
+- Un salarié au forfait jours sous Syntec est signalé si sa position ne l'autorise pas ou si son salaire est sous le plancher de la convention (122 % ou 120 % du minimum). Le bulletin ne change pas : la correction se fait par avenant.
+
 ### Une coupure de base n'ouvre plus la garde de reprise
 - Si la base ne répond pas au moment du calcul, Martine arrête le bulletin et demande de réessayer. Avant, le mois repris pouvait se recalculer, ou le bulletin partir de cumuls à zéro.
 - Le contrôle du taux horaire lit le Smic du mois, et un salarié sans date d'ancienneté n'a plus 26 ans de droits inventés au maintien.
