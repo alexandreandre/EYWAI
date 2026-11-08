@@ -488,21 +488,21 @@ export function EmployeeDetailHeaderCard({
           </div>
         </div>
 
+        <ResidencePermitBadge
+          data={{
+            is_subject_to_residence_permit:
+              employee.is_subject_to_residence_permit ?? false,
+            residence_permit_status: employee.residence_permit_status ?? null,
+            residence_permit_expiry_date:
+              employee.residence_permit_expiry_date ?? null,
+            residence_permit_days_remaining:
+              employee.residence_permit_days_remaining ?? null,
+            residence_permit_data_complete:
+              employee.residence_permit_data_complete ?? null,
+          }}
+        />
         {!payrollFocus ? (
           <>
-            <ResidencePermitBadge
-              data={{
-                is_subject_to_residence_permit:
-                  employee.is_subject_to_residence_permit ?? false,
-                residence_permit_status: employee.residence_permit_status ?? null,
-                residence_permit_expiry_date:
-                  employee.residence_permit_expiry_date ?? null,
-                residence_permit_days_remaining:
-                  employee.residence_permit_days_remaining ?? null,
-                residence_permit_data_complete:
-                  employee.residence_permit_data_complete ?? null,
-              }}
-            />
             <BoethBadge profile={boethProfile} />
             <TrialPeriodBadge
               data={{

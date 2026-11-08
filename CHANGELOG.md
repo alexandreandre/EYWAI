@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Les titres de séjour sont visibles en mode paie
+- La page « Titres de séjour » revient dans le menu, et le badge d'expiration sur la fiche du salarié.
+- Rien ne change dans le calcul de la paie.
+
 ### Les pièces de la société se déposent sur la page Entreprise
 - Nouvel encart « Pièces de la société » dans l'onglet Fiche : Kbis, contrats de mutuelle et de prévoyance, adhésion à la fédération, justificatif JEI, accord sur le temps de travail.
 - Martine dit ce qui reste à déposer pour la société et pourquoi. Le dépôt accepte PDF, JPG et PNG, 15 Mo au plus. Rien ne bloque la paie.

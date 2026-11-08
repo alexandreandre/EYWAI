@@ -10,7 +10,7 @@
 
 import { isPlatformAdmin, type PlatformAdminUser } from '@/lib/platformAdmin';
 
-/** Les 18 entrées de menu conservées en mode paie. */
+/** Les 19 entrées de menu conservées en mode paie. */
 export const PAYROLL_FOCUS_NAV_URLS: readonly string[] = [
   '/',
   '/employees',
@@ -41,6 +41,9 @@ export const PAYROLL_FOCUS_NAV_URLS: readonly string[] = [
   // passage obligé de la reprise (retour Alexandre 11/09 : clic sur la
   // société → renvoyé au tableau de bord, paramétrage impossible).
   '/company',
+  // Un titre de séjour expiré engage l'employeur chaque mois de paie : la page
+  // restait fermée alors que 8 titres sont expirés (R-096, 08/11).
+  '/residence-permits',
 ];
 
 /**
