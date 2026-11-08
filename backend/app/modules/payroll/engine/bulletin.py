@@ -162,6 +162,7 @@ def alertes_des_compteurs_de_conges(
 
     Au départ, les RTT et JTC non pris restent « Néant » (ni payés ni retenus) :
     selon l'accord de la société, ils se paient ou se perdent. On le dit.
+    Le repos compensateur obligatoire, lui, est dû (D3121-23) : on le dit aussi.
     """
     if not isinstance(solde_conges, dict):
         return []
@@ -183,6 +184,26 @@ def alertes_des_compteurs_de_conges(
                         f"Départ : {' et '.join(restes)} non pris, ni payés ni retenus "
                         "(« Néant » sur le reçu), à vérifier selon "
                         "l'accord de la société : paiement ou perte des jours non pris."
+                    ),
+                }
+            )
+    repos = solde_conges.get("repos_compensateur")
+    if bulletin_de_sortie and isinstance(repos, dict):
+        reste = float(repos.get("solde") or 0.0)
+        if reste > 0:
+            from app.modules.modulation.domain.hour_account_rules import heures_en_texte
+
+            alertes.append(
+                {
+                    "code": "repos_compensateur_du_au_depart",
+                    "severity": "warning",
+                    "critique": False,
+                    "heures": reste,
+                    "message": (
+                        f"Départ : {heures_en_texte(reste)} de repos compensateur "
+                        "obligatoire acquises et non prises. Elles sont dues en argent "
+                        "(C. trav. D3121-23) et Martine ne les paie pas seule : "
+                        "ajoutez leur paiement à ce bulletin depuis la page Primes."
                     ),
                 }
             )
@@ -792,6 +813,7 @@ def creer_bulletin_final(
         # antérieur à une reprise), le bulletin n'en imprime aucun.
         solde_conges = {**solde_conges, "recuperation": recuperation}
     bulletin_de_sortie = _est_bulletin_de_sortie(contexte, annee, mois)
+    fin_variables_societe = getattr(contexte, "date_fin_variables_societe", None)
     alertes_baremes.extend(
         alertes_des_compteurs_de_conges(solde_conges, bulletin_de_sortie=bulletin_de_sortie)
     )
@@ -813,7 +835,6 @@ def creer_bulletin_final(
             "date_fin_periode": (
                 date_fin_periode.isoformat() if date_fin_periode else None
             ),
-    fin_variables_societe = getattr(contexte, "date_fin_variables_societe", None)
             # Fenêtre des heures sup et des paniers, affichée sous le bandeau
             # quand elle diffère du mois civil.
             "date_debut_variables": (
@@ -821,6 +842,12 @@ def creer_bulletin_final(
             ),
             "date_fin_variables": (
                 date_fin_variables.isoformat() if date_fin_variables else None
+            ),
+            # Seulement au mois de sortie, quand la fenêtre a été prolongée.
+            **(
+                {"date_fin_variables_societe": str(fin_variables_societe)[:10]}
+                if fin_variables_societe
+                else {}
             ),
             "date_paiement": _calculer_date_paiement(contexte, annee, mois),
             "entreprise": {
@@ -843,12 +870,6 @@ def creer_bulletin_final(
                 ),
                 "nir": contexte.contrat.get("salarie", {}).get("nir"),
                 "emploi": contexte.contrat.get("contrat", {}).get("emploi"),
-            # Seulement au mois de sortie, quand la fenêtre a été prolongée.
-            **(
-                {"date_fin_variables_societe": str(fin_variables_societe)[:10]}
-                if fin_variables_societe
-                else {}
-            ),
                 "statut": contexte.statut_salarie,
                 "type_contrat": contexte.type_contrat,
                 "is_alternant": contexte.is_alternant,
