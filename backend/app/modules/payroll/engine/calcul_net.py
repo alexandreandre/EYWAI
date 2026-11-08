@@ -87,19 +87,13 @@ def _get_part_patronale_mutuelle(contexte: ContextePaie) -> float:
     Utilisée UNIQUEMENT par `_calculer_net_imposable` (pas par le MNS), au travers
     de `_part_patronale_mutuelle_du_bulletin` qui la borne aux lignes calculées.
 
-    Cas particulier `part_patronale_reintegree_impot=False` : certaines
-    contributions patronales complémentaires (options « famille » Salarié+
-    conjoint+enfants chez GAN, cf. Cegid MBC mai 2026 salarié 216/salarié 203/salarié 277)
-    sont bien soumises à CSG (donc restent dans le calcul des cotisations et du
-    MNS) mais ne sont PAS réintégrées au net imposable par le cabinet. Le flag,
-    posé au niveau de `specificites_paie.mutuelle`, permet de neutraliser cette
-    réintégration sans toucher à la CSG. Défaut = True (comportement historique,
-    Colorplast/salarié 044 inchangés)."""
+    La part patronale des frais de santé n'est jamais déductible (CGI art. 83,
+    1° quater) : elle entre toujours dans le net imposable. L'ancien drapeau
+    `part_patronale_reintegree_impot=False` copiait une erreur du cabinet
+    (audit, R-017) ; il est ignoré."""
     mutuelle_spec = contexte.contrat.get("specificites_paie", {}).get("mutuelle", {})
     part_patronale_mutuelle = 0.0
     if not mutuelle_spec.get("adhesion"):
-        return part_patronale_mutuelle
-    if not mutuelle_spec.get("part_patronale_reintegree_impot", True):
         return part_patronale_mutuelle
 
     mutuelle_type_ids = mutuelle_spec.get("mutuelle_type_ids", [])

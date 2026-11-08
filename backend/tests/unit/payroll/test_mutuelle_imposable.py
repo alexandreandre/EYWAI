@@ -151,3 +151,16 @@ class TestPartSalarialeMutuelle:
         )
 
         assert calcul_net._get_part_patronale_mutuelle(contexte) == 29.23
+
+
+def test_la_part_patronale_de_sante_reste_imposable_meme_avec_l_ancien_drapeau(monkeypatch):
+    """CGI art. 83, 1° quater : la part patronale des frais de santé n'est jamais
+    déductible. Le drapeau `part_patronale_reintegree_impot=False` reproduisait
+    l'erreur prouvée chez Quadra (68 fiches, R-017) ; il n'a plus d'effet."""
+    import app.core.database as database
+
+    contexte = _contexte(["isole"])
+    contexte.contrat["specificites_paie"]["mutuelle"]["part_patronale_reintegree_impot"] = False
+    monkeypatch.setattr(database, "get_supabase_admin_client", lambda: _client_factice([ISOLE]))
+
+    assert calcul_net._get_part_patronale_mutuelle(contexte) == 29.23
