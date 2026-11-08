@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### « Prévu » s'affiche pour tous les salariés au forfait jours
+- Le planning d'un forfait est enregistré en heures par jour : l'écran n'affichait « Prévu » que pour la valeur 1, donc jamais.
+- Un jour planifié et pas encore confirmé dit maintenant « Prévu », un jour confirmé « Travaillé ». Rien ne change sur les bulletins.
+
 ### Le contrat signé se dépose depuis la fiche en mode paie
 - Sur la fiche d'un salarié, l'onglet Documents montre maintenant le contrat de travail à côté des bulletins et des attestations.
 - Déposez le PDF signé, ou remplacez celui qui est là. Vous n'avez plus besoin de nous l'envoyer.

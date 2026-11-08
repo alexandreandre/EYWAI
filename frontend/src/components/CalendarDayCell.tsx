@@ -459,7 +459,7 @@ export function CalendarDayCell({
             <>
               <label className="flex items-center gap-2 text-xs">
                 <Checkbox
-                  checked={plannedDay.heures_prevues === 1}
+                  checked={Number(plannedDay.heures_prevues ?? 0) > 0}
                   onCheckedChange={(c) =>
                     updateDayData({
                       jour: dayNumber,

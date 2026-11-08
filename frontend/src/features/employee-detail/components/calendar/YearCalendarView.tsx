@@ -178,7 +178,7 @@ export function YearCalendarView({
           title={
             isForfaitJour
               ? `${day} ${monthNames[monthIndex]}: ${dayData?.type || 'non défini'}${
-                  dayData?.heures_prevues === 1 ? ' - jour prévu' : ''
+                  Number(dayData?.heures_prevues ?? 0) > 0 ? ' - jour prévu' : ''
                 }${actualData?.heures_faites === 1 ? ' - jour travaillé' : ''}`
               : `${day} ${monthNames[monthIndex]}: ${dayData?.type || 'non défini'}${
                   dayData?.heures_prevues ? ` - ${dayData.heures_prevues}h prévues` : ''

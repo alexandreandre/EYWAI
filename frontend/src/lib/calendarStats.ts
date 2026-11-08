@@ -145,7 +145,7 @@ export function computeMonthStats(
     else if (p.type === 'arret_maladie') arrets += 1;
     else if (p.type === 'ferie') feriels += 1;
     else if (p.type === 'travail' || p.type === 'work') {
-      if (isForfaitJour ? p.heures_prevues === 1 : (p.heures_prevues ?? 0) > 0) {
+      if ((p.heures_prevues ?? 0) > 0) {
         joursTravailles += 1;
       }
     }
@@ -158,7 +158,7 @@ export function computeMonthStats(
   let joursTravaillesForfait = 0;
   if (isForfaitJour) {
     joursPrevus = planned.filter(
-      (p) => (p.type === 'travail' || p.type === 'work') && p.heures_prevues === 1
+      (p) => (p.type === 'travail' || p.type === 'work') && (p.heures_prevues ?? 0) > 0
     ).length;
     joursTravaillesForfait = actual.filter((a) => a.heures_faites === 1).length;
   }

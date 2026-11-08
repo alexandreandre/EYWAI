@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { libelleJourForfait } from './libelleJourForfait';
 import { displayNameNomPrenom, displayNamePrenomNom } from '@/lib/employeeName';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -391,11 +392,7 @@ export function TeamPlanningView({
                       ? `${actual.heures_faites}h`
                       : null;
                   const forfaitDayDisplay = row.isForfaitJour
-                    ? actual?.heures_faites === 1
-                      ? 'Travaillé'
-                      : planned?.heures_prevues === 1
-                        ? 'Prévu'
-                        : null
+                    ? libelleJourForfait(planned?.heures_prevues, actual?.heures_faites)
                     : null;
                   const hasDisplayedHours = plannedDisplay != null || actualDisplay != null;
                   const showCadreWithoutHours =
