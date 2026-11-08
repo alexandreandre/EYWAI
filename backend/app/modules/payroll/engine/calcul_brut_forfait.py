@@ -282,6 +282,7 @@ def _ajouter_lignes_de_fin_de_contrat(
         date_debut_periode,
         date_fin_periode,
         valeur_jour=valeur_jour,
+        lignes_brut=lignes,
     )
     if ligne_iccp_depart:
         lignes.append(ligne_iccp_depart)

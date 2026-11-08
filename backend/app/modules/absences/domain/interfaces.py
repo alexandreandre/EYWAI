@@ -37,9 +37,12 @@ class IAbsenceRepository(ABC):
 
     @abstractmethod
     def list_validated_for_employees(
-        self, employee_ids: List[str]
+        self, employee_ids: List[str], *, avec_coupure_de_reprise: bool = True
     ) -> List[Dict[str, Any]]:
-        """Liste les demandes validées (type, selected_days, jours_payes) pour calcul soldes."""
+        """Liste les demandes validées (type, selected_days, jours_payes) pour calcul soldes.
+
+        `avec_coupure_de_reprise=False` : le planning entier, sans écarter les
+        congés absorbés par une reprise de soldes."""
         ...
 
     @abstractmethod
@@ -70,28 +73,10 @@ class IEvenementFamilialQuotaProvider(ABC):
         ...
 
 
-class ISalaryCertificateProvider(ABC):
-    """
-    Génération et enregistrement des attestations de salaire (arrêts maladie, AT, etc.).
-    Source : api/routers/absences._generate_salary_certificate_for_absence + SalaryCertificateGenerator.
-    """
-
-    @abstractmethod
-    def generate_for_absence(
-        self,
-        absence_request_id: str,
-        generated_by: Optional[str] = None,
-        *,
-        replace_existing: bool = False,
-    ) -> Optional[str]:
-        """Génère l'attestation pour une demande validée. Retourne certificate_id ou None."""
-        ...
-
-
 class IStorageProvider(ABC):
     """
     URLs signées (upload justificatifs, lecture attestations).
-    Buckets : leave_attachments, salary_certificates.
+    Bucket : leave_attachments.
     """
 
     @abstractmethod

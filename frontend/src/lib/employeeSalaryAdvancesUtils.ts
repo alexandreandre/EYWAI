@@ -136,7 +136,9 @@ export function formatAdvancePlafondSummary(data: AdvanceAvailableAmount): strin
     if (monthLabel) {
       return `${ratio} du net ${deDevant(monthLabel)}`;
     }
-    return `${ratio} du salaire net de référence`;
+    return data.reference_depuis_fiche
+      ? `${ratio} du salaire brut de la fiche (aucun bulletin encore)`
+      : `${ratio} du salaire net de référence`;
   }
 
   return 'Montant libre (pas de plafond automatique)';

@@ -552,14 +552,10 @@ def mention_heures_sup_declarees(bulletin: Dict[str, Any]) -> Optional[str]:
     """Une ligne de note quand les heures sup ont été déclarées au bulletin.
 
     Sans elle, rien ne distinguait sur le bulletin des heures corrigées à la
-    main de celles du planning (audit du 28/09). La mention de la compensation
-    entre semaines, quand elle dit déjà les heures saisies, suffit.
+    main de celles du planning (audit du 28/09).
     """
     declarees = bulletin.get("heures_sup_declarees")
     if not isinstance(declarees, dict):
-        return None
-    compensation = bulletin.get("compensation_semaines") or {}
-    if isinstance(compensation, dict) and compensation.get("heures_saisies"):
         return None
     return (
         f"Heures supplémentaires déclarées au bulletin : "
@@ -598,14 +594,10 @@ def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
                 if mention:
                     lignes.append(_ligne("note", mention))
 
-    # Ligne de note libre, comme Cegid en pose dans le corps du bulletin
-    # (« SOLDE MODUL.au 21/06=8.25h ») : ici, la règle retenue pour l'indemnité
-    # de congés payés.
-    if bulletin.get("arbitrage_conges"):
-        lignes.append(_ligne("note", str(bulletin["arbitrage_conges"])))
-    compensation = bulletin.get("compensation_semaines") or {}
-    if isinstance(compensation, dict) and compensation.get("mention"):
-        lignes.append(_ligne("note", str(compensation["mention"])))
+    # La règle retenue pour les congés (`arbitrage_conges`) et la compensation
+    # entre semaines (`compensation_semaines`) ne s'impriment pas : aucune n'est
+    # due sur le bulletin (Elsa, 05/11). L'écran RH les montre, « D'où viennent
+    # ces lignes ».
     mention_hs = mention_heures_sup_declarees(bulletin)
     if mention_hs:
         lignes.append(_ligne("note", mention_hs))

@@ -101,11 +101,26 @@ function ecartPct(apres: number | null, avant: number | null): number | null {
   return ((apres - avant) / Math.abs(avant)) * 100;
 }
 
+/** Le mois de l'entrée, quand elle a lieu après le 1er : quelques jours de paie seulement. */
+export function entreEnCoursDeMois(
+  hireDate: string | null | undefined,
+  year: number,
+  month: number
+): boolean {
+  if (!hireDate) return false;
+  const [annee, mois, jour] = hireDate.slice(0, 10).split('-').map(Number);
+  return annee === year && mois === month && jour > 1;
+}
+
 export function ecartAvecMoisPrecedent(
   courant: BulletinPourRevue,
-  precedent: BulletinPourRevue | undefined
+  precedent: BulletinPourRevue | undefined,
+  options: { precedentIncomplet?: boolean } = {}
 ): EcartMoisPrecedent {
-  const netPct = ecartPct(nombre(courant.net_a_payer), nombre(precedent?.net_a_payer));
+  // Quelques jours contre un mois plein : l'écart ne dit rien (R03 se tait aussi).
+  const netPct = options.precedentIncomplet
+    ? null
+    : ecartPct(nombre(courant.net_a_payer), nombre(precedent?.net_a_payer));
   const heuresSup = nombre(courant.heures_sup) ?? 0;
   // Un écart que la RH a acquitté ou ignoré (R03 : net, R09 : heures sup) est
   // une décision prise : il ne met plus le bulletin « à revoir ».

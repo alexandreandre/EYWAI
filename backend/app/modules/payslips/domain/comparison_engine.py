@@ -243,6 +243,7 @@ def compute_comparison(
     - bulletin_n1_id, month_n1, year_n1 (si N-1 présent)
     - is_forfait_jour: bool
     - has_contract_change: bool
+    - mois_precedent_incomplet: bool (mois d'entrée en cours de mois)
     - monthly_contract_hours: float (défaut 151.67)
     - recent_nets_asc: liste [net_n-3, net_n-2, net_n-1, net_n] pour R10
     """
@@ -317,6 +318,10 @@ def compute_comparison(
         d_brut = abs(_pct_change(v1["salaire_brut"], vn["salaire_brut"]))
         d_net = abs(_pct_change(v1["net_a_payer"], vn["net_a_payer"]))
         d_cot = abs(_pct_change(v1["total_cotisations_salariales"], vn["total_cotisations_salariales"]))
+        if ctx.get("mois_precedent_incomplet"):
+            # Entré en cours de mois : quelques jours contre un mois plein. L'écart
+            # ne dit rien et la RH n'a rien à faire.
+            d_brut = d_net = d_cot = 0.0
 
         # R01 / R02 — salaire brut. R01 compare le brut TOTAL (heures sup,
         # primes, absences comprises) : les variables du mois le font bouger

@@ -890,54 +890,6 @@ class TestGetMyAbsencesPageData:
             assert "history" in data
 
 
-# --- Attestations de salaire ---
-
-
-class TestGenerateSalaryCertificate:
-    """POST /api/absences/{absence_id}/generate-certificate."""
-
-    def test_generate_certificate_without_token_returns_401(self, client: TestClient):
-        """Sans token → 401."""
-        response = client.post(
-            "/api/absences/00000000-0000-0000-0000-000000000001/generate-certificate"
-        )
-        assert response.status_code == 401
-
-
-class TestDownloadSalaryCertificate:
-    """GET /api/absences/{absence_id}/certificate/download."""
-
-    def test_download_certificate_without_token_returns_401(self, client: TestClient):
-        """Sans token → 401."""
-        response = client.get(
-            "/api/absences/00000000-0000-0000-0000-000000000001/certificate/download"
-        )
-        assert response.status_code == 401
-
-
-class TestGetSalaryCertificate:
-    """GET /api/absences/{absence_id}/certificate."""
-
-    def test_get_certificate_without_token_returns_401(self, client: TestClient):
-        """Sans token → 401."""
-        response = client.get(
-            "/api/absences/00000000-0000-0000-0000-000000000001/certificate"
-        )
-        assert response.status_code == 401
-
-    def test_get_certificate_with_auth_returns_404_for_unknown_absence(
-        self, client: TestClient, auth_headers: dict
-    ):
-        """Absence sans attestation → 404."""
-        if not auth_headers:
-            return
-        response = client.get(
-            "/api/absences/00000000-0000-0000-0000-000000000099/certificate",
-            headers=auth_headers,
-        )
-        assert response.status_code in (401, 404)
-
-
 # --- Campagne congés / CP ancienneté / fractionnement ---
 
 

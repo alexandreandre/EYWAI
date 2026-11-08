@@ -24,6 +24,45 @@ def mois_sans_pointage(
     return not any((j.get("heures_faites") or 0) > 0 for j in reel_mois)
 
 
+def _jours_prevus_sans_reel_completes(
+    prevu_data: List[Dict[str, Any]],
+    reel_data: List[Dict[str, Any]],
+    *,
+    annee: int,
+    mois: int,
+) -> List[Dict[str, Any]]:
+    """Forfait jours, mois confirmé en partie : un jour prévu sans réel reste travaillé.
+
+    Seul un 0 posé à l'écran dit « non travaillé » : sans lui, le jour resté
+    « Prévu » devenait une absence injustifiée, retenue sur le salaire.
+    """
+    def cle(j: Dict[str, Any]) -> tuple:
+        return (j.get("annee", annee), j["mois"], j["jour"])
+
+    renseignes = {cle(j) for j in reel_data if j.get("heures_faites") is not None}
+    manquants = [
+        j
+        for j in prevu_data
+        if _dans_mois(j, annee=annee, mois=mois)
+        and j.get("type") == "travail"
+        and (j.get("heures_prevues") or 0) >= 1
+        and cle(j) not in renseignes
+    ]
+    if not manquants:
+        return reel_data
+    a_remplacer = {cle(j) for j in manquants}
+    return [j for j in reel_data if cle(j) not in a_remplacer] + [
+        {
+            "annee": j.get("annee", annee),
+            "mois": j["mois"],
+            "jour": j["jour"],
+            "type": "reel",
+            "heures_faites": 1,
+        }
+        for j in manquants
+    ]
+
+
 def reel_forfait_avec_repli_planning_si_sans_pointage(
     prevu_data: List[Dict[str, Any]],
     reel_data: List[Dict[str, Any]],
@@ -37,7 +76,7 @@ def reel_forfait_avec_repli_planning_si_sans_pointage(
     En heures, ne pas réinjecter le planning : cela créerait des HS/HC fictives.
     """
     if not mois_sans_pointage(reel_data, annee=annee, mois=mois):
-        return reel_data
+        return _jours_prevus_sans_reel_completes(prevu_data, reel_data, annee=annee, mois=mois)
 
     prevu_travail = [
         j
@@ -83,6 +122,9 @@ def reel_heures_avec_repli_planning_si_sans_pointage(
     Les heures reprises alimentent le compteur hebdomadaire au niveau du planning
     prévu (pas d'heures sup. inventées au-delà de ce que le pointage réel aurait
     produit sur les jours prévus).
+
+    Mois pointé en partie : rien à ajouter, `jour_du_calendrier_final` tient déjà
+    un jour sans réel pour travaillé. Le 1 du forfait jours serait lu ici comme une heure.
     """
     if not mois_sans_pointage(reel_data, annee=annee, mois=mois):
         return reel_data

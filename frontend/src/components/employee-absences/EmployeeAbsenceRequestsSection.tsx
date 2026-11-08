@@ -1,5 +1,5 @@
 import { Fragment, type RefObject } from 'react';
-import type { AbsenceRequest, SalaryCertificate } from '@/api/absences';
+import type { AbsenceRequest } from '@/api/absences';
 import {
   MaintenancePreviewBlock,
   ABSENCE_TYPES_MAINTIEN_PREVIEW,
@@ -37,10 +37,6 @@ interface EmployeeAbsenceRequestsSectionProps {
   absences: AbsenceRequest[];
   statusFilter: AbsenceStatusFilter;
   onStatusFilterChange: (filter: AbsenceStatusFilter) => void;
-  certificates: Record<string, SalaryCertificate>;
-  loadingCertificates: Set<string>;
-  onCertificateLoaded: (absenceId: string, cert: SalaryCertificate) => void;
-  onCertificateLoading: (absenceId: string, loading: boolean) => void;
   listRef?: RefObject<HTMLDivElement | null>;
 }
 
@@ -113,10 +109,6 @@ export function EmployeeAbsenceRequestsSection({
   absences,
   statusFilter,
   onStatusFilterChange,
-  certificates,
-  loadingCertificates,
-  onCertificateLoaded,
-  onCertificateLoading,
   listRef,
 }: EmployeeAbsenceRequestsSectionProps) {
   return (
@@ -175,10 +167,6 @@ export function EmployeeAbsenceRequestsSection({
                         <TableCell className="text-right">
                           <EmployeeAbsenceRequestActions
                             absence={a}
-                            certificates={certificates}
-                            loadingCertificates={loadingCertificates}
-                            onCertificateLoaded={onCertificateLoaded}
-                            onCertificateLoading={onCertificateLoading}
                           />
                         </TableCell>
                       </TableRow>
@@ -207,10 +195,6 @@ export function EmployeeAbsenceRequestsSection({
                   </div>
                   <EmployeeAbsenceRequestActions
                     absence={a}
-                    certificates={certificates}
-                    loadingCertificates={loadingCertificates}
-                    onCertificateLoaded={onCertificateLoaded}
-                    onCertificateLoading={onCertificateLoading}
                   />
                   <MaintenanceAccordion absence={a} />
                 </li>

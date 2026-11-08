@@ -66,6 +66,10 @@ import {
   OPTIONS_MOTIF_PRECARITE_NON_DUE,
   type MotifPrecariteNonDue,
 } from '@/features/employee-exits/utils/precariteNonDue';
+import {
+  motifProposeAuDepart,
+  type MotifPropose,
+} from '@/features/employee-exits/utils/motifPropose';
 import { AlertCircle, Info, Loader2 } from 'lucide-react';
 
 interface CreateExitDialogProps {
@@ -99,6 +103,11 @@ export function CreateExitDialog({
   const [noticePreviewError, setNoticePreviewError] = useState<string | null>(null);
   const [employees, setEmployees] = useState<SimpleEmployee[]>([]);
   const noticeManuallyEdited = useRef(false);
+  // Un motif choisi par la RH n'est jamais remplacé par la proposition de Martine.
+  const motifChoisiParLaRh = useRef(false);
+  const [motifPropose, setMotifPropose] = useState<MotifPropose | null>(null);
+  // La proposition posée et la date de demande qu'elle a posée avec elle.
+  const motifProposeApplique = useRef<(MotifPropose & { dateDeDemande: string }) | null>(null);
 
   // Form state
   const [employeeId, setEmployeeId] = useState<string>('');
@@ -147,6 +156,9 @@ export function CreateExitDialog({
     setNoticePreview(null);
     setNoticePreviewError(null);
     noticeManuallyEdited.current = false;
+    motifChoisiParLaRh.current = false;
+    motifProposeApplique.current = null;
+    setMotifPropose(null);
   };
 
   useEffect(() => {
@@ -267,6 +279,35 @@ export function CreateExitDialog({
     setNoticePeriodDays(value);
     setNoticeIndemnityType((actuel) => typePreavisApresSaisie(value, actuel));
   };
+
+  // Un CDD qui porte sa date de fin : Martine propose « Fin de CDD » et ce
+  // dernier jour ; la RH peut tout changer, rien ne bloque.
+  useEffect(() => {
+    if (!open || initialExitType || motifChoisiParLaRh.current) return;
+    const propose = motifProposeAuDepart(selectedEmployee);
+    const precedent = motifProposeApplique.current;
+    motifProposeApplique.current = null;
+    setMotifPropose(propose);
+    if (propose) {
+      handleExitTypeChange(propose.motif);
+      let dateDeDemande = exitRequestDate;
+      if (!lastWorkingDay || lastWorkingDay === precedent?.dernierJour) {
+        setLastWorkingDay(propose.dernierJour);
+        dateDeDemande = dateDeDemandeProposee({
+          aujourdHui: aujourdhuiLocal(),
+          dernierJour: propose.dernierJour,
+        });
+        setExitRequestDate(dateDeDemande);
+      }
+      motifProposeApplique.current = { ...propose, dateDeDemande };
+    } else if (precedent) {
+      // Un autre salarié, sans contrat à terme : la proposition précédente s'efface.
+      handleExitTypeChange('demission');
+      if (lastWorkingDay === precedent.dernierJour) setLastWorkingDay('');
+      if (exitRequestDate === precedent.dateDeDemande) setExitRequestDate(aujourdhuiLocal());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, selectedEmployee?.id, selectedEmployee?.contract_type, selectedEmployee?.contract_end_date]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -439,7 +480,13 @@ export function CreateExitDialog({
 
           <div className="space-y-2">
             <Label htmlFor="exit_type">Type de départ *</Label>
-            <Select value={exitType} onValueChange={(value) => handleExitTypeChange(value as ExitType)}>
+            <Select
+              value={exitType}
+              onValueChange={(value) => {
+                motifChoisiParLaRh.current = true;
+                handleExitTypeChange(value as ExitType);
+              }}
+            >
               <SelectTrigger id="exit_type">
                 <SelectValue />
               </SelectTrigger>
@@ -453,6 +500,11 @@ export function CreateExitDialog({
                 <SelectItem value="transfert">Transfert intra-groupe</SelectItem>
               </SelectContent>
             </Select>
+            {motifPropose && exitType === motifPropose.motif && (
+              <p className="text-sm text-muted-foreground" data-testid="motif-propose-info">
+                {motifPropose.phrase}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

@@ -1,5 +1,5 @@
 """
-Requêtes de lecture — employees, employee_schedules, repos_compensateur_credits, salary_certificates.
+Requêtes de lecture — employees, employee_schedules, repos_compensateur_credits.
 
 Pas de logique métier : uniquement lecture Supabase. Comportement identique à l'ancien routeur.
 """
@@ -9,7 +9,6 @@ from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
 
-BUCKET_SALARY_CERTIFICATES = "salary_certificates"
 
 
 def get_employee_hire_date(employee_id: str) -> Optional[str]:
@@ -108,20 +107,6 @@ def get_planned_calendar(
     if response and response.data and response.data.get("planned_calendar"):
         return response.data["planned_calendar"].get("calendrier_prevu", [])
     return []
-
-
-def get_salary_certificate_record(
-    absence_request_id: str,
-) -> Optional[Dict[str, Any]]:
-    """Enregistrement salary_certificates pour une absence (storage_path, filename, etc.)."""
-    r = (
-        supabase.table("salary_certificates")
-        .select("*")
-        .eq("absence_request_id", absence_request_id)
-        .maybe_single()
-        .execute()
-    )
-    return r.data if r and r.data else None
 
 
 def list_absence_requests_validated_for_cp(

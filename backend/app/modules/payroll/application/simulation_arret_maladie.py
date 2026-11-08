@@ -85,7 +85,7 @@ def salaire_perdu_sur_la_periode(contexte: ContextePaie, debut: date, fin: date)
     """Ce que le bulletin retient pour les jours d'arrêt de la période, arrondi une fois
     comme sa ligne de retenue (`calcul_brut`) : chaque jour ouvré à la référence journalière
     légale au taux horaire de base, plus la quote-part d'heures sup structurelles de la
-    journée (« Réduction HS structurelles ») ; au forfait jours, le salaire au diviseur
+    journée (« Heures sup. du contrat non faites ») ; au forfait jours, le salaire au diviseur
     d'absence de la société (`calcul_brut_forfait`)."""
     jours = _jours_ouvres(debut, fin)
     if contexte.is_forfait_jour:

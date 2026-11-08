@@ -58,7 +58,7 @@ def test_journee_sans_solde_39h_retient_7h_plus_0h80():
 
     absences = _lignes(res, "Absence non rémunérée")
     assert [l["quantite"] for l in absences] == [7.0]
-    reduction = _lignes(res, "Réduction HS structurelles")
+    reduction = _lignes(res, "Heures sup. du contrat non faites")
     assert len(reduction) == 1
     assert reduction[0]["quantite"] == pytest.approx(0.8, abs=0.005)
 
@@ -88,7 +88,7 @@ def test_demi_journee_sans_solde_39h_retient_3h50_plus_0h40():
 
     absences = _lignes(res, "Absence non rémunérée")
     assert [l["quantite"] for l in absences] == [3.5]
-    reduction = _lignes(res, "Réduction HS structurelles")
+    reduction = _lignes(res, "Heures sup. du contrat non faites")
     assert reduction[0]["quantite"] == pytest.approx(0.4, abs=0.005)
 
 
@@ -98,7 +98,7 @@ def test_demi_journee_sans_solde_35h_retient_3h50():
 
     absences = _lignes(res, "Absence non rémunérée")
     assert [l["quantite"] for l in absences] == [3.5]
-    assert _lignes(res, "Réduction HS structurelles") == []
+    assert _lignes(res, "Heures sup. du contrat non faites") == []
 
 
 def test_journee_sans_solde_35h_et_temps_partiel_inchangees():

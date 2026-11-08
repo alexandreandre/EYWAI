@@ -409,3 +409,25 @@ def test_sans_point_de_depart_la_phrase_reste_celle_de_janvier():
     assert pose["structure_cotisations"]["bloc_allegements"][0]["explication"] == (
         "Réduction générale : régularisation depuis janvier"
     )
+
+
+def test_arret_sans_maintien_la_ligne_dit_pourquoi():
+    motif = "Plasturgie : un an d'ancienneté requis pour une maladie (0 mois au début de l'arrêt)."
+    bulletin = {
+        "en_tete": {"annee": 2026, "mois": 10},
+        "details_absences": [{"libelle": "Absence maladie du 08/10 au 09/10", "perte": 172.34}],
+        "bloc_maintien": {"maintien": {"maintien_applicable": False, "motif_non_maintien": motif}},
+    }
+    poser_explications(bulletin)
+    assert motif in bulletin["details_absences"][0]["explication"]
+
+
+def test_arret_avec_maintien_rien_de_plus_sur_l_absence():
+    bulletin = {
+        "en_tete": {"annee": 2026, "mois": 10},
+        "details_absences": [{"libelle": "Absence maladie du 08/10 au 09/10", "perte": 172.34}],
+        "bloc_maintien": {"maintien": {"maintien_applicable": True}},
+    }
+    poser_explications(bulletin)
+    assert "ancienneté" not in bulletin["details_absences"][0]["explication"]
+

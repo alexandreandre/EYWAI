@@ -1,11 +1,11 @@
 """Nature d'un arrêt de travail et type d'arrêt : ce qui va ensemble.
 
 La nature (`type` de la demande : arrêt maladie, accident du travail…) décide
-du motif DSN et de l'attestation de salaire (salaires nets en AT/MP) ; le type
+du motif DSN ; le type
 d'arrêt (`arret_type`) décide du maintien de salaire et des IJSS (carences,
 taux). Une combinaison qui les fait diverger — « Arrêt maladie » typé
-« Accident du travail » : maintien sans carence d'un AT, DSN et attestation
-d'une maladie — est refusée à l'enregistrement.
+« Accident du travail » : maintien sans carence d'un AT, DSN d'une
+maladie — est refusée à l'enregistrement.
 
 Un congé de maternité se type « Maternité » ou « Adoption », un congé de
 paternité « Paternité et accueil de l'enfant » ou « Adoption ». « Maladie

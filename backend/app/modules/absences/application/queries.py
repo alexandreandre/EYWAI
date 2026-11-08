@@ -35,7 +35,6 @@ from app.modules.absences.domain.rules import (
     compute_cp_balances_for_bulletin,
     count_absence_days_taken,
     poser_les_ajustements_des_compteurs,
-    requires_salary_certificate,
     resolve_rtt_annual_base,
     validate_conge_paye_request_days,
 )
@@ -66,7 +65,6 @@ from app.modules.absences.infrastructure.queries import (
     get_employees_hire_dates_batch,
     get_planned_calendar,
     get_repos_credits_by_employee_year,
-    get_salary_certificate_record,
 )
 from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.maintenance_settings.application.queries import get_maintenance_settings
@@ -82,7 +80,6 @@ from app.modules.payroll.engine.maintien_salaire_service import (
 from app.modules.users.schemas.responses import User
 
 BUCKET_LEAVE_ATTACHMENTS = "leave_attachments"
-BUCKET_SALARY_CERTIFICATES = "salary_certificates"
 
 
 def resolve_nombre_enfants_employee(employee_id: str) -> int:
@@ -149,28 +146,6 @@ def build_historique_arrets_annee(
             }
         )
     return historique
-
-
-def _enrich_absence_certificate_fields(row: dict) -> None:
-    """Ajoute certificate_status et certificate_id (attestation IJSS / salaire)."""
-    atype = row.get("type") or ""
-    status = row.get("status") or ""
-    aid = row.get("id")
-    if not requires_salary_certificate(atype):
-        row["certificate_status"] = "not_required"
-        row["certificate_id"] = None
-        return
-    cert = get_salary_certificate_record(aid) if aid else None
-    if cert and cert.get("id"):
-        row["certificate_status"] = "generated"
-        row["certificate_id"] = str(cert["id"])
-        return
-    if status == "validated":
-        row["certificate_status"] = "pending"
-        row["certificate_id"] = None
-        return
-    row["certificate_status"] = None
-    row["certificate_id"] = None
 
 
 def _enrich_with_signed_urls(
@@ -284,8 +259,6 @@ def get_absence_requests(
             )
 
     _enrich_with_signed_urls(requests)
-    for req in requests:
-        _enrich_absence_certificate_fields(req)
     return requests
 
 
@@ -295,8 +268,6 @@ def get_absences_for_employee(employee_id: str) -> List[dict]:
     if not data:
         return []
     _enrich_with_signed_urls(data)
-    for row in data:
-        _enrich_absence_certificate_fields(row)
     return data
 
 
@@ -316,7 +287,6 @@ def update_absence_request_signed_url_single(request_id: str) -> dict | None:
                 data["attachment_url"] = url
         except Exception as e:
             logger.warning(f'[WARNING] Erreur URL signée: {e}')
-    _enrich_absence_certificate_fields(data)
     return data
 
 
@@ -618,13 +588,19 @@ def get_absence_balances_for_payslip(
     month: int,
     date_fin_prises: date | None = None,
     date_de_sortie: date | None = None,
+    sans_la_reprise: bool = False,
 ) -> dict[str, object] | None:
     """Soldes affichés sur le bulletin : acquis à la fin du mois de paie, congés
     pris jusqu'à la fin de la fenêtre des variables (`date_fin_prises`).
 
     `date_de_sortie` : le dernier jour d'un départ connu de l'appelant (dossier
     de départ calculé avant que la fiche ne le porte) ; à défaut, la fin du
-    contrat rangé qui couvre le mois, sinon celui de la fiche."""
+    contrat rangé qui couvre le mois, sinon celui de la fiche.
+
+    `sans_la_reprise` : les droits recomptés depuis l'entrée, sans le solde
+    repris ni la coupure du planning à sa date — pour un départ payé par
+    l'ancien logiciel, dont le solde repris est celui d'après le solde de tout
+    compte (dossier de départ seulement)."""
     hire_date, fin_du_contrat_range = _contrat_du_mois(employee_id, year, month)
     if not hire_date:
         return None
@@ -654,15 +630,20 @@ def get_absence_balances_for_payslip(
     # 50 jours de solde pour 25 acquis et 0 pris, sur une reprise datée du
     # 31/08/2026. On ne produit donc aucun compteur : une case vide dit la
     # vérité, un solde faux serait lu comme un droit par le salarié.
-    if _reprise_posterieure_au_bulletin(employee_id, ref_date):
+    if not sans_la_reprise and _reprise_posterieure_au_bulletin(employee_id, ref_date):
         return None
 
-    validated_list = conges_jusqu_a(
-        absence_repository.list_validated_for_employees([employee_id]), date_fin_prises
+    demandes = (
+        absence_repository.list_validated_for_employees([employee_id], avec_coupure_de_reprise=False)
+        if sans_la_reprise
+        else absence_repository.list_validated_for_employees([employee_id])
     )
+    validated_list = conges_jusqu_a(demandes, date_fin_prises)
     repos_credits = get_repos_credits_by_employee_year([employee_id], ref_date.year)
     repos_acquis = repos_credits.get(employee_id, 0.0)
     policy, adjustment, rtt_base, cp_seniority = _leave_context(employee_id, ref_date.year)
+    if sans_la_reprise:
+        adjustment = EmployeeLeaveAdjustment.empty()
     extras = _cp_balance_extras(employee_id, ref_date, None, policy, cp_seniority)
     cp_lines = compute_cp_balances_for_bulletin(
         hire_date,
@@ -855,8 +836,6 @@ def get_my_absences_history(employee_id: str) -> List[dict]:
     if not data:
         return []
     _enrich_with_signed_urls(data)
-    for row in data:
-        _enrich_absence_certificate_fields(row)
     return data
 
 
@@ -905,8 +884,6 @@ def get_my_absences_page_data(employee_id: str, year: int, month: int) -> dict:
     history_data = absence_repository.list_by_employee_id(employee_id)
     if history_data:
         _enrich_with_signed_urls(history_data)
-        for row in history_data:
-            _enrich_absence_certificate_fields(row)
 
     return {
         "balances": balances_data,
@@ -932,51 +909,6 @@ def get_evenements_familiaux_du_salarie(employee_id: str, company_id: str) -> Li
     if get_employee_company_id(employee_id) != str(company_id):
         return None
     return evenement_familial_provider.get_events_disponibles(employee_id)
-
-
-def get_salary_certificate_info(absence_id: str) -> dict | None:
-    """Infos attestation pour une absence (view_url, download_url ajoutés à cert_data). None si pas trouvée."""
-    if not absence_repository.get_by_id(absence_id):
-        return None
-    cert_data = get_salary_certificate_record(absence_id)
-    if not cert_data:
-        return None
-    cert_data = dict(cert_data)
-    try:
-        url = storage_provider.create_signed_url(
-            cert_data["storage_path"],
-            BUCKET_SALARY_CERTIFICATES,
-            expiry_seconds=3600,
-        )
-        if url:
-            cert_data["view_url"] = url
-    except Exception as e:
-        logger.warning(f'[WARNING] Erreur URL signée (view): {e}')
-    try:
-        url = storage_provider.create_signed_url(
-            cert_data["storage_path"],
-            BUCKET_SALARY_CERTIFICATES,
-            expiry_seconds=3600,
-            download=True,
-        )
-        if url:
-            cert_data["download_url"] = url
-    except Exception as e:
-        logger.warning(f'[WARNING] Erreur URL signée (download): {e}')
-    return cert_data
-
-
-def download_salary_certificate(absence_id: str) -> tuple[bytes, str] | None:
-    """Contenu PDF et filename de l'attestation pour une absence. None si pas trouvée."""
-    cert = get_salary_certificate_record(absence_id)
-    if not cert:
-        return None
-    storage_path = cert["storage_path"]
-    filename = cert["filename"]
-    file_resp = storage_provider.download(BUCKET_SALARY_CERTIFICATES, storage_path)
-    if isinstance(file_resp, dict) and file_resp.get("error"):
-        return None
-    return (file_resp, filename)
 
 
 def _parse_absence_day(d: Any) -> date:

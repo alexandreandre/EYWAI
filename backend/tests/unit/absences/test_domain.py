@@ -4,7 +4,7 @@ Tests unitaires du domaine absences : entités, value objects et règles métier
 Aucune dépendance DB ni HTTP. Couvre :
 - AbsenceRequestEntity (domain/entities.py)
 - AbsenceBalanceValue, CalendarDayValue (domain/value_objects.py)
-- calculate_acquired_cp, calculate_acquired_rtt, requires_salary_certificate (domain/rules.py)
+- calculate_acquired_cp, calculate_acquired_rtt (domain/rules.py)
 - Enums / types (AbsenceType, AbsenceStatus, SALARY_CERTIFICATE_ABSENCE_TYPES)
 """
 
@@ -14,9 +14,6 @@ import pytest
 
 from app.modules.absences.domain.cp_seniority import EmployeeCpSeniorityContext
 from app.modules.absences.domain.entities import AbsenceRequestEntity
-from app.modules.absences.domain.enums import (
-    SALARY_CERTIFICATE_ABSENCE_TYPES,
-)
 from app.modules.absences.domain.leave_policy import (
     EmployeeLeaveAdjustment,
     LeavePolicySettings,
@@ -35,7 +32,6 @@ from app.modules.absences.domain.rules import (
     get_cp_previous_reference_period,
     get_cp_reference_period,
     get_rtt_year_end_status,
-    requires_salary_certificate,
     resolve_rtt_annual_base,
 )
 from app.modules.absences.domain.value_objects import (
@@ -204,46 +200,6 @@ class TestCalculateAcquiredRtt:
         today = date(2025, 6, 1)
         hire_date = date(2024, 1, 1)
         assert calculate_acquired_rtt(hire_date, today, rtt_annual_base=12.0) == 12.0
-
-
-# --- Règles métier : requires_salary_certificate ---
-
-
-class TestRequiresSalaryCertificate:
-    @pytest.mark.parametrize(
-        "absence_type",
-        [
-            "arret_maladie",
-            "arret_at",
-            "arret_paternite",
-            "arret_maternite",
-            "arret_maladie_pro",
-        ],
-    )
-    def test_returns_true_for_certificate_types(self, absence_type: str):
-        assert requires_salary_certificate(absence_type) is True
-
-    @pytest.mark.parametrize(
-        "absence_type",
-        [
-            "conge_paye",
-            "rtt",
-            "sans_solde",
-            "repos_compensateur",
-            "evenement_familial",
-        ],
-    )
-    def test_returns_false_for_non_certificate_types(self, absence_type: str):
-        assert requires_salary_certificate(absence_type) is False
-
-    def test_salary_certificate_types_constant_complete(self):
-        assert set(SALARY_CERTIFICATE_ABSENCE_TYPES) == {
-            "arret_maladie",
-            "arret_at",
-            "arret_paternite",
-            "arret_maternite",
-            "arret_maladie_pro",
-        }
 
 
 class TestCountAbsenceDaysTaken:

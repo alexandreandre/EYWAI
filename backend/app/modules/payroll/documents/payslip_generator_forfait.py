@@ -656,6 +656,12 @@ def process_payslip_generation_forfait(
             month,
             {"cumuls": {}, "periode": {}},
         )
+        from app.modules.payroll.infrastructure.reference_dixieme import preparer_cumuls_dixieme
+
+        previous_cumuls_data = preparer_cumuls_dixieme(
+            supabase, employee_data, str(company_id), year, month, previous_cumuls_data,
+            contract_period_id=contract_period_id,
+        )
 
         write_temp_json(
             employee_path / "cumuls" / f"{prev_month:02d}.json", previous_cumuls_data

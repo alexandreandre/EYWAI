@@ -50,7 +50,7 @@ def test_desaccord_pas_sur_et_codes_les_plus_frequents():
 
 def test_b_groupe_quand_personne_dans_la_societe():
     p = proposer(
-        poste="x",
+        poste="Agent de production",
         statut="Non-Cadre",
         collegues_societe=[],
         collegues_groupe=[f("674a", cid="c2", soc="Comitech")],
@@ -219,7 +219,10 @@ def test_un_mot_precis_seul_suffit():
 def test_a_un_code_incompatible_avec_le_statut_ne_compte_pas():
     # Un non-cadre ne prend pas un code de cadre (groupe 3), même chez un collègue.
     p = proposer(
-        poste="x", statut="Non-Cadre", collegues_societe=[f("387c")], collegues_groupe=[f("674a", cid="c2")]
+        poste="Agent de production",
+        statut="Non-Cadre",
+        collegues_societe=[f("387c")],
+        collegues_groupe=[f("674a", cid="c2")],
     )
     assert (p.code, p.regle) == ("674a", "b")
     p = proposer(poste="x", statut="Cadre", collegues_societe=[f("674a", statut="Cadre")], collegues_groupe=[])
@@ -230,3 +233,76 @@ def test_a_un_code_incompatible_a_cote_d_un_bon_est_un_desaccord():
     p = proposer(poste="x", statut="Non-Cadre", collegues_societe=[f("674a"), f("387c")], collegues_groupe=[])
     assert not p.sur and p.regle == "a"
     assert [c.code for c in p.candidats][:1] == ["674a"] and "387c" not in [c.code for c in p.candidats]
+
+
+# --- b) le groupe doit être confirmé par l'Insee ----------------------------------------
+
+
+def groupe(code, poste, statut="Non-Cadre", n=1):
+    return [
+        f(code, poste=poste, statut=statut, cid="c2", soc="Cartol", eid=f"g{i}") for i in range(n)
+    ]
+
+
+def test_b_confirme_par_l_insee_reste_sur():
+    p = proposer(
+        poste="Agent de production",
+        statut="Non-Cadre",
+        collegues_societe=[],
+        collegues_groupe=groupe("674a", "Agent de production"),
+    )
+    assert (p.code, p.sur, p.regle) == ("674a", True, "b")
+
+
+def test_b_sans_confirmation_insee_pas_sur_et_code_propose():
+    p = proposer(
+        poste="Chef de projet",
+        statut="Non-Cadre",
+        collegues_societe=[],
+        collegues_groupe=groupe("543g", "Chef de projet"),
+    )
+    assert (p.code, p.sur, p.regle) == (None, False, "b")
+    assert p.candidats[0].code == "543g"
+    assert "Insee" in p.raison
+
+
+def test_b_sans_confirmation_meme_avec_plusieurs_collegues():
+    p = proposer(
+        poste="Opérateur pliage",
+        statut="Non-Cadre",
+        collegues_societe=[],
+        collegues_groupe=groupe("623e", "Opérateur pliage", n=3),
+    )
+    assert (p.code, p.sur) == (None, False)
+    assert p.candidats[0].code == "623e"
+
+
+def test_b_le_metier_exact_de_l_insee_l_emporte_sur_un_collegue_non_confirme():
+    p = proposer(
+        poste="Responsable qualité",
+        statut="Cadre",
+        collegues_societe=[],
+        collegues_groupe=groupe("387c", "Responsable qualité", statut="Cadre"),
+    )
+    assert (p.code, p.sur, p.regle) == ("387d", True, "c")
+
+
+def test_b_un_mot_generique_ne_confirme_pas():
+    p = proposer(
+        poste="Directeur de site",
+        statut="Cadre",
+        collegues_societe=[],
+        collegues_groupe=groupe("384a", "Directeur de site", statut="Cadre"),
+    )
+    assert (p.code, p.sur) == (None, False)
+    assert p.candidats[0].code == "384a"
+
+
+def test_a_la_societe_n_a_pas_besoin_de_l_insee():
+    p = proposer(
+        poste="Chef de projet",
+        statut="Non-Cadre",
+        collegues_societe=[f("543g", poste="Chef de projet")],
+        collegues_groupe=[],
+    )
+    assert (p.code, p.sur, p.regle) == ("543g", True, "a")

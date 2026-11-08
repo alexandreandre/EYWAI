@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from calendar import monthrange
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -57,12 +58,99 @@ class ReferenceRemunerationResult:
     prime_precarite_incluse: float = 0.0
     alertes: list[str] = field(default_factory=list)
     source: str = "payslips"
+    connue: bool = True
 
 
 def lire_brut_payslip(payslip_data: dict | None) -> float:
     if not payslip_data:
         return 0.0
     return _safe_float(payslip_data.get("salaire_brut", 0))
+
+
+def _jours_sous_contrat(annee: int, mois: int, depuis: date, jusqu_au: date) -> float:
+    """Part du mois couverte par le contrat (jours calendaires)."""
+    jours_du_mois = monthrange(annee, mois)[1]
+    premier = max(depuis, date(annee, mois, 1))
+    dernier = min(jusqu_au, date(annee, mois, jours_du_mois))
+    return max(0, (dernier - premier).days + 1) / jours_du_mois
+
+
+def _brut_du_bulletin(employee_id: str, annee: int, mois: int, supabase_client: Any) -> float | None:
+    """Le brut du bulletin du mois (contrat de la fiche [D3]) ; None sans
+    bulletin ; lève si la lecture échoue."""
+    resp = (
+        supabase_client.table("payslips")
+        .select("payslip_data")
+        .match({"employee_id": employee_id, "year": annee, "month": mois})
+        .is_("contract_period_id", "null")  # le contrat de la fiche [D3]
+        .maybe_single()
+        .execute()
+    )
+    row = resp.data if resp and hasattr(resp, "data") else None
+    if not row or not row.get("payslip_data"):
+        return None
+    return lire_brut_payslip(row["payslip_data"])
+
+
+def bruts_du_contrat(
+    employee_id: str,
+    depuis: date,
+    jusqu_au: date,
+    supabase_client: Any,
+    *,
+    salaire: float,
+    estimer_le_dernier_mois: bool,
+) -> tuple[float, int, list[str]]:
+    """La rémunération brute du contrat de `depuis` à `jusqu_au` inclus, pour
+    l'estimation du dossier de départ : (total, mois lus sur un bulletin,
+    alertes).
+
+    Le dernier mois est estimé au salaire au prorata des jours sous contrat
+    quand `estimer_le_dernier_mois` : c'est le mois de sortie, dont le bulletin
+    porte déjà les indemnités de départ. Un mois sans bulletin vaut le salaire
+    au prorata des jours sous contrat, et le dossier le dit ; une lecture qui
+    échoue est dite illisible, pas absente. Rien avant `depuis`, rien après
+    `jusqu_au` (L1242-16 : « pendant la durée de son contrat »)."""
+    total = 0.0
+    lus = 0
+    alertes: list[str] = []
+    mois_du_contrat = _iter_months_in_period(depuis, jusqu_au) if depuis <= jusqu_au else []
+    for rang, (annee, mois) in enumerate(mois_du_contrat):
+        part = _jours_sous_contrat(annee, mois, depuis, jusqu_au)
+        if estimer_le_dernier_mois and rang == len(mois_du_contrat) - 1:
+            if salaire > 0:
+                total += salaire * part
+            else:
+                alertes.append(
+                    f"Mois de sortie {mois:02d}/{annee} non estimé — salaire du contrat inconnu."
+                )
+            continue
+        try:
+            brut = _brut_du_bulletin(employee_id, annee, mois, supabase_client)
+            etat = "absent"
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Bulletin %02d/%s illisible pour la rémunération du contrat",
+                mois,
+                annee,
+                exc_info=True,
+            )
+            from app.modules.payroll.engine.replis import CODE_REPLI_REFERENCE_CONGES, noter_repli
+
+            noter_repli(CODE_REPLI_REFERENCE_CONGES)
+            brut, etat = None, "illisible"
+        if brut is not None:
+            total += brut
+            lus += 1 if brut > 0 else 0
+            continue
+        if salaire > 0:
+            total += salaire * part
+            alertes.append(f"Bulletin {mois:02d}/{annee} {etat} — salaire du contrat utilisé.")
+        else:
+            alertes.append(f"Bulletin {mois:02d}/{annee} {etat} — mois ignoré.")
+    return round(total, 2), lus, alertes
 
 
 def lire_bruts_periode_reference(
@@ -72,10 +160,36 @@ def lire_bruts_periode_reference(
     *,
     start_month: int = 6,
     salaire_contractuel_fallback: float = 0.0,
+    entree: date | None = None,
+    sortie: date | None = None,
 ) -> ReferenceRemunerationResult:
     period_start, period_end = get_cp_reference_period_bounds(
         ref_date, start_month=start_month
     )
+    if entree is not None or sortie is not None:
+        # Le contrat borne la période : rien avant l'entrée, rien après la
+        # sortie, le mois de sortie estimé au salaire (L3141-24 I, L1242-16).
+        depuis = max(period_start, entree or period_start)
+        jusqu_au = min(period_end, sortie or period_end)
+        total, lus, alertes = bruts_du_contrat(
+            employee_id,
+            depuis,
+            jusqu_au,
+            supabase_client,
+            salaire=salaire_contractuel_fallback,
+            estimer_le_dernier_mois=sortie is not None and jusqu_au == sortie,
+        )
+        mois_total = len(_iter_months_in_period(depuis, jusqu_au)) if depuis <= jusqu_au else 0
+        return ReferenceRemunerationResult(
+            base_totale=total,
+            periode_debut=depuis,
+            periode_fin=jusqu_au,
+            periode_label=_format_periode(depuis, jusqu_au),
+            mois_avec_bulletin=lus,
+            mois_total=mois_total,
+            alertes=alertes,
+            source="payslips",
+        )
     months = _iter_months_in_period(period_start, period_end)
     total_brut = 0.0
     mois_avec_bulletin = 0
@@ -185,52 +299,26 @@ def lire_brut_total_contrat(
     supabase_client: Any,
     *,
     salaire_contractuel_fallback: float = 0.0,
+    estimer_le_mois_de_sortie: bool = False,
 ) -> tuple[float, list[str]]:
-    """Somme des bruts bulletin sur la durée du contrat (embauche → sortie)."""
-    months = _iter_months_in_period(date_debut, date_fin)
-    total_brut = 0.0
-    mois_avec_bulletin = 0
-    alertes: list[str] = []
+    """Somme des bruts du contrat (embauche → sortie) : `bruts_du_contrat`.
 
-    for year, month in months:
-        try:
-            resp = (
-                supabase_client.table("payslips")
-                .select("payslip_data")
-                .match({"employee_id": employee_id, "year": year, "month": month})
-                .is_("contract_period_id", "null")  # le contrat de la fiche [D3]
-                .maybe_single()
-                .execute()
-            )
-            row = resp.data if resp and hasattr(resp, "data") else None
-        except Exception:
-            import logging
-
-            logging.getLogger(__name__).warning(
-                "Bulletin %02d/%s illisible pour le brut de référence des congés",
-                month,
-                year,
-                exc_info=True,
-            )
-            row = None
-            from app.modules.payroll.engine.replis import CODE_REPLI_REFERENCE_CONGES, noter_repli
-
-            noter_repli(CODE_REPLI_REFERENCE_CONGES)
-
-        if row and row.get("payslip_data"):
-            brut = lire_brut_payslip(row["payslip_data"])
-            if brut > 0:
-                mois_avec_bulletin += 1
-                total_brut += brut
-        elif salaire_contractuel_fallback > 0:
-            total_brut += salaire_contractuel_fallback
-
-    if mois_avec_bulletin == 0 and salaire_contractuel_fallback > 0:
-        alertes.append(
-            "Aucun bulletin sur le contrat — estimation sur salaire contractuel."
-        )
-
-    return round(total_brut, 2), alertes
+    Base de la prime de fin de contrat du dossier (L1243-8) : avec
+    `estimer_le_mois_de_sortie`, le mois de sortie est estimé au salaire,
+    jamais lu sur un bulletin qui porte déjà les indemnités de départ."""
+    total, lus, alertes = bruts_du_contrat(
+        employee_id,
+        date_debut,
+        date_fin,
+        supabase_client,
+        salaire=salaire_contractuel_fallback,
+        estimer_le_dernier_mois=estimer_le_mois_de_sortie,
+    )
+    # Seulement s'il y avait des bulletins à lire : le mois de sortie estimé
+    # n'en est pas un.
+    if lus == 0 and alertes and salaire_contractuel_fallback > 0:
+        alertes.append("Aucun bulletin sur le contrat — estimation sur salaire contractuel.")
+    return total, alertes
 
 
 def cumul_avant_le_contrat(
@@ -373,32 +461,43 @@ def calculer_base_reference_dixieme(
     is_cdd: bool = False,
     montant_precarite: float = 0.0,
     montant_ifm: float = 0.0,
+    entree: date | None = None,
+    sortie: date | None = None,
+    sur_contrat: bool = False,
 ) -> ReferenceRemunerationResult:
-    ref = lire_bruts_periode_reference(
-        employee_id,
-        ref_date,
-        supabase_client,
-        start_month=start_month,
-        salaire_contractuel_fallback=salaire_contractuel_fallback,
-    )
+    from datetime import timedelta
+    from app.modules.payroll.infrastructure.reference_dixieme import base_de_reference
 
-    if ref.base_totale <= 0 and employee_path is not None:
-        period_start, period_end = get_cp_reference_period_bounds(
-            ref_date, start_month=start_month
-        )
-        ref_cumuls = lire_bruts_depuis_cumuls(employee_path, period_start, period_end)
-        if ref_cumuls.base_totale > 0:
-            ref = ref_cumuls
-
+    debut, fin_theorique = get_cp_reference_period_bounds(ref_date, start_month=start_month)
+    debut = entree if sur_contrat and entree else max(debut, entree) if entree else debut
+    fin = min(ref_date, sortie or ref_date, fin_theorique)
+    # Le dossier ne lit pas l'ICCP déjà payée dans son propre mois de sortie.
+    # Le mois de sortie seul est explicitement estimé au salaire connu ; jamais
+    # les mois passés absents, ni les mois futurs de la période de référence.
+    avant = fin.replace(day=1) - timedelta(days=1) if sortie else fin
+    resultat = base_de_reference(supabase_client, employee_id, debut, avant, entree=entree)
+    alertes = list(resultat.alertes)
+    base = resultat.base
+    if sortie and base is not None:
+        if salaire_contractuel_fallback > 0:
+            base += salaire_contractuel_fallback * _jours_sous_contrat(fin.year, fin.month, debut, fin)
+            alertes.append("Mois de sortie estimé au salaire du contrat ; mois passés lus sans estimation.")
+        else:
+            base = None
+            alertes.append("Salaire du mois de sortie inconnu : comparaison au dixième impossible.")
+    if base is None:
+        alertes.append("Rémunération de la période de référence inconnue : maintien seul, vérifier le dixième.")
     base_avec_extras, extras = ajouter_prime_precarite_si_cdd(
-        ref.base_totale,
-        is_cdd=is_cdd,
-        montant_precarite=montant_precarite,
-        montant_ifm=montant_ifm,
+        base or 0.0, is_cdd=is_cdd,
+        montant_precarite=montant_precarite if base is not None else 0.0,
+        montant_ifm=montant_ifm if base is not None else 0.0,
     )
-    ref.base_totale = base_avec_extras
-    ref.prime_precarite_incluse = extras
-    return ref
+    return ReferenceRemunerationResult(
+        base_totale=base_avec_extras, periode_debut=debut, periode_fin=fin,
+        periode_label=_format_periode(debut, fin), prime_precarite_incluse=extras,
+        alertes=alertes, source="payslips" if base is not None else "inconnue",
+        connue=base is not None,
+    )
 
 
 def calculer_iccp_l1243_8(

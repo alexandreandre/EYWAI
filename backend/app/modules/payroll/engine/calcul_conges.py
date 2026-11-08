@@ -6,11 +6,12 @@ logger = get_logger("modules.payroll.engine.calcul_conges")
 from .contexte import ContextePaie
 from . import legal_constants as lc
 from .iccp_arbitrage import (
-    arbitrer_iccp_complet,
+    arbitrer_iccp,
     calculer_maintien_horaire,
     lire_parametres_conges,
 )
-from .reference_remuneration import lire_brut_reference_depuis_cumuls
+from app.shared.domain.dixieme_conges import montant_dixieme
+from dataclasses import replace
 from typing import Dict, Any
 
 
@@ -83,14 +84,41 @@ def calculer_indemnite_conges(
         majoration_hs=majoration_hs,
     )
 
-    brut_reference_n_1 = lire_brut_reference_depuis_cumuls(contexte.cumuls)
-    resultat = arbitrer_iccp_complet(
-        float(nombre_jours_conges),
-        maintien_horaire=maintien,
-        base_reference_dixieme=brut_reference_n_1,
-        taux_dixieme=params["taux_dixieme"],
-        jours_reference_dixieme=params["jours_reference_dixieme"],
-    )
+    # L3141-24 I : période d'acquisition, pas cumul de la période en cours.
+    # La photographie est entrée par le canal des cumuls du générateur ; aucun
+    # historique n'est relu ici, y compris au bac à sable.
+    reference = (contexte.cumuls or {}).get("reference_dixieme_conges") or {}
+    coefficient = float(reference.get("coefficient_jours_evenements") or 1.0)
+    a_indemniser = float(nombre_jours_conges) * coefficient
+    valeur_maintien = maintien.total / a_indemniser if a_indemniser > 0 else 0.0
+    total = dixieme = 0.0
+    alertes = list(reference.get("alertes") or [])
+    for cle in ("periode_precedente", "periode_en_cours"):
+        periode = reference.get(cle) or {}
+        jours = min(a_indemniser, max(float(periode.get("restants") or 0), 0.0))
+        if jours <= 0:
+            continue
+        montant = montant_dixieme(periode.get("base"), jours, float(periode.get("droits") or 0), taux=params["taux_dixieme"])
+        maintien_partiel = round(jours * valeur_maintien, 2)
+        total += max(maintien_partiel, montant or 0.0)
+        dixieme += montant or 0.0
+        alertes.extend(periode.get("alertes") or [])
+        if montant is None:
+            alertes.append("Rémunération de la période d'acquisition inconnue : maintien seul, vérifier le dixième.")
+        a_indemniser = round(a_indemniser - jours, 8)
+    if a_indemniser > 0:
+        total += round(a_indemniser * valeur_maintien, 2)
+        alertes.append("Rémunération de la période d'acquisition inconnue : maintien seul, vérifier le dixième.")
+    resultat = arbitrer_iccp(float(nombre_jours_conges), maintien.total, round(dixieme, 2), maintien_horaire=maintien, alertes=alertes)
+    resultat = replace(resultat, montant_final=round(max(total, maintien.total), 2),
+                       methode_retenue="dixieme" if round(total, 2) > maintien.total else "maintien")
+    if alertes:
+        existantes = getattr(contexte, "alertes_baremes", None)
+        if not isinstance(existantes, list):
+            contexte.alertes_baremes = existantes = []
+        message = " ".join(dict.fromkeys(alertes))
+        if not any(a.get("code") == "dixieme_conges_a_verifier" for a in existantes):
+            existantes.append({"code": "dixieme_conges_a_verifier", "message": message})
 
     methode_retenue = (
         "1/10ème" if resultat.methode_retenue == "dixieme" else "Maintien"

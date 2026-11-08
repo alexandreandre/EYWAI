@@ -14,7 +14,6 @@ import unicodedata
 from datetime import date, timedelta
 from typing import Any
 
-from app.modules.absences.domain.enums import SALARY_CERTIFICATE_ABSENCE_TYPES
 from app.modules.absences.domain.cp_arret_maladie import (
     PERTE_PAR_MOIS_D_ARRET,
     annees_revolues,
@@ -398,10 +397,6 @@ def calculate_acquired_rtt(
     )
     acquired_rtt = (base / 12) * months_worked
     return round(min(acquired_rtt, base), 2)
-
-
-def requires_salary_certificate(absence_type: str) -> bool:
-    return absence_type in SALARY_CERTIFICATE_ABSENCE_TYPES
 
 
 def _parse_absence_day(value: object) -> date | None:

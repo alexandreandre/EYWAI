@@ -590,18 +590,15 @@ class TestFideliteColonnes:
 
 
 class TestNoteArbitrageConges:
-    """La règle retenue pour l'indemnité de CP reste affichée (elle l'était avant)."""
+    """La règle retenue pour l'indemnité de CP reste à l'écran RH, pas sur le PDF (Elsa, 05/11)."""
 
-    def test_arbitrage_affiche_en_ligne_de_note(self):
+    def test_l_arbitrage_n_est_pas_imprime(self):
         bulletin = bulletin_avec_cotisations()
         bulletin["arbitrage_conges"] = (
             "L'indemnité de congés payés a été calculée selon la règle du 1/10ème."
         )
         lignes = construire_vue_bulletin(bulletin)["lignes"]
-        note = next(l for l in lignes if l["type"] == "note")
-        assert "1/10ème" in note["libelle"]
-        libelles = [l["libelle"] for l in lignes]
-        assert libelles.index(note["libelle"]) < libelles.index("SALAIRE BRUT")
+        assert not [l for l in lignes if l["type"] == "note"]
 
     def test_sans_arbitrage_aucune_ligne_de_note(self):
         lignes = construire_vue_bulletin(bulletin_avec_cotisations())["lignes"]
@@ -828,9 +825,9 @@ class TestTotalAllegementsPatronaux:
 
 
 class TestNoteCompensationSemaines:
-    """L'option société « compensation des heures entre semaines » se lit sur le bulletin."""
+    """La compensation entre semaines reste à l'écran RH, pas sur le PDF (Elsa, 05/11)."""
 
-    def test_la_mention_apparait_en_ligne_de_note_avant_le_brut(self):
+    def test_la_mention_n_est_pas_imprimee(self):
         bulletin = bulletin_avec_cotisations()
         bulletin["compensation_semaines"] = {
             "net25": 0.5,
@@ -839,23 +836,7 @@ class TestNoteCompensationSemaines:
             "→ 0,5 h à 25 %, 0 h à 50 %.",
         }
         lignes = construire_vue_bulletin(bulletin)["lignes"]
-        note = next(l for l in lignes if l["type"] == "note")
-        assert "compensées entre semaines" in note["libelle"]
-        libelles = [l["libelle"] for l in lignes]
-        assert libelles.index(note["libelle"]) < libelles.index("SALAIRE BRUT")
-
-    def test_un_detail_sans_mention_ne_produit_pas_de_note(self):
-        bulletin = bulletin_avec_cotisations()
-        bulletin["compensation_semaines"] = {"net25": 0.0, "net50": 0.0}
-        lignes = construire_vue_bulletin(bulletin)["lignes"]
         assert not [l for l in lignes if l["type"] == "note"]
-
-    def test_arbitrage_et_compensation_font_deux_notes(self):
-        bulletin = bulletin_avec_cotisations()
-        bulletin["arbitrage_conges"] = "Règle du 1/10ème."
-        bulletin["compensation_semaines"] = {"mention": "Heures compensées entre semaines."}
-        lignes = construire_vue_bulletin(bulletin)["lignes"]
-        assert len([l for l in lignes if l["type"] == "note"]) == 2
 
 
 class TestNoteIndemniteCpFinContrat:

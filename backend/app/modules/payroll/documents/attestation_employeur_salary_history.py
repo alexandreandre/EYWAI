@@ -99,16 +99,15 @@ def _fallback_base_salary(employee_data: Dict[str, Any]) -> float:
 
 def _extract_working_time(
     payslip_data: Dict[str, Any],
-    employee_data: Dict[str, Any],
 ) -> str:
     jours = payslip_data.get("nombre_jours_travailles")
-    if jours is not None and safe_float(jours) > 0:
+    if jours is not None and safe_float(jours, -1) >= 0:
         n = safe_float(jours)
         label = "jour" if n == 1 else "jours"
         return f"{n:.2f} {label}"
 
     heures = payslip_data.get("heures_travaillees")
-    if heures is not None and safe_float(heures) > 0:
+    if heures is not None and safe_float(heures, -1) >= 0:
         n = safe_float(heures)
         return f"{n:.2f} h"
 
@@ -130,9 +129,9 @@ def _extract_working_time(
     if heures_calc > 0:
         return f"{heures_calc:.2f} h"
 
-    weekly = _default_weekly_hours(employee_data)
-    monthly_hours = round((weekly * 52) / 12, 2)
-    return f"{monthly_hours:.2f} h"
+    # Notice France Travail DAJ 1250, rubrique 6.1 : le temps du bulletin,
+    # jamais un mois contractuel inventé (notamment à l'entrée d'un forfait).
+    return "Non renseigné"
 
 
 def _extract_absences(payslip_data: Dict[str, Any]) -> str:
@@ -141,6 +140,12 @@ def _extract_absences(payslip_data: Dict[str, Any]) -> str:
     total_heures = 0.0
     for line in details:
         if not isinstance(line, dict):
+            continue
+        libelle = " ".join(str(line.get("libelle") or "").lower().split())
+        if line.get("is_entree_sortie") or any(
+            marque in libelle for marque in ("entrée ou sortie", "entree ou sortie")
+        ):
+            # Les jours hors contrat ne sont pas une absence du salarié.
             continue
         qty = line.get("quantite") or line.get("jours") or line.get("nombre_jours")
         if qty is not None:
@@ -259,20 +264,20 @@ def get_salary_history(
                 brut -= sum(
                     s["montant"] for s in sommes_de_rupture_du_bulletin(pdata) if s["dans_le_brut"]
                 )
-                brut = round(brut, 2)
-                if brut <= 0:
-                    brut = fallback_salary
+                # Un bulletin sans salaire (sommes de rupture seules) vaut 0 : le salaire
+                # de la fiche ne remplace que le mois sans bulletin, signalé plus bas.
+                brut = max(round(brut, 2), 0.0)
                 months.append(
                     {
                         "year": year,
                         "month": month,
                         "period_label": _month_label(year, month),
-                        "working_time": _extract_working_time(pdata, employee_data),
+                        "working_time": _extract_working_time(pdata),
                         "absences": _extract_absences(pdata),
                         "gross_salary": brut,
                         "primes": _extract_primes(pdata),
                         "has_payslip": True,
-                        "is_estimated": brut <= 0,
+                        "is_estimated": False,
                     }
                 )
             else:

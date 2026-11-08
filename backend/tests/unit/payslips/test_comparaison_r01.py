@@ -62,3 +62,20 @@ def test_le_net_a_plus_de_10_pourcent_reste_critique():
     assert len(r03) == 1
     assert r03[0].level == "CRITIQUE"
     assert resultat.has_critical is True
+
+
+def _net(net: float, brut: float = 2000.0) -> dict:
+    return {"salaire_brut": brut, "net_a_payer": net, "total_cotisations_salariales": brut - net}
+
+
+def test_mois_d_avant_incomplet_le_net_ne_se_compare_pas():
+    """Entré le 28/09 : 3 jours en septembre, un mois plein en octobre (« +508 % »)."""
+    contexte = {**_ctx(), "mois_precedent_incomplet": True}
+    resultat = compute_comparison(_net(1567.04), _net(257.74, 330.0), contexte)
+    assert not [a for a in resultat.alerts if a.rule_id in ("R01", "R02", "R03", "R04")]
+
+
+def test_mois_d_avant_complet_le_net_reste_critique():
+    resultat = compute_comparison(_net(1567.04), _net(257.74, 330.0), _ctx())
+    assert [a.level for a in resultat.alerts if a.rule_id == "R03"] == ["CRITIQUE"]
+

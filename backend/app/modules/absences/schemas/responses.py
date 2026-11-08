@@ -5,7 +5,7 @@ Migrés depuis schemas/absence.py — comportement identique.
 """
 
 from datetime import date, datetime
-from typing import List, Literal, Optional
+from typing import List, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,8 +32,6 @@ class AbsenceRequest(BaseModel):
     jours_payes: float | None = None  # Pour conge_paye : jours décomptés du solde (demande entière depuis le 12/10)
     demi_journees: dict[str, str] | None = None  # {"2026-09-14": "matin"} — demi-journées de CP
     arret_type: str | None = None
-    certificate_status: Optional[Literal["generated", "not_required", "pending"]] = None
-    certificate_id: str | None = None
     manager_approved_at: datetime | None = None
     manager_rejected_at: datetime | None = None
     manager_rejection_reason: str | None = None

@@ -51,9 +51,9 @@ from app.modules.payroll.engine.precarite_non_due import (
     motif_precarite_non_due,
 )
 from app.modules.payroll.engine.reference_remuneration import (
+    bruts_du_contrat,
     calculer_base_reference_dixieme,
     estimer_extras_fin_contrat,
-    lire_brut_reference_depuis_cumuls,
     lire_brut_total_contrat,
 )
 from app.modules.payroll.engine.salaire_reference_sortie import (
@@ -592,24 +592,69 @@ def _cumuls_du_mois_precedent(employee_id: str, exit_date: date, supabase_client
     return (lignes[0].get("cumuls") if lignes else None) or None
 
 
+def _date_de_reprise_des_conges(employee_id: str) -> Optional[date]:
+    """La date de référence de la reprise des soldes de congés, ou None : la
+    même source que la garde des compteurs (toutes années confondues)."""
+    from app.modules.absences.infrastructure.planning_cp_repository import (
+        get_cp_opening_reference_dates,
+    )
+
+    try:
+        return get_cp_opening_reference_dates([employee_id]).get(employee_id)
+    except Exception:
+        logger.warning("Reprise des congés illisible pour %s", employee_id, exc_info=True)
+        return None
+
+
 def _conges_par_periode_a_la_sortie(
-    employee_id: str, exit_date: date, supabase_client
+    employee_id: str,
+    exit_date: date,
+    supabase_client,
+    *,
+    entree: Optional[date] = None,
+    salaire: float = 0.0,
+    employee_data: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Les compteurs de congés par période au jour de la sortie et la
     rémunération des périodes, lus comme le bulletin de sortie les lit
     (`payslip_run_heures.cp_fin_de_contrat`). None sans compteurs : le dossier
-    retombe alors sur l'estimation globale, comme le bulletin sur son repli."""
+    retombe alors sur l'estimation globale, comme le bulletin sur son repli.
+
+    Sans cumuls du mois précédent (mois repris de l'ancien logiciel), le brut
+    de la période en cours avant le mois de sortie est la somme des bulletins
+    de la période depuis l'entrée (L3141-24 I) ; le résultat porte alors ses
+    alertes sous `alertes`."""
     from app.modules.absences.application.queries import get_absence_balances_for_payslip
     from app.modules.payroll.documents.payslip_run_heures import (
-        _brut_de_la_periode_precedente,
+        _debut_de_la_periode_en_cours,
         periodes_depuis_compteurs,
+        remuneration_des_periodes,
     )
 
+    reprise = _date_de_reprise_des_conges(employee_id)
+    sans_la_reprise = reprise is not None and exit_date <= reprise
     try:
-        compteurs = get_absence_balances_for_payslip(
-            employee_id, exit_date.year, exit_date.month, date_de_sortie=exit_date
+        compteurs = (
+            get_absence_balances_for_payslip(
+                employee_id,
+                exit_date.year,
+                exit_date.month,
+                date_de_sortie=exit_date,
+                sans_la_reprise=True,
+            )
+            if sans_la_reprise
+            else get_absence_balances_for_payslip(
+                employee_id, exit_date.year, exit_date.month, date_de_sortie=exit_date
+            )
         )
         cumuls = _cumuls_du_mois_precedent(employee_id, exit_date, supabase_client)
+        if employee_data and employee_data.get("company_id"):
+            from app.modules.payroll.infrastructure.reference_dixieme import preparer_cumuls_dixieme
+            cumuls = preparer_cumuls_dixieme(
+                supabase_client, employee_data, str(employee_data["company_id"]),
+                exit_date.year, exit_date.month, cumuls or {},
+                contract_period_id=employee_data.get("contract_period_id"),
+            )
     except Exception:
         logger.warning(
             "Compteurs de congés par période illisibles pour le dossier de départ (%s)",
@@ -617,11 +662,37 @@ def _conges_par_periode_a_la_sortie(
             exc_info=True,
         )
         return None
-    return periodes_depuis_compteurs(
+    if not compteurs:
+        return None
+    precedente, avant_le_mois = remuneration_des_periodes(employee_id, cumuls, compteurs)
+    alertes: list[str] = []
+    if sans_la_reprise:
+        alertes.append(
+            "Départ payé par l'ancien logiciel : les soldes de congés repris le "
+            f"{reprise:%d/%m/%Y} sont ceux d'après son solde de tout compte ; Martine "
+            "recompte les congés depuis l'entrée (les congés pris avant la reprise "
+            "ne comptent que s'ils sont au planning)."
+        )
+    if avant_le_mois is None:
+        from app.modules.payroll.infrastructure.reference_dixieme import base_de_reference
+
+        debut = _debut_de_la_periode_en_cours(compteurs) or exit_date.replace(day=1)
+        reference = base_de_reference(
+            supabase_client, employee_id, debut, exit_date.replace(day=1) - timedelta(days=1),
+            cumuls=cumuls, lire_cumul=False, entree=entree,
+        )
+        avant_le_mois = reference.base
+        alertes.extend(reference.alertes)
+        if avant_le_mois is None:
+            alertes.append("Rémunération de la période en cours inconnue : maintien seul, vérifier le dixième.")
+    cfg = periodes_depuis_compteurs(
         compteurs,
-        brut_periode_precedente=_brut_de_la_periode_precedente(employee_id, cumuls),
-        brut_en_cours_avant_mois=lire_brut_reference_depuis_cumuls(cumuls),
+        brut_periode_precedente=precedente,
+        brut_en_cours_avant_mois=avant_le_mois,
     )
+    if cfg and alertes:
+        cfg["alertes"] = alertes
+    return cfg
 
 
 def _salaire_habituel_et_taux_horaire(
@@ -684,7 +755,7 @@ def _iccp_par_periode(
         periodes.append(
             PeriodeConges(
                 libelle=str(en_cours.get("libelle") or "période en cours"),
-                brut=round(float(en_cours.get("brut_avant_mois") or 0.0) + brut_du_mois, 2),
+                brut=None if en_cours.get("brut_avant_mois") is None else round(float(en_cours["brut_avant_mois"]) + brut_du_mois, 2),
                 droits=float(en_cours.get("droits") or 0.0),
                 restants=float(en_cours.get("restants") or 0.0),
             )
@@ -749,13 +820,24 @@ def calculer_indemnite_conges_restants(
     montant_ifm = 0.0
     brut_total_contrat = 0.0
 
-    if employee_id and supabase_client and (is_cdd or is_interim):
+    # La prime n'entre dans la base des congés que si elle est versée : fin
+    # de CDD ou de mission (L1242-16 : rémunération « perçue »). Sans motif
+    # connu, comme avant.
+    exit_type = exit_data.get("exit_type")
+    prime_versee = not exit_type or exit_type in ("fin_cdd", "fin_mission")
+    salaire_habituel = _salaire_habituel_et_taux_horaire(employee_data, salaire_base)[0]
+
+    if employee_id and supabase_client and (is_cdd or is_interim) and prime_versee:
+        # Base de la prime : la rémunération versée durant ce contrat (L1243-8,
+        # F40), le mois de sortie estimé au salaire — son bulletin porte déjà
+        # les indemnités de départ.
         brut_total_contrat, alertes_contrat = lire_brut_total_contrat(
             str(employee_id),
             hire_date,
             exit_date,
             supabase_client,
-            salaire_contractuel_fallback=salaire_base,
+            salaire_contractuel_fallback=salaire_habituel,
+            estimer_le_mois_de_sortie=True,
         )
         alertes.extend(alertes_contrat)
         montant_precarite, montant_ifm = estimer_extras_fin_contrat(
@@ -775,7 +857,9 @@ def calculer_indemnite_conges_restants(
     # qu'une estimation (le brut du mois de sortie n'est pas encore connu) ;
     # le bulletin la recalcule sur le brut réel.
     periodes_cfg = (
-        _conges_par_periode_a_la_sortie(str(employee_id), exit_date, supabase_client)
+        _conges_par_periode_a_la_sortie(
+            str(employee_id), exit_date, supabase_client, entree=hire_date, salaire=salaire_habituel, employee_data=employee_data
+        )
         if employee_id and supabase_client
         else None
     )
@@ -825,10 +909,12 @@ def calculer_indemnite_conges_restants(
             exit_date,
             supabase_client,
             start_month=start_month,
-            salaire_contractuel_fallback=salaire_base,
+            salaire_contractuel_fallback=salaire_habituel,
             is_cdd=is_cdd,
             montant_precarite=montant_precarite,
             montant_ifm=montant_ifm,
+            entree=hire_date,
+            sortie=exit_date,
         )
     else:
         from app.modules.payroll.engine.reference_remuneration import (
@@ -847,12 +933,13 @@ def calculer_indemnite_conges_restants(
             + 1,
         )
         ref_rem = ReferenceRemunerationResult(
-            base_totale=round(salaire_base * months_count, 2),
+            base_totale=0.0,
+            connue=False,
             periode_debut=period_start,
             periode_fin=period_end,
             periode_label=f"{period_start.strftime('%d/%m/%Y')} – {period_end.strftime('%d/%m/%Y')}",
-            alertes=["Calcul sans accès aux bulletins — estimation sur salaire contractuel."],
-            source="contractuel",
+            alertes=["Rémunération de la période inconnue, sans accès aux bulletins : maintien seul."],
+            source="inconnue",
         )
     alertes.extend(ref_rem.alertes)
 
@@ -872,17 +959,18 @@ def calculer_indemnite_conges_restants(
         # Repli d'une fin de CDD ou de mission sans compteurs : le dixième de
         # toute la rémunération du contrat, précarité comprise — le repli du
         # bulletin (`dixieme_global`). Le plus favorable des deux est retenu.
-        brut_contrat = brut_total_contrat
-        extras = montant_precarite + montant_ifm
-        if brut_contrat <= 0:
-            brut_contrat = max(ref_rem.base_totale - ref_rem.prime_precarite_incluse, 0.0)
-            if extras <= 0:
-                extras = ref_rem.prime_precarite_incluse
-        base_contrat = brut_contrat + max(extras, 0.0)
-        dixieme_contrat = round(base_contrat * params["taux_dixieme"], 2) if base_contrat > 0 else 0.0
-        if dixieme_contrat >= indemnite and dixieme_contrat > 0:
-            indemnite = dixieme_contrat
-            methode_label = "dixieme_global"
+        reference_contrat = calculer_base_reference_dixieme(
+            str(employee_id), exit_date, supabase_client, entree=hire_date, sortie=exit_date,
+            salaire_contractuel_fallback=salaire_habituel, is_cdd=is_cdd,
+            montant_precarite=montant_precarite, montant_ifm=montant_ifm, sur_contrat=True,
+        )
+        alertes.extend(reference_contrat.alertes)
+        if reference_contrat.connue:
+            from app.shared.domain.dixieme_conges import montant_dixieme
+            dixieme_contrat = montant_dixieme(reference_contrat.base_totale, 1.0, 1.0, taux=params["taux_dixieme"]) or 0.0
+            if dixieme_contrat >= indemnite and dixieme_contrat > 0:
+                indemnite = dixieme_contrat
+                methode_label = "dixieme_global"
 
     log_payroll_debug(logger, f'    Indemnité (maintien): {arbitrage.indemnite_maintien:.2f} €')
     log_payroll_debug(logger, f'    Indemnité (1/10ème): {arbitrage.indemnite_dixieme:.2f} €')
@@ -913,7 +1001,7 @@ def calculer_indemnite_conges_restants(
             "indemnite_maintien": arbitrage.indemnite_maintien,
             "indemnite_dixieme": arbitrage.indemnite_dixieme,
             "taux_journalier": round(taux_journalier, 4),
-            "base_reference_dixieme": ref_rem.base_totale,
+            "base_reference_dixieme": ref_rem.base_totale if ref_rem.connue else None,
             "prime_precarite_incluse": ref_rem.prime_precarite_incluse,
             "periode_reference": ref_rem.periode_label,
             "source_solde": "absences.compute_cp_period_balances",
@@ -987,6 +1075,7 @@ def _indemnite_conges_par_periode(
             "conges_acquis": droits,
             "conges_pris": round(droits - jours_restants, 2),
             "alertes": list(alertes)
+            + list(periodes_cfg.get("alertes") or [])
             + [
                 "Estimation : le bulletin de sortie recalcule l'indemnité sur le brut réel du mois."
             ],

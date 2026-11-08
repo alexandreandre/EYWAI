@@ -403,6 +403,22 @@ def build_attestation_employeur_pdf(
         )
     )
 
+    if any(
+        m.get("working_time") == "Non renseigné"
+        for m in salary_history.get("months") or []
+    ):
+        story.append(
+            Paragraph(
+                "<i>Temps de travail non renseigné : à compléter d'après le bulletin d'origine.</i>",
+                ParagraphStyle(
+                    name="AttestationTempsManquant",
+                    parent=styles["Normal"],
+                    fontSize=7,
+                    textColor=colors.HexColor("#64748b"),
+                ),
+            )
+        )
+
     # 6. Primes
     story.append(Spacer(1, 0.3 * cm))
     story.append(_section_title("6. PRIMES ET INDEMNITÉS PERÇUES", styles))
@@ -482,16 +498,16 @@ def build_attestation_employeur_pdf(
         mutuelle = (
             company_data.get("mutuelle_nom")
             or company_data.get("organisme_mutuelle")
-            or "organisme complémentaire santé de l'entreprise"
+            or "l'organisme complémentaire santé de l'entreprise"
         )
         prevoyance = (
             company_data.get("prevoyance_nom")
             or company_data.get("organisme_prevoyance")
-            or "organisme de prévoyance de l'entreprise"
+            or "l'organisme de prévoyance de l'entreprise"
         )
         portabilite_text = (
             f"Le salarié bénéficie du maintien des garanties (portabilité) auprès de "
-            f"<b>{mutuelle}</b> (complémentaire santé) et <b>{prevoyance}</b> (prévoyance), "
+            f"<b>{mutuelle}</b> (complémentaire santé) et de <b>{prevoyance}</b> (prévoyance), "
             "conformément aux articles L911-8 et suivants du Code de la sécurité sociale."
         )
     else:

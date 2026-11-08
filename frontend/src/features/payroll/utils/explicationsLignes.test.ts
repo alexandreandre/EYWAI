@@ -95,3 +95,27 @@ describe('cadre « D’où viennent ces lignes » : chaque astérisque ouvre sa 
     expect(source).toContain('afficherAsterisque(ligne)');
   });
 });
+
+describe('ce que le PDF ne dit plus', () => {
+  it('la règle retenue pour les congés reste à l’écran', () => {
+    const lignes = lignesAvecExplication({
+      arbitrage_conges: 'Règle du maintien de salaire retenue.',
+    });
+    expect(lignes).toEqual([
+      { libelle: 'Indemnité de congés payés', explication: 'Règle du maintien de salaire retenue.' },
+    ]);
+  });
+
+  it('la compensation entre semaines reste à l’écran', () => {
+    const lignes = lignesAvecExplication({
+      compensation_semaines: { mention: 'Heures compensées entre semaines : S27 +1,5.' },
+    });
+    expect(lignes).toEqual([
+      { libelle: 'Heures compensées entre semaines', explication: 'Heures compensées entre semaines : S27 +1,5.' },
+    ]);
+  });
+
+  it('rien sans texte', () => {
+    expect(lignesAvecExplication({ arbitrage_conges: null, compensation_semaines: { net25: 0 } })).toEqual([]);
+  });
+});

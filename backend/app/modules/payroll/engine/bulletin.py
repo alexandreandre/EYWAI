@@ -433,6 +433,13 @@ def _calculer_cout_total_employeur(
     )
 
 
+def alertes_maintien_du_bulletin(resultats_maintien: Dict[str, Any]) -> List[str]:
+    """Les alertes du maintien, sans le motif d'un arrêt sans droit : Martine applique
+    la convention, la RH n'a rien à faire. Il se lit sous la ligne d'absence."""
+    motif = (resultats_maintien.get("maintien") or {}).get("motif_non_maintien")
+    return [a for a in resultats_maintien.get("alertes") or [] if a != motif]
+
+
 def _compensation_semaines_du_bulletin(contexte: ContextePaie) -> Optional[Dict[str, Any]]:
     """Le résumé de l'option société « compensation des heures entre semaines »,
     complété des heures sup saisies à la main quand le moteur les a fait primer."""
@@ -679,7 +686,7 @@ def creer_bulletin_final(
             resultats_maintien.get("maintien", {}).get("complement_employeur", 0.0)
             or 0.0
         )
-        synthese_net["alertes_maintien"] = resultats_maintien.get("alertes", []) or []
+        synthese_net["alertes_maintien"] = alertes_maintien_du_bulletin(resultats_maintien)
         synthese_net["subrogation_active"] = resultats_maintien.get(
             "subrogation_active", False
         )

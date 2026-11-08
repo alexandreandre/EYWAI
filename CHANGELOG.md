@@ -10,6 +10,62 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - Sur le bulletin : heures acquises, heures prises avec leur date, solde. Et sur chaque bulletin, un bouton pour payer les heures du mois au lieu de les mettre au compteur (ou l'inverse), payer le solde, ou revenir en arrière. La conséquence est écrite à côté : une heure mise en repos puis payée perd l'exonération d'impôt et les réductions.
 - La récupération se pose comme une absence, à la journée ou en heures. Le solde entre dans la provision des congés. Tant que les soldes de Quadra ne sont pas repris, rien ne change pour personne.
 
+## paie-2026-11-06.1 — 6 novembre 2026
+
+### Le bulletin ne porte plus que ce qu'il doit porter
+- « Heures compensées entre semaines (option société) » et « … plus favorable que la règle du 1/10ème » ne s'impriment plus : ces deux phrases restent à l'écran, dans « D'où viennent ces lignes ».
+- « Réduction HS structurelles (jours d'absence) » devient « Heures sup. du contrat non faites (absence) » sur les nouveaux bulletins. Le calcul ne change pas.
+
+### L'attestation de salaire maison disparaît, l'arrêt montre son signalement DSN
+- Plus de PDF d'attestation pour la CPAM : le signalement d'arrêt en DSN le remplace, et ce document inventait le salaire de la fiche pour les mois sans bulletin.
+- À la place, chaque arrêt validé dit où en est son signalement : à déposer avant telle date, en retard, ou fichier généré tel jour. Le dépôt se fait hors de Martine : elle ne le voit pas et ne le prétend pas.
+
+### Plus de montant inventé sans le dire quand un bulletin manque
+- Le reçu pour solde de tout compte se refuse sans le bulletin du mois de sortie. L'attestation employeur garde 0 € pour un bulletin sans salaire.
+- Des IJ estimées disent combien de mois de référence n'ont pas de bulletin. Une avance sans bulletin dit que sa référence est le brut de la fiche.
+
+### Forfait jours : un jour resté « Prévu » n'est plus une absence
+- Dans un mois confirmé en partie, un jour prévu sans réel restait retenu en absence injustifiée. Seul un 0 posé à l'écran dit « non travaillé ».
+
+### Deux messages qui ne demandent rien se taisent
+- « Plasturgie : un an d'ancienneté requis… » : le motif se lit sous la ligne d'absence, à l'aperçu et au détail du maintien.
+- Le net ne se compare plus à un mois d'entrée incomplet (« +508 % ») : ni orange, ni écart à acquitter avant de valider.
+
+### Provision des congés
+- « Mois retenus » s'écrit « 9 mois sur 12 » : Excel n'en fait plus une date.
+## paie-2026-11-05.14 — 5 novembre 2026
+
+### Les congés payés utilisent la rémunération de leur période d'acquisition
+- Les congés pris, les indemnités de départ et la provision partagent le calcul légal du dixième, comparé au maintien de salaire.
+- Les absences assimilées sont reconstituées et les primes exclues retirées, en distinguant les jours ouvrés des jours ouvrables.
+- Une rémunération manquante ou une régularisation ambiguë est signalée ; les cumuls repris de l'ancien logiciel sont conservés.
+
+
+## paie-2026-11-05.13 — 5 novembre 2026
+
+### Les documents de départ n'inventent plus les heures d'un bulletin incomplet
+- L'attestation France Travail indique « Non renseigné » si le bulletin repris ne porte pas son temps de travail ; une retenue d'entrée ou de sortie ne devient plus une absence.
+- La phrase sur les organismes complémentaires reste lisible quand leur nom manque.
+- La mention légale du certificat de travail reste en pied de page, sans créer une deuxième page presque vide.
+
+## paie-2026-11-05.12 — 5 novembre 2026
+
+### Le code PCS d'un collègue d'une autre société n'est plus posé sans l'accord de l'Insee
+- Le code d'un collègue de la société reste sûr. Celui d'un collègue d'une autre société ne l'est plus que si l'Insee range ce poste dans ce code.
+- Sinon la fiche le propose, avec la raison, sans le remplir ; un métier exact de l'Insee passe devant (« Responsable qualité » en 387d).
+
+### Contribution OETH : le Smic du 31 décembre de l'année due
+- Martine lit le Smic au 31 décembre de l'année, comme le demande le guide de l'Urssaf : 11,88 € pour 2025, inchangé, et 12,31 € pour 2026 au lieu de 11,88 €.
+
+## paie-2026-11-05.11 — 5 novembre 2026
+
+### Le dossier de départ d'un CDD estime la prime et les congés selon la loi
+- La prime de fin de contrat se calcule sur les salaires de ce contrat seulement, le dernier mois estimé au salaire ; plus aucun mois inventé après le départ.
+- Les congés d'un départ déjà payé par l'ancien logiciel se recomptent depuis l'entrée, et le dossier le dit ; un départ en juin ne mélange plus deux périodes de congés sur le bulletin.
+- Au choix d'un salarié en CDD, le formulaire de départ propose « Fin de CDD » et la date de fin du contrat ; tout reste modifiable.
+
+## paie-2026-11-05.10 — 5 novembre 2026
+
 ### Une attestation pour un salarié, en PDF prêt à signer
 - Fiche du salarié > Documents > « Générer une attestation » (aussi en mode paie), ou Exports > Déclarations > « Attestation pour un salarié ».
 - Deux lettres : l'attestation de travail (poste, contrat, date d'entrée, ancienneté du bulletin, temps de travail, rémunération, période d'essai en cours) et l'attestation de salaire (brut et net avant impôt des derniers bulletins remis, 3 mois par défaut, jusqu'à 12).

@@ -80,6 +80,9 @@ class SimpleEmployee(BaseModel):
     job_title: Optional[str] = None
     # Vrai si aucun contrat n'a été généré dans MARTINE (salarié repris d'un autre logiciel).
     contrat_absent: bool = False
+    # Le formulaire de départ propose « Fin de CDD » à la date de fin d'un CDD.
+    contract_type: Optional[str] = None
+    contract_end_date: Optional[str] = None
 
 
 class NoticePeriodPreview(BaseModel):

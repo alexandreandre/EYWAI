@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { fr } from 'date-fns/locale';
 import { AlertCircle, Clock, Info, PlusCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import type { AbsenceBalance, AbsenceRequest, SalaryCertificate } from '@/api/absences';
+import type { AbsenceBalance, AbsenceRequest } from '@/api/absences';
 import {
   EmployeePageHeader,
   EmployeePageShell,
@@ -50,8 +50,6 @@ export default function AbsencesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [certificates, setCertificates] = useState<Record<string, SalaryCertificate>>({});
-  const [loadingCertificates, setLoadingCertificates] = useState<Set<string>>(new Set());
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<Date | null>(null);
   const [daySheetOpen, setDaySheetOpen] = useState(false);
   const requestsListRef = useRef<HTMLDivElement>(null);
@@ -146,19 +144,6 @@ export default function AbsencesPage() {
       queryKey: [...queryKeys.employeeDashboard(userId), 'absences'],
     });
   }, [queryClient, userId]);
-
-  const handleCertificateLoaded = (absenceId: string, cert: SalaryCertificate) => {
-    setCertificates((prev) => ({ ...prev, [absenceId]: cert }));
-  };
-
-  const handleCertificateLoading = (absenceId: string, loading: boolean) => {
-    setLoadingCertificates((prev) => {
-      const next = new Set(prev);
-      if (loading) next.add(absenceId);
-      else next.delete(absenceId);
-      return next;
-    });
-  };
 
   const scrollToRequests = () => {
     requestsListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -305,10 +290,6 @@ export default function AbsencesPage() {
               absences={filteredAbsences}
               statusFilter={statusFilter}
               onStatusFilterChange={handleStatusFilterChange}
-              certificates={certificates}
-              loadingCertificates={loadingCertificates}
-              onCertificateLoaded={handleCertificateLoaded}
-              onCertificateLoading={handleCertificateLoading}
               listRef={requestsListRef}
             />
           </div>

@@ -31,9 +31,9 @@ def test_pas_de_mention_sans_declaration():
     assert mention_heures_sup_declarees({}) is None
 
 
-def test_la_mention_de_la_compensation_suffit_quand_elle_porte_deja_les_heures():
+def test_la_compensation_n_etant_plus_imprimee_les_heures_declarees_restent_dites():
     bulletin = {
         "heures_sup_declarees": {"hs25": 4.0, "hs50": 0.0, "planning": 6.0},
         "compensation_semaines": {"heures_saisies": {"hs25": 4.0, "hs50": 0.0}, "mention": "…"},
     }
-    assert mention_heures_sup_declarees(bulletin) is None
+    assert "4 h à 25 %" in mention_heures_sup_declarees(bulletin)

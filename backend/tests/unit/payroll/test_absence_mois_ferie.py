@@ -103,7 +103,7 @@ def test_le_1er_mai_avant_un_arret_qui_couvre_le_reste_du_mois_reste_paye():
     # Les fériés compris dans l'arrêt (8, 14 et 25 mai) restent retenus avec lui :
     # 20 jours, 140 h de base et 16 h structurelles, comme Quadra.
     assert _pertes(result, "Absence arrêt maladie") == 1802.36
-    assert _pertes(result, "Réduction HS structurelles") == 257.48
+    assert _pertes(result, "Heures sup. du contrat non faites") == 257.48
     assert result["salaire_brut_total"] == 171.64
 
 
@@ -111,7 +111,7 @@ def test_un_ferie_dans_un_arret_qui_couvre_tout_le_mois_reste_retenu():
     # Le 1er mai est dans l'arrêt : le mois est entièrement absent, rien ne change.
     result = _brut(_ctx(), _arret(date(2026, 4, 20), date(2026, 6, 10), MAI, FERIES_MAI), MAI)
     assert _pertes(result, "Absence arrêt maladie") == 1532.00
-    assert _pertes(result, "Réduction HS structurelles") == 218.86
+    assert _pertes(result, "Heures sup. du contrat non faites") == 218.86
     assert _pertes(result, COMPLEMENT) == 480.62
     assert result["salaire_brut_total"] == 0.0
 

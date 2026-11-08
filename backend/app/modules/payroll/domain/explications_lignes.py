@@ -148,6 +148,20 @@ def _expliquer_absences(bulletin: dict[str, Any]) -> None:
     for section in ("details_absences", "details_conges"):
         for ligne in _lignes_de(bulletin, section):
             _poser(ligne, _texte_absence(str(ligne.get("libelle") or "")))
+    motif = _motif_sans_maintien(bulletin)
+    if motif:
+        for ligne in _lignes_de(bulletin, "details_absences"):
+            if ligne.get(CLE_EXPLICATION) and "maladie" in str(ligne.get("libelle") or "").lower():
+                ligne[CLE_EXPLICATION] += f". Pas de maintien : {motif}"
+
+
+def _motif_sans_maintien(bulletin: Mapping[str, Any]) -> str | None:
+    bloc = bulletin.get("bloc_maintien")
+    maintien = bloc.get("maintien") if isinstance(bloc, Mapping) else None
+    if not isinstance(maintien, Mapping) or maintien.get("maintien_applicable", True):
+        return None
+    motif = str(maintien.get("motif_non_maintien") or "").strip()
+    return motif or None
 
 
 def _euros_fr(valeur: float) -> str:

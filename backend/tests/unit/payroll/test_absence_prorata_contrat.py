@@ -54,7 +54,7 @@ def test_journees_de_8h30_retenues_au_prorata_35_39():
     assert absences[0]["perte"] == pytest.approx(100.28, abs=0.01)
     assert absences[2]["perte"] == pytest.approx(88.45, abs=0.01)
 
-    reduction = _lignes(res, "Réduction HS structurelles")
+    reduction = _lignes(res, "Heures sup. du contrat non faites")
     assert len(reduction) == 1
     # 0,87 + 0,87 + 0,77 + 0,03 + 0,08 : ce que le taux de base ne retient pas.
     assert reduction[0]["quantite"] == pytest.approx(2.62, abs=0.005)
@@ -68,7 +68,7 @@ def test_journee_de_7h48_donne_7h_plus_0h80_comme_avant():
     res = calculer_salaire_brut(ctx, cal, *JUILLET, [])
     absences = _lignes(res, "Absence injustifiée")
     assert [l["quantite"] for l in absences] == [7.0]
-    reduction = _lignes(res, "Réduction HS structurelles")
+    reduction = _lignes(res, "Heures sup. du contrat non faites")
     assert reduction[0]["quantite"] == pytest.approx(0.8, abs=0.005)
 
 
@@ -78,7 +78,7 @@ def test_contrat_35h_inchange():
     res = calculer_salaire_brut(ctx, cal, *JUILLET, [])
     absences = _lignes(res, "Absence injustifiée")
     assert [l["quantite"] for l in absences] == [7.0]
-    assert _lignes(res, "Réduction HS structurelles") == []
+    assert _lignes(res, "Heures sup. du contrat non faites") == []
 
 
 def test_absence_non_remuneree_meme_prorata():
@@ -91,4 +91,4 @@ def test_absence_non_remuneree_meme_prorata():
     res = calculer_salaire_brut(ctx, cal, *JUILLET, [])
     absences = _lignes(res, "Absence non rémunérée")
     assert [l["quantite"] for l in absences] == [7.63]
-    assert _lignes(res, "Réduction HS structurelles")[0]["quantite"] == pytest.approx(0.87, abs=0.005)
+    assert _lignes(res, "Heures sup. du contrat non faites")[0]["quantite"] == pytest.approx(0.87, abs=0.005)
