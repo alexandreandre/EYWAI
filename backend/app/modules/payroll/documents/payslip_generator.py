@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import HTTPException
 
 from app.shared.domain.effectif_seuils import alerte_effectif, effectif_retenu
+from app.shared.domain.periode_variables import FenetreVariables, fin_au_depart
 from app.modules.collective_agreements.application.idcc_resolution import (
     build_convention_collective_payload,
 )
@@ -919,8 +920,17 @@ def process_payslip_generation(
             resoudre_fenetre_variables,
         )
 
-        fenetre_variables = resoudre_fenetre_variables(
+        fenetre_societe = resoudre_fenetre_variables(
             str(company_id), year, month, societe=company_data
+        )
+        # Mois de sortie : la fenêtre va jusqu'au dernier jour du contrat, il
+        # n'y aura pas de bulletin suivant pour reprendre ces jours.
+        fenetre_variables = FenetreVariables(
+            debut=fenetre_societe.debut,
+            fin=fin_au_depart(
+                fenetre_societe.fin, year, month, resolve_date_sortie(employee_data)
+            ),
+            origine=fenetre_societe.origine,
         )
         alerte_heures_sur_arret = alerte_heures_ecartees(
             heures_sur_arret.jours,
@@ -1408,6 +1418,11 @@ def process_payslip_generation(
                         "debut": fenetre_variables.debut.isoformat(),
                         "fin": fenetre_variables.fin.isoformat(),
                         "origine": fenetre_variables.origine,
+                        **(
+                            {"fin_societe": fenetre_societe.fin.isoformat()}
+                            if fenetre_variables.fin != fenetre_societe.fin
+                            else {}
+                        ),
                     },
                     "taux_specifiques": {
                         "taux_at_mp": company_data.get("taux_at_mp"),
@@ -1566,9 +1581,11 @@ def process_payslip_generation(
             employee=employee_data,
             company=company_data,
             notes_de_frais=(expense_reports_res.data or []) if expense_reports_res else [],
+            # Celle de la société : c'est elle que la relecture de l'empreinte
+            # recalcule ; la date de sortie est déjà dans la fiche hachée.
             fenetre_variables={
-                "debut": fenetre_variables.debut.isoformat(),
-                "fin": fenetre_variables.fin.isoformat(),
+                "debut": fenetre_societe.debut.isoformat(),
+                "fin": fenetre_societe.fin.isoformat(),
             },
         )
         payslip_json_data = poser_empreinte_depuis_lectures(

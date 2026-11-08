@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import calendar
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 #: Origine d'une fenêtre : issue de la règle société, ou corrigée à la main.
 ORIGINE_REGLE = "regle"
@@ -60,6 +60,27 @@ def semaines_iso(debut: date, fin: date) -> list[int]:
     return numeros
 
 
+def fin_au_depart(fin: date, annee: int, mois: int, date_sortie: object) -> date:
+    """Fin de fenêtre d'un salarié qui sort dans le mois : son dernier jour.
+
+    Sortie le 30/11, arrêté au 22/11 : le bulletin de décembre n'existera pas,
+    ce qui tombe entre les deux doit passer sur celui de novembre. `date_sortie`
+    est une date ou un texte ISO ; vide ou illisible, la fenêtre ne bouge pas.
+    """
+    if isinstance(date_sortie, datetime):
+        sortie: date | None = date_sortie.date()
+    elif isinstance(date_sortie, date):
+        sortie = date_sortie
+    else:
+        try:
+            sortie = date.fromisoformat(str(date_sortie or "")[:10])
+        except ValueError:
+            sortie = None
+    if sortie is None or (sortie.year, sortie.month) != (annee, mois) or sortie <= fin:
+        return fin
+    return sortie
+
+
 def resoudre_fenetre(
     bornes_regle: tuple[date, date],
     fin_mois_precedent: date | None,
@@ -96,6 +117,7 @@ __all__ = [
     "ORIGINE_MANUEL",
     "ORIGINE_REGLE",
     "bornes_mois_civil",
+    "fin_au_depart",
     "normaliser_fin_semaine",
     "resoudre_fenetre",
     "semaines_iso",

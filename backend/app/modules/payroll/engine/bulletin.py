@@ -813,6 +813,7 @@ def creer_bulletin_final(
             "date_fin_periode": (
                 date_fin_periode.isoformat() if date_fin_periode else None
             ),
+    fin_variables_societe = getattr(contexte, "date_fin_variables_societe", None)
             # Fenêtre des heures sup et des paniers, affichée sous le bandeau
             # quand elle diffère du mois civil.
             "date_debut_variables": (
@@ -842,6 +843,12 @@ def creer_bulletin_final(
                 ),
                 "nir": contexte.contrat.get("salarie", {}).get("nir"),
                 "emploi": contexte.contrat.get("contrat", {}).get("emploi"),
+            # Seulement au mois de sortie, quand la fenêtre a été prolongée.
+            **(
+                {"date_fin_variables_societe": str(fin_variables_societe)[:10]}
+                if fin_variables_societe
+                else {}
+            ),
                 "statut": contexte.statut_salarie,
                 "type_contrat": contexte.type_contrat,
                 "is_alternant": contexte.is_alternant,
