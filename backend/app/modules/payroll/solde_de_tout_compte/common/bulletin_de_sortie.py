@@ -106,12 +106,12 @@ def bulletin_du_mois_de_sortie(
 
 
 #: Alertes du bulletin de sortie que la génération du reçu redit à la gestionnaire.
-CODES_ALERTES_DU_RECU = ("rtt_jtc_non_payes_au_depart",)
+CODES_ALERTES_DU_RECU = ("rtt_jtc_non_payes_au_depart", "repos_compensateur_du_au_depart")
 
 
 def alertes_du_recu(payslip_data: Optional[Dict[str, Any]]) -> List[str]:
     """Les alertes du bulletin de sortie qui valent pour le reçu (RTT et JTC
-    non pris, « Néant » : à vérifier selon l'accord, décision du 12/10/2026)."""
+    non pris, à vérifier selon l'accord ; repos compensateur obligatoire dû)."""
     if not isinstance(payslip_data, dict):
         return []
     return [
@@ -119,6 +119,34 @@ def alertes_du_recu(payslip_data: Optional[Dict[str, Any]]) -> List[str]:
         for a in payslip_data.get("alertes_baremes") or []
         if isinstance(a, dict) and a.get("code") in CODES_ALERTES_DU_RECU and a.get("message")
     ]
+
+
+def section_autres_regularisations(
+    payslip_data: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """« Autres régularisations » du reçu : RTT et JTC restants « Néant » (décision
+    du 12/10/2026) ; le repos compensateur obligatoire non pris est dû (D3121-23),
+    jamais « Néant ». Rien à dire : pas de section."""
+    alertes = {
+        a.get("code"): a
+        for a in (payslip_data or {}).get("alertes_baremes") or []
+        if isinstance(a, dict)
+    }
+    repos = alertes.get("repos_compensateur_du_au_depart")
+    lignes = []
+    if "rtt_jtc_non_payes_au_depart" in alertes:
+        lignes.append(amount_row("RTT" if repos else "RTT / repos compensateurs", "Néant", None))
+    if repos:
+        from app.modules.modulation.domain.hour_account_rules import heures_en_texte
+
+        lignes.append(
+            amount_row(
+                "Repos compensateur obligatoire non pris",
+                f"{heures_en_texte(float(repos.get('heures') or 0))} dues (C. trav. D3121-23)",
+                None,
+            )
+        )
+    return amounts_section("AUTRES RÉGULARISATIONS", lignes) if lignes else None
 
 
 def indemnites_compensatrices_de_conges(payslip_data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -256,14 +284,9 @@ def generate_solde_depuis_bulletin(
         sections.append(amounts_section("INDEMNITÉS DE FIN DE CONTRAT SOUMISES À COTISATIONS", rupture))
     if apres_cotisations:
         sections.append(amounts_section("SOMMES VERSÉES APRÈS COTISATIONS", apres_cotisations))
-    if alertes_du_recu(payslip_data):
-        # RTT ou JTC restants au départ, ni payés ni retenus : le reçu le dit,
-        # comme le reçu estimé (décision du 12/10/2026).
-        sections.append(
-            amounts_section(
-                "AUTRES RÉGULARISATIONS", [amount_row("RTT / repos compensateurs", "Néant", None)]
-            )
-        )
+    autres_regularisations = section_autres_regularisations(payslip_data)
+    if autres_regularisations:
+        sections.append(autres_regularisations)
 
     exit_type = str(exit_data.get("exit_type") or "")
     sortie = _date(exit_data.get("last_working_day"))

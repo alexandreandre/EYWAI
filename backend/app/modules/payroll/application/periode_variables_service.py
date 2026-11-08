@@ -122,7 +122,8 @@ def enregistrer_fenetre_variables(
 _SELECT_BULLETINS = (
     "employee_id, status, origine, "
     "debut:payslip_data->en_tete->>date_debut_variables, "
-    "fin:payslip_data->en_tete->>date_fin_variables"
+    "fin:payslip_data->en_tete->>date_fin_variables, "
+    "fin_societe:payslip_data->en_tete->>date_fin_variables_societe"
 )
 
 
@@ -131,10 +132,12 @@ def bulletin_hors_fenetre(ligne: dict[str, Any], fenetre: FenetreVariables) -> b
 
     Un bulletin importé (reprise de paie) ou sans fenêtre en en-tête (ancien
     moteur) n'est pas concerné : il n'a pas été calculé par nous sur une fenêtre.
+    Un bulletin de sortie prolongé jusqu'au départ se compare à la fin de la
+    société qu'il a prolongée.
     """
     if (ligne.get("origine") or "calcule") == "importe":
         return False
-    debut, fin = ligne.get("debut"), ligne.get("fin")
+    debut, fin = ligne.get("debut"), ligne.get("fin_societe") or ligne.get("fin")
     if not debut or not fin:
         return False
     return (str(debut)[:10], str(fin)[:10]) != (

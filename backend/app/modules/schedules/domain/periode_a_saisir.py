@@ -23,6 +23,7 @@ from app.modules.schedules.domain.ecart_rules import (
     a_des_heures_pointees,
     is_day_ready_for_payroll,
 )
+from app.shared.domain.periode_variables import fin_au_depart
 
 Motif = Literal["planning_absent", "prevu_sans_reel", "prevu_sans_heures", "reel_a_zero"]
 #: (année, mois) → (calendrier prévu, calendrier réel) tels que stockés.
@@ -124,6 +125,8 @@ def periode_a_saisir(
     mois_civil = (date(annee, mois, 1), date(annee, mois, calendar.monthrange(annee, mois)[1]))
     if forfait:
         fenetre = mois_civil
+    # Mois de sortie : le moteur lit jusqu'au dernier jour du contrat.
+    fenetre = (fenetre[0], fin_au_depart(fenetre[1], annee, mois, date_sortie))
     debut, fin = min(mois_civil[0], fenetre[0]), max(mois_civil[1], fenetre[1])
     par_mois = {cle: (_par_jour(prevu), _par_jour(reel)) for cle, (prevu, reel) in calendriers.items()}
     pointe = any(
