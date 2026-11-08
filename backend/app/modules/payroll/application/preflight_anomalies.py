@@ -22,6 +22,12 @@ from app.modules.payroll.domain.primes_habituelles import (
     message_prime,
     primes_habituelles,
 )
+from app.modules.payroll.domain.smh_metallurgie import (
+    classe_controlable,
+    ecart_smh,
+    message_smh,
+    mois_pleins,
+)
 from app.modules.payroll.domain.retenues_reprises import (
     MOIS_DE_RAPPEL,
     message_retenue,
@@ -118,6 +124,8 @@ def _build_counts(anomalies: List[PreflightAnomaly]) -> PreflightAnomalyCounts:
             counts.retenue_a_poser += 1
         elif a.type == "prime_a_saisir":
             counts.prime_a_saisir += 1
+        elif a.type == "minimum_annuel":
+            counts.minimum_annuel += 1
         if a.severity == "bloquant":
             counts.bloquant += 1
         else:
@@ -330,6 +338,83 @@ def _anomalies_primes_a_saisir(
     return anomalies
 
 
+#: À partir d'octobre : avant, l'écart annuel ne dit rien d'utilisable.
+_PREMIER_MOIS_SMH = 10
+
+
+def _anomalies_smh_metallurgie(
+    company_id: str, year: int, month: int, employees: List[Dict[str, Any]]
+) -> List[PreflightAnomaly]:
+    """Minimum annuel de la métallurgie (art. 138 à 140), jamais bloquant.
+
+    Sans effet sur la revue si la lecture échoue : c'est un rappel, pas un contrôle du calcul.
+    """
+    if month < _PREMIER_MOIS_SMH:
+        return []
+    classes = {
+        str(e["id"]): classe
+        for e in employees
+        if (classe := classe_controlable(e.get("classification_conventionnelle"), e.get("contract_type")))
+    }
+    if not classes:
+        return []
+    try:
+        bulletins = (
+            supabase.table("payslips")
+            .select(
+                "employee_id, month, salaire_brut:payslip_data->salaire_brut, "
+                "calcul_du_brut:payslip_data->calcul_du_brut, "
+                "is_bulletin_sortie:payslip_data->is_bulletin_sortie"
+            )
+            .eq("company_id", company_id)
+            .eq("year", year)
+            .lte("month", month)
+            .in_("employee_id", sorted(classes))
+            .execute()
+            .data
+            or []
+        )
+    except Exception:  # noqa: BLE001 - un rappel ne doit pas faire tomber la revue
+        logger.warning("Bulletins illisibles pour le minimum annuel de %s", company_id, exc_info=True)
+        return []
+    par_salarie: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for bulletin in bulletins:
+        par_salarie[str(bulletin["employee_id"])].append(bulletin)
+    anomalies: List[PreflightAnomaly] = []
+    for emp in employees:
+        eid = str(emp["id"])
+        if eid not in classes:
+            continue
+        specificites = emp.get("specificites_paie") or {}
+        ecart = ecart_smh(
+            mois_pleins(par_salarie.get(eid, []), year, emp.get("hire_date"), emp.get("contract_end_date")),
+            classe=classes[eid],
+            annee=year,
+            duree_hebdo=float(emp.get("duree_hebdomadaire") or 0) or None,
+            forfait_jours=is_forfait_jour(emp.get("statut"), emp.get("is_forfait_jour")),
+            jours_forfait=(
+                float(specificites["forfait_annual_days"])
+                if isinstance(specificites, dict) and specificites.get("forfait_annual_days")
+                else None
+            ),
+        )
+        if ecart is None:
+            continue
+        anomalies.append(
+            PreflightAnomaly(
+                id=_anomaly_id(eid, "minimum_annuel"),
+                employee_id=eid,
+                employee_name=_employee_name(emp.get("first_name"), emp.get("last_name")),
+                team_id=str(emp["team_id"]) if emp.get("team_id") else None,
+                type="minimum_annuel",
+                severity="a_verifier",
+                status="a_traiter",
+                message=message_smh(ecart, year),
+            )
+        )
+    return anomalies
+
+
 def build_preflight_anomalies(
     company_id: str, year: int, month: int
 ) -> PreflightAnomaliesResponse:
@@ -341,7 +426,8 @@ def build_preflight_anomalies(
         .select(
             "id, first_name, last_name, statut, is_forfait_jour, team_id, "
             "hire_date, contract_end_date, employment_status, contract_type, "
-            "date_naissance, classification_conventionnelle, specificites_paie"
+            "date_naissance, classification_conventionnelle, specificites_paie, "
+            "duree_hebdomadaire"
         )
         .eq("company_id", company_id)
         # En sortie : départ créé, dernier bulletin encore à faire ; ses heures
@@ -701,6 +787,7 @@ def build_preflight_anomalies(
     anomalies.extend(anomalies_fiche_dsn)
     anomalies.extend(_anomalies_retenues_a_poser(company_id, year, month, employees))
     anomalies.extend(_anomalies_primes_a_saisir(company_id, year, month, employees))
+    anomalies.extend(_anomalies_smh_metallurgie(company_id, year, month, employees))
     counts = _build_counts(anomalies)
     total_open = sum(1 for a in anomalies if a.status in OPEN_STATUSES)
     total_treated = len(anomalies) - total_open

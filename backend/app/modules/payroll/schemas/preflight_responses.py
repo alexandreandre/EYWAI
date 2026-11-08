@@ -19,6 +19,7 @@ PreflightAnomalyType = Literal[
     "absent_a_typer",
     "retenue_a_poser",
     "prime_a_saisir",
+    "minimum_annuel",
 ]
 
 PreflightAnomalySeverity = Literal["bloquant", "a_verifier"]
@@ -86,6 +87,7 @@ class PreflightAnomalyCounts(BaseModel):
     absent_a_typer: int = 0
     retenue_a_poser: int = 0
     prime_a_saisir: int = 0
+    minimum_annuel: int = 0
     bloquant: int = 0
     a_verifier: int = 0
 

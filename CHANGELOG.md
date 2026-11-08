@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### La revue d'avant-paie vérifie le minimum annuel de la métallurgie
+- À partir d'octobre, chez Cartol et LEWIS, un salarié dont la rémunération de l'année reste sous le minimum de sa classe est signalé, avec le montant qui manque.
+- Le contrôle suit la convention : prime d'ancienneté et heures supplémentaires écartées, forfait jours majoré de 30 %. Il ne bloque rien : les primes de fin d'année comptent, à vérifier à la clôture de décembre.
+
 ### Une avance sur salaire se retient au dixième du net
 - La retenue d'une avance en espèces ne dépasse plus le dixième du net du mois, comme le prévoit le Code du travail. Le reste se retient sur les bulletins suivants, et le bulletin le dit.
 - Les acomptes sur un travail en cours ne changent pas : ils restent retenus en entier.

@@ -41,6 +41,31 @@ _SMH_ANNUEL_2025: list[tuple[str, int, float]] = [
     ("I", 18, 68_000.0),
 ]
 
+#: Barème unique annuel, base 35 h, par classe d'emploi. Avenant du 20/02/2026 (annexe 6.1),
+#: étendu par arrêté du 20/05/2026. Une ligne par année : à compléter à chaque avenant.
+SMH_ANNUEL_PAR_ANNEE: dict[int, dict[int, float]] = {
+    2026: {
+        1: 21_980.0,
+        2: 22_100.0,
+        3: 22_710.0,
+        4: 23_620.0,
+        5: 24_510.0,
+        6: 25_780.0,
+        7: 26_680.0,
+        8: 28_700.0,
+        9: 30_760.0,
+        10: 33_970.0,
+        11: 35_200.0,
+        12: 37_000.0,
+        13: 40_350.0,
+        14: 44_250.0,
+        15: 47_380.0,
+        16: 52_370.0,
+        17: 59_720.0,
+        18: 68_450.0,
+    },
+}
+
 # Taux base spécifique prime d'ancienneté par classe d'emploi (1→10), art. 142
 _TAUX_PRIME_PAR_CLASSE: dict[str, float] = {
     "1": 0.0145,

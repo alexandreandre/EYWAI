@@ -17,6 +17,7 @@ export const PREFLIGHT_ANOMALY_TYPE_LABELS: Record<PreflightAnomalyType, string>
   absent_a_typer: 'Absent sans type',
   retenue_a_poser: 'Prêt ou saisie à poser',
   prime_a_saisir: 'Prime à saisir',
+  minimum_annuel: 'Minimum annuel à vérifier',
 };
 
 export const PREFLIGHT_ANOMALY_TYPE_ORDER: PreflightAnomalyType[] = [
@@ -33,6 +34,7 @@ export const PREFLIGHT_ANOMALY_TYPE_ORDER: PreflightAnomalyType[] = [
   'conflit_absence',
   'retenue_a_poser',
   'prime_a_saisir',
+  'minimum_annuel',
 ];
 
 export const PREFLIGHT_RESOLUTION_MOTIF_LABELS: Record<PreflightResolutionMotif, string> = {
