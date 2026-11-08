@@ -10,9 +10,9 @@ import {
 } from './payrollFocus';
 
 describe('PAYROLL_FOCUS_NAV_URLS', () => {
-  it('contient exactement 19 entrées, sans doublon', () => {
-    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(19);
-    expect(new Set(PAYROLL_FOCUS_NAV_URLS).size).toBe(19);
+  it('contient exactement 18 entrées, sans doublon', () => {
+    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(18);
+    expect(new Set(PAYROLL_FOCUS_NAV_URLS).size).toBe(18);
   });
 
   it('ouvre le Suivi IJSS, où renvoie l’alerte d’un bulletin en arrêt', () => {
@@ -46,6 +46,7 @@ describe('isPayrollFocusAllowed', () => {
       '/trial-periods',
       '/teams',
       '/documents',
+      '/residence-permits',
       '/medical-follow-up',
       '/annual-reviews',
       '/analytics',
@@ -190,9 +191,9 @@ const urlsOf = (groups: { items: { url: string }[] }[]) =>
   groups.flatMap((g) => g.items.map((i) => i.url));
 
 describe('restrictToPayrollFocus', () => {
-  it('ne garde que Collaborateurs, Départs et Titres de séjour hors paie', () => {
+  it('ne garde que Collaborateurs et Départs dans la section Effectifs', () => {
     const out = restrictToPayrollFocus('team', teamGroups);
-    expect(urlsOf(out)).toEqual(['/employees', '/employee-exits', '/residence-permits']);
+    expect(urlsOf(out)).toEqual(['/employees', '/employee-exits']);
   });
 
   it('supprime entièrement la section Gestion', () => {
@@ -250,7 +251,7 @@ describe('routes du circuit de validation manager', () => {
     for (const url of ['/approvals', '/leave-requests', '/cet-requests']) {
       expect(PAYROLL_FOCUS_NAV_URLS).not.toContain(url);
     }
-    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(19);
+    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(18);
   });
 
   it('garde bloqués les modules hors paie, y compris pour les directeurs', () => {

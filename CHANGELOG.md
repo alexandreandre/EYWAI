@@ -9,8 +9,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - Une prime versée en août et en septembre par l'ancien logiciel (présence, assiduité, poste…) et que rien ne reporte ce mois-ci est signalée, salarié par salarié.
 - Rappel pendant les trois mois qui suivent la reprise, avec un lien vers la saisie. Il ne bloque pas : Martine ne calcule pas ces primes.
 
-### Les titres de séjour sont visibles en mode paie
-- La page « Titres de séjour » revient dans le menu, et le badge d'expiration sur la fiche du salarié.
+### Le titre de séjour est visible sur la fiche en mode paie
+- Le badge d'expiration du titre de séjour revient sur la fiche du salarié. L'accueil les comptait déjà dans « Échéances ».
 - Rien ne change dans le calcul de la paie.
 
 ### Les pièces de la société se déposent sur la page Entreprise
