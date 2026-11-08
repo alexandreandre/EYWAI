@@ -49,7 +49,12 @@ def build_proposal_from_month_groups(
     for group in month_groups:
         gy, gm = int(group["year"]), int(group["month"])
         for emp in group.get("employees") or []:
-            days = [AiDayEntry(**day) for day in emp.get("days") or []]
+            # Chaque jour dit son mois : une relecture ligne par ligne revient
+            # dans le bon mois (`appliquer_revue_au_lot`).
+            days = [
+                AiDayEntry(**{**day, "year": gy, "month": gm})
+                for day in emp.get("days") or []
+            ]
             key = (str(emp.get("employee_id") or emp.get("raw_name")), gy, gm)
             if key in seen:
                 continue

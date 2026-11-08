@@ -872,6 +872,51 @@ def _avec_notes_du_serveur(relu: Dict[str, Any], du_lot: List[Dict[str, Any]]) -
     return relu
 
 
+def _reporter_revue_dans_les_groupes(
+    groupes: List[Dict[str, Any]],
+    relus: Dict[str, PersistTimesheetEmployee],
+    *,
+    annee: int,
+    mois: int,
+) -> None:
+    """Les jours relus remplacent ceux de leur mois dans `month_groups`.
+
+    Un lot sur plusieurs mois s'enregistre depuis `month_groups`, pas depuis
+    l'aperçu. Un jour sans mois est un jour du mois affiché par l'aperçu. Un
+    mois sans aucun jour relu garde les siens.
+    """
+    jours_relus: Dict[tuple[str, int, int], List[AiDayEntry]] = {}
+    for eid, relu in relus.items():
+        for jour in relu.days:
+            jours_relus.setdefault((eid, jour.year or annee, jour.month or mois), []).append(jour)
+
+    lignes: Dict[tuple[str, int, int], List[Dict[str, Any]]] = {}
+    for groupe in groupes:
+        for ligne in groupe["employees"]:
+            cle = (str(ligne.get("employee_id") or ""), int(groupe["year"]), int(groupe["month"]))
+            lignes.setdefault(cle, []).append(ligne)
+
+    hors_lot = sorted(cle for cle in jours_relus if cle not in lignes)
+    if hors_lot:
+        mois_refuses = ", ".join(sorted({f"{m:02d}/{a}" for _, a, m in hors_lot}))
+        raise ScheduleAppError(
+            "validation",
+            f"Des jours relus portent sur un mois absent de ce lot pour ce salarié ({mois_refuses}) : rien n'a été enregistré.",
+            status_code=400,
+        )
+
+    for cle, jours in jours_relus.items():
+        premiere, *autres = lignes[cle]
+        du_lot = [dict(d) for ligne in lignes[cle] for d in ligne.get("days") or []]
+        premiere["days"] = [
+            _avec_notes_du_serveur(jour.model_copy(update={"year": None, "month": None}).model_dump(mode="json"), du_lot)
+            for jour in jours
+        ]
+        # Même mois sur plusieurs lignes : le commit fusionne par salarié.
+        for autre in autres:
+            autre["days"] = []
+
+
 def appliquer_revue_au_lot(
     batch_id: str,
     *,
@@ -886,7 +931,17 @@ def appliquer_revue_au_lot(
     entrées (même salarié sur plusieurs fichiers) sont vidées, le commit
     fusionnant par salarié. Les salariés non relus ne bougent pas.
     """
-    relus = {e.employee_id: e for e in employees if e.employee_id}
+    relus: Dict[str, PersistTimesheetEmployee] = {}
+    lignes_relues: Dict[str, int] = {}
+    for e in employees:
+        if not e.employee_id:
+            continue
+        lignes_relues[e.employee_id] = lignes_relues.get(e.employee_id, 0) + 1
+        # Un salarié sur plusieurs lignes (un mois par ligne) : toutes comptent.
+        deja_relu = relus.get(e.employee_id)
+        relus[e.employee_id] = (
+            deja_relu.model_copy(update={"days": deja_relu.days + e.days}) if deja_relu else e
+        )
     if not relus:
         return
     batch = timesheet_import_repository.get_batch(batch_id, company_id=company_id)
@@ -918,6 +973,27 @@ def appliquer_revue_au_lot(
             "validation",
             f"{accord(len(inconnus), 'Salarié relu absent', 'Salariés relus absents')} du lot : {', '.join(inconnus)}.",
             status_code=400,
+        )
+    if groupes:
+        ambigus = sorted(
+            eid
+            for eid, relu in relus.items()
+            if lignes_relues[eid] > 1 and any(d.year is None or d.month is None for d in relu.days)
+        )
+        if ambigus:
+            # Aperçu préparé avant que chaque jour porte son mois : le mois d'une
+            # ligne ne se devine pas, une correction irait dans le mauvais.
+            raise ScheduleAppError(
+                "validation",
+                "Cet aperçu ne dit pas à quel mois appartiennent les jours relus : "
+                "relancez l'import pour le relire, rien n'a été enregistré.",
+                status_code=409,
+            )
+        _reporter_revue_dans_les_groupes(
+            groupes,
+            relus,
+            annee=int(preview.get("year") or 0),
+            mois=int(preview.get("month") or 0),
         )
     deja: Set[str] = set()
     for entree in entrees:
