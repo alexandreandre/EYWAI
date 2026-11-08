@@ -79,6 +79,7 @@ from app.shared.domain.employment_rules import mois_du_contrat_en_cours
 from app.shared.dsn_validation import build_siret_from_siren_nic
 # Parts patronales déclarées en autres éléments de revenu brut (S21.G00.54) :
 # 92 la santé, 93 la prévoyance ; même lecture que le montant net social.
+from app.modules.payroll.engine.forfait_individuel import jours_du_forfait_de_la_fiche
 from app.modules.payroll.engine.protection_sociale import (
     COTI_PREVOYANCE_RETRAITE_SUP,
     COTI_SANTE,
@@ -963,6 +964,10 @@ def build_individu_from_payroll(
     nir_dsn = nir[:13] if len(nir) >= 13 else nir
     addr = _addr(employee.get("adresse") or employee.get("address"))
     period_start, period_end = period_bounds(period)
+    try:
+        jours_forfait_salarie = jours_du_forfait_de_la_fiche(employee.get("specificites_paie"))
+    except ValueError as erreur:
+        raise DsnBuildError(f"NIR {nir_dsn} : {erreur}") from erreur
     unite, q_ref, quotite, modalite = map_modalite_temps(
         is_temps_partiel=bool(employee.get("is_temps_partiel")),
         duree_hebdo=(
@@ -972,6 +977,7 @@ def build_individu_from_payroll(
         ),
         is_forfait_jour=bool(employee.get("is_forfait_jour")),
         quotite_forfait_jours=(settings or DsnSettings()).quotite_forfait_jours,
+        jours_forfait_salarie=jours_forfait_salarie,
     )
     nature = map_contract_nature_to_dsn(employee.get("contract_type"))
     statut = map_statut_to_dsn(employee.get("statut"), is_cadre=_is_cadre(employee))

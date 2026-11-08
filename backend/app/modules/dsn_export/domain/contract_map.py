@@ -226,6 +226,10 @@ def map_sexe_to_dsn(sexe: Optional[str]) -> str:
 # Forfait annuel en jours : le cabinet déclare 21,27 jours par mois, soit
 # 218 jours ramenés au mois (218 / 10,25 mois travaillés).
 QUOTITE_MENSUELLE_FORFAIT_JOURS = "21.27"
+#: Forfait jours réduit (fiche net-entreprises n° 3369) : 100 jours → 9,94, soit
+#: 21,67 jours par mois pour un forfait complet de 218 jours.
+JOURS_MENSUELS_FORFAIT_COMPLET = 21.67
+JOURS_ANNUELS_FORFAIT_COMPLET = 218.0
 
 
 def map_modalite_temps(
@@ -234,6 +238,7 @@ def map_modalite_temps(
     duree_hebdo: Optional[float] = None,
     is_forfait_jour: bool = False,
     quotite_forfait_jours: str = "",
+    jours_forfait_salarie: Optional[float] = None,
 ) -> tuple[str, str, str, str]:
     """Retourne (unité, quotité_ref, quotité, modalité).
 
@@ -244,10 +249,19 @@ def map_modalite_temps(
 
     Un salarié au forfait annuel en jours se compte en jours (unité 20), pas en
     heures : le déclarer à 151,67 heures le ferait passer pour un horaire.
+
+    Un forfait réduit (``jours_forfait_salarie``, porté par la fiche) abaisse la
+    seule quotité du contrat. La modalité reste « 10 - temps plein » : un forfait
+    jours n'est jamais un temps partiel (fiche net-entreprises n° 3369 ; Cass.
+    soc., 12 mars 2014, n° 12-29.141), même si la fiche coche le temps partiel.
     """
     if is_forfait_jour:
-        quotite = quotite_forfait_jours or QUOTITE_MENSUELLE_FORFAIT_JOURS
-        return "20", quotite, quotite, "10"
+        reference = quotite_forfait_jours or QUOTITE_MENSUELLE_FORFAIT_JOURS
+        quotite = reference
+        if jours_forfait_salarie is not None and jours_forfait_salarie < JOURS_ANNUELS_FORFAIT_COMPLET:
+            reduite = jours_forfait_salarie * JOURS_MENSUELS_FORFAIT_COMPLET / JOURS_ANNUELS_FORFAIT_COMPLET
+            quotite = f"{min(round(reduite, 2), float(reference)):.2f}"
+        return "20", reference, quotite, "10"
     # Unité 10 = heures ; quotité mensuelle 151.67 ≈ 35 h
     ref = "151.67"
     if not duree_hebdo or duree_hebdo <= 0:

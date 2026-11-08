@@ -28,10 +28,16 @@ CTP_REDUCTIONS = {"003", "004", "668"}
 #: Régularisation positive de la réduction générale : déclarée en assiette.
 CTP_REGULARISATION_REDUCTION = "669"
 #: CTP dont le taux se déclare (23.003) : accident du travail et chômage modulé.
-CTP_TAUX_DECLARE = {("100", "920"), ("725", "920"), ("726", "920")}
+CTP_TAUX_DECLARE = {("100", "920"), ("725", "920"), ("726", "920"), ("734", "920")}
 #: Codes d'exonération de l'apprenti (loi de 1979, 1987, 1992) : leur assiette
 #: est la part de rémunération exonérée, ils ne portent pas de cotisation.
 CODES_EXONERATION_APPRENTI = {"001", "002", "003"}
+#: Exonération JEI : le CTP 734 prend la place du CTP 100 pour ce salarié. Relevé
+#: sur les DSN de juillet à septembre 2026 de l'ancien logiciel, dont le total
+#: ne retombe qu'avec 6,90 %, 0,40 %, l'accident du travail et la CSA au 734.
+CODE_EXONERATION_JEI = "014"
+CTP_JEI_DEPLAFONNE = ("734", "920")
+CTP_JEI_PLAFONNE = ("734", "921")
 #: Part exonérée d'un apprenti (fiche net-entreprises n° 831) : les cotisations
 #: patronales de sécurité sociale passent du CTP 100 au 726, l'assurance
 #: chômage du 772 au 423 ; la part au-delà reste sur 100 et 772.
@@ -57,6 +63,8 @@ def ctp_du_code(code: str, base: str, taux: float, montant: float = 0.0) -> Opti
         return "100", "920"
     if code == "076" and base == "02":
         return "100", "921"
+    if code == CODE_EXONERATION_JEI:
+        return CTP_JEI_PLAFONNE if base == "02" else CTP_JEI_DEPLAFONNE
     if code in ("072", "073", "079"):
         return "260", "920"
     if code == "049":
@@ -115,6 +123,7 @@ def bordereau_urssaf(
              if str(l.get("code") or "") in CODES_EXONERATION_APPRENTI),
             default=0.0,
         )
+        jei = any(str(l.get("code") or "") == CODE_EXONERATION_JEI for l in lignes)
         for ligne in lignes:
             code = str(ligne.get("code") or "")
             if code in CODES_HORS_BORDEREAU or code in CODES_EXONERATION_APPRENTI:
@@ -131,6 +140,11 @@ def bordereau_urssaf(
                 if code not in inconnus:
                     inconnus.append(code)
                 continue
+            if jei and cle == ("100", "920"):
+                cle = CTP_JEI_DEPLAFONNE
+            if code == CODE_EXONERATION_JEI:
+                # Déclaré à 0,00 : la part salariale due vient de l'assiette et du taux.
+                montant = round(assiette_ligne * taux / 100, 2)
             if exoneree and cle in CTP_PART_EXONEREE_APPRENTI:
                 _ventiler_apprenti(ligne, cle, taux, exoneree, par_ctp, montants, taux_declares)
                 continue
