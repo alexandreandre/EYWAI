@@ -17,6 +17,11 @@ from app.modules.payroll.application.periode_variables_service import (
     bulletins_sur_une_autre_fenetre,
     resoudre_fenetre_variables,
 )
+from app.modules.payroll.domain.primes_habituelles import (
+    deja_saisie,
+    message_prime,
+    primes_habituelles,
+)
 from app.modules.payroll.domain.retenues_reprises import (
     MOIS_DE_RAPPEL,
     message_retenue,
@@ -111,6 +116,8 @@ def _build_counts(anomalies: List[PreflightAnomaly]) -> PreflightAnomalyCounts:
             counts.absent_a_typer += 1
         elif a.type == "retenue_a_poser":
             counts.retenue_a_poser += 1
+        elif a.type == "prime_a_saisir":
+            counts.prime_a_saisir += 1
         if a.severity == "bloquant":
             counts.bloquant += 1
         else:
@@ -239,6 +246,87 @@ def _anomalies_retenues_a_poser(
                     message=" ".join(message_retenue(r, bascule.libelle) for r in du_type),
                 )
             )
+    return anomalies
+
+
+def _anomalies_primes_a_saisir(
+    company_id: str, year: int, month: int, employees: List[Dict[str, Any]]
+) -> List[PreflightAnomaly]:
+    """Primes versées les deux derniers mois repris, rien de saisi ce mois-ci.
+
+    Regardé les premiers mois après la bascule. Jamais bloquant, et sans effet sur la
+    revue si la lecture échoue : c'est un rappel, pas un contrôle du calcul.
+    """
+    try:
+        bascule = lire_bascule(company_id)
+        if bascule is None or not 1 <= rang_du_mois(year, month) - bascule.rang <= MOIS_DE_RAPPEL:
+            return []
+        annee_avant, mois_avant = (
+            (bascule.annee, bascule.mois - 1) if bascule.mois > 1 else (bascule.annee - 1, 12)
+        )
+        ids = [str(e["id"]) for e in employees]
+        bulletins = (
+            supabase.table("payslips")
+            .select("employee_id, year, month, calcul_du_brut:payslip_data->calcul_du_brut")
+            .eq("company_id", company_id)
+            .in_("year", sorted({bascule.annee, annee_avant}))
+            .in_("month", sorted({bascule.mois, mois_avant}))
+            .eq("origine", ORIGINE_IMPORTE)
+            .in_("employee_id", ids)
+            .execute()
+            .data
+            or []
+        )
+        saisies_du_mois = (
+            supabase.table("monthly_inputs")
+            .select("employee_id, name")
+            .eq("company_id", company_id)
+            .eq("year", year)
+            .eq("month", month)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:  # noqa: BLE001 - un rappel ne doit pas faire tomber la revue
+        logger.warning("Primes reprises illisibles pour la société %s", company_id, exc_info=True)
+        return []
+    dernier: Dict[str, Dict[str, Any]] = {}
+    avant: Dict[str, Dict[str, Any]] = {}
+    for b in bulletins:
+        cible = (
+            dernier
+            if (b["year"], b["month"]) == (bascule.annee, bascule.mois)
+            else avant
+            if (b["year"], b["month"]) == (annee_avant, mois_avant)
+            else None
+        )
+        if cible is not None:
+            cible[str(b["employee_id"])] = {"calcul_du_brut": b.get("calcul_du_brut")}
+    saisies: Dict[str, List[str]] = {}
+    for ligne in saisies_du_mois:
+        saisies.setdefault(str(ligne["employee_id"]), []).append(str(ligne.get("name") or ""))
+    anomalies: List[PreflightAnomaly] = []
+    for emp in employees:
+        eid = str(emp["id"])
+        a_saisir = [
+            p
+            for p in primes_habituelles(dernier.get(eid), avant.get(eid))
+            if not deja_saisie(p.libelle, saisies.get(eid, []))
+        ]
+        if not a_saisir:
+            continue
+        anomalies.append(
+            PreflightAnomaly(
+                id=_anomaly_id(eid, "prime_a_saisir"),
+                employee_id=eid,
+                employee_name=_employee_name(emp.get("first_name"), emp.get("last_name")),
+                team_id=str(emp["team_id"]) if emp.get("team_id") else None,
+                type="prime_a_saisir",
+                severity="a_verifier",
+                status="a_traiter",
+                message=" ".join(message_prime(p, bascule.libelle) for p in a_saisir),
+            )
+        )
     return anomalies
 
 
@@ -612,6 +700,7 @@ def build_preflight_anomalies(
 
     anomalies.extend(anomalies_fiche_dsn)
     anomalies.extend(_anomalies_retenues_a_poser(company_id, year, month, employees))
+    anomalies.extend(_anomalies_primes_a_saisir(company_id, year, month, employees))
     counts = _build_counts(anomalies)
     total_open = sum(1 for a in anomalies if a.status in OPEN_STATUSES)
     total_treated = len(anomalies) - total_open

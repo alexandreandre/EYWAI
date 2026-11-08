@@ -16,6 +16,7 @@ export const PREFLIGHT_ANOMALY_TYPE_LABELS: Record<PreflightAnomalyType, string>
   fiche_dsn: 'Fiche à compléter (DSN)',
   absent_a_typer: 'Absent sans type',
   retenue_a_poser: 'Prêt ou saisie à poser',
+  prime_a_saisir: 'Prime à saisir',
 };
 
 export const PREFLIGHT_ANOMALY_TYPE_ORDER: PreflightAnomalyType[] = [
@@ -31,6 +32,7 @@ export const PREFLIGHT_ANOMALY_TYPE_ORDER: PreflightAnomalyType[] = [
   'pointage',
   'conflit_absence',
   'retenue_a_poser',
+  'prime_a_saisir',
 ];
 
 export const PREFLIGHT_RESOLUTION_MOTIF_LABELS: Record<PreflightResolutionMotif, string> = {
@@ -68,6 +70,7 @@ export function verifyPathForAnomaly(anomaly: PreflightAnomaly): string {
   if (anomaly.type === 'fiche_dsn') {
     return lienModifierFiche(anomaly.employee_id);
   }
+  if (anomaly.type === 'prime_a_saisir') return '/saisies';
   if (anomaly.type === 'retenue_a_poser') {
     return anomaly.sub_type === 'pret' ? '/employee-loans' : '/salary-seizures';
   }

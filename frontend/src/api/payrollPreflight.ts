@@ -10,7 +10,8 @@ export type PreflightAnomalyType =
   | 'fenetre_modifiee'
   | 'fiche_dsn'
   | 'absent_a_typer'
-  | 'retenue_a_poser';
+  | 'retenue_a_poser'
+  | 'prime_a_saisir';
 
 export type PreflightAnomalySeverity = 'bloquant' | 'a_verifier';
 
@@ -74,6 +75,7 @@ export interface PreflightAnomalyCounts {
   fiche_dsn?: number;
   absent_a_typer?: number;
   retenue_a_poser?: number;
+  prime_a_saisir?: number;
   bloquant: number;
   a_verifier: number;
 }

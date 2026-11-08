@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### La revue d'avant-paie rappelle les primes habituelles à saisir
+- Une prime versée en août et en septembre par l'ancien logiciel (présence, assiduité, poste…) et que rien ne reporte ce mois-ci est signalée, salarié par salarié.
+- Rappel pendant les trois mois qui suivent la reprise, avec un lien vers la saisie. Il ne bloque pas : Martine ne calcule pas ces primes.
+
 ### Les titres de séjour sont visibles en mode paie
 - La page « Titres de séjour » revient dans le menu, et le badge d'expiration sur la fiche du salarié.
 - Rien ne change dans le calcul de la paie.
