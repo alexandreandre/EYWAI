@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### La liste de contrôle du mois dit ce qui manque encore
+- Deux nouvelles lignes sur la page Paie : les taux d'impôt manquants ou périmés, et le compte bancaire de la société.
+- Chaque ligne dit quoi faire et où. Un taux absent passait à la grille par défaut sans prévenir sur cette page.
+
 ### « Prévu » s'affiche pour tous les salariés au forfait jours
 - Le planning d'un forfait est enregistré en heures par jour : l'écran n'affichait « Prévu » que pour la valeur 1, donc jamais.
 - Un jour planifié et pas encore confirmé dit maintenant « Prévu », un jour confirmé « Travaillé ». Rien ne change sur les bulletins.

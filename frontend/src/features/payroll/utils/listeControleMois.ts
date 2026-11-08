@@ -30,6 +30,8 @@ export const ETAPE_ABSENCES = 'absences';
 export const ETAPE_BULLETINS = 'bulletins';
 export const ETAPE_SORTIES = 'sorties';
 export const ETAPE_RIB = 'rib';
+export const ETAPE_TAUX_PAS = 'taux_pas';
+export const ETAPE_COMPTE_SOCIETE = 'compte_societe';
 export const ETAPE_VALIDES = 'valides';
 export const ETAPE_REGULARISATIONS = 'regularisations';
 export const ETAPE_DECLARATIONS = 'declarations';
@@ -114,6 +116,10 @@ export type EntreeListeControle = {
   exportsDuMois?: Lecture<readonly ExportPourControle[]>;
   /** Suivi des dépôts DSN du mois (net-entreprises). Absent ou illisible : non pris en compte. */
   transmissionsDuMois?: Lecture<readonly TransmissionPourControle[]>;
+  /** Compteurs de `/api/pas-rates` (statut → nombre). Absent : l'étape n'apparaît pas. */
+  tauxPas?: Lecture<Record<string, number>>;
+  /** Le compte bancaire de la société est-il posé ? Absent : l'étape n'apparaît pas. */
+  compteSociete?: Lecture<boolean>;
 };
 
 /** Une ligne du suivi des dépôts DSN (`/api/net-entreprises/transmissions`). */
@@ -488,6 +494,29 @@ function etapeRib(salaries: readonly SalariePourListeControle[]): { etat: EtatEt
   };
 }
 
+function etapeTauxPas(lecture: Lecture<Record<string, number>>): { etat: EtatEtape; detail: string } {
+  return etatDepuisLecture(lecture, (compteurs) => {
+    const manquants = compteurs.manquant ?? 0;
+    const perimes = compteurs.a_rafraichir ?? 0;
+    if (manquants + perimes === 0) {
+      return { etat: 'fait', detail: 'Les taux d’impôt du mois sont à jour.' };
+    }
+    const morceaux = [
+      manquants ? pluriel(manquants, '1 salarié sans taux, à la grille par défaut', `${manquants} salariés sans taux, à la grille par défaut`) : '',
+      perimes ? pluriel(perimes, '1 taux périmé', `${perimes} taux périmés`) : '',
+    ].filter(Boolean);
+    return { etat: 'a_faire', detail: `${morceaux.join(' ; ')}.` };
+  });
+}
+
+function etapeCompteSociete(lecture: Lecture<boolean>): { etat: EtatEtape; detail: string } {
+  return etatDepuisLecture(lecture, (pose) =>
+    pose
+      ? { etat: 'fait', detail: 'Le compte bancaire de la société est renseigné.' }
+      : { etat: 'a_faire', detail: 'Le compte bancaire de la société manque : le fichier de virement ne pourra pas sortir.' }
+  );
+}
+
 function actionSiNonFaite(
   etape: EtapeControle,
   action: Omit<ActionEnAttente, 'id'>
@@ -607,7 +636,26 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
     ...etapeDeclarations(lectureExports, entree.transmissionsDuMois),
   };
 
-  const etapes = [calendriers, conflits, absences, bulletins, sorties, rib, valides, regularisations, declarations];
+  const tauxPas: EtapeControle | null = entree.tauxPas
+    ? { id: ETAPE_TAUX_PAS, libelle: 'Taux d’impôt à jour', ...etapeTauxPas(entree.tauxPas) }
+    : null;
+  const compteSociete: EtapeControle | null = entree.compteSociete
+    ? { id: ETAPE_COMPTE_SOCIETE, libelle: 'Compte bancaire de la société', ...etapeCompteSociete(entree.compteSociete) }
+    : null;
+
+  const etapes = [
+    calendriers,
+    conflits,
+    absences,
+    bulletins,
+    sorties,
+    rib,
+    tauxPas,
+    compteSociete,
+    valides,
+    regularisations,
+    declarations,
+  ].filter((e): e is EtapeControle => e !== null);
 
   const actions = [
     actionSiNonFaite(calendriers, {
@@ -647,6 +695,20 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
       href: '/employees',
       ensuite: `La mention « ${MENTION_RIB_A_COMPLETER} » disparaît de la liste.`,
     }),
+    tauxPas &&
+      actionSiNonFaite(tauxPas, {
+        quoi: 'Mettez à jour les taux d’impôt : déposez le fichier de taux, ou le fichier DSN du mois.',
+        ouCliquer: 'Taux d’impôt',
+        href: '/taux-pas',
+        ensuite: 'Plus aucun salarié n’est « à la grille par défaut » ni « à rafraîchir ».',
+      }),
+    compteSociete &&
+      actionSiNonFaite(compteSociete, {
+        quoi: 'Renseignez le compte bancaire de la société.',
+        ouCliquer: 'Entreprise, Paramètres de paie',
+        href: '/company',
+        ensuite: 'Le fichier de virement sort sans erreur.',
+      }),
     actionSiNonFaite(valides, {
       quoi: 'Validez les bulletins du mois.',
       ouCliquer: 'Bulletins de paie, onglet Par mois',

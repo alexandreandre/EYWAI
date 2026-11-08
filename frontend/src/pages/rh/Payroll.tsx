@@ -11,6 +11,8 @@ import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { deletePayslip, getEmployeePayslips, telechargerPdfDuMois, type PayslipInfo } from '@/api/payslips';
 import { getExportHistory, marquerDsnHorsMartine } from '@/api/exports';
 import { getNetEntreprisesTransmissions } from '@/api/netEntreprises';
+import { getPasRates } from '@/api/pasRates';
+import { fetchCompanyDetails } from '@/api/company';
 import { queryKeys } from '@/lib/queryKeys';
 import { showErrorToast } from '@/lib/errorMessages';
 import { toast } from '@/hooks/use-toast';
@@ -888,6 +890,30 @@ export default function Payroll() {
     return { statut: 'ok', valeur: exportsDuMoisQuery.data.exports ?? [] };
   }, [exportsDuMoisQuery.isError, exportsDuMoisQuery.data]);
 
+  // Ce que seul le client peut poser : Martine le dit ici, sans attendre qu'on le lui demande.
+  const tauxPasQuery = useQuery({
+    queryKey: ['pas-rates', companyId, 'compteurs'],
+    queryFn: () => getPasRates().then((r) => r.data.compteurs),
+    enabled: Boolean(companyId),
+    staleTime: 60_000,
+  });
+  const compteSocieteQuery = useQuery({
+    queryKey: ['company-details', companyId, 'compte-bancaire'],
+    queryFn: () => fetchCompanyDetails().then((d) => Boolean(d.company_data.settings?.compte_bancaire?.iban)),
+    enabled: Boolean(companyId),
+    staleTime: 60_000,
+  });
+  const lectureTauxPas = useMemo((): Lecture<Record<string, number>> => {
+    if (tauxPasQuery.isError && tauxPasQuery.data === undefined) return { statut: 'erreur' };
+    if (tauxPasQuery.data === undefined) return { statut: 'chargement' };
+    return { statut: 'ok', valeur: tauxPasQuery.data };
+  }, [tauxPasQuery.isError, tauxPasQuery.data]);
+  const lectureCompteSociete = useMemo((): Lecture<boolean> => {
+    if (compteSocieteQuery.isError && compteSocieteQuery.data === undefined) return { statut: 'erreur' };
+    if (compteSocieteQuery.data === undefined) return { statut: 'chargement' };
+    return { statut: 'ok', valeur: compteSocieteQuery.data };
+  }, [compteSocieteQuery.isError, compteSocieteQuery.data]);
+
   const lectureSalaries = useMemo((): Lecture<typeof salariesDuMois> => {
     if (employeesQuery.isError && employeesQuery.data === undefined) return { statut: 'erreur' };
     if (loadingEmployees) return { statut: 'chargement' };
@@ -908,6 +934,8 @@ export default function Payroll() {
       absentsATyper: lectureAbsents,
       exportsDuMois: lectureExports,
       transmissionsDuMois: lectureTransmissions,
+      tauxPas: lectureTauxPas,
+      compteSociete: lectureCompteSociete,
     });
   }, [
     loadingEmployees,
@@ -922,6 +950,8 @@ export default function Payroll() {
     lectureAbsents,
     lectureExports,
     lectureTransmissions,
+    lectureTauxPas,
+    lectureCompteSociete,
   ]);
 
   const generatedCount = useMemo(

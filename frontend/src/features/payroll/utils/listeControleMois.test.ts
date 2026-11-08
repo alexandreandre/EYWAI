@@ -10,6 +10,8 @@ import {
   ETAPE_CONFLITS,
   ETAPE_DECLARATIONS,
   ETAPE_RIB,
+  ETAPE_TAUX_PAS,
+  ETAPE_COMPTE_SOCIETE,
   ETAPE_SORTIES,
   ETAPE_VALIDES,
   MESSAGE_ABSENCES_A_CONFIRMER,
@@ -778,5 +780,28 @@ describe('DSN « faite » seulement une fois déposée (audit R1, geste 8)', () 
     expect(declarations(OK([])).etat).toBe('fait');
     expect(declarations(ERREUR).etat).toBe('fait');
     expect(declarations(undefined).etat).toBe('fait');
+  });
+});
+
+describe('listeControleDuMois — ce que le client doit poser', () => {
+  it('signale les taux d’impôt manquants et périmés, avec où aller', () => {
+    const resultat = listeControleDuMois(entree({ tauxPas: OK({ a_jour: 3, manquant: 2, a_rafraichir: 1 }) }));
+    expect(etape(resultat, ETAPE_TAUX_PAS).etat).toBe('a_faire');
+    expect(etape(resultat, ETAPE_TAUX_PAS).detail).toBe('2 salariés sans taux, à la grille par défaut ; 1 taux périmé.');
+    expect(resultat.actions.find((a) => a.id === ETAPE_TAUX_PAS)?.href).toBe('/taux-pas');
+  });
+  it('coche les taux à jour', () => {
+    const resultat = listeControleDuMois(entree({ tauxPas: OK({ a_jour: 3, bareme: 1 }) }));
+    expect(etape(resultat, ETAPE_TAUX_PAS).etat).toBe('fait');
+  });
+  it('signale le compte bancaire manquant de la société', () => {
+    const resultat = listeControleDuMois(entree({ compteSociete: OK(false) }));
+    expect(etape(resultat, ETAPE_COMPTE_SOCIETE).etat).toBe('a_faire');
+    expect(resultat.actions.find((a) => a.id === ETAPE_COMPTE_SOCIETE)?.href).toBe('/company');
+  });
+  it('n’affiche pas ces étapes quand la donnée n’est pas lue', () => {
+    const ids = listeControleDuMois(entree()).etapes.map((e) => e.id);
+    expect(ids).not.toContain(ETAPE_TAUX_PAS);
+    expect(ids).not.toContain(ETAPE_COMPTE_SOCIETE);
   });
 });
