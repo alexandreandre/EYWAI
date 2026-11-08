@@ -29,6 +29,7 @@ from app.modules.dsn_import.domain.model import (
     OrganismePscBlock,
 )
 from app.modules.dsn_import.domain.normalize import map_statut_cadre
+from app.modules.payroll.engine.legal_constants import PSS_MENSUEL_PAR_ANNEE
 
 PSC_COTISATION_CODES = {"059", "031", "032", "033"}
 MUTUELLE_ORGANISME_RE = re.compile(r"^(?:\d{9}|E\d)", re.IGNORECASE)
@@ -112,25 +113,55 @@ def _is_mutuelle_organisme(code: str) -> bool:
 #: 79.001 d'une base 31 : sur le salaire (prévoyance) ou forfaitaire (santé).
 COMPOSANTS_SUR_SALAIRE = {"10", "11", "12", "13", "14", "15", "16", "17", "19", "24"}
 COMPOSANTS_FORFAITAIRES = {"18", "20", "21"}
+#: Tranches au-delà de la tranche A (B, C, D, D1, tranche 2) : seulement en prévoyance.
+COMPOSANTS_TRANCHES_HAUTES = {"12", "13", "14", "15", "16", "24"}
+PSS_MENSUELS_CONNUS = tuple(PSS_MENSUEL_PAR_ANNEE.values())
+#: Un forfait de santé reste sous ce montant (Cartol 29,64 à 158,25 ; Colorplast 29,24, 98,12).
+SEUIL_BASE_DE_SALAIRE = 400.0
 CODE_MUTUELLE_RE = re.compile(r"^\d{9}$")
 CODE_INSTITUTION_PREVOYANCE_RE = re.compile(r"^P\d{4}$", re.IGNORECASE)
 
 
 def _kind_par_composants(aff: AffiliationBlock, contrat: Optional[ContratBlock]) -> Optional[str]:
+    """Le contrat d'une affiliation d'après les composants (79) de sa base 31, comparés au brut.
+
+    Vu sur les DSN de 2026 (Cegid Quadra) : la santé se déclare en forfait (Cartol 79.001 = 20 à
+    29,64 ; Colorplast 18 à 29,24) ou en pourcentage du plafond (Mont Blanc 18, Zone 404 11, à
+    4 005,00 quel que soit le salaire) ; la prévoyance sur le salaire (11 = brut ou tranche A,
+    13 = tranche B ; Colorplast déclare même son brut en 18). Donc : une tranche au-delà de A →
+    prévoyance ; un forfait (18, 20, 21) → santé, sauf s'il porte une base de salaire (le brut, ou
+    400 € et plus sans être le plafond) ; une base de salaire
+    (10, 11, 17, 19) → prévoyance, sauf si c'est le plafond et pas le brut."""
     ident = (aff.identifiant_affiliation or "").strip()
     if not ident or contrat is None:
         return None
-    codes = {
-        (cb.code or "").strip()
+    composants = [
+        cb
         for ver in contrat.versements
         for cb in ver.composants_base
         if (cb.identifiant_affiliation or "").strip() == ident
-    }
-    if codes & COMPOSANTS_SUR_SALAIRE:
+    ]
+    montants = [(str(cb.code or "").strip(), abs(float(cb.montant or 0.0))) for cb in composants]
+    if any(code in COMPOSANTS_TRANCHES_HAUTES and m > 0 for code, m in montants):
         return "prevoyance"
-    if codes & COMPOSANTS_FORFAITAIRES:
+    utiles = [(code, m) for code, m in montants if m > 0 and code in COMPOSANTS_SUR_SALAIRE | COMPOSANTS_FORFAITAIRES]
+    if not utiles:
+        return None
+    brut = _brut_from_contrat(contrat)
+    code, principal = max(utiles, key=lambda x: x[1])
+    egal_au_brut = brut > 0 and abs(principal - brut) <= max(1.0, 0.01 * brut)
+    egal_au_plafond = any(abs(principal - pss) < 1.0 for pss in PSS_MENSUELS_CONNUS)
+    if code in COMPOSANTS_FORFAITAIRES:
+        # Forfait : santé (petit forfait, pourcentage du plafond) ; une base de l'ordre d'un salaire
+        # qui n'est pas le plafond est une prévoyance (Colorplast y déclare sa base de prévoyance).
+        # Le plafond d'abord : Mont Blanc, 4 005,00 pour un brut de 3 984,00.
+        if egal_au_plafond:
+            return "mutuelle"
+        if egal_au_brut or principal >= SEUIL_BASE_DE_SALAIRE:
+            return "prevoyance"
         return "mutuelle"
-    return None
+    # Base de salaire (10, 11, 17, 19) : santé seulement si c'est le plafond et pas le brut (Zone 404).
+    return "mutuelle" if egal_au_plafond and not egal_au_brut else "prevoyance"
 
 
 def _adhesion_de(aff: AffiliationBlock, organismes_psc: Optional[List[OrganismePscBlock]]) -> Optional[OrganismePscBlock]:

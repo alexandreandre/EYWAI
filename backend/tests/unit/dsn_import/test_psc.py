@@ -186,3 +186,58 @@ def test_mutuelle_et_prevoyance_suivent_leur_affiliation_et_non_l_ordre_ni_la_po
     assert spec["mutuelle"]["lignes_specifiques"][0]["montant_salarial"] == 59.27
     assert spec["prevoyance"]["adhesion"] is True
     assert (spec["mutuelle"].get("dsn") or {}).get("code_organisme") == "779558501"
+
+
+def test_une_base_forfaitaire_de_la_taille_du_salaire_est_une_prevoyance():
+    """Colorplast et Comitech (Cegid Quadra) déclarent leur prévoyance non cadre en « Base forfaitaire
+    Prévoyance » (79.001 = 18) d'un montant égal au brut ; la santé, elle, en 18 à 29,24 et 20 à
+    98,12. Un composant forfaitaire de l'ordre du salaire est une prévoyance."""
+    from app.modules.dsn_import.domain.model import ComposantBaseBlock
+    from app.modules.dsn_import.domain.psc import _affiliation_kind
+
+    contrat = ContratBlock(
+        affiliations=[AffiliationBlock(identifiant_affiliation="1"), AffiliationBlock(identifiant_affiliation="2")],
+        versements=[VersementBlock(composants_base=[
+            ComposantBaseBlock(code="18", montant=29.24, identifiant_affiliation="1"),
+            ComposantBaseBlock(code="18", montant=2543.39, identifiant_affiliation="2"),
+        ])],
+    )
+    assert _affiliation_kind(contrat.affiliations[0], contrat) == "mutuelle"
+    assert _affiliation_kind(contrat.affiliations[1], contrat) == "prevoyance"
+
+
+def test_une_sante_au_pourcentage_du_plafond_reste_une_mutuelle():
+    """Mont Blanc (18) et Zone 404 (11) déclarent leur santé sur 4 005,00, le plafond, quel que soit le
+    salaire ; la prévoyance sur le brut, avec une tranche B au-delà du plafond."""
+    from app.modules.dsn_import.domain.model import ComposantBaseBlock, RemunerationBlock
+    from app.modules.dsn_import.domain.psc import _affiliation_kind
+
+    def contrat(brut, *composants):
+        return ContratBlock(
+            affiliations=[AffiliationBlock(identifiant_affiliation="1"), AffiliationBlock(identifiant_affiliation="2")],
+            versements=[VersementBlock(
+                remunerations=[RemunerationBlock(type_code="001", montant=brut)],
+                composants_base=[ComposantBaseBlock(code=c, montant=m, identifiant_affiliation=a) for a, c, m in composants])],
+        )
+
+    c = contrat(3608.0, ("1", "11", 4005.0), ("2", "11", 3608.0))
+    assert [_affiliation_kind(a, c) for a in c.affiliations] == ["mutuelle", "prevoyance"]
+    c = contrat(5000.0, ("1", "11", 4005.0), ("2", "11", 4005.0), ("2", "13", 995.0))
+    assert [_affiliation_kind(a, c) for a in c.affiliations] == ["mutuelle", "prevoyance"]
+    c = contrat(2182.77, ("1", "18", 4005.0), ("2", "11", 2163.10))
+    assert [_affiliation_kind(a, c) for a in c.affiliations] == ["mutuelle", "prevoyance"]
+
+
+def test_le_plafond_l_emporte_quand_le_brut_en_est_proche():
+    """Mont Blanc : santé en 18 à 4 005,00 pour un brut de 3 984,00."""
+    from app.modules.dsn_import.domain.model import ComposantBaseBlock, RemunerationBlock
+    from app.modules.dsn_import.domain.psc import _affiliation_kind
+
+    c = ContratBlock(
+        affiliations=[AffiliationBlock(identifiant_affiliation="1"), AffiliationBlock(identifiant_affiliation="2")],
+        versements=[VersementBlock(
+            remunerations=[RemunerationBlock(type_code="001", montant=3984.0)],
+            composants_base=[ComposantBaseBlock(code="18", montant=4005.0, identifiant_affiliation="1"),
+                             ComposantBaseBlock(code="11", montant=3984.0, identifiant_affiliation="2")])],
+    )
+    assert [_affiliation_kind(a, c) for a in c.affiliations] == ["mutuelle", "prevoyance"]
