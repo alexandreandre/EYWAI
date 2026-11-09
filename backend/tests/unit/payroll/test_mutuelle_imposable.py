@@ -64,6 +64,7 @@ IMPOSABLE_ATTENDU = 2668.86
 
 def _contexte(mutuelle_type_ids):
     return SimpleNamespace(
+        get_cotisation_by_id=lambda _id: None,
         month=7,
         cumuls={},
         contrat={

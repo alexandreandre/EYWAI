@@ -17,6 +17,7 @@ from app.modules.payroll.engine.bulletin import creer_bulletin_final, creer_bull
 from app.modules.payroll.engine.calcul_brut_forfait import calculer_salaire_brut_forfait
 from app.modules.payroll.engine.calcul_cotisations import (
     calculer_cotisations,
+    jours_maintenus_du_mois,
     ratio_plafond_periode,
 )
 from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
@@ -592,6 +593,7 @@ def run_payslip_generation_forfait(
         calendrier_etendu,
         *(bornes_de_la_sortie(contexte) or (date_debut_periode, date_fin_periode)),
         contexte,
+        jours_maintenus=jours_maintenus_du_mois(jours_maintien, resultats_maintien),
     )
     lignes_cotisations, total_salarial = calculer_cotisations(
         contexte, salaire_brut_calcule, remuneration_hs, total_heures_supp

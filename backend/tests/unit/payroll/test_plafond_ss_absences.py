@@ -170,33 +170,63 @@ class TestDureeDeclareeDeLArret:
 
 
 class TestPlafondEtMaintien:
-    """R-278 : seules les journées sans maintien réduisent le plafond (R242-2 CSS, BOSS).
+    """R-278 : seules les journées entières sans aucun maintien réduisent le plafond.
 
-    `ratio_plafond_periode` retire tous les jours d'arrêt ; le corriger changerait
-    Colorplast, donc rien ne bouge : le bulletin le dit.
+    Sources secondaires (BOSS et R. 242-2 CSS ne s'ouvrent pas) : fiche-paie.net,
+    documentation Sage. Quadra sur un arrêt : 8 jours retirés, 15 chez nous avant.
     """
 
+    MAI = (date(2026, 5, 1), date(2026, 5, 31))
+
     @staticmethod
-    def _contexte(ratio):
-        contexte = build_test_contexte(salaire_base=2000.0, duree_hebdo=35.0)
-        contexte.ratio_plafond_ss = ratio
-        return contexte
+    def _arret(du, au):
+        out = []
+        for jour in range(du, au + 1):
+            iso = date(2026, 5, jour).isoformat()
+            out.append({
+                "date_complete": iso, "type": "arret_maladie", "heures": 7.0,
+                "date_debut_arret_reel": date(2026, 5, du).isoformat(),
+                "date_fin_arret_reel": date(2026, 5, au).isoformat(),
+            })
+        return out
 
-    def test_plafond_reduit_avec_maintien_est_signale(self):
-        from app.modules.payroll.engine.bulletin import alerte_plafond_reduit_malgre_maintien
+    def _ratio(self, cal, **options):
+        ctx = build_test_contexte(salaire_base=2000.0, duree_hebdo=35.0)
+        return ratio_plafond_periode(cal, *self.MAI, ctx, **options)
 
-        alerte = alerte_plafond_reduit_malgre_maintien(
-            self._contexte(16 / 31), {"maintien": {"maintien_verse": 310.5}}
-        )
-        assert alerte["code"] == "plafond_reduit_malgre_maintien"
-        assert alerte["critique"] is False
-        assert "310,50 €" in alerte["message"]
+    def test_les_jours_maintenus_ne_reduisent_pas_le_plafond(self):
+        """Arrêt de 15 jours : 7 sans maintien, 8 maintenus : 7 jours retirés."""
+        ratio = self._ratio(self._arret(5, 19), jours_maintenus=set(range(12, 20)))
+        assert ratio == pytest.approx(round(24 / 31, 6))
 
-    @pytest.mark.parametrize(
-        ("ratio", "maintien"),
-        [(1.0, {"maintien": {"maintien_verse": 310.5}}), (16 / 31, {"maintien": {"maintien_verse": 0.0}}), (16 / 31, None)],
-    )
-    def test_sans_reduction_ou_sans_maintien_rien_n_est_dit(self, ratio, maintien):
-        from app.modules.payroll.engine.bulletin import alerte_plafond_reduit_malgre_maintien
+    def test_sans_maintien_tous_les_jours_sont_retires(self):
+        assert self._ratio(self._arret(5, 19)) == pytest.approx(round(16 / 31, 6))
 
-        assert alerte_plafond_reduit_malgre_maintien(self._contexte(ratio), maintien) is None
+    def test_maintien_sur_tout_l_arret_plafond_plein(self):
+        assert self._ratio(self._arret(5, 19), jours_maintenus=set(range(5, 20))) == 1.0
+
+    def test_un_droit_sans_versement_ne_compte_pas(self):
+        from app.modules.payroll.engine.calcul_cotisations import jours_maintenus_du_mois
+
+        assert jours_maintenus_du_mois({5, 6}, {"maintien": {"maintien_verse": 0.0}}) == set()
+        assert jours_maintenus_du_mois({5, 6}, None) == set()
+        assert jours_maintenus_du_mois({5, 6}, {"maintien": {"maintien_verse": 12.5}}) == {5, 6}
+
+    def test_une_journee_incomplete_ne_reduit_pas_le_plafond(self):
+        cal = [{"date_complete": "2026-05-12", "type": "absence_injustifiee_base", "heures": 3.5}]
+        prevus = [{"annee": 2026, "mois": 5, "jour": 12, "heures_prevues": 8.5}]
+        assert self._ratio(cal, jours_prevus=prevus) == 1.0
+
+    def test_une_journee_entiere_reduit_le_plafond(self):
+        cal = [{"date_complete": "2026-05-12", "type": "absence_injustifiee_base", "heures": 8.5}]
+        prevus = [{"annee": 2026, "mois": 5, "jour": 12, "heures_prevues": 8.5}]
+        assert self._ratio(cal, jours_prevus=prevus) == pytest.approx(round(30 / 31, 6))
+
+    def test_une_demi_journee_de_sans_solde_ne_reduit_pas_le_plafond(self):
+        cal = [{"date_complete": "2026-05-12", "type": "absence_non_remuneree", "heures": 0.0, "quotite_absence": 0.5}]
+        assert self._ratio(cal) == 1.0
+
+    def test_l_alerte_a_disparu(self):
+        import app.modules.payroll.engine.bulletin as bulletin
+
+        assert not hasattr(bulletin, "alerte_plafond_reduit_malgre_maintien")

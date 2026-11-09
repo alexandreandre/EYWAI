@@ -180,9 +180,8 @@ def _cumul_tranche_1_appliquee_debut_mois(
 
 
 # Absences pendant lesquelles le contrat est suspendu sans rémunération : le
-# plafond de la Sécurité sociale est réduit prorata temporis (BOSS, assiette
-# générale : entrée/sortie en cours de mois et suspension du contrat sans
-# maintien intégral, en jours calendaires).
+# plafond de la Sécurité sociale est réduit prorata temporis, en jours
+# calendaires, pour les journées entières sans aucun maintien (R-278).
 #: Un arrêt de travail suspend le contrat quelle que soit sa nature — maladie,
 #: accident du travail, maternité, paternité : tous réduisent le plafond au
 #: prorata. Seul `arret_maladie` y figurait, et l'accident du travail de salarié 086
@@ -210,14 +209,33 @@ def _reduit_le_plafond(type_evenement: str) -> bool:
     )
 
 
+def jours_maintenus_du_mois(
+    jours_maintien: Optional[set[int]], resultats_maintien: Optional[Dict[str, Any]]
+) -> set[int]:
+    """Jours du mois couverts par un maintien réellement versé (R-278).
+
+    Un droit à maintien que l'IJ absorbe entièrement ne verse rien : ces jours
+    restent sans rémunération et réduisent le plafond.
+    """
+    bloc = ((resultats_maintien or {}).get("maintien") or {})
+    return set(jours_maintien or ()) if float(bloc.get("maintien_verse") or 0.0) > 0 else set()
+
+
 def ratio_plafond_periode(
     calendrier: List[Dict[str, Any]],
     date_debut: date,
     date_fin: date,
     contexte: ContextePaie,
+    jours_maintenus: Optional[set[int]] = None,
+    jours_prevus: Optional[List[Dict[str, Any]]] = None,
 ) -> float:
     """Fraction du plafond mensuel due sur la période : jours calendaires de
     présence rémunérée / jours calendaires de la période.
+
+    Seules les journées entières sans aucun maintien réduisent le plafond
+    (R. 242-2 CSS et BOSS, lus via fiche-paie.net et la documentation Sage ;
+    R-278) : `jours_maintenus` (numéros des jours avec maintien, même partiel)
+    et les journées incomplètes au regard de `jours_prevus` sont retenus.
 
     * jours hors contrat (avant l'entrée, après la sortie) : non retenus ;
     * jours d'absence non rémunérée (arrêt, absence non rémunérée, injustifiée,
@@ -248,6 +266,9 @@ def ratio_plafond_periode(
     sortie = _d(contrat.get("date_sortie") or contrat.get("date_fin_contrat"))
     absents: set[date] = set()
     feries: set[date] = set()
+    #: Heures d'absence du jour, comparées à l'horaire prévu (journée entière ?).
+    heures_absence: Dict[date, float] = {}
+    journees_partielles: set[date] = set()
     for ev in calendrier or []:
         jour = _d(ev.get("date_complete"))
         if jour is None or not (date_debut <= jour <= date_fin):
@@ -259,6 +280,9 @@ def ratio_plafond_periode(
                 absents.add(jour)
         elif _reduit_le_plafond(type_ev):
             absents.add(jour)
+            heures_absence[jour] = heures_absence.get(jour, 0.0) + float(ev.get("heures") or 0.0)
+            if 0.0 < float(ev.get("quotite_absence") or 1.0) < 1.0:
+                journees_partielles.add(jour)
 
     # Un arrêt de travail suspend le contrat sur toute sa durée déclarée, pas
     # seulement sur les jours ouvrés inscrits au calendrier : le week-end et les
@@ -276,6 +300,21 @@ def ratio_plafond_periode(
         while jour_arret <= borne:
             absents.add(jour_arret)
             jour_arret += timedelta(days=1)
+
+    prevues: Dict[date, float] = {}
+    for prevu in jours_prevus or []:
+        try:
+            jour = date(int(prevu["annee"]), int(prevu["mois"]), int(prevu["jour"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        prevues[jour] = float(prevu.get("heures_prevues") or 0.0)
+    journees_partielles |= {
+        jour
+        for jour, heures in heures_absence.items()
+        if heures > 0 and heures < prevues.get(jour, 0.0) - 0.005
+    }
+    maintenus = set(jours_maintenus or ())
+    absents = {j for j in absents if j not in journees_partielles and j.day not in maintenus}
 
     jours = [date_debut + timedelta(days=i) for i in range(nb_jours)]
 
