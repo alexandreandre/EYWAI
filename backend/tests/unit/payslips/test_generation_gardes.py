@@ -35,10 +35,13 @@ def _bulletin_de_mai_pas_encore_remis():
     """Ces tests jouent un bulletin de mai 2026 validé et régénérable : le jour
     est le 20/05, avant sa remise au salarié du 01/06 (D4, test_bulletin_remis.py)."""
     from app.modules.payslips.application import commands as cmds
+    from app.modules.payslips.application import comparison_service as cs
 
     with (
         patch.object(cmds, "aujourd_hui_local", return_value=date(2026, 5, 20)),
         patch.object(cmds, "jour_de_la_societe", return_value=1),
+        # La lecture de l'état n'a pas de base ici : elle refuserait la validation (R-327).
+        patch.object(cs, "_etat_actuel_du_bulletin", return_value=None),
     ):
         yield
 

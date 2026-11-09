@@ -50,6 +50,7 @@ from app.modules.payslips.application.commands import (
     _notify_payslip_available,
 )
 from app.modules.payslips.infrastructure.readers import payslip_meta_reader
+from app.modules.payroll.engine.lectures import LectureIndispensable, lire_ou_arreter
 from app.modules.payroll.documents.verrou_generation import (
     GenerationDejaEnCours,
     verrou_de_generation,
@@ -59,23 +60,28 @@ logger = get_logger("modules.payslips.application.comparison_service")
 
 
 def _etat_actuel_du_bulletin(detail: dict[str, Any]) -> Any:
-    """L'état du bulletin dans sa chaîne (`EtatDuBulletin`) ; None si illisible :
-    on ne bloque pas la validation sur une lecture ratée. None aussi pour le
+    """L'état du bulletin dans sa chaîne (`EtatDuBulletin`). None pour le
     bulletin du contrat rangé d'un mois à deux contrats : l'état du mois est
-    celui du bulletin de la fiche [D3]."""
+    celui du bulletin de la fiche [D3]. Une lecture ratée est relue, puis la
+    validation est refusée : sans cet état, on validerait sans le filet (R-327)."""
     if detail.get("contract_period_id"):
         return None
-    try:
-        from app.modules.payroll.application.empreinte_entrees_service import (
-            etat_dans_la_chaine,
-        )
+    from app.modules.payroll.application.empreinte_entrees_service import (
+        etat_dans_la_chaine,
+    )
 
-        return etat_dans_la_chaine(
-            str(detail["employee_id"]), int(detail["year"]), int(detail["month"])
+    try:
+        return lire_ou_arreter(
+            lambda: etat_dans_la_chaine(
+                str(detail["employee_id"]), int(detail["year"]), int(detail["month"])
+            ),
+            "L'état du bulletin n'a pas pu être lu",
         )
-    except Exception:  # noqa: BLE001 — une lecture ratée ne doit pas valider un bulletin faux ni tout casser
-        logger.warning("Empreinte actuelle illisible, validation sans ce filet", exc_info=True)
-        return None
+    except LectureIndispensable as exc:
+        raise PayslipBadRequestError(
+            "L'état du bulletin n'a pas pu être vérifié (connexion à la base "
+            "interrompue). Il n'a pas été validé : réessayez dans un instant."
+        ) from exc
 
 
 def _ensure_view_detail(detail: dict[str, Any] | None, ctx: UserContext) -> dict[str, Any]:
