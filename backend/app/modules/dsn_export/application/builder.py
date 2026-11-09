@@ -11,6 +11,7 @@ from app.shared.domain.effectif_seuils import effectif_retenu
 from app.modules.dsn_export.domain.changement_pcs import bloc_changement_pcs, pcs_du_mois
 from app.modules.dsn_export.domain.settings import (
     DsnSettings,
+    identifiant_urssaf,
     normaliser_idcc,
     normaliser_naf,
 )
@@ -135,6 +136,13 @@ CONSTANTES_CONTRAT = {
 
 class DsnBuildError(ValueError):
     """Donnée obligatoire manquante pour générer la DSN."""
+
+
+MESSAGE_URSSAF_MANQUANT = (
+    "Identifiant de l'Urssaf destinataire manquant : ni le SIRET de l'Urssaf (14 chiffres) "
+    "dans le paramétrage DSN, ni un N° URSSAF à 14 chiffres sur la fiche société. "
+    "Sans lui, la DSN ne porte pas le bordereau Urssaf."
+)
 
 
 def _voie_dsn(valeur: str) -> str:
@@ -1818,12 +1826,9 @@ def build_parsed_dsn_from_payroll(
     warnings.extend(
         f"Paramétrage DSN incomplet : {manque}" for manque in parametres.manques()
     )
-    default_ops = str(
-        company.get("urssaf_number")
-        or company.get("urssaf_siret")
-        or company.get("ops_urssaf")
-        or ""
-    ).replace(" ", "")
+    default_ops = identifiant_urssaf(company, parametres)
+    if require_cotisation_codes and not default_ops:
+        raise DsnBuildError(MESSAGE_URSSAF_MANQUANT)
     defauts_contrat = _defauts_contrat(company, employees_data, parametres, int(period[:4]))
 
     for row in employees_data:

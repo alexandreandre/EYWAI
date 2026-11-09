@@ -232,12 +232,33 @@ def _versements(contenu: bytes) -> List[Dict[str, str]]:
             versements[-1]["jour_paiement"] = str(int(valeur[:2]))
     vus = set()
     uniques = []
+    urssaf = next((v for c, v in lire_rubriques(contenu) if c == "S21.G00.22.001"), "")
     for versement in versements:
         if versement["organisme"] in vus:
             continue
         vus.add(versement["organisme"])
+        if urssaf and versement["organisme"] == urssaf:
+            versement["urssaf"] = "1"
         uniques.append(versement)
     return uniques
+
+
+def identifiant_urssaf(societe: Dict[str, Any], parametres: "DsnSettings") -> str:
+    """SIRET de l'Urssaf destinataire (S21.G00.22.001, S21.G00.81.002 : 14 chiffres).
+
+    Le versement marqué à la reprise de la DSN du cabinet (organisme de son bordereau)
+    d'abord, puis un « N° URSSAF » de fiche société s'il compte 14 chiffres. Un numéro
+    de compte cotisant à 18 chiffres n'est pas cet identifiant : DSN-VAL le refuse.
+    """
+    for versement in parametres.versements:
+        organisme = str(versement.get("organisme") or "")
+        if versement.get("urssaf") and organisme.isdigit() and len(organisme) == 14:
+            return organisme
+    for cle in ("urssaf_number", "urssaf_siret", "ops_urssaf"):
+        valeur = str(societe.get(cle) or "").replace(" ", "")
+        if valeur.isdigit() and len(valeur) == 14:
+            return valeur
+    return ""
 
 
 def types_de_population(contenu: bytes) -> Dict[str, str]:

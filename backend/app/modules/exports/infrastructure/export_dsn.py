@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 from app.core.database import supabase
 from app.modules.dsn_export.application.builder import (
+    MESSAGE_URSSAF_MANQUANT,
     DsnBuildError,
     build_parsed_dsn_from_payroll,
 )
@@ -30,7 +31,7 @@ from app.modules.dsn_export.domain.rectification import (
     avis_regularisation_sans_mois_origine,
     refus_annule_remplace,
 )
-from app.modules.dsn_export.domain.settings import DsnSettings
+from app.modules.dsn_export.domain.settings import DsnSettings, identifiant_urssaf
 from app.modules.dsn_export.domain.versements_complementaires import (
     cotisations_par_contrat,
     est_fin_de_trimestre,
@@ -531,6 +532,16 @@ def check_dsn_data(
             {
                 "type": "error",
                 "message": f"SIRET établissement : {siret_error}",
+                "severity": "blocking",
+                "employee_id": None,
+                "employee_name": None,
+            }
+        )
+    if not identifiant_urssaf(company_data, settings_repository.charger(company_id)):
+        anomalies.append(
+            {
+                "type": "error",
+                "message": MESSAGE_URSSAF_MANQUANT,
                 "severity": "blocking",
                 "employee_id": None,
                 "employee_name": None,

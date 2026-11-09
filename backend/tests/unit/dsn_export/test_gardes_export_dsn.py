@@ -24,6 +24,7 @@ pytestmark = pytest.mark.unit
 
 BASCULE = Bascule(annee=2026, mois=9, logiciel_precedent="Quadra")
 SOCIETE = {
+    "urssaf_number": "79484650100011",
     "siret": "73282932000074",
     "name": "Société Test",
     "code_naf": "2229A",

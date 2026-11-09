@@ -12,9 +12,17 @@ from __future__ import annotations
 
 from typing import Dict, List, Tuple
 
-from app.modules.dsn_export.application.builder import build_parsed_dsn_from_payroll
+import pytest
+
+from app.modules.dsn_export.application.builder import DsnBuildError, build_parsed_dsn_from_payroll
 from app.modules.dsn_export.domain.agregats import bordereau_urssaf
-from app.modules.dsn_export.domain.settings import DsnSettings, depuis_dict, extraire_depuis_dsn, vers_dict
+from app.modules.dsn_export.domain.settings import (
+    DsnSettings,
+    depuis_dict,
+    extraire_depuis_dsn,
+    identifiant_urssaf,
+    vers_dict,
+)
 from app.modules.dsn_export.domain.writer import encode_dsn_bytes
 
 URSSAF = "79484650100011"
@@ -289,3 +297,59 @@ def test_la_prime_de_partage_du_bulletin_arrive_au_bordereau():
     lignes = [(l.split(",", 1)[0], l.split(",", 1)[1].strip("'")) for l in texte.splitlines()]
     ctp = {b["001"]: b for b in _blocs(lignes, "S21.G00.23")}
     assert ctp["510"]["002"] == "920" and ctp["510"]["004"] == "100.00"
+
+
+# ---- Identifiant de l'Urssaf destinataire (S21.G00.22.001, S21.G00.81.002, DSN à blanc d'octobre)
+NUMERO_DE_COMPTE = "827000002192208128"
+PARAMETRES_MARQUES = DsnSettings(
+    idcc="0292",
+    versements=[
+        {"organisme": CAISSE_RETRAITE, "mode": "05"},
+        {"organisme": URSSAF, "mode": "05", "urssaf": "1"},
+        {"organisme": "DGFIP", "entite": "DGFIP_PAS", "mode": "05"},
+    ],
+    assujettissements_fiscaux=["001"],
+)
+
+
+def test_la_reprise_marque_l_organisme_du_bordereau_urssaf():
+    avec_bordereau = CABINET + f"\r\nS21.G00.22.001,'{URSSAF}'\r\n".encode("latin-1")
+    settings = extraire_depuis_dsn(avec_bordereau)
+    marques = [v["organisme"] for v in settings.versements if v.get("urssaf")]
+    assert marques == [URSSAF]
+
+
+def test_le_siret_marque_en_reprise_prevaut_sur_le_numero_de_compte():
+    societe = {**SOCIETE, "urssaf_number": NUMERO_DE_COMPTE}
+    assert identifiant_urssaf(societe, PARAMETRES_MARQUES) == URSSAF
+    fichier, _ = build_parsed_dsn_from_payroll(
+        societe,
+        [{"employee": SALARIE, "payslip_data": BULLETIN}],
+        "2026-06",
+        settings=PARAMETRES_MARQUES,
+        require_cotisation_codes=True,
+    )
+    texte = encode_dsn_bytes(fichier).decode("iso-8859-15")
+    assert f"S21.G00.22.001,'{URSSAF}'" in texte
+    assert NUMERO_DE_COMPTE not in texte
+    assert f"S21.G00.81.002,'{URSSAF}'" in texte
+
+
+def test_un_numero_a_quatorze_chiffres_reste_accepte_sans_marque():
+    assert identifiant_urssaf({"urssaf_number": URSSAF}, DsnSettings()) == URSSAF
+
+
+def test_un_numero_de_compte_seul_ne_vaut_pas_identifiant_urssaf():
+    assert identifiant_urssaf({"urssaf_number": NUMERO_DE_COMPTE}, DsnSettings()) == ""
+
+
+def test_sans_identifiant_urssaf_la_mensuelle_est_refusee():
+    societe = {k: v for k, v in SOCIETE.items() if k != "urssaf_number"}
+    with pytest.raises(DsnBuildError, match="Urssaf"):
+        build_parsed_dsn_from_payroll(
+            societe,
+            [{"employee": SALARIE, "payslip_data": BULLETIN}],
+            "2026-06",
+            settings=DsnSettings(idcc="0292"),
+            require_cotisation_codes=True,
+        )
