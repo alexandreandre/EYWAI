@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from datetime import date
 from typing import Any, Dict, List, Optional
 
@@ -443,6 +444,117 @@ def controle_prime_anciennete(contexte) -> List[Dict[str, Any]]:
         )
 
     return alertes
+
+
+def _date_d_un_evenement(evenement: Dict[str, Any], annee_defaut: Optional[int]) -> Optional[date]:
+    jour = _date_iso(evenement.get("date_complete"))
+    if jour:
+        return jour
+    try:
+        return date(
+            int(evenement.get("annee") or annee_defaut or 0),
+            int(evenement["mois"]),
+            int(evenement["jour"]),
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def controle_premier_mai_travaille(contexte, annee: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Travail pointé le 1er mai : l'indemnité égale au salaire n'est pas calculée.
+
+    C. trav. L3133-6 (ouvert le 09/11/2026) : « les salariés occupés le 1er mai ont
+    droit, en plus du salaire correspondant au travail accompli, à une indemnité
+    égale au montant de ce salaire ». Alerte seule : le montant du bulletin ne
+    change pas, l'indemnité se pose depuis la page Primes.
+    """
+    heures = 0.0
+    for evenement in getattr(contexte, "evenements_paie", None) or []:
+        if not isinstance(evenement, dict) or evenement.get("source_repli_planning"):
+            continue
+        if not str(evenement.get("type") or "").startswith("travail"):
+            continue
+        jour = _date_d_un_evenement(evenement, annee)
+        if jour is None or (jour.month, jour.day) != (5, 1):
+            continue
+        try:
+            heures += max(0.0, float(evenement.get("heures") or 0.0))
+        except (TypeError, ValueError):
+            continue
+    if heures <= 0:
+        return []
+
+    if getattr(contexte, "is_forfait_jour", False):
+        constat = "Jour travaillé le 1er mai"
+        estimation = ""
+    else:
+        from app.modules.payroll.engine.calcul_brut import _get_salaire_horaire_base
+        from app.modules.modulation.domain.hour_account_rules import heures_en_texte
+
+        constat = f"{heures_en_texte(round(heures, 2))} travaillées le 1er mai"
+        estimation = ""
+        try:
+            taux = _get_salaire_horaire_base(contexte, contexte.duree_hebdo_contrat)
+            if taux > 0:
+                estimation = f" (environ {_euros_fr(heures * taux)}, au taux de base)"
+        except Exception:  # noqa: BLE001 — l'estimation est un confort, pas le contrôle
+            estimation = ""
+    return [
+        {
+            "code": "premier_mai_travaille",
+            "critique": False,
+            "severity": "warning",
+            "message": (
+                f"{constat} : une indemnité égale au salaire de ce travail est due en "
+                f"plus{estimation} (C. trav. L3133-6). Martine ne la calcule pas seule : "
+                "ajoutez-la depuis la page Primes."
+            ),
+        }
+    ]
+
+
+_MOTS_DU_RACHAT = ("jour", "rtt", "repos", "forfait")
+
+
+def _sans_accents(texte: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFD", texte) if unicodedata.category(c) != "Mn"
+    ).lower()
+
+
+def controle_rachat_de_jours(details_brut: Any) -> List[Dict[str, Any]]:
+    """Rachat de jours de repos saisi en prime : Martine le paie, sans son régime.
+
+    L'avenant écrit et la majoration d'au moins 10 % viennent de C. trav. L3121-59
+    (ouvert le 09/11/2026). Le régime social et fiscal (réduction salariale,
+    déduction patronale des petites entreprises, exonération d'impôt) est décrit par
+    Tissot (2022) et d'autres sources secondaires ; les textes officiels n'ont pas
+    été ouverts : le message ne donne ni taux ni montant. Alerte seule.
+    """
+    libelles = []
+    for ligne in details_brut or []:
+        if not isinstance(ligne, dict) or float(ligne.get("gain") or 0.0) <= 0:
+            continue
+        libelle = str(ligne.get("libelle") or "")
+        texte = _sans_accents(libelle)
+        if "rachat" in texte and "cet" not in texte.split() and any(m in texte for m in _MOTS_DU_RACHAT):
+            libelles.append(libelle)
+    if not libelles:
+        return []
+    return [
+        {
+            "code": "rachat_de_jours_sans_regime",
+            "critique": False,
+            "severity": "warning",
+            "message": (
+                f"« {', '.join(sorted(set(libelles)))} » : Martine ne sait pas traiter un rachat de "
+                "jours de repos. Il est payé comme une prime, avec toutes ses cotisations, "
+                "sans réduction salariale, déduction patronale ni exonération d'impôt : "
+                "à vérifier et à corriger à la main. Il faut aussi un avenant écrit et une "
+                "majoration d'au moins 10 % (C. trav. L3121-59)."
+            ),
+        }
+    ]
 
 
 def controle_plafond_transport(

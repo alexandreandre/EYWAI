@@ -754,7 +754,9 @@ def creer_bulletin_final(
         controle_forfait_jours_syntec,
         controle_heures_complementaires,
         controle_net_superieur_brut,
+        controle_premier_mai_travaille,
         controle_prime_anciennete,
+        controle_rachat_de_jours,
         controle_salaire_apprenti,
     )
 
@@ -764,6 +766,8 @@ def creer_bulletin_final(
         *controle_salaire_apprenti(contexte, salaire_brut),
         *controle_heures_complementaires(contexte),
         *controle_forfait_jours_syntec(contexte, salaire_brut),
+        *controle_premier_mai_travaille(contexte, annee),
+        *controle_rachat_de_jours(details_brut),
     ):
         contexte.alertes_baremes.append(alerte_legere)
 
