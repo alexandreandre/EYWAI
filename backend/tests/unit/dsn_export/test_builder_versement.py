@@ -455,3 +455,20 @@ def test_montant_soumis_au_pas_nul_quand_la_paie_l_annule():
     bulletin = copy.deepcopy(BULLETIN)
     bulletin["synthese_net"]["impot_prelevement_a_la_source"] = {"base": 0.0, "taux": 0.0, "montant": 0.0}
     assert _valeur(_lignes(bulletin=bulletin), "S21.G00.50.013") == "0.00"
+
+
+def test_smic_retenu_negatif_du_repli_n_est_jamais_declare():
+    """R-459 : le repli (heures du mois = écart de cumuls) rend un négatif quand le cumul est
+    reparti de zéro (apprenti de Comitech, 79 type 01 à -1 736,89). Un SMIC retenu négatif n'a de
+    sens que pour un cumul corrigé par le cabinet (DSN Quadra 2026 : 11 cas), pas pour ce calcul."""
+    salarie = {**SALARIE, "smic_horaire_reduction": 12.02, "heures_cumulees_avant": 1521.0}
+    composants = _composants_79(_bulletin_sans_smic(1352.0), salarie)
+    assert not any(c[0] == "01" for c in composants)
+
+
+def test_smic_retenu_negatif_du_moteur_tombe_sur_le_repli():
+    bulletin = copy.deepcopy(BULLETIN)
+    for ligne in bulletin["structure_cotisations"]["bloc_allegements"]:
+        ligne["smic_reference_mois"] = -1736.89
+    composants = _composants_79(bulletin, SALARIE)
+    assert not any(m.startswith("-") for t, m in composants if t == "01")

@@ -377,13 +377,19 @@ def _smic_reduction_generale(
 
     Le SMIC d'une DSN du cabinet (reprise) n'est jamais réutilisé : il ne vaut
     que pour son mois, et une valeur périmée passerait sans refus.
+
+    Le calcul ne rend jamais un négatif (R-459) : celui du cabinet vient d'un
+    cumul corrigé (DSN Quadra 2026 : 11 cas), celui d'un écart de cumuls
+    d'heures vient d'un cumul reparti de zéro (apprenti de Comitech, -1 736,89).
+    Pas de valeur : l'alerte de composant manquant se déclenche.
     """
     for ligne in lignes:
         if str(ligne.get("coti_id") or "") == "reduction_generale" and ligne.get(
             "smic_reference_mois"
         ) is not None:
             # Zéro est une vraie valeur : un mois sans heure payée.
-            return float(ligne["smic_reference_mois"])
+            if float(ligne["smic_reference_mois"]) >= 0:
+                return float(ligne["smic_reference_mois"])
     valeur = synthese_net.get("montant_smic_reduction_generale")
     if valeur:
         return float(valeur)
@@ -392,6 +398,8 @@ def _smic_reduction_generale(
     if horaire in (None, "") or cumul in (None, ""):
         return None
     heures_du_mois = round(float(cumul) - float(employee.get("heures_cumulees_avant") or 0), 2)
+    if heures_du_mois < 0:
+        return None
     return round(float(horaire) * heures_du_mois, 2)
 
 
