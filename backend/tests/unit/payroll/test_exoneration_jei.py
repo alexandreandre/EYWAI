@@ -16,6 +16,7 @@ from app.modules.payroll.engine.calcul_reduction_generale import (
 )
 from app.modules.payroll.engine.cotisations_rubriques import resoudre_rubrique
 from app.modules.payroll.engine.exoneration_jei import (
+    _cotisations_exonerees,
     calculer_exoneration_jei,
     jei_applicable,
     mois_actifs_annuel,
@@ -218,3 +219,16 @@ class TestNonCumulRgdu:
         # que l'exonération JEI est bien positive et que le régime JEI est actif.
         assert rgdu is not None
         assert abs(exo["montant_patronal"]) > 0
+
+
+def test_liste_des_cotisations_exonerees_conforme_a_la_fiche_urssaf():
+    """R-366 : assurances sociales et allocations familiales, rien d'autre."""
+    exonerees = _cotisations_exonerees({})
+    assert exonerees == {
+        "securite_sociale_maladie",
+        "retraite_secu_plafond",
+        "retraite_secu_deplafond",
+        "allocations_familiales",
+    }
+    for due in ("at_mp", "fnal", "csa", "versement_mobilite", "dialogue_social", "forfait_social"):
+        assert due not in exonerees

@@ -22,6 +22,12 @@ COTI_ID_ALIASES: Dict[str, str] = {
     "vieillesse_deplafonnee": "retraite_secu_deplafond",
 }
 
+# Assurances sociales et allocations familiales seulement (fiche Urssaf JEI,
+# recopiée par les-aides.fr, lue le 08/11/2026 ; urssaf.fr et le BOSS ne s'ouvrent
+# pas d'ici). Restent dus : AT/MP, FNAL, dialogue social, versement mobilité,
+# forfait social. La CSA n'y est pas citée : elle reste due ici, faute de texte
+# qui l'exonère. Pas de cumul avec une autre exonération patronale pour un même
+# salarié : pas de réduction générale sur un salarié JEI (`jei_applicable`).
 DEFAULT_COTISATIONS_EXONEREES = frozenset(
     {
         "securite_sociale_maladie",
