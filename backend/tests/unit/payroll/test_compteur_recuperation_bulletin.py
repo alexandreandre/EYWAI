@@ -105,3 +105,35 @@ def test_heures_sup_saisies_a_la_main():
     assert heures_sup_saisies({"heures_supplementaires_conjoncturelles_50": 2}) == (0.0, 2.0)
     # Déclarées nulles depuis le bulletin : elles font foi quand même.
     assert heures_sup_saisies({"heures_sup_declarees_au_bulletin": True}) == (0.0, 0.0)
+
+
+def _bulletin_avec_convention(convention: str, solde_extra: dict) -> dict:
+    bulletin = _bulletin({"acquis": 8.0, "pris": 0.0, "paye": 0.0, "solde": 8.0, "prises": []})
+    bulletin["pied_de_page"]["solde_conges"].update(solde_extra)
+    bulletin["en_tete"] = {"salarie": {"convention_collective": convention}}
+    return bulletin
+
+
+def test_plasturgie_delai_de_deux_a_six_mois_pour_la_recuperation():
+    """R-351 : fiche CDTN 292, « minimum de 2 mois et maximum de 6 mois »."""
+    notes = construire_compteurs(
+        _bulletin_avec_convention("Plasturgie (IDCC 0292)", {})
+    )["notes"]
+    assert any("de deux à six mois (convention de la plasturgie)" in n for n in notes)
+    assert not any("D3171-11" in n for n in notes)
+
+
+def test_plasturgie_avec_repos_obligatoire_garde_les_deux_mois():
+    notes = construire_compteurs(
+        _bulletin_avec_convention(
+            "Plasturgie (IDCC 0292)", {"repos_compensateur": {"solde": 3.0}}
+        )
+    )["notes"]
+    assert any("maximum de deux mois (C. trav. D3171-11)" in n for n in notes)
+
+
+def test_autre_convention_garde_les_deux_mois():
+    notes = construire_compteurs(
+        _bulletin_avec_convention("Métallurgie (IDCC 3248)", {})
+    )["notes"]
+    assert any("maximum de deux mois (C. trav. D3171-11)" in n for n in notes)
