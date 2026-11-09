@@ -10,6 +10,8 @@ from app.modules.payroll.planning_repli import mois_sans_pointage
 
 ProrataMode = Literal["heures_contrat", "jours_forfait", "none"]
 
+TYPES_ARRET = ("arret_maladie", "arret_travail")
+
 
 @dataclass(frozen=True)
 class TempsRetenuResult:
@@ -81,6 +83,58 @@ def _heures_dues_hors_conges(
     )
     heures_theoriques = jours_ouvrables * (duree_hebdo / 5)
     return heures_theoriques - (jours_conges * (duree_hebdo / 5))
+
+
+def _date_evenement(ev: dict[str, Any], date_debut: date) -> date | None:
+    dc = ev.get("date_complete")
+    if dc:
+        try:
+            return date.fromisoformat(str(dc)[:10])
+        except (TypeError, ValueError):
+            return None
+    jour = _parse_day(ev)
+    if jour is None:
+        return None
+    try:
+        return date(date_debut.year, date_debut.month, jour)
+    except ValueError:
+        return None
+
+
+def _reste_un_jour_ouvre_hors_arret(
+    calendrier_periode: list[dict[str, Any]],
+    date_debut: date,
+    date_fin: date,
+) -> bool:
+    """Vrai si un jour du lundi au vendredi, ni férié ni en arrêt, reste dans la période."""
+    exclus = {
+        d
+        for ev in calendrier_periode
+        if ev.get("type") in (*TYPES_ARRET, "ferie")
+        and (d := _date_evenement(ev, date_debut)) is not None
+    }
+    return any(
+        (d := date.fromordinal(o)).weekday() < 5 and d not in exclus
+        for o in range(date_debut.toordinal(), date_fin.toordinal() + 1)
+    )
+
+
+def _heures_arret_non_maintenues(
+    calendrier_periode: list[dict[str, Any]],
+    jours_maintien: set[int],
+    heures_jour: float,
+    date_debut: date,
+) -> float:
+    """Heures des jours d'arrêt du lundi au vendredi sans maintien (carence, maintien épuisé)."""
+    total = 0.0
+    for ev in calendrier_periode:
+        if ev.get("type") not in TYPES_ARRET:
+            continue
+        d = _date_evenement(ev, date_debut)
+        if d is None or d.weekday() >= 5 or d.day in jours_maintien:
+            continue
+        total += heures_jour
+    return total
 
 
 def compute_temps_retenu_mois(
@@ -177,6 +231,38 @@ def compute_temps_retenu_mois(
         ev.get("type") in ("arret_maladie", "arret_travail")
         for ev in calendrier_periode
     )
+    if (
+        sans_pointage
+        and heures_travaillees <= 0
+        and arret_present
+        and sans_pointage_policy == "plein_mois"
+        and _reste_un_jour_ouvre_hors_arret(calendrier_periode, date_debut, date_fin)
+    ):
+        # Arrêt partiel sans pointage : les jours hors arrêt restent présumés travaillés, comme
+        # dans un mois sans arrêt. La prime « varie avec l'horaire de travail » (CCN métallurgie,
+        # art. 142) et Martine la maintient en cas de maladie maintenue : seul un jour d'arrêt non
+        # maintenu la fait baisser. Un arrêt sur tout le mois ne passe pas ici (cf. LEWIS ci-dessus).
+        heures_non_maintenues = _heures_arret_non_maintenues(
+            calendrier_periode,
+            jours_maintien if maladie_si_maintien else set(),
+            heures_jour,
+            date_debut,
+        )
+        temps_retenu = max(reference - heures_non_maintenues, 0.0)
+        ratio = temps_retenu / reference if reference > 0 else 0.0
+        if ratio_plafond is not None:
+            ratio = min(ratio, ratio_plafond)
+        return TempsRetenuResult(
+            temps_retenu=round(temps_retenu, 2),
+            reference=reference,
+            ratio=round(ratio, 6),
+            mode=mode,
+            detail={
+                "sans_pointage": True,
+                "policy": sans_pointage_policy,
+                "heures_arret_non_maintenues": round(heures_non_maintenues, 2),
+            },
+        )
     if sans_pointage and heures_travaillees <= 0 and not arret_present:
         if sans_pointage_policy == "plein_mois":
             return TempsRetenuResult(
