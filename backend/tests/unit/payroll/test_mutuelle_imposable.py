@@ -137,6 +137,13 @@ class TestPartSalarialeMutuelle:
             == IMPOSABLE_AVEC_FAMILLE_DEDUITE
         )
 
+    def test_une_mutuelle_obligatoire_sans_part_patronale_reste_deductible(self, monkeypatch):
+        """CGI art. 83, 1° quater : le critère est l'affiliation obligatoire,
+        pas l'absence de part patronale (R-299)."""
+        obligatoire = {**FAMILLE, "part_salariale_obligatoire": True}
+
+        assert _imposable(monkeypatch, [ISOLE, obligatoire]) == IMPOSABLE_AVEC_FAMILLE_DEDUITE
+
     def test_le_drapeau_ne_touche_pas_la_part_patronale(self, monkeypatch):
         """La part patronale reste réintégrée : seules 29,23 € (Isolé) le sont,
         le complément Famille n'ayant aucune part employeur."""
