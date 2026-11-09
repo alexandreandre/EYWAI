@@ -32,6 +32,7 @@ from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
     heures_reduction_forfait_jours,
     heures_retablies_par_les_rappels_de_maintien,
+    signaler_ecart_d_ouverture_au_premier_mois,
     signaler_rappels_de_maintien_en_prime_libre,
     rapport_salaires_forfait_jours,
 )
@@ -686,6 +687,7 @@ def run_payslip_generation_forfait(
             contexte, salaire_brut_calcule, heures_reduction,
             ppv_mois=ppv_hors_brut,
         )
+        signaler_ecart_d_ouverture_au_premier_mois(contexte, company_id, year, month)
         if ligne_reduction_generale:
             lignes_cotisations.append(ligne_reduction_generale)
 

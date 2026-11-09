@@ -12,6 +12,7 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - Un compteur de repos compensateur non recalculé après un bulletin se dit sur ce bulletin.
 - Un rappel de maintien saisi en prime libre est signalé : la réduction générale baisse tant qu'il ne passe pas par la prime du catalogue.
 - Une prime saisie à la main au même montant qu'une prime de règle automatique est signalée, au cas où elle serait payée deux fois.
+- Au premier mois calculé après la reprise, un écart entre la réduction générale déjà appliquée et les cumuls repris est signalé sur le bulletin.
 
 ## paie-2026-11-09.3
 

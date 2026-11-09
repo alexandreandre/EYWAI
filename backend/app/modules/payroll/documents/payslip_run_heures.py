@@ -32,6 +32,7 @@ from app.modules.payroll.engine.corrections_manuelles import (
 from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
     heures_retablies_par_les_rappels_de_maintien,
+    signaler_ecart_d_ouverture_au_premier_mois,
     signaler_rappels_de_maintien_en_prime_libre,
 )
 from app.modules.payroll.engine.salaire_contractuel import salaire_du_mois_complet
@@ -1463,6 +1464,7 @@ def run_payslip_generation_heures(
             contexte, salaire_brut_calcule, heures_remunerees_reduction,
             ppv_mois=ppv_hors_brut,
         )
+        signaler_ecart_d_ouverture_au_premier_mois(contexte, company_id, year, month)
         if ligne_reduction_generale:
             lignes_cotisations.append(ligne_reduction_generale)
 

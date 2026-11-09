@@ -659,6 +659,91 @@ def calculer_reduction_generale(
     return corriger_la_reduction_generale(ligne, journal, _lire_cumuls_precedents(contexte)[2])
 
 
+def _parametres_rgdu(contexte: ContextePaie, config: dict[str, Any]) -> dict[str, float]:
+    tdelta_cfg = config.get("tdelta", {}) or {}
+    if contexte.effectif >= lc.SEUIL_EFFECTIF_FNAL:
+        tdelta = float(tdelta_cfg.get("fnal_50_et_plus", 0.0))
+    else:
+        tdelta = float(tdelta_cfg.get("fnal_moins_50", 0.0))
+    return {
+        "tmin": float(config.get("tmin", 0.0)),
+        "tdelta": tdelta,
+        "p": float(config.get("p", 1.75)),
+        "point_sortie": float(config.get("point_sortie_smic", 3.0)),
+    }
+
+
+CODE_ALERTE_ECART_OUVERTURE = "ecart_ouverture_reduction_generale"
+
+
+def ecart_d_ouverture_reduction(contexte: ContextePaie) -> dict[str, float] | None:
+    """Réduction due à l'ouverture d'après les cumuls repris, moins celle déjà appliquée.
+
+    Positif : le premier mois calculé rattrape de la réduction ; négatif : il en
+    reprend. None hors RGDU, en janvier, ou sans base (ni brut ni heures repris).
+    """
+    annee = getattr(contexte, "year", None) or lc.ANNEE_BASCULE_RGDU
+    if annee < lc.ANNEE_BASCULE_RGDU:
+        return None
+    config = contexte.baremes.get("reduction_generale", {}) or {}
+    if not config or not config.get("actif", False):
+        return None
+    brut_prec, heures_prec, reduction_deja = _lire_cumuls_precedents(contexte)
+    if brut_prec <= 0 or heures_prec <= 0:
+        return None
+    coefficient, _detail = calculer_coefficient_rgdu(
+        brut_prec,
+        _calculer_smic_de_reference_cumule(contexte, heures_prec),
+        **_parametres_rgdu(contexte, config),
+    )
+    due = round(brut_prec * coefficient, 2)
+    return {
+        "brut": round(brut_prec, 2),
+        "due": due,
+        "deja": round(reduction_deja, 2),
+        "ecart": round(due - reduction_deja, 2),
+    }
+
+
+def signaler_ecart_d_ouverture_au_premier_mois(
+    contexte: ContextePaie, company_id: str | None, year: int, month: int
+) -> None:
+    """Le premier mois après la reprise : la régularisation anormale se voit sur le bulletin.
+
+    Tolérance (arrondi) : max(1 €, brut cumulé × 0,0001), un palier du coefficient.
+    Alerte seule : le montant du bulletin ne dépend pas de ce contrôle.
+    """
+    if not company_id:
+        return
+    from app.shared.reprise_paie import fin_de_la_reprise_au_premier_mois
+
+    try:
+        fin_reprise = fin_de_la_reprise_au_premier_mois(company_id, year, month)
+        constat = ecart_d_ouverture_reduction(contexte) if fin_reprise else None
+    except Exception:  # noqa: BLE001 - un contrôle n'empêche pas le bulletin
+        logger.warning("Écart d'ouverture de la réduction non contrôlé", exc_info=True)
+        return
+    if not constat or abs(constat["ecart"]) < max(1.0, constat["brut"] * 0.0001):
+        return
+    sens = "rattrape" if constat["ecart"] > 0 else "reprend"
+    _ajouter_alerte_unique(
+        contexte,
+        {
+            "code": CODE_ALERTE_ECART_OUVERTURE,
+            "critique": False,
+            "severity": "warning",
+            "message": (
+                f"Réduction générale du premier mois après la reprise : d'après les cumuls repris au "
+                f"{fin_reprise:%d/%m/%Y}, la réduction due serait de {_montant_fr(constat['due'])} €, "
+                f"alors que l'ancien logiciel en a appliqué {_montant_fr(constat['deja'])} €. Ce bulletin "
+                f"{sens} donc {_montant_fr(abs(constat['ecart']))} € en plus de la réduction du mois : "
+                "vérifiez les heures et la réduction du solde d'ouverture. "
+                "À vérifier avant de valider ce bulletin."
+            ),
+        },
+    )
+
+
 def _calculer_reduction_rgdu(
     contexte: ContextePaie,
     salaire_brut_mois: float,
@@ -686,22 +771,10 @@ def _calculer_reduction_rgdu(
         contexte, heures_total_cumulees
     )
 
-    tmin = float(config.get("tmin", 0.0))
-    p = float(config.get("p", 1.75))
-    point_sortie = float(config.get("point_sortie_smic", 3.0))
-    tdelta_cfg = config.get("tdelta", {}) or {}
-    if contexte.effectif >= lc.SEUIL_EFFECTIF_FNAL:
-        tdelta = float(tdelta_cfg.get("fnal_50_et_plus", 0.0))
-    else:
-        tdelta = float(tdelta_cfg.get("fnal_moins_50", 0.0))
-
     coefficient_C, _detail = calculer_coefficient_rgdu(
         brut_total_cumule,
         smic_reference_total_cumule,
-        tmin=tmin,
-        tdelta=tdelta,
-        p=p,
-        point_sortie=point_sortie,
+        **_parametres_rgdu(contexte, config),
     )
 
     reduction_totale_due = round(brut_total_cumule * coefficient_C, 2)
