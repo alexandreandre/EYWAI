@@ -16,7 +16,9 @@ from app.modules.dsn_export.application.builder import build_parsed_dsn_from_pay
 from app.modules.dsn_export.domain.evenements import (
     blocs_arret,
     bloc_fin_contrat,
+    blocs_suspension,
     indemnites_de_rupture,
+    jours_hors_plafond,
     suspensions_du_bulletin,
 )
 from app.modules.dsn_export.domain.writer import encode_dsn_bytes
@@ -523,3 +525,21 @@ def test_bloc_66_perte_de_la_ligne_d_arret_du_bulletin_calcule():
 def test_pas_de_bloc_66_pour_un_arret_ordinaire():
     salarie = {**SALARIE, "absences_dsn": [_arret("arret_maladie", "2026-09-07", "2026-09-11")]}
     assert _blocs(_lignes(salarie=salarie), "S21.G00.66") == []
+
+
+def test_absence_du_mois_d_avant_portee_par_la_fenetre_garde_sa_vraie_date():
+    """R-469 : fenêtre décalée (Colorplast, avant-dernier vendredi) : une journée d'absence du
+    29/09 passe sur le bulletin d'octobre. La DSN lit la date du libellé, jamais le mois du
+    bulletin ; 65.002 reste ≤ fin du mois principal (CT § 4.4.12) et rien ne sort du plafond
+    d'octobre (53 unité 40), puisque le jour n'est pas dans le mois civil déclaré."""
+    bulletin = {
+        "details_absences": [
+            {"libelle": "Absence non rémunérée du 29/09/26", "quantite": 7.0, "perte": 90.0},
+            {"libelle": "Absence injustifiée du 05/10/26 (base)", "quantite": 7.0, "perte": 90.0},
+        ],
+    }
+    assert blocs_suspension(bulletin) == [
+        {"S21.G00.65.001": "501", "S21.G00.65.002": "29092026", "S21.G00.65.003": "29092026"},
+        {"S21.G00.65.001": "501", "S21.G00.65.002": "05102026", "S21.G00.65.003": "05102026"},
+    ]
+    assert jours_hors_plafond([], bulletin, date(2026, 10, 1), date(2026, 10, 31)) == 1

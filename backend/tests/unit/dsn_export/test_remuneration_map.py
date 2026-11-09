@@ -222,3 +222,34 @@ def test_reduction_hs_evenement_familial_ne_cree_pas_de_suspension():
             ]
         }
         assert len(suspensions_du_bulletin(lignes)) == 1, libelle
+
+
+def test_mois_d_absence_complet_garde_les_heures_structurelles_du_contrat_en_018():
+    """R-465 : le cahier technique (51.012, p. 249) ne dit que « volume horaire dédié aux heures
+    supplémentaires » et rend 51.012 obligatoire pour le type 018 ; il ne prévoit rien pour un mois
+    d'absence. Quadra déclare 17,33 h et le montant du contrat alors que le bulletin les retient en
+    entier : Martine fait pareil. La retenue reste une ligne d'absence, jamais une heure sup
+    négative ni une heure aléatoire (017)."""
+    bulletin = {
+        "salaire_brut": 0.0,
+        "calcul_du_brut": [
+            {"libelle": "Salaire de base", "gain": 1964.0, "quantite": 151.67},
+            {"libelle": "Heures suppl. structurelles majorées à 25%", "gain": 280.51, "quantite": 17.33},
+            {"libelle": "SOUS-TOTAL SALAIRE CONTRACTUEL", "gain": 2244.51, "quantite": 169.0, "is_sous_total": True},
+        ],
+        "details_absences": [
+            {"libelle": "Absence non rémunérée du 01/09/26", "quantite": 151.67, "perte": 1964.0},
+            {"libelle": "Heures sup. du contrat non faites (absence)", "quantite": 17.33, "perte": 280.51},
+        ],
+    }
+    resultat = build_remunerations_from_payslip(
+        bulletin, brut=0.0, period_start="01092026", period_end="30092026", period="2026-09"
+    )
+    types = {r.type_code: r for r in resultat.remunerations}
+    assert (types["018"].heures, types["018"].montant) == (17.33, 280.51)
+    assert "017" not in types
+    assert types["001"].montant == 0.0
+    # 53 type 01 : aucune heure rémunérée ; 53 type 02 : le mois d'absence.
+    heures_01 = [a for a in resultat.activites if a["type"] == "01" and a["unite"] == ""]
+    assert heures_01 and heures_01[0]["mesure"] == 0.0
+    assert analyser_absences(bulletin).heures_absence == 169.0
