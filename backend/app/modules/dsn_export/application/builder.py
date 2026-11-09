@@ -1422,7 +1422,7 @@ def build_individu_from_payroll(
     rubriques_contrat = {
         "S21.G00.40.001": date_debut,
         "S21.G00.40.002": statut_dsn,
-        "S21.G00.40.003": map_statut_categoriel_rc(statut_dsn),
+        "S21.G00.40.003": map_statut_categoriel_rc(statut_dsn, fiche_cadre=_is_cadre(employee)),
         "S21.G00.40.004": pcs,
         "S21.G00.40.006": libelle_emploi,
         "S21.G00.40.007": nature,

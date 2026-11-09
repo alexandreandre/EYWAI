@@ -150,16 +150,19 @@ def map_statut_to_dsn(statut: Optional[str], *, is_cadre: Optional[bool] = None)
     return "06"
 
 
-def map_statut_categoriel_rc(statut_conventionnel: str) -> str:
+def map_statut_categoriel_rc(statut_conventionnel: str, *, fiche_cadre: bool = False) -> str:
     """Code statut catégoriel Retraite Complémentaire (S21.G00.40.003).
 
     Rubrique obligatoire, que nous n'émettions pas : 225 anomalies bloquantes
     relevées par DSN-VAL. La correspondance est lue dans les DSN acceptées du
     cabinet, où elle ne souffre aucune exception sur les statuts que nous
     produisons : statut conventionnel « 04 - cadre » → « 01 », « 06 - non
-    cadre » → « 04 » (219 contrats sur 219).
+    cadre » → « 04 » (219 contrats sur 219). Le statut « 05 » existe en « 02 »
+    (extension cadre) et en « 04 » dans ces DSN : la fiche Cadre les distingue (R-019).
     """
-    return "01" if statut_conventionnel == "04" else "04"
+    if statut_conventionnel == "04":
+        return "01"
+    return "02" if statut_conventionnel == "05" and fiche_cadre else "04"
 
 
 #: Nationalités de l'Union européenne, hors France. Formes masculine et
