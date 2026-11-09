@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.core.limite_debit import limite_de_debit
 from app.core.security import get_current_user
 from app.modules.activation.application import commands, queries
 from app.modules.activation.schemas.requests import (
@@ -65,6 +66,7 @@ def _map_activation_error(exc: commands.ActivationError) -> HTTPException:
     "/verify",
     response_model=ActivationVerifyResponse,
     response_model_exclude_defaults=True,
+    dependencies=[Depends(limite_de_debit("activation-verification", 30))],
 )
 def verify_activation_route(request: ActivationVerifyRequest):
     """Jeton vivant → prénom + société. Sinon 400 générique."""
@@ -74,7 +76,11 @@ def verify_activation_route(request: ActivationVerifyRequest):
         raise _map_activation_error(exc)
 
 
-@router_public.post("/complete", response_model=ActivationCompleteResponse)
+@router_public.post(
+    "/complete",
+    response_model=ActivationCompleteResponse,
+    dependencies=[Depends(limite_de_debit("activation-fin", 20))],
+)
 def complete_activation_route(request: ActivationCompleteRequest):
     """Choix du mot de passe : crée/relie le compte puis consomme le jeton."""
     try:
