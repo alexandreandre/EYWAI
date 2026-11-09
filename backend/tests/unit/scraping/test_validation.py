@@ -1,10 +1,27 @@
 """Tests unitaires validation scraping."""
 
+from datetime import datetime
+
+import pytest
+
+import core.validation as validation
 from core.validation import (
     validate_dialogue_social,
     validate_pss_sections,
     validate_smic_sections,
 )
+
+
+@pytest.fixture(autouse=True)
+def _annee_figee(monkeypatch):
+    """Les barèmes testés sont ceux de 2026 : l'année en cours ne les rejette pas (R-615)."""
+
+    class _Horloge(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 6, 15, tzinfo=tz)
+
+    monkeypatch.setattr(validation, "datetime", _Horloge)
 
 
 def test_validate_smic_ok():
