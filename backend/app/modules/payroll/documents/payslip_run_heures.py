@@ -1096,6 +1096,7 @@ def run_payslip_generation_heures(
         calendrier_etendu, contexte, date_debut_periode, date_fin_periode
     )
     poser_les_arrets_connus(arret_prefetch, company_id, employee_id, year, month)
+    contexte.arret_du_mois = arret_prefetch  # alerte de report des congés (L3141-19-3)
     if company_id:
         from app.modules.modulation.application.payroll_hook import (
             compute_pay_smoothing_gain,

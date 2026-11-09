@@ -6,6 +6,7 @@ from datetime import date
 import calendar
 
 from .cotisations_rubriques import construire_cotisations_officielles
+from .report_conges_arret import alerte_report_conges_apres_arret
 from .calcul_reduction_generale import smic_de_reference_pour_explication
 from app.modules.payroll.application.compensation_semaines import avec_saisie_manuelle
 from app.modules.payroll.domain.explications_lignes import (
@@ -883,6 +884,11 @@ def creer_bulletin_final(
     alertes_baremes.extend(
         alertes_des_compteurs_de_conges(solde_conges, bulletin_de_sortie=bulletin_de_sortie)
     )
+    alerte_report_conges = alerte_report_conges_apres_arret(
+        getattr(contexte, "arret_du_mois", None), solde_conges, annee, mois
+    )
+    if alerte_report_conges:
+        alertes_baremes.append(alerte_report_conges)
     if bulletin_de_sortie:
         from app.modules.payroll.engine.alertes_de_sortie import alertes_de_sortie
 
