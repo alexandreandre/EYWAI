@@ -5,6 +5,18 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Sortie, corrections et contrôles (sans changement de montant sur l'existant)
+- Bulletin de sortie : alerte si un solde de congés reste sans indemnité, si un compte épargne-temps a un solde à payer, ou si un solde de modulation est suivi hors de Martine.
+- Le dossier sans compteurs de congés dit que son dixième est à vérifier.
+- Heure sup d'une société à compteur et paiement du solde de récupération : la ligne renvoie au bon geste au lieu d'être corrigée. La ligne de congés prévient que le solde ne suit pas.
+- La carte de récupération défait son geste si le recalcul échoue.
+- Validation refusée si l'état du bulletin ne se lit pas.
+- Plus de phrase « plus favorable que le dixième » quand le dixième n'a pas été comparé.
+- Apprenti de 21 ans et plus : alerte sous le minimum conventionnel.
+- Retenue d'IJSS saisie au-delà du garanti : alerte.
+- Création d'une fiche refusée si le NIR est déjà connu de la société, même saisi sans sa clé.
+- Contrepartie en repos à 50 % à 20 salariés pile ; réglage des paniers dans le net social aussi au forfait (aucune société à 20, aucun forfait avec panier aujourd'hui).
+
 ## paie-2026-11-09.4
 
 ### Alertes et contrôles sans changement de montant

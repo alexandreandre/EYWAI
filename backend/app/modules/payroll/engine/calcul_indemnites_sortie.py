@@ -1000,7 +1000,7 @@ def calculer_indemnite_conges_restants(
         # inconnus : le dixième est rapporté au forfait du barème (R-323).
         alertes_du_detail.append(
             f"Estimation sans compteurs de congés : le dixième est rapporté à "
-            f"{params['jours_reference_dixieme']:g} jours de référence, pas aux droits "
+            f"{pluriel(int(params['jours_reference_dixieme']), 'jour')} de référence, pas aux droits "
             "acquis de la période. À vérifier avant de valider ce bulletin."
         )
 
