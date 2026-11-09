@@ -16,6 +16,7 @@ from .exoneration_stage import (
     contexte_exoneration_stage,
     cotisations_exclues_stage,
 )
+import calendar
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Dict, Any, List, Tuple, Optional
@@ -669,6 +670,16 @@ def alertes_taux_prevoyance(lignes: Any) -> List[Dict[str, Any]]:
     return alertes
 
 
+def _dernier_jour_du_mois_de_paie(contexte: ContextePaie) -> Optional[date]:
+    """Dernier jour du mois du bulletin ; None si la période est inconnue."""
+    annee = getattr(contexte, "year", None)
+    mois = getattr(contexte, "month", None)
+    if annee and mois:
+        return date(int(annee), int(mois), calendar.monthrange(int(annee), int(mois))[1])
+    fin = getattr(contexte, "date_fin_periode", None)
+    return fin if isinstance(fin, date) else None
+
+
 def calculer_cotisations(
     contexte: ContextePaie,
     salaire_brut: float,
@@ -886,6 +897,7 @@ def calculer_cotisations(
                 contexte.baremes,
                 contexte.entreprise,
                 alertes=contexte.alertes_baremes,
+                jour_reference=_dernier_jour_du_mois_de_paie(contexte),
             )
             if taux_patronal_final is None:
                 continue

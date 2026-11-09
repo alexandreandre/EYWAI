@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 from app.modules.payroll.engine.baremes_loader import (
@@ -443,3 +445,44 @@ def test_vm_effectif_inconnu_garde_la_recherche():
     alertes = []
     entreprise = {"identification": {"adresse": {"ville": "Aix en Provence"}}, "parametres_paie": {"taux_specifiques": {}}}
     assert resoudre_taux_vm_pour_paie({"taux_vmrr": _BAREME_VM}, entreprise, alertes=alertes) == 0.0208
+
+
+# --- R-268 : le taux du versement mobilité se lit à la période du bulletin ---
+
+
+_CERIZAY_DATE = [
+    {"nom_commune": "CERIZAY", "taux": 0.001, "date_debut": "20240101", "date_fin": "20251231"},
+    {"nom_commune": "CERIZAY", "taux": 0.0025, "date_debut": "20260101", "date_fin": ""},
+]
+
+
+def test_vm_lu_a_la_periode_du_bulletin():
+    assert resoudre_taux_vm_officiel(
+        _CERIZAY_DATE, "CERIZAY", jour_reference=date(2025, 12, 31)
+    ) == pytest.approx(0.001)
+    assert resoudre_taux_vm_officiel(
+        _CERIZAY_DATE, "CERIZAY", jour_reference=date(2026, 1, 31)
+    ) == pytest.approx(0.0025)
+
+
+def test_vm_ligne_absente_a_la_periode_garde_le_taux_et_le_dit():
+    alertes = []
+    lignes = [{"nom_commune": "CERIZAY", "taux": 0.0025, "date_debut": "20260101", "date_fin": ""}]
+    entreprise = {
+        "identification": {"adresse": {"ville": "CERIZAY"}},
+        "parametres_paie": {"effectif": 70},
+    }
+    taux = resoudre_taux_vm_pour_paie(
+        {"taux_vmrr": lignes}, entreprise, alertes=alertes, jour_reference=date(2025, 12, 31)
+    )
+    assert taux == pytest.approx(0.0025)
+    assert [a["code"] for a in alertes] == ["vm_taux_hors_periode"]
+    assert alertes[0]["critique"] is False
+
+
+def test_vm_periode_couverte_sans_alerte():
+    alertes = []
+    resoudre_taux_vm_officiel(
+        _CERIZAY_DATE, "CERIZAY", alertes=alertes, jour_reference=date(2026, 10, 31)
+    )
+    assert alertes == []

@@ -455,6 +455,9 @@ def baremes_lookup(
     return cur
 
 
+CODE_ALERTE_VM_HORS_PERIODE = "vm_taux_hors_periode"
+
+
 def _ajouter_alerte(
     alertes: Optional[List[Dict[str, Any]]],
     *,
@@ -912,26 +915,61 @@ def _somme_taux_officiels(row: Dict[str, Any]) -> Optional[float]:
     return total / 100.0 if trouve else None
 
 
-def _lignes_en_vigueur(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Écarte les lignes dont la période d'effet est close, la plus récente d'abord.
+def _jour_vmrr(value: Any) -> str:
+    return str(value or "").strip().replace("-", "")[:8]
+
+
+def _ligne_couvre_le_jour(row: Dict[str, Any], jour: str) -> bool:
+    debut, fin = _jour_vmrr(row.get("date_debut")), _jour_vmrr(row.get("date_fin"))
+    return (not debut or debut <= jour) and (not fin or fin >= jour)
+
+
+def _lignes_en_vigueur(
+    rows: List[Dict[str, Any]], jour_reference: Optional[date] = None
+) -> List[Dict[str, Any]]:
+    """Les lignes en vigueur au jour de référence, la plus récente d'abord.
 
     Le barème URSSAF historise les taux (Cerizay : 0,10 % jusqu'au 31/12/2025 puis
-    0,25 %). Sans ce tri, la première ligne rencontrée pouvait être périmée.
+    0,25 %). Sans ce tri, la première ligne rencontrée pouvait être périmée. Le
+    jour de référence est le dernier du mois du bulletin (R-268) ; sans lui, le
+    jour même. Aucune ligne au jour de référence : toutes, la plus récente d'abord.
     """
     if not rows:
         return []
-    aujourdhui = date.today().strftime("%Y%m%d")
+    jour = (jour_reference or date.today()).strftime("%Y%m%d")
+    en_vigueur = [row for row in rows if _ligne_couvre_le_jour(row, jour)]
+    retenues = en_vigueur or rows
+    return sorted(retenues, key=lambda row: _jour_vmrr(row.get("date_debut")), reverse=True)
 
-    def _jour(value: Any) -> str:
-        return str(value or "").strip().replace("-", "")[:8]
 
-    ouvertes = [
-        row
-        for row in rows
-        if not _jour(row.get("date_fin")) or _jour(row.get("date_fin")) >= aujourdhui
-    ]
-    retenues = ouvertes or rows
-    return sorted(retenues, key=lambda row: _jour(row.get("date_debut")), reverse=True)
+def _signaler_ligne_hors_periode(
+    lignes: List[Dict[str, Any]],
+    jour_reference: Optional[date],
+    commune: str,
+    alertes: Optional[List[Dict[str, Any]]],
+) -> None:
+    """Le barème ne garde qu'une ligne par commune : un mois ancien peut en être privé.
+
+    Le taux reste celui de la ligne connue ; le bulletin le dit (R-268).
+    """
+    if jour_reference is None or not lignes:
+        return
+    jour = jour_reference.strftime("%Y%m%d")
+    if any(_ligne_couvre_le_jour(row, jour) for row in lignes):
+        return
+    debut = max(_jour_vmrr(row.get("date_debut")) for row in lignes)
+    _ajouter_alerte(
+        alertes,
+        code=CODE_ALERTE_VM_HORS_PERIODE,
+        cle="taux_vmrr",
+        chemin=[commune],
+        critique=False,
+        message=(
+            f"Versement mobilité de « {commune} » : le barème URSSAF ne connaît pas le "
+            f"taux de {jour_reference.strftime('%m/%Y')} (ligne connue : début {debut}). "
+            "Martine a pris le taux connu ; vérifiez celui de la période avant de valider."
+        ),
+    )
 
 
 def _taux_ligne_vmrr(row: Dict[str, Any]) -> Optional[float]:
@@ -965,10 +1003,12 @@ def resoudre_taux_vm_officiel(
     commune: Optional[str],
     *,
     alertes: Optional[List[Dict[str, Any]]] = None,
+    jour_reference: Optional[date] = None,
 ) -> Optional[float]:
     """
     Taux VM applicable depuis le barème scrapé URSSAF (taux_vmrr) et la commune.
     Aucune valeur en dur : None + alerte si barème, commune ou ligne absents.
+    `jour_reference` : dernier jour du mois du bulletin ; sans lui, le jour même.
     """
     commune_clean = str(commune).strip() if commune else ""
     if not commune_clean:
@@ -1024,12 +1064,16 @@ def resoudre_taux_vm_officiel(
             and lib.startswith(f"{commune_norm} ")
             and lib[len(commune_norm) + 1 :].strip().isdigit()
         ]
+        lignes_arrondissements = _lignes_en_vigueur(arrondissements, jour_reference)
         taux_arrondissements = {
             taux
-            for row in _lignes_en_vigueur(arrondissements)
+            for row in lignes_arrondissements
             if (taux := _taux_ligne_vmrr(row)) is not None
         }
         if len(taux_arrondissements) == 1:
+            _signaler_ligne_hors_periode(
+                lignes_arrondissements, jour_reference, commune_clean, alertes
+            )
             return taux_arrondissements.pop()
 
     # 2) Égalité exacte du libellé — évite EU⊂MAGNIEU, RI⊂CERIZAY
@@ -1039,9 +1083,10 @@ def resoudre_taux_vm_officiel(
         if _libelle_commune_vmrr(row)
         and _normaliser_libelle_commune(_libelle_commune_vmrr(row)) == commune_norm
     ]
-    for row in _lignes_en_vigueur(exacts):
+    for row in _lignes_en_vigueur(exacts, jour_reference):
         taux = _taux_ligne_vmrr(row)
         if taux is not None:
+            _signaler_ligne_hors_periode([row], jour_reference, commune_clean, alertes)
             return taux
 
     if taux_arrondissements:
@@ -1114,6 +1159,7 @@ def resoudre_taux_vm_pour_paie(
     entreprise: Dict[str, Any],
     *,
     alertes: Optional[List[Dict[str, Any]]] = None,
+    jour_reference: Optional[date] = None,
 ) -> Optional[float]:
     """
     Taux de versement mobilité pour le bulletin, None si aucune cotisation.
@@ -1137,8 +1183,14 @@ def resoudre_taux_vm_pour_paie(
     commune = commune_entreprise_depuis_donnees(entreprise)
     taux_vmrr = baremes.get("taux_vmrr")
     alertes_resolution: List[Dict[str, Any]] = []
-    taux_officiel = resoudre_taux_vm_officiel(taux_vmrr, commune, alertes=alertes_resolution)
+    taux_officiel = resoudre_taux_vm_officiel(
+        taux_vmrr, commune, alertes=alertes_resolution, jour_reference=jour_reference
+    )
     if taux_officiel is not None:
+        if alertes is not None:
+            alertes.extend(
+                a for a in alertes_resolution if a.get("code") == CODE_ALERTE_VM_HORS_PERIODE
+            )
         return taux_officiel
 
     taux_entreprise = taux_vm_entreprise_depuis_donnees(entreprise)
