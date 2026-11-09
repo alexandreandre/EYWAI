@@ -2896,7 +2896,12 @@ def calculer_maintien(
         alertes.append(
             "Subrogation demandée sans maintien applicable — vérifier la cohérence"
         )
-    alerte_ij = alerte_ij_mois_sans_bulletin(arret, float(ijss.get("ijss_theorique") or 0.0))
+    # Un montant validé au suivi IJSS remplace l'estimation : plus rien à signaler.
+    alerte_ij = (
+        None
+        if ijss.get("ijss_brut_override")
+        else alerte_ij_mois_sans_bulletin(arret, float(ijss.get("ijss_theorique") or 0.0))
+    )
     if alerte_ij:
         alertes.append(alerte_ij)
     # Un arrêt tout entier dans la carence n'a aucun jour indemnisé : 0 € est
