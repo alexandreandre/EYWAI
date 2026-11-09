@@ -11,7 +11,14 @@ from app.main import app
 from app.modules.repos_compensateur.api import dependencies
 
 
-_USER = type("U", (), {"active_company_id": "comp-1"})()
+_USER = type(
+    "U",
+    (),
+    {
+        "active_company_id": "comp-1",
+        "has_rh_access_in_company": lambda self, company_id: company_id == "comp-1",
+    },
+)()
 
 
 @pytest.fixture
