@@ -193,20 +193,21 @@ def _contexte_feroral():
     return ctx
 
 
-def test_indemnite_par_periode_redonne_766_39_sur_feroral():
+def test_indemnite_par_periode_puis_plancher_du_contrat():
     ctx = _contexte_feroral()
     res = calculer_salaire_brut(ctx, [], date(2026, 7, 1), date(2026, 7, 31), [])
     gains = _lignes_gain(res)
     iccp = next(v for k, v in gains.items() if "compensatrice de congés" in k)
     # juillet payé sur 18 jours ouvrés : 1 772,64 ; précarité 797,04 ;
     # période en cours = 2 026,41 + 1 772,64 + 797,04 = 4 596,09 → 459,61 ; précédente 306,78.
+    # Par période 766,39 ; plancher L1242-16 : 876,74 − 1 j déjà payé (98,48) = 778,26.
     assert gains["Prime de précarité (CDD)"] == pytest.approx(797.04, abs=0.01)
-    assert iccp == pytest.approx(766.39, abs=0.01)
+    assert iccp == pytest.approx(778.26, abs=0.01)
     detail = ctx.detail_iccp_fin_contrat
     assert detail["methode"] == "par_periode"
     assert [p["retenu"] for p in detail["periodes"]] == pytest.approx([306.78, 459.61], abs=0.01)
     assert detail["periodes"][1]["brut"] == pytest.approx(4596.09, abs=0.01)
-    assert "Total 766,39." in detail["mention"]
+    assert "Total 778,26." in detail["mention"]
 
 
 def test_sans_compteurs_le_dixieme_global_reste_et_le_detail_le_dit():
@@ -341,7 +342,20 @@ def test_dixieme_et_maintien_melanges_ni_base_ni_taux():
 
 def test_dixieme_retenu_partout_la_ligne_garde_le_taux_de_10_pour_cent():
     """Garde : quand le dixième l'emporte sur chaque période, rien ne change."""
-    ligne = _ligne_iccp_cdd(_contexte_feroral())
-    assert ligne["gain"] == pytest.approx(766.39, abs=0.001)
+    ctx = _contexte_feroral()
+    # Aucun jour pris : le plancher du contrat ne dépasse pas le calcul par période.
+    ctx.cp_fin_de_contrat["periode_precedente"]["droits"] = 2.78
+    ligne = _ligne_iccp_cdd(ctx)
+    assert ligne["gain"] == pytest.approx(876.75, abs=0.02)
     assert ligne["taux"] == pytest.approx(0.10)
     assert ligne["quantite"] is None
+
+
+def test_plancher_applique_la_ligne_n_imprime_ni_base_ni_taux():
+    """L1242-16 l'emporte : aucun couple base × taux ne donne le montant."""
+    ctx = _contexte_feroral()
+    ligne = _ligne_iccp_cdd(ctx)
+    assert ligne["gain"] == pytest.approx(778.26, abs=0.01)
+    assert ligne["taux"] is None
+    assert ligne["quantite"] is None
+    assert "L1242-16" in ctx.detail_iccp_fin_contrat["mention"]

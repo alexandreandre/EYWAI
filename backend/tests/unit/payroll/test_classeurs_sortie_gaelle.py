@@ -64,3 +64,37 @@ def test_fin_de_cdd_conges_deja_pris_par_periode():
         [PeriodeConges("en cours", 7007.35, 6.03, 2.03)], taux=0.10, valeur_jour=98.0
     )
     assert r.total == pytest.approx(235.90)
+
+
+def test_fin_de_cdd_plancher_du_dixieme_du_contrat():
+    """L1242-16 : minimum du dixième du contrat, congés déjà payés déduits."""
+    r = indemnite_fin_de_contrat(
+        [PeriodeConges("en cours", 7007.35, 6.03, 2.03)],
+        taux=0.10,
+        valeur_jour=98.0,
+        plancher_contrat=True,
+    )
+    assert r.total_par_periode == pytest.approx(235.90)
+    assert r.total == pytest.approx(308.74)
+    assert "L1242-16" in r.mention
+
+
+def test_fin_de_cdd_le_plancher_ne_baisse_jamais_l_indemnite():
+    r = indemnite_fin_de_contrat(
+        [PeriodeConges("en cours", 2390.77, 3.26, 3.26)],
+        taux=0.10,
+        valeur_jour=82.87,
+        plancher_contrat=True,
+    )
+    assert r.total == pytest.approx(270.16)
+
+
+def test_fin_de_cdd_sans_remuneration_connue_pas_de_plancher():
+    r = indemnite_fin_de_contrat(
+        [PeriodeConges("en cours", None, 3.0, 2.0)],
+        taux=0.10,
+        valeur_jour=80.0,
+        plancher_contrat=True,
+    )
+    assert r.plancher is None
+    assert r.total == pytest.approx(160.0)

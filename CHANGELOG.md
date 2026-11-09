@@ -5,6 +5,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Fin de CDD : minimum légal de l'indemnité de congés
+- L'indemnité de fin de CDD ne descend plus sous le dixième de la rémunération du contrat, congés déjà payés déduits (L1242-16). Le bulletin le dit.
+
 ### FNAL des sociétés de moins de 50 salariés
 - Le FNAL à 0,10 % s'arrête au plafond de la Sécurité sociale, sur le bulletin et le simulateur. Seuls les salaires au-dessus du plafond changent, à la baisse côté employeur.
 ### Lot légal 7 (décision d'Alexandre du 09/11, montants Colorplast autorisés sur ces lignes)

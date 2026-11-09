@@ -569,6 +569,7 @@ def _iccp_legale_par_periode(
     majoration_hs25: float | None,
     valeur_jour: float | None = None,
     lignes_brut: List[Dict[str, Any]] | None = None,
+    plancher_contrat: bool = False,
 ) -> Any:
     """Règle légale : par période de référence, sur les jours restants, dixième
     contre maintien (engine/iccp_fin_contrat). Le run a posé les compteurs et la
@@ -619,7 +620,9 @@ def _iccp_legale_par_periode(
     periodes = ajouter_les_conges_du_preavis(
         periodes, conges_du_preavis_du_dossier(getattr(contexte, "exit_indemnities", None))
     )
-    return indemnite_fin_de_contrat(periodes, taux=taux, valeur_jour=valeur_jour)
+    return indemnite_fin_de_contrat(
+        periodes, taux=taux, valeur_jour=valeur_jour, plancher_contrat=plancher_contrat
+    )
 
 
 def base_et_taux_affiches_iccp(resultat: Any) -> tuple[float | None, float | None]:
@@ -630,6 +633,8 @@ def base_et_taux_affiches_iccp(resultat: Any) -> tuple[float | None, float | Non
       jamais 10 % à côté d'un montant de maintien ;
     - mélange des deux : ni base ni taux, aucun couple ne donne le montant ; la
       mention du bulletin détaille chaque période."""
+    if getattr(resultat, "plancher_applique", False):
+        return None, None
     methodes = {d.methode for d in resultat.periodes}
     if methodes <= {"dixieme"}:
         return None, resultat.taux
@@ -777,7 +782,14 @@ def _calculer_iccp_cdd(
     )
     brut_du_mois = salaire_brut_hors_precarite + max(montant_precarite, 0.0)
     resultat = _iccp_legale_par_periode(
-        contexte, brut_du_mois, taux, taux_horaire_base, majoration_hs25, valeur_jour, lignes_brut
+        contexte,
+        brut_du_mois,
+        taux,
+        taux_horaire_base,
+        majoration_hs25,
+        valeur_jour,
+        lignes_brut,
+        plancher_contrat=True,
     )
     quantite_affichee, taux_affiche = None, taux
     if resultat is not None:

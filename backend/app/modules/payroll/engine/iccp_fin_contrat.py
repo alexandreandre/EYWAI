@@ -102,10 +102,21 @@ class IndemniteFinDeContrat:
     periodes: tuple[DetailPeriode, ...]
     taux: float
     valeur_jour: float
+    plancher: float | None = None
+
+    @property
+    def total_par_periode(self) -> float:
+        return round(sum(p.retenu for p in self.periodes), 2)
+
+    @property
+    def plancher_applique(self) -> bool:
+        return self.plancher is not None and self.plancher > self.total_par_periode
 
     @property
     def total(self) -> float:
-        return round(sum(p.retenu for p in self.periodes), 2)
+        if self.plancher_applique:
+            return round(float(self.plancher), 2)
+        return self.total_par_periode
 
     @property
     def mention(self) -> str:
@@ -133,6 +144,11 @@ class IndemniteFinDeContrat:
         return (
             "Indemnité de congés payés de fin de contrat : "
             + " ; ".join(morceaux)
+            + (
+                f". Minimum légal du dixième du contrat, congés déjà payés déduits (L1242-16) : {_euros(self.total)}"
+                if self.plancher_applique
+                else ""
+            )
             + f". Total {_euros(self.total)}."
         )
 
@@ -142,21 +158,50 @@ class IndemniteFinDeContrat:
             "taux": self.taux,
             "valeur_jour": round(self.valeur_jour, 2),
             "periodes": [d.resume() for d in self.periodes],
+            "plancher": self.plancher,
             "total": self.total,
             "mention": self.mention,
         }
 
 
-def indemnite_fin_de_contrat(
+def plancher_du_contrat(
     periodes: Iterable[PeriodeConges], *, taux: float, valeur_jour: float
+) -> float | None:
+    """L1242-16 : l'indemnité d'un CDD ne peut être inférieure au dixième de la
+    rémunération brute du contrat. Les congés pris pendant le contrat, payés à
+    leur date, s'en déduisent (jours pris × valeur d'un jour). None si la
+    rémunération d'une période est inconnue : pas de plancher inventé."""
+    liste = list(periodes)
+    if not liste or any(p.brut is None for p in liste):
+        return None
+    brut_total = sum(float(p.brut or 0.0) for p in liste)
+    jours_pris = sum(max(float(p.droits or 0.0) - max(float(p.restants or 0.0), 0.0), 0.0) for p in liste)
+    return round(max(brut_total * float(taux) - jours_pris * float(valeur_jour), 0.0), 2)
+
+
+def indemnite_fin_de_contrat(
+    periodes: Iterable[PeriodeConges],
+    *,
+    taux: float,
+    valeur_jour: float,
+    plancher_contrat: bool = False,
 ) -> IndemniteFinDeContrat:
-    """Les périodes sans jour restant n'apparaissent pas."""
+    """Les périodes sans jour restant n'apparaissent pas. `plancher_contrat` :
+    CDD et intérim, minimum du dixième de la rémunération du contrat."""
+    liste = list(periodes)
     details = tuple(
         d
-        for d in (indemnite_par_periode(p, taux=taux, valeur_jour=valeur_jour) for p in periodes)
+        for d in (indemnite_par_periode(p, taux=taux, valeur_jour=valeur_jour) for p in liste)
         if d.methode != "rien"
     )
-    return IndemniteFinDeContrat(details, float(taux), float(valeur_jour))
+    # Sans jour restant, tout a été pris et payé : L1242-16 ne vise que les
+    # congés qu'il n'a pas été possible de prendre.
+    plancher = (
+        plancher_du_contrat(liste, taux=taux, valeur_jour=valeur_jour)
+        if plancher_contrat and details
+        else None
+    )
+    return IndemniteFinDeContrat(details, float(taux), float(valeur_jour), plancher)
 
 
 __all__ = [
@@ -165,5 +210,6 @@ __all__ = [
     "PeriodeConges",
     "indemnite_fin_de_contrat",
     "indemnite_par_periode",
+    "plancher_du_contrat",
     "valeur_jour_maintien",
 ]
