@@ -5,6 +5,12 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Lot moteur 5 (aucun montant ne change aujourd'hui)
+- Temps partiel thérapeutique : l'IJ estimée n'est plus réduite de la quotité ; elle est limitée à la perte de gain (aucun arrêt de ce type dans Martine à ce jour).
+- Reprise après un arrêt d'au moins 30 jours avec des congés restants : alerte au bulletin pour informer le salarié et rappeler le report de 15 mois.
+- CDD de trois mois au plus, dispensé de mutuelle : alerte DSN sur le versement santé, que Martine ne calcule pas. Dispense de prévoyance d'un non-cadre : dite sur la fiche.
+- Bulletin : à partir de janvier 2027, libellés et ordre du modèle définitif de l'arrêté ; plus de ligne « dont évolution ». Les bulletins de 2026 ne changent pas.
+
 ## paie-2026-11-09.7
 
 ### Calcul du mois : ce que le bulletin dit désormais (aucun montant ne change)
