@@ -103,6 +103,11 @@ from app.modules.dsn_import.domain.model import (
 from app.shared.domain.employment_rules import mois_du_contrat_en_cours
 from app.shared.dsn_validation import build_siret_from_siren_nic
 from app.shared.pas_taux import terme_de_deux_mois_au_plus
+from app.modules.dsn_export.domain.situations_non_gerees import (
+    AVERTISSEMENT_EMPLOYEURS_MULTIPLES,
+    avertissement_cotisations_hors_bulletin,
+    avertissements_du_bulletin,
+)
 # Parts patronales déclarées en autres éléments de revenu brut (S21.G00.54) :
 # 92 la santé, 93 la prévoyance ; même lecture que le montant net social.
 from app.modules.payroll.engine.forfait_individuel import jours_du_forfait_de_la_fiche
@@ -1927,6 +1932,10 @@ def build_parsed_dsn_from_payroll(
             )
             continue
 
+        warnings.extend(
+            avertissements_du_bulletin(payslip_data, str((employee or {}).get("nir") or "")[:13])
+        )
+
         options = {
             "period": period,
             "company_siret": etab.siret,
@@ -1986,6 +1995,11 @@ def build_parsed_dsn_from_payroll(
 
     if not etab.individus:
         raise DsnBuildError("Aucun salarié avec bulletin pour la période")
+
+    warnings.append(AVERTISSEMENT_EMPLOYEURS_MULTIPLES)
+    hors_bulletin = avertissement_cotisations_hors_bulletin(period)
+    if hors_bulletin:
+        warnings.append(hors_bulletin)
 
     warnings.extend(
         _paiements(etab, period, default_ops, parametres, cotisations_complementaires_avant)

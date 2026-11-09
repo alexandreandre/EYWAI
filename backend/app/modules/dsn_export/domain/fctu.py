@@ -18,7 +18,7 @@ from datetime import date, timedelta
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Tuple
 
 from app.modules.dsn_export.domain.evenements import dsn
-from app.modules.dsn_export.domain.signalements import SignalementEnvoye
+from app.modules.dsn_export.domain.signalements import SignalementEnvoye, echeance_mensuelle
 from app.modules.dsn_export.domain.usages_signalement import NATURE_FCTU, filtrer
 from app.modules.dsn_export.domain.writer import ecrire_blocs
 
@@ -193,6 +193,21 @@ def fctu_depuis_mensuelle(
         if filtre:
             sortie.append(filtre)
     return ecrire_blocs(sortie)
+
+
+def avis_mois_precedent(fin: date, aujourd_hui: date, effectif: int) -> Optional[str]:
+    """Tant que la DSN du mois d'avant peut ne pas être déposée, le FCTU devrait la porter.
+
+    Cahier technique 2026.1.2, 50.020 : 02 pour les éléments de la déclaration
+    précédant le mois de sortie. Martine ne produit que le mois de sortie (01).
+    """
+    dernier_jour_precedent = fin.replace(day=1) - timedelta(days=1)
+    if aujourd_hui > echeance_mensuelle(dernier_jour_precedent, effectif):
+        return None
+    return (
+        f"Si la DSN de {dernier_jour_precedent:%m/%Y} n'est pas encore déposée, déposez-la "
+        "d'abord : Martine ne reporte dans ce signalement que le mois de sortie."
+    )
 
 
 @dataclass(frozen=True)

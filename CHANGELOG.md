@@ -5,6 +5,12 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Sorties, congés d'ancienneté et DSN
+- Plasturgie et métallurgie : Martine calcule le minimum de la convention au licenciement, à la rupture conventionnelle, au départ et à la mise à la retraite, et verse le plus élevé ; ce qu'elle ne calcule pas est dit à l'écran.
+- Les indemnités de rupture ne comptent plus dans la base du dixième des congés.
+- Plasturgie : les congés d'ancienneté sont réservés aux cadres, comme le prévoit la convention.
+- DSN : un message prévient pour le congé parental et assimilés, le solde Urssaf d'avril, la participation d'un ancien salarié, les employeurs multiples et le mois précédent d'une fin de contrat.
+
 ### DSN : changement de convention collective
 - Quand la convention d'un salarié change sur sa fiche, la DSN déclare l'ancienne au 1er du mois (bloc Changements Contrat) ; l'aperçu le signale. Zone 404 en a besoin en novembre, de « sans convention » à Syntec.
 - Le SMIC retenu d'un bulletin ancien, recalculé à partir des cumuls, n'est plus déclaré négatif quand le cumul était reparti de zéro : Martine signale le bulletin à recalculer.

@@ -16,6 +16,7 @@ from app.modules.dsn_export.domain.evenements import MOTIF_ARRET
 from app.modules.dsn_export.domain.fctu import (
     FinASignaler,
     bloc_preavis,
+    avis_mois_precedent,
     fctu_depuis_mensuelle,
     fins_a_signaler,
 )
@@ -154,7 +155,9 @@ def _attente_fin(f: FinASignaler, aujourd_hui: date) -> Optional[str]:
     return None
 
 
-def _ligne_fin(f: FinASignaler, noms: Dict[str, str], aujourd_hui: date) -> Dict[str, Any]:
+def _ligne_fin(
+    f: FinASignaler, noms: Dict[str, str], aujourd_hui: date, effectif: int
+) -> Dict[str, Any]:
     return {
         "employee_id": f.employee_id,
         "salarie": noms.get(f.employee_id, ""),
@@ -168,6 +171,7 @@ def _ligne_fin(f: FinASignaler, noms: Dict[str, str], aujourd_hui: date) -> Dict
         "date_reprise": None,
         "en_retard": f.a_deposer_avant < aujourd_hui,
         "a_verifier": _attente_fin(f, aujourd_hui),
+        "avis": avis_mois_precedent(f.fin, aujourd_hui, effectif),
     }
 
 
@@ -224,7 +228,8 @@ def lister(company_id: str, *, aujourd_hui: Optional[date] = None) -> Dict[str, 
         for e in sorted(_envoyes(company_id), key=lambda e: e.genere_le, reverse=True)
     ]
     a_faire = [_ligne(s, noms, jour) for s in _a_faire(company_id, jour)]
-    a_faire += [_ligne_fin(f, noms, jour) for f in _fins(company_id, jour)]
+    effectif = _effectif(company_id, jour.year)
+    a_faire += [_ligne_fin(f, noms, jour, effectif) for f in _fins(company_id, jour)]
     a_faire.sort(key=lambda ligne: (ligne["a_deposer_avant"], ligne["employee_id"]))
     return {"a_faire": a_faire, "faits": faits}
 
