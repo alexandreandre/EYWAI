@@ -149,6 +149,18 @@ def _jours_fr(valeur: float) -> str:
     return f"{texte.replace('.', ',')} j"
 
 
+#: Le dixième n'a pas pu être calculé : la phrase ne prétend pas l'avoir comparé.
+DIXIEME_NON_COMPARABLE = (
+    "Dixième non comparable : rémunération de la période d'acquisition inconnue."
+)
+
+
+def _dixieme_non_compare(contexte: Any) -> bool:
+    """Le calcul des congés a retenu le maintien seul, faute de rémunération connue."""
+    alertes = getattr(contexte, "alertes_baremes", None) or []
+    return any(isinstance(a, dict) and a.get("code") == "dixieme_conges_a_verifier" for a in alertes)
+
+
 def alertes_des_compteurs_de_conges(
     solde_conges: Optional[Dict[str, Any]],
     *,
@@ -557,7 +569,11 @@ def creer_bulletin_final(
         if indemnite_conges > retenue_conges:
             texte_arbitrage = f"L'indemnité de congés payés a été calculée selon la règle du 1/10ème (soit {_euros_fr(indemnite_conges)}), plus favorable que le maintien de salaire ({_euros_fr(retenue_conges)})."
         else:
-            texte_arbitrage = f"L'indemnité de congés payés a été calculée selon la règle du maintien de salaire ({_euros_fr(retenue_conges)}), plus favorable que la règle du 1/10ème."
+            texte_arbitrage = (
+                f"L'indemnité de congés payés a été calculée selon le maintien de salaire ({_euros_fr(retenue_conges)}). {DIXIEME_NON_COMPARABLE}"
+                if _dixieme_non_compare(contexte)
+                else f"L'indemnité de congés payés a été calculée selon la règle du maintien de salaire ({_euros_fr(retenue_conges)}), plus favorable que la règle du 1/10ème."
+            )
 
     # Tri des cotisations en plusieurs blocs pour l'affichage
     bloc_principales = []
@@ -1220,6 +1236,12 @@ def creer_bulletin_sortie(
             bulletin_base["arbitrage_conges"] = (
                 f"L'indemnité compensatrice de congés payés (CDD) retenue : "
                 f"{_euros_fr(montant)} (règle des 10 % de la rémunération totale du contrat)."
+            )
+        elif dixieme <= 0:
+            # Rémunération de référence inconnue : aucune comparaison n'a eu lieu.
+            bulletin_base["arbitrage_conges"] = (
+                f"L'indemnité compensatrice de congés payés a été calculée selon le "
+                f"maintien de salaire ({_euros_fr(montant)}). {DIXIEME_NON_COMPARABLE}"
             )
         else:
             bulletin_base["arbitrage_conges"] = (
