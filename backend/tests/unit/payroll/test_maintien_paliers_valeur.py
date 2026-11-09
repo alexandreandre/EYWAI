@@ -8,6 +8,7 @@ Mois partiel : la journée, comptée par bloc comme le cabinet (conception du
 from __future__ import annotations
 
 from datetime import date
+from unittest.mock import patch
 
 import pytest
 
@@ -155,3 +156,16 @@ def test_jours_calendaires_deux_arrets_qui_couvrent_les_jours_ouvres():
     ]
     assert _periode_couverte(segments, {}, *AOUT)
     assert len(_jours_couverts(segments, {}, *AOUT)) == 27
+
+
+def test_taux_horaire_illisible_se_signale_sur_le_bulletin():
+    """R-329 : sans taux horaire, le maintien en jours ouvrés ressort à 0 € : la RH le voit."""
+    contexte = _sg()
+    with patch(
+        "app.modules.payroll.engine.calcul_brut._get_salaire_horaire_base",
+        side_effect=ValueError("taux illisible"),
+    ):
+        _base(contexte, "2026-06-08", "2026-06-17", JUIN)
+    alertes = [a for a in contexte.alertes_baremes if a.get("code") == "repli_taux_horaire_maintien"]
+    assert len(alertes) == 1
+    assert "taux horaire" in alertes[0]["message"]

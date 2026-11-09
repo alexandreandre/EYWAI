@@ -6,6 +6,7 @@ Appelé depuis le générateur de bulletins avec données déjà chargées (Tick
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional, Tuple
@@ -37,6 +38,8 @@ from . import legal_constants as lc
 from .garantie_nette import ijss_ramenees_au_brut, taux_csg_crds_ijss, taux_salarial_marginal
 from .paliers_convention import PlanConventionnel, arrets_pour_le_plan, plan_conventionnel
 from .prolongation_arret import chainer_arret, jours_legaux_des_12_mois
+
+logger = logging.getLogger(__name__)
 
 #: Réglage société (23/10/2026) : sans subrogation, déduire du maintien les
 #: IJSS des jours maintenus. Absent du dict : le calcul d'avant ce réglage ;
@@ -1691,6 +1694,10 @@ def _base_des_jours(
 
         taux_horaire_base = _get_salaire_horaire_base(contexte, duree_hebdo)
     except Exception:
+        from app.modules.payroll.engine.replis import CODE_REPLI_TAUX_MAINTIEN, signaler_repli
+
+        logger.warning("Taux horaire du maintien illisible : maintien en jours ouvrés à 0 €", exc_info=True)
+        signaler_repli(contexte, CODE_REPLI_TAUX_MAINTIEN)
         taux_horaire_base = 0.0
     mois_entier = arret.get("mois_entier_en_arret")
     if mois_entier is None:

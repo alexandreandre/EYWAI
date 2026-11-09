@@ -54,6 +54,8 @@ from app.modules.payroll.engine.frais_professionnels import (
     notes_de_frais_dans_le_mns,
 )
 from app.modules.payroll.engine.replis import (
+    CODE_REPLI_REPOS_COMPENSATEUR,
+    avec_repli,
     fermer_collecte,
     fusionner_replis,
     ouvrir_collecte,
@@ -1731,9 +1733,21 @@ def process_payslip_generation(
                 recalculer_credits_repos_employe,
             )
 
-            recalculer_credits_repos_employe(employee_id, company_id, year)
+            repos_a_jour = bool(recalculer_credits_repos_employe(employee_id, company_id, year))
         except Exception as cor_err:
+            repos_a_jour = False
             logger.warning(f'[WARNING] COR recalc après génération bulletin: {cor_err}')
+        if not repos_a_jour:
+            # Le recalcul lit les bulletins écrits : il vient après l'écriture. Le
+            # bulletin est déjà en base, l'alerte s'y ajoute.
+            final_payslip_data = avec_repli(final_payslip_data, CODE_REPLI_REPOS_COMPENSATEUR)
+            if payslip_id:
+                try:
+                    supabase.table("payslips").update({"payslip_data": final_payslip_data}).eq(
+                        "id", payslip_id
+                    ).execute()
+                except Exception:
+                    logger.exception("Alerte de repos compensateur non enregistrée sur le bulletin %s", payslip_id)
 
         # Plafond annuel d'exonération des trajets domicile-travail : cumul sur
         # l'année civile, contrôle non bloquant qui n'altère jamais le bulletin.

@@ -58,7 +58,7 @@ def test_la_fusion_garde_les_alertes_du_bulletin_sans_doublon():
 
 def test_chaque_code_a_son_message():
     codes = [v for k, v in vars(replis).items() if k.startswith("CODE_REPLI_")]
-    assert len(codes) == 20
+    assert len(codes) == 22
     for code in codes:
         message = replis.alerte_de_repli(code)["message"]
         assert "À vérifier avant de" in message
@@ -142,6 +142,8 @@ SITES = [
     ("documents/payslip_run_common.py", "CODE_REPLI_PRORATA_ANCIENNETE", 1),
     ("documents/payslip_run_forfait.py", "CODE_REPLI_FORFAIT_ANCIENNETE", 1),
     ("application/heures_sur_arret.py", "CODE_REPLI_ARRETS_ILLISIBLES", 1),
+    ("documents/payslip_run_heures.py", "CODE_REPLI_ARRETS_ILLISIBLES", 1),
+    ("engine/maintien_salaire_service.py", "CODE_REPLI_TAUX_MAINTIEN", 1),
 ]
 
 
@@ -163,3 +165,32 @@ def test_les_generateurs_ouvrent_et_ferment_la_collecte(fichier):
     assert ouverture < source.index("    try:\n", ouverture)
     assert "fermer_collecte(jeton_replis)" in source[source.rindex("    finally:"):]
     assert "fusionner_replis(" in source
+
+
+def test_les_repos_non_recalcules_se_voient_sur_le_bulletin():
+    """R-330 : `recalculer_credits_repos_employe` rend 0 quand il a échoué."""
+    source = (PAYROLL / "documents/payslip_generator.py").read_text(encoding="utf-8")
+    assert "repos_a_jour = bool(recalculer_credits_repos_employe(" in source
+    assert "avec_repli(final_payslip_data, CODE_REPLI_REPOS_COMPENSATEUR)" in source
+
+
+def test_arrets_connus_illisibles_se_signalent_sur_le_bulletin():
+    """R-331 : une prolongation calculée comme un nouvel arrêt se voit à la génération."""
+    from unittest.mock import patch
+
+    from app.modules.payroll.documents.payslip_run_heures import poser_les_arrets_connus
+
+    alertes: list = []
+    jeton = replis.ouvrir_collecte(alertes)
+    try:
+        with patch(
+            "app.modules.payroll.documents.payslip_run_heures.arrets_connus_du_salarie",
+            side_effect=RuntimeError("base injoignable"),
+        ):
+            arret: dict = {"date_debut": "2026-10-01"}
+            poser_les_arrets_connus(arret, "soc", "emp", 2026, 10)
+    finally:
+        replis.fermer_collecte(jeton)
+    assert "arrets_connus" not in arret
+    assert [a["code"] for a in alertes] == ["repli_arrets_illisibles"]
+    assert "prolongation" in alertes[0]["message"]

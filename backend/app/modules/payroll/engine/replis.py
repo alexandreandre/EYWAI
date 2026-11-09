@@ -47,6 +47,8 @@ CODE_REPLI_PRETS = "repli_prets"
 CODE_REPLI_AVANTAGE_PRET = "repli_avantage_pret"
 CODE_REPLI_RETENUES_A_RECALCULER = "repli_retenues_a_recalculer"
 CODE_REPLI_RESTE_DU = "repli_reste_du_non_mis_a_jour"
+CODE_REPLI_TAUX_MAINTIEN = "repli_taux_horaire_maintien"
+CODE_REPLI_REPOS_COMPENSATEUR = "repli_repos_compensateur"
 
 #: Repli de fin de CDD sans compteurs (R-249) : dit sur le bulletin, à la
 #: génération et au dossier de départ.
@@ -124,10 +126,19 @@ _MESSAGES: Dict[str, str] = {
         "supposée commencer en juin. À vérifier avant de valider ce bulletin."
     ),
     CODE_REPLI_ARRETS_ILLISIBLES: (
-        "Arrêts de travail non lus : des heures saisies un week-end, un repos ou un "
-        "férié pendant un arrêt ont pu compter comme heures travaillées. Seules celles "
-        "des jours d'arrêt du planning sont écartées. "
-        "À vérifier avant de valider ce bulletin."
+        "Arrêts de travail non lus : une prolongation a pu être calculée comme un nouvel "
+        "arrêt (carence, maintien et indemnités journalières faux), et des heures saisies "
+        "un week-end, un repos ou un férié pendant un arrêt ont pu compter comme heures "
+        "travaillées. À vérifier avant de valider ce bulletin."
+    ),
+    CODE_REPLI_TAUX_MAINTIEN: (
+        "Maintien de salaire calculé sans taux horaire lisible : compté en jours ouvrés, "
+        "il ressort à 0 €. À vérifier avant de valider ce bulletin."
+    ),
+    CODE_REPLI_REPOS_COMPENSATEUR: (
+        "Compteur de repos compensateur non recalculé après ce bulletin : le solde affiché "
+        "peut être en retard d'un mois. Le prochain bulletin ou une nouvelle génération le "
+        "remet à jour. À vérifier avant de valider ce bulletin."
     ),
     CODE_REPLI_PRETS: (
         "Remboursements de prêts non calculés : une erreur a empêché le calcul. "
@@ -205,6 +216,15 @@ def noter_repli(code: str) -> None:
     alertes = _COLLECTE.get()
     if alertes is not None:
         _ajouter(alertes, code)
+
+
+def avec_repli(donnees: Dict[str, Any], code: str) -> Dict[str, Any]:
+    """Le bulletin, avec l'alerte du repli en plus (copie, le bulletin reçu ne change pas)."""
+    donnees = dict(donnees)
+    donnees["alertes_baremes"] = fusionner_replis(
+        donnees.get("alertes_baremes"), [alerte_de_repli(code)]
+    )
+    return donnees
 
 
 def fusionner_replis(

@@ -301,6 +301,9 @@ def poser_les_arrets_connus(
             employee_id,
             exc_info=True,
         )
+        from app.modules.payroll.engine.replis import CODE_REPLI_ARRETS_ILLISIBLES, noter_repli
+
+        noter_repli(CODE_REPLI_ARRETS_ILLISIBLES)
 
 
 def arrets_de_l_annee(employee_id: str, year: int, month: int) -> list[dict[str, str]]:

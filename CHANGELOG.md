@@ -7,6 +7,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ### Alertes et contrôles sans changement de montant
 - Une participation ou une prime de partage ne déclenche plus de fausse alerte critique sur le brut du bulletin.
+- Un arrêt de travail illisible à la génération se dit sur le bulletin : une prolongation a pu partir comme un nouvel arrêt.
+- Un maintien calculé sans taux horaire lisible se dit sur le bulletin, au lieu de partir à 0 € sans rien dire.
+- Un compteur de repos compensateur non recalculé après un bulletin se dit sur ce bulletin.
 
 ## paie-2026-11-09.3
 
