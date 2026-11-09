@@ -5,6 +5,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+## paie-2026-11-09.1
+
 ### Sorties et verrou
 - Une heure faite en plus une semaine de congés est majorée quand le congé a été posé à l'écran ; une semaine d'arrêt maladie ne la majore pas (sociétés sans compensation entre semaines).
 - Rupture, licenciement et préavis comptent depuis la date d'ancienneté de la fiche quand elle précède l'embauche ; le dossier le dit.
