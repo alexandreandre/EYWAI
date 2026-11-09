@@ -438,7 +438,16 @@ class TestGetRoleTemplateById:
                 "updated_at": "2024-01-01T00:00:00",
             },
         ]
-        user = _make_user()
+        user = _make_user(
+            accessible_companies=[
+                CompanyAccess(
+                    company_id="00000000-0000-0000-0000-000000000001",
+                    company_name="C1",
+                    role="rh",
+                    is_primary=True,
+                ),
+            ]
+        )
 
         result = queries.get_role_template_by_id(user, "tpl-1")
 

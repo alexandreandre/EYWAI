@@ -312,12 +312,17 @@ def update_event(
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e)) from e
 
-    return badgeuse_service.update_event_for_employee_day(
-        event_id=event_id,
-        timestamp=ts,
-        event_type=event_type,
-        current_user=current_user,
-    )
+    try:
+        return badgeuse_service.update_event_for_employee_day(
+            event_id=event_id,
+            timestamp=ts,
+            event_type=event_type,
+            current_user=current_user,
+            company_id=company_id,
+        )
+    except RuntimeError as e:
+        # L'évènement n'existe pas dans la société de l'appelant.
+        raise HTTPException(status_code=404, detail="Pointage introuvable.") from e
 
 
 @router_rh.delete("/events/{event_id}", status_code=204)
@@ -330,7 +335,12 @@ def delete_event(
     Supprime un évènement de pointage.
     """
     _require_badgeuse_rh_access(company_id, current_user)
-    badgeuse_service.delete_event_for_employee_day(event_id=event_id)
+    try:
+        badgeuse_service.delete_event_for_employee_day(
+            event_id=event_id, company_id=company_id
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail="Pointage introuvable.") from e
     return {}
 
 

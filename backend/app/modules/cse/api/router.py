@@ -308,7 +308,7 @@ def add_meeting_participants_endpoint(
     _require_rh(current_user)
     company_id = _get_company_id(current_user)
     queries.check_module_active(company_id)
-    return commands.add_participants(meeting_id, body.employee_ids)
+    return commands.add_participants(meeting_id, body.employee_ids, company_id)
 
 
 @router.delete("/meetings/{meeting_id}/participants/{employee_id}")
@@ -321,7 +321,7 @@ def remove_meeting_participant_endpoint(
     _require_rh(current_user)
     company_id = _get_company_id(current_user)
     queries.check_module_active(company_id)
-    commands.remove_participant(meeting_id, employee_id)
+    commands.remove_participant(meeting_id, employee_id, company_id)
     return {"message": "Participant retiré avec succès"}
 
 

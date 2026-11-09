@@ -63,6 +63,8 @@ def post_ticket(
     company_id: str = Depends(get_active_company_id),
 ):
     """Crée un ticket support (email puis persistance)."""
+    if not current_user.has_access_to_company(company_id):
+        raise HTTPException(status_code=403, detail="Accès non autorisé pour cette entreprise.")
     try:
         created = commands.create_ticket(
             ticket_data=body.model_dump(),
@@ -121,16 +123,19 @@ def get_tickets(
 
         if current_user.is_platform_admin:
             rows = queries.get_tickets_super_admin(filters)
-        elif current_user.role in ("admin", "rh", "collaborateur_rh"):
-            if not x_active_company:
-                raise HTTPException(
-                    status_code=400,
-                    detail="X-Active-Company header is required",
-                )
-            rows = queries.get_tickets_for_company(x_active_company, filters)
+        elif (
+            current_user.role in ("admin", "rh", "collaborateur_rh")
+            and not x_active_company
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="X-Active-Company header is required",
+            )
         elif x_active_company and current_user.has_rh_access_in_company(
             x_active_company
         ):
+            # L'en-tête vient du client : seule la société où l'appelant a un
+            # accès RH peut être lue (R-620, 09/11/2026).
             rows = queries.get_tickets_for_company(x_active_company, filters)
         else:
             rows = queries.get_tickets_for_user(str(current_user.id))

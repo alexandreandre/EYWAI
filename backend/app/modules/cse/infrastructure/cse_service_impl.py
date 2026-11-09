@@ -766,10 +766,18 @@ def update_meeting(
     return get_meeting_by_id(meeting_id, company_id)
 
 
+def _refuser_reunion_hors_societe(
+    company_id: str, active_company_id: Optional[str]
+) -> None:
+    """404 si la réunion n'est pas dans la société active de l'appelant (R-620)."""
+    if active_company_id is not None and str(company_id) != str(active_company_id):
+        raise HTTPException(status_code=404, detail="Réunion non trouvée")
+
+
 def add_participants(
-    meeting_id: str, employee_ids: List[str]
+    meeting_id: str, employee_ids: List[str], active_company_id: Optional[str] = None
 ) -> List[MeetingParticipantRead]:
-    """Ajoute des participants à une réunion."""
+    """Ajoute des participants à une réunion (bornée à la société active)."""
     # Vérifier que la réunion existe
     meeting_response = (
         supabase.table("cse_meetings")
@@ -781,6 +789,7 @@ def add_participants(
         raise HTTPException(status_code=404, detail="Réunion non trouvée")
 
     company_id = meeting_response.data[0]["company_id"]
+    _refuser_reunion_hors_societe(company_id, active_company_id)
     _check_module_active(company_id)
 
     # Ajouter les participants
@@ -807,8 +816,10 @@ def add_participants(
     return get_meeting_participants(meeting_id)
 
 
-def remove_participant(meeting_id: str, employee_id: str) -> None:
-    """Retire un participant d'une réunion."""
+def remove_participant(
+    meeting_id: str, employee_id: str, active_company_id: Optional[str] = None
+) -> None:
+    """Retire un participant d'une réunion (bornée à la société active)."""
     # Vérifier que la réunion existe
     meeting_response = (
         supabase.table("cse_meetings")
@@ -820,6 +831,7 @@ def remove_participant(meeting_id: str, employee_id: str) -> None:
         raise HTTPException(status_code=404, detail="Réunion non trouvée")
 
     company_id = meeting_response.data[0]["company_id"]
+    _refuser_reunion_hors_societe(company_id, active_company_id)
     _check_module_active(company_id)
 
     # Supprimer le participant

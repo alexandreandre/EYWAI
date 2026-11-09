@@ -155,6 +155,9 @@ def get_role_templates(
     current_user: User = Depends(_require_rh_access),
 ):
     """Liste les templates de rôles disponibles."""
+    if company_id and not current_user.has_rh_access_in_company(company_id):
+        # La garde du routeur ne dit pas sur quelle société l'appelant est RH.
+        raise HTTPException(status_code=403, detail="Accès RH requis pour cette société.")
     return queries.get_role_templates(
         current_user,
         company_id=company_id,

@@ -5,6 +5,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Cloisonnement entre sociétés (aucun montant ne change)
+- Un test parcourt toutes les routes : une route métier qui ne contrôle pas la société fait échouer la suite.
+- Refermé : tickets support, repos compensateur, trois lectures de réglages d'absences, import badgeuse groupé, modification et suppression d'un pointage, compte épargne-temps d'un salarié, participants CSE, modèles de rôle, retour en attente d'une absence.
 ### Échéances de fin 2026 et 2027 (sans changement de montant sur l'existant)
 - Versement mobilité : le taux se lit au mois du bulletin ; si le barème ne connaît pas ce mois, le bulletin le dit.
 - Effectif : alerte quand un seuil de 11, 20 ou 50 est franchi depuis moins de cinq ans.

@@ -145,6 +145,19 @@ def _require_rh_company_context(current_user: User) -> str:
     return company_id
 
 
+def _societe_lisible(company_id: str | None, current_user: User) -> str:
+    """Société visée par une lecture de réglages ; le company_id vient du client.
+
+    Refuse une société où l'appelant n'a aucun accès (R-620, 09/11/2026).
+    """
+    cid = company_id or _require_active_company_absences(current_user)
+    if not current_user.is_platform_admin and not current_user.has_access_to_company(
+        str(cid)
+    ):
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    return str(cid)
+
+
 def _require_leave_notification_settings_write(current_user: User) -> str:
     company_id = _require_rh_company_context(current_user)
     if current_user.is_platform_admin:
@@ -391,7 +404,8 @@ def update_absence_request_status(
             _require_rh_company_context(current_user)
             req_before = _ensure_absence_in_active_company(request_id, company_id)
         else:
-            req_before = absence_router.get_absence_by_id(request_id)
+            # Repasser en attente : même périmètre société que la validation.
+            req_before = _ensure_absence_in_active_company(request_id, company_id)
         if (
             req_before
             and req_before.get("workflow_step") == "pending_manager"
@@ -861,7 +875,7 @@ def get_leave_settings_route(
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
 ):
-    cid = company_id or _require_active_company_absences(current_user)
+    cid = _societe_lisible(company_id, current_user)
     if company_id and not current_user.is_platform_admin:
         _require_rh_company_context(current_user)
     return leave_settings_queries.get_leave_settings(str(cid))
@@ -1075,7 +1089,7 @@ def get_fractionnement_settings(
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
 ):
-    cid = company_id or _require_active_company_absences(current_user)
+    cid = _societe_lisible(company_id, current_user)
     return FractionnementSettingsResponse(
         **fractionnement_queries.get_fractionnement_settings(str(cid))
     )
@@ -1200,7 +1214,7 @@ def get_cp_seniority_settings_route(
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
 ):
-    cid = company_id or _require_active_company_absences(current_user)
+    cid = _societe_lisible(company_id, current_user)
     return CpSenioritySettingsResponse(
         **cp_seniority_queries.get_cp_seniority_settings(str(cid))
     )

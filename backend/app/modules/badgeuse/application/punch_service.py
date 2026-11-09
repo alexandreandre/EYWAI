@@ -420,15 +420,18 @@ def update_event_for_employee_day(
     timestamp: datetime | None,
     event_type: TimeEntryType | None,
     current_user: User,
+    company_id: str | None = None,
 ) -> Dict[str, Any]:
     """
     Met à jour un évènement de pointage et renvoie le détail de la journée correspondante.
+    `company_id` borne la mise à jour à la société de l'appelant (R-620).
     """
     updated = deps.time_entry_repository.update_entry(
         event_id,
         timestamp=timestamp,
         event_type=event_type,
         updated_by=str(current_user.id),
+        company_id=company_id,
     )
     day = updated.timestamp.date()
     return get_day_detail_for_employee(
@@ -438,11 +441,12 @@ def update_event_for_employee_day(
     )
 
 
-def delete_event_for_employee_day(*, event_id: str) -> None:
+def delete_event_for_employee_day(*, event_id: str, company_id: str | None = None) -> None:
     """
     Supprime un évènement de pointage.
+    `company_id` borne la suppression à la société de l'appelant (R-620).
     """
-    deps.time_entry_repository.delete_entry(event_id)
+    deps.time_entry_repository.delete_entry(event_id, company_id=company_id)
 
 
 def set_accounted_hours_for_day(
