@@ -235,3 +235,27 @@ def test_iccp_sans_hire_date():
     )
     assert res["montant"] == 0.0
     assert "embauche" in res["calcul"].lower()
+
+
+@SANS_PERIODES
+@patch("app.modules.absences.infrastructure.leave_settings_repository.get_leave_policy")
+@patch("app.modules.payroll.engine.calcul_indemnites_sortie.calculer_base_reference_dixieme")
+@patch("app.modules.payroll.engine.calcul_indemnites_sortie.get_cp_solde_a_la_sortie")
+def test_repli_sans_compteurs_le_dixieme_est_annonce_a_verifier(mock_solde, mock_ref, mock_policy):
+    """R-323 : sans compteurs par période, la référence de 30 jours n'est pas celle
+    des droits acquis (sociétés en jours ouvrés) : le montant ne bouge pas, on le dit."""
+    mock_policy.return_value.cp_reference_period_start_month = 6
+    mock_solde.return_value = CpSoldeSortie(jours_restants=10.0, conges_acquis=25.0, conges_pris=15.0)
+    mock_ref.return_value = ReferenceRemunerationResult(
+        base_totale=36000.0,
+        periode_debut=date(2024, 6, 1),
+        periode_fin=date(2025, 5, 31),
+        periode_label="01/06/2024 – 31/05/2025",
+    )
+
+    res = calculer_indemnite_conges_restants(
+        _employee(salaire=1800.0), _exit_data(), supabase_client=MagicMock()
+    )
+
+    assert any("30 jours de référence" in a for a in res["details"]["alertes"])
+    assert res["details"]["indemnite_dixieme"] == 1200.0  # 36 000 × 10 % × 10 / 30, inchangé

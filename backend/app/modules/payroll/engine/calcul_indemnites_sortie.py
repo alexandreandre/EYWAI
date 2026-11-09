@@ -995,6 +995,14 @@ def calculer_indemnite_conges_restants(
     alertes_du_detail = list(arbitrage.alertes)
     if methode_label == "dixieme_global":
         alertes_du_detail.append(MESSAGE_DIXIEME_CONTRAT_NON_DEDUIT)
+    elif jours_restants > 0 and ref_rem.connue:
+        # Sans compteurs par période, les droits acquis de la période sont
+        # inconnus : le dixième est rapporté au forfait du barème (R-323).
+        alertes_du_detail.append(
+            f"Estimation sans compteurs de congés : le dixième est rapporté à "
+            f"{params['jours_reference_dixieme']:g} jours de référence, pas aux droits "
+            "acquis de la période. À vérifier avant de valider ce bulletin."
+        )
 
     libelles = {
         "maintien": "maintien",
