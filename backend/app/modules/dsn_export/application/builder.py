@@ -11,6 +11,7 @@ from app.shared.domain.effectif_seuils import effectif_retenu
 from app.modules.dsn_export.domain.changement_pcs import bloc_changement_pcs, pcs_du_mois
 from app.modules.dsn_export.domain.settings import (
     DsnSettings,
+    commune_versement_mobilite,
     identifiant_urssaf,
     normaliser_idcc,
     normaliser_naf,
@@ -1718,7 +1719,15 @@ def _paiements(
         ),
         2,
     )
-    lignes_23, total_urssaf, inconnus = bordereau_urssaf(urssaf, prime_partage_valeur=ppv)
+    commune_vm = commune_versement_mobilite(parametres)
+    lignes_23, total_urssaf, inconnus = bordereau_urssaf(
+        urssaf, prime_partage_valeur=ppv, commune_vm=commune_vm
+    )
+    if not commune_vm and any(l["ctp"] == "900" for l in lignes_23):
+        avertissements.append(
+            "Versement mobilité déclaré au bordereau sans code INSEE de la commune "
+            "(S21.G00.23.006) : à reprendre du paramétrage DSN du cabinet"
+        )
     for code in inconnus:
         avertissements.append(
             f"Cotisation {code} sans code type de personnel connu : absente du bordereau Urssaf"

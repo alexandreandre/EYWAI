@@ -28,7 +28,10 @@ CTP_REDUCTIONS = {"003", "004", "668"}
 #: Régularisation positive de la réduction générale : déclarée en assiette.
 CTP_REGULARISATION_REDUCTION = "669"
 #: CTP dont le taux se déclare (23.003) : accident du travail et chômage modulé.
-CTP_TAUX_DECLARE = {("100", "920"), ("725", "920"), ("726", "920"), ("734", "920")}
+CTP_TAUX_DECLARE = {("100", "920"), ("725", "920"), ("726", "920"), ("734", "920"), ("900", "920")}
+#: Versement mobilité (code 081) : CTP 900, taux et code INSEE de la commune
+#: (23.006, obligatoire : CT 2026.1, CCH-11 de S21.G00.23.006) ; le cabinet le déclare ainsi.
+CODE_VERSEMENT_MOBILITE = "081"
 #: Codes d'exonération de l'apprenti (loi de 1979, 1987, 1992) : leur assiette
 #: est la part de rémunération exonérée, ils ne portent pas de cotisation.
 CODES_EXONERATION_APPRENTI = {"001", "002", "003"}
@@ -81,6 +84,8 @@ def ctp_du_code(code: str, base: str, taux: float, montant: float = 0.0) -> Opti
         return ("959", "920") if abs(taux - TAUX_CFP_MOINS_DE_11) < 1e-6 else ("971", "920")
     if code == "130":
         return "992", "920"
+    if code == CODE_VERSEMENT_MOBILITE:
+        return "900", "920"
     if code == "100":
         return "027", "920"
     if code == "129":
@@ -105,6 +110,7 @@ def bordereau_urssaf(
     salaries: Iterable[List[Dict[str, Any]]],
     *,
     prime_partage_valeur: float = 0.0,
+    commune_vm: str = "",
 ) -> Tuple[List[Dict[str, str]], int, List[str]]:
     """Cotisations agrégées (23), montant du bordereau (22.005) et codes inconnus.
 
@@ -151,7 +157,7 @@ def bordereau_urssaf(
             # Plusieurs codes du même CTP partagent l'assiette du salarié.
             par_ctp[cle] = max(par_ctp.get(cle, 0.0), float(ligne.get("assiette") or 0))
             montants[cle] = montants.get(cle, 0.0) + montant
-            if cle in CTP_TAUX_DECLARE and (code == "045" or code == "040"):
+            if cle in CTP_TAUX_DECLARE and code in ("045", "040", CODE_VERSEMENT_MOBILITE):
                 taux_declares[cle] = f"{taux:.2f}"
         for cle, assiette in par_ctp.items():
             assiettes[cle] = assiettes.get(cle, 0.0) + assiette
@@ -179,15 +185,16 @@ def bordereau_urssaf(
             )
             continue
         total += _arrondi_euro(montant)
-        lignes_23.append(
-            {
-                "ctp": ctp,
-                "qualifiant": qualifiant,
-                "taux": taux_declares.get(cle, ""),
-                "assiette": f"{_arrondi_euro(assiettes.get(cle, 0.0)):.2f}",
-                "montant": "0.00",
-            }
-        )
+        ligne_23 = {
+            "ctp": ctp,
+            "qualifiant": qualifiant,
+            "taux": taux_declares.get(cle, ""),
+            "assiette": f"{_arrondi_euro(assiettes.get(cle, 0.0)):.2f}",
+            "montant": "0.00",
+        }
+        if ctp == "900" and commune_vm:
+            ligne_23["commune"] = commune_vm
+        lignes_23.append(ligne_23)
     return lignes_23, total, inconnus
 
 

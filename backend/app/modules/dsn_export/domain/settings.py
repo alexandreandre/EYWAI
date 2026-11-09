@@ -232,15 +232,34 @@ def _versements(contenu: bytes) -> List[Dict[str, str]]:
             versements[-1]["jour_paiement"] = str(int(valeur[:2]))
     vus = set()
     uniques = []
-    urssaf = next((v for c, v in lire_rubriques(contenu) if c == "S21.G00.22.001"), "")
+    rubriques = list(lire_rubriques(contenu))
+    urssaf = next((v for c, v in rubriques if c == "S21.G00.22.001"), "")
+    # Code INSEE du versement mobilité (23.006 du CTP 900 ou assimilés) du bordereau repris.
+    commune_vm = ""
+    ctp = ""
+    for code, valeur in rubriques:
+        if code == "S21.G00.23.001":
+            ctp = valeur
+        elif code == "S21.G00.23.006" and ctp in ("900", "901", "911", "917", "921", "927") and not commune_vm:
+            commune_vm = valeur
     for versement in versements:
         if versement["organisme"] in vus:
             continue
         vus.add(versement["organisme"])
         if urssaf and versement["organisme"] == urssaf:
             versement["urssaf"] = "1"
+            if commune_vm:
+                versement["commune_vm"] = commune_vm
         uniques.append(versement)
     return uniques
+
+
+def commune_versement_mobilite(parametres: "DsnSettings") -> str:
+    """Code INSEE de la commune du versement mobilité, repris du bordereau du cabinet."""
+    for versement in parametres.versements:
+        if versement.get("commune_vm"):
+            return str(versement["commune_vm"])
+    return ""
 
 
 def identifiant_urssaf(societe: Dict[str, Any], parametres: "DsnSettings") -> str:

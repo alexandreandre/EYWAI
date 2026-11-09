@@ -15,7 +15,7 @@ from typing import Dict, List, Tuple
 import pytest
 
 from app.modules.dsn_export.application.builder import DsnBuildError, build_parsed_dsn_from_payroll
-from app.modules.dsn_export.domain.agregats import bordereau_urssaf
+from app.modules.dsn_export.domain.agregats import bordereau_urssaf, ctp_du_code
 from app.modules.dsn_export.domain.settings import (
     DsnSettings,
     depuis_dict,
@@ -353,3 +353,52 @@ def test_sans_identifiant_urssaf_la_mensuelle_est_refusee():
             settings=DsnSettings(idcc="0292"),
             require_cotisation_codes=True,
         )
+
+
+# ---- Versement mobilité : CTP 900, taux déclaré, code INSEE 23.006 (CT 2026.1, CCH-11 de 23.006)
+def test_le_versement_mobilite_rejoint_le_ctp_900():
+    assert ctp_du_code("081", "03", 2.0) == ("900", "920")
+
+
+def test_le_bordereau_porte_le_versement_mobilite_taux_et_commune():
+    lignes, total, inconnus = bordereau_urssaf(
+        [[_ligne("081", "03", 3000.0, 60.0, "2.000")]], commune_vm="79062"
+    )
+    assert inconnus == []
+    assert total == 60
+    assert lignes == [
+        {"ctp": "900", "qualifiant": "920", "taux": "2.00", "assiette": "3000.00", "montant": "0.00", "commune": "79062"}
+    ]
+
+
+def test_la_reprise_lit_la_commune_du_ctp_900():
+    avec = CABINET + (
+        f"\r\nS21.G00.22.001,'{URSSAF}'\r\nS21.G00.23.001,'900'\r\nS21.G00.23.002,'920'\r\n"
+        "S21.G00.23.003,'2.00'\r\nS21.G00.23.004,'3000.00'\r\nS21.G00.23.005,'0.00'\r\nS21.G00.23.006,'79062'\r\n"
+    ).encode("latin-1")
+    versement = next(v for v in extraire_depuis_dsn(avec).versements if v.get("urssaf"))
+    assert versement["commune_vm"] == "79062"
+
+
+def test_le_fichier_emet_la_commune_du_versement_mobilite():
+    bulletin = {
+        **BULLETIN,
+        "structure_cotisations": {
+            **BULLETIN["structure_cotisations"],
+            "bloc_principales": BULLETIN["structure_cotisations"]["bloc_principales"]
+            + [{"coti_id": "versement_mobilite", "base": 3000.0, "taux_patronal": 0.02, "montant_patronal": 60.0}],
+        },
+    }
+    parametres = DsnSettings(
+        idcc="0292",
+        versements=[
+            {"organisme": URSSAF, "mode": "05", "urssaf": "1", "commune_vm": "79062"},
+            {"organisme": "DGFIP", "entite": "DGFIP_PAS", "mode": "05"},
+        ],
+    )
+    fichier, _ = build_parsed_dsn_from_payroll(
+        SOCIETE, [{"employee": SALARIE, "payslip_data": bulletin}], "2026-06", settings=parametres
+    )
+    texte = encode_dsn_bytes(fichier).decode("iso-8859-15")
+    assert "S21.G00.23.001,'900'" in texte
+    assert "S21.G00.23.006,'79062'" in texte

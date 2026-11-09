@@ -308,6 +308,7 @@ def write_bordereau(bord: BordereauBlock, out: List[str]) -> None:
             _emit("S21.G00.23.003", str(ligne.get("taux") or ""), out)
             _emit("S21.G00.23.004", str(ligne.get("assiette") or ""), out)
             _emit("S21.G00.23.005", str(ligne.get("montant") or ""), out)
+            _emit("S21.G00.23.006", str(ligne.get("commune") or ""), out)
         return
     _emit(R_S21_BORD_IDENT, bord.identifiant, out)
     _emit(R_S21_BORD_DATE_DEB, bord.date_debut, out)
