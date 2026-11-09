@@ -16,6 +16,7 @@ import pytest
 
 from app.modules.payroll.application.compensation_semaines import (
     absences_a_conserver,
+    alerte_semaines_a_zero,
     avec_saisie_manuelle,
     option_active,
     appliquer,
@@ -114,6 +115,43 @@ class TestEcartsParSemaine:
         planned, actual = _semaine(27, self.HORAIRE, [9.5, 9.5, 9.5, 9.5, 5.0])  # S31, hors fenêtre de juillet
 
         assert ecarts_par_semaine(planned, actual, (date(2026, 6, 22), date(2026, 7, 26))) == {}
+
+
+class TestSemaineNonSaisie:
+    """R-297 : une semaine à 0 h efface des heures sup, on le dit au bulletin."""
+
+    HORAIRE = [8.5, 8.5, 8.5, 8.5, 5.0]
+    FENETRE = (date(2026, 6, 22), date(2026, 7, 26))
+
+    def _deux_semaines(self, seconde):
+        prevu_1, reel_1 = _semaine(6, self.HORAIRE, [9.5, 9.5, 9.5, 9.5, 5.0])  # S28, +4 h
+        prevu_2, reel_2 = _semaine(13, self.HORAIRE, seconde)  # S29
+        return prevu_1 + prevu_2, reel_1 + reel_2
+
+    def test_une_semaine_sans_ligne_de_pointage_reste_neutre(self):
+        planned, actual = self._deux_semaines([None] * 5)
+
+        compensation = compenser(ecarts_par_semaine(planned, actual, self.FENETRE), 39.0)
+
+        assert compensation.net25 == 4.0
+        assert alerte_semaines_a_zero(planned, actual, self.FENETRE) is None
+
+    def test_une_semaine_entierement_a_zero_est_signalee_sans_changer_le_calcul(self):
+        planned, actual = self._deux_semaines([0.0] * 5)
+
+        compensation = compenser(ecarts_par_semaine(planned, actual, self.FENETRE), 39.0)
+        assert compensation.net25 == 0.0
+        assert compensation.solde_negatif == -35.0
+
+        alerte = alerte_semaines_a_zero(planned, actual, self.FENETRE)
+        assert alerte["code"] == "compensation_semaine_a_zero"
+        assert alerte["critique"] is False
+        assert "S29 (39 h prévues)" in alerte["message"]
+
+    def test_une_semaine_avec_une_journee_pointee_n_est_pas_signalee(self):
+        planned, actual = self._deux_semaines([8.5, 0.0, 0.0, 0.0, 0.0])
+
+        assert alerte_semaines_a_zero(planned, actual, self.FENETRE) is None
 
 
 class TestApplicationAuCalendrier:

@@ -251,6 +251,83 @@ def ecarts_par_semaine(
     return ecarts
 
 
+def semaines_a_zero(
+    planned_all: list[dict[str, Any]],
+    actual_all: list[dict[str, Any]],
+    fenetre: tuple[date, date],
+    *,
+    contrat: Contrat = (None, None),
+) -> list[tuple[int, int, float]]:
+    """(année, semaine, heures prévues) des semaines pointées entièrement à 0 h (R-297).
+
+    Tous les jours de travail prévus portent un pointage nul : la semaine pèse
+    tout son horaire en négatif et mange les heures sup des autres semaines.
+    Rien ne distingue une semaine non saisie d'une semaine vraiment non
+    travaillée, donc le calcul ne change pas : on le dit au bulletin. Une semaine
+    sans aucune ligne de pointage reste neutre (`ecarts_par_semaine`).
+    """
+    debut, fin = fenetre
+    reel: dict[date, float] = {}
+    for j in actual_all:
+        try:
+            d = date(int(j["annee"]), int(j["mois"]), int(j["jour"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        reel[d] = float(j.get("heures_faites") or 0.0)
+
+    prevus: dict[tuple[int, int], list[tuple[date, float]]] = {}
+    for p in planned_all:
+        try:
+            d = date(int(p["annee"]), int(p["mois"]), int(p["jour"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        heures = float(p.get("heures_prevues") or 0.0)
+        if (
+            p.get("type") != "travail"
+            or heures <= 0
+            or not (debut <= _lundi(d) <= fin)
+            or not _dans_le_contrat(d, contrat)
+            or mois_sans_pointage(actual_all, annee=d.year, mois=d.month)
+        ):
+            continue
+        prevus.setdefault((d.isocalendar()[0], d.isocalendar()[1]), []).append((d, heures))
+
+    sorties: list[tuple[int, int, float]] = []
+    for (annee, semaine), jours in sorted(prevus.items()):
+        lundi = _lundi(jours[0][0])
+        semaine_faite = any(
+            reel.get(lundi + timedelta(days=i), 0.0) > 0 for i in range(7)
+        )
+        if not semaine_faite and all(d in reel for d, _ in jours):
+            sorties.append((annee, semaine, round(sum(h for _, h in jours), 2)))
+    return sorties
+
+
+def alerte_semaines_a_zero(
+    planned_all: list[dict[str, Any]],
+    actual_all: list[dict[str, Any]],
+    fenetre: tuple[date, date],
+    *,
+    contrat: Contrat = (None, None),
+) -> dict[str, Any] | None:
+    """L'alerte du bulletin quand une semaine à 0 h pèse sur la compensation."""
+    semaines = semaines_a_zero(planned_all, actual_all, fenetre, contrat=contrat)
+    if not semaines:
+        return None
+    liste = ", ".join(f"S{s} ({_fr(h)} h prévues)" for _, s, h in semaines)
+    return {
+        "code": "compensation_semaine_a_zero",
+        "severity": "warning",
+        "critique": False,
+        "message": (
+            f"Compensation entre semaines : aucune heure pointée en {liste}. Ces "
+            "heures comptent en négatif et réduisent les heures sup des autres "
+            "semaines. Si la semaine n'a pas été saisie, saisissez-la ; si le "
+            "salarié était absent, posez l'absence."
+        ),
+    }
+
+
 def compenser(ecarts: Mapping[tuple[int, int], float], duree_hebdo: float) -> Compensation:
     """Somme des majorations de la fenêtre, semaines négatives comprises.
 
@@ -496,6 +573,7 @@ __all__ = [
     "BilanSemaine",
     "Compensation",
     "absences_a_conserver",
+    "alerte_semaines_a_zero",
     "appliquer",
     "appliquer_aux_mois",
     "avec_saisie_manuelle",
@@ -506,4 +584,5 @@ __all__ = [
     "mention",
     "option_active",
     "s_applique_au_contrat",
+    "semaines_a_zero",
 ]

@@ -32,6 +32,7 @@ from app.shared.reprise_paie import (
     raison_de_cumul_manquant,
 )
 from app.modules.payroll.application.compensation_semaines import (
+    alerte_semaines_a_zero,
     appliquer_aux_mois,
     bornes_du_contrat,
     debut_du_contrat_en_cours,
@@ -988,7 +989,17 @@ def process_payslip_generation(
         # du 21/09 où rien n'était retenu). Jamais pour un temps partiel : ses
         # heures au-delà du contrat sont des heures complémentaires, que la
         # compensation payait une seconde fois en heures sup (10/10/2026).
+        alerte_semaine_a_zero = None
         if option_active(company_data) and s_applique_au_contrat(duree_hebdo):
+            contrat_compensation = bornes_du_contrat(
+                debut_du_contrat_en_cours(employee_data), resolve_date_sortie(employee_data)
+            )
+            alerte_semaine_a_zero = alerte_semaines_a_zero(
+                planned_data_all_months,
+                actual_data_all_months,
+                (fenetre_variables.debut, fenetre_variables.fin),
+                contrat=contrat_compensation,
+            )
             evenements_compenses, compensation_semaines = appliquer_aux_mois(
                 {
                     (year, month): payroll_events_list,
@@ -999,9 +1010,7 @@ def process_payslip_generation(
                 duree_hebdo,
                 (fenetre_variables.debut, fenetre_variables.fin),
                 # Mêmes bornes que le bulletin : hors contrat, rien ne compte.
-                contrat=bornes_du_contrat(
-                    debut_du_contrat_en_cours(employee_data), resolve_date_sortie(employee_data)
-                ),
+                contrat=contrat_compensation,
             )
             payroll_events_list = evenements_compenses[(year, month)]
             payroll_events_prev_list = evenements_compenses[(prev_year, prev_month)]
@@ -1570,6 +1579,12 @@ def process_payslip_generation(
             payslip_json_data["alertes_baremes"] = [
                 *(payslip_json_data.get("alertes_baremes") or []),
                 alerte_effectif_annee,
+            ]
+        if alerte_semaine_a_zero and isinstance(payslip_json_data, dict):
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = [
+                *(payslip_json_data.get("alertes_baremes") or []),
+                alerte_semaine_a_zero,
             ]
         alerte_franchissement = alerte_franchissement_seuil(company_data, year)
         if alerte_franchissement and isinstance(payslip_json_data, dict):
