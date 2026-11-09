@@ -332,8 +332,14 @@ def _cumul_hs_exonerees_ir_debut_mois(contexte: ContextePaie) -> float:
     cumuls = cumuls_racine.get("cumuls") or {}
     if not isinstance(cumuls, dict):
         return 0.0
+    # Le compteur se lit en net de la seule CSG déductible (R-361). Les cumuls
+    # écrits avant cette règle, ou repris du cabinet, gardent un compteur à
+    # 9,7 % sous-évalué ; le cumul de la ligne imprimée est déjà à 6,8 %.
     try:
-        return float(cumuls.get("hs_exonerees_ir_cumul", 0.0) or 0.0)
+        return max(
+            float(cumuls.get("hs_exonerees_ir_cumul", 0.0) or 0.0),
+            float(cumuls.get("montant_net_hs_exonerees_cumul", 0.0) or 0.0),
+        )
     except (TypeError, ValueError):
         return 0.0
 
@@ -360,11 +366,8 @@ def _calculer_net_imposable(
         if ligne.get("is_participation") or ligne.get("is_ppv"):
             continue
         libelle = ligne.get("libelle", "").lower()
-        # CSG/CRDS assise sur les heures supplémentaires : elle sert UNIQUEMENT à
-        # défiscaliser le NET des HS (l'exonération d'IR porte sur le net, pas le
-        # brut). Elle ne doit PAS être réintégrée au net imposable : les HS étant
-        # exonérées d'IR, réintégrer leur fraction CSG regonflerait indûment
-        # l'imposable. On la traite donc en exclusion de la réintégration CSG.
+        # CSG/CRDS assise sur les heures supplémentaires : traitée à part, plus
+        # bas, avec la défiscalisation des HS.
         if "sur hs" in libelle:
             montant_csg_sur_hs += _get_safe_float(ligne.get("montant_salarial"))
         elif "csg/crds" in libelle and "non déductible" in libelle:
@@ -380,21 +383,33 @@ def _calculer_net_imposable(
     salaire_brut_safe = _get_safe_float(salaire_brut)
     total_cotisations_safe = _get_safe_float(total_cotisations_salariales)
 
+    # --- Défiscalisation des heures supplémentaires (art. 81 quater CGI) ---
+    # La part exonérée est le brut des HS moins la seule CSG déductible (6,8 %
+    # sur 98,25 % : net-entreprises, fiche 2066, relevée par Legisocial, R-361).
+    # La CSG non déductible et la CRDS des HS, qui ne diminuent pas un revenu
+    # imposable, sont réintégrées. Sous le plafond de 7 500 €, le net imposable
+    # ne bouge pas ; le compteur du plafond et le mois où il est atteint, si.
+    brut_hs = _get_safe_float(remuneration_heures_supp)
+    hs_defiscalisees_theorique = montant_net_hs_exonerees(
+        contexte, lignes_cotisations, remuneration_heures_supp
+    )
+    if hs_defiscalisees_theorique > 0:
+        csg_deductible_hs = brut_hs - hs_defiscalisees_theorique
+        csg_non_deductible_hs = max(0.0, montant_csg_sur_hs - csg_deductible_hs)
+    else:
+        # Taux de CSG déductible introuvable : la CSG entière, faute de mieux.
+        hs_defiscalisees_theorique = max(0.0, brut_hs - montant_csg_sur_hs)
+        csg_non_deductible_hs = 0.0
+
     # --- Formule standard du net imposable "brut" ---
     net_imposable_avant_defiscalisation = (
         (salaire_brut_safe - total_cotisations_safe)
         + montant_csg_non_deductible
+        + csg_non_deductible_hs
         + part_patronale_mutuelle
         + part_salariale_mutuelle_non_deductible
     )
 
-    # --- Défiscalisation des heures supplémentaires (art. 81 quater CGI) ---
-    # L'exonération d'impôt porte sur le montant NET des HS = rémunération brute
-    # des HS moins la CSG/CRDS qui reste due sur ces heures. On ne défiscalise
-    # donc pas le brut mais le net imposable réellement attribuable aux HS.
-    hs_defiscalisees_theorique = max(
-        0.0, _get_safe_float(remuneration_heures_supp) - montant_csg_sur_hs
-    )
     # --- Plafond ANNUEL d'exonération (art. 81 quater CGI, 7 500 € net/an,
     # cf. legal_constants.PLAFOND_EXONERATION_IR_HS_ANNUEL_NET) : le montant
     # exonéré ce mois-ci est plafonné au solde restant sur l'année civile.
@@ -488,16 +503,9 @@ def montant_net_hs_exonerees(
     tombe juste sur les 27 bulletins, celle qui retrancherait les 9,7 % entiers
     sur aucun.
 
-    À ne pas confondre avec la somme que `_calculer_net_imposable` retranche du
-    net imposable. Les deux décompositions sont équivalentes et donnent le même
-    net imposable, mais ne passent pas par les mêmes termes : le cabinet
-    retranche le brut des HS d'une base qui n'a jamais vu passer leur CSG, nous
-    retranchons un net d'une base qui l'exclut.
-
-    Le plafond annuel de 7 500 € (art. 81 quater CGI) n'est PAS appliqué ici :
-    il écrête déjà la somme retranchée du net imposable, et la convention à
-    retenir pour le compteur du plafond reste à trancher — aucun salarié de
-    Colorplast ne l'approche avant novembre.
+    C'est aussi la part que `_calculer_net_imposable` retranche et que compte le
+    plafond annuel de 7 500 € (art. 81 quater CGI, R-361). Le plafond n'est pas
+    appliqué à cette ligne : il écrête la somme retranchée du net imposable.
     """
     brut_hs = _get_safe_float(remuneration_heures_supp)
     if brut_hs <= 0:
@@ -1001,8 +1009,8 @@ def calculer_net_et_impot(
         "hs_exonerees_ir_mois": hs_exonerees_ir_mois,
         # Montant net des HS exonérées tel qu'il s'imprime sous le bloc impôt et
         # entre dans le revenu fiscal de référence du salarié : brut des HS moins
-        # la seule CSG déductible (cf. `montant_net_hs_exonerees`). Distinct de
-        # `hs_exonerees_ir_mois`, qui sert l'arithmétique du net imposable.
+        # la seule CSG déductible (cf. `montant_net_hs_exonerees`). Égal à
+        # `hs_exonerees_ir_mois`, sauf le mois où le plafond annuel l'écrête.
         "montant_net_hs_exonerees": montant_net_hs_exonerees(
             contexte, lignes_cotisations, remuneration_heures_supp
         ),

@@ -16,11 +16,9 @@ cohérent avec la nature de la ligne : un montant *imposable* ne se diminue pas
 d'une CSG non déductible ni de la CRDS, qui par construction ne réduisent pas
 le revenu imposable.
 
-Ce montant est distinct de la somme que le moteur retranche du net imposable :
-celui-ci converge déjà au centime avec le cabinet, par une décomposition
-équivalente mais différente (le cabinet retranche le brut des HS d'une base qui
-n'a jamais vu passer la CSG des HS ; nous retranchons un net d'une base qui
-l'exclut). On ne touche donc pas à cette arithmétique.
+C'est aussi la part exonérée que retranche le net imposable et que compte le
+plafond de 7 500 € (R-361). Sous le plafond, le net imposable est le même qu'avec
+les 9,7 % : seuls le compteur et le mois d'atteinte du plafond changent.
 
 Chiffres repris des bulletins de janvier 2026 (env. de test).
 """
@@ -147,3 +145,47 @@ class TestMontantNetHeuresSupExonerees:
         assert calcul_net.montant_net_hs_exonerees(
             _contexte({}), lignes, BRUT_HS_DUMAREL
         ) == 0.0
+
+
+class TestPartExonereeDuNetImposable:
+    """R-361 : brut des HS moins la seule CSG déductible (net-entreprises 2066, via Legisocial)."""
+
+    BRUT = 2884.0
+    COTISATIONS = 500.0 + round(BASE_CSG_HS_DUMAREL * 0.097, 2)
+
+    def _net_imposable(self, cumuls=None, mois=6):
+        contexte = _contexte()
+        contexte.month = mois
+        contexte.cumuls = {"cumuls": cumuls or {}}
+        lignes = [l for l in _lignes(BASE_CSG_HS_DUMAREL) if "non déductible" not in l["libelle"] or "sur HS" in l["libelle"]]
+        return calcul_net._calculer_net_imposable(
+            contexte, self.BRUT, self.COTISATIONS, lignes, BRUT_HS_DUMAREL
+        )
+
+    def test_la_part_comptee_au_plafond_est_a_6_8(self, monkeypatch):
+        monkeypatch.setattr(calcul_net, "_part_patronale_mutuelle_du_bulletin", lambda *a: 0.0)
+        monkeypatch.setattr(calcul_net, "_get_part_salariale_mutuelle_non_deductible", lambda *a: 0.0)
+        _, exonere = self._net_imposable()
+        assert exonere == pytest.approx(ATTENDU_DUMAREL, abs=0.01)
+
+    def test_sous_le_plafond_le_net_imposable_ne_change_pas(self, monkeypatch):
+        monkeypatch.setattr(calcul_net, "_part_patronale_mutuelle_du_bulletin", lambda *a: 0.0)
+        monkeypatch.setattr(calcul_net, "_get_part_salariale_mutuelle_non_deductible", lambda *a: 0.0)
+        net, _ = self._net_imposable()
+        csg_hs = round(BASE_CSG_HS_DUMAREL * 0.097, 2)
+        attendu_a_9_7 = (self.BRUT - self.COTISATIONS) - (BRUT_HS_DUMAREL - csg_hs)
+        assert net == pytest.approx(attendu_a_9_7, abs=0.01)
+
+    def test_au_dela_du_plafond_le_surplus_redevient_imposable(self, monkeypatch):
+        monkeypatch.setattr(calcul_net, "_part_patronale_mutuelle_du_bulletin", lambda *a: 0.0)
+        monkeypatch.setattr(calcul_net, "_get_part_salariale_mutuelle_non_deductible", lambda *a: 0.0)
+        net_sans, _ = self._net_imposable()
+        net_avec, exonere = self._net_imposable({"hs_exonerees_ir_cumul": 7400.0})
+        assert exonere == pytest.approx(100.0, abs=0.01)
+        assert net_avec - net_sans == pytest.approx(ATTENDU_DUMAREL - 100.0, abs=0.01)
+
+    def test_le_compteur_lit_le_cumul_deja_a_6_8(self):
+        contexte = _contexte()
+        contexte.month = 6
+        contexte.cumuls = {"cumuls": {"hs_exonerees_ir_cumul": 970.0, "montant_net_hs_exonerees_cumul": 1000.0}}
+        assert calcul_net._cumul_hs_exonerees_ir_debut_mois(contexte) == 1000.0
