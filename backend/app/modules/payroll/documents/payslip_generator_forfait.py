@@ -37,7 +37,6 @@ from app.modules.payroll.domain.report_nap_negatif import (
 )
 from app.modules.payroll.engine.lectures import LectureIndispensable
 from app.modules.payroll.engine.frais_professionnels import (
-    entree_de_frais_professionnels,
     entree_de_note_de_frais,
     notes_de_frais_dans_le_mns,
 )
@@ -97,6 +96,7 @@ from app.modules.payroll.documents.payslip_generator import (
     _is_net_a_payer_only_correction_input,
     _is_cantine_input,
     _is_frais_pro_non_soumis_input,
+    entree_de_frais_non_soumis,
     _is_participation_pee_input,
     _is_participation_numeraire_input,
     _is_ijss_override_input,
@@ -324,8 +324,8 @@ def process_payslip_generation_forfait(
                 reports_nap_negatif.extend(reports_du_mois([row]))
                 continue
             if _is_frais_pro_non_soumis_input(row):
-                # Ligne à son libellé, au net, hors montant net social (D1).
-                saisies_data["primes"].append(entree_de_frais_professionnels(row))
+                # Ligne à son libellé, au net, hors MNS (D1), sauf panier selon le réglage (R-333).
+                saisies_data["primes"].append(entree_de_frais_non_soumis(row, company_data))
                 continue
             if _is_ijss_override_input(row):
                 saisies_data["ijss_brut_override"] = abs(float(row["amount"]))
