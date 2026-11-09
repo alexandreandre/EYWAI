@@ -13,6 +13,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - Un rappel de maintien saisi en prime libre est signalé : la réduction générale baisse tant qu'il ne passe pas par la prime du catalogue.
 - Une prime saisie à la main au même montant qu'une prime de règle automatique est signalée, au cas où elle serait payée deux fois.
 - Au premier mois calculé après la reprise, un écart entre la réduction générale déjà appliquée et les cumuls repris est signalé sur le bulletin.
+- Un arrêt qui se termine à la fin du mois sans suite saisie le mois suivant est signalé à l'avant-paie : sinon le mois part payé plein.
+- La CSG d'une participation ou d'une prime de partage se corrige dans la carte « Régularisations de cotisation », comme le disait la ligne du bulletin.
 
 ## paie-2026-11-09.3
 

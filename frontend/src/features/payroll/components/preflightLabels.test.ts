@@ -36,6 +36,13 @@ describe('fiche_dsn', () => {
   });
 });
 
+describe('arret_a_confirmer', () => {
+  it('a un libellé et mène au calendrier du salarié', () => {
+    expect(PREFLIGHT_ANOMALY_TYPE_LABELS.arret_a_confirmer).toBe('Arrêt à confirmer');
+    expect(verifyPathForAnomaly(anomalie('arret_a_confirmer'))).toBe('/schedules?employee=e1');
+  });
+});
+
 describe('liens des anomalies en mode paie', () => {
   it('chaque lien d’action mène à une page permise par le mode paie', () => {
     for (const type of PREFLIGHT_ANOMALY_TYPE_ORDER) {

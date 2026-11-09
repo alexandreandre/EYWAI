@@ -12,7 +12,8 @@ export type PreflightAnomalyType =
   | 'absent_a_typer'
   | 'retenue_a_poser'
   | 'prime_a_saisir'
-  | 'minimum_annuel';
+  | 'minimum_annuel'
+  | 'arret_a_confirmer';
 
 export type PreflightAnomalySeverity = 'bloquant' | 'a_verifier';
 
@@ -78,6 +79,7 @@ export interface PreflightAnomalyCounts {
   retenue_a_poser?: number;
   prime_a_saisir?: number;
   minimum_annuel?: number;
+  arret_a_confirmer?: number;
   bloquant: number;
   a_verifier: number;
 }

@@ -48,6 +48,10 @@ from app.modules.schedules.application.periode_a_saisir_service import (
     charger_periodes_a_saisir,
     resume_api,
 )
+from app.modules.schedules.domain.arret_a_confirmer import (
+    fin_d_arret_a_confirmer,
+    message_arret_a_confirmer,
+)
 from app.modules.schedules.domain.ecart_rules import (
     compute_day_ecarts,
     compute_heures_supplementaires,
@@ -128,6 +132,8 @@ def _build_counts(anomalies: List[PreflightAnomaly]) -> PreflightAnomalyCounts:
             counts.prime_a_saisir += 1
         elif a.type == "minimum_annuel":
             counts.minimum_annuel += 1
+        elif a.type == "arret_a_confirmer":
+            counts.arret_a_confirmer += 1
         if a.severity == "bloquant":
             counts.bloquant += 1
         else:
@@ -342,6 +348,72 @@ def _anomalies_primes_a_saisir(
 
 #: À partir d'octobre : avant, l'écart annuel ne dit rien d'utilisable.
 _PREMIER_MOIS_SMH = 10
+
+
+def _calendriers_du_mois_precedent(
+    company_id: str, employee_ids: List[str], year: int, month: int
+) -> Dict[str, List[Any]]:
+    annee, mois = (year - 1, 12) if month == 1 else (year, month - 1)
+    lignes = (
+        supabase.table("employee_schedules")
+        .select("employee_id, planned_calendar")
+        .eq("company_id", company_id)
+        .eq("year", annee)
+        .eq("month", mois)
+        .in_("employee_id", employee_ids)
+        .execute()
+        .data
+        or []
+    )
+    return {str(ligne["employee_id"]): _jours_du_calendrier(ligne)[0] for ligne in lignes}
+
+
+def _anomalies_arrets_a_confirmer(
+    company_id: str,
+    year: int,
+    month: int,
+    employees: List[Dict[str, Any]],
+    schedule_by_emp: Dict[str, Dict[str, Any]],
+    absences_by_emp: Dict[str, List[Dict[str, Any]]],
+    resolutions_by_key: Dict[str, Dict[str, Any]],
+) -> List[PreflightAnomaly]:
+    """Un arrêt au tournant du mois, rien de saisi ensuite : le mois partirait payé plein.
+
+    Jamais bloquant : la gestionnaire le justifie (reprise confirmée) ou saisit l'arrêt.
+    Sans effet sur la revue si la lecture échoue : c'est un rappel, pas un contrôle du calcul.
+    """
+    try:
+        calendriers = _calendriers_du_mois_precedent(
+            company_id, [str(e["id"]) for e in employees], year, month
+        )
+    except Exception:  # noqa: BLE001 - un rappel ne doit pas faire tomber la revue
+        logger.warning("Calendriers du mois précédent illisibles pour %s", company_id, exc_info=True)
+        return []
+    anomalies: List[PreflightAnomaly] = []
+    for emp in employees:
+        eid = str(emp["id"])
+        prevus, reels = _jours_du_calendrier(schedule_by_emp.get(eid))
+        fin = fin_d_arret_a_confirmer(
+            calendriers.get(eid, []), prevus, reels, absences_by_emp.get(eid, []), year, month
+        )
+        if fin is None:
+            continue
+        anomalies.append(
+            _merge_resolution(
+                PreflightAnomaly(
+                    id=_anomaly_id(eid, "arret_a_confirmer"),
+                    employee_id=eid,
+                    employee_name=_employee_name(emp.get("first_name"), emp.get("last_name")),
+                    team_id=str(emp["team_id"]) if emp.get("team_id") else None,
+                    type="arret_a_confirmer",
+                    severity="a_verifier",
+                    status="a_traiter",
+                    message=message_arret_a_confirmer(fin, year, month),
+                ),
+                resolutions_by_key.get(_resolution_key(eid, "arret_a_confirmer")),
+            )
+        )
+    return anomalies
 
 
 def _anomalies_smh_metallurgie(
@@ -805,6 +877,11 @@ def build_preflight_anomalies(
     anomalies.extend(_anomalies_retenues_a_poser(company_id, year, month, employees))
     anomalies.extend(_anomalies_primes_a_saisir(company_id, year, month, employees))
     anomalies.extend(_anomalies_smh_metallurgie(company_id, year, month, employees))
+    anomalies.extend(
+        _anomalies_arrets_a_confirmer(
+            company_id, year, month, employees, schedule_by_emp, absences_by_emp, resolutions_by_key
+        )
+    )
     counts = _build_counts(anomalies)
     total_open = sum(1 for a in anomalies if a.status in OPEN_STATUSES)
     total_treated = len(anomalies) - total_open

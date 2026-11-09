@@ -772,3 +772,60 @@ class TestAbsentATyper:
         assert result.counts.bloquant >= 1
         assert "heures_non_saisies" not in [a.type for a in result.anomalies]
         assert "ecart_heures" not in [a.type for a in result.anomalies]
+
+
+class TestArretAConfirmer:
+    """R-194 : erreur injectée, un arrêt à la fin du mois et un mois suivant au planning plein."""
+
+    SEPTEMBRE = [
+        {"jour": jour, "type": "arret_maladie", "date_fin_arret_reel": "2026-09-30"}
+        for jour in range(1, 31)
+    ]
+
+    def _octobre(self):
+        prevus = [{"jour": jour, "type": "travail", "heures_prevues": 7} for jour in range(1, 32)]
+        return {EMP_ID: {"planned_calendar": {"calendrier_prevu": prevus}, "actual_hours": {}}}
+
+    def _anomalies(self, calendriers, schedule, absences=None):
+        with patch.object(preflight_anomalies, "_calendriers_du_mois_precedent", return_value=calendriers):
+            return preflight_anomalies._anomalies_arrets_a_confirmer(
+                COMPANY_ID, 2026, 10, [_employee()], schedule, absences or {}, {}
+            )
+
+    def test_un_arret_a_la_fin_du_mois_se_signale(self):
+        anomalies = self._anomalies({EMP_ID: self.SEPTEMBRE}, self._octobre())
+        assert len(anomalies) == 1
+        anomalie = anomalies[0]
+        assert anomalie.type == "arret_a_confirmer"
+        assert anomalie.severity == "a_verifier"
+        assert "payé plein" in anomalie.message
+
+    def test_rien_si_le_mois_precedent_n_a_pas_d_arret(self):
+        assert self._anomalies({}, self._octobre()) == []
+
+    def test_une_reprise_justifiee_reste_visible_comme_traitee(self):
+        resolution = {
+            f"{EMP_ID}:arret_a_confirmer": {"status": "justifie", "motif": "autre", "commentaire": "Repris le 1er"}
+        }
+        with patch.object(
+            preflight_anomalies, "_calendriers_du_mois_precedent", return_value={EMP_ID: self.SEPTEMBRE}
+        ):
+            anomalies = preflight_anomalies._anomalies_arrets_a_confirmer(
+                COMPANY_ID, 2026, 10, [_employee()], self._octobre(), {}, resolution
+            )
+        assert anomalies[0].status == "justifie"
+
+    def test_une_panne_de_lecture_n_arrete_pas_la_revue(self):
+        with patch.object(
+            preflight_anomalies, "_calendriers_du_mois_precedent", side_effect=RuntimeError("base injoignable")
+        ):
+            assert (
+                preflight_anomalies._anomalies_arrets_a_confirmer(
+                    COMPANY_ID, 2026, 10, [_employee()], self._octobre(), {}, {}
+                )
+                == []
+            )
+
+    def test_le_compteur_compte_l_arret_a_confirmer(self):
+        anomalies = self._anomalies({EMP_ID: self.SEPTEMBRE}, self._octobre())
+        assert preflight_anomalies._build_counts(anomalies).arret_a_confirmer == 1

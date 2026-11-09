@@ -18,6 +18,7 @@ export const PREFLIGHT_ANOMALY_TYPE_LABELS: Record<PreflightAnomalyType, string>
   retenue_a_poser: 'Prêt ou saisie à poser',
   prime_a_saisir: 'Prime à saisir',
   minimum_annuel: 'Minimum annuel à vérifier',
+  arret_a_confirmer: 'Arrêt à confirmer',
 };
 
 export const PREFLIGHT_ANOMALY_TYPE_ORDER: PreflightAnomalyType[] = [
@@ -29,6 +30,7 @@ export const PREFLIGHT_ANOMALY_TYPE_ORDER: PreflightAnomalyType[] = [
   'hs_pointage_a_valider',
   'ecart_heures',
   'heures_non_saisies',
+  'arret_a_confirmer',
   'fenetre_modifiee',
   'pointage',
   'conflit_absence',
@@ -64,7 +66,7 @@ export function verifyPathForAnomaly(anomaly: PreflightAnomaly): string {
   if (anomaly.type === 'hs_pointage_a_valider') {
     return '/company?tab=payroll';
   }
-  if (anomaly.type === 'pointage' || anomaly.type === 'absent_a_typer') {
+  if (anomaly.type === 'pointage' || anomaly.type === 'absent_a_typer' || anomaly.type === 'arret_a_confirmer') {
     // Le calendrier du salarié permet de corriger le pointage et reste dans le
     // périmètre du mode paie (la badgeuse, elle, y est inatteignable).
     return `/schedules?employee=${encodeURIComponent(anomaly.employee_id)}`;
