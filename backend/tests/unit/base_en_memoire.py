@@ -3,8 +3,8 @@
 Les doublures d'un seul appel ne disent pas ce que devient un solde quand on
 génère, recalcule, supprime puis regénère un bulletin. Cette base garde ses
 lignes d'un appel à l'autre et répond aux requêtes du client Supabase que le
-code de paie utilise : select, eq, in_, gt/gte/lt/lte, is_, match, order,
-limit, maybe_single, insert, update, delete.
+code de paie utilise : select (avec alias de chemin JSON), eq, in_, gt/gte/lt/lte, is_, match, order,
+limit, maybe_single, not_, insert, update, delete.
 
 Usage : `base.brancher(monkeypatch)`.
 """
@@ -12,8 +12,11 @@ Usage : `base.brancher(monkeypatch)`.
 from __future__ import annotations
 
 import copy
+import re
 import uuid
 from typing import Any
+
+_CHEMINS_JSON = re.compile(r"(\w+)\s*:\s*(\w+)((?:\s*->>?\s*\w+)+)")
 
 
 class _Reponse:
@@ -80,6 +83,24 @@ class BaseEnMemoire:
         return trouvees[0]
 
 
+class _Negation:
+    """`.not_.in_(…)` : la négation du filtre qui suit, comme PostgREST."""
+
+    def __init__(self, requete: "_Requete") -> None:
+        self.requete = requete
+
+    def __getattr__(self, nom: str):
+        def filtre(*args: Any, **kwargs: Any) -> "_Requete":
+            avant = len(self.requete.conditions)
+            getattr(self.requete, nom)(*args, **kwargs)
+            ajoutees = self.requete.conditions[avant:]
+            del self.requete.conditions[avant:]
+            self.requete.conditions.append(lambda l: not all(c(l) for c in ajoutees))
+            return self.requete
+
+        return filtre
+
+
 class _Requete:
     def __init__(self, base: BaseEnMemoire, nom: str) -> None:
         self.base, self.nom = base, nom
@@ -91,10 +112,16 @@ class _Requete:
         self.une_seule = False
         self.compter = False
         self.conflit: list[str] = []
+        self.chemins: list[tuple[str, str, list[str]]] = []
 
     # --- opérations ---
-    def select(self, *_colonnes: Any, count: str | None = None, **_k: Any) -> "_Requete":
+    def select(self, *colonnes: Any, count: str | None = None, **_k: Any) -> "_Requete":
         self.compter = count is not None
+        # `alias:colonne->cle` : l'alias d'un chemin JSON, comme PostgREST.
+        self.chemins = [
+            (alias, colonne, re.findall(r"\w+", suite))
+            for alias, colonne, suite in _CHEMINS_JSON.findall(" ".join(str(c) for c in colonnes))
+        ]
         return self
 
     def insert(self, valeur: Any) -> "_Requete":
@@ -164,6 +191,10 @@ class _Requete:
         """Non interprété : ne s'emploie ici que sur des tables sans cas limite."""
         return self
 
+    @property
+    def not_(self) -> "_Negation":
+        return _Negation(self)
+
     def order(self, cle: str, desc: bool = False, **_k: Any) -> "_Requete":
         self.tri.append((cle, desc))
         return self
@@ -229,6 +260,12 @@ class _Requete:
             self.base.tables[self.nom] = [l for l in table if id(l) not in ids]
             return _Reponse([copy.deepcopy(l) for l in selection])
         rendues = [copy.deepcopy(l) for l in selection]
+        for ligne in rendues:
+            for alias, colonne, cles in self.chemins:
+                valeur = ligne.get(colonne)
+                for cle in cles:
+                    valeur = valeur.get(cle) if isinstance(valeur, dict) else None
+                ligne[alias] = valeur
         if self.une_seule:
             return _Reponse(rendues[0] if rendues else None)
         return _Reponse(rendues, count=len(rendues) if self.compter else None)
