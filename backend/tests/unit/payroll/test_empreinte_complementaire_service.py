@@ -10,11 +10,13 @@ l'empreinte d'entrée les suive.
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import date
 from unittest.mock import patch
 
 import pytest
 
 from app.modules.payroll.application.empreinte_entrees_service import (
+    alerte_mois_passe_fiche_du_jour,
     annoter_a_recalculer,
     complements_du_mois,
     empreinte_des_lectures,
@@ -90,7 +92,7 @@ COMPLEMENTS = Complements(
 
 
 def _du_mois(complements=COMPLEMENTS, *, employee=EMPLOYEE, company=COMPANY,
-             calendriers=CALENDRIERS, year=2026, month=5):
+             calendriers=CALENDRIERS, year=2026, month=5, absences=None):
     return complements_du_mois(
         complements,
         year=year,
@@ -99,6 +101,7 @@ def _du_mois(complements=COMPLEMENTS, *, employee=EMPLOYEE, company=COMPANY,
         company=company,
         calendriers=calendriers,
         fenetre=FENETRE,
+        absences=absences,
     )
 
 
@@ -328,6 +331,41 @@ def test_choisir_le_bareme_un_mois_avec_arret_est_a_recalculer():
 
 def test_le_bareme_ne_touche_pas_un_mois_sans_arret():
     assert not _change("reglages_societe", maintien={**COMPLEMENTS.maintien, "bareme_convention": "plasturgie_0292"})
+
+
+# --- R-390 : arrêts d'avant le mois (limite annuelle du maintien, D1226-4) ------
+
+ARRET_FEVRIER = {"type": "arret_maladie", "selected_days": ["2026-02-09", "2026-02-10"]}
+
+
+def test_un_arret_de_fevrier_modifie_change_un_mois_avec_arret():
+    avant = _du_mois(calendriers=_arret_en_mai(), absences=[ARRET_FEVRIER])
+    apres = _du_mois(
+        calendriers=_arret_en_mai(),
+        absences=[{**ARRET_FEVRIER, "selected_days": ["2026-02-09", "2026-02-10", "2026-02-11"]}],
+    )
+    assert empreinte_partie(avant["arrets_anterieurs"]) != empreinte_partie(apres["arrets_anterieurs"])
+
+
+def test_un_mois_sans_arret_ne_depend_pas_des_arrets_passes():
+    assert "arrets_anterieurs" not in _du_mois(absences=[ARRET_FEVRIER])
+
+
+def test_un_conge_ou_un_arret_du_mois_ne_compte_pas_dans_les_arrets_anterieurs():
+    du_mois = _du_mois(
+        calendriers=_arret_en_mai(),
+        absences=[
+            {"type": "conge_paye", "selected_days": ["2026-02-09"]},
+            {"type": "arret_maladie", "selected_days": ["2026-05-12"]},
+        ],
+    )
+    assert du_mois["arrets_anterieurs"] == []
+
+
+def test_la_partie_a_un_message_clair_pour_le_badge():
+    from app.modules.payroll.domain.empreinte_entrees import message_a_recalculer
+
+    assert "arrêt d'un mois précédent" in message_a_recalculer(("arrets_anterieurs",))
 
 
 def test_la_jei_ne_compte_qu_activee():
@@ -698,3 +736,43 @@ def test_l_adresse_se_nomme_quand_elle_perime_le_bulletin():
     assert message_a_recalculer(("adresse_societe",)) == (
         "L'adresse de la société a changé depuis le calcul : recalculez avant de valider."
     )
+
+
+# --- R-290 : recalculer un mois passé relit la fiche du jour --------------------
+
+
+def _bulletin(parties):
+    from app.modules.payroll.domain.empreinte_entrees import poser_empreinte_complementaire
+
+    return poser_empreinte_complementaire({}, parties)
+
+
+def _alerte_passe(anciennes, nouvelles, *, annee=2026, mois=3):
+    with patch(f"{SERVICE}.lire_bulletin_enregistre", return_value={"payslip_data": _bulletin(anciennes)}):
+        return alerte_mois_passe_fiche_du_jour(
+            _bulletin(nouvelles), employee_id="e1", year=annee, month=mois,
+            aujourd_hui=date(2026, 11, 9),
+        )
+
+
+def test_mois_passe_avec_fiche_changee_est_signale():
+    alerte = _alerte_passe({"fiche": "a", "saisies": "s"}, {"fiche": "b", "saisies": "s2"})
+    assert alerte["code"] == "mois_passe_recalcule_fiche_du_jour"
+    assert alerte["critique"] is False
+    assert "03/2026" in alerte["message"] and "la fiche du salarié" in alerte["message"]
+
+
+def test_mois_passe_sans_fiche_changee_ne_dit_rien():
+    assert _alerte_passe({"fiche": "a", "saisies": "s"}, {"fiche": "a", "saisies": "s2"}) is None
+
+
+def test_mois_en_cours_ne_dit_rien_meme_fiche_changee():
+    assert _alerte_passe({"fiche": "a"}, {"fiche": "b"}, annee=2026, mois=11) is None
+
+
+def test_premier_calcul_d_un_mois_passe_ne_dit_rien():
+    with patch(f"{SERVICE}.lire_bulletin_enregistre", return_value=None):
+        assert alerte_mois_passe_fiche_du_jour(
+            _bulletin({"fiche": "b"}), employee_id="e1", year=2026, month=3,
+            aujourd_hui=date(2026, 11, 9),
+        ) is None

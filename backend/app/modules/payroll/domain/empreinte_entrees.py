@@ -289,6 +289,10 @@ _PARTIES: dict[str, tuple[str, str]] = {
         "Un réglage de paie de la société a changé",
         "les réglages de paie de la société",
     ),
+    "arrets_anterieurs": (
+        "Un arrêt d'un mois précédent a changé (limite annuelle du maintien)",
+        "les arrêts des mois précédents",
+    ),
 }
 
 
@@ -341,6 +345,11 @@ def parties_changees(
     return tuple(
         nom for nom, valeur in stockees.items() if nom in actuelles and actuelles[nom] != valeur
     )
+
+
+def noms_des_parties(parties: tuple[str, ...] | list[str]) -> list[str]:
+    """Les parties connues, nommées simplement, sans doublon."""
+    return list(dict.fromkeys(_PARTIES[p][1] for p in parties if p in _PARTIES))
 
 
 def message_a_recalculer(parties: tuple[str, ...] | list[str] | None) -> str:

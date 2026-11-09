@@ -34,6 +34,7 @@ from app.modules.payroll.domain.empreinte_entrees import (
     construire_entrees,
     ecart_au_centime,
     empreinte,
+    empreinte_complementaire_stockee,
     empreinte_complementaire_valide,
     empreinte_cumuls,
     empreinte_partie,
@@ -41,6 +42,7 @@ from app.modules.payroll.domain.empreinte_entrees import (
     message_a_recalculer,
     message_mois_d_avant_a_recalculer,
     mois_de_la_fenetre,
+    noms_des_parties,
     parties_changees,
     poser_empreinte,
     poser_empreinte_complementaire,
@@ -550,6 +552,32 @@ def _reglages_societe_du_mois(
     return parties
 
 
+#: Partie `arrets_anterieurs` : les arrêts d'avant le mois, ceux que la limite
+#: annuelle du maintien légal additionne (D1226-4, `jours_legaux_des_12_mois`).
+PARTIE_ARRETS_ANTERIEURS = "arrets_anterieurs"
+
+
+def _arrets_anterieurs(
+    absences: Iterable[Mapping[str, Any]] | None, bornes: tuple[date, date]
+) -> list[dict[str, Any]]:
+    """Les jours d'arrêt validés d'avant le mois, par demande (R-390).
+
+    Lus sur `absence_requests` : les pièces déjà chargées pour l'empreinte, sans
+    requête de plus. Un arrêt posé seulement au calendrier par l'import DSN (sans
+    demande) n'y est pas ; il ne se modifie pas à l'écran.
+    """
+    limite = bornes[0].isoformat()
+    arrets: list[dict[str, Any]] = []
+    for row in absences or []:
+        type_arret = str(row.get("type") or "")
+        if not type_arret.startswith("arret"):
+            continue
+        jours = sorted(str(j)[:10] for j in (row.get("selected_days") or []) if str(j)[:10] < limite)
+        if jours:
+            arrets.append({"type": type_arret, "jours": jours})
+    return sorted(arrets, key=_cle_tri)
+
+
 def complements_du_mois(
     complements: Complements,
     *,
@@ -559,10 +587,22 @@ def complements_du_mois(
     company: Mapping[str, Any] | None,
     calendriers: Mapping[tuple[int, int], Mapping[str, Any]],
     fenetre: Mapping[str, Any] | None,
+    absences: Iterable[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Les données de la liste complémentaire que le bulletin du mois lit. Sans I/O."""
+    """Les données de la liste complémentaire que le bulletin du mois lit. Sans I/O.
+
+    La partie `arrets_anterieurs` n'existe qu'un mois avec un arrêt : seul lui
+    dépend des arrêts passés. Partie à part, sans version à gérer : un bulletin
+    calculé avant elle n'en a pas et `parties_changees` ne la compare pas.
+    """
     bornes = _bornes_du_mois(year, month, fenetre)
+    arrets = (
+        {PARTIE_ARRETS_ANTERIEURS: _arrets_anterieurs(absences, bornes)}
+        if absences is not None and _arret_dans_le_mois(calendriers, year, month, bornes)
+        else {}
+    )
     return {
+        **arrets,
         "mutuelle": _mutuelle_du_mois(complements.mutuelles, employee, year, month),
         "conges_ajustements": _ajustements_du_mois(complements.ajustements_conges, year),
         "conges_reglages": {
@@ -674,6 +714,7 @@ def _complements_ou_none(
     employee: Mapping[str, Any],
     company: Mapping[str, Any] | None,
     calendriers: Mapping[tuple[int, int], Mapping[str, Any]],
+    absences: Iterable[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     if complements is None:
         return None
@@ -685,6 +726,7 @@ def _complements_ou_none(
         company=company,
         calendriers=calendriers,
         fenetre=entrees.get("fenetre_variables"),
+        absences=absences,
     )
 
 
@@ -712,6 +754,7 @@ def poser_empreinte_complementaire_depuis_lectures(
         employee=kwargs["employee"],
         company=kwargs.get("company"),
         calendriers=kwargs["calendriers"],
+        absences=kwargs.get("absences"),
     )
     return poser_empreinte_complementaire(
         payslip_data,
@@ -930,6 +973,7 @@ def _parties_du_mois(
         employee=lectures.employee,
         company=lectures.company,
         calendriers=lectures.calendriers,
+        absences=lectures.absences,
     )
     return entrees, empreintes_des_parties(entrees, du_mois, mois=(year, month))
 
@@ -1054,6 +1098,51 @@ def verifier_valide_au_bac_a_sable(
         )
         return None
     return VerdictBacASable(identique=ecart is None, ecart=ecart)
+
+
+def alerte_mois_passe_fiche_du_jour(
+    payslip_data: Mapping[str, Any] | None,
+    *,
+    employee_id: str,
+    year: int,
+    month: int,
+    aujourd_hui: date | None = None,
+) -> dict[str, Any] | None:
+    """Recalculer un mois passé relit la fiche et les réglages d'aujourd'hui (R-290).
+
+    Seuls le salaire et les spécificités mensuelles sont datés. Dater la fiche
+    entière serait un chantier : ici, le bulletin dit ce qui a changé depuis son
+    dernier calcul, et rien quand rien n'a bougé ni pour le mois en cours.
+    """
+    aujourd_hui = aujourd_hui or date.today()
+    if (year, month) >= (aujourd_hui.year, aujourd_hui.month):
+        return None
+    nouvelles = empreinte_complementaire_stockee(payslip_data)
+    if not nouvelles:
+        return None
+    try:
+        enregistre = lire_bulletin_enregistre(employee_id, year, month)
+    except Exception:  # noqa: BLE001 — un avertissement, jamais une garde de calcul
+        logger.warning("Bulletin précédent illisible pour l'alerte du mois passé", exc_info=True)
+        return None
+    stockees = empreinte_complementaire_stockee((enregistre or {}).get("payslip_data"))
+    if not stockees:
+        return None
+    changees = [p for p in parties_changees(stockees, nouvelles) if p in _PARTIES_IGNOREES_SI_VALIDE]
+    noms = noms_des_parties(changees)
+    if not noms:
+        return None
+    liste = noms[0] if len(noms) == 1 else f"{', '.join(noms[:-1])} et {noms[-1]}"
+    return {
+        "code": "mois_passe_recalcule_fiche_du_jour",
+        "severity": "warning",
+        "critique": False,
+        "message": (
+            f"Bulletin de {month:02d}/{year} recalculé avec {liste} d'aujourd'hui, qui "
+            "ont changé depuis son dernier calcul. Hors salaire et spécificités du mois, "
+            "ces valeurs ne sont pas datées : vérifiez qu'elles valaient déjà ce mois-là."
+        ),
+    }
 
 
 def _a_verifier(ligne: Mapping[str, Any], etat: EtatDuBulletin | None) -> bool:
