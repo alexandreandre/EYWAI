@@ -485,6 +485,9 @@ export function avisSurLaLigne(ligne: Pick<LigneCorrigeable, 'code' | 'bloc' | '
   if (ligne.code?.startsWith('cotisation:reduction_generale')) {
     return 'La réduction générale se recalcule sur le cumul de l’année : l’écart corrigé ici revient le mois suivant. Pour une correction durable, corrigez les heures ou le brut.';
   }
+  if (/^brut:(absence_conges_payes|indemnite_conges_payes|iccp)/.test(ligne.code ?? '')) {
+    return 'Corriger cette ligne change le montant, pas le solde de congés : pour le solde, corrigez le congé posé ou ajustez le compteur sur la fiche du salarié.';
+  }
   return null;
 }
 

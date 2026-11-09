@@ -69,3 +69,40 @@ export function lireRecuperation(payslipData: unknown): EtatRecuperation | null 
     regle,
   };
 }
+
+export type IssueGeste =
+  | { kind: 'recalcule' }
+  | { kind: 'refuse'; erreur: unknown }
+  | { kind: 'sans_recalcul' }
+  | { kind: 'defait'; erreur: unknown }
+  | { kind: 'non_defait'; erreur: unknown };
+
+/**
+ * Un geste de la carte, puis le recalcul du bulletin (R-322). Si le recalcul
+ * échoue, le geste est défait : le compteur ne reste pas changé sans que le
+ * bulletin le porte. `sans_recalcul` : bulletin retouché à la main, on n'écrase rien.
+ */
+export async function jouerLeGeste(
+  geste: () => Promise<unknown>,
+  recalculer: () => Promise<unknown>,
+  defaire: () => Promise<unknown>,
+  retouche: boolean,
+): Promise<IssueGeste> {
+  try {
+    await geste();
+  } catch (erreur) {
+    return { kind: 'refuse', erreur };
+  }
+  if (retouche) return { kind: 'sans_recalcul' };
+  try {
+    await recalculer();
+  } catch (erreur) {
+    try {
+      await defaire();
+    } catch {
+      return { kind: 'non_defait', erreur };
+    }
+    return { kind: 'defait', erreur };
+  }
+  return { kind: 'recalcule' };
+}

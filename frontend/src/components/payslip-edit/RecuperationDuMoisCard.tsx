@@ -15,6 +15,7 @@ import {
   CONDITIONS_DU_COMPTEUR,
   CONSEQUENCE_DU_CHOIX,
   heuresFr,
+  jouerLeGeste,
   lireRecuperation,
 } from '@/features/payroll/utils/recuperationDuMois';
 import { regenererPuisRecharger } from '@/features/payroll/utils/regenerationBulletin';
@@ -53,69 +54,74 @@ export function RecuperationDuMoisCard({
   const etat = lireRecuperation(payslipData);
   if (!etat) return null;
 
-  const agir = async (geste: () => Promise<void>, fait: string) => {
+  const recalculer = async () => {
+    const issue = await regenererPuisRecharger(
+      () =>
+        generatePayslip(
+          {
+            employee_id: employeeId,
+            year,
+            month,
+            ...(contractPeriodId ? { contract_period_id: contractPeriodId } : {}),
+          },
+          undefined,
+          companyId,
+        ),
+      onRegenerated,
+    );
+    if (issue.kind === 'echec') throw issue.erreur;
+  };
+
+  const agir = async (geste: () => Promise<unknown>, defaire: () => Promise<unknown>, fait: string) => {
     setEnCours(true);
     try {
-      try {
-        await geste();
-      } catch (erreur) {
+      const issue = await jouerLeGeste(geste, recalculer, defaire, manuallyEdited);
+      if (issue.kind === 'refuse') {
         toast({
           title: 'Rien n’a été changé',
-          description: getUserErrorMessage(erreur),
+          description: getUserErrorMessage(issue.erreur),
           variant: 'destructive',
         });
-        return;
-      }
-      if (manuallyEdited) {
+      } else if (issue.kind === 'sans_recalcul') {
         toast({
           title: `${fait}.`,
           description:
             'Le bulletin a des retouches à la main : recalculez-le avec « Régénérer » ' +
             'pour appliquer ce choix (les retouches seront écrasées).',
         });
-        return;
-      }
-      const issue = await regenererPuisRecharger(
-        () =>
-          generatePayslip(
-            {
-              employee_id: employeeId,
-              year,
-              month,
-              ...(contractPeriodId ? { contract_period_id: contractPeriodId } : {}),
-            },
-            undefined,
-            companyId,
-          ),
-        onRegenerated,
-      );
-      if (issue.kind === 'echec') {
+      } else if (issue.kind === 'defait') {
+        toast({
+          title: 'Rien n’a été changé',
+          description: `Le bulletin n’a pas pu être recalculé, le geste a été défait. ${getPayrollGenerationErrorMessage(issue.erreur)}`,
+          variant: 'destructive',
+        });
+      } else if (issue.kind === 'non_defait') {
         toast({
           title: `${fait}, mais le bulletin n’a pas été recalculé.`,
           description: `${getPayrollGenerationErrorMessage(issue.erreur)} Utilisez « Régénérer ».`,
           variant: 'destructive',
         });
-        return;
+      } else {
+        toast({ title: `${fait}. Bulletin recalculé.` });
       }
-      toast({ title: `${fait}. Bulletin recalculé.` });
     } finally {
       setEnCours(false);
     }
   };
 
   const bloque = disabled || enCours;
-  const choisir = (choix: 'payer' | 'compteur' | 'regle', fait: string) =>
-    agir(
-      () =>
-        choisirLeMoisRecuperation(
-          employeeId,
-          year,
-          month,
-          { choix, heures_sup: etat.heuresSupDuMois },
-          companyId,
-        ),
-      fait,
+  type Choix = 'payer' | 'compteur' | 'regle';
+  const appliquerLeChoix = (choix: Choix) =>
+    choisirLeMoisRecuperation(
+      employeeId,
+      year,
+      month,
+      { choix, heures_sup: etat.heuresSupDuMois },
+      companyId,
     );
+  // `inverse` : le choix en vigueur avant le geste, pour le défaire si le recalcul échoue.
+  const choisir = (choix: Choix, inverse: Choix, fait: string) =>
+    agir(() => appliquerLeChoix(choix), () => appliquerLeChoix(inverse), fait);
 
   return (
     <Card data-testid="carte-recuperation">
@@ -129,7 +135,7 @@ export function RecuperationDuMoisCard({
               Les {heuresFr(etat.heuresSupDuMois)} d’heures sup de ce mois sont payées sur ce
               bulletin, au lieu d’aller au compteur.
             </p>
-            <Button size="sm" variant="outline" disabled={bloque} onClick={() => choisir('regle', 'Heures remises au compteur')}>
+            <Button size="sm" variant="outline" disabled={bloque} onClick={() => choisir('regle', 'payer', 'Heures remises au compteur')}>
               Remettre au compteur
             </Button>
           </div>
@@ -148,8 +154,8 @@ export function RecuperationDuMoisCard({
               disabled={bloque}
               onClick={() =>
                 etat.auCompteurCeMois
-                  ? choisir('regle', 'Heures sup payées ce mois-ci')
-                  : choisir('payer', 'Heures sup payées ce mois-ci')
+                  ? choisir('regle', 'compteur', 'Heures sup payées ce mois-ci')
+                  : choisir('payer', 'regle', 'Heures sup payées ce mois-ci')
               }
             >
               Payer ces heures ce mois-ci
@@ -159,7 +165,7 @@ export function RecuperationDuMoisCard({
         ) : etat.regle === 'payees' && etat.heuresSupDuMois > 0 ? (
           <div className="space-y-2">
             <p>{heuresFr(etat.heuresSupDuMois)} d’heures sup payées ce mois-ci.</p>
-            <Button size="sm" variant="outline" disabled={bloque} onClick={() => choisir('compteur', 'Heures mises au compteur')}>
+            <Button size="sm" variant="outline" disabled={bloque} onClick={() => choisir('compteur', 'regle', 'Heures mises au compteur')}>
               Mettre ces heures au compteur
             </Button>
             <p className="text-xs text-muted-foreground">
@@ -187,6 +193,7 @@ export function RecuperationDuMoisCard({
                 onClick={() =>
                   agir(
                     () => annulerPaiementRecuperation(employeeId, year, month, companyId),
+                    () => payerSoldeRecuperation(employeeId, year, month, etat.soldePaye, companyId),
                     'Paiement annulé, heures rendues au compteur',
                   )
                 }
@@ -204,6 +211,7 @@ export function RecuperationDuMoisCard({
                   agir(
                     () =>
                       payerSoldeRecuperation(employeeId, year, month, etat.soldePayable, companyId),
+                    () => annulerPaiementRecuperation(employeeId, year, month, companyId),
                     `Solde de ${heuresFr(etat.soldePayable)} payé sur ce bulletin`,
                   )
                 }
