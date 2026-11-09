@@ -40,6 +40,7 @@ from app.modules.dsn_export.domain.versements_complementaires import (
     mois_precedents_du_trimestre,
 )
 from app.modules.dsn_export.domain.writer import encode_dsn_bytes
+from app.modules.dsn_export.domain.changement_convention import avis_changements_convention
 from app.modules.dsn_export.domain.changement_temps_travail import avis_changements_temps_travail
 from app.modules.dsn_export.infrastructure import settings_repository
 from app.modules.dsn_import.domain.parser import parse_dsn_content
@@ -805,6 +806,9 @@ def preview_dsn(
     avis_temps = avis_changements_temps_travail(employees_data, period, deposees)
     if avis_temps:
         warnings = [*warnings, avis_temps]
+    avis_convention = avis_changements_convention(employees_data, period, deposees)
+    if avis_convention:
+        warnings = [*warnings, avis_convention]
     if period in deposees:
         warnings = [
             *warnings,

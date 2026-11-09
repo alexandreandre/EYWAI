@@ -8,6 +8,10 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import AbstractSet, Any, Dict, List, Optional, Tuple
 
 from app.shared.domain.effectif_seuils import effectif_retenu
+from app.modules.dsn_export.domain.changement_convention import (
+    bloc_changement_convention,
+    idcc_du_mois,
+)
 from app.modules.dsn_export.domain.changement_pcs import bloc_changement_pcs, pcs_du_mois
 from app.modules.dsn_export.domain.changement_temps_travail import (
     blocs_changement_temps_travail,
@@ -1446,6 +1450,8 @@ def build_individu_from_payroll(
     idcc = normaliser_idcc(
         classification.get("idcc") or employee.get("idcc") or defauts.get("idcc") or ""
     )
+    # Un mois antérieur au changement de convention se déclare avec l'ancienne.
+    idcc = idcc_du_mois(classification, idcc, period)
     if not idcc:
         warnings.append(
             f"Code convention collective (IDCC) manquant pour le NIR {nir_dsn}"
@@ -1941,6 +1947,11 @@ def build_parsed_dsn_from_payroll(
                     debut_du_contrat(employee),
                 )
                 changements = [changement] if changement else []
+                convention = bloc_changement_convention(
+                    _classification(employee), period, periodes_declarees, debut_du_contrat(employee)
+                )
+                if convention:
+                    changements.append(convention)
                 changements.extend(
                     blocs_changement_temps_travail(
                         _classification(employee),

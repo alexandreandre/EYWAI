@@ -37,6 +37,7 @@ from app.modules.onboarding.domain.profile import (
     missing_payroll_fields,
 )
 from app.modules.employees.infrastructure.mappers import prepare_employee_insert_data
+from app.modules.dsn_export.domain.changement_convention import appliquer_changement_convention
 from app.modules.dsn_export.domain.changement_temps_travail import (
     appliquer_changement_temps_travail,
     valeurs_dsn,
@@ -810,6 +811,31 @@ def _avec_changement_pcs(
     )
 
 
+def _avec_changement_convention(
+    employee_id: str, update_data: Dict[str, Any], depuis_import: bool
+) -> None:
+    """Convention collective changée : l'ancienne reste sur la fiche pour le bloc S21.G00.41 de
+    la DSN (R-462, comme le code PCS-ESE). Un import DSN ne note rien."""
+    apres = update_data.get("classification_conventionnelle")
+    if not isinstance(apres, dict):
+        return
+    curr = _employee_repository.get_by_id_only(employee_id) or {}
+    avant = curr.get("classification_conventionnelle")
+    avant = avant if isinstance(avant, dict) else {}
+    a_change = str(apres.get("idcc") or "").strip() != str(avant.get("idcc") or "").strip()
+    deposees: frozenset = frozenset()
+    if not depuis_import and a_change and curr.get("company_id"):
+        deposees = periodes_deposees(str(curr["company_id"]))
+    update_data["classification_conventionnelle"] = appliquer_changement_convention(
+        avant,
+        apres,
+        aujourd_hui=_aujourd_hui(),
+        depuis_import=depuis_import,
+        periodes_declarees=deposees,
+        debut_contrat=debut_du_contrat(curr) if curr else None,
+    )
+
+
 _CHAMPS_TEMPS_TRAVAIL = (
     "is_forfait_jour",
     "is_temps_partiel",
@@ -874,6 +900,7 @@ def update_employee(
             update_data[_key] = _val.isoformat()
 
     _avec_changement_pcs(employee_id, update_data, depuis_import)
+    _avec_changement_convention(employee_id, update_data, depuis_import)
 
     if "is_temps_partiel" in update_data or "duree_hebdomadaire" in update_data:
         curr = _employee_repository.get_by_id_only(employee_id) or {}

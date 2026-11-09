@@ -73,3 +73,18 @@ def test_l_import_dsn_ne_note_rien():
             "emp-1", {"is_forfait_jour": False}, depuis_import=True
         )
     assert CLE not in _ecrit(repo).get("classification_conventionnelle", {})
+
+
+def test_changement_de_convention_note_l_ancienne_sur_la_fiche():
+    with _fiche(classification_conventionnelle={"pcs": "389a", "idcc": "9999"}) as (repo, _, _):
+        commands.update_employee("emp-1", {"classification_conventionnelle": {"pcs": "389a", "idcc": "1486"}})
+    ecrit = repo.update.call_args.args[1]["classification_conventionnelle"]
+    assert ecrit["idcc"] == "1486"
+    assert ecrit["convention_changement"] == {"ancien": "9999", "date": "2026-11-01"}
+
+
+def test_changement_de_convention_ne_lit_pas_les_depots_si_rien_ne_change():
+    with _fiche(classification_conventionnelle={"pcs": "389a", "idcc": "1486"}) as (repo, _, deposees):
+        commands.update_employee("emp-1", {"classification_conventionnelle": {"pcs": "389a", "idcc": "1486"}})
+    deposees.assert_not_called()
+    assert "convention_changement" not in repo.update.call_args.args[1]["classification_conventionnelle"]
