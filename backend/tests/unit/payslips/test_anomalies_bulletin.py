@@ -294,3 +294,23 @@ def test_sans_impot_lisible_aucune_alerte_d_impot():
     bulletin = _avec_net(net=1499.92)
     del bulletin["synthese_net"]["impot_prelevement_a_la_source"]["taux"]
     assert "B05" not in {a.rule_id for a in anomalies_du_bulletin(bulletin)}
+
+
+def test_une_cotisation_corrigee_par_son_montant_ne_leve_pas_b01():
+    """Le montant corrigé à la main ne redonne plus base × taux : c'est voulu (R-180, théorème)."""
+    bulletin = _bulletin()
+    ligne = bulletin["cotisations_officielles"][0]["lignes"][0]
+    ligne["montant_salarial"] = round(ligne["montant_salarial"] + 1.0, 2)
+    ligne["correction"] = {"montant_salarial": ligne["montant_salarial"], "motif": "Reprise", "saisie_id": "s1"}
+    bulletin["cotisations_officielles"][0]["total_salarial"] = round(bulletin["cotisations_officielles"][0]["total_salarial"] + 1.0, 2)
+    bulletin["structure_cotisations"]["total_salarial"] = round(bulletin["structure_cotisations"]["total_salarial"] + 1.0, 2)
+    assert "B01" not in _ids(bulletin)
+
+
+def test_une_cotisation_corrigee_par_sa_base_reste_relue():
+    """Une correction de base garde base × taux : un montant qui s'en écarte reste un écart."""
+    bulletin = _bulletin()
+    ligne = bulletin["cotisations_officielles"][0]["lignes"][0]
+    ligne["correction"] = {"base": ligne["base"], "motif": "Reprise", "saisie_id": "s1"}
+    ligne["montant_salarial"] = round(ligne["montant_salarial"] + 1.0, 2)
+    assert "B01" in _ids(bulletin)

@@ -151,6 +151,10 @@ def _cotisations_contre_leur_taux(payslip_data: dict) -> list[PayslipAlert]:
         ):
             if ligne.get(taux_cle) is None:
                 continue
+            if _corrige_par_montant(ligne, montant_cle):
+                # Une part corrigée à la main par son montant ne redonne plus
+                # base × taux : c'est le but, pas un écart.
+                continue
             rejoue = round(base * _nombre(ligne.get(taux_cle)), 2)
             imprime = _nombre(ligne.get(montant_cle))
             ecart = round(imprime - rejoue, 2)
@@ -169,6 +173,11 @@ def _cotisations_contre_leur_taux(payslip_data: dict) -> list[PayslipAlert]:
                 )
             )
     return alertes
+
+
+def _corrige_par_montant(ligne: dict, montant_cle: str) -> bool:
+    correction = ligne.get("correction")
+    return isinstance(correction, dict) and correction.get(montant_cle) is not None
 
 
 def _brut_contre_ses_lignes(payslip_data: dict) -> PayslipAlert | None:
