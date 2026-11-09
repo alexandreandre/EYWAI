@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 from app.modules.dsn_export.domain.norme import norme_de_la_periode
+from app.modules.dsn_export.domain.rectification import lire_numero_ordre
 from app.modules.exports.application import commands
 from app.modules.exports.application import queries
 from app.modules.exports.application.dto import ExportRecordForInsert
@@ -1106,6 +1107,9 @@ def _generate_dsn(
     # Fichier d'essai : il passe le verrou du dépôt réel, ne compte pas comme
     # la DSN du mois et ne crée pas de suivi de dépôt.
     essai = bool(request.filters.get("essai")) if request.filters else False
+    # Annule et remplace : seulement si l'appel désigne la DSN à remplacer (R-174).
+    a_remplacer = request.filters.get("annule_remplace") if request.filters else None
+    remplace = lire_numero_ordre(a_remplacer) if a_remplacer is not None else None
     preview_data = providers.preview_dsn(
         company_id,
         request.period,
@@ -1126,12 +1130,14 @@ def _generate_dsn(
         request.employee_ids,
         establishment_id,
         essai=essai,
+        remplace=remplace,
     )
     if isinstance(dsn_xml_content, str):
         dsn_xml_content = dsn_xml_content.encode("utf-8")
 
     period_formatted = request.period.replace("-", "_")
-    prefixe = "dsn_essai_mensuelle" if essai else "dsn_mensuelle"
+    genre = "annule_remplace" if remplace else "mensuelle"
+    prefixe = f"dsn_essai_{genre}" if essai else f"dsn_{genre}"
     filename = _horodater(f"{prefixe}_{period_formatted}.dsn")
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(

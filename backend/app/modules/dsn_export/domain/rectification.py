@@ -1,0 +1,106 @@
+"""Corriger une DSN mensuelle déjà déposée (registre R-174 et R-175).
+
+Sources ouvertes le 08/11/2026, cahier technique 2026.1 (2025-12-24) :
+- § 1.4.3.2 : un second fichier « normal » du même mois n'est pas accepté ;
+- § 1.4.3.3 : l'annule et remplace intégral se dépose au plus tard la veille à
+  minuit (heure de Paris) de la date d'exigibilité ; au-delà, les rectifications
+  vont dans les paies et les DSN suivantes ; le numéro d'ordre (05.004) repère la
+  déclaration remplacée et ne peut pas baisser ;
+- § 2.2.2.2 et 2.2.2.5 : une régularisation de cotisation se rattache à sa
+  période d'origine, mois civil par mois civil.
+
+La rubrique 05.006 (identifiant de la déclaration remplacée) vaut pour les
+signalements (§ 1.4.3.4) : DSN-VAL 2026.1.0.18 la refuse sur une mensuelle de type
+03 (CST-04, 08/11/2026). L'annule et remplace mensuel ne la porte pas.
+
+Seul le déclarant connaît la déclaration validée par le point de dépôt : Martine
+enregistre chaque génération sans savoir laquelle est partie. Le numéro d'ordre
+est donc toujours fourni, jamais déduit, et un annule et remplace n'est jamais
+produit sans cette demande.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from datetime import date, timedelta
+from typing import Optional
+
+from app.modules.dsn_export.domain.signalements import echeance_mensuelle
+from app.modules.payroll.domain.report_nap_negatif import mois_en_lettres
+
+#: CSL 00 de S20.G00.05.004, sur 15 chiffres au plus.
+_NUMERO_ORDRE = re.compile(r"0|[1-9][0-9]{0,13}")
+
+_SUPPORT = "ouvrez un ticket (menu Support, module « Paie & Bulletins »)"
+
+
+@dataclass(frozen=True)
+class DeclarationRemplacee:
+    """La dernière DSN du mois validée par le point de dépôt."""
+
+    ordre: int
+
+    @property
+    def ordre_suivant(self) -> int:
+        return self.ordre + 1
+
+
+def lire_numero_ordre(valeur: object) -> DeclarationRemplacee:
+    """Le numéro d'ordre (S20.G00.05.004) du fichier déposé qu'on remplace."""
+    texte = str(valeur if valeur is not None else "").strip()
+    if _NUMERO_ORDRE.fullmatch(texte) is None:
+        raise ValueError(
+            "Le numéro d'ordre de la DSN à remplacer est illisible : indiquez le numéro "
+            "d'ordre (nombre entier) du fichier déposé."
+        )
+    return DeclarationRemplacee(ordre=int(texte))
+
+
+def _mois(period: str) -> tuple[int, int]:
+    annee, mois = period.split("-")
+    return int(annee), int(mois)
+
+
+def date_limite_annule_remplace(period: str, effectif: int) -> date:
+    """La veille de l'échéance du mois déclaré (le 5 ou le 15 du mois suivant)."""
+    annee, mois = _mois(period)
+    return echeance_mensuelle(date(annee, mois, 1), effectif) - timedelta(days=1)
+
+
+def refus_annule_remplace(period: str, effectif: int, aujourd_hui: date) -> Optional[str]:
+    limite = date_limite_annule_remplace(period, effectif)
+    if aujourd_hui <= limite:
+        return None
+    return (
+        f"La DSN de {mois_en_lettres(*_mois(period))} ne peut plus être remplacée : la date "
+        f"limite était le {limite:%d/%m/%Y}. La correction se porte sur la paie d'un mois suivant."
+    )
+
+
+def avis_mois_deja_declare(period: str, effectif: int, aujourd_hui: date) -> str:
+    """Ce que la gestionnaire doit savoir avant de refaire un mois déjà généré."""
+    libelle = mois_en_lettres(*_mois(period))
+    limite = date_limite_annule_remplace(period, effectif)
+    if aujourd_hui <= limite:
+        return (
+            f"Une DSN de {libelle} a déjà été générée. Si elle a été déposée, net-entreprises "
+            "refusera un deuxième fichier normal. Pour corriger un bulletin, il faut une DSN "
+            f"« annule et remplace » de tout le mois, au plus tard le {limite:%d/%m/%Y} ; "
+            f"elle n'est pas encore proposée à l'écran : {_SUPPORT}. Après cette date, la "
+            "correction se portera sur la paie d'un mois suivant."
+        )
+    return (
+        f"Une DSN de {libelle} a déjà été générée et la date limite de son remplacement "
+        f"({limite:%d/%m/%Y}) est passée. Si elle a été déposée, un bulletin corrigé se déclare "
+        f"sur la paie d'un mois suivant. Martine ne sait pas encore le rattacher à {libelle} : "
+        f"{_SUPPORT}."
+    )
+
+
+def avis_regularisation_sans_mois_origine(salarie: str, libelle: str, period: str) -> str:
+    return (
+        f"Salarié {salarie} : la régularisation « {libelle} » est déclarée avec les dates de "
+        f"{mois_en_lettres(*_mois(period))}. Si elle corrige un mois passé, la DSN doit la "
+        f"rattacher à son mois d'origine, ce que Martine ne sait pas encore faire : {_SUPPORT}."
+    )
