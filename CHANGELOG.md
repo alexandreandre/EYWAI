@@ -5,6 +5,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Bulletins remis au salarié
+- Si l'e-mail annonçant un bulletin n'a pas pu partir, le salarié est relancé au passage suivant, sans seconde alerte dans son espace.
+
 ## paie-2026-11-09.4
 
 ### Alertes et contrôles sans changement de montant

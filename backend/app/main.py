@@ -13,6 +13,7 @@ from postgrest.exceptions import APIError
 
 from app.api.router import router as api_router
 from app.core.constants import EXPOSED_HEADERS
+from app.core.database import supabase
 from app.core.supabase_resilience import is_transient_supabase_error
 from app.core.lifecycle import lifespan
 from app.core.logging import configure_logging, get_logger
@@ -24,6 +25,7 @@ from app.core.settings import (
     origines_locales_cors,
     version_deployee,
 )
+from app.shared.infrastructure.email.alerte_exploitation import prevenir_exploitation
 
 configure_logging()
 logger = get_logger(__name__)
@@ -230,6 +232,11 @@ def global_exception_handler(request: Request, exc: Exception):
     )
 
     logger.error(traceback.format_exc())
+    prevenir_exploitation(
+        f"500:{request.url.path}",
+        "Erreur 500 sur le serveur",
+        f"{request.method} {request.url.path} : {type(exc).__name__}",
+    )
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal Server Error"},
@@ -256,3 +263,18 @@ def healthcheck():
     """L'API est en ligne, et quelle version du code répond (support : quel code
     a calculé un bulletin)."""
     return {"status": "ok", **version_deployee()}
+
+
+@app.get("/health/ready")
+def readiness():
+    """La base répond-elle ? 503 sinon. `/health` reste sans base : une panne de
+    base ne doit pas faire redémarrer le service."""
+    try:
+        supabase.table("companies").select("id").limit(1).execute()
+    except Exception as exc:
+        logger.warning("Sonde /health/ready : base injoignable (%s)", type(exc).__name__)
+        return JSONResponse(
+            status_code=503,
+            content={"status": "indisponible", "base": "injoignable", **version_deployee()},
+        )
+    return {"status": "ok", "base": "ok", **version_deployee()}

@@ -96,6 +96,7 @@ from app.modules.users.schemas.responses import User
 
 from app.core.logging import get_logger
 from app.modules.payroll.engine.lectures import LectureIndispensable
+from app.shared.infrastructure.email.alerte_exploitation import prevenir_exploitation
 
 logger = get_logger(__name__)
 
@@ -309,6 +310,16 @@ def get_reports_net_negatif_du_mois_route(
 
 
 # --- Génération ---
+def _prevenir_echec_generation(request: PayslipRequest, company_id: str | None, cause: str) -> None:
+    """Identifiants et type d'erreur seulement : un message d'exception peut citer un salarié."""
+    prevenir_exploitation(
+        f"generation:{company_id}:{request.year}-{request.month}",
+        "Génération de bulletin en échec",
+        f"société {company_id}, salarié {request.employee_id}, "
+        f"{request.month:02d}/{request.year} : {cause}",
+    )
+
+
 @router.post("/api/actions/generate-payslip")
 def generate_payslip_route(
     request: PayslipRequest,
@@ -321,6 +332,7 @@ def generate_payslip_route(
     « ce salarié est-il chez vous ? » — une RH pouvait donc écrire dans la
     paie d'un autre client (audit du 23/08/2026).
     """
+    company_id: str | None = None
     try:
         company_id = _require_rh_company_context(current_user)
         access_control_service.require_employee_access(
@@ -343,6 +355,8 @@ def generate_payslip_route(
                 ),
             )
         )
+        if result.status == "error":
+            _prevenir_echec_generation(request, company_id, "résultat en erreur")
         return {
             "status": result.status,
             "message": result.message,
@@ -365,6 +379,7 @@ def generate_payslip_route(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as e:
         logger.exception("Échec de generate_payslip_route")
+        _prevenir_echec_generation(request, company_id, type(e).__name__)
         raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_GENERATION)
 
 

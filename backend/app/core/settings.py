@@ -128,6 +128,9 @@ def parse_extra_origins(raw: str | None) -> list[str]:
     return [o.strip() for o in raw.split(",") if o.strip()]
 
 
+# Adresse prévenue d'une génération en échec ou d'une erreur 500 ; vide = journal seul.
+ALERTE_EXPLOITATION_EMAIL = os.getenv("ALERTE_EXPLOITATION_EMAIL", "").strip() or None
+
 # Origines CORS supplémentaires (frontend de test, etc.). Vide en production.
 ALLOWED_ORIGINS_EXTRA = parse_extra_origins(os.getenv("ALLOWED_ORIGINS_EXTRA"))
 
