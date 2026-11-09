@@ -91,3 +91,28 @@ def test_database_default_client_choisit_service_role(monkeypatch):
         monkeypatch.undo()
         importlib.reload(settings_mod)
         importlib.reload(database_mod)
+
+
+# R-613 : les clés sb_secret_ et sb_publishable_ ne sont pas des JWT ; leur préfixe dit leur rôle.
+def test_le_prefixe_d_une_nouvelle_cle_dit_son_role():
+    assert settings._jwt_role("sb_secret_abc") == "service_role"
+    assert settings._jwt_role("sb_publishable_abc") == "anon"
+    assert settings._jwt_role("autre_chose") is None
+
+
+def test_une_cle_secrete_est_choisie_pour_l_admin_quelle_que_soit_sa_variable(monkeypatch):
+    monkeypatch.setattr(settings, "SUPABASE_URL", "https://exemple.supabase.co")
+    monkeypatch.setattr(settings, "SUPABASE_KEY", "sb_publishable_abc")
+    monkeypatch.setattr(settings, "SUPABASE_SERVICE_KEY", None)
+    monkeypatch.setattr(settings, "SUPABASE_SERVICE_ROLE_KEY", "sb_secret_abc")
+    assert settings.get_supabase_admin_env()[1] == "sb_secret_abc"
+    assert settings.get_supabase_anon_env()[1] == "sb_publishable_abc"
+
+
+def test_les_noms_inverses_restent_sans_effet_avec_les_nouvelles_cles(monkeypatch):
+    monkeypatch.setattr(settings, "SUPABASE_URL", "https://exemple.supabase.co")
+    monkeypatch.setattr(settings, "SUPABASE_KEY", "sb_secret_abc")
+    monkeypatch.setattr(settings, "SUPABASE_SERVICE_KEY", "sb_publishable_abc")
+    monkeypatch.setattr(settings, "SUPABASE_SERVICE_ROLE_KEY", None)
+    assert settings.get_supabase_admin_env()[1] == "sb_secret_abc"
+    assert settings.get_supabase_anon_env()[1] == "sb_publishable_abc"

@@ -139,7 +139,14 @@ def require_supabase_env() -> tuple[str, str]:
 
 
 def _jwt_role(supabase_jwt: str) -> str | None:
-    """Lit le champ 'role' du JWT Supabase (sans vérification cryptographique)."""
+    """Le rôle d'une clé Supabase : son préfixe (clés sb_, sans JWT) ou le champ 'role' du JWT.
+
+    Pas de vérification cryptographique. Les anciennes clés disparaissent fin 2026 (R-613).
+    """
+    if supabase_jwt.startswith("sb_secret_"):
+        return "service_role"
+    if supabase_jwt.startswith("sb_publishable_"):
+        return "anon"
     try:
         parts = supabase_jwt.split(".")
         if len(parts) < 2:
