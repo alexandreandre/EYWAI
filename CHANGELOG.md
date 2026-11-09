@@ -5,6 +5,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+## paie-2026-11-09.2
+
 ### DSN
 - Les salariés « extension cadre » de Mont Blanc sont déclarés comme tels en retraite complémentaire, comme dans les DSN du cabinet.
 
