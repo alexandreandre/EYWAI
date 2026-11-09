@@ -7,6 +7,7 @@ services/repos_compensateur/calcul_cor et extraction_hs.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 # --- Constantes COR ---
@@ -128,19 +129,122 @@ def heures_hs_pour_contingent_mois(
     return paid
 
 
+#: Journées d'une semaine où l'horaire n'a pas été accompli (fériés, congés,
+#: arrêts, absences) : les heures structurelles y sont payées sans être faites.
+_PREFIXES_JOUR_NON_FAIT = (
+    "ferie",
+    "conges_payes",
+    "arret",
+    "absence",
+    "sans_solde",
+    "conge_sans_solde",
+    "evenement_familial",
+)
+
+
+def _heures_structurelles_payees(payslip_data: dict[str, Any] | None) -> float:
+    return round(
+        sum(
+            float(ligne["quantite"])
+            for ligne, libelle in _iter_heures_sup_lignes(payslip_data)
+            if "structurel" in libelle and isinstance(ligne.get("quantite"), (int, float))
+        ),
+        2,
+    )
+
+
+def _heures_structurelles_retirees_au_bulletin(payslip_data: dict[str, Any] | None) -> float:
+    """Heures du contrat non faites, retirées du bulletin par une absence."""
+    lignes = (payslip_data or {}).get("calcul_du_brut") if isinstance(payslip_data, dict) else None
+    if not isinstance(lignes, list):
+        return 0.0
+    return round(
+        sum(
+            float(ligne.get("quantite") or 0.0)
+            for ligne in lignes
+            if isinstance(ligne, dict)
+            and "non faites" in str(ligne.get("libelle") or "").lower()
+        ),
+        2,
+    )
+
+
+def _jour_de_l_evenement(ev: dict[str, Any], annee: int, mois: int) -> date | None:
+    try:
+        if ev.get("date_complete"):
+            return date.fromisoformat(str(ev["date_complete"])[:10])
+        return date(annee, mois, int(ev["jour"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def heures_structurelles_non_faites_par_mois(
+    bulletins_par_mois: dict[int, dict[str, Any]],
+    payroll_events_par_mois: dict[int, dict[str, Any]] | None,
+    annee: int,
+) -> dict[int, float]:
+    """Heures structurelles payées sans être accomplies, mois par mois (R-300).
+
+    Le contingent ne compte que les heures accomplies au-delà de la durée légale
+    (C. trav. L3121-30), décomptées par semaine (L3121-29). Une semaine avec un
+    férié, un congé ou une absence n'atteint pas 35 h : ses heures structurelles,
+    réparties sur la semaine, ne sont pas faites, au plus à hauteur des heures
+    d'absence. Un mois sans calendrier d'analyse ne retire que ce que le bulletin
+    a retiré.
+    """
+    retraits: dict[int, float] = {}
+    pertes_par_semaine: dict[tuple[int, int], float] = {}
+    for mois in range(1, 13):
+        bulletin = bulletins_par_mois.get(mois)
+        structurelles = _heures_structurelles_payees(bulletin)
+        if structurelles <= 0:
+            continue
+        evenements = ((payroll_events_par_mois or {}).get(mois) or {}).get("calendrier_analyse")
+        if not evenements:
+            retraits[mois] = min(structurelles, _heures_structurelles_retirees_au_bulletin(bulletin))
+            continue
+        par_semaine_hebdo = structurelles * 12 / 52
+        retire = 0.0
+        for ev in evenements:
+            if not isinstance(ev, dict) or not str(ev.get("type") or "").startswith(_PREFIXES_JOUR_NON_FAIT):
+                continue
+            jour = _jour_de_l_evenement(ev, annee, mois)
+            heures = float(ev.get("heures") or 0.0)
+            if jour is None or (jour.weekday() >= 5 and heures <= 0):
+                continue
+            semaine = tuple(jour.isocalendar()[:2])
+            manque = heures if heures > 0 else par_semaine_hebdo
+            deja = pertes_par_semaine.get(semaine, 0.0)
+            perte = min(par_semaine_hebdo - deja, manque)
+            if perte > 0:
+                pertes_par_semaine[semaine] = deja + perte
+                retire += perte
+        retraits[mois] = round(min(structurelles, retire), 2)
+    return retraits
+
+
 def cumuler_heures_hs_annee(
     bulletins_par_mois: dict[int, dict[str, Any]],
+    payroll_events_par_mois: dict[int, dict[str, Any]] | None = None,
+    annee: int | None = None,
 ) -> dict[int, float]:
     """
-    Retourne pour chaque mois (1-12) le cumul des heures HS de janvier jusqu'à ce mois inclus.
+    Retourne pour chaque mois (1-12) le cumul des heures HS accomplies de janvier
+    jusqu'à ce mois inclus.
     bulletins_par_mois: { month: payslip_data }
+    payroll_events_par_mois et annee : pour écarter les heures payées non faites (R-300).
     """
+    non_faites = (
+        heures_structurelles_non_faites_par_mois(bulletins_par_mois, payroll_events_par_mois, annee)
+        if payroll_events_par_mois is not None and annee is not None
+        else {}
+    )
     cumuls: dict[int, float] = {}
     cumul_annee = 0.0
     for mois in range(1, 13):
         payslip_data = bulletins_par_mois.get(mois)
-        hs_mois = extraire_heures_hs_du_bulletin(payslip_data)
-        cumul_annee += hs_mois
+        hs_mois = extraire_heures_hs_du_bulletin(payslip_data) - non_faites.get(mois, 0.0)
+        cumul_annee += max(0.0, hs_mois)
         cumuls[mois] = round(cumul_annee, 2)
     return cumuls
 
@@ -156,4 +260,5 @@ __all__ = [
     "extraire_heures_hs_realisees_depuis_events",
     "heures_hs_pour_contingent_mois",
     "cumuler_heures_hs_annee",
+    "heures_structurelles_non_faites_par_mois",
 ]

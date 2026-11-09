@@ -38,6 +38,14 @@ pytestmark = pytest.mark.unit
 BORNES = "date_debut_arret_reel", "date_fin_arret_reel"
 
 
+@pytest.fixture(autouse=True)
+def _retenue_au_taux_moyen(monkeypatch):
+    """Montants relevés sur des bulletins au taux moyen ; l'horaire réel a son test (R-381)."""
+    monkeypatch.setattr(
+        "app.modules.payroll.engine.calcul_brut.coefficient_horaire_reel", lambda *_: 1.0
+    )
+
+
 def _mois(arret=None, sans_solde=None, injustifiee=(), forfait=False) -> list[dict]:
     """Mai 2026 : les fériés, une absence, et des jours travaillés ailleurs."""
     heures_jour = 1.0 if forfait else 7.8

@@ -1123,6 +1123,9 @@ def _calculer_maintien_employeur(
                 if salaire_mensuel
                 else 0.0
             )
+        # L'absence est retenue à l'horaire réel du mois (R-381) : la journée
+        # maintenue se valorise au même taux.
+        taux_horaire_base *= float(getattr(contexte, "coefficient_horaire_reel", 1.0) or 1.0)
         # Une journée maintenue restitue ce que l'absence a retiré : la base
         # légale ET la quote-part d'heures sup structurelles de la journée. Sans
         # elle, un salarié à 39 h perd ses heures structurelles sur un jour
@@ -1795,7 +1798,9 @@ def _base_des_jours(
         mois_entier=bool(mois_entier),
         jours_du_mois=jours_du_mois,
         salaire_du_mois=salaire,
-        taux_horaire_base=taux_horaire_base,
+        # Même taux que la retenue d'absence (horaire réel du mois, R-381).
+        taux_horaire_base=taux_horaire_base
+        * float(getattr(contexte, "coefficient_horaire_reel", 1.0) or 1.0),
         duree_hebdo=duree_hebdo,
         quotite=quotite,
     )

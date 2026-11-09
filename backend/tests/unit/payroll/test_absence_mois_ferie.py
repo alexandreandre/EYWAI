@@ -34,6 +34,14 @@ FERIES_MAI = (date(2026, 5, 1), date(2026, 5, 8), date(2026, 5, 14), date(2026, 
 COMPLEMENT = "Complément retenue absence intégrale du mois"
 
 
+@pytest.fixture(autouse=True)
+def _retenue_au_taux_moyen(monkeypatch):
+    """Montants relevés sur des bulletins au taux moyen ; l'horaire réel a son test (R-381)."""
+    monkeypatch.setattr(
+        "app.modules.payroll.engine.calcul_brut.coefficient_horaire_reel", lambda *_: 1.0
+    )
+
+
 def _ctx(date_entree: str = "2003-07-15", **extra):
     ctx = build_test_contexte(
         salaire_base=1952.60,

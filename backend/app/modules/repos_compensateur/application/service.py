@@ -24,6 +24,7 @@ from app.modules.repos_compensateur.infrastructure import (
     get_company_effectif,
     get_contingent_settings,
     get_employees_for_company,
+    get_payroll_events_par_mois_par_employe,
     upsert_credit,
     upsert_credits,
 )
@@ -59,13 +60,19 @@ def calculer_credits_repos(
     bulletins_par_employe = get_bulletins_par_mois_par_employe(
         target_company_id, year, employee_ids
     )
+    # Les heures accomplies, pas les heures payées (L3121-30, R-300).
+    evenements_par_employe = get_payroll_events_par_mois_par_employe(
+        target_company_id, year, employee_ids
+    )
 
     credits_created = 0
     for emp in employees:
         emp_id = emp["id"]
         company_id_emp = emp["company_id"]
         bulletins_mois = bulletins_par_employe.get(emp_id, {})
-        cumuls = cumuler_heures_hs_annee(bulletins_mois)
+        cumuls = cumuler_heures_hs_annee(
+            bulletins_mois, evenements_par_employe.get(str(emp_id), {}), year
+        )
         cumul_mois = cumuls.get(month, 0.0)
         cumul_precedent = cumuls.get(month - 1, 0.0) if month > 1 else 0.0
 
@@ -117,7 +124,10 @@ def recalculer_credits_repos_employe(
             company_id, year, [employee_id]
         )
         bulletins_mois = bulletins_par_employe.get(employee_id, {})
-        cumuls = cumuler_heures_hs_annee(bulletins_mois)
+        evenements = get_payroll_events_par_mois_par_employe(
+            company_id, year, [employee_id]
+        ).get(str(employee_id), {})
+        cumuls = cumuler_heures_hs_annee(bulletins_mois, evenements, year)
 
         credits: list[ReposCredit] = []
         for month in range(1, 13):

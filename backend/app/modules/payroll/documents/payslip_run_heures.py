@@ -18,6 +18,7 @@ from app.modules.payroll.engine.calcul_brut import (
 )
 from app.modules.payroll.engine.calcul_cotisations import (
     calculer_cotisations,
+    jours_maintenus_du_mois,
     ratio_plafond_periode,
 )
 from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
@@ -1340,6 +1341,8 @@ def run_payslip_generation_heures(
         date_debut_periode,
         date_fin_periode,
         contexte,
+        jours_maintenus=jours_maintenus_du_mois(jours_maintien, resultats_maintien),
+        jours_prevus=jours_prevus_autour_du_mois(employee_path, year, month),
     )
     # Heures sup nettes de la part perdue par une absence : c'est sur elles que
     # porte la déduction forfaitaire patronale (1,50 €/h sous 20 salariés), seul

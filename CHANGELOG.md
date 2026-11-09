@@ -7,6 +7,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ### FNAL des sociétés de moins de 50 salariés
 - Le FNAL à 0,10 % s'arrête au plafond de la Sécurité sociale, sur le bulletin et le simulateur. Seuls les salaires au-dessus du plafond changent, à la baisse côté employeur.
+### Lot légal 7 (décision d'Alexandre du 09/11, montants Colorplast autorisés sur ces lignes)
+- Plafond de la Sécurité sociale : seules les journées entières sans aucun maintien le réduisent, en jours calendaires ; l'alerte « plafond réduit malgré un maintien » disparaît (R-278).
+- Retenue d'absence à l'horaire réel du mois (salaire / jours ouvrés du mois), le maintien au même taux ; réglage `methode_retenue_absence` à `taux_moyen` si une convention l'impose (R-381).
+- Crédit de repos : seules les heures accomplies comptent ; les heures structurelles d'une semaine avec férié, congé ou absence n'y entrent plus (R-300).
+- Heures sup exonérées d'impôt : le plafond de 7 500 € compte le brut moins la seule CSG déductible (6,8 %). Le net imposable ne change pas sous le plafond (R-361).
 
 ## paie-2026-11-09.8
 

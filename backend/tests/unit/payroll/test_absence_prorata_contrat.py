@@ -21,6 +21,14 @@ pytestmark = pytest.mark.unit
 JUILLET = (date(2026, 7, 1), date(2026, 7, 31))
 
 
+@pytest.fixture(autouse=True)
+def _retenue_au_taux_moyen(monkeypatch):
+    """Montants relevés sur des bulletins au taux moyen ; l'horaire réel a son test (R-381)."""
+    monkeypatch.setattr(
+        "app.modules.payroll.engine.calcul_brut.coefficient_horaire_reel", lambda *_: 1.0
+    )
+
+
 def _calendrier_juillet(absences: dict[str, float], heures_jour: float = 8.5) -> list[dict]:
     cal = []
     jour = date(2026, 7, 1)
