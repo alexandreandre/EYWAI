@@ -5,6 +5,12 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Conventions et primes
+- Métallurgie : un arrêt pour une autre cause qui commence le lendemain, sans reprise du travail, n'ouvre pas de nouveau crédit de maintien.
+- JTC de Mont Blanc : le calcul de janvier ne retient que les salariés marqués atelier ; une fiche sans marque est signalée et n'est pas écrite.
+- Plasturgie : le bulletin annonce un délai de deux à six mois pour prendre la récupération.
+- OD de paie : avance, acompte sur salaire et acompte sur prime ont chacun leur compte ; l'indemnité complémentaire de prévoyance a sa famille.
+
 ### Échéances de fin 2026 et 2027 (sans changement de montant sur l'existant)
 - Versement mobilité : le taux se lit au mois du bulletin ; si le barème ne connaît pas ce mois, le bulletin le dit.
 - Effectif : alerte quand un seuil de 11, 20 ou 50 est franchi depuis moins de cinq ans.
