@@ -27,6 +27,14 @@ from .helpers import build_test_contexte
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture(autouse=True)
+def _retenue_au_taux_moyen(monkeypatch):
+    """Montants relevés sur des bulletins au taux moyen ; l'horaire réel a son test (R-381)."""
+    monkeypatch.setattr(
+        "app.modules.payroll.engine.calcul_brut.coefficient_horaire_reel", lambda *_: 1.0
+    )
+
+
 def _resultat(jours):
     contexte = build_test_contexte(
         salaire_base=1850.37,

@@ -166,6 +166,36 @@ def _libelle_periode_d_arret(periode: Dict[str, Any]) -> str:
     return f"Absence {nature} du {debut:%d/%m} au {fin:%d/%m}"
 
 
+#: Réglage de société (`parametres_paie`) : une convention peut imposer une autre
+#: méthode de retenue d'absence. Sans réglage, l'horaire réel du mois.
+METHODE_RETENUE_HORAIRE_REEL = "horaire_reel"
+
+
+def coefficient_horaire_reel(contexte: ContextePaie, jour: date) -> float:
+    """Rapport du taux de retenue à l'horaire réel au taux moyen mensuel (R-381).
+
+    Une absence se retient au salaire du mois divisé par les heures de travail de
+    ce mois-là (Cass. soc. 11/02/1982, 80-40.359, lu via Human Avocats, Payfit et
+    Fiche-paie : Légifrance ne s'ouvre pas), en jours ouvrés du mois, fériés
+    compris : un mois entier d'absence retient alors exactement le salaire. Le
+    taux moyen (151,67 h) reste accessible par `methode_retenue_absence`.
+    """
+    parametres = (getattr(contexte, "entreprise", None) or {}).get("parametres_paie", {}) or {}
+    methode = parametres.get("methode_retenue_absence") or METHODE_RETENUE_HORAIRE_REEL
+    if methode != METHODE_RETENUE_HORAIRE_REEL:
+        return 1.0
+    premier = jour.replace(day=1)
+    suivant = (premier + timedelta(days=32)).replace(day=1)
+    jours_ouvres = sum(
+        1
+        for k in range((suivant - premier).days)
+        if (premier + timedelta(days=k)).weekday() < 5
+    )
+    if jours_ouvres <= 0:
+        return 1.0
+    return heures_mensuelles_legales() / (lc.DUREE_LEGALE_HEBDO / 5.0) / jours_ouvres
+
+
 def _repartir_absence_au_prorata_du_contrat(
     heures: float, duree_hebdo: float
 ) -> tuple[float, float]:
@@ -1703,6 +1733,15 @@ def calculer_salaire_brut(
         else round(salaire_base_35h + remuneration_hs_structurelles, 2)
     )
 
+    # Retenue d'absence à l'horaire réel du mois (R-381). Le mois d'entrée ou de
+    # sortie garde sa proratisation propre.
+    def coef_retenue(jour: date) -> float:
+        return coefficient_horaire_reel(contexte, jour) if facteur_prorata >= 1.0 else 1.0
+
+    coef_retenue_du_mois = coef_retenue(date_debut_periode)
+    #: Lu par le maintien : une journée maintenue restitue ce que l'absence a retiré.
+    contexte.coefficient_horaire_reel = coef_retenue_du_mois
+
     # 2. Préparation des taux et des accumulateurs
     taux_hs25 = taux_majore(taux_horaire_de_base, majoration_hs25)
     taux_hs50 = taux_majore(taux_horaire_de_base, majoration_hs50)
@@ -1921,6 +1960,7 @@ def calculer_salaire_brut(
                         heures_abs / lc.DUREE_LEGALE_HEBDO * 5
                     )
 
+            taux_deduction *= coef_retenue(date.fromisoformat(evenement["date_complete"]))
             montant_deduction = round(heures_abs * taux_deduction, 2)
             date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
                 "%d/%m/%y"
@@ -1947,7 +1987,10 @@ def calculer_salaire_brut(
                 heures_abs, part_hs = _repartir_absence_au_prorata_du_contrat(
                     heures_abs, duree_contrat_hebdo
                 )
-            montant_deduction = round(heures_abs * taux_horaire_de_base, 2)
+            taux_retenue = taux_horaire_de_base * coef_retenue(
+                date.fromisoformat(evenement["date_complete"])
+            )
+            montant_deduction = round(heures_abs * taux_retenue, 2)
             # Une régularisation antérieure (cf. `is_regularisation_anterieure`)
             # ne doit PAS contribuer à la quote-part des HS structurelles
             # mensualisées DU MOIS COURANT (cette quote-part concerne le mois
@@ -1972,7 +2015,7 @@ def calculer_salaire_brut(
                 {
                     "libelle": f"Absence non rémunérée du {date_absence}",
                     "quantite": heures_abs,
-                    "taux": round(taux_horaire_de_base, 4),
+                    "taux": round(taux_retenue, 4),
                     "gain": None,
                     "perte": montant_deduction,
                 }
@@ -2030,7 +2073,10 @@ def calculer_salaire_brut(
                 _heures_evenement_absence(evenement, duree_contrat_hebdo),
                 _heures_journalieres_contrat(duree_contrat_hebdo),
             )
-            montant_deduction = round(heures_abs * taux_horaire_de_base, 2)
+            taux_retenue = taux_horaire_de_base * coef_retenue(
+                date.fromisoformat(evenement["date_complete"])
+            )
+            montant_deduction = round(heures_abs * taux_retenue, 2)
             heures_absence_non_payees += heures_abs
             if not evenement.get("is_regularisation_anterieure"):
                 jours_absence_legale_equivalents += (
@@ -2048,7 +2094,7 @@ def calculer_salaire_brut(
                 {
                     "libelle": f"Abs. jour férié non payé du {date_absence}",
                     "quantite": heures_abs,
-                    "taux": round(taux_horaire_de_base, 4),
+                    "taux": round(taux_retenue, 4),
                     "gain": None,
                     "perte": montant_deduction,
                 }
@@ -2101,7 +2147,8 @@ def calculer_salaire_brut(
     # seule fois. Une ligne par jour arrondissait chaque jour (7 h à 13,1430 =
     # 92,00) et perdait un centime sur 11 jours.
     for periode in _periodes_d_arret(jours_d_arret_a_retenir):
-        montant_deduction = round(periode["heures"] * taux_horaire_de_base, 2)
+        taux_retenue = taux_horaire_de_base * coef_retenue(periode["debut"])
+        montant_deduction = round(periode["heures"] * taux_retenue, 2)
         deduction_arret_maladie_total += montant_deduction
         if not periode["regularisation"]:
             montant_absence_pleine_total += montant_deduction
@@ -2109,7 +2156,7 @@ def calculer_salaire_brut(
             {
                 "libelle": _libelle_periode_d_arret(periode),
                 "quantite": round(periode["heures"], 2),
-                "taux": round(taux_horaire_de_base, 4),
+                "taux": round(taux_retenue, 4),
                 "gain": None,
                 "perte": montant_deduction,
                 "is_arret_maladie": True,
@@ -2158,13 +2205,14 @@ def calculer_salaire_brut(
     heures_hs_perdues = round(heures_hs_perdues + heures_hs_structurelles_perdues, 2)
     if heures_hs_perdues > 0 and heures_sup_structurelles_mensuelles > 0:
         if heures_hs_perdues > 0:
-            montant_reduction_hs = round(heures_hs_perdues * taux_horaire_majore, 2)
+            taux_hs_retenue = taux_horaire_majore * coef_retenue_du_mois
+            montant_reduction_hs = round(heures_hs_perdues * taux_hs_retenue, 2)
             montant_absence_pleine_total += montant_reduction_hs
             lignes_composants_brut.append(
                 {
                     "libelle": "Heures sup. du contrat non faites (absence)",
                     "quantite": heures_hs_perdues,
-                    "taux": round(taux_horaire_majore, 4),
+                    "taux": round(taux_hs_retenue, 4),
                     "gain": None,
                     "perte": montant_reduction_hs,
                     "is_reduction_hs": True,

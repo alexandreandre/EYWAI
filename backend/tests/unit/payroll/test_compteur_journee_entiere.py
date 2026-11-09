@@ -35,6 +35,14 @@ VARIABLES = {"date_debut_variables": date(2026, 4, 20),
 QUOTE_PART_JOUR = 0.80
 
 
+@pytest.fixture(autouse=True)
+def _retenue_au_taux_moyen(monkeypatch):
+    """Montants relevés sur des bulletins au taux moyen ; l'horaire réel a son test (R-381)."""
+    monkeypatch.setattr(
+        "app.modules.payroll.engine.calcul_brut.coefficient_horaire_reel", lambda *_: 1.0
+    )
+
+
 def _contexte(date_entree="2026-03-23"):
     return build_test_contexte(
         salaire_base=1850.37, duree_hebdo=39.0, date_entree=date_entree,
