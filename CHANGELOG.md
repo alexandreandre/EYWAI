@@ -5,6 +5,12 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Calcul du mois : ce que le bulletin dit désormais (aucun montant ne change)
+- Un arrêt d'un mois passé modifié marque « À recalculer » les bulletins d'un mois avec arrêt (limite annuelle du maintien).
+- Compensation entre semaines : une semaine pointée entièrement à 0 h est signalée au bulletin.
+- Plafond de la Sécurité sociale réduit alors qu'un maintien de salaire est versé : alerte au bulletin.
+- Recalculer un mois passé dit quand la fiche ou les réglages ont changé depuis son dernier calcul.
+
 ### Échéances de fin 2026 et 2027 (sans changement de montant sur l'existant)
 - Versement mobilité : le taux se lit au mois du bulletin ; si le barème ne connaît pas ce mois, le bulletin le dit.
 - Effectif : alerte quand un seuil de 11, 20 ou 50 est franchi depuis moins de cinq ans.
