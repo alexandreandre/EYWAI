@@ -37,6 +37,15 @@ OBSOLETE_OBLIGATION_JUSTIFICATION = (
 )
 
 
+
+def _ans_apres(jour: date, ans: int) -> date:
+    """La même date ``ans`` années plus tard ; un 29 février devient le 28 hors année bissextile."""
+    try:
+        return jour.replace(year=jour.year + ans)
+    except ValueError:
+        return jour.replace(year=jour.year + ans, day=28)
+
+
 def _parse_date(d: Any) -> Optional[date]:
     if d is None:
         return None
@@ -515,7 +524,7 @@ def compute_obligations_for_employee(
                     )
                     existing_keys.add(key)
         elif hire_date and not _has_active_obligation(existing, "vip"):
-            next_due = hire_date.replace(year=hire_date.year + vip_years)
+            next_due = _ans_apres(hire_date, vip_years)
             if next_due > today:
                 key = _dedupe_key("vip", "embauche", next_due)
                 if key not in existing_keys:
