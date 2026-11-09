@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import unicodedata
+
 from datetime import date
 
 from app.core.logging import get_logger, log_payroll_debug
@@ -382,6 +384,51 @@ def heures_retablies_par_les_rappels_de_maintien(
     if not rappels or salaire_mois_complet <= 0 or heures_mois_complet <= 0:
         return 0.0
     return round(heures_mois_complet * rappels / salaire_mois_complet, 2)
+
+
+CODE_ALERTE_RAPPEL_PRIME_LIBRE = "rappel_maintien_prime_libre"
+
+
+def _sans_accent(texte: str) -> str:
+    return unicodedata.normalize("NFKD", texte).encode("ascii", "ignore").decode().lower()
+
+
+def _ressemble_a_un_rappel_de_maintien(libelle: str) -> bool:
+    mots = _sans_accent(libelle)
+    return "maintien" in mots and ("rappel" in mots or "regul" in mots)
+
+
+def signaler_rappels_de_maintien_en_prime_libre(contexte: Any, primes: Any) -> None:
+    """Une prime libre au libellé de rappel de maintien : la réduction générale baisse sans le dire.
+
+    Seule la prime du catalogue rétablit les heures de SMIC (`heures_retablies_par_les_rappels_de_maintien`) ;
+    sous un libellé libre, le rappel entre au brut seul. Alerte seule : le montant ne change pas.
+    """
+    libelles = sorted(
+        {
+            str(p.get("libelle"))
+            for p in primes or []
+            if isinstance(p, dict)
+            and p.get("prime_id") != PRIME_RAPPEL_MAINTIEN
+            and _ressemble_a_un_rappel_de_maintien(str(p.get("libelle") or ""))
+        }
+    )
+    if not libelles:
+        return
+    _ajouter_alerte_unique(
+        contexte,
+        {
+            "code": CODE_ALERTE_RAPPEL_PRIME_LIBRE,
+            "critique": False,
+            "severity": "warning",
+            "message": (
+                f"« {', '.join(libelles)} » ressemble à un rappel de maintien saisi en prime libre : "
+                "le rappel entre au brut sans ses heures de SMIC, et la réduction générale baisse. "
+                "Si c'en est un, choisissez « Rappel de maintien de salaire » dans le catalogue "
+                "des primes. À vérifier avant de valider ce bulletin."
+            ),
+        },
+    )
 
 
 def heures_reduction_forfait_jours(

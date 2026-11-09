@@ -76,7 +76,7 @@ from app.modules.payroll.documents.pdf_du_bulletin import (
 )
 from app.modules.payslips.domain.heures_sup import est_declaration_bulletin
 from app.modules.ijss_tracking.domain.saisie_ijss import est_saisie_ijss_validees
-from app.modules.monthly_inputs.domain.rules import est_saisie_retiree
+from app.modules.monthly_inputs.domain.rules import alertes_de_doublon_de_prime, est_saisie_retiree
 from app.modules.payroll.engine.corrections_manuelles import ranger_correction_manuelle
 from app.core.logging import get_logger, log_payroll_debug
 from app.core.paths import (
@@ -1536,6 +1536,13 @@ def process_payslip_generation(
             payslip_json_data["alertes_baremes"] = fusionner_replis(
                 payslip_json_data.get("alertes_baremes"), alertes_de_repli_generateur
             )
+        alertes_doublons = alertes_de_doublon_de_prime(saisies_res.data or [])
+        if alertes_doublons and isinstance(payslip_json_data, dict):
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = [
+                *(payslip_json_data.get("alertes_baremes") or []),
+                *alertes_doublons,
+            ]
         if alerte_heures_sur_arret and isinstance(payslip_json_data, dict):
             payslip_json_data = dict(payslip_json_data)
             payslip_json_data["alertes_baremes"] = [

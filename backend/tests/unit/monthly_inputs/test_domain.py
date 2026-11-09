@@ -8,12 +8,16 @@ Aucune dépendance DB ni HTTP. Couvre :
 """
 
 from datetime import datetime
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
 
 from app.modules.monthly_inputs.domain.entities import MonthlyInputEntity
-from app.modules.monthly_inputs.domain.rules import is_valid_period
+from app.modules.monthly_inputs.domain.rules import (
+    alertes_de_doublon_de_prime,
+    is_valid_period,
+)
 from app.modules.monthly_inputs.domain.value_objects import Period
 
 
@@ -170,3 +174,48 @@ class TestSaisieGeneree:
         assert not est_saisie_retiree({**generee, "amount": 80.0})
         assert not est_saisie_retiree({**generee, "amount": 0, "manual_override": False})
         assert not est_saisie_retiree({"description": "Prime", "amount": 0, "manual_override": True})
+
+
+def _auto(montant=60.0, nom="Prime d'équipe"):
+    return {"name": nom, "amount": montant, "description": "Auto: EQUIPE"}
+
+
+def _manuelle(montant=60.0, nom="Prime qualité"):
+    return {"name": nom, "amount": montant, "manual_override": True}
+
+
+def test_une_prime_saisie_au_montant_d_une_regle_se_signale():
+    """R-319 : même montant qu'une prime de règle automatique, autre libellé."""
+    alertes = alertes_de_doublon_de_prime([_auto(), _manuelle()])
+    assert len(alertes) == 1
+    alerte = alertes[0]
+    assert alerte["code"] == "doublon_prime_regle_auto"
+    assert not alerte.get("critique")
+    assert "Prime d'équipe" in alerte["message"] and "Prime qualité" in alerte["message"]
+    assert "60,00" in alerte["message"]
+
+
+def test_montants_differents_rien_a_signaler():
+    assert alertes_de_doublon_de_prime([_auto(60.0), _manuelle(61.0)]) == []
+
+
+def test_meme_libelle_la_regle_s_en_occupe_deja():
+    assert alertes_de_doublon_de_prime([_auto(nom="Prime A"), _manuelle(nom="Prime A")]) == []
+
+
+def test_une_ligne_automatique_retiree_ne_compte_pas():
+    retiree = {"name": "Prime d'équipe", "amount": 0, "description": "Auto: EQUIPE", "manual_override": True}
+    assert alertes_de_doublon_de_prime([retiree, _manuelle(0.0)]) == []
+
+
+def test_une_correction_a_la_main_n_est_pas_une_prime():
+    correction = {**_manuelle(), "correction_ligne": {"type": "regularisation_cotisation"}}
+    assert alertes_de_doublon_de_prime([_auto(), correction]) == []
+
+
+@pytest.mark.parametrize("module", ["payslip_generator", "payslip_generator_forfait"])
+def test_les_deux_generateurs_signalent_les_doublons(module):
+    source = (
+        Path(__file__).resolve().parents[3] / f"app/modules/payroll/documents/{module}.py"
+    ).read_text(encoding="utf-8")
+    assert "alertes_de_doublon_de_prime(saisies_res.data or [])" in source

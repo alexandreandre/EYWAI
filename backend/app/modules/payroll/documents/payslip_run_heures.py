@@ -32,6 +32,7 @@ from app.modules.payroll.engine.corrections_manuelles import (
 from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
     heures_retablies_par_les_rappels_de_maintien,
+    signaler_rappels_de_maintien_en_prime_libre,
 )
 from app.modules.payroll.engine.salaire_contractuel import salaire_du_mois_complet
 from app.modules.payroll.engine import legal_constants as lc
@@ -1429,6 +1430,7 @@ def run_payslip_generation_heures(
     heures_retablies_par_rappels = heures_retablies_par_les_rappels_de_maintien(
         primes_soumises, heures_contractuelles_mois, salaire_du_mois_complet(contexte)
     )
+    signaler_rappels_de_maintien_en_prime_libre(contexte, primes_soumises)
 
     heures_remunerees_reduction = max(
         0.0,

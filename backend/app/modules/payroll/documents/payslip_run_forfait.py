@@ -32,6 +32,7 @@ from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
     heures_reduction_forfait_jours,
     heures_retablies_par_les_rappels_de_maintien,
+    signaler_rappels_de_maintien_en_prime_libre,
     rapport_salaires_forfait_jours,
 )
 from app.modules.payroll.engine.forfait_individuel import jours_du_forfait_de_la_fiche
@@ -662,6 +663,7 @@ def run_payslip_generation_forfait(
             contexte.salaire_base_mensuel,
         ),
     )
+    signaler_rappels_de_maintien_en_prime_libre(contexte, primes_soumises)
 
     ligne_exoneration_jei = calculer_exoneration_jei(
         contexte,
