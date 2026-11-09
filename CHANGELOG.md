@@ -9,6 +9,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - Si le paramétrage DSN de la société ne se lit pas, l'aperçu le dit et le fichier n'est pas produit.
 - Si le statut de travailleur handicapé d'un salarié ne se lit pas, l'aperçu nomme le salarié et le fichier attend.
 
+### Import DSN
+- L'import lit le motif de recours des CDD ; une fois à jour, la fiche le porte et la DSN le déclare.
+
 ### Validation
 - Valider un bulletin pendant qu'il se recalcule ne remet plus l'ancien contenu marqué validé : Martine dit de recharger la page, et rien n'est écrit.
 

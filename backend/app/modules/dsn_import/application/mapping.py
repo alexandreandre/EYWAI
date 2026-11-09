@@ -36,7 +36,10 @@ from app.modules.dsn_import.domain.dsn_absence_exit_mapping import (
     map_suspension_to_absence,
 )
 from app.modules.dsn_import.domain.psc import build_specificites_paie_psc
-from app.modules.dsn_import.domain.rubriques import DISPOSITIFS_APPRENTISSAGE
+from app.modules.dsn_import.domain.rubriques import (
+    DISPOSITIFS_APPRENTISSAGE,
+    R_S21_CTR_MOTIF_RECOURS,
+)
 from app.modules.dsn_import.application.boeth_import import (
     boeth_preview_columns,
     extract_boeth_from_contrat,
@@ -427,6 +430,8 @@ def map_employee_payload(
     ]
 
     statut_categoriel = map_statut_cadre(contrat.statut)
+    # Motif de recours d'un CDD : relu par l'export DSN et par la prime de précarité (R-103).
+    motif_recours = (contrat.rubriques.get(R_S21_CTR_MOTIF_RECOURS) or "").strip()
 
     from app.modules.collective_agreements.domain.classification import (
         normalize_classification_for_payroll,
@@ -445,6 +450,7 @@ def map_employee_payload(
             "classification_dsn": contrat.rubriques.get("S21.G00.40.040"),
             "niveau_dsn": contrat.rubriques.get("S21.G00.40.041"),
             "taux_at_individuel_dsn": contrat.rubriques.get("S21.G00.40.043"),
+            **({"motif_recours": motif_recours} if motif_recours else {}),
         }
     )
 
