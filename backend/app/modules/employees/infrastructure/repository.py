@@ -235,10 +235,10 @@ class EmployeeRepository(IEmployeeRepository):
             .select("*, " + TRIAL_PERIOD_JOIN)
             .eq("id", employee_id)
             .eq("company_id", company_id)
-            .single()
+            .maybe_single()
             .execute()
         )
-        if not response.data:
+        if response is None or not response.data:
             return None
         row = normalize_trial_period(dict(response.data))
         return _enrich_employee_row_with_cse(row, company_id)
