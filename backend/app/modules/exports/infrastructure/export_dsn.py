@@ -30,7 +30,9 @@ from app.modules.dsn_export.domain.etat_conformite import (
 from app.modules.dsn_export.domain.rectification import (
     DeclarationRemplacee,
     avis_mois_deja_declare,
+    avis_rappel_sans_mois_origine,
     avis_regularisation_sans_mois_origine,
+    libelles_de_rappel_du_bulletin,
     refus_annule_remplace,
 )
 from app.modules.dsn_export.domain.settings import DsnSettings, identifiant_urssaf
@@ -838,6 +840,8 @@ def preview_dsn(
                 *warnings,
                 avis_regularisation_sans_mois_origine(nom_salarie, regularisation.libelle, period),
             ]
+        for libelle in libelles_de_rappel_du_bulletin(emp_data.get("payslip_data")):
+            warnings = [*warnings, avis_rappel_sans_mois_origine(nom_salarie, libelle, period)]
     for emp_data in bulletins_declares:
         employee = emp_data["employee"]
         cotisations_detail = emp_data.get("cotisations_detail", [])

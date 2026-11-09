@@ -22,9 +22,11 @@ produit sans cette demande.
 from __future__ import annotations
 
 import re
+import unicodedata
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 from app.modules.dsn_export.domain.signalements import echeance_mensuelle
 from app.modules.payroll.domain.report_nap_negatif import mois_en_lettres
@@ -33,6 +35,13 @@ from app.modules.payroll.domain.report_nap_negatif import mois_en_lettres
 _NUMERO_ORDRE = re.compile(r"0|[1-9][0-9]{0,13}")
 
 _SUPPORT = "ouvrez un ticket (menu Support, module « Paie & Bulletins »)"
+
+#: « régulier » n'est pas une régularisation.
+_LIBELLE_DE_RAPPEL = re.compile(r"\brappels?\b|\bregul(?:arisation)?\b")
+
+
+def _sans_accents(texte: str) -> str:
+    return unicodedata.normalize("NFD", texte.lower()).encode("ascii", "ignore").decode("ascii")
 
 
 @dataclass(frozen=True)
@@ -95,6 +104,31 @@ def avis_mois_deja_declare(period: str, effectif: int, aujourd_hui: date) -> str
         f"({limite:%d/%m/%Y}) est passée. Si elle a été déposée, un bulletin corrigé se déclare "
         f"sur la paie d'un mois suivant. Martine ne sait pas encore le rattacher à {libelle} : "
         f"{_SUPPORT}."
+    )
+
+
+def libelles_de_rappel_du_bulletin(payslip_data: Mapping[str, Any] | None) -> list[str]:
+    """Les rappels saisis en prime sur ce bulletin, catalogue ou libellé libre, sans doublon.
+
+    Seules les lignes liées à une saisie comptent : c'est là que Gaëlle pose un rappel.
+    """
+    libelles: dict[str, None] = {}
+    for ligne in (payslip_data or {}).get("calcul_du_brut") or []:
+        if not isinstance(ligne, Mapping) or not ligne.get("saisie_id"):
+            continue
+        libelle = str(ligne.get("libelle") or "")
+        if _LIBELLE_DE_RAPPEL.search(_sans_accents(libelle)):
+            libelles[libelle] = None
+    return list(libelles)
+
+
+def avis_rappel_sans_mois_origine(salarie: str, libelle: str, period: str) -> str:
+    """CT 2026.1 § 2.1.3.6 : un rappel se déclare rattaché à sa période. Martine ne le fait pas."""
+    return (
+        f"Salarié {salarie} : le rappel « {libelle} » est déclaré dans le mois de "
+        f"{mois_en_lettres(*_mois(period))}, sans rattachement. S'il concerne un mois passé, la "
+        f"DSN devrait le rattacher à son mois d'origine, ce que Martine ne sait pas encore "
+        f"faire : {_SUPPORT}."
     )
 
 
