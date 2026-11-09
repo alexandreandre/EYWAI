@@ -211,7 +211,7 @@ class TestHeuresVersJours:
 
 
 class TestGetTauxCorParEffectif:
-    """Taux COR selon effectif : 0.5 si < 20, 1.0 si >= 20."""
+    """Taux COR selon effectif (L3121-38) : 0.5 pour vingt au plus, 1.0 au-delà."""
 
     def test_effectif_none_returns_1(self):
         """effectif None → 1.0 (défaut)."""
@@ -222,9 +222,13 @@ class TestGetTauxCorParEffectif:
         assert get_taux_cor_par_effectif(0) == 0.5
         assert get_taux_cor_par_effectif(19) == 0.5
 
-    def test_effectif_20_ou_plus_un(self):
-        """effectif >= 20 → 1.0."""
-        assert get_taux_cor_par_effectif(20) == 1.0
+    def test_effectif_20_pile_demi(self):
+        """L3121-38 : « vingt salariés au plus » : 20 reste à 50 %."""
+        assert get_taux_cor_par_effectif(20) == 0.5
+
+    def test_effectif_plus_de_20_un(self):
+        """Plus de vingt salariés → 1.0."""
+        assert get_taux_cor_par_effectif(21) == 1.0
         assert get_taux_cor_par_effectif(100) == 1.0
 
 
