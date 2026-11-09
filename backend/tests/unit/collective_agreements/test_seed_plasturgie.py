@@ -28,4 +28,5 @@ class TestPlasturgieSeed:
         cp = PLASTURGIE_0292_SEED.cp_anciennete
         assert cp is not None
         assert cp.mode == "tier_total"
-        assert len(cp.tiers) == 5
+        assert len(cp.tiers) == 3
+        assert {t.category for t in cp.tiers} == {"cadre"}

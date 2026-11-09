@@ -23,14 +23,16 @@ METALLURGIE_3248_RULES: dict[str, Any] = {
     ],
 }
 
+# La convention de la plasturgie ne donne de congés d'ancienneté qu'aux cadres
+# (1 jour après 3 ans, 2 après 5, 3 après 10, ancienneté comme cadre au 31 mai).
+# Texte relu sur convention.fr le 08/11/2026 (Légifrance refuse l'accès) ; les
+# paliers ouvriers et ETAM d'ici n'avaient aucune source (R-385).
 PLASTURGIE_0292_RULES: dict[str, Any] = {
     "mode": "tier_total",
     "tiers": [
         {"category": "cadre", "min_years": 3, "days": 1},
         {"category": "cadre", "min_years": 5, "days": 2},
         {"category": "cadre", "min_years": 10, "days": 3},
-        {"category": "ouvrier_etam", "min_years": 5, "days": 1},
-        {"category": "ouvrier_etam", "min_years": 10, "days": 2},
     ],
 }
 
