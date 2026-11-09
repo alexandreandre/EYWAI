@@ -34,6 +34,7 @@ from app.modules.payroll.domain.empreinte_entrees import (
     construire_entrees,
     ecart_au_centime,
     empreinte,
+    empreinte_complementaire_stockee,
     empreinte_complementaire_valide,
     empreinte_cumuls,
     empreinte_partie,
@@ -41,6 +42,7 @@ from app.modules.payroll.domain.empreinte_entrees import (
     message_a_recalculer,
     message_mois_d_avant_a_recalculer,
     mois_de_la_fenetre,
+    noms_des_parties,
     parties_changees,
     poser_empreinte,
     poser_empreinte_complementaire,
@@ -1096,6 +1098,51 @@ def verifier_valide_au_bac_a_sable(
         )
         return None
     return VerdictBacASable(identique=ecart is None, ecart=ecart)
+
+
+def alerte_mois_passe_fiche_du_jour(
+    payslip_data: Mapping[str, Any] | None,
+    *,
+    employee_id: str,
+    year: int,
+    month: int,
+    aujourd_hui: date | None = None,
+) -> dict[str, Any] | None:
+    """Recalculer un mois passé relit la fiche et les réglages d'aujourd'hui (R-290).
+
+    Seuls le salaire et les spécificités mensuelles sont datés. Dater la fiche
+    entière serait un chantier : ici, le bulletin dit ce qui a changé depuis son
+    dernier calcul, et rien quand rien n'a bougé ni pour le mois en cours.
+    """
+    aujourd_hui = aujourd_hui or date.today()
+    if (year, month) >= (aujourd_hui.year, aujourd_hui.month):
+        return None
+    nouvelles = empreinte_complementaire_stockee(payslip_data)
+    if not nouvelles:
+        return None
+    try:
+        enregistre = lire_bulletin_enregistre(employee_id, year, month)
+    except Exception:  # noqa: BLE001 — un avertissement, jamais une garde de calcul
+        logger.warning("Bulletin précédent illisible pour l'alerte du mois passé", exc_info=True)
+        return None
+    stockees = empreinte_complementaire_stockee((enregistre or {}).get("payslip_data"))
+    if not stockees:
+        return None
+    changees = [p for p in parties_changees(stockees, nouvelles) if p in _PARTIES_IGNOREES_SI_VALIDE]
+    noms = noms_des_parties(changees)
+    if not noms:
+        return None
+    liste = noms[0] if len(noms) == 1 else f"{', '.join(noms[:-1])} et {noms[-1]}"
+    return {
+        "code": "mois_passe_recalcule_fiche_du_jour",
+        "severity": "warning",
+        "critique": False,
+        "message": (
+            f"Bulletin de {month:02d}/{year} recalculé avec {liste} d'aujourd'hui, qui "
+            "ont changé depuis son dernier calcul. Hors salaire et spécificités du mois, "
+            "ces valeurs ne sont pas datées : vérifiez qu'elles valaient déjà ce mois-là."
+        ),
+    }
 
 
 def _a_verifier(ligne: Mapping[str, Any], etat: EtatDuBulletin | None) -> bool:

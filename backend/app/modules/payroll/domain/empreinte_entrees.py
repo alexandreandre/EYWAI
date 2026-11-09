@@ -347,6 +347,11 @@ def parties_changees(
     )
 
 
+def noms_des_parties(parties: tuple[str, ...] | list[str]) -> list[str]:
+    """Les parties connues, nommées simplement, sans doublon."""
+    return list(dict.fromkeys(_PARTIES[p][1] for p in parties if p in _PARTIES))
+
+
 def message_a_recalculer(parties: tuple[str, ...] | list[str] | None) -> str:
     """Ce qui a changé, dit simplement ; sinon le message général, juste."""
     connues = [p for p in (parties or ()) if p in _PARTIES]

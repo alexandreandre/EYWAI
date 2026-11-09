@@ -1676,6 +1676,24 @@ def process_payslip_generation(
         payslip_json_data = poser_empreinte_complementaire_depuis_lectures(
             payslip_json_data, **lectures_du_calcul
         )
+        # Un mois passé relit la fiche d'aujourd'hui : on le dit quand elle a changé.
+        from app.modules.payroll.application.empreinte_entrees_service import (
+            alerte_mois_passe_fiche_du_jour,
+        )
+
+        alerte_mois_passe = (
+            None
+            if contract_period_id
+            else alerte_mois_passe_fiche_du_jour(
+                payslip_json_data, employee_id=str(employee_id), year=year, month=month
+            )
+        )
+        if alerte_mois_passe:
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = [
+                *(payslip_json_data.get("alertes_baremes") or []),
+                alerte_mois_passe,
+            ]
 
         # Le moteur imprime sous le nom du mois ; le bulletin d'un contrat rangé
         # est publié sous un nom à lui, distinct de l'autre bulletin du mois [D3].
