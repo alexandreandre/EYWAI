@@ -5,7 +5,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
-## paie-2026-11-09.6
+## paie-2026-11-09.7
+
 ### Calcul du mois : ce que le bulletin dit désormais (aucun montant ne change)
 - Un arrêt d'un mois passé modifié marque « À recalculer » les bulletins d'un mois avec arrêt (limite annuelle du maintien).
 - Compensation entre semaines : une semaine pointée entièrement à 0 h est signalée au bulletin.
@@ -16,16 +17,16 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - JTC de Mont Blanc : le calcul de janvier ne retient que les salariés marqués atelier ; une fiche sans marque est signalée et n'est pas écrite.
 - Plasturgie : le bulletin annonce un délai de deux à six mois pour prendre la récupération.
 - OD de paie : avance, acompte sur salaire et acompte sur prime ont chacun leur compte ; l'indemnité complémentaire de prévoyance a sa famille.
-
 ### Titres-restaurant (aucun montant ne change)
 - La part salariale retirée du net se lit sur le bulletin et dans l'extraction comptable ; aucune fiche n'en a aujourd'hui de nombre renseigné.
-
 ### Connexion et activation
 - Les pages publiques (connexion, mot de passe oublié, activation) refusent les essais en rafale depuis une même adresse.
-
 ### Cloisonnement entre sociétés (aucun montant ne change)
 - Un test parcourt toutes les routes : une route métier qui ne contrôle pas la société fait échouer la suite.
 - Refermé : tickets support, repos compensateur, trois lectures de réglages d'absences, import badgeuse groupé, modification et suppression d'un pointage, compte épargne-temps d'un salarié, participants CSE, modèles de rôle, retour en attente d'une absence.
+
+## paie-2026-11-09.6
+
 ### Échéances de fin 2026 et 2027 (sans changement de montant sur l'existant)
 - Versement mobilité : le taux se lit au mois du bulletin ; si le barème ne connaît pas ce mois, le bulletin le dit.
 - Effectif : alerte quand un seuil de 11, 20 ou 50 est franchi depuis moins de cinq ans.
