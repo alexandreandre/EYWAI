@@ -164,20 +164,21 @@ def _part_patronale_mutuelle_du_bulletin(
 def _get_part_salariale_mutuelle_non_deductible(contexte: ContextePaie) -> float:
     """Part SALARIALE de mutuelle qui ne réduit PAS le net imposable.
 
-    Une cotisation salariale vient normalement en déduction du revenu
-    imposable. Les cotisations finançant les garanties frais de santé en sont
-    exclues (art. 83, 1° quater du CGI, exclusion introduite par la loi de
-    finances 2014) : le salarié les paie sur son net, sans économie d'impôt.
+    CGI art. 83, 1° quater (BOI-RSA-BASE-30-10-20, § 200 et 230, ouvert le
+    09/11/2026) : les cotisations à la charge du salarié sont déductibles, sous
+    plafond, s'il est affilié à titre obligatoire. L'exclusion des frais de
+    santé ne vise que la part patronale. Le critère est donc le caractère
+    obligatoire, pas l'absence de part patronale.
 
     Le drapeau est porté par le type de mutuelle
-    (`part_salariale_deductible_impot`, défaut True = comportement historique,
-    donc aucun bulletin existant ne bouge). Il n'est posé aujourd'hui que sur
-    les compléments « Famille » intégralement à la charge du salarié, seul cas
-    où l'écart avec un bulletin réel du cabinet a été constaté et chiffré
-    (salarié 146, juillet 2026 : imposable 2 570,73 € au lieu de 2 668,88 €, PAS
-    inférieur de 4,22 €). Le sort des autres mutuelles sans part patronale
-    (une centaine de salariés sur le groupe) reste un arbitrage ouvert : ne
-    pas l'étendre sans bulletins de référence.
+    (`part_salariale_deductible_impot`, défaut True). Il n'est posé que sur les
+    compléments « Famille » facultatifs (`part_salariale_obligatoire=False`),
+    seul cas où l'écart avec un bulletin réel du cabinet a été constaté et
+    chiffré (salarié 146, juillet 2026 : imposable 2 570,73 € au lieu de
+    2 668,88 €, PAS inférieur de 4,22 €). Une mutuelle obligatoire sans part
+    patronale reste déductible : contrôlé sur 145 bulletins repris de Comitech,
+    MAJI et Zone 404 (janvier-septembre 2026), aucun écart de net imposable
+    n'égale le montant de la mutuelle, le cabinet la déduit donc aussi.
 
     N'affecte que le net imposable — ni les cotisations, ni la CSG. Le
     montant net social, lui, retire toutes les cotisations salariales de
