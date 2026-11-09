@@ -60,6 +60,7 @@ LIBELLES_ARRET: Dict[str, str] = {
     "arret_maternite": "congé maternité",
     "arret_paternite": "congé paternité",
     "arret_adoption": "congé d'adoption",
+    "arret_conge_naissance": "congé supplémentaire de naissance",
 }
 
 #: Nature d'un arrêt d'après son type d'arrêt, quand rien d'autre ne la dit.
@@ -87,6 +88,8 @@ def _nature_de_l_arret(evenement: Dict[str, Any]) -> str:
     # L'adoption se saisit sous un congé maternité ou paternité : son type le dit.
     if str(evenement.get("arret_type") or "") == "adoption":
         return "arret_adoption"
+    if str(evenement.get("arret_type") or "") == "conge_supplementaire_naissance":
+        return "arret_conge_naissance"
     source = str(evenement.get("source_absence") or "")
     if source in LIBELLES_ARRET and source != "arret_maladie":
         return source

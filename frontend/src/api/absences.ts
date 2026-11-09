@@ -24,7 +24,8 @@ export type ArretType =
   | 'arret_exceptionnel'
   | 'maternite'
   | 'paternite'
-  | 'adoption';
+  | 'adoption'
+  | 'conge_supplementaire_naissance';
 
 // Interface principale, mise à jour pour utiliser 'selected_days'
 export interface AbsenceRequest {

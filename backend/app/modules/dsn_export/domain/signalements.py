@@ -14,6 +14,7 @@ from datetime import date, timedelta
 from typing import Any, Dict, Iterable, List, Mapping, Optional
 
 from app.modules.dsn_export.domain.evenements import (
+    MOTIF_CONGE_NAISSANCE,
     MOTIFS_ACCIDENT,
     MOTIFS_TPT,
     _jours,
@@ -114,6 +115,28 @@ _DATE_ACCIDENT_A_SAISIR = (
 )
 
 
+#: Entreprendre service-public F39687 (vérifiée le 02/11/2026) : depuis le
+#: 01/11/2026, un formulaire en PDF sur le compte employeur, le jour du signalement.
+_FORMULAIRE_CONGE_NAISSANCE = (
+    "congé supplémentaire de naissance : déposez aussi, le même jour que ce "
+    "signalement, le formulaire de demande en PDF sur le compte employeur "
+    "Net-entreprises."
+)
+_DERNIER_JOUR_APRES_UN_ARRET = (
+    "Ce congé suit directement un autre arrêt : vérifiez le dernier jour travaillé "
+    "déclaré, qui est par défaut la veille du congé."
+)
+
+
+def _avis_conge_naissance(motif: str, debut: date, fins_precedentes: List[date]) -> Optional[str]:
+    """Ce qu'un signalement de congé supplémentaire de naissance doit rappeler."""
+    if motif != MOTIF_CONGE_NAISSANCE:
+        return None
+    if debut - timedelta(days=1) in fins_precedentes:
+        return f"{_FORMULAIRE_CONGE_NAISSANCE} {_DERNIER_JOUR_APRES_UN_ARRET}"
+    return _FORMULAIRE_CONGE_NAISSANCE
+
+
 def _a_verifier(*raisons: Optional[str]) -> Optional[str]:
     gardees = [r for r in raisons if r]
     return " ".join(gardees) if gardees else None
@@ -167,6 +190,9 @@ def signalements_a_faire(
                     a_verifier=_a_verifier(
                         _ressemble_a_une_prolongation(periode.debut, [p.fin for p in periodes]),
                         sans_date,
+                        _avis_conge_naissance(
+                            periode.motif, periode.debut, [p.fin for p in periodes]
+                        ),
                     ),
                     date_accident=periode.date_accident,
                     absence_id=periode.absence_id,

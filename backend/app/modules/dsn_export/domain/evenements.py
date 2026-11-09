@@ -40,6 +40,10 @@ MOTIF_ARRET = {
 MOTIF_ACCIDENT_TRAJET = "04"
 #: Adoption, saisie sous la nature maternité ou paternité (cahier technique 2026.1).
 MOTIF_ADOPTION = "09"
+#: Congé supplémentaire de naissance (cahier technique 2026.1, 60.001), saisi lui
+#: aussi sous la nature maternité ou paternité.
+TYPE_ARRET_CONGE_NAISSANCE = "conge_supplementaire_naissance"
+MOTIF_CONGE_NAISSANCE = "20"
 #: Accident et maladie professionnelle : le jour de l'accident est
 #: travaillé (60.002). Leur date (60.012) relève du signalement d'arrêt.
 MOTIFS_ACCIDENT = {"04", "05", "06"}
@@ -171,6 +175,8 @@ def _motif_arret(absence: Dict[str, Any], absences: List[Dict[str, Any]]) -> Opt
         return MOTIF_ACCIDENT_TRAJET
     if motif in ("02", "03") and str(absence.get("arret_type") or "") == "adoption":
         return MOTIF_ADOPTION
+    if motif in ("02", "03") and str(absence.get("arret_type") or "") == TYPE_ARRET_CONGE_NAISSANCE:
+        return MOTIF_CONGE_NAISSANCE
     return motif
 
 

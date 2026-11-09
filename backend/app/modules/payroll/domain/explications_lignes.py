@@ -421,6 +421,7 @@ def _nature_absence(libelle: str) -> str:
         ("accident du travail", "accident du travail"),
         ("conge maternite", "congé maternité"),
         ("conge paternite", "congé paternité"),
+        ("conge supplementaire de naissance", "congé supplémentaire de naissance"),
         ("injustif", "injustifiée"),
         ("evenement familial", "événement familial"),
         ("non remunere", "non rémunérée"),

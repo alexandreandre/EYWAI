@@ -50,7 +50,7 @@ import { AbsenceSignalementBadge } from '@/components/absences/AbsenceSignalemen
 import { listerSignalements } from '@/api/exports';
 import { AbsenceIjssStatusBadge } from '@/components/absences/AbsenceIjssStatusBadge';
 import { getAbsenceIjssStatus } from '@/api/ijssTracking';
-import { estArretIjss } from '@/lib/employeeAbsencesUtils';
+import { estArretIjss, libelleDeLaDemande } from '@/lib/employeeAbsencesUtils';
 import { LeaveCampaignSection } from '@/features/absences/components/LeaveCampaignSection';
 import { LeaveNotificationSettingsPanel } from '@/features/absences/components/LeaveNotificationSettingsPanel';
 import { RttYearEndRhSection } from '@/features/absences/components/RttYearEndRhSection';
@@ -346,7 +346,7 @@ export default function AbsencesPage() {
                   )}
                 </div>
               ) : (
-                typeLabels[req.type]
+                libelleDeLaDemande(typeLabels[req.type], req.arret_type)
               )}
             </TableCell>
             <TableCell>{renderDates(req.selected_days, req.demi_journees)}</TableCell>

@@ -728,6 +728,11 @@ export function AbsenceRequestModal({
                   ))}
                 </SelectContent>
               </Select>
+              {arretType === "conge_supplementaire_naissance" && (
+                <p className="text-xs text-muted-foreground">
+                  À saisir sous la nature du congé de naissance déjà pris : 1 ou 2 mois, fractionnable en 2 fois 1 mois. Pas de salaire ni de maintien : la CPAM indemnise le salarié. Le jour du signalement DSN, déposez aussi le formulaire de demande en PDF sur le compte employeur Net-entreprises.
+                </p>
+              )}
             </div>
           )}
 

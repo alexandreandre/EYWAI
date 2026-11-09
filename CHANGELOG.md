@@ -5,6 +5,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Absences
+- Congé supplémentaire de naissance : il se saisit sous un congé maternité ou paternité. Le salaire est retenu sans maintien, la DSN le déclare au bon motif et le signalement rappelle le formulaire à déposer.
+
 ## paie-2026-11-09.2
 
 ### DSN

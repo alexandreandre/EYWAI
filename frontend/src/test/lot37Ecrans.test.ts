@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { libelleTypeArret, typesArretProposes } from "@/lib/employeeAbsencesUtils";
+import { libelleDeLaDemande, libelleTypeArret, typesArretProposes } from "@/lib/employeeAbsencesUtils";
+import { libelleSignalement } from "@/components/exports/signalementsArret";
 import { ABSENCE_TYPES_MAINTIEN_PREVIEW } from "@/components/absences/MaintenancePreviewBlock";
 
 const SRC = path.resolve(__dirname, "..");
@@ -13,6 +14,7 @@ describe("Saisie d'un congé de maternité, de paternité ou d'adoption", () => 
     expect(typesArretProposes("arret_maternite")).toEqual([
       { value: "maternite", label: "Maternité" },
       { value: "adoption", label: "Adoption" },
+      { value: "conge_supplementaire_naissance", label: "Congé supplémentaire de naissance" },
     ]);
   });
 
@@ -20,6 +22,7 @@ describe("Saisie d'un congé de maternité, de paternité ou d'adoption", () => 
     expect(typesArretProposes("arret_paternite")).toEqual([
       { value: "paternite", label: "Paternité et accueil de l'enfant" },
       { value: "adoption", label: "Adoption" },
+      { value: "conge_supplementaire_naissance", label: "Congé supplémentaire de naissance" },
     ]);
   });
 
@@ -52,6 +55,32 @@ describe("Saisie d'un congé de maternité, de paternité ou d'adoption", () => 
     const t = lire("components/AbsenceRequestModal.tsx");
     expect(t).toContain("typesArretProposes(absenceType)");
     expect(t).not.toContain('<SelectItem value="maladie_simple">');
+  });
+});
+
+describe("Congé supplémentaire de naissance", () => {
+  it("la liste des demandes dit le congé, pas la nature sous laquelle il est saisi", () => {
+    expect(libelleDeLaDemande("Congé paternité", "conge_supplementaire_naissance")).toBe(
+      "Congé supplémentaire de naissance",
+    );
+    expect(libelleDeLaDemande("Congé paternité", "paternite")).toBe("Congé paternité");
+    expect(libelleDeLaDemande("Congé paternité", null)).toBe("Congé paternité");
+  });
+
+  it("le signalement du motif 20 se dit en français", () => {
+    const texte = libelleSignalement({
+      nature: "04",
+      motif: "20",
+      debut: "2027-01-04",
+      fin_prevue: "2027-01-29",
+    } as Parameters<typeof libelleSignalement>[0]);
+    expect(texte).toBe("Arrêt congé supplémentaire de naissance du 04/01/2027 au 29/01/2027");
+  });
+
+  it("la saisie prévient qu'il n'y a pas de maintien et qu'un formulaire est à déposer", () => {
+    const t = lire("components/AbsenceRequestModal.tsx");
+    expect(t).toContain('arretType === "conge_supplementaire_naissance"');
+    expect(t).toContain("formulaire de demande en PDF");
   });
 });
 

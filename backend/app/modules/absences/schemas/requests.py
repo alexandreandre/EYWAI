@@ -43,6 +43,8 @@ ArretType = Literal[
     "maternite",
     "paternite",
     "adoption",
+    # L1225-46-2 : indemnité de la CPAM, jamais de maintien (voir le moteur).
+    "conge_supplementaire_naissance",
 ]
 
 # Liste canonique du domaine (arrêts ouvrant les IJSS) : le front
