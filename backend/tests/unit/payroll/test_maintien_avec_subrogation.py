@@ -262,3 +262,17 @@ def test_la_chaine_marque_la_reconstitution_cegid_depuis_la_saisie():
     for module in (payslip_run_heures, payslip_run_forfait):
         source = inspect.getsource(module)
         assert 'arret_data["ijss_releve_du_bulletin"] = True' in source
+
+
+def test_reconstitution_saisie_au_dela_du_garanti_est_signalee():
+    """R-285 : la reconstitution garde la retenue saisie entière (bulletins Cegid
+    au centime) ; si elle dépasse le garanti, le maintien est négatif et on le dit."""
+    r, _contexte = _septembre_ouvres(ijss_brut_override=99999.0, ijss_releve_du_bulletin=True)
+    assert r["maintien"]["maintien_verse"] < 0
+    assert any("supérieur au maintien garanti" in a for a in r["alertes"])
+
+
+def test_reconstitution_sous_le_garanti_ne_dit_rien():
+    r, _contexte = _septembre_ouvres(ijss_brut_override=1.0, ijss_releve_du_bulletin=True)
+    assert r["maintien"]["maintien_verse"] > 0
+    assert not any("supérieur au maintien garanti" in a for a in r["alertes"])

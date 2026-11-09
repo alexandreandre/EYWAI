@@ -2803,6 +2803,13 @@ def calculer_maintien(
             f"Maintien légal : {jours_12_mois} jours déjà indemnisés sur les douze mois "
             "précédents sont déduits des droits de cet arrêt (art. D1226-4)."
         )
+    if float(maintien.get("maintien_verse") or 0.0) < 0:
+        # Reconstitution d'un bulletin Cegid (saisie « IJSS override ») : la retenue
+        # saisie se déduit en entier, sans plancher ; au-delà du garanti, on le dit.
+        alertes.append(
+            "Montant d'IJSS saisi supérieur au maintien garanti : le maintien calculé "
+            "est négatif, aucune ligne de maintien n'est imprimée. Vérifiez la saisie."
+        )
     if maintien.get("garantie_nette_non_calculee"):
         alertes.append(ALERTE_GARANTIE_NETTE_NON_CALCULEE)
     if maintien.get("plafond_net_non_calcule"):
