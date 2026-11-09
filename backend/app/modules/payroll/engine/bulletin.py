@@ -519,6 +519,7 @@ def creer_bulletin_final(
     mois: int,
     resultats_maintien: Optional[Dict[str, Any]] = None,
     primes_soumises_impot: Optional[List[Dict[str, Any]]] = None,
+    iccp_du_dossier: bool = False,
 ) -> Dict[str, Any]:
     """
     Assemble tous les éléments calculés en une structure de données finale
@@ -833,6 +834,18 @@ def creer_bulletin_final(
     alertes_baremes.extend(
         alertes_des_compteurs_de_conges(solde_conges, bulletin_de_sortie=bulletin_de_sortie)
     )
+    if bulletin_de_sortie:
+        from app.modules.payroll.engine.alertes_de_sortie import alertes_de_sortie
+
+        alertes_baremes.extend(
+            alertes_de_sortie(
+                _extraire_employee_id(contexte),
+                None,
+                solde_conges,
+                details_brut,
+                iccp_du_dossier=iccp_du_dossier,
+            )
+        )
 
     bulletin = {
         # Lu par la remise au salarié : le bulletin de sortie est remis dès sa
@@ -1088,6 +1101,7 @@ def creer_bulletin_sortie(
         annee,
         mois,
         resultats_maintien=resultats_maintien,
+        iccp_du_dossier=float((indemnites_sortie.get("indemnite_conges") or {}).get("montant") or 0) > 0,
     )
 
     # Préparer les lignes d'indemnités de sortie
