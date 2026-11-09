@@ -18,6 +18,8 @@ from __future__ import annotations
 import pytest
 
 from app.shared.domain.effectif_seuils import (
+    CODE_ALERTE_FRANCHISSEMENT,
+    alerte_franchissement_seuil,
     CLE_EFFECTIF_SEUILS,
     CODE_ALERTE_EFFECTIF,
     alerte_effectif,
@@ -115,3 +117,29 @@ class TestSaisie:
 
     def test_sans_settings(self):
         assert effectifs_avec(None, 2026, 5) == {"2026": 5}
+
+
+class TestFranchissementCinqAns:
+    """R-270 : CSS L130-1 II, seuil pris en compte après cinq années civiles consécutives."""
+
+    def test_une_seule_annee_saisie_ne_dit_rien(self):
+        assert alerte_franchissement_seuil(_societe({"2026": 70}), 2026) is None
+
+    def test_passage_au_dessus_de_50_alerte(self):
+        alerte = alerte_franchissement_seuil(_societe({"2026": 45, "2027": 52}), 2027)
+        assert alerte["code"] == CODE_ALERTE_FRANCHISSEMENT
+        assert "50" in alerte["message"] and "2026" in alerte["message"]
+
+    def test_cinq_annees_au_dessus_ne_dit_rien(self):
+        saisis = {str(a): 55 for a in range(2023, 2028)}
+        assert alerte_franchissement_seuil(_societe({**saisis, "2022": 45}), 2027) is None
+
+    def test_annee_non_saisie_ne_dit_rien(self):
+        assert alerte_franchissement_seuil(_societe({"2026": 45}), 2027) is None
+
+    def test_le_seuil_le_plus_haut_est_nomme(self):
+        alerte = alerte_franchissement_seuil(_societe({"2026": 15, "2027": 52}), 2027)
+        assert "50" in alerte["message"]
+
+    def test_sous_le_seuil_ne_dit_rien(self):
+        assert alerte_franchissement_seuil(_societe({"2026": 15, "2027": 18}), 2027) is None

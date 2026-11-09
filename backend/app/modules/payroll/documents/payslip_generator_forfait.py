@@ -10,7 +10,11 @@ Ce service détecte automatiquement si un employé est en forfait jour
 et utilise le générateur approprié.
 """
 
-from app.shared.domain.effectif_seuils import alerte_effectif, effectif_retenu
+from app.shared.domain.effectif_seuils import (
+    alerte_effectif,
+    alerte_franchissement_seuil,
+    effectif_retenu,
+)
 from app.core.logging import get_logger
 
 logger = get_logger("modules.payroll.documents.payslip_generator_forfait")
@@ -707,6 +711,13 @@ def process_payslip_generation_forfait(
             payslip_json_data["alertes_baremes"] = [
                 *(payslip_json_data.get("alertes_baremes") or []),
                 alerte_effectif_annee,
+            ]
+        alerte_franchissement = alerte_franchissement_seuil(company_data, year)
+        if alerte_franchissement and isinstance(payslip_json_data, dict):
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = [
+                *(payslip_json_data.get("alertes_baremes") or []),
+                alerte_franchissement,
             ]
         if alerte_depart_zero and isinstance(payslip_json_data, dict):
             payslip_json_data = dict(payslip_json_data)

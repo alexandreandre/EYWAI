@@ -20,6 +20,7 @@ from typing import Any
 
 CLE_EFFECTIF_SEUILS = "effectif_seuils"
 CODE_ALERTE_EFFECTIF = "effectif_annee_non_saisi"
+CODE_ALERTE_FRANCHISSEMENT = "effectif_seuil_franchi_moins_de_cinq_ans"
 
 #: Seuils lus par le moteur : formation, versement mobilité et dispositif
 #: d'apprentissage (11), déduction heures sup et repos compensateur (20),
@@ -106,6 +107,44 @@ def alerte_effectif(retenu: EffectifRetenu) -> dict[str, Any] | None:
             f"{retenu.annee_source} ({retenu.valeur}). {saisir}"
         )
     return {"code": CODE_ALERTE_EFFECTIF, "message": message}
+
+
+def alerte_franchissement_seuil(
+    company: Mapping[str, Any] | None, annee: int
+) -> dict[str, Any] | None:
+    """Alerte quand l'effectif saisi franchit un seuil depuis moins de cinq ans.
+
+    CSS L130-1, II : un seuil atteint ou dépassé n'est pris en compte qu'après
+    cinq années civiles consécutives (sources lues : Legisocial, commentaires du
+    BOSS ; Légifrance et le BOSS ne s'ouvrent pas d'ici). La clé d'année porte la
+    moyenne de l'année précédente : on regarde les quatre saisies d'avant. Martine
+    ne neutralise rien d'elle-même, l'historique des années passées n'étant pas
+    saisi : elle applique l'effectif saisi et le dit. Saisir l'effectif à retenir
+    est la réponse.
+    """
+    saisis = effectifs_saisis(company)
+    effectif = saisis.get(annee)
+    if effectif is None:
+        return None
+    for seuil in (50, 20, 11):
+        if effectif < seuil:
+            continue
+        sous_le_seuil = sorted(
+            a for a in range(annee - 4, annee) if a in saisis and saisis[a] < seuil
+        )
+        if sous_le_seuil:
+            derniere = sous_le_seuil[-1]
+            return {
+                "code": CODE_ALERTE_FRANCHISSEMENT,
+                "message": (
+                    f"Seuil de {seuil} salariés atteint : effectif {annee} saisi à "
+                    f"{effectif}, {saisis[derniere]} en {derniere}. Un seuil ne compte "
+                    "qu'après cinq années civiles consécutives (CSS L130-1) : Martine "
+                    "applique pourtant l'effectif saisi. Vérifiez l'effectif à retenir "
+                    "dans les paramètres de paie avant de valider."
+                ),
+            }
+    return None
 
 
 def effectifs_avec(
