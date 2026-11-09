@@ -8,6 +8,8 @@ Aucune dépendance DB ni HTTP. Couvre :
 - SourceCredit (domain/enums.py)
 """
 
+import pytest
+
 from app.modules.repos_compensateur.domain.entities import ReposCredit
 from app.modules.repos_compensateur.domain.rules import (
     CONTINGENT_DEFAUT,
@@ -342,3 +344,54 @@ class TestCumulerHeuresHsAnnee:
         assert result[2] == 8.0
         assert result[3] == 8.0
         assert result[12] == 8.0
+
+
+class TestHeuresAccomplies:
+    """R-300 : seules les heures accomplies comptent au contingent (L3121-30, L3121-29)."""
+
+    BULLETIN = {
+        "calcul_du_brut": [
+            {"libelle": "Heures supplémentaires structurelles 25 %", "quantite": 17.33},
+            {"libelle": "Heures supplémentaires 25 %", "quantite": 5.0},
+        ]
+    }
+    FERIE_SEMAINE_19 = {"jour": 8, "type": "ferie", "heures": 0.0}
+    ABSENCE_SEMAINE_21 = {"jour": 19, "type": "absence_injustifiee_base", "heures": 7.8}
+
+    def test_ferie_et_absence_retirent_la_structurelle_de_leur_semaine(self):
+        evenements = {5: {"calendrier_analyse": [self.FERIE_SEMAINE_19, self.ABSENCE_SEMAINE_21]}}
+        cumuls = cumuler_heures_hs_annee({5: self.BULLETIN}, evenements, 2026)
+        assert cumuls[5] == pytest.approx(22.33 - 2 * 4.0, abs=0.01)
+
+    def test_une_absence_d_une_heure_retire_une_heure(self):
+        evenements = {5: {"calendrier_analyse": [{"jour": 19, "type": "absence_injustifiee_base", "heures": 1.0}]}}
+        cumuls = cumuler_heures_hs_annee({5: self.BULLETIN}, evenements, 2026)
+        assert cumuls[5] == pytest.approx(21.33, abs=0.01)
+
+    def test_deux_jours_de_la_meme_semaine_ne_retirent_qu_une_fois(self):
+        evenements = {5: {"calendrier_analyse": [
+            {"jour": 18, "type": "conges_payes", "heures": 7.8},
+            {"jour": 19, "type": "conges_payes", "heures": 7.8},
+        ]}}
+        cumuls = cumuler_heures_hs_annee({5: self.BULLETIN}, evenements, 2026)
+        assert cumuls[5] == pytest.approx(22.33 - 4.0, abs=0.01)
+
+    def test_un_week_end_d_arret_sans_heures_ne_retire_rien(self):
+        evenements = {5: {"calendrier_analyse": [{"jour": 16, "type": "arret_maladie", "heures": 0.0}]}}
+        assert cumuler_heures_hs_annee({5: self.BULLETIN}, evenements, 2026)[5] == 22.33
+
+    def test_sans_structurelle_rien_n_est_retire(self):
+        bulletin = {"calcul_du_brut": [{"libelle": "Heures supplémentaires 25 %", "quantite": 5.0}]}
+        evenements = {5: {"calendrier_analyse": [self.FERIE_SEMAINE_19]}}
+        assert cumuler_heures_hs_annee({5: bulletin}, evenements, 2026)[5] == 5.0
+
+    def test_sans_calendrier_seules_les_lignes_du_bulletin_comptent(self):
+        bulletin = {"calcul_du_brut": [
+            *self.BULLETIN["calcul_du_brut"],
+            {"libelle": "Heures sup. du contrat non faites (absence)", "quantite": 1.6},
+        ]}
+        assert cumuler_heures_hs_annee({5: bulletin}, {}, 2026)[5] == pytest.approx(20.73, abs=0.01)
+
+    def test_sans_evenements_fournis_rien_ne_change(self):
+        assert cumuler_heures_hs_annee({5: self.BULLETIN})[5] == 22.33
+

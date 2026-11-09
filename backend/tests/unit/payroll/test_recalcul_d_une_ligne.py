@@ -157,6 +157,7 @@ def test_les_credits_de_l_annee_partent_en_une_ecriture():
         patch.object(service, "get_contingent_settings", return_value=reglages),
         patch.object(service, "get_company_effectif", return_value=25),
         patch.object(service, "get_bulletins_par_mois_par_employe", return_value={"emp-1": bulletins}),
+        patch.object(service, "get_payroll_events_par_mois_par_employe", return_value={}),
         patch.object(service, "upsert_credits", side_effect=lambda c: ecritures.append(list(c)) or True),
         patch.object(service, "upsert_credit", side_effect=AssertionError("une écriture par mois")),
     ):

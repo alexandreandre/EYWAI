@@ -2,6 +2,7 @@
 
 from app.modules.repos_compensateur.infrastructure.providers import (
     get_bulletins_par_mois_par_employe,
+    get_payroll_events_par_mois_par_employe,
 )
 from app.modules.repos_compensateur.infrastructure.queries import (
     get_company_effectif,
@@ -23,6 +24,7 @@ __all__ = [
     "get_contingent_settings",
     "get_employees_for_company",
     "get_jours_by_employee_year",
+    "get_payroll_events_par_mois_par_employe",
     "get_validated_repos_requests",
     "upsert_credit",
     "upsert_credits",

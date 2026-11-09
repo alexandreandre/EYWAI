@@ -5,6 +5,7 @@ Dépendances infrastructure (get_company_effectif, get_employees_for_company,
 get_bulletins_par_mois_par_employe, upsert_credit) mockées.
 """
 
+import pytest
 from unittest.mock import patch
 
 from app.modules.repos_compensateur.domain.contingent_rules import ContingentSettings
@@ -20,6 +21,17 @@ _DEFAULT_SETTINGS = ContingentSettings(
     management_contingent_hours=360.0,
     hours_per_rest_day=7.0,
 )
+
+
+
+@pytest.fixture(autouse=True)
+def _pas_de_calendrier_d_analyse():
+    """Les heures accomplies (R-300) lisent aussi les événements de paie."""
+    with patch(
+        "app.modules.repos_compensateur.application.service.get_payroll_events_par_mois_par_employe",
+        return_value={},
+    ):
+        yield
 
 
 class TestCalculerCreditsRepos:
