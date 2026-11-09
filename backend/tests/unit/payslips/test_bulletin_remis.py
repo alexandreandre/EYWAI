@@ -192,6 +192,7 @@ def _valider_octobre(aujourd_hui, payslip_data=None):
         patch.object(svc, "payslip_meta_reader"),
         patch.object(svc, "_ensure_edit_meta"),
         patch.object(svc, "get_payslip_details", return_value=detail),
+        patch.object(svc, "_etat_actuel_du_bulletin", return_value=None),
         patch.object(svc, "fetch_previous_validated_payslip", return_value=None),
         patch.object(svc, "fetch_employee_statut", return_value="Non-Cadre"),
         patch.object(svc, "fetch_recent_nets_asc_for_r10", return_value=[]),

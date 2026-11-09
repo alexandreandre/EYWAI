@@ -165,11 +165,14 @@ def zone_du_code_postal(code_postal: Any) -> str:
 
 
 # --- Péremption d'un taux personnalisé (01) -------------------------------
-# Au-delà de ce nombre de mois, le taux personnalisé en base a de bonnes chances
-# d'avoir été remplacé par la DGFiP : la DSN d'un mois est déposée le mois
-# suivant, un taux de deux mois est donc le plus récent qu'on puisse détenir en
-# régime normal. Sans nouvel envoi, le taux se périme et la grille reprend
-# (CGI 1671). Même seuil pour l'écran (statut « À rafraîchir ») et le moteur.
+# Un taux mis à disposition au mois M vaut jusqu'à la fin de M+2, jamais en M+3
+# (CGI 1671, 2 ; BOI-IR-PAS-20-20-30-10 § 70, ouvert le 08/11/2026). Le `periode`
+# d'un taux relevé dans une DSN est le mois où il a été appliqué : mis à
+# disposition ce mois-là au plus tard, il tombe à M+2 au plus : seuil de 2.
+# Le seuil serait d'un mois trop court pour un compte rendu métier (DSN de P,
+# mise à disposition en P+1) ; aucun n'a été chargé au 08/11/2026 (R-343, ouvert
+# tant qu'un vrai compte rendu n'a pas été lu). Même seuil pour l'écran (statut
+# « À rafraîchir ») et le moteur.
 ANCIENNETE_TOLEREE_MOIS = 2
 
 _PERIODE_RE = re.compile(r"^(\d{4})-(0[1-9]|1[0-2])$")

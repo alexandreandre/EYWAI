@@ -272,3 +272,23 @@ def test_les_valeurs_d_embauche_sont_reservees_a_la_rh_de_la_societe_active():
     lire.assert_not_called()
     assert ok.status_code == 200 and ok.json() == {"statut": "Non-Cadre"}
     assert lire_rh.call_args.args == (ACTIVE,)
+
+
+def test_nir_deja_connu_refuse_avant_tout_compte_cree():
+    """R-318 : l'index unique ne voit que le texte exact ; un NIR saisi sans sa clé
+    (13 chiffres contre 15) ferait une seconde fiche, sans l'historique de l'ancienne."""
+    import asyncio
+
+    from app.modules.employees.application.dto import EmployeeCreateValidationError
+
+    with (
+        patch.object(commands, "get_auth_provider") as auth,
+        patch(
+            "app.modules.dsn_import.infrastructure.repository.find_employee_by_nir",
+            return_value={"id": "fiche-existante"},
+        ),
+    ):
+        with pytest.raises(EmployeeCreateValidationError) as exc:
+            asyncio.run(commands.create_employee(_embauche(nir="2900573008000"), "soc-1"))
+    auth.assert_not_called()
+    assert "Nouveau contrat" in exc.value.field_errors["nir"]

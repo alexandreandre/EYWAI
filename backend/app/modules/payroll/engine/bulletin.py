@@ -149,6 +149,18 @@ def _jours_fr(valeur: float) -> str:
     return f"{texte.replace('.', ',')} j"
 
 
+#: Le dixième n'a pas pu être calculé : la phrase ne prétend pas l'avoir comparé.
+DIXIEME_NON_COMPARABLE = (
+    "Dixième non comparable : rémunération de la période d'acquisition inconnue."
+)
+
+
+def _dixieme_non_compare(contexte: Any) -> bool:
+    """Le calcul des congés a retenu le maintien seul, faute de rémunération connue."""
+    alertes = getattr(contexte, "alertes_baremes", None) or []
+    return any(isinstance(a, dict) and a.get("code") == "dixieme_conges_a_verifier" for a in alertes)
+
+
 def alertes_des_compteurs_de_conges(
     solde_conges: Optional[Dict[str, Any]],
     *,
@@ -507,6 +519,7 @@ def creer_bulletin_final(
     mois: int,
     resultats_maintien: Optional[Dict[str, Any]] = None,
     primes_soumises_impot: Optional[List[Dict[str, Any]]] = None,
+    iccp_du_dossier: bool = False,
 ) -> Dict[str, Any]:
     """
     Assemble tous les éléments calculés en une structure de données finale
@@ -557,7 +570,11 @@ def creer_bulletin_final(
         if indemnite_conges > retenue_conges:
             texte_arbitrage = f"L'indemnité de congés payés a été calculée selon la règle du 1/10ème (soit {_euros_fr(indemnite_conges)}), plus favorable que le maintien de salaire ({_euros_fr(retenue_conges)})."
         else:
-            texte_arbitrage = f"L'indemnité de congés payés a été calculée selon la règle du maintien de salaire ({_euros_fr(retenue_conges)}), plus favorable que la règle du 1/10ème."
+            texte_arbitrage = (
+                f"L'indemnité de congés payés a été calculée selon le maintien de salaire ({_euros_fr(retenue_conges)}). {DIXIEME_NON_COMPARABLE}"
+                if _dixieme_non_compare(contexte)
+                else f"L'indemnité de congés payés a été calculée selon la règle du maintien de salaire ({_euros_fr(retenue_conges)}), plus favorable que la règle du 1/10ème."
+            )
 
     # Tri des cotisations en plusieurs blocs pour l'affichage
     bloc_principales = []
@@ -817,6 +834,18 @@ def creer_bulletin_final(
     alertes_baremes.extend(
         alertes_des_compteurs_de_conges(solde_conges, bulletin_de_sortie=bulletin_de_sortie)
     )
+    if bulletin_de_sortie:
+        from app.modules.payroll.engine.alertes_de_sortie import alertes_de_sortie
+
+        alertes_baremes.extend(
+            alertes_de_sortie(
+                _extraire_employee_id(contexte),
+                None,
+                solde_conges,
+                details_brut,
+                iccp_du_dossier=iccp_du_dossier,
+            )
+        )
 
     bulletin = {
         # Lu par la remise au salarié : le bulletin de sortie est remis dès sa
@@ -1072,6 +1101,7 @@ def creer_bulletin_sortie(
         annee,
         mois,
         resultats_maintien=resultats_maintien,
+        iccp_du_dossier=float((indemnites_sortie.get("indemnite_conges") or {}).get("montant") or 0) > 0,
     )
 
     # Préparer les lignes d'indemnités de sortie
@@ -1220,6 +1250,12 @@ def creer_bulletin_sortie(
             bulletin_base["arbitrage_conges"] = (
                 f"L'indemnité compensatrice de congés payés (CDD) retenue : "
                 f"{_euros_fr(montant)} (règle des 10 % de la rémunération totale du contrat)."
+            )
+        elif dixieme <= 0:
+            # Rémunération de référence inconnue : aucune comparaison n'a eu lieu.
+            bulletin_base["arbitrage_conges"] = (
+                f"L'indemnité compensatrice de congés payés a été calculée selon le "
+                f"maintien de salaire ({_euros_fr(montant)}). {DIXIEME_NON_COMPARABLE}"
             )
         else:
             bulletin_base["arbitrage_conges"] = (

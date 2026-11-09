@@ -82,3 +82,41 @@ def test_bulletin_de_sortie(methode, attendu):
     }
     bulletin = creer_bulletin_sortie(_contexte(), 2000.0, [], [], NETS, [], indemnites, 2026, 10)
     assert bulletin["arbitrage_conges"] == attendu
+
+
+# R-375 : la phrase ne dit « plus favorable » que si le dixième a été comparé.
+def _contexte_dixieme_inconnu():
+    contexte = _contexte()
+    contexte.alertes_baremes.append({"code": "dixieme_conges_a_verifier", "message": "maintien seul"})
+    return contexte
+
+
+def test_maintien_sans_comparaison_ne_se_dit_pas_plus_favorable():
+    details_brut = [
+        _ligne("Absence congés payés (2 jours : 13/07, 14/07)", perte=193.84),
+        _ligne("Indemnité de congés payés (partie base)", gain=193.84),
+    ]
+    texte = creer_bulletin_final(
+        _contexte_dixieme_inconnu(), 2000.0, details_brut, [], NETS, [], 2026, 7
+    )["arbitrage_conges"]
+    assert texte == (
+        "L'indemnité de congés payés a été calculée selon le maintien de salaire "
+        "(193,84 €). Dixième non comparable : rémunération de la période "
+        "d'acquisition inconnue."
+    )
+
+
+def test_bulletin_de_sortie_dixieme_inconnu():
+    indemnites = {
+        "indemnite_conges": {
+            "montant": 1234.56,
+            "description": "ICCP",
+            "details": {"methode_retenue": "maintien", "indemnite_maintien": 1234.56, "indemnite_dixieme": 0.0},
+        }
+    }
+    texte = creer_bulletin_sortie(_contexte(), 2000.0, [], [], NETS, [], indemnites, 2026, 7)["arbitrage_conges"]
+    assert texte == (
+        "L'indemnité compensatrice de congés payés a été calculée selon le maintien "
+        "de salaire (1 234,56 €). Dixième non comparable : rémunération de la période "
+        "d'acquisition inconnue."
+    )

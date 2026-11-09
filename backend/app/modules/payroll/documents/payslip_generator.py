@@ -332,6 +332,28 @@ def _is_panier_input(row: dict) -> bool:
     return "panier" in label
 
 
+def entree_de_frais_non_soumis(row: dict, company_data: dict) -> dict:
+    """La ligne d'un frais non soumis, heures comme forfait.
+
+    Convention (paramétrable) : selon la CCN, le panier repas non soumis est soit
+    un remboursement de frais professionnels (exclu du montant net social — défaut,
+    ex. CCN plasturgie SPAN), soit un complément de rémunération inclus au MNS et
+    au net à payer (ex. CCN métallurgie panier équipe SPAJ). Piloté par le
+    paramètre entreprise `paniers_non_soumis_dans_mns`.
+    """
+    if (company_data.get("settings") or {}).get("paniers_non_soumis_dans_mns") and _is_panier_input(row):
+        return {
+            "prime_id": row.get("catalog_prime_id") or row["name"].replace(" ", "_").lower(),
+            "libelle": row["name"],
+            "montant": float(row["amount"]),
+            "soumise_a_cotisations": False,
+            "soumise_a_impot": False,
+        }
+    # Ligne à son libellé, ajoutée au net à payer, hors brut, hors cotisations et
+    # hors montant net social (vidéo G, 11/10/2026, D1).
+    return entree_de_frais_professionnels(row)
+
+
 def _is_ijss_override_input(row: dict) -> bool:
     """True si la saisie porte un override d'IJSS subrogées back-calculé depuis le
     bulletin (arrêt maladie avec maintien). Sa présence pilote le moteur maintien :
@@ -1014,9 +1036,6 @@ def process_payslip_generation(
         if isinstance(summary, dict) and summary:
             saisies_data["shift_payroll_summary"] = summary
 
-        paniers_non_soumis_dans_mns = bool(
-            (company_data.get("settings") or {}).get("paniers_non_soumis_dans_mns")
-        )
         net_a_payer_only_correction_total = 0.0
         reports_nap_negatif: list = []
         for row in saisies_res.data:
@@ -1049,26 +1068,7 @@ def process_payslip_generation(
                 reports_nap_negatif.extend(reports_du_mois([row]))
                 continue
             if _is_frais_pro_non_soumis_input(row):
-                # Convention (paramétrable) : selon la CCN, le panier repas non
-                # soumis est soit un remboursement de frais professionnels (exclu
-                # du montant net social — défaut, ex. CCN plasturgie SPAN), soit un
-                # complément de rémunération inclus au MNS et au net à payer (ex.
-                # CCN métallurgie panier équipe SPAJ). Piloté par le paramètre
-                # entreprise `paniers_non_soumis_dans_mns`.
-                if paniers_non_soumis_dans_mns and _is_panier_input(row):
-                    saisies_data["primes"].append({
-                        "prime_id": row.get("catalog_prime_id")
-                        or row["name"].replace(" ", "_").lower(),
-                        "libelle": row["name"],
-                        "montant": float(row["amount"]),
-                        "soumise_a_cotisations": False,
-                        "soumise_a_impot": False,
-                    })
-                    continue
-                # Ligne à son libellé, ajoutée au net à payer, hors brut, hors
-                # cotisations et hors montant net social. Elle se fondait dans
-                # l'acompte, sans ligne au bulletin (vidéo G, 11/10/2026, D1).
-                saisies_data["primes"].append(entree_de_frais_professionnels(row))
+                saisies_data["primes"].append(entree_de_frais_non_soumis(row, company_data))
                 continue
             if _is_ijss_override_input(row):
                 saisies_data["ijss_brut_override"] = abs(float(row["amount"]))

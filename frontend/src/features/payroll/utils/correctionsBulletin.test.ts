@@ -529,4 +529,16 @@ describe('ce que la correction fait suivre', () => {
   it('ne dit rien de plus sur une ligne ordinaire', () => {
     expect(avisSurLaLigne({ code: 'brut:salaire_base', bloc: 'brut', libelle: 'Salaire', mode: 'base_ou_taux' })).toBeNull();
   });
+
+  it.each(['brut:absence_conges_payes', 'brut:indemnite_conges_payes:partie-base', 'brut:iccp'])(
+    "R-211 : %s prévient que le solde ne suit pas",
+    (code) => {
+      const avis = avisSurLaLigne({ code, bloc: 'brut', libelle: 'Congés', mode: 'montant' });
+      expect(avis).toContain('pas le solde de congés');
+    },
+  );
+
+  it('R-211 : une autre ligne ne parle pas du solde', () => {
+    expect(avisSurLaLigne({ code: 'brut:heures_sup:25', bloc: 'brut', libelle: 'HS', mode: 'montant' })).toBeNull();
+  });
 });

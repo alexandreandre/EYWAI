@@ -170,3 +170,23 @@ class TestGenerateur:
         periode = vu["entreprise"]["entreprise"]["parametres_paie"]["periode_variables"]
         assert periode["fin"] == "2026-09-20"
         assert "fin_societe" not in periode
+
+
+def test_le_solde_imprime_compte_jusqu_a_la_sortie(monkeypatch):
+    """R-294 : au mois de sortie, la fenêtre prolongée (fin_au_depart) arrive
+    jusqu'au solde imprimé : il dit la même chose que l'indemnité de congés."""
+    from app.modules.payroll.engine import bulletin as module_bulletin
+    from tests.unit.payroll.helpers import build_test_contexte
+
+    vus = []
+    monkeypatch.setattr(
+        module_bulletin,
+        "build_solde_conges_pied_de_page",
+        lambda _e, _a, _m, fin=None: vus.append(fin) or {},
+    )
+    ctx = build_test_contexte(salaire_base=2000.0)
+    ctx.year = 2026
+    ctx.date_fin_variables = fin_au_depart(ARRETE, 2026, 11, SORTIE)
+    nets = {"net_imposable": 1500.0, "net_a_payer": 1200.0, "montant_impot_pas": 0.0}
+    module_bulletin.creer_bulletin_final(ctx, 2000.0, [], [], nets, [], 2026, 11)
+    assert vus == [SORTIE]

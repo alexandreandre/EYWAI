@@ -181,6 +181,26 @@ def _planning_du_nouveau_salarie(
     return {"planning_mois": resultat["mois"], "planning_plans": resultat["plans"]}
 
 
+def _refuser_nir_deja_connu(company_id: str, nir: Any) -> None:
+    """R-318 : l'index unique ne compare que le texte exact. Un NIR saisi sans sa
+    clé ferait une seconde fiche : un salarié repris de l'ancien logiciel embauché
+    à nouveau partirait sans l'historique de sa fiche, le mois manquant sans blocage."""
+    if not str(nir or "").strip():
+        return
+    from app.modules.dsn_import.infrastructure.repository import find_employee_by_nir
+
+    if find_employee_by_nir(str(company_id), str(nir).strip()):
+        raise EmployeeCreateValidationError(
+            field_errors={
+                "nir": (
+                    "Ce numéro de sécurité sociale est déjà enregistré dans cette "
+                    "société : s'il revient, utilisez « Nouveau contrat » sur sa fiche."
+                )
+            },
+            message="Erreur lors de la création de l'employé",
+        )
+
+
 async def create_employee(
     employee_data: Dict[str, Any],
     company_id: str,
@@ -200,6 +220,7 @@ async def create_employee(
     classification = employee_data.get("classification_conventionnelle")
     if isinstance(classification, dict):
         _refuser_pcs_hors_liste(str(classification.get("pcs") or "").strip())
+    _refuser_nir_deja_connu(company_id, employee_data.get("nir"))
     new_user_id = None
     auth = get_auth_provider()
     storage = get_storage_provider()

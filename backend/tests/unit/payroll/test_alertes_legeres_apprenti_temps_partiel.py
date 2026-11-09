@@ -110,3 +110,52 @@ def test_heures_complementaires_au_dela_du_dixieme_du_contrat():
 )
 def test_dans_la_limite_ou_pas_temps_partiel_pas_d_alerte(duree, heures):
     assert controle_heures_complementaires(_temps_partiel(duree, heures)) == []
+
+
+# R-354 : à partir de 21 ans, le minimum est le plus élevé du SMIC et du minimum
+# conventionnel de l'emploi occupé (service-public.fr F2918, ouvert le 08/11/2026).
+def _apprenti_convention(monkeypatch, *, naissance, salaire, valeur=2000.0, idcc="0292"):
+    from app.modules.payroll.engine import controles_convention as module
+
+    monkeypatch.setattr(module, "resolve_salaires_minima", lambda *a, **k: [{"coefficient": 700, "valeur": valeur}])
+    monkeypatch.setattr(module, "code_postal_from_entreprise", lambda *a, **k: None)
+    monkeypatch.setattr(module, "resolve_minimum_for_classification", lambda *a, **k: {"coefficient": 700, "valeur": valeur})
+    ctx = _apprenti(naissance=naissance, debut="2026-09-01", periode=date(2026, 10, 31), salaire=salaire)
+    ctx.contrat["remuneration"]["convention_collective"] = {"idcc": idcc}
+    ctx.contrat["remuneration"]["classification_conventionnelle"] = {"coefficient": 700}
+    ctx.baremes = {"conventions_collectives": {f"idcc_{idcc}": {"grille": True}}}
+    ctx.entreprise = {}
+    return ctx
+
+
+def test_apprenti_21_ans_sous_le_minimum_conventionnel(monkeypatch):
+    # 53 % de 2 000 € = 1 060 € > 53 % du SMIC (966,21 €).
+    ctx = _apprenti_convention(monkeypatch, naissance="2005-03-02", salaire=1000.0)
+    alertes = controle_salaire_apprenti(ctx, 1000.0)
+    assert _codes(alertes) == ["apprenti_salaire_sous_minimum_conventionnel"]
+    assert alertes[0]["critique"] is False
+    assert "1 060,00 €" in alertes[0]["message"]
+    assert "coefficient du poste" in alertes[0]["message"]
+
+
+def test_apprenti_21_ans_au_minimum_conventionnel_pas_d_alerte(monkeypatch):
+    ctx = _apprenti_convention(monkeypatch, naissance="2005-03-02", salaire=1060.0)
+    assert controle_salaire_apprenti(ctx, 1060.0) == []
+
+
+def test_apprenti_de_moins_de_21_ans_reste_au_smic(monkeypatch):
+    ctx = _apprenti_convention(monkeypatch, naissance="2007-03-02", salaire=800.0)
+    assert controle_salaire_apprenti(ctx, 800.0) == []
+
+
+def test_apprenti_de_26_ans_100_pour_cent_du_minimum_conventionnel(monkeypatch):
+    ctx = _apprenti_convention(monkeypatch, naissance="1998-03-02", salaire=1900.0)
+    alertes = controle_salaire_apprenti(ctx, 1900.0)
+    assert _codes(alertes) == ["apprenti_salaire_sous_minimum_conventionnel"]
+    assert "100 %" in alertes[0]["message"]
+
+
+def test_apprenti_metallurgie_smh_annuel_non_controle_au_mois(monkeypatch):
+    """Le SMH de la métallurgie (3248) se juge sur l'année : même règle que les autres salariés."""
+    ctx = _apprenti_convention(monkeypatch, naissance="2005-03-02", salaire=1000.0, idcc="3248")
+    assert controle_salaire_apprenti(ctx, 1000.0) == []

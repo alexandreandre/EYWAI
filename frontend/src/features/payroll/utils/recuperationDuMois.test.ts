@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CONSEQUENCE_DU_CHOIX,
   heuresFr,
+  jouerLeGeste,
   lireRecuperation,
 } from '@/features/payroll/utils/recuperationDuMois';
 
@@ -76,5 +77,70 @@ describe('textes', () => {
   it("la conséquence est dite à l'écran", () => {
     expect(CONSEQUENCE_DU_CHOIX).toContain("exonération d'impôt");
     expect(CONSEQUENCE_DU_CHOIX).toContain('perdent');
+  });
+});
+
+describe('jouerLeGeste (R-322)', () => {
+  const noter = () => {
+    const appels: string[] = [];
+    return {
+      appels,
+      trace: (nom: string) => async () => {
+        appels.push(nom);
+      },
+    };
+  };
+
+  it('recalcul réussi : rien à défaire', async () => {
+    const { appels, trace } = noter();
+    const issue = await jouerLeGeste(trace('geste'), trace('regen'), trace('defaire'), false);
+    expect(issue).toEqual({ kind: 'recalcule' });
+    expect(appels).toEqual(['geste', 'regen']);
+  });
+
+  it('geste refusé : rien à recalculer ni à défaire', async () => {
+    const { appels, trace } = noter();
+    const erreur = new Error('refus');
+    const issue = await jouerLeGeste(
+      () => Promise.reject(erreur),
+      trace('regen'),
+      trace('defaire'),
+      false,
+    );
+    expect(issue).toEqual({ kind: 'refuse', erreur });
+    expect(appels).toEqual([]);
+  });
+
+  it('bulletin retouché : enregistré, pas de recalcul', async () => {
+    const { appels, trace } = noter();
+    const issue = await jouerLeGeste(trace('geste'), trace('regen'), trace('defaire'), true);
+    expect(issue).toEqual({ kind: 'sans_recalcul' });
+    expect(appels).toEqual(['geste']);
+  });
+
+  it('recalcul en échec : le geste est défait', async () => {
+    const { appels, trace } = noter();
+    const erreur = new Error('calcul impossible');
+    const issue = await jouerLeGeste(
+      trace('geste'),
+      () => Promise.reject(erreur),
+      trace('defaire'),
+      false,
+    );
+    expect(issue).toEqual({ kind: 'defait', erreur });
+    expect(appels).toEqual(['geste', 'defaire']);
+  });
+
+  it('recalcul en échec et geste non défait : on le dit', async () => {
+    const { appels, trace } = noter();
+    const erreur = new Error('calcul impossible');
+    const issue = await jouerLeGeste(
+      trace('geste'),
+      () => Promise.reject(erreur),
+      () => Promise.reject(new Error('coupure')),
+      false,
+    );
+    expect(issue).toEqual({ kind: 'non_defait', erreur });
+    expect(appels).toEqual(['geste']);
   });
 });

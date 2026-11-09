@@ -42,10 +42,11 @@ def heures_vers_jours(
 
 
 def get_taux_cor_par_effectif(effectif: int | None) -> float:
-    """Retourne le taux COR selon l'effectif : 0.5 si <20, 1.0 si >=20."""
+    """Retourne le taux COR selon l'effectif : 50 % pour vingt salariés au plus,
+    100 % au-delà (C. trav. L3121-38, ouvert le 08/11/2026)."""
     if effectif is None:
         return 1.0
-    return 0.5 if effectif < 20 else 1.0
+    return 0.5 if effectif <= 20 else 1.0
 
 
 # --- Extraction HS depuis payslip_data (règle métier : quelles lignes = HS) ---

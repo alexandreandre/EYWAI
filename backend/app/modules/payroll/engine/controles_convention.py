@@ -521,6 +521,37 @@ _POURCENTAGE_SMIC_APPRENTI = {
 }
 
 
+def _minimum_conventionnel_du_poste(contexte) -> Optional[float]:
+    """Le minimum mensuel de la classification de la fiche, proratisé au temps
+    partiel ; None si la convention, la grille ou le coefficient manquent, ou
+    pour le SMH de la métallurgie, qui se juge sur l'année (articles 138 à 140)."""
+    remuneration = (getattr(contexte, "contrat", {}) or {}).get("remuneration", {}) or {}
+    cc = remuneration.get("convention_collective") or {}
+    idcc = str(cc.get("idcc") or "").strip()
+    classification = remuneration.get("classification_conventionnelle") or {}
+    baremes = getattr(contexte, "baremes", None) or {}
+    if not idcc or not classification or _is_smh_national_idcc(idcc):
+        return None
+    conventions = baremes.get("conventions_collectives", {})
+    regles_cc = conventions.get(f"idcc_{idcc}", {})
+    if not regles_cc and idcc.isdigit():
+        for variante in (idcc.zfill(4), idcc.lstrip("0") or "0"):
+            regles_cc = conventions.get(f"idcc_{variante}", {})
+            if regles_cc:
+                break
+    if not regles_cc:
+        return None
+    minima = resolve_salaires_minima(
+        regles_cc,
+        code_postal=code_postal_from_entreprise(getattr(contexte, "entreprise", None) or {}),
+    )
+    ligne = resolve_minimum_for_classification(minima, classification, idcc=idcc) if minima else None
+    if ligne is None:
+        return None
+    valeur = float(ligne.get("valeur") or 0)
+    return _minimum_conventionnel_ajuste(contexte, valeur) if valeur > 0 else None
+
+
 def controle_salaire_apprenti(contexte, salaire_brut: float) -> List[Dict[str, Any]]:
     """Signale un salaire d'apprenti sous le minimum légal (non bloquant).
 
@@ -568,6 +599,25 @@ def controle_salaire_apprenti(contexte, salaire_brut: float) -> List[Dict[str, A
     if smic <= 0:
         return []
     minimum = round(smic * pourcentage / 100.0, 2)
+    # À partir de 21 ans : le plus élevé du SMIC et du minimum conventionnel de
+    # l'emploi occupé, au même pourcentage (service-public.fr F2918, ouvert le 08/11/2026).
+    if tranche in ("21_25", "26_plus"):
+        du_poste = _minimum_conventionnel_du_poste(contexte)
+        if du_poste is not None:
+            minimum_conventionnel = round(du_poste * pourcentage / 100.0, 2)
+            if minimum_conventionnel > minimum and salaire < minimum_conventionnel - 0.005:
+                return [
+                    _alert(
+                        code="apprenti_salaire_sous_minimum_conventionnel",
+                        critique=False,
+                        message=(
+                            f"Salaire de l'apprenti ({_euros_fr(salaire)} €) sous le minimum "
+                            f"conventionnel : {pourcentage} % du minimum de l'emploi occupé, soit "
+                            f"{_euros_fr(minimum_conventionnel)} € (tranche d'âge de {age} ans). "
+                            "Vérifiez le coefficient du poste sur la fiche."
+                        ),
+                    )
+                ]
     if salaire >= minimum - 0.005:
         return []
     return [
