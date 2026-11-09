@@ -50,6 +50,7 @@ from app.modules.jei_settings.infrastructure.exonerations_repository import (
 from app.modules.payroll.engine.baremes_loader import (
     commune_entreprise_depuis_donnees,
     comparer_taux_vm_entreprise,
+    baremes_de_l_annee,
     controler_annee_des_baremes,
 )
 from app.modules.payroll.engine.calcul_frais import (
@@ -681,6 +682,7 @@ def run_payslip_generation_heures(
     contexte.corrections_du_mois = JournalDesCorrections.depuis(saisie_du_mois)
     # Barèmes d'une année antérieure au bulletin : refus ; d'une année
     # suivante (décembre recalculé en janvier) : alerte sur le bulletin.
+    contexte.baremes = baremes_de_l_annee(contexte.baremes, year)
     contexte.alertes_baremes.extend(controler_annee_des_baremes(contexte.baremes, year))
     # Deux fenêtres : le bulletin porte le mois civil, les heures sup et les
     # paniers suivent la fenêtre arrêtée par la gestionnaire de paie.

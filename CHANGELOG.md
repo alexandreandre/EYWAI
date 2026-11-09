@@ -5,6 +5,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Barèmes de l'année passée
+- Un mois de 2026 régénéré après la pose des barèmes de 2027 pourra se recalculer aux taux de 2026, une fois ceux-ci figés.
+
 ## paie-2026-11-09.1
 
 ### Sorties et verrou

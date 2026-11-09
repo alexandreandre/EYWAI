@@ -299,6 +299,11 @@ def _extract_primes_list(primes_data: Any) -> List[Dict[str, Any]]:
     return primes_list if isinstance(primes_list, list) else []
 
 
+#: Ligne de `payroll_config` qui porte les barèmes d'une année terminée.
+PREFIXE_BAREMES_FIGES = "baremes_figes_"
+CLE_BAREMES_FIGES = "baremes_figes"
+
+
 def assembler_baremes(
     db_baremes: Dict[str, Any],
     conventions_collectives: Optional[Dict[str, Any]] = None,
@@ -320,7 +325,7 @@ def assembler_baremes(
     else:
         vmrr_payload = taux_vmrr
 
-    return {
+    baremes = {
         "cotisations": db_baremes.get("cotisations", {}),
         "pas": pas_baremes if isinstance(pas_baremes, list) else [],
         "smic": db_baremes.get("smic", {}),
@@ -342,6 +347,30 @@ def assembler_baremes(
         # et les cotisations exonérées) : sans cette clé, elle ne s'appliquait jamais.
         "jei": db_baremes.get("jei", {}),
     }
+    figes = {
+        cle[len(PREFIXE_BAREMES_FIGES):]: valeur
+        for cle, valeur in db_baremes.items()
+        if cle.startswith(PREFIXE_BAREMES_FIGES) and isinstance(valeur, dict)
+    }
+    if figes:
+        baremes[CLE_BAREMES_FIGES] = figes
+    return baremes
+
+
+def baremes_de_l_annee(baremes: Dict[str, Any], annee: int) -> Dict[str, Any]:
+    """Les barèmes à appliquer à un bulletin de `annee`.
+
+    `payroll_config` ne garde qu'une version active, sans date d'effet. Quand les
+    barèmes de janvier sont posés, `scripts/figer_baremes.py` fige ceux de l'année
+    qui se termine dans une ligne `baremes_figes_<année>` : un mois de cette année
+    régénéré ou régularisé ensuite se recalcule à ses taux. Sans ligne figée, rien
+    ne change et `controler_annee_des_baremes` le signale.
+    """
+    fige = (baremes.get(CLE_BAREMES_FIGES) or {}).get(str(annee))
+    if not fige:
+        return baremes
+    relus = assembler_baremes(fige, baremes.get("conventions_collectives"))
+    return {**baremes, **{cle: relus[cle] for cle in fige if cle in relus}}
 
 
 def baremes_lookup(

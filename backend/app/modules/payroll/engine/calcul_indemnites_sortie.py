@@ -578,16 +578,17 @@ def _est_interim(employee_data: Dict[str, Any]) -> bool:
     return "INTERIM" in str(contract).upper() or "INTÉRIM" in str(contract).upper()
 
 
-def _charger_baremes_paie(supabase_client) -> dict:
+def _charger_baremes_paie(supabase_client, annee: int) -> dict:
     from app.modules.payroll.engine.baremes_loader import (
         assembler_baremes,
+        baremes_de_l_annee,
         charger_conventions_collectives,
         charger_db_baremes,
     )
 
     db_baremes = charger_db_baremes(supabase_client)
     conventions = charger_conventions_collectives(supabase_client)
-    return assembler_baremes(db_baremes, conventions)
+    return baremes_de_l_annee(assembler_baremes(db_baremes, conventions), annee)
 
 
 #: Majoration des heures structurelles au-delà de 35 h, pour la valeur d'un
@@ -827,7 +828,7 @@ def calculer_indemnite_conges_restants(
     if not baremes and supabase_client:
         # Sans barèmes, l'indemnité sortait au légal seul, sans rien dire : une
         # lecture ratée arrête le calcul (LectureIndispensable).
-        baremes = _charger_baremes_paie(supabase_client)
+        baremes = _charger_baremes_paie(supabase_client, exit_date.year)
 
     is_cdd = _est_cdd(employee_data)
     is_interim = _est_interim(employee_data)
@@ -1141,7 +1142,7 @@ def _donnees_du_regime_social(
     alertes: list[str] = []
     baremes = employee_data.get("baremes") or {}
     if not (baremes.get("pss") or {}).get("annuel") and supabase_client is not None:
-        baremes = _charger_baremes_paie(supabase_client)
+        baremes = _charger_baremes_paie(supabase_client, exit_date.year)
     pass_annuel = float((baremes.get("pss") or {}).get("annuel") or 0.0)
     remuneration = None
     employee_id = employee_data.get("id")
