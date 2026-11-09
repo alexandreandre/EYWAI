@@ -5,6 +5,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Titres-restaurant (aucun montant ne change)
+- La part salariale retirée du net se lit sur le bulletin et dans l'extraction comptable ; aucune fiche n'en a aujourd'hui de nombre renseigné.
+
 ### Connexion et activation
 - Les pages publiques (connexion, mot de passe oublié, activation) refusent les essais en rafale depuis une même adresse.
 

@@ -163,6 +163,7 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
         FAMILLE_NOTE_DE_FRAIS,
         FAMILLE_PARTICIPATION,
         FAMILLE_PARTICIPATION_PEE,
+        FAMILLE_REGULARISATION_NET,
         FAMILLE_TRANSPORT,
         resolve_element_family,
     )
@@ -181,6 +182,18 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
                 "famille": FAMILLE_AVANTAGE_EN_NATURE,
                 "libelle": "Avantages en nature",
                 "montant": -avantages_en_nature,
+            }
+        )
+
+    # Retirés du net sans passer par le brut : sans cet élément, l'OD garde un
+    # résidu égal à la part salariale (R-213).
+    titres_restaurant = float(synthese.get("titres_restaurant", 0) or 0)
+    if titres_restaurant != 0:
+        elements.append(
+            {
+                "famille": FAMILLE_REGULARISATION_NET,
+                "libelle": "Titres-restaurant (part salariale)",
+                "montant": -titres_restaurant,
             }
         )
 

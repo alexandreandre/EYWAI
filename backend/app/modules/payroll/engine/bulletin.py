@@ -708,6 +708,10 @@ def creer_bulletin_final(
     avantages_en_nature = float(resultats_nets.get("avantages_en_nature") or 0.0)
     if avantages_en_nature:
         synthese_net["avantages_en_nature"] = avantages_en_nature
+    # De même pour les titres-restaurant : retirés du net, ils doivent se lire.
+    titres_restaurant = float(resultats_nets.get("titres_restaurant") or 0.0)
+    if titres_restaurant:
+        synthese_net["titres_restaurant"] = titres_restaurant
     # Stagiaire : gratification exonérée d'impôt dans la limite du SMIC annuel
     # (CGI art. 81 bis). Clé posée pour le seul stagiaire : le bulletin d'un
     # salarié garde exactement sa forme.
