@@ -5,6 +5,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### DSN
+- La DSN n'envoie plus de numéro de compte à la place de l'identifiant de l'Urssaf ; si l'identifiant manque, l'aperçu le dit et bloque.
+- Le versement mobilité part au bordereau Urssaf, avec son taux et sa commune.
+- Un taux d'impôt saisi à la main se déclare au barème jusqu'au prochain taux reçu ; l'aperçu le signale.
+
 ## paie-2026-11-09.2
 
 ### DSN
