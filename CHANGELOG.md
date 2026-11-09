@@ -5,6 +5,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### FNAL des sociétés de moins de 50 salariés
+- Le FNAL à 0,10 % s'arrête au plafond de la Sécurité sociale, sur le bulletin et le simulateur. Seuls les salaires au-dessus du plafond changent, à la baisse côté employeur.
+
 ## paie-2026-11-09.8
 
 ### Lot moteur 5 (aucun montant ne change aujourd'hui)

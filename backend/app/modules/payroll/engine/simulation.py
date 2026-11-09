@@ -528,6 +528,9 @@ def _calculer_cotisations_reelles(
                     if effectif < lc.SEUIL_EFFECTIF_FNAL
                     else taux_patronal.get("taux_50_et_plus", 0.0)
                 )
+                # Moins de 50 salariés : limité au plafond, comme le bulletin.
+                if effectif < lc.SEUIL_EFFECTIF_FNAL:
+                    assiette = float(brut_plafonne)
             elif coti_id == "CFP":
                 taux_patronal = (
                     taux_patronal.get("taux_moins_11", 0.0)

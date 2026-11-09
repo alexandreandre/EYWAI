@@ -7,7 +7,7 @@ convergence de mai 2026 avec les bulletins du cabinet l'a validée au centime
 sur les 7 salariés.
 
 Ça ne l'est pas pour un complément entièrement à la charge du salarié. Cas
-constaté sur MOROCHE, juillet 2026 : le complément « GAN Famille » (98,13 €,
+constaté sur M.A., juillet 2026 : le complément « GAN Famille » (98,13 €,
 aucune part patronale) était déduit de l'imposable chez nous et pas chez le
 cabinet — 2 570,73 € contre 2 668,88 €, et un PAS inférieur de 4,22 €. Le
 cabinet le retient APRÈS l'imposable, ce qui est le traitement des cotisations
