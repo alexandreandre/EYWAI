@@ -177,11 +177,39 @@ def construire_salarie(bulletin: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+#: C. trav. R3243-1, 3° : à défaut de convention, « la référence au code du travail
+#: pour les dispositions relatives à la durée des congés payés du salarié et à la
+#: durée des délais de préavis ». Articles ouverts le 09/11/2026.
+REFERENCE_CODE_DU_TRAVAIL = (
+    "Sans convention collective : durée des congés payés, C. trav. art. L3141-3 ; "
+    "délais de préavis, C. trav. art. L1234-1 et L1237-1."
+)
+
+
+def sans_convention_collective(salarie: Dict[str, Any]) -> bool:
+    """Le salarié ne relève d'aucune convention : IDCC 9999, celui de la DSN.
+
+    Une convention simplement absente du bulletin n'est pas ce cas : on ne
+    remplace pas un intitulé qu'on n'a pas su lire par le Code du travail.
+    """
+    convention = str(salarie.get("convention_collective") or "")
+    if convention:
+        return "9999" in convention
+    classification = salarie.get("classification_brute")
+    if not isinstance(classification, dict):
+        return False
+    return str(classification.get("idcc") or "").strip() == "9999"
+
+
 def construire_identite(bulletin: Dict[str, Any]) -> Dict[str, Any]:
     salarie = ((bulletin.get("en_tete") or {}).get("salarie")) or {}
     classification = salarie.get("classification_brute")
     if not isinstance(classification, dict):
         classification = {}
+    # R3243-1, 4° : la position « dans la classification conventionnelle qui lui
+    # est applicable ». Sans convention il n'y en a pas : le « 200 » de ces fiches
+    # vient d'une valeur par défaut de la DSN, pas d'une classification.
+    sans_convention = sans_convention_collective(salarie)
     date_entree = _date_fr(salarie.get("date_entree"))
     return {
         "matricule": salarie.get("matricule") or "",
@@ -199,12 +227,16 @@ def construire_identite(bulletin: Dict[str, Any]) -> Dict[str, Any]:
         # Repli sur la chaîne déjà formatée par le moteur : les vraies fiches
         # ne portent ni « niveau » ni « coefficient » mais des clés DSN
         # (position, niveau_dsn). Ne jamais afficher moins que l'ancien bulletin.
-        "classification": classification.get("niveau")
-        or classification.get("niveau_dsn")
-        or classification.get("classification")
-        or salarie.get("classification")
-        or "",
-        "coefficient": classification.get("coefficient") or "",
+        "classification": ""
+        if sans_convention
+        else (
+            classification.get("niveau")
+            or classification.get("niveau_dsn")
+            or classification.get("classification")
+            or salarie.get("classification")
+            or ""
+        ),
+        "coefficient": "" if sans_convention else classification.get("coefficient") or "",
     }
 
 
@@ -567,6 +599,18 @@ def mention_heures_sup_declarees(bulletin: Dict[str, Any]) -> Optional[str]:
     )
 
 
+def mention_volume_du_forfait(bulletin: Dict[str, Any]) -> Optional[str]:
+    """C. trav. R3243-1, 5° a) : « La nature et le volume du forfait ».
+
+    Un bulletin calculé avant que le volume soit relevé n'a pas la clé : rien
+    n'est inventé pour lui.
+    """
+    jours = bulletin.get("forfait_jours_annuel")
+    if not jours:
+        return None
+    return f"Forfait annuel en jours : {float(jours):g} jours par an".replace(".", ",")
+
+
 def _mention_sous_la_ligne(bulletin: Dict[str, Any], detail: Dict[str, Any]) -> Optional[str]:
     """Sous la ligne de maintien : les IJSS déduites sans subrogation.
 
@@ -595,6 +639,10 @@ def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
                 mention = _mention_sous_la_ligne(bulletin, detail)
                 if mention:
                     lignes.append(_ligne("note", mention))
+                if str(detail.get("libelle") or "").startswith("Salaire de base (forfait jour)"):
+                    volume = mention_volume_du_forfait(bulletin)
+                    if volume:
+                        lignes.append(_ligne("note", volume))
 
     # La règle retenue pour les congés (`arbitrage_conges`) et la compensation
     # entre semaines (`compensation_semaines`) ne s'impriment pas : aucune n'est
@@ -813,7 +861,9 @@ def construire_pied(bulletin: Dict[str, Any]) -> Dict[str, Any]:
             "exoneration_stagiaire": bool(synthese.get("exoneration_ir_stagiaire")),
         },
         "net_a_payer": bulletin.get("net_a_payer"),
-        "convention_collective": salarie.get("convention_collective") or "",
+        "convention_collective": REFERENCE_CODE_DU_TRAVAIL
+        if sans_convention_collective(salarie)
+        else salarie.get("convention_collective") or "",
         "mentions_legales": [
             texte
             for texte in (mentions.get("conservation"), mentions.get("information"))

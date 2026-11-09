@@ -125,7 +125,7 @@
         </tr>
         <tr>
             <td>Qualif : {{ vue.identite.qualification }}</td>
-            <td>Classif : {{ vue.identite.classification }} &nbsp; Coeff : {{ vue.identite.coefficient }}</td>
+            <td>{% if vue.identite.classification %}Classif : {{ vue.identite.classification }}{% endif %}{% if vue.identite.classification and vue.identite.coefficient %} &nbsp; {% endif %}{% if vue.identite.coefficient %}Coeff : {{ vue.identite.coefficient }}{% endif %}</td>
         </tr>
     </table>
 
