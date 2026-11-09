@@ -1908,7 +1908,10 @@ def calculer_salaire_brut(
                 # et la quote-part d'HS structurelles n'était jamais réduite
                 # (retour Gaëlle 07/09, salarié 140 juillet : sur-retenue base
                 # +19,72 € et réduction HS absente). Le `min` préserve les
-                # absences fractionnaires (0,25 h reste 0,25 h).
+                # absences fractionnaires (0,25 h reste 0,25 h). Un jour planifié
+                # moins que la référence (vendredi de 5 h) retire ses seules heures
+                # planifiées : la retenue suit le temps non travaillé (Cass. soc.
+                # 11/02/1982, 80-40359 ; C. trav. L1331-2, R-282).
                 heures_abs = min(
                     heures_abs, _heures_journalieres_contrat(duree_contrat_hebdo)
                 )
