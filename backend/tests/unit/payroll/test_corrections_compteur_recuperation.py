@@ -36,6 +36,16 @@ def test_heure_sup_sans_compteur_reste_corrigeable():
     assert ligne.raison is None
 
 
+def test_societe_qui_paie_ses_heures_rien_au_compteur_reste_corrigeable():
+    """Compteur ouvert mais heures payées : aucune heure créditée, pas de double compte."""
+    data = {
+        "calcul_du_brut": [HS],
+        "modulation_account": {"hs_credited": 0.0, "hs_paid": 4.0, "regle": "pay_all"},
+        "pied_de_page": {"solde_conges": {"recuperation": {"solde": 0}}},
+    }
+    assert _ligne(data, HS["libelle"]).mode is not None
+
+
 def test_une_correction_deja_posee_reste_retirable():
     posee = {**HS, "correction": {"ligne": "brut:heures_sup:25", "saisie_id": "s1"}}
     data = {"calcul_du_brut": [posee], "modulation_account": {"hs_credited": 4.0}}

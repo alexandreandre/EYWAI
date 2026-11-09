@@ -167,12 +167,11 @@ RAISON_PAIEMENT_SOLDE = (
 LIBELLE_PAIEMENT_SOLDE = "Paiement solde heures de récupération"
 
 
-def _porte_un_compteur_de_recuperation(data: Mapping[str, Any]) -> bool:
-    """Le bulletin d'un salarié dont les heures sup passent au compteur."""
-    if _dict(data.get("modulation_account")):
-        return True
-    solde = (_dict(data.get("pied_de_page")) or {}).get("solde_conges")
-    return bool(_dict(solde) and _dict(solde.get("recuperation")))
+def _heures_mises_au_compteur(data: Mapping[str, Any]) -> bool:
+    """Des heures sup de ce bulletin sont parties au compteur. Compteur ouvert
+    mais heures payées (`pay_all`) : rien de crédité, la ligne se corrige."""
+    compte = _dict(data.get("modulation_account")) or {}
+    return (_nombre(compte.get("hs_credited")) or 0.0) > 0
 
 
 def _raison_du_compteur(ligne: Mapping[str, Any], code: str | None, compteur: bool) -> str | None:
@@ -192,7 +191,7 @@ def lignes_corrigeables(payslip_data: Any) -> list[LigneCorrigeable]:
     data = _donnees(payslip_data)
     sortie: list[LigneCorrigeable] = []
     gains = _lignes_de_gain(data)
-    compteur = _porte_un_compteur_de_recuperation(data)
+    compteur = _heures_mises_au_compteur(data)
     for ligne, code in zip(gains, numeroter(code_de_ligne(BLOC_BRUT, l) for l in gains)):
         mode, raison = mode_de_correction(BLOC_BRUT, ligne, code)
         raison_du_compteur = _raison_du_compteur(ligne, code, compteur)
