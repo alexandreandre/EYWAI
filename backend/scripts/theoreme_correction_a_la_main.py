@@ -24,6 +24,11 @@ les salariés sont sautés, sort en échec (code 1). Les salariés se lisent sur
 fiche, pas sur les bulletins : un mois sans bulletin se joue aussi. Un mois
 repris de l'ancien logiciel, que l'écran refuse de corriger, est refusé (code 2).
 
+Chaque correction est confrontée à une valeur attendue calculée à part du
+moteur (taux du bulletin de départ, formules du registre) : cotisations, net
+imposable, impôt, net, assiettes DSN, cumuls, compteurs. Une erreur injectée
+(`theoreme_mutants.py`) doit faire rougir au moins un de ces constats.
+
 Le rapport JSON reste hors du dépôt. Depuis backend/ :
 
     PYTHONPATH=. .venv/bin/python scripts/theoreme_correction_a_la_main.py "<Société>" 2026 9 <sortie.json> [tout|regularisations|directes]
@@ -31,6 +36,7 @@ Le rapport JSON reste hors du dépôt. Depuis backend/ :
 
 from __future__ import annotations
 
+import copy
 import json
 import sys
 import traceback
@@ -46,7 +52,10 @@ from fastapi import HTTPException  # noqa: E402
 from app.core.database import supabase  # noqa: E402
 from app.core.lecture_seule import lecture_seule  # noqa: E402
 from app.modules.dsn_export.domain.cotisation_mapping import (  # noqa: E402
+    COTI_ID_EXONERATION_JEI,
+    COTI_ID_EXONERES_JEI,
     REGLES,
+    _exoneration_jei_totale,
     _traduire,
     build_bases_and_cotisations,
 )
@@ -68,21 +77,33 @@ from app.modules.payroll.engine.codes_des_lignes import (  # noqa: E402
 from app.modules.payroll.engine.corrections_du_bulletin import (  # noqa: E402
     BLOCS_DE_GAINS,
     LigneCorrigeable,
+    blocs_a_la_source,
     lignes_corrigeables,
 )
 from app.modules.payroll.engine.corrections_manuelles import CorrectionDeLigne, CorrectionInvalide  # noqa: E402
+from app.modules.payslips.domain.anomalies_bulletin import anomalies_du_bulletin  # noqa: E402
 from app.modules.payslips.domain.coherence import (  # noqa: E402
     MESSAGE_CORRECTION_EN_ATTENTE,
     raisons_de_ne_pas_valider,
 )
 from app.shared.reprise_paie import raison_de_blocage_avant_bascule  # noqa: E402
+from theoreme_mutants import Mutant, revue_contre_les_erreurs  # noqa: E402
 from theoreme_preuves import (  # noqa: E402
+    attendus_apres_un_gain,
     bilan,
     compta_garde_les_patronales,
     constats_independants,
     cumuls_du_mois_suivant_a_verifier,
     salaries_a_jouer,
 )
+
+#: Mutant en cours (`theoreme_mutants`) : le test doit voir ce qu'il abîme.
+_MUTANT: Mutant | None = None
+_MOIS_JOUE: tuple[int, int] | None = None
+_EFFETS: set[str] = set()
+#: En mode mutants, un salarié se recalcule une seule fois par saisie : on rejoue les mutants sur la copie.
+_CACHE: dict[str, dict] = {}
+_CACHE_ACTIF = False
 
 
 def _cumuls_precedents(employee_id: str, year: int, month: int) -> dict | None:
@@ -97,6 +118,12 @@ def _cumuls_precedents(employee_id: str, year: int, month: int) -> dict | None:
     return (res.data or {}).get("cumuls") if res else None
 
 
+def _effet_si(avant: object, apres: object) -> None:
+    """Le mutant en cours a changé quelque chose : un constat doit rougir."""
+    if _MUTANT is not None and json.dumps(avant, sort_keys=True, default=str) != json.dumps(apres, sort_keys=True, default=str):
+        _EFFETS.add(_MUTANT.nom)
+
+
 def _lignes(payslip_data: dict) -> list[dict]:
     return [
         ligne
@@ -105,17 +132,50 @@ def _lignes(payslip_data: dict) -> list[dict]:
     ]
 
 
-def _montants_dsn(payslip_data: dict) -> dict[str, float]:
-    _, cotisations, _ = build_bases_and_cotisations(
+def _dsn(payslip_data: dict):
+    """Les blocs 78 et 81 du bulletin, tels que le mapping DSN les construit."""
+    if _MUTANT is not None and _MUTANT.donnees_dsn is not None:
+        mutee = _MUTANT.donnees_dsn(payslip_data)
+        _effet_si(_lignes(payslip_data), _lignes(mutee))
+        payslip_data = mutee
+    return build_bases_and_cotisations(
         _lignes(payslip_data),
         brut=float(payslip_data.get("salaire_brut") or 0),
         period_start="2026-01-01",
         period_end="2026-01-31",
     )
+
+
+def _montants_dsn(payslip_data: dict) -> dict[str, float]:
+    _, cotisations, _ = _dsn(payslip_data)
     sortie: dict[str, float] = {}
     for cotisation in cotisations:
         sortie[cotisation.code] = round(sortie.get(cotisation.code, 0.0) + float(cotisation.montant_patronal or 0), 2)
     return sortie
+
+
+def _bases_dsn(payslip_data: dict, saisies: tuple = ()) -> dict[str, float]:
+    bases, _, _ = _dsn(payslip_data)
+    sortie = {base.code: round(float(base.montant or 0.0), 2) for base in bases}
+    if _MUTANT is not None and _MUTANT.bases_dsn is not None:
+        mutees = _MUTANT.bases_dsn(sortie, {"saisies": list(saisies)})
+        _effet_si(sortie, mutees)
+        return mutees
+    return sortie
+
+
+def _avertissements_dsn(payslip_data: dict) -> list[str]:
+    return _dsn(payslip_data)[2]
+
+
+def _jei_totale(payslip_data: dict) -> bool:
+    return _exoneration_jei_totale(_lignes(payslip_data), [])
+
+
+def _jei_partielle_signalee(payslip_data: dict) -> bool:
+    """La DSN repasse aux cotisations pleines : elle le dit, ou il n'y a plus aucune exonération."""
+    plus_d_exoneration = not any(float(l.get("montant_patronal") or 0.0) for l in _lignes(payslip_data) if l.get("coti_id") == COTI_ID_EXONERATION_JEI)
+    return plus_d_exoneration or any("Exonération JEI partielle" in message for message in _avertissements_dsn(payslip_data))
 
 
 def _dsn_a_bouge(
@@ -124,16 +184,18 @@ def _dsn_a_bouge(
     ligne: dict,
     salarial: float,
     patronal: float,
+    exoneres_jei: frozenset | set = frozenset(),
 ) -> bool:
     """La somme des codes DSN bouge du montant de la régularisation.
 
     Agirc-Arrco déclare le total sur le code 131 et redéclare la part patronale
     sur 142 ou 146. Les deux bougent, donc la somme bouge du total plus cette part.
     Une cotisation que la DSN individuelle ne traduit pas (l'exonération apprenti)
-    ne doit pas non plus apparaître via sa régularisation.
+    ne doit pas non plus apparaître via sa régularisation ; de même une part
+    patronale couverte par une exonération JEI totale (code 014, montant nul).
     """
     ecart = round(sum(apres.values()) - sum(avant.values()), 2)
-    if not _traduire(ligne, 0.0, 0.0, 0.0):
+    if not _traduire(ligne, 0.0, 0.0, 0.0) or ligne.get("coti_id") in exoneres_jei:
         return abs(ecart) <= 0.02
     attendu = round(salarial + patronal, 2)
     regle = REGLES.get(str(ligne.get("coti_id") or ""))
@@ -142,32 +204,41 @@ def _dsn_a_bouge(
     return abs(ecart - attendu) <= 0.02
 
 
-def _indemnites_suivies(payslip_data: dict) -> float:
-    """Primes que le moteur recalcule à partir du brut : précarité, IFM, congés de CDD."""
+def _indemnites_suivies(payslip_data: dict, sauf_famille: str = "") -> float:
+    """Primes que le moteur recalcule à partir du brut : précarité, IFM, congés de CDD.
+
+    `sauf_famille` : la famille qu'on vient de corriger elle-même, dont le
+    mouvement est déjà compté par la correction.
+    """
     total = 0.0
     for ligne in payslip_data.get("calcul_du_brut") or []:
         if not isinstance(ligne, dict):
             continue
         libelle = str(ligne.get("libelle") or "").lower()
-        if "précarité" in libelle or "precarite" in libelle or "fin de mission" in libelle:
+        if sauf_famille not in ("brut:precarite", "brut:ifm") and ("précarité" in libelle or "precarite" in libelle or "fin de mission" in libelle):
             total += float(ligne.get("gain") or 0)
     for ligne in payslip_data.get("details_conges") or []:
         if not isinstance(ligne, dict):
             continue
         libelle = str(ligne.get("libelle") or "").lower()
-        if "indemnité compensatrice" in libelle or "indemnite compensatrice" in libelle:
+        if sauf_famille != "brut:iccp" and ("indemnité compensatrice" in libelle or "indemnite compensatrice" in libelle):
             total += float(ligne.get("gain") or 0)
     return round(total, 2)
 
 
 def _ligne_od(payslip_data: dict, employee: dict) -> dict:
-    return ligne_od_du_bulletin(
+    ligne = ligne_od_du_bulletin(
         payslip_id="theoreme",
         employee=employee,
         payslip_data=payslip_data,
         saisies_du_salarie=[],
         compte_de_saisie=lambda _type: "421000",
     )
+    if _MUTANT is not None and _MUTANT.ligne_od is not None:
+        mutee = _MUTANT.ligne_od(ligne)
+        _effet_si(ligne, mutee)
+        return mutee
+    return ligne
 
 
 def _residu(payslip_data: dict, employee: dict) -> float:
@@ -192,7 +263,14 @@ def _noter(rapport: list[dict], employee_id: str, ok: bool, **constats: object) 
     print(("OK  " if ok else "ECHEC"), employee_id[:8], nom, constats if not ok else "", flush=True)
 
 
-def _generer(employee_id: str, year: int, month: int, cumuls: dict | None, saisies_en_plus: tuple = ()):
+def _motif_du_refus(exc: HTTPException) -> str:
+    """La cause d'un bulletin refusé, sans reprendre le message (il peut nommer le salarié)."""
+    if "plus présent" in str(exc.detail):
+        return "sorti avant le mois"
+    return f"autre refus ({exc.status_code})"
+
+
+def _generer_moteur(employee_id: str, year: int, month: int, cumuls: dict | None, saisies_en_plus: tuple = ()):
     """Recalcule. Un délai de la base se rejoue ; un refus du bulletin, non."""
     for essai in range(3):
         try:
@@ -209,6 +287,33 @@ def _generer(employee_id: str, year: int, month: int, cumuls: dict | None, saisi
             print(f"REESSAI {employee_id[:8]} ({exc.status_code})", flush=True)
 
 
+def _depuis_le_cache(employee_id: str, year: int, month: int, cumuls: dict | None, saisies_en_plus: tuple) -> dict:
+    cle = json.dumps([employee_id, year, month, cumuls, list(saisies_en_plus)], sort_keys=True, default=str)
+    if cle not in _CACHE:
+        _CACHE[cle] = _generer_moteur(employee_id, year, month, cumuls, saisies_en_plus)
+    return copy.deepcopy(_CACHE[cle])
+
+
+def _generer(employee_id: str, year: int, month: int, cumuls: dict | None, saisies_en_plus: tuple = ()):
+    """Le calcul, éventuellement abîmé par le mutant en cours (jamais la base)."""
+    if not _CACHE_ACTIF and _MUTANT is None:
+        return _generer_moteur(employee_id, year, month, cumuls, saisies_en_plus)
+    res = _depuis_le_cache(employee_id, year, month, cumuls, saisies_en_plus)
+    if _MUTANT is None or _MUTANT.bulletin is None:
+        return res
+    avant = copy.deepcopy(res)
+    _MUTANT.bulletin(
+        res,
+        {
+            "saisies": list(saisies_en_plus),
+            "bulletin_sans_correction": _depuis_le_cache(employee_id, year, month, cumuls, ()),
+            "mois_suivant": _MOIS_JOUE is not None and (year, month) != _MOIS_JOUE,
+        },
+    )
+    _effet_si(avant, res)
+    return res
+
+
 def _un_salarie(company_id: str, employee_id: str, year: int, month: int, rapport: list[dict]) -> None:
     employee = supabase.table("employees").select("*").eq("id", employee_id).single().execute().data
     cumuls = _cumuls_precedents(employee_id, year, month)
@@ -219,7 +324,7 @@ def _un_salarie(company_id: str, employee_id: str, year: int, month: int, rappor
             raise
         # Le bulletin est déjà refusé (solde d'ouverture incomplet, cumul
         # manquant). Aucune correction n'est en cause.
-        rapport.append({"salarie": employee_id, "ok": True, "cas": "bulletin de départ refusé", "saute": True})
+        rapport.append({"salarie": employee_id, "ok": True, "cas": "bulletin de départ refusé", "saute": True, "cause": _motif_du_refus(exc)})
         print("SAUTE", employee_id[:8], "bulletin de départ refusé", flush=True)
         return
     data0 = base["payslip_data"]
@@ -255,7 +360,12 @@ def _un_salarie(company_id: str, employee_id: str, year: int, month: int, rappor
             cumul0 = (base.get("cumuls") or {}).get("cumuls", {}).get("reduction_generale_patronale", 0)
             cumul1 = (res.get("cumuls") or {}).get("cumuls", {}).get("reduction_generale_patronale", 0)
             constats["cumul_reduction"] = abs(cumul1 - cumul0 - patronal) < 0.005
-        constats["dsn"] = _dsn_a_bouge(_montants_dsn(data0), _montants_dsn(data1), ligne, salarial, patronal)
+        if _jei_totale(data0) and not _jei_totale(data1):
+            # La régularisation dépasse l'exonération : la DSN repasse aux cotisations pleines et doit le dire.
+            constats["dsn"] = _jei_partielle_signalee(data1)
+        else:
+            exoneres = COTI_ID_EXONERES_JEI if _jei_totale(data1) else frozenset()
+            constats["dsn"] = _dsn_a_bouge(_montants_dsn(data0), _montants_dsn(data1), ligne, salarial, patronal, exoneres)
         _noter(rapport, employee_id, all(constats.values()), coti_id=ligne["coti_id"], **constats)
     periode = {"employee_id": employee_id, "company_id": company_id, "year": year, "month": month}
     cas = {
@@ -367,12 +477,16 @@ def _dsn_suit_les_lignes(dsn0: dict[str, float], dsn1: dict[str, float], data0: 
     """
     avant, apres = _lignes_par_code(data0), _lignes_par_code(data1)
     attendu = 0.0
+    jei = _jei_totale(data0) and _jei_totale(data1)
     for code in set(avant) | set(apres):
         l0, l1 = avant.get(code) or {}, apres.get(code) or {}
-        ligne = l1 or l0
+        # La ligne d'avant dit si la DSN la traduit : à zéro, la ligne corrigée n'y paraît plus.
+        ligne = l0 or l1
         salarial = _ecart(l0.get("montant_salarial"), l1.get("montant_salarial"))
         patronal = _ecart(l0.get("montant_patronal"), l1.get("montant_patronal"))
         if not (salarial or patronal) or not _traduire(ligne, 0.0, 0.0, 0.0):
+            continue
+        if jei and ligne.get("coti_id") in COTI_ID_EXONERES_JEI:
             continue
         attendu += salarial + patronal
         regle = REGLES.get(str(ligne.get("coti_id") or ""))
@@ -401,6 +515,48 @@ def _correction_pour(ligne: LigneCorrigeable) -> CorrectionDeLigne:
     return CorrectionDeLigne(**commun, montant_salarial=round(float(ligne.montant_salarial or 0.0) + 1.0, 2))
 
 
+#: Une fois par famille et par société : une valeur nulle, une grande (franchit un plafond), une négative.
+_VARIANTES_JOUEES: set[str] = set()
+
+
+def _variantes_de_valeur(ligne: LigneCorrigeable) -> list[tuple[str, CorrectionDeLigne]]:
+    commun = dict(ligne=ligne.code, libelle=ligne.libelle, motif="Test du théorème")
+    if ligne.mode == MODE_TAUX:
+        return [("zero", CorrectionDeLigne(**commun, taux=0.0)), ("grande", CorrectionDeLigne(**commun, taux=43.0))]
+    if ligne.bloc == BLOC_BRUT:
+        if ligne.mode == MODE_BASE_OU_TAUX:
+            return [
+                ("zero", CorrectionDeLigne(**commun, base=0.0)),
+                ("grande", CorrectionDeLigne(**commun, base=round(float(ligne.base or 0.0) + 300.0, 2))),
+            ]
+        variantes = [
+            ("zero", CorrectionDeLigne(**commun, montant=0.0)),
+            ("grande", CorrectionDeLigne(**commun, montant=round(float(ligne.montant or 0.0) + 6000.0, 2))),
+        ]
+        if famille_du_code(ligne.code) != "brut:salaire_base":
+            # Sur la ligne principale, le brut deviendrait négatif : le moteur le ramène à zéro et la revue (B02) bloque.
+            variantes.append(("negative", CorrectionDeLigne(**commun, montant=-50.0)))
+        return variantes
+    if famille_du_code(ligne.code) == "cotisation:reduction_generale":
+        return []
+    if ligne.mode == MODE_BASE_OU_TAUX:
+        return [
+            ("zero", CorrectionDeLigne(**commun, base=0.0)),
+            ("grande", CorrectionDeLigne(**commun, base=round(float(ligne.base or 0.0) + 6000.0, 2))),
+        ]
+    champ = "montant_patronal" if ligne.montant_patronal else "montant_salarial"
+    return [
+        ("zero", CorrectionDeLigne(**commun, **{champ: 0.0})),
+        ("negative", CorrectionDeLigne(**commun, **{champ: round(-abs(float(getattr(ligne, champ) or 0.0)) - 5.0, 2)})),
+    ]
+
+
+def _delta_heures(ligne: LigneCorrigeable, correction: CorrectionDeLigne) -> float:
+    if ligne.mode == MODE_BASE_OU_TAUX and correction.base is not None:
+        return round(float(correction.base) - float(ligne.base or 0.0), 2)
+    return 0.0
+
+
 def _attendu(ligne: LigneCorrigeable, correction: CorrectionDeLigne) -> dict[str, float]:
     """Ce que la ligne doit porter après la correction, au centime comme le moteur."""
     if ligne.bloc == BLOC_IMPOT:
@@ -423,6 +579,33 @@ def _attendu(ligne: LigneCorrigeable, correction: CorrectionDeLigne) -> dict[str
     if ligne.taux_patronal is not None:
         attendu["montant_patronal"] = round(base * ligne.taux_patronal, 2)
     return attendu
+
+
+def _mouvement_du_gain(ligne: LigneCorrigeable, attendu: dict[str, float]) -> float:
+    """Ce que la correction fait bouger au brut : le montant voulu moins le montant d'avant, en signe de brut."""
+    apres = float(attendu["montant"])
+    avant = float(ligne.montant or 0.0)
+    return round(-(apres - avant) if ligne.retenue else apres - avant, 2)
+
+
+def _assiette_csg_suit(bases0: dict[str, float], bases1: dict[str, float], ligne: LigneCorrigeable, correction: CorrectionDeLigne) -> bool | None:
+    """Corriger la CSG ne double pas l'assiette en DSN : l'assiette 04 bouge au plus de la base corrigée."""
+    if "04" not in bases0 or "04" not in bases1 or correction.base is None:
+        return None
+    return abs(_ecart(bases0["04"], bases1["04"])) <= abs(float(correction.base) - float(ligne.base or 0.0)) + 0.02
+
+
+def _solde_conges(data: dict) -> object:
+    return (data.get("pied_de_page") or {}).get("solde_conges")
+
+
+def _cout_employeur(data: dict) -> float:
+    return float((data.get("pied_de_page") or {}).get("cout_total_employeur") or 0.0)
+
+
+def _alertes_de_revue(data: dict) -> set[tuple[str, str]]:
+    """Les alertes de la revue, sans celle qui dit justement qu'une ligne a été corrigée (B07)."""
+    return {(a.rule_id, str(a.field)) for a in anomalies_du_bulletin(data) if a.rule_id != "B07"}
 
 
 def _porte(ligne: LigneCorrigeable | None, attendu: dict[str, float]) -> bool:
@@ -449,7 +632,12 @@ def _garde_la_valeur_de_martine(avant: LigneCorrigeable, apres: LigneCorrigeable
 
 
 def _cumuls_suivent(
-    base: dict, res: dict, ligne: LigneCorrigeable, apres: LigneCorrigeable | None, cumuls: dict | None = None
+    base: dict,
+    res: dict,
+    ligne: LigneCorrigeable,
+    apres: LigneCorrigeable | None,
+    cumuls: dict | None = None,
+    delta_heures: float = 1.0,
 ) -> dict[str, bool]:
     data0, data1 = base["payslip_data"], res["payslip_data"]
 
@@ -465,6 +653,10 @@ def _cumuls_suivent(
             mouvement("impot_preleve_a_la_source") - _ecart(_impot(data0).get("montant"), _impot(data1).get("montant"))
         ) < 0.011,
     }
+    if _cumul(base, "brut_annee_civile") or _cumul(res, "brut_annee_civile"):
+        constats["cumul_brut_annee"] = (
+            abs(mouvement("brut_annee_civile") - _ecart(data0.get("salaire_brut"), data1.get("salaire_brut"))) < 0.011
+        )
     famille = famille_du_code(ligne.code)
     if famille == "cotisation:reduction_generale" and apres is not None:
         constats["cumul_reduction"] = abs(
@@ -473,12 +665,18 @@ def _cumuls_suivent(
     if ligne.mode == MODE_BASE_OU_TAUX and famille in HEURES_SUIVIES and "forfait" not in ligne.libelle.lower():
         for cle in HEURES_SUIVIES[famille]:
             if _ecart(_cumul({"cumuls": cumuls or {}}, cle), _cumul(base, cle)) > 0.005:
-                constats[f"cumul_{cle}"] = abs(mouvement(cle) - 1.0) < 0.011
+                if delta_heures <= -float(ligne.base or 0.0) + 1e-6 and abs(mouvement(cle)) < 0.011:
+                    # Défaut connu : base corrigée à zéro, le cumul d'heures n'en sort pas
+                    # (`resultat_brut["heures_base_remunerees"] or heures du contrat`).
+                    # Voir test_corriger_la_base_a_zero_retire_les_heures_du_smic.
+                    constats[f"defaut_connu_cumul_{cle}_base_a_zero"] = True
+                    continue
+                constats[f"cumul_{cle}"] = abs(mouvement(cle) - delta_heures) < 0.011
             else:
                 # Mois sans heure rémunérée (arrêt non maintenu ou absence sur
                 # tout le mois) : le moteur borne les heures du mois à zéro, et
                 # une heure de base en plus peut rester sous la borne.
-                constats[f"cumul_{cle}_borne_a_zero"] = -0.011 < mouvement(cle) < 1.011
+                constats[f"cumul_{cle}_borne_a_zero"] = -0.011 < mouvement(cle) < delta_heures + 0.011
     return constats
 
 
@@ -522,10 +720,11 @@ def _doublons_du_bulletin_enregistre(rapport: list[dict], employee_id: str, enre
 
     Si le bulletin enregistré est à jour (même brut, même net), leurs montants aussi.
     """
-    stockes, calcules = _doublons(enregistre or {}), _doublons(data0)
+    if enregistre is None:
+        return  # Pas de bulletin enregistré ce mois-ci : rien à comparer.
+    stockes, calcules = _doublons(enregistre), _doublons(data0)
     if not stockes and not calcules:
         return
-    enregistre = enregistre or {}
     if enregistre.get("reprise"):
         # Un bulletin repris de l'ancien logiciel porte ses lignes, pas celles de Martine.
         _noter(rapport, employee_id, True, cas="doublons du bulletin enregistré", saute=True,
@@ -561,7 +760,7 @@ def _corrections_directes(
     except HTTPException as exc:
         if exc.status_code not in (400, 422):
             raise
-        rapport.append({"salarie": employee_id, "ok": True, "cas": "bulletin de départ refusé", "saute": True})
+        rapport.append({"salarie": employee_id, "ok": True, "cas": "bulletin de départ refusé", "saute": True, "cause": _motif_du_refus(exc)})
         return
     data0 = base["payslip_data"]
     lignes0 = lignes_corrigeables(data0)
@@ -571,26 +770,24 @@ def _corrections_directes(
     _doublons_du_bulletin_enregistre(rapport, employee_id, enregistre, data0)
     periode = {"employee_id": employee_id, "company_id": company_id, "year": year, "month": month}
     dsn0, residu0, totaux0, cotisations0 = _montants_dsn(data0), _residu(data0, employee), _totaux(data0), _lignes_par_code(data0)
+    bases0 = _bases_dsn(data0)
+    alertes0 = _alertes_de_revue(data0)
     familles: set[str] = set()
     mois_suivant_verifie = False
-    for ligne in lignes0:
-        if not ligne.code or not ligne.mode:
-            continue
-        doublon = "#" in ligne.code
-        if famille_du_code(ligne.code) in familles and not doublon:
-            continue
-        familles.add(famille_du_code(ligne.code))
-        try:
-            correction = _correction_pour(ligne)
-        except CorrectionInvalide as exc:
-            _noter(rapport, employee_id, False, code=ligne.code, correction_impossible=str(exc))
-            continue
+    blocs = blocs_a_la_source(data0)
+    rapport.append({"salarie": employee_id, "ok": True, "cas": "blocs à la source", "blocs": [b["libelle"] for b in blocs], "information": True})
+
+    def _jouer_la_correction(ligne: LigneCorrigeable, correction: CorrectionDeLigne, variante: str | None = None) -> None:
+        nonlocal mois_suivant_verifie
+        doublon = "#" in str(ligne.code)
+        code_note = {"code": ligne.code, "doublon": doublon, **({"variante": variante} if variante else {})}
         saisie = {**correction.saisie_du_mois(periode), "id": "theoreme-ligne"}
         try:
             res = _generer(employee_id, year, month, cumuls, (saisie,))
         except HTTPException as exc:
-            _noter(rapport, employee_id, False, code=ligne.code, refus=str(exc.detail)[:300])
-            continue
+            # Refus du recalcul : une correction extrême n'est pas toujours calculable (règle 9).
+            _noter(rapport, employee_id, variante is not None and exc.status_code in (400, 422), **code_note, refus=str(exc.detail)[:300])
+            return
         data1 = res["payslip_data"]
         lignes1 = lignes_corrigeables(data1)
         apres = {l.code: l for l in lignes1}.get(ligne.code)
@@ -615,8 +812,20 @@ def _corrections_directes(
             "residu_nul": abs(_residu(data1, employee)) < 0.015,
             "compta_patronales": compta_garde_les_patronales(_ligne_od(data1, employee)),
             "rien_en_attente": not data1.get("corrections_en_attente"),
-            **_cumuls_suivent(base, res, ligne, apres, cumuls),
-            **constats_independants(data0, data1, bloc=ligne.bloc, famille=famille_du_code(ligne.code)),
+            **_cumuls_suivent(
+            base,
+            res,
+            ligne,
+            apres,
+            cumuls,
+            delta_heures=_delta_heures(ligne, correction),
+        ),
+            **(constats_independants(data0, data1, bloc=ligne.bloc, famille=famille_du_code(ligne.code), res0=base, res1=res) if variante is None else {}),
+            "compteurs_inchanges": _solde_conges(data0) == _solde_conges(data1),
+            "cout_employeur_suit": abs(
+                _ecart(_cout_employeur(data0), _cout_employeur(data1)) - (_ecart(totaux0["brut"], totaux1["brut"]) + _ecart(totaux0["patronal"], totaux1["patronal"]))
+            ) < 0.021,
+            "revue_sans_alerte": not (_alertes_de_revue(data1) - alertes0),
         }
         if doublon:
             # La numérotation du calcul et celle du bulletin concordent : la
@@ -624,7 +833,34 @@ def _corrections_directes(
             # sous ce code, et sur elle seule.
             constats["doublon_a_sa_place"] = [l.code for l in lignes1 if l.correction] == [ligne.code]
         if ligne.bloc == BLOC_COTISATIONS and ligne.code in cotisations0 and apres is not None:
-            constats["dsn"] = _dsn_suit_les_lignes(dsn0, _montants_dsn(data1), data0, data1)
+            if _jei_totale(data0) and not _jei_totale(data1):
+                # La correction dépasse l'exonération : DSN aux cotisations pleines, et elle doit le dire.
+                constats["dsn"] = _jei_partielle_signalee(data1)
+            else:
+                constats["dsn"] = _dsn_suit_les_lignes(dsn0, _montants_dsn(data1), data0, data1)
+            if "csg" in str(ligne.code):
+                constats["dsn_assiettes"] = _assiette_csg_suit(bases0, _bases_dsn(data1, (saisie,)), ligne, correction)
+        if ligne.bloc == BLOC_BRUT:
+            if variante is None:
+                # Les variantes (zéro, grande, négative) franchissent plafonds et planchers :
+                # elles vérifient la pose, les copies, les cumuls et le résidu, pas ces valeurs.
+                constats.update(
+                    attendus_apres_un_gain(
+                        data0,
+                        data1,
+                        _mouvement_du_gain(ligne, attendu),
+                        famille=famille_du_code(ligne.code),
+                        delta_indemnites=_ecart(
+                            _indemnites_suivies(data0, famille_du_code(ligne.code)),
+                            _indemnites_suivies(data1, famille_du_code(ligne.code)),
+                        ),
+                    )
+                )
+            bases1 = _bases_dsn(data1, (saisie,))
+            if "03" in bases0 and "03" in bases1 and float(data1.get("salaire_brut") or 0.0) > 0:
+                constats["dsn_assiettes"] = abs(
+                    _ecart(bases0["03"], bases1["03"]) - _ecart(data0.get("salaire_brut"), data1.get("salaire_brut"))
+                ) < 0.011
         if ligne.bloc == BLOC_IMPOT:
             montant, taux, _assiette = _pas_details(data1)
             constats["dsn_impot"] = abs(montant - attendu["montant"]) < 0.005 and abs(taux - attendu["taux"]) < 1e-6
@@ -636,7 +872,27 @@ def _corrections_directes(
             else:
                 constats["mois_suivant_non_calculable"] = True
         echec = [cle for cle, valeur in constats.items() if valeur is False]
-        _noter(rapport, employee_id, not echec, code=ligne.code, doublon=doublon, echecs=echec, **constats)
+        _noter(rapport, employee_id, not echec, **code_note, echecs=echec, **constats)
+
+    for ligne in lignes0:
+        if not ligne.code or not ligne.mode:
+            continue
+        doublon = "#" in ligne.code
+        famille = famille_du_code(ligne.code)
+        if famille in familles and not doublon:
+            continue
+        familles.add(famille)
+        try:
+            correction = _correction_pour(ligne)
+        except CorrectionInvalide as exc:
+            _noter(rapport, employee_id, False, code=ligne.code, correction_impossible=str(exc))
+            continue
+        _jouer_la_correction(ligne, correction)
+        # En mode mutants (cache actif) : pas de variantes de valeur, seules les corrections principales se rejouent.
+        if not _CACHE_ACTIF and famille not in _VARIANTES_JOUEES and not doublon:
+            _VARIANTES_JOUEES.add(famille)
+            for variante, autre in _variantes_de_valeur(ligne):
+                _jouer_la_correction(ligne, autre, variante)
     orpheline = CorrectionDeLigne(
         ligne="brut:ligne_disparue", libelle="Ligne disparue", motif="Test du théorème", montant=1.0
     )
@@ -650,7 +906,75 @@ def _corrections_directes(
     _noter(rapport, employee_id, all(constats.values()), cas="correction orpheline", **constats)
 
 
-def main(societe: str, year: int, month: int, sortie: str, partie: str = "tout") -> int:
+def _constats_rouges(rapport: list[dict]) -> set[str]:
+    rouges: set[str] = set()
+    for cas in rapport:
+        if cas.get("ok"):
+            continue
+        rouges.update(cas.get("echecs") or [])
+        rouges.update(cle for cle, valeur in cas.items() if valeur is False and cle not in ("ok", "doublon", "saute"))
+        if not cas.get("echecs"):
+            rouges.add(str(cas.get("cas") or cas.get("coti_id") or cas.get("code") or "échec"))
+    return rouges
+
+
+def jouer_mutants(
+    company_id: str, employee_id: str, year: int, month: int, mutants: tuple[Mutant, ...], *, avec_regularisations: bool = True
+) -> dict:
+    """Rejoue un salarié sous chaque erreur injectée : chaque injection doit faire rougir au moins un constat.
+
+    Le salarié se calcule une fois par saisie (cache) ; les mutants n'agissent que
+    sur la copie rendue au test. Un mutant sans effet (salarié sans la ligne visée)
+    est compté à part, avec le constat qu'il attendait.
+    """
+    global _MUTANT, _MOIS_JOUE, _CACHE_ACTIF
+    _MUTANT, _MOIS_JOUE, _CACHE_ACTIF = None, (year, month), True
+    _CACHE.clear()
+    try:
+        with lecture_seule():
+            propre: list[dict] = []
+            if avec_regularisations:
+                _un_salarie(company_id, employee_id, year, month, propre)
+            _corrections_directes(company_id, employee_id, year, month, propre)
+            reference = _constats_rouges(propre)
+            base = _depuis_le_cache(employee_id, year, month, _cumuls_precedents(employee_id, year, month), ())
+            revue = revue_contre_les_erreurs(base["payslip_data"], anomalies_du_bulletin)
+            resultats: dict[str, dict] = {}
+            for mutant in mutants:
+                _MUTANT = mutant
+                _EFFETS.clear()
+                rapport: list[dict] = []
+                try:
+                    if avec_regularisations:
+                        _un_salarie(company_id, employee_id, year, month, rapport)
+                    _corrections_directes(company_id, employee_id, year, month, rapport)
+                except Exception as exc:  # noqa: BLE001 — un mutant qui casse le calcul se voit aussi
+                    rapport.append({"ok": False, "cas": f"exception {type(exc).__name__}", "salarie": employee_id})
+                finally:
+                    _MUTANT = None
+                rouges = _constats_rouges(rapport) - reference
+                resultats[mutant.nom] = {
+                    "quoi": mutant.quoi,
+                    "sans_effet_si": mutant.sans_effet_si,
+                    "effet": mutant.nom in _EFFETS,
+                    "rouges": sorted(rouges),
+                    "attendus_vus": sorted(rouges & mutant.constats),
+                    "cas": len(rapport),
+                    "verdict": "vu" if rouges else ("sans effet" if mutant.nom not in _EFFETS else "NON VU"),
+                }
+    finally:
+        _MUTANT, _MOIS_JOUE, _CACHE_ACTIF = None, None, False
+        _CACHE.clear()
+    return {
+        "salarie": employee_id[:8],
+        "cas_de_reference": len(propre),
+        "rouges_sans_mutant": sorted(reference),
+        "mutants": resultats,
+        "revue": revue,
+    }
+
+
+def main(societe: str, year: int, month: int, sortie: str, partie: str = "tout", tranche: tuple[int, int] = (0, 1)) -> int:
     if partie not in ("tout", "regularisations", "directes"):
         raise SystemExit("partie : tout, regularisations ou directes")
     company = supabase.table("companies").select("id").eq("company_name", societe).single().execute().data
@@ -670,7 +994,9 @@ def main(societe: str, year: int, month: int, sortie: str, partie: str = "tout")
         .data
     }
     rapport: list[dict] = []
-    for employe in salaries_a_jouer(employes, year, month):
+    numero, tranches = tranche
+    jouer = [e for rang, e in enumerate(sorted(salaries_a_jouer(employes, year, month), key=lambda e: str(e["id"]))) if rang % tranches == numero]
+    for employe in jouer:
         employee_id = employe["id"]
         print(f"salarie {employee_id[:8]}", flush=True)
         try:
@@ -701,4 +1027,6 @@ def main(societe: str, year: int, month: int, sortie: str, partie: str = "tout")
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4], *(sys.argv[5:6])))
+    arguments = sys.argv[5:6] if len(sys.argv) > 5 else []
+    tranche = tuple(int(x) for x in sys.argv[6].split("/")) if len(sys.argv) > 6 else (0, 1)
+    sys.exit(main(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4], *(arguments or ["tout"]), tranche))
