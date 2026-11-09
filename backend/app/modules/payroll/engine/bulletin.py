@@ -143,6 +143,39 @@ def _pss_de_la_periode(contexte) -> float:
     return round(plein * ratio, 2)
 
 
+def alerte_plafond_reduit_malgre_maintien(
+    contexte, resultats_maintien: Optional[Dict[str, Any]]
+) -> Optional[Dict[str, Any]]:
+    """Le plafond a été réduit un mois où l'arrêt ouvre un maintien de salaire (R-278).
+
+    C. séc. soc. R242-2 et BOSS, assiette générale : seules les journées
+    entières d'absence sans aucun maintien réduisent le plafond ; même partiel,
+    un maintien l'empêche pour les jours qu'il couvre. `ratio_plafond_periode`
+    retire tous les jours de l'arrêt. Le corriger changerait des bulletins de
+    Colorplast : décision à prendre ; d'ici là, le bulletin le dit.
+    """
+    ratio = getattr(contexte, "ratio_plafond_ss", None)
+    try:
+        ratio = float(ratio) if ratio is not None else 1.0
+    except (TypeError, ValueError):
+        return None
+    verse = float(((resultats_maintien or {}).get("maintien") or {}).get("maintien_verse") or 0.0)
+    if not 0.0 <= ratio < 1.0 or verse <= 0:
+        return None
+    montant = f"{verse:.2f}".replace(".", ",")
+    return {
+        "code": "plafond_reduit_malgre_maintien",
+        "severity": "warning",
+        "critique": False,
+        "message": (
+            "Plafond de la Sécurité sociale réduit pour les jours d'arrêt alors qu'un "
+            f"maintien de salaire est versé ({montant} €). Les jours couverts par un "
+            "maintien, même partiel, ne devraient pas réduire le plafond : vérifiez les "
+            "cotisations plafonnées de ce bulletin."
+        ),
+    }
+
+
 def _jours_fr(valeur: float) -> str:
     """« 2 j », « 0,5 j », « 1,25 j » : au plus deux décimales, virgule."""
     texte = f"{round(float(valeur), 2):.2f}".rstrip("0").rstrip(".")
@@ -813,6 +846,10 @@ def creer_bulletin_final(
             brut_reference_net, float(net_a_payer_val)
         ):
             contexte.alertes_baremes.append(alerte_net)
+
+    alerte_plafond = alerte_plafond_reduit_malgre_maintien(contexte, resultats_maintien)
+    if alerte_plafond:
+        contexte.alertes_baremes.append(alerte_plafond)
 
     alertes_baremes = contexte.alertes_baremes
     donnees_non_officielles = any(

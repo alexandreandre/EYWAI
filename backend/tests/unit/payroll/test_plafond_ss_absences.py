@@ -167,3 +167,36 @@ class TestDureeDeclareeDeLArret:
         cal = self._calendrier((5, 6, 7, 8), "2026-05-05", "2026-05-08", feries=False)
         ctx = self._contexte(date_entree="2020-01-01")
         assert self._pss_mai(cal, ctx) == pytest.approx(round(PSS * 27 / 31, 2), abs=0.01)
+
+
+class TestPlafondEtMaintien:
+    """R-278 : seules les journées sans maintien réduisent le plafond (R242-2 CSS, BOSS).
+
+    `ratio_plafond_periode` retire tous les jours d'arrêt ; le corriger changerait
+    Colorplast, donc rien ne bouge : le bulletin le dit.
+    """
+
+    @staticmethod
+    def _contexte(ratio):
+        contexte = build_test_contexte(salaire_base=2000.0, duree_hebdo=35.0)
+        contexte.ratio_plafond_ss = ratio
+        return contexte
+
+    def test_plafond_reduit_avec_maintien_est_signale(self):
+        from app.modules.payroll.engine.bulletin import alerte_plafond_reduit_malgre_maintien
+
+        alerte = alerte_plafond_reduit_malgre_maintien(
+            self._contexte(16 / 31), {"maintien": {"maintien_verse": 310.5}}
+        )
+        assert alerte["code"] == "plafond_reduit_malgre_maintien"
+        assert alerte["critique"] is False
+        assert "310,50 €" in alerte["message"]
+
+    @pytest.mark.parametrize(
+        ("ratio", "maintien"),
+        [(1.0, {"maintien": {"maintien_verse": 310.5}}), (16 / 31, {"maintien": {"maintien_verse": 0.0}}), (16 / 31, None)],
+    )
+    def test_sans_reduction_ou_sans_maintien_rien_n_est_dit(self, ratio, maintien):
+        from app.modules.payroll.engine.bulletin import alerte_plafond_reduit_malgre_maintien
+
+        assert alerte_plafond_reduit_malgre_maintien(self._contexte(ratio), maintien) is None
