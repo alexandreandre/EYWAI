@@ -1396,8 +1396,12 @@ def run_payslip_generation_heures(
     # mais les seules heures dues, que le calcul du brut expose (salarié 086, embauché
     # le 23/03/2026 : 47,50 h et non 151,67, pour 50,50 h de période chez Quadra).
     heures_legales_mois = (lc.DUREE_LEGALE_HEBDO * 52) / 12
+    # Le 0 d'un calcul sans heures de base vaut « non renseigné » ; celui d'une correction
+    # à la main est une vraie valeur, le SMIC de référence la suit (R-181).
     heures_base_mois = float(
         resultat_brut.get("heures_base_remunerees")
+        if resultat_brut.get("heures_base_corrigees")
+        else resultat_brut.get("heures_base_remunerees")
         or min(heures_contractuelles_mois, heures_legales_mois)
     )
     # Un arrêt de travail ne sort du SMIC de référence qu'à proportion de ce que

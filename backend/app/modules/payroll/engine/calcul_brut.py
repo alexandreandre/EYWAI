@@ -2498,7 +2498,9 @@ def calculer_salaire_brut(
     # lignes corrigées (spec § 6, quantités) : heures payées, heures sup
     # structurelles, absences non payées, arrêts, heures sup perdues.
     effet = lignes_composants_brut.effet
+    heures_base_corrigees = False
     if effet.corrigees:
+        heures_base_corrigees = effet.quantite("brut:salaire_base") != 0
         heures_base_remunerees = round(heures_base_remunerees + effet.quantite("brut:salaire_base"), 2)
         heures_sup_structurelles_mensuelles = round(
             heures_sup_structurelles_mensuelles + effet.quantite("brut:hs_structurelles"), 2
@@ -2610,6 +2612,7 @@ def calculer_salaire_brut(
         # SMIC de référence en partent : salarié 086, embauché le 23/03/2026, a
         # 47,50 h de base et non 151,67 (Quadra imprime 50,50 h de période).
         "heures_base_remunerees": round(heures_base_remunerees, 2),
+        "heures_base_corrigees": heures_base_corrigees,
         # Heures retirées de la paie par une absence non rémunérée : à sortir du
         # SMIC de référence de la réduction générale (arrêt maladie exclu).
         "heures_absence_non_payees": round(heures_absence_non_payees, 2),

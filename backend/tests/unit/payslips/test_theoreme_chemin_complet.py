@@ -598,16 +598,6 @@ def test_le_moteur_relit_la_saisie_et_le_bulletin_suit_au_centime(paie, cas):
     assert paie.donnees(COLLEGUE)["net_a_payer"] == COLLEGUE_ATTENDU["net"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Défaut signalé (R-177) : `resultat_brut['heures_base_remunerees'] or heures_du_contrat` "
-        "(payslip_run_heures, heures de la réduction) reprend le mois complet quand la base est "
-        "corrigée à zéro : le cumul d'heures ne sort pas, le SMIC de référence reste celui d'un "
-        "mois plein. Non corrigé : tout `or` remplacé change aussi les mois à heures dues nulles "
-        "sans correction (à passer au filet avant)."
-    ),
-)
 def test_corriger_la_base_a_zero_retire_les_heures_du_smic(paie):
     paie.corriger(
         CorrectionsBulletin(
