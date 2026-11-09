@@ -152,13 +152,52 @@ def alerte_valeur_de_martine(bloc: str, correction: Any, valeur_calculee: Any) -
     return None
 
 
+#: Une correction de ligne n'atteint pas le compteur de récupération, calculé avant.
+RAISON_HS_AU_COMPTEUR = (
+    "Le compteur de récupération est calculé avant cette ligne : une heure ajoutée "
+    "ici serait payée et aussi mise au compteur. Corrigez les heures déclarées "
+    "du mois (onglet Corriger)."
+)
+RAISON_PAIEMENT_SOLDE = (
+    "Le paiement a débité le compteur de récupération : corriger le montant le "
+    "laisserait débité. Depuis la carte « Heures de récupération », cliquez "
+    "« Annuler le paiement », puis payez le bon nombre d'heures."
+)
+#: Libellé de `modulation.domain.hour_account_rules.saisie_paiement_solde`.
+LIBELLE_PAIEMENT_SOLDE = "Paiement solde heures de récupération"
+
+
+def _porte_un_compteur_de_recuperation(data: Mapping[str, Any]) -> bool:
+    """Le bulletin d'un salarié dont les heures sup passent au compteur."""
+    if _dict(data.get("modulation_account")):
+        return True
+    solde = (_dict(data.get("pied_de_page")) or {}).get("solde_conges")
+    return bool(_dict(solde) and _dict(solde.get("recuperation")))
+
+
+def _raison_du_compteur(ligne: Mapping[str, Any], code: str | None, compteur: bool) -> str | None:
+    """La phrase qui renvoie au bon geste, ou None. Une correction déjà posée
+    reste retirable : ce sont les nouvelles qu'on arrête."""
+    if ligne.get("correction"):
+        return None
+    if str(ligne.get("libelle") or "").startswith(LIBELLE_PAIEMENT_SOLDE):
+        return RAISON_PAIEMENT_SOLDE
+    if compteur and famille_du_code(code) == "brut:heures_sup":
+        return RAISON_HS_AU_COMPTEUR
+    return None
+
+
 def lignes_corrigeables(payslip_data: Any) -> list[LigneCorrigeable]:
     """Chaque ligne du bulletin, son code, par quoi elle se corrige, et sa correction."""
     data = _donnees(payslip_data)
     sortie: list[LigneCorrigeable] = []
     gains = _lignes_de_gain(data)
+    compteur = _porte_un_compteur_de_recuperation(data)
     for ligne, code in zip(gains, numeroter(code_de_ligne(BLOC_BRUT, l) for l in gains)):
         mode, raison = mode_de_correction(BLOC_BRUT, ligne, code)
+        raison_du_compteur = _raison_du_compteur(ligne, code, compteur)
+        if raison_du_compteur:
+            mode, raison = None, raison_du_compteur
         champ = champ_du_montant(ligne)
         sortie.append(
             LigneCorrigeable(
