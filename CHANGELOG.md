@@ -5,6 +5,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Validation
+- Valider un bulletin pendant qu'il se recalcule ne remet plus l'ancien contenu marqué validé : Martine dit de recharger la page, et rien n'est écrit.
+
 ## paie-2026-11-09.3
 
 ### Corrections à la main

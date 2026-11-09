@@ -186,7 +186,19 @@ def update_payslip_data_alerts_status(
     return rows[0] if isinstance(rows, list) else rows
 
 
-def mark_payslip_validated(payslip_id: str, user_id: str) -> dict[str, Any]:
+class BulletinChangeDepuisLeControle(Exception):
+    """Le bulletin en base n'est plus celui que la validation a contrôlé (R-325)."""
+
+
+def mark_payslip_validated(
+    payslip_id: str,
+    user_id: str,
+    *,
+    contenu_controle: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Marque le bulletin validé. `contenu_controle` : le contenu que la validation a
+    contrôlé ; si la base porte autre chose (recalcul passé entre-temps) ou si le bulletin
+    est déjà validé, rien n'est écrit : `BulletinChangeDepuisLeControle` (R-325)."""
     from datetime import datetime, timezone
 
     from app.modules.payslips.infrastructure.anomaly_cleanup import (
@@ -197,11 +209,17 @@ def mark_payslip_validated(payslip_id: str, user_id: str) -> dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat()
     current = (
         supabase.table("payslips")
-        .select("payslip_data")
+        .select("payslip_data, status")
         .eq("id", payslip_id)
         .maybe_single()
         .execute()
     )
+    if contenu_controle is not None:
+        lu = current.data if current and current.data else {}
+        en_base = lu.get("payslip_data")
+        en_base = en_base if isinstance(en_base, dict) else {}
+        if lu.get("status") == "valide" or en_base != contenu_controle:
+            raise BulletinChangeDepuisLeControle()
     payload: dict[str, Any] = {
         "status": "valide",
         "validated_at": now,
