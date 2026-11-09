@@ -3,6 +3,7 @@ from app.shared.pas_taux import (
     est_taux_bareme,
     taux_connu as taux_detenu,
     taux_personnalise_perime,
+    terme_de_deux_mois_au_plus,
     zone_du_code_postal,
 )
 
@@ -565,6 +566,9 @@ def _base_pas_du_mois(contexte: ContextePaie, net_imposable_mois: float) -> floa
     else:
         exoneration_ir = exoneration_ir_stage(contexte) or {}
     if not exoneration_ir.get("actif"):
+        abattement = _abattement_contrat_court(contexte)
+        if abattement:
+            return round(max(0.0, net_imposable_mois - abattement), 2)
         return net_imposable_mois
 
     pct_annuel = _get_safe_float(exoneration_ir.get("plafond_annuel_pct_smic"))
@@ -589,6 +593,92 @@ def _base_pas_du_mois(contexte: ContextePaie, net_imposable_mois: float) -> floa
     base_pas_cumulee_avec = max(0.0, net_imposable_cumule_avec - plafond_ir_annuel)
     base_pas_mois = base_pas_cumulee_avec - base_pas_cumulee_avant
     return round(max(0.0, base_pas_mois), 2)
+
+
+def _la_grille_s_applique(contexte: ContextePaie) -> bool:
+    """Aucun taux personnalisé valable : le mois se calcule à la grille par défaut."""
+    bloc_pas = contexte.contrat.get("specificites_paie", {}).get(
+        "prelevement_a_la_source", {}
+    )
+    return (
+        taux_detenu(bloc_pas) is None
+        or est_taux_bareme(bloc_pas.get("type_taux"))
+        or taux_personnalise_perime(bloc_pas, _periode_de_paie(contexte))
+    )
+
+
+def _date_de_contrat(valeur: Any) -> Optional[date]:
+    try:
+        return date.fromisoformat(str(valeur)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+CODE_ABATTEMENT_A_METTRE_A_JOUR = "pas_abattement_contrat_court_a_mettre_a_jour"
+
+
+def _montant_de_l_abattement(contexte: ContextePaie, fin_periode: date) -> float:
+    """Le montant en vigueur à la paie, le dernier connu pour une année à venir (signalé)."""
+    montant = 0.0
+    for debut, valeur in lc.ABATTEMENT_PAS_CONTRATS_COURTS:
+        if fin_periode >= debut:
+            montant = valeur
+    derniere_annee = lc.ABATTEMENT_PAS_CONTRATS_COURTS[-1][0].year
+    alertes = getattr(contexte, "alertes_baremes", None)
+    if (
+        montant
+        and fin_periode.year > derniere_annee
+        and isinstance(alertes, list)
+        and not any(a.get("code") == CODE_ABATTEMENT_A_METTRE_A_JOUR for a in alertes)
+    ):
+        alertes.append(
+            {
+                "code": CODE_ABATTEMENT_A_METTRE_A_JOUR,
+                "critique": False,
+                "severity": "warning",
+                "message": (
+                    f"Abattement des contrats courts : montant {derniere_annee} "
+                    f"({montant:.0f} €) appliqué en {fin_periode.year}, à mettre à jour "
+                    "dès la parution du nouveau montant."
+                ),
+            }
+        )
+    return montant
+
+
+def _abattement_contrat_court(contexte: ContextePaie) -> float:
+    """Abattement « contrats courts » du mois, 0 s'il ne s'applique pas.
+
+    CGI 204 H, III-1-d ; BOI-IR-PAS-20-20-30-10 § 230 à 290 : CDD (quelle que soit
+    sa nature, stage et contrat de professionnalisation compris) ou mission dont
+    le terme initial n'excède pas deux mois, sans taux transmis, sur les mois
+    civils concernés par les deux premiers mois du contrat.
+
+    Le terme initial n'est pas sur la fiche, seule la fin actuelle : un contrat
+    court renouvelé au-delà de deux mois n'est pas abattu (comportement
+    d'avant) ; un terme imprécis non plus, sa durée minimale étant inconnue.
+    """
+    fin_periode = getattr(contexte, "date_fin_periode", None)
+    if not isinstance(fin_periode, date):
+        return 0.0
+    if not (
+        getattr(contexte, "is_cdd", False)
+        or getattr(contexte, "is_interim", False)
+        or getattr(contexte, "is_professionnalisation", False)
+        or getattr(contexte, "is_stagiaire", False)
+    ):
+        return 0.0
+    contrat = contexte.contrat.get("contrat") or {}
+    debut = _date_de_contrat(contrat.get("date_debut_execution") or contrat.get("date_entree"))
+    fin = _date_de_contrat(contrat.get("date_fin_contrat"))
+    if debut is None or fin is None or not terme_de_deux_mois_au_plus(debut, fin):
+        return 0.0
+    # Mois civils des deux premiers mois : l'embauche, le suivant, et celui de
+    # l'échéance quand le contrat y finit (§ 290, exemple 1).
+    ecart = (fin_periode.year - debut.year) * 12 + fin_periode.month - debut.month
+    if not 0 <= ecart <= 2 or not _la_grille_s_applique(contexte):
+        return 0.0
+    return _montant_de_l_abattement(contexte, fin_periode)
 
 
 def _periode_de_paie(contexte: ContextePaie) -> Optional[str]:
@@ -626,19 +716,14 @@ def taux_pas_du_mois(contexte: ContextePaie, base_pas: float) -> float:
     sans type, sans identifiant, sans période et case « personnalisé » décochée
     (`app.shared.pas_taux.taux_connu`, [B1]).
     """
-    bloc_pas = contexte.contrat.get("specificites_paie", {}).get(
-        "prelevement_a_la_source", {}
-    )
-    taux_connu = taux_detenu(bloc_pas)
-    if (
-        taux_connu is None
-        or est_taux_bareme(bloc_pas.get("type_taux"))
-        or taux_personnalise_perime(bloc_pas, _periode_de_paie(contexte))
-    ):
+    if _la_grille_s_applique(contexte):
         return taux_pas_neutre(
             contexte.baremes.get("pas") or [], base_pas, _zone_pas(contexte)
         )
-    return _get_safe_float(taux_connu)
+    bloc_pas = contexte.contrat.get("specificites_paie", {}).get(
+        "prelevement_a_la_source", {}
+    )
+    return _get_safe_float(taux_detenu(bloc_pas))
 
 
 def _calculer_prelevement_a_la_source(

@@ -52,6 +52,16 @@ PSS_MENSUEL_PAR_ANNEE: dict[int, float] = {2025: 3925.0, 2026: 4005.0}
 # au bulletin, code `ij_maternite_minimum_absent`).
 IJ_MATERNITE_MINIMUM_PAR_ANNEE: dict[int, float] = {2026: 11.12}
 COEFF_PLAFOND_SJB_SMIC = 1.4
+# Abattement « contrats courts » du prélèvement à la source (CGI 204 H, III-1-d) :
+# la moitié du Smic mensuel net imposable, montant en vigueur au versement
+# (BOI-IR-PAS-20-20-30-10 § 260). Montants du BOI-BAREME-000037 § 30, versions
+# du 10/04/2025 (1 477,63 €), du 07/04/2026 (1 495,04 €) et du 06/07/2026
+# (1 531,12 €). (début, montant), du plus ancien au plus récent.
+ABATTEMENT_PAS_CONTRATS_COURTS: tuple[tuple[date, float], ...] = (
+    (date(2024, 11, 1), 739.0),
+    (date(2026, 1, 1), 748.0),
+    (date(2026, 6, 1), 766.0),
+)
 # IJ accident du travail / maladie professionnelle (CSS R433-2) : salaire
 # journalier de base retenu dans la limite d'une fraction du plafond annuel de
 # la Sécurité sociale, fixée par la date de l'arrêt — 0,834 %, puis 0,226 %

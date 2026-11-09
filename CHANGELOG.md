@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Impôt des contrats courts
+- Un CDD ou une mission de deux mois au plus, sans taux d'impôt reçu, a son abattement d'un demi-Smic sur les deux premiers mois : moins d'impôt prélevé, comme le prévoit le prélèvement à la source.
+- Le terme de départ n'étant pas sur la fiche, un CDD court renouvelé au-delà de deux mois garde pour l'instant le calcul sans abattement.
+
 ## paie-2026-11-09.3
 
 ### Corrections à la main
