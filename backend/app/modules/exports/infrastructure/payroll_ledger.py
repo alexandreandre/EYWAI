@@ -371,11 +371,20 @@ def _compte_element(
     # passe devant la ligne société, qui sinon regrouperait tous les prêts.
     if famille == FAMILLE_PRET and element.get("compte"):
         return str(element["compte"])
-    mapping = (
-        mappings.get(famille)
-        or mappings.get(FAMILY_MAPPING_ALIASES.get(famille, ""))
-        or {}
+    # Module Avances : avance sur salaire, acompte sur salaire, acompte sur prime
+    # passent par la même famille, mais chacun a sa rubrique, donc son compte :
+    # une ligne société `avance_salaire` ne doit pas capter les deux autres.
+    type_avance = (
+        str(element.get("type_avance") or "") if famille == FAMILLE_AVANCE else ""
     )
+    if type_avance:
+        mapping = mappings.get(type_avance) or {}
+    else:
+        mapping = (
+            mappings.get(famille)
+            or mappings.get(FAMILY_MAPPING_ALIASES.get(famille, ""))
+            or {}
+        )
     compte_mapping = str(
         mapping.get("compte_charge")
         or mapping.get("compte_tiers")
@@ -643,8 +652,14 @@ def _mouvements_du_bulletin(
         portees = {FULL, SALAIRES}
         if famille in FAMILLES_AUXILIAIRES:
             portees.add(AUXILIAIRES)
+        # Les trois types d'avance gardent chacun leur libellé dans l'OD.
+        libelle_ligne = (
+            libelle
+            if famille == FAMILLE_AVANCE and element.get("type_avance")
+            else LIBELLES_FAMILLES.get(famille, libelle)
+        )
         mouvements.append(
-            _Mouvement(f"hors_brut:{famille}", LIBELLES_FAMILLES.get(famille, libelle),
+            _Mouvement(f"hors_brut:{famille}", libelle_ligne,
                        compte, montant, frozenset(portees))
         )
     return mouvements, anomalies

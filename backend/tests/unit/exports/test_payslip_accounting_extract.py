@@ -324,6 +324,7 @@ class TestRetenuesDuBulletin:
                 "libelle": "Acompte sur salaire",
                 "montant": -800.0,
                 "compte": "4251",
+                "type_avance": "acompte_salaire",
             }
         ]
 
