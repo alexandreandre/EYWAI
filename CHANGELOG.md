@@ -5,6 +5,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+## paie-2026-11-09.3
+
 ### Corrections à la main
 - Corriger une cotisation par son montant ne bloque plus la validation du bulletin par une fausse alerte.
 
