@@ -138,4 +138,37 @@ def alerte_mutuelle(
     return None
 
 
-__all__ = ["MOTIFS_DISPENSE", "alerte_mutuelle"]
+#: Versement santé des contrats courts (CSS L911-7-1 ; D911-8 pour le montant).
+#: Sources secondaires lues le 09/11/2026, Légifrance refusant la lecture : Lefebvre
+#: Dalloz, « Frais de santé pour les contrats courts », Previssima. Couverture
+#: collective obligatoire de trois mois au plus.
+DUREE_MAX_MOIS_VERSEMENT_SANTE = 3
+
+
+def alerte_versement_sante(
+    mutuelle: dict[str, Any] | None,
+    contract_type: str | None,
+    debut_contrat: Any,
+    fin_contrat: Any,
+) -> str | None:
+    """CDD de trois mois au plus, dispensé : le salarié peut demander le versement
+    santé, que Martine ne calcule pas (il se saisit à la main, sur demande)."""
+    if contract_type != "CDD":
+        return None
+    bloc = mutuelle if isinstance(mutuelle, dict) else {}
+    if bloc.get("adhesion") or not isinstance(bloc.get("dispense"), dict):
+        return None
+    debut, fin = _date(debut_contrat), _date(fin_contrat)
+    if debut is None or fin is None or fin < debut:
+        return None
+    mois_duree = (fin.year - debut.year) * 12 + fin.month - debut.month + (fin.day >= debut.day)
+    if mois_duree > DUREE_MAX_MOIS_VERSEMENT_SANTE:
+        return None
+    return (
+        "CDD de trois mois au plus, dispensé de mutuelle : s'il demande le versement santé "
+        "et justifie d'un contrat responsable, il est dû (CSS L911-7-1). Martine ne le "
+        "calcule pas : ajoutez-le à la main à son bulletin."
+    )
+
+
+__all__ = ["MOTIFS_DISPENSE", "alerte_mutuelle", "alerte_versement_sante"]

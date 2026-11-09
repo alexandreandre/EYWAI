@@ -61,7 +61,7 @@ from app.modules.payroll.application.monthly_specificites import (
 )
 from app.modules.payroll.engine.corrections_manuelles import regularisations_du_bulletin
 from app.shared.domain.effectif_seuils import effectif_retenu
-from app.shared.domain.dispense_mutuelle import alerte_mutuelle
+from app.shared.domain.dispense_mutuelle import alerte_mutuelle, alerte_versement_sante
 from app.shared.domain.employment_rules import is_cadre
 from app.shared.reprise_paie import lire_bascule, raison_de_refus_dsn_mois_repris
 from app.shared.dsn_validation import validate_nir, validate_nir_dsn, validate_siret
@@ -741,6 +741,11 @@ def check_dsn_data(
             alerte = alerte_mutuelle(mutuelle, contract_type, annee_dsn, mois_dsn)
             if alerte:
                 warnings.append(f"Salarié {employee_name} : {alerte}")
+            versement_sante = alerte_versement_sante(
+                mutuelle, contract_type, employee.get("hire_date"), employee.get("contract_end_date")
+            )
+            if versement_sante:
+                warnings.append(f"Salarié {employee_name} : {versement_sante}")
             if contract_type in ["CDI", "CDD"] and not prevoyance.get("adhesion"):
                 warnings.append(
                     f"Salarié {employee_name} : prévoyance absente alors que contrat actif"

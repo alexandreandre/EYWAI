@@ -110,7 +110,9 @@ _PLASTURGIE_SANS_PREVOYANCE = PrevoyanceManquante(
     fiche=(
         "Sans prévoyance après 3 mois d'ancienneté : la convention de la plasturgie "
         "l'impose (au moins 0,8 % du brut, moitié employeur). Cochez « Adhésion "
-        "prévoyance ». D'ici là, son bulletin ne se génère pas."
+        "prévoyance ». D'ici là, son bulletin ne se génère pas. Une dispense du "
+        "salarié n'est possible que si l'acte de l'entreprise la prévoit (CSS "
+        "R242-1-6) : Martine ne la gère pas, à régler avec le contrat de prévoyance."
     ),
     refus=(
         "Bulletin non généré : {prenom} a 3 mois d'ancienneté, sans prévoyance sur "
