@@ -1,8 +1,9 @@
 """Accès au paramétrage DSN d'une société.
 
-Tant que la table n'est pas déployée, la lecture retourne un paramétrage vide
-plutôt que de faire échouer la génération : l'export signale alors ses manques
-par ``DsnSettings.manques()``.
+Une société sans ligne a un paramétrage vide : l'export signale ses manques par
+``DsnSettings.manques()``. Une lecture qui échoue n'est pas une société vide (R-467) :
+elle lève ``ParametrageDsnIllisible`` et l'export s'arrête au lieu de partir sans
+SIRET d'URSSAF ni organismes.
 """
 
 from __future__ import annotations
@@ -21,16 +22,25 @@ logger = logging.getLogger(__name__)
 
 TABLE = "company_dsn_settings"
 
+MESSAGE_ILLISIBLE = (
+    "Le paramétrage DSN de la société n'a pas pu être lu : aucun fichier n'est produit. "
+    "Réessayez dans un instant."
+)
+
+
+class ParametrageDsnIllisible(ValueError):
+    """La lecture du paramétrage DSN a échoué : rien ne se déclare sans lui (R-467)."""
+
 
 def charger(company_id: str) -> DsnSettings:
-    """Lit le paramétrage d'une société, vide si absent ou table non déployée."""
+    """Lit le paramétrage d'une société ; vide si la société n'en a pas encore."""
     try:
         reponse = (
             supabase.table(TABLE).select("*").eq("company_id", company_id).execute()
         )
     except Exception as exc:  # table absente, droits, réseau
         logger.warning("Paramétrage DSN illisible pour %s : %s", company_id, exc)
-        return DsnSettings()
+        raise ParametrageDsnIllisible(MESSAGE_ILLISIBLE) from exc
     lignes = reponse.data or []
     return depuis_dict(lignes[0] if lignes else None)
 

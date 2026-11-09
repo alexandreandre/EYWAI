@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### DSN : ce qui ne se lit pas arrête le fichier
+- Si le paramétrage DSN de la société ne se lit pas, l'aperçu le dit et le fichier n'est pas produit.
+- Si le statut de travailleur handicapé d'un salarié ne se lit pas, l'aperçu nomme le salarié et le fichier attend.
+
 ### Validation
 - Valider un bulletin pendant qu'il se recalcule ne remet plus l'ancien contenu marqué validé : Martine dit de recharger la page, et rien n'est écrit.
 

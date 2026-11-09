@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 from app.core.database import supabase
+from app.core.logging import get_logger
 from app.modules.dsn_export.application.builder import (
     MESSAGE_URSSAF_MANQUANT,
     DsnBuildError,
@@ -62,6 +63,8 @@ from app.shared.domain.dispense_mutuelle import alerte_mutuelle
 from app.shared.domain.employment_rules import is_cadre
 from app.shared.reprise_paie import lire_bascule, raison_de_refus_dsn_mois_repris
 from app.shared.dsn_validation import validate_nir, validate_nir_dsn, validate_siret
+
+logger = get_logger("modules.exports.export_dsn")
 
 
 def _aujourd_hui_a_paris() -> date:
@@ -466,11 +469,21 @@ def _fiche_dsn(employee: Dict[str, Any], period: str) -> Dict[str, Any]:
         employee.setdefault("idcc", classif.get("idcc") or employee.get("idcc") or "")
     try:
         boeth = oeth_queries.get_boeth_code_for_employee(employee.get("id", ""), period)
-        if boeth:
-            employee = {**employee, "boeth_code": boeth}
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001 — jamais une DSN sans un code qu'on n'a pas su lire (R-466)
+        logger.warning("Code BOETH illisible pour un salarié de la DSN %s", period, exc_info=True)
+        return {**employee, "boeth_illisible": True}
+    if boeth:
+        employee = {**employee, "boeth_code": boeth}
     return employee
+
+
+def _anomalie_boeth(employee: Dict[str, Any]) -> str:
+    """La phrase de l'aperçu et de l'arrêt du fichier pour un code BOETH illisible."""
+    nom = f"{employee.get('first_name', '')} {employee.get('last_name', '')}".strip()
+    return (
+        f"Statut BOETH de {nom} illisible : le fichier ne part pas sans lui. "
+        "Réessayez dans un instant."
+    )
 
 
 def _montants(payslip_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -538,16 +551,29 @@ def check_dsn_data(
                 "employee_name": None,
             }
         )
-    if not identifiant_urssaf(company_data, settings_repository.charger(company_id)):
+    try:
+        parametres = settings_repository.charger(company_id)
+    except settings_repository.ParametrageDsnIllisible as exc:
         anomalies.append(
             {
                 "type": "error",
-                "message": MESSAGE_URSSAF_MANQUANT,
+                "message": str(exc),
                 "severity": "blocking",
                 "employee_id": None,
                 "employee_name": None,
             }
         )
+    else:
+        if not identifiant_urssaf(company_data, parametres):
+            anomalies.append(
+                {
+                    "type": "error",
+                    "message": MESSAGE_URSSAF_MANQUANT,
+                    "severity": "blocking",
+                    "employee_id": None,
+                    "employee_name": None,
+                }
+            )
     code_naf = company_data.get("code_naf")
     if not code_naf and porte_les_codes_ape(norme_de_la_periode(period)):
         anomalies.append(
@@ -583,6 +609,17 @@ def check_dsn_data(
         employee_name = (
             f"{employee.get('first_name', '')} {employee.get('last_name', '')}".strip()
         )
+        for declare in (employee, (emp_data.get("contrat_precedent") or {}).get("employee") or {}):
+            if declare.get("boeth_illisible"):
+                anomalies.append(
+                    {
+                        "type": "error",
+                        "message": _anomalie_boeth(declare),
+                        "severity": "blocking",
+                        "employee_id": employee_id,
+                        "employee_name": employee_name,
+                    }
+                )
         annee_dsn, mois_dsn = (int(x) for x in period.split("-"))
         mois_partage = f"{_MOIS_DSN[mois_dsn]} {annee_dsn} : {employee_name} a deux contrats dans le mois"
         precedent = emp_data.get("contrat_precedent") or {}
@@ -973,6 +1010,10 @@ def generate_dsn_file(
                     break
 
     employees_data, _totals = get_dsn_employees_data(company_id, period, employee_ids)
+    for row in employees_data:
+        for declare in (row, row.get("contrat_precedent") or {}):
+            if (declare.get("employee") or {}).get("boeth_illisible"):
+                raise ValueError(_anomalie_boeth(declare["employee"]))
     period_formatted = period.replace("-", "_")
     genre = "annule_remplace" if remplace is not None else "mensuelle"
     if essai:

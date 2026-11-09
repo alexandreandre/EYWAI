@@ -4,13 +4,18 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+from app.modules.dsn_export.domain.settings import DsnSettings
 from app.modules.exports.infrastructure.export_dsn import generate_dsn_xml
 
 
+@patch(
+    "app.modules.exports.infrastructure.export_dsn.settings_repository.charger",
+    return_value=DsnSettings(),
+)
 @patch("app.modules.exports.infrastructure.export_dsn.get_dsn_employees_data")
 @patch("app.modules.exports.infrastructure.export_dsn.get_company_data")
 @patch("app.modules.exports.infrastructure.export_dsn.oeth_queries")
-def test_generate_dsn_includes_boeth(mock_oeth, mock_company, mock_employees):
+def test_generate_dsn_includes_boeth(mock_oeth, mock_company, mock_employees, _settings):
     mock_company.return_value = {
         "siret": "12345678900015",
         "urssaf_number": "79484650100011",
