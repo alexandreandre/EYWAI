@@ -11,6 +11,8 @@ import unicodedata
 from datetime import date
 from typing import Any, Dict, List, Optional
 
+from app.modules.payroll.engine import legal_constants as lc
+
 
 def _float_in_range(value: Any, *, name: str, min_v: float, max_v: float) -> Optional[str]:
     if value is None:
@@ -497,6 +499,8 @@ _BAREMES_DATES = (
 
 CODE_BAREMES_ANNEE_SUIVANTE = "baremes_d_une_annee_suivante"
 CODE_BAREME_ANNEE_PASSEE = "bareme_d_une_annee_passee"
+CODE_PLAFOND_SS_NON_DECLARE = "plafond_ss_annee_non_declaree"
+CODE_JOUR_SOLIDARITE_AUTRE_ANNEE = "jour_solidarite_autre_annee"
 
 
 def _annees_des_baremes(
@@ -563,6 +567,128 @@ def controler_annee_des_baremes(
             }
         )
     return alertes
+
+
+def _annee_du_plafond_ss(pss: Any) -> Optional[int]:
+    """L'année du plafond mensuel connu que vaut le barème, ou None.
+
+    Le barème `pss` ne porte ni année ni date d'effet : seul
+    `legal_constants.PSS_MENSUEL_PAR_ANNEE` dit de quelle année est un montant.
+    """
+    if not isinstance(pss, dict):
+        return None
+    try:
+        mensuel = float(pss.get("mensuel"))
+    except (TypeError, ValueError):
+        return None
+    annees = [annee for annee, valeur in lc.PSS_MENSUEL_PAR_ANNEE.items() if valeur == mensuel]
+    return max(annees) if annees else None
+
+
+def _derniere_annee_des_paliers(bareme: Any) -> Optional[int]:
+    """L'année du dernier palier daté d'un barème à `historique`, ou None."""
+    if not isinstance(bareme, dict):
+        return None
+    annees: list[int] = []
+    for palier in bareme.get("historique") or []:
+        try:
+            annees.append(date.fromisoformat(str(palier.get("date_debut"))[:10]).year)
+        except (AttributeError, ValueError):
+            continue
+    return max(annees) if annees else None
+
+
+def _alerte_bareme_passe(
+    cle: str, annee_du_bareme: int, complement: str, annee_du_bulletin: int
+) -> Dict[str, Any]:
+    return {
+        "code": CODE_BAREME_ANNEE_PASSEE,
+        "config_key": cle,
+        "critique": False,
+        "severity": "warning",
+        "message": (
+            f"Barème {annee_du_bareme} {complement} appliqué en {annee_du_bulletin} : "
+            "à régulariser dès la parution du nouveau."
+        ),
+    }
+
+
+def controler_baremes_sans_annee(
+    baremes: Dict[str, Any], annee_du_bulletin: int
+) -> List[Dict[str, Any]]:
+    """Signale, sans bloquer, le plafond de la Sécurité sociale et les plafonds d'IJ périmés.
+
+    Ces deux barèmes changent chaque 1er janvier et ne portent pas de champ
+    `annee` : `controler_annee_des_baremes` ne les voit pas. Le premier se date
+    par son montant, le second par ses paliers (`historique`). Une année déjà
+    couverte ne dit rien. Le PAS reste hors contrôle (grille légitimement
+    reconduite quand la loi de finances est tardive).
+    """
+    alertes: List[Dict[str, Any]] = []
+    pss = baremes.get("pss")
+    annee_pss = _annee_du_plafond_ss(pss)
+    if annee_pss is not None:
+        if annee_pss < annee_du_bulletin:
+            alertes.append(
+                _alerte_bareme_passe(
+                    "pss", annee_pss, "du plafond de la Sécurité sociale", annee_du_bulletin
+                )
+            )
+    elif (
+        isinstance(pss, dict)
+        and pss.get("mensuel") is not None
+        and annee_du_bulletin > max(lc.PSS_MENSUEL_PAR_ANNEE)
+    ):
+        alertes.append(
+            {
+                "code": CODE_PLAFOND_SS_NON_DECLARE,
+                "config_key": "pss",
+                "critique": False,
+                "severity": "warning",
+                "message": (
+                    f"Plafond de la Sécurité sociale de {annee_du_bulletin} inconnu de "
+                    "Martine : les indemnités de maternité lisent le barème courant. "
+                    "À signaler au support."
+                ),
+            }
+        )
+    annee_ij = _derniere_annee_des_paliers(baremes.get("ij_plafonds"))
+    if annee_ij is not None and annee_ij < annee_du_bulletin:
+        alertes.append(
+            _alerte_bareme_passe(
+                "ij_plafonds", annee_ij, "des plafonds d'indemnités journalières", annee_du_bulletin
+            )
+        )
+    return alertes
+
+
+def controler_jour_solidarite(
+    parametres_paie: Optional[Dict[str, Any]], annee_du_bulletin: int
+) -> List[Dict[str, Any]]:
+    """Signale une journée de solidarité réglée sur une autre année que le bulletin.
+
+    Le réglage est une date complète : une autre année, et le moteur ne reconnaît
+    plus aucune journée. Sans réglage, il retient le lundi de Pentecôte.
+    """
+    brut = (parametres_paie or {}).get("jour_solidarite")
+    try:
+        jour = date.fromisoformat(str(brut)[:10])
+    except ValueError:
+        return []
+    if jour.year == annee_du_bulletin:
+        return []
+    return [
+        {
+            "code": CODE_JOUR_SOLIDARITE_AUTRE_ANNEE,
+            "critique": False,
+            "severity": "warning",
+            "message": (
+                f"Journée de solidarité réglée au {jour:%d/%m/%Y} : elle ne vaut pas pour "
+                f"{annee_du_bulletin}, aucune journée n'est reconnue sur ce bulletin. "
+                "Saisissez la date de l'année dans les paramètres de la société."
+            ),
+        }
+    ]
 
 
 def refuser_baremes_d_une_annee_passee(

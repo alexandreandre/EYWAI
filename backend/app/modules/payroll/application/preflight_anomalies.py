@@ -24,8 +24,10 @@ from app.modules.payroll.domain.primes_habituelles import (
 )
 from app.modules.payroll.domain.smh_metallurgie import (
     classe_controlable,
+    bareme_smh_manque,
     ecart_smh,
     message_smh,
+    message_smh_absent,
     mois_pleins,
 )
 from app.modules.payroll.domain.retenues_reprises import (
@@ -358,6 +360,21 @@ def _anomalies_smh_metallurgie(
     }
     if not classes:
         return []
+    if bareme_smh_manque(year):
+        return [
+            PreflightAnomaly(
+                id=_anomaly_id(str(e["id"]), "minimum_annuel"),
+                employee_id=str(e["id"]),
+                employee_name=_employee_name(e.get("first_name"), e.get("last_name")),
+                team_id=str(e["team_id"]) if e.get("team_id") else None,
+                type="minimum_annuel",
+                severity="a_verifier",
+                status="a_traiter",
+                message=message_smh_absent(year),
+            )
+            for e in employees
+            if str(e["id"]) in classes
+        ]
     try:
         bulletins = (
             supabase.table("payslips")

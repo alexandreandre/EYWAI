@@ -52,6 +52,8 @@ from app.modules.payroll.engine.baremes_loader import (
     comparer_taux_vm_entreprise,
     baremes_de_l_annee,
     controler_annee_des_baremes,
+    controler_baremes_sans_annee,
+    controler_jour_solidarite,
 )
 from app.modules.payroll.engine.calcul_frais import (
     appliquer_exoneration_note_frais,
@@ -684,6 +686,10 @@ def run_payslip_generation_heures(
     # suivante (décembre recalculé en janvier) : alerte sur le bulletin.
     contexte.baremes = baremes_de_l_annee(contexte.baremes, year)
     contexte.alertes_baremes.extend(controler_annee_des_baremes(contexte.baremes, year))
+    contexte.alertes_baremes.extend(controler_baremes_sans_annee(contexte.baremes, year))
+    contexte.alertes_baremes.extend(
+        controler_jour_solidarite(contexte.entreprise.get("parametres_paie"), year)
+    )
     # Deux fenêtres : le bulletin porte le mois civil, les heures sup et les
     # paniers suivent la fenêtre arrêtée par la gestionnaire de paie.
     fenetre_cfg = (

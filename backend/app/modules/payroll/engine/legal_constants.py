@@ -48,7 +48,8 @@ TAUX_FORFAITAIRE_IJ_MATERNITE = 0.21
 PSS_MENSUEL_PAR_ANNEE: dict[int, float] = {2025: 3925.0, 2026: 4005.0}
 # Minimum de l'IJ de repos, fixé par arrêté (R331-5, 3e alinéa) : « le montant
 # ne peut pas être inférieur à 11,12 € » en 2026 (service-public F2265). Une
-# année absente n'en applique aucun.
+# année absente n'en applique aucun (une année après la dernière connue le signale
+# au bulletin, code `ij_maternite_minimum_absent`).
 IJ_MATERNITE_MINIMUM_PAR_ANNEE: dict[int, float] = {2026: 11.12}
 COEFF_PLAFOND_SJB_SMIC = 1.4
 # IJ accident du travail / maladie professionnelle (CSS R433-2) : salaire

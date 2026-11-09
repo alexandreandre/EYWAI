@@ -188,4 +188,5 @@ class TestLesDeuxCalculsSeFontAvecUneAlerte:
             baremes_override=_baremes(), persister=False,
         )
         assert bulletin["salaire_brut"] > 0
-        assert len(_alertes_annee_passee(bulletin)) == 2
+        # SMIC, réduction générale, plafond de la Sécurité sociale (R-611).
+        assert len(_alertes_annee_passee(bulletin)) == 3
