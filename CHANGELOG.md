@@ -5,6 +5,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+## paie-2026-11-09.4
+
 ### Alertes et contrôles sans changement de montant
 - Une participation ou une prime de partage ne déclenche plus de fausse alerte critique sur le brut du bulletin.
 - Un arrêt de travail illisible à la génération se dit sur le bulletin : une prolongation a pu partir comme un nouvel arrêt.
