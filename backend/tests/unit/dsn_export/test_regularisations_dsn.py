@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import pytest
 
-from app.modules.dsn_export.domain.cotisation_mapping import build_bases_and_cotisations
+from app.modules.dsn_export.domain.cotisation_mapping import (
+    CODE_CSG,
+    build_bases_and_cotisations,
+)
 from app.modules.payroll.engine.corrections_manuelles import RegularisationCotisation
 
 pytestmark = pytest.mark.unit
@@ -108,3 +111,31 @@ def test_une_exoneration_apprenti_sans_code_dsn_reste_hors_de_la_declaration():
         montant_salarial=-10.0,
     ).ligne_de_cotisation()
     assert _cotisations([ligne, regul]) == _cotisations([ligne])
+
+
+def test_la_csg_d_une_participation_regularisee_part_en_dsn():
+    """R-205 : la carte propose la CSG de participation sous `csg_deductible`, que la DSN lit."""
+    def csg(base, *, taux=0.068):
+        return {
+            "coti_id": "csg_deductible",
+            "libelle": "CSG déductible",
+            "base": base,
+            "taux_salarial": taux,
+            "taux_patronal": 0.0,
+            "montant_salarial": round(base * taux, 2),
+            "montant_patronal": 0.0,
+        }
+
+    regul = RegularisationCotisation(
+        coti_id="csg_deductible",
+        libelle="CSG déductible — Participation",
+        motif="Base corrigée",
+        base=100.0,
+        taux_salarial=0.068,
+    ).ligne_de_cotisation()
+    sans = _par_code(_cotisations([csg(2000.0)]), CODE_CSG)
+    avec = _par_code(_cotisations([csg(2000.0), regul]), CODE_CSG)
+    assert avec.montant_salarial + avec.montant_patronal == pytest.approx(
+        sans.montant_salarial + sans.montant_patronal + 6.8, abs=0.01
+    )
+    assert avec.montant_assiette == pytest.approx(sans.montant_assiette + 100.0, abs=0.01)

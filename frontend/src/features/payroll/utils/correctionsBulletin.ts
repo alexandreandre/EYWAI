@@ -286,17 +286,32 @@ function lignesDeCotisation(data: unknown): Ligne[] {
   return rubriques.flatMap((r) => (Array.isArray(r.lignes) ? (r.lignes as Ligne[]) : []));
 }
 
+/**
+ * La CSG et le forfait social de la participation ou de la PPV n'ont pas
+ * d'organisme : le libellé le donne, c'est lui que la DSN traduira.
+ */
+function cotiIdHorsSalaire(l: Ligne): string | null {
+  if (!(l.is_participation || l.is_ppv)) return null;
+  const libelle = String(l.libelle ?? '').toLowerCase();
+  if (libelle.startsWith('csg déductible')) return 'csg_deductible';
+  if (libelle.startsWith('csg/crds non déductible')) return 'csg_non_deductible';
+  if (libelle.startsWith('forfait social')) return 'forfait_social';
+  return null;
+}
+
 export function cotisationsRegularisables(data: unknown): CotisationRegularisable[] {
   const vues = new Set<string>();
   const sortie: CotisationRegularisable[] = [];
   for (const l of lignesDeCotisation(data)) {
-    if (!l.coti_id || l.regularisation || l.is_participation || l.is_ppv) continue;
-    const libelle = typeof l.libelle === 'string' ? l.libelle : String(l.coti_id);
-    const cle = `${l.coti_id}|${libelle}`;
+    if (l.regularisation) continue;
+    const cotiId = l.is_participation || l.is_ppv ? cotiIdHorsSalaire(l) : (l.coti_id ? String(l.coti_id) : null);
+    if (!cotiId) continue;
+    const libelle = typeof l.libelle === 'string' ? l.libelle : cotiId;
+    const cle = `${cotiId}|${libelle}`;
     if (vues.has(cle)) continue;
     vues.add(cle);
     sortie.push({
-      cotiId: String(l.coti_id),
+      cotiId,
       libelle,
       tauxSalarial: nombre(l.taux_salarial) || null,
       tauxPatronal: nombre(l.taux_patronal) || null,

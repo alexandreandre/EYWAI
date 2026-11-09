@@ -378,11 +378,36 @@ const BULLETIN_REGUL = {
 };
 
 describe('régularisations de cotisation', () => {
-  it('propose les cotisations du bulletin, sans la participation ni les régularisations', () => {
+  it('propose les cotisations du bulletin, sans les régularisations', () => {
     expect(cotisationsRegularisables(BULLETIN_REGUL).map((c) => c.cotiId)).toEqual([
       'securite_sociale_maladie',
       'mutuelle',
+      'csg_deductible',
     ]);
+  });
+
+  it('propose la CSG d’une participation ou d’une PPV avec son code DSN (R-205)', () => {
+    const data = {
+      cotisations_officielles: [
+        {
+          lignes: [
+            { libelle: 'CSG déductible — Participation', base: 100, taux_salarial: 0.068, montant_salarial: 6.8, is_participation: true },
+            { libelle: 'CSG/CRDS non déductible — PPV', base: 100, taux_salarial: 0.029, montant_salarial: 2.9, is_ppv: true },
+            { libelle: 'Forfait social — PPV', base: 100, taux_salarial: 0, taux_patronal: 0.2, montant_patronal: 20, is_ppv: true },
+          ],
+        },
+      ],
+    };
+    const proposees = cotisationsRegularisables(data);
+    expect(proposees.map((c) => c.cotiId)).toEqual(['csg_deductible', 'csg_non_deductible', 'forfait_social']);
+    expect(regularisationDepuisEcart(proposees[0]!, 6.8, 'les_deux', 'Base corrigée')).toEqual({
+      coti_id: 'csg_deductible',
+      libelle: 'CSG déductible — Participation',
+      motif: 'Base corrigée',
+      base: 100,
+      taux_salarial: 0.068,
+      taux_patronal: null,
+    });
   });
 
   it('lit les régularisations déjà posées', () => {
