@@ -13,6 +13,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - Une PPV déjà versée sur un bulletin repris compte désormais pour le plafond annuel et le nombre de primes de l'année.
 - Au deuxième versement d'une année, Martine rappelle ce qui a déjà été payé : le montant à saisir est le solde.
 
+### Reçu pour solde de tout compte
+- Sans bulletin du mois de sortie, le reçu n'ajoute plus les heures supplémentaires et les primes du mois d'avant, déjà payées.
+
 ## paie-2026-11-09.3
 
 ### Corrections à la main
