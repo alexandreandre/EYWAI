@@ -68,6 +68,41 @@ MENTION_EVOLUTION_REMUNERATION = (
     "salariales chômage et maladie"
 )
 
+#: Modèle du bulletin : article 1er de l'arrêté du 25/02/2016 modifié par l'arrêté
+#: du 31/01/2023 (JORF du 07/02/2023, texte 18, lu le 09/11/2026). Le modèle dit
+#: adapté de son article 2, avec la ligne « dont évolution… », reste permis jusqu'au
+#: 01/01/2027 (arrêté du 11/08/2025, JO du 14/08/2025 ; Éditions Tissot, PayFit,
+#: Légifrance refusant la lecture). Aucune date plus tardive trouvée au 09/11/2026 ;
+#: un bulletin de décembre 2026 et les précédents restent inchangés.
+PREMIER_MOIS_MODELE_DEFINITIF = (2027, 1)
+
+LIBELLES_MODELE_DEFINITIF: Dict[str, str] = {
+    "sante": "Santé",
+    "at_mp": "Accidents du travail & maladies professionnelles",
+    "retraite": "Retraite",
+    "famille": "Famille",
+    "chomage": "Assurance chômage",
+    "autres_contributions_employeur": "Autres charges dues par l'employeur",
+    "cotisations_statutaires": "Cotisations statutaires ou prévues par la convention collective",
+    "csg_deductible": "CSG déductible de l'impôt sur le revenu",
+    "csg_non_deductible": "CSG/CRDS non déductible de l'impôt sur le revenu",
+}
+
+#: Lignes de la section « facultatives » du modèle. La prévoyance d'un cadre ou
+#: d'une convention reste dans « Cotisations statutaires ou prévues par la
+#: convention collective », là où le moteur la range.
+COTI_FACULTATIVES = frozenset({"prevoyance", "retraite_sup"})
+
+
+def modele_definitif(bulletin: Dict[str, Any]) -> bool:
+    """Ce bulletin suit-il le modèle définitif (paie de janvier 2027 et après) ?"""
+    en_tete = bulletin.get("en_tete") or {}
+    try:
+        return (int(en_tete.get("annee")), int(en_tete.get("mois"))) >= PREMIER_MOIS_MODELE_DEFINITIF
+    except (TypeError, ValueError):
+        return False
+
+
 MODES_PAIEMENT = {
     "virement": "par Virement",
     "cheque": "par Chèque",
@@ -502,6 +537,64 @@ def _lignes_rubrique(rubrique: Dict[str, Any]) -> List[Dict[str, Any]]:
     return [entete, *details]
 
 
+def _lignes_modele_definitif(
+    bulletin: Dict[str, Any], rubriques: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Le corps du bulletin selon l'article 1er de l'arrêté : obligatoires, total,
+    exonérations, facultatives. Ce qui suit (remboursements, nets) est au pied."""
+    lignes = [_ligne("rubrique", "COTISATIONS ET CONTRIBUTIONS SOCIALES OBLIGATOIRES")]
+    facultatives: List[Dict[str, Any]] = []
+    total_salarial = total_patronal = 0.0
+    exonerations: Optional[Dict[str, Any]] = None
+    for rubrique in rubriques:
+        code = rubrique.get("code") or ""
+        if code == "exonerations":
+            exonerations = rubrique
+            continue
+        gardees = []
+        for ligne in rubrique.get("lignes") or []:
+            if not isinstance(ligne, dict):
+                continue
+            if ligne.get("coti_id") in COTI_FACULTATIVES:
+                facultatives.append(ligne)
+            else:
+                gardees.append(ligne)
+                total_salarial += float(ligne.get("montant_salarial") or 0.0)
+                total_patronal += float(ligne.get("montant_patronal") or 0.0)
+        if gardees:
+            lignes.append(
+                _ligne("rubrique", LIBELLES_MODELE_DEFINITIF.get(code, str(rubrique.get("libelle") or "")))
+            )
+            lignes.extend(_ligne_cotisation(ligne) for ligne in gardees)
+
+    for mention in mentions_des_regularisations(bulletin):
+        lignes.append(_ligne("note", mention))
+    for mention in mentions_des_corrections(bulletin):
+        lignes.append(_ligne("note", mention))
+
+    lignes.append(
+        _ligne(
+            "total",
+            "TOTAL DES COTISATIONS ET CONTRIBUTIONS OBLIGATOIRES",
+            montant_salarial=round(total_salarial, 2),
+            montant_patronal=round(total_patronal, 2),
+        )
+    )
+    if exonerations is not None:
+        lignes.append(
+            _ligne(
+                "total",
+                "EXONÉRATIONS ET ALLÈGEMENTS DE COTISATIONS",
+                montant_salarial=exonerations.get("total_salarial"),
+                montant_patronal=exonerations.get("total_patronal"),
+            )
+        )
+    if facultatives:
+        lignes.append(_ligne("rubrique", "COTISATIONS ET CONTRIBUTIONS SOCIALES FACULTATIVES"))
+        lignes.extend(_ligne_cotisation(ligne) for ligne in facultatives)
+    return lignes
+
+
 def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Ce qui s'ajoute ou se retient après le net imposable."""
     lignes: List[Dict[str, Any]] = []
@@ -738,6 +831,10 @@ def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
         for rubrique in bulletin.get("cotisations_officielles") or []
         if isinstance(rubrique, dict)
     ]
+    if modele_definitif(bulletin):
+        lignes.extend(_lignes_modele_definitif(bulletin, rubriques))
+        return lignes
+
     rubriques_principales = [
         r for r in rubriques if r.get("code") != RUBRIQUE_APRES_NET_IMPOSABLE
     ]
@@ -800,6 +897,7 @@ def construire_lateral(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
     cumuls = ((bulletin.get("cumuls") or {}).get("cumuls")) or {}
     pied = bulletin.get("pied_de_page") or {}
     salarie = ((bulletin.get("en_tete") or {}).get("salarie")) or {}
+    definitif = modele_definitif(bulletin)
 
     def valeur(libelle: str, montant: Any) -> Dict[str, str]:
         return {
@@ -832,10 +930,13 @@ def construire_lateral(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
                 # Patronal seul ; les bulletins générés avant l'ajout de la
                 # clé retombent sur l'ancien total.
                 valeur(
-                    "Allègement cotis. employeur",
+                    "Exonérations et allègements" if definitif else "Allègement cotis. employeur",
                     pied.get("total_allegements_patronaux", pied.get("total_exonerations")),
                 ),
-                valeur("Total versé employeur", pied.get("cout_total_employeur")),
+                valeur(
+                    "Total versé par l'employeur" if definitif else "Total versé employeur",
+                    pied.get("cout_total_employeur"),
+                ),
             ],
         ),
         _bloc_lateral(
@@ -911,6 +1012,7 @@ def _base_csg(bulletin: Dict[str, Any]) -> float:
 
 
 def construire_pied(bulletin: Dict[str, Any]) -> Dict[str, Any]:
+    definitif = modele_definitif(bulletin)
     synthese = bulletin.get("synthese_net") or {}
     pas = synthese.get("impot_prelevement_a_la_source") or {}
     cumuls = ((bulletin.get("cumuls") or {}).get("cumuls")) or {}
@@ -920,7 +1022,10 @@ def construire_pied(bulletin: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "montant_net_social": synthese.get("montant_net_social"),
         "net_avant_impot": synthese.get("net_social_avant_impot"),
-        "evolution_remuneration": _evolution_remuneration(bulletin),
+        "modele_definitif": definitif,
+        # Article 1er : pas de ligne « dont évolution » ; elle n'existe qu'au modèle adapté.
+        "evolution_remuneration": None if definitif else _evolution_remuneration(bulletin),
+        "remboursements": _lignes_hors_brut(bulletin) if definitif else [],
         "mention_evolution": MENTION_EVOLUTION_REMUNERATION,
         "impot": {
             "net_imposable": synthese.get("net_imposable"),
