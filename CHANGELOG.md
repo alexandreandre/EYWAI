@@ -30,6 +30,16 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ### Validation
 - Valider un bulletin pendant qu'il se recalcule ne remet plus l'ancien contenu marqué validé : Martine dit de recharger la page, et rien n'est écrit.
+### Impôt des contrats courts
+- Un CDD ou une mission de deux mois au plus, sans taux d'impôt reçu, a son abattement d'un demi-Smic sur les deux premiers mois : moins d'impôt prélevé, comme le prévoit le prélèvement à la source.
+- Le terme de départ n'étant pas sur la fiche, un CDD court renouvelé au-delà de deux mois garde pour l'instant le calcul sans abattement.
+
+### Prime de partage de la valeur
+- Une PPV déjà versée sur un bulletin repris compte désormais pour le plafond annuel et le nombre de primes de l'année.
+- Au deuxième versement d'une année, Martine rappelle ce qui a déjà été payé : le montant à saisir est le solde.
+
+### Reçu pour solde de tout compte
+- Sans bulletin du mois de sortie, le reçu n'ajoute plus les heures supplémentaires et les primes du mois d'avant, déjà payées.
 
 ## paie-2026-11-09.3
 

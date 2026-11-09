@@ -29,8 +29,9 @@ versement, ce qui confirme la lecture.
 
 from __future__ import annotations
 
+import calendar
 import re
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Dict, Optional
 
 TYPE_PERSONNALISE = "01"
@@ -89,6 +90,24 @@ def libelle_type(type_taux: Optional[str]) -> str:
     if not code:
         return "Origine inconnue"
     return LIBELLES.get(code, f"Type {code}")
+
+
+def terme_de_deux_mois_au_plus(debut: date, fin: date) -> bool:
+    """Un contrat dont le terme n'excède pas deux mois, décompté de date à date.
+
+    BOI-IR-PAS-20-20-30-10 § 250 : du 15/01 au 14/03 inclus, deux mois ; au
+    15/03, davantage. Un jour de début sans équivalent deux mois plus tard (le
+    31/12) fait du dernier jour de ce mois la limite.
+    """
+    mois, an = debut.month + 2, debut.year
+    if mois > 12:
+        mois, an = mois - 12, an + 1
+    dernier_jour = calendar.monthrange(an, mois)[1]
+    if debut.day > dernier_jour:
+        limite = date(an, mois, dernier_jour)
+    else:
+        limite = date(an, mois, debut.day) - timedelta(days=1)
+    return fin <= limite
 
 
 def taux_connu(bloc: Optional[Dict[str, Any]]) -> Optional[float]:

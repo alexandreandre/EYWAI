@@ -17,11 +17,29 @@ from .pdf_helpers import format_currency, safe_float
 _NEANT = "Néant"
 
 
-def _fetch_last_payslip_extras(
+def _primes_du_bulletin(payslip_data: Dict[str, Any]) -> float:
+    """Les primes du bulletin : ses lignes de brut, reconnues à leur libellé."""
+    total = 0.0
+    for ligne in payslip_data.get("calcul_du_brut") or []:
+        if not isinstance(ligne, dict) or ligne.get("is_sous_total"):
+            continue
+        if "prime" in str(ligne.get("libelle", "")).lower():
+            total += safe_float(ligne.get("gain"))
+    return round(total, 2)
+
+
+def _fetch_exit_month_payslip_extras(
     employee_id: Optional[str],
+    exit_data: Dict[str, Any],
     supabase_client: Any,
 ) -> Dict[str, Any]:
-    """HS et primes depuis le dernier bulletin validé, si disponible."""
+    """HS et primes du bulletin du mois de sortie, s'il existe.
+
+    Le reçu « fait l'inventaire des sommes versées au salarié lors de la rupture »
+    (C. trav. L1234-20) : le bulletin d'un mois antérieur, déjà payé, n'en fait
+    pas partie. Sans bulletin du mois, rien n'est porté ici ; le reçu tiré du
+    bulletin de sortie (`bulletin_de_sortie`) reste la voie normale.
+    """
     empty = {
         "hs_brut": 0.0,
         "hs_detail": _NEANT,
@@ -31,12 +49,14 @@ def _fetch_last_payslip_extras(
     if not employee_id or not supabase_client:
         return empty
     try:
+        sortie = str(exit_data.get("last_working_day") or "")[:10]
+        annee, mois = int(sortie[:4]), int(sortie[5:7])
         resp = (
             supabase_client.table("payslips")
             .select("year, month, payslip_data")
             .eq("employee_id", employee_id)
-            .order("year", desc=True)
-            .order("month", desc=True)
+            .eq("year", annee)
+            .eq("month", mois)
             .limit(1)
             .maybe_single()
             .execute()
@@ -53,7 +73,7 @@ def _fetch_last_payslip_extras(
         hs_hours = safe_float(
             pdata.get("total_heures_supp") or pdata.get("heures_supplementaires") or 0
         )
-        primes_total = safe_float(pdata.get("total_primes") or 0)
+        primes_total = _primes_du_bulletin(pdata)
         period = f"{row.get('month', '—'):02d}/{row.get('year', '—')}"
         hs_detail = (
             f"{hs_hours:.2f} h — bulletin {period}"
@@ -187,8 +207,9 @@ def compute_remunerations_section(
     total_cotisations_remun += cotis_salaire
     total_net_remun += net_salaire
 
-    payslip_extras = _fetch_last_payslip_extras(
+    payslip_extras = _fetch_exit_month_payslip_extras(
         employee_id or employee_data.get("id"),
+        exit_data,
         supabase_client,
     )
     hs_brut = safe_float(payslip_extras.get("hs_brut", 0))

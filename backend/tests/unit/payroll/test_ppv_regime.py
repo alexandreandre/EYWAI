@@ -161,3 +161,22 @@ def test_les_deux_generateurs_rangent_la_ppv_par_sa_nature():
         source = (racine / nom).read_text(encoding="utf-8")
         assert "classer_ppv(" in source, nom
         assert 'prime_id == "prime_partage_valeur"' not in source, nom
+
+
+def test_la_deuxieme_ppv_rappelle_le_montant_deja_verse():
+    """R-036 : acompte en juillet, solde en décembre ; le montant saisi est le solde."""
+    donnees = {"deja_versees": [2500.0], "accord_interessement": False}
+    rangee = ppv.classer_ppv(
+        {"montant": 500.0, "libelle": "Prime de partage de la valeur"},
+        effectif=7,
+        donnees=donnees,
+        smic_horaire=12.02,
+        heures_mensuelles=151.67,
+        annee=2026,
+    )
+    rappel = [a for a in rangee.alertes if a["code"] == "ppv_versement_precedent"]
+    assert len(rappel) == 1
+    assert rappel[0]["severity"] == "info"
+    assert "2500.00" in rappel[0]["message"]
+    assert "solde" in rappel[0]["message"]
+

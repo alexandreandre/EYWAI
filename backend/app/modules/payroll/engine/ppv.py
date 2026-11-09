@@ -150,6 +150,18 @@ def classer_ppv(
                 ),
             }
         )
+    if deja and rang <= NOMBRE_DE_PRIMES_EXONEREES:
+        # R-036 : une PPV en deux fois (acompte en juillet, solde en décembre).
+        rangee.alertes.append(
+            {
+                "code": "ppv_versement_precedent",
+                "severity": "info",
+                "message": (
+                    f"{libelle} : {sum(deja):.2f} € déjà versés en {annee}. Le montant "
+                    "saisi ce mois-ci doit être le solde, pas le total de l'année."
+                ),
+            }
+        )
     deja.append(montant)
 
     if exoneree > 0:

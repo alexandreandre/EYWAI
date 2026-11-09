@@ -98,6 +98,7 @@ from app.modules.dsn_import.domain.model import (
 )
 from app.shared.domain.employment_rules import mois_du_contrat_en_cours
 from app.shared.dsn_validation import build_siret_from_siren_nic
+from app.shared.pas_taux import terme_de_deux_mois_au_plus
 # Parts patronales déclarées en autres éléments de revenu brut (S21.G00.54) :
 # 92 la santé, 93 la prévoyance ; même lecture que le montant net social.
 from app.modules.payroll.engine.forfait_individuel import jours_du_forfait_de_la_fiche
@@ -456,7 +457,6 @@ def _jours_plafond(
 
 def _cdd_court_ou_imprecis(nature: str, employee: Dict[str, Any]) -> bool:
     """CDD dont le terme initial n'excède pas deux mois, ou à terme imprécis."""
-    import calendar
     from datetime import date as _date
 
     if nature != "02":
@@ -472,11 +472,7 @@ def _cdd_court_ou_imprecis(nature: str, employee: Dict[str, Any]) -> bool:
         fin = _date.fromisoformat(fin_texte)
     except ValueError:
         return False
-    mois, an = debut.month + 2, debut.year
-    if mois > 12:
-        mois, an = mois - 12, an + 1
-    limite = _date(an, mois, min(debut.day, calendar.monthrange(an, mois)[1]))
-    return fin <= limite
+    return terme_de_deux_mois_au_plus(debut, fin)
 
 
 def _jours_forfait(

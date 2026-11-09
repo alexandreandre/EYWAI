@@ -104,3 +104,58 @@ def test_sans_bulletin_avant_la_remuneration_reste_inconnue():
 
     assert donnees["remuneration_mensuelle_moyenne"] is None
     assert donnees["accord_interessement"] is False
+
+
+def _bulletin_ppv(mois: int, **lignes: Any) -> dict[str, Any]:
+    return {"employee_id": "e1", "year": 2026, "month": mois, "salaire_brut": 2000.0, **lignes}
+
+
+def _donnees_decembre(tables: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    tables = {
+        "monthly_inputs": [_variable(12, "Prime de partage de la valeur", 500.0)] + tables.get("monthly_inputs", []),
+        "payslips": tables.get("payslips", []),
+    }
+    saisies = [v for v in tables["monthly_inputs"] if v["month"] == 12]
+    return ppv_donnees.donnees_ppv_du_mois(_Base(tables), "e1", 2026, 12, {}, saisies)
+
+
+def test_la_ppv_d_un_bulletin_repris_compte_dans_l_annee():
+    """R-036 : l'acompte de juillet n'existe que sur le bulletin repris (pas de variable)."""
+    donnees = _donnees_decembre(
+        {"payslips": [_bulletin_ppv(7, primes_non_soumises=[{"libelle": "PRIME PARTAGE DE LA VALEUR", "montant": 2500.0}])]}
+    )
+    assert donnees["deja_versees"] == [2500.0]
+
+
+def test_une_ppv_en_variable_et_sur_le_bulletin_ne_compte_qu_une_fois():
+    donnees = _donnees_decembre(
+        {
+            "monthly_inputs": [_variable(7, "Prime de partage de la valeur", 3000.0)],
+            "payslips": [_bulletin_ppv(7, primes_non_soumises=[{"libelle": "Prime de partage de la valeur", "montant": 3000.0}])],
+        }
+    )
+    assert donnees["deja_versees"] == [3000.0]
+
+
+def test_les_parts_d_une_meme_ppv_font_une_seule_prime():
+    """Part exonérée et part soumise d'une même PPV : un seul versement dans l'année."""
+    donnees = _donnees_decembre(
+        {
+            "payslips": [
+                _bulletin_ppv(
+                    7,
+                    primes_non_soumises=[{"libelle": "PRIME PARTAGE DE LA VALEUR", "montant": 3000.0}],
+                    calcul_du_brut=[{"libelle": "Prime de partage de la valeur (part non exonérée)", "gain": 500.0}],
+                )
+            ]
+        }
+    )
+    assert donnees["deja_versees"] == [3500.0]
+
+
+def test_une_prime_ordinaire_du_bulletin_n_est_pas_une_ppv():
+    donnees = _donnees_decembre(
+        {"payslips": [_bulletin_ppv(7, primes_non_soumises=[{"libelle": "Prime panier", "montant": 80.0}], calcul_du_brut=[{"libelle": "Prime d'assiduité", "gain": 50.0}])]}
+    )
+    assert donnees["deja_versees"] == []
+
