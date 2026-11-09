@@ -95,6 +95,8 @@ def _retenues_des_modules(payslip_data: Dict[str, Any]) -> List[Dict[str, Any]]:
             # remboursement doit solder le même.
             if avance.get("compte"):
                 element["compte"] = str(avance["compte"])
+            if avance.get("type"):
+                element["type_avance"] = str(avance["type"])
             elements.append(element)
 
     prets = payslip_data.get("remboursements_prets")

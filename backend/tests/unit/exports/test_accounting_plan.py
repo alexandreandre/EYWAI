@@ -363,3 +363,24 @@ class TestFamillesDesBulletinsRecents:
         assert default_accounts_for_family(FAMILLE_INTERETS_PRET).compte_charge == "762400"
         # IJSS subrogées : somme à recevoir de la caisse.
         assert default_accounts_for_family(FAMILLE_IJSS).compte_tiers == "438700"
+
+
+class TestIndemniteComplementairePrevoyance:
+    """R-379 : part non soumise de l'indemnité de prévoyance, famille propre."""
+
+    def test_libelles_quadra_et_libelles_en_clair(self):
+        from app.modules.exports.domain.accounting_plan import (
+            FAMILLE_INDEMNITE_PREVOYANCE,
+            default_accounts_for_family,
+            resolve_element_family,
+        )
+
+        for libelle in (
+            "Ind.Comple.prévoyance patronal",
+            "Ind.Complem.prevoyance salarié",
+            "Indemnité complémentaire de prévoyance",
+            "Indemnité de prévoyance",
+        ):
+            assert resolve_element_family(libelle) == FAMILLE_INDEMNITE_PREVOYANCE
+        # Pas de compte d'office : l'OD réclame la ligne de la société.
+        assert default_accounts_for_family(FAMILLE_INDEMNITE_PREVOYANCE) is None

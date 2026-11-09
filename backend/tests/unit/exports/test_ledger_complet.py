@@ -424,3 +424,49 @@ class TestUnCompteParPret:
         comptes = _par_compte(ecritures)
         assert comptes["274000"] == (0.0, 200.0)
         assert od_totals["equilibre"] is True
+
+
+class TestTroisComptesDuModuleAvances:
+    """R-378 : avance sur salaire, acompte sur salaire et acompte sur prime."""
+
+    @staticmethod
+    def _element(type_avance, compte):
+        return {
+            "famille": "avance_salaire",
+            "libelle": type_avance,
+            "montant": -100.0,
+            "compte": compte,
+            "type_avance": type_avance,
+        }
+
+    def test_chaque_type_prend_la_ligne_societe_de_sa_rubrique(self):
+        mappings = {
+            "avance_salaire": {"compte_tiers": "421000", "company_id": "c"},
+            "acompte_salaire": {"compte_tiers": "425200", "company_id": "c"},
+            "acompte_prime": {"compte_tiers": "425100", "company_id": "c"},
+        }
+        comptes = [
+            ledger_module._compte_element(self._element(t, "4259"), mappings)
+            for t in ("avance_salaire", "acompte_salaire", "acompte_prime")
+        ]
+        assert comptes == ["421000", "425200", "425100"]
+
+    def test_une_ligne_avance_salaire_ne_capte_pas_les_acomptes(self):
+        mappings = {"avance_salaire": {"compte_tiers": "421000", "company_id": "c"}}
+        assert (
+            ledger_module._compte_element(
+                self._element("acompte_salaire", "4251"), mappings
+            )
+            == "4251"
+        )
+        assert (
+            ledger_module._compte_element(
+                self._element("acompte_prime", "4253"), mappings
+            )
+            == "4253"
+        )
+
+    def test_sans_type_la_famille_garde_sa_ligne_societe(self):
+        element = {"famille": "avance_salaire", "libelle": "x", "compte": "4252"}
+        mappings = {"avance_salaire": {"compte_tiers": "421000", "company_id": "c"}}
+        assert ledger_module._compte_element(element, mappings) == "421000"

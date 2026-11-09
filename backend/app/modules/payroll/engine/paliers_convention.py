@@ -15,6 +15,15 @@ la société (conception du 24/10/2026) :
   (lecture A : les paliers repartent à chaque arrêt) ;
 - un jour n'est indemnisé que si l'arrêt et l'année civile du jour comptent
   moins de jours indemnisés que la limite de la tranche.
+
+Métallurgie, art. 91.1.3 (Légifrance, relu le 03/11/2026, version en vigueur) :
+- le crédit se compte par année civile : « au cours de l'année civile, de telle
+  sorte que si plusieurs absences […] séparées par une reprise effective du
+  travail, ont été indemnisées au cours de ces douze mois » ; « ces douze mois »
+  renvoient à l'année civile que la phrase vient de nommer, et les alinéas
+  suivants raisonnent tous en années civiles N et N + 1 ;
+- un crédit neuf suppose une « reprise effective du travail » : sans reprise, un
+  arrêt pour une autre cause qui commence le lendemain continue le même rang.
 """
 
 from __future__ import annotations
@@ -187,8 +196,19 @@ def plan_conventionnel(
         mois = mois_complets(date_anciennete, jour) if date_anciennete else 0
         return tranche_pour(bareme, est_cadre=est_cadre, mois_anciennete=mois, famille=famille)
 
+    fin_precedente: Optional[date] = None
+    rang_precedent = 0
+
     for chaine in _chaines(arrets):
         debut = chaine[0].debut
+        # Métallurgie : sans reprise du travail entre deux arrêts de causes
+        # différentes, pas de crédit neuf (art. 91.1.3).
+        sans_reprise = (
+            par_annee
+            and fin_precedente is not None
+            and (debut - fin_precedente).days == 1
+        )
+        rang_de_depart = rang_precedent if sans_reprise else 0
         type_arret = chaine[0].type_arret
         famille = famille_du_type(type_arret)
         mois = mois_complets(date_anciennete, debut) if date_anciennete else 0
@@ -208,6 +228,8 @@ def plan_conventionnel(
             mois_anciennete=mois, tranche=tranche, jours=jours,
         )
         rejoues.append(rejoue)
+        fin_precedente = jours[-1]
+        rang_precedent = rang_de_depart
         if tranche is None:
             continue
         carence, raison = _carence(
@@ -216,7 +238,7 @@ def plan_conventionnel(
         rejoue.carence_jours = carence
         rejoue.raison_carence = raison
         rejoue.jours_de_carence = jours[:carence]
-        rang = 0
+        rang = rang_de_depart
         taux_precedent: Optional[float] = None
         refus: Optional[date] = None
         for jour in jours[carence:]:
@@ -241,6 +263,7 @@ def plan_conventionnel(
             if taux != taux_precedent:
                 rejoue.bascules.append((jour, taux))
                 taux_precedent = taux
+        rang_precedent = rang
         if refus is not None:
             avant = [j for j in jours if j < refus and j in taux_par_jour]
             rejoue.limite_atteinte = avant[-1] if avant else dernier_par_an.get(refus.year)
