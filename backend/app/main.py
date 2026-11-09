@@ -2,7 +2,6 @@
 Point d’entrée de l’application cible (modular monolith).
 """
 
-import os
 import re
 import traceback
 
@@ -21,6 +20,8 @@ from app.core.settings import (
     ALLOWED_ORIGINS_EXTRA,
     MARTINE_VERSION,
     check_environment_consistency,
+    motif_origines_cors,
+    origines_locales_cors,
     version_deployee,
 )
 
@@ -73,21 +74,16 @@ Abonnez-vous aux événements métier via
 )
 
 ALLOWED_ORIGINS = [
-    "http://localhost:8080",
-    "http://localhost:5173",
-    "http://127.0.0.1:8080",
-    "http://127.0.0.1:5173",
+    *origines_locales_cors(),
     "https://sirh-frontend-app-505040845625.europe-west1.run.app",
     "https://sirh-frontend-505040845625.europe-west1.run.app",
     # Origines supplémentaires (frontend de test) — vide en production.
     *ALLOWED_ORIGINS_EXTRA,
 ]
 
-# localhost / 127.0.0.1 avec n’importe quel port (Vite, preview, etc.) — ne matche pas les domaines de prod.
-_DEV_LOCAL_ORIGIN_REGEX = r"https?://(localhost|127\.0\.0\.1)(:\d+)?$"
-_cors_origin_regex = os.getenv("CORS_ALLOW_ORIGIN_REGEX", _DEV_LOCAL_ORIGIN_REGEX)
-if _cors_origin_regex.strip() == "":
-    _cors_origin_regex = None
+# localhost / 127.0.0.1 avec n'importe quel port (Vite, preview, etc.), sur un poste
+# de développement seulement : jamais sur un site déployé.
+_cors_origin_regex = motif_origines_cors()
 
 app.add_middleware(
     CORSMiddleware,
