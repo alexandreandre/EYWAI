@@ -7,8 +7,8 @@ l'interruption de travail » ; R331-5 y renvoie pour la maternité ; R433-4
 retient la dernière paie pour l'accident du travail. Aucun de ces textes ne
 réduit encore l'indemnité de la quotité de temps partiel. Le moteur la
 multipliait pourtant par la quotité : une salariée à 21 h (quotité 0,6)
-recevait 60 % de l'IJ que ses paies lui donnent. Le mi-temps thérapeutique
-garde sa règle.
+recevait 60 % de l'IJ que ses paies lui donnent. Le mi-temps thérapeutique a sa
+propre limite : CSS R323-3, la perte de gain journalière (R-304).
 """
 
 from __future__ import annotations
@@ -41,12 +41,12 @@ def _ctx() -> SimpleNamespace:
     )
 
 
-def _ij(arret_type: str, temps_partiel: bool = True) -> float:
+def _ij(arret_type: str, temps_partiel: bool = True, quotite: float = 0.6) -> float:
     arret = {
         "arret_type": arret_type, "date_debut": "2026-09-01", "date_fin": "2026-09-30",
         "subrogation_active": False, "nombre_enfants": 0, "salaire_periode_reelle": 0.0,
         "salaires_bruts_reference": [1500.0, 1500.0, 1500.0],
-        "is_temps_partiel": temps_partiel, "quotite_temps_partiel": 0.6,
+        "is_temps_partiel": temps_partiel, "quotite_temps_partiel": quotite,
     }
     reglages = {"apply_legal_maintenance": True, "subrogation_mode": "never"}
     ijss = calculer_maintien(arret, _ctx(), reglages, *SEPTEMBRE)["ijss"]
@@ -67,7 +67,13 @@ def test_maternite_sans_quotite_en_plus():
     assert _ij("maternite") == pytest.approx(4500.0 / 91.25 * 0.79, abs=1e-4)
 
 
-def test_le_mi_temps_therapeutique_garde_sa_quotite():
-    assert _ij("mi_temps_therapeutique") == pytest.approx(
-        _ij("mi_temps_therapeutique", temps_partiel=False) * 0.6, abs=1e-4
-    )
+def test_le_mi_temps_therapeutique_n_est_pas_proratise():
+    """R323-3 renvoie à L323-4 : 1/91,25 des trois paies × 50 %, sans quotité."""
+    # 1 500 × 3 / 91,25 × 50 % = 24,66 ; perte = 1 500 × 0,6 × 12/365 = 29,59.
+    assert _ij("mi_temps_therapeutique", quotite=0.4) == pytest.approx(24.66, abs=0.01)
+
+
+def test_le_mi_temps_therapeutique_plafonne_a_la_perte_de_gain():
+    """R323-3 (décret 2019-856) : l'IJ ne dépasse pas la perte de gain journalière."""
+    # Perte = 1 500 × (1 - 0,6) × 12 / 365 = 19,73 < 24,66.
+    assert _ij("mi_temps_therapeutique") == pytest.approx(19.73, abs=0.01)

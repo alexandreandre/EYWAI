@@ -432,6 +432,23 @@ def _ijss_extras_mi_temps_forfait(
     }
 
 
+def _perte_de_gain_journaliere_mi_temps(
+    arret: Dict[str, Any], contexte: ContextePaie
+) -> Optional[float]:
+    """Plafond de l'IJ d'un temps partiel thérapeutique (CSS R323-3, décret
+    n° 2019-856, art. 2, cité par LégiSocial ; Légifrance ne répond pas) :
+    « ne peut être supérieur à la perte de gain journalière liée à la réduction
+    de l'activité ». Part non travaillée du salaire, ramenée au jour (× 12 / 365).
+    None si le salaire ou la quotité ne le permettent pas."""
+    if str(arret.get("arret_type") or "") != "mi_temps_therapeutique":
+        return None
+    salaire_mensuel = float(contexte.salaire_base_mensuel or 0.0)
+    quotite = float(arret.get("quotite_temps_partiel") or 0.5)
+    if salaire_mensuel <= 0 or not 0 < quotite < 1:
+        return None
+    return salaire_mensuel * (1.0 - quotite) * 12.0 / 365.0
+
+
 #: Arrêts depuis cette date : salaire de base des IJ maladie retenu dans la
 #: limite de 1,4 Smic mensuel (CSS R323-4 ; référentiel du dépôt, R05).
 DEBUT_PLAFOND_SJB_SMIC = date(2025, 4, 1)
@@ -584,10 +601,7 @@ def _calculer_ijss(
     """
     arret_type = str(arret.get("arret_type") or "maladie_simple")
     nombre_enfants = int(arret.get("nombre_enfants") or 0)
-    is_tp = bool(arret.get("is_temps_partiel"))
-    quotite = float(arret.get("quotite_temps_partiel") or 1.0)
-    if quotite <= 0:
-        quotite = 1.0
+    perte_de_gain = _perte_de_gain_journaliere_mi_temps(arret, contexte)
 
     date_debut_arret = _parse_date(arret.get("date_debut"))
     date_fin_arret = _parse_date(arret.get("date_fin"))
@@ -734,11 +748,11 @@ def _calculer_ijss(
                 )
                 if plafond_j is not None:
                     ijss_j = min(ijss_j, plafond_j)
-                if is_tp and arret_type == "mi_temps_therapeutique":
-                    # Les paies retenues sont déjà au temps partiel (R323-4, 1° :
-                    # « 1/91,25 du montant des trois dernières paies ») : la
-                    # quotité ne réduit plus l'IJ, sauf au mi-temps thérapeutique.
-                    ijss_j *= quotite
+                if arret_type == "mi_temps_therapeutique" and perte_de_gain is not None:
+                    # CSS R323-3 (décret 2019-856) : même calcul que l'arrêt
+                    # (L323-4), sans proratisation, dans la limite de la perte
+                    # de gain journalière.
+                    ijss_j = min(ijss_j, perte_de_gain)
                 if minimum_ij:
                     ijss_j = max(ijss_j, minimum_ij)
                 if par_jour is not None:
