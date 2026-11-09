@@ -5,6 +5,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Alertes et contrôles sans changement de montant
+- Une participation ou une prime de partage ne déclenche plus de fausse alerte critique sur le brut du bulletin.
+
 ## paie-2026-11-09.3
 
 ### Corrections à la main

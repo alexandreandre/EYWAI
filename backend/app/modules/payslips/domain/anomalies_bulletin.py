@@ -114,11 +114,12 @@ def _lignes_brut(payslip_data: dict) -> Iterator[dict]:
     """Les lignes qui composent le brut : congés et absences sont à part.
 
     ``creer_bulletin_final`` les répartit dans trois listes. Le maintien en est
-    un extrait, pas une quatrième somme.
+    un extrait, pas une quatrième somme. Une ligne d'information (participation
+    numéraire, heures mises au compteur) s'imprime sans entrer dans le brut.
     """
     for cle in _LIGNES_DE_BRUT:
         for ligne in payslip_data.get(cle) or []:
-            if isinstance(ligne, dict) and not ligne.get("is_sous_total"):
+            if isinstance(ligne, dict) and not ligne.get("is_sous_total") and not ligne.get("is_informative"):
                 yield ligne
 
 

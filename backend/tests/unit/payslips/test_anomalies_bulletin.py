@@ -314,3 +314,17 @@ def test_une_cotisation_corrigee_par_sa_base_reste_relue():
     ligne["correction"] = {"base": ligne["base"], "motif": "Reprise", "saisie_id": "s1"}
     ligne["montant_salarial"] = round(ligne["montant_salarial"] + 1.0, 2)
     assert "B01" in _ids(bulletin)
+
+
+def test_une_ligne_informative_de_participation_ne_compte_pas_dans_le_brut():
+    """R-220 : la participation numéraire s'imprime au brut « pour information »."""
+    bulletin = _bulletin()
+    bulletin["calcul_du_brut"].append(
+        {
+            "libelle": "Participation (brut, exonéré de cotisations)",
+            "gain": 1500.0,
+            "perte": None,
+            "is_informative": True,
+        }
+    )
+    assert "B02" not in _ids(bulletin)
