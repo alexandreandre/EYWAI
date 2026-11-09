@@ -42,8 +42,6 @@ def _build_cp_anciennete() -> CpAnciennete:
             CpAncienneteTier(category="cadre", min_years=3, days=1),
             CpAncienneteTier(category="cadre", min_years=5, days=2),
             CpAncienneteTier(category="cadre", min_years=10, days=3),
-            CpAncienneteTier(category="ouvrier_etam", min_years=5, days=1),
-            CpAncienneteTier(category="ouvrier_etam", min_years=10, days=2),
         ],
     )
 

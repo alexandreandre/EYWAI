@@ -69,6 +69,20 @@ def _famille(ligne: Mapping[str, Any]) -> str:
     return code.split("#", 1)[0].split(":")[1] if code.startswith("brut:") else ""
 
 
+#: Indemnités de rupture : le dixième porte sur la rémunération de la période
+#: d'acquisition (L3141-24), pas sur ce qui répare la perte de l'emploi. Le
+#: préavis payé reste dans la base : il rémunère une période de travail.
+_INDEMNITE_DE_RUPTURE = re.compile(
+    r"\b(?:licenciement|rupture conv\w*|depart (?:en |a la )?retraite|mise (?:a la|en) retraite)\b"
+)
+
+
+def _est_indemnite_de_rupture(texte: str) -> bool:
+    return bool(_INDEMNITE_DE_RUPTURE.search(texte)) and not any(
+        mot in texte for mot in ("preavis", "compensatrice")
+    )
+
+
 def _complement(texte: str, famille: str) -> bool:
     if "evenement familial" in texte:
         return False
@@ -136,6 +150,7 @@ def calculer_base_dixieme(brut: float | None, lignes: Iterable[Mapping[str, Any]
         # mot « exceptionnelle » ne prouve pas ces conditions.
         exclue = exclue or ligne.get("gratification_discretionnaire") is True
         exclue = exclue or ligne.get("remunere_annee_conges_compris") is True
+        exclue = exclue or _est_indemnite_de_rupture(texte)
         if exclue:
             exclusions += gain
         elif "exceptionnel" in texte or "13e mois" in texte or "13eme mois" in texte or "treizieme mois" in texte:

@@ -47,6 +47,24 @@ def test_activite_partielle_reconstitue_le_salaire_normal():
     assert calculer_base_dixieme(1800.0, [{"libelle": "Absence activité partielle", "perte": 1200.0}]).base == 3000.0
 
 
+@pytest.mark.parametrize("libelle", [
+    "Ind.Conv départ en retraite",
+    "B_DY INDEMNITE DEPART A LA RETRAITE",
+    "Indemnité conventionnelle de licenciement",
+    "Indemnité spéciale de licenciement",
+    "Indemnité de rupture conventionnelle",
+    "Indemnité de mise à la retraite",
+])
+def test_les_indemnites_de_rupture_sortent_de_la_base(libelle):
+    assert calculer_base_dixieme(15000.0, [{"libelle": libelle, "gain": 12000.0}]).base == 3000.0
+
+
+def test_le_preavis_paye_reste_dans_la_base():
+    assert calculer_base_dixieme(5000.0, [
+        {"libelle": "Indemnité compensatrice de préavis de licenciement", "gain": 2000.0},
+    ]).base == 5000.0
+
+
 def test_primes_exclues_et_gratification_discretionnaire():
     resultat = calculer_base_dixieme(4200.0, [
         {"libelle": "Prime de fin d'année", "gain": 1000.0},

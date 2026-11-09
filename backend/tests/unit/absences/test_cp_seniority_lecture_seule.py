@@ -24,7 +24,7 @@ pytestmark = pytest.mark.unit
 
 REFERENCE = date(2026, 5, 31)
 REGLAGES = CpSenioritySettings(enabled=True, preset="plasturgie_idcc_0292")
-SALARIE = EmployeeCpSeniorityContext(hire_date=date(2010, 3, 1), statut="Non-Cadre")
+SALARIE = EmployeeCpSeniorityContext(hire_date=date(2010, 3, 1), statut="Cadre")
 
 
 @pytest.fixture

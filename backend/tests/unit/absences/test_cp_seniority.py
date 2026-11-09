@@ -51,24 +51,25 @@ class TestCpSeniorityEngine:
         grant = compute_cp_seniority_grant(_settings_enabled(), ctx, ref)
         assert grant.days_granted == 0
 
-    def test_ouvrier_five_years_one_day(self):
+    def test_ouvrier_five_years_no_day(self):
+        """R-385 : la convention ne donne de congés d'ancienneté qu'aux cadres."""
         ref = date(2026, 5, 31)
         ctx = EmployeeCpSeniorityContext(
             hire_date=_hire_years_ago(5, ref),
             statut="Non-Cadre",
         )
         grant = compute_cp_seniority_grant(_settings_enabled(), ctx, ref)
-        assert grant.days_granted == 1
+        assert grant.days_granted == 0
         assert grant.category == "ouvrier_etam"
 
-    def test_ouvrier_twelve_years_two_days(self):
+    def test_ouvrier_twelve_years_no_day(self):
         ref = date(2026, 5, 31)
         ctx = EmployeeCpSeniorityContext(
             hire_date=_hire_years_ago(12, ref),
             statut="Non-Cadre",
         )
         grant = compute_cp_seniority_grant(_settings_enabled(), ctx, ref)
-        assert grant.days_granted == 2
+        assert grant.days_granted == 0
 
     def test_cadre_three_years_one_day(self):
         ref = date(2026, 5, 31)
@@ -102,8 +103,8 @@ class TestCpSeniorityEngine:
     def test_prior_service_reaches_tier_earlier(self):
         ref = date(2026, 5, 31)
         ctx = EmployeeCpSeniorityContext(
-            hire_date=_hire_years_ago(3, ref),
-            statut="Non-Cadre",
+            hire_date=_hire_years_ago(1, ref),
+            statut="Cadre",
             prior_service_months=24,
         )
         settings = CpSenioritySettings(

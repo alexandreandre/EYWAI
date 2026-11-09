@@ -113,6 +113,9 @@ export function SignalementsArretCard() {
                 {ligne.a_verifier && (
                   <p className="text-sm text-amber-700 dark:text-amber-400">À vérifier : {ligne.a_verifier}</p>
                 )}
+                {ligne.avis && (
+                  <p className="text-sm text-amber-700 dark:text-amber-400">Attention : {ligne.avis}</p>
+                )}
                 {MOTIFS_ACCIDENT.has(ligne.motif) && ligne.absence_id && (
                   <label className="flex flex-wrap items-center gap-2 text-sm">
                     <span>Date de l&apos;accident ou de la première constatation</span>
