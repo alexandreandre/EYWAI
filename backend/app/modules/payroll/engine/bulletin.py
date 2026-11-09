@@ -829,6 +829,10 @@ def creer_bulletin_final(
         # société met ses heures sup au compteur. Sans compteurs de congés (mois
         # antérieur à une reprise), le bulletin n'en imprime aucun.
         solde_conges = {**solde_conges, "recuperation": recuperation}
+    cet_du_mois = getattr(contexte, "cet_du_mois", None)
+    if isinstance(cet_du_mois, dict) and isinstance(solde_conges, dict):
+        # Accord CET de Mont Blanc : l'état du compte figure sur le bulletin.
+        solde_conges = {**solde_conges, "cet": cet_du_mois}
     bulletin_de_sortie = _est_bulletin_de_sortie(contexte, annee, mois)
     fin_variables_societe = getattr(contexte, "date_fin_variables_societe", None)
     alertes_baremes.extend(

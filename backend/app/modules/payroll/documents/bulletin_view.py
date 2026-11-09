@@ -285,13 +285,32 @@ def _notes_recuperation(recuperation: Dict[str, Any]) -> List[str]:
         morceaux.append(f"{heures_en_texte(paye)} payées")
     if morceaux:
         notes.append("Récupération ce mois-ci : " + ", ".join(morceaux))
-    solde = float(recuperation.get("solde") or 0.0)
-    if solde >= 7:
-        notes.append(
-            f"Droit à repos ouvert : {heures_en_texte(solde)} de récupération à prendre "
-            "dans un délai maximum de deux mois (C. trav. D3171-11)."
-        )
     return notes
+
+
+def _note_droit_a_repos(solde_conges: Dict[str, Any]) -> Optional[str]:
+    """C. trav. D3171-11 : dès sept heures de repos compensateur de remplacement et
+    de contrepartie obligatoire en repos portées au crédit, cumulées, le document
+    notifie l'ouverture du droit et l'obligation de le prendre sous deux mois."""
+    recuperation = solde_conges.get("recuperation")
+    obligatoire = solde_conges.get("repos_compensateur")
+    solde_recup = (
+        float(recuperation.get("solde") or 0.0) if isinstance(recuperation, dict) else 0.0
+    )
+    solde_obligatoire = (
+        float(obligatoire.get("solde") or 0.0) if isinstance(obligatoire, dict) else 0.0
+    )
+    parts = []
+    if solde_recup > 0:
+        parts.append(f"{heures_en_texte(solde_recup)} de récupération")
+    if solde_obligatoire > 0:
+        parts.append(f"{heures_en_texte(solde_obligatoire)} de repos obligatoire")
+    if max(solde_recup, 0.0) + max(solde_obligatoire, 0.0) < 7:
+        return None
+    return (
+        f"Droit à repos ouvert : {' et '.join(parts)} à prendre dans un délai "
+        "maximum de deux mois (C. trav. D3171-11)."
+    )
 
 
 def construire_compteurs(bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -328,9 +347,25 @@ def construire_compteurs(bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             }
         )
 
+    # Accord CET de Mont Blanc : « l'état des différents compteurs du CET figurera
+    # sur le bulletin de paie » (posé quand le salarié a un CET ; R-376).
+    cet = solde.get("cet")
+    if isinstance(cet, dict):
+        colonnes.append(
+            {
+                "titre": "CET (h)",
+                "acquis": float(cet.get("acquis") or 0.0),
+                "pris": float(cet.get("pris") or 0.0),
+                "solde": float(cet.get("solde") or 0.0),
+            }
+        )
+
     notes: List[str] = []
     if isinstance(recuperation, dict):
         notes.extend(_notes_recuperation(recuperation))
+    droit_a_repos = _note_droit_a_repos(solde)
+    if droit_a_repos:
+        notes.append(droit_a_repos)
     # Reprise ou recalage : le solde ne se retrouve plus par « acquis − pris ».
     # La clé n'existe que sur les bulletins calculés depuis le 12/10/2026.
     for titre, cle in (("CP N-1", "conges_payes_periode_precedente"), ("CP N", "conges_payes")):

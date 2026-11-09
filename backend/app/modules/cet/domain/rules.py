@@ -79,6 +79,46 @@ def compute_cet_balance_hours(
     return round(max(0.0, balance), 2)
 
 
+def etat_du_compte_au_mois(
+    movements: Sequence[dict],
+    annee: int,
+    mois: int,
+    *,
+    hours_per_rest_day: float = HOURS_PER_REST_DAY_DEFAULT,
+) -> dict[str, float] | None:
+    """Ce que le bulletin imprime (accord CET Mont Blanc), en heures, en cumul au
+    dernier jour du mois : dépôts, repos pris, solde. None si le salarié n'a aucun
+    mouvement validé à cette date : le compteur ne s'imprime pas à vide."""
+    acquis = pris = 0.0
+    aucun = True
+    for m in movements:
+        if str(m.get("status") or "") not in CET_BALANCE_STATUSES:
+            continue
+        if (int(m.get("year") or 0), int(m.get("month") or 0)) > (annee, mois):
+            continue
+        aucun = False
+        type_mouvement = str(m.get("movement_type") or "")
+        heures = float(m.get("hours") or 0.0)
+        if type_mouvement == "deposit_hs":
+            acquis += heures
+        elif type_mouvement == "deposit_cp":
+            acquis += float(m.get("days") or 0.0) * hours_per_rest_day
+        elif type_mouvement == "withdraw_rest":
+            pris += abs(heures)
+        elif type_mouvement == "adjustment":
+            if heures >= 0:
+                acquis += heures
+            else:
+                pris += abs(heures)
+    if aucun:
+        return None
+    return {
+        "acquis": round(acquis, 2),
+        "pris": round(pris, 2),
+        "solde": round(max(0.0, acquis - pris), 2),
+    }
+
+
 def compute_cet_balance_days(
     movements: Sequence[CetMovementRow],
     *,

@@ -951,3 +951,59 @@ class TestMentionsSansConvention:
         ]
         notes = [l["libelle"] for l in construire_vue_bulletin(bulletin)["lignes"] if l["type"] == "note"]
         assert not any("Forfait annuel" in n for n in notes)
+
+
+class TestDroitARepos:
+    """C. trav. D3171-11 : la mention naît à sept heures cumulées (R-359)."""
+
+    def _compteurs(self, **soldes):
+        bulletin = bulletin_minimal()
+        bulletin["pied_de_page"] = {
+            "solde_conges": {"conges_payes": {"acquis": 1.0, "pris": 0.0, "solde": 1.0}, **soldes}
+        }
+        return construire_vue_bulletin(bulletin)["compteurs"]["notes"]
+
+    def test_repos_obligatoire_seul_sept_heures(self):
+        notes = self._compteurs(repos_compensateur={"acquis": 7.0, "pris": 0.0, "solde": 7.0})
+        assert any("repos obligatoire" in n and "deux mois" in n and "D3171-11" in n for n in notes)
+
+    def test_sous_le_seuil_pas_de_mention(self):
+        notes = self._compteurs(repos_compensateur={"acquis": 6.5, "pris": 0.0, "solde": 6.5})
+        assert not any("Droit à repos" in n for n in notes)
+
+    def test_les_deux_compteurs_s_additionnent(self):
+        notes = self._compteurs(
+            repos_compensateur={"acquis": 4.0, "pris": 0.0, "solde": 4.0},
+            recuperation={"acquis": 3.0, "acquis_annee": 3.0, "pris": 0.0, "solde": 3.0},
+        )
+        mention = next(n for n in notes if "Droit à repos" in n)
+        assert "récupération" in mention and "repos obligatoire" in mention
+
+    def test_recuperation_seule_garde_son_texte(self):
+        notes = self._compteurs(recuperation={"acquis": 8.0, "acquis_annee": 8.0, "pris": 0.0, "solde": 8.0})
+        mention = next(n for n in notes if "Droit à repos" in n)
+        assert "de récupération à prendre" in mention
+
+
+class TestCompteurCet:
+    """Accord CET de Mont Blanc (R-376)."""
+
+    def test_colonne_cet_quand_le_salarie_a_un_compte(self):
+        bulletin = bulletin_minimal()
+        bulletin["pied_de_page"] = {
+            "solde_conges": {
+                "conges_payes": {"acquis": 1.0, "pris": 0.0, "solde": 1.0},
+                "cet": {"acquis": 14.0, "pris": 7.0, "solde": 7.0},
+            }
+        }
+        colonnes = construire_vue_bulletin(bulletin)["compteurs"]["colonnes"]
+        cet = next(c for c in colonnes if c["titre"] == "CET (h)")
+        assert (cet["acquis"], cet["pris"], cet["solde"]) == (14.0, 7.0, 7.0)
+
+    def test_sans_compte_pas_de_colonne(self):
+        bulletin = bulletin_minimal()
+        bulletin["pied_de_page"] = {
+            "solde_conges": {"conges_payes": {"acquis": 1.0, "pris": 0.0, "solde": 1.0}}
+        }
+        colonnes = construire_vue_bulletin(bulletin)["compteurs"]["colonnes"]
+        assert all(c["titre"] != "CET (h)" for c in colonnes)
