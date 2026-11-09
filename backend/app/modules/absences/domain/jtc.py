@@ -5,6 +5,16 @@ Note de paramétrage Elsa André du 28/07/2026 : 3 jours par an au maximum pour
 une année complète de travail effectif, proratisés sur l'année civile N-1,
 arrondis à l'entier inférieur. Le dispositif n'est prévu par aucune convention
 de branche : il n'existe que pour les sociétés qui l'ont activé.
+
+Entrée en cours d'année : le prorata de la note (§ 3) vaut pour l'année N-1. Le
+message du 23/08/2026 (« on ne calcule pas les jtc […] calculés en janvier 2027
+sur les infos de 2026 ») redit le § 4 : rien l'année d'entrée, premier calcul
+en janvier suivant. Le classeur d'acquisition 2026 le confirme (entré en 2025,
+345 jours de présence : 2,83, soit 2 JTC).
+
+Périmètre : atelier seulement (message du 23/08/2026 ; classeur « SERVICE MOD +
+MAI », 59 salariés). Rien dans la fiche ne le disait : le marqueur est
+`specificites_paie.jtc_atelier`.
 """
 
 from __future__ import annotations

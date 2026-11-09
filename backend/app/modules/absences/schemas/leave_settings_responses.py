@@ -62,6 +62,8 @@ class JtcAnnualRunRow(BaseModel):
     presence_days: int
     absence_days: float
     acquired_days: int
+    # Fiche sans le marqueur atelier : droit calculé, mais jamais écrit.
+    perimetre_a_confirmer: bool = False
 
 
 class JtcAnnualRunResponse(BaseModel):

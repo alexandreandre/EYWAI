@@ -924,6 +924,11 @@ def build_jtc_annual_run(
         hire_date = _parse_jtc_date(employee.get("hire_date"))
         if hire_date is None:
             continue
+        # Réservés à l'atelier : False écarte le salarié, l'absence de marqueur
+        # se signale et n'écrit rien (voir apply_jtc_annual_run).
+        atelier = (employee.get("specificites_paie") or {}).get("jtc_atelier")
+        if atelier is False:
+            continue
         employee_id = str(employee.get("id"))
         absence_days = float(absence_days_by_employee.get(employee_id) or 0)
         exit_date = _parse_jtc_date(employee.get("exit_date"))
@@ -945,6 +950,7 @@ def build_jtc_annual_run(
                 presence_days=presence_days,
                 absence_days=absence_days,
                 acquired_days=acquired,
+                perimetre_a_confirmer=atelier is not True,
             )
         )
     return rows
@@ -956,18 +962,21 @@ def apply_jtc_annual_run(company_id: str, target_year: int) -> int:
 
     Recalcule l'aperçu au moment de l'application plutôt que de faire confiance
     à ce que le navigateur renvoie : les droits écrits sont donc toujours ceux
-    des données du moment. Renvoie le nombre de salariés mis à jour.
+    des données du moment. Une fiche sans marqueur atelier n'est pas écrite :
+    un droit donné à tort se voit moins qu'une ligne restée à confirmer.
+    Renvoie le nombre de salariés mis à jour.
     """
     from app.modules.absences.application.leave_settings_queries import (
         get_jtc_annual_run,
     )
 
     run = get_jtc_annual_run(company_id, target_year)
-    for row in run.rows:
+    a_ecrire = [row for row in run.rows if not row.perimetre_a_confirmer]
+    for row in a_ecrire:
         upsert_employee_adjustment(
             company_id,
             row.employee_id,
             target_year,
             {"jtc_opening_balance": row.acquired_days},
         )
-    return len(run.rows)
+    return len(a_ecrire)
