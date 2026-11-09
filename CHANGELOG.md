@@ -5,6 +5,10 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Échéances de fin 2026 et 2027 (sans changement de montant sur l'existant)
+- Versement mobilité : le taux se lit au mois du bulletin ; si le barème ne connaît pas ce mois, le bulletin le dit.
+- Effectif : alerte quand un seuil de 11, 20 ou 50 est franchi depuis moins de cinq ans.
+- Relevé automatique de la réduction générale : un coefficient maximal ne peut plus être pris pour Tdelta.
 ### DSN : changement de convention collective
 - Quand la convention d'un salarié change sur sa fiche, la DSN déclare l'ancienne au 1er du mois (bloc Changements Contrat) ; l'aperçu le signale. Zone 404 en a besoin en novembre, de « sans convention » à Syntec.
 - Le SMIC retenu d'un bulletin ancien, recalculé à partir des cumuls, n'est plus déclaré négatif quand le cumul était reparti de zéro : Martine signale le bulletin à recalculer.
