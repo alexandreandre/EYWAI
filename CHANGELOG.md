@@ -5,6 +5,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Corrections à la main
+- Corriger une cotisation par son montant ne bloque plus la validation du bulletin par une fausse alerte.
+
 ### DSN
 - La DSN n'envoie plus de numéro de compte à la place de l'identifiant de l'Urssaf ; si l'identifiant manque, l'aperçu le dit et bloque.
 - Le versement mobilité part au bordereau Urssaf, avec son taux et sa commune.
