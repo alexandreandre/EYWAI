@@ -5,6 +5,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+## paie-2026-11-09.6
+
 ### Échéances de fin 2026 et 2027 (sans changement de montant sur l'existant)
 - Versement mobilité : le taux se lit au mois du bulletin ; si le barème ne connaît pas ce mois, le bulletin le dit.
 - Effectif : alerte quand un seuil de 11, 20 ou 50 est franchi depuis moins de cinq ans.
