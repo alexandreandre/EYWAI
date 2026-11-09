@@ -8,6 +8,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 ### DSN : changement de convention collective
 - Quand la convention d'un salarié change sur sa fiche, la DSN déclare l'ancienne au 1er du mois (bloc Changements Contrat) ; l'aperçu le signale. Zone 404 en a besoin en novembre, de « sans convention » à Syntec.
 - Le SMIC retenu d'un bulletin ancien, recalculé à partir des cumuls, n'est plus déclaré négatif quand le cumul était reparti de zéro : Martine signale le bulletin à recalculer.
+### Bulletins remis au salarié
+- Si l'e-mail annonçant un bulletin n'a pas pu partir, le salarié est relancé au passage suivant, sans seconde alerte dans son espace.
 
 ## paie-2026-11-09.4
 

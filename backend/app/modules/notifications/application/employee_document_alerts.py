@@ -60,6 +60,25 @@ def _insert_notification(
         return False
 
 
+def _bulletin_deja_annonce(employee_id: str, message: str) -> bool:
+    """Vrai si l'alerte in-app de ce bulletin existe déjà : un e-mail relancé
+    le lendemain ne repose pas une seconde alerte."""
+    try:
+        r = (
+            supabase.table("notifications")
+            .select("id")
+            .eq("employee_id", employee_id)
+            .eq("type", NOTIFICATION_TYPE_PAYSLIP)
+            .eq("message", message)
+            .limit(1)
+            .execute()
+        )
+        return bool(r.data)
+    except Exception as exc:
+        logger.info("[doc_notif] Alerte existante illisible pour %s: %s", employee_id, exc)
+        return False
+
+
 def _build_page_url(frontend_url: str, page_path: str) -> str:
     base = frontend_url.rstrip("/")
     path = page_path.strip().lstrip("/")
@@ -172,17 +191,24 @@ def notify_employee_new_document(
     *,
     page_path: str = "employee/documents",
     notification_type: str = NOTIFICATION_TYPE,
-) -> None:
+) -> bool:
     """
     Alerte in-app + e-mail (best effort) lorsqu'un document apparaît sur l'espace salarié.
     Ne lève jamais d'exception.
+
+    Renvoie True si le salarié est prévenu : l'e-mail est parti, ou, faute d'adresse
+    utilisable, l'alerte in-app est posée. False si l'e-mail a échoué : l'appelant
+    ne pose pas son marqueur et le salarié est relancé au passage suivant.
     """
     label = (document_label or "Document").strip() or "Document"
     if notification_type == NOTIFICATION_TYPE_PAYSLIP:
         message = f'Votre bulletin de paie est disponible : « {label} ».'
     else:
         message = f'Un nouveau document est disponible : « {label} ».'
-    _insert_notification(employee_id, company_id, message, notification_type)
+    if notification_type == NOTIFICATION_TYPE_PAYSLIP and _bulletin_deja_annonce(employee_id, message):
+        alerte_posee = True
+    else:
+        alerte_posee = _insert_notification(employee_id, company_id, message, notification_type)
 
     email, first_name = _load_employee_contact(employee_id)
     subject_prefix = None
@@ -204,7 +230,8 @@ def notify_employee_new_document(
             company_id,
             label,
         )
-    elif is_dsn_import_placeholder_email(email):
+        return alerte_posee
+    if is_dsn_import_placeholder_email(email):
         # Adresse fabriquée par la plateforme : le domaine n'est pas routable. Envoyer
         # produirait un échec SMTP silencieux et laisserait croire le salarié notifié.
         logger.warning(
@@ -215,12 +242,12 @@ def notify_employee_new_document(
             email,
             label,
         )
-    else:
-        _send_email(
-            email,
-            first_name,
-            label,
-            page_path=page_path,
-            notification_type=notification_type,
-            subject_prefix=subject_prefix,
-        )
+        return alerte_posee
+    return _send_email(
+        email,
+        first_name,
+        label,
+        page_path=page_path,
+        notification_type=notification_type,
+        subject_prefix=subject_prefix,
+    )

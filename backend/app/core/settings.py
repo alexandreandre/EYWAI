@@ -6,6 +6,7 @@ Utilisé par app.core.config ; le legacy continue d'utiliser backend_api/core/co
 import base64
 import json
 import os
+from collections.abc import Mapping
 
 from dotenv import load_dotenv
 
@@ -127,8 +128,39 @@ def parse_extra_origins(raw: str | None) -> list[str]:
     return [o.strip() for o in raw.split(",") if o.strip()]
 
 
+# Adresse prévenue d'une génération en échec ou d'une erreur 500 ; vide = journal seul.
+ALERTE_EXPLOITATION_EMAIL = os.getenv("ALERTE_EXPLOITATION_EMAIL", "").strip() or None
+
 # Origines CORS supplémentaires (frontend de test, etc.). Vide en production.
 ALLOWED_ORIGINS_EXTRA = parse_extra_origins(os.getenv("ALLOWED_ORIGINS_EXTRA"))
+
+ORIGINES_LOCALES = (
+    "http://localhost:8080",
+    "http://localhost:5173",
+    "http://127.0.0.1:8080",
+    "http://127.0.0.1:5173",
+)
+MOTIF_ORIGINES_LOCALES = r"https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+
+
+def service_deploye(environ: Mapping[str, str] = os.environ) -> bool:
+    """Vrai sur Cloud Run, qui pose K_SERVICE sur chaque service ; faux sur un poste."""
+    return bool(environ.get("K_SERVICE"))
+
+
+def origines_locales_cors(environ: Mapping[str, str] = os.environ) -> list[str]:
+    """Origines localhost : acceptées sur un poste de développement, jamais sur un
+    site déployé (les identifiants accompagnent ces requêtes)."""
+    return [] if service_deploye(environ) else list(ORIGINES_LOCALES)
+
+
+def motif_origines_cors(environ: Mapping[str, str] = os.environ) -> str | None:
+    """Motif CORS. `CORS_ALLOW_ORIGIN_REGEX` l'emporte, et vide il n'y en a aucun ;
+    sinon le motif localhost, sur un poste de développement seulement."""
+    pose = environ.get("CORS_ALLOW_ORIGIN_REGEX")
+    if pose is not None:
+        return pose.strip() or None
+    return None if service_deploye(environ) else MOTIF_ORIGINES_LOCALES
 
 
 def require_supabase_env() -> tuple[str, str]:

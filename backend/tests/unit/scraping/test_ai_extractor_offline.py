@@ -50,7 +50,10 @@ def test_extract_accepts_official_url_without_date(mock_chat):
         "required": ["patronal"],
         "additionalProperties": False,
     }
-    with patch("openrouter_client.require_api_key"):
+    # Année figée (R-615) : sans date citée, la citation prend le 1er janvier de l'année en cours.
+    with patch("openrouter_client.require_api_key"), patch(
+        "core.ai_extractor.current_year", return_value=2026
+    ):
         data = extract_with_web_search(
             task_prompt="Extraire le taux",
             json_schema=schema,

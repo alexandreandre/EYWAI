@@ -2,7 +2,6 @@
 Point d’entrée de l’application cible (modular monolith).
 """
 
-import os
 import re
 import traceback
 
@@ -14,6 +13,7 @@ from postgrest.exceptions import APIError
 
 from app.api.router import router as api_router
 from app.core.constants import EXPOSED_HEADERS
+from app.core.database import supabase
 from app.core.supabase_resilience import is_transient_supabase_error
 from app.core.lifecycle import lifespan
 from app.core.logging import configure_logging, get_logger
@@ -21,8 +21,11 @@ from app.core.settings import (
     ALLOWED_ORIGINS_EXTRA,
     MARTINE_VERSION,
     check_environment_consistency,
+    motif_origines_cors,
+    origines_locales_cors,
     version_deployee,
 )
+from app.shared.infrastructure.email.alerte_exploitation import prevenir_exploitation
 
 configure_logging()
 logger = get_logger(__name__)
@@ -73,21 +76,16 @@ Abonnez-vous aux événements métier via
 )
 
 ALLOWED_ORIGINS = [
-    "http://localhost:8080",
-    "http://localhost:5173",
-    "http://127.0.0.1:8080",
-    "http://127.0.0.1:5173",
+    *origines_locales_cors(),
     "https://sirh-frontend-app-505040845625.europe-west1.run.app",
     "https://sirh-frontend-505040845625.europe-west1.run.app",
     # Origines supplémentaires (frontend de test) — vide en production.
     *ALLOWED_ORIGINS_EXTRA,
 ]
 
-# localhost / 127.0.0.1 avec n’importe quel port (Vite, preview, etc.) — ne matche pas les domaines de prod.
-_DEV_LOCAL_ORIGIN_REGEX = r"https?://(localhost|127\.0\.0\.1)(:\d+)?$"
-_cors_origin_regex = os.getenv("CORS_ALLOW_ORIGIN_REGEX", _DEV_LOCAL_ORIGIN_REGEX)
-if _cors_origin_regex.strip() == "":
-    _cors_origin_regex = None
+# localhost / 127.0.0.1 avec n'importe quel port (Vite, preview, etc.), sur un poste
+# de développement seulement : jamais sur un site déployé.
+_cors_origin_regex = motif_origines_cors()
 
 app.add_middleware(
     CORSMiddleware,
@@ -234,6 +232,11 @@ def global_exception_handler(request: Request, exc: Exception):
     )
 
     logger.error(traceback.format_exc())
+    prevenir_exploitation(
+        f"500:{request.url.path}",
+        "Erreur 500 sur le serveur",
+        f"{request.method} {request.url.path} : {type(exc).__name__}",
+    )
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal Server Error"},
@@ -260,3 +263,18 @@ def healthcheck():
     """L'API est en ligne, et quelle version du code répond (support : quel code
     a calculé un bulletin)."""
     return {"status": "ok", **version_deployee()}
+
+
+@app.get("/health/ready")
+def readiness():
+    """La base répond-elle ? 503 sinon. `/health` reste sans base : une panne de
+    base ne doit pas faire redémarrer le service."""
+    try:
+        supabase.table("companies").select("id").limit(1).execute()
+    except Exception as exc:
+        logger.warning("Sonde /health/ready : base injoignable (%s)", type(exc).__name__)
+        return JSONResponse(
+            status_code=503,
+            content={"status": "indisponible", "base": "injoignable", **version_deployee()},
+        )
+    return {"status": "ok", "base": "ok", **version_deployee()}

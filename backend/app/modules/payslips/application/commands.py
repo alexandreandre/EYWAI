@@ -120,14 +120,15 @@ def _notify_payslip_available(
     s'il pose le marqueur d'idempotence — jamais sur un échec, sinon le
     salarié n'est jamais notifié et jamais re-tenté)."""
     try:
-        notify_employee_new_document(
-            employee_id,
-            company_id,
-            _payslip_notification_label(year, month),
-            page_path="payslips",
-            notification_type=NOTIFICATION_TYPE_PAYSLIP,
+        return bool(
+            notify_employee_new_document(
+                employee_id,
+                company_id,
+                _payslip_notification_label(year, month),
+                page_path="payslips",
+                notification_type=NOTIFICATION_TYPE_PAYSLIP,
+            )
         )
-        return True
     except Exception as exc:
         logger.warning(
             "[doc_notif] Bulletin non notifié pour %s (%02d/%d): %s",

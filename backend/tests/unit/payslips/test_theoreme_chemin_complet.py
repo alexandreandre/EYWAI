@@ -859,6 +859,9 @@ def test_la_porte_de_l_ecran_refuse_un_bulletin_remis_sans_rien_ecrire(paie, mon
 
 
 def test_la_porte_de_l_ecran_laisse_corriger_un_brouillon(paie):
+    # Le statut est posé : le verrou de période ne s'applique pas à un brouillon.
+    # Sans lui, la colonne manquait et le test devenait rouge dès le 15/11/2026 (R-615).
+    paie.bulletin()["status"] = "brouillon"
     assert paie.corriger_a_l_ecran(CAS[0].corrections)["recalcule"] is True
     _verifier_bulletin(paie.donnees(), CAS[0].apres)
 
