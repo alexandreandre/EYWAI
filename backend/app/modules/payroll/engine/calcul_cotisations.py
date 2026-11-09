@@ -810,11 +810,16 @@ def calculer_cotisations(
 
         if isinstance(taux_patronal_brut, dict):
             if coti_id == "fnal":
+                sous_le_seuil = contexte.effectif < lc.SEUIL_EFFECTIF_FNAL
                 taux_patronal_final = (
                     taux_patronal_brut.get("taux_moins_50")
-                    if contexte.effectif < lc.SEUIL_EFFECTIF_FNAL
+                    if sous_le_seuil
                     else taux_patronal_brut.get("taux_50_et_plus")
                 )
+                # Moins de 50 salariés : 0,10 % sur le salaire limité au plafond (CTP 332) ;
+                # 50 et plus : 0,50 % sur la totalité (CTP 236).
+                if sous_le_seuil:
+                    assiette = assiettes["brut_plafonne"]
             elif coti_id == "CFP":
                 taux_patronal_final = (
                     taux_patronal_brut.get("taux_moins_11")
