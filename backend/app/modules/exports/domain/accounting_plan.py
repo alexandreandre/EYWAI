@@ -165,6 +165,10 @@ FAMILLE_INTERETS_PRET = "interets_pret_employeur"
 # L'avantage entre au brut et sort du net sans être versé. Sa contrepartie dépend
 # du plan de chaque société : aucun compte par défaut, l'export le réclame.
 FAMILLE_AVANTAGE_EN_NATURE = "avantage_en_nature"
+# Part non soumise de l'indemnité complémentaire de prévoyance (Quadra : NPRV,
+# compte 64900000 à LEWIS et Mont Blanc). Pas de compte par défaut : il dépend
+# du plan de chaque société, l'OD le réclame tant qu'il n'est pas posé.
+FAMILLE_INDEMNITE_PREVOYANCE = "indemnite_prevoyance"
 FAMILLE_INCONNUE = "INCONNUE"
 
 # Familles déjà portées par un autre champ du bulletin : ne pas les reprendre
@@ -206,6 +210,13 @@ _FAMILLE_PREFIXES = (
     # Note de frais validée, versée avec la paie : « remb_<type>_<date> ».
     ("remb ", FAMILLE_NOTE_DE_FRAIS),
     ("ijss", FAMILLE_IJSS),
+    # Libellés Quadra (« Ind.Comple.prévoyance patronal ») et libellés en clair.
+    ("ind.comple.prevoyance", FAMILLE_INDEMNITE_PREVOYANCE),
+    ("ind.complem.prevoyance", FAMILLE_INDEMNITE_PREVOYANCE),
+    ("indemnite complementaire de prevoyance", FAMILLE_INDEMNITE_PREVOYANCE),
+    ("indemnite complementaire prevoyance", FAMILLE_INDEMNITE_PREVOYANCE),
+    ("indemnite de prevoyance", FAMILLE_INDEMNITE_PREVOYANCE),
+    ("complement prevoyance", FAMILLE_INDEMNITE_PREVOYANCE),
     ("indemnite activite partielle", FAMILLE_ACTIVITE_PARTIELLE),
     ("prime de partage de la valeur", FAMILLE_PPV),
     ("prime partage de la valeur", FAMILLE_PPV),
