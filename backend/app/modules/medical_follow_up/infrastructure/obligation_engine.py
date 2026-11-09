@@ -506,7 +506,7 @@ def compute_obligations_for_employee(
         if last_vip.data and last_vip.data[0].get("completed_date"):
             last_d = _parse_date(last_vip.data[0]["completed_date"])
             if last_d and not _has_active_obligation(existing, "vip"):
-                next_due = last_d.replace(year=last_d.year + vip_years)
+                next_due = _ans_apres(last_d, vip_years)
                 key = _dedupe_key("vip", "periodicite_vip", next_due)
                 if key not in existing_keys:
                     to_insert.append(
@@ -557,7 +557,7 @@ def compute_obligations_for_employee(
     if last_sir.data and last_sir.data[0].get("completed_date"):
         last_d = _parse_date(last_sir.data[0]["completed_date"])
         if last_d and not _has_active_obligation(existing, "sir"):
-            next_due = last_d.replace(year=last_d.year + sir_years)
+            next_due = _ans_apres(last_d, sir_years)
             key = _dedupe_key("sir", "periodicite_sir", next_due)
             if key not in existing_keys:
                 to_insert.append(
@@ -575,7 +575,7 @@ def compute_obligations_for_employee(
                 )
                 existing_keys.add(key)
     elif is_poste_sir and hire_date and not _has_active_obligation(existing, "sir"):
-        next_due = hire_date.replace(year=hire_date.year + SIR_INTERMEDIATE_YEARS)
+        next_due = _ans_apres(hire_date, SIR_INTERMEDIATE_YEARS)
         if next_due > today:
             key = _dedupe_key("sir", "poste_sir", next_due)
             if key not in existing_keys:
