@@ -138,6 +138,20 @@ class DsnBuildError(ValueError):
     """Donnée obligatoire manquante pour générer la DSN."""
 
 
+MESSAGE_TAUX_SANS_IDENTIFIANT = (
+    "Taux PAS de type 01 sans identifiant du compte rendu DGFiP (NIR {nir}, saisie manuelle "
+    "probable) : déclaré en barème 13 (S21.G00.50.007) ; le prochain taux reçu le remplacera"
+)
+
+
+def taux_pas_sans_identifiant(employee: Dict[str, Any]) -> bool:
+    """Le taux du mois est-il de type 01 sans identifiant du CRM connu ?"""
+    reprise = _reprise_dsn(employee)
+    return str(employee.get("pas_type_taux") or reprise.get("pas_type") or "") == "01" and not (
+        employee.get("pas_identifiant_taux") or reprise.get("pas_identifiant")
+    )
+
+
 MESSAGE_URSSAF_MANQUANT = (
     "Identifiant de l'Urssaf destinataire manquant : ni le SIRET de l'Urssaf (14 chiffres) "
     "dans le paramétrage DSN, ni un N° URSSAF à 14 chiffres sur la fiche société. "
@@ -1234,6 +1248,11 @@ def build_individu_from_payroll(
     )
     if not pas_type:
         pas_type = "01" if pas_identifiant else "13"
+    if pas_type == "01" and not pas_identifiant:
+        # CCH-11 de 50.008 (CT 2026.1, p. 244) : le type 01 exige l'identifiant du
+        # CRM. Une saisie manuelle n'en a pas : barème, comme le cabinet pour ces cas.
+        pas_type = "13"
+        warnings.append(MESSAGE_TAUX_SANS_IDENTIFIANT.format(nir=nir_dsn))
     if pas_type != "01" and not pas_identifiant and _cdd_court_ou_imprecis(
         nature, employee
     ):

@@ -272,6 +272,21 @@ def test_cdd_a_terme_imprecis_sans_taux_dgfip_porte_l_identifiant_moins_un():
     assert ("S21.G00.50.008", "-1") in lignes
 
 
+def test_taux_01_sans_identifiant_se_declare_en_bareme():
+    """CCH-11 de 50.008 (CT 2026.1, p. 244) : le type 01 exige l'identifiant du CRM.
+    Une saisie manuelle n'en a pas ; le cabinet déclare ces salariés en 13."""
+    lignes = _lignes(salarie={**SALARIE, "pas_type_taux": "01"})
+    assert ("S21.G00.50.007", "13") in lignes
+    assert not any(r == "S21.G00.50.008" for r, _ in lignes)
+
+
+def test_taux_01_avec_identifiant_de_reprise_reste_en_01():
+    specs = {"dsn_reprise": {"pas_identifiant": "434178834"}}
+    lignes = _lignes(salarie={**SALARIE, "pas_type_taux": "01", "specificites_paie": specs})
+    assert ("S21.G00.50.007", "01") in lignes
+    assert ("S21.G00.50.008", "434178834") in lignes
+
+
 def test_forfait_jours_declare_des_jours_d_activite():
     """Au forfait, la mesure est en jours (40.011 = 20) : 22 jours ouvrés en juin."""
     salarie = {**SALARIE, "is_forfait_jour": True}

@@ -13,6 +13,7 @@ from app.modules.exports.infrastructure.export_dsn import generate_dsn_xml
 def test_generate_dsn_includes_boeth(mock_oeth, mock_company, mock_employees):
     mock_company.return_value = {
         "siret": "12345678900015",
+        "urssaf_number": "79484650100011",
         "name": "ACME",
         "code_naf": "6201Z",
         "address": {"rue": "1 rue Test", "code_postal": "75001", "ville": "Paris"},

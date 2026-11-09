@@ -10,6 +10,7 @@ from app.modules.dsn_export.application.builder import (
     MESSAGE_URSSAF_MANQUANT,
     DsnBuildError,
     build_parsed_dsn_from_payroll,
+    taux_pas_sans_identifiant,
 )
 from app.modules.dsn_export.domain.changement_pcs import avis_changements_pcs
 from app.modules.pcs_ese.infrastructure.transmissions import periodes_deposees
@@ -707,6 +708,11 @@ def check_dsn_data(
                 )
         for manque in fiche_a_completer(employee):
             warnings.append(f"Salarié {employee_name} : {manque}")
+        if taux_pas_sans_identifiant(employee):
+            warnings.append(
+                f"Salarié {employee_name} : taux PAS saisi à la main, sans identifiant du "
+                "compte rendu DGFiP : il se déclare en barème (13) jusqu'au prochain taux reçu."
+            )
         hire_date = employee.get("hire_date")
         if hire_date:
             try:
