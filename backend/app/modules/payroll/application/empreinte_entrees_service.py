@@ -550,6 +550,32 @@ def _reglages_societe_du_mois(
     return parties
 
 
+#: Partie `arrets_anterieurs` : les arrêts d'avant le mois, ceux que la limite
+#: annuelle du maintien légal additionne (D1226-4, `jours_legaux_des_12_mois`).
+PARTIE_ARRETS_ANTERIEURS = "arrets_anterieurs"
+
+
+def _arrets_anterieurs(
+    absences: Iterable[Mapping[str, Any]] | None, bornes: tuple[date, date]
+) -> list[dict[str, Any]]:
+    """Les jours d'arrêt validés d'avant le mois, par demande (R-390).
+
+    Lus sur `absence_requests` : les pièces déjà chargées pour l'empreinte, sans
+    requête de plus. Un arrêt posé seulement au calendrier par l'import DSN (sans
+    demande) n'y est pas ; il ne se modifie pas à l'écran.
+    """
+    limite = bornes[0].isoformat()
+    arrets: list[dict[str, Any]] = []
+    for row in absences or []:
+        type_arret = str(row.get("type") or "")
+        if not type_arret.startswith("arret"):
+            continue
+        jours = sorted(str(j)[:10] for j in (row.get("selected_days") or []) if str(j)[:10] < limite)
+        if jours:
+            arrets.append({"type": type_arret, "jours": jours})
+    return sorted(arrets, key=_cle_tri)
+
+
 def complements_du_mois(
     complements: Complements,
     *,
@@ -559,10 +585,22 @@ def complements_du_mois(
     company: Mapping[str, Any] | None,
     calendriers: Mapping[tuple[int, int], Mapping[str, Any]],
     fenetre: Mapping[str, Any] | None,
+    absences: Iterable[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Les données de la liste complémentaire que le bulletin du mois lit. Sans I/O."""
+    """Les données de la liste complémentaire que le bulletin du mois lit. Sans I/O.
+
+    La partie `arrets_anterieurs` n'existe qu'un mois avec un arrêt : seul lui
+    dépend des arrêts passés. Partie à part, sans version à gérer : un bulletin
+    calculé avant elle n'en a pas et `parties_changees` ne la compare pas.
+    """
     bornes = _bornes_du_mois(year, month, fenetre)
+    arrets = (
+        {PARTIE_ARRETS_ANTERIEURS: _arrets_anterieurs(absences, bornes)}
+        if absences is not None and _arret_dans_le_mois(calendriers, year, month, bornes)
+        else {}
+    )
     return {
+        **arrets,
         "mutuelle": _mutuelle_du_mois(complements.mutuelles, employee, year, month),
         "conges_ajustements": _ajustements_du_mois(complements.ajustements_conges, year),
         "conges_reglages": {
@@ -674,6 +712,7 @@ def _complements_ou_none(
     employee: Mapping[str, Any],
     company: Mapping[str, Any] | None,
     calendriers: Mapping[tuple[int, int], Mapping[str, Any]],
+    absences: Iterable[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     if complements is None:
         return None
@@ -685,6 +724,7 @@ def _complements_ou_none(
         company=company,
         calendriers=calendriers,
         fenetre=entrees.get("fenetre_variables"),
+        absences=absences,
     )
 
 
@@ -712,6 +752,7 @@ def poser_empreinte_complementaire_depuis_lectures(
         employee=kwargs["employee"],
         company=kwargs.get("company"),
         calendriers=kwargs["calendriers"],
+        absences=kwargs.get("absences"),
     )
     return poser_empreinte_complementaire(
         payslip_data,
@@ -930,6 +971,7 @@ def _parties_du_mois(
         employee=lectures.employee,
         company=lectures.company,
         calendriers=lectures.calendriers,
+        absences=lectures.absences,
     )
     return entrees, empreintes_des_parties(entrees, du_mois, mois=(year, month))
 

@@ -90,7 +90,7 @@ COMPLEMENTS = Complements(
 
 
 def _du_mois(complements=COMPLEMENTS, *, employee=EMPLOYEE, company=COMPANY,
-             calendriers=CALENDRIERS, year=2026, month=5):
+             calendriers=CALENDRIERS, year=2026, month=5, absences=None):
     return complements_du_mois(
         complements,
         year=year,
@@ -99,6 +99,7 @@ def _du_mois(complements=COMPLEMENTS, *, employee=EMPLOYEE, company=COMPANY,
         company=company,
         calendriers=calendriers,
         fenetre=FENETRE,
+        absences=absences,
     )
 
 
@@ -328,6 +329,41 @@ def test_choisir_le_bareme_un_mois_avec_arret_est_a_recalculer():
 
 def test_le_bareme_ne_touche_pas_un_mois_sans_arret():
     assert not _change("reglages_societe", maintien={**COMPLEMENTS.maintien, "bareme_convention": "plasturgie_0292"})
+
+
+# --- R-390 : arrêts d'avant le mois (limite annuelle du maintien, D1226-4) ------
+
+ARRET_FEVRIER = {"type": "arret_maladie", "selected_days": ["2026-02-09", "2026-02-10"]}
+
+
+def test_un_arret_de_fevrier_modifie_change_un_mois_avec_arret():
+    avant = _du_mois(calendriers=_arret_en_mai(), absences=[ARRET_FEVRIER])
+    apres = _du_mois(
+        calendriers=_arret_en_mai(),
+        absences=[{**ARRET_FEVRIER, "selected_days": ["2026-02-09", "2026-02-10", "2026-02-11"]}],
+    )
+    assert empreinte_partie(avant["arrets_anterieurs"]) != empreinte_partie(apres["arrets_anterieurs"])
+
+
+def test_un_mois_sans_arret_ne_depend_pas_des_arrets_passes():
+    assert "arrets_anterieurs" not in _du_mois(absences=[ARRET_FEVRIER])
+
+
+def test_un_conge_ou_un_arret_du_mois_ne_compte_pas_dans_les_arrets_anterieurs():
+    du_mois = _du_mois(
+        calendriers=_arret_en_mai(),
+        absences=[
+            {"type": "conge_paye", "selected_days": ["2026-02-09"]},
+            {"type": "arret_maladie", "selected_days": ["2026-05-12"]},
+        ],
+    )
+    assert du_mois["arrets_anterieurs"] == []
+
+
+def test_la_partie_a_un_message_clair_pour_le_badge():
+    from app.modules.payroll.domain.empreinte_entrees import message_a_recalculer
+
+    assert "arrêt d'un mois précédent" in message_a_recalculer(("arrets_anterieurs",))
 
 
 def test_la_jei_ne_compte_qu_activee():

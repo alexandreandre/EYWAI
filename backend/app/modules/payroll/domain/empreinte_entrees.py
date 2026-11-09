@@ -289,6 +289,10 @@ _PARTIES: dict[str, tuple[str, str]] = {
         "Un réglage de paie de la société a changé",
         "les réglages de paie de la société",
     ),
+    "arrets_anterieurs": (
+        "Un arrêt d'un mois précédent a changé (limite annuelle du maintien)",
+        "les arrêts des mois précédents",
+    ),
 }
 
 
