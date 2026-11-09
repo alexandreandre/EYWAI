@@ -12,6 +12,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 ### DSN : changement de convention collective
 - Quand la convention d'un salarié change sur sa fiche, la DSN déclare l'ancienne au 1er du mois (bloc Changements Contrat) ; l'aperçu le signale. Zone 404 en a besoin en novembre, de « sans convention » à Syntec.
 - Le SMIC retenu d'un bulletin ancien, recalculé à partir des cumuls, n'est plus déclaré négatif quand le cumul était reparti de zéro : Martine signale le bulletin à recalculer.
+### Bulletin : mentions et alertes d'avant-paie (aucun montant ne change)
+- Sans convention collective (MAJI, Zone 404) : plus de ligne Classif/Coeff vide, le pied renvoie au Code du travail pour les congés et le préavis. Bulletin au forfait : le nombre de jours du forfait est imprimé.
+- Dès 7 h de repos au crédit (récupération et repos obligatoire cumulés), le bulletin notifie le droit et le délai de deux mois. Le compte épargne-temps a son compteur au pied du bulletin.
+- Nouvelles alertes : prévoyance d'un cadre sous 1,50 % de la tranche A (part santé comprise, aussi sur la fiche), travail le 1er mai sans indemnité, rachat de jours de repos que Martine ne sait pas traiter.
+
 ### Bulletins remis au salarié
 - Si l'e-mail annonçant un bulletin n'a pas pu partir, le salarié est relancé au passage suivant, sans seconde alerte dans son espace.
 ### Sortie, corrections et contrôles (sans changement de montant sur l'existant)

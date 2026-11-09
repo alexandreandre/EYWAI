@@ -897,3 +897,113 @@ class TestPartExonereeDesIndemnitesDeRupture:
         avant = construire_vue_bulletin(bulletin_avec_cotisations())
         apres = construire_vue_bulletin(self._bulletin())
         assert apres["pied"] == avant["pied"]
+
+
+class TestMentionsSansConvention:
+    """C. trav. R3243-1, 3°, 4° et 5° a) (R-358, R-393)."""
+
+    def _salarie_maji(self):
+        bulletin = bulletin_minimal()
+        salarie = bulletin["en_tete"]["salarie"]
+        salarie["convention_collective"] = None
+        salarie["classification"] = "200"
+        salarie["classification_brute"] = {"idcc": "9999", "position": "200", "coefficient": 360}
+        return bulletin
+
+    def test_sans_convention_ni_classif_ni_coeff(self):
+        identite = construire_vue_bulletin(self._salarie_maji())["identite"]
+        assert identite["classification"] == ""
+        assert identite["coefficient"] == ""
+
+    def test_sans_convention_le_pied_renvoie_au_code_du_travail(self):
+        pied = construire_vue_bulletin(self._salarie_maji())["pied"]
+        assert "L3141-3" in pied["convention_collective"]
+        assert "L1234-1" in pied["convention_collective"]
+        assert "préavis" in pied["convention_collective"]
+
+    def test_convention_illisible_rien_n_est_substitue(self):
+        bulletin = self._salarie_maji()
+        salarie = bulletin["en_tete"]["salarie"]
+        salarie["classification_brute"] = {"coefficient": 700}
+        salarie["classification"] = "700"
+        vue = construire_vue_bulletin(bulletin)
+        assert vue["pied"]["convention_collective"] == ""
+        assert vue["identite"]["coefficient"] == 700
+
+    def test_convention_presente_classification_gardee(self):
+        vue = construire_vue_bulletin(bulletin_minimal())
+        assert vue["identite"]["coefficient"] == "A"
+        assert "métallurgie" in vue["pied"]["convention_collective"]
+
+    def test_volume_du_forfait_sous_la_ligne(self):
+        bulletin = bulletin_minimal()
+        bulletin["calcul_du_brut"] = [
+            {"libelle": "Salaire de base (forfait jour)", "gain": 3000.0, "quantite": None, "taux": None, "perte": None}
+        ]
+        bulletin["forfait_jours_annuel"] = 218.0
+        notes = [l["libelle"] for l in construire_vue_bulletin(bulletin)["lignes"] if l["type"] == "note"]
+        assert "Forfait annuel en jours : 218 jours par an" in notes
+
+    def test_forfait_sans_volume_rien_n_est_invente(self):
+        bulletin = bulletin_minimal()
+        bulletin["calcul_du_brut"] = [
+            {"libelle": "Salaire de base (forfait jour)", "gain": 3000.0, "quantite": None, "taux": None, "perte": None}
+        ]
+        notes = [l["libelle"] for l in construire_vue_bulletin(bulletin)["lignes"] if l["type"] == "note"]
+        assert not any("Forfait annuel" in n for n in notes)
+
+
+class TestDroitARepos:
+    """C. trav. D3171-11 : la mention naît à sept heures cumulées (R-359)."""
+
+    def _compteurs(self, **soldes):
+        bulletin = bulletin_minimal()
+        bulletin["pied_de_page"] = {
+            "solde_conges": {"conges_payes": {"acquis": 1.0, "pris": 0.0, "solde": 1.0}, **soldes}
+        }
+        return construire_vue_bulletin(bulletin)["compteurs"]["notes"]
+
+    def test_repos_obligatoire_seul_sept_heures(self):
+        notes = self._compteurs(repos_compensateur={"acquis": 7.0, "pris": 0.0, "solde": 7.0})
+        assert any("repos obligatoire" in n and "deux mois" in n and "D3171-11" in n for n in notes)
+
+    def test_sous_le_seuil_pas_de_mention(self):
+        notes = self._compteurs(repos_compensateur={"acquis": 6.5, "pris": 0.0, "solde": 6.5})
+        assert not any("Droit à repos" in n for n in notes)
+
+    def test_les_deux_compteurs_s_additionnent(self):
+        notes = self._compteurs(
+            repos_compensateur={"acquis": 4.0, "pris": 0.0, "solde": 4.0},
+            recuperation={"acquis": 3.0, "acquis_annee": 3.0, "pris": 0.0, "solde": 3.0},
+        )
+        mention = next(n for n in notes if "Droit à repos" in n)
+        assert "récupération" in mention and "repos obligatoire" in mention
+
+    def test_recuperation_seule_garde_son_texte(self):
+        notes = self._compteurs(recuperation={"acquis": 8.0, "acquis_annee": 8.0, "pris": 0.0, "solde": 8.0})
+        mention = next(n for n in notes if "Droit à repos" in n)
+        assert "de récupération à prendre" in mention
+
+
+class TestCompteurCet:
+    """Accord CET de Mont Blanc (R-376)."""
+
+    def test_colonne_cet_quand_le_salarie_a_un_compte(self):
+        bulletin = bulletin_minimal()
+        bulletin["pied_de_page"] = {
+            "solde_conges": {
+                "conges_payes": {"acquis": 1.0, "pris": 0.0, "solde": 1.0},
+                "cet": {"acquis": 14.0, "pris": 7.0, "solde": 7.0},
+            }
+        }
+        colonnes = construire_vue_bulletin(bulletin)["compteurs"]["colonnes"]
+        cet = next(c for c in colonnes if c["titre"] == "CET (h)")
+        assert (cet["acquis"], cet["pris"], cet["solde"]) == (14.0, 7.0, 7.0)
+
+    def test_sans_compte_pas_de_colonne(self):
+        bulletin = bulletin_minimal()
+        bulletin["pied_de_page"] = {
+            "solde_conges": {"conges_payes": {"acquis": 1.0, "pris": 0.0, "solde": 1.0}}
+        }
+        colonnes = construire_vue_bulletin(bulletin)["compteurs"]["colonnes"]
+        assert all(c["titre"] != "CET (h)" for c in colonnes)

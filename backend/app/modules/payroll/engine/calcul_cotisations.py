@@ -619,6 +619,38 @@ def alerte_prevoyance_cadre(
     return None
 
 
+def alerte_minimum_cadre_du_bulletin(
+    contexte: ContextePaie, salaire_brut: float, lignes: List[Dict[str, Any]]
+) -> Optional[Dict[str, Any]]:
+    """Le minimum patronal de 1,50 % de la tranche A, part de santé du bulletin comprise."""
+    from app.shared.domain.prevoyance_obligatoire import (
+        alerte_minimum_cadre,
+        cadre_de_la_prevoyance,
+    )
+
+    remuneration = contexte.contrat.get("remuneration", {}) or {}
+    specificites = contexte.contrat.get("specificites_paie", {}) or {}
+    if not cadre_de_la_prevoyance(
+        {
+            "statut": contexte.statut_salarie,
+            "classification_conventionnelle": remuneration.get("classification_conventionnelle"),
+            "specificites_paie": specificites,
+            "contract_type": contexte.type_contrat,
+        }
+    ):
+        return None
+    pss = float((contexte.baremes.get("pss", {}) or {}).get("mensuel", 0.0) or 0.0)
+    prevoyance = specificites.get("prevoyance") if isinstance(specificites.get("prevoyance"), dict) else {}
+    return alerte_minimum_cadre(
+        prevoyance.get("lignes_specifiques"),
+        sante_patronale=sum(
+            float(l.get("montant_patronal") or 0.0) for l in lignes if l.get("coti_id") == "mutuelle"
+        ),
+        tranche_a=min(max(float(salaire_brut or 0.0), 0.0), pss),
+        idcc=(remuneration.get("convention_collective") or {}).get("idcc"),
+    )
+
+
 # Au-delà, un taux de prévoyance est presque sûrement saisi en % au lieu d'une
 # fraction ([D1], 13/10/2026). Les fiches réelles plafonnent à 4,69 % salarial,
 # 2,5 % patronal et 8 % de forfait social.
@@ -1363,6 +1395,11 @@ def calculer_cotisations(
                     coti_id="deduction_hs_patronale",
                 )
             )
+
+    if adhesion_prevoyance and isinstance(contexte.alertes_baremes, list):
+        alerte_minimum = alerte_minimum_cadre_du_bulletin(contexte, salaire_brut, bulletin_cotisations)
+        if alerte_minimum is not None and alerte_minimum not in contexte.alertes_baremes:
+            contexte.alertes_baremes.append(alerte_minimum)
 
     total_cotisations_salariales = sum(
         ligne.get("montant_salarial", 0.0) or 0.0 for ligne in bulletin_cotisations

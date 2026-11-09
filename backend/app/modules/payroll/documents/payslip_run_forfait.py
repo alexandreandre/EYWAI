@@ -759,6 +759,9 @@ def run_payslip_generation_forfait(
             primes_soumises_impot=primes_soumises_impot,
         )
 
+    # C. trav. R3243-1, 5° a) : le volume du forfait, lu par le gabarit.
+    bulletin_final["forfait_jours_annuel"] = jours_du_forfait
+
     # Règle 7 : une correction qui n'a pas trouvé sa ligne reste sur le bulletin.
     poser_les_corrections_en_attente(bulletin_final, contexte.corrections_du_mois)
 

@@ -177,11 +177,39 @@ def construire_salarie(bulletin: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+#: C. trav. R3243-1, 3° : à défaut de convention, « la référence au code du travail
+#: pour les dispositions relatives à la durée des congés payés du salarié et à la
+#: durée des délais de préavis ». Articles ouverts le 09/11/2026.
+REFERENCE_CODE_DU_TRAVAIL = (
+    "Sans convention collective : durée des congés payés, C. trav. art. L3141-3 ; "
+    "délais de préavis, C. trav. art. L1234-1 et L1237-1."
+)
+
+
+def sans_convention_collective(salarie: Dict[str, Any]) -> bool:
+    """Le salarié ne relève d'aucune convention : IDCC 9999, celui de la DSN.
+
+    Une convention simplement absente du bulletin n'est pas ce cas : on ne
+    remplace pas un intitulé qu'on n'a pas su lire par le Code du travail.
+    """
+    convention = str(salarie.get("convention_collective") or "")
+    if convention:
+        return "9999" in convention
+    classification = salarie.get("classification_brute")
+    if not isinstance(classification, dict):
+        return False
+    return str(classification.get("idcc") or "").strip() == "9999"
+
+
 def construire_identite(bulletin: Dict[str, Any]) -> Dict[str, Any]:
     salarie = ((bulletin.get("en_tete") or {}).get("salarie")) or {}
     classification = salarie.get("classification_brute")
     if not isinstance(classification, dict):
         classification = {}
+    # R3243-1, 4° : la position « dans la classification conventionnelle qui lui
+    # est applicable ». Sans convention il n'y en a pas : le « 200 » de ces fiches
+    # vient d'une valeur par défaut de la DSN, pas d'une classification.
+    sans_convention = sans_convention_collective(salarie)
     date_entree = _date_fr(salarie.get("date_entree"))
     return {
         "matricule": salarie.get("matricule") or "",
@@ -199,12 +227,16 @@ def construire_identite(bulletin: Dict[str, Any]) -> Dict[str, Any]:
         # Repli sur la chaîne déjà formatée par le moteur : les vraies fiches
         # ne portent ni « niveau » ni « coefficient » mais des clés DSN
         # (position, niveau_dsn). Ne jamais afficher moins que l'ancien bulletin.
-        "classification": classification.get("niveau")
-        or classification.get("niveau_dsn")
-        or classification.get("classification")
-        or salarie.get("classification")
-        or "",
-        "coefficient": classification.get("coefficient") or "",
+        "classification": ""
+        if sans_convention
+        else (
+            classification.get("niveau")
+            or classification.get("niveau_dsn")
+            or classification.get("classification")
+            or salarie.get("classification")
+            or ""
+        ),
+        "coefficient": "" if sans_convention else classification.get("coefficient") or "",
     }
 
 
@@ -253,13 +285,32 @@ def _notes_recuperation(recuperation: Dict[str, Any]) -> List[str]:
         morceaux.append(f"{heures_en_texte(paye)} payées")
     if morceaux:
         notes.append("Récupération ce mois-ci : " + ", ".join(morceaux))
-    solde = float(recuperation.get("solde") or 0.0)
-    if solde >= 7:
-        notes.append(
-            f"Droit à repos ouvert : {heures_en_texte(solde)} de récupération à prendre "
-            "dans un délai maximum de deux mois (C. trav. D3171-11)."
-        )
     return notes
+
+
+def _note_droit_a_repos(solde_conges: Dict[str, Any]) -> Optional[str]:
+    """C. trav. D3171-11 : dès sept heures de repos compensateur de remplacement et
+    de contrepartie obligatoire en repos portées au crédit, cumulées, le document
+    notifie l'ouverture du droit et l'obligation de le prendre sous deux mois."""
+    recuperation = solde_conges.get("recuperation")
+    obligatoire = solde_conges.get("repos_compensateur")
+    solde_recup = (
+        float(recuperation.get("solde") or 0.0) if isinstance(recuperation, dict) else 0.0
+    )
+    solde_obligatoire = (
+        float(obligatoire.get("solde") or 0.0) if isinstance(obligatoire, dict) else 0.0
+    )
+    parts = []
+    if solde_recup > 0:
+        parts.append(f"{heures_en_texte(solde_recup)} de récupération")
+    if solde_obligatoire > 0:
+        parts.append(f"{heures_en_texte(solde_obligatoire)} de repos obligatoire")
+    if max(solde_recup, 0.0) + max(solde_obligatoire, 0.0) < 7:
+        return None
+    return (
+        f"Droit à repos ouvert : {' et '.join(parts)} à prendre dans un délai "
+        "maximum de deux mois (C. trav. D3171-11)."
+    )
 
 
 def construire_compteurs(bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -296,9 +347,25 @@ def construire_compteurs(bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             }
         )
 
+    # Accord CET de Mont Blanc : « l'état des différents compteurs du CET figurera
+    # sur le bulletin de paie » (posé quand le salarié a un CET ; R-376).
+    cet = solde.get("cet")
+    if isinstance(cet, dict):
+        colonnes.append(
+            {
+                "titre": "CET (h)",
+                "acquis": float(cet.get("acquis") or 0.0),
+                "pris": float(cet.get("pris") or 0.0),
+                "solde": float(cet.get("solde") or 0.0),
+            }
+        )
+
     notes: List[str] = []
     if isinstance(recuperation, dict):
         notes.extend(_notes_recuperation(recuperation))
+    droit_a_repos = _note_droit_a_repos(solde)
+    if droit_a_repos:
+        notes.append(droit_a_repos)
     # Reprise ou recalage : le solde ne se retrouve plus par « acquis − pris ».
     # La clé n'existe que sur les bulletins calculés depuis le 12/10/2026.
     for titre, cle in (("CP N-1", "conges_payes_periode_precedente"), ("CP N", "conges_payes")):
@@ -567,6 +634,18 @@ def mention_heures_sup_declarees(bulletin: Dict[str, Any]) -> Optional[str]:
     )
 
 
+def mention_volume_du_forfait(bulletin: Dict[str, Any]) -> Optional[str]:
+    """C. trav. R3243-1, 5° a) : « La nature et le volume du forfait ».
+
+    Un bulletin calculé avant que le volume soit relevé n'a pas la clé : rien
+    n'est inventé pour lui.
+    """
+    jours = bulletin.get("forfait_jours_annuel")
+    if not jours:
+        return None
+    return f"Forfait annuel en jours : {float(jours):g} jours par an".replace(".", ",")
+
+
 def _mention_sous_la_ligne(bulletin: Dict[str, Any], detail: Dict[str, Any]) -> Optional[str]:
     """Sous la ligne de maintien : les IJSS déduites sans subrogation.
 
@@ -595,6 +674,10 @@ def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
                 mention = _mention_sous_la_ligne(bulletin, detail)
                 if mention:
                     lignes.append(_ligne("note", mention))
+                if str(detail.get("libelle") or "").startswith("Salaire de base (forfait jour)"):
+                    volume = mention_volume_du_forfait(bulletin)
+                    if volume:
+                        lignes.append(_ligne("note", volume))
 
     # La règle retenue pour les congés (`arbitrage_conges`) et la compensation
     # entre semaines (`compensation_semaines`) ne s'impriment pas : aucune n'est
@@ -813,7 +896,9 @@ def construire_pied(bulletin: Dict[str, Any]) -> Dict[str, Any]:
             "exoneration_stagiaire": bool(synthese.get("exoneration_ir_stagiaire")),
         },
         "net_a_payer": bulletin.get("net_a_payer"),
-        "convention_collective": salarie.get("convention_collective") or "",
+        "convention_collective": REFERENCE_CODE_DU_TRAVAIL
+        if sans_convention_collective(salarie)
+        else salarie.get("convention_collective") or "",
         "mentions_legales": [
             texte
             for texte in (mentions.get("conservation"), mentions.get("information"))

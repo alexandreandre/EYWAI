@@ -87,6 +87,46 @@ from app.modules.payroll.engine.ppv import classer_ppv, est_une_ppv
 from app.modules.payroll.documents.ppv_donnees import CLE_SAISIES as CLE_SAISIES_PPV
 
 
+def etat_cet_du_bulletin(
+    contexte: ContextePaie,
+    reglages_cet: dict[str, Any],
+    employee_id: str,
+    annee: int,
+    mois: int,
+    heures_par_jour: float,
+) -> dict[str, float] | None:
+    """Le compteur CET du pied du bulletin : `None` si la société n'a pas de CET ou
+    si le salarié n'y a aucun mouvement. Une lecture ratée se dit, sans arrêter le
+    bulletin : le compteur n'a pas pu être imprimé."""
+    if not reglages_cet.get("cet_enabled"):
+        return None
+    try:
+        from app.modules.cet.domain.rules import etat_du_compte_au_mois
+        from app.modules.cet.infrastructure import repository as cet_repo
+
+        return etat_du_compte_au_mois(
+            cet_repo.list_movements_for_employee(employee_id),
+            annee,
+            mois,
+            hours_per_rest_day=heures_par_jour,
+        )
+    except Exception:  # noqa: BLE001 — le compteur manquant se dit à la RH
+        logger.warning("Compteur CET illisible", exc_info=True)
+        if isinstance(contexte.alertes_baremes, list):
+            contexte.alertes_baremes.append(
+                {
+                    "code": "compteur_cet_illisible",
+                    "critique": False,
+                    "severity": "warning",
+                    "message": (
+                        "Le compte épargne-temps n'a pas pu être relu : son compteur "
+                        "manque sur ce bulletin. Recalculez le bulletin avant de le remettre."
+                    ),
+                }
+            )
+        return None
+
+
 def _appliquer_maintien_arret_maladie(
     contexte: ContextePaie,
     resultats_maintien: Dict[str, Any] | None,
@@ -830,6 +870,10 @@ def run_payslip_generation_heures(
         hprd = float(settings_row.get("hours_per_rest_day") or 7)
         calendrier_etendu, cet_withdrawal_ids = apply_cet_withdrawals_to_calendar(
             employee_id, year, month, calendrier_etendu, hours_per_rest_day=hprd
+        )
+        # Compteur « CET (h) » du pied du bulletin ; None sans compte ouvert.
+        contexte.cet_du_mois = etat_cet_du_bulletin(
+            contexte, settings_row, employee_id, year, month, hprd
         )
     chemin_horaires = employee_path / "horaires" / f"{month:02d}.json"
     saisie_horaires = (
