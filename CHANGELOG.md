@@ -15,6 +15,21 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - Au premier mois calculé après la reprise, un écart entre la réduction générale déjà appliquée et les cumuls repris est signalé sur le bulletin.
 - Un arrêt qui se termine à la fin du mois sans suite saisie le mois suivant est signalé à l'avant-paie : sinon le mois part payé plein.
 - La CSG d'une participation ou d'une prime de partage se corrige dans la carte « Régularisations de cotisation », comme le disait la ligne du bulletin.
+### DSN : ce qui ne se lit pas arrête le fichier
+- Si le paramétrage DSN de la société ne se lit pas, l'aperçu le dit et le fichier n'est pas produit.
+- Si le statut de travailleur handicapé d'un salarié ne se lit pas, l'aperçu nomme le salarié et le fichier attend.
+
+### DSN : changement de temps de travail
+- Quand un forfait jours passe aux heures, ou que la durée change sur la fiche, la DSN déclare les anciennes valeurs au 1er du mois ; l'aperçu le signale.
+
+### Import DSN
+- L'import lit le motif de recours des CDD ; une fois à jour, la fiche le porte et la DSN le déclare.
+
+### Bulletins repris
+- Un bulletin repris de l'ancien logiciel ne sert plus de référence pour comparer le mois suivant : son net n'est pas comparable et bloquait la validation à tort.
+
+### Validation
+- Valider un bulletin pendant qu'il se recalcule ne remet plus l'ancien contenu marqué validé : Martine dit de recharger la page, et rien n'est écrit.
 
 ## paie-2026-11-09.3
 

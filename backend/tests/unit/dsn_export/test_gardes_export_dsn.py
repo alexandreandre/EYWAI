@@ -17,6 +17,7 @@ from app.modules.dsn_export.domain.cotisation_mapping import (
     build_bases_and_cotisations,
     cotisations_sans_code_dsn,
 )
+from app.modules.dsn_export.domain.settings import DsnSettings
 from app.modules.exports.infrastructure import export_dsn
 from app.shared.reprise_paie import Bascule, raison_de_refus_dsn_mois_repris
 
@@ -168,7 +169,9 @@ def export():
         export_dsn, "avis_changements_pcs", return_value=None
     ), patch.object(export_dsn, "lire_bascule", return_value=None) as bascule, patch(
         "app.shared.reprise_paie.lire_bascule", return_value=BASCULE
-    ) as lecture:
+    ) as lecture, patch.object(
+        export_dsn.settings_repository, "charger", return_value=DsnSettings()
+    ):
         yield {"bascule": bascule, "lecture": lecture}
 
 

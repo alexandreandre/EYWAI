@@ -27,7 +27,8 @@ def fetch_previous_validated_payslip(
     month: int,
 ) -> dict[str, Any] | None:
     """
-    Dernier bulletin validé strictement avant (year, month).
+    Dernier bulletin validé strictement avant (year, month), hors bulletin repris de
+    l'ancien logiciel : son net n'est pas comparable (R-085).
     """
     r = (
         supabase.table("payslips")
@@ -35,6 +36,7 @@ def fetch_previous_validated_payslip(
         .eq("employee_id", employee_id)
         .eq("company_id", company_id)
         .eq("status", "valide")
+        .neq("origine", "importe")
         .or_(f"year.lt.{year},and(year.eq.{year},month.lt.{month})")
         .order("year", desc=True)
         .order("month", desc=True)
@@ -61,6 +63,7 @@ def fetch_validated_payslips_strictly_before(
         .eq("employee_id", employee_id)
         .eq("company_id", company_id)
         .eq("status", "valide")
+        .neq("origine", "importe")
         .or_(f"year.lt.{year},and(year.eq.{year},month.lt.{month})")
         .order("year", desc=True)
         .order("month", desc=True)
@@ -186,7 +189,19 @@ def update_payslip_data_alerts_status(
     return rows[0] if isinstance(rows, list) else rows
 
 
-def mark_payslip_validated(payslip_id: str, user_id: str) -> dict[str, Any]:
+class BulletinChangeDepuisLeControle(Exception):
+    """Le bulletin en base n'est plus celui que la validation a contrôlé (R-325)."""
+
+
+def mark_payslip_validated(
+    payslip_id: str,
+    user_id: str,
+    *,
+    contenu_controle: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Marque le bulletin validé. `contenu_controle` : le contenu que la validation a
+    contrôlé ; si la base porte autre chose (recalcul passé entre-temps) ou si le bulletin
+    est déjà validé, rien n'est écrit : `BulletinChangeDepuisLeControle` (R-325)."""
     from datetime import datetime, timezone
 
     from app.modules.payslips.infrastructure.anomaly_cleanup import (
@@ -197,11 +212,17 @@ def mark_payslip_validated(payslip_id: str, user_id: str) -> dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat()
     current = (
         supabase.table("payslips")
-        .select("payslip_data")
+        .select("payslip_data, status")
         .eq("id", payslip_id)
         .maybe_single()
         .execute()
     )
+    if contenu_controle is not None:
+        lu = current.data if current and current.data else {}
+        en_base = lu.get("payslip_data")
+        en_base = en_base if isinstance(en_base, dict) else {}
+        if lu.get("status") == "valide" or en_base != contenu_controle:
+            raise BulletinChangeDepuisLeControle()
     payload: dict[str, Any] = {
         "status": "valide",
         "validated_at": now,

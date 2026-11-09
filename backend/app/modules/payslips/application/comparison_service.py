@@ -31,6 +31,7 @@ from app.modules.payslips.domain.rules import (
     is_forfait_jour,
 )
 from app.modules.payslips.infrastructure.comparison_queries import (
+    BulletinChangeDepuisLeControle,
     fetch_employee_statut,
     fetch_noms_utilisateurs,
     fetch_previous_validated_payslip,
@@ -49,6 +50,10 @@ from app.modules.payslips.application.commands import (
     _notify_payslip_available,
 )
 from app.modules.payslips.infrastructure.readers import payslip_meta_reader
+from app.modules.payroll.documents.verrou_generation import (
+    GenerationDejaEnCours,
+    verrou_de_generation,
+)
 
 logger = get_logger("modules.payslips.application.comparison_service")
 
@@ -319,6 +324,12 @@ def _phrase_deja_valide(detail: dict[str, Any]) -> str:
     return f"Ce bulletin est déjà validé{depuis}{auteur}. Rien n'a été refait."
 
 
+REFUS_RECALCULE_ENTRE_TEMPS = (
+    "Ce bulletin a été recalculé ou validé pendant que vous le validiez : rien n'a été "
+    "écrit. Rechargez la page, relisez-le et validez de nouveau."
+)
+
+
 def validate_payslip_for_user(payslip_id: str, ctx: UserContext) -> None:
     meta = payslip_meta_reader.get_payslip_meta(payslip_id)
     _ensure_edit_meta(meta, ctx)
@@ -385,7 +396,17 @@ def validate_payslip_for_user(payslip_id: str, ctx: UserContext) -> None:
     if active_crit:
         raise PayslipCriticalActiveError(active_crit)
 
-    updated = mark_payslip_validated(payslip_id, ctx.user_id)
+    # R-325 : le verrou de génération ne couvre que l'écriture (une lecture, une mise à
+    # jour) ; les contrôles ci-dessus et la notification ci-dessous restent dehors, pour
+    # qu'une génération lancée à côté n'attende pas. L'écriture ne part que si le bulletin
+    # est encore celui qui vient d'être contrôlé.
+    try:
+        with verrou_de_generation(emp_id, year, month):
+            updated = mark_payslip_validated(
+                payslip_id, ctx.user_id, contenu_controle=pd
+            )
+    except BulletinChangeDepuisLeControle as exc:
+        raise PayslipConflictError(REFUS_RECALCULE_ENTRE_TEMPS) from exc
 
     # Lot 3 : le salarié est notifié ICI — jamais à la génération — et une
     # seule fois par contenu (le marqueur vit dans payslip_data : une
@@ -434,6 +455,8 @@ REFUS_INATTENDU = (
 
 def raison_du_refus(exc: Exception) -> str | None:
     """La raison d'un refus de validation, dite pour la gestionnaire ; None si inconnue."""
+    if isinstance(exc, GenerationDejaEnCours):
+        return str(exc)
     if isinstance(exc, PayslipCriticalActiveError):
         messages = [
             str(a.get("message") or "").strip()

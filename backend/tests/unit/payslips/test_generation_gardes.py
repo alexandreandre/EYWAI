@@ -833,7 +833,7 @@ def test_scenario_de_vie_generation_validation_regeneration():
         store["url"] = "v1.pdf"
         return {"status": "success", "message": "OK", "download_url": "u"}
 
-    def fake_mark_validated(payslip_id, user_id):
+    def fake_mark_validated(payslip_id, user_id, **_k):
         store["status"] = "valide"
         return dict(store)
 

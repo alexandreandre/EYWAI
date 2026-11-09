@@ -187,6 +187,7 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_VO_MODE,
     R_S21_VO_MONTANT,
     R_S21_CTR_CLASSIF,
+    R_S21_CTR_MOTIF_RECOURS,
     R_S21_CTR_NIVEAU,
     R_S21_CTR_TAUX_AT,
     R_S21_VER_DATE,
@@ -1000,6 +1001,8 @@ class _ParseContext:
             self._ensure_prime().date_debut = valeur.strip()
         elif rubrique == R_S21_AVANT_FIN:
             self._ensure_prime().date_fin = valeur.strip()
+        elif rubrique == R_S21_CTR_MOTIF_RECOURS:
+            self._ensure_contrat().rubriques[rubrique] = valeur.strip()
         elif rubrique == R_S21_CTR_CLASSIF:
             self._ensure_contrat().rubriques[rubrique] = valeur.strip()
         elif rubrique == R_S21_CTR_NIVEAU:
