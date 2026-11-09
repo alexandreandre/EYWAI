@@ -146,7 +146,9 @@ from app.modules.dsn_import.domain.rubriques import (
 )
 
 DSN_ENCODING = "iso-8859-15"
-FORBIDDEN_CHARS = ("<", ">", "&")
+# Table des caractères autorisés, cahier technique 2026.1 § 3.5 (p. 78) : « < » et
+# « > » sont interdits ; « & » ne l'est pas et se déclare tel quel, le cabinet aussi.
+FORBIDDEN_CHARS = ("<", ">")
 # NEODeS sépare les lignes en CRLF ; c'est ce que contiennent les fichiers
 # déposés et acceptés.
 FIN_DE_LIGNE = "\r\n"

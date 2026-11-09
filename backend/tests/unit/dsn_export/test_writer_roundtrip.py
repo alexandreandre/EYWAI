@@ -27,6 +27,13 @@ def test_quote_value_garde_l_apostrophe_telle_quelle():
     assert quote_value("L'ACME") == "'L'ACME'"
 
 
+def test_quote_value_accepte_l_esperluette():
+    """CT 2026.1 § 3.5 (p. 78) : « & » n'est pas sur fond grisé, seuls « < » et
+    « > » le sont ; le libellé « Ass. administrative &comptable » est passé tel
+    quel chez le cabinet et DSN-VAL l'accepte."""
+    assert quote_value("Ass. administrative &comptable") == "'Ass. administrative &comptable'"
+
+
 def test_quote_value_rejects_forbidden_chars():
     with pytest.raises(DsnWriterError):
         quote_value("a < b")
