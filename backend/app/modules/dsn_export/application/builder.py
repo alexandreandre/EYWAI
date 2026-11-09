@@ -9,6 +9,10 @@ from typing import AbstractSet, Any, Dict, List, Optional, Tuple
 
 from app.shared.domain.effectif_seuils import effectif_retenu
 from app.modules.dsn_export.domain.changement_pcs import bloc_changement_pcs, pcs_du_mois
+from app.modules.dsn_export.domain.changement_temps_travail import (
+    blocs_changement_temps_travail,
+    temps_du_mois,
+)
 from app.modules.dsn_export.domain.settings import (
     DsnSettings,
     commune_versement_mobilite,
@@ -1029,6 +1033,10 @@ def build_individu_from_payroll(
         quotite_forfait_jours=(settings or DsnSettings()).quotite_forfait_jours,
         jours_forfait_salarie=jours_forfait_salarie,
     )
+    # Un mois antérieur au changement de temps de travail se déclare avec les anciennes valeurs.
+    unite, q_ref, quotite, modalite = temps_du_mois(
+        _classification(employee), period, (unite, q_ref, quotite, modalite)
+    )
     nature = map_contract_nature_to_dsn(employee.get("contract_type"))
     statut = map_statut_to_dsn(employee.get("statut"), is_cadre=_is_cadre(employee))
     date_debut = iso_to_dsn_date(debut_du_contrat(employee))
@@ -1928,8 +1936,17 @@ def build_parsed_dsn_from_payroll(
                     periodes_declarees,
                     debut_du_contrat(employee),
                 )
-                if changement:
-                    ind.contrats[0].changements = [changement]
+                changements = [changement] if changement else []
+                changements.extend(
+                    blocs_changement_temps_travail(
+                        _classification(employee),
+                        period,
+                        periodes_declarees,
+                        debut_du_contrat(employee),
+                    )
+                )
+                if changements:
+                    ind.contrats[0].changements = changements
             precedent = row.get("contrat_precedent")
             if isinstance(precedent, dict):
                 # Mois à deux contrats (D3.2) : le bulletin du contrat rangé, sur

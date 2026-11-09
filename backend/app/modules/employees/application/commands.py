@@ -37,7 +37,13 @@ from app.modules.onboarding.domain.profile import (
     missing_payroll_fields,
 )
 from app.modules.employees.infrastructure.mappers import prepare_employee_insert_data
+from app.modules.dsn_export.domain.changement_temps_travail import (
+    appliquer_changement_temps_travail,
+    valeurs_dsn,
+)
 from app.modules.dsn_export.domain.contract_map import debut_du_contrat
+from app.modules.dsn_export.infrastructure import settings_repository
+from app.modules.payroll.engine.forfait_individuel import CLE_FORFAIT_INDIVIDUEL
 from app.modules.pcs_ese.domain.changement import appliquer_changement_pcs
 from app.modules.pcs_ese.domain.referentiel import code_valide
 from app.modules.pcs_ese.infrastructure.transmissions import periodes_deposees
@@ -804,6 +810,56 @@ def _avec_changement_pcs(
     )
 
 
+_CHAMPS_TEMPS_TRAVAIL = (
+    "is_forfait_jour",
+    "is_temps_partiel",
+    "duree_hebdomadaire",
+)
+
+
+def _quotite_forfait_jours(company_id: str) -> str:
+    """La quotité déclarée des forfaits de la société ; vide si le paramétrage ne se lit pas
+    (la fiche s'enregistre quand même, avec la quotité forfaitaire par défaut)."""
+    try:
+        return settings_repository.charger(company_id).quotite_forfait_jours
+    except settings_repository.ParametrageDsnIllisible:
+        return ""
+
+
+def _avec_changement_temps_travail(
+    employee_id: str, update_data: Dict[str, Any], depuis_import: bool
+) -> None:
+    """Temps de travail changé : les valeurs d'avant restent sur la fiche pour le bloc
+    S21.G00.41 de la DSN (R-462, comme le code PCS-ESE). Un import DSN ne note rien."""
+    specificites = update_data.get("specificites_paie")
+    forfait_touche = isinstance(specificites, dict) and CLE_FORFAIT_INDIVIDUEL in specificites
+    if not forfait_touche and not any(champ in update_data for champ in _CHAMPS_TEMPS_TRAVAIL):
+        return
+    fiche_avant = _employee_repository.get_by_id_only(employee_id) or {}
+    fiche_apres = {
+        **fiche_avant,
+        **{c: update_data[c] for c in _CHAMPS_TEMPS_TRAVAIL if c in update_data},
+        **({"specificites_paie": specificites} if isinstance(specificites, dict) else {}),
+    }
+    # Le plus souvent rien n'a changé : on évite les lectures et on ne réécrit rien.
+    change = valeurs_dsn(fiche_avant) != valeurs_dsn(fiche_apres)
+    if not change or not fiche_avant.get("company_id"):
+        return
+    fiche_apres["classification_conventionnelle"] = update_data.get(
+        "classification_conventionnelle", fiche_avant.get("classification_conventionnelle")
+    )
+    societe = str(fiche_avant["company_id"])
+    update_data["classification_conventionnelle"] = appliquer_changement_temps_travail(
+        fiche_avant,
+        fiche_apres,
+        aujourd_hui=_aujourd_hui(),
+        depuis_import=depuis_import,
+        periodes_declarees=frozenset() if depuis_import else periodes_deposees(societe),
+        debut_contrat=debut_du_contrat(fiche_avant),
+        quotite_forfait_jours="" if depuis_import else _quotite_forfait_jours(societe),
+    )
+
+
 def update_employee(
     employee_id: str, update_data: Dict[str, Any], *, depuis_import: bool = False
 ) -> Dict[str, Any]:
@@ -839,6 +895,8 @@ def update_employee(
         update_data["specificites_paie"] = _demarquer_pas_saisi_a_la_main(
             _merge_json_dicts(current_spec, incoming_spec), incoming_spec, current_spec
         )
+
+    _avec_changement_temps_travail(employee_id, update_data, depuis_import)
 
     if "coordonnees_bancaires" in update_data:
         try:

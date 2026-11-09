@@ -9,6 +9,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - Si le paramétrage DSN de la société ne se lit pas, l'aperçu le dit et le fichier n'est pas produit.
 - Si le statut de travailleur handicapé d'un salarié ne se lit pas, l'aperçu nomme le salarié et le fichier attend.
 
+### DSN : changement de temps de travail
+- Quand un forfait jours passe aux heures, ou que la durée change sur la fiche, la DSN déclare les anciennes valeurs au 1er du mois ; l'aperçu le signale.
+
 ### Import DSN
 - L'import lit le motif de recours des CDD ; une fois à jour, la fiche le porte et la DSN le déclare.
 
