@@ -5,6 +5,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+## paie-2026-11-09.8
+
 ### Lot moteur 5 (aucun montant ne change aujourd'hui)
 - Temps partiel thérapeutique : l'IJ estimée n'est plus réduite de la quotité ; elle est limitée à la perte de gain (aucun arrêt de ce type dans Martine à ce jour).
 - Reprise après un arrêt d'au moins 30 jours avec des congés restants : alerte au bulletin pour informer le salarié et rappeler le report de 15 mois.
