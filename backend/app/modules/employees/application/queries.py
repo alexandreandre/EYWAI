@@ -35,10 +35,48 @@ from app.shared.domain.prevoyance_obligatoire import (
     dernier_jour_du_mois,
     idcc_de_la_classification,
 )
+from app.core.logging import get_logger
 from app.shared.domain.temps_local import aujourd_hui_local
+
+logger = get_logger(__name__)
 
 # Repository partagé (pas d'injection pour l'instant, comportement identique)
 _employee_repository = EmployeeRepository()
+
+
+def _plafond_mensuel_de_l_annee(annee: int) -> float:
+    from app.modules.payroll.engine.legal_constants import PSS_MENSUEL_PAR_ANNEE
+
+    return float(PSS_MENSUEL_PAR_ANNEE.get(annee) or PSS_MENSUEL_PAR_ANNEE[max(PSS_MENSUEL_PAR_ANNEE)])
+
+
+def _part_patronale_sante_de_la_fiche(employee: Dict[str, Any]) -> Optional[float]:
+    """La part patronale de la mutuelle de la fiche, en euros ; None si illisible.
+
+    Sans adhésion, rien (cadre dispensé du régime : sa part ne compte pas). None
+    évite une fausse alerte : le bulletin refera le contrôle avec les vrais montants.
+    """
+    specificites = employee.get("specificites_paie") or {}
+    mutuelle = specificites.get("mutuelle") if isinstance(specificites, dict) else None
+    if not isinstance(mutuelle, dict) or not mutuelle.get("adhesion"):
+        return 0.0
+    try:
+        total = 0.0
+        ids = mutuelle.get("mutuelle_type_ids") or []
+        if ids:
+            from types import SimpleNamespace
+
+            from app.modules.payroll.engine.mutuelles import mutuelles_du_salarie
+
+            total += sum(float(m.get("montant_patronal") or 0.0) for m in mutuelles_du_salarie(SimpleNamespace(), ids))
+        lignes = mutuelle.get("lignes_specifiques") or []
+        total += sum(float(l.get("montant_patronal") or 0.0) for l in lignes if isinstance(l, dict))
+        if not ids and not lignes:
+            total += float(mutuelle.get("montant_patronal") or 0.0)
+        return round(total, 2)
+    except Exception:  # noqa: BLE001 — pas de lecture, pas d'alerte sur la fiche
+        logger.warning("Part patronale de mutuelle illisible sur la fiche", exc_info=True)
+        return None
 
 
 def _storage_signed_urls(
@@ -265,6 +303,8 @@ def get_employee_by_id(employee_id: str, company_id: str) -> Optional[Dict[str, 
         data,
         idcc=lambda: _idcc_de_la_fiche(data),
         fin_du_mois=dernier_jour_du_mois(aujourd_hui.year, aujourd_hui.month),
+        plafond_mensuel=_plafond_mensuel_de_l_annee(aujourd_hui.year),
+        sante_patronale=lambda: _part_patronale_sante_de_la_fiche(data),
     )
     return enrich_employee_profile_completeness(data)
 

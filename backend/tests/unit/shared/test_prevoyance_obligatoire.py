@@ -11,6 +11,7 @@ import pytest
 from app.shared.domain.prevoyance_obligatoire import (
     CODE_CADRE_SANS_LIGNE,
     CODE_CADRE_SANS_PREVOYANCE,
+    alerte_minimum_cadre,
     alertes_prevoyance_de_la_fiche,
     cadre_de_la_prevoyance,
     prevoyance_manquante,
@@ -96,3 +97,61 @@ def test_le_refus_nomme_la_personne_et_tient_dans_l_ecran(prevoyance):
     assert refus.startswith("Bulletin non généré : Marie-Christine est cadre")
     assert refus.endswith("puis relancez.")
     assert len(refus) <= 220
+
+
+class TestMinimumCadre:
+    """Minimum de 1,50 % de la tranche A, part de santé comprise (R-371)."""
+
+    LIGNES = [{"libelle": "Prévoyance", "patronal": 0.01155, "salarial": 0.0, "base": "brut_plafonne"}]
+
+    def test_sous_le_minimum_sans_sante(self):
+        alerte = alerte_minimum_cadre(self.LIGNES, sante_patronale=0.0, tranche_a=4005.0)
+        assert alerte["code"] == "prevoyance_cadre_sous_le_minimum"
+        assert alerte["critique"] is False and alerte["severity"] == "warning"
+        assert "60,08" in alerte["message"]
+        assert "46,26" in alerte["message"]
+
+    def test_la_part_de_sante_compte(self):
+        assert alerte_minimum_cadre(self.LIGNES, sante_patronale=20.0, tranche_a=4005.0) is None
+
+    def test_exactement_le_minimum(self):
+        lignes = [{"patronal": 0.015}]
+        assert alerte_minimum_cadre(lignes, sante_patronale=0.0, tranche_a=4005.0) is None
+
+    def test_la_tranche_b_ne_compte_pas(self):
+        lignes = [{"patronal": 0.02, "base": "tranche_2"}]
+        assert alerte_minimum_cadre(lignes, sante_patronale=0.0, tranche_a=4005.0) is not None
+
+    def test_metallurgie_non_controlee(self):
+        assert alerte_minimum_cadre(self.LIGNES, sante_patronale=0.0, tranche_a=4005.0, idcc="3248") is None
+
+    def test_sur_la_fiche_un_cadre_sous_le_minimum(self):
+        fiche = {
+            "statut": "Cadre",
+            "specificites_paie": {"prevoyance": {"adhesion": True, "lignes_specifiques": self.LIGNES}},
+        }
+        alertes = alertes_prevoyance_de_la_fiche(fiche, plafond_mensuel=4005.0, sante_patronale=lambda: 0.0)
+        assert [a["code"] for a in alertes] == ["prevoyance_cadre_sous_le_minimum"]
+
+    def test_sur_la_fiche_sante_illisible_pas_de_fausse_alerte(self):
+        fiche = {
+            "statut": "Cadre",
+            "specificites_paie": {"prevoyance": {"adhesion": True, "lignes_specifiques": self.LIGNES}},
+        }
+        assert alertes_prevoyance_de_la_fiche(fiche, plafond_mensuel=4005.0, sante_patronale=lambda: None) == []
+
+    def test_sur_la_fiche_sans_plafond_rien(self):
+        fiche = {
+            "statut": "Cadre",
+            "specificites_paie": {"prevoyance": {"adhesion": True, "lignes_specifiques": self.LIGNES}},
+        }
+        assert alertes_prevoyance_de_la_fiche(fiche) == []
+
+    def test_cadre_a_un_et_demi_rien_a_lire(self):
+        lignes = [{"patronal": 0.016}]
+        fiche = {"statut": "Cadre", "specificites_paie": {"prevoyance": {"adhesion": True, "lignes_specifiques": lignes}}}
+        lectures = []
+        alertes = alertes_prevoyance_de_la_fiche(
+            fiche, plafond_mensuel=4005.0, sante_patronale=lambda: lectures.append(1) or 0.0
+        )
+        assert alertes == [] and lectures == []

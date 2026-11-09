@@ -46,10 +46,20 @@ from app.shared.seniority_reference import resolve_date_anciennete_prime
 CODE_CADRE_SANS_PREVOYANCE = "prevoyance_cadre_absente"
 CODE_CADRE_SANS_LIGNE = "prevoyance_cadre_sans_ligne"
 CODE_PLASTURGIE_SANS_PREVOYANCE = "prevoyance_plasturgie_absente"
+CODE_CADRE_SOUS_LE_MINIMUM = "prevoyance_cadre_sous_le_minimum"
 
 IDCC_PLASTURGIE = "0292"
 #: Accord du 29/10/2014, art. 3 : « une ancienneté d'au moins trois mois ».
 MOIS_D_ANCIENNETE_PLASTURGIE = 3
+#: ANI du 17/11/2017, art. 1er : 1,50 % de la tranche A, à la charge exclusive de
+#: l'employeur, affecté par priorité au décès. La part patronale du régime frais
+#: de santé compte pour vérifier ce minimum (Cass. soc. 30/03/2022, n° 20-15.022,
+#: lu sur sources secondaires : Lefebvre Dalloz, CMS, LégiSocial ; Légifrance ne
+#: répond pas), sauf cadre dispensé de ce régime (sa part de santé est nulle ici).
+TAUX_MINIMUM_CADRES = 0.015
+#: L'article 1er n'est pas opposable dans la métallurgie (voir plus haut) : le
+#: minimum en pourcentage ne s'y contrôle pas.
+IDCC_METALLURGIE = "3248"
 
 
 @dataclass(frozen=True)
@@ -204,6 +214,54 @@ def prevoyance_manquante(
     return None
 
 
+def _taux_patronal_tranche_a(lignes: Any) -> float:
+    """Taux patronal des lignes assises sur la tranche A ; le salaire total la contient."""
+    taux = 0.0
+    for ligne in lignes if isinstance(lignes, list) else []:
+        if not isinstance(ligne, dict) or ligne.get("base") == "tranche_2":
+            continue
+        try:
+            taux += float(ligne.get("patronal") or 0.0)
+        except (TypeError, ValueError):
+            continue
+    return taux
+
+
+def _pourcent(taux: float) -> str:
+    return f"{taux * 100:.3f}".rstrip("0").rstrip(".").replace(".", ",")
+
+
+def _euros(montant: float) -> str:
+    return f"{montant:.2f}".replace(".", ",")
+
+
+def alerte_minimum_cadre(
+    lignes: Any, *, sante_patronale: float, tranche_a: float, idcc: Any = None
+) -> Optional[Dict[str, Any]]:
+    """Avertissement si la part patronale (santé comprise) est sous 1,50 % de la
+    tranche A. N'arrête jamais le bulletin : le contrat peut être à corriger, pas
+    le calcul. Métallurgie exclue (voir `IDCC_METALLURGIE`)."""
+    if tranche_a <= 0 or _idcc(idcc() if callable(idcc) else idcc) == IDCC_METALLURGIE:
+        return None
+    taux = _taux_patronal_tranche_a(lignes)
+    # + 1e-9 : un demi-centime tombé juste sous sa vraie valeur en binaire.
+    verse = round(tranche_a * taux + float(sante_patronale or 0.0) + 1e-9, 2)
+    minimum = round(tranche_a * TAUX_MINIMUM_CADRES + 1e-9, 2)
+    if verse + 0.01 >= minimum:
+        return None
+    return {
+        "code": CODE_CADRE_SOUS_LE_MINIMUM,
+        "severity": "warning",
+        "critique": False,
+        "message": (
+            f"Prévoyance cadre sous le minimum : part patronale de {_euros(verse)} € "
+            f"(taux de {_pourcent(taux)} % sur la tranche A, part santé comprise), pour un "
+            f"minimum de {_euros(minimum)} € soit 1,50 % de la tranche A (ANI du "
+            "17/11/2017). Vérifiez le contrat de prévoyance et les lignes de la fiche."
+        ),
+    }
+
+
 def idcc_de_la_classification(employee: Dict[str, Any]) -> str:
     """L'IDCC que la classification de la fiche porte (reprise de la DSN), ou « »."""
     return _idcc(_dict(employee.get("classification_conventionnelle")).get("idcc"))
@@ -214,10 +272,42 @@ def alertes_prevoyance_de_la_fiche(
     *,
     idcc: Any = None,
     fin_du_mois: Optional[date] = None,
+    plafond_mensuel: Optional[float] = None,
+    sante_patronale: Any = None,
 ) -> list[Dict[str, str]]:
-    """Les alertes à montrer sur la fiche : `[{code, message}]`, vide si rien ne manque."""
+    """Les alertes à montrer sur la fiche : `[{code, message}]`, vide si rien ne manque.
+
+    `plafond_mensuel` et `sante_patronale` (montant, ou fonction qui le lit, None si
+    illisible) servent au contrôle du minimum des cadres ; sans eux il ne se fait pas.
+    """
     manque = prevoyance_manquante(employee, idcc=idcc, fin_du_mois=fin_du_mois)
-    return [{"code": manque.code, "message": manque.fiche}] if manque else []
+    if manque:
+        return [{"code": manque.code, "message": manque.fiche}]
+    if not plafond_mensuel or not cadre_de_la_prevoyance(employee):
+        return []
+    lignes = _prevoyance(employee).get("lignes_specifiques")
+    if _taux_patronal_tranche_a(lignes) >= TAUX_MINIMUM_CADRES:
+        return []
+    sante = sante_patronale() if callable(sante_patronale) else sante_patronale
+    if sante is None:
+        return []
+    alerte = alerte_minimum_cadre(
+        lignes,
+        sante_patronale=float(sante),
+        tranche_a=_tranche_a_de_la_fiche(employee, float(plafond_mensuel)),
+        idcc=idcc,
+    )
+    return [{"code": alerte["code"], "message": alerte["message"]}] if alerte else []
+
+
+def _tranche_a_de_la_fiche(employee: Dict[str, Any], plafond_mensuel: float) -> float:
+    """Le salaire de base de la fiche, plafonné ; à défaut le plafond entier."""
+    salaire = _dict(employee.get("salaire_de_base")).get("valeur")
+    try:
+        montant = float(salaire)
+    except (TypeError, ValueError):
+        return plafond_mensuel
+    return min(montant, plafond_mensuel) if montant > 0 else plafond_mensuel
 
 
 def dernier_jour_du_mois(annee: int, mois: int) -> date:
