@@ -115,6 +115,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - La DSN n'envoie plus de numéro de compte à la place de l'identifiant de l'Urssaf ; si l'identifiant manque, l'aperçu le dit et bloque.
 - Le versement mobilité part au bordereau Urssaf, avec son taux et sa commune.
 - Un taux d'impôt saisi à la main se déclare au barème jusqu'au prochain taux reçu ; l'aperçu le signale.
+### Absences
+- Congé supplémentaire de naissance : il se saisit sous un congé maternité ou paternité. Le salaire est retenu sans maintien, la DSN le déclare au bon motif et le signalement rappelle le formulaire à déposer.
 
 ## paie-2026-11-09.2
 

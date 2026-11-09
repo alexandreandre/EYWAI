@@ -9,6 +9,7 @@ const MOTIFS: Record<string, string> = {
   '05': 'maladie professionnelle',
   '06': 'accident du travail',
   '09': 'adoption',
+  '20': 'congé supplémentaire de naissance',
 };
 
 const jour = (iso: string) => iso.split('-').reverse().join('/');

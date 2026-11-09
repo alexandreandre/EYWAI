@@ -56,6 +56,7 @@ def part_reconstituee(libelle: Any) -> float:
     if any(mot in texte for mot in (
         "accident travail", "accident du travail", "accident trajet", "accident de trajet",
         "rechute at", "maladie professionnelle", "maternite", "paternite", "adoption",
+        "conge supplementaire naissance", "conge supplementaire de naissance",
         "activite partielle", "chomage partiel",
     )):
         return 1.0

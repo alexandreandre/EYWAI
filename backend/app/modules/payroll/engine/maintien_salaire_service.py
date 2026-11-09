@@ -46,6 +46,9 @@ logger = logging.getLogger(__name__)
 #: `get_maintenance_settings` pose toujours la clé.
 CLE_DEDUIRE_IJSS = "deduire_ijss_sans_subrogation"
 
+#: Type d'arrêt du congé supplémentaire de naissance (L1225-46-2).
+CONGE_SUPPLEMENTAIRE_NAISSANCE = "conge_supplementaire_naissance"
+
 #: Relevé du mois pour plusieurs arrêts : (montant validé, IJSS estimées, jours indemnisés).
 ReleveIjss = Tuple[float, float, int]
 
@@ -248,7 +251,7 @@ def _qualifier_arret(arret_type: str) -> Dict[str, Any]:
             "adoption",
             "maternite_paternite",
             "paternite_accueil_enfant",
-            "conge_naissance_supplementaire",
+            CONGE_SUPPLEMENTAIRE_NAISSANCE,
         }
     )
 
@@ -275,6 +278,7 @@ def _qualifier_arret(arret_type: str) -> Dict[str, Any]:
         "est_at_mp": t in types_at_mp,
         "est_ald": est_ald,
         "est_maternite": est_maternite,
+        "est_conge_naissance": t == CONGE_SUPPLEMENTAIRE_NAISSANCE,
     }
 
 
@@ -605,7 +609,14 @@ def _calculer_ijss(
 
     date_debut_arret = _parse_date(arret.get("date_debut"))
     date_fin_arret = _parse_date(arret.get("date_fin"))
-    if not date_debut_arret or not date_fin_arret:
+    # Congé supplémentaire de naissance : l'indemnité de la CPAM se calcule sur le
+    # salaire net (70 % puis 60 %, F39685), ni comme une IJ de maternité ni comme
+    # une IJ de maladie : Martine ne l'estime pas.
+    if (
+        arret_type == CONGE_SUPPLEMENTAIRE_NAISSANCE
+        or not date_debut_arret
+        or not date_fin_arret
+    ):
         out = {
             "ijss_theorique": 0.0,
             "ijss_journaliere": 0.0,
@@ -784,6 +795,51 @@ MOTIF_PARENTALITE_SANS_MAINTIEN = (
     "Pas de maintien de salaire pendant les congés de maternité, de paternité "
     "et d'adoption : réglage de la société."
 )
+MOTIF_CONGE_NAISSANCE_SANS_MAINTIEN = (
+    "Pas de maintien de salaire pendant le congé supplémentaire de naissance : le "
+    "contrat est suspendu et le salarié ne perçoit pas de salaire. Si un accord "
+    "prévoit un complément, ajoutez-le à la main sur le bulletin."
+)
+ALERTE_CONGE_NAISSANCE_INDEMNITE = (
+    "Indemnité du congé supplémentaire de naissance : versée par la CPAM au salarié "
+    "(70 % du salaire net le premier mois, 60 % le second). Martine ne l'estime pas "
+    "et ne la porte pas au bulletin."
+)
+ALERTE_CONGE_NAISSANCE_CONGES_PAYES = (
+    "Congés payés pendant le congé supplémentaire de naissance : Martine les acquiert "
+    "comme pendant un congé paternité, mais la version de l'article L3141-5 qu'elle a "
+    "pu lire (24/12/2025) ne cite pas ce congé. À vérifier."
+)
+
+
+def _parentalite_sans_maintien(
+    qualification: Dict[str, Any], settings: Dict[str, Any]
+) -> bool:
+    """Le réglage de la société vise la maternité, la paternité et l'adoption ;
+    le congé supplémentaire de naissance n'ouvre aucun maintien."""
+    if qualification.get("est_conge_naissance"):
+        return True
+    return bool(qualification.get("est_maternite")) and not settings.get(
+        "maintain_parental_leave"
+    )
+
+
+def _resultat_parentalite_sans_maintien(motif: str) -> Dict[str, Any]:
+    return {
+        "maintien_applicable": False,
+        "taux_maintien": 0.0,
+        "maintien_cible": 0.0,
+        "maintien_verse": 0.0,
+        "nb_jours_maintien": 0,
+        "complement_employeur": 0.0,
+        "conflit_convention": False,
+        "motif_non_maintien": motif,
+        "proratisation_temps_partiel": False,
+        "carence_employeur_jours": 0,
+        "duree_par_taux_jours": 0,
+        "duree_maintien_legale_jours": 0,
+        "est_maternite": True,
+    }
 
 
 def duree_maintien_par_taux(anciennete_mois: int) -> int:
@@ -1011,6 +1067,9 @@ def _calculer_maintien_employeur(
     motif_non_maintien: Optional[str] = None
     conflit_convention = False
 
+    if qualification.get("est_conge_naissance"):
+        return _resultat_parentalite_sans_maintien(MOTIF_CONGE_NAISSANCE_SANS_MAINTIEN)
+
     est_at_mp = bool(qualification.get("est_at_mp"))
     min_senior = _min_seniority_months_for_arret(settings, est_at_mp)
     no_seniority = bool(settings.get("no_seniority_condition"))
@@ -1129,24 +1188,8 @@ def _calculer_maintien_employeur(
     # conventionnelle (métallurgie : ≥ 1 an) est déjà appliquée en amont via le
     # seuil `min_seniority_months` (return anticipé si non éligible).
     # Réf. : Code du travail L1225-17 et s. ; CCN métallurgie IDCC 3248 art. 92.
-    if bool(qualification.get("est_maternite")) and not settings.get(
-        "maintain_parental_leave"
-    ):
-        return {
-            "maintien_applicable": False,
-            "taux_maintien": 0.0,
-            "maintien_cible": 0.0,
-            "maintien_verse": 0.0,
-            "nb_jours_maintien": 0,
-            "complement_employeur": 0.0,
-            "conflit_convention": False,
-            "motif_non_maintien": MOTIF_PARENTALITE_SANS_MAINTIEN,
-            "proratisation_temps_partiel": False,
-            "carence_employeur_jours": 0,
-            "duree_par_taux_jours": 0,
-            "duree_maintien_legale_jours": 0,
-            "est_maternite": True,
-        }
+    if _parentalite_sans_maintien(qualification, settings):
+        return _resultat_parentalite_sans_maintien(MOTIF_PARENTALITE_SANS_MAINTIEN)
     if bool(qualification.get("est_maternite")):
         jours_maintien_mat = 0
         for k in range(jours_intersection):
@@ -1398,6 +1441,10 @@ def _calculer_prevoyance_complement(
         "motif": None,
     }
 
+    if qualification.get("est_conge_naissance"):
+        base["motif"] = "Congé supplémentaire de naissance : pas de relais de prévoyance calculé."
+        return base
+
     relais_flag = _verifier_prevoyance_relais(nb_jours_arret_total, settings)
     base["prevoyance_declenchee"] = relais_flag["prevoyance_declenchee"]
     base["seuil_jours"] = relais_flag["seuil_jours"]
@@ -1567,6 +1614,9 @@ def resolve_subrogation_active(
 
     :param maintien_eligible: True si l'ancienneté permet le maintien employeur.
     """
+    # Aucun salaire n'est avancé : la CPAM indemnise directement le salarié.
+    if (arret_type or "").strip() == CONGE_SUPPLEMENTAIRE_NAISSANCE:
+        return False
     if override is not None:
         return bool(override)
     mode = settings.get("subrogation_mode") or "when_maintien"
@@ -2496,7 +2546,7 @@ def compute_jours_avec_maintien_mois(
     no_seniority = bool(settings.get("no_seniority_condition"))
     if not no_seniority and anciennete_mois < min_senior:
         return set()
-    if qualification.get("est_maternite") and not settings.get("maintain_parental_leave"):
+    if _parentalite_sans_maintien(qualification, settings):
         return set()
 
     inter_d, inter_f = _intersection_dates(
@@ -2724,9 +2774,9 @@ def calculer_maintien(
     # d'IJSS au net et un complément employeur négatif. La maternité garde son
     # régime (maintien à 100 %, calculé à part).
     subrogation_demandee = bool(arret.get("subrogation_active"))
-    parentalite_maintenue = bool(qualification.get("est_maternite")) and bool(
-        settings.get("maintain_parental_leave")
-    )
+    parentalite_maintenue = bool(
+        qualification.get("est_maternite")
+    ) and not _parentalite_sans_maintien(qualification, settings)
     if (
         subrogation_demandee
         and not parentalite_maintenue
@@ -2801,7 +2851,7 @@ def calculer_maintien(
     else:
         if not maintien.get("maintien_applicable", True):
             alertes.append(
-                MOTIF_PARENTALITE_SANS_MAINTIEN
+                maintien.get("motif_non_maintien")
                 if maintien.get("est_maternite")
                 else "Ancienneté insuffisante pour le maintien légal"
             )
@@ -2811,6 +2861,9 @@ def calculer_maintien(
                 f"Durée maximale du maintien employeur atteinte ({duree_legale} jours "
                 f"selon l'ancienneté). Vérifier l'activation de la prévoyance relais."
             )
+    if qualification.get("est_conge_naissance"):
+        alertes.append(ALERTE_CONGE_NAISSANCE_INDEMNITE)
+        alertes.append(ALERTE_CONGE_NAISSANCE_CONGES_PAYES)
     jours_12_mois = int(maintien.get("jours_legaux_des_12_mois") or 0)
     if jours_12_mois and plan_conv is None:
         alertes.append(

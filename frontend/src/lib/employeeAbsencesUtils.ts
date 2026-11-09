@@ -331,10 +331,17 @@ const LIBELLES_TYPE_ARRET: Record<string, string> = {
   maternite: 'Maternité',
   paternite: "Paternité et accueil de l'enfant",
   adoption: 'Adoption',
+  conge_supplementaire_naissance: 'Congé supplémentaire de naissance',
 };
 
 export function libelleTypeArret(code: string): string {
   return LIBELLES_TYPE_ARRET[code] ?? code;
+}
+
+/** Le libellé d'une demande : ce congé se saisit sous la nature maternité ou
+ * paternité, mais la liste doit dire ce qu'il est. */
+export function libelleDeLaDemande(libelleNature: string, arretType?: string | null): string {
+  return arretType === 'conge_supplementaire_naissance' ? libelleTypeArret(arretType) : libelleNature;
 }
 
 const TYPES_ARRET_MALADIE = [
@@ -356,9 +363,9 @@ export function typesArretProposes(
 ): { value: string; label: string }[] {
   const codes: readonly string[] =
     absenceType === 'arret_maternite'
-      ? ['maternite', 'adoption']
+      ? ['maternite', 'adoption', 'conge_supplementaire_naissance']
       : absenceType === 'arret_paternite'
-        ? ['paternite', 'adoption']
+        ? ['paternite', 'adoption', 'conge_supplementaire_naissance']
         : TYPES_ARRET_MALADIE;
   return codes.map((value) => ({ value, label: libelleTypeArret(value) }));
 }
