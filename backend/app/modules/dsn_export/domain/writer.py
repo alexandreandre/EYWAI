@@ -583,6 +583,11 @@ def write_versement(ver: VersementBlock, out: List[str]) -> None:
         _emit("S21.G00.54.004", str(bloc.get("fin") or ""), out)
         _emit("S21.G00.54.005", str(bloc.get("contrat") or ""), out)
 
+    # Régularisations de prélèvement à la source (S21.G00.56) : un bloc par mois
+    # d'erreur, entre le 54 et le 58 (CT 2026.1, arborescence).
+    for bloc in (ver.rubriques.get("_blocs_56") if ver.rubriques else None) or []:
+        _emit_rubriques_dict(bloc, out)
+
     # Éléments de revenu calculés en net (S21.G00.58) — le type 03, montant net
     # social, est obligatoire sur tout versement du mois principal (CCH-14).
     for bloc in (ver.rubriques.get("_blocs_58") if ver.rubriques else None) or []:

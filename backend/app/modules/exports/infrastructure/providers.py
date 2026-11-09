@@ -2,6 +2,8 @@
 # Plus aucune dépendance vers services/exports/*.
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.modules.dsn_export.domain.rectification import DeclarationRemplacee
+
 from .export_dsn import (
     generate_dsn_file as _generate_dsn_file,
     generate_dsn_xml as _generate_dsn_xml,
@@ -443,9 +445,10 @@ def generate_dsn_xml(
     establishment_id: Optional[str],
     *,
     essai: bool = False,
+    remplace: Optional[DeclarationRemplacee] = None,
 ) -> bytes:
     return _generate_dsn_xml(
-        company_id, period, dsn_type, employee_ids, establishment_id, essai=essai
+        company_id, period, dsn_type, employee_ids, establishment_id, essai=essai, remplace=remplace
     )
 
 

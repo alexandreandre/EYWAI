@@ -38,6 +38,11 @@ from app.modules.dsn_export.domain.cotisation_mapping import (
     build_bases_and_cotisations,
 )
 from app.modules.dsn_export.domain.deux_contrats import fusionner
+from app.modules.dsn_export.domain.rectification import DeclarationRemplacee
+from app.modules.dsn_export.domain.regularisation_pas import (
+    avis_versement_dgfip,
+    blocs_regularisation_pas,
+)
 from app.modules.dsn_export.domain.norme import (
     NORME_P26,
     norme_de_la_periode,
@@ -760,14 +765,17 @@ def build_declaration(
     *,
     settings: Optional[DsnSettings] = None,
     date_constitution: Optional[str] = None,
+    remplace: Optional[DeclarationRemplacee] = None,
 ) -> DeclarationBlock:
+    """``remplace`` : la déclaration qu'un annule et remplace intégral écrase (R-174)."""
     mois = period_to_mois_principal(period)
     parametres = settings or DsnSettings()
+    type_declaration = "03" if remplace else "01"
     rubriques = {
         "S20.G00.05.001": "01",
-        "S20.G00.05.002": "01",
+        "S20.G00.05.002": type_declaration,
         "S20.G00.05.003": "11",
-        "S20.G00.05.004": "1",
+        "S20.G00.05.004": str(remplace.ordre_suivant) if remplace else "1",
         "S20.G00.05.005": mois,
         "S20.G00.05.007": date_constitution or date.today().strftime("%d%m%Y"),
         "S20.G00.05.008": "01",
@@ -787,7 +795,7 @@ def build_declaration(
         )
     return DeclarationBlock(
         nature="01",
-        type_declaration="01",
+        type_declaration=type_declaration,
         mois_principal=mois,
         rubriques=rubriques,
         contacts=contacts,
@@ -1296,6 +1304,13 @@ def build_individu_from_payroll(
     if blocs_54:
         rubriques_versement["_blocs_54"] = blocs_54
 
+    # Régularisation de PAS d'un mois passé (bloc 56), sans toucher au mois courant.
+    blocs_56, refus_56 = blocs_regularisation_pas(payslip_data.get("regularisations_pas"), period)
+    warnings.extend(refus_56)
+    if blocs_56:
+        rubriques_versement["_blocs_56"] = blocs_56
+        warnings.append(avis_versement_dgfip(blocs_56))
+
     # Indemnités de rupture (bloc 52, codes 001 à 025), rattachées au contrat.
     primes = [
         PrimeBlock(
@@ -1782,6 +1797,7 @@ def build_parsed_dsn_from_payroll(
     settings: Optional[DsnSettings] = None,
     cotisations_complementaires_avant: Optional[Dict[str, Decimal]] = None,
     periodes_declarees: AbstractSet[str] = frozenset(),
+    remplace: Optional[DeclarationRemplacee] = None,
 ) -> Tuple[DsnFile, List[str]]:
     """Construit un DsnFile P26 à partir de données déjà chargées (sans DB).
 
@@ -1789,12 +1805,14 @@ def build_parsed_dsn_from_payroll(
     ``{employee: {...}, payslip_data: {...}}`` ou format ``get_dsn_employees_data``.
     ``periodes_declarees`` : mois (« AAAA-MM ») dont une DSN mensuelle est partie ; un
     changement de code PCS-ESE déjà déclaré un mois précédent n'est pas redéclaré.
+    ``remplace`` : seulement sur demande explicite, fait de ce fichier un annule et
+    remplace intégral de la déclaration désignée (R-174).
     """
     warnings: List[str] = []
     parametres = settings or DsnSettings()
     norme = norme_de_la_periode(period)
     envoi = build_envoi(dsn_type=dsn_type, essai=essai, settings=parametres, norme=norme)
-    declaration = build_declaration(period, settings=parametres)
+    declaration = build_declaration(period, settings=parametres, remplace=remplace)
     entreprise = build_entreprise(company, settings=parametres, norme=norme)
     etab = build_etablissement(company, entreprise, settings=parametres, norme=norme)
     warnings.extend(

@@ -87,3 +87,21 @@ def test_l_apercu_d_un_essai_lit_le_drapeau():
     with patch.object(queries.providers, "preview_dsn", return_value=APERCU) as apercu:
         queries.preview_export("co-1", requete)
     assert apercu.call_args.kwargs.get("essai") is True
+
+
+def test_sans_demande_la_generation_n_annule_et_ne_remplace_rien():
+    reponse, _, fichier, _, _ = _generer({"essai": True})
+    assert fichier.call_args.kwargs.get("remplace") is None
+    assert "annule_remplace" not in reponse.files[0].filename
+
+
+def test_annule_et_remplace_seulement_sur_demande_explicite():
+    reponse, _, fichier, _, _ = _generer({"essai": True, "annule_remplace": "1"})
+    remplace = fichier.call_args.kwargs.get("remplace")
+    assert remplace.ordre_suivant == 2
+    assert reponse.files[0].filename.startswith("dsn_essai_annule_remplace_2026_10")
+
+
+def test_numero_d_ordre_illisible_arrete_la_generation():
+    with pytest.raises(ValueError, match="numéro d'ordre"):
+        _generer({"essai": True, "annule_remplace": "pas-un-numero"})

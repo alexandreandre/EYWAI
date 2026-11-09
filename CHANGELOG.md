@@ -5,6 +5,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### DSN déjà déposée et bulletin changé
+- Quand une DSN du mois existe déjà, l'aperçu dit jusqu'à quelle date un « annule et remplace » est possible, et ce qu'il reste à faire après cette date.
+- Martine sait produire une DSN « annule et remplace » de tout le mois, seulement sur demande du support et jamais passé la date limite ; le bouton à l'écran reste à faire et aucun fichier ne part seul.
+- L'aperçu prévient qu'une régularisation de cotisation part avec les dates du mois en cours, sans son mois d'origine.
+
 ## paie-2026-11-09.1
 
 ### Sorties et verrou

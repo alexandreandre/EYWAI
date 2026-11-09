@@ -3,6 +3,7 @@ from app.modules.dsn_export.domain.fiche_a_completer import fiche_a_completer
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 from app.core.database import supabase
 from app.modules.dsn_export.application.builder import (
@@ -22,6 +23,12 @@ from app.modules.dsn_export.domain.etat_conformite import (
     DEPOSABLE,
     SUFFIXE_NON_DEPOSABLE,
     anomalie_non_deposable,
+)
+from app.modules.dsn_export.domain.rectification import (
+    DeclarationRemplacee,
+    avis_mois_deja_declare,
+    avis_regularisation_sans_mois_origine,
+    refus_annule_remplace,
 )
 from app.modules.dsn_export.domain.settings import DsnSettings
 from app.modules.dsn_export.domain.versements_complementaires import (
@@ -47,10 +54,20 @@ from app.modules.oeth_settings.application import queries as oeth_queries
 from app.modules.payroll.application.monthly_specificites import (
     resolve_monthly_specificites,
 )
+from app.modules.payroll.engine.corrections_manuelles import regularisations_du_bulletin
+from app.shared.domain.effectif_seuils import effectif_retenu
 from app.shared.domain.dispense_mutuelle import alerte_mutuelle
 from app.shared.domain.employment_rules import is_cadre
 from app.shared.reprise_paie import lire_bascule, raison_de_refus_dsn_mois_repris
 from app.shared.dsn_validation import validate_nir, validate_nir_dsn, validate_siret
+
+
+def _aujourd_hui_a_paris() -> date:
+    return datetime.now(ZoneInfo("Europe/Paris")).date()
+
+
+def _effectif_du_mois(company_data: Dict[str, Any], period: str) -> int:
+    return effectif_retenu(company_data, int(period[:4])).valeur or 0
 
 
 def get_company_data(company_id: str) -> Dict[str, Any]:
@@ -726,9 +743,17 @@ def preview_dsn(
                 "employee_name": None,
             },
         )
-    avis_pcs = avis_changements_pcs(employees_data, period, periodes_deposees(company_id))
+    deposees = periodes_deposees(company_id)
+    avis_pcs = avis_changements_pcs(employees_data, period, deposees)
     if avis_pcs:
         warnings = [*warnings, avis_pcs]
+    if period in deposees:
+        warnings = [
+            *warnings,
+            avis_mois_deja_declare(
+                period, _effectif_du_mois(company_data, period), _aujourd_hui_a_paris()
+            ),
+        ]
 
     employees_preview = []
     # Une ligne par bulletin : un mois à deux contrats en a deux (D3.2).
@@ -738,6 +763,14 @@ def preview_dsn(
         for declare in (emp_data.get("contrat_precedent"), emp_data)
         if declare
     ]
+    for emp_data in bulletins_declares:
+        salarie = emp_data["employee"]
+        nom_salarie = f"{salarie.get('first_name', '')} {salarie.get('last_name', '')}".strip()
+        for regularisation in regularisations_du_bulletin(emp_data.get("payslip_data")).values():
+            warnings = [
+                *warnings,
+                avis_regularisation_sans_mois_origine(nom_salarie, regularisation.libelle, period),
+            ]
     for emp_data in bulletins_declares:
         employee = emp_data["employee"]
         cotisations_detail = emp_data.get("cotisations_detail", [])
@@ -884,12 +917,16 @@ def generate_dsn_file(
     *,
     essai: bool = False,
     pour_signalement: bool = False,
+    remplace: Optional[DeclarationRemplacee] = None,
 ) -> bytes:
     """Génère un fichier DSN plat P26V01, relu et validé avant retour.
 
     ``pour_signalement`` : le fichier sert de matière à un signalement de fin de
     contrat, qui n'est pas la DSN mensuelle. Les deux gardes de la mensuelle (mois
     repris, cotisation sans code) ne s'y appliquent pas.
+    ``remplace`` : annule et remplace intégral de cette déclaration, seulement sur
+    demande explicite ; refusé passé la date limite du mois. Rien n'est jamais déposé
+    d'ici.
     """
     if not pour_signalement:
         annee_dsn, mois_dsn = map(int, period.split("-"))
@@ -897,6 +934,12 @@ def generate_dsn_file(
         if refus_mois_repris:
             raise ValueError(refus_mois_repris)
     company_data = get_company_data(company_id)
+    if remplace is not None:
+        refus = refus_annule_remplace(
+            period, _effectif_du_mois(company_data, period), _aujourd_hui_a_paris()
+        )
+        if refus:
+            raise ValueError(refus)
     if establishment_id:
         # Filtre multi-établissement : si la fiche société expose des établissements
         establishments = company_data.get("establishments") or []
@@ -914,11 +957,12 @@ def generate_dsn_file(
 
     employees_data, _totals = get_dsn_employees_data(company_id, period, employee_ids)
     period_formatted = period.replace("-", "_")
+    genre = "annule_remplace" if remplace is not None else "mensuelle"
     if essai:
-        file_name = f"dsn_essai_mensuelle_{period_formatted}.dsn"
+        file_name = f"dsn_essai_{genre}_{period_formatted}.dsn"
     else:
         suffixe = "" if DEPOSABLE else SUFFIXE_NON_DEPOSABLE
-        file_name = f"dsn_mensuelle_{period_formatted}{suffixe}.dsn"
+        file_name = f"dsn_{genre}_{period_formatted}{suffixe}.dsn"
     parametres = settings_repository.charger(company_id)
     try:
         dsn_file, build_warnings = build_parsed_dsn_from_payroll(
@@ -934,6 +978,7 @@ def generate_dsn_file(
                 company_id, company_data, period, parametres
             ),
             periodes_declarees=periodes_deposees(company_id),
+            remplace=remplace,
         )
     except DsnBuildError as exc:
         raise ValueError(str(exc)) from exc
@@ -974,8 +1019,9 @@ def generate_dsn_xml(
     establishment_id: Optional[str] = None,
     *,
     essai: bool = False,
+    remplace: Optional[DeclarationRemplacee] = None,
 ) -> bytes:
     """Alias historique : produit désormais un fichier plat P26V01 (.dsn)."""
     return generate_dsn_file(
-        company_id, period, dsn_type, employee_ids, establishment_id, essai=essai
+        company_id, period, dsn_type, employee_ids, establishment_id, essai=essai, remplace=remplace
     )
