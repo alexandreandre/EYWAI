@@ -382,7 +382,10 @@ def import_badgeuse_actual_hours_bulk(
     current_user: User = Depends(get_current_user),
 ):
     """Importe les heures badgeuse vers le calendrier réel pour plusieurs employés."""
-    _ = current_user
+    # La société vient du corps de la requête : la garde du routeur ne porte
+    # que sur la société active (R-620, 09/11/2026).
+    if not current_user.has_rh_access_in_company(str(request.company_id)):
+        raise HTTPException(status_code=403, detail="Accès réservé aux RH de la société.")
     try:
         return import_actual_hours_from_badgeuse_bulk(
             company_id=request.company_id,

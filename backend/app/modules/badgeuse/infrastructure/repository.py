@@ -98,6 +98,7 @@ class TimeEntryRepository:
         timestamp: Optional[datetime] = None,
         event_type: Optional[TimeEntryType] = None,
         updated_by: Optional[str] = None,
+        company_id: Optional[str] = None,
     ) -> TimeEntry:
         payload: Dict[str, Any] = {}
         if timestamp is not None:
@@ -106,21 +107,28 @@ class TimeEntryRepository:
             payload["event_type"] = event_type.value
         if updated_by is not None:
             payload["updated_by"] = updated_by
-        result = execute_supabase(
-            lambda: supabase.table(self.table_name)
-            .update(payload)
-            .eq("id", entry_id)
-            .execute()
-        )
+        def _requete():
+            requete = supabase.table(self.table_name).update(payload).eq("id", entry_id)
+            if company_id is not None:
+                requete = requete.eq("company_id", company_id)
+            return requete.execute()
+
+        result = execute_supabase(_requete)
         row = (result.data or [None])[0]
         if not row:
             raise RuntimeError("Pointage non trouvé pour mise à jour")
         return self._row_to_entry(row)
 
-    def delete_entry(self, entry_id: str) -> None:
-        execute_supabase(
-            lambda: supabase.table(self.table_name).delete().eq("id", entry_id).execute()
-        )
+    def delete_entry(self, entry_id: str, company_id: Optional[str] = None) -> None:
+        def _requete():
+            requete = supabase.table(self.table_name).delete().eq("id", entry_id)
+            if company_id is not None:
+                requete = requete.eq("company_id", company_id)
+            return requete.execute()
+
+        result = execute_supabase(_requete)
+        if company_id is not None and not (result.data or []):
+            raise LookupError("Pointage non trouvé dans cette société.")
 
     def get_anomalies_over_period(
         self,

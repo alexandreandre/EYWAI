@@ -592,6 +592,16 @@ def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
             )
         )
 
+    titres_restaurant = float(synthese.get("titres_restaurant") or 0.0)
+    if titres_restaurant > 0:
+        lignes.append(
+            _ligne(
+                "hors_brut",
+                "Titres-restaurant (part salariale)",
+                montant_salarial=-titres_restaurant,
+            )
+        )
+
     # Le report d'un net négatif est compté dans `acompte_verse` : il sort sous
     # son propre libellé, et seul le reste garde « Acomptes et avances ».
     reports = [

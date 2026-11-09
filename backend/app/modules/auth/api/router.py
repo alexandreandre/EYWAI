@@ -23,18 +23,27 @@ from app.modules.auth.schemas import (
     RefreshTokenResponse,
     TokenWithUser,
 )
+from app.core.limite_debit import limite_de_debit
 from app.modules.users.schemas import User
 
 router = APIRouter()
 
 
-@router.post("/login", response_model=TokenWithUser)
+@router.post(
+    "/login",
+    response_model=TokenWithUser,
+    dependencies=[Depends(limite_de_debit("login", 60))],
+)
 def login_route(form_data: OAuth2PasswordRequestForm = Depends()):
     """Connexion : email ou username + mot de passe. Retourne token + user."""
     return login(form_data.username, form_data.password)
 
 
-@router.post("/refresh", response_model=RefreshTokenResponse)
+@router.post(
+    "/refresh",
+    response_model=RefreshTokenResponse,
+    dependencies=[Depends(limite_de_debit("refresh", 120))],
+)
 def refresh_route(request: RefreshTokenRequest):
     """Renouvelle le JWT d'accès à partir du refresh token (sans ressaisir le mot de passe)."""
     return refresh_tokens(request.refresh_token)
@@ -52,19 +61,28 @@ def logout_route(current_user: User = Depends(get_current_user)):
     return logout()
 
 
-@router.post("/request-password-reset")
+@router.post(
+    "/request-password-reset",
+    dependencies=[Depends(limite_de_debit("demande-reinitialisation", 10))],
+)
 def request_password_reset_route(request: PasswordResetRequest):
     """Demande de réinitialisation : envoie un email avec lien de reset."""
     return request_password_reset(request.email)
 
 
-@router.post("/reset-password")
+@router.post(
+    "/reset-password",
+    dependencies=[Depends(limite_de_debit("reinitialisation", 20))],
+)
 def reset_password_route(request: PasswordResetConfirm):
     """Réinitialise le mot de passe avec le token reçu par email."""
     return reset_password(request.token, request.new_password)
 
 
-@router.post("/verify-reset-token")
+@router.post(
+    "/verify-reset-token",
+    dependencies=[Depends(limite_de_debit("verification-jeton", 30))],
+)
 def verify_reset_token_route(token: str = Query(...)):
     """Vérifie si un token de réinitialisation est valide."""
     return verify_reset_token(token)

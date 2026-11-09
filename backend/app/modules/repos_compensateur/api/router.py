@@ -50,10 +50,17 @@ router = APIRouter(
 def _resolve_company_id(
     company_id: str | None, current_user: ReposCompensateurUserContext
 ) -> str:
+    """Société visée, refusée si l'appelant n'y a pas d'accès RH.
+
+    Le company_id vient du client : sans ce contrôle, n'importe quel salarié
+    connecté lisait et réglait le contingent d'une autre société (R-620).
+    """
     target = company_id or current_user.active_company_id
     if not target:
         raise HTTPException(status_code=400, detail="company_id requis.")
-    return target
+    if not current_user.has_rh_access_in_company(str(target)):
+        raise HTTPException(status_code=403, detail="Accès réservé aux RH de la société.")
+    return str(target)
 
 
 def _parse_reference_date(value: str | None, year: int) -> date:

@@ -800,6 +800,17 @@ def taux_pas_neutre(
     return 0.0
 
 
+def deduction_titres_restaurant(contexte: ContextePaie) -> float:
+    """La part salariale des titres-restaurant du mois, retirée du net à payer."""
+    tr_spec = contexte.contrat.get("specificites_paie", {}).get("titres_restaurant", {})
+    if not tr_spec.get("beneficie"):
+        return 0.0
+    part_salariale = _get_safe_float(tr_spec.get("valeur_faciale")) - _get_safe_float(
+        tr_spec.get("part_patronale")
+    )
+    return part_salariale * _get_safe_float(tr_spec.get("nombre_par_mois"))
+
+
 def _calculer_net_a_payer(
     net_social: float,
     montant_pas: float,
@@ -825,14 +836,8 @@ def _calculer_net_a_payer(
     net_a_payer = net_apres_impot
 
     # Déduction des titres-restaurant
-    tr_spec = contexte.contrat.get("specificites_paie", {}).get("titres_restaurant", {})
-    if tr_spec.get("beneficie"):
-        valeur_faciale = _get_safe_float(tr_spec.get("valeur_faciale"))
-        part_patronale = _get_safe_float(tr_spec.get("part_patronale"))
-        nombre_tr = _get_safe_float(tr_spec.get("nombre_par_mois"))
-        part_salariale_tr = valeur_faciale - part_patronale
-        deduction_tr = part_salariale_tr * nombre_tr
-
+    deduction_tr = deduction_titres_restaurant(contexte)
+    if deduction_tr:
         log_payroll_debug(logger, f'\t- Déduction Titres-Restaurant      : {deduction_tr:10.2f} €')
         net_a_payer -= deduction_tr
 
@@ -987,6 +992,8 @@ def calculer_net_et_impot(
         "acompte_verse": montant_acompte,  # <--- AJOUTEZ CETTE LIGNE
         # Valeur des avantages en nature retirée du net à payer (entrée au brut).
         "avantages_en_nature": avantages_en_nature,
+        # Part salariale des titres-restaurant, retirée du net à payer (R-213).
+        "titres_restaurant": round(deduction_titres_restaurant(contexte), 2),
         # Montant NET des HS/HC effectivement exonéré d'IR ce mois-ci, après
         # écrêtement au plafond annuel 7 500 € (art. 81 quater CGI) — à
         # cumuler dans `employee_schedules.cumuls.hs_exonerees_ir_cumul`

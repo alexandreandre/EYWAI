@@ -229,6 +229,7 @@ def get_employee_cet_summary(
 ) -> CetSummaryResponse:
     cid = _resolve_company_id(company_id, current_user)
     _require_rh(current_user, cid)
+    access_control_service.assert_employee_in_company(cid, employee_id)
     try:
         summary = cet_service.build_employee_summary(
             employee_id, year=year, month=month
@@ -247,6 +248,7 @@ def get_employee_cet_movements(
 ) -> list[CetMovementDetail]:
     cid = _resolve_company_id(company_id, current_user)
     _require_rh(current_user, cid)
+    access_control_service.assert_employee_in_company(cid, employee_id)
     rows = cet_service.list_employee_movements(employee_id, year=year)
     return [CetMovementDetail(**row) for row in rows]
 

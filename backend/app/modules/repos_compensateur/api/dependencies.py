@@ -18,5 +18,7 @@ class ReposCompensateurUserContext(Protocol):
 
     active_company_id: str | None
 
+    def has_rh_access_in_company(self, company_id: str) -> bool: ...
+
 
 __all__ = ["ReposCompensateurUserContext", "get_current_user"]

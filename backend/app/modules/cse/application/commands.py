@@ -50,18 +50,22 @@ def delete_meeting(meeting_id: str, company_id: str) -> None:
     return _delete(meeting_id, company_id)
 
 
-def add_participants(meeting_id: str, employee_ids: List[str]) -> List[Any]:
+def add_participants(
+    meeting_id: str, employee_ids: List[str], active_company_id: str | None = None
+) -> List[Any]:
     from app.modules.cse.infrastructure.cse_service_impl import add_participants as _add
 
-    return _add(meeting_id, employee_ids)
+    return _add(meeting_id, employee_ids, active_company_id)
 
 
-def remove_participant(meeting_id: str, employee_id: str) -> None:
+def remove_participant(
+    meeting_id: str, employee_id: str, active_company_id: str | None = None
+) -> None:
     from app.modules.cse.infrastructure.cse_service_impl import (
         remove_participant as _remove,
     )
 
-    return _remove(meeting_id, employee_id)
+    return _remove(meeting_id, employee_id, active_company_id)
 
 
 def update_participant_attendance(

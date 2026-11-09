@@ -342,6 +342,15 @@ def get_role_template_by_id(current_user: "User", template_id: str) -> "object":
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Template non trouvé",
         )
+    societe = template.get("company_id")
+    if societe and not access_control_service.can_access_company_as_rh(
+        current_user, str(societe)
+    ):
+        # Modèle propre à une autre société : même réponse qu'un inconnu (R-620).
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Template non trouvé",
+        )
     perms_rows = role_template_repository.get_role_template_permission_details(
         template_id
     )

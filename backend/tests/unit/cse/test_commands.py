@@ -146,7 +146,7 @@ class TestAddParticipants:
         ) as mock_add:
             result = commands.add_participants("mtg-1", employee_ids)
         assert result == expected
-        mock_add.assert_called_once_with("mtg-1", employee_ids)
+        mock_add.assert_called_once_with("mtg-1", employee_ids, None)
 
 
 # --- remove_participant ---
@@ -163,7 +163,7 @@ class TestRemoveParticipant:
         ) as mock_remove:
             result = commands.remove_participant("mtg-1", "emp-1")
         assert result is None
-        mock_remove.assert_called_once_with("mtg-1", "emp-1")
+        mock_remove.assert_called_once_with("mtg-1", "emp-1", None)
 
 
 class TestUpdateParticipantAttendance:

@@ -138,3 +138,14 @@ def aucun_bac_a_sable_a_la_lecture(monkeypatch) -> None:
     # Hors de la requête en vrai ; en test, jouée sur place, sans fil.
     monkeypatch.setattr(service, "_lancer_en_arriere_plan", lambda tache: tache())
     service.oublier_les_verdicts()
+
+
+@pytest.fixture(autouse=True)
+def _limite_de_debit_remise_a_zero():
+    """Le compte de la limite de débit vit le temps d'un test : toute la suite
+    frappe les mêmes routes publiques depuis la même adresse de TestClient."""
+    from app.core import limite_debit
+
+    limite_debit._essais.clear()
+    yield
+    limite_debit._essais.clear()
