@@ -49,6 +49,8 @@ from app.modules.payroll.engine.baremes_loader import (
     commune_entreprise_depuis_donnees,
     comparer_taux_vm_entreprise,
     controler_annee_des_baremes,
+    controler_baremes_sans_annee,
+    controler_jour_solidarite,
 )
 from app.modules.payroll.engine.calcul_frais import appliquer_exoneration_note_frais
 from app.modules.payroll.engine.calcul_brut_forfait import bornes_de_la_sortie
@@ -242,6 +244,10 @@ def run_payslip_generation_forfait(
     # Barèmes d'une année antérieure au bulletin : refus ; d'une année
     # suivante (décembre recalculé en janvier) : alerte sur le bulletin.
     contexte.alertes_baremes.extend(controler_annee_des_baremes(contexte.baremes, year))
+    contexte.alertes_baremes.extend(controler_baremes_sans_annee(contexte.baremes, year))
+    contexte.alertes_baremes.extend(
+        controler_jour_solidarite(contexte.entreprise.get("parametres_paie"), year)
+    )
     resolved_employee_id = employee_id or contexte.contrat.get("employee_id")
 
     if not contexte.is_forfait_jour:

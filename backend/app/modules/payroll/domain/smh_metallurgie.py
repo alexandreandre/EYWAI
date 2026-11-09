@@ -137,6 +137,18 @@ def mois_pleins(
     return gardes
 
 
+def bareme_smh_manque(annee: int) -> bool:
+    """L'année est postérieure au dernier barème SMH chargé (pas de contrôle possible)."""
+    return annee > max(SMH_ANNUEL_PAR_ANNEE)
+
+
+def message_smh_absent(annee: int) -> str:
+    return (
+        f"Barème des salaires minima hiérarchiques {annee} de la métallurgie non chargé : "
+        "le minimum annuel n'est pas contrôlé. À signaler au support."
+    )
+
+
 def ecart_smh(
     bulletins: Iterable[Mapping[str, Any]],
     *,

@@ -405,6 +405,9 @@ def _taux_ijss_pour_jour_arret(
     return lc.TAUX_IJSS_MALADIE
 
 
+CODE_IJ_MATERNITE_MINIMUM_ABSENT = "ij_maternite_minimum_absent"
+
+
 def _contexte_is_forfait_jours(contexte: ContextePaie) -> bool:
     try:
         return bool(contexte.is_forfait_jour)  # type: ignore[attr-defined]
@@ -535,6 +538,33 @@ def _plafond_sjb_at_mp(pss_annuel: float, debut_arret: date) -> float:
     return pss_annuel * taux
 
 
+def _signaler_minimum_ij_absent(contexte: ContextePaie, annee: int) -> None:
+    """Alerte (une par bulletin) : l'année du congé n'a pas de minimum d'IJ de repos.
+
+    Seulement après la dernière année connue : le minimum n'a jamais été posé
+    pour les années d'avant (2025), un bulletin passé ne change pas de lecture.
+    """
+    if annee <= max(lc.IJ_MATERNITE_MINIMUM_PAR_ANNEE):
+        return
+    alertes = getattr(contexte, "alertes_baremes", None)
+    if not isinstance(alertes, list):
+        alertes = []
+        contexte.alertes_baremes = alertes
+    if any(isinstance(a, dict) and a.get("code") == CODE_IJ_MATERNITE_MINIMUM_ABSENT for a in alertes):
+        return
+    alertes.append(
+        {
+            "code": CODE_IJ_MATERNITE_MINIMUM_ABSENT,
+            "critique": False,
+            "severity": "warning",
+            "message": (
+                f"Minimum de l'indemnité journalière de maternité de {annee} inconnu de "
+                "Martine : aucun minimum n'est appliqué à ce congé. À signaler au support."
+            ),
+        }
+    )
+
+
 def _calculer_ijss(
     arret: Dict[str, Any],
     qualification: Dict[str, Any],
@@ -656,6 +686,8 @@ def _calculer_ijss(
         if est_parentalite and base_plafonnee > 0
         else None
     )
+    if est_parentalite and base_plafonnee > 0 and minimum_ij is None:
+        _signaler_minimum_ij_absent(contexte, debut_reference.year)
 
     # V1 forfait jour : le décompte IJSS repose déjà sur des jours calendaires
     # (boucle jour par jour sur l'intervalle d'arrêt), pas sur des jours ouvrés —
