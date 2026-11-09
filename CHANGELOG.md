@@ -15,6 +15,9 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 ### Import DSN
 - L'import lit le motif de recours des CDD ; une fois à jour, la fiche le porte et la DSN le déclare.
 
+### Bulletins repris
+- Un bulletin repris de l'ancien logiciel ne sert plus de référence pour comparer le mois suivant : son net n'est pas comparable et bloquait la validation à tort.
+
 ### Validation
 - Valider un bulletin pendant qu'il se recalcule ne remet plus l'ancien contenu marqué validé : Martine dit de recharger la page, et rien n'est écrit.
 

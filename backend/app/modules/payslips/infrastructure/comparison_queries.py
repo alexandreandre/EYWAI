@@ -27,7 +27,8 @@ def fetch_previous_validated_payslip(
     month: int,
 ) -> dict[str, Any] | None:
     """
-    Dernier bulletin validé strictement avant (year, month).
+    Dernier bulletin validé strictement avant (year, month), hors bulletin repris de
+    l'ancien logiciel : son net n'est pas comparable (R-085).
     """
     r = (
         supabase.table("payslips")
@@ -35,6 +36,7 @@ def fetch_previous_validated_payslip(
         .eq("employee_id", employee_id)
         .eq("company_id", company_id)
         .eq("status", "valide")
+        .neq("origine", "importe")
         .or_(f"year.lt.{year},and(year.eq.{year},month.lt.{month})")
         .order("year", desc=True)
         .order("month", desc=True)
@@ -61,6 +63,7 @@ def fetch_validated_payslips_strictly_before(
         .eq("employee_id", employee_id)
         .eq("company_id", company_id)
         .eq("status", "valide")
+        .neq("origine", "importe")
         .or_(f"year.lt.{year},and(year.eq.{year},month.lt.{month})")
         .order("year", desc=True)
         .order("month", desc=True)
