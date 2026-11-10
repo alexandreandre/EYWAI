@@ -18,6 +18,9 @@ export const employeeProfileEditSchema = z
   .object({
     first_name: z.string().min(2, { message: 'Prénom requis.' }),
     last_name: z.string().min(2, { message: 'Nom requis.' }),
+    // Nom d'usage (marital…) : imprimé sur le bulletin à la place du nom de
+    // naissance ; vide, c'est le nom de naissance.
+    nom_usage: z.string().optional().default(''),
     // Facultatif : un salarié créé sans e-mail (ou repris de la DSN sans e-mail)
     // doit pouvoir voir sa fiche complétée ; un e-mail saisi doit être juste.
     email: z
@@ -45,6 +48,10 @@ export const employeeProfileEditSchema = z
     hire_date: z.string().refine((d) => d && !Number.isNaN(Date.parse(d)), {
       message: "Date d'entrée requise.",
     }),
+    // Date d'ancienneté : vide, la date d'entrée. Reprise d'ancienneté
+    // (mutation dans le groupe, intérim avant l'embauche) : prime et congés
+    // d'ancienneté, maintien de salaire, bulletin.
+    seniority_reference_date: z.string().optional().default(''),
     job_title: z.string().min(2, { message: 'Intitulé du poste requis.' }),
     contract_type: z.string().min(2, { message: 'Type de contrat requis.' }),
     statut: z.string().min(2, { message: 'Statut requis.' }),
@@ -186,6 +193,14 @@ export const employeeProfileEditSchema = z
         code: z.ZodIssueCode.custom,
         message: MESSAGE_FORFAIT_REDUIT,
         path: ['specificites_paie', 'forfait_annual_days'],
+      });
+    }
+    const anciennete = data.seniority_reference_date?.trim();
+    if (anciennete && data.hire_date && anciennete > data.hire_date) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "La date d'ancienneté ne peut pas être après la date d'entrée.",
+        path: ['seniority_reference_date'],
       });
     }
     // Titre de séjour sans date : la fiche s'enregistre, le titre se dit

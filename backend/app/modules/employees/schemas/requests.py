@@ -76,6 +76,9 @@ class UpdateEmployee(BaseModel):
 
     first_name: str | None = None
     last_name: str | None = None
+    # Nom d'usage (marital…) : imprimé sur le bulletin et affiché à la place du
+    # nom de naissance ; la DSN déclare les deux (S21.G00.30.002 et .003).
+    nom_usage: str | None = None
     collective_agreement_id: str | None = None
     email: EmailStr | None = None
     phone_number: str | None = None

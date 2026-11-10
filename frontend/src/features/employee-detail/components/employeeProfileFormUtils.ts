@@ -175,6 +175,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
   return {
     first_name: employee.first_name ?? '',
     last_name: employee.last_name ?? '',
+    nom_usage: employee.nom_usage ?? '',
     email: employee.email ?? '',
     phone_number: employee.phone_number ?? '',
     salary_payment_method:
@@ -194,6 +195,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       bic: employee.coordonnees_bancaires?.bic ?? '',
     },
     hire_date: employee.hire_date?.slice(0, 10) ?? '',
+    seniority_reference_date: employee.seniority_reference_date?.slice(0, 10) ?? '',
     job_title: employee.job_title ?? employee.poste ?? '',
     contract_type: normalizeContractType(employee.contract_type),
     statut: cleanEmployeeStatut(employee.statut),
@@ -486,6 +488,17 @@ export function buildUpdatePayload(
   );
   if (classification) {
     payload.classification_conventionnelle = classification;
+  }
+
+  // Écrits seulement quand ils changent : vidés, ils partent à null ; une fiche
+  // qui n'en a pas n'en reçoit pas (pas d'empreinte bougée pour rien).
+  const nomUsage = (values.nom_usage ?? '').trim();
+  if (nomUsage !== (employee.nom_usage ?? '').trim()) {
+    payload.nom_usage = nomUsage || null;
+  }
+  const anciennete = (values.seniority_reference_date ?? '').trim();
+  if (anciennete !== (employee.seniority_reference_date ?? '').slice(0, 10)) {
+    payload.seniority_reference_date = anciennete || null;
   }
 
   // Avec un historique daté, la génération remet sur la fiche le salaire de

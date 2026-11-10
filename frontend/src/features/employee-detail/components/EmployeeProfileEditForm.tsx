@@ -210,8 +210,23 @@ export function EmployeeProfileEditForm({
             name="last_name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Nom</FormLabel>
+                <FormLabel>Nom de naissance</FormLabel>
                 <FormControl><Input {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={control}
+            name="nom_usage"
+            render={({ field }) => (
+              <FormItem className="sm:col-span-2">
+                <FormLabel>Nom d&apos;usage (facultatif)</FormLabel>
+                <FormControl><Input {...field} value={field.value ?? ''} placeholder="Ex. nom marital" /></FormControl>
+                <p className="text-xs text-muted-foreground">
+                  Rempli, c&apos;est ce nom qui s&apos;affiche dans Martine et sur le bulletin. La DSN déclare les
+                  deux noms.
+                </p>
                 <FormMessage />
               </FormItem>
             )}
@@ -389,6 +404,22 @@ export function EmployeeProfileEditForm({
               <FormItem>
                 <FormLabel>Date d&apos;entrée</FormLabel>
                 <FormControl><Input {...field} type="date" /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={control}
+            name="seniority_reference_date"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Date d&apos;ancienneté (facultatif)</FormLabel>
+                <FormControl><Input {...field} value={field.value ?? ''} type="date" /></FormControl>
+                <p className="text-xs text-muted-foreground">
+                  Vide : la date d&apos;entrée. À remplir pour une reprise d&apos;ancienneté (mutation dans le
+                  groupe, intérim avant l&apos;embauche). Sert à la prime d&apos;ancienneté et au maintien de salaire,
+                  aux congés d&apos;ancienneté si la société l&apos;a choisi, et s&apos;imprime sur le bulletin.
+                </p>
                 <FormMessage />
               </FormItem>
             )}

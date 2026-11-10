@@ -15,6 +15,7 @@ export type EmployeeSummaryStatus = 'active' | 'all' | 'payroll';
 export type UpdateEmployeePayload = {
   first_name?: string;
   last_name?: string;
+  nom_usage?: string | null;
   collective_agreement_id?: string | null;
   email?: string;
   phone_number?: string | null;
