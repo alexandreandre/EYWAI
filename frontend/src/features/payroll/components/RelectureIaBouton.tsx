@@ -9,6 +9,7 @@ import {
   lancerRelecture,
   type PreparationRelecture,
   type RelectureIa,
+  type SalarieARelire,
 } from '@/api/relectureIa';
 import {
   AlertDialog,
@@ -21,10 +22,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import {
   coutAffiche,
   raisonBoutonGrise,
+  selectionRelecture,
   texteProgression,
+  type SelectionRelecture,
 } from '@/features/payroll/utils/relectureIa';
 import { toast } from '@/hooks/use-toast';
 import { showErrorToast } from '@/lib/errorMessages';
@@ -81,7 +85,8 @@ function BoutonAutorise({ year, month, titreMois }: Props) {
   }, [relecture?.statut, relecture?.message, queryClient, year, month]);
 
   const lancement = useMutation({
-    mutationFn: (societes: string[]) => lancerRelecture(year, month, societes),
+    mutationFn: ({ companyIds, employeeIds }: SelectionRelecture) =>
+      lancerRelecture(year, month, companyIds, employeeIds),
     onSuccess: (resultat) => {
       setConfirmation(false);
       if (resultat.message) toast({ title: 'Relecture', description: resultat.message });
@@ -151,9 +156,65 @@ function BoutonAutorise({ year, month, titreMois }: Props) {
           titreMois={titreMois}
           envoi={lancement.isPending}
           onFermer={() => setConfirmation(false)}
-          onLancer={(societes) => lancement.mutate(societes)}
+          onLancer={(selection) => lancement.mutate(selection)}
         />
       ) : null}
+    </div>
+  );
+}
+
+/** Liste des salariés d'une société, tous cochés au départ. */
+function ChoixDesSalaries({
+  salaries,
+  exclus,
+  onBasculer,
+}: {
+  salaries: SalarieARelire[];
+  exclus: ReadonlySet<string>;
+  onBasculer: (ids: string[], exclure: boolean) => void;
+}) {
+  const [recherche, setRecherche] = useState('');
+  const terme = recherche.trim().toLowerCase();
+  const visibles = terme ? salaries.filter((p) => p.nom.toLowerCase().includes(terme)) : salaries;
+  const ids = visibles.map((p) => p.employee_id);
+
+  return (
+    <div className="ml-6 mt-2 space-y-2 rounded-md border p-2" data-testid="relecture-ia-salaries">
+      {salaries.length > 8 ? (
+        <Input
+          value={recherche}
+          onChange={(e) => setRecherche(e.target.value)}
+          placeholder="Chercher un salarié"
+          aria-label="Chercher un salarié"
+          className="h-8"
+        />
+      ) : null}
+      <div className="flex gap-3 text-xs">
+        <button type="button" className="text-primary underline" onClick={() => onBasculer(ids, false)}>
+          Tout cocher
+        </button>
+        <button type="button" className="text-primary underline" onClick={() => onBasculer(ids, true)}>
+          Tout décocher
+        </button>
+      </div>
+      <ul className="max-h-48 space-y-1 overflow-y-auto">
+        {visibles.map((salarie) => (
+          <li key={salarie.employee_id} className="flex items-center gap-2">
+            <Checkbox
+              id={`relecture-salarie-${salarie.employee_id}`}
+              checked={!exclus.has(salarie.employee_id)}
+              onCheckedChange={(valeur) => onBasculer([salarie.employee_id], valeur !== true)}
+            />
+            <label htmlFor={`relecture-salarie-${salarie.employee_id}`} className="flex-1 text-sm">
+              {salarie.nom}
+              {salarie.bulletins > 1 ? ` (${salarie.bulletins} bulletins)` : ''}
+            </label>
+          </li>
+        ))}
+        {visibles.length === 0 ? (
+          <li className="text-xs text-muted-foreground">Aucun salarié à ce nom parmi ceux à relire.</li>
+        ) : null}
+      </ul>
     </div>
   );
 }
@@ -169,14 +230,16 @@ function FenetreConfirmation({
   titreMois: string;
   envoi: boolean;
   onFermer: () => void;
-  onLancer: (societes: string[]) => void;
+  onLancer: (selection: SelectionRelecture) => void;
 }) {
   const [decochees, setDecochees] = useState<ReadonlySet<string>>(new Set());
-  const cochees = useMemo(
-    () => preparation.societes.filter((s) => !decochees.has(s.company_id)),
-    [preparation.societes, decochees],
+  const [exclus, setExclus] = useState<ReadonlySet<string>>(new Set());
+  const [ouverte, setOuverte] = useState<string | null>(null);
+  const selection = useMemo(
+    () => selectionRelecture(preparation.societes, decochees, exclus),
+    [preparation.societes, decochees, exclus],
   );
-  const nombre = cochees.reduce((total, s) => total + s.a_relire, 0);
+  const nombre = selection.nombre;
 
   const basculer = (companyId: string) => {
     setDecochees((avant) => {
@@ -186,9 +249,17 @@ function FenetreConfirmation({
     });
   };
 
+  const basculerSalaries = (ids: string[], exclure: boolean) => {
+    setExclus((avant) => {
+      const apres = new Set(avant);
+      ids.forEach((id) => (exclure ? apres.add(id) : apres.delete(id)));
+      return apres;
+    });
+  };
+
   return (
-    <AlertDialog open onOpenChange={(ouverte) => !ouverte && onFermer()}>
-      <AlertDialogContent>
+    <AlertDialog open onOpenChange={(estOuverte) => !estOuverte && onFermer()}>
+      <AlertDialogContent className="max-h-[90vh] overflow-y-auto">
         <AlertDialogHeader>
           <AlertDialogTitle>Êtes-vous sûre ?</AlertDialogTitle>
           <AlertDialogDescription>
@@ -197,24 +268,51 @@ function FenetreConfirmation({
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <ul className="space-y-1.5 text-sm" data-testid="relecture-ia-societes">
-          {preparation.societes.map((societe) => (
-            <li key={societe.company_id} className="flex items-start gap-2">
-              <Checkbox
-                id={`relecture-${societe.company_id}`}
-                checked={!decochees.has(societe.company_id)}
-                onCheckedChange={() => basculer(societe.company_id)}
-                className="mt-0.5"
-              />
-              <label htmlFor={`relecture-${societe.company_id}`} className="flex-1">
-                <span className="font-medium">{societe.nom}</span>
-                <span className="block text-xs text-muted-foreground">
-                  {pluriel(societe.a_relire, 'bulletin')} à relire sur {societe.bulletins_generes}
-                  {societe.sans_regles ? ', sans règle propre à cette société' : ''}
-                </span>
-              </label>
-            </li>
-          ))}
+        <ul className="space-y-2 text-sm" data-testid="relecture-ia-societes">
+          {preparation.societes.map((societe) => {
+            const cochee = !decochees.has(societe.company_id);
+            const retires = societe.salaries.filter((p) => exclus.has(p.employee_id)).length;
+            return (
+              <li key={societe.company_id}>
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id={`relecture-${societe.company_id}`}
+                    checked={cochee}
+                    onCheckedChange={() => basculer(societe.company_id)}
+                    className="mt-0.5"
+                  />
+                  <label htmlFor={`relecture-${societe.company_id}`} className="flex-1">
+                    <span className="font-medium">{societe.nom}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {pluriel(societe.a_relire, 'bulletin')} à relire sur {societe.bulletins_generes}
+                      {retires > 0 ? `, ${pluriel(retires, 'salarié retiré', 'salariés retirés')}` : ''}
+                      {societe.sans_regles ? ', sans règle propre à cette société' : ''}
+                    </span>
+                  </label>
+                  {cochee && societe.a_relire > 0 ? (
+                    <button
+                      type="button"
+                      className="shrink-0 text-xs text-primary underline"
+                      aria-expanded={ouverte === societe.company_id}
+                      onClick={() =>
+                        setOuverte(ouverte === societe.company_id ? null : societe.company_id)
+                      }
+                      data-testid="relecture-ia-choisir"
+                    >
+                      {ouverte === societe.company_id ? 'Fermer' : 'Choisir les salariés'}
+                    </button>
+                  ) : null}
+                </div>
+                {cochee && ouverte === societe.company_id ? (
+                  <ChoixDesSalaries
+                    salaries={societe.salaries}
+                    exclus={exclus}
+                    onBasculer={basculerSalaries}
+                  />
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
 
         <p className="text-sm" data-testid="relecture-ia-recap">
@@ -238,7 +336,7 @@ function FenetreConfirmation({
           <AlertDialogCancel>Annuler</AlertDialogCancel>
           <Button
             disabled={nombre === 0 || envoi}
-            onClick={() => onLancer(cochees.map((s) => s.company_id))}
+            onClick={() => onLancer(selection)}
             data-testid="relecture-ia-lancer"
           >
             {envoi ? 'Lancement…' : 'Lancer la relecture'}

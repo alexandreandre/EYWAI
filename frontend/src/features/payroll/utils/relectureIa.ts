@@ -1,4 +1,9 @@
-import type { GraviteRelecture, PreparationRelecture, RelectureIa } from '@/api/relectureIa';
+import type {
+  GraviteRelecture,
+  PreparationRelecture,
+  RelectureIa,
+  SocieteARelire,
+} from '@/api/relectureIa';
 
 export function texteProgression(relecture: Pick<RelectureIa, 'traites' | 'total'>): string {
   return `Relecture en cours : ${relecture.traites} sur ${relecture.total}.`;
@@ -22,6 +27,31 @@ export function raisonBoutonGrise(preparation: PreparationRelecture | undefined)
     return 'Rien à relire : tous les bulletins de ce mois ont déjà été relus depuis leur dernière modification.';
   }
   return null;
+}
+
+export interface SelectionRelecture {
+  nombre: number;
+  companyIds: string[];
+  /** null : tous les salariés à relire des sociétés cochées. */
+  employeeIds: string[] | null;
+}
+
+/** Ce que les cases de la fenêtre lancent réellement, et donc ce qui sera facturé. */
+export function selectionRelecture(
+  societes: SocieteARelire[],
+  societesDecochees: ReadonlySet<string>,
+  salariesExclus: ReadonlySet<string>,
+): SelectionRelecture {
+  const cochees = societes.filter((s) => !societesDecochees.has(s.company_id));
+  const retenus = cochees.flatMap((s) =>
+    s.salaries.filter((p) => !salariesExclus.has(p.employee_id)).map((p) => ({ ...p, societe: s.company_id })),
+  );
+  const toutLeMonde = cochees.every((s) => s.salaries.every((p) => !salariesExclus.has(p.employee_id)));
+  return {
+    nombre: retenus.reduce((total, p) => total + p.bulletins, 0),
+    companyIds: [...new Set(retenus.map((p) => p.societe))],
+    employeeIds: toutLeMonde ? null : retenus.map((p) => p.employee_id),
+  };
 }
 
 export function libelleGravite(gravite: GraviteRelecture): string {

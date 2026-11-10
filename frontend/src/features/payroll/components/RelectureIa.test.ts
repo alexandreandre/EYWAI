@@ -16,6 +16,7 @@ import type {
 import {
   coutAffiche,
   raisonBoutonGrise,
+  selectionRelecture,
   texteProgression,
 } from '@/features/payroll/utils/relectureIa';
 
@@ -25,7 +26,7 @@ const preparation = (extra: Partial<PreparationRelecture> = {}): PreparationRele
   year: 2026,
   month: 10,
   societes: [
-    { company_id: 'c1', nom: 'Alpha', bulletins_generes: 40, a_relire: 12, sans_regles: false },
+    { company_id: 'c1', nom: 'Alpha', bulletins_generes: 40, a_relire: 12, salaries: [], sans_regles: false },
   ],
   total_a_relire: 12,
   cout_unitaire_eur: 0.08,
@@ -224,5 +225,59 @@ describe('textes de la relecture', () => {
     expect(raisonBoutonGrise(preparation({ total_a_relire: 0, societes: [] }))).toContain('Aucun bulletin généré');
     expect(raisonBoutonGrise(preparation())).toBeNull();
     expect(raisonBoutonGrise(undefined)).toBeNull();
+  });
+});
+
+describe('choix des salariés', () => {
+  const societes = [
+    {
+      company_id: 'c1',
+      nom: 'Alpha',
+      bulletins_generes: 3,
+      a_relire: 3,
+      sans_regles: false,
+      salaries: [
+        { employee_id: 'e1', nom: 'A', bulletins: 2 },
+        { employee_id: 'e2', nom: 'B', bulletins: 1 },
+      ],
+    },
+    {
+      company_id: 'c2',
+      nom: 'Beta',
+      bulletins_generes: 1,
+      a_relire: 1,
+      sans_regles: false,
+      salaries: [{ employee_id: 'e3', nom: 'C', bulletins: 1 }],
+    },
+  ];
+
+  it('par défaut, tout le monde', () => {
+    expect(selectionRelecture(societes, new Set(), new Set())).toEqual({
+      nombre: 4,
+      companyIds: ['c1', 'c2'],
+      employeeIds: null,
+    });
+  });
+
+  it('un salarié retiré baisse le nombre, donc le prix', () => {
+    expect(selectionRelecture(societes, new Set(), new Set(['e1']))).toEqual({
+      nombre: 2,
+      companyIds: ['c1', 'c2'],
+      employeeIds: ['e2', 'e3'],
+    });
+  });
+
+  it('une société dont tous les salariés sont retirés n’est pas lancée', () => {
+    const choix = selectionRelecture(societes, new Set(), new Set(['e3']));
+    expect(choix.companyIds).toEqual(['c1']);
+    expect(choix.nombre).toBe(3);
+  });
+
+  it('un salarié retiré dans une société décochée ne compte plus', () => {
+    expect(selectionRelecture(societes, new Set(['c2']), new Set(['e3'])).employeeIds).toBeNull();
+  });
+
+  it('aucune case cochée : rien à lancer', () => {
+    expect(selectionRelecture(societes, new Set(['c1', 'c2']), new Set()).nombre).toBe(0);
   });
 });

@@ -64,7 +64,12 @@ def lancer_relecture(
     _exiger_acces_aux_societes(user, body.company_ids)
     try:
         resultat = service.lancer(
-            user.id, service.societes_du_compte(user), body.year, body.month, body.company_ids
+            user.id,
+            service.societes_du_compte(user),
+            body.year,
+            body.month,
+            body.company_ids,
+            employee_ids=body.employee_ids,
         )
     except service.SansSocieteCochee:
         raise HTTPException(status_code=400, detail=_MESSAGE_SANS_SOCIETE) from None

@@ -459,3 +459,28 @@ class TestAmorceDuCache:
         service.executer(lance["relecture_id"], depot=depot, relecteur=Relecteur())
         assert journal[:2] == ["debut", "fin"]
         assert journal.count("fin") == 3
+
+
+class TestChoixDesSalaries:
+    def test_la_fenetre_liste_les_salaries_a_relire_par_societe(self):
+        depot = DepotRelecture(_base(_bulletin(1), _bulletin(2)))
+        societe = service.preparer(SOCIETES, 2026, 10, depot=depot)["societes"][0]
+        assert {p["employee_id"] for p in societe["salaries"]} == {"e1", "e2"}
+        assert societe["salaries"][0]["nom"] == "Alix Testeur"
+        assert societe["salaries"][0]["bulletins"] == 1
+
+    def test_seuls_les_salaries_choisis_sont_relus(self):
+        base = _base(_bulletin(1), _bulletin(2), _bulletin(3))
+        depot = DepotRelecture(base)
+        lance = service.lancer("u1", SOCIETES, 2026, 10, [SOCIETE], depot=depot, employee_ids=["e2"])
+        assert lance["statut"] == "lancee"
+        assert [l["employee_id"] for l in base.lignes("relectures_ia_bulletins")] == ["e2"]
+        assert base.ligne("relectures_ia", id=lance["relecture_id"])["total"] == 1
+
+    def test_un_salarie_d_une_autre_societe_ne_fait_rien_entrer(self):
+        base = _base(_bulletin(1), _bulletin(2, company=AUTRE))
+        depot = DepotRelecture(base)
+        lance = service.lancer("u1", SOCIETES, 2026, 10, [SOCIETE], depot=depot, employee_ids=["e2"])
+        assert lance["statut"] == "rien_a_relire"
+        assert base.lignes("relectures_ia_bulletins") == []
+

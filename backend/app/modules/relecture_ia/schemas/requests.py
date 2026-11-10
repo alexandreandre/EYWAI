@@ -9,6 +9,8 @@ class LancerRelectureBody(BaseModel):
     year: int = Field(ge=2000, le=2100)
     month: int = Field(ge=1, le=12)
     company_ids: list[str]
+    # Vide : tous les salariés à relire des sociétés cochées.
+    employee_ids: list[str] | None = Field(default=None, max_length=2000)
 
 
 class MarquerVuBody(BaseModel):

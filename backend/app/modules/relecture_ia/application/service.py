@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections import Counter
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -144,9 +145,21 @@ def preparer(
     deja_relus = _repere_des_relus(depot.versions_relues(ids, year, month))
     a_relire = bulletins_a_relire(bulletins, deja_relus)
     avec_regles = depot.societes_avec_regles(ids)
+    fiches = {
+        str(e["id"]): e for e in depot.noms_des_salaries([b["employee_id"] for b in a_relire])
+    }
 
     def compter(lignes: list[dict[str, Any]], company_id: str) -> int:
         return sum(1 for l in lignes if str(l.get("company_id")) == company_id)
+
+    def salaries(company_id: str) -> list[dict[str, Any]]:
+        par_salarie = Counter(
+            str(b["employee_id"]) for b in a_relire if str(b.get("company_id")) == company_id
+        )
+        return [
+            {"employee_id": e, "nom": _nom_affiche(fiches.get(e)), "bulletins": par_salarie[e]}
+            for e in sorted(par_salarie, key=lambda e: _cle_de_tri(fiches.get(e)))
+        ]
 
     lignes_societes = [
         {
@@ -154,6 +167,7 @@ def preparer(
             "nom": noms[company_id],
             "bulletins_generes": compter(bulletins, company_id),
             "a_relire": compter(a_relire, company_id),
+            "salaries": salaries(company_id),
             "sans_regles": company_id not in avec_regles,
         }
         for company_id in ids
@@ -181,8 +195,13 @@ def lancer(
     month: int,
     company_ids: list[str],
     depot: DepotRelecture | None = None,
+    employee_ids: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Crée la relecture, ou dit pourquoi non. `a_executer` : tâche de fond à poser."""
+    """Crée la relecture, ou dit pourquoi non. `a_executer` : tâche de fond à poser.
+
+    `employee_ids` restreint aux salariés choisis ; il ne peut qu'enlever des bulletins
+    aux sociétés déjà contrôlées.
+    """
     depot = depot or DepotRelecture()
     autorisees = {s["company_id"] for s in societes}
     demandees = list(dict.fromkeys(str(c) for c in company_ids))
@@ -207,6 +226,9 @@ def lancer(
         depot.bulletins_du_mois(demandees, year, month),
         _repere_des_relus(depot.versions_relues(demandees, year, month)),
     )
+    if employee_ids is not None:
+        choisis = {str(e) for e in employee_ids}
+        a_relire = [b for b in a_relire if str(b["employee_id"]) in choisis]
     if not a_relire:
         return {
             "statut": "rien_a_relire",
@@ -540,6 +562,14 @@ def _nom_affiche(employe: dict[str, Any] | None) -> str:
         return "Salarié"
     nom = employe.get("nom_usage") or employe.get("last_name") or ""
     return f"{employe.get('first_name') or ''} {nom}".strip() or "Salarié"
+
+
+def _cle_de_tri(employe: dict[str, Any] | None) -> tuple[str, str]:
+    """Par nom de famille : c'est ainsi qu'on cherche un salarié dans une liste."""
+    if not employe:
+        return ("", "")
+    nom = employe.get("nom_usage") or employe.get("last_name") or ""
+    return (str(nom).lower(), str(employe.get("first_name") or "").lower())
 
 
 def lire_a_regarder(

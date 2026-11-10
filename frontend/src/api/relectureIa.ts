@@ -6,11 +6,18 @@ import { enTeteSociete } from './payslips';
 
 export type GraviteRelecture = 'important' | 'a_verifier';
 
+export interface SalarieARelire {
+  employee_id: string;
+  nom: string;
+  bulletins: number;
+}
+
 export interface SocieteARelire {
   company_id: string;
   nom: string;
   bulletins_generes: number;
   a_relire: number;
+  salaries: SalarieARelire[];
   /** Aucune règle propre à la société : relue avec les règles générales. */
   sans_regles: boolean;
 }
@@ -94,11 +101,13 @@ export async function lancerRelecture(
   year: number,
   month: number,
   companyIds: string[],
+  employeeIds: string[] | null = null,
 ): Promise<ResultatLancement> {
   const response = await apiClient.post<ResultatLancement>('/api/relecture-ia/lancer', {
     year,
     month,
     company_ids: companyIds,
+    ...(employeeIds ? { employee_ids: employeeIds } : {}),
   });
   return response.data;
 }
