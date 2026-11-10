@@ -147,7 +147,7 @@ describe('lancementGroupe — une seule confirmation, qui envoie le forçage', (
   it('un calendrier incomplet se confirme une fois, en le nommant, et le job porte le forçage', () => {
     const { confirmation, jobs } = lancementGroupe({ ...base, calendriersIncomplets: { statut: 'ok', valeur: ['e2', 'x9'] } });
     expect(confirmation).toBe(
-      '1 calendrier incomplet (Alan Turing) : son bulletin sera généré malgré les jours à saisir. Générer quand même ?',
+      '1 calendrier incomplet (Alan Turing) : son bulletin sera généré malgré les jours à saisir, payés à plein. Générer quand même ?',
     );
     expect(jobs.find((j) => j.employeeId === 'e2')?.forceCalendrierIncomplet).toBe(true);
     expect(jobs.filter((j) => j.forceCalendrierIncomplet)).toHaveLength(1);
@@ -160,7 +160,7 @@ describe('lancementGroupe — une seule confirmation, qui envoie le forçage', (
       calendriersIncomplets: { statut: 'ok', valeur: ['e1', 'e3'] },
     });
     expect(confirmation).toBe(
-      '2 calendriers incomplets (Ada Lovelace, Grace Hopper) : leurs bulletins seront générés malgré les jours à saisir. ' +
+      '2 calendriers incomplets (Ada Lovelace, Grace Hopper) : leurs bulletins seront générés malgré les jours à saisir, payés à plein. ' +
         '2 anomalies bloquantes ouvertes. Générer quand même les bulletins ?',
     );
   });

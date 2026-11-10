@@ -763,6 +763,7 @@ def creer_bulletin_final(
         controle_prime_anciennete,
         controle_rachat_de_jours,
         controle_salaire_apprenti,
+        controle_taux_sous_smic,
     )
 
     for alerte_cc in controle_convention_collective(contexte, salaire_brut):
@@ -773,6 +774,7 @@ def creer_bulletin_final(
         *controle_forfait_jours_syntec(contexte, salaire_brut),
         *controle_premier_mai_travaille(contexte, annee),
         *controle_rachat_de_jours(details_brut),
+        *controle_taux_sous_smic(contexte, details_brut),
     ):
         contexte.alertes_baremes.append(alerte_legere)
 

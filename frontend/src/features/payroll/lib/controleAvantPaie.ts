@@ -85,8 +85,8 @@ export function lancementGroupe({
     const n = aForcer.length;
     const phrase =
       n > 1
-        ? `${n} calendriers incomplets (${nomsResumes(aForcer.map(nomDe))}) : leurs bulletins seront générés malgré les jours à saisir.`
-        : `1 calendrier incomplet (${nomDe(aForcer[0])}) : son bulletin sera généré malgré les jours à saisir.`;
+        ? `${n} calendriers incomplets (${nomsResumes(aForcer.map(nomDe))}) : leurs bulletins seront générés malgré les jours à saisir, payés à plein.`
+        : `1 calendrier incomplet (${nomDe(aForcer[0])}) : son bulletin sera généré malgré les jours à saisir, payés à plein.`;
     confirmation = anomaliesBloquantes ? `${phrase} ${anomaliesBloquantes}` : `${phrase} Générer quand même ?`;
   }
 

@@ -205,7 +205,7 @@ def _check_calendar_guard(
         f"{cmd.month:02d}/{cmd.year} — {pluriel(len(bloquants), 'jour')} à saisir dans la fenêtre "
         f"des variables ({debut:%d/%m} → {fin:%d/%m}) : {libelle_plages(bloquants)} "
         f"({raisons_en_clair(periode.bloquants)}). "
-        "Complétez le planning avant de générer, ou forcez explicitement la génération."
+        "Complétez le planning avant de générer. Si vous forcez, ces jours sont payés à plein."
     )
     if not cmd.force_calendrier_incomplet:
         raise PayslipCalendarIncompleteError(message, details)
