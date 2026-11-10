@@ -59,6 +59,7 @@ from app.modules.dashboard.api.router import router as dashboard_router
 from app.modules.document_library.api.router import router as document_library_router
 from app.modules.documents.api.router import router as documents_router
 from app.modules.dsn_import.api.router import router as dsn_import_router
+from app.modules.relecture_ia.api.router import router as relecture_ia_router
 from app.modules.employee_exits.api.router import router as employee_exits_router
 from app.modules.employee_loans.api.router import router as employee_loans_router
 from app.modules.employees.api.router import router as employees_router
@@ -171,6 +172,7 @@ router.include_router(company_groups_router)
 router.include_router(cse_router)
 router.include_router(dashboard_router)
 router.include_router(dsn_import_router)
+router.include_router(relecture_ia_router)
 router.include_router(admin_import_router)
 router.include_router(ijss_tracking_router)
 router.include_router(employees_router)
