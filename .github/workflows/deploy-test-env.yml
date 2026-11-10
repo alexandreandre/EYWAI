@@ -306,6 +306,9 @@ jobs:
       #   - PISTE_CLIENT_ID, PISTE_CLIENT_SECRET : import des conventions
       #     collectives depuis Légifrance (admin plateforme). Facultatif pour
       #     la paie. Mêmes valeurs que les secrets GitHub du même nom.
+      #   - ANTHROPIC_API_KEY (secret GitHub) : relecture IA des bulletins. Sans elle,
+      #     l'écran dit que la relecture n'est pas branchée. ANTHROPIC_WORKSPACE_ID et
+      #     RELECTURE_IA_COMPTES (variables GitHub) : facultatives.
       # Ne pas poser GITHUB_DISPATCH_TOKEN : il rouvrirait la resynchro de la
       # base de test, verrouillée. FRONTEND_URL et ALLOWED_ORIGINS_EXTRA sont
       # posées plus bas, après le déploiement du frontend.
@@ -315,7 +318,7 @@ jobs:
             --image "gcr.io/${{ vars.GCP_PROJECT_ID }}/sirh-backend:test-${{ github.sha }}" \
             --region "$GCP_REGION" \
             --memory 4Gi --cpu 2 --no-cpu-throttling --timeout 900 --allow-unauthenticated \
-            --update-env-vars "^##^APP_ENV=test##EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}##SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}##SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}##SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_TEST_SERVICE_KEY }}##OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}##FROM_NAME=Martine##TIMESHEET_EXTRACT_MODE=native##COPILOT_RH_DATA_ENABLED=true##GITHUB_REPO=${{ github.repository }}"
+            --update-env-vars "^##^APP_ENV=test##EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}##SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}##SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}##SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_TEST_SERVICE_KEY }}##OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}##FROM_NAME=Martine##TIMESHEET_EXTRACT_MODE=native##COPILOT_RH_DATA_ENABLED=true##GITHUB_REPO=${{ github.repository }}##ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}##ANTHROPIC_WORKSPACE_ID=${{ vars.ANTHROPIC_WORKSPACE_ID }}##RELECTURE_IA_COMPTES=${{ vars.RELECTURE_IA_COMPTES }}"
 
       - name: Relever l'URL du backend de test
         id: back

@@ -41,6 +41,7 @@ googlesearch-python
 
 # --- Intelligence artificielle ---
 openai>=1.0.0
+anthropic==2.3.0
 
 # --- PDF / OCR / Images ---
 PyPDF2
