@@ -198,6 +198,100 @@ def _absences_injustifiees_de_la_semaine(
     return evenements
 
 
+TYPES_HEURES_EN_PLUS: frozenset[str] = frozenset(
+    {"travail_hs25", "travail_hs50", "travail_hc10", "travail_hc25"}
+)
+
+
+def heures_retenues_sans_solde(jour_prevu: dict[str, Any], duree_hebdo_contrat: float) -> float:
+    """Ce que le bulletin retient pour ce jour d'absence non rémunérée.
+
+    Ses heures prévues, ou, posé à 0 h (validation d'une demande « sans
+    solde »), la journée du contrat (durée hebdomadaire ÷ 5) à sa quotité :
+    la même règle que `calcul_brut._heures_absence_non_remuneree`.
+    """
+    heures = float(jour_prevu.get("heures_prevues") or 0.0)
+    if heures > 0:
+        return round(heures, 2)
+    try:
+        quotite = float(jour_prevu.get("quotite_absence") or 1.0)
+    except (TypeError, ValueError):
+        quotite = 1.0
+    journee = duree_hebdo_contrat / 5.0 if duree_hebdo_contrat and duree_hebdo_contrat > 0 else 7.0
+    return round(journee * quotite, 2)
+
+
+def _sans_solde_rattrape_dans_la_semaine(
+    evenements_semaine: list[dict[str, Any]],
+    data: dict[str, Any],
+    duree_hebdo_contrat: float,
+) -> list[dict[str, Any]]:
+    """Un jour d'absence non rémunérée rattrapé par des heures faites en plus
+    dans la même semaine n'est pas retenu, à hauteur de ces heures.
+
+    Les heures faites au-delà du planning de la semaine (jours prévus pointés
+    au-delà de leur horaire, jours non prévus travaillés), moins celles déjà
+    payées en heures sup ou complémentaires et après compensation des jours
+    manqués, ont été faites à la place de la journée d'absence : elles sont
+    payées par le salaire mensualisé, dont la retenue est réduite d'autant.
+    Les heures sup se décomptent sur les heures accomplies dans la semaine
+    (C. trav. L3121-28, L3121-29) et une absence individuelle ne se récupère
+    pas sans être payée (L3121-50, réservé aux interruptions collectives).
+
+    Colorplast, A.B., semaine 42 de 2026 : lundi en absence non rémunérée de
+    8,5 h, 45 h faites du mardi au vendredi pour 30,5 prévues. Sans cette
+    règle, 8,5 h étaient retenues et seules 6 h payées en heures sup : 8,5 h
+    faites restaient sans paie. Rien n'est retenu désormais.
+
+    Les jours les plus anciens sont rattrapés d'abord ; ce qui reste est
+    retenu sur les derniers, comme les jours manqués (`_absences_injustifiees_
+    de_la_semaine`). Un jour où le salarié a pointé des heures n'est pas
+    concerné. Le planning n'est jamais modifié : un jour réduit est une copie.
+    """
+    jours_pointes = {
+        (j["mois"], j["jour"]) for j in data["reel"] if float(j.get("heures_faites") or 0.0) > 0
+    }
+    candidats = [
+        i
+        for i, ev in enumerate(evenements_semaine)
+        if ev.get("type") == "absence_non_remuneree"
+        and "heures_prevues" in ev
+        and (ev.get("mois"), ev.get("jour")) not in jours_pointes
+    ]
+    if not candidats:
+        return evenements_semaine
+
+    prevus_travail = {(j["mois"], j["jour"]): j for j in data["prevu"]}
+    en_plus = 0.0
+    for j in data["reel"]:
+        faites = float(j.get("heures_faites") or 0.0)
+        prevu = prevus_travail.get((j["mois"], j["jour"]))
+        if prevu is not None:
+            en_plus += faites - float(prevu.get("heures_prevues") or 0.0)
+        elif faites > 0:
+            en_plus += faites
+    deja_payees = sum(
+        float(ev.get("heures") or 0.0)
+        for ev in evenements_semaine
+        if ev.get("type") in TYPES_HEURES_EN_PLUS
+    )
+    disponible = round(en_plus - deja_payees, 2)
+    if disponible <= 0:
+        return evenements_semaine
+
+    resultat = list(evenements_semaine)
+    for i in sorted(candidats, key=lambda k: (evenements_semaine[k]["mois"], evenements_semaine[k]["jour"])):
+        if disponible <= 0:
+            break
+        ev = evenements_semaine[i]
+        retenues = heures_retenues_sans_solde(ev, duree_hebdo_contrat)
+        rattrapees = round(min(retenues, disponible), 2)
+        disponible = round(disponible - rattrapees, 2)
+        reste = round(retenues - rattrapees, 2)
+        resultat[i] = {**ev, "heures_prevues": reste, "heures": reste} if reste > 0 else None
+    return [ev for ev in resultat if ev is not None]
+
+
 def analyser_horaires_du_mois(
     planned_data_all_months: List[Dict[str, Any]],
     actual_data_all_months: List[Dict[str, Any]],
@@ -243,6 +337,7 @@ def analyser_horaires_du_mois(
     # Étape 2 : Analyser chaque semaine
     evenements_finaux = []
     for cle_semaine, data in semaines.items():
+        debut_semaine = len(evenements_finaux)
         duree_hebdo_semaine = duree_hebdo_contrat
         if modulation_weekly_hours and cle_semaine in modulation_weekly_hours:
             duree_hebdo_semaine = modulation_weekly_hours[cle_semaine]
@@ -379,6 +474,9 @@ def analyser_horaires_du_mois(
             _absences_injustifiees_de_la_semaine(
                 data, reel_data, annee, duree_hebdo_semaine
             )
+        )
+        evenements_finaux[debut_semaine:] = _sans_solde_rattrape_dans_la_semaine(
+            evenements_finaux[debut_semaine:], data, duree_hebdo_contrat
         )
 
     # Étape 3 : Agréger et filtrer uniquement le mois demandé
