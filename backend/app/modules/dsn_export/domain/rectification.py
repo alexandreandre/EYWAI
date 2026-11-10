@@ -111,10 +111,13 @@ def libelles_de_rappel_du_bulletin(payslip_data: Mapping[str, Any] | None) -> li
     """Les rappels saisis en prime sur ce bulletin, catalogue ou libellé libre, sans doublon.
 
     Seules les lignes liées à une saisie comptent : c'est là que Gaëlle pose un rappel.
+    Une régularisation d'heures porte toujours un mois passé : elle compte aussi.
     """
     libelles: dict[str, None] = {}
     for ligne in (payslip_data or {}).get("calcul_du_brut") or []:
-        if not isinstance(ligne, Mapping) or not ligne.get("saisie_id"):
+        if not isinstance(ligne, Mapping):
+            continue
+        if not (ligne.get("saisie_id") or isinstance(ligne.get("regularisation_heures"), Mapping)):
             continue
         libelle = str(ligne.get("libelle") or "")
         if _LIBELLE_DE_RAPPEL.search(_sans_accents(libelle)):

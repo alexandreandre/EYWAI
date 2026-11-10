@@ -251,6 +251,13 @@ def analyze_calcul_du_brut(payslip_data: Dict[str, Any]) -> Dict[str, float]:
             salaire_base += gain
             heures_base += quantite
             continue
+        # Heures sup ou complémentaires d'un autre mois régularisées sur ce
+        # bulletin : des heures aléatoires (017), quel que soit leur libellé.
+        regul = line.get("regularisation_heures")
+        if isinstance(regul, dict) and str(regul.get("nature") or "").startswith(("hs", "hc")):
+            hs_alea_m += gain
+            hs_alea_h += quantite
+            continue
         if _is_hs_structurelle(lib):
             hs_struct_m += gain
             hs_struct_h += quantite
