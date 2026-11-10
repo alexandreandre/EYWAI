@@ -26,6 +26,7 @@ from app.modules.payslips.application.dto import (
     PayslipBadRequestError,
     PayslipCalendarIncompleteError,
     PayslipAbsentATyperError,
+    PayslipPlanningAPoserError,
     PayslipHeuresSurArretError,
     PayslipValidatedError,
     PayslipNotFoundError,
@@ -275,6 +276,32 @@ def _check_absents_a_typer(employee: dict[str, Any], periode: "PeriodeASaisir") 
     )
     raise PayslipAbsentATyperError(
         message_absents_a_typer(_prenom(employee), jours),
+        {"jours": [d.isoformat() for d in jours]},
+    )
+
+
+def _check_planning_a_poser(employee: dict[str, Any], periode: "PeriodeASaisir") -> None:
+    """Garde « heures pointées sans planning prévu ».
+
+    Sans prévu, le moteur compte chaque heure pointée en heure supplémentaire :
+    forcer donnerait un brut jusqu'à trois fois trop haut. Refus (422), aucun
+    forçage ; le calcul lui-même ne change pas.
+    """
+    from app.modules.schedules.domain.periode_a_saisir import (
+        SEUIL_POINTES_SANS_PREVU,
+        message_planning_a_poser,
+    )
+
+    jours = tuple(getattr(periode, "pointes_sans_prevu", ()) or ())
+    if len(jours) < SEUIL_POINTES_SANS_PREVU:
+        return
+    logger.info(
+        "[generation] Refus planning_a_poser pour l'employé %s : %d jours",
+        employee.get("id"),
+        len(jours),
+    )
+    raise PayslipPlanningAPoserError(
+        message_planning_a_poser(_prenom(employee), jours),
         {"jours": [d.isoformat() for d in jours]},
     )
 
@@ -693,6 +720,8 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
       PayslipHeuresSurArretError (422), sans forçage possible ;
     - jour marqué « absent » à l'import sans type → PayslipAbsentATyperError
       (422), sans forçage possible ;
+    - jours pointés sans aucune heure prévue → PayslipPlanningAPoserError
+      (422), sans forçage possible ;
     - calendrier du mois `a_saisir` → PayslipCalendarIncompleteError (422),
       sauf `force_calendrier_incomplet` explicite (tracé, warning en réponse).
 
@@ -721,6 +750,7 @@ def _generer_sous_verrou(
     # incomplet ne doit pas s'arrêter ensuite sur lui.
     _check_heures_sur_jour_d_arret(employee, periode)
     _check_absents_a_typer(employee, periode)
+    _check_planning_a_poser(employee, periode)
     calendar_warning = _check_calendar_guard(employee, cmd, periode)
     bulletin_existant = _check_validated_guard(cmd)
     _check_contrat_du_bulletin(employee, cmd, bulletin_existant)

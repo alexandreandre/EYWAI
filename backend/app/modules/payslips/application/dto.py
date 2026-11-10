@@ -89,6 +89,17 @@ class PayslipAbsentATyperError(PayslipRefusStructure):
     code = "absent_a_typer"
 
 
+class PayslipPlanningAPoserError(PayslipRefusStructure):
+    """Des jours sont pointés sans aucune heure prévue (422). Aucun forçage : le
+    moteur compterait toutes ces heures en heures supplémentaires. La seule
+    sortie est de poser le planning.
+
+    `details` : `jours` (dates ISO).
+    """
+
+    code = "planning_a_poser"
+
+
 class PayslipArretsIllisiblesError(PayslipRefusStructure):
     """Les arrêts validés n'ont pas pu être lus (503) : sans eux, la garde
     laisserait passer des heures un week-end d'arrêt. Rien n'est calculé ; il

@@ -29,6 +29,12 @@ Motif = Literal["planning_absent", "prevu_sans_reel", "prevu_sans_heures", "reel
 #: (année, mois) → (calendrier prévu, calendrier réel) tels que stockés.
 Calendriers = Mapping[tuple[int, int], tuple[list[dict[str, Any]], list[dict[str, Any]]]]
 
+#: À partir de ce nombre de jours pointés sans prévu, le bulletin ne se force plus :
+#: le moteur compterait chacune de ces heures en heure supplémentaire (contrôle du
+#: 10/11/2026 : 13 salariés, brut jusqu'à trois fois trop haut). En dessous, c'est
+#: une journée en plus, qu'une gestionnaire peut vouloir payer.
+SEUIL_POINTES_SANS_PREVU = 3
+
 
 @dataclass(frozen=True)
 class JourASaisir:
@@ -54,6 +60,8 @@ class PeriodeASaisir:
     #: Jours marqués « absent » à l'import, sans type encore : ni à saisir ni
     #: en conflit ; la génération les refuse à part, sans forçage.
     absents_a_typer: tuple[date, ...] = ()
+    #: Jours de la fenêtre avec des heures pointées, mais aucune heure prévue.
+    pointes_sans_prevu: tuple[date, ...] = ()
 
     @property
     def bloquants(self) -> tuple[JourASaisir, ...]:
@@ -137,6 +145,7 @@ def periode_a_saisir(
 
     manquants: list[JourASaisir] = []
     absents: list[date] = []
+    pointes_sans_prevu: list[date] = []
     jour = debut
     while jour <= fin:
         hors_contrat = (date_entree is not None and jour < date_entree) or (
@@ -156,6 +165,14 @@ def periode_a_saisir(
                     motif = _motif(planned, actual)
                     if pointe or motif != "prevu_sans_reel":
                         manquants.append(JourASaisir(jour, dans_fenetre, motif))
+                    if (
+                        dans_fenetre
+                        and not forfait
+                        and motif in ("planning_absent", "prevu_sans_heures")
+                        and actual
+                        and a_des_heures_pointees([actual])
+                    ):
+                        pointes_sans_prevu.append(jour)
         jour += timedelta(days=1)
 
     def dans_la_periode(c: JourEnConflit) -> bool:
@@ -181,7 +198,7 @@ def periode_a_saisir(
     ]
     return PeriodeASaisir(
         debut, fin, fenetre, mois_civil, tuple(manquants), origine, tuple(conflits),
-        tuple(absents),
+        tuple(absents), tuple(pointes_sans_prevu),
     )
 
 
@@ -220,10 +237,22 @@ def raisons_en_clair(jours: Iterable[JourASaisir]) -> str:
     return ", ".join(texte for motif, texte in _RAISONS.items() if motif in motifs)
 
 
+def message_planning_a_poser(prenom: str, jours: Sequence[date]) -> str:
+    """Ce que voit la gestionnaire : ce qui manque, le risque, et quoi faire."""
+    return (
+        f"{prenom} n'a pas de planning prévu pour {len(jours)} jours pointés "
+        f"({libelle_plages(jours)}). Sans planning, Martine compterait toutes ces heures "
+        "en heures supplémentaires. Posez son planning dans le calendrier, puis relancez "
+        "le bulletin."
+    )
+
+
 __all__ = [
     "JourASaisir",
     "PeriodeASaisir",
+    "SEUIL_POINTES_SANS_PREVU",
     "libelle_plages",
+    "message_planning_a_poser",
     "periode_a_saisir",
     "plages",
     "raisons_en_clair",
