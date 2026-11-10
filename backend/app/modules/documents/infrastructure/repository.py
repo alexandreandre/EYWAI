@@ -56,8 +56,37 @@ class SupabaseDocumentsRepository:
         rows = _list(q.order("created_at", desc=True).execute())
         if not rows:
             return []
+        rows = self._sans_les_brouillons_de_departs_supprimes(rows)
         self._enrich_rows(rows)
         return rows
+
+    @staticmethod
+    def _sans_les_brouillons_de_departs_supprimes(
+        rows: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Les brouillons générés par un départ supprimé ne s'affichent plus
+        (`domain.departs_supprimes`) ; départs illisibles : rien n'est caché."""
+        from app.modules.documents.domain.departs_supprimes import (
+            departs_cites,
+            sans_les_brouillons_de_departs_supprimes,
+        )
+
+        cites = departs_cites(rows)
+        if not cites:
+            return rows
+        try:
+            existants = _list(
+                supabase.table("employee_exits")
+                .select("id")
+                .in_("id", sorted(cites))
+                .execute()
+            )
+        except Exception:
+            logger.warning("Départs illisibles : documents de sortie affichés tous", exc_info=True)
+            return rows
+        return sans_les_brouillons_de_departs_supprimes(
+            rows, {str(r.get("id")) for r in existants}
+        )
 
     def _enrich_rows(self, rows: List[Dict[str, Any]]) -> None:
         emp_ids = list({str(r["employee_id"]) for r in rows if r.get("employee_id")})
