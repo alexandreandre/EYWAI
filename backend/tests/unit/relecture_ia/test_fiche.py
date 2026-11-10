@@ -191,3 +191,20 @@ class TestFiche:
         fiche = construire_fiche(_bulletin(), precedent=None, contrat={}, code="SAL-ABC")
         assert fiche["mois_precedent"] is None
         assert fiche["ecarts_avec_mois_precedent"] == {}
+
+
+class TestNomsConnus:
+    def test_le_nom_d_usage_est_retire_d_un_libelle(self):
+        bulletin = {
+            "en_tete": {"salarie": {"nom": "Durand", "prenom": "Alice"}},
+            "primes_non_soumises": [{"libelle": "Contrat de prêt BERNARD", "montant": 50}],
+        }
+        fiche = construire_fiche(
+            bulletin, precedent=None, contrat={}, code="SAL-X", noms_connus=["Bernard"]
+        )
+        assert "BERNARD" not in json.dumps(fiche, ensure_ascii=False)
+        assert "Contrat de prêt SAL-X" in json.dumps(fiche, ensure_ascii=False)
+
+    def test_une_duree_en_jours_n_est_pas_un_titre_de_sejour(self):
+        assert filtrer_donnees_personnelles({"franchise_jours": 3}) == {"franchise_jours": 3}
+        assert filtrer_donnees_personnelles({"titre_de_sejour": "x"}) == {}

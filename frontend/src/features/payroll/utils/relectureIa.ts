@@ -17,6 +17,7 @@ export function coutAffiche(euros: number): string {
 export function raisonBoutonGrise(preparation: PreparationRelecture | undefined): string | null {
   if (!preparation) return null;
   if (preparation.blocage) return preparation.blocage;
+  if (preparation.societes.length === 0) return 'Aucun bulletin généré pour ce mois : rien à relire.';
   if (preparation.total_a_relire === 0) {
     return 'Rien à relire : tous les bulletins de ce mois ont déjà été relus depuis leur dernière modification.';
   }

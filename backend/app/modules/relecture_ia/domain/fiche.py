@@ -72,13 +72,12 @@ _MORCEAUX_DE_CLE = (
     "fullname",
     "securitesociale",
     "socialsecurity",
-    "sejour",
     "residencepermit",
     "telephone",
     "phone",
     "coordonneesbancaires",
 )
-_MOTS_DE_CLE = {"nir", "bic", "rib", "nom", "name", "mail", "matricule", "rue", "ville"}
+_MOTS_DE_CLE = {"nir", "bic", "rib", "nom", "name", "mail", "matricule", "rue", "ville", "sejour"}
 
 _RE_COURRIEL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 _RE_IBAN = re.compile(r"\b[A-Za-z]{2}\d{2}(?:[  ]?[A-Za-z0-9]{4}){3,7}(?:[  ]?[A-Za-z0-9]{1,4})?\b")
@@ -220,8 +219,13 @@ def construire_fiche(
     precedent: dict[str, Any] | None,
     contrat: dict[str, Any],
     code: str,
+    noms_connus: Iterable[str] = (),
 ) -> dict[str, Any]:
-    """La fiche filtrée d'un bulletin : à envoyer telle quelle."""
+    """La fiche filtrée d'un bulletin : à envoyer telle quelle.
+
+    `noms_connus` : les noms de la fiche salarié. Un libellé peut porter le nom
+    d'usage alors que l'en-tête du bulletin porte l'autre.
+    """
     fiche = {
         "salarie": code,
         "contrat": contrat,
@@ -232,5 +236,5 @@ def construire_fiche(
         "ecarts_avec_mois_precedent": _ecarts(bulletin, precedent),
     }
     return filtrer_donnees_personnelles(
-        fiche, noms=_noms_du_bulletin(bulletin, precedent), code=code
+        fiche, noms=[*_noms_du_bulletin(bulletin, precedent), *noms_connus], code=code
     )

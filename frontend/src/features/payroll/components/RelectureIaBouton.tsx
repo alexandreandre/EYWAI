@@ -106,8 +106,6 @@ function BoutonAutorise({ year, month, titreMois }: Props) {
   return (
     <div className="flex max-w-xs flex-col items-end gap-1" data-testid="relecture-ia">
       <Button
-        size="sm"
-        variant="outline"
         className="gap-1.5"
         disabled={grise}
         onClick={() => setConfirmation(true)}
@@ -221,6 +219,10 @@ function FenetreConfirmation({
 
         <p className="text-sm font-medium" data-testid="relecture-ia-recap">
           {pluriel(nombre, 'bulletin')} à relire, {coutAffiche(nombre * preparation.cout_unitaire_eur)}.
+        </p>
+        <p className="text-sm" data-testid="relecture-ia-avertissement">
+          À lancer une fois, quand la paie du mois est prête, et pas à répétition : chaque relecture a
+          un coût.
         </p>
         <p className="text-xs text-muted-foreground">
           {preparation.derniere_relecture

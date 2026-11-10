@@ -12,6 +12,7 @@ from typing import Any
 
 from app.core.database import supabase
 from app.core.supabase_resilience import execute_with_retry
+from app.modules.relecture_ia.domain.selection import est_genere_par_martine
 
 _TAILLE_PAGE = 1000
 _TAILLE_LISTE = 200
@@ -22,7 +23,9 @@ _T_VUS = "relectures_ia_vus"
 _T_REGLES = "relecture_ia_regles"
 
 _COLONNES_CONTRAT = (
-    "id, duree_hebdomadaire, is_forfait_jour, is_temps_partiel, contract_type, statut, job_title"
+    "id, duree_hebdomadaire, is_forfait_jour, is_temps_partiel, contract_type, statut, job_title, "
+    # Les noms ne vont pas dans la fiche : ils servent à les retirer des libellés.
+    "first_name, last_name, nom_usage"
 )
 
 
@@ -69,14 +72,15 @@ class DepotRelecture:
     ) -> list[dict[str, Any]]:
         if not company_ids:
             return []
-        return self._tout_lire(
+        lignes = self._tout_lire(
             lambda: self._table("payslips")
-            .select("id, company_id, employee_id, contract_period_id, updated_at, bulletin_kind")
+            .select("id, company_id, employee_id, contract_period_id, updated_at, bulletin_kind, origine")
             .in_("company_id", company_ids)
             .eq("year", year)
             .eq("month", month)
             .order("id")
         )
+        return [l for l in lignes if est_genere_par_martine(l)]
 
     def contenus_des_bulletins(self, ids: list[str]) -> list[dict[str, Any]]:
         contenus: list[dict[str, Any]] = []

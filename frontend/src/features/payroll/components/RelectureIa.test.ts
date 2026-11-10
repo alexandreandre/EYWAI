@@ -221,6 +221,7 @@ describe('textes de la relecture', () => {
 
   it('raison du bouton grisé', () => {
     expect(raisonBoutonGrise(preparation({ total_a_relire: 0 }))).toContain('Rien à relire');
+    expect(raisonBoutonGrise(preparation({ total_a_relire: 0, societes: [] }))).toContain('Aucun bulletin généré');
     expect(raisonBoutonGrise(preparation())).toBeNull();
     expect(raisonBoutonGrise(undefined)).toBeNull();
   });

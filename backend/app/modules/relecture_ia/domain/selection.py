@@ -19,6 +19,11 @@ def meme_version(modifie_le: Any, relu_a_la_version: Any) -> bool:
     return a is not None and a == b
 
 
+def est_genere_par_martine(bulletin: dict[str, Any]) -> bool:
+    """Un bulletin repris de l'ancien logiciel n'est pas une paie générée : on ne le relit pas."""
+    return bulletin.get("origine") != "importe"
+
+
 def bulletins_a_relire(
     bulletins: list[dict[str, Any]], deja_relus: dict[str, Any]
 ) -> list[dict[str, Any]]:

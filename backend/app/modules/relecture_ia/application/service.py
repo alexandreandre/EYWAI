@@ -285,8 +285,15 @@ def _precedent_du_bulletin(
     return du_salarie[0].get("payslip_data") if du_salarie else None
 
 
+_COLONNES_NOM = ("first_name", "last_name", "nom_usage")
+
+
 def _contrat_de_la_fiche(contrat: dict[str, Any] | None) -> dict[str, Any]:
-    return {k: v for k, v in (contrat or {}).items() if k != "id"}
+    return {k: v for k, v in (contrat or {}).items() if k != "id" and k not in _COLONNES_NOM}
+
+
+def _noms_du_salarie(contrat: dict[str, Any] | None) -> list[str]:
+    return [str(contrat[c]) for c in _COLONNES_NOM if contrat and contrat.get(c)]
 
 
 def _relire_un_bulletin(
@@ -294,12 +301,16 @@ def _relire_un_bulletin(
     systeme: list[dict[str, Any]],
     contenu: dict[str, Any],
     precedent: dict[str, Any] | None,
-    contrat: dict[str, Any],
+    contrat: dict[str, Any] | None,
     vus: set[str],
 ) -> dict[str, Any]:
     code = code_salarie(contenu["employee_id"])
     fiche = construire_fiche(
-        contenu.get("payslip_data") or {}, precedent=precedent, contrat=contrat, code=code
+        contenu.get("payslip_data") or {},
+        precedent=precedent,
+        contrat=_contrat_de_la_fiche(contrat),
+        code=code,
+        noms_connus=_noms_du_salarie(contrat),
     )
     reponse = relecteur.relire(systeme, fiche)
     garde = garder_signalements(reponse.signalements, fiche, code=code, vus=vus)
@@ -362,7 +373,7 @@ def _traiter_societe(
                     systeme,
                     contenu,
                     _precedent_du_bulletin(precedents, ligne["employee_id"], ligne.get("contract_period_id")),
-                    _contrat_de_la_fiche(contrats.get(str(ligne["employee_id"]))),
+                    contrats.get(str(ligne["employee_id"])),
                     vus.get(str(ligne["employee_id"]), set()),
                 )
             ] = ligne
@@ -487,7 +498,7 @@ def relire_en_lecture_seule(
                 blocs_systeme(depot.regles(company_id)),
                 contenu,
                 _precedent_du_bulletin(precedents, employe, contenu.get("contract_period_id")),
-                _contrat_de_la_fiche(contrat),
+                contrat,
                 vus,
             )
         except RelectureImpossible as exc:

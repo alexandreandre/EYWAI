@@ -6,7 +6,8 @@ import pytest
 
 from app.modules.relecture_ia.domain.cout import cout_usd, estimer_cout_eur
 from app.modules.relecture_ia.domain.droits import compte_autorise
-from app.modules.relecture_ia.domain.selection import bulletins_a_relire
+from app.modules.relecture_ia.domain.selection import bulletins_a_relire, est_genere_par_martine
+from app.modules.relecture_ia.infrastructure.repository import DepotRelecture
 
 pytestmark = pytest.mark.unit
 
@@ -16,6 +17,15 @@ def _bulletin(i: str, maj: str, kind=None) -> dict:
 
 
 class TestSelection:
+    def test_un_bulletin_repris_de_l_ancien_logiciel_n_est_pas_relu(self):
+        assert est_genere_par_martine({"origine": "calcule"})
+        assert not est_genere_par_martine({"origine": "importe"})
+
+    def test_le_depot_ne_rend_que_les_bulletins_generes(self):
+        depot = DepotRelecture(client=object())
+        depot._tout_lire = lambda _: [{"id": "a", "origine": "calcule"}, {"id": "b", "origine": "importe"}]
+        assert [b["id"] for b in depot.bulletins_du_mois(["s"], 2026, 10)] == ["a"]
+
     def test_jamais_relu_est_a_relire(self):
         assert [b["id"] for b in bulletins_a_relire([_bulletin("a", "2026-11-01T10:00:00+00:00")], {})] == ["a"]
 
