@@ -204,6 +204,7 @@ def compute_and_persist_grant(
             grant.seniority_years_at_ref,
             grant.forfait_days_reduction,
             grant.to_snapshot(),
+            garder_decision_rh=True,
         )
     return {
         "grant": grant,

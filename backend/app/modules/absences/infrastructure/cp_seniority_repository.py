@@ -131,9 +131,14 @@ def upsert_cp_seniority_grant(
     *,
     status: str = "computed",
     validated_by: str | None = None,
+    garder_decision_rh: bool = False,
 ) -> dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat()
     existing = get_cp_seniority_grant(employee_id, grant_year)
+    # Un droit validé ou corrigé par les RH ne repasse pas au calcul automatique
+    # parce qu'une page l'a relu.
+    if garder_decision_rh and existing and existing.get("status") in ("validated", "overridden"):
+        return existing
     row = {
         "company_id": company_id,
         "employee_id": employee_id,
