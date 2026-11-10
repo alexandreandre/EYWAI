@@ -22,6 +22,8 @@ import {
   type EmployeeMonthState,
 } from '@/features/payroll/components/PayrollMonthExplorer';
 import { RevueARegarder } from '@/features/payroll/components/RevueARegarder';
+import { RelectureIaBouton } from '@/features/payroll/components/RelectureIaBouton';
+import { RelectureIaARegarder } from '@/features/payroll/components/RelectureIaARegarder';
 import { PayrollGroupLaunchCta } from '@/features/payroll/components/PayrollGroupLaunchCta';
 import { PayrollMonthList, type MonthStatusMap } from '@/features/payroll/components/PayrollMonthList';
 import type { PayslipRowState } from '@/features/payroll/components/PayrollPayslipRow';
@@ -991,7 +993,16 @@ export default function Payroll() {
       <RhPageHeader
         title="Gestion de la Paie"
         description="Générez et consultez les bulletins par collaborateur ou par mois."
-        actions={<CreateEmployeeForm />}
+        actions={
+          <>
+            <RelectureIaBouton
+              year={selectedYear}
+              month={selectedMonth}
+              titreMois={monthYearLabel(selectedMonth, selectedYear)}
+            />
+            <CreateEmployeeForm />
+          </>
+        }
       />
 
       {generationEnCours && (
@@ -1160,6 +1171,7 @@ export default function Payroll() {
               }
             />
             <RevueARegarder year={selectedYear} month={selectedMonth} />
+            <RelectureIaARegarder year={selectedYear} month={selectedMonth} />
           </TabsContent>
         </Tabs>
       </div>

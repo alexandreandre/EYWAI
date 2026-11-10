@@ -29,6 +29,12 @@ export const queryKeys = {
     companyQueryKey(companyId, 'payslips', 'report-net-negatif', 'mois', year, month),
   revueDuMois: (companyId: string | undefined, year: number, month: number) =>
     companyQueryKey(companyId, 'payslips', 'revue-du-mois', year, month),
+  relectureIaDroits: () => ['relecture-ia', 'droits'] as const,
+  relectureIaPreparation: (year: number, month: number) =>
+    ['relecture-ia', 'preparation', year, month] as const,
+  relectureIaEtat: () => ['relecture-ia', 'etat'] as const,
+  relectureIaARegarder: (companyId: string | undefined, year: number, month: number) =>
+    companyQueryKey(companyId, 'relecture-ia', 'a-regarder', year, month),
   lignesCorrigeables: (companyId: string | undefined, payslipId: string, version: string | null | undefined) =>
     companyQueryKey(companyId, 'payslips', 'lignes-corrigeables', payslipId, version ?? ''),
   reportNetNegatifTous: (companyId: string | undefined) =>
