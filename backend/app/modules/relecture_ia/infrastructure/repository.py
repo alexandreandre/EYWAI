@@ -294,6 +294,18 @@ class DepotRelecture:
             .order("id")
         )
 
+    def couts_recents(self, limite: int = 300) -> list[float]:
+        """Ce qu'ont réellement coûté les derniers bulletins relus, en dollars."""
+        lignes = self._executer(
+            lambda: self._table(_T_BULLETINS)
+            .select("cout_usd")
+            .eq("statut", "fait")
+            .order("termine_at", desc=True)
+            .limit(limite)
+            .execute()
+        )
+        return [float(l["cout_usd"]) for l in lignes if l.get("cout_usd")]
+
     def versions_relues(
         self, company_ids: list[str], year: int, month: int
     ) -> list[dict[str, Any]]:

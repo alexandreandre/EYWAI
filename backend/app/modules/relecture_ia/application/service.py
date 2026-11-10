@@ -14,8 +14,9 @@ from typing import Any
 
 from app.modules.relecture_ia.domain.consignes import blocs_systeme
 from app.modules.relecture_ia.domain.cout import (
+    cout_unitaire_eur,
     cout_usd,
-    estimer_cout_eur,
+    phrase_cout_reel,
 )
 from app.modules.relecture_ia.domain.droits import compte_autorise
 from app.modules.relecture_ia.domain.fiche import code_salarie, construire_fiche
@@ -159,13 +160,14 @@ def preparer(
         if compter(bulletins, company_id) > 0
     ]
     derniere = depot.derniere_relecture_terminee(year, month)
+    unitaire = cout_unitaire_eur(depot.couts_recents())
     return {
         "year": year,
         "month": month,
         "societes": sorted(lignes_societes, key=lambda s: s["nom"].lower()),
         "total_a_relire": len(a_relire),
-        "cout_unitaire_eur": estimer_cout_eur(1),
-        "cout_estime_eur": estimer_cout_eur(len(a_relire)),
+        "cout_unitaire_eur": unitaire,
+        "cout_estime_eur": round(unitaire * len(a_relire), 2),
         "derniere_relecture": derniere.get("termine_at") if derniere else None,
         "relecture_en_cours": _vue_relecture(depot.relecture_en_cours()),
         "blocage": _blocage(),
@@ -221,7 +223,7 @@ def lancer(
             "statut": "en_cours",
             "total": len(a_relire),
             "lance_par": user_id,
-            "cout_estime_eur": estimer_cout_eur(len(a_relire)),
+            "cout_estime_eur": round(cout_unitaire_eur(depot.couts_recents()) * len(a_relire), 2),
         },
         [
             {
@@ -337,8 +339,13 @@ def _traiter_societe(
     company_id: str,
     lignes: list[dict[str, Any]],
     avancement: _Avancement,
+    amorcer: bool = False,
 ) -> None:
-    """Relit les bulletins d'un paquet d'une même société. Lectures groupées, une par nature."""
+    """Relit les bulletins d'un paquet d'une même société. Lectures groupées, une par nature.
+
+    `amorcer` : le premier bulletin passe seul. Il écrit les règles de la société dans le
+    cache ; lancés ensemble, quatre bulletins paieraient chacun cette écriture.
+    """
     annee, mois = lignes[0]["year"], lignes[0]["month"]
     annee_avant, mois_avant = _mois_precedent(annee, mois)
     salaries = [str(l["employee_id"]) for l in lignes]
@@ -366,17 +373,20 @@ def _traiter_societe(
             if contenu is None:
                 echouer(ligne, _MESSAGE_BULLETIN_DISPARU)
                 continue
-            taches[
-                pool.submit(
-                    _relire_un_bulletin,
-                    relecteur,
-                    systeme,
-                    contenu,
-                    _precedent_du_bulletin(precedents, ligne["employee_id"], ligne.get("contract_period_id")),
-                    contrats.get(str(ligne["employee_id"])),
-                    vus.get(str(ligne["employee_id"]), set()),
-                )
-            ] = ligne
+            tache = pool.submit(
+                _relire_un_bulletin,
+                relecteur,
+                systeme,
+                contenu,
+                _precedent_du_bulletin(precedents, ligne["employee_id"], ligne.get("contract_period_id")),
+                contrats.get(str(ligne["employee_id"])),
+                vus.get(str(ligne["employee_id"]), set()),
+            )
+            taches[tache] = ligne
+            if amorcer:
+                amorcer = False
+                while not wait([tache], timeout=_BATTEMENT_SECONDES).done:
+                    depot.modifier_relecture(relecture_id)
 
         restantes = set(taches)
         while restantes:
@@ -402,13 +412,13 @@ def _traiter_societe(
         raise arret
 
 
-def _message_de_fin(fait: int, echecs: int, points: int) -> str:
+def _message_de_fin(fait: int, echecs: int, points: int, cout: float) -> str:
     bilan = f"{pluriel(fait, 'bulletin relu', 'bulletins relus')}, {pluriel(points, 'point')} à regarder."
     if echecs == 1:
         bilan += " 1 bulletin n'a pas pu être relu : relancez pour le reprendre."
     elif echecs > 1:
         bilan += f" {echecs} bulletins n'ont pas pu être relus : relancez pour les reprendre."
-    return bilan
+    return f"{bilan} {phrase_cout_reel(cout)}"
 
 
 def _clore(depot: DepotRelecture, relecture_id: str) -> None:
@@ -424,7 +434,7 @@ def _clore(depot: DepotRelecture, relecture_id: str) -> None:
         echecs=echecs,
         points=points,
         cout_reel_usd=round(cout, 4),
-        message=_message_de_fin(fait, echecs, points),
+        message=_message_de_fin(fait, echecs, points, cout),
         termine_at=datetime.now(UTC).isoformat(),
     )
     logger.info(
@@ -434,10 +444,12 @@ def _clore(depot: DepotRelecture, relecture_id: str) -> None:
 
 
 def _arreter(depot: DepotRelecture, relecture_id: str, message: str) -> None:
+    cout = sum(float(r.get("cout_usd") or 0) for r in depot.resultats_de_la_relecture(relecture_id))
     depot.modifier_relecture(
         relecture_id,
         statut="echec",
-        message=message,
+        cout_reel_usd=round(cout, 4),
+        message=f"{message} {phrase_cout_reel(cout)}" if cout > 0 else message,
         termine_at=datetime.now(UTC).isoformat(),
     )
 
@@ -459,6 +471,7 @@ def executer(
             traites=sum(1 for r in deja if r.get("statut") in ("fait", "echec")),
             echecs=sum(1 for r in deja if r.get("statut") == "echec"),
         )
+        amorcees: set[str] = set()
         while True:
             paquet = depot.bulletins_a_traiter(relecture_id, _TAILLE_PAQUET)
             if not paquet:
@@ -467,7 +480,11 @@ def executer(
             for ligne in paquet:
                 par_societe.setdefault(str(ligne["company_id"]), []).append(ligne)
             for company_id, lignes in par_societe.items():
-                _traiter_societe(depot, relecteur, relecture_id, company_id, lignes, avancement)
+                _traiter_societe(
+                    depot, relecteur, relecture_id, company_id, lignes, avancement,
+                    amorcer=company_id not in amorcees,
+                )
+                amorcees.add(company_id)
         _clore(depot, relecture_id)
     except RelectureImpossible as exc:
         _arreter(depot, relecture_id, exc.message)

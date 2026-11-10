@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.modules.relecture_ia.domain.cout import cout_usd, estimer_cout_eur
+from app.modules.relecture_ia.domain.cout import cout_usd, estimer_cout_eur, phrase_cout_reel
 from app.modules.relecture_ia.domain.droits import compte_autorise
 from app.modules.relecture_ia.domain.selection import bulletins_a_relire, est_genere_par_martine
 from app.modules.relecture_ia.infrastructure.repository import DepotRelecture
@@ -77,3 +77,8 @@ class TestCout:
     def test_estimation_croit_avec_les_bulletins(self):
         assert estimer_cout_eur(0) == 0
         assert 0 < estimer_cout_eur(1) < estimer_cout_eur(100)
+
+
+def test_la_phrase_du_cout_reel_est_en_euros():
+    assert phrase_cout_reel(20.0) == "Coût réel : 18,00 €."
+    assert phrase_cout_reel(0.001) == "Coût réel : moins de 0,01 €."

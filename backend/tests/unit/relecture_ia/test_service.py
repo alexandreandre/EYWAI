@@ -420,3 +420,42 @@ class TestARegarder:
             has_rh_access_in_company=lambda c: c == "a",
         )
         assert service.societes_du_compte(user) == [{"company_id": "a", "nom": "A"}]
+
+
+class TestPrixAnnonce:
+    def test_le_message_de_fin_dit_le_cout_reel(self):
+        base = _base(_bulletin(1))
+        depot = DepotRelecture(base)
+        lance = _lancer(depot)
+        service.executer(lance["relecture_id"], depot=depot, relecteur=FauxRelecteur())
+        assert "Coût réel" in base.ligne("relectures_ia", id=lance["relecture_id"])["message"]
+
+    def test_le_prix_annonce_suit_le_cout_reel_des_qu_il_est_connu(self):
+        base = _base(_bulletin(1))
+        base.tables["relectures_ia_bulletins"].extend(
+            {"id": f"x{i}", "statut": "fait", "cout_usd": 0.10, "termine_at": MAJ,
+             "company_id": AUTRE, "payslip_id": f"z{i}", "year": 2026, "month": 1}
+            for i in range(5)
+        )
+        fenetre = service.preparer(SOCIETES, 2026, 10, depot=DepotRelecture(base))
+        assert fenetre["cout_unitaire_eur"] == pytest.approx(0.09)
+        assert fenetre["cout_estime_eur"] == pytest.approx(0.09)
+
+
+class TestAmorceDuCache:
+    def test_le_premier_bulletin_d_une_societe_passe_seul(self):
+        journal: list[str] = []
+
+        class Relecteur(FauxRelecteur):
+            def relire(self, systeme, fiche):
+                journal.append("debut")
+                reponse = super().relire(systeme, fiche)
+                journal.append("fin")
+                return reponse
+
+        base = _base(_bulletin(1), _bulletin(2), _bulletin(3))
+        depot = DepotRelecture(base)
+        lance = _lancer(depot)
+        service.executer(lance["relecture_id"], depot=depot, relecteur=Relecteur())
+        assert journal[:2] == ["debut", "fin"]
+        assert journal.count("fin") == 3

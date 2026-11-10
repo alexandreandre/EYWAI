@@ -217,8 +217,11 @@ function FenetreConfirmation({
           ))}
         </ul>
 
-        <p className="text-sm font-medium" data-testid="relecture-ia-recap">
-          {pluriel(nombre, 'bulletin')} à relire, {coutAffiche(nombre * preparation.cout_unitaire_eur)}.
+        <p className="text-sm" data-testid="relecture-ia-recap">
+          {pluriel(nombre, 'bulletin')} à relire.
+        </p>
+        <p className="text-base font-semibold" data-testid="relecture-ia-prix">
+          Prix de cette relecture : {coutAffiche(nombre * preparation.cout_unitaire_eur)}
         </p>
         <p className="text-sm" data-testid="relecture-ia-avertissement">
           À lancer une fois, quand la paie du mois est prête, et pas à répétition : chaque relecture a
