@@ -12,7 +12,15 @@
  * lignes imprimées depuis une saisie (`saisie_id`), comme
  * `domain/primes_editees.py`.
  */
-import type { CorrectionLigneAjoutee, LigneCorrigeable, PayslipEditRequest, PrimeAjoutee, RegularisationAjoutee } from '@/api/payslips';
+import type {
+  CorrectionLigneAjoutee,
+  LigneCorrigeable,
+  NatureHeuresRegularisees,
+  PayslipEditRequest,
+  PrimeAjoutee,
+  RegularisationAjoutee,
+  RegularisationHeuresAjoutee,
+} from '@/api/payslips';
 import type { MonthlyInputCreate } from '@/api/saisies';
 import { deDevant } from './elision';
 import { monthLabel } from './payrollMonth';
@@ -100,6 +108,9 @@ export interface EtatCorrections {
   regularisations: RegularisationDuBulletin[];
   regularisationsAjoutees: RegularisationAjoutee[];
   regularisationsRetirees: string[];
+  heuresRegularisees: HeuresRegulariseesDuBulletin[];
+  heuresRegulariseesAjoutees: RegularisationHeuresAjoutee[];
+  heuresRegulariseesRetirees: string[];
   correctionsAjoutees: CorrectionLigneAjoutee[];
   correctionsRetirees: string[];
   pdfNotes: string;
@@ -342,6 +353,59 @@ export function regularisationsDuBulletin(data: unknown): RegularisationDuBullet
     });
 }
 
+/** Des heures d'un autre mois imprimées sur le bulletin. */
+export interface HeuresRegulariseesDuBulletin {
+  saisieId: string;
+  libelle: string;
+  motif: string;
+  quantite: number;
+  taux: number;
+  montant: number;
+}
+
+export function heuresRegulariseesDuBulletin(data: unknown): HeuresRegulariseesDuBulletin[] {
+  const brut = (data as { calcul_du_brut?: unknown } | null | undefined)?.calcul_du_brut;
+  if (!Array.isArray(brut)) return [];
+  return brut
+    .filter((l): l is Ligne => !!l && typeof l === 'object')
+    .filter((l) => {
+      const charge = l.regularisation_heures as Ligne | undefined;
+      return !!charge && typeof charge === 'object' && !!charge.saisie_id;
+    })
+    .map((l) => {
+      const charge = l.regularisation_heures as Ligne;
+      return {
+        saisieId: String(charge.saisie_id),
+        libelle: String(l.libelle ?? ''),
+        motif: String(charge.motif ?? ''),
+        quantite: nombre(l.quantite) ?? 0,
+        taux: nombre(l.taux) ?? 0,
+        montant: arrondi(nombre(l.gain) ?? 0),
+      };
+    });
+}
+
+export const NATURES_HEURES_REGULARISEES: Array<{ valeur: NatureHeuresRegularisees; libelle: string }> = [
+  { valeur: 'hs1', libelle: 'Heures sup, 1er palier (25 % en général)' },
+  { valeur: 'hs2', libelle: 'Heures sup, 2d palier (50 % en général)' },
+  { valeur: 'normales', libelle: 'Heures au taux normal' },
+  { valeur: 'hc1', libelle: 'Heures complémentaires, 1er palier (10 %)' },
+  { valeur: 'hc2', libelle: 'Heures complémentaires, 2d palier (25 %)' },
+];
+
+/** « 2026-09 » → « 09/2026 ». */
+export function moisAffiche(mois: string): string {
+  const [annee, m] = mois.split('-');
+  return annee && m ? `${m}/${annee}` : mois;
+}
+
+/** Le mois précédant celui du bulletin, au format « AAAA-MM ». */
+export function moisPrecedent(year: number, month: number): string {
+  const y = month === 1 ? year - 1 : year;
+  const m = month === 1 ? 12 : month - 1;
+  return `${y}-${String(m).padStart(2, '0')}`;
+}
+
 export type PartRegularisee = 'salariale' | 'patronale' | 'les_deux';
 
 /**
@@ -383,6 +447,9 @@ export function etatInitial(data: unknown, pdfNotes: string | null | undefined):
     regularisations: regularisationsDuBulletin(data),
     regularisationsAjoutees: [],
     regularisationsRetirees: [],
+    heuresRegularisees: heuresRegulariseesDuBulletin(data),
+    heuresRegulariseesAjoutees: [],
+    heuresRegulariseesRetirees: [],
     correctionsAjoutees: [],
     correctionsRetirees: [],
     pdfNotes: pdfNotes ?? '',
@@ -428,6 +495,12 @@ export function requeteDeCorrection(
   }
   if (courant.regularisationsAjoutees.length) corrections.regularisations_ajoutees = courant.regularisationsAjoutees;
   if (courant.regularisationsRetirees.length) corrections.regularisations_retirees = courant.regularisationsRetirees;
+  if (courant.heuresRegulariseesAjoutees.length) {
+    corrections.regularisations_heures_ajoutees = courant.heuresRegulariseesAjoutees;
+  }
+  if (courant.heuresRegulariseesRetirees.length) {
+    corrections.regularisations_heures_retirees = courant.heuresRegulariseesRetirees;
+  }
   if (courant.correctionsAjoutees.length) corrections.corrections_ajoutees = courant.correctionsAjoutees;
   if (courant.correctionsRetirees.length) corrections.corrections_retirees = courant.correctionsRetirees;
 

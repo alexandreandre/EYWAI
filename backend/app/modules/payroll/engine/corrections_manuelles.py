@@ -18,8 +18,9 @@ reste en attente sur le bulletin.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
-from typing import Any, Collection, Iterable, Mapping
+from typing import Any, Callable, Collection, Iterable, Mapping
 
 from app.modules.payroll.engine.codes_des_lignes import (
     BLOC_BRUT,
@@ -235,6 +236,195 @@ def mentions_des_regularisations(payslip_data: Mapping[str, Any] | None) -> list
     ]
 
 
+# --- La régularisation d'heures ---------------------------------------------
+
+TYPE_REGULARISATION_HEURES = "regularisation_heures"
+CLE_REGULARISATIONS_HEURES = "regularisations_heures"
+NATURE_NORMALES = "normales"
+NATURES_HEURES_SUP = ("hs1", "hs2")
+NATURES_HEURES_COMPLEMENTAIRES = ("hc1", "hc2")
+NATURES_HEURES = (NATURE_NORMALES, *NATURES_HEURES_SUP, *NATURES_HEURES_COMPLEMENTAIRES)
+QUANTITE_MAX_REGULARISEE = 300.0
+_MOIS_D_ORIGINE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+
+
+@dataclass(frozen=True)
+class RegularisationHeures:
+    """Des heures d'un autre mois, payées (ou reprises) sur ce bulletin.
+
+    Elles s'ajoutent aux heures du planning sans les remplacer, sur une ligne à
+    elles qui dit le mois d'origine. Le moteur les rejoue à chaque calcul : les
+    heures sup et complémentaires gardent leur réduction salariale et leur
+    exonération d'impôt, et toutes comptent dans le SMIC de référence de la
+    réduction générale. Une quantité négative reprend des heures payées en trop.
+    """
+
+    nature: str
+    mois_origine: str
+    quantite: float
+    motif: str
+    #: Taux horaire de base du mois d'origine, s'il diffère de celui du bulletin.
+    taux_horaire: float | None = None
+    saisie_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.nature not in NATURES_HEURES:
+            raise RegularisationInvalide("Choisissez le taux des heures à régulariser.")
+        if not _MOIS_D_ORIGINE.match(self.mois_origine or ""):
+            raise RegularisationInvalide("Choisissez le mois d'origine des heures.")
+        if not self.quantite or abs(self.quantite) > QUANTITE_MAX_REGULARISEE:
+            raise RegularisationInvalide(
+                "Le nombre d'heures doit être différent de zéro et ne pas dépasser 300."
+            )
+        if len(self.motif.strip()) < 3:
+            raise RegularisationInvalide("Écrivez le motif de la régularisation.")
+        if self.taux_horaire is not None and self.taux_horaire <= 0:
+            raise RegularisationInvalide("Le taux horaire de base doit être positif.")
+
+    @property
+    def mois_affiche(self) -> str:
+        annee, mois = self.mois_origine.split("-")
+        return f"{mois}/{annee}"
+
+    def libelle(self, majoration: float) -> str:
+        pourcentage = f"{majoration * 100:.0f} %"
+        if self.nature in NATURES_HEURES_SUP:
+            return f"Régularisation heures sup {pourcentage} – {self.mois_affiche}"
+        if self.nature in NATURES_HEURES_COMPLEMENTAIRES:
+            return f"Régularisation heures complémentaires {pourcentage} – {self.mois_affiche}"
+        return f"Régularisation heures normales – {self.mois_affiche}"
+
+    def charge_utile(self) -> dict[str, Any]:
+        """Ce qui s'enregistre dans monthly_inputs.correction_ligne."""
+        return {
+            "type": TYPE_REGULARISATION_HEURES,
+            "nature": self.nature,
+            "mois_origine": self.mois_origine,
+            "quantite": self.quantite,
+            "motif": self.motif.strip(),
+            "taux_horaire": self.taux_horaire,
+        }
+
+    @classmethod
+    def depuis(cls, donnees: Mapping[str, Any]) -> RegularisationHeures:
+        identifiant = donnees.get("saisie_id")
+        return cls(
+            nature=str(donnees.get("nature") or ""),
+            mois_origine=str(donnees.get("mois_origine") or ""),
+            quantite=_nombre(donnees.get("quantite")) or 0.0,
+            motif=str(donnees.get("motif") or ""),
+            taux_horaire=_nombre(donnees.get("taux_horaire")),
+            saisie_id=str(identifiant) if identifiant else None,
+        )
+
+    def saisie_du_mois(self, periode: Mapping[str, Any]) -> dict[str, Any]:
+        """La ligne monthly_inputs qui porte la régularisation."""
+        return {
+            **periode,
+            "name": f"Régularisation d'heures – {self.mois_affiche}",
+            "description": self.motif.strip(),
+            "amount": 0,
+            "is_socially_taxed": False,
+            "is_taxable": False,
+            "correction_ligne": self.charge_utile(),
+        }
+
+    def ligne_de_gain(
+        self,
+        taux_de_base: float,
+        majorations: Mapping[str, float],
+        majorer: Callable[[float, float], float],
+    ) -> dict[str, Any]:
+        majoration = float(majorations.get(self.nature) or 0.0)
+        base = self.taux_horaire if self.taux_horaire is not None else taux_de_base
+        taux = majorer(base, majoration)
+        return {
+            "libelle": self.libelle(majoration),
+            "quantite": round(self.quantite, 2),
+            "taux": round(taux, 4),
+            "gain": round(self.quantite * taux, 2),
+            "perte": None,
+            "explication": f"Régularisation saisie à la main : {self.motif.strip()}",
+            "regularisation_heures": {**self.charge_utile(), "saisie_id": self.saisie_id},
+        }
+
+
+def est_regularisation_heures(saisie: Mapping[str, Any]) -> bool:
+    correction = saisie.get("correction_ligne")
+    return isinstance(correction, Mapping) and correction.get("type") == TYPE_REGULARISATION_HEURES
+
+
+def ranger_regularisation_heures(saisie: Mapping[str, Any], saisies_data: dict[str, Any]) -> bool:
+    """Range une régularisation d'heures à part des primes. Dit si la saisie en était une."""
+    if not est_regularisation_heures(saisie):
+        return False
+    entree = dict(saisie["correction_ligne"])
+    if saisie.get("id"):
+        entree["saisie_id"] = str(saisie["id"])
+    saisies_data.setdefault(CLE_REGULARISATIONS_HEURES, []).append(entree)
+    return True
+
+
+@dataclass(frozen=True)
+class EffetDesRegularisationsHeures:
+    """Ce que les lignes de régularisation d'heures apportent aux totaux du mois."""
+
+    heures_normales: float = 0.0
+    heures_sup: float = 0.0
+    gain_heures_sup: float = 0.0
+    heures_complementaires: float = 0.0
+    gain_heures_complementaires: float = 0.0
+
+
+def effet_des_regularisations_heures(
+    lignes: Iterable[Mapping[str, Any]],
+) -> EffetDesRegularisationsHeures:
+    normales = sup = gain_sup = compl = gain_compl = 0.0
+    for ligne in lignes:
+        nature = ligne["regularisation_heures"]["nature"]
+        quantite, gain = float(ligne["quantite"]), float(ligne["gain"])
+        if nature in NATURES_HEURES_SUP:
+            sup += quantite
+            gain_sup += gain
+        elif nature in NATURES_HEURES_COMPLEMENTAIRES:
+            compl += quantite
+            gain_compl += gain
+        else:
+            normales += quantite
+    return EffetDesRegularisationsHeures(
+        heures_normales=round(normales, 2),
+        heures_sup=round(sup, 2),
+        gain_heures_sup=round(gain_sup, 2),
+        heures_complementaires=round(compl, 2),
+        gain_heures_complementaires=round(gain_compl, 2),
+    )
+
+
+def lignes_de_regularisation_heures(
+    entrees: Iterable[Mapping[str, Any]] | None,
+    taux_de_base: float,
+    majorations: Mapping[str, float],
+    majorer: Callable[[float, float], float],
+) -> list[dict[str, Any]]:
+    return [
+        RegularisationHeures.depuis(e).ligne_de_gain(taux_de_base, majorations, majorer)
+        for e in entrees or []
+    ]
+
+
+def regularisations_heures_du_bulletin(
+    payslip_data: Mapping[str, Any] | None,
+) -> dict[str, RegularisationHeures]:
+    """Les régularisations d'heures imprimées sur un bulletin, par identifiant de saisie."""
+    trouvees: dict[str, RegularisationHeures] = {}
+    brut = (payslip_data or {}).get("calcul_du_brut") or []
+    for ligne in brut:
+        regul = ligne.get("regularisation_heures") if isinstance(ligne, Mapping) else None
+        if isinstance(regul, Mapping) and regul.get("saisie_id"):
+            trouvees[str(regul["saisie_id"])] = RegularisationHeures.depuis(regul)
+    return trouvees
+
+
 # --- Étape 2 : la correction directe d'une ligne ----------------------------
 
 TYPE_CORRECTION = "correction"
@@ -430,6 +620,8 @@ def ranger_correction_manuelle(saisie: Mapping[str, Any], saisies_data: dict[str
     Dit si la saisie en était une : elle n'est alors pas une prime du bulletin.
     """
     if ranger_regularisation(saisie, saisies_data):
+        return True
+    if ranger_regularisation_heures(saisie, saisies_data):
         return True
     if not est_correction_de_ligne(saisie):
         return False

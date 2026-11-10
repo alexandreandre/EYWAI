@@ -13,6 +13,7 @@ from app.modules.payroll.engine.corrections_manuelles import (
     CorrectionDeLigne,
     CorrectionInvalide,
     RegularisationCotisation,
+    RegularisationHeures,
     RegularisationInvalide,
 )
 from app.modules.payslips.domain.corrections import CorrectionsBulletin
@@ -104,6 +105,29 @@ class RegularisationAjoutee(BaseModel):
         return RegularisationCotisation(**self.model_dump())
 
 
+class RegularisationHeuresAjoutee(BaseModel):
+    """Des heures d'un autre mois payées, ou reprises si négatives, sur ce bulletin."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    nature: Literal["normales", "hs1", "hs2", "hc1", "hc2"]
+    mois_origine: str = Field(..., min_length=7, max_length=7)
+    quantite: float = Field(..., ge=-300, le=300)
+    motif: str = Field(..., min_length=3, max_length=300)
+    taux_horaire: float | None = Field(None, gt=0, le=1_000)
+
+    @model_validator(mode="after")
+    def _regularisation_coherente(self) -> "RegularisationHeuresAjoutee":
+        try:
+            self.vers_domaine()
+        except RegularisationInvalide as exc:
+            raise ValueError(str(exc)) from exc
+        return self
+
+    def vers_domaine(self) -> RegularisationHeures:
+        return RegularisationHeures(**self.model_dump())
+
+
 class CorrectionLigneAjoutee(BaseModel):
     """Une ligne corrigée depuis le bulletin : sa base, son taux ou son montant,
     selon ce que la ligne porte (règle 3). Le serveur calcule le montant."""
@@ -134,7 +158,7 @@ class CorrectionLigneAjoutee(BaseModel):
 
 
 class CorrectionsBulletinRequest(BaseModel):
-    """Ce qui se corrige depuis le bulletin : heures sup, primes et régularisations de cotisation du mois."""
+    """Ce qui se corrige depuis le bulletin : heures sup, primes, régularisations de cotisation et d'heures."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -145,6 +169,8 @@ class CorrectionsBulletinRequest(BaseModel):
     primes_retirees: list[str] = Field(default_factory=list, max_length=50)
     regularisations_ajoutees: list[RegularisationAjoutee] = Field(default_factory=list, max_length=20)
     regularisations_retirees: list[str] = Field(default_factory=list, max_length=50)
+    regularisations_heures_ajoutees: list[RegularisationHeuresAjoutee] = Field(default_factory=list, max_length=20)
+    regularisations_heures_retirees: list[str] = Field(default_factory=list, max_length=50)
     corrections_ajoutees: list[CorrectionLigneAjoutee] = Field(default_factory=list, max_length=20)
     corrections_retirees: list[str] = Field(default_factory=list, max_length=50)
 
@@ -179,6 +205,8 @@ class CorrectionsBulletinRequest(BaseModel):
             ),
             regularisations_ajoutees=tuple(r.vers_domaine() for r in self.regularisations_ajoutees),
             regularisations_retirees=tuple(dict.fromkeys(self.regularisations_retirees)),
+            regularisations_heures_ajoutees=tuple(r.vers_domaine() for r in self.regularisations_heures_ajoutees),
+            regularisations_heures_retirees=tuple(dict.fromkeys(self.regularisations_heures_retirees)),
             corrections_ajoutees=tuple(c.vers_domaine() for c in self.corrections_ajoutees),
             corrections_retirees=tuple(dict.fromkeys(self.corrections_retirees)),
         )

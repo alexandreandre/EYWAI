@@ -332,6 +332,20 @@ export interface RegularisationAjoutee {
   montant_patronal?: number | null;
 }
 
+/** Taux des heures régularisées : normal, heures sup (1er, 2d palier), complémentaires (1er, 2d palier). */
+export type NatureHeuresRegularisees = 'normales' | 'hs1' | 'hs2' | 'hc1' | 'hc2';
+
+/** Des heures d'un autre mois payées sur ce bulletin, ou reprises si négatives. */
+export interface RegularisationHeuresAjoutee {
+  nature: NatureHeuresRegularisees;
+  /** « AAAA-MM » */
+  mois_origine: string;
+  quantite: number;
+  motif: string;
+  /** Taux horaire de base du mois d'origine, s'il diffère de celui du bulletin. */
+  taux_horaire?: number | null;
+}
+
 /** Une ligne corrigée depuis le bulletin : sa base, son taux ou son montant, selon la règle 3. */
 export interface CorrectionLigneAjoutee {
   /** Le code de la ligne, donné par le serveur. */
@@ -402,6 +416,8 @@ export interface CorrectionsBulletin {
   primes_retirees?: string[];
   regularisations_ajoutees?: RegularisationAjoutee[];
   regularisations_retirees?: string[];
+  regularisations_heures_ajoutees?: RegularisationHeuresAjoutee[];
+  regularisations_heures_retirees?: string[];
   corrections_ajoutees?: CorrectionLigneAjoutee[];
   corrections_retirees?: string[];
 }

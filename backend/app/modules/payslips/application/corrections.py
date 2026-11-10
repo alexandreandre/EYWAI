@@ -24,7 +24,10 @@ from app.core.database import supabase
 from app.shared.cle_du_bulletin import du_contrat
 from app.modules.payroll.documents.verrou_generation import verrou_de_generation
 from app.modules.payroll.engine.corrections_du_bulletin import corrections_du_bulletin
-from app.modules.payroll.engine.corrections_manuelles import regularisations_du_bulletin
+from app.modules.payroll.engine.corrections_manuelles import (
+    regularisations_du_bulletin,
+    regularisations_heures_du_bulletin,
+)
 from app.modules.payslips.application.commands import (
     _refuser_si_importe,
     _set_payslip_status_brouillon,
@@ -52,6 +55,7 @@ from app.modules.payslips.domain.corrections import (
     corrections_pour_revenir,
     refus_de_la_reduction_generale,
     refus_des_corrections,
+    refus_des_regularisations_heures,
     resume_des_corrections,
 )
 from app.modules.payslips.domain.heures_sup import (
@@ -61,6 +65,7 @@ from app.modules.payslips.domain.heures_sup import (
 )
 from app.modules.payslips.domain.historique import entree_de_version
 from app.modules.payslips.domain.primes_editees import primes_saisies_du_bulletin
+from app.modules.payslips.domain.rules import is_forfait_jour
 
 logger = logging.getLogger(__name__)
 
@@ -176,6 +181,7 @@ def _ecrire_variables(
     if not corrections.primes.vide:
         appliquer_primes_editees(corrections.primes, **periode, contract_period_id=contrat)
     _ecrire_regularisations(corrections, periode, contrat)
+    _ecrire_regularisations_heures(corrections, periode, contrat)
     _ecrire_corrections_de_ligne(corrections, periode, contrat)
 
 
@@ -202,6 +208,38 @@ def _ecrire_regularisations(
                 for regul in corrections.regularisations_ajoutees
             ]
         ).execute()
+
+
+def _ecrire_regularisations_heures(
+    corrections: CorrectionsBulletin, periode: dict[str, Any], contrat: str | None = None
+) -> None:
+    """Ajoute et retire les régularisations d'heures, pour ce seul salarié et ce seul mois."""
+    if corrections.regularisations_heures_retirees:
+        (
+            supabase.table("monthly_inputs")
+            .delete()
+            .match(periode)
+            .in_("id", list(corrections.regularisations_heures_retirees))
+            .execute()
+        )
+    if corrections.regularisations_heures_ajoutees:
+        supabase.table("monthly_inputs").insert(
+            [
+                regul.saisie_du_mois({**periode, "contract_period_id": contrat})
+                for regul in corrections.regularisations_heures_ajoutees
+            ]
+        ).execute()
+
+
+def _est_au_forfait_jours(employee_id: str) -> bool:
+    r = (
+        supabase.table("employees")
+        .select("statut")
+        .eq("id", employee_id)
+        .maybe_single()
+        .execute()
+    )
+    return is_forfait_jour((r.data or {}).get("statut") if r else None)
 
 
 def _ecrire_corrections_de_ligne(
@@ -363,6 +401,13 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
         refus = refus_des_corrections(
             corrections, bulletin.get("payslip_data")
         ) or refus_de_la_reduction_generale(corrections, bulletin.get("payslip_data"))
+        if not refus and corrections.regularisations_heures_ajoutees:
+            refus = refus_des_regularisations_heures(
+                corrections,
+                int(bulletin["year"]),
+                int(bulletin["month"]),
+                forfait_jours=_est_au_forfait_jours(str(bulletin["employee_id"])),
+            )
         if refus:
             raise PayslipBadRequestError(refus)
         corrections = avec_la_valeur_de_martine(corrections, bulletin.get("payslip_data"))
@@ -466,6 +511,7 @@ def restaurer_version(cmd: RestorePayslipInput) -> dict[str, Any]:
     identifiants = (
         set(primes_saisies_du_bulletin(cible))
         | set(regularisations_du_bulletin(cible))
+        | set(regularisations_heures_du_bulletin(cible))
         | set(corrections_du_bulletin(cible))
     )
     corrections = corrections_pour_revenir(

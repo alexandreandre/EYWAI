@@ -22,7 +22,9 @@ from app.modules.payroll.engine.corrections_manuelles import (
     PAR_MODE,
     CorrectionDeLigne,
     RegularisationCotisation,
+    RegularisationHeures,
     regularisations_du_bulletin,
+    regularisations_heures_du_bulletin,
 )
 from app.modules.payslips.domain.heures_sup import quantites_heures_sup_calculees
 from app.modules.payslips.domain.primes_editees import (
@@ -54,6 +56,9 @@ class CorrectionsBulletin:
     #: Régularisations de cotisation à ajouter, puis identifiants de saisie à retirer.
     regularisations_ajoutees: tuple[RegularisationCotisation, ...] = ()
     regularisations_retirees: tuple[str, ...] = ()
+    #: Heures d'un autre mois à ajouter à ce bulletin, puis identifiants de saisie à retirer.
+    regularisations_heures_ajoutees: tuple[RegularisationHeures, ...] = ()
+    regularisations_heures_retirees: tuple[str, ...] = ()
     #: Corrections de ligne à ajouter, puis identifiants de saisie à retirer.
     corrections_ajoutees: tuple[CorrectionDeLigne, ...] = ()
     corrections_retirees: tuple[str, ...] = ()
@@ -66,6 +71,8 @@ class CorrectionsBulletin:
             or not self.primes.vide
             or bool(self.regularisations_ajoutees)
             or bool(self.regularisations_retirees)
+            or bool(self.regularisations_heures_ajoutees)
+            or bool(self.regularisations_heures_retirees)
             or bool(self.corrections_ajoutees)
             or bool(self.corrections_retirees)
         )
@@ -101,6 +108,11 @@ def resume_des_corrections(corrections: CorrectionsBulletin) -> str:
     if corrections.regularisations_retirees:
         n = len(corrections.regularisations_retirees)
         parties.append(f"{n} régularisation{'s' if n > 1 else ''} retirée{'s' if n > 1 else ''}")
+    for regul in corrections.regularisations_heures_ajoutees:
+        parties.append(f"régularisation de {_heures(regul.quantite)} h de {regul.mois_affiche} : {regul.motif}")
+    if corrections.regularisations_heures_retirees:
+        n = len(corrections.regularisations_heures_retirees)
+        parties.append(f"{n} régularisation{'s' if n > 1 else ''} d'heures retirée{'s' if n > 1 else ''}")
     for correction in corrections.corrections_ajoutees:
         parties.append(f"ligne « {correction.libelle} » corrigée : {correction.motif}")
     if corrections.corrections_retirees:
@@ -144,6 +156,29 @@ def refus_des_corrections(corrections: CorrectionsBulletin, payslip_data: dict[s
         if correction.ligne in visees:
             return f"« {ligne.libelle} » est corrigée deux fois : gardez une seule correction."
         visees.add(correction.ligne)
+    return None
+
+
+MESSAGE_HEURES_AU_FORFAIT = (
+    "Ce salarié est au forfait jours : son temps se compte en jours, "
+    "il n'a pas d'heures à régulariser."
+)
+
+
+def refus_des_regularisations_heures(
+    corrections: CorrectionsBulletin, year: int, month: int, *, forfait_jours: bool
+) -> str | None:
+    """Pourquoi une régularisation d'heures ajoutée ne tient pas sur ce bulletin, ou None."""
+    if not corrections.regularisations_heures_ajoutees:
+        return None
+    if forfait_jours:
+        return MESSAGE_HEURES_AU_FORFAIT
+    for regul in corrections.regularisations_heures_ajoutees:
+        if regul.mois_origine > f"{year:04d}-{month:02d}":
+            return (
+                f"Les heures de {regul.mois_affiche} sont postérieures à ce bulletin : "
+                "choisissez un mois d'origine antérieur ou égal."
+            )
     return None
 
 
@@ -313,6 +348,14 @@ def corrections_pour_revenir(
         for sid, regul in regul_cible.items()
         if sid not in regul_courant and sid not in saisies_existantes
     )
+    heures_courant = regularisations_heures_du_bulletin(courant)
+    heures_cible = regularisations_heures_du_bulletin(cible)
+    regularisations_heures_retirees = tuple(sid for sid in heures_courant if sid not in heures_cible)
+    regularisations_heures_ajoutees = tuple(
+        RegularisationHeures.depuis(regul.charge_utile())
+        for sid, regul in heures_cible.items()
+        if sid not in heures_courant and sid not in saisies_existantes
+    )
     corrections_courant = corrections_du_bulletin(courant)
     corrections_cible = corrections_du_bulletin(cible)
     corrections_retirees = tuple(sid for sid in corrections_courant if sid not in corrections_cible)
@@ -326,6 +369,8 @@ def corrections_pour_revenir(
         primes=DiffPrimes(tuple(ajoutees), tuple(modifiees), retirees),
         regularisations_ajoutees=regularisations_ajoutees,
         regularisations_retirees=regularisations_retirees,
+        regularisations_heures_ajoutees=regularisations_heures_ajoutees,
+        regularisations_heures_retirees=regularisations_heures_retirees,
         corrections_ajoutees=corrections_ajoutees,
         corrections_retirees=corrections_retirees,
     )
@@ -368,6 +413,12 @@ def contenu_de_version(cible: dict[str, Any] | None) -> list[str]:
     if regularisations:
         libelles = ", ".join(regul.libelle for regul in regularisations.values())
         parties.append(f"{'Régularisations' if len(regularisations) > 1 else 'Régularisation'} : {libelles}")
+    heures_regularisees = regularisations_heures_du_bulletin(cible)
+    if heures_regularisees:
+        libelles = ", ".join(
+            f"{_heures(regul.quantite)} h de {regul.mois_affiche}" for regul in heures_regularisees.values()
+        )
+        parties.append(f"Heures régularisées : {libelles}")
     return parties
 
 
@@ -411,6 +462,13 @@ def apercu_de_restauration(
     for sid in corrections.regularisations_retirees:
         regul = regul_courant[sid]
         retirees.append(f"Régularisation « {regul.libelle} » : {regul.motif}")
+
+    heures_courant = regularisations_heures_du_bulletin(courant)
+    for regul in corrections.regularisations_heures_ajoutees:
+        reviennent.append(f"Régularisation de {_heures(regul.quantite)} h de {regul.mois_affiche} : {regul.motif}")
+    for sid in corrections.regularisations_heures_retirees:
+        regul = heures_courant[sid]
+        retirees.append(f"Régularisation de {_heures(regul.quantite)} h de {regul.mois_affiche} : {regul.motif}")
 
     corrections_courant = corrections_du_bulletin(courant)
     par_ligne = {correction.ligne: correction for correction in corrections.corrections_ajoutees}

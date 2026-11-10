@@ -24,6 +24,7 @@ from app.modules.payroll.engine.calcul_cotisations import (
 from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
 from app.modules.payroll.engine.corrections_manuelles import (
     JournalDesCorrections,
+    CLE_REGULARISATIONS_HEURES,
     ajouter_regularisations,
     corriger_les_lignes_de_cotisation,
     corriger_les_lignes_de_gain,
@@ -1142,6 +1143,11 @@ def run_payslip_generation_heures(
             hs_conj_decl_50 or 0
         )
 
+    if saisie_du_mois.get(CLE_REGULARISATIONS_HEURES):
+        contexte.contrat.setdefault("saisie_du_mois", {})[CLE_REGULARISATIONS_HEURES] = (
+            saisie_du_mois[CLE_REGULARISATIONS_HEURES]
+        )
+
     # Nombre de jours couverts (travail, congés payés, école) dans le
     # calendrier BRUT du mois (avant analyse) : sert uniquement à détecter
     # une absence couvrant
@@ -1492,6 +1498,7 @@ def run_payslip_generation_heures(
         max(0.0, heures_base_mois - heures_activite_partielle)
         - heures_arret_non_maintenues
         + heures_retablies_par_rappels
+        + float(resultat_brut.get("heures_normales_regularisees", 0.0) or 0.0)
         + float(total_heures_supp or 0.0)
         + float(resultat_brut.get("heures_complementaires", 0.0) or 0.0)
         - float(resultat_brut.get("heures_absence_non_payees", 0.0) or 0.0),

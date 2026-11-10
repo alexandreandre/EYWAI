@@ -32,6 +32,9 @@ from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
 from app.modules.payroll.engine.codes_des_lignes import BLOC_BRUT
 from app.modules.payroll.engine.corrections_manuelles import (
+    CLE_REGULARISATIONS_HEURES,
+    effet_des_regularisations_heures,
+    lignes_de_regularisation_heures,
     LignesCorrigees,
     journal_du_contexte,
     recaler_le_sous_total,
@@ -2401,6 +2404,22 @@ def calculer_salaire_brut(
             }
         )
 
+    # Heures d'un autre mois régularisées sur ce bulletin : une ligne à elles, en
+    # plus des heures du planning, au taux de majoration de la société.
+    lignes_regul_heures = lignes_de_regularisation_heures(
+        contexte.saisie_du_mois.get(CLE_REGULARISATIONS_HEURES),
+        taux_horaire_de_base,
+        {
+            "hs1": majoration_hs25,
+            "hs2": majoration_hs50,
+            "hc1": majoration_hc1,
+            "hc2": majoration_hc2,
+        },
+        taux_majore,
+    )
+    lignes_composants_brut.extend(lignes_regul_heures)
+    effet_regul_heures = effet_des_regularisations_heures(lignes_regul_heures)
+
     # 5. Calcul final des congés (somme des quotités : une demi-journée = 0,5)
     if jours_conges_dans_periode:
         nombre_jours_conges = sum(
@@ -2633,22 +2652,34 @@ def calculer_salaire_brut(
         remuneration_hs_structurelles
         + remuneration_hs_conjoncturelles
         + remuneration_heures_complementaires
+        + effet_regul_heures.gain_heures_sup
+        + effet_regul_heures.gain_heures_complementaires
     ) - pertes_heures_supp
 
     # Le total des heures supp pour la déduction forfaitaire patronale n'est pas impacté par les absences
     heures_sup_conjoncturelles = (
-        heures_travail_hs25_total + heures_travail_hs50_total + effet.quantite("brut:heures_sup")
+        heures_travail_hs25_total
+        + heures_travail_hs50_total
+        + effet.quantite("brut:heures_sup")
+        + effet_regul_heures.heures_sup
     )
     total_heures_supp_mois = (
         heures_sup_structurelles_mensuelles + heures_sup_conjoncturelles
     ) - heures_absence_hs_total
     if heures_hs_exonerees is not None:
-        total_heures_supp_mois = heures_hs_exonerees + effet.quantite(
-            "brut:heures_sup", "brut:hs_structurelles"
+        total_heures_supp_mois = (
+            heures_hs_exonerees
+            + effet.quantite("brut:heures_sup", "brut:hs_structurelles")
+            + effet_regul_heures.heures_sup
         )
     if montant_hs_exonerees is not None:
-        remuneration_hs_totale = montant_hs_exonerees + effet.sur_le_brut(
-            "brut:heures_sup", "brut:hs_structurelles", "brut:heures_complementaires"
+        remuneration_hs_totale = (
+            montant_hs_exonerees
+            + effet.sur_le_brut(
+                "brut:heures_sup", "brut:hs_structurelles", "brut:heures_complementaires"
+            )
+            + effet_regul_heures.gain_heures_sup
+            + effet_regul_heures.gain_heures_complementaires
         )
 
     # --- FIN DU BLOC CORRIGÉ ---
@@ -2657,7 +2688,11 @@ def calculer_salaire_brut(
     # relever le prorata du plafond SS temps partiel (assiette).
     try:
         contexte.heures_complementaires_mois = round(
-            heures_travail_hc1_total + heures_travail_hc2_total + effet.quantite("brut:heures_complementaires"), 2
+            heures_travail_hc1_total
+            + heures_travail_hc2_total
+            + effet.quantite("brut:heures_complementaires")
+            + effet_regul_heures.heures_complementaires,
+            2,
         )
     except Exception:
         pass
@@ -2679,6 +2714,9 @@ def calculer_salaire_brut(
         # 47,50 h de base et non 151,67 (Quadra imprime 50,50 h de période).
         "heures_base_remunerees": round(heures_base_remunerees, 2),
         "heures_base_corrigees": heures_base_corrigees,
+        # Heures à taux normal d'un autre mois payées ici : elles comptent dans le
+        # SMIC de référence de la réduction générale.
+        "heures_normales_regularisees": effet_regul_heures.heures_normales,
         # Heures retirées de la paie par une absence non rémunérée : à sortir du
         # SMIC de référence de la réduction générale (arrêt maladie exclu).
         "heures_absence_non_payees": round(heures_absence_non_payees, 2),
@@ -2691,6 +2729,10 @@ def calculer_salaire_brut(
         "deduction_arret_maladie": round(deduction_arret_maladie_total, 2),
         "heures_arret_deduites": round(heures_arret_deduites, 2),
         "heures_complementaires": round(
-            heures_travail_hc1_total + heures_travail_hc2_total + effet.quantite("brut:heures_complementaires"), 2
+            heures_travail_hc1_total
+            + heures_travail_hc2_total
+            + effet.quantite("brut:heures_complementaires")
+            + effet_regul_heures.heures_complementaires,
+            2,
         ),
     }

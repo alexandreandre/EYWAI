@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import AjouterPrimeBouton from '@/components/payslip-edit/AjouterPrimeBouton';
 import CorrigerUneLigneCard from '@/components/payslip-edit/CorrigerUneLigneCard';
 import RegularisationsCotisationCard from '@/components/payslip-edit/RegularisationsCotisationCard';
+import RegularisationsHeuresCard from '@/components/payslip-edit/RegularisationsHeuresCard';
 import { PHRASE_FORFAIT_JOURS_SANS_HEURES_SUP } from '@/lib/forfaitJoursAffichage';
 import { pastilleSoumise } from '@/components/saisies/libellesSaisie';
 import {
@@ -359,6 +360,10 @@ export default function CorrectionsBulletinPanel({
           ) : null}
         </CardContent>
       </Card>
+
+      {forfaitJours ? null : (
+        <RegularisationsHeuresCard etat={etat} onChange={onChange} disabled={disabled} year={year} month={month} />
+      )}
 
       <RegularisationsCotisationCard payslipData={payslipData} etat={etat} onChange={onChange} disabled={disabled} />
 

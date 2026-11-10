@@ -45,6 +45,9 @@ RAISON_INFORMATION = "Ligne d'information : elle ne compte pas dans le brut."
 RAISON_REGULARISATION = (
     "Une régularisation se retire ou se refait dans « Régularisations de cotisation »."
 )
+RAISON_REGULARISATION_HEURES = (
+    "Une régularisation d'heures se retire ou se refait dans « Régularisations d'heures »."
+)
 RAISON_HORS_SALAIRE = (
     "Cotisation de la participation ou de la prime de partage de la valeur : "
     "corrigez-la par une régularisation de cotisation."
@@ -159,6 +162,9 @@ def _montant_seul(ligne: Mapping[str, Any]) -> bool:
 
 def code_de_ligne_de_gain(ligne: Mapping[str, Any]) -> str | None:
     libelle = str(ligne.get("libelle") or "")
+    regularisation_heures = ligne.get("regularisation_heures")
+    if isinstance(regularisation_heures, Mapping):
+        return f"brut:regularisation_heures:{regularisation_heures.get('saisie_id') or slug(libelle)}"
     if ligne.get("is_sous_total"):
         return "brut:sous_total"
     if ligne.get("is_informative"):
@@ -257,6 +263,8 @@ def mode_de_correction(
             return None, RAISON_INFORMATION
         if famille == "brut:saisie":
             return None, RAISON_SAISIE
+        if famille == "brut:regularisation_heures":
+            return None, RAISON_REGULARISATION_HEURES
         if ligne.get("quantite") is not None and ligne.get("taux") is not None:
             return MODE_BASE_OU_TAUX, None
         return MODE_MONTANT, None

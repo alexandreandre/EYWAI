@@ -16,7 +16,10 @@ from app.modules.payroll.engine.corrections_du_bulletin import (
     corrections_en_attente_du_bulletin,
     lignes_corrigees_du_bulletin,
 )
-from app.modules.payroll.engine.corrections_manuelles import regularisations_du_bulletin
+from app.modules.payroll.engine.corrections_manuelles import (
+    regularisations_du_bulletin,
+    regularisations_heures_du_bulletin,
+)
 
 
 def _nombre(valeur: Any) -> float | None:
@@ -121,7 +124,10 @@ def payslip_list_meta(payslip_data: Any) -> dict[str, Any]:
         "warnings": warnings,
         "points_a_arbitrer": points_a_arbitrer,
         "alertes_acquittees": regles_acquittees(payslip_data),
-        "regularisations": sorted({r.libelle for r in regularisations_du_bulletin(payslip_data).values()}),
+        "regularisations": sorted(
+            {r.libelle for r in regularisations_du_bulletin(payslip_data).values()}
+            | {f"Heures – {r.mois_affiche}" for r in regularisations_heures_du_bulletin(payslip_data).values()}
+        ),
         "lignes_corrigees": lignes_corrigees_du_bulletin(payslip_data),
         "corrections_en_attente": len(corrections_en_attente_du_bulletin(payslip_data)),
     }
