@@ -172,7 +172,7 @@ export function LeaveCampaignSection() {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          <Link to="/rh/company" className="underline">
+          <Link to="/company?tab=paie" className="underline">
             Configurer barèmes et formules
           </Link>
         </p>

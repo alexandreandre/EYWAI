@@ -10,6 +10,7 @@ import {
   type CseStatus,
 } from '@/api/cse';
 import { useAuth } from '@/contexts/AuthContext';
+import { isPayrollFocusActive } from '@/lib/payrollFocus';
 import { useCompany } from '@/contexts/CompanyContext';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -202,12 +203,16 @@ export default function CseStatusCard() {
               Enregistrer
             </Button>
           ) : null}
-          <Button variant="outline" asChild>
-            <Link to="/cse?tab=bdes">Archiver un PV (BDES)</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link to="/cse?tab=elections">Calendrier électoral</Link>
-          </Button>
+          {!isPayrollFocusActive(user) && (
+            <>
+              <Button variant="outline" asChild>
+                <Link to="/cse?tab=bdes">Archiver un PV (BDES)</Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link to="/cse?tab=elections">Calendrier électoral</Link>
+              </Button>
+            </>
+          )}
         </div>
       </CardContent>
     </Card>

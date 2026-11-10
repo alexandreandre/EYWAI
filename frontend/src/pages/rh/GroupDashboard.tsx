@@ -438,7 +438,7 @@ export function GroupDashboard() {
 
   const handleCompanyRowClick = (companyId: string) => {
     setActiveCompany(companyId);
-    navigate("/dashboard");
+    navigate("/");
   };
 
   const copyShareLink = async () => {
@@ -616,7 +616,7 @@ export function GroupDashboard() {
     if (isPlatformAdminUser && groupId) {
       navigate(`/super-admin/groups/${groupId}`);
     } else {
-      navigate("/dashboard");
+      navigate("/");
     }
   };
 

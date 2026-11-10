@@ -289,6 +289,21 @@ export const exportBadgeuseCsvUrl = (
   return `/api/badgeuse/export?${params.toString()}`;
 };
 
+/** Le serveur exige le jeton dans l'en-tête : un simple lien ne peut pas télécharger ce fichier. */
+export const downloadBadgeuseCsv = async (
+  companyId: string,
+  from: string,
+  to: string
+): Promise<void> => {
+  const response = await apiClient.get(exportBadgeuseCsvUrl(companyId, from, to), { responseType: "blob" });
+  const url = URL.createObjectURL(response.data as Blob);
+  const lien = document.createElement("a");
+  lien.href = url;
+  lien.download = `badgeuse_${from}_${to}.csv`;
+  lien.click();
+  URL.revokeObjectURL(url);
+};
+
 export const validateEmployeeDay = async (
   employeeId: string,
   companyId: string,

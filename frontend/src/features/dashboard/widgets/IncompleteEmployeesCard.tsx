@@ -7,6 +7,8 @@
  */
 
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { isPayrollFocusActive } from '@/lib/payrollFocus';
 import { ArrowRight, CheckCircle2, Loader2, UserRoundPlus } from 'lucide-react';
 
 import type { OnboardingHubItem } from '@/api/onboarding';
@@ -23,6 +25,8 @@ interface IncompleteEmployeesCardProps {
 const MAX_VISIBLE = 4;
 
 export function IncompleteEmployeesCard({ items, loading }: IncompleteEmployeesCardProps) {
+  const { user } = useAuth();
+  const modePaie = isPayrollFocusActive(user);
   const incomplete = items.filter((item) => !item.profile_complete);
   const visible = incomplete.slice(0, MAX_VISIBLE);
   const remaining = incomplete.length - visible.length;
@@ -91,7 +95,7 @@ export function IncompleteEmployeesCard({ items, loading }: IncompleteEmployeesC
                 </div>
               );
             })}
-            {remaining > 0 && (
+            {remaining > 0 && !modePaie && (
               <Button asChild variant="link" className="h-auto p-0 text-sm">
                 <Link to="/onboarding">
                   Voir {remaining} autre{remaining > 1 ? 's' : ''} collaborateur

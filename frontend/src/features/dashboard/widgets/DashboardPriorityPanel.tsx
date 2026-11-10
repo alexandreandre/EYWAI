@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { isPayrollFocusActive } from '@/lib/payrollFocus';
 import type { LucideIcon } from 'lucide-react';
 import { CheckCircle2, Loader2, PartyPopper } from 'lucide-react';
 
@@ -90,6 +92,8 @@ export function DashboardPriorityPanel({
   enErreur = false,
   onRetry,
 }: DashboardPriorityPanelProps) {
+  const { user } = useAuth();
+  const modePaie = isPayrollFocusActive(user);
   const [validatedByCount, setValidatedByCount] = useState<ValidatedByCount>(readValidated);
   const [selectedId, setSelectedId] = useState<RhPendingTaskId | null>(null);
 
@@ -181,9 +185,11 @@ export function DashboardPriorityPanel({
                 </p>
               </div>
             </div>
-            <Button variant="link" className="h-auto p-0 shrink-0" asChild>
-              <Link to="/analytics">Voir les indicateurs de pilotage →</Link>
-            </Button>
+            {!modePaie && (
+              <Button variant="link" className="h-auto p-0 shrink-0" asChild>
+                <Link to="/analytics">Voir les indicateurs de pilotage →</Link>
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

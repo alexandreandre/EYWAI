@@ -160,7 +160,7 @@ export const getPromotions = (filters?: PromotionFilters) => {
     searchParams.set("status", filters.status);
   }
   if (filters?.promotion_type) {
-    searchParams.set("promotion_type", filters.promotion_type);
+    searchParams.set("type", filters.promotion_type);
   }
   if (filters?.employee_id) {
     searchParams.set("employee_id", filters.employee_id);

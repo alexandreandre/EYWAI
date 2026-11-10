@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { isPayrollFocusActive } from "@/lib/payrollFocus";
 import { AlertTriangle, CalendarDays, Percent } from "lucide-react";
 import type { CompanyDetails } from "@/api/company";
 import type { DsnCoverage } from "@/api/dsnImport";
@@ -109,6 +111,8 @@ export function CompanyPayrollTab({
   onDsnUpdated?: () => void;
   onPayrollParamsUpdated?: () => void;
 }): JSX.Element {
+  const { user } = useAuth();
+  const modePaie = isPayrollFocusActive(user);
   const cc = formatCollectiveAgreementLabel(company.collective_agreement, company.idcc);
   const anchorRefs = useRef<Partial<Record<ComplianceAnchor, HTMLElement | null>>>({});
 
@@ -405,9 +409,11 @@ export function CompanyPayrollTab({
                   <p className="text-sm text-muted-foreground">
                     Gérez les élections, réunions et documents CSE depuis le module dédié.
                   </p>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to="/cse">Ouvrir CSE & Dialogue Social</Link>
-                  </Button>
+                  {!modePaie && (
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to="/cse">Ouvrir CSE & Dialogue Social</Link>
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             </div>,

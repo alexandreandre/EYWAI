@@ -276,7 +276,7 @@ export const useIsActiveCompanyAdmin = (): boolean => {
  */
 export const useHasActiveCompanyRhAccess = (): boolean => {
   const { activeCompany } = useCompany();
-  return activeCompany?.role === 'admin' || activeCompany?.role === 'rh';
+  return activeCompany?.role === 'admin' || activeCompany?.role === 'rh' || activeCompany?.role === 'collaborateur_rh';
 };
 
 /**

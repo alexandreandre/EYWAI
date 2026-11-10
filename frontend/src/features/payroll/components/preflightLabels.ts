@@ -4,6 +4,7 @@ import type {
   PreflightResolutionMotif,
 } from '@/api/payrollPreflight';
 import { lienModifierFiche } from '@/features/employee-detail/utils/lienModification';
+import { lienCalendrierDuSalarie } from '@/features/payroll/utils/heuresSurArret';
 
 export const PREFLIGHT_ANOMALY_TYPE_LABELS: Record<PreflightAnomalyType, string> = {
   ecart_heures: 'Écart heures',
@@ -64,12 +65,12 @@ export function verifyPathForAnomaly(anomaly: PreflightAnomaly): string {
     return '/schedules';
   }
   if (anomaly.type === 'hs_pointage_a_valider') {
-    return '/company?tab=payroll';
+    return '/company?tab=paie';
   }
   if (anomaly.type === 'pointage' || anomaly.type === 'absent_a_typer' || anomaly.type === 'arret_a_confirmer') {
     // Le calendrier du salarié permet de corriger le pointage et reste dans le
     // périmètre du mode paie (la badgeuse, elle, y est inatteignable).
-    return `/schedules?employee=${encodeURIComponent(anomaly.employee_id)}`;
+    return lienCalendrierDuSalarie(anomaly.employee_id);
   }
   if (anomaly.type === 'fiche_dsn') {
     return lienModifierFiche(anomaly.employee_id);

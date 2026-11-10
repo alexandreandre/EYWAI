@@ -39,7 +39,7 @@ describe('fiche_dsn', () => {
 describe('arret_a_confirmer', () => {
   it('a un libellé et mène au calendrier du salarié', () => {
     expect(PREFLIGHT_ANOMALY_TYPE_LABELS.arret_a_confirmer).toBe('Arrêt à confirmer');
-    expect(verifyPathForAnomaly(anomalie('arret_a_confirmer'))).toBe('/schedules?employee=e1');
+    expect(verifyPathForAnomaly(anomalie('arret_a_confirmer'))).toBe('/employees/e1?tab=calendrier');
   });
 });
 
@@ -52,7 +52,7 @@ describe('liens des anomalies en mode paie', () => {
   });
 
   it('un pointage à corriger mène au calendrier du salarié, pas à la badgeuse', () => {
-    expect(verifyPathForAnomaly(anomalie('pointage'))).toBe('/schedules?employee=e1');
+    expect(verifyPathForAnomaly(anomalie('pointage'))).toBe('/employees/e1?tab=calendrier');
   });
 
   it('le lien déprécié suit la même règle', () => {

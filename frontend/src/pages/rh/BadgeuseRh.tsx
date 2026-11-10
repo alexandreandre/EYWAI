@@ -9,7 +9,7 @@ import {
   getEmployeeDaysSummary,
   deleteBadgeuseEvent,
   validateEmployeeDay,
-  exportBadgeuseCsvUrl,
+  downloadBadgeuseCsv,
   getBadgeuseDashboardToday,
   getBadgeuseSettings,
   updateBadgeuseSettings,
@@ -460,16 +460,18 @@ export default function BadgeuseRhPage() {
           </div>
 
           <Button
-            asChild
             variant="outline"
             size="sm"
             className="w-full sm:ml-0 sm:w-auto"
             disabled={!data || data.length === 0}
+            onClick={() => {
+              downloadBadgeuseCsv(companyId, from, to).catch(() => {
+                toast.error("Le fichier n'a pas pu être téléchargé.");
+              });
+            }}
           >
-            <a href={exportBadgeuseCsvUrl(companyId, from, to)}>
-              <Download className="mr-2 h-4 w-4" aria-hidden />
-              Export CSV
-            </a>
+            <Download className="mr-2 h-4 w-4" aria-hidden />
+            Export CSV
           </Button>
         </div>
       </Card>

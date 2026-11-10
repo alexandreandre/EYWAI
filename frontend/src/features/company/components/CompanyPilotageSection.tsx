@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { isPayrollFocusActive } from "@/lib/payrollFocus";
 import { ArrowRight, Briefcase, FileText, TrendingUp } from "lucide-react";
 import {
   Area,
@@ -61,6 +63,8 @@ export function CompanyPilotageSection({
   onPeriodChange,
   periodLabel,
 }: CompanyPilotageSectionProps): JSX.Element {
+  const { user } = useAuth();
+  const modePaie = isPayrollFocusActive(user);
   const [evolutionMonths, setEvolutionMonths] = useState<6 | 12 | 24>(12);
   const [jobMetric, setJobMetric] = useState<"count" | "share">("count");
 
@@ -115,12 +119,14 @@ export function CompanyPilotageSection({
           periodLabel={periodLabel}
           hint="Les indicateurs paie suivent la période sélectionnée."
         />
-        <Button variant="ghost" size="sm" className="shrink-0 self-start" asChild>
-          <Link to="/analytics">
-            Voir Analytics Team
-            <ArrowRight className="ml-1.5 h-4 w-4" />
-          </Link>
-        </Button>
+        {!modePaie && (
+          <Button variant="ghost" size="sm" className="shrink-0 self-start" asChild>
+            <Link to="/analytics">
+              Voir Analytics Team
+              <ArrowRight className="ml-1.5 h-4 w-4" />
+            </Link>
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
