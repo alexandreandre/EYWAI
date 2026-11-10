@@ -34,3 +34,18 @@ def test_week_config_from_template():
     )
     assert cfg["monday"]["hours"] == 7.5
     assert cfg["monday"]["type"] == "travail"
+
+
+def test_week_config_from_template_jour_absent_vaut_zero():
+    """Un jour absent du modèle (case laissée vide) vaut 0, jamais 8 h
+    (retour du 10/11, modèle « femme de ménage » 6 h/semaine)."""
+    cfg = week_config_from_template(
+        [
+            {"day": 3, "hours": 3, "type": "travail"},
+            {"day": 6, "hours": 3, "type": "travail"},
+        ]
+    )
+    assert cfg["monday"] == {"type": "weekend", "hours": 0.0}
+    assert cfg["wednesday"] == {"type": "travail", "hours": 3.0}
+    assert cfg["saturday"] == {"type": "travail", "hours": 3.0}
+    assert sum(j["hours"] for j in cfg.values()) == 6.0
