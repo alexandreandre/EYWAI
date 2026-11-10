@@ -175,6 +175,14 @@ def construire_bandeau(bulletin: Dict[str, Any]) -> Dict[str, Any]:
     elif debut_periode and fin_periode:
         du = debut_periode
         au = fin_periode
+    # Bulletin de sortie : la période s'arrête au dernier jour du contrat
+    # (C. trav. R3243-1 5°). Ce n'est pas le reçu pour solde de tout compte,
+    # document distinct (L1234-20).
+    sortie = ""
+    date_sortie = _date_fr(en_tete.get("date_sortie"))
+    if date_sortie and bulletin.get("bulletin_de_sortie"):
+        au = date_sortie
+        sortie = f"Bulletin de sortie : dernier jour du contrat le {date_sortie}"
     debut_variables = _date_fr(en_tete.get("date_debut_variables"))
     fin_variables = _date_fr(en_tete.get("date_fin_variables"))
     if (
@@ -194,6 +202,7 @@ def construire_bandeau(bulletin: Dict[str, Any]) -> Dict[str, Any]:
         "du": du,
         "au": au,
         "variables": variables,
+        "sortie": sortie,
     }
 
 
@@ -434,6 +443,14 @@ def construire_compteurs(bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     # La clé n'existe que sur les bulletins calculés depuis le 12/10/2026.
     for titre, cle in (("CP N-1", "conges_payes_periode_precedente"), ("CP N", "conges_payes")):
         compteur = solde.get(cle) if isinstance(solde.get(cle), dict) else {}
+        indemnise = float(compteur.get("indemnise") or 0.0)
+        if indemnise >= 0.01:
+            jours = f"{indemnise:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+            payes = "payés" if indemnise >= 2 else "payé"
+            notes.append(
+                f"{titre} : {jours} j {payes} en indemnité compensatrice de congés "
+                "payés au départ, solde à zéro"
+            )
         ajustement = float(compteur.get("ajustement") or 0.0)
         if abs(ajustement) >= 0.01:
             signe = "+" if ajustement > 0 else "−"

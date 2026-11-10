@@ -469,6 +469,9 @@ def get_absence_balances_at_date(
         policy=policy,
         adjustment=adjustment,
         hours_per_rest_day=_hours_per_rest_day_for_employee(employee_id),
+        jours_non_assimiles=jours_non_assimiles_au_planning(
+            employee_id, ref_date, getattr(policy, "cp_reference_period_start_month", 6)
+        ),
         **extras,
     )
 
@@ -558,6 +561,51 @@ def _date_de_sortie(employee_id: str) -> date | None:
     return _jour_iso(brut)
 
 
+def jours_non_assimiles_au_planning(
+    employee_id: str, ref_date: date, start_month: int = 6
+) -> frozenset[date]:
+    """Jours « Absence non rémunérée » du planning, de l'ouverture de la période
+    de congés précédente à `ref_date` : ils n'acquièrent aucun congé (C. trav.
+    L3141-3 à L3141-5, cf. `cp_absences_non_assimilees`).
+
+    Une lecture ratée ne bloque pas le bulletin : elle se note en repli et les
+    compteurs se calculent comme avant."""
+    from app.core.database import supabase
+    from app.modules.absences.domain.cp_absences_non_assimilees import (
+        jours_non_assimiles_du_planning,
+    )
+    from app.modules.absences.domain.rules import get_cp_previous_reference_period
+
+    debut, _ = get_cp_previous_reference_period(ref_date, start_month=start_month)
+    try:
+        lignes = (
+            supabase.table("employee_schedules")
+            .select("year, month, planned_calendar")
+            .eq("employee_id", employee_id)
+            .gte("year", debut.year)
+            .lte("year", ref_date.year)
+            .execute()
+            .data
+        ) or []
+    except Exception:
+        logger.warning(
+            "Planning illisible pour les absences non assimilées de %s",
+            employee_id,
+            exc_info=True,
+        )
+        return frozenset()
+    lignes = [
+        ligne
+        for ligne in lignes
+        if (debut.year, debut.month)
+        <= (int(ligne.get("year") or 0), int(ligne.get("month") or 0))
+        <= (ref_date.year, ref_date.month)
+    ]
+    return frozenset(
+        j for j in jours_non_assimiles_du_planning(lignes) if debut <= j <= ref_date
+    )
+
+
 def _contrat_du_mois(employee_id: str, year: int, month: int) -> tuple[date | None, date | None]:
     """Début du contrat qui couvre le mois, et sa fin quand c'est un contrat rangé.
 
@@ -645,6 +693,10 @@ def get_absence_balances_for_payslip(
     if sans_la_reprise:
         adjustment = EmployeeLeaveAdjustment.empty()
     extras = _cp_balance_extras(employee_id, ref_date, None, policy, cp_seniority)
+    # Absences injustifiées et sans solde du planning : aucun congé acquis.
+    absences_non_assimilees = jours_non_assimiles_au_planning(
+        employee_id, ref_date, getattr(policy, "cp_reference_period_start_month", 6)
+    )
     cp_lines = compute_cp_balances_for_bulletin(
         hire_date,
         validated_list,
@@ -652,6 +704,7 @@ def get_absence_balances_for_payslip(
         policy=policy,
         adjustment=adjustment,
         date_de_sortie=sortie_dans_le_mois,
+        jours_non_assimiles=absences_non_assimilees,
         **extras,
     )
     autres = compute_absence_balances(
@@ -663,6 +716,7 @@ def get_absence_balances_for_payslip(
         policy=policy,
         adjustment=adjustment,
         hours_per_rest_day=_hours_per_rest_day_for_employee(employee_id),
+        jours_non_assimiles=absences_non_assimilees,
         **extras,
     )
     balances: dict[str, object] = {

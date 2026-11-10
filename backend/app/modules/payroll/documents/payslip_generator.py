@@ -841,6 +841,23 @@ def process_payslip_generation(
                 new_entry.update({"annee": y, "mois": m})
                 actual_data_all_months.append(new_entry)
 
+        # Rien après la sortie : le planning pré-rempli au-delà du dernier jour
+        # du contrat n'est ni payé, ni retenu, ni compté (réunion du 10/11/2026).
+        # Retiré ici, avant l'analyse des horaires et la compensation entre
+        # semaines ; le bulletin dit ce qu'il a écarté de sa période.
+        from app.modules.payroll.application import planning_apres_sortie
+
+        sortie_du_contrat = planning_apres_sortie.date_de_sortie(
+            employee_data.get("exit_last_working_day")
+        )
+        (
+            planned_data_all_months,
+            actual_data_all_months,
+            jours_apres_sortie,
+        ) = planning_apres_sortie.ecarter_apres_la_sortie(
+            planned_data_all_months, actual_data_all_months, sortie_du_contrat
+        )
+
         absences_rows = _stamp_source_absence_conges(planned_data_all_months, employee_id)
 
         # Filet : une heure saisie un jour d'arrêt ou d'absence non travaillée
@@ -960,6 +977,9 @@ def process_payslip_generation(
                 fenetre_societe.fin, year, month, resolve_date_sortie(employee_data)
             ),
             origine=fenetre_societe.origine,
+        )
+        alerte_apres_sortie = planning_apres_sortie.alerte_planning_apres_sortie(
+            jours_apres_sortie, sortie_du_contrat, year, month, fenetre_variables.fin
         )
         alerte_heures_sur_arret = alerte_heures_ecartees(
             heures_sur_arret.jours,
@@ -1555,6 +1575,12 @@ def process_payslip_generation(
             payslip_json_data["alertes_baremes"] = [
                 *(payslip_json_data.get("alertes_baremes") or []),
                 *alertes_doublons,
+            ]
+        if alerte_apres_sortie and isinstance(payslip_json_data, dict):
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = [
+                *(payslip_json_data.get("alertes_baremes") or []),
+                alerte_apres_sortie,
             ]
         if alerte_heures_sur_arret and isinstance(payslip_json_data, dict):
             payslip_json_data = dict(payslip_json_data)

@@ -283,6 +283,78 @@ def _est_bulletin_de_sortie(contexte: Any, annee: int, mois: int) -> bool:
     return False
 
 
+def date_de_sortie_du_bulletin(
+    contexte: Any, annee: int, mois: int, bulletin_de_sortie: bool
+) -> date | None:
+    """Le dernier jour du contrat, quand c'est le bulletin de sortie de ce mois.
+
+    Le bulletin porte « la période [...] à laquelle se rapporte le salaire »
+    (C. trav. R3243-1 5°, lu le 10/11/2026) : au départ, elle s'arrête à ce
+    jour (fin de CDD le 02/10 : du 01/10 au 02/10)."""
+    if not bulletin_de_sortie:
+        return None
+    contrat = (getattr(contexte, "contrat", None) or {}).get("contrat") or {}
+    for cle in ("date_sortie", "date_fin_contrat"):
+        valeur = contrat.get(cle)
+        if not valeur:
+            continue
+        try:
+            jour = valeur if isinstance(valeur, date) else date.fromisoformat(str(valeur)[:10])
+        except ValueError:
+            continue
+        if (jour.year, jour.month) == (annee, mois):
+            return jour
+        return None
+    return None
+
+
+def solder_les_conges_au_depart(
+    solde_conges: dict[str, Any] | None,
+    detail_iccp: dict[str, Any] | None,
+    *,
+    iccp_versee: bool,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Les compteurs de congés payés du bulletin de sortie, soldés à zéro.
+
+    Les jours restants au départ sont payés en indemnité compensatrice (C. trav.
+    L3141-28) : le bulletin les montre « payés », solde à zéro (réunion du
+    10/11/2026). Quand l'indemnité calculée ne porte pas sur les jours du
+    compteur, rien n'est soldé et on le dit. Sans indemnité versée, rien ne
+    bouge : l'alerte « sortie sans indemnité » s'en charge."""
+    if not iccp_versee or not isinstance(solde_conges, dict):
+        return solde_conges, None
+    cles = ("conges_payes_periode_precedente", "conges_payes")
+    restes = {
+        cle: round(max(0.0, float((solde_conges.get(cle) or {}).get("solde") or 0.0)), 2)
+        for cle in cles
+        if isinstance(solde_conges.get(cle), dict)
+    }
+    au_compteur = round(sum(restes.values()), 2)
+    if au_compteur <= 0:
+        return solde_conges, None
+    periodes = (detail_iccp or {}).get("periodes") if isinstance(detail_iccp, dict) else None
+    if periodes:
+        indemnises = round(
+            sum(float(p.get("restants") or 0.0) for p in periodes if isinstance(p, dict)), 2
+        )
+        if abs(indemnises - au_compteur) > 0.01:
+            return solde_conges, {
+                "code": "compteurs_conges_non_soldes_au_depart",
+                "severity": "warning",
+                "critique": False,
+                "message": (
+                    f"Départ : {_jours_fr(au_compteur)} de congés payés au compteur, "
+                    f"{_jours_fr(indemnises)} payés en indemnité compensatrice. Les "
+                    "compteurs ne sont pas soldés : vérifiez l'indemnité avant de valider."
+                ),
+            }
+    soldes = dict(solde_conges)
+    for cle, reste in restes.items():
+        if reste > 0:
+            soldes[cle] = {**solde_conges[cle], "indemnise": reste, "solde": 0.0}
+    return soldes, None
+
+
 def build_solde_conges_pied_de_page(
     employee_id: Optional[str], annee: int, mois: int, date_fin_variables: Any = None
 ) -> Optional[Dict[str, Any]]:
@@ -866,6 +938,18 @@ def creer_bulletin_final(
                 iccp_du_dossier=iccp_du_dossier,
             )
         )
+        solde_conges, alerte_solde = solder_les_conges_au_depart(
+            solde_conges,
+            detail_indemnite_cp_fin_contrat(contexte),
+            iccp_versee=iccp_du_dossier or _iccp_du_brut(details_brut) > 0,
+        )
+        if alerte_solde:
+            alertes_baremes.append(alerte_solde)
+    sortie_du_bulletin = date_de_sortie_du_bulletin(
+        contexte, annee, mois, bulletin_de_sortie
+    )
+    if sortie_du_bulletin is not None:
+        date_fin_periode = sortie_du_bulletin
 
     bulletin = {
         # Lu par la remise au salarié : le bulletin de sortie est remis dès sa
@@ -891,6 +975,13 @@ def creer_bulletin_final(
             ),
             "date_fin_variables": (
                 date_fin_variables.isoformat() if date_fin_variables else None
+            ),
+            # Bulletin de sortie : le dernier jour du contrat, qui borne la
+            # période imprimée (R3243-1 5°).
+            **(
+                {"date_sortie": sortie_du_bulletin.isoformat()}
+                if sortie_du_bulletin is not None
+                else {}
             ),
             # Seulement au mois de sortie, quand la fenêtre a été prolongée.
             **(
@@ -1286,8 +1377,11 @@ def creer_bulletin_sortie(
 
     # Ajouter une note explicative : la limite d'exonération n'est écrite que
     # quand le dossier l'a calculée.
+    # Le reçu pour solde de tout compte est un document distinct, qui fait
+    # l'inventaire des sommes versées à la rupture (C. trav. L1234-20, lu le
+    # 10/11/2026) : ce bulletin n'en est pas un.
     note = (
-        "BULLETIN DE SOLDE DE TOUT COMPTE - "
+        "Bulletin de sortie (dernier bulletin de paie) - "
         "Ce bulletin inclut les indemnités de fin de contrat."
     )
     for ligne in lignes_indemnites_exonerees:
