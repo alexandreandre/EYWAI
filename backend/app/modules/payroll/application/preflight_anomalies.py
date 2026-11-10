@@ -698,11 +698,17 @@ def build_preflight_anomalies(
                 compute_heures_supplementaires(prevus, reels) for prevus, reels in par_mois
             )
             sub_type = "heures_sup" if heures_sup > 0 else None
-            unit = "j" if forfait else "h"
-            message = (
-                f"Écart significatif entre planifié et réel "
-                f"({ecart:+.1f}{unit})."
-            )
+            if forfait:
+                # En jours, quelle que soit l'unité posée (prévu en heures,
+                # réel en jours) : la différence d'heures n'aurait pas de sens.
+                ecart_jours = sum(d["ecart"] for d in day_details)
+                message = (
+                    f"Écart entre jours prévus et jours travaillés ({ecart_jours:+.0f} j)."
+                )
+            else:
+                message = (
+                    f"Écart significatif entre planifié et réel ({ecart:+.1f}h)."
+                )
             if heures_sup > 0:
                 message += f" Heures sup. détectées : {heures_sup:.1f}h."
 

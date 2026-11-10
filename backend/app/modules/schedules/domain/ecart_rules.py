@@ -76,6 +76,15 @@ def _zero_saisi_un_jour_travaille(actual_days: List[Dict[str, Any]]) -> bool:
     return False
 
 
+def jour_travaille_forfait(valeur: Any) -> int:
+    """Un jour au forfait : 1 dès qu'une quantité positive est posée, en jours
+    (1) comme en heures (7,8). Le prévu se pose parfois en heures et le réel en
+    jours (retour du 10/11/2026) : l'unité ne fait pas l'écart."""
+    if isinstance(valeur, bool) or not isinstance(valeur, (int, float)):
+        return 0
+    return 1 if valeur > 0 else 0
+
+
 def is_day_ready_for_payroll(
     planned: Dict[str, Any] | None,
     actual: Dict[str, Any] | None,
@@ -166,11 +175,11 @@ def compute_row_status(
     heures_faites = sum_hours([d.get("heures_faites") for d in actual_days])
     if forfait:
         jours_prevus = sum(
-            1
+            jour_travaille_forfait(d.get("heures_prevues"))
             for d in planned_days
-            if d.get("type") == "travail" and d.get("heures_prevues") == 1
+            if d.get("type") == "travail"
         )
-        jours_faits = sum(1 for d in actual_days if d.get("heures_faites") == 1)
+        jours_faits = sum(jour_travaille_forfait(d.get("heures_faites")) for d in actual_days)
         return "saisi_avec_ecart" if jours_faits != jours_prevus else "saisi"
     if is_significant_ecart(heures_prevues, heures_faites):
         return "saisi_avec_ecart"
@@ -284,8 +293,8 @@ def compute_day_ecarts(
             continue
         actual = actual_by_jour.get(jour, {})
         if forfait:
-            prev = 1 if planned.get("heures_prevues") == 1 else 0
-            fait = 1 if actual.get("heures_faites") == 1 else 0
+            prev = jour_travaille_forfait(planned.get("heures_prevues"))
+            fait = jour_travaille_forfait(actual.get("heures_faites"))
             ecart = fait - prev
             if ecart == 0:
                 continue
