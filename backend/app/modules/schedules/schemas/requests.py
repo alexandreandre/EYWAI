@@ -37,7 +37,9 @@ class PlannedCalendarEntry(BaseModel):
     # saisi : elle part avec la demande créée (0,5 jour), jamais écrite telle
     # quelle au planning (clé serveur, posée par la projection de la demande).
     # Hors `model_dump()` : lue par `update_planned_calendar` seulement.
-    demi_journee: Literal["matin", "apres_midi"] | None = Field(default=None, exclude=True)
+    # Tolérante : un jour relu du serveur la renvoie ; seules « matin » et
+    # « apres_midi » sont retenues, le reste est ignoré.
+    demi_journee: str | None = Field(default=None, exclude=True)
 
 
 class PlannedCalendarRequest(BaseModel):

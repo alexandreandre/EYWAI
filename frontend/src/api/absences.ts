@@ -245,6 +245,22 @@ export const createAbsenceRequest = (payload: AbsenceCreationPayload) => {
   return apiClient.post('/api/absences/requests', payload);
 };
 
+/** Nouveaux jours d'un congé déjà saisi (RH) : mêmes contrôles qu'à la création. */
+export interface AbsenceModificationPayload {
+  selected_days: string[];
+  demi_journees?: Record<string, 'matin' | 'apres_midi'>;
+  heures_par_jour?: Record<string, number>;
+  comment?: string | null;
+}
+
+/** Remplace un congé validé par ses nouveaux jours ; refusé, l'ancien est rétabli. */
+export const modifierJoursAbsence = (requestId: string, payload: AbsenceModificationPayload) => {
+  return apiClient.put<AbsenceRequest & { avertissement?: string }>(
+    `/api/absences/requests/${requestId}/jours`,
+    payload,
+  );
+};
+
 // =====================================================
 // APERÇU MAINTIEN DE SALAIRE
 // =====================================================

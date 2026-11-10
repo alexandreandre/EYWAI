@@ -72,7 +72,7 @@ def update_planned_calendar(
         demi_journees_saisies: Dict[int, str] = {
             int(entree.jour): entree.demi_journee
             for entree in payload.calendrier_prevu
-            if getattr(entree, "demi_journee", None)
+            if getattr(entree, "demi_journee", None) in ("matin", "apres_midi")
             and entree.type in ("conges_payes", "rtt")
         }
         # Fusion sur l'existant : le payload client n'embarque pas toujours

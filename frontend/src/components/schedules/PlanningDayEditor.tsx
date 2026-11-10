@@ -66,8 +66,13 @@ export function PlanningDayEditor({
     actual?.heures_faites != null ? String(actual.heures_faites) : ''
   );
   const [isSaving, setIsSaving] = useState(false);
+  // Demi-journée d'un CP ou d'un RTT posé ici, comme dans « Saisir les congés »
+  // (retour du 10/11). Seulement pour un jour nouvellement typé : un congé
+  // déjà posé se modifie dans « Gestion des congés ».
+  const [demiJournee, setDemiJournee] = useState<'journee' | 'matin' | 'apres_midi'>('journee');
 
   useEffect(() => {
+    setDemiJournee('journee');
     setType(planned?.type ?? 'travail');
     setPlannedHours(
       planned?.heures_prevues != null ? String(planned.heures_prevues) : ''
@@ -104,8 +109,16 @@ export function PlanningDayEditor({
     }
   };
 
+  const congeAvecDemiJournee =
+    !isForfaitJour &&
+    (type === 'conges_payes' || type === 'rtt') &&
+    planned?.type !== type;
+
   const buildPatch = (): DayPatch => {
     const patch: DayPatch = { type };
+    if (congeAvecDemiJournee && demiJournee !== 'journee') {
+      patch.demi_journee = demiJournee;
+    }
     if (isForfaitJour) {
       const p = plannedHours.trim();
       const a = actualHours.trim();
@@ -188,6 +201,41 @@ export function PlanningDayEditor({
           })}
         </div>
       </div>
+
+      {congeAvecDemiJournee && (
+        <div data-testid="demi-journee-calendrier">
+          <Label className="text-xs mb-1.5 block">Durée</Label>
+          <div className="grid grid-cols-3 gap-1.5">
+            {(
+              [
+                ['journee', 'Journée'],
+                ['matin', 'Matin'],
+                ['apres_midi', 'Après-midi'],
+              ] as const
+            ).map(([valeur, libelle]) => (
+              <button
+                key={valeur}
+                type="button"
+                aria-pressed={demiJournee === valeur}
+                onClick={() => setDemiJournee(valeur)}
+                className={cn(
+                  'px-2 py-1.5 rounded-md border text-[11px] font-medium transition',
+                  demiJournee === valeur
+                    ? 'bg-green-100 text-green-700 border-green-200'
+                    : 'bg-background text-muted-foreground border-input hover:bg-muted'
+                )}
+              >
+                {libelle}
+              </button>
+            ))}
+          </div>
+          {demiJournee !== 'journee' && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Une demi-journée compte 0,5 jour.
+            </p>
+          )}
+        </div>
+      )}
 
       {isForfaitJour ? (
         <div className="grid grid-cols-2 gap-2">

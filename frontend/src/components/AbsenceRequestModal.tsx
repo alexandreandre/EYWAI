@@ -1,7 +1,7 @@
 // Fichier : src/components/AbsenceRequestModal.tsx
 
 import { useState, useEffect, useMemo } from "react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { type DateRange } from "react-day-picker";
 import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
@@ -25,7 +25,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEmployeeProfileQuery } from "@/hooks/queries/useEmployeeDashboardQueries";
 import { useToast } from "@/components/ui/use-toast";
 import * as absencesApi from "@/api/absences";
-import { getEmployeesLite, type EmployeeLite } from "@/api/employees";
+import { fetchEmployees, type EmployeeLite } from "@/api/employees";
+import { filterEmployeesSaisissables } from "@/lib/employmentStatus";
+import { moisDePaieRetenu } from "@/features/payroll/utils/moisDePaie";
+import { moisDePaieParDefaut } from "@/features/payroll/utils/payrollMonth";
 import { useEmployeeAbsenceBalancesQuery } from "@/hooks/queries/useEmployeeAbsenceBalancesQuery";
 import {
   EMPLOYEE_REQUESTABLE_ABSENCE_TYPES,
@@ -129,6 +132,11 @@ interface AbsenceRequestModalProps {
   showEmployeeSelector?: boolean;
   /** Parcours RH : saisie directe (arrêt ou congé), validée immédiatement. */
   mode?: AbsenceRequestModalMode;
+  /**
+   * Congé validé à modifier (RH) : jours et demi-journées changent, le type et
+   * le salarié restent (retour du 10/11, RTT posé au mauvais jour).
+   */
+  absenceAModifier?: absencesApi.AbsenceRequest | null;
 }
 
 const RH_ARRET_TYPE_LABELS: Record<
@@ -166,8 +174,10 @@ export function AbsenceRequestModal({
   pendingAbsences = [],
   showEmployeeSelector = false,
   mode,
+  absenceAModifier = null,
 }: AbsenceRequestModalProps) {
   const effectiveMode = resolveModalMode(mode, showEmployeeSelector);
+  const enModification = Boolean(absenceAModifier) && effectiveMode === "rh_leave";
   const isRhArret = effectiveMode === "rh_arret";
   const isRhLeave = effectiveMode === "rh_leave";
   const isRhMode = isRhArret || isRhLeave;
@@ -233,7 +243,30 @@ export function AbsenceRequestModal({
       if (isRhMode) {
         setSelectedEmployeeId("");
       }
+      if (enModification && absenceAModifier) {
+        // Le congé à modifier, tel qu'il est : on change ses jours.
+        const a = absenceAModifier;
+        setAbsenceType(a.type as AbsenceTypeValue);
+        setEventSubtype(a.event_subtype ?? "");
+        setSelectedEmployeeId(a.employee_id);
+        setSelectedDays((a.selected_days ?? []).map((iso) => parseISO(String(iso).slice(0, 10))));
+        setDemiJournees(
+          Object.fromEntries(
+            Object.entries(a.demi_journees ?? {}).filter(
+              ([iso, v]) => /^\d{4}-\d{2}-\d{2}$/.test(iso) && (v === "matin" || v === "apres_midi"),
+            ),
+          ) as Record<string, "matin" | "apres_midi">,
+        );
+        setHeuresParJour(
+          Object.fromEntries(
+            Object.entries(a.heures_par_jour ?? {}).map(([iso, h]) => [iso, String(h)]),
+          ),
+        );
+        setComment(a.comment ?? "");
+      }
     }
+    // Ouverture seulement : l'absence à modifier est figée le temps de la fenêtre.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isRhArret, isRhMode]);
 
   useEffect(() => {
@@ -241,11 +274,30 @@ export function AbsenceRequestModal({
       return;
     }
     setIsLoadingEmployees(true);
-    getEmployeesLite()
-      .then(setEmployees)
+    // Un salarié sorti n'est plus proposé après le mois de paie de sa sortie
+    // (retour du 10/11) ; ses congés passés restent dans l'historique.
+    const { year, month } = moisDePaieRetenu() ?? moisDePaieParDefaut(new Date());
+    fetchEmployees()
+      .then((rows) =>
+        setEmployees(
+          rows
+            .filter(
+              (e) =>
+                // Le salarié du congé modifié reste affiché, même sorti depuis.
+                e.id === absenceAModifier?.employee_id ||
+                filterEmployeesSaisissables([e], year, month).length > 0,
+            )
+            .map((e) => ({
+            id: e.id,
+            first_name: e.first_name,
+            last_name: e.last_name,
+            nom_usage: e.nom_usage ?? null,
+          })),
+        ),
+      )
       .catch(() => setEmployees([]))
       .finally(() => setIsLoadingEmployees(false));
-  }, [isOpen, isRhMode]);
+  }, [isOpen, isRhMode, absenceAModifier?.employee_id]);
 
   useEffect(() => {
     if (!isArretPrincipalType(absenceType)) {
@@ -268,7 +320,7 @@ export function AbsenceRequestModal({
   // salarié choisi par la RH, sinon ceux du salarié connecté.
   useEffect(() => {
     if (isOpen && absenceType === 'evenement_familial') {
-      setEventSubtype('');
+      if (!enModification) setEventSubtype('');
       if (isRhMode && !selectedEmployeeId) {
         setEvenementFamilialEvents([]);
         return;
@@ -279,7 +331,7 @@ export function AbsenceRequestModal({
         .catch(() => setEvenementFamilialEvents([]))
         .finally(() => setIsLoadingEvents(false));
     }
-  }, [isOpen, absenceType, isRhMode, selectedEmployeeId]);
+  }, [isOpen, absenceType, isRhMode, selectedEmployeeId, enModification]);
 
   const selectedDaysCount = selectedDays?.length ?? 0;
 
@@ -396,16 +448,26 @@ export function AbsenceRequestModal({
           payload.heures_par_jour = heures;
         }
       }
-      const reponse = await absencesApi.createAbsenceRequest(payload);
+      const reponse =
+        enModification && absenceAModifier
+          ? await absencesApi.modifierJoursAbsence(absenceAModifier.id, {
+              selected_days: payload.selected_days ?? [],
+              ...(payload.demi_journees ? { demi_journees: payload.demi_journees } : {}),
+              ...(payload.heures_par_jour ? { heures_par_jour: payload.heures_par_jour } : {}),
+              comment: payload.comment ?? null,
+            })
+          : await absencesApi.createAbsenceRequest(payload);
       const avertissement: string | undefined = reponse?.data?.avertissement ?? undefined;
 
       toast({
         title: "Succès",
-        description: isRhArret
-          ? "L'arrêt a été enregistré."
-          : isRhLeave
-            ? "Le congé a été enregistré et validé."
-            : "Votre demande d'absence a été soumise.",
+        description: enModification
+          ? "Le congé a été modifié : les anciens jours sont rendus au planning, les nouveaux posés."
+          : isRhArret
+            ? "L'arrêt a été enregistré."
+            : isRhLeave
+              ? "Le congé a été enregistré et validé."
+              : "Votre demande d'absence a été soumise.",
       });
       if (avertissement) {
         toast({
@@ -506,7 +568,13 @@ export function AbsenceRequestModal({
           return;
         }
         const cpBalance = soldesPose.find((b) => b.type === "Congés Payés");
-        const cpRestant = typeof cpBalance?.remaining === "number" ? cpBalance.remaining : 0;
+        // En modification, les jours du congé d'origine sont rendus avant la pose.
+        const rendus =
+          enModification && absenceAModifier?.type === "conge_paye"
+            ? Number(absenceAModifier.jours_payes ?? absenceAModifier.selected_days?.length ?? 0)
+            : 0;
+        const cpRestant =
+          (typeof cpBalance?.remaining === "number" ? cpBalance.remaining : 0) + rendus;
         if (nbJours > cpRestant) {
           setConfirmSansSoldeOpen(true);
           return;
@@ -567,23 +635,29 @@ export function AbsenceRequestModal({
           label: employeeAbsenceTypeLabels[value],
         }));
 
-  const dialogTitle = isRhArret
-    ? "Enregistrer un arrêt"
-    : isRhLeave
-      ? "Nouveau congé"
-      : "Faire une demande d'absence";
+  const dialogTitle = enModification
+    ? "Modifier le congé"
+    : isRhArret
+      ? "Enregistrer un arrêt"
+      : isRhLeave
+        ? "Nouveau congé"
+        : "Faire une demande d'absence";
 
-  const dialogDescription = isRhArret
-    ? "Saisie directe par les RH — l'arrêt est enregistré immédiatement, sans demande du salarié."
-    : isRhLeave
-      ? "Saisie directe par les RH — le congé est enregistré et validé immédiatement."
-      : "Sélectionnez un type et choisissez les jours dans le calendrier.";
+  const dialogDescription = enModification
+    ? "Changez les jours ou la demi-journée. Les anciens jours sont rendus au planning ; les nouveaux passent par les mêmes contrôles qu'une saisie. Si la modification est refusée, le congé d'origine reste tel quel."
+    : isRhArret
+      ? "Saisie directe par les RH — l'arrêt est enregistré immédiatement, sans demande du salarié."
+      : isRhLeave
+        ? "Saisie directe par les RH — le congé est enregistré et validé immédiatement."
+        : "Sélectionnez un type et choisissez les jours dans le calendrier.";
 
-  const submitLabel = isRhArret
-    ? "Enregistrer l'arrêt"
-    : isRhLeave
-      ? "Enregistrer le congé"
-      : "Soumettre la demande";
+  const submitLabel = enModification
+    ? "Enregistrer la modification"
+    : isRhArret
+      ? "Enregistrer l'arrêt"
+      : isRhLeave
+        ? "Enregistrer le congé"
+        : "Soumettre la demande";
 
   const cpBalance = soldesPose.find((b) => b.type === "Congés Payés");
   const cpRestant = typeof cpBalance?.remaining === "number" ? cpBalance.remaining : 0;
@@ -644,6 +718,7 @@ export function AbsenceRequestModal({
                 <Select
                   value={selectedEmployeeId || undefined}
                   onValueChange={setSelectedEmployeeId}
+                  disabled={enModification}
                 >
                   <SelectTrigger id="absence-employee">
                     <SelectValue placeholder="Sélectionner un employé…" />
@@ -664,7 +739,11 @@ export function AbsenceRequestModal({
             <Label htmlFor="absence-type">
               {isRhArret ? "Nature de l'arrêt" : "Type d'absence"}
             </Label>
-            <Select value={absenceType} onValueChange={(value: AbsenceTypeValue) => setAbsenceType(value)}>
+            <Select
+              value={absenceType}
+              onValueChange={(value: AbsenceTypeValue) => setAbsenceType(value)}
+              disabled={enModification}
+            >
               <SelectTrigger id="absence-type"><SelectValue placeholder="Sélectionner un type..." /></SelectTrigger>
               <SelectContent>
                 {absenceTypeOptions.map((opt) => (
