@@ -155,14 +155,18 @@ def avis_des_regularisations(
     prévoyance), l'avis d'hier reste.
     """
     # Import local : le mapping importe ce module par la chaîne du builder.
-    from app.modules.dsn_export.domain.cotisation_mapping import regularisation_rattachable
+    from app.modules.dsn_export.domain.cotisation_mapping import (
+        regularisation_rattachable,
+    )
     from app.modules.dsn_export.domain.rattachement import (
         avis_repartition,
         mois_passes,
         periode_d_heures_regularisees,
         periode_d_une_cotisation,
     )
-    from app.modules.payroll.engine.corrections_manuelles import regularisations_du_bulletin
+    from app.modules.payroll.engine.corrections_manuelles import (
+        regularisations_du_bulletin,
+    )
 
     avis: list[str] = []
     for regul in regularisations_du_bulletin(payslip_data).values():

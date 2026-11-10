@@ -19,8 +19,8 @@ from app.modules.payroll.engine.corrections_manuelles import (
 )
 from app.modules.payslips.domain.corrections import (
     CorrectionsBulletin,
-    refus_des_regularisations_heures,
     refus_des_periodes_de_regularisation,
+    refus_des_regularisations_heures,
 )
 
 pytestmark = pytest.mark.unit

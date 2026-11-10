@@ -249,8 +249,8 @@ class HeuresRattachees:
 
 
 def _parts_d_heures_regularisees(
-    line: Dict[str, Any], periode: Optional[str]
-) -> Tuple[List[HeuresRattachees], float, float]:
+    line: dict[str, Any], periode: str | None
+) -> tuple[list[HeuresRattachees], float, float]:
     """(parts des mois passés, gain et heures restant au mois déclaré).
 
     Sans mois déclaré ou sans mois d'origine passé, tout reste au mois.
@@ -264,7 +264,7 @@ def _parts_d_heures_regularisees(
         return [], gain, quantite
     nature = str((line.get("regularisation_heures") or {}).get("nature") or "")
     gains, heures = repartir(gain, total), repartir(quantite, total)
-    rattachees: List[HeuresRattachees] = []
+    rattachees: list[HeuresRattachees] = []
     reste_gain = reste_heures = 0.0
     for mois, g, h in zip(mois_entre(*origine), gains, heures):
         if mois in passes:
@@ -275,17 +275,17 @@ def _parts_d_heures_regularisees(
     return rattachees, round(reste_gain, 2), round(reste_heures, 2)
 
 
-def heures_rattachees(payslip_data: Dict[str, Any], periode: Optional[str]) -> List[HeuresRattachees]:
+def heures_rattachees(payslip_data: dict[str, Any], periode: str | None) -> list[HeuresRattachees]:
     """Les heures d'un autre mois régularisées sur ce bulletin, à déclarer à leurs mois d'origine."""
-    sortie: List[HeuresRattachees] = []
+    sortie: list[HeuresRattachees] = []
     for line in _iter_brut_lines(payslip_data):
         sortie.extend(_parts_d_heures_regularisees(line, periode)[0])
     return sortie
 
 
 def analyze_calcul_du_brut(
-    payslip_data: Dict[str, Any], periode: Optional[str] = None
-) -> Dict[str, float]:
+    payslip_data: dict[str, Any], periode: str | None = None
+) -> dict[str, float]:
     """Agrège le détail brut pour ventiler les types DSN.
 
     ``periode`` (« AAAA-MM ») : les heures régularisées d'un mois passé n'y
@@ -349,10 +349,10 @@ def analyze_calcul_du_brut(
 
 
 def _remunerations_rattachees(
-    rattachees: List[HeuresRattachees], contrat_ref: str
-) -> List[RemunerationBlock]:
+    rattachees: list[HeuresRattachees], contrat_ref: str
+) -> list[RemunerationBlock]:
     """Par mois d'origine : brut (001), salaire chômage (002) et heures majorées (017)."""
-    blocs: List[RemunerationBlock] = []
+    blocs: list[RemunerationBlock] = []
     for mois in sorted({h.mois for h in rattachees}):
         du_mois = [h for h in rattachees if h.mois == mois]
         debut, fin = bornes_du_mois(mois)

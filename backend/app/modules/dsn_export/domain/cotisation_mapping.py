@@ -994,7 +994,7 @@ def _bloc_81(ligne: LigneDsn, default_ops: str, code_base: str) -> CotisationInd
 COTI_ID_NON_RATTACHABLES = {"reduction_generale"}
 
 
-def regularisation_rattachable(ligne: Dict[str, Any]) -> bool:
+def regularisation_rattachable(ligne: dict[str, Any]) -> bool:
     """La régularisation saisie avec une période peut-elle se déclarer à ses mois d'origine ?"""
     coti_id = str(ligne.get("coti_id") or "")
     if coti_id in COTI_ID_NON_RATTACHABLES or coti_id in COTI_ID_NON_INDIVIDUELS:
@@ -1007,7 +1007,7 @@ def regularisation_rattachable(ligne: Dict[str, Any]) -> bool:
     return bool(traduites) and all(t.base != BASE_PREVOYANCE for t in traduites)
 
 
-def _est_csg(ligne: Dict[str, Any]) -> bool:
+def _est_csg(ligne: dict[str, Any]) -> bool:
     coti_id = str(ligne.get("coti_id") or "")
     libelle = str(ligne.get("libelle") or "").lower()
     return coti_id in {"csg_deductible", "csg_non_deductible", "crds"} or (
@@ -1015,13 +1015,13 @@ def _est_csg(ligne: Dict[str, Any]) -> bool:
     )
 
 
-def _part_de_la_ligne(ligne: Dict[str, Any], parts: int) -> List[Dict[str, Any]]:
+def _part_de_la_ligne(ligne: dict[str, Any], parts: int) -> list[dict[str, Any]]:
     """La régularisation coupée en `parts` mois : base, puis montants au centime,
     la dernière part portant le reste pour que la somme soit celle du bulletin."""
     assiette, sal, pat, taux_sal, taux_pat = _parts(ligne)
     par_base = ligne.get("base") is not None
     bases = repartir(assiette, parts)
-    sortie: List[Dict[str, Any]] = []
+    sortie: list[dict[str, Any]] = []
     for index, base in enumerate(bases):
         dernier = index == parts - 1
         if par_base:
@@ -1042,11 +1042,11 @@ def _part_de_la_ligne(ligne: Dict[str, Any], parts: int) -> List[Dict[str, Any]]
 
 
 def _separer_les_regularisations_rattachees(
-    lignes: List[Dict[str, Any]], periode: str, tmax: float, assiette_hs: float, norme: str
-) -> Tuple[List[Dict[str, Any]], List[Tuple[str, Dict[str, Any]]]]:
+    lignes: list[dict[str, Any]], periode: str, tmax: float, assiette_hs: float, norme: str
+) -> tuple[list[dict[str, Any]], list[tuple[str, dict[str, Any]]]]:
     """(lignes du mois déclaré, [(mois d'origine, part de régularisation)])."""
-    du_mois: List[Dict[str, Any]] = []
-    rattachees: List[Tuple[str, Dict[str, Any]]] = []
+    du_mois: list[dict[str, Any]] = []
+    rattachees: list[tuple[str, dict[str, Any]]] = []
     for ligne in lignes:
         origine = periode_d_une_cotisation(ligne)
         if origine is None or not regularisation_rattachable(ligne):
@@ -1066,7 +1066,7 @@ def _separer_les_regularisations_rattachees(
     return du_mois, rattachees
 
 
-def _csg_regularisee(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
+def _csg_regularisee(lignes: list[dict[str, Any]]) -> list[LigneDsn]:
     """CSG et CRDS d'une régularisation d'un mois passé, sur la base 04.
 
     Comme `_csg_et_crds` : 072 au taux total, 079 pour la CRDS, que la ligne
@@ -1074,7 +1074,7 @@ def _csg_regularisee(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
     """
     assiette = csg = crds = 0.0
     for ligne in lignes:
-        base, sal, pat, taux_sal, _ = _parts(ligne)
+        base, sal, pat, _, _ = _parts(ligne)
         montant = round(sal + pat, 2)
         coti_id = str(ligne.get("coti_id") or "")
         libelle = str(ligne.get("libelle") or "").lower()
@@ -1095,25 +1095,25 @@ def _csg_regularisee(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
 
 
 def _bases_rattachees(
-    rattachees: List[Tuple[str, Dict[str, Any]]],
+    rattachees: list[tuple[str, dict[str, Any]]],
     tmax: float,
     assiette_hs: float,
     norme: str,
     default_ops: str,
-    bases: List[BaseAssujettieBlock],
-    cotisations: List[CotisationIndividuelleBlock],
+    bases: list[BaseAssujettieBlock],
+    cotisations: list[CotisationIndividuelleBlock],
 ) -> None:
     """Une base par mois d'origine et par code, ses cotisations dessous (CT § 2.2.2.5).
 
     La base porte l'écart d'assiette de la régularisation, signé ; ses dates sont
     celles du mois civil corrigé.
     """
-    par_mois: Dict[str, List[Dict[str, Any]]] = {}
+    par_mois: dict[str, list[dict[str, Any]]] = {}
     for mois, ligne in rattachees:
         par_mois.setdefault(mois, []).append(ligne)
     for mois in sorted(par_mois):
         lignes = par_mois[mois]
-        produites: List[LigneDsn] = []
+        produites: list[LigneDsn] = []
         csg = [l for l in lignes if _est_csg(l)]
         if csg:
             produites.extend(_csg_regularisee(csg))
@@ -1161,7 +1161,7 @@ def build_bases_and_cotisations(
     affiliation_ids: Optional[List[str]] = None,
     code_exoneration_apprenti: Optional[str] = None,
     norme: str = NORME_P26,
-    periode: Optional[str] = None,
+    periode: str | None = None,
 ) -> Tuple[List[BaseAssujettieBlock], List[CotisationIndividuelleBlock], List[str]]:
     """Bases assujetties et cotisations individuelles d'un bulletin.
 
@@ -1192,7 +1192,7 @@ def build_bases_and_cotisations(
     exoneration_declaree = 0.0
     jei_totale = _exoneration_jei_totale(lignes_valides, avertissements)
 
-    rattachees: List[Tuple[str, Dict[str, Any]]] = []
+    rattachees: list[tuple[str, dict[str, Any]]] = []
     if periode:
         lignes_valides, rattachees = _separer_les_regularisations_rattachees(
             lignes_valides, periode, tmax, assiette_hs, norme

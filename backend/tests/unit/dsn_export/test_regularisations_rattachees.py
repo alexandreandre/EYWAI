@@ -13,7 +13,9 @@ import pytest
 
 from app.modules.dsn_export.domain.cotisation_mapping import build_bases_and_cotisations
 from app.modules.dsn_export.domain.rattachement import mois_entre, repartir
-from app.modules.dsn_export.domain.remuneration_map import build_remunerations_from_payslip
+from app.modules.dsn_export.domain.remuneration_map import (
+    build_remunerations_from_payslip,
+)
 from app.modules.dsn_export.domain.writer import write_versement
 from app.modules.dsn_import.domain.model import VersementBlock
 from app.modules.payroll.engine.corrections_manuelles import (
@@ -100,7 +102,7 @@ def test_une_regularisation_de_septembre_se_declare_aux_dates_de_septembre():
 
 
 def test_une_regularisation_sur_trois_mois_se_declare_mois_par_mois():
-    bases, cotisations, avertissements = _dsn(
+    bases, cotisations, _ = _dsn(
         [_maladie(), _regul_maladie(base=300.0, mois_debut="2026-07", mois_fin="2026-09")]
     )
     debuts = sorted(b.date_debut for b in bases if b.date_debut != OCTOBRE[0])
@@ -127,7 +129,7 @@ def test_le_mois_du_bulletin_reste_dans_sa_periode():
     avec_octobre = _dsn([_maladie(), _regul_maladie(mois_debut="2026-10")])
     sans_periode = _dsn([_maladie(), _regul_maladie()])
     assert [b.date_debut for b in avec_octobre[0]] == [b.date_debut for b in sans_periode[0]]
-    montant = lambda r: [c.rubriques["S21.G00.81.004"] for c in r[1] if c.code == "075"]  # noqa: E731
+    montant = lambda r: [c.rubriques["S21.G00.81.004"] for c in r[1] if c.code == "075"]
     assert montant(avec_octobre) == montant(sans_periode) == ["147.00"]
 
 

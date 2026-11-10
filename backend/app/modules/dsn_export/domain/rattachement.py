@@ -58,7 +58,7 @@ def repartir(total: float, parts: int) -> list[float]:
     """Parts égales au centime ; le reste sur la dernière, la somme vaut le total."""
     if parts <= 1:
         return [round(float(total), 2)]
-    centimes = int(round(float(total) * 100))
+    centimes = round(float(total) * 100)
     part = int(centimes / parts)  # tronqué vers zéro, signe gardé
     valeurs = [part] * (parts - 1)
     valeurs.append(centimes - part * (parts - 1))

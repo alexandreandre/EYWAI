@@ -545,7 +545,9 @@ def test_declarer_les_heures_complementaires_d_un_temps_partiel(base):
 
 
 def test_des_heures_complementaires_a_temps_plein_sont_refusees_sans_rien_ecrire(base):
-    with patch.object(mod, "_fiche_temps_de_travail", return_value={"statut": "Non-Cadre", "duree_hebdomadaire": 35}):
-        with pytest.raises(PayslipBadRequestError):
-            _corriger(CorrectionsBulletin(heures_complementaires=(3.0, 0.0)))
+    with (
+        patch.object(mod, "_fiche_temps_de_travail", return_value={"statut": "Non-Cadre", "duree_hebdomadaire": 35}),
+        pytest.raises(PayslipBadRequestError),
+    ):
+        _corriger(CorrectionsBulletin(heures_complementaires=(3.0, 0.0)))
     assert not base.ecritures
