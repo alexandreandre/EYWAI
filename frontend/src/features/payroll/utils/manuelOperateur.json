@@ -122,7 +122,7 @@
     },
     {
       "titre": "Le bulletin est déjà validé",
-      "quoiFaire": "Corrigez-le comme un autre (étape 6). À l’enregistrement, l’écran demande confirmation : « Corriger et repasser en brouillon ». Le salarié ne le voit plus jusqu’à ce que vous cliquiez de nouveau « Valider le bulletin ». Si le mois est déjà exporté, le bulletin affiche « Exports à refaire » : refaites ces exports. Si l’écran affiche « Correction verrouillée », la période est close (la date limite est écrite en haut du bulletin) : ouvrez un ticket au support. Un bulletin repris de l’ancien logiciel ne se modifie jamais."
+      "quoiFaire": "Corrigez-le comme un autre (étape 6). À l’enregistrement, l’écran demande confirmation : « Corriger et repasser en brouillon ». Le salarié ne le voit plus jusqu’à ce que vous cliquiez de nouveau « Valider le bulletin ». Si le mois est déjà exporté, le bulletin affiche « Exports à refaire » : refaites ces exports. Si l’écran affiche « Correction verrouillée », lisez sa phrase : un bulletin remis au salarié ne se modifie plus, l’erreur se corrige sur le bulletin du mois suivant, par une régularisation. Un bulletin repris de l’ancien logiciel ne se modifie jamais."
     },
     {
       "titre": "Le net à payer est négatif",

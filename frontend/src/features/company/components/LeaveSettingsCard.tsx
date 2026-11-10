@@ -152,6 +152,13 @@ export default function LeaveSettingsCard() {
     });
   };
 
+  // Lien « /company?tab=paie#soldes-rtt » : la carte n'existe qu'une fois chargée.
+  useEffect(() => {
+    if (!isLoading && window.location.hash === '#soldes-rtt') {
+      document.getElementById('soldes-rtt')?.scrollIntoView({ block: 'start' });
+    }
+  }, [isLoading]);
+
   if (isLoading) {
     return (
       <Card>

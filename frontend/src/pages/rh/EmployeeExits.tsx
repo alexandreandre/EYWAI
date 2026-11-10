@@ -60,8 +60,12 @@ const EmployeeExitsPage = () => {
 
   useEffect(() => {
     const exitId = searchParams.get('exitId');
-    if (!exitId || exits.length === 0) return;
-    const found = exits.find((item) => item.id === exitId);
+    // Bandeau de la fiche salarié : pas d'identifiant de dossier, seulement le salarié.
+    const employeeId = searchParams.get('create') === '1' ? null : searchParams.get('employeeId');
+    if ((!exitId && !employeeId) || exits.length === 0) return;
+    const found = exits.find((item) =>
+      exitId ? item.id === exitId : item.employee_id === employeeId
+    );
     if (found) {
       setSelectedExit(found);
     }
