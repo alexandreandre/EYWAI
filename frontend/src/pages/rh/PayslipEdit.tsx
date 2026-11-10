@@ -56,6 +56,7 @@ import { useEmployeeQuery } from '@/hooks/queries/useEmployeeQuery';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 
 import CorrectionsBulletinPanel from '@/components/payslip-edit/CorrectionsBulletinPanel';
+import LignesDuBulletinCard from '@/components/payslip-edit/LignesDuBulletinCard';
 import {
   choixApresCorrection,
   lienCalendrierDuSalarie,
@@ -88,6 +89,8 @@ import { PayslipValidateBlockedModal } from '@/components/payslip/PayslipValidat
 import {
   aDesModifications,
   avecSaisiesSurLeNet,
+  type DemandeDeCorrection,
+  estTempsPartiel,
   etatInitial,
   saisiesApresLeCalcul,
   recalculAttendu,
@@ -151,6 +154,8 @@ export default function PayslipEdit() {
   const { data: salarieBulletin } = useEmployeeQuery(payslip?.employee_id);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState(ONGLET_D_OUVERTURE);
+  // Un geste de l'onglet « Bulletin » : la carte de l'onglet « Corriger » à ouvrir, pré-remplie.
+  const [demande, setDemande] = useState<DemandeDeCorrection | null>(null);
   const [confirmationValide, setConfirmationValide] = useState(false);
   const [saisiesDuMois, setSaisiesDuMois] = useState<SaisieDuMois[]>([]);
   // Le mois précédent à recalculer : la validation le dit avant de partir.
@@ -638,6 +643,8 @@ export default function PayslipEdit() {
               lienFiche={`/employees/${encodeURIComponent(payslip.employee_id)}`}
               lienSaisies={lienSaisies}
               forfaitJours={salarieBulletin?.is_forfait_jour === true}
+              tempsPartiel={estTempsPartiel(salarieBulletin)}
+              demande={demande}
               saisiesApresCalcul={saisiesApresLeCalcul(saisiesDuMois, payslip.generated_at, etat)}
               onAller={aller}
             />
@@ -674,6 +681,16 @@ export default function PayslipEdit() {
             manuallyEdited={payslip.manually_edited}
             disabled={isEditLocked || payslip.status === 'valide'}
             onRegenerated={rechargements.apresRegeneration}
+          />
+          <LignesDuBulletinCard
+            payslipId={payslip.id}
+            version={payslip.updated_at ?? null}
+            disabled={isEditLocked}
+            forfaitJours={salarieBulletin?.is_forfait_jour === true}
+            onDemande={(nouvelle) => {
+              setDemande(nouvelle);
+              setActiveTab('corriger');
+            }}
           />
           <LignesExpliquees payslipData={payslip.payslip_data} />
           {/* Clé : l'aperçu se refait après chaque rechargement du bulletin. */}

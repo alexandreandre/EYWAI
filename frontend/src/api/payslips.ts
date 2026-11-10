@@ -330,6 +330,9 @@ export interface RegularisationAjoutee {
   taux_patronal?: number | null;
   montant_salarial?: number | null;
   montant_patronal?: number | null;
+  /** Période corrigée (« AAAA-MM »), rattachée dans la DSN ; absente : le mois du bulletin. */
+  mois_debut?: string | null;
+  mois_fin?: string | null;
 }
 
 /** Taux des heures régularisées : normal, heures sup (1er, 2d palier), complémentaires (1er, 2d palier). */
@@ -344,6 +347,8 @@ export interface RegularisationHeuresAjoutee {
   motif: string;
   /** Taux horaire de base du mois d'origine, s'il diffère de celui du bulletin. */
   taux_horaire?: number | null;
+  /** Dernier mois d'origine, quand les heures couvrent plusieurs mois. */
+  mois_fin?: string | null;
 }
 
 /** Une ligne corrigée depuis le bulletin : sa base, son taux ou son montant, selon la règle 3. */
@@ -411,6 +416,9 @@ export interface LignesCorrigeables {
 export interface CorrectionsBulletin {
   heures_sup?: { hs25: number; hs50: number };
   revenir_au_planning?: boolean;
+  /** Heures complémentaires d'un temps partiel, par palier ; elles priment sur le planning. */
+  heures_complementaires?: { hc1: number; hc2: number };
+  heures_complementaires_au_planning?: boolean;
   primes_ajoutees?: PrimeAjoutee[];
   primes_corrigees?: Array<{ saisie_id: string; amount: number }>;
   primes_retirees?: string[];

@@ -60,6 +60,7 @@ import { getUserErrorMessage } from '@/lib/errorMessages';
 import { LIBELLE_SOUMISE_COTISATIONS, LIBELLE_SOUMISE_IMPOT, phraseSaisiePonctuelle } from '@/components/saisies/libellesSaisie';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { accord, pluriel } from '@/lib/pluriel';
+import { ChampDecimal } from "@/components/ChampDecimal";
 
 // --- Types & Interfaces ---
 interface Employee {
@@ -437,7 +438,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
     }
     if (field === "montant") {
       // Synchroniser le montant pour tous les types (il sera calculé plus tard pour "selon_heures")
-      setFormData(prev => ({ ...prev, amount: value ? parseFloat(value) : "" }));
+      setFormData(prev => ({ ...prev, amount: value === "" || value == null ? "" : Number(value) }));
     }
     if (field === "soumise_a_cotisations") {
       setFormData(prev => ({ ...prev, is_socially_taxed: value }));
@@ -612,24 +613,19 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
               {primeForm.type === "montant_fixe" ? (
                 <div className="grid gap-2">
                   <Label>Montant (€) *</Label>
-                  <Input
-                    type="number"
+                  <ChampDecimal
                     value={primeForm.montant}
-                    onChange={e => {
-                      const val = e.target.value ? parseFloat(e.target.value) : "";
-                      handleCreatePrimeFormChange("montant", val);
-                    }}
-                    placeholder="0.00"
+                    onValeur={val => handleCreatePrimeFormChange("montant", val)}
+                    placeholder="0,00"
                   />
                 </div>
               ) : (
                 <>
                   <div className="grid gap-2">
                     <Label>Seuil d'heures *</Label>
-                    <Input
-                      type="number"
+                    <ChampDecimal
                       value={primeForm.seuil_heures}
-                      onChange={e => handleCreatePrimeFormChange("seuil_heures", e.target.value ? parseFloat(e.target.value) : "")}
+                      onValeur={val => handleCreatePrimeFormChange("seuil_heures", val)}
                       placeholder="Ex: 150"
                     />
                     <p className="text-xs text-muted-foreground">
@@ -638,14 +634,10 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                   </div>
                   <div className="grid gap-2">
                     <Label>Montant si condition remplie (€) *</Label>
-                    <Input
-                      type="number"
+                    <ChampDecimal
                       value={primeForm.montant}
-                      onChange={e => {
-                        const val = e.target.value ? parseFloat(e.target.value) : "";
-                        handleCreatePrimeFormChange("montant", val);
-                      }}
-                      placeholder="0.00"
+                      onValeur={val => handleCreatePrimeFormChange("montant", val)}
+                      placeholder="0,00"
                     />
                   </div>
                 </>
@@ -733,10 +725,9 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
             <>
               <div className="grid gap-2">
                 <Label>Montant (€) {isCalculating && <span className="text-muted-foreground">(calcul en cours...)</span>}</Label>
-                <Input
-                  type="number"
+                <ChampDecimal
                   value={formData.amount}
-                  onChange={e => setFormData(p => ({ ...p, amount: e.target.value ? parseFloat(e.target.value) : '' }))}
+                  onValeur={amount => setFormData(p => ({ ...p, amount }))}
                   disabled={isCalculating || (selectedBonusTypeId && bonusTypes.find(bt => bt.id === selectedBonusTypeId)?.type === "selon_heures")}
                 />
                 <div className="flex flex-col gap-2 rounded-md border border-dashed p-3 sm:flex-row sm:items-end">
@@ -744,15 +735,12 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                     <Label htmlFor="net_target" className="text-xs text-muted-foreground">
                       Net voulu pour la prime, avant impôt sur le revenu (€)
                     </Label>
-                    <Input
+                    <ChampDecimal
                       id="net_target"
-                      type="number"
-                      min="0"
-                      step="0.01"
                       value={netTarget}
-                      onChange={(e) => {
+                      onValeur={(valeur) => {
                         setBrutDeLaPrime(null);
-                        setNetTarget(e.target.value ? parseFloat(e.target.value) : "");
+                        setNetTarget(valeur);
                       }}
                       placeholder="Ex. 100"
                     />

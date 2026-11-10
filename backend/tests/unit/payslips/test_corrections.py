@@ -520,3 +520,34 @@ def test_reduction_generale_au_dela_du_cumul_rien_n_est_ecrit(base):
         _corriger(CorrectionsBulletin(corrections_ajoutees=(correction,)))
     assert base.de("monthly_inputs", "insert") == []
     base.generer.assert_not_called()
+
+
+# --- Heures complémentaires d'un temps partiel (page client du 10/11) ---
+
+
+def test_la_requete_porte_les_heures_complementaires():
+    c = PayslipEditRequest(corrections={"heures_complementaires": {"hc1": 3, "hc2": 0.5}}).corrections.vers_domaine()
+    assert c.heures_complementaires == (3.0, 0.5)
+    with pytest.raises(ValidationError):
+        PayslipEditRequest(
+            corrections={"heures_complementaires": {"hc1": 1, "hc2": 0}, "heures_complementaires_au_planning": True}
+        )
+
+
+def test_declarer_les_heures_complementaires_d_un_temps_partiel(base):
+    with patch.object(mod, "_fiche_temps_de_travail", return_value={"statut": "Non-Cadre", "duree_hebdomadaire": 24}):
+        _corriger(CorrectionsBulletin(heures_complementaires=(3.0, 0.5)))
+    (supprimee,) = base.de("monthly_inputs", "delete")
+    assert ("name", "Heures complémentaires (corrigées au bulletin)") in supprimee[3]
+    (inseree,) = base.de("monthly_inputs", "insert")
+    assert inseree[2]["correction_ligne"] == {"type": "heures_complementaires_declarees", "hc1": 3.0, "hc2": 0.5}
+    base.generer.assert_called_once()
+
+
+def test_des_heures_complementaires_a_temps_plein_sont_refusees_sans_rien_ecrire(base):
+    with (
+        patch.object(mod, "_fiche_temps_de_travail", return_value={"statut": "Non-Cadre", "duree_hebdomadaire": 35}),
+        pytest.raises(PayslipBadRequestError),
+    ):
+        _corriger(CorrectionsBulletin(heures_complementaires=(3.0, 0.0)))
+    assert not base.ecritures

@@ -8,7 +8,7 @@
  * recalculé en entier, et elle passe dans le net, les cumuls, la DSN et les
  * exports. Les codes et la règle viennent du serveur, jamais d'un calcul ici.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { PencilLine, Trash2, TriangleAlert, Undo2 } from 'lucide-react';
 
@@ -26,6 +26,7 @@ import {
   champsDeLaLigne,
   correctionDeLigne,
   type ChampCorrigeable,
+  type DemandeDeCorrection,
   type EtatCorrections,
   eurosFr,
   formulaireDeLaVersion,
@@ -36,6 +37,7 @@ import {
   resumeDeLaCorrectionAEnregistrer,
 } from '@/features/payroll/utils/correctionsBulletin';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
+import { lireNombre } from '@/lib/nombreSaisi';
 import { queryKeys } from '@/lib/queryKeys';
 
 const BLOCS: Array<{ bloc: LigneCorrigeable['bloc']; titre: string }> = [
@@ -51,9 +53,11 @@ interface Props {
   etat: EtatCorrections;
   onChange: (etat: EtatCorrections) => void;
   disabled?: boolean;
+  /** Venue de l'onglet « Bulletin » : la ligne à corriger, pré-choisie. */
+  demande?: DemandeDeCorrection | null;
 }
 
-export default function CorrigerUneLigneCard({ payslipId, version, etat, onChange, disabled }: Props) {
+export default function CorrigerUneLigneCard({ payslipId, version, etat, onChange, disabled, demande }: Props) {
   const companyId = useActiveCompanyId();
   const query = useQuery({
     queryKey: queryKeys.lignesCorrigeables(companyId, payslipId, version),
@@ -67,6 +71,15 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
   const { code, cle, valeur, motif, reporterDe } = formulaireDeLaVersion(formulaire, version);
   const remplir = (changement: Partial<FormulaireDeLigne>) =>
     setFormulaire({ ...formulaireDeLaVersion(formulaire, version), ...changement });
+  const carte = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (demande?.carte !== 'ligne') return;
+    setFormulaire({ ...formulaireVide(version), code: demande.code });
+    carte.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Le jeton change à chaque clic : la carte se rouvre même sur la même ligne.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demande?.jeton]);
 
   const lignes = query.data?.lignes ?? [];
   const enAttente = query.data?.en_attente ?? [];
@@ -76,7 +89,7 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
   const ligne = lignes.find((l) => l.code === code && l.mode);
   const champs = ligne ? champsDeLaLigne(ligne) : [];
   const champ = champs.find((c) => c.cle === cle) ?? champs[0];
-  const nombre = Number.parseFloat(valeur.replace(',', '.'));
+  const nombre = lireNombre(valeur) ?? Number.NaN;
   const apercu = ligne && champ ? apercuDuMontant(ligne, champ.cle, nombre) : null;
   const saisieDeLaLigne = ligne?.correction?.saisie_id ? String(ligne.correction.saisie_id) : null;
   const dejaCorrigee = saisieDeLaLigne !== null && !retirees.has(saisieDeLaLigne);
@@ -103,7 +116,7 @@ export default function CorrigerUneLigneCard({ payslipId, version, etat, onChang
   };
 
   return (
-    <Card data-testid="corriger-une-ligne">
+    <Card data-testid="corriger-une-ligne" ref={carte}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <PencilLine className="h-5 w-5" />

@@ -258,7 +258,12 @@ Autres outils de la section paie :
   « Corriger », la carte « Régularisations d'heures » paie des heures d'un mois
   précédent (ou reprend des heures payées en trop) : mois d'origine, taux
   (normal, heures sup, complémentaires), nombre d'heures, motif ; les heures
-  sup y gardent leurs exonérations, ne jamais les passer en prime. Les
+  sup y gardent leurs exonérations, ne jamais les passer en prime. Pour un
+  mois passé, les régularisations de cotisation et d'heures portent la période
+  corrigée (« À partir du bulletin de … jusqu'au bulletin de … ») : la DSN les
+  rattache à ces mois. Sur l'onglet « Bulletin », chaque ligne propose
+  « Corriger » ou « Régulariser un mois passé ». Un salarié à temps partiel a
+  une carte « Heures complémentaires du mois » (10 % puis 25 %). Les
   régularisations participation/intéressement peuvent générer un bulletin de
   régularisation consultable avec les autres bulletins.
 

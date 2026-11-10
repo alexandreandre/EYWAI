@@ -5,7 +5,7 @@
  * d'origine, le taux et le nombre d'heures. Elles s'ajoutent aux heures du
  * planning, sur une ligne à elles, et gardent les exonérations des heures sup.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { History, Trash2, Undo2 } from 'lucide-react';
 
 import type { NatureHeuresRegularisees } from '@/api/payslips';
@@ -15,11 +15,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   CE_QUI_SUIT_LA_CORRECTION,
+  type DemandeDeCorrection,
   type EtatCorrections,
-  moisAffiche,
   moisPrecedent,
   NATURES_HEURES_REGULARISEES,
+  periodeAffichee,
+  periodeValide,
 } from '@/features/payroll/utils/correctionsBulletin';
+import { lireNombre } from '@/lib/nombreSaisi';
 
 function euros(valeur: number): string {
   return valeur.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
@@ -36,31 +39,56 @@ interface Props {
   /** Mois du bulletin : le mois d'origine ne peut pas le dépasser. */
   year: number;
   month: number;
+  /** Venue de l'onglet « Bulletin » : le taux des heures, pré-choisi. */
+  demande?: DemandeDeCorrection | null;
+  /** Temps partiel : les heures complémentaires d'abord, sans heures sup. */
+  tempsPartiel?: boolean;
 }
 
-export default function RegularisationsHeuresCard({ etat, onChange, disabled, year, month }: Props) {
+export default function RegularisationsHeuresCard({
+  etat,
+  onChange,
+  disabled,
+  year,
+  month,
+  demande,
+  tempsPartiel = false,
+}: Props) {
   const moisMax = `${year}-${String(month).padStart(2, '0')}`;
   const [mois, setMois] = useState(() => moisPrecedent(year, month));
-  const [nature, setNature] = useState<NatureHeuresRegularisees>('hs1');
+  const [moisFin, setMoisFin] = useState('');
+  const [nature, setNature] = useState<NatureHeuresRegularisees>(tempsPartiel ? 'hc1' : 'hs1');
   const [quantite, setQuantite] = useState('');
   const [taux, setTaux] = useState('');
   const [motif, setMotif] = useState('');
+  const carte = useRef<HTMLDivElement>(null);
   const retirees = new Set(etat.heuresRegulariseesRetirees);
 
-  const valeur = Number.parseFloat(quantite.replace(',', '.'));
-  const tauxSaisi = taux.trim() ? Number.parseFloat(taux.replace(',', '.')) : null;
-  const tauxValide = tauxSaisi === null || (Number.isFinite(tauxSaisi) && tauxSaisi > 0);
-  const moisValide = /^\d{4}-(0[1-9]|1[0-2])$/.test(mois) && mois <= moisMax;
+  useEffect(() => {
+    if (demande?.carte !== 'heures') return;
+    setNature(demande.nature);
+    carte.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Le jeton change à chaque clic : la carte se rouvre même sur la même ligne.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demande?.jeton]);
+
+  const valeur = lireNombre(quantite);
+  const tauxSaisi = taux.trim() ? lireNombre(taux) : null;
+  const tauxValide = !taux.trim() || (tauxSaisi !== null && tauxSaisi > 0);
+  const moisValide = periodeValide({ debut: mois, fin: moisFin || mois }, moisMax);
   const pret =
     moisValide &&
-    Number.isFinite(valeur) &&
+    valeur !== null &&
     valeur !== 0 &&
     Math.abs(valeur) <= 300 &&
     tauxValide &&
     motif.trim().length >= 3;
+  const natures = tempsPartiel
+    ? NATURES_HEURES_REGULARISEES.filter((n) => !n.valeur.startsWith('hs'))
+    : NATURES_HEURES_REGULARISEES.filter((n) => !n.valeur.startsWith('hc'));
 
   const ajouter = () => {
-    if (!pret) return;
+    if (!pret || valeur === null) return;
     onChange({
       ...etat,
       heuresRegulariseesAjoutees: [
@@ -68,6 +96,7 @@ export default function RegularisationsHeuresCard({ etat, onChange, disabled, ye
         {
           nature,
           mois_origine: mois,
+          ...(moisFin && moisFin !== mois ? { mois_fin: moisFin } : {}),
           quantite: Math.round(valeur * 100) / 100,
           motif: motif.trim(),
           taux_horaire: tauxSaisi,
@@ -83,7 +112,7 @@ export default function RegularisationsHeuresCard({ etat, onChange, disabled, ye
     NATURES_HEURES_REGULARISEES.find((x) => x.valeur === n)?.libelle ?? n;
 
   return (
-    <Card data-testid="regularisations-heures">
+    <Card data-testid="regularisations-heures" ref={carte}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <History className="h-5 w-5" />
@@ -139,7 +168,8 @@ export default function RegularisationsHeuresCard({ etat, onChange, disabled, ye
           >
             <div>
               <div className="font-medium">
-                {heures(r.quantite)} h de {moisAffiche(r.mois_origine)} — {nomDeNature(r.nature)} (à enregistrer)
+                {heures(r.quantite)} h de {periodeAffichee(r.mois_origine, r.mois_fin)} — {nomDeNature(r.nature)} (à
+                enregistrer)
               </div>
               <div className="text-xs text-muted-foreground">{r.motif}</div>
             </div>
@@ -161,7 +191,7 @@ export default function RegularisationsHeuresCard({ etat, onChange, disabled, ye
         {!disabled ? (
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label htmlFor="regul-heures-mois">Mois d’origine des heures</Label>
+              <Label htmlFor="regul-heures-mois">Mois d’origine des heures (à partir de)</Label>
               <Input
                 id="regul-heures-mois"
                 type="month"
@@ -170,8 +200,21 @@ export default function RegularisationsHeuresCard({ etat, onChange, disabled, ye
                 onChange={(e) => setMois(e.target.value)}
               />
               {mois && !moisValide ? (
-                <p className="text-xs text-destructive">Le mois d’origine ne peut pas dépasser celui du bulletin.</p>
+                <p className="text-xs text-destructive">
+                  La période doit aller d’un mois à un mois égal ou suivant, sans dépasser celui du bulletin.
+                </p>
               ) : null}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="regul-heures-mois-fin">Jusqu’au mois (si plusieurs mois)</Label>
+              <Input
+                id="regul-heures-mois-fin"
+                type="month"
+                min={mois}
+                max={moisMax}
+                value={moisFin}
+                onChange={(e) => setMoisFin(e.target.value)}
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="regul-heures-nature">Taux</Label>
@@ -181,7 +224,7 @@ export default function RegularisationsHeuresCard({ etat, onChange, disabled, ye
                 value={nature}
                 onChange={(e) => setNature(e.target.value as NatureHeuresRegularisees)}
               >
-                {NATURES_HEURES_REGULARISEES.map((n) => (
+                {natures.map((n) => (
                   <option key={n.valeur} value={n.valeur}>
                     {n.libelle}
                   </option>

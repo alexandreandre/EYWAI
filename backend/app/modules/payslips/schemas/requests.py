@@ -51,6 +51,15 @@ class HeuresSupCorrigees(BaseModel):
     hs50: float = Field(..., ge=0, le=300)
 
 
+class HeuresComplementairesCorrigees(BaseModel):
+    """Heures complémentaires d'un temps partiel déclarées depuis le bulletin, par palier."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hc1: float = Field(..., ge=0, le=300)
+    hc2: float = Field(..., ge=0, le=300)
+
+
 class PrimeAjoutee(BaseModel):
     """Une prime du mois ajoutée depuis le bulletin."""
 
@@ -92,6 +101,9 @@ class RegularisationAjoutee(BaseModel):
     taux_patronal: float | None = Field(None, ge=-1, le=1)
     montant_salarial: float | None = Field(None, ge=-100_000, le=100_000)
     montant_patronal: float | None = Field(None, ge=-100_000, le=100_000)
+    #: Période corrigée (« AAAA-MM »), rattachée dans la DSN ; absente : le mois du bulletin.
+    mois_debut: str | None = Field(None, min_length=7, max_length=7)
+    mois_fin: str | None = Field(None, min_length=7, max_length=7)
 
     @model_validator(mode="after")
     def _regularisation_coherente(self) -> "RegularisationAjoutee":
@@ -115,6 +127,8 @@ class RegularisationHeuresAjoutee(BaseModel):
     quantite: float = Field(..., ge=-300, le=300)
     motif: str = Field(..., min_length=3, max_length=300)
     taux_horaire: float | None = Field(None, gt=0, le=1_000)
+    #: Dernier mois d'origine, quand les heures couvrent plusieurs mois.
+    mois_fin: str | None = Field(None, min_length=7, max_length=7)
 
     @model_validator(mode="after")
     def _regularisation_coherente(self) -> "RegularisationHeuresAjoutee":
@@ -164,6 +178,8 @@ class CorrectionsBulletinRequest(BaseModel):
 
     heures_sup: HeuresSupCorrigees | None = None
     revenir_au_planning: bool = False
+    heures_complementaires: HeuresComplementairesCorrigees | None = None
+    heures_complementaires_au_planning: bool = False
     primes_ajoutees: list[PrimeAjoutee] = Field(default_factory=list, max_length=20)
     primes_corrigees: list[PrimeCorrigee] = Field(default_factory=list, max_length=50)
     primes_retirees: list[str] = Field(default_factory=list, max_length=50)
@@ -180,6 +196,10 @@ class CorrectionsBulletinRequest(BaseModel):
             raise ValueError(
                 "Choisissez entre déclarer les heures sup et revenir au planning."
             )
+        if self.heures_complementaires is not None and self.heures_complementaires_au_planning:
+            raise ValueError(
+                "Choisissez entre déclarer les heures complémentaires et revenir au planning."
+            )
         corrigees = {p.saisie_id for p in self.primes_corrigees}
         if corrigees & set(self.primes_retirees):
             raise ValueError("Une même prime ne peut pas être corrigée et retirée.")
@@ -193,6 +213,12 @@ class CorrectionsBulletinRequest(BaseModel):
                 else None
             ),
             revenir_au_planning=self.revenir_au_planning,
+            heures_complementaires=(
+                (round(self.heures_complementaires.hc1, 2), round(self.heures_complementaires.hc2, 2))
+                if self.heures_complementaires is not None
+                else None
+            ),
+            heures_complementaires_au_planning=self.heures_complementaires_au_planning,
             primes=DiffPrimes(
                 ajoutees=tuple(
                     {**p.model_dump(), "amount": round(p.amount, 2)}

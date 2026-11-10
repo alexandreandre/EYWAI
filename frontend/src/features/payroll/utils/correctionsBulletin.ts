@@ -22,6 +22,7 @@ import type {
   RegularisationHeuresAjoutee,
 } from '@/api/payslips';
 import type { MonthlyInputCreate } from '@/api/saisies';
+import { lireNombre } from '@/lib/nombreSaisi';
 import { deDevant } from './elision';
 import { monthLabel } from './payrollMonth';
 import { estLigneHeuresSupConjoncturelle } from './payslipDerivedLines';
@@ -102,6 +103,10 @@ export interface EtatCorrections {
   hs25: number;
   hs50: number;
   revenirAuPlanning: boolean;
+  /** Heures complémentaires d'un temps partiel, au premier et au second palier. */
+  hc1: number;
+  hc2: number;
+  hcAuPlanning: boolean;
   primes: PrimeDuBulletin[];
   primesRetirees: string[];
   primesAjoutees: PrimeAjoutee[];
@@ -186,6 +191,50 @@ export function heuresDeclarees(data: unknown): HeuresDeclarees | null {
     hs50: nombre(h.hs50) ?? 0,
     planning: nombre(h.planning) ?? 0,
   };
+}
+
+const HEURES_COMPLEMENTAIRES = /^Heures complémentaires majorées à (\d+(?:[.,]\d+)?)\s*%/;
+
+/** Les majorations (en %) des deux paliers d'heures complémentaires : celles du bulletin, sinon 10 et 25 (C. trav. L3123-29). */
+export function paliersHeuresComplementaires(data: unknown): [number, number] {
+  const lus = lignesDe(data, 'calcul_du_brut')
+    .map((l) => (typeof l.libelle === 'string' ? HEURES_COMPLEMENTAIRES.exec(l.libelle) : null))
+    .filter((m): m is RegExpExecArray => !!m)
+    .map((m) => lireNombre(m[1]) ?? 0)
+    .sort((a, b) => a - b);
+  const uniques = [...new Set(lus)];
+  if (uniques.length >= 2) return [uniques[0], uniques[uniques.length - 1]];
+  if (uniques.length === 1) return uniques[0] >= 25 ? [10, uniques[0]] : [uniques[0], 25];
+  return [10, 25];
+}
+
+/** (premier palier, second palier) des heures complémentaires : déclarées, sinon imprimées. */
+export function quantitesHeuresComplementaires(data: unknown): [number, number] {
+  const d = (data ?? {}) as { heures_complementaires_declarees?: unknown };
+  const declarees = d.heures_complementaires_declarees as Record<string, unknown> | undefined;
+  if (declarees && typeof declarees === 'object') {
+    return [nombre(declarees.hc1) ?? 0, nombre(declarees.hc2) ?? 0];
+  }
+  const [premier] = paliersHeuresComplementaires(data);
+  let hc1 = 0;
+  let hc2 = 0;
+  for (const imprimee of lignesDe(data, 'calcul_du_brut')) {
+    const ligne = avantLaCorrection(imprimee);
+    const m = typeof ligne.libelle === 'string' ? HEURES_COMPLEMENTAIRES.exec(ligne.libelle) : null;
+    if (!m) continue;
+    const quantite = nombre(ligne.quantite) ?? 0;
+    if ((lireNombre(m[1]) ?? 0) <= premier) hc1 += quantite;
+    else hc2 += quantite;
+  }
+  return [arrondi(hc1), arrondi(hc2)];
+}
+
+/** Les heures complémentaires déclarées au bulletin, quand le moteur les a fait primer. */
+export function heuresComplementairesDeclarees(data: unknown): HeuresDeclarees | null {
+  const d = (data ?? {}) as { heures_complementaires_declarees?: unknown };
+  const h = d.heures_complementaires_declarees as Record<string, unknown> | undefined;
+  if (!h || typeof h !== 'object') return null;
+  return { hs25: nombre(h.hc1) ?? 0, hs50: nombre(h.hc2) ?? 0, planning: nombre(h.planning) ?? 0 };
 }
 
 const HEURES_STRUCTURELLES = /^heures suppl\.? structurelles/i;
@@ -408,6 +457,24 @@ export function moisPrecedent(year: number, month: number): string {
 
 export type PartRegularisee = 'salariale' | 'patronale' | 'les_deux';
 
+/** Les mois (« AAAA-MM ») qu'une régularisation corrige. */
+export interface PeriodeRegularisee {
+  debut: string;
+  fin: string;
+}
+
+const MOIS = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** Une période lisible, dans l'ordre, qui ne dépasse pas le mois du bulletin. */
+export function periodeValide(periode: PeriodeRegularisee, moisMax: string): boolean {
+  return MOIS.test(periode.debut) && MOIS.test(periode.fin) && periode.debut <= periode.fin && periode.fin <= moisMax;
+}
+
+/** « 09/2026 », ou « 07/2026 à 09/2026 ». */
+export function periodeAffichee(debut: string, fin?: string | null): string {
+  return !fin || fin === debut ? moisAffiche(debut) : `${moisAffiche(debut)} à ${moisAffiche(fin)}`;
+}
+
 /**
  * Un écart en euros devient une base au taux de la cotisation. Le serveur
  * recalcule le montant arrondi. Sans taux, l'écart est le montant.
@@ -416,12 +483,18 @@ export function regularisationDepuisEcart(
   cotisation: CotisationRegularisable,
   ecart: number,
   part: PartRegularisee,
-  motif: string
+  motif: string,
+  periode?: PeriodeRegularisee | null
 ): RegularisationAjoutee {
   const tauxSal = part === 'patronale' ? null : cotisation.tauxSalarial;
   const tauxPat = part === 'salariale' ? null : cotisation.tauxPatronal;
   const taux = (tauxSal ?? 0) + (tauxPat ?? 0);
-  const commun = { coti_id: cotisation.cotiId, libelle: cotisation.libelle, motif: motif.trim() };
+  const commun = {
+    coti_id: cotisation.cotiId,
+    libelle: cotisation.libelle,
+    motif: motif.trim(),
+    ...(periode ? { mois_debut: periode.debut, mois_fin: periode.fin } : {}),
+  };
   if (taux) {
     return { ...commun, base: arrondi(ecart / taux), taux_salarial: tauxSal, taux_patronal: tauxPat };
   }
@@ -437,10 +510,14 @@ export function etatInitial(data: unknown, pdfNotes: string | null | undefined):
   // la quantité d'une ligne corrigée à la main.
   const declarees = heuresDeclarees(data);
   const [hs25, hs50] = declarees ? [declarees.hs25, declarees.hs50] : quantitesHeuresSup(data);
+  const [hc1, hc2] = quantitesHeuresComplementaires(data);
   return {
     hs25,
     hs50,
     revenirAuPlanning: false,
+    hc1,
+    hc2,
+    hcAuPlanning: false,
     primes: primesDuBulletin(data),
     primesRetirees: [],
     primesAjoutees: [],
@@ -477,6 +554,11 @@ export function requeteDeCorrection(
     corrections.revenir_au_planning = true;
   } else if (heuresChangees) {
     corrections.heures_sup = { hs25: arrondi(courant.hs25), hs50: arrondi(courant.hs50) };
+  }
+  if (courant.hcAuPlanning) {
+    corrections.heures_complementaires_au_planning = true;
+  } else if (!proches(courant.hc1, initial.hc1) || !proches(courant.hc2, initial.hc2)) {
+    corrections.heures_complementaires = { hc1: arrondi(courant.hc1), hc2: arrondi(courant.hc2) };
   }
   const corrigees = courant.primes
     .filter((p) => !retirees.has(p.saisieId))
@@ -773,7 +855,7 @@ export function aideDeLaCorrection(
 ): { champ: 'valeur' | 'motif' | 'bouton'; message: string } | null {
   const tape = valeur.trim();
   const longueur = motif.trim().length;
-  if (tape && !Number.isFinite(Number.parseFloat(tape.replace(',', '.')))) {
+  if (tape && lireNombre(tape) === null) {
     return { champ: 'valeur', message: 'La valeur voulue doit être un nombre, par exemple 15,5.' };
   }
   if (longueur > 0 && longueur < 3) {
@@ -809,4 +891,55 @@ export function formulaireVide(version: string | null): FormulaireDeLigne {
  */
 export function formulaireDeLaVersion(formulaire: FormulaireDeLigne, version: string | null): FormulaireDeLigne {
   return formulaire.version === version ? formulaire : formulaireVide(version);
+}
+
+/**
+ * Ce que l'onglet « Bulletin » demande à l'onglet « Corriger » (page client du 10/11, C1) :
+ * ouvrir la bonne carte, pré-remplie. Le jeton change à chaque clic, même sur la même ligne.
+ */
+export type DemandeDeCorrection =
+  | { carte: 'ligne'; code: string; jeton: number }
+  | { carte: 'cotisation'; cotiId: string; libelle: string; jeton: number }
+  | { carte: 'heures'; nature: NatureHeuresRegularisees; jeton: number };
+
+function natureDeLaLigneDHeures(code: string): NatureHeuresRegularisees | null {
+  const [, famille, pourcentage] = code.split('#')[0].split(':');
+  const pct = lireNombre(pourcentage ?? '') ?? 0;
+  if (famille === 'salaire_base') return 'normales';
+  if (famille === 'heures_sup') return pct >= 50 ? 'hs2' : 'hs1';
+  if (famille === 'heures_complementaires') return pct >= 25 ? 'hc2' : 'hc1';
+  return null;
+}
+
+/**
+ * Les deux gestes d'une ligne du bulletin : la corriger pour ce mois (carte
+ * « Corriger une ligne »), ou régulariser un mois passé (carte des
+ * régularisations de cotisation, ou d'heures pour le salaire et les heures).
+ */
+export function gestesDeLaLigne(
+  ligne: Pick<LigneCorrigeable, 'code' | 'bloc' | 'libelle' | 'mode'>,
+  jeton: number,
+  options: { forfaitJours?: boolean } = {}
+): { corriger: DemandeDeCorrection | null; regulariser: DemandeDeCorrection | null } {
+  const code = ligne.code ?? '';
+  const corriger: DemandeDeCorrection | null = code && ligne.mode ? { carte: 'ligne', code, jeton } : null;
+  let regulariser: DemandeDeCorrection | null = null;
+  if (ligne.bloc === 'cotisations' && code.startsWith('cotisation:') && !code.startsWith('cotisation:regularisation:')) {
+    const cotiId = code.split('#')[0].split(':')[1];
+    if (cotiId && cotiId !== 'sans_organisme') regulariser = { carte: 'cotisation', cotiId, libelle: ligne.libelle, jeton };
+  } else if (ligne.bloc === 'brut' && !options.forfaitJours) {
+    const nature = natureDeLaLigneDHeures(code);
+    if (nature) regulariser = { carte: 'heures', nature, jeton };
+  }
+  return { corriger, regulariser };
+}
+
+/** Temps partiel au sens de C. trav. L3123-1 : une durée inférieure aux 35 h légales, ou cochée sur la fiche. */
+export function estTempsPartiel(
+  fiche: { is_temps_partiel?: boolean | null; duree_hebdomadaire?: number | null } | null | undefined
+): boolean {
+  if (!fiche) return false;
+  if (fiche.is_temps_partiel) return true;
+  const duree = fiche.duree_hebdomadaire;
+  return typeof duree === 'number' && Number.isFinite(duree) && duree > 0 && duree < 35;
 }

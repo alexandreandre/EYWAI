@@ -33,6 +33,13 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.modules.dsn_export.domain.norme import NORME_P26, cet_patronale_sur_son_code
+from app.modules.dsn_export.domain.rattachement import (
+    bornes_du_mois,
+    mois_entre,
+    mois_passes,
+    periode_d_une_cotisation,
+    repartir,
+)
 from app.modules.dsn_import.domain.model import (
     BaseAssujettieBlock,
     CotisationIndividuelleBlock,
@@ -956,6 +963,192 @@ def _exoneration_apprenti(
     return round(retraite, 2)
 
 
+def _bloc_81(ligne: LigneDsn, default_ops: str, code_base: str) -> CotisationIndividuelleBlock:
+    """Une cotisation individuelle (S21.G00.81) sous la base `code_base`."""
+    rubriques = {"S21.G00.81.001": ligne.code}
+    identifiant = ligne.ops_identifiant or default_ops
+    if identifiant and ligne.code not in CODES_SANS_OPS:
+        rubriques["S21.G00.81.002"] = identifiant
+    if ligne.assiette:
+        rubriques["S21.G00.81.003"] = f"{ligne.assiette:.2f}"
+    rubriques["S21.G00.81.004"] = f"{ligne.montant:.2f}"
+    rubriques["S21.G00.81.007"] = _taux_dsn(ligne.taux)
+    if ligne.affiliation_id:
+        rubriques["S21.G00.81.005"] = ligne.affiliation_id
+    if ligne.apprenti:
+        rubriques["_apprenti"] = ligne.apprenti
+    return CotisationIndividuelleBlock(
+        code=ligne.code,
+        montant_assiette=ligne.assiette,
+        montant_salarial=0.0,
+        montant_patronal=ligne.montant,
+        identifiant_affiliation=identifiant or ligne.affiliation_id,
+        rubriques={**rubriques, "_base": code_base},
+    )
+
+
+#: Régularisations que Martine ne rattache pas à un mois passé : la réduction
+#: générale exige, sous la même base 03, le SMIC retenu du mois (CCH-17 de
+#: S21.G00.81), et la prévoyance une base 31 par affiliation (CCH-11 à 13).
+#: Elles restent dans le mois déclaré, avec l'avis de l'aperçu.
+COTI_ID_NON_RATTACHABLES = {"reduction_generale"}
+
+
+def regularisation_rattachable(ligne: dict[str, Any]) -> bool:
+    """La régularisation saisie avec une période peut-elle se déclarer à ses mois d'origine ?"""
+    coti_id = str(ligne.get("coti_id") or "")
+    if coti_id in COTI_ID_NON_RATTACHABLES or coti_id in COTI_ID_NON_INDIVIDUELS:
+        return False
+    if coti_id in {COTI_ID_EXONERATION_APPRENTI, COTI_ID_EXONERATION_JEI}:
+        return False
+    if _est_csg(ligne):
+        return True
+    traduites = _traduire(ligne, 0.0, 0.0)
+    return bool(traduites) and all(t.base != BASE_PREVOYANCE for t in traduites)
+
+
+def _est_csg(ligne: dict[str, Any]) -> bool:
+    coti_id = str(ligne.get("coti_id") or "")
+    libelle = str(ligne.get("libelle") or "").lower()
+    return coti_id in {"csg_deductible", "csg_non_deductible", "crds"} or (
+        not coti_id and ("csg" in libelle or "crds" in libelle)
+    )
+
+
+def _part_de_la_ligne(ligne: dict[str, Any], parts: int) -> list[dict[str, Any]]:
+    """La régularisation coupée en `parts` mois : base, puis montants au centime,
+    la dernière part portant le reste pour que la somme soit celle du bulletin."""
+    assiette, sal, pat, taux_sal, taux_pat = _parts(ligne)
+    par_base = ligne.get("base") is not None
+    bases = repartir(assiette, parts)
+    sortie: list[dict[str, Any]] = []
+    for index, base in enumerate(bases):
+        dernier = index == parts - 1
+        if par_base:
+            part_sal = round(sal - sum(round(b * taux_sal, 2) for b in bases[:-1]), 2) if dernier else round(base * taux_sal, 2)
+            part_pat = round(pat - sum(round(b * taux_pat, 2) for b in bases[:-1]), 2) if dernier else round(base * taux_pat, 2)
+        else:
+            part_sal = repartir(sal, parts)[index]
+            part_pat = repartir(pat, parts)[index]
+        sortie.append(
+            {
+                **ligne,
+                "base": base if par_base else ligne.get("base"),
+                "montant_salarial": part_sal,
+                "montant_patronal": part_pat,
+            }
+        )
+    return sortie
+
+
+def _separer_les_regularisations_rattachees(
+    lignes: list[dict[str, Any]], periode: str, tmax: float, assiette_hs: float, norme: str
+) -> tuple[list[dict[str, Any]], list[tuple[str, dict[str, Any]]]]:
+    """(lignes du mois déclaré, [(mois d'origine, part de régularisation)])."""
+    du_mois: list[dict[str, Any]] = []
+    rattachees: list[tuple[str, dict[str, Any]]] = []
+    for ligne in lignes:
+        origine = periode_d_une_cotisation(ligne)
+        if origine is None or not regularisation_rattachable(ligne):
+            du_mois.append(ligne)
+            continue
+        passes, total = mois_passes(origine, periode)
+        if not passes:
+            du_mois.append(ligne)
+            continue
+        parts = _part_de_la_ligne(ligne, total)
+        tous = mois_entre(*origine)
+        for mois, part in zip(tous, parts):
+            if mois in passes:
+                rattachees.append((mois, part))
+            else:
+                du_mois.append(part)
+    return du_mois, rattachees
+
+
+def _csg_regularisee(lignes: list[dict[str, Any]]) -> list[LigneDsn]:
+    """CSG et CRDS d'une régularisation d'un mois passé, sur la base 04.
+
+    Comme `_csg_et_crds` : 072 au taux total, 079 pour la CRDS, que la ligne
+    non déductible du bulletin comprend (0,50 % de son assiette).
+    """
+    assiette = csg = crds = 0.0
+    for ligne in lignes:
+        base, sal, pat, _, _ = _parts(ligne)
+        montant = round(sal + pat, 2)
+        coti_id = str(ligne.get("coti_id") or "")
+        libelle = str(ligne.get("libelle") or "").lower()
+        if coti_id == "crds":
+            crds += montant
+        elif coti_id == "csg_non_deductible" or "non déductible" in libelle or "non deductible" in libelle:
+            part_crds = _arrondi(base * TAUX_CRDS)
+            crds += part_crds
+            csg += montant - part_crds
+        else:
+            csg += montant
+        if abs(base) > abs(assiette):
+            assiette = base
+    return [
+        LigneDsn(CODE_CSG, BASE_CSG, round(assiette, 2), round(csg, 2), TAUX_CSG_TOTAL, regularisation=True),
+        LigneDsn(CODE_CRDS, BASE_CSG, round(assiette, 2), round(crds, 2), TAUX_CRDS, regularisation=True),
+    ]
+
+
+def _bases_rattachees(
+    rattachees: list[tuple[str, dict[str, Any]]],
+    tmax: float,
+    assiette_hs: float,
+    norme: str,
+    default_ops: str,
+    bases: list[BaseAssujettieBlock],
+    cotisations: list[CotisationIndividuelleBlock],
+) -> None:
+    """Une base par mois d'origine et par code, ses cotisations dessous (CT § 2.2.2.5).
+
+    La base porte l'écart d'assiette de la régularisation, signé ; ses dates sont
+    celles du mois civil corrigé.
+    """
+    par_mois: dict[str, list[dict[str, Any]]] = {}
+    for mois, ligne in rattachees:
+        par_mois.setdefault(mois, []).append(ligne)
+    for mois in sorted(par_mois):
+        lignes = par_mois[mois]
+        produites: list[LigneDsn] = []
+        csg = [l for l in lignes if _est_csg(l)]
+        if csg:
+            produites.extend(_csg_regularisee(csg))
+        for ligne in lignes:
+            if _est_csg(ligne):
+                continue
+            for traduite in _traduire(ligne, tmax, assiette_hs, 0.0, norme):
+                traduite.regularisation = True
+                produites.append(traduite)
+        produites = _cumuler(produites)
+        debut, fin = bornes_du_mois(mois)
+        codes = [c for c in ORDRE_BASES if any(l.base == c for l in produites)]
+        codes += sorted({l.base for l in produites} - set(codes))
+        for code in codes:
+            lignes_base = [l for l in produites if l.base == code]
+            assiette = max((l.assiette for l in lignes_base), key=abs, default=0.0)
+            code_interne = f"{code}@{mois}"
+            bases.append(
+                BaseAssujettieBlock(
+                    code=code_interne,
+                    date_debut=debut,
+                    date_fin=fin,
+                    montant=round(assiette, 2),
+                    rubriques={
+                        "S21.G00.78.001": code,
+                        "S21.G00.78.002": debut,
+                        "S21.G00.78.003": fin,
+                        "S21.G00.78.004": f"{assiette:.2f}",
+                        "_rattachement": mois,
+                    },
+                )
+            )
+            cotisations.extend(_bloc_81(l, default_ops, code_interne) for l in lignes_base)
+
+
 def build_bases_and_cotisations(
     cotisation_lines: List[Dict[str, Any]],
     *,
@@ -968,8 +1161,14 @@ def build_bases_and_cotisations(
     affiliation_ids: Optional[List[str]] = None,
     code_exoneration_apprenti: Optional[str] = None,
     norme: str = NORME_P26,
+    periode: str | None = None,
 ) -> Tuple[List[BaseAssujettieBlock], List[CotisationIndividuelleBlock], List[str]]:
     """Bases assujetties et cotisations individuelles d'un bulletin.
+
+    ``periode`` (« AAAA-MM ») : le mois principal déclaré. Une régularisation
+    saisie avec une période antérieure s'y déclare rattachée, sous ses propres
+    bases aux dates de chaque mois d'origine (``rattachement.py``). Sans lui,
+    toute régularisation se fond dans le mois, comme avant le 10/11/2026.
 
     ``code_exoneration_apprenti`` (001, 002 ou 003, d'après le dispositif du
     contrat) : la part exonérée d'un apprenti se déclare comme le demande la
@@ -992,6 +1191,12 @@ def build_bases_and_cotisations(
     scinder = bool(code_exoneration_apprenti) and exoneree > 0
     exoneration_declaree = 0.0
     jei_totale = _exoneration_jei_totale(lignes_valides, avertissements)
+
+    rattachees: list[tuple[str, dict[str, Any]]] = []
+    if periode:
+        lignes_valides, rattachees = _separer_les_regularisations_rattachees(
+            lignes_valides, periode, tmax, assiette_hs, norme
+        )
 
     produites: List[LigneDsn] = []
     for ligne in lignes_valides:
@@ -1104,28 +1309,9 @@ def build_bases_and_cotisations(
         for ligne in produites:
             if ligne.base != base.code:
                 continue
-            rubriques = {"S21.G00.81.001": ligne.code}
-            identifiant = ligne.ops_identifiant or default_ops
-            if identifiant and ligne.code not in CODES_SANS_OPS:
-                rubriques["S21.G00.81.002"] = identifiant
-            if ligne.assiette:
-                rubriques["S21.G00.81.003"] = f"{ligne.assiette:.2f}"
-            rubriques["S21.G00.81.004"] = f"{ligne.montant:.2f}"
-            rubriques["S21.G00.81.007"] = _taux_dsn(ligne.taux)
-            if ligne.affiliation_id:
-                rubriques["S21.G00.81.005"] = ligne.affiliation_id
-            if ligne.apprenti:
-                rubriques["_apprenti"] = ligne.apprenti
-            cotisations.append(
-                CotisationIndividuelleBlock(
-                    code=ligne.code,
-                    montant_assiette=ligne.assiette,
-                    montant_salarial=0.0,
-                    montant_patronal=ligne.montant,
-                    identifiant_affiliation=identifiant or ligne.affiliation_id,
-                    rubriques={**rubriques, "_base": base.code},
-                )
-            )
+            cotisations.append(_bloc_81(ligne, default_ops, base.code))
+
+    _bases_rattachees(rattachees, tmax, assiette_hs, norme, default_ops, bases, cotisations)
 
     # Une base 31 par cotisation 059, comme le cabinet : montant 0.00,
     # identifiant d'affiliation en 78.005, l'assiette réelle portée par un

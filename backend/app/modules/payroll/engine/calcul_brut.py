@@ -34,6 +34,7 @@ from app.modules.payroll.engine.codes_des_lignes import BLOC_BRUT
 from app.modules.payroll.engine.corrections_manuelles import (
     CLE_REGULARISATIONS_HEURES,
     effet_des_regularisations_heures,
+    heures_complementaires_declarees,
     lignes_de_regularisation_heures,
     LignesCorrigees,
     journal_du_contexte,
@@ -2378,6 +2379,18 @@ def calculer_salaire_brut(
                 "perte": None,
             }
         )
+    # Heures complémentaires déclarées depuis le bulletin (page client du
+    # 10/11) : comme les heures sup déclarées, elles font foi, même nulles, et
+    # le bulletin garde ce que le planning donnait.
+    hc_declarees = heures_complementaires_declarees(contexte.saisie_du_mois)
+    if hc_declarees is not None:
+        contexte.heures_complementaires_declarees = {
+            "hc1": hc_declarees[0],
+            "hc2": hc_declarees[1],
+            "planning": round(heures_travail_hc1_total + heures_travail_hc2_total, 2),
+        }
+        heures_travail_hc1_total, heures_travail_hc2_total = hc_declarees
+
     # Heures complémentaires (temps partiel) : rémunération majorée (10 % puis
     # 25 %, BOSS § 290). Réduction salariale et exonération d'impôt comme les
     # heures sup (plus bas), sans déduction forfaitaire patronale.

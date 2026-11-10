@@ -25,6 +25,8 @@ from app.shared.cle_du_bulletin import du_contrat
 from app.modules.payroll.documents.verrou_generation import verrou_de_generation
 from app.modules.payroll.engine.corrections_du_bulletin import corrections_du_bulletin
 from app.modules.payroll.engine.corrections_manuelles import (
+    LIBELLE_HC_DECLAREES,
+    HeuresComplementairesDeclarees,
     regularisations_du_bulletin,
     regularisations_heures_du_bulletin,
 )
@@ -55,6 +57,8 @@ from app.modules.payslips.domain.corrections import (
     corrections_pour_revenir,
     refus_de_la_reduction_generale,
     refus_des_corrections,
+    refus_des_heures_complementaires,
+    refus_des_periodes_de_regularisation,
     refus_des_regularisations_heures,
     resume_des_corrections,
 )
@@ -170,6 +174,30 @@ def _declarer_heures_sup(
     ).execute()
 
 
+def _retirer_heures_complementaires_declarees(
+    periode: dict[str, Any], contrat: str | None = None
+) -> None:
+    requete = (
+        supabase.table("monthly_inputs")
+        .delete()
+        .match(periode)
+        .eq("name", LIBELLE_HC_DECLAREES)
+    )
+    du_contrat(requete, contrat).execute()
+
+
+def _declarer_heures_complementaires(
+    periode: dict[str, Any], hc1: float, hc2: float, contrat: str | None = None
+) -> None:
+    """Une saisie pour les deux paliers : le moteur les fait primer sur le planning."""
+    _retirer_heures_complementaires_declarees(periode, contrat)
+    supabase.table("monthly_inputs").insert(
+        HeuresComplementairesDeclarees(hc1=hc1, hc2=hc2).saisie_du_mois(
+            {**periode, "contract_period_id": contrat}
+        )
+    ).execute()
+
+
 def _ecrire_variables(
     corrections: CorrectionsBulletin, periode: dict[str, Any], contrat: str | None = None
 ) -> None:
@@ -178,6 +206,10 @@ def _ecrire_variables(
         _retirer_heures_sup_declarees(periode, contrat)
     if corrections.heures_sup is not None:
         _declarer_heures_sup(periode, *corrections.heures_sup, contrat)
+    if corrections.heures_complementaires_au_planning:
+        _retirer_heures_complementaires_declarees(periode, contrat)
+    if corrections.heures_complementaires is not None:
+        _declarer_heures_complementaires(periode, *corrections.heures_complementaires, contrat)
     if not corrections.primes.vide:
         appliquer_primes_editees(corrections.primes, **periode, contract_period_id=contrat)
     _ecrire_regularisations(corrections, periode, contrat)
@@ -231,15 +263,30 @@ def _ecrire_regularisations_heures(
         ).execute()
 
 
-def _est_au_forfait_jours(employee_id: str) -> bool:
+def _fiche_temps_de_travail(employee_id: str) -> dict[str, Any]:
     r = (
         supabase.table("employees")
-        .select("statut")
+        .select("statut, is_temps_partiel, duree_hebdomadaire")
         .eq("id", employee_id)
         .maybe_single()
         .execute()
     )
-    return is_forfait_jour((r.data or {}).get("statut") if r else None)
+    return (r.data or {}) if r else {}
+
+
+def _est_au_forfait_jours(employee_id: str) -> bool:
+    return is_forfait_jour(_fiche_temps_de_travail(employee_id).get("statut"))
+
+
+def est_temps_partiel(fiche: dict[str, Any]) -> bool:
+    """C. trav. L3123-1 : une durée inférieure à la durée légale (35 h)."""
+    if fiche.get("is_temps_partiel"):
+        return True
+    duree = fiche.get("duree_hebdomadaire")
+    try:
+        return duree is not None and 0 < float(duree) < 35
+    except (TypeError, ValueError):
+        return False
 
 
 def _ecrire_corrections_de_ligne(
@@ -401,6 +448,17 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
         refus = refus_des_corrections(
             corrections, bulletin.get("payslip_data")
         ) or refus_de_la_reduction_generale(corrections, bulletin.get("payslip_data"))
+        if not refus:
+            refus = refus_des_periodes_de_regularisation(
+                corrections, int(bulletin["year"]), int(bulletin["month"])
+            )
+        if not refus and corrections.heures_complementaires is not None:
+            fiche = _fiche_temps_de_travail(str(bulletin["employee_id"]))
+            refus = refus_des_heures_complementaires(
+                corrections,
+                temps_partiel=est_temps_partiel(fiche),
+                forfait_jours=is_forfait_jour(fiche.get("statut")),
+            )
         if not refus and corrections.regularisations_heures_ajoutees:
             refus = refus_des_regularisations_heures(
                 corrections,
