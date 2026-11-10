@@ -106,6 +106,8 @@ ROUTES_SANS_SOCIETE = {
     ("GET", "/api/me/badgeuse/status-today"): "compte connecté",
     ("POST", "/api/me/badgeuse/toggle"): "compte connecté",
     ("GET", "/api/me/current-cumuls"): "compte connecté",
+    ("GET", "/api/relecture-ia/droits"): "dit seulement si ce compte peut lancer",
+    ("GET", "/api/relecture-ia/etat"): "comptes autorisés, un avancement sans donnée de société",
     # Référentiels communs à toutes les sociétés.
     ("GET", "/api/collective-agreements/catalog"): "catalogue commun",
     ("GET", "/api/collective-agreements/catalog/suggest"): "catalogue commun",

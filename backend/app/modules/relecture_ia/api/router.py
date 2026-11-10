@@ -26,6 +26,11 @@ def _exiger_compte(user: User) -> None:
         raise HTTPException(status_code=403, detail=_MESSAGE_RESERVE)
 
 
+def _exiger_acces_aux_societes(user: User, company_ids: list[str]) -> None:
+    if any(not user.has_rh_access_in_company(c) for c in company_ids):
+        raise HTTPException(status_code=403, detail=_MESSAGE_SOCIETE_REFUSEE)
+
+
 def _societe_active_rh(user: User) -> str:
     if not user.active_company_id:
         raise HTTPException(status_code=400, detail=_MESSAGE_SOCIETE_ACTIVE)
@@ -56,6 +61,7 @@ def lancer_relecture(
     user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     _exiger_compte(user)
+    _exiger_acces_aux_societes(user, body.company_ids)
     try:
         resultat = service.lancer(
             user.id, service.societes_du_compte(user), body.year, body.month, body.company_ids
