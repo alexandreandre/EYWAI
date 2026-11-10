@@ -522,6 +522,58 @@ def _sans_accents(texte: str) -> str:
     ).lower()
 
 
+def controle_taux_sous_smic(contexte, details_brut: Any) -> List[Dict[str, Any]]:
+    """Signale un salaire de base sous le SMIC horaire (hors alternants).
+
+    Le minimum conventionnel ne suffit pas : le contrôle du 10/11/2026 a trouvé
+    une fiche à 1 700 € pour 39 h et une autre à 2,84 € de l'heure, sans alerte
+    SMIC. Le plus souvent, c'est le salaire ou la durée de la fiche qui est faux.
+    """
+    if getattr(contexte, "is_alternant", False) or getattr(contexte, "is_apprenti", False):
+        return []
+    try:
+        smic = float(getattr(contexte, "smic_horaire", 0) or 0)
+    except (TypeError, ValueError):
+        return []
+    if smic <= 0:
+        return []
+    for ligne in details_brut or []:
+        if not isinstance(ligne, dict):
+            continue
+        if not str(ligne.get("libelle") or "").lower().startswith("salaire de base"):
+            continue
+        taux = ligne.get("taux")
+        if isinstance(taux, (int, float)) and 0 < taux and taux + 0.005 < smic:
+            return [
+                _alert(
+                    code="salaire_sous_smic",
+                    critique=True,
+                    message=(
+                        f"Salaire de base à {taux:.2f} € de l'heure, sous le SMIC horaire "
+                        f"({smic:.2f} €) : vérifiez le salaire et la durée du contrat sur la fiche."
+                    ),
+                )
+            ]
+    return []
+
+
+def alerte_prime_soumise_imposee(libelle: str) -> Dict[str, Any]:
+    """Une prime soumise à cotisations reste dans le net imposable : on le dit.
+
+    Le choix « non imposable » n'est appliqué qu'aux primes non soumises. Aucune
+    prime n'est dans ce cas au 10/11/2026 ; le traitement fiscal, faute de source
+    ouverte, n'est pas codé : l'alerte évite un état silencieux.
+    """
+    return _alert(
+        code="prime_soumise_comptee_imposable",
+        critique=True,
+        message=(
+            f"La prime « {libelle} » est réglée non imposable, mais elle est soumise à "
+            "cotisations : Martine la compte dans le net imposable. Vérifiez son réglage."
+        ),
+    )
+
+
 def controle_rachat_de_jours(details_brut: Any) -> List[Dict[str, Any]]:
     """Rachat de jours de repos saisi en prime : Martine le paie, sans son régime.
 

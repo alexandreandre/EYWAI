@@ -303,7 +303,7 @@ export function PayrollGenerationRefusalDialog({
 
         {!single && forcables.length > 0 && (
           <p className="text-xs text-muted-foreground">
-            Forcer génère malgré un calendrier incomplet
+            Forcer génère malgré un calendrier incomplet : les jours non saisis sont payés à plein
             {repriseCount > 0
               ? ' et, pour une reprise non posée, en partant de cumuls à zéro (le bulletin porte une alerte)'
               : ''}

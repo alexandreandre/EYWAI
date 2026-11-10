@@ -1058,6 +1058,12 @@ def run_payslip_generation_heures(
                 contexte.alertes_baremes.extend(rangee.alertes)
             elif soumise_cotis:
                 primes_soumises.append(prime_calculee)
+                if not soumise_impot_par_defaut:
+                    from app.modules.payroll.engine.controles_convention import (
+                        alerte_prime_soumise_imposee,
+                    )
+
+                    contexte.alertes_baremes.append(alerte_prime_soumise_imposee(libelle))
             elif soumise_impot_par_defaut:
                 primes_soumises_impot.append(prime_calculee)
             else:
