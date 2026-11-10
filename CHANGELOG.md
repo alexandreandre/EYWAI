@@ -10,6 +10,25 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - Régularisations de cotisation et d'heures : période corrigée (« À partir du bulletin de … jusqu'au bulletin de … »), imprimée sur la ligne (« – 07/2026 à 09/2026 ») ; la DSN déclare la régularisation aux dates de ces mois (bases et cotisations, rémunérations), à parts égales sur plusieurs mois.
 - Temps partiel : carte « Heures complémentaires du mois » (10 % puis 25 %) à la place des heures sup ; et partout, montants tapés avec un point ou une virgule (cartes de correction, primes, notes de frais).
 
+### Calendrier et congés (page client du 10/11)
+- Un modèle de semaine applique exactement ses heures : une case vide vaut 0 h, plus jamais 8 h ; la fenêtre montre le modèle choisi et son total. « Réel = prévu » recopie aussi un jour prévu à 0 h ; au forfait jours, il pose 1 ou 0 sans alerte d'unité.
+- La ligne « à saisir » nomme les jours en cause, la case est cerclée de rouge ; les jours après l'arrêté des variables ne sont plus en rouge.
+- Après une sortie : jours grisés « Sorti(e) · 0 », salarié retiré du calendrier et du choix d'un congé le mois suivant. Un congé validé se modifie (bouton « Modifier ») ; une demi-journée se pose depuis le calendrier.
+
+### Départs et congés payés
+- Bulletin de sortie : période arrêtée au dernier jour du contrat, mention « Bulletin de sortie », compteurs de congés à zéro quand l'indemnité est versée ; le planning après la sortie n'entre plus dans le calcul.
+- Acquisition des congés : une absence non rémunérée ou un congé sans solde n'acquiert plus de congés (moins de 20 jours travaillés dans le mois : prorata).
+- Documents d'un départ supprimé : les brouillons orphelins ne s'affichent plus.
+
+### Bulletin et fiche
+- Forfait jours : bloc « Jours travaillés : 22 sur 216 » (cumul de l'année) ; « Cumul heures » renommé « Heures retenues pour la réduction générale ».
+- Une seule ligne « Autres contributions dues par l'employeur » et une seule ligne « Remboursement de frais » ; le détail reste dans le bulletin enregistré, les exports et la DSN. Notes de frais : catégorie « Téléphone ».
+- Fiche : date d'ancienneté et nom d'usage saisissables, imprimés sur le bulletin.
+
+### Règles et heures
+- Congés d'ancienneté : le préréglage métallurgie s'enregistre (migration) ; un refus de la base donne un message clair. Code PCS-ESE : recherche mot à mot (« peintre industriel » trouve 674a).
+- Jour sans solde rattrapé dans la même semaine : plus de retenue ni d'heures sup payées en double.
+
 ## paie-2026-11-10.8
 
 ### Régularisation d'heures d'un autre mois (demande d'Elsa, Lyon)
