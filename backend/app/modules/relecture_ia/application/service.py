@@ -9,11 +9,14 @@ import logging
 import os
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.modules.relecture_ia.domain.consignes import blocs_systeme
-from app.modules.relecture_ia.domain.cout import cout_usd, estimer_cout_eur, usd_vers_eur
+from app.modules.relecture_ia.domain.cout import (
+    cout_usd,
+    estimer_cout_eur,
+)
 from app.modules.relecture_ia.domain.droits import compte_autorise
 from app.modules.relecture_ia.domain.fiche import code_salarie, construire_fiche
 from app.modules.relecture_ia.domain.garde import (
@@ -119,13 +122,13 @@ def _est_bloquee(relecture: dict[str, Any]) -> bool:
         battement = datetime.fromisoformat(str(relecture["battement_at"]).replace("Z", "+00:00"))
     except (KeyError, ValueError):
         return True
-    return datetime.now(timezone.utc) - battement > _DELAI_REPRISE
+    return datetime.now(UTC) - battement > _DELAI_REPRISE
 
 
 def _reprendre_si_bloquee(depot: DepotRelecture, relecture: dict[str, Any]) -> bool:
     if not _est_bloquee(relecture):
         return False
-    seuil = (datetime.now(timezone.utc) - _DELAI_REPRISE).isoformat()
+    seuil = (datetime.now(UTC) - _DELAI_REPRISE).isoformat()
     return depot.reprendre_si_bloquee(relecture["id"], seuil)
 
 
@@ -381,7 +384,7 @@ def _traiter_societe(
                             reste.cancel()
                     else:
                         echouer(ligne, exc.message)
-                except Exception:  # noqa: BLE001 - un bulletin en panne n'arrête pas les autres
+                except Exception:
                     logger.exception("Relecture IA : échec sur un bulletin")
                     echouer(ligne, "Ce bulletin n'a pas pu être relu. Relancez la relecture pour le reprendre.")
     if arret is not None:
@@ -411,7 +414,7 @@ def _clore(depot: DepotRelecture, relecture_id: str) -> None:
         points=points,
         cout_reel_usd=round(cout, 4),
         message=_message_de_fin(fait, echecs, points),
-        termine_at=datetime.now(timezone.utc).isoformat(),
+        termine_at=datetime.now(UTC).isoformat(),
     )
     logger.info(
         "Relecture IA %s terminée : %s relus, %s échecs, %s points, %.4f $ (%s).",
@@ -424,7 +427,7 @@ def _arreter(depot: DepotRelecture, relecture_id: str, message: str) -> None:
         relecture_id,
         statut="echec",
         message=message,
-        termine_at=datetime.now(timezone.utc).isoformat(),
+        termine_at=datetime.now(UTC).isoformat(),
     )
 
 
@@ -457,7 +460,7 @@ def executer(
         _clore(depot, relecture_id)
     except RelectureImpossible as exc:
         _arreter(depot, relecture_id, exc.message)
-    except Exception:  # noqa: BLE001 - la relecture ne doit jamais rester « en cours »
+    except Exception:
         logger.exception("Relecture IA %s interrompue", relecture_id)
         _arreter(depot, relecture_id, _MESSAGE_INTERROMPUE)
 

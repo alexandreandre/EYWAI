@@ -11,7 +11,8 @@ from __future__ import annotations
 import hashlib
 import re
 import unicodedata
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 # Les parties du bulletin que la relecture regarde.
 _SECTIONS_DU_MOIS = (

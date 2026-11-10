@@ -95,7 +95,7 @@ def creer_client() -> Any:
     if not cle:
         raise RelectureImpossible(_MESSAGE_SANS_CLE, fatale=True)
     try:
-        import anthropic  # noqa: PLC0415
+        import anthropic
     except ImportError as exc:
         raise RelectureImpossible(_MESSAGE_SANS_SDK, fatale=True) from exc
     options: dict[str, Any] = {
@@ -154,7 +154,7 @@ class RelecteurClaude:
             )
         except RelectureImpossible:
             raise
-        except Exception as exc:  # noqa: BLE001 - le SDK n'est pas importé ici
+        except Exception as exc:
             statut = getattr(exc, "status_code", None)
             logger.warning("Relecture IA : appel échoué (%s, statut=%s)", type(exc).__name__, statut)
             if statut in (401, 403):

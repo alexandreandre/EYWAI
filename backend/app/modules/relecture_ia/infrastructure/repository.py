@@ -6,8 +6,9 @@ en ne sélectionnant que les colonnes utiles.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Callable, Iterable
+from collections.abc import Callable, Iterable
+from datetime import UTC, datetime
+from typing import Any
 
 from app.core.database import supabase
 from app.core.supabase_resilience import execute_with_retry
@@ -26,7 +27,7 @@ _COLONNES_CONTRAT = (
 
 
 def maintenant_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _par_lots(valeurs: Iterable[str], taille: int = _TAILLE_LISTE) -> list[list[str]]:
@@ -226,7 +227,7 @@ class DepotRelecture:
                 .insert({**relecture, "battement_at": maintenant_iso()})
                 .execute()
             )[0]
-        except Exception as exc:  # noqa: BLE001 - seule la contrainte unique est attendue
+        except Exception as exc:
             if _est_doublon(exc):
                 return None
             raise

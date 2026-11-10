@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -10,8 +10,8 @@ import pytest
 from app.modules.relecture_ia.application import service
 from app.modules.relecture_ia.domain.fiche import code_salarie
 from app.modules.relecture_ia.infrastructure.client_claude import (
-    ReponseRelecture,
     RelectureImpossible,
+    ReponseRelecture,
 )
 from app.modules.relecture_ia.infrastructure.repository import DepotRelecture
 from tests.unit.base_en_memoire import BaseEnMemoire
@@ -296,7 +296,7 @@ class TestReprise:
     def _bloquee(self, base, minutes):
         depot = DepotRelecture(base)
         lance = _lancer(depot)
-        ancien = (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
+        ancien = (datetime.now(UTC) - timedelta(minutes=minutes)).isoformat()
         base.ligne("relectures_ia", id=lance["relecture_id"])["battement_at"] = ancien
         return depot, lance["relecture_id"]
 

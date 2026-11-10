@@ -9,9 +9,10 @@ from __future__ import annotations
 import math
 import re
 import unicodedata
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
-from typing import Any, Iterable
+from typing import Any
 
 GRAVITES = ("important", "a_verifier")
 _RANG_GRAVITE = {g: i for i, g in enumerate(GRAVITES)}

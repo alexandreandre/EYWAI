@@ -40,8 +40,10 @@ def _charger_env() -> None:
 
 _charger_env()
 
-from app.modules.relecture_ia.application.service import relire_en_lecture_seule  # noqa: E402
-from app.modules.relecture_ia.domain.banc import bilan_du_banc  # noqa: E402
+from app.modules.relecture_ia.application.service import (
+    relire_en_lecture_seule,
+)
+from app.modules.relecture_ia.domain.banc import bilan_du_banc
 
 LIMITE_PAR_DEFAUT = 10
 
