@@ -484,21 +484,6 @@ def update_absence_date_accident(
     return _enrich_single_absence_row(ligne)
 
 
-@router.patch("/{request_id}", response_model=AbsenceRequest)
-async def update_absence_request(
-    request_id: str,
-    http_request: Request,
-    status_update: AbsenceRequestStatusUpdate,
-    current_user: User = Depends(get_current_user),
-):
-    """Met à jour le statut d'une demande d'absence (RH). Alias de PATCH .../requests/{id}/status."""
-    if status_update.status in ("validated", "rejected"):
-        _require_rh_company_context(current_user)
-    return await update_absence_request_status(
-        request_id, http_request, status_update, current_user
-    )
-
-
 # ----- Liste globale (RH) -----
 
 
@@ -1329,3 +1314,19 @@ def get_absence_request_detail_for_user(
     except Exception as e:
         logger.exception("Échec de get_absence_request_detail_for_user")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Doit rester la dernière route PATCH : « /{request_id} » prendrait sinon « /leave-settings » pour un identifiant.
+@router.patch("/{request_id}", response_model=AbsenceRequest)
+async def update_absence_request(
+    request_id: str,
+    http_request: Request,
+    status_update: AbsenceRequestStatusUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    """Met à jour le statut d'une demande d'absence (RH). Alias de PATCH .../requests/{id}/status."""
+    if status_update.status in ("validated", "rejected"):
+        _require_rh_company_context(current_user)
+    return await update_absence_request_status(
+        request_id, http_request, status_update, current_user
+    )

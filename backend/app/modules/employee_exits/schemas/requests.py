@@ -53,6 +53,7 @@ DocumentType = Literal[
     "solde_tout_compte",
     "recu_solde_compte",
     "attestation_portabilite_mutuelle",
+    "attestation_portabilite_prevoyance",
 ]
 # Préavis (Code du travail L1234-5, cf. payroll/engine/preavis) : exécuté,
 # dispense à l'initiative de l'employeur (« paid » : indemnité compensatrice),

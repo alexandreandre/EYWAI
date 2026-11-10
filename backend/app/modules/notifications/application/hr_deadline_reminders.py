@@ -161,7 +161,7 @@ def _build_email_content(
     candidates: List[DeadlineCandidate],
 ) -> tuple[str, str]:
     config = get_resolved_email_config()
-    dashboard_url = f"{config.frontend_url.rstrip('/')}/dashboard"
+    dashboard_url = f"{config.frontend_url.rstrip('/')}/"
     company_label = company_name or "votre entreprise"
     lines = [_format_candidate_line(c) for c in candidates]
     body_lines = "\n".join(lines)

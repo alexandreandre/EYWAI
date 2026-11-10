@@ -44,12 +44,19 @@ class ShiftCreate(BaseModel):
 
 class ShiftUpdate(BaseModel):
     shift_type_id: Optional[str] = None
+    transverse_category: Optional[str] = None
     start_time: Optional[time] = None
     end_time: Optional[time] = None
     post: Optional[str] = None
     location: Optional[str] = None
     comment_internal: Optional[str] = None
     comment_employee: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _type_ou_categorie(self) -> "ShiftUpdate":
+        if self.shift_type_id and self.transverse_category:
+            raise ValueError("shift_type_id et transverse_category mutuellement exclusifs")
+        return self
 
 
 class WeekDuplicateRequest(BaseModel):

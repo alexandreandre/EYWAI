@@ -184,7 +184,7 @@ def _resolve_leave_email_recipients(company_id: str) -> list[str]:
 
 def _build_absence_action_url() -> str:
     config = get_resolved_email_config()
-    return f"{config.frontend_url.rstrip('/')}/rh/absences"
+    return f"{config.frontend_url.rstrip('/')}/leaves"
 
 
 def _send_leave_request_email(
