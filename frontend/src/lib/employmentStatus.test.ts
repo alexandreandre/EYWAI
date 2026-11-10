@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  dernierJourDuContratDansLeMois,
+  estSaisissableLeMois,
   filterEmployeesForMonth,
   filterPresentEmployees,
   isPresentDuringMonth,
@@ -85,5 +87,39 @@ describe('filterEmployeesForMonth', () => {
       7,
     );
     expect(kept.map((e) => e.id)).toEqual(['1', '2']);
+  });
+});
+
+describe('écrans de saisie après une sortie (retours du 10/11)', () => {
+  const sorti = {
+    employment_status: 'en_sortie',
+    exit_last_working_day: '2026-10-02',
+    hire_date: '2026-06-01',
+  };
+
+  it('un salarié sorti reste saisissable le mois de sa sortie', () => {
+    expect(estSaisissableLeMois(sorti, 2026, 10)).toBe(true);
+  });
+
+  it('il disparaît des saisies les mois suivants, même encore « en sortie »', () => {
+    expect(estSaisissableLeMois(sorti, 2026, 11)).toBe(false);
+    expect(estSaisissableLeMois({ ...sorti, employment_status: 'parti' }, 2026, 11)).toBe(false);
+  });
+
+  it('un salarié réembauché après sa sortie reste saisissable', () => {
+    expect(
+      estSaisissableLeMois({ ...sorti, employment_status: 'actif', hire_date: '2026-10-20' }, 2026, 11)
+    ).toBe(true);
+  });
+
+  it('un salarié sans sortie reste saisissable', () => {
+    expect(estSaisissableLeMois({ employment_status: 'actif' }, 2026, 11)).toBe(true);
+  });
+
+  it('dit le dernier jour du contrat dans le mois', () => {
+    expect(dernierJourDuContratDansLeMois(sorti, 2026, 10)).toBe(2);
+    expect(dernierJourDuContratDansLeMois(sorti, 2026, 11)).toBe(0);
+    expect(dernierJourDuContratDansLeMois(sorti, 2026, 9)).toBeNull();
+    expect(dernierJourDuContratDansLeMois({ employment_status: 'actif' }, 2026, 10)).toBeNull();
   });
 });

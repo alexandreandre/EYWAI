@@ -1,4 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getPeriodeVariables } from '@/api/periodeVariables';
+import { bornesDuSalarie } from '@/lib/schedulesOverview';
+import { computeMonthCompletionStatus, joursASaisir } from '@/lib/calendarStats';
+import { alerteDeSaisie } from '@/lib/alerteDeSaisie';
 import { pastilleSaisieDuMois } from '@/lib/calendrierPilotage';
 import {
   Card,
@@ -26,6 +31,8 @@ interface EmployeeCalendarPanelProps {
   employeeName: string;
   employeeStatut?: string;
   employeeIsForfaitJour?: boolean | null;
+  /** Sortie du salarié : après, les cases sont grisées et rien n'est attendu. */
+  employeeSortie?: { exit_last_working_day?: string | null; hire_date?: string | null };
   initialYear?: number;
   initialMonth?: number;
   onSaved?: () => void;
@@ -36,6 +43,7 @@ export function EmployeeCalendarPanel({
   employeeName,
   employeeStatut,
   employeeIsForfaitJour,
+  employeeSortie,
   initialYear,
   initialMonth,
   onSaved,
@@ -66,7 +74,64 @@ export function EmployeeCalendarPanel({
     monthCompletionStatus,
     pointe,
     copyPlannedToActualForDay,
-  } = useCalendar(employeeId, employeeStatut, { isForfaitJour: employeeIsForfaitJour });
+  } = useCalendar(employeeId, employeeStatut, {
+    isForfaitJour: employeeIsForfaitJour,
+    sortie: employeeSortie ?? null,
+  });
+
+  // Même jugement que la liste : jusqu'à l'arrêté des variables (les jours
+  // d'après sont au mois suivant) et jusqu'à la sortie (retour du 10/11).
+  const fenetreQuery = useQuery({
+    queryKey: ['periode-variables', selectedDate.year, selectedDate.month],
+    queryFn: () => getPeriodeVariables(selectedDate.year, selectedDate.month),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const { bornes, dernierJourContrat } = bornesDuSalarie(
+    {
+      id: employeeId,
+      first_name: '',
+      last_name: '',
+      exit_last_working_day: employeeSortie?.exit_last_working_day ?? null,
+      hire_date: employeeSortie?.hire_date ?? null,
+    },
+    selectedDate.year,
+    selectedDate.month,
+    isForfaitJour,
+    { finFenetre: fenetreQuery.data?.fin ?? null }
+  );
+  const statutBorne =
+    monthCompletionStatus === 'saisi'
+      ? 'saisi'
+      : computeMonthCompletionStatus(
+          plannedCalendar,
+          actualHours,
+          selectedDate.year,
+          selectedDate.month,
+          isForfaitJour,
+          pointe,
+          bornes
+        );
+  const alerte = isCalendarLoading
+    ? null
+    : alerteDeSaisie(
+        {
+          rowStatus: statutBorne,
+          joursASaisir: joursASaisir(
+            plannedCalendar,
+            actualHours,
+            selectedDate.year,
+            selectedDate.month,
+            isForfaitJour,
+            pointe,
+            bornes
+          ),
+          dernierJourJuge: bornes.dernierJour ?? null,
+          dernierJourContrat,
+        },
+        selectedDate.year,
+        selectedDate.month
+      );
 
   useEffect(() => {
     if (initialYear && initialMonth) {
@@ -119,13 +184,13 @@ export function EmployeeCalendarPanel({
                 {calendarView === 'month' && (
                   <Badge
                     variant={
-                      pastilleSaisieDuMois(monthCompletionStatus, joursEnConflit) === 'Saisi'
+                      pastilleSaisieDuMois(statutBorne, joursEnConflit) === 'Saisi'
                         ? 'secondary'
                         : 'outline'
                     }
                     className="text-xs font-normal"
                   >
-                    {pastilleSaisieDuMois(monthCompletionStatus, joursEnConflit)}
+                    {pastilleSaisieDuMois(statutBorne, joursEnConflit)}
                   </Badge>
                 )}
               </CardTitle>
@@ -175,6 +240,14 @@ export function EmployeeCalendarPanel({
         <CardContent className="p-0 md:p-2">
           {calendarView === 'month' && (
             <>
+              {alerte && (
+                <p
+                  className="mx-2 mb-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+                  data-testid="alerte-jours-a-saisir-tiroir"
+                >
+                  {alerte.detail}
+                </p>
+              )}
               <CalendarAbsencesHint
                 employeeId={employeeId}
                 year={selectedDate.year}
@@ -245,6 +318,8 @@ export function EmployeeCalendarPanel({
                           isForfaitJour={isForfaitJour}
                           pointe={pointe}
                           onCopyPlannedToActual={copyPlannedToActualForDay}
+                          dernierJourJuge={bornes.dernierJour ?? null}
+                          dernierJourContrat={dernierJourContrat}
                         />
                       </div>
                     );

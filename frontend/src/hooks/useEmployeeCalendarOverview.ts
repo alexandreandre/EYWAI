@@ -11,6 +11,7 @@ import {
   type DayPatch,
 } from '@/lib/schedulesOverview';
 import { invalidateRhSidebarBadges } from '@/lib/invalidateRhSidebarBadges';
+import { getPeriodeVariables } from '@/api/periodeVariables';
 import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 import { useToast } from '@/components/ui/use-toast';
 import {
@@ -39,12 +40,19 @@ export function useEmployeeCalendarOverview(
     }
     setIsLoading(true);
     try {
+      // Fin de la fenêtre des variables : les jours d'après sont au mois
+      // suivant, ils ne s'affichent pas en anomalie. Illisible : tout le mois
+      // est jugé (règle stricte, jamais un mois oublié en silence).
+      const finFenetre = await getPeriodeVariables(year, month)
+        .then((p) => p.fin)
+        .catch((): null => null);
       const result = await fetchAllEmployeesOverview(
         employees,
         year,
         month,
         5,
-        observedHolidayIds
+        observedHolidayIds,
+        { finFenetre }
       );
       setRows(result);
       setLoadErrors(result.filter((r) => r.loadError).length);

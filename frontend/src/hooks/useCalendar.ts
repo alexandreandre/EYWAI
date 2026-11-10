@@ -20,7 +20,8 @@ import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 import { avecLeReelEnregistre, joursAuxHeuresRetirees, messageHeuresRetirees } from '@/lib/heuresRetireesAuReel';
 import { copierMoisPrecedent, noteJoursGardes } from '@/lib/copieMoisPrecedent';
 import { modeleSemaineDuSalarie } from '@/lib/modeleSemaine';
-import { valeurModelePourLeJour } from '@/lib/weekTemplateDays';
+import { jourPrevuDuModele, valeurModelePourLeJour } from '@/lib/weekTemplateDays';
+import { dernierJourDuContratDansLeMois } from '@/lib/employmentStatus';
 
 type PlannedEventData = calendarApi.PlannedEventData;
 type ActualHoursData = calendarApi.ActualHoursData;
@@ -40,6 +41,8 @@ export function useCalendar(
     isForfaitJour?: boolean | null;
     /** Durée hebdomadaire du contrat : sert au modèle de semaine quand rien n'est prévu. */
     dureeHebdomadaire?: number | null;
+    /** Sortie du salarié : le modèle et la copie du prévu ne posent rien après. */
+    sortie?: { exit_last_working_day?: string | null; hire_date?: string | null } | null;
   },
 ) {
   const fetchEnabled = options?.enabled !== false;
@@ -355,8 +358,16 @@ export function useCalendar(
     }
   }, [plannedCalendar, actualHours, originalPlanned, originalActual, isLoading]);
 
+  const dernierJourContrat = options?.sortie
+    ? dernierJourDuContratDansLeMois(options.sortie, selectedDate.year, selectedDate.month)
+    : null;
+
   const applyWeekTemplate = useCallback(() => {
     const newPlannedCalendar = plannedCalendar.map((day) => {
+      // Après la sortie : jour à 0 h, rien du modèle (retour du 10/11).
+      if (dernierJourContrat != null && day.jour > dernierJourContrat && day.origine !== 'absence') {
+        return { ...day, type: 'repos', heures_prevues: 0 };
+      }
       const date = new Date(selectedDate.year, selectedDate.month - 1, day.jour);
       const dayOfWeek = date.getDay();
 
@@ -370,23 +381,9 @@ export function useCalendar(
         !['ferie', 'conge', 'arret_maladie'].includes(day.type)
       ) {
 
-        if (isForfaitJourMode) {
-          const isWorkDay =
-            templateValue && templateValue.trim() !== '' && parseFloat(templateValue) > 0;
-          return {
-            ...day,
-            type: isWorkDay ? 'travail' : 'weekend',
-            heures_prevues: isWorkDay ? 1 : 0,
-          };
-        }
-
-        const hours =
-          templateValue && templateValue.trim() !== '' ? parseFloat(templateValue) : null;
-        return {
-          ...day,
-          type: hours !== null && hours > 0 ? 'travail' : 'weekend',
-          heures_prevues: hours,
-        };
+        // Case vide = 0 h, jour non travaillé (retour du 10/11) : jamais un
+        // jour laissé « à saisir » ni une valeur par défaut.
+        return { ...day, ...jourPrevuDuModele(templateValue, isForfaitJourMode) };
       }
 
       return day;
@@ -399,7 +396,7 @@ export function useCalendar(
         ? 'Le calendrier prévisionnel a été mis à jour (mode forfait jour).'
         : 'Le calendrier prévisionnel a été mis à jour.',
     });
-  }, [plannedCalendar, selectedDate, weekTemplate, isForfaitJourMode, toast]);
+  }, [plannedCalendar, selectedDate, weekTemplate, isForfaitJourMode, toast, dernierJourContrat]);
 
   const saveAllCalendarData = useCallback(async () => {
     if (!employeeId) return;
@@ -492,7 +489,9 @@ export function useCalendar(
     }
   }, [isSavingAfterApply, isSaving, saveAllCalendarData]);
 
-  const updateDayData = (updatedDay: Partial<DayData>) => {
+  const updateDayData = (
+    updatedDay: Partial<DayData> & { demi_journee?: 'matin' | 'apres_midi' | null }
+  ) => {
     if (updatedDay.jour === undefined) return;
 
     setPlannedCalendar((prev) =>
@@ -500,6 +499,9 @@ export function useCalendar(
         if (p.jour !== updatedDay.jour) return p;
         const newPlannedData: Partial<PlannedEventData> = {};
         if (updatedDay.type !== undefined) newPlannedData.type = updatedDay.type;
+        // Demi-journée d'un CP/RTT posé ici : part avec la demande créée.
+        if (updatedDay.demi_journee !== undefined)
+          newPlannedData.demi_journee = updatedDay.demi_journee;
         if (updatedDay.heures_prevues !== undefined)
           newPlannedData.heures_prevues = updatedDay.heures_prevues;
         return { ...p, ...newPlannedData };
@@ -525,12 +527,21 @@ export function useCalendar(
       setActualHours((prev) =>
         prev.map((a) => {
           if (!dayNumbers.includes(a.jour)) return a;
+          if (dernierJourContrat != null && a.jour > dernierJourContrat) return a;
           const planned = plannedCalendar.find((p) => p.jour === a.jour);
           if (!planned) return a;
+          // Au forfait jours, le réel se pose en jours, même si le prévu est
+          // en heures (retour du 10/11).
+          const heures =
+            isForfaitJourMode && typeof planned.heures_prevues === 'number'
+              ? planned.heures_prevues > 0
+                ? 1
+                : 0
+              : planned.heures_prevues;
           return {
             ...a,
             type: planned.type,
-            heures_faites: planned.heures_prevues,
+            heures_faites: heures,
           };
         })
       );
@@ -540,7 +551,7 @@ export function useCalendar(
         description: `${dayNumbers.length} jour${dayNumbers.length > 1 ? 's' : ''} mis à jour.`,
       });
     },
-    [plannedCalendar, toast]
+    [plannedCalendar, toast, isForfaitJourMode, dernierJourContrat]
   );
 
   const copyPlannedToActualForDay = useCallback(
