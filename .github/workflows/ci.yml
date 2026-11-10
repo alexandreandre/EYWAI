@@ -168,11 +168,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt mypy==2.4.1
 
-      - name: Signatures des appels (mypy, erreurs d'appel seulement, bloquant)
+      - name: Appels vers du code disparu et signatures (mypy, bloquant)
         run: |
           mypy app --ignore-missing-imports --follow-imports=silent --no-error-summary --python-version 3.11 > mypy.txt || true
-          if grep "\[call-arg\]" mypy.txt; then
-            echo "::error::Appel dont les arguments ne correspondent pas à la fonction appelée (lignes ci-dessus)."
+          if grep -E "\[call-arg\]|\[name-defined\]|Module .* has no attribute" mypy.txt; then
+            echo "::error::Appel d'une fonction ou d'un nom qui n'existe pas, ou arguments qui ne correspondent pas (lignes ci-dessus)."
             exit 1
           fi
           echo "Aucune erreur d'appel."

@@ -1,6 +1,8 @@
 """Tableau de bord, pointage collaborateur, validation."""
 from __future__ import annotations
 
+from typing import Iterable, Set
+
 from app.shared.domain.temps_local import aujourd_hui_local, fenetre_jour_local
 
 from app.modules.badgeuse.application.deps import deps
@@ -184,7 +186,7 @@ def get_summary_for_employee_period(
     company_id: str,
     start: date,
     end: date,
-) -> Dict[date, deps.DayStatusDTO]:
+) -> Dict[date, DayStatusDTO]:
     start_dt = fenetre_jour_local(start)[0]
     end_dt = fenetre_jour_local(end)[1]
     entries = deps.time_entry_repository.get_entries_for_employee_between(
@@ -212,7 +214,7 @@ def get_summary_for_employee_period(
 
     all_days = set(summaries.keys()) | set(accounting_by_day.keys())
 
-    result: Dict[date, deps.DayStatusDTO] = {}
+    result: Dict[date, DayStatusDTO] = {}
     for d in sorted(all_days):
         summary = summaries.get(d)
         if summary:

@@ -73,14 +73,6 @@ def resolve_barème_from_cc(idcc: str | None) -> tuple[CpSeniorityRules | None, 
         if preset and preset in _PRESET_RULES:
             return parse_cp_seniority_rules(_PRESET_RULES[preset]), "seed_officiel"
     try:
-        from app.modules.collective_agreements.rules.seeds import get_seed_for_idcc
-
-        seed = get_seed_for_idcc(idcc)
-        if seed and seed.cp_anciennete:
-            return map_cc_cp_anciennete_to_rules(seed.cp_anciennete.model_dump()), "seed_officiel"
-    except Exception:
-        pass
-    try:
         from app.modules.collective_agreements.rules.repository import CCRulesRepository
 
         repo = CCRulesRepository()
