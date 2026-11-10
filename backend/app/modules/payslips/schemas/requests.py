@@ -51,6 +51,15 @@ class HeuresSupCorrigees(BaseModel):
     hs50: float = Field(..., ge=0, le=300)
 
 
+class HeuresComplementairesCorrigees(BaseModel):
+    """Heures complémentaires d'un temps partiel déclarées depuis le bulletin, par palier."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hc1: float = Field(..., ge=0, le=300)
+    hc2: float = Field(..., ge=0, le=300)
+
+
 class PrimeAjoutee(BaseModel):
     """Une prime du mois ajoutée depuis le bulletin."""
 
@@ -169,6 +178,8 @@ class CorrectionsBulletinRequest(BaseModel):
 
     heures_sup: HeuresSupCorrigees | None = None
     revenir_au_planning: bool = False
+    heures_complementaires: HeuresComplementairesCorrigees | None = None
+    heures_complementaires_au_planning: bool = False
     primes_ajoutees: list[PrimeAjoutee] = Field(default_factory=list, max_length=20)
     primes_corrigees: list[PrimeCorrigee] = Field(default_factory=list, max_length=50)
     primes_retirees: list[str] = Field(default_factory=list, max_length=50)
@@ -185,6 +196,10 @@ class CorrectionsBulletinRequest(BaseModel):
             raise ValueError(
                 "Choisissez entre déclarer les heures sup et revenir au planning."
             )
+        if self.heures_complementaires is not None and self.heures_complementaires_au_planning:
+            raise ValueError(
+                "Choisissez entre déclarer les heures complémentaires et revenir au planning."
+            )
         corrigees = {p.saisie_id for p in self.primes_corrigees}
         if corrigees & set(self.primes_retirees):
             raise ValueError("Une même prime ne peut pas être corrigée et retirée.")
@@ -198,6 +213,12 @@ class CorrectionsBulletinRequest(BaseModel):
                 else None
             ),
             revenir_au_planning=self.revenir_au_planning,
+            heures_complementaires=(
+                (round(self.heures_complementaires.hc1, 2), round(self.heures_complementaires.hc2, 2))
+                if self.heures_complementaires is not None
+                else None
+            ),
+            heures_complementaires_au_planning=self.heures_complementaires_au_planning,
             primes=DiffPrimes(
                 ajoutees=tuple(
                     {**p.model_dump(), "amount": round(p.amount, 2)}

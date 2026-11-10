@@ -1018,6 +1018,9 @@ def creer_bulletin_final(
     declarees = getattr(contexte, "heures_sup_declarees", None)
     if isinstance(declarees, dict):
         bulletin["heures_sup_declarees"] = dict(declarees)
+    hc_declarees = getattr(contexte, "heures_complementaires_declarees", None)
+    if isinstance(hc_declarees, dict):
+        bulletin["heures_complementaires_declarees"] = dict(hc_declarees)
     poser_explications(
         bulletin,
         evenements=getattr(contexte, "evenements_paie", None),

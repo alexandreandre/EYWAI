@@ -62,6 +62,11 @@ class CorrectionsBulletin:
     #: Corrections de ligne à ajouter, puis identifiants de saisie à retirer.
     corrections_ajoutees: tuple[CorrectionDeLigne, ...] = ()
     corrections_retirees: tuple[str, ...] = ()
+    #: (premier palier, second palier) des heures complémentaires d'un temps
+    #: partiel, déclarées depuis le bulletin ; elles priment sur le planning.
+    heures_complementaires: tuple[float, float] | None = None
+    #: Retirer les heures complémentaires déclarées : le planning refait foi.
+    heures_complementaires_au_planning: bool = False
 
     @property
     def change_des_variables(self) -> bool:
@@ -75,6 +80,8 @@ class CorrectionsBulletin:
             or bool(self.regularisations_heures_retirees)
             or bool(self.corrections_ajoutees)
             or bool(self.corrections_retirees)
+            or self.heures_complementaires is not None
+            or self.heures_complementaires_au_planning
         )
 
 
@@ -95,6 +102,13 @@ def resume_des_corrections(corrections: CorrectionsBulletin) -> str:
     if corrections.heures_sup is not None:
         hs25, hs50 = corrections.heures_sup
         parties.append(f"heures sup {_heures(hs25)} h à 25 % et {_heures(hs50)} h à 50 %")
+    if corrections.heures_complementaires_au_planning:
+        parties.append("heures complémentaires du planning")
+    if corrections.heures_complementaires is not None:
+        hc1, hc2 = corrections.heures_complementaires
+        parties.append(
+            f"heures complémentaires {_heures(hc1)} h au 1er palier et {_heures(hc2)} h au 2d palier"
+        )
     for prime in corrections.primes.ajoutees:
         parties.append(f"prime ajoutée « {prime.get('name')} » {_euros(prime.get('amount') or 0)}")
     if corrections.primes.modifiees:
@@ -194,6 +208,47 @@ def refus_des_periodes_de_regularisation(
                 "bulletin : choisissez des mois antérieurs ou égaux."
             )
     return None
+
+
+MESSAGE_HC_HORS_TEMPS_PARTIEL = (
+    "Les heures complémentaires sont celles d'un salarié à temps partiel (C. trav. "
+    "L3123-1 et L3123-8) : ce salarié n'est pas à temps partiel, déclarez des heures sup."
+)
+
+
+def refus_des_heures_complementaires(
+    corrections: CorrectionsBulletin, *, temps_partiel: bool, forfait_jours: bool
+) -> str | None:
+    """Les heures complémentaires ne se déclarent que pour un temps partiel en heures."""
+    if corrections.heures_complementaires is None:
+        return None
+    if forfait_jours:
+        return MESSAGE_HEURES_AU_FORFAIT
+    if not temps_partiel:
+        return MESSAGE_HC_HORS_TEMPS_PARTIEL
+    return None
+
+
+def _hc_declarees(payslip_data: dict[str, Any] | None) -> tuple[float, float] | None:
+    declarees = (payslip_data or {}).get("heures_complementaires_declarees")
+    if not isinstance(declarees, dict):
+        return None
+    return (
+        round(float(declarees.get("hc1") or 0.0), 2),
+        round(float(declarees.get("hc2") or 0.0), 2),
+    )
+
+
+def _hc_pour_revenir(
+    courant: dict[str, Any] | None, cible: dict[str, Any] | None
+) -> tuple[tuple[float, float] | None, bool]:
+    """(heures à déclarer, retour au planning) pour retrouver celles de la version."""
+    cible_hc, courant_hc = _hc_declarees(cible), _hc_declarees(courant)
+    if cible_hc is None:
+        return None, courant_hc is not None
+    if courant_hc is not None and _proches(cible_hc, courant_hc):
+        return None, False
+    return cible_hc, False
 
 
 def _cumul_de_reduction(payslip_data: dict[str, Any] | None) -> float | None:
@@ -378,7 +433,10 @@ def corrections_pour_revenir(
         for sid, correction in corrections_cible.items()
         if sid not in corrections_courant and sid not in saisies_existantes
     )
+    heures_complementaires, hc_au_planning = _hc_pour_revenir(courant, cible)
     return CorrectionsBulletin(
+        heures_complementaires=heures_complementaires,
+        heures_complementaires_au_planning=hc_au_planning,
         heures_sup=_heures_pour_revenir(courant, cible),
         primes=DiffPrimes(tuple(ajoutees), tuple(modifiees), retirees),
         regularisations_ajoutees=regularisations_ajoutees,

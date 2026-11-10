@@ -506,6 +506,78 @@ def regularisations_heures_du_bulletin(
     return trouvees
 
 
+# --- Les heures complémentaires du mois, déclarées au bulletin ----------------
+
+TYPE_HEURES_COMPLEMENTAIRES = "heures_complementaires_declarees"
+CLE_HEURES_COMPLEMENTAIRES_DECLAREES = "heures_complementaires_declarees"
+LIBELLE_HC_DECLAREES = "Heures complémentaires (corrigées au bulletin)"
+
+
+@dataclass(frozen=True)
+class HeuresComplementairesDeclarees:
+    """Les heures complémentaires d'un temps partiel, tapées depuis le bulletin.
+
+    Comme les heures sup déclarées : elles remplacent celles du planning pour ce
+    bulletin, même nulles. `hc1` : premier palier (10 % à défaut d'accord, dans
+    la limite du dixième des heures du contrat) ; `hc2` : second palier (25 %,
+    du dixième au tiers) — C. trav. L3123-21 et L3123-29.
+    """
+
+    hc1: float
+    hc2: float
+
+    def __post_init__(self) -> None:
+        for valeur in (self.hc1, self.hc2):
+            if valeur is None or valeur < 0 or valeur > QUANTITE_MAX_REGULARISEE:
+                raise RegularisationInvalide(
+                    "Les heures complémentaires vont de 0 à 300 h par palier."
+                )
+
+    def charge_utile(self) -> dict[str, Any]:
+        return {
+            "type": TYPE_HEURES_COMPLEMENTAIRES,
+            "hc1": round(float(self.hc1), 2),
+            "hc2": round(float(self.hc2), 2),
+        }
+
+    def saisie_du_mois(self, periode: Mapping[str, Any]) -> dict[str, Any]:
+        return {
+            **periode,
+            "name": LIBELLE_HC_DECLAREES,
+            "amount": 0,
+            "is_socially_taxed": False,
+            "is_taxable": False,
+            "correction_ligne": self.charge_utile(),
+        }
+
+
+def est_declaration_heures_complementaires(saisie: Mapping[str, Any]) -> bool:
+    correction = saisie.get("correction_ligne")
+    return isinstance(correction, Mapping) and correction.get("type") == TYPE_HEURES_COMPLEMENTAIRES
+
+
+def ranger_heures_complementaires(saisie: Mapping[str, Any], saisies_data: dict[str, Any]) -> bool:
+    if not est_declaration_heures_complementaires(saisie):
+        return False
+    correction = saisie["correction_ligne"]
+    saisies_data[CLE_HEURES_COMPLEMENTAIRES_DECLAREES] = {
+        "hc1": _zero_si_vide(correction.get("hc1")),
+        "hc2": _zero_si_vide(correction.get("hc2")),
+    }
+    return True
+
+
+def heures_complementaires_declarees(saisie_du_mois: Mapping[str, Any]) -> tuple[float, float] | None:
+    """(premier palier, second palier) déclarés au bulletin, ou None."""
+    declarees = saisie_du_mois.get(CLE_HEURES_COMPLEMENTAIRES_DECLAREES)
+    if not isinstance(declarees, Mapping):
+        return None
+    return (
+        round(_zero_si_vide(declarees.get("hc1")), 2),
+        round(_zero_si_vide(declarees.get("hc2")), 2),
+    )
+
+
 # --- Étape 2 : la correction directe d'une ligne ----------------------------
 
 TYPE_CORRECTION = "correction"
@@ -703,6 +775,8 @@ def ranger_correction_manuelle(saisie: Mapping[str, Any], saisies_data: dict[str
     if ranger_regularisation(saisie, saisies_data):
         return True
     if ranger_regularisation_heures(saisie, saisies_data):
+        return True
+    if ranger_heures_complementaires(saisie, saisies_data):
         return True
     if not est_correction_de_ligne(saisie):
         return False

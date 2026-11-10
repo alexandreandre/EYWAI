@@ -24,6 +24,7 @@ from app.modules.payroll.engine.calcul_cotisations import (
 from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
 from app.modules.payroll.engine.corrections_manuelles import (
     JournalDesCorrections,
+    CLE_HEURES_COMPLEMENTAIRES_DECLAREES,
     CLE_REGULARISATIONS_HEURES,
     ajouter_regularisations,
     corriger_les_lignes_de_cotisation,
@@ -1146,6 +1147,10 @@ def run_payslip_generation_heures(
     if saisie_du_mois.get(CLE_REGULARISATIONS_HEURES):
         contexte.contrat.setdefault("saisie_du_mois", {})[CLE_REGULARISATIONS_HEURES] = (
             saisie_du_mois[CLE_REGULARISATIONS_HEURES]
+        )
+    if saisie_du_mois.get(CLE_HEURES_COMPLEMENTAIRES_DECLAREES) is not None:
+        contexte.contrat.setdefault("saisie_du_mois", {})[CLE_HEURES_COMPLEMENTAIRES_DECLAREES] = (
+            saisie_du_mois[CLE_HEURES_COMPLEMENTAIRES_DECLAREES]
         )
 
     # Nombre de jours couverts (travail, congés payés, école) dans le
