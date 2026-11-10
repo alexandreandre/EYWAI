@@ -55,6 +55,7 @@ from app.modules.payslips.domain.corrections import (
     corrections_pour_revenir,
     refus_de_la_reduction_generale,
     refus_des_corrections,
+    refus_des_periodes_de_regularisation,
     refus_des_regularisations_heures,
     resume_des_corrections,
 )
@@ -401,6 +402,10 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
         refus = refus_des_corrections(
             corrections, bulletin.get("payslip_data")
         ) or refus_de_la_reduction_generale(corrections, bulletin.get("payslip_data"))
+        if not refus:
+            refus = refus_des_periodes_de_regularisation(
+                corrections, int(bulletin["year"]), int(bulletin["month"])
+            )
         if not refus and corrections.regularisations_heures_ajoutees:
             refus = refus_des_regularisations_heures(
                 corrections,

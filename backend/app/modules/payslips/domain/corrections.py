@@ -174,10 +174,24 @@ def refus_des_regularisations_heures(
     if forfait_jours:
         return MESSAGE_HEURES_AU_FORFAIT
     for regul in corrections.regularisations_heures_ajoutees:
-        if regul.mois_origine > f"{year:04d}-{month:02d}":
+        if regul.dernier_mois > f"{year:04d}-{month:02d}":
             return (
                 f"Les heures de {regul.mois_affiche} sont postérieures à ce bulletin : "
                 "choisissez un mois d'origine antérieur ou égal."
+            )
+    return None
+
+
+def refus_des_periodes_de_regularisation(
+    corrections: CorrectionsBulletin, year: int, month: int
+) -> str | None:
+    """Une régularisation de cotisation ne corrige pas un mois postérieur au bulletin."""
+    mois_du_bulletin = f"{year:04d}-{month:02d}"
+    for regul in corrections.regularisations_ajoutees:
+        if regul.mois_fin and regul.mois_fin > mois_du_bulletin:
+            return (
+                f"La période de « {regul.libelle} » ({regul.periode}) est postérieure à ce "
+                "bulletin : choisissez des mois antérieurs ou égaux."
             )
     return None
 

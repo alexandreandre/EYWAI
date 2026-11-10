@@ -92,6 +92,9 @@ class RegularisationAjoutee(BaseModel):
     taux_patronal: float | None = Field(None, ge=-1, le=1)
     montant_salarial: float | None = Field(None, ge=-100_000, le=100_000)
     montant_patronal: float | None = Field(None, ge=-100_000, le=100_000)
+    #: Période corrigée (« AAAA-MM »), rattachée dans la DSN ; absente : le mois du bulletin.
+    mois_debut: str | None = Field(None, min_length=7, max_length=7)
+    mois_fin: str | None = Field(None, min_length=7, max_length=7)
 
     @model_validator(mode="after")
     def _regularisation_coherente(self) -> "RegularisationAjoutee":
@@ -115,6 +118,8 @@ class RegularisationHeuresAjoutee(BaseModel):
     quantite: float = Field(..., ge=-300, le=300)
     motif: str = Field(..., min_length=3, max_length=300)
     taux_horaire: float | None = Field(None, gt=0, le=1_000)
+    #: Dernier mois d'origine, quand les heures couvrent plusieurs mois.
+    mois_fin: str | None = Field(None, min_length=7, max_length=7)
 
     @model_validator(mode="after")
     def _regularisation_coherente(self) -> "RegularisationHeuresAjoutee":

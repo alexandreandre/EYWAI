@@ -58,8 +58,36 @@ def _nombre(valeur: Any) -> float | None:
         return None
 
 
+_MOIS = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+
+
+def _mois_affiche(mois: str) -> str:
+    annee, numero = mois.split("-")
+    return f"{numero}/{annee}"
+
+
+def periode_affichee(debut: str, fin: str | None) -> str:
+    """« 2026-09 » → « 09/2026 » ; « 2026-07 » à « 2026-09 » → « 07/2026 à 09/2026 »."""
+    if not fin or fin == debut:
+        return _mois_affiche(debut)
+    return f"{_mois_affiche(debut)} à {_mois_affiche(fin)}"
+
+
+def _texte_ou_rien(valeur: Any) -> str | None:
+    texte = str(valeur or "").strip()
+    return texte or None
+
+
 @dataclass(frozen=True)
 class RegularisationCotisation:
+    """Une cotisation régularisée sur ce bulletin.
+
+    `mois_debut` et `mois_fin` (« AAAA-MM ») : la période qu'elle corrige, si la
+    gestionnaire la saisit. Elle s'imprime dans le libellé et la DSN y rattache
+    la régularisation (CT DSN 2026.1 § 2.2.2.2 et 2.2.2.5). Sans période, la
+    régularisation vaut pour le mois du bulletin, comme avant le 10/11/2026.
+    """
+
     coti_id: str
     libelle: str
     motif: str
@@ -69,8 +97,21 @@ class RegularisationCotisation:
     montant_salarial: float | None = None
     montant_patronal: float | None = None
     saisie_id: str | None = None
+    mois_debut: str | None = None
+    mois_fin: str | None = None
 
     def __post_init__(self) -> None:
+        if self.mois_debut and not self.mois_fin:
+            object.__setattr__(self, "mois_fin", self.mois_debut)
+        if self.mois_fin and not self.mois_debut:
+            raise RegularisationInvalide("Choisissez le premier mois de la période régularisée.")
+        if self.mois_debut:
+            if not (_MOIS.match(self.mois_debut) and _MOIS.match(str(self.mois_fin))):
+                raise RegularisationInvalide("Choisissez les mois de la période régularisée.")
+            if str(self.mois_fin) < self.mois_debut:
+                raise RegularisationInvalide(
+                    "Le dernier mois de la période régularisée précède le premier."
+                )
         if not self.coti_id.strip():
             raise RegularisationInvalide("Choisissez la cotisation à régulariser.")
         if not self.libelle.strip():
@@ -93,6 +134,16 @@ class RegularisationCotisation:
     def par_taux(self) -> bool:
         return self.base is not None
 
+    @property
+    def periode(self) -> str | None:
+        """« 07/2026 à 09/2026 », ou None sans période saisie."""
+        return periode_affichee(self.mois_debut, self.mois_fin) if self.mois_debut else None
+
+    @property
+    def libelle_imprime(self) -> str:
+        texte = f"{PREFIXE_LIBELLE}{self.libelle}"
+        return f"{texte} – {self.periode}" if self.periode else texte
+
     def montants(self) -> tuple[float, float]:
         """(salarial, patronal), arrondis au centime comme le moteur."""
         if self.par_taux:
@@ -107,8 +158,12 @@ class RegularisationCotisation:
         )
 
     def charge_utile(self) -> dict[str, Any]:
-        """Ce qui s'enregistre dans monthly_inputs.correction_ligne."""
-        return {
+        """Ce qui s'enregistre dans monthly_inputs.correction_ligne.
+
+        La période n'y entre que saisie : les régularisations d'avant le
+        10/11/2026 gardent leur charge utile, donc leur bulletin.
+        """
+        charge = {
             "type": TYPE_REGULARISATION_COTISATION,
             "coti_id": self.coti_id,
             "libelle": self.libelle,
@@ -119,6 +174,10 @@ class RegularisationCotisation:
             "montant_salarial": self.montant_salarial,
             "montant_patronal": self.montant_patronal,
         }
+        if self.mois_debut:
+            charge["mois_debut"] = self.mois_debut
+            charge["mois_fin"] = self.mois_fin
+        return charge
 
     @classmethod
     def depuis(
@@ -135,13 +194,15 @@ class RegularisationCotisation:
             montant_salarial=_nombre(donnees.get("montant_salarial")),
             montant_patronal=_nombre(donnees.get("montant_patronal")),
             saisie_id=str(identifiant) if identifiant else None,
+            mois_debut=_texte_ou_rien(donnees.get("mois_debut")),
+            mois_fin=_texte_ou_rien(donnees.get("mois_fin")),
         )
 
     def saisie_du_mois(self, periode: Mapping[str, Any]) -> dict[str, Any]:
         """La ligne monthly_inputs qui porte la régularisation."""
         return {
             **periode,
-            "name": f"{PREFIXE_LIBELLE}{self.libelle}"[:120],
+            "name": self.libelle_imprime[:120],
             "description": self.motif.strip(),
             "amount": 0,
             "is_socially_taxed": False,
@@ -152,7 +213,7 @@ class RegularisationCotisation:
     def ligne_de_cotisation(self) -> dict[str, Any]:
         salarial, patronal = self.montants()
         ligne = {
-            "libelle": f"{PREFIXE_LIBELLE}{self.libelle}",
+            "libelle": self.libelle_imprime,
             "base": self.base,
             "taux_salarial": self.taux_salarial if self.par_taux else None,
             "montant_salarial": salarial,
@@ -260,18 +321,30 @@ class RegularisationHeures:
     """
 
     nature: str
+    #: Premier (ou seul) mois d'origine des heures, « AAAA-MM ».
     mois_origine: str
     quantite: float
     motif: str
     #: Taux horaire de base du mois d'origine, s'il diffère de celui du bulletin.
     taux_horaire: float | None = None
     saisie_id: str | None = None
+    #: Dernier mois d'origine, quand les heures couvrent plusieurs mois.
+    mois_fin: str | None = None
 
     def __post_init__(self) -> None:
         if self.nature not in NATURES_HEURES:
             raise RegularisationInvalide("Choisissez le taux des heures à régulariser.")
         if not _MOIS_D_ORIGINE.match(self.mois_origine or ""):
             raise RegularisationInvalide("Choisissez le mois d'origine des heures.")
+        if self.mois_fin == self.mois_origine:
+            object.__setattr__(self, "mois_fin", None)
+        if self.mois_fin is not None:
+            if not _MOIS_D_ORIGINE.match(self.mois_fin):
+                raise RegularisationInvalide("Choisissez le dernier mois d'origine des heures.")
+            if self.mois_fin < self.mois_origine:
+                raise RegularisationInvalide(
+                    "Le dernier mois d'origine des heures précède le premier."
+                )
         if not self.quantite or abs(self.quantite) > QUANTITE_MAX_REGULARISEE:
             raise RegularisationInvalide(
                 "Le nombre d'heures doit être différent de zéro et ne pas dépasser 300."
@@ -283,8 +356,12 @@ class RegularisationHeures:
 
     @property
     def mois_affiche(self) -> str:
-        annee, mois = self.mois_origine.split("-")
-        return f"{mois}/{annee}"
+        """« 09/2026 », ou « 07/2026 à 09/2026 » sur plusieurs mois."""
+        return periode_affichee(self.mois_origine, self.mois_fin)
+
+    @property
+    def dernier_mois(self) -> str:
+        return self.mois_fin or self.mois_origine
 
     def libelle(self, majoration: float) -> str:
         pourcentage = f"{majoration * 100:.0f} %"
@@ -295,8 +372,8 @@ class RegularisationHeures:
         return f"Régularisation heures normales – {self.mois_affiche}"
 
     def charge_utile(self) -> dict[str, Any]:
-        """Ce qui s'enregistre dans monthly_inputs.correction_ligne."""
-        return {
+        """Ce qui s'enregistre dans monthly_inputs.correction_ligne (la fin, seulement saisie)."""
+        charge = {
             "type": TYPE_REGULARISATION_HEURES,
             "nature": self.nature,
             "mois_origine": self.mois_origine,
@@ -304,6 +381,9 @@ class RegularisationHeures:
             "motif": self.motif.strip(),
             "taux_horaire": self.taux_horaire,
         }
+        if self.mois_fin:
+            charge["mois_fin"] = self.mois_fin
+        return charge
 
     @classmethod
     def depuis(cls, donnees: Mapping[str, Any]) -> RegularisationHeures:
@@ -315,6 +395,7 @@ class RegularisationHeures:
             motif=str(donnees.get("motif") or ""),
             taux_horaire=_nombre(donnees.get("taux_horaire")),
             saisie_id=str(identifiant) if identifiant else None,
+            mois_fin=_texte_ou_rien(donnees.get("mois_fin")),
         )
 
     def saisie_du_mois(self, periode: Mapping[str, Any]) -> dict[str, Any]:
