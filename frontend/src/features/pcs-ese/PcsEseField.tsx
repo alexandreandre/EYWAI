@@ -99,9 +99,13 @@ export function PcsEseField({
     onChange(code);
   };
 
+  const proposes = useMemo(
+    () => (proposition?.candidats ?? []).map((c) => ({ code: c.code, raison: c.raison })),
+    [proposition],
+  );
   const lignes = useMemo(
-    () => filtrerRubriques(rubriques, recherche).slice(0, LIGNES_AFFICHEES),
-    [rubriques, recherche],
+    () => filtrerRubriques(rubriques, recherche, { poste, proposes }).slice(0, LIGNES_AFFICHEES),
+    [rubriques, recherche, poste, proposes],
   );
   const horsListe = !!value && rubriques.length > 0 && !rubriques.some((r) => r.code === value);
   const codeVide = value.trim() === '' || value.trim() === '9999';
@@ -136,7 +140,7 @@ export function PcsEseField({
             />
             <CommandList>
               <CommandEmpty>Aucun code ne correspond.</CommandEmpty>
-              {lignes.map(({ rubrique, metier }) => (
+              {lignes.map(({ rubrique, metier, propose }) => (
                 <CommandItem
                   key={rubrique.code}
                   value={rubrique.code}
@@ -151,6 +155,7 @@ export function PcsEseField({
                     <span>
                       <span className="font-medium">{rubrique.code}</span> — {rubrique.libelle}
                     </span>
+                    {propose ? <span className="text-xs text-muted-foreground">Proposé par Martine : {propose}</span> : null}
                     {metier ? <span className="text-xs text-muted-foreground">Métier : {metier}</span> : null}
                     {rubrique.ecap ? <span className="text-xs text-muted-foreground">{MENTION_ECAP}</span> : null}
                   </span>
