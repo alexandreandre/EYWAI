@@ -14,6 +14,10 @@ import unicodedata
 from datetime import date, timedelta
 from typing import Any
 
+from app.modules.absences.domain.cp_absences_non_assimilees import (
+    jours_non_assimiles_des_demandes,
+    mois_perdus_par_absences,
+)
 from app.modules.absences.domain.cp_arret_maladie import (
     PERTE_PAR_MOIS_D_ARRET,
     annees_revolues,
@@ -239,11 +243,18 @@ def calculate_acquired_cp(
     date_de_sortie: date | None = None,
     prorata_mois_d_entree: bool = False,
     mois_d_arret_maladie: float = 0.0,
+    jours_non_assimiles: frozenset[date] = frozenset(),
+    reprise_des_absences: date | None = None,
 ) -> float:
     """Acquis de la période en cours à `ref_date`.
 
     `mois_d_arret_maladie` : mois d'arrêt maladie ordinaire acquis à 2 jours
-    sur 2,5 (C. trav. L3141-5-1), cf. `_mois_d_arret_maladie`."""
+    sur 2,5 (C. trav. L3141-5-1), cf. `_mois_d_arret_maladie`.
+
+    `jours_non_assimiles` : absences injustifiées et congés sans solde, qui
+    n'acquièrent rien (C. trav. L3141-3 à L3141-5), cf.
+    `cp_absences_non_assimilees` ; ceux d'avant `reprise_des_absences` sont
+    dans le solde repris."""
     policy = policy or DEFAULT_LEAVE_POLICY
     period_start, period_end = get_cp_reference_period(
         ref_date, start_month=policy.cp_reference_period_start_month
@@ -258,18 +269,35 @@ def calculate_acquired_cp(
     # Le mois d'entrée n'acquiert que sa part (décision du 12/10/2026, comme
     # Quadra) ; entré et sorti le même mois, le prorata de sortie, qui part de
     # l'entrée, suffit.
+    fraction_du_mois: dict[tuple[int, int], float] = {}
     if (
         prorata_mois_d_entree
         and months_worked > 0
         and period_start <= hire_date
         and not (sortie_ce_mois and (hire_date.year, hire_date.month) == (date_de_sortie.year, date_de_sortie.month))
     ):
-        months_worked = months_worked - 1 + _fraction_du_mois_d_entree(hire_date)
+        fraction_entree = _fraction_du_mois_d_entree(hire_date)
+        fraction_du_mois[(hire_date.year, hire_date.month)] = fraction_entree
+        months_worked = months_worked - 1 + fraction_entree
     # Le mois de sortie n'acquiert que sa part travaillée : une fin de CDD le
     # 15/09 comptait tout septembre dans l'indemnité de congés.
     if sortie_ce_mois:
-        months_worked = months_worked - 1 + _fraction_du_mois_de_sortie(
+        fraction_sortie = _fraction_du_mois_de_sortie(
             max(hire_date, period_start), date_de_sortie, policy
+        )
+        fraction_du_mois[(date_de_sortie.year, date_de_sortie.month)] = fraction_sortie
+        months_worked = months_worked - 1 + fraction_sortie
+    if months_worked > 0 and jours_non_assimiles:
+        months_worked = max(
+            0.0,
+            months_worked
+            - mois_perdus_par_absences(
+                jours_non_assimiles,
+                debut=max(hire_date, period_start),
+                fin=acquisition_end,
+                reprise_au=reprise_des_absences,
+                fraction_du_mois=fraction_du_mois,
+            ),
         )
     months_worked = _moins_les_arrets_maladie(months_worked, mois_d_arret_maladie)
     periode_close = acquisition_end >= period_end
@@ -289,13 +317,30 @@ def calculate_acquired_cp_for_period(
     periode_close: bool = True,
     prorata_mois_d_entree: bool = False,
     mois_d_arret_maladie: float = 0.0,
+    jours_non_assimiles: frozenset[date] = frozenset(),
+    reprise_des_absences: date | None = None,
 ) -> float:
     """Acquis sur une période complète — close par défaut, donc arrondie à
     l'entier supérieur quelle que soit l'unité."""
     policy = policy or DEFAULT_LEAVE_POLICY
     months_worked = _months_worked_in_period(hire_date, period_start, period_end)
+    fraction_du_mois: dict[tuple[int, int], float] = {}
     if prorata_mois_d_entree and months_worked > 0 and period_start <= hire_date:
-        months_worked = months_worked - 1 + _fraction_du_mois_d_entree(hire_date)
+        fraction_entree = _fraction_du_mois_d_entree(hire_date)
+        fraction_du_mois[(hire_date.year, hire_date.month)] = fraction_entree
+        months_worked = months_worked - 1 + fraction_entree
+    if months_worked > 0 and jours_non_assimiles:
+        months_worked = max(
+            0.0,
+            months_worked
+            - mois_perdus_par_absences(
+                jours_non_assimiles,
+                debut=max(hire_date, period_start),
+                fin=period_end,
+                reprise_au=reprise_des_absences,
+                fraction_du_mois=fraction_du_mois,
+            ),
+        )
     months_worked = _moins_les_arrets_maladie(months_worked, mois_d_arret_maladie)
     return _acquired_cp_from_months(
         months_worked,
@@ -698,6 +743,7 @@ def _resolve_cp_adjustment_for_ref_date(
     cp_seniority: CpSenioritySettings | None = None,
     employee_ctx: EmployeeCpSeniorityContext | None = None,
     reprise_au: date | None = None,
+    jours_non_assimiles: frozenset[date] = frozenset(),
 ) -> EmployeeLeaveAdjustment:
     """
     Après le 1er jour d'une nouvelle période CP (ex. 1er juin), le solde N importé
@@ -744,6 +790,7 @@ def _resolve_cp_adjustment_for_ref_date(
         employee_ctx=employee_ctx,
         _skip_adjustment_roll=True,
         reprise_au=reprise_au,
+        jours_non_assimiles=jours_non_assimiles,
     )
     closing_prev_n = float(prev_periods["n_remaining"])
 
@@ -751,13 +798,17 @@ def _resolve_cp_adjustment_for_ref_date(
         ref_date, start_month=start_month
     )
     # Le même acquis que celui qui a fermé la période : sans ses arrêts
-    # maladie, l'écart roulé les retirerait une seconde fois.
+    # maladie, l'écart roulé les retirerait une seconde fois. De même pour
+    # ses absences non assimilées.
     prev_acquis = calculate_acquired_cp_for_period(
         hire_date,
         prev_start,
         prev_end,
         policy=policy,
         prorata_mois_d_entree=_prorata_du_mois_d_entree(hire_date, adjustment),
+        jours_non_assimiles=frozenset(jours_non_assimiles)
+        | jours_non_assimiles_des_demandes(validated_requests),
+        reprise_des_absences=_date_de_reprise_des_arrets(adjustment, reprise_au),
         mois_d_arret_maladie=_mois_d_arret_maladie(
             hire_date,
             validated_requests,
@@ -801,6 +852,7 @@ def compute_cp_period_balances(
     _skip_adjustment_roll: bool = False,
     date_de_sortie: date | None = None,
     reprise_au: date | None = None,
+    jours_non_assimiles: frozenset[date] = frozenset(),
 ) -> dict[str, dict[str, float]]:
     """Soldes CP période N-1 et N avec report optionnel.
 
@@ -808,7 +860,11 @@ def compute_cp_period_balances(
     n'acquiert que sa part travaillée.
 
     `reprise_au` : l'appelant calcule l'écart d'une reprise de soldes à cette
-    date ; les arrêts maladie jusqu'à elle sont dans le solde repris."""
+    date ; les arrêts maladie jusqu'à elle sont dans le solde repris.
+
+    `jours_non_assimiles` : jours d'absence non assimilée lus au planning
+    (« Absence non rémunérée ») ; les congés sans solde validés des demandes
+    s'y ajoutent ici. Ils n'acquièrent rien (C. trav. L3141-3 à L3141-5)."""
     policy = policy or DEFAULT_LEAVE_POLICY
     adjustment = adjustment or EmployeeLeaveAdjustment.empty()
     # Décidé sur l'ajustement saisi, avant le roulement de période qui le remet
@@ -825,6 +881,14 @@ def compute_cp_period_balances(
             cp_seniority=cp_seniority,
             employee_ctx=employee_ctx,
             reprise_au=reprise_au,
+            jours_non_assimiles=jours_non_assimiles,
+        )
+    absences_non_assimilees = frozenset(
+        jours_non_assimiles
+    ) | jours_non_assimiles_des_demandes(validated_requests)
+    if date_de_sortie is not None:
+        absences_non_assimilees = frozenset(
+            j for j in absences_non_assimilees if j <= date_de_sortie
         )
     start_month = policy.cp_reference_period_start_month
 
@@ -850,6 +914,8 @@ def compute_cp_period_balances(
             employee_ctx=employee_ctx,
             reprise_des_arrets=reprise_des_arrets,
         ),
+        jours_non_assimiles=absences_non_assimilees,
+        reprise_des_absences=reprise_des_arrets,
     )
     prev_supp = _supplemental_cp_for_period_end(
         prev_end,
@@ -884,6 +950,8 @@ def compute_cp_period_balances(
             reprise_des_arrets=reprise_des_arrets,
             date_de_sortie=date_de_sortie,
         ),
+        jours_non_assimiles=absences_non_assimilees,
+        reprise_des_absences=reprise_des_arrets,
     )
     current_supp = _supplemental_cp_for_period_end(
         current_end,
@@ -948,6 +1016,7 @@ def compute_cp_balances_for_bulletin(
     cp_seniority: CpSenioritySettings | None = None,
     employee_ctx: EmployeeCpSeniorityContext | None = None,
     date_de_sortie: date | None = None,
+    jours_non_assimiles: frozenset[date] = frozenset(),
 ) -> dict[str, dict[str, float | str]]:
     policy = policy or DEFAULT_LEAVE_POLICY
     start_month = policy.cp_reference_period_start_month
@@ -967,6 +1036,7 @@ def compute_cp_balances_for_bulletin(
         cp_seniority=cp_seniority,
         employee_ctx=employee_ctx,
         date_de_sortie=date_de_sortie,
+        jours_non_assimiles=jours_non_assimiles,
     )
 
     current = dict(periods["periode_courante"])
@@ -1105,6 +1175,7 @@ def compute_absence_balances(
     cp_seniority: CpSenioritySettings | None = None,
     employee_ctx: EmployeeCpSeniorityContext | None = None,
     hours_per_rest_day: float = 7.0,
+    jours_non_assimiles: frozenset[date] = frozenset(),
 ) -> dict[str, dict[str, float]]:
     policy = policy or DEFAULT_LEAVE_POLICY
     adjustment = adjustment or EmployeeLeaveAdjustment.empty()
@@ -1117,6 +1188,7 @@ def compute_absence_balances(
         adjustment=adjustment,
         cp_seniority=cp_seniority,
         employee_ctx=employee_ctx,
+        jours_non_assimiles=jours_non_assimiles,
     )
     seniority_n = float(cp_periods.get("cp_seniority_n") or 0)
 
