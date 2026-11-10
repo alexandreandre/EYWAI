@@ -791,6 +791,7 @@ def run_payslip_generation_forfait(
         heures_supplementaires_mois=total_heures_supp,
         heures_remunerees_mois=heures_reduction,
         regularisation_reduction_generale=effet_regul.reduction_generale,
+        jours_travailles_forfait_mois=nombre_jours_travailles,
     )
 
     chemin_cumuls_mis_a_jour = employee_path / "cumuls" / f"{month:02d}.json"

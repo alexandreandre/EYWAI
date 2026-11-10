@@ -55,6 +55,7 @@ def mettre_a_jour_cumuls(
     heures_supplementaires_mois: float | None = None,
     heures_remunerees_mois: float | None = None,
     regularisation_reduction_generale: float = 0.0,
+    jours_travailles_forfait_mois: float | None = None,
 ) -> None:
     """Écrit le fichier cumuls du mois avec les valeurs du bulletin."""
     nouveaux_cumuls_data = json.loads(json.dumps(contexte.cumuls))
@@ -131,6 +132,9 @@ def mettre_a_jour_cumuls(
     cumuls["montant_hs_remunerees"] = cumuls.get("montant_hs_remunerees", 0.0) + round(
         remuneration_hs_mois, 2
     )
+
+    if jours_travailles_forfait_mois is not None:
+        _cumuler_les_jours_du_forfait(cumuls, mois, jours_travailles_forfait_mois)
 
     # Plafond ANNUEL d'exonération IR des HS/HC (art. 81 quater CGI, 7 500 €
     # net/an, cf. legal_constants.PLAFOND_EXONERATION_IR_HS_ANNUEL_NET).
@@ -265,6 +269,31 @@ def mettre_a_jour_cumuls(
         json.dump(nouveaux_cumuls_data, f, indent=2, ensure_ascii=False)
     log_payroll_debug(logger, f'INFO: Cumuls écrits dans {nouveau_fichier_path}')
 
+
+
+def _cumuler_les_jours_du_forfait(cumuls: dict, mois: int, jours_mois: float) -> None:
+    """Jours travaillés d'un forfait jours depuis janvier, que le bulletin imprime
+    face au volume du forfait (C. trav. R3243-1, 5°, a ; retour du 10/11/2026).
+
+    Année civile. Sans cumul d'avant (reprise de l'ancien logiciel, entrée en
+    cours d'année), le décompte part de ce mois et le note : le bulletin dit
+    « depuis le … » plutôt que d'afficher un total de l'année qu'il ignore. Ce
+    compteur ne sert à aucun calcul de montant.
+    """
+    from app.modules.payroll.documents.bulletin_view import (
+        CLE_CUMUL_JOURS_FORFAIT,
+        CLE_CUMUL_JOURS_FORFAIT_DEPUIS,
+    )
+
+    if mois == 1:
+        cumuls.pop(CLE_CUMUL_JOURS_FORFAIT_DEPUIS, None)
+        avant = 0.0
+    elif CLE_CUMUL_JOURS_FORFAIT in cumuls:
+        avant = float(cumuls.get(CLE_CUMUL_JOURS_FORFAIT) or 0.0)
+    else:
+        cumuls[CLE_CUMUL_JOURS_FORFAIT_DEPUIS] = mois
+        avant = 0.0
+    cumuls[CLE_CUMUL_JOURS_FORFAIT] = round(avant + float(jours_mois or 0.0), 2)
 
 def creer_calendrier_etendu(
     chemin_employe: Path, date_debut_periode: date, date_fin_periode: date
