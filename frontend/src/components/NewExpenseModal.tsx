@@ -21,6 +21,7 @@ import {
   type VatRatePreset,
   isVatExemptExpenseType,
 } from "@/lib/expenseVat";
+import { lireNombre } from "@/lib/nombreSaisi";
 
 interface NewExpenseModalProps {
   isOpen: boolean;
@@ -137,8 +138,8 @@ export function NewExpenseModal({
   }, [vatPreset, customVatRate]);
 
   const vatPreview = useMemo(() => {
-    const ttc = parseFloat(amount.replace(",", "."));
-    if (!Number.isFinite(ttc) || ttc <= 0 || resolvedVatRate == null) return null;
+    const ttc = lireNombre(amount);
+    if (ttc === null || ttc <= 0 || resolvedVatRate == null) return null;
     return computeVatBreakdown(ttc, resolvedVatRate);
   }, [amount, resolvedVatRate]);
 
@@ -168,8 +169,8 @@ export function NewExpenseModal({
       setError("Sélectionnez le salarié concerné.");
       return;
     }
-    const amountTtc = parseFloat(amount.replace(",", "."));
-    if (!Number.isFinite(amountTtc) || amountTtc <= 0) {
+    const amountTtc = lireNombre(amount);
+    if (amountTtc === null || amountTtc <= 0) {
       setError("Indiquez un montant TTC valide.");
       return;
     }
@@ -289,9 +290,9 @@ export function NewExpenseModal({
               <Label htmlFor="amount">Montant TTC (€)</Label>
               <Input
                 id="amount"
-                type="number"
-                min="0"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
+                placeholder="Ex. 12,50"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
@@ -347,11 +348,9 @@ export function NewExpenseModal({
             </Select>
             {vatPreset === "custom" && (
               <Input
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                placeholder="Ex. 8.5"
+                type="text"
+                inputMode="decimal"
+                placeholder="Ex. 8,5"
                 value={customVatRate}
                 onChange={(e) => setCustomVatRate(e.target.value)}
               />

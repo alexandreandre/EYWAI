@@ -1,4 +1,5 @@
 import type { ExpenseType } from '@/api/expenses';
+import { lireNombre } from './nombreSaisi';
 
 export const STANDARD_VAT_RATES = [20, 10, 5.5, 2.1, 0] as const;
 
@@ -47,10 +48,8 @@ export function computeVatBreakdown(
 }
 
 export function parseVatRateInput(value: string): number | null {
-  const normalized = value.replace(',', '.').trim();
-  if (!normalized) return null;
-  const n = Number(normalized);
-  if (!Number.isFinite(n) || n < 0 || n > 100) return null;
+  const n = lireNombre(value);
+  if (n === null || n < 0 || n > 100) return null;
   return Math.round(n * 100) / 100;
 }
 
