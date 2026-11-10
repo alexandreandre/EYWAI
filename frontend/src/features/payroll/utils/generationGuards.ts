@@ -23,7 +23,8 @@ export type GenerationRefusalCode =
   | 'heures_sur_jour_d_arret'
   | 'arrets_illisibles'
   | 'reprise_non_posee'
-  | 'absent_a_typer';
+  | 'absent_a_typer'
+  | 'planning_a_poser';
 
 /** Ce que l'API attend pour forcer un refus (`generatePayslip`). */
 export type ForcageGeneration = {
@@ -44,7 +45,8 @@ export function forcageDuRefus(code: GenerationRefusalCode): ForcageGeneration {
  * Calendrier incomplet, bulletin validé et reprise non posée se forcent d'un
  * clic explicite. Les autres, jamais : `heures_sur_jour_d_arret` ne se
  * règle que par une correction, `absent_a_typer` qu'en donnant leur type aux
- * jours, `arrets_illisibles` que par un nouvel essai.
+ * jours, `planning_a_poser` qu'en posant le planning (sans lui, les heures
+ * pointées partiraient en heures sup), `arrets_illisibles` que par un nouvel essai.
  */
 export const estForcable = (code: GenerationRefusalCode): boolean =>
   Object.keys(forcageDuRefus(code)).length > 0;
@@ -136,6 +138,8 @@ const REFUSAL_FALLBACK_MESSAGES: Record<GenerationRefusalCode, string> = {
     'Ce collaborateur était payé avant Martine, mais sa reprise n’est pas posée : son bulletin partirait de cumuls à zéro.',
   absent_a_typer:
     'Des jours sont marqués « absent » sans type : donnez le type de chaque jour dans le calendrier (congé, RTT, arrêt ou absence non payée).',
+  planning_a_poser:
+    'Des jours sont pointés sans planning prévu : sans lui, ces heures compteraient en heures supplémentaires. Posez le planning, puis relancez le bulletin.',
 };
 
 /** Libellés des dialogues de refus (titre, action de forçage, libellé court). */
@@ -173,6 +177,11 @@ export const REFUSAL_DIALOG_LABELS: Record<
     actionLabel: 'Donner le type au calendrier',
     shortLabel: 'absent sans type',
   },
+  planning_a_poser: {
+    title: 'Planning à poser',
+    actionLabel: 'Poser le planning',
+    shortLabel: 'planning à poser',
+  },
 };
 
 /**
@@ -207,6 +216,8 @@ export function extractGenerationRefusal(error: unknown): GenerationRefusal | nu
     refusalCode = 'reprise_non_posee';
   } else if (status === 422 && code === 'absent_a_typer') {
     refusalCode = 'absent_a_typer';
+  } else if (status === 422 && code === 'planning_a_poser') {
+    refusalCode = 'planning_a_poser';
   }
   if (!refusalCode) return null;
 

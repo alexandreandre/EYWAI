@@ -72,6 +72,7 @@ export function PayrollGenerationRefusalDialog({
   const illisiblesCount = refusals.filter((r) => r.code === 'arrets_illisibles').length;
   const repriseCount = refusals.filter((r) => r.code === 'reprise_non_posee').length;
   const absentsCount = refusals.filter((r) => r.code === 'absent_a_typer').length;
+  const planningsCount = refusals.filter((r) => r.code === 'planning_a_poser').length;
   const forcables = refusForcablesEnGroupe(refusals);
 
   const title = single
@@ -126,7 +127,8 @@ export function PayrollGenerationRefusalDialog({
               bulletin validé : {validatedCount}, heures sur un jour d’arrêt :{' '}
               {heuresCount}, arrêts illisibles : {illisiblesCount}
               {repriseCount > 0 ? `, reprise non posée : ${repriseCount}` : ''}
-              {absentsCount > 0 ? `, absent sans type : ${absentsCount}` : ''}).
+              {absentsCount > 0 ? `, absent sans type : ${absentsCount}` : ''}
+              {planningsCount > 0 ? `, planning à poser : ${planningsCount}` : ''}).
             </AlertDialogDescription>
           )}
         </AlertDialogHeader>
@@ -148,6 +150,20 @@ export function PayrollGenerationRefusalDialog({
             })}
             onLienClick={onDismiss}
           />
+        )}
+
+        {single?.code === 'planning_a_poser' && (
+          <Button asChild size="sm" className="self-start">
+            <Link
+              to={lienCalendrierDuSalarie(single.job.employeeId, {
+                year: single.job.year,
+                month: single.job.month,
+              })}
+              onClick={onDismiss}
+            >
+              Poser le planning
+            </Link>
+          </Button>
         )}
 
         {single?.code === 'heures_sur_jour_d_arret' &&
@@ -192,6 +208,21 @@ export function PayrollGenerationRefusalDialog({
                         className="underline underline-offset-2"
                       >
                         Donner le type
+                      </Link>
+                    </>
+                  )}
+                  {refusal.code === 'planning_a_poser' && (
+                    <>
+                      {' · '}
+                      <Link
+                        to={lienCalendrierDuSalarie(refusal.job.employeeId, {
+                          year: refusal.job.year,
+                          month: refusal.job.month,
+                        })}
+                        onClick={onDismiss}
+                        className="underline underline-offset-2"
+                      >
+                        Poser le planning
                       </Link>
                     </>
                   )}
@@ -260,14 +291,24 @@ export function PayrollGenerationRefusalDialog({
               </div>
             ))}
 
+        {!single && planningsCount > 0 && (
+          <p className="text-sm font-medium" data-testid="plannings-a-poser">
+            {planningsCount === 1
+              ? '1 salarié a des heures pointées sans planning prévu.'
+              : `${planningsCount} salariés ont des heures pointées sans planning prévu.`}{' '}
+            Sans planning, ces heures compteraient toutes en heures supplémentaires : posez-le,
+            puis relancez.
+          </p>
+        )}
+
         {!single && forcables.length > 0 && (
           <p className="text-xs text-muted-foreground">
             Forcer génère malgré un calendrier incomplet
             {repriseCount > 0
               ? ' et, pour une reprise non posée, en partant de cumuls à zéro (le bulletin porte une alerte)'
               : ''}
-            . Les heures sur un jour d’arrêt, les jours absents sans type et les
-            arrêts illisibles ne se forcent pas.
+            . Les heures sur un jour d’arrêt, les jours absents sans type, les plannings
+            à poser et les arrêts illisibles ne se forcent pas.
           </p>
         )}
 

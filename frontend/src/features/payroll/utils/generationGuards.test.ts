@@ -308,3 +308,29 @@ describe('refus absent_a_typer : case « absent » sans type (retour d’Elsa du
     expect(sansMessage?.message).toContain('type');
   });
 });
+
+describe('refus planning_a_poser : heures pointées sans planning prévu (contrôle du 10/11)', () => {
+  const erreur = {
+    response: {
+      status: 422,
+      data: { detail: { code: 'planning_a_poser', message: 'Octavie n’a pas de planning prévu.', jours: ['2026-09-07'] } },
+    },
+  };
+
+  it('est reconnu avec son message', () => {
+    expect(extractGenerationRefusal(erreur)).toEqual({
+      code: 'planning_a_poser',
+      message: 'Octavie n’a pas de planning prévu.',
+    });
+  });
+
+  it('ne se force jamais, seul ou en groupe', () => {
+    expect(forcageDuRefus('planning_a_poser')).toEqual({});
+    expect(estForcable('planning_a_poser')).toBe(false);
+    expect(refusForcablesEnGroupe([{ code: 'planning_a_poser' as const }])).toEqual([]);
+  });
+
+  it('nomme le geste à faire', () => {
+    expect(REFUSAL_DIALOG_LABELS.planning_a_poser.shortLabel).toBe('planning à poser');
+  });
+});
