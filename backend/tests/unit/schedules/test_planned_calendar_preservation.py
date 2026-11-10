@@ -1422,3 +1422,63 @@ def test_demi_journee_de_sans_solde_arrive_au_calendrier_avec_sa_quotite(monkeyp
     assert jour3["heures_prevues"] == 0
     assert jour3["quotite_absence"] == 0.5
     assert "quotite_absence" not in jour2
+
+
+def test_demi_journee_posee_au_calendrier_arrive_a_la_demande(monkeypatch):
+    """Retour du 10/11 : matin / après-midi choisi au calendrier part avec la
+    demande de congé créée ; il n'est jamais écrit tel quel au planning (clé
+    serveur, posée par la projection de la demande)."""
+    from app.modules.absences.application import commands as absences_commands
+    from app.modules.schedules.application import commands
+    from app.modules.schedules.schemas.requests import (
+        PlannedCalendarEntry,
+        PlannedCalendarRequest,
+    )
+
+    monkeypatch.setattr(
+        commands, "get_employee_company_and_statut", lambda _id: ("comp-1", "Employé")
+    )
+    monkeypatch.setattr(
+        commands.queries,
+        "get_planned_calendar",
+        lambda *a, **k: {
+            "calendrier_prevu": [
+                {"jour": 28, "type": "travail", "heures_prevues": 7.0},
+                {"jour": 29, "type": "travail", "heures_prevues": 7.0},
+            ]
+        },
+    )
+    ecrit = {}
+    monkeypatch.setattr(
+        commands.schedule_repository,
+        "upsert_schedule",
+        lambda *a, **k: ecrit.update(k),
+    )
+    appels = {}
+    monkeypatch.setattr(
+        absences_commands,
+        "create_absences_from_planning",
+        lambda employee_id, company_id, **kw: appels.update(kw) or [],
+    )
+    monkeypatch.setattr(
+        absences_commands,
+        "cancel_planning_absences_for_requalified_days",
+        lambda *a, **kw: [],
+    )
+
+    payload = PlannedCalendarRequest(
+        year=2026,
+        month=10,
+        calendrier_prevu=[
+            PlannedCalendarEntry(
+                jour=28, type="rtt", heures_prevues=0, demi_journee="matin"
+            ),
+            PlannedCalendarEntry(jour=29, type="conges_payes", heures_prevues=0),
+        ],
+    )
+    commands.update_planned_calendar("emp-1", payload)
+
+    assert appels["jours_par_type"] == {"rtt": [28], "conges_payes": [29]}
+    assert appels["demi_journees"] == {28: "matin"}
+    jours = ecrit["planned_calendar"]["calendrier_prevu"]
+    assert all("demi_journee" not in j for j in jours)

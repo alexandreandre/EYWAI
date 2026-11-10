@@ -67,6 +67,14 @@ def update_planned_calendar(
         calendrier_prevu_raw = [
             entry.model_dump() for entry in payload.calendrier_prevu
         ]
+        # Demi-journée d'un CP/RTT saisi au calendrier : elle accompagne la
+        # demande créée plus bas, jamais l'entrée du planning (clé serveur).
+        demi_journees_saisies: Dict[int, str] = {
+            int(entree.jour): entree.demi_journee
+            for entree in payload.calendrier_prevu
+            if getattr(entree, "demi_journee", None)
+            and entree.type in ("conges_payes", "rtt")
+        }
         # Fusion sur l'existant : le payload client n'embarque pas toujours
         # les métadonnées d'absence, et un remplacement les effacerait.
         #
@@ -185,6 +193,12 @@ def update_planned_calendar(
                             month=payload.month,
                             jours_par_type=jours_absences_saisis,
                             photos_avant=photos_avant or None,
+                            demi_journees={
+                                jour: demi
+                                for jour, demi in demi_journees_saisies.items()
+                                if any(jour in jours for jours in jours_absences_saisis.values())
+                            }
+                            or None,
                         )
                     )
             except Exception:
