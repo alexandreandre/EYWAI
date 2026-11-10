@@ -5,6 +5,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+## paie-2026-11-10.9
+
 ### Corriger librement un bulletin : chaque ligne, un mois passé, la DSN (page client du 10/11)
 - Onglet « Bulletin » : chaque ligne propose « Corriger » (ce mois) ou « Régulariser un mois passé », qui ouvre la bonne carte de l'onglet « Corriger », pré-remplie.
 - Régularisations de cotisation et d'heures : période corrigée (« À partir du bulletin de … jusqu'au bulletin de … »), imprimée sur la ligne (« – 07/2026 à 09/2026 ») ; la DSN déclare la régularisation aux dates de ces mois (bases et cotisations, rémunérations), à parts égales sur plusieurs mois.

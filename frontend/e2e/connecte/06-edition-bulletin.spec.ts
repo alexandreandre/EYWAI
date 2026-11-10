@@ -193,7 +193,7 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     await selecteur.getByPlaceholder('Sélectionnez ou saisissez un nom...').click();
     await page.getByRole('option', { name: 'Créer une prime...' }).click();
     await selecteur.getByPlaceholder("Ex: Prime d'assiduité").fill('Prime QA ajoutée');
-    await selecteur.getByPlaceholder('0.00').fill('80');
+    await selecteur.getByPlaceholder('0,00').fill('80');
     const caseCatalogue = selecteur.locator('#save_to_catalogue');
     if (await caseCatalogue.count()) await expect(caseCatalogue).not.toBeChecked();
     await selecteur.getByRole('button', { name: 'Enregistrer', exact: true }).click();
@@ -487,7 +487,7 @@ test.describe("Régulariser des heures d'un autre mois (données fictives)", () 
     await carte.getByLabel('Mois d’origine des heures').fill('2026-08');
     await carte.getByLabel('Nombre d’heures (négatif pour reprendre)').fill('2');
     await carte.getByLabel('Motif (obligatoire)').fill('Essai');
-    await expect(carte).toContainText('ne peut pas dépasser celui du bulletin');
+    await expect(carte).toContainText('sans dépasser celui du bulletin');
     await expect(page.getByTestId('ajouter-regularisation-heures')).toBeDisabled();
   });
 });
