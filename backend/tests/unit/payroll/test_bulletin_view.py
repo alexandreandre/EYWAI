@@ -355,7 +355,7 @@ class TestCorps:
             {"libelle": "Repas", "montant": 18.00},
         ]
         lignes = construire_vue_bulletin(bulletin)["lignes"]
-        frais = [l for l in lignes if "frais professionnels" in l["libelle"].lower()]
+        frais = [l for l in lignes if l["libelle"] == "Remboursement de frais"]
         assert len(frais) == 1
         assert frais[0]["montant_salarial"] == pytest.approx(30.40)
         assert "Péage" not in _libelles(lignes)

@@ -522,8 +522,35 @@ def _ligne_cotisation(source: Dict[str, Any]) -> Dict[str, Any]:
     )
 
 
+#: C. trav. R3243-2, al. 2 (code.travail.gouv.fr, ouvert le 10/11/2026) : « Les
+#: contributions autres que les contributions sociales mentionnées au a du 8° sont
+#: également agrégées dans une seule rubrique, qui donne le montant total de cette
+#: contribution. » Le modèle de l'arrêté du 25/02/2016 n'en a qu'une ligne. Le
+#: détail (formation, CSA, dialogue social, FNAL, taxe d'apprentissage…) reste
+#: dans le bulletin enregistré : écran « Bulletin », exports, DSN.
+RUBRIQUE_AGREGEE = "autres_contributions_employeur"
+
+
+def _ligne_agregee(rubrique: dict[str, Any], libelle: str, code: str | None = None) -> dict[str, Any]:
+    """Une seule ligne au total de la rubrique, astérisque si une ligne a été corrigée."""
+    lignes = [l for l in rubrique.get("lignes") or [] if isinstance(l, dict)]
+    if any(isinstance(l.get("correction"), dict) for l in lignes):
+        libelle = f"{libelle} *"
+    salarial = round(sum(float(l.get("montant_salarial") or 0.0) for l in lignes), 2)
+    patronal = round(sum(float(l.get("montant_patronal") or 0.0) for l in lignes), 2)
+    return _ligne(
+        "detail",
+        libelle,
+        code=code,
+        montant_salarial=salarial or None,
+        montant_patronal=patronal or None,
+    )
+
+
 def _lignes_rubrique(rubrique: Dict[str, Any]) -> List[Dict[str, Any]]:
     code = rubrique.get("code") or ""
+    if code == RUBRIQUE_AGREGEE:
+        return [_ligne_agregee(rubrique, LIBELLES_CEGID[code], CODES_CEGID.get(code))]
     entete = _ligne(
         "rubrique",
         LIBELLES_CEGID.get(code, str(rubrique.get("libelle") or "").upper()),
@@ -561,7 +588,11 @@ def _lignes_modele_definitif(
                 gardees.append(ligne)
                 total_salarial += float(ligne.get("montant_salarial") or 0.0)
                 total_patronal += float(ligne.get("montant_patronal") or 0.0)
-        if gardees:
+        if gardees and code == RUBRIQUE_AGREGEE:
+            lignes.append(
+                _ligne_agregee({"lignes": gardees}, LIBELLES_MODELE_DEFINITIF[code])
+            )
+        elif gardees:
             lignes.append(
                 _ligne("rubrique", LIBELLES_MODELE_DEFINITIF.get(code, str(rubrique.get("libelle") or "")))
             )
@@ -595,12 +626,47 @@ def _lignes_modele_definitif(
     return lignes
 
 
+LIBELLE_NOTES_DE_FRAIS = "Remboursement de frais"
+
+
+def _est_une_note_de_frais(prime: Any) -> bool:
+    """Une note de frais du module : `entree_de_note_de_frais` lui donne
+    l'identifiant « remb_<type>_<date> », avec ou sans la marque des frais
+    professionnels (Colorplast les garde dans le montant net social)."""
+    return isinstance(prime, dict) and str(prime.get("prime_id") or "").startswith("remb_")
+
+
 def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Ce qui s'ajoute ou se retient après le net imposable."""
     lignes: List[Dict[str, Any]] = []
 
+    # Les notes de frais du module (« remb_<type>_<date> ») et l'ancienne clé
+    # `notes_de_frais` : une seule ligne, à la place de la première note. Un
+    # salarié en dépose une vingtaine par mois (retour du 10/11/2026) ; le détail
+    # reste dans le bulletin enregistré et l'export comptable.
+    total_frais = round(
+        sum(
+            float(p.get("montant") or 0.0)
+            for p in bulletin.get("primes_non_soumises") or []
+            if _est_une_note_de_frais(p)
+        )
+        + sum(
+            float(n.get("montant") or 0.0)
+            for n in bulletin.get("notes_de_frais") or []
+            if isinstance(n, dict)
+        ),
+        2,
+    )
+    ligne_frais = _ligne("hors_brut", LIBELLE_NOTES_DE_FRAIS, montant_salarial=total_frais)
+    frais_poses = False
+
     for prime in bulletin.get("primes_non_soumises") or []:
         if not isinstance(prime, dict):
+            continue
+        if _est_une_note_de_frais(prime):
+            if not frais_poses:
+                lignes.append(ligne_frais)
+                frais_poses = True
             continue
         lignes.append(
             _ligne(
@@ -648,21 +714,8 @@ def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
             )
         )
 
-    # Volontairement agrégé : le détail des notes de frais reste dans l'appli.
-    notes_de_frais = [
-        note for note in bulletin.get("notes_de_frais") or [] if isinstance(note, dict)
-    ]
-    if notes_de_frais:
-        total = round(
-            sum(float(note.get("montant") or 0.0) for note in notes_de_frais), 2
-        )
-        lignes.append(
-            _ligne(
-                "hors_brut",
-                "Remboursement de frais professionnels",
-                montant_salarial=total,
-            )
-        )
+    if not frais_poses and any(isinstance(n, dict) for n in bulletin.get("notes_de_frais") or []):
+        lignes.append(ligne_frais)
 
     synthese = bulletin.get("synthese_net") or {}
     for cle, libelle in (
@@ -892,6 +945,47 @@ def _bloc_lateral(titre: str, valeurs: List[Dict[str, str]]) -> Optional[Dict[st
     return {"titre": titre, "valeurs": valeurs_utiles}
 
 
+LIBELLE_HEURES_FORFAIT_JOURS = "Heures retenues pour la réduction générale"
+
+#: Cumul des jours travaillés de l'année civile, tenu par le moteur forfait
+#: (`mettre_a_jour_cumuls`) ; `…_depuis` : mois où le décompte a commencé quand
+#: ce n'est pas janvier (premier bulletin calculé par Martine, ou entrée).
+CLE_CUMUL_JOURS_FORFAIT = "jours_travailles_forfait"
+CLE_CUMUL_JOURS_FORFAIT_DEPUIS = "jours_travailles_forfait_depuis"
+
+
+def _est_au_forfait_jours(bulletin: dict[str, Any]) -> bool:
+    """Le moteur forfait pose le volume du forfait sur chaque bulletin qu'il calcule."""
+    return bool(bulletin.get("forfait_jours_annuel"))
+
+
+def _jours_fr(valeur: Any) -> str:
+    return f"{float(valeur):g}".replace(".", ",")
+
+
+def _bloc_forfait_jours(bulletin: dict[str, Any], cumuls: dict[str, Any]) -> dict[str, Any] | None:
+    """R3243-1, 5°, a) : la nature et le volume du forfait. À côté du volume, les
+    jours travaillés depuis janvier, pour suivre le forfait (retour du 10/11/2026).
+    Un bulletin calculé avant ce cumul n'en a pas : rien n'est inventé."""
+    if CLE_CUMUL_JOURS_FORFAIT not in cumuls:
+        return None
+    libelle = "Jours travaillés"
+    depuis = cumuls.get(CLE_CUMUL_JOURS_FORFAIT_DEPUIS)
+    annee = (bulletin.get("en_tete") or {}).get("annee")
+    if depuis and int(depuis) > 1 and annee:
+        libelle = f"Jours travaillés depuis le 01/{int(depuis):02d}/{int(annee)}"
+    return {
+        "titre": "FORFAIT JOURS",
+        "valeurs": [
+            {
+                "libelle": libelle,
+                "valeur": f"{_jours_fr(cumuls.get(CLE_CUMUL_JOURS_FORFAIT) or 0)} sur "
+                f"{_jours_fr(bulletin['forfait_jours_annuel'])}",
+            }
+        ],
+    }
+
+
 def construire_lateral(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
     parametres = bulletin.get("parametres") or {}
     cumuls = ((bulletin.get("cumuls") or {}).get("cumuls")) or {}
@@ -905,6 +999,7 @@ def construire_lateral(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
             "valeur": _montant_fr(montant) if montant else "",
         }
 
+    forfait_jours = _est_au_forfait_jours(bulletin)
     blocs = [
         _bloc_lateral(
             "BARÈMES",
@@ -913,10 +1008,17 @@ def construire_lateral(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
                 valeur("Plafond Sécu", parametres.get("pss_mensuel")),
             ],
         ),
+        _bloc_forfait_jours(bulletin, cumuls) if forfait_jours else None,
         _bloc_lateral(
             "HEURES",
             [
-                valeur("Cumul heures", cumuls.get("heures_remunerees")),
+                # Au forfait jours, ce cumul n'est pas un temps de travail : ce
+                # sont les heures que la réduction générale retient
+                # (`heures_reduction_du_mois`, payslip_run_forfait).
+                valeur(
+                    LIBELLE_HEURES_FORFAIT_JOURS if forfait_jours else "Cumul heures",
+                    cumuls.get("heures_remunerees"),
+                ),
                 valeur("Cumul h. sup", cumuls.get("heures_supplementaires_remunerees")),
             ],
         ),
