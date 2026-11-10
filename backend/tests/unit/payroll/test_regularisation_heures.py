@@ -339,7 +339,9 @@ def test_le_pipeline_heures_transmet_les_regularisations_au_calcul():
     assert 'resultat_brut.get("heures_normales_regularisees"' in source
 
 
-def test_la_dsn_declare_les_heures_sup_regularisees_en_017_et_signale_le_mois_d_origine():
+def test_la_dsn_declare_les_heures_sup_regularisees_en_017_sans_avis_de_rappel():
+    """Depuis la page client du 10/11, la DSN rattache ces heures à leur mois
+    d'origine (`test_regularisations_rattachees.py`) : plus d'avis de rappel."""
     from app.modules.dsn_export.domain.rectification import (
         libelles_de_rappel_du_bulletin,
     )
@@ -353,7 +355,4 @@ def test_la_dsn_declare_les_heures_sup_regularisees_en_017_et_signale_le_mois_d_
     assert parts["hs_aleatoires_heures"] == 2.0
     assert parts["hs_aleatoires_montant"] == hs["gain"]
     assert parts["autres_gains"] == normales["gain"]
-    assert libelles_de_rappel_du_bulletin(bulletin) == [
-        hs["libelle"],
-        normales["libelle"],
-    ]
+    assert libelles_de_rappel_du_bulletin(bulletin) == []

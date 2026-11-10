@@ -29,10 +29,8 @@ from app.modules.dsn_export.domain.etat_conformite import (
 )
 from app.modules.dsn_export.domain.rectification import (
     DeclarationRemplacee,
+    avis_des_regularisations,
     avis_mois_deja_declare,
-    avis_rappel_sans_mois_origine,
-    avis_regularisation_sans_mois_origine,
-    libelles_de_rappel_du_bulletin,
     refus_annule_remplace,
 )
 from app.modules.dsn_export.domain.settings import DsnSettings, identifiant_urssaf
@@ -61,7 +59,6 @@ from app.modules.oeth_settings.application import queries as oeth_queries
 from app.modules.payroll.application.monthly_specificites import (
     resolve_monthly_specificites,
 )
-from app.modules.payroll.engine.corrections_manuelles import regularisations_du_bulletin
 from app.shared.domain.effectif_seuils import effectif_retenu
 from app.shared.domain.dispense_mutuelle import alerte_mutuelle, alerte_versement_sante
 from app.shared.domain.employment_rules import is_cadre
@@ -835,13 +832,10 @@ def preview_dsn(
     for emp_data in bulletins_declares:
         salarie = emp_data["employee"]
         nom_salarie = f"{salarie.get('first_name', '')} {salarie.get('last_name', '')}".strip()
-        for regularisation in regularisations_du_bulletin(emp_data.get("payslip_data")).values():
-            warnings = [
-                *warnings,
-                avis_regularisation_sans_mois_origine(nom_salarie, regularisation.libelle, period),
-            ]
-        for libelle in libelles_de_rappel_du_bulletin(emp_data.get("payslip_data")):
-            warnings = [*warnings, avis_rappel_sans_mois_origine(nom_salarie, libelle, period)]
+        warnings = [
+            *warnings,
+            *avis_des_regularisations(nom_salarie, emp_data.get("payslip_data"), period),
+        ]
     for emp_data in bulletins_declares:
         employee = emp_data["employee"]
         cotisations_detail = emp_data.get("cotisations_detail", [])

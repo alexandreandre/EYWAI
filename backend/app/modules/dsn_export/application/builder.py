@@ -1143,6 +1143,7 @@ def build_individu_from_payroll(
         or None,
         code_exoneration_apprenti=CODE_EXONERATION_APPRENTI_PAR_DISPOSITIF.get(dispositif),
         norme=norme_de_la_periode(period),
+        periode=period,
     )
     warnings.extend(map_warnings)
 
@@ -1252,6 +1253,9 @@ def build_individu_from_payroll(
     )
     for base in bases:
         if (base.rubriques or {}).get("S21.G00.78.001") != "03":
+            continue
+        if (base.rubriques or {}).get("_rattachement"):
+            # Base d'un mois passé régularisé : les composants sont ceux du mois déclaré.
             continue
         composants = list(base.rubriques.get("_composants_79") or [])
         for type_79, montant in (("04", sante_pat), ("05", retraite_sup_pat)):
@@ -1700,7 +1704,7 @@ def _cotisations_du_salarie(ind: IndividuBlock) -> List[Dict[str, Any]]:
                 lignes.append(
                     {
                         "code": rubriques.get("S21.G00.81.001") or cotisation.code,
-                        "base": str(rubriques.get("_base") or "").split("#")[0],
+                        "base": str(rubriques.get("_base") or "").split("#")[0].split("@")[0],
                         "assiette": float(rubriques.get("S21.G00.81.003") or 0),
                         "montant": float(rubriques.get("S21.G00.81.004") or 0),
                         "taux": float(rubriques.get("S21.G00.81.007") or 0),

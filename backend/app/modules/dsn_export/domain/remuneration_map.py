@@ -7,6 +7,13 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.modules.dsn_export.domain.rattachement import (
+    bornes_du_mois,
+    mois_entre,
+    mois_passes,
+    periode_d_heures_regularisees,
+    repartir,
+)
 from app.modules.dsn_import.domain.model import RemunerationBlock
 
 
@@ -230,8 +237,60 @@ def _rem_block(
     )
 
 
-def analyze_calcul_du_brut(payslip_data: Dict[str, Any]) -> Dict[str, float]:
-    """Agrège le détail brut pour ventiler les types DSN."""
+@dataclass(frozen=True)
+class HeuresRattachees:
+    """La part d'une régularisation d'heures rattachée à un mois d'origine passé."""
+
+    mois: str
+    montant: float
+    heures: float
+    #: Heures sup ou complémentaires : elles se déclarent aussi en 017.
+    majorees: bool
+
+
+def _parts_d_heures_regularisees(
+    line: Dict[str, Any], periode: Optional[str]
+) -> Tuple[List[HeuresRattachees], float, float]:
+    """(parts des mois passés, gain et heures restant au mois déclaré).
+
+    Sans mois déclaré ou sans mois d'origine passé, tout reste au mois.
+    """
+    gain, quantite = _f(line.get("gain")), _f(line.get("quantite"))
+    origine = periode_d_heures_regularisees(line)
+    if not periode or origine is None:
+        return [], gain, quantite
+    passes, total = mois_passes(origine, periode)
+    if not passes:
+        return [], gain, quantite
+    nature = str((line.get("regularisation_heures") or {}).get("nature") or "")
+    gains, heures = repartir(gain, total), repartir(quantite, total)
+    rattachees: List[HeuresRattachees] = []
+    reste_gain = reste_heures = 0.0
+    for mois, g, h in zip(mois_entre(*origine), gains, heures):
+        if mois in passes:
+            rattachees.append(HeuresRattachees(mois, g, h, nature.startswith(("hs", "hc"))))
+        else:
+            reste_gain += g
+            reste_heures += h
+    return rattachees, round(reste_gain, 2), round(reste_heures, 2)
+
+
+def heures_rattachees(payslip_data: Dict[str, Any], periode: Optional[str]) -> List[HeuresRattachees]:
+    """Les heures d'un autre mois régularisées sur ce bulletin, à déclarer à leurs mois d'origine."""
+    sortie: List[HeuresRattachees] = []
+    for line in _iter_brut_lines(payslip_data):
+        sortie.extend(_parts_d_heures_regularisees(line, periode)[0])
+    return sortie
+
+
+def analyze_calcul_du_brut(
+    payslip_data: Dict[str, Any], periode: Optional[str] = None
+) -> Dict[str, float]:
+    """Agrège le détail brut pour ventiler les types DSN.
+
+    ``periode`` (« AAAA-MM ») : les heures régularisées d'un mois passé n'y
+    comptent pas, elles se déclarent à leur mois d'origine.
+    """
     salaire_base = 0.0
     sous_total_contractuel = 0.0
     hs_struct_m = hs_struct_h = 0.0
@@ -254,6 +313,8 @@ def analyze_calcul_du_brut(payslip_data: Dict[str, Any]) -> Dict[str, float]:
         # Heures sup ou complémentaires d'un autre mois régularisées sur ce
         # bulletin : des heures aléatoires (017), quel que soit leur libellé.
         regul = line.get("regularisation_heures")
+        if isinstance(regul, dict):
+            _, gain, quantite = _parts_d_heures_regularisees(line, periode)
         if isinstance(regul, dict) and str(regul.get("nature") or "").startswith(("hs", "hc")):
             hs_alea_m += gain
             hs_alea_h += quantite
@@ -287,6 +348,40 @@ def analyze_calcul_du_brut(payslip_data: Dict[str, Any]) -> Dict[str, float]:
     }
 
 
+def _remunerations_rattachees(
+    rattachees: List[HeuresRattachees], contrat_ref: str
+) -> List[RemunerationBlock]:
+    """Par mois d'origine : brut (001), salaire chômage (002) et heures majorées (017)."""
+    blocs: List[RemunerationBlock] = []
+    for mois in sorted({h.mois for h in rattachees}):
+        du_mois = [h for h in rattachees if h.mois == mois]
+        debut, fin = bornes_du_mois(mois)
+        montant = round(sum(h.montant for h in du_mois), 2)
+        for type_code in ("001", "002"):
+            blocs.append(
+                _rem_block(
+                    type_code=type_code,
+                    montant=montant,
+                    period_start=debut,
+                    period_end=fin,
+                    contrat_ref=contrat_ref,
+                )
+            )
+        majorees = [h for h in du_mois if h.majorees]
+        if majorees:
+            blocs.append(
+                _rem_block(
+                    type_code="017",
+                    montant=round(sum(h.montant for h in majorees), 2),
+                    heures=round(sum(h.heures for h in majorees), 2),
+                    period_start=debut,
+                    period_end=fin,
+                    contrat_ref=contrat_ref,
+                )
+            )
+    return blocs
+
+
 def build_remunerations_from_payslip(
     payslip_data: Dict[str, Any],
     *,
@@ -315,9 +410,13 @@ def build_remunerations_from_payslip(
     01) quand elle ne se compte pas en heures (forfait jours).
     ``activite_partielle`` : (heures chômées, indemnité) du type 019.
     """
-    parts = analyze_calcul_du_brut(payslip_data)
+    parts = analyze_calcul_du_brut(payslip_data, period)
     absences = analyser_absences(payslip_data)
-    brut_r = round(float(brut or 0), 2)
+    # Les heures d'un mois passé régularisées ici se déclarent à leur mois
+    # d'origine (CT 2026.1 § 2.1.3.6.2, S21.G00.51.001/002) : le mois déclaré
+    # ne garde que ses propres éléments.
+    rattachees = heures_rattachees(payslip_data, period)
+    brut_r = round(float(brut or 0) - sum(h.montant for h in rattachees), 2)
 
     # 010 = salaire de base contractuel (sous-total Cegid)
     montant_010 = parts["sous_total_contractuel"] or parts["salaire_base"] or brut_r
@@ -437,6 +536,8 @@ def build_remunerations_from_payslip(
             contrat_ref=contrat_ref,
         )
     )
+
+    remus.extend(_remunerations_rattachees(rattachees, contrat_ref))
 
     # Activités. Les jours calendaires du plafond (unité 40) se rattachent au
     # brut (001, CCH-12) et se comptent sur la période d'emploi du mois, moins

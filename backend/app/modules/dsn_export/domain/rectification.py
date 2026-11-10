@@ -111,13 +111,14 @@ def libelles_de_rappel_du_bulletin(payslip_data: Mapping[str, Any] | None) -> li
     """Les rappels saisis en prime sur ce bulletin, catalogue ou libellé libre, sans doublon.
 
     Seules les lignes liées à une saisie comptent : c'est là que Gaëlle pose un rappel.
-    Une régularisation d'heures porte toujours un mois passé : elle compte aussi.
+    Une régularisation d'heures n'en est pas : la DSN la rattache à son mois
+    d'origine (`rattachement.py`).
     """
     libelles: dict[str, None] = {}
     for ligne in (payslip_data or {}).get("calcul_du_brut") or []:
         if not isinstance(ligne, Mapping):
             continue
-        if not (ligne.get("saisie_id") or isinstance(ligne.get("regularisation_heures"), Mapping)):
+        if not ligne.get("saisie_id") or isinstance(ligne.get("regularisation_heures"), Mapping):
             continue
         libelle = str(ligne.get("libelle") or "")
         if _LIBELLE_DE_RAPPEL.search(_sans_accents(libelle)):
@@ -141,3 +142,47 @@ def avis_regularisation_sans_mois_origine(salarie: str, libelle: str, period: st
         f"{mois_en_lettres(*_mois(period))}. Si elle corrige un mois passé, la DSN doit la "
         f"rattacher à son mois d'origine, ce que Martine ne sait pas encore faire : {_SUPPORT}."
     )
+
+
+def avis_des_regularisations(
+    salarie: str, payslip_data: Mapping[str, Any] | None, period: str
+) -> list[str]:
+    """Ce que l'aperçu de la DSN dit des régularisations et rappels d'un bulletin.
+
+    Une régularisation saisie avec sa période se déclare à ses mois d'origine :
+    rien à dire, sauf la répartition à parts égales sur plusieurs mois. Sans
+    période, ou pour ce que Martine ne rattache pas (réduction générale,
+    prévoyance), l'avis d'hier reste.
+    """
+    # Import local : le mapping importe ce module par la chaîne du builder.
+    from app.modules.dsn_export.domain.cotisation_mapping import regularisation_rattachable
+    from app.modules.dsn_export.domain.rattachement import (
+        avis_repartition,
+        mois_passes,
+        periode_d_heures_regularisees,
+        periode_d_une_cotisation,
+    )
+    from app.modules.payroll.engine.corrections_manuelles import regularisations_du_bulletin
+
+    avis: list[str] = []
+    for regul in regularisations_du_bulletin(payslip_data).values():
+        ligne = regul.ligne_de_cotisation()
+        origine = periode_d_une_cotisation(ligne)
+        passes = mois_passes(origine, period)[0] if origine else []
+        if passes and regularisation_rattachable(ligne):
+            if len(passes) > 1:
+                avis.append(avis_repartition(salarie, regul.libelle, passes))
+            continue
+        avis.append(avis_regularisation_sans_mois_origine(salarie, regul.libelle, period))
+    for ligne in (payslip_data or {}).get("calcul_du_brut") or []:
+        if not isinstance(ligne, Mapping):
+            continue
+        origine = periode_d_heures_regularisees(ligne)
+        if origine is None:
+            continue
+        passes = mois_passes(origine, period)[0]
+        if len(passes) > 1:
+            avis.append(avis_repartition(salarie, str(ligne.get("libelle") or ""), passes))
+    for libelle in libelles_de_rappel_du_bulletin(payslip_data):
+        avis.append(avis_rappel_sans_mois_origine(salarie, libelle, period))
+    return avis
