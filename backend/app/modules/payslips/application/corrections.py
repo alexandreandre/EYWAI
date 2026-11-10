@@ -284,7 +284,7 @@ def est_temps_partiel(fiche: dict[str, Any]) -> bool:
         return True
     duree = fiche.get("duree_hebdomadaire")
     try:
-        return duree is not None and float(duree) < 35
+        return duree is not None and 0 < float(duree) < 35
     except (TypeError, ValueError):
         return False
 

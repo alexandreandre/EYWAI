@@ -24,26 +24,29 @@ import RegularisationsHeuresCard from '@/components/payslip-edit/Regularisations
 import { PHRASE_FORFAIT_JOURS_SANS_HEURES_SUP } from '@/lib/forfaitJoursAffichage';
 import { pastilleSoumise } from '@/components/saisies/libellesSaisie';
 import {
+  type DemandeDeCorrection,
   descriptionHeuresSupDuMois,
+  heuresComplementairesDeclarees,
   heuresDeclarees,
   MESSAGE_AUCUNE_PRIME,
   type EtatCorrections,
   montantCorrigeDeLaPrime,
+  paliersHeuresComplementaires,
   type SaisieApresCalcul,
 } from '@/features/payroll/utils/correctionsBulletin';
+import { lireNombre } from '@/lib/nombreSaisi';
 
 function texteDe(valeur: number): string {
   return Number.isFinite(valeur) ? String(valeur) : '';
 }
 
 function lire(texte: string): number {
-  const valeur = Number.parseFloat(texte.replace(',', '.'));
-  return Number.isFinite(valeur) && valeur >= 0 ? valeur : 0;
+  const valeur = lireNombre(texte);
+  return valeur !== null && valeur >= 0 ? valeur : 0;
 }
 
 function lireSigne(texte: string): number {
-  const valeur = Number.parseFloat(texte.replace(',', '.'));
-  return Number.isFinite(valeur) ? valeur : 0;
+  return lireNombre(texte) ?? 0;
 }
 
 /** Champ numérique qui laisse effacer et retaper (« 3, », « - ») sans sauter à zéro. */
@@ -119,6 +122,10 @@ interface Props {
   lienSaisies: string;
   /** Salarié au forfait jours : le temps se compte en jours, pas d'heures sup. */
   forfaitJours?: boolean;
+  /** Salarié à temps partiel : des heures complémentaires, pas d'heures sup (C. trav. L3123-8). */
+  tempsPartiel?: boolean;
+  /** Venue de l'onglet « Bulletin » : la carte à ouvrir, pré-remplie. */
+  demande?: DemandeDeCorrection | null;
   /** Saisies du mois enregistrées après le dernier calcul : pas encore sur le bulletin. */
   saisiesApresCalcul?: SaisieApresCalcul[];
   /** Passe par la garde des corrections non enregistrées avant de quitter l'écran. */
@@ -139,10 +146,14 @@ export default function CorrectionsBulletinPanel({
   lienFiche,
   lienSaisies,
   forfaitJours = false,
+  tempsPartiel = false,
+  demande = null,
   saisiesApresCalcul = [],
   onAller,
 }: Props) {
   const declarees = heuresDeclarees(payslipData);
+  const hcDeclarees = heuresComplementairesDeclarees(payslipData);
+  const [palier1, palier2] = paliersHeuresComplementaires(payslipData);
   const retirees = new Set(etat.primesRetirees);
   const maj = (changement: Partial<EtatCorrections>) => onChange({ ...etat, ...changement });
 
@@ -153,6 +164,72 @@ export default function CorrectionsBulletinPanel({
           <Clock className="h-4 w-4" />
           <AlertDescription>{PHRASE_FORFAIT_JOURS_SANS_HEURES_SUP}</AlertDescription>
         </Alert>
+      ) : tempsPartiel ? (
+        <Card data-testid="heures-complementaires-du-mois">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Heures complémentaires du mois
+            </CardTitle>
+            <CardDescription>
+              Temps partiel : les heures au-delà de l’horaire du contrat sont des heures complémentaires, majorées à{' '}
+              {palier1} % jusqu’au dixième des heures du contrat, à {palier2} % au-delà. Déclarées ici, elles remplacent
+              celles du planning pour ce bulletin, même à zéro. À l’enregistrement, le bulletin est recalculé en entier.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {hcDeclarees && !etat.hcAuPlanning ? (
+              <Alert data-testid="heures-complementaires-declarees">
+                <AlertDescription>
+                  Heures déclarées au bulletin : {heures(hcDeclarees.hs25)} h à {palier1} %, {heures(hcDeclarees.hs50)} h
+                  à {palier2} % (le planning en donnait {heures(hcDeclarees.planning)} h).
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            {etat.hcAuPlanning ? (
+              <Alert>
+                <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+                  <span>Les heures complémentaires du planning seront reprises au recalcul.</span>
+                  <Button variant="outline" size="sm" disabled={disabled} onClick={() => maj({ hcAuPlanning: false })}>
+                    <Undo2 className="h-4 w-4 mr-2" />
+                    Annuler
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <div className="flex flex-wrap items-end gap-6">
+                <div className="space-y-1">
+                  <Label htmlFor="hc1">Majorées à {palier1} %</Label>
+                  <ChampNombre
+                    id="hc1"
+                    testId="heures-complementaires-1"
+                    valeur={etat.hc1}
+                    onValeur={(hc1) => maj({ hc1 })}
+                    disabled={disabled}
+                    suffixe="h"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="hc2">Majorées à {palier2} %</Label>
+                  <ChampNombre
+                    id="hc2"
+                    testId="heures-complementaires-2"
+                    valeur={etat.hc2}
+                    onValeur={(hc2) => maj({ hc2 })}
+                    disabled={disabled}
+                    suffixe="h"
+                  />
+                </div>
+                {hcDeclarees ? (
+                  <Button variant="outline" size="sm" disabled={disabled} onClick={() => maj({ hcAuPlanning: true })}>
+                    <CalendarDays className="h-4 w-4 mr-2" />
+                    Reprendre les heures du planning
+                  </Button>
+                ) : null}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       ) : (
       <Card>
         <CardHeader>
@@ -362,12 +439,35 @@ export default function CorrectionsBulletinPanel({
       </Card>
 
       {forfaitJours ? null : (
-        <RegularisationsHeuresCard etat={etat} onChange={onChange} disabled={disabled} year={year} month={month} />
+        <RegularisationsHeuresCard
+          etat={etat}
+          onChange={onChange}
+          disabled={disabled}
+          year={year}
+          month={month}
+          demande={demande}
+          tempsPartiel={tempsPartiel}
+        />
       )}
 
-      <RegularisationsCotisationCard payslipData={payslipData} etat={etat} onChange={onChange} disabled={disabled} />
+      <RegularisationsCotisationCard
+        payslipData={payslipData}
+        etat={etat}
+        onChange={onChange}
+        disabled={disabled}
+        year={year}
+        month={month}
+        demande={demande}
+      />
 
-      <CorrigerUneLigneCard payslipId={payslipId} version={version} etat={etat} onChange={onChange} disabled={disabled} />
+      <CorrigerUneLigneCard
+        payslipId={payslipId}
+        version={version}
+        etat={etat}
+        onChange={onChange}
+        disabled={disabled}
+        demande={demande}
+      />
 
       <Card>
         <CardHeader>
