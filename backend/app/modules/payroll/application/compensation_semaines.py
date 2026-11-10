@@ -469,6 +469,76 @@ def appliquer(
     return sorted(conserves, key=lambda ev: int(ev.get("jour", 0)))
 
 
+def rattrapages_sans_solde(
+    evenements_par_mois: Mapping[tuple[int, int], list[dict[str, Any]]],
+    planned_all: list[dict[str, Any]],
+    actual_all: list[dict[str, Any]],
+    duree_hebdo: float,
+    fenetre: tuple[date, date],
+    *,
+    contrat: Contrat = (None, None),
+) -> dict[tuple[int, int], float]:
+    """Par semaine, les heures d'absence non rémunérée que l'analyse n'a pas
+    retenues parce que le salarié les a rattrapées dans la même semaine.
+
+    L'analyse (`analyzer._sans_solde_rattrape_dans_la_semaine`) réduit ou
+    retire la retenue d'un jour sans solde quand des heures ont été faites en
+    plus la même semaine. Ces heures ont déjà servi : la semaine ne les compte
+    plus en heures sup. Colorplast, A.B., S42 de 2026 : 45 h faites pour 30,5
+    prévues et un lundi sans solde de 8,5 h → +6 h, pas +14,5 h.
+
+    Mesuré sur les événements : ce que le jour devait retenir moins ce qu'il
+    retient encore. Un événement à 0 h retient la journée entière.
+    """
+    from app.modules.payroll.application.analyzer import heures_retenues_sans_solde
+
+    debut, fin = fenetre
+    pointes = set()
+    for j in actual_all:
+        try:
+            if float(j.get("heures_faites") or 0.0) > 0:
+                pointes.add(date(int(j["annee"]), int(j["mois"]), int(j["jour"])))
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    restant: dict[date, float | None] = {}
+    for (annee_m, mois_m), evts in evenements_par_mois.items():
+        for ev in evts:
+            if ev.get("type") != "absence_non_remuneree" or ev.get("is_regularisation_anterieure"):
+                continue
+            try:
+                d = date(int(ev.get("annee") or annee_m), int(ev.get("mois") or mois_m), int(ev["jour"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+            heures = float(ev.get("heures") or 0.0)
+            # À 0 h, le bulletin retient la journée entière (None).
+            restant[d] = None if heures <= 0 or restant.get(d, 0.0) is None else restant.get(d, 0.0) + heures
+
+    rattrapages: dict[tuple[int, int], float] = {}
+    for p in planned_all:
+        if p.get("type") != "absence_non_remuneree":
+            continue
+        try:
+            d = date(int(p["annee"]), int(p["mois"]), int(p["jour"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if (
+            (d.year, d.month) not in evenements_par_mois
+            or not (debut <= _lundi(d) <= fin)
+            or not _dans_le_contrat(d, contrat)
+            or d in pointes
+            or mois_sans_pointage(actual_all, annee=d.year, mois=d.month)
+        ):
+            continue
+        dues = heures_retenues_sans_solde(p, duree_hebdo)
+        retenues = dues if restant.get(d, 0.0) is None else min(restant.get(d, 0.0), dues)
+        ecart = round(dues - retenues, 2)
+        if ecart > 0:
+            cle = (d.isocalendar()[0], d.isocalendar()[1])
+            rattrapages[cle] = round(rattrapages.get(cle, 0.0) + ecart, 2)
+    return rattrapages
+
+
 def appliquer_aux_mois(
     evenements_par_mois: Mapping[tuple[int, int], list[dict[str, Any]]],
     planned_all: list[dict[str, Any]],
@@ -487,9 +557,14 @@ def appliquer_aux_mois(
     Hors contrat (`contrat` = entrée, sortie), aucun jour ne compte ni ne porte
     la retenue : le bulletin écarterait une absence datée après la sortie.
     """
-    compensation = compenser(
-        ecarts_par_semaine(planned_all, actual_all, fenetre, contrat=contrat), duree_hebdo
-    )
+    ecarts = ecarts_par_semaine(planned_all, actual_all, fenetre, contrat=contrat)
+    # Les heures qui ont rattrapé un jour sans solde de leur semaine ne sont
+    # plus des heures sup : l'analyse a déjà levé la retenue de ce jour.
+    for cle, heures in rattrapages_sans_solde(
+        evenements_par_mois, planned_all, actual_all, duree_hebdo, fenetre, contrat=contrat
+    ).items():
+        ecarts[cle] = round(ecarts.get(cle, 0.0) - heures, 2)
+    compensation = compenser(ecarts, duree_hebdo)
 
     absences: list[dict[str, Any]] = []
     for (annee_m, mois_m), evts in evenements_par_mois.items():
