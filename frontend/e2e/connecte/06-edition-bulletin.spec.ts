@@ -459,3 +459,35 @@ test.describe('Corriger à la source', () => {
     await expect(page.getByTestId('regenerer-bulletin')).toBeDisabled();
   });
 });
+
+test.describe("Régulariser des heures d'un autre mois (données fictives)", () => {
+  test('ajouter des heures sup de juin les envoie au serveur, sans toucher aux heures du mois', async ({ page }) => {
+    const envois = await preparerBulletin(page);
+    const carte = page.getByTestId('regularisations-heures');
+    await expect(carte).toBeVisible();
+    await expect(carte.getByLabel('Mois d’origine des heures')).toHaveValue('2026-06');
+    await expect(page.getByTestId('ajouter-regularisation-heures')).toBeDisabled();
+    await carte.getByLabel('Nombre d’heures (négatif pour reprendre)').fill('3,5');
+    await carte.getByLabel('Motif (obligatoire)').fill('Semaine 25 oubliée');
+    await page.getByTestId('ajouter-regularisation-heures').click();
+    await expect(carte).toContainText('3,5 h de 06/2026');
+    await page.getByTestId('enregistrer-entete').click();
+    await expect(page.getByText('Bulletin corrigé et recalculé', { exact: true })).toBeVisible();
+    expect(envois).toHaveLength(1);
+    expect(envois[0].corrections).toEqual({
+      regularisations_heures_ajoutees: [
+        { nature: 'hs1', mois_origine: '2026-06', quantite: 3.5, motif: 'Semaine 25 oubliée', taux_horaire: null },
+      ],
+    });
+  });
+
+  test('un mois postérieur au bulletin ne peut pas être choisi', async ({ page }) => {
+    await preparerBulletin(page);
+    const carte = page.getByTestId('regularisations-heures');
+    await carte.getByLabel('Mois d’origine des heures').fill('2026-08');
+    await carte.getByLabel('Nombre d’heures (négatif pour reprendre)').fill('2');
+    await carte.getByLabel('Motif (obligatoire)').fill('Essai');
+    await expect(carte).toContainText('ne peut pas dépasser celui du bulletin');
+    await expect(page.getByTestId('ajouter-regularisation-heures')).toBeDisabled();
+  });
+});
