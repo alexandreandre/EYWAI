@@ -25,6 +25,7 @@ import {
 } from '@/lib/calendarTypes';
 import { isDayReadyForPayroll } from '@/lib/calendarStats';
 import { estAbsentATyper } from '@/lib/absentATyper';
+import { libelleApresSortie } from '@/lib/employmentStatus';
 import {
   TITRE_INFO_BULLE_CONFLIT,
   estJourEnConflit,
@@ -41,7 +42,7 @@ interface CalendarDayCellProps {
   arg: JourDeLaGrille;
   plannedCalendar: PlannedEventData[];
   actualHours: ActualHoursData[];
-  updateDayData: (day: Partial<DayData>) => void;
+  updateDayData: (day: Partial<DayData> & { demi_journee?: 'matin' | 'apres_midi' | null }) => void;
   selectedDays?: number[];
   onDaySelect?: (dayNumber: number) => void;
   selectedDate: { month: number; year: number };
@@ -51,6 +52,13 @@ interface CalendarDayCellProps {
   joursEnConflit?: number[];
   /** Le salarié pointe sur la période (`useCalendar`). Faux : un jour sans réel n'attend rien. */
   pointe?: boolean;
+  /**
+   * Dernier jour jugé (fin de la fenêtre des variables ou sortie) : après, un
+   * jour vide n'est pas signalé à saisir, il appartient au mois suivant.
+   */
+  dernierJourJuge?: number | null;
+  /** Dernier jour du contrat (sortie) : après, la case est grisée et fermée. */
+  dernierJourContrat?: number | null;
 }
 
 // Types de saisie : source unique calendarTypes.ts — conges_payes/rtt créent
@@ -95,8 +103,10 @@ function HourGauges({
   }
 
   if (isForfaitJour) {
-    const pVal = hasPlanned ? (planned === 1 ? 1 : 0) : null;
-    const aVal = hasActual ? (actual === 1 ? 1 : 0) : null;
+    // Une quantité positive vaut un jour, en jours (1) comme en heures (7,8)
+    // (retour du 10/11 : prévu en heures, réel en jours).
+    const pVal = hasPlanned ? (Number(planned) > 0 ? 1 : 0) : null;
+    const aVal = hasActual ? (Number(actual) > 0 ? 1 : 0) : null;
     return (
       <div className="flex flex-col gap-2 flex-1 px-2 pl-3 pb-2.5">
         <DayGaugeRow
@@ -219,6 +229,8 @@ export function CalendarDayCell({
   onCopyPlannedToActual,
   joursEnConflit,
   pointe = true,
+  dernierJourJuge = null,
+  dernierJourContrat = null,
 }: CalendarDayCellProps) {
   const { observedHolidayIds } = useObservedPublicHolidays();
   const dayNumber = arg.date.getDate();
@@ -290,6 +302,20 @@ export function CalendarDayCell({
     );
   }
 
+  // Après la sortie : rien à saisir, la case est grisée et fermée (retour du 10/11).
+  if (dernierJourContrat != null && dayNumber > dernierJourContrat) {
+    return (
+      <div
+        className="flex h-full min-h-[7.5rem] flex-col gap-1 rounded-2xl border bg-muted/50 p-2 text-muted-foreground/70"
+        title={libelleApresSortie(dernierJourContrat, selectedDate.month)}
+        data-testid="case-apres-sortie"
+      >
+        <span className="text-xs font-semibold tabular-nums">{arg.dayNumberText}</span>
+        <span className="text-[10px]">Sorti(e) · 0 h</span>
+      </div>
+    );
+  }
+
   if (!plannedDay || !actualDay) {
     return (
       <div className="flex h-full items-start justify-start p-2">
@@ -298,15 +324,16 @@ export function CalendarDayCell({
     );
   }
 
-  const needsInput = dayNeedsInput(
-    plannedDay.type,
-    plannedDay,
-    actualDay,
-    isForfaitJour,
-    pointe
-  );
+  // Après l'arrêté des variables, le jour compte pour le mois suivant : pas
+  // d'anomalie ici (retour du 10/11).
+  const needsInput =
+    (dernierJourJuge == null || dayNumber <= dernierJourJuge) &&
+    dayNeedsInput(plannedDay.type, plannedDay, actualDay, isForfaitJour, pointe);
 
-  const handleTypeChange = (newType: string) => {
+  const handleTypeChange = (
+    newType: string,
+    demiJournee: 'matin' | 'apres_midi' | null = null
+  ) => {
     const preserved = plannedDay.heures_prevues;
     let defaultHours: number | null = preserved ?? null;
 
@@ -327,6 +354,7 @@ export function CalendarDayCell({
       jour: dayNumber,
       type: newType,
       heures_prevues: defaultHours,
+      ...(newType === 'conges_payes' || newType === 'rtt' ? { demi_journee: demiJournee } : {}),
     });
     setTypePopoverOpen(false);
   };
@@ -433,17 +461,40 @@ export function CalendarDayCell({
               </p>
             )}
             {editableTypeOptionsFor(plannedDay.type).map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                className={cn(
-                  'w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted',
-                  plannedDay.type === t.value && 'bg-muted font-medium'
-                )}
-                onClick={() => handleTypeChange(t.value)}
-              >
-                {t.label}
-              </button>
+              <div key={t.value}>
+                <button
+                  type="button"
+                  className={cn(
+                    'w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted',
+                    plannedDay.type === t.value && 'bg-muted font-medium'
+                  )}
+                  onClick={() => handleTypeChange(t.value)}
+                >
+                  {t.label}
+                </button>
+                {/* Demi-journée, comme dans « Saisir les congés » (retour du 10/11). */}
+                {!isForfaitJour &&
+                  (t.value === 'conges_payes' || t.value === 'rtt') &&
+                  plannedDay.type !== t.value && (
+                    <div className="flex gap-1 pl-3 pb-1">
+                      {(
+                        [
+                          ['matin', 'matin'],
+                          ['apres_midi', 'après-midi'],
+                        ] as const
+                      ).map(([valeur, libelle]) => (
+                        <button
+                          key={valeur}
+                          type="button"
+                          className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted"
+                          onClick={() => handleTypeChange(t.value, valeur)}
+                        >
+                          ½ {libelle}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+              </div>
             ))}
           </PopoverContent>
         </Popover>
@@ -472,7 +523,7 @@ export function CalendarDayCell({
               </label>
               <label className="flex items-center gap-2 text-xs">
                 <Checkbox
-                  checked={actualDay.heures_faites === 1}
+                  checked={Number(actualDay.heures_faites ?? 0) > 0}
                   onCheckedChange={(c) =>
                     updateDayData({
                       jour: dayNumber,

@@ -264,3 +264,35 @@ def test_un_forfait_saisi_a_zero_jour_garde_son_ecart():
     actual = [{"jour": d, "type": "travail", "heures_faites": 0} for d in (1, 2, 3)]
 
     assert compute_row_status(planned, actual, 2026, 9, True, a_saisir=False) == "saisi_avec_ecart"
+
+
+def test_forfait_prevu_en_heures_et_reel_en_jours_sans_ecart():
+    """Retour du 10/11 (MAJI, forfaits jours) : prévu posé en heures (7,8 h),
+    réel en jours (1). Un jour prévu travaillé reste un jour, quelle que soit
+    l'unité : réel = prévu ne fait aucun écart."""
+    planned = [{"jour": d, "type": "travail", "heures_prevues": 7.8} for d in (1, 2, 3)]
+    actual = [{"jour": d, "type": "travail", "heures_faites": 1} for d in (1, 2, 3)]
+
+    assert compute_row_status(planned, actual, 2026, 9, True, a_saisir=False) == "saisi"
+    assert compute_day_ecarts(planned, actual, forfait=True) == []
+
+
+def test_forfait_reel_recopie_en_heures_sans_ecart():
+    """« Réel = prévu » sur un forfait au prévu en heures recopiait 7 h au réel :
+    un jour travaillé quand même."""
+    planned = [{"jour": d, "type": "travail", "heures_prevues": 1} for d in (1, 2)]
+    actual = [{"jour": d, "type": "travail", "heures_faites": 7.0} for d in (1, 2)]
+
+    assert compute_row_status(planned, actual, 2026, 9, True, a_saisir=False) == "saisi"
+    assert compute_day_ecarts(planned, actual, forfait=True) == []
+
+
+def test_forfait_un_jour_non_travaille_reste_un_ecart_quelle_que_soit_l_unite():
+    planned = [{"jour": d, "type": "travail", "heures_prevues": 7.8} for d in (1, 2)]
+    actual = [
+        {"jour": 1, "type": "travail", "heures_faites": 1},
+        {"jour": 2, "type": "travail", "heures_faites": 0},
+    ]
+
+    assert compute_row_status(planned, actual, 2026, 9, True, a_saisir=False) == "saisi_avec_ecart"
+    assert [d["jour"] for d in compute_day_ecarts(planned, actual, forfait=True)] == [2]

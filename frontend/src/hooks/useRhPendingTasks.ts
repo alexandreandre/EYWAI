@@ -21,7 +21,8 @@ import {
   fetchAllEmployeesOverview,
   type SchedulesEmployeeInput,
 } from '@/lib/schedulesOverview';
-import { filterPresentEmployees } from '@/lib/employmentStatus';
+import { filterEmployeesSaisissables, filterPresentEmployees } from '@/lib/employmentStatus';
+import { getPeriodeVariables } from '@/api/periodeVariables';
 import { getModulationWorkflowStatus } from '@/api/modulation';
 import { getWorkMedalSummary } from '@/api/workMedals';
 import { isRecruitmentPriorityCandidate } from '@/api/recruitment';
@@ -150,9 +151,25 @@ export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string |
     queryKey: ['schedules', 'sidebar-badges', companyId, schedulesYear, schedulesMonth],
     queryFn: async () => {
       const empRes = await apiClient.get<SchedulesEmployeeInput[]>('/api/employees');
-      const employees = filterPresentEmployees(empRes.data ?? []);
+      // Même liste et même borne que l'écran Calendrier (retour du 10/11) :
+      // salariés encore à saisir ce mois, jugés jusqu'à l'arrêté des variables.
+      const employees = filterEmployeesSaisissables(
+        filterPresentEmployees(empRes.data ?? []),
+        schedulesYear,
+        schedulesMonth,
+      );
       if (employees.length === 0) return 0;
-      const rows = await fetchAllEmployeesOverview(employees, schedulesYear, schedulesMonth);
+      const finFenetre = await getPeriodeVariables(schedulesYear, schedulesMonth)
+        .then((p) => p.fin)
+        .catch((): null => null);
+      const rows = await fetchAllEmployeesOverview(
+        employees,
+        schedulesYear,
+        schedulesMonth,
+        5,
+        undefined,
+        { finFenetre },
+      );
       return countSchedulesToEnter(rows);
     },
     enabled: companyEnabled,

@@ -160,7 +160,11 @@ export function computeMonthStats(
     joursPrevus = planned.filter(
       (p) => (p.type === 'travail' || p.type === 'work') && (p.heures_prevues ?? 0) > 0
     ).length;
-    joursTravaillesForfait = actual.filter((a) => a.heures_faites === 1).length;
+    // Un jour travaillé dès qu'une quantité positive est posée, en jours comme
+    // en heures (retour du 10/11 : prévu en heures, réel en jours).
+    joursTravaillesForfait = actual.filter(
+      (a) => typeof a.heures_faites === 'number' && a.heures_faites > 0
+    ).length;
   }
 
   return {
@@ -252,7 +256,8 @@ export function computeEmployeeRowStatus(
   year: number,
   month: number,
   isForfaitJour: boolean,
-  pointe = true
+  pointe = true,
+  bornes: BornesDuMois = {}
 ): EmployeeRowStatus {
   const completion = computeMonthCompletionStatus(
     planned,
@@ -260,9 +265,17 @@ export function computeEmployeeRowStatus(
     year,
     month,
     isForfaitJour,
-    pointe
+    pointe,
+    bornes
   );
   if (completion === 'a_saisir') return 'a_saisir';
+  // L'écart se juge sur les mêmes jours que la saisie : après l'arrêté des
+  // variables ou la sortie, rien n'est attendu.
+  if (bornes.dernierJour != null) {
+    const borne = bornes.dernierJour;
+    planned = planned.filter((p) => p.jour <= borne);
+    actual = actual.filter((a) => a.jour <= borne);
+  }
   // Sans aucune heure pointée, le prévu fait foi : pas d'écart à signaler.
   // Sauf un 0 saisi un jour travaillé (forfait à 0 jour) : le moteur paierait
   // le prévu, l'écart est le seul signal.
@@ -282,6 +295,89 @@ export function computeEmployeeRowStatus(
     : 'saisi';
 }
 
+/**
+ * Bornes du jugement d'un mois. `dernierJour` : dernier jour du mois qui compte
+ * — la fin de la fenêtre des variables (les jours d'après appartiennent au
+ * mois suivant, comme pour le juge du serveur `periode_a_saisir`) ou le dernier
+ * jour du contrat. Absent : tout le mois civil.
+ */
+export interface BornesDuMois {
+  dernierJour?: number | null;
+}
+
+export type MotifASaisir =
+  | 'planning_absent'
+  | 'prevu_sans_heures'
+  | 'prevu_sans_reel'
+  | 'reel_a_zero';
+
+export interface JourASaisir {
+  jour: number;
+  motif: MotifASaisir;
+}
+
+function motifDuJour(
+  plannedDay: PlannedEventData | undefined,
+  actualDay: ActualHoursData | undefined
+): MotifASaisir {
+  if (!plannedDay) return 'planning_absent';
+  if (!hasHourValue(plannedDay.heures_prevues)) return 'prevu_sans_heures';
+  if (!hasHourValue(actualDay?.heures_faites)) return 'prevu_sans_reel';
+  return 'reel_a_zero';
+}
+
+/** Les jours du mois qui empêchent la paie, avec la raison (même règle que le statut). */
+export function joursASaisir(
+  planned: PlannedEventData[],
+  actual: ActualHoursData[],
+  year: number,
+  month: number,
+  isForfaitJour = false,
+  pointe = true,
+  bornes: BornesDuMois = {}
+): JourASaisir[] {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const dernier = Math.min(daysInMonth, bornes.dernierJour ?? daysInMonth);
+  const plannedByDay = new Map(planned.map((p) => [p.jour, p]));
+  const actualByDay = new Map(actual.map((a) => [a.jour, a]));
+  const manquants: JourASaisir[] = [];
+  for (let day = 1; day <= dernier; day++) {
+    const plannedDay = plannedByDay.get(day);
+    const actualDay = actualByDay.get(day);
+    if (!isDayReadyForPayroll(plannedDay, actualDay, isForfaitJour, pointe)) {
+      manquants.push({ jour: day, motif: motifDuJour(plannedDay, actualDay) });
+    }
+  }
+  return manquants;
+}
+
+const RAISONS: Record<MotifASaisir, string> = {
+  planning_absent: 'pas de planning',
+  prevu_sans_heures: 'planning sans heures prévues',
+  prevu_sans_reel: 'heures réelles non saisies',
+  reel_a_zero: '0 h au réel un jour travaillé',
+};
+
+/** « 03/06 (planning sans heures prévues), 09/06–10/06 (heures réelles non saisies) ». */
+export function phraseJoursASaisir(jours: readonly JourASaisir[], month: number): string {
+  const mm = String(month).padStart(2, '0');
+  const jj = (j: number) => `${String(j).padStart(2, '0')}/${mm}`;
+  const plages: { debut: number; fin: number; motif: MotifASaisir }[] = [];
+  for (const { jour, motif } of [...jours].sort((a, b) => a.jour - b.jour)) {
+    const derniere = plages[plages.length - 1];
+    if (derniere && derniere.motif === motif && derniere.fin === jour - 1) {
+      derniere.fin = jour;
+    } else {
+      plages.push({ debut: jour, fin: jour, motif });
+    }
+  }
+  return plages
+    .map(({ debut, fin, motif }) =>
+      `${debut === fin ? jj(debut) : `${jj(debut)}–${jj(fin)}`} (${RAISONS[motif]})`
+    )
+    .join(', ');
+}
+
 /** Mois prêt pour la paie : chaque jour travail du mois a prévu et réel renseignés. */
 export function computeMonthCompletionStatus(
   planned: PlannedEventData[],
@@ -289,18 +385,10 @@ export function computeMonthCompletionStatus(
   year: number,
   month: number,
   isForfaitJour = false,
-  pointe = true
+  pointe = true,
+  bornes: BornesDuMois = {}
 ): MonthCompletionStatus {
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const plannedByDay = new Map(planned.map((p) => [p.jour, p]));
-  const actualByDay = new Map(actual.map((a) => [a.jour, a]));
-
-  for (let day = 1; day <= daysInMonth; day++) {
-    const plannedDay = plannedByDay.get(day);
-    const actualDay = actualByDay.get(day);
-    if (!isDayReadyForPayroll(plannedDay, actualDay, isForfaitJour, pointe)) {
-      return 'a_saisir';
-    }
-  }
-  return 'saisi';
+  return joursASaisir(planned, actual, year, month, isForfaitJour, pointe, bornes).length > 0
+    ? 'a_saisir'
+    : 'saisi';
 }

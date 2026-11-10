@@ -613,9 +613,15 @@ def create_absences_from_planning(
     jours_par_type: dict[str, list[int]],
     photos_avant: dict[str, dict] | None = None,
     aujourd_hui: date | None = None,
+    demi_journees: dict[int, str] | None = None,
 ) -> list[dict]:
     """Matérialise en demandes VALIDÉES les jours CP/RTT saisis directement
     au calendrier par la RH.
+
+    ``demi_journees`` : {jour du mois: "matin" | "apres_midi"} posé au
+    calendrier ; la demande porte alors la demi-journée comme une saisie de
+    « Saisir les congés » (0,5 jour, même projection). Refusée au forfait
+    jours, décompté à la journée, comme à la création d'une demande.
 
     Une demande PAR JOUR (aucune API ne sait retrancher un jour d'une demande
     existante) ; no-op si une demande validée projette déjà ce type de jour —
@@ -632,6 +638,24 @@ def create_absences_from_planning(
     warnings: list[dict] = []
     ref_aujourd_hui = aujourd_hui or date.today()
     cutoff = get_cp_opening_reference_dates([employee_id]).get(employee_id)
+    demi_par_jour: dict[int, str] = {
+        int(j): v
+        for j, v in (demi_journees or {}).items()
+        if v in ("matin", "apres_midi")
+    }
+    if demi_par_jour and is_forfait_jour(get_employee_statut(employee_id)):
+        for jour in sorted(demi_par_jour):
+            warnings.append(
+                {
+                    "jour": jour,
+                    "code": "demi_journee_forfait",
+                    "detail": (
+                        f"Le {jour:02d}/{month:02d} est posé en journée entière : au "
+                        "forfait jours, le congé se compte à la journée."
+                    ),
+                }
+            )
+        demi_par_jour = {}
 
     validated = (
         supabase.table("absence_requests")
@@ -706,7 +730,11 @@ def create_absences_from_planning(
             # localement : sans quoi la dernière journée passée d'un solde
             # juste serait payée 0, et un CP posé pour demain à solde nul
             # serait payé 1.
-            deja_decomptes = sum(1 for d in eligibles if d <= ref_aujourd_hui)
+            deja_decomptes = sum(
+                0.5 if d.day in demi_par_jour else 1.0
+                for d in eligibles
+                if d <= ref_aujourd_hui
+            )
             disponible = float(get_cp_solde_restant(employee_id)) + deja_decomptes
 
         for day in eligibles:
@@ -721,12 +749,16 @@ def create_absences_from_planning(
                 "selected_days": [iso],
                 "comment": f"{PLANNING_SOURCE_COMMENT} ({day:%d/%m/%Y})",
             }
+            demi = demi_par_jour.get(day.day)
+            if demi:
+                db_data["demi_journees"] = {iso: demi}
+            quotite = 0.5 if demi else 1.0
             if request_type == "conge_paye":
                 # Même règle qu'à la validation RH (décision du 12/10/2026) :
                 # le jour est payé en entier et décompté, même au-delà du
                 # solde ; la saisie le dit, sans promettre de sans solde.
-                db_data["jours_payes"] = 1.0
-                if disponible < 1.0:
+                db_data["jours_payes"] = quotite
+                if disponible < quotite:
                     warnings.append(
                         {
                             "jour": int(jour),
@@ -739,7 +771,7 @@ def create_absences_from_planning(
                             ),
                         }
                     )
-                disponible -= 1.0
+                disponible -= quotite
             created = absence_repository.create(db_data)
             couverts_par_type.setdefault(calendar_type, set()).add(iso)
             try:
@@ -749,6 +781,7 @@ def create_absences_from_planning(
                     request_type,
                     adopter_jours_deja_types=True,
                     photos_avant=photos_avant or None,
+                    demi_journees={iso: demi} if demi else None,
                 )
             except Exception:
                 logger.exception(

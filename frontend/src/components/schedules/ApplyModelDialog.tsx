@@ -49,6 +49,7 @@ import { loadSavedWeekTemplates, saveWeekTemplate, type SavedWeekTemplate } from
 import { useCompany } from '@/contexts/CompanyContext';
 import type { WeekTemplate } from '@/hooks/useCalendar';
 import type { DayConfig, WeekConfig } from './types';
+import { semaineDuModele } from '@/lib/weekTemplateDays';
 import { accord, pluriel } from '@/lib/pluriel';
 
 const TIER_LABELS: Record<string, string> = {
@@ -71,28 +72,17 @@ const createInitialWeek = (): WeekConfig => ({
   sunday: { ...WEEKEND_DAY },
 });
 
+/** Un jour absent du modèle vaut 0 h (retour du 10/11), jamais les 8 h de l'écran. */
 function weekTemplateToWeekConfig(template: WeekTemplate): WeekConfig {
-  const week = createInitialWeek();
-  const dayMap: Array<[keyof WeekConfig, number]> = [
-    ['monday', 1],
-    ['tuesday', 2],
-    ['wednesday', 3],
-    ['thursday', 4],
-    ['friday', 5],
-    ['saturday', 6],
-    ['sunday', 7],
-  ];
-  for (const [key, day] of dayMap) {
-    const raw = template[day];
-    if (raw === undefined) continue;
-    const hours = raw === '1' ? 1 : parseFloat(String(raw || '0')) || 0;
-    if (hours <= 0) {
-      week[key] = { type: 'weekend', hours: 0 };
-    } else {
-      week[key] = { type: 'travail', hours };
-    }
-  }
-  return week;
+  return semaineDuModele(template);
+}
+
+function totalSemaine(week: WeekConfig): number {
+  const total = Object.values(week).reduce(
+    (somme, jour) => somme + (jour.type === 'travail' ? Number(jour.hours) || 0 : 0),
+    0,
+  );
+  return Math.round(total * 100) / 100;
 }
 
 type SavedWeekTemplateWithConfig = SavedWeekTemplate & { weekConfig: WeekConfig };
@@ -133,12 +123,21 @@ export function ApplyModelDialog({
   const [isApplying, setIsApplying] = useState(false);
   const [applyTarget, setApplyTarget] = useState<ApplyModelTarget>('planned');
   const [savedTemplates, setSavedTemplates] = useState<SavedWeekTemplateWithConfig[]>([]);
+  // Modèle choisi : dit à l'écran, pour ne jamais appliquer en croyant
+  // appliquer un modèle la semaine par défaut (8 h/jour).
+  const [modeleChoisi, setModeleChoisi] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState('');
 
   useEffect(() => {
     if (!open) return;
     setApplyScope(`week-${clampedViewWeek}`);
   }, [open, clampedViewWeek]);
+
+  useEffect(() => {
+    if (!open) return;
+    setWeekConfig(createInitialWeek());
+    setModeleChoisi(null);
+  }, [open]);
 
   useEffect(() => {
     if (!open || !companyId) return;
@@ -181,6 +180,7 @@ export function ApplyModelDialog({
       ...prev,
       [day]: { ...prev[day], [field]: value },
     }));
+    setModeleChoisi(null);
   };
 
   const restoreModel = async (
@@ -217,8 +217,8 @@ export function ApplyModelDialog({
       ]);
       const existing = actualRes.data.calendrier_reel ?? [];
       snapshots.push({ id, actual: existing });
-      const isForfait =
-        overviewRows.find((row) => row.employee.id === id)?.isForfaitJour ?? false;
+      const ligne = overviewRows.find((row) => row.employee.id === id);
+      const isForfait = ligne?.isForfaitJour ?? false;
       const entries = buildActualEntriesFromWeekConfig(
         year,
         month,
@@ -228,6 +228,7 @@ export function ApplyModelDialog({
           existing,
           planned: plannedRes.data.calendrier_prevu ?? [],
           onlyDays: scopedDays,
+          dernierJour: ligne?.dernierJourContrat ?? null,
         },
       );
       await calendarApi.updateActualHours(id, year, month, entries);
@@ -238,7 +239,12 @@ export function ApplyModelDialog({
 
   const applyPlannedHours = async (config: ApplyModelWeekConfig) => {
     const snapshots: PlannedSnapshot[] = [];
-    if (isMonthScope) {
+    // Un salarié qui sort dans le mois passe par le calcul jour par jour : rien
+    // n'est posé après sa sortie (retour du 10/11).
+    const sortieDansLeMois = selectedEmployeeIds.some(
+      (id) => overviewRows.find((row) => row.employee.id === id)?.dernierJourContrat != null,
+    );
+    if (isMonthScope && !sortieDansLeMois) {
       const snapshotTasks = selectedEmployeeIds.map((id) => async () => {
         const res = await calendarApi.getPlannedCalendar(id, year, month);
         snapshots.push({ id, planned: res.data.calendrier_prevu ?? [] });
@@ -257,14 +263,14 @@ export function ApplyModelDialog({
       const res = await calendarApi.getPlannedCalendar(id, year, month);
       const existing = res.data.calendrier_prevu ?? [];
       snapshots.push({ id, planned: existing });
-      const isForfait =
-        overviewRows.find((row) => row.employee.id === id)?.isForfaitJour ?? false;
+      const ligne = overviewRows.find((row) => row.employee.id === id);
+      const isForfait = ligne?.isForfaitJour ?? false;
       const entries = buildPlannedEntriesFromWeekConfig(
         year,
         month,
         config,
         isForfait,
-        { existing, onlyDays: scopedDays },
+        { existing, onlyDays: scopedDays, dernierJour: ligne?.dernierJourContrat ?? null },
       );
       await calendarApi.updatePlannedCalendar(id, year, month, entries);
     });
@@ -426,10 +432,14 @@ export function ApplyModelDialog({
                   <Button
                     key={tpl.id ?? tpl.name}
                     type="button"
-                    variant="outline"
+                    variant={modeleChoisi === (tpl.id ?? tpl.name) ? 'default' : 'outline'}
                     size="sm"
                     className="h-7 text-xs"
-                    onClick={() => setWeekConfig(tpl.weekConfig)}
+                    aria-pressed={modeleChoisi === (tpl.id ?? tpl.name)}
+                    onClick={() => {
+                      setWeekConfig(tpl.weekConfig);
+                      setModeleChoisi(tpl.id ?? tpl.name);
+                    }}
                   >
                     {tpl.name}
                     {tpl.modulation_tier && tpl.modulation_tier !== 'neutral' && (
@@ -442,6 +452,14 @@ export function ApplyModelDialog({
               </div>
             </div>
           )}
+
+          <p className="text-xs text-muted-foreground" data-testid="total-semaine-modele">
+            {modeleChoisi
+              ? `Modèle « ${savedTemplates.find((t) => (t.id ?? t.name) === modeleChoisi)?.name ?? ''} »`
+              : 'Semaine saisie ci-dessous'}{' '}
+            : {totalSemaine(weekConfig).toLocaleString('fr-FR')} h par semaine. Une case à 0 est un
+            jour non travaillé.
+          </p>
 
           <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
             {dayKeys.map((day) => {
@@ -501,12 +519,16 @@ export function ApplyModelDialog({
                 // WeekTemplate stocke des chaînes ; saveWeekTemplate relit chaque
                 // valeur par parseFloat(String(...)), le total et les jours
                 // enregistrés sont donc identiques.
+                // Les sept jours : un samedi travaillé n'est plus perdu.
+                const heures = (j: DayConfig) => String(j.type === 'travail' ? j.hours : 0);
                 const template = {
-                  1: String(weekConfig.monday.hours),
-                  2: String(weekConfig.tuesday.hours),
-                  3: String(weekConfig.wednesday.hours),
-                  4: String(weekConfig.thursday.hours),
-                  5: String(weekConfig.friday.hours),
+                  1: heures(weekConfig.monday),
+                  2: heures(weekConfig.tuesday),
+                  3: heures(weekConfig.wednesday),
+                  4: heures(weekConfig.thursday),
+                  5: heures(weekConfig.friday),
+                  6: heures(weekConfig.saturday),
+                  7: heures(weekConfig.sunday),
                 };
                 const next = await saveWeekTemplate(companyId, templateName, template);
                 setSavedTemplates(

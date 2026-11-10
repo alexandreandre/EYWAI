@@ -6,10 +6,14 @@ import {
   aDesHeuresPointees,
   computeMonthStats,
   computeEmployeeRowStatus,
+  joursASaisir,
   moisPrecedent,
   pointeSurLaPeriode,
+  type BornesDuMois,
   type EmployeeRowStatus,
+  type JourASaisir,
 } from '@/lib/calendarStats';
+import { dernierJourDuContratDansLeMois } from '@/lib/employmentStatus';
 import {
   detectAbsenceConflictDays,
   validatedAbsenceDaysInMonth,
@@ -28,6 +32,8 @@ export interface DayPatch {
   type?: string;
   heures_prevues?: number | null;
   heures_faites?: number | null;
+  /** CP/RTT posé au calendrier : demi-journée (part avec la demande créée). */
+  demi_journee?: 'matin' | 'apres_midi' | null;
 }
 
 export interface SchedulesEmployeeInput {
@@ -43,6 +49,7 @@ export interface SchedulesEmployeeInput {
   employment_status?: string | null;
   /** Dernier jour travaillé (sortie la plus récente), même après archivage. */
   exit_last_working_day?: string | null;
+  hire_date?: string | null;
 }
 
 export interface EmployeeCalendarOverviewRow {
@@ -65,6 +72,45 @@ export interface EmployeeCalendarOverviewRow {
    * stricte). Absent : règle stricte. Sert au statut recalculé après une saisie.
    */
   pointeMoisPrecedent?: boolean;
+  /**
+   * Dernier jour jugé du mois : fin de la fenêtre des variables (les jours
+   * d'après sont au mois suivant) ou dernier jour du contrat. `null` : tout le mois.
+   */
+  dernierJourJuge?: number | null;
+  /** Dernier jour du contrat dans le mois (sortie) ; après, rien ne se saisit. */
+  dernierJourContrat?: number | null;
+  /** Jours qui empêchent la paie, avec la raison : l'alerte les nomme. */
+  joursASaisir?: JourASaisir[];
+}
+
+/** Fin de la fenêtre des variables du mois affiché (ISO), si elle est connue. */
+export interface ContexteDuMois {
+  finFenetre?: string | null;
+}
+
+/**
+ * Les bornes de jugement d'un salarié : fin de la fenêtre des variables
+ * (sauf forfait jours, jugé sur le mois civil comme au serveur) et sortie.
+ */
+export function bornesDuSalarie(
+  employee: SchedulesEmployeeInput,
+  year: number,
+  month: number,
+  forfait: boolean,
+  contexte: ContexteDuMois = {},
+): { bornes: BornesDuMois; dernierJourContrat: number | null } {
+  const dernierJourContrat = dernierJourDuContratDansLeMois(employee, year, month);
+  const prefixe = `${year}-${String(month).padStart(2, '0')}`;
+  const fin = contexte.finFenetre?.slice(0, 10);
+  const finFenetre =
+    !forfait && fin && fin.startsWith(prefixe) ? Number(fin.slice(8, 10)) : null;
+  const candidats = [finFenetre, dernierJourContrat].filter(
+    (j): j is number => typeof j === 'number'
+  );
+  return {
+    bornes: { dernierJour: candidats.length > 0 ? Math.min(...candidats) : null },
+    dernierJourContrat,
+  };
 }
 
 function buildBasePlannedCalendar(
@@ -95,9 +141,17 @@ async function fetchEmployeeOverview(
   employee: SchedulesEmployeeInput,
   year: number,
   month: number,
-  observedHolidayIds?: readonly FrenchPublicHolidayId[] | null
+  observedHolidayIds?: readonly FrenchPublicHolidayId[] | null,
+  contexte: ContexteDuMois = {}
 ): Promise<EmployeeCalendarOverviewRow> {
   const forfait = isForfaitJour(employee.statut, employee.is_forfait_jour);
+  const { bornes, dernierJourContrat } = bornesDuSalarie(
+    employee,
+    year,
+    month,
+    forfait,
+    contexte
+  );
 
   try {
     const precedent = moisPrecedent(year, month);
@@ -134,15 +188,9 @@ async function fetchEmployeeOverview(
       reelMoisPrecedent === null || aDesHeuresPointees(reelMoisPrecedent);
     const joursHeuresSurArret: number[] = actualRes.data.jours_en_conflit ?? [];
     const joursAbsents = joursAbsentsATyper(planned);
+    const pointe = pointeSurLaPeriode(actual, reelMoisPrecedent);
     const rowStatus = statutAvecHeuresSurArret(
-      computeEmployeeRowStatus(
-        planned,
-        actual,
-        year,
-        month,
-        forfait,
-        pointeSurLaPeriode(actual, reelMoisPrecedent)
-      ),
+      computeEmployeeRowStatus(planned, actual, year, month, forfait, pointe, bornes),
       joursHeuresSurArret
     );
 
@@ -172,6 +220,9 @@ async function fetchEmployeeOverview(
       loadError: false,
       isForfaitJour: forfait,
       pointeMoisPrecedent,
+      dernierJourJuge: bornes.dernierJour ?? null,
+      dernierJourContrat,
+      joursASaisir: joursASaisir(planned, actual, year, month, forfait, pointe, bornes),
     };
   } catch {
     return {
@@ -186,6 +237,8 @@ async function fetchEmployeeOverview(
       joursHeuresSurArret: [],
       loadError: true,
       isForfaitJour: forfait,
+      dernierJourJuge: bornes.dernierJour ?? null,
+      dernierJourContrat,
     };
   }
 }
@@ -195,10 +248,11 @@ export async function fetchAllEmployeesOverview(
   year: number,
   month: number,
   concurrency = 5,
-  observedHolidayIds?: readonly FrenchPublicHolidayId[] | null
+  observedHolidayIds?: readonly FrenchPublicHolidayId[] | null,
+  contexte: ContexteDuMois = {}
 ): Promise<EmployeeCalendarOverviewRow[]> {
   const tasks = employees.map(
-    (emp) => () => fetchEmployeeOverview(emp, year, month, observedHolidayIds)
+    (emp) => () => fetchEmployeeOverview(emp, year, month, observedHolidayIds, contexte)
   );
   return runWithConcurrency(tasks, concurrency);
 }
@@ -300,6 +354,7 @@ export function applyDayPatchToRow(
       type: patch.type !== undefined ? patch.type : p.type,
       heures_prevues:
         patch.heures_prevues !== undefined ? patch.heures_prevues : p.heures_prevues,
+      ...(patch.demi_journee !== undefined ? { demi_journee: patch.demi_journee } : {}),
     };
   });
   const newActual = row.actual.map((a) => {
@@ -313,6 +368,8 @@ export function applyDayPatchToRow(
   });
 
   const stats = computeMonthStats(newPlanned, newActual, row.isForfaitJour);
+  const pointe = (row.pointeMoisPrecedent ?? true) || aDesHeuresPointees(newActual);
+  const bornes: BornesDuMois = { dernierJour: row.dernierJourJuge ?? null };
   const rowStatus = statutAvecHeuresSurArret(
     computeEmployeeRowStatus(
       newPlanned,
@@ -320,7 +377,8 @@ export function applyDayPatchToRow(
       year,
       month,
       row.isForfaitJour,
-      (row.pointeMoisPrecedent ?? true) || aDesHeuresPointees(newActual)
+      pointe,
+      bornes
     ),
     row.joursHeuresSurArret
   );
@@ -334,6 +392,15 @@ export function applyDayPatchToRow(
     ecart: row.isForfaitJour ? stats.ecartJours : stats.ecart,
     rowStatus,
     joursAbsentsATyper: joursAbsentsATyper(newPlanned),
+    joursASaisir: joursASaisir(
+      newPlanned,
+      newActual,
+      year,
+      month,
+      row.isForfaitJour,
+      pointe,
+      bornes
+    ),
   };
 }
 

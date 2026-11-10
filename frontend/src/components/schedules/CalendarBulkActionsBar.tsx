@@ -189,7 +189,10 @@ export function CalendarBulkActionsBar({
         // Seuls les jours de travail prévus SANS heures réelles sont remplis :
         // les heures déjà saisies (à la main ou importées) sont gardées, et un
         // jour sans prévu (week-end) n'est pas écrit.
-        const resultat = completerReelDepuisPrevu(row.planned, avant);
+        const resultat = completerReelDepuisPrevu(row.planned, avant, {
+          forfaitJours: row.isForfaitJour,
+          dernierJour: row.dernierJourContrat ?? null,
+        });
         completes += resultat.completes;
         gardes += resultat.gardes;
         if (resultat.completes > 0) {

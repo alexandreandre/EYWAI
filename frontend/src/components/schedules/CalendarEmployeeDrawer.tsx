@@ -122,6 +122,10 @@ export function CalendarEmployeeDrawer({
             employeeName={employeeName}
             employeeStatut={employee.statut ?? undefined}
             employeeIsForfaitJour={employee.is_forfait_jour}
+            employeeSortie={{
+              exit_last_working_day: employee.exit_last_working_day,
+              hire_date: employee.hire_date,
+            }}
             initialYear={year}
             initialMonth={month}
             onSaved={onSaved}

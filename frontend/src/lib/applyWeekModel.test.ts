@@ -132,3 +132,19 @@ describe('buildPlannedEntriesFromWeekConfig', () => {
     expect(days.find((d) => d.jour === 10)?.heures_prevues).toBe(8);
   });
 });
+
+describe('modèle appliqué à un salarié sorti (retour du 10/11)', () => {
+  it('ne pose rien après le dernier jour du contrat', () => {
+    const existant = [{ jour: 20, type: 'travail', heures_prevues: 7 }];
+    const prevu = buildPlannedEntriesFromWeekConfig(2026, 10, week, false, {
+      existing: existant,
+      dernierJour: 2,
+    });
+    expect(prevu.find((d) => d.jour === 2)).toEqual({ jour: 2, type: 'travail', heures_prevues: 7 });
+    expect(prevu.find((d) => d.jour === 5)).toEqual({ jour: 5, type: 'repos', heures_prevues: 0 });
+    expect(prevu.find((d) => d.jour === 20)).toEqual({ jour: 20, type: 'repos', heures_prevues: 0 });
+
+    const reel = buildActualEntriesFromWeekConfig(2026, 10, week, false, { dernierJour: 2 });
+    expect(reel.find((d) => d.jour === 5)?.heures_faites).toBeNull();
+  });
+});

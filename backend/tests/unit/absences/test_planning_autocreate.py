@@ -304,3 +304,56 @@ class TestCancelPlanningAbsences:
         )
         assert harnais["annulees"] == []
         assert warnings == []
+
+
+class TestDemiJourneeDepuisLeCalendrier:
+    """Retour du 10/11 : la demi-journée posée au calendrier comme dans
+    « Saisir les congés » (même demande, même décompte 0,5)."""
+
+    def test_demi_journee_de_cp_posee_au_calendrier(self, harnais, monkeypatch):
+        monkeypatch.setattr(commands, "get_employee_statut", lambda _eid: "Non-Cadre")
+        commands.create_absences_from_planning(
+            "emp-1",
+            "comp-1",
+            year=2026,
+            month=10,
+            jours_par_type={"conges_payes": [28], "rtt": [29]},
+            demi_journees={28: "matin", 29: "apres_midi"},
+        )
+        cp = next(c for c in harnais["crees"] if c["type"] == "conge_paye")
+        rtt = next(c for c in harnais["crees"] if c["type"] == "rtt")
+        assert cp["demi_journees"] == {"2026-10-28": "matin"}
+        assert cp["jours_payes"] == 0.5
+        assert rtt["demi_journees"] == {"2026-10-29": "apres_midi"}
+        projections = {p["type"]: p for p in harnais["projections"]}
+        assert projections["conge_paye"]["demi_journees"] == {"2026-10-28": "matin"}
+        assert projections["rtt"]["demi_journees"] == {"2026-10-29": "apres_midi"}
+
+    def test_valeur_inconnue_ignoree_jour_plein(self, harnais, monkeypatch):
+        monkeypatch.setattr(commands, "get_employee_statut", lambda _eid: "Non-Cadre")
+        commands.create_absences_from_planning(
+            "emp-1",
+            "comp-1",
+            year=2026,
+            month=10,
+            jours_par_type={"conges_payes": [28]},
+            demi_journees={28: "soir"},
+        )
+        cp = harnais["crees"][0]
+        assert "demi_journees" not in cp
+        assert cp["jours_payes"] == 1.0
+
+    def test_forfait_jours_jour_plein_et_le_dit(self, harnais, monkeypatch):
+        monkeypatch.setattr(
+            commands, "get_employee_statut", lambda _eid: "Cadre forfait jours"
+        )
+        warnings = commands.create_absences_from_planning(
+            "emp-1",
+            "comp-1",
+            year=2026,
+            month=10,
+            jours_par_type={"conges_payes": [28]},
+            demi_journees={28: "matin"},
+        )
+        assert "demi_journees" not in harnais["crees"][0]
+        assert "demi_journee_forfait" in [w["code"] for w in warnings]

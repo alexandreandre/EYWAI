@@ -35,6 +35,7 @@ import { usePaintSelect } from './usePaintSelect';
 import { cn } from '@/lib/utils';
 import { isSignificantEcart } from '@/lib/calendarStats';
 import { phraseAbsentsATyper } from '@/lib/absentATyper';
+import { alerteDeSaisie } from '@/lib/alerteDeSaisie';
 
 const ROW_STATUS_LABELS: Record<string, string> = {
   a_saisir: 'À saisir',
@@ -53,6 +54,9 @@ const ROW_STATUS_VARIANT: Record<
 
 interface CalendarEmployeeTableProps {
   rows: EmployeeCalendarOverviewRow[];
+  /** Mois affiché : dates des jours qui bloquent. */
+  year: number;
+  month: number;
   teamsById: Map<string, Team>;
   isLoading: boolean;
   employeesLoadError?: boolean;
@@ -93,6 +97,8 @@ function formatHours(value: number, isForfait: boolean): string {
 
 export function CalendarEmployeeTable({
   rows,
+  year,
+  month,
   teamsById,
   isLoading,
   employeesLoadError = false,
@@ -285,6 +291,8 @@ export function CalendarEmployeeTable({
               : row.ecart !== 0;
             // Pas d'écart tant que le calendrier est à saisir : le réel manquant n'en est pas un.
             const ecartLabel = ecartAffiche(row) ?? '—';
+            // Les jours qui bloquent, nommés (retour du 10/11).
+            const alerte = alerteDeSaisie(row, year, month);
 
             return (
               <TableRow
@@ -345,6 +353,15 @@ export function CalendarEmployeeTable({
                   <Badge variant={ROW_STATUS_VARIANT[row.rowStatus] ?? 'outline'}>
                     {ROW_STATUS_LABELS[row.rowStatus] ?? row.rowStatus}
                   </Badge>
+                  {alerte && (
+                    <p
+                      className="mt-1 max-w-[16rem] text-[11px] leading-snug text-destructive"
+                      title={alerte.detail}
+                      data-testid="jours-a-saisir"
+                    >
+                      {alerte.jours}
+                    </p>
+                  )}
                   {(row.joursAbsentsATyper?.length ?? 0) > 0 && (
                     <Badge
                       variant="destructive"

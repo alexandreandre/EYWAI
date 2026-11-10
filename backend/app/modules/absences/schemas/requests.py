@@ -203,6 +203,16 @@ class AbsenceDateAccidentUpdate(BaseModel):
     date_accident: Optional[date] = None
 
 
+class AbsenceRequestModification(BaseModel):
+    """Nouveaux jours d'un congé déjà saisi (RH). Le type et le salarié ne
+    changent pas ; la nouvelle demande repasse par les contrôles de création."""
+
+    selected_days: List[date]
+    demi_journees: Optional[Dict[date, Literal["matin", "apres_midi"]]] = None
+    heures_par_jour: Optional[Dict[date, float]] = None
+    comment: str | None = None
+
+
 class AbsenceRequestStatusUpdate(BaseModel):
     """Schéma pour la mise à jour du statut d'une demande."""
 

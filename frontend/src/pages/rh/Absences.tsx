@@ -63,6 +63,17 @@ import { estRoleRh } from '@/lib/rolesRh';
 type AbsenceRequest = absencesApi.AbsenceRequestWithEmployee;
 type AbsenceType = AbsenceRequest['type'];
 
+/** Congés dont les jours se modifient après création (même liste que le serveur). */
+const TYPES_CONGE_MODIFIABLES: ReadonlySet<string> = new Set([
+  'conge_paye',
+  'rtt',
+  'jtc',
+  'sans_solde',
+  'repos_compensateur',
+  'recuperation_modulation',
+  'evenement_familial',
+]);
+
 // --- NOUVEAU : Fonction utilitaire pour regrouper les dates consécutives ---
 const groupConsecutiveDates = (dates: Date[]): { start: Date, end: Date }[] => {
   if (dates.length === 0) return [];
@@ -102,6 +113,8 @@ export default function AbsencesPage() {
   const { user } = useAuth();
   const [showArretModal, setShowArretModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
+  // Congé validé en cours de modification (retour du 10/11).
+  const [absenceAModifier, setAbsenceAModifier] = useState<AbsenceRequest | null>(null);
   const absencesQuery = useAbsencesQueries();
   const pending = absencesQuery.pending as AbsenceRequest[];
   const processed = useMemo(() => {
@@ -433,6 +446,16 @@ export default function AbsencesPage() {
                     <Badge variant="success" className="justify-end">
                       <Check className="mr-1 h-3 w-3" /> Validée
                     </Badge>
+                    {TYPES_CONGE_MODIFIABLES.has(req.type) && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setAbsenceAModifier(req)}
+                        data-testid="modifier-conge"
+                      >
+                        Modifier
+                      </Button>
+                    )}
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button size="sm" variant="ghost" className="text-muted-foreground">
@@ -505,6 +528,16 @@ export default function AbsencesPage() {
         onClose={() => setShowArretModal(false)}
         onSuccess={() => {
           setShowArretModal(false);
+          void fetchData();
+        }}
+      />
+      <AbsenceRequestModal
+        mode="rh_leave"
+        isOpen={absenceAModifier !== null}
+        absenceAModifier={absenceAModifier}
+        onClose={() => setAbsenceAModifier(null)}
+        onSuccess={() => {
+          setAbsenceAModifier(null);
           void fetchData();
         }}
       />

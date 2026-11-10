@@ -33,6 +33,13 @@ class PlannedCalendarEntry(BaseModel):
     jour: int = Field(ge=1, le=31)
     type: str
     heures_prevues: float | None = None
+    # Demi-journée choisie au calendrier pour un jour CP/RTT nouvellement
+    # saisi : elle part avec la demande créée (0,5 jour), jamais écrite telle
+    # quelle au planning (clé serveur, posée par la projection de la demande).
+    # Hors `model_dump()` : lue par `update_planned_calendar` seulement.
+    # Tolérante : un jour relu du serveur la renvoie ; seules « matin » et
+    # « apres_midi » sont retenues, le reste est ignoré.
+    demi_journee: str | None = Field(default=None, exclude=True)
 
 
 class PlannedCalendarRequest(BaseModel):

@@ -15,6 +15,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { EmployeeCalendarOverviewRow, DayPatch } from '@/lib/schedulesOverview';
+import { alerteDeSaisie } from '@/lib/alerteDeSaisie';
+import { libelleApresSortie } from '@/lib/employmentStatus';
 import { PlanningDayEditor } from './PlanningDayEditor';
 import { CursorHint } from './CursorHint';
 import { CalendarPeriodSelect } from './CalendarPeriodSelect';
@@ -348,6 +350,26 @@ export function TeamPlanningView({
                       <ChevronRight className="h-4 w-3.5 shrink-0 text-muted-foreground/50 transition-all duration-150 group-hover/open:text-primary group-hover/open:opacity-100 motion-safe:group-hover/open:translate-x-1" />
                     </button>
                   </CursorHint>
+                  {(() => {
+                    const alerte = alerteDeSaisie(row, year, month);
+                    if (!alerte) return null;
+                    return (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AlertTriangle
+                              className="h-3.5 w-3.5 text-destructive shrink-0 self-center mr-1.5"
+                              aria-label={alerte.detail}
+                              data-testid="alerte-jours-a-saisir"
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p className="text-xs">{alerte.detail}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    );
+                  })()}
                   {row.absenceConflictDays.length > 0 && (
                     <TooltipProvider>
                       <Tooltip>
@@ -373,11 +395,26 @@ export function TeamPlanningView({
                       />
                     );
                   }
+                  // Après la sortie : rien à saisir, la case est grisée et
+                  // fermée (retour du 10/11).
+                  if (row.dernierJourContrat != null && day > row.dernierJourContrat) {
+                    return (
+                      <div
+                        key={`${row.employee.id}-${day}`}
+                        className="border-b border-r last:border-r-0 min-h-[3.25rem] px-2 py-1 bg-muted/50 text-muted-foreground/70 text-[10px] flex items-center"
+                        title={libelleApresSortie(row.dernierJourContrat, month)}
+                        data-testid="case-apres-sortie"
+                      >
+                        Sorti(e) · 0
+                      </div>
+                    );
+                  }
                   const planned = row.planned.find((p) => p.jour === day);
                   const actual = row.actual.find((a) => a.jour === day);
                   const type = planned?.type ?? 'travail';
                   const date = new Date(year, month - 1, day);
                   const isToday = date.toDateString() === todayIso;
+                  const aSaisir = row.joursASaisir?.some((j) => j.jour === day) ?? false;
                   const isOpen =
                     openEditor?.employeeId === row.employee.id &&
                     openEditor?.day === day;
@@ -418,8 +455,11 @@ export function TeamPlanningView({
                             flashDays.includes(day) &&
                               'ring-2 ring-emerald-400/80 bg-emerald-50/80',
                             isOpen && 'ring-2 ring-primary z-10',
+                            aSaisir && !isOpen && 'ring-1 ring-inset ring-destructive/70',
                             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
                           )}
+                          title={aSaisir ? 'Jour à compléter pour la paie' : undefined}
+                          data-a-saisir={aSaisir ? 'true' : undefined}
                           aria-label={`Éditer le ${day} pour ${displayNamePrenomNom(row.employee)}`}
                         >
                           <div
@@ -437,7 +477,7 @@ export function TeamPlanningView({
                                 <span
                                   className={cn(
                                     'text-xs font-medium',
-                                    actual?.heures_faites === 1 ? COULEUR_REEL.texte : COULEUR_PREVU.texte
+                                    Number(actual?.heures_faites ?? 0) > 0 ? COULEUR_REEL.texte : COULEUR_PREVU.texte
                                   )}
                                 >
                                   {forfaitDayDisplay}

@@ -65,3 +65,38 @@ describe('messageReelDepuisPrevu', () => {
     expect(messageReelDepuisPrevu(2, 1, 0)).toBe('Réel = prévu pour 2 salariés : 1 jour complété.');
   });
 });
+
+describe('réel = prévu, retours du 10/11', () => {
+  it('recopie un jour de travail prévu à 0 h comme un jour normal', () => {
+    const r = completerReelDepuisPrevu([prevu(1, 'travail', 0), prevu(2, 'travail', 3)], []);
+    expect(r.actual).toEqual([
+      { jour: 1, type: 'travail', heures_faites: 0 },
+      { jour: 2, type: 'travail', heures_faites: 3 },
+    ]);
+    expect(r.completes).toBe(2);
+  });
+
+  it('ne touche toujours pas au week-end', () => {
+    const r = completerReelDepuisPrevu([prevu(4, 'weekend', 0)], []);
+    expect(r.actual).toEqual([]);
+    expect(r.completes).toBe(0);
+  });
+
+  it('au forfait jours, le réel se pose en jours quelle que soit l’unité du prévu', () => {
+    const r = completerReelDepuisPrevu(
+      [prevu(1, 'travail', 7.8), prevu(2, 'travail', 0), prevu(3, 'travail', 1)],
+      [],
+      { forfaitJours: true },
+    );
+    expect(r.actual.map((a) => a.heures_faites)).toEqual([1, 0, 1]);
+  });
+
+  it('ne remplit rien après le dernier jour du contrat', () => {
+    const r = completerReelDepuisPrevu(
+      [prevu(1, 'travail', 7), prevu(2, 'travail', 7)],
+      [],
+      { dernierJour: 1 },
+    );
+    expect(r.actual.map((a) => a.jour)).toEqual([1]);
+  });
+});

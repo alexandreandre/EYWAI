@@ -440,11 +440,10 @@ def week_config_from_template(day_configs: list[dict[str, Any]] | None) -> dict[
         "saturday",
         "sunday",
     ]
-    default_work = {"type": "travail", "hours": 8.0}
+    # Un jour absent du modèle (case laissée vide) vaut 0 h : jamais 8 h par
+    # défaut (retour du 10/11/2026, modèle à 6 h/semaine posé à 8 h/jour).
     default_weekend = {"type": "weekend", "hours": 0.0}
     week: dict[str, Any] = {k: dict(default_weekend) for k in day_keys}
-    for i, k in enumerate(day_keys[:5]):
-        week[k] = dict(default_work)
     for cfg in day_configs or []:
         day_num = int(cfg.get("day") or 0)
         if 1 <= day_num <= 7:

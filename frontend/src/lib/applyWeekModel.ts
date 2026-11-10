@@ -86,6 +86,8 @@ export function buildActualEntriesFromWeekConfig(
     existing?: ActualHoursData[];
     planned?: PlannedEventData[];
     onlyDays?: number[];
+    /** Dernier jour du contrat (sortie) : rien n'est fait après. */
+    dernierJour?: number | null;
   },
 ): ActualHoursData[] {
   const existingByDay = new Map(
@@ -110,6 +112,11 @@ export function buildActualEntriesFromWeekConfig(
           heures_faites: null,
         },
       );
+      continue;
+    }
+
+    if (options?.dernierJour != null && day > options.dernierJour) {
+      entries.push({ jour: day, type: planned?.type ?? 'repos', heures_faites: null });
       continue;
     }
 
@@ -149,6 +156,8 @@ export function buildPlannedEntriesFromWeekConfig(
   options?: {
     existing?: PlannedEventData[];
     onlyDays?: number[];
+    /** Dernier jour du contrat (sortie) : après, jour à 0 h (retour du 10/11). */
+    dernierJour?: number | null;
   },
 ): PlannedEventData[] {
   const existingByDay = new Map(
@@ -174,6 +183,11 @@ export function buildPlannedEntriesFromWeekConfig(
 
     if (shouldPreserveAbsence(existing)) {
       entries.push(existing);
+      continue;
+    }
+
+    if (options?.dernierJour != null && day > options.dernierJour) {
+      entries.push({ jour: day, type: 'repos', heures_prevues: 0 });
       continue;
     }
 
