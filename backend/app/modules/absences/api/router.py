@@ -181,7 +181,6 @@ def _ensure_absence_in_active_company(request_id: str, company_id: str) -> dict:
 
 def _enrich_single_absence_row(row: dict) -> dict:
     r = {k: v for k, v in row.items() if k != "employee"}
-    queries._enrich_absence_certificate_fields(r)
     queries._enrich_with_signed_urls([r])
     return r
 
@@ -191,7 +190,6 @@ def _enrich_absence_row_keep_employee(row: dict) -> dict:
     emp = r.get("employee")
     if isinstance(emp, list) and emp:
         r["employee"] = emp[0]
-    queries._enrich_absence_certificate_fields(r)
     queries._enrich_with_signed_urls([r])
     return r
 
