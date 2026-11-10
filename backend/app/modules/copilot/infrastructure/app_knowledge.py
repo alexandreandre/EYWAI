@@ -254,7 +254,11 @@ Autres outils de la section paie :
 — Bulletins de paie (« Bulletins de paie ») : consultation des bulletins
   (onglets « Par collaborateur » et « Par mois »), liste de contrôle du mois et
   lien « Manuel de la paie ». L'édition d'un bulletin (« Modifier ») donne accès
-  aux onglets Corriger, Bulletin, Historique, Comparaison N-1, Tendance. Les
+  aux onglets Corriger, Bulletin, Historique, Comparaison N-1, Tendance. Dans
+  « Corriger », la carte « Régularisations d'heures » paie des heures d'un mois
+  précédent (ou reprend des heures payées en trop) : mois d'origine, taux
+  (normal, heures sup, complémentaires), nombre d'heures, motif ; les heures
+  sup y gardent leurs exonérations, ne jamais les passer en prime. Les
   régularisations participation/intéressement peuvent générer un bulletin de
   régularisation consultable avec les autres bulletins.
 
