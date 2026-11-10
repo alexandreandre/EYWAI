@@ -5,7 +5,9 @@ import {
   computeEmployeeRowStatus,
   computeMonthCompletionStatus,
   isDayReadyForPayroll,
+  joursASaisir,
   moisPrecedent,
+  phraseJoursASaisir,
   pointeSurLaPeriode,
 } from './calendarStats';
 
@@ -298,5 +300,49 @@ describe('joursJtcDeLAnnee', () => {
     };
     expect(joursJtcDeLAnnee([jtc], 2026)).toBe(2);
     expect(joursJtcDeLAnnee([{ ...jtc, status: 'pending' }], 2026)).toBe(0);
+  });
+});
+
+describe('retours du 10/11', () => {
+  it('forfait : prévu en heures, réel en jours, aucun écart', () => {
+    const { planned: p, actual: a } = buildFullJuneCalendar(() => ({ prev: 7.8, fait: 1 }));
+    expect(computeEmployeeRowStatus(p, a, YEAR, MONTH, true)).toBe('saisi');
+  });
+
+  it('forfait : réel recopié en heures, aucun écart', () => {
+    const { planned: p, actual: a } = buildFullJuneCalendar(() => ({ prev: 1, fait: 7 }));
+    expect(computeEmployeeRowStatus(p, a, YEAR, MONTH, true)).toBe('saisi');
+  });
+
+  it('les jours après l’arrêté des variables ne bloquent pas le mois', () => {
+    // Réel saisi jusqu'au 24/06 ; la fenêtre des variables s'arrête au 24.
+    const { planned: p, actual: a } = buildFullJuneCalendar((day) => ({
+      prev: 7,
+      fait: day <= 24 ? 7 : null,
+    }));
+    expect(computeEmployeeRowStatus(p, a, YEAR, MONTH, false)).toBe('a_saisir');
+    expect(computeEmployeeRowStatus(p, a, YEAR, MONTH, false, true, { dernierJour: 24 })).toBe(
+      'saisi'
+    );
+  });
+
+  it('dit quels jours bloquent et pourquoi', () => {
+    const { planned: p, actual: a } = buildFullJuneCalendar((day) => ({
+      prev: day === 3 ? null : 7,
+      fait: day === 9 || day === 10 ? null : day === 11 ? 0 : 7,
+    }));
+    expect(joursASaisir(p, a, YEAR, MONTH, false)).toEqual([
+      { jour: 3, motif: 'prevu_sans_heures' },
+      { jour: 9, motif: 'prevu_sans_reel' },
+      { jour: 10, motif: 'prevu_sans_reel' },
+      { jour: 11, motif: 'reel_a_zero' },
+    ]);
+    expect(joursASaisir(p, a, YEAR, MONTH, false, true, { dernierJour: 9 })).toEqual([
+      { jour: 3, motif: 'prevu_sans_heures' },
+      { jour: 9, motif: 'prevu_sans_reel' },
+    ]);
+    expect(phraseJoursASaisir(joursASaisir(p, a, YEAR, MONTH, false), MONTH)).toBe(
+      '03/06 (planning sans heures prévues), 09/06–10/06 (heures réelles non saisies), 11/06 (0 h au réel un jour travaillé)'
+    );
   });
 });

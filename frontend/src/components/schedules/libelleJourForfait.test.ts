@@ -14,3 +14,10 @@ describe('libelleJourForfait', () => {
     expect(libelleJourForfait(null, 0)).toBeNull();
   });
 });
+
+describe('libelleJourForfait, réel en heures (retour du 10/11)', () => {
+  it('un réel posé en heures est un jour travaillé', () => {
+    expect(libelleJourForfait(7.8, 7.8)).toBe('Travaillé');
+    expect(libelleJourForfait(1, 7)).toBe('Travaillé');
+  });
+});

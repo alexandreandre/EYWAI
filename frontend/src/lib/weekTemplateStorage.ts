@@ -82,7 +82,7 @@ export async function saveWeekTemplate(
   const trimmed = name.trim().slice(0, 40);
   if (!trimmed || !companyId) return [];
 
-  const weeklyHours = [1, 2, 3, 4, 5].reduce((sum, day) => {
+  const weeklyHours = [1, 2, 3, 4, 5, 6, 7].reduce((sum, day) => {
     const raw = template[day];
     if (raw === '1') return sum + 1;
     return sum + (parseFloat(String(raw || '0')) || 0);
