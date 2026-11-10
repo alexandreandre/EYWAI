@@ -13,6 +13,7 @@ export type ExpenseType =
   | "Hôtel"
   | "Fournitures"
   | "Indemnités kilométriques"
+  | "Téléphone"
   | "Autre";
 
 export interface Expense {

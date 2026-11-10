@@ -14,8 +14,20 @@ export const DEFAULT_VAT_BY_EXPENSE_TYPE: Record<ExpenseType, number> = {
   Fournitures: 20,
   // IK : barème kilométrique, hors champ de la TVA.
   'Indemnités kilométriques': 0,
+  Téléphone: 20,
   Autre: 20,
 };
+
+/** Catégories proposées au dépôt d'une note, « Autre » en dernier. */
+export const EXPENSE_TYPES: ExpenseType[] = [
+  'Restaurant',
+  'Transport',
+  'Hôtel',
+  'Fournitures',
+  'Indemnités kilométriques',
+  'Téléphone',
+  'Autre',
+];
 
 /** Types hors champ de la TVA (barèmes) — taux verrouillé à 0 %, aligné sur
  * VAT_EXEMPT_EXPENSE_TYPES côté backend. */

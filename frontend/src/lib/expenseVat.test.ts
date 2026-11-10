@@ -89,3 +89,16 @@ describe('formatExpenseVatSummary', () => {
     expect(summary).toContain('100,00');
   });
 });
+
+describe('catégorie Téléphone (10/11/2026)', () => {
+  it('est proposée au dépôt, avant « Autre »', async () => {
+    const { EXPENSE_TYPES } = await import('@/lib/expenseVat');
+    expect(EXPENSE_TYPES).toContain('Téléphone');
+    expect(EXPENSE_TYPES.at(-1)).toBe('Autre');
+  });
+
+  it('porte la TVA à 20 % par défaut', async () => {
+    const { DEFAULT_VAT_BY_EXPENSE_TYPE } = await import('@/lib/expenseVat');
+    expect(DEFAULT_VAT_BY_EXPENSE_TYPE['Téléphone']).toBe(20);
+  });
+});

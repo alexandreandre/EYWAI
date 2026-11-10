@@ -15,7 +15,7 @@ from app.modules.absences.schemas.responses import SimpleEmployee
 # Literals pour cohérence (réponses API)
 ExpenseStatusLiteral = Literal["pending", "validated", "rejected"]
 ExpenseTypeLiteral = Literal[
-    "Restaurant", "Transport", "Hôtel", "Fournitures", "Indemnités kilométriques", "Autre"
+    "Restaurant", "Transport", "Hôtel", "Fournitures", "Indemnités kilométriques", "Téléphone", "Autre"
 ]
 
 

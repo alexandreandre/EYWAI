@@ -15,6 +15,7 @@ import axios from "axios";
 import {
   computeVatBreakdown,
   DEFAULT_VAT_BY_EXPENSE_TYPE,
+  EXPENSE_TYPES,
   formatVatRateLabel,
   parseVatRateInput,
   STANDARD_VAT_RATES,
@@ -45,14 +46,7 @@ interface SelectableEmployee {
   last_name: string;
 }
 
-const expenseTypes: expensesApi.ExpenseType[] = [
-  "Restaurant",
-  "Transport",
-  "Hôtel",
-  "Fournitures",
-  "Indemnités kilométriques",
-  "Autre",
-];
+const expenseTypes = EXPENSE_TYPES;
 
 function presetFromRate(rate: number): VatRatePreset {
   if ((STANDARD_VAT_RATES as readonly number[]).includes(rate)) {

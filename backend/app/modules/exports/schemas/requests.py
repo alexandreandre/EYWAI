@@ -107,7 +107,7 @@ class NotesFraisExportRequest(BaseModel):
     expense_types: Optional[
         List[
             Literal[
-                "Transport", "Restaurant", "Hôtel", "Fournitures", "Indemnités kilométriques", "Autre"
+                "Transport", "Restaurant", "Hôtel", "Fournitures", "Indemnités kilométriques", "Téléphone", "Autre"
             ]
         ]
     ] = None

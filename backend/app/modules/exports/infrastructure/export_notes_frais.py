@@ -22,6 +22,8 @@ EXPENSE_TYPE_ACCOUNTS: Dict[str, str] = {
     "Fournitures": "625800",
     # IK : remboursements de frais de véhicule personnel.
     "Indemnités kilométriques": "625100",
+    # PCG 626 « Frais postaux et de télécommunications ».
+    "Téléphone": "626000",
     "Autre": "625000",
 }
 

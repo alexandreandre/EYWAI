@@ -11,7 +11,7 @@ from typing import Literal
 # Literals pour compatibilité API (même valeurs que legacy)
 ExpenseStatusLiteral = Literal["pending", "validated", "rejected"]
 ExpenseTypeLiteral = Literal[
-    "Restaurant", "Transport", "Hôtel", "Fournitures", "Indemnités kilométriques", "Autre"
+    "Restaurant", "Transport", "Hôtel", "Fournitures", "Indemnités kilométriques", "Téléphone", "Autre"
 ]
 
 
@@ -31,4 +31,5 @@ class ExpenseType(str, Enum):
     HOTEL = "Hôtel"
     FOURNITURES = "Fournitures"
     INDEMNITES_KM = "Indemnités kilométriques"
+    TELEPHONE = "Téléphone"
     AUTRE = "Autre"
