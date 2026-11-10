@@ -5,6 +5,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+## paie-2026-11-10.8
+
 ### Régularisation d'heures d'un autre mois (demande d'Elsa, Lyon)
 - Onglet « Corriger » du bulletin, carte « Régularisations d'heures » : mois d'origine, taux (normal, heures sup, complémentaires), nombre d'heures (négatif pour reprendre), motif ; le taux horaire du mois d'origine se donne s'il a changé.
 - Le bulletin imprime une ligne à part, par exemple « Régularisation heures sup 25 % – 09/2026 », en plus des heures du planning : les heures sup gardent leur réduction salariale et leur exonération d'impôt, la réduction générale compte ces heures.
