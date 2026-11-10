@@ -1216,9 +1216,12 @@ def update_cp_seniority_settings_route(
     if company_id and str(company_id) != str(cid):
         raise HTTPException(status_code=403, detail="Accès non autorisé.")
     payload = body.model_dump(exclude_unset=True)
-    return CpSenioritySettingsResponse(
-        **cp_seniority_commands.update_cp_seniority_settings(str(cid), payload)
-    )
+    try:
+        return CpSenioritySettingsResponse(
+            **cp_seniority_commands.update_cp_seniority_settings(str(cid), payload)
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post(
