@@ -70,6 +70,7 @@ from app.modules.absences.schemas.leave_settings_responses import (
 )
 from app.modules.absences.schemas.requests import (
     AbsenceRequestCreate,
+    AbsenceRequestModification,
     AbsenceDateAccidentUpdate,
     AbsenceRequestStatusUpdate,
     ManagerApprovalRequest,
@@ -482,6 +483,91 @@ def update_absence_date_accident(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return _enrich_single_absence_row(ligne)
+
+
+@router.put("/requests/{request_id}/jours", response_model=AbsenceRequest)
+def modifier_jours_absence(
+    request_id: str,
+    modification: AbsenceRequestModification,
+    current_user: User = Depends(get_current_user),
+):
+    """Modifie les jours d'un congé déjà saisi (RH) : dates et demi-journées.
+
+    L'ancienne demande est annulée (planning restauré) et une nouvelle est
+    créée par le même chemin que « Saisir les congés », donc avec les mêmes
+    contrôles ; si elle est refusée, l'ancienne est rétablie.
+    """
+    from app.modules.absences.application.modification import (
+        refus_modification,
+        remplacer_absence,
+    )
+
+    company_id = _require_rh_company_context(current_user)
+    try:
+        ancienne = _ensure_absence_in_active_company(request_id, company_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    refus = refus_modification(ancienne)
+    if refus:
+        raise HTTPException(status_code=400, detail=refus)
+    if not modification.selected_days:
+        raise HTTPException(status_code=400, detail="Choisissez au moins un jour.")
+    try:
+        nouvelle = AbsenceRequestCreate(
+            employee_id=str(ancienne["employee_id"]),
+            type=ancienne["type"],
+            selected_days=modification.selected_days,
+            demi_journees=modification.demi_journees,
+            heures_par_jour=modification.heures_par_jour,
+            comment=(
+                modification.comment
+                if modification.comment is not None
+                else ancienne.get("comment")
+            ),
+            attachment_url=ancienne.get("attachment_url"),
+            filename=ancienne.get("filename"),
+            event_subtype=ancienne.get("event_subtype"),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    utilisateur = str(current_user.id)
+
+    def retablir() -> None:
+        commands.update_absence_request_status(
+            request_id, "validated", current_user_id=utilisateur
+        )
+        absence_router.update_absence(request_id, {"workflow_step": "approved_rh"})
+
+    try:
+        resultat = remplacer_absence(
+            annuler=lambda: commands.update_absence_request_status(
+                request_id, "cancelled", current_user_id=utilisateur
+            ),
+            creer=lambda: create_absence_request(nouvelle, current_user),
+            retablir=retablir,
+        )
+    except HTTPException:
+        raise
+    except (ValueError, LookupError, RuntimeError) as e:
+        _handle_application_errors(e)
+    try:
+        log_audit_event(
+            company_id=company_id,
+            user_id=utilisateur,
+            user_email=current_user.email,
+            action="absence.modify",
+            resource_type="absence_request",
+            resource_id=str(resultat.get("id") or ""),
+            details={
+                "employee_id": str(ancienne.get("employee_id") or ""),
+                "remplace": str(request_id),
+            },
+            ip_address=None,
+        )
+    except Exception:
+        logger.exception("Journal d'audit de la modification de congé ignoré")
+    return resultat
 
 
 # ----- Liste globale (RH) -----
