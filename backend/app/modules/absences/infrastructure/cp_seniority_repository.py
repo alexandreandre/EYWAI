@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from postgrest.exceptions import APIError
+
 from app.core.database import supabase
 from app.modules.absences.domain.cp_seniority import (
     CpSenioritySettings,
@@ -94,16 +96,40 @@ def upsert_cp_seniority_settings(
             row[key] = payload[key]
 
     existing = get_cp_seniority_settings_row(company_id)
-    if existing:
-        supabase.table("company_cp_seniority_settings").update(row).eq(
-            "company_id", company_id
-        ).execute()
-    else:
-        row["created_at"] = now
-        if "rules" not in row:
-            row["rules"] = PLASTURGIE_0292_RULES
-        supabase.table("company_cp_seniority_settings").insert(row).execute()
+    try:
+        if existing:
+            supabase.table("company_cp_seniority_settings").update(row).eq(
+                "company_id", company_id
+            ).execute()
+        else:
+            row["created_at"] = now
+            if "rules" not in row:
+                row["rules"] = PLASTURGIE_0292_RULES
+            supabase.table("company_cp_seniority_settings").insert(row).execute()
+    except APIError as exc:
+        _refus_de_preset_en_clair(exc, row.get("preset"))
+        raise
     return get_cp_seniority_settings(company_id)
+
+
+_LIBELLES_PRESET = {
+    "plasturgie_idcc_0292": "plasturgie",
+    "metallurgie_idcc_3248": "métallurgie",
+    "lewis_agreement": "accord LEWIS",
+    "custom": "personnalisé",
+}
+
+
+def _refus_de_preset_en_clair(exc: APIError, preset: str | None) -> None:
+    """Un préréglage refusé par la contrainte de la base : message clair (400), pas un 502."""
+    if getattr(exc, "code", None) != "23514" or "preset_check" not in str(exc.message or ""):
+        return
+    libelle = _LIBELLES_PRESET.get(preset or "", preset or "inconnu")
+    raise ValueError(
+        f"Le préréglage « {libelle} » des congés d'ancienneté n'est pas encore accepté "
+        "par la base de données : rien n'a été enregistré. Le réglage précédent reste en place. "
+        "Prévenez l'équipe Martine (mise à jour de la base à faire)."
+    ) from exc
 
 
 def get_cp_seniority_grant(employee_id: str, grant_year: int) -> dict[str, Any] | None:

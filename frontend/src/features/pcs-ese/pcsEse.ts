@@ -52,24 +52,104 @@ export interface LigneTrouvee {
   rubrique: RubriquePcs;
   /** Le métier Insee qui a fait trouver la ligne, quand ce n'est ni le code ni le libellé. */
   metier: string | null;
+  /** Le code des collègues au même poste (proposition de Martine) : la raison, sinon null. */
+  propose?: string | null;
 }
 
-/** Les lignes qui répondent à la recherche : début de code, puis libellé, puis métier Insee. */
-export function filtrerRubriques(rubriques: RubriquePcs[], recherche: string): LigneTrouvee[] {
+/** Un code des collègues au même poste, que Martine propose. */
+export interface CodePropose {
+  code: string;
+  raison: string;
+}
+
+const MOTS_VIDES = new Set(['de', 'du', 'des', 'd', 'la', 'le', 'les', 'l', 'et', 'en', 'a', 'au', 'aux', 'sur', 'pour']);
+
+function mots(texte: string): string[] {
+  return simple(texte)
+    .split(/[^a-z0-9]+/)
+    .filter((m) => m && !MOTS_VIDES.has(m));
+}
+
+/**
+ * Un mot cherché retrouve un mot du texte : début du mot (« soud » → « soudeur »), ou même racine
+ * de cinq lettres (« industriel » → « industrie », « peinture » → « peintre »).
+ */
+function memeMot(cherche: string, mot: string): boolean {
+  if (mot.startsWith(cherche)) return true;
+  return cherche.length >= 5 && mot.length >= 5 && cherche.slice(0, 5) === mot.slice(0, 5);
+}
+
+/** Combien des mots cherchés le texte contient. */
+function motsTrouves(cherches: string[], texte: string): number {
+  const dedans = mots(texte);
+  return cherches.filter((c) => dedans.some((m) => memeMot(c, m))).length;
+}
+
+/**
+ * Les lignes qui répondent à la recherche : début de code, puis libellé, puis métier Insee. Un
+ * intitulé de poste (« peintre industriel ») se cherche mot à mot : d'abord les lignes qui ont
+ * tous les mots, sinon celles qui en ont le plus. Le code des collègues au même poste (proposé
+ * par Martine) passe en tête sans recherche, ou quand on cherche un mot du poste : l'Insee ne
+ * range pas toujours le métier là où la société le déclare (« préparateur peintre » en 674a).
+ */
+export function filtrerRubriques(
+  rubriques: RubriquePcs[],
+  recherche: string,
+  options: { poste?: string; proposes?: CodePropose[] } = {},
+): LigneTrouvee[] {
   const q = simple(recherche);
-  if (!q) return rubriques.map((rubrique) => ({ rubrique, metier: null }));
-  const rangees: Array<{ rang: number; ligne: LigneTrouvee }> = [];
+  const cherches = mots(recherche);
+  const motsDuPoste = mots(options.poste ?? '');
+  const proposes = new Map((options.proposes ?? []).map((p) => [p.code, p.raison]));
+  const enTete =
+    proposes.size > 0 &&
+    (!q || (cherches.length > 0 && cherches.every((c) => motsDuPoste.some((m) => memeMot(c, m)))));
+
+  const rangees: Array<{ rang: number; score: number; ligne: LigneTrouvee }> = [];
   for (const rubrique of rubriques) {
+    if (enTete && proposes.has(rubrique.code)) {
+      rangees.push({ rang: -1, score: 0, ligne: { rubrique, metier: null, propose: proposes.get(rubrique.code) } });
+      continue;
+    }
+    if (!q) {
+      rangees.push({ rang: 0, score: 0, ligne: { rubrique, metier: null, propose: null } });
+      continue;
+    }
     if (rubrique.code.toLowerCase().startsWith(q)) {
-      rangees.push({ rang: 0, ligne: { rubrique, metier: null } });
-    } else if (simple(rubrique.libelle).includes(q)) {
-      rangees.push({ rang: 1, ligne: { rubrique, metier: null } });
-    } else {
-      const metier = rubrique.metiers.find((m) => simple(m).includes(q));
-      if (metier) rangees.push({ rang: 2, ligne: { rubrique, metier } });
+      rangees.push({ rang: 0, score: 0, ligne: { rubrique, metier: null, propose: null } });
+      continue;
+    }
+    const libelle = simple(rubrique.libelle).includes(q) ? cherches.length || 1 : motsTrouves(cherches, rubrique.libelle);
+    let metier: string | null = null;
+    let parMetier = 0;
+    for (const m of rubrique.metiers) {
+      const n = simple(m).includes(q) ? cherches.length || 1 : motsTrouves(cherches, m);
+      if (n > parMetier) {
+        parMetier = n;
+        metier = m;
+      }
+    }
+    const tous = Math.max(cherches.length, 1);
+    if (libelle >= tous) {
+      rangees.push({ rang: 1, score: libelle, ligne: { rubrique, metier: null, propose: null } });
+    } else if (parMetier >= tous) {
+      rangees.push({ rang: 2, score: parMetier, ligne: { rubrique, metier, propose: null } });
+    } else if (Math.max(libelle, parMetier) > 0) {
+      const parLibelle = libelle >= parMetier;
+      rangees.push({
+        rang: 3,
+        score: Math.max(libelle, parMetier),
+        ligne: { rubrique, metier: parLibelle ? null : metier, propose: null },
+      });
     }
   }
-  return rangees.sort((a, b) => a.rang - b.rang).map((r) => r.ligne);
+  const complets = rangees.filter((r) => r.rang < 3);
+  // Une ligne qui n'a qu'une partie des mots ne sert que si aucune ne les a tous.
+  const gardees = complets.some((r) => r.rang >= 0 || !q) ? complets : rangees;
+  return gardees
+    .map((r, i) => ({ ...r, i }))
+    .sort((a, b) => a.rang - b.rang || b.score - a.score || a.i - b.i)
+    .map((r) => r.ligne);
 }
 
 /** Martine pré-remplit seulement un code vide ou « 9999 », et seulement quand elle est sûre. */

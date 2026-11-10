@@ -39,6 +39,42 @@ describe('filtrerRubriques', () => {
   });
 });
 
+describe('filtrerRubriques : intitulés de poste (B11, 10/11)', () => {
+  const PEINTRES: RubriquePcs[] = [
+    ...RUBRIQUES,
+    {
+      code: '624f',
+      libelle: 'Ouvriers qualifiés des traitements thermiques et de surface sur métaux',
+      metiers: ['Peintre carrossier (industrie), ouvrier qualifié', 'Peintre (industrie), ouvrier qualifié'],
+      ecap: false,
+      public: false,
+    },
+    { code: '681b', libelle: 'Ouvriers non qualifiés du second oeuvre du bâtiment', metiers: ['Peintre (btp), ouvrier non qualifié'], ecap: false, public: false },
+  ];
+  it('« peintre industriel » trouve « Peintre (industrie) » : chaque mot, même racine', () => {
+    const r = filtrerRubriques(PEINTRES, 'peintre industriel');
+    expect(r.map((x) => x.rubrique.code)).toEqual(['624f']);
+    expect(r[0].metier).toBe('Peintre carrossier (industrie), ouvrier qualifié');
+  });
+  it('« préparateur peintre » sans métier qui ait les deux mots : les lignes au plus de mots', () => {
+    expect(filtrerRubriques(PEINTRES, 'préparateur peintre').map((x) => x.rubrique.code)).toEqual(['624f', '681b']);
+  });
+  it('le code des collègues au même poste passe en tête quand on cherche un mot du poste', () => {
+    const r = filtrerRubriques(PEINTRES, 'peintre', {
+      poste: 'Préparateur peintre',
+      proposes: [{ code: '674a', raison: '4 collègues sur 6 de Colorplast, au même poste, en 674a.' }],
+    });
+    expect(r.map((x) => x.rubrique.code)).toEqual(['674a', '624f', '681b']);
+    expect(r[0].propose).toBe('4 collègues sur 6 de Colorplast, au même poste, en 674a.');
+  });
+  it('et aussi sans recherche ; pas pour un mot étranger au poste', () => {
+    const options = { poste: 'Préparateur peintre', proposes: [{ code: '674a', raison: 'collègues' }] };
+    expect(filtrerRubriques(PEINTRES, '', options)[0].rubrique.code).toBe('674a');
+    expect(filtrerRubriques(PEINTRES, 'soudeur', options).map((x) => x.rubrique.code)).toEqual(['623e', '674a']);
+    expect(filtrerRubriques(PEINTRES, 'soudeur', options)[1].propose).toBeNull();
+  });
+});
+
 describe('doitPreRemplir', () => {
   it('seulement un code vide ou 9999, et seulement si Martine est sûre', () => {
     expect(doitPreRemplir('', sure())).toBe(true);
