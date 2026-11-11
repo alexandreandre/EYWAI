@@ -59,7 +59,12 @@ import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 
 import BulletinACorriger from '@/components/payslip-edit/bulletin-a-corriger/BulletinACorriger';
 import BarreDeCorrection from '@/components/payslip-edit/bulletin-a-corriger/BarreDeCorrection';
-import { nombreDeChangements, versionAAnnuler } from '@/features/payroll/utils/bulletinACorriger';
+import {
+  lierLeReport,
+  nombreDeChangements,
+  type ReportsDeCorrections,
+  versionAAnnuler,
+} from '@/features/payroll/utils/bulletinACorriger';
 import LignesDuBulletinCard from '@/components/payslip-edit/LignesDuBulletinCard';
 import {
   choixApresCorrection,
@@ -159,6 +164,13 @@ export default function PayslipEdit() {
   const [payslip, setPayslip] = useState<PayslipDetail | null>(null);
   const [initial, setInitial] = useState<EtatCorrections | null>(null);
   const [etat, setEtat] = useState<EtatCorrections | null>(null);
+  // Les reports posés (ligne → correction non placée qu'elle remplace) : avec
+  // l'état, pas dans l'onglet, démonté à chaque changement d'onglet.
+  const [reports, setReports] = useState<ReportsDeCorrections>({});
+  const lienDeReport = useCallback(
+    (code: string, id: string | null) => setReports((avant) => lierLeReport(avant, code, id)),
+    []
+  );
   const [isLoading, setIsLoading] = useState(true);
   const { data: salarieBulletin } = useEmployeeQuery(payslip?.employee_id);
   const [isSaving, setIsSaving] = useState(false);
@@ -195,6 +207,7 @@ export default function PayslipEdit() {
     setPayslip(data);
     setInitial(depart);
     setEtat(depart);
+    setReports({});
   }, []);
 
   /** 404 : supprimé, ou supprimé puis généré à nouveau (autre identifiant). */
@@ -739,6 +752,8 @@ export default function PayslipEdit() {
               tempsPartiel={estTempsPartiel(salarieBulletin)}
               demande={demande}
               onDemandeTraitee={demandeTraitee}
+              reports={reports}
+              onLienDeReport={lienDeReport}
               onLignesSansMotif={setLignesSansMotif}
               raisonDuVerrou={payslip.manual_edit_lock_reason}
               saisiesApresCalcul={saisiesApresLeCalcul(saisiesDuMois, payslip.generated_at, etat)}
@@ -910,6 +925,7 @@ export default function PayslipEdit() {
           onAppliquer={demanderEnregistrement}
           onToutAnnuler={() => {
             setEtat(initial);
+            setReports({});
             setRemontage((n) => n + 1);
           }}
           onAnnulerLApplication={() => void annulerLApplication()}

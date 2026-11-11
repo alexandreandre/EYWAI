@@ -26,6 +26,7 @@ import {
   nombreDeChangements,
   origineDeLaLigne,
   primeDeLaLigne,
+  type ReportsDeCorrections,
   type StatutDeLigne,
   suiviDesLignes,
 } from '@/features/payroll/utils/bulletinACorriger';
@@ -58,6 +59,9 @@ interface Props {
   onDemandeTraitee?: () => void;
   /** Le nombre de lignes ouvertes avec une valeur tapée et sans motif (dit dans la barre du bas). */
   onLignesSansMotif?: (nombre: number) => void;
+  /** Les reports posés (ligne → correction remplacée), gardés par la page avec l'état. */
+  reports?: ReportsDeCorrections;
+  onLienDeReport?: (code: string, id: string | null) => void;
   /** Pourquoi le bulletin ne se corrige pas, quand il est verrouillé. */
   raisonDuVerrou?: string | null;
   saisiesApresCalcul?: SaisieApresCalcul[];
@@ -132,6 +136,8 @@ export default function BulletinACorriger(props: Props) {
         onEdition={surEdition}
         report={report}
         onReportPris={() => setReport(null)}
+        reports={props.reports}
+        onLienDeReport={props.onLienDeReport}
       />
     );
   };

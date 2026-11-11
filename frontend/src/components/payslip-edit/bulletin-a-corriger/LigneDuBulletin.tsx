@@ -29,6 +29,7 @@ import {
   estRetiree,
   libelleDuChamp,
   MOTIFS_PROPOSES,
+  type ReportsDeCorrections,
   remettre,
   retirer,
   retraitDeLaLigne,
@@ -60,6 +61,9 @@ interface Props {
   onEdition: (code: string, statut: StatutDeLigne | null) => void;
   report?: ReportDeCorrection | null;
   onReportPris?: () => void;
+  /** Les reports posés (ligne → correction remplacée), gardés par la page : ils survivent au démontage de l'onglet. */
+  reports?: ReportsDeCorrections;
+  onLienDeReport?: (code: string, id: string | null) => void;
 }
 
 function montantAffiche(ligne: LigneCorrigeable): string {
@@ -76,6 +80,7 @@ function montantAffiche(ligne: LigneCorrigeable): string {
 
 export default function LigneDuBulletin(props: Props) {
   const { ligne, etat, onChange, disabled, lienSource, demande, onEdition, report } = props;
+  const reports = props.reports ?? {};
   const code = String(ligne.code ?? '');
   const enAttente = correctionEnAttente(etat, code);
   const retiree = estRetiree(etat, ligne);
@@ -88,6 +93,8 @@ export default function LigneDuBulletin(props: Props) {
   const [motifRetrait, setMotifRetrait] = useState<string | null>(null);
   // La correction en attente (non placée) que cette ligne remplace, prise au crayon.
   const [reportDe, setReportDe] = useState<ReportDeCorrection | null>(null);
+  // La correction déjà posée était retirée par la RH avant le crayon : ✕ la laisse retirée.
+  const [garderRetiree, setGarderRetiree] = useState(false);
   const racine = useRef<HTMLDivElement>(null);
   const champDe = (k: ChampCorrigeable | '') => (k && [propose, ...autresChamps(ligne)].find((c) => c?.cle === k)) || propose;
   const champ = champDe(cle);
@@ -101,6 +108,8 @@ export default function LigneDuBulletin(props: Props) {
     // Un report en cours : le motif de la correction reportée est repris.
     const repris = !enAttente && report ? report : null;
     setReportDe(repris);
+    const posee = ligne.correction?.saisie_id ? String(ligne.correction.saisie_id) : null;
+    setGarderRetiree(Boolean(posee && !enAttente && etat.correctionsRetirees.includes(posee)));
     setMotif(enAttente?.motif ?? repris?.motif ?? '');
   };
   const fermer = () => {
@@ -109,6 +118,7 @@ export default function LigneDuBulletin(props: Props) {
     setMotif('');
     setCle('');
     setReportDe(null);
+    setGarderRetiree(false);
   };
 
   useEffect(() => {
@@ -129,11 +139,15 @@ export default function LigneDuBulletin(props: Props) {
     setMotif(nouveauMotif);
     const cible = champDe(nouvelleCle);
     const nombre = lireNombre(nouveauTexte);
-    const options = { reporteDe: reportDe?.id ?? null };
+    // Le report de la ligne : celui pris au crayon, sinon le lien gardé par la page.
+    const reporteDe = reportDe?.id ?? reports[code] ?? null;
+    const options = { reporteDe, reports, garderLaCorrectionPoseeRetiree: garderRetiree };
     if (cible && nombre !== null && aideDeLaCorrection(nouveauTexte, nouveauMotif) === null) {
       onChange(corrigerLaLigne(etat, ligne, cible.cle, nombre, nouveauMotif, options));
+      if (reporteDe) props.onLienDeReport?.(code, reporteDe);
       if (reportDe && report?.id === reportDe.id) props.onReportPris?.();
     } else {
+      // Le lien reste : retaper une valeur reprend le report ; ✕ le défait.
       onChange(annulerLaCorrection(etat, ligne, options));
     }
   };
@@ -211,6 +225,10 @@ export default function LigneDuBulletin(props: Props) {
             {reportDe ? (
               <p className="text-xs text-muted-foreground" data-testid={`report-sur-${code}`}>
                 Report de la correction « {reportDe.libelle} » : elle sera remplacée par celle-ci.
+              </p>
+            ) : reports[code] ? (
+              <p className="text-xs text-muted-foreground" data-testid={`report-sur-${code}`}>
+                Cette correction remplace une correction en attente qui ne trouvait plus sa ligne.
               </p>
             ) : null}
             <div className="flex flex-wrap items-center gap-2">
@@ -310,7 +328,17 @@ export default function LigneDuBulletin(props: Props) {
           ) : null}
         </span>
         {disabled ? null : retiree ? (
-          <Button variant="outline" size="sm" data-testid={`remettre-${code}`} onClick={() => onChange(remettre(etat, ligne))}>
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid={`remettre-${code}`}
+            onClick={() => {
+              onChange(remettre(etat, ligne, { reports }));
+              props.onLienDeReport?.(code, null);
+              // Une valeur 0 tapée au crayon : l'éditeur se ferme avec la correction.
+              if (ouverte) fermer();
+            }}
+          >
             <Undo2 className="mr-1 h-4 w-4" /> Remettre
           </Button>
         ) : ouverte ? (
@@ -319,7 +347,14 @@ export default function LigneDuBulletin(props: Props) {
             size="sm"
             aria-label="Annuler cette correction"
             onClick={() => {
-              onChange(annulerLaCorrection(etat, ligne, { reporteDe: reportDe?.id ?? null }));
+              onChange(
+                annulerLaCorrection(etat, ligne, {
+                  reporteDe: reportDe?.id ?? reports[code] ?? null,
+                  reports,
+                  garderLaCorrectionPoseeRetiree: garderRetiree,
+                })
+              );
+              props.onLienDeReport?.(code, null);
               fermer();
             }}
           >

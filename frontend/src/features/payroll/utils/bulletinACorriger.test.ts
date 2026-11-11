@@ -13,6 +13,7 @@ import {
   estSurLeNet,
   etapeEnCours,
   familleDuCode,
+  lierLeReport,
   libelleDuChamp,
   MOTIFS_PROPOSES,
   nombreDeChangements,
@@ -206,6 +207,45 @@ describe('corriger une ligne', () => {
     const a = corrigerLaLigne(etat(), maintien, 'montant', 10, 'Rappel', { reporteDe: 'att-1' });
     expect(a.correctionsRetirees).toEqual(['att-1']);
     expect(annulerLaCorrection(a, maintien, { reporteDe: 'att-1' }).correctionsRetirees).toEqual([]);
+  });
+  it('le lien du report vit hors de la ligne : annuler après un remontage libère la correction reportée', () => {
+    // La ligne a perdu son état local : seul le lien gardé par la page dit le report.
+    const reports = lierLeReport({}, maintien.code!, 'att-1');
+    const a = corrigerLaLigne(etat(), maintien, 'montant', 10, 'Rappel', { reporteDe: 'att-1', reports });
+    expect(a.correctionsRetirees).toEqual(['att-1']);
+    expect(annulerLaCorrection(a, maintien, { reports }).correctionsRetirees).toEqual([]);
+    expect(lierLeReport(reports, maintien.code!, null)).toEqual({});
+  });
+  it('remettre une ligne retirée à zéro libère la correction reportée', () => {
+    const reports = lierLeReport({}, maintien.code!, 'att-1');
+    const a = corrigerLaLigne(etat(), maintien, 'montant', 0, 'Ligne non due ce mois-ci', { reporteDe: 'att-1', reports });
+    expect(estRetiree(a, maintien)).toBe(true);
+    expect(remettre(a, maintien, { reports }).correctionsRetirees).toEqual([]);
+  });
+  it('garde la correction reportée retirée tant qu’une autre ligne la reporte encore', () => {
+    let reports = lierLeReport({}, maintien.code!, 'att-1');
+    let courant = corrigerLaLigne(etat(), maintien, 'montant', 10, 'Rappel', { reporteDe: 'att-1', reports });
+    reports = lierLeReport(reports, salaire.code!, 'att-1');
+    courant = corrigerLaLigne(courant, salaire, 'base', 140, 'Rappel', { reporteDe: 'att-1', reports });
+    const sansMaintien = annulerLaCorrection(courant, maintien, { reports });
+    expect(sansMaintien.correctionsRetirees).toEqual(['att-1']);
+    const sansRien = annulerLaCorrection(sansMaintien, salaire, { reports: lierLeReport(reports, maintien.code!, null) });
+    expect(sansRien.correctionsRetirees).toEqual([]);
+  });
+  it('un lien de report sans correction en attente ne retient pas la correction reportée', () => {
+    let reports = lierLeReport({}, maintien.code!, 'att-1');
+    reports = lierLeReport(reports, salaire.code!, 'att-1');
+    // Seule la ligne du maintien a une correction : le lien du salaire est périmé.
+    const a = corrigerLaLigne(etat(), maintien, 'montant', 10, 'Rappel', { reporteDe: 'att-1', reports });
+    expect(annulerLaCorrection(a, maintien, { reports }).correctionsRetirees).toEqual([]);
+  });
+  it('garde retirée la correction posée que la RH avait déjà retirée avant le crayon', () => {
+    const corrigee: LigneCorrigeable = { ...maintien, correction: { ligne: maintien.code!, libelle: maintien.libelle, motif: 'Avant', montant: 300, saisie_id: 'corr-1' } };
+    const depart = { ...etat(), correctionsRetirees: ['corr-1'] };
+    const a = corrigerLaLigne(depart, corrigee, 'montant', 320, 'Correction d’une erreur de calcul', { garderLaCorrectionPoseeRetiree: true });
+    const annulee = annulerLaCorrection(a, corrigee, { garderLaCorrectionPoseeRetiree: true });
+    expect(annulee.correctionsAjoutees).toEqual([]);
+    expect(annulee.correctionsRetirees).toEqual(['corr-1']);
   });
   it('relit la valeur d’une correction en attente, taux en pourcentage', () => {
     const a = corrigerLaLigne(etat(), vieillesse, 'taux_salarial', 7.1, 'Correction d’une erreur de calcul');

@@ -159,14 +159,39 @@ function correctionPosee(ligne: Pick<LigneCorrigeable, 'correction'>): string | 
   return id ? String(id) : null;
 }
 
+/**
+ * Les reports en cours : la ligne (son code) et la correction non placée
+ * qu'elle remplace. Gardés par la page, à côté de l'état : l'onglet
+ * « Corriger » est démonté à chaque changement d'onglet, un état local s'y perdait.
+ */
+export type ReportsDeCorrections = Readonly<Record<string, string>>;
+
+/** Lie (ou délie, avec null) la correction reportée à la ligne. */
+export function lierLeReport(reports: ReportsDeCorrections, code: string, id: string | null): ReportsDeCorrections {
+  if (id) return reports[code] === id ? reports : { ...reports, [code]: id };
+  if (!(code in reports)) return reports;
+  const { [code]: _retire, ...reste } = reports;
+  return reste;
+}
+
 export interface OptionsDeCorrection {
   /** La correction en attente (non placée) que cette correction remplace : « Reporter sur une autre ligne ». */
   reporteDe?: string | null;
+  /** Tous les reports en cours : celui de la ligne, et ceux des autres lignes qui retiennent encore la même correction. */
+  reports?: ReportsDeCorrections;
+  /** La RH avait retiré la correction posée avant d'ouvrir le crayon : l'annulation la laisse retirée. */
+  garderLaCorrectionPoseeRetiree?: boolean;
+}
+
+/** Une autre ligne, avec sa correction en attente, reporte encore cette correction. */
+function encoreReportee(etat: EtatCorrections, code: string, id: string, reports: ReportsDeCorrections | undefined): boolean {
+  return Object.entries(reports ?? {}).some(([autre, reporte]) => autre !== code && reporte === id && Boolean(correctionEnAttente(etat, autre)));
 }
 
 /**
  * Annule la correction en attente de la ligne, avec ce qu'elle remplaçait :
- * la correction déjà posée sur la ligne et la correction reportée reviennent.
+ * la correction déjà posée sur la ligne et la correction reportée reviennent
+ * (sauf si une autre ligne la reporte encore).
  */
 export function annulerLaCorrection(
   etat: EtatCorrections,
@@ -177,8 +202,9 @@ export function annulerLaCorrection(
   if (!code || !correctionEnAttente(etat, code)) return etat;
   let retirees = etat.correctionsRetirees;
   const posee = correctionPosee(ligne);
-  if (posee) retirees = enlever(retirees, posee);
-  if (options.reporteDe) retirees = enlever(retirees, options.reporteDe);
+  if (posee && !options.garderLaCorrectionPoseeRetiree) retirees = enlever(retirees, posee);
+  const reporte = options.reporteDe ?? options.reports?.[code] ?? null;
+  if (reporte && !encoreReportee(etat, code, reporte, options.reports)) retirees = enlever(retirees, reporte);
   return {
     ...etat,
     correctionsAjoutees: etat.correctionsAjoutees.filter((c) => c.ligne !== code),
@@ -199,7 +225,8 @@ export function corrigerLaLigne(
   motif: string,
   options: OptionsDeCorrection = {}
 ): EtatCorrections {
-  const sans = annulerLaCorrection(etat, ligne, options);
+  // Le lien d'avant de la ligne (un autre report) est libéré ; celui-ci est posé ensuite.
+  const sans = annulerLaCorrection(etat, ligne, { ...options, reporteDe: options.reports?.[String(ligne.code)] ?? null });
   let retirees = sans.correctionsRetirees;
   const posee = correctionPosee(ligne);
   if (posee) retirees = ajouter(retirees, posee);
@@ -255,7 +282,11 @@ export function retirer(etat: EtatCorrections, ligne: LigneCorrigeable, motif: s
   }
 }
 
-export function remettre(etat: EtatCorrections, ligne: LigneCorrigeable): EtatCorrections {
+export function remettre(
+  etat: EtatCorrections,
+  ligne: LigneCorrigeable,
+  options: Pick<OptionsDeCorrection, 'reports'> = {}
+): EtatCorrections {
   const retrait = retraitDeLaLigne(ligne, etat);
   if (!retrait) return etat;
   switch (retrait.type) {
@@ -266,7 +297,7 @@ export function remettre(etat: EtatCorrections, ligne: LigneCorrigeable): EtatCo
     case 'regularisation_cotisation':
       return { ...etat, regularisationsRetirees: enlever(etat.regularisationsRetirees, retrait.saisieId) };
     default:
-      return annulerLaCorrection(etat, ligne);
+      return annulerLaCorrection(etat, ligne, options);
   }
 }
 
