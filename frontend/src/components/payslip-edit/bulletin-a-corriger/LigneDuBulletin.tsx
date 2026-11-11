@@ -122,7 +122,7 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
   };
 
   const nombre = lireNombre(texte);
-  const apercu = ouverte && enAttente && champ && nombre !== null ? apercuDuMontant(ligne, champ.cle, nombre) : null;
+  const apercu = ouverte && champ && nombre !== null ? apercuDuMontant(ligne, champ.cle, nombre) : null;
   const aide = ouverte ? aideDeLaCorrection(texte, motif) : null;
   const dejaCorrigee = Boolean(ligne.correction?.saisie_id);
   const correctionRetiree = dejaCorrigee && etat.correctionsRetirees.includes(String(ligne.correction?.saisie_id));
@@ -251,8 +251,8 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
           <Button variant="outline" size="sm" data-testid={`remettre-${code}`} onClick={() => onChange(remettre(etat, ligne))}>
             <Undo2 className="mr-1 h-4 w-4" /> Remettre
           </Button>
-        ) : ouverte || motifRetrait !== null ? (
-          ouverte ? <Button
+        ) : ouverte ? (
+          <Button
             variant="ghost"
             size="sm"
             aria-label="Annuler cette correction"
@@ -262,8 +262,8 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
             }}
           >
             <X className="h-4 w-4" />
-          </Button> : null
-        ) : (
+          </Button>
+        ) : motifRetrait !== null ? null : (
           <>
             {propose ? (
               <Button variant="outline" size="sm" data-testid={`corriger-${code}`} aria-label={`Corriger ${ligne.libelle}`} onClick={ouvrir}>

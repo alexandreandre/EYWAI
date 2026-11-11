@@ -103,7 +103,13 @@ export default function LigneDePrime({ prime, etat, onChange, disabled }: Props)
               className="text-red-700"
               data-testid={`retirer-prime-${id}`}
               aria-label={`Retirer ${prime.libelle}`}
-              onClick={() => onChange({ ...etat, primesRetirees: etat.primesRetirees.includes(id) ? etat.primesRetirees : [...etat.primesRetirees, id] })}
+              onClick={() => {
+                setOuverte(false);
+                onChange({
+                  ...etat,
+                  primesRetirees: etat.primesRetirees.includes(id) ? etat.primesRetirees : [...etat.primesRetirees, id],
+                });
+              }}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
