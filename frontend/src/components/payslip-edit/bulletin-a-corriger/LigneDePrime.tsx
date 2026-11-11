@@ -33,6 +33,8 @@ export default function LigneDePrime({ prime, etat, onChange, disabled }: Props)
   const initiale = prime.surLeNet === 'retenue' ? Math.abs(prime.montant) : prime.montant;
   const [ouverte, setOuverte] = useState(false);
   const [texte, setTexte] = useState(String(initiale).replace('.', ','));
+  const [invalide, setInvalide] = useState(false);
+  const affiche = prime.surLeNet === 'retenue' ? Math.abs(prime.montant) : prime.montant;
 
   return (
     <div
@@ -47,7 +49,7 @@ export default function LigneDePrime({ prime, etat, onChange, disabled }: Props)
         <span className="ml-2 text-xs text-muted-foreground">{pastille(prime)}</span>
         {retiree ? <span className="ml-2 rounded bg-red-100 px-1.5 text-xs font-semibold text-red-700">Retirée</span> : null}
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         {ouverte && !retiree ? (
           <>
             <Input
@@ -59,15 +61,20 @@ export default function LigneDePrime({ prime, etat, onChange, disabled }: Props)
               onChange={(e) => {
                 setTexte(e.target.value);
                 const lu = lireNombre(e.target.value);
+                setInvalide(lu === null);
                 if (lu === null) return;
                 const montant = montantCorrigeDeLaPrime(prime, lu);
                 onChange({ ...etat, primes: etat.primes.map((p) => (p.saisieId === id ? { ...p, montant } : p)) });
               }}
             />
             <span>€</span>
+            <Button variant="outline" size="sm" onClick={() => setOuverte(false)}>
+              OK
+            </Button>
+            {invalide ? <p className="basis-full text-xs text-destructive">Tapez un montant, par exemple 150,50.</p> : null}
           </>
         ) : (
-          <span className={cn('tabular-nums', retiree && 'text-muted-foreground line-through')}>{eurosFr(prime.montant)}</span>
+          <span className={cn('tabular-nums', retiree && 'text-muted-foreground line-through')}>{eurosFr(affiche)}</span>
         )}
         {disabled ? null : retiree ? (
           <Button
@@ -81,7 +88,12 @@ export default function LigneDePrime({ prime, etat, onChange, disabled }: Props)
         ) : (
           <>
             {!ouverte ? (
-              <Button variant="outline" size="sm" aria-label={`Corriger ${prime.libelle}`} onClick={() => setOuverte(true)}>
+              <Button variant="outline" size="sm" aria-label={`Corriger ${prime.libelle}`} onClick={() => {
+                  setTexte(String(initiale).replace('.', ','));
+                  setInvalide(false);
+                  setOuverte(true);
+                }}
+              >
                 <PencilLine className="h-4 w-4" />
               </Button>
             ) : null}
@@ -91,7 +103,7 @@ export default function LigneDePrime({ prime, etat, onChange, disabled }: Props)
               className="text-red-700"
               data-testid={`retirer-prime-${id}`}
               aria-label={`Retirer ${prime.libelle}`}
-              onClick={() => onChange({ ...etat, primesRetirees: [...etat.primesRetirees, id] })}
+              onClick={() => onChange({ ...etat, primesRetirees: etat.primesRetirees.includes(id) ? etat.primesRetirees : [...etat.primesRetirees, id] })}
             >
               <Trash2 className="h-4 w-4" />
             </Button>

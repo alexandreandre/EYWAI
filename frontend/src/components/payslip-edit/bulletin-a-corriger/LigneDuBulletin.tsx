@@ -70,7 +70,8 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
   const [motif, setMotif] = useState('');
   const [motifRetrait, setMotifRetrait] = useState<string | null>(null);
   const racine = useRef<HTMLDivElement>(null);
-  const champ = (cle && [propose, ...autresChamps(ligne)].find((c) => c?.cle === cle)) || propose;
+  const champDe = (k: ChampCorrigeable | '') => (k && [propose, ...autresChamps(ligne)].find((c) => c?.cle === k)) || propose;
+  const champ = champDe(cle);
 
   const ouvrir = () => {
     // Une correction déjà en attente : on rouvre sur son champ, avec sa valeur.
@@ -86,6 +87,9 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
   };
   const fermer = () => {
     setOuverte(false);
+    setTexte('');
+    setMotif('');
+    setCle('');
     onEdition(code, false);
   };
 
@@ -102,7 +106,7 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
   const ecrire = (nouveauTexte: string, nouveauMotif: string, nouvelleCle: ChampCorrigeable | '' = cle) => {
     setTexte(nouveauTexte);
     setMotif(nouveauMotif);
-    const cible = (nouvelleCle && [propose, ...autresChamps(ligne)].find((c) => c?.cle === nouvelleCle)) || propose;
+    const cible = champDe(nouvelleCle);
     const nombre = lireNombre(nouveauTexte);
     if (cible && nombre !== null && aideDeLaCorrection(nouveauTexte, nouveauMotif) === null) {
       onChange(corrigerLaLigne(etat, ligne, cible.cle, nombre, nouveauMotif));
@@ -118,7 +122,7 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
   };
 
   const nombre = lireNombre(texte);
-  const apercu = champ && nombre !== null ? apercuDuMontant(ligne, champ.cle, nombre) : null;
+  const apercu = ouverte && enAttente && champ && nombre !== null ? apercuDuMontant(ligne, champ.cle, nombre) : null;
   const aide = ouverte ? aideDeLaCorrection(texte, motif) : null;
   const dejaCorrigee = Boolean(ligne.correction?.saisie_id);
   const correctionRetiree = dejaCorrigee && etat.correctionsRetirees.includes(String(ligne.correction?.saisie_id));
@@ -247,8 +251,8 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
           <Button variant="outline" size="sm" data-testid={`remettre-${code}`} onClick={() => onChange(remettre(etat, ligne))}>
             <Undo2 className="mr-1 h-4 w-4" /> Remettre
           </Button>
-        ) : ouverte ? (
-          <Button
+        ) : ouverte || motifRetrait !== null ? (
+          ouverte ? <Button
             variant="ghost"
             size="sm"
             aria-label="Annuler cette correction"
@@ -258,7 +262,7 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
             }}
           >
             <X className="h-4 w-4" />
-          </Button>
+          </Button> : null
         ) : (
           <>
             {propose ? (
