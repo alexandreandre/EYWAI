@@ -21,6 +21,7 @@ export default function MotifEnPuces({ valeur, onValeur, disabled, testId }: Pro
           <button
             key={motif}
             type="button"
+            aria-pressed={!autre && valeur === motif}
             disabled={disabled}
             onClick={() => {
               setAutre(false);
@@ -36,6 +37,7 @@ export default function MotifEnPuces({ valeur, onValeur, disabled, testId }: Pro
         ))}
         <button
           type="button"
+          aria-pressed={autre}
           disabled={disabled}
           onClick={() => {
             setAutre(true);
@@ -54,6 +56,7 @@ export default function MotifEnPuces({ valeur, onValeur, disabled, testId }: Pro
           autoFocus
           maxLength={300}
           placeholder="Écrivez le motif"
+          aria-label="Motif imprimé sur le bulletin"
           value={valeur}
           disabled={disabled}
           onChange={(e) => onValeur(e.target.value)}

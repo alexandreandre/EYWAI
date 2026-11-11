@@ -47,7 +47,11 @@ export default function LigneDePrime({ prime, etat, onChange, disabled }: Props)
       <div className="min-w-0 flex-1">
         <span className={cn('font-medium', retiree && 'text-muted-foreground line-through')}>{prime.libelle}</span>
         <span className="ml-2 text-xs text-muted-foreground">{pastille(prime)}</span>
-        {retiree ? <span className="ml-2 rounded bg-red-100 px-1.5 text-xs font-semibold text-red-700">Retirée</span> : null}
+        {retiree ? (
+          <span className="ml-2 rounded bg-red-100 px-1.5 text-xs font-semibold text-red-700 dark:bg-red-950/60 dark:text-red-300">
+            Retirée
+          </span>
+        ) : null}
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         {ouverte && !retiree ? (
@@ -55,6 +59,7 @@ export default function LigneDePrime({ prime, etat, onChange, disabled }: Props)
             <Input
               autoFocus
               data-testid={`montant-prime-${id}`}
+              aria-label={`Montant de ${prime.libelle}`}
               inputMode="decimal"
               className="w-28 border-2 border-blue-500 text-right font-semibold"
               value={texte}
@@ -100,7 +105,7 @@ export default function LigneDePrime({ prime, etat, onChange, disabled }: Props)
             <Button
               variant="outline"
               size="sm"
-              className="text-red-700"
+              className="text-red-700 dark:text-red-400"
               data-testid={`retirer-prime-${id}`}
               aria-label={`Retirer ${prime.libelle}`}
               onClick={() => {

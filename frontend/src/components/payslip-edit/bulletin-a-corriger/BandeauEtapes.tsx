@@ -1,7 +1,7 @@
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const ETAPES = ['Cliquez la ligne fausse, ou « Ajouter une ligne »', 'Remplissez', 'Appliquez'];
+const ETAPES = ['Cliquez sur la ligne fausse, ou « Ajouter une ligne »', 'Remplissez', 'Appliquez'];
 
 export default function BandeauEtapes({ etape }: { etape: 1 | 2 | 3 }) {
   return (
