@@ -5,6 +5,12 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Périmètre coché par Elsa, lot 1 (paie de novembre)
+- Plus de blocage à la génération pour une prévoyance cadre ou une mutuelle manquante : le bulletin se calcule et l'alerte apparaît dans les points à voir, avec le geste à faire (« … puis recalculez »).
+- Mois sans aucun pointage : Martine paie les heures prévues au planning et le dit sur le bulletin (« Aucun pointage en 10/2026 … importez ou saisissez ses heures, puis recalculez »).
+- Acompte au-delà de la moitié du net : la RH peut l'accorder ; l'écran rappelle la règle (Code du travail L3242-1 et L3251-3) et garde le motif. Un salarié reste limité à la moitié.
+- Cotisations : chômage, AGS et APEC plafonnés à 4 plafonds de la Sécurité sociale (16 020 € par mois, régularisés sur l'année) ; abattement CSG de 1,75 % limité à 4 plafonds. Apprentis d'une société de moins de 11 salariés : plus de formation professionnelle ni de taxe d'apprentissage. CDD saisonniers : plus de contribution CPF-CDD.
+
 ## paie-2026-11-11.1
 
 ### Lisibilité (passe de vérification du 11/11)
