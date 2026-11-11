@@ -30,6 +30,17 @@ const LIGNES = {
   a_la_source: [],
 };
 
+const HISTORIQUE = [
+  {
+    version: 3,
+    edited_at: '2026-11-11T08:00:00+00:00',
+    edited_by: null,
+    edited_by_name: null,
+    changes_summary: '',
+    previous_payslip_data: { net_a_payer: 900 },
+  },
+];
+
 type Options = {
   verrouille?: boolean;
   statut?: 'brouillon' | 'valide';
@@ -86,7 +97,12 @@ async function preparerBulletin(page: Page, options: Options = {}) {
         json: {
           status: 'success',
           message: 'Bulletin corrigé et recalculé.',
-          payslip: { ...bulletin, payslip_data: { ...bulletin.payslip_data, net_a_payer: 912.34 } },
+          // La version 3 de l'historique est celle de cette application : « Annuler » la remet.
+          payslip: {
+            ...bulletin,
+            payslip_data: { ...bulletin.payslip_data, net_a_payer: 912.34 },
+            edit_history: [HISTORIQUE[0]],
+          },
           recalcule: Object.keys(corps.corrections).length > 0,
           recalcul_erreur: null,
         },
@@ -102,7 +118,7 @@ async function preparerBulletin(page: Page, options: Options = {}) {
       await route.fulfill({ json: LIGNES });
     } else if (request.method() === 'GET' && url.pathname.endsWith('/history')) {
       await route.fulfill({
-        json: [{ version: 3, edited_at: '2026-11-11T08:00:00+00:00', edited_by: null, edited_by_name: null, changes_summary: '', previous_payslip_data: {} }],
+        json: HISTORIQUE,
       });
     } else if (request.method() === 'GET' && url.pathname.endsWith(BULLETIN_ID)) {
       await route.fulfill({ json: bulletin });
@@ -199,5 +215,53 @@ test.describe('Corriger sur le bulletin (données fictives)', () => {
     await page.getByTestId('annuler-application').click();
     await expect(page.getByText('Correction annulée', { exact: true })).toBeVisible();
     expect(restaurations[0]).toEqual({ version: 3 });
+  });
+
+  test('valeur sans motif : la ligne et la barre disent le motif manquant', async ({ page }) => {
+    await preparerBulletin(page);
+    await page.getByTestId('corriger-brut:prime_anciennete').click();
+    await page.getByTestId('valeur-brut:prime_anciennete').fill('63');
+    await expect(page.getByTestId('ligne-brut:prime_anciennete')).toContainText('Motif manquant');
+    await expect(page.getByTestId('aide-motif-brut:prime_anciennete')).toContainText('Choisissez un motif');
+    await expect(page.getByTestId('lignes-sans-motif')).toContainText('1 ligne ouverte sans motif');
+    await expect(page.getByTestId('etape-2')).toHaveAttribute('data-etat', 'en-cours');
+    // Le motif choisi : la ligne est prête, la phrase de la barre s'en va.
+    await page.getByTestId('motif-brut:prime_anciennete').getByRole('button', { name: 'Correction d’une erreur de calcul' }).click();
+    await expect(page.getByTestId('lignes-sans-motif')).toHaveCount(0);
+    await expect(page.getByTestId('barre-enregistrement')).toContainText('1 changement à appliquer');
+  });
+
+  test('une ligne prête (valeur et motif) passe à l’étape 3, éditeur encore ouvert', async ({ page }) => {
+    await preparerBulletin(page);
+    await page.getByTestId('corriger-brut:prime_anciennete').click();
+    await page.getByTestId('valeur-brut:prime_anciennete').fill('63');
+    await expect(page.getByTestId('etape-2')).toHaveAttribute('data-etat', 'en-cours');
+    await page.getByTestId('motif-brut:prime_anciennete').getByRole('button', { name: 'Correction d’une erreur de saisie' }).click();
+    await expect(page.getByTestId('valeur-brut:prime_anciennete')).toBeVisible();
+    await expect(page.getByTestId('etape-3')).toHaveAttribute('data-etat', 'en-cours');
+    await expect(page.getByTestId('etape-2')).toHaveAttribute('data-etat', 'faite');
+  });
+
+  test('corriger une cotisation au crayon : le bloc des cotisations reste ouvert pendant la saisie', async ({ page }) => {
+    const { envois } = await preparerBulletin(page);
+    const bloc = page.getByTestId('bloc-cotisations');
+    await expect(bloc).toHaveJSProperty('open', false);
+    await bloc.locator('summary').click();
+    await expect(bloc).toHaveJSProperty('open', true);
+    await page.getByTestId('corriger-cotisation:vieillesse_qa').click();
+    await page.getByTestId('valeur-cotisation:vieillesse_qa').fill('1200');
+    await page.getByTestId('motif-cotisation:vieillesse_qa').getByRole('button', { name: 'Correction d’une erreur de calcul' }).click();
+    await expect(bloc).toHaveJSProperty('open', true);
+    // Effacer puis retaper : la correction part puis revient, le bloc ne se replie pas.
+    await page.getByTestId('valeur-cotisation:vieillesse_qa').fill('');
+    await expect(bloc).toHaveJSProperty('open', true);
+    await page.getByTestId('valeur-cotisation:vieillesse_qa').fill('1250');
+    await expect(bloc).toHaveJSProperty('open', true);
+    await expect(page.getByTestId('apercu-cotisation:vieillesse_qa')).toBeVisible();
+    await page.getByTestId('enregistrer-barre').click();
+    await expect(page.getByTestId('resultat-application')).toBeVisible();
+    expect(envois[0].corrections).toMatchObject({
+      corrections_ajoutees: [{ ligne: 'cotisation:vieillesse_qa', base: 1250, motif: 'Correction d’une erreur de calcul' }],
+    });
   });
 });
