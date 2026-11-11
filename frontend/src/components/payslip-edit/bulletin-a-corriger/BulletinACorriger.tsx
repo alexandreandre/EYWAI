@@ -17,6 +17,8 @@ import {
   type SaisieApresCalcul,
 } from '@/features/payroll/utils/correctionsBulletin';
 import {
+  correctionEnAttente,
+  estRetiree,
   estSurLeNet,
   etapeEnCours,
   nombreDeChangements,
@@ -83,8 +85,7 @@ export default function BulletinACorriger(props: Props) {
 
   const lignes = (query.data?.lignes ?? []).filter((l) => l.code);
   const enAttente = query.data?.en_attente ?? [];
-  const autresMontantsDuNet = (query.data?.a_la_source ?? []).filter((b) => !b.source.startsWith(SOURCE_DES_PRIMES));
-  const changements = nombreDeChangements(initial, etat);
+    const changements = nombreDeChangements(initial, etat);
   const lienDe = (ligne: LigneCorrigeable) => {
     const origine = origineDeLaLigne(ligne);
     if (origine === 'planning') return { texte: 'Vient du planning · ouvrir le planning du mois', onOuvrir: () => onAller(props.lienPlanning) };
@@ -112,6 +113,11 @@ export default function BulletinACorriger(props: Props) {
   const cotisations = lignes.filter((l) => l.bloc === 'cotisations');
   const impot = lignes.filter((l) => l.bloc === 'impot');
   const primesDuNet = etat.primes.filter(estSurLeNet);
+  const centimes = (x: number) => Math.round(Math.abs(x) * 100);
+  const autresMontantsDuNet = (query.data?.a_la_source ?? []).filter(
+    (b) => !etat.primes.some((p) => p.libelle === b.libelle && b.montant != null && centimes(p.montant) === centimes(b.montant)),
+  );
+  const nbChangementsCotisations = cotisations.filter((l) => correctionEnAttente(etat, l.code) || estRetiree(etat, l)).length;
 
   return (
     <div className="space-y-4" data-testid="bulletin-a-corriger">
@@ -188,7 +194,16 @@ export default function BulletinACorriger(props: Props) {
               <div key={`${b.libelle}-${b.source}`} className="flex items-center justify-between border-b px-3 py-2 text-sm">
                 <div>
                   <div className="font-medium">{b.libelle}</div>
-                  <div className="text-xs text-muted-foreground">Se corrige dans {b.source}</div>
+                  {b.source.startsWith(SOURCE_DES_PRIMES) ? (
+                    <div className="text-xs text-muted-foreground">
+                      Prime fixe : se corrige sur la fiche du salarié{' '}
+                      <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => onAller(props.lienFiche)}>
+                        Ouvrir la fiche
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">Se corrige dans {b.source}</div>
+                  )}
                 </div>
                 <span className="tabular-nums">{b.montant != null ? eurosFr(b.montant) : ''}</span>
               </div>
@@ -196,9 +211,10 @@ export default function BulletinACorriger(props: Props) {
           </div>
         ) : null}
         {cotisations.length > 0 ? (
-          <details data-testid="bloc-cotisations">
+          <details data-testid="bloc-cotisations" open={nbChangementsCotisations > 0 || undefined}>
             <summary className="cursor-pointer bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground">
               Cotisations ({cotisations.length} lignes) · elles se recalculent seules : ouvrez seulement si une cotisation précise est fausse
+              {nbChangementsCotisations > 0 ? ` · ${nbChangementsCotisations} changement${nbChangementsCotisations > 1 ? 's' : ''} à appliquer` : ''}
             </summary>
             {cotisations.map(ligneDe)}
           </details>
@@ -227,14 +243,22 @@ export default function BulletinACorriger(props: Props) {
         />
       </div>
 
-      <Button
-        variant="link"
-        className="px-0"
-        data-testid="corriger-les-variables"
-        onClick={() => onAller(props.lienSaisies)}
-      >
-        Acomptes, frais et autres saisies du mois <ExternalLink className="ml-1 h-3 w-3" />
-      </Button>
+      <div className="flex flex-wrap gap-x-4">
+        <Button
+          variant="link"
+          className="px-0"
+          data-testid="corriger-les-variables"
+          onClick={() => onAller(props.lienSaisies)}
+        >
+          Acomptes, frais et autres saisies du mois <ExternalLink className="ml-1 h-3 w-3" />
+        </Button>
+        <Button variant="link" className="px-0" onClick={() => onAller(props.lienPlanning)}>
+          Planning du mois <ExternalLink className="ml-1 h-3 w-3" />
+        </Button>
+        <Button variant="link" className="px-0" onClick={() => onAller(props.lienFiche)}>
+          Fiche du salarié <ExternalLink className="ml-1 h-3 w-3" />
+        </Button>
+      </div>
     </div>
   );
 }
