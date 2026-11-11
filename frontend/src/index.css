@@ -178,3 +178,11 @@ All colors MUST be HSL.
     animation: none;
   }
 }
+
+/* Barre « Appliquer » en bas d'écran : les notifications passent au-dessus,
+   sinon elles cachent « Appliquer » et « Annuler » pendant quelques secondes. */
+@media (min-width: 640px) {
+  body:has([data-barre-du-bas]) [data-zone-notifications] {
+    bottom: 6rem;
+  }
+}

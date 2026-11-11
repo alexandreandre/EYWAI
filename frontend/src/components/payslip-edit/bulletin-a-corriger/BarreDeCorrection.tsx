@@ -40,7 +40,7 @@ export default function BarreDeCorrection(props: Props) {
   return (
     <>
       <div className="h-24" aria-hidden="true" />
-      <div className="fixed inset-x-0 bottom-0 z-[60] border-t bg-gray-900 text-white shadow-[0_-4px_16px_rgba(0,0,0,0.15)]">
+      <div data-barre-du-bas="" className="fixed inset-x-0 bottom-0 z-[60] border-t bg-gray-900 text-white shadow-[0_-4px_16px_rgba(0,0,0,0.15)]">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           {enCours ? (
             <p className="flex items-center gap-2 text-sm" role="status" aria-live="polite">

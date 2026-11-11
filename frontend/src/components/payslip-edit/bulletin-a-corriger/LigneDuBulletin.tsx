@@ -195,8 +195,8 @@ export default function LigneDuBulletin(props: Props) {
       )}
     >
       <div className="min-w-0 flex-1 space-y-1">
-        <div className={cn('font-medium', retiree && 'text-muted-foreground line-through')}>
-          {ligne.libelle}
+        <div className="font-medium">
+          <span className={cn(retiree && 'text-muted-foreground line-through')}>{ligne.libelle}</span>
           {retiree ? (
             <span className="ml-2 rounded bg-red-100 px-1.5 text-xs font-semibold text-red-700 dark:bg-red-950/60 dark:text-red-300">
               Retirée
