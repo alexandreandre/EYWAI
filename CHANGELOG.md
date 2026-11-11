@@ -5,6 +5,8 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+## paie-2026-11-11.7
+
 ### Périmètre coché par Elsa, lot 1 (paie de novembre)
 - Plus de blocage à la génération pour une prévoyance cadre ou une mutuelle manquante : le bulletin se calcule et l'alerte apparaît dans les points à voir, avec le geste à faire (« … puis recalculez »).
 - Mois sans aucun pointage : Martine paie les heures prévues au planning et le dit sur le bulletin (« Aucun pointage en 10/2026 … importez ou saisissez ses heures, puis recalculez »).
