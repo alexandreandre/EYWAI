@@ -277,7 +277,7 @@ export default function BulletinACorriger(props: Props) {
         {cotisations.length > 0 ? (
           <details ref={blocCotisations} data-testid="bloc-cotisations">
             <summary className="cursor-pointer bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground">
-              Cotisations ({cotisations.length} lignes) · elles se recalculent seules : ouvrez seulement si une cotisation précise est fausse
+              Cotisations ({cotisations.length} ligne{cotisations.length > 1 ? 's' : ''}) · elles se recalculent seules : ouvrez seulement si une cotisation précise est fausse
               {nbChangementsCotisations > 0 ? ` · ${nbChangementsCotisations} changement${nbChangementsCotisations > 1 ? 's' : ''} à appliquer` : ''}
             </summary>
             {cotisations.map(ligneDe)}

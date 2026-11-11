@@ -16,7 +16,7 @@ import { pageTitleClassName } from '@/components/layout';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Eye, History, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, Eye, History, Loader2 } from 'lucide-react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -653,7 +653,7 @@ export default function PayslipEdit() {
           <div>
             <h1 className={pageTitleClassName}>{titreDuBulletin(payslip.payslip_data, payslip.month, payslip.year)}</h1>
             <p className="text-muted-foreground">
-              Les corrections deviennent des variables du mois ; le bulletin est recalculé en entier.
+              Corrigez directement sur le bulletin ; Martine le recalcule en entier.
             </p>
           </div>
         </div>
@@ -706,18 +706,6 @@ export default function PayslipEdit() {
           <Button variant="outline" onClick={() => setActiveTab('historique')}>
             <History className="h-4 w-4 mr-2" />
             Historique
-          </Button>
-          <Button
-            onClick={demanderEnregistrement}
-            disabled={isSaving || !modifie || isEditLocked}
-            data-testid="enregistrer-entete"
-          >
-            {isSaving ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4 mr-2" />
-            )}
-            {recalculPrevu || !modifie ? 'Enregistrer et recalculer' : 'Enregistrer les notes'}
           </Button>
         </div>
       </div>

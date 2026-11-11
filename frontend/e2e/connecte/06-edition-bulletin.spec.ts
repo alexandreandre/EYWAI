@@ -162,7 +162,6 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     await ouvrirHeuresDuMois(page);
     await expect(page.getByTestId('heures-sup-25')).toHaveValue('2');
     await expect(page.getByTestId('heures-sup-50')).toHaveValue('3.5');
-    await expect(page.getByTestId('enregistrer-entete')).toBeDisabled();
     await expect(page.getByTestId('barre-enregistrement')).toBeHidden();
   });
 
@@ -185,7 +184,7 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     await ouvrirHeuresDuMois(page);
     await page.getByTestId('heures-sup-25').fill('0');
     await page.getByTestId('heures-sup-50').fill('');
-    await page.getByTestId('enregistrer-entete').click();
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Bulletin corrigé et recalculé', { exact: true })).toBeVisible();
     expect(envois[0].corrections).toEqual({ heures_sup: { hs25: 0, hs50: 0 } });
   });
@@ -195,7 +194,7 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     await ouvrirHeuresDuMois(page);
     await page.getByTestId('revenir-au-planning').click();
     await expect(page.getByTestId('retour-planning')).toBeVisible();
-    await page.getByTestId('enregistrer-entete').click();
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Bulletin corrigé et recalculé', { exact: true })).toBeVisible();
     expect(envois[0].corrections).toEqual({ revenir_au_planning: true });
   });
@@ -222,7 +221,7 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     await selecteur.getByRole('button', { name: 'Enregistrer', exact: true }).click();
     await expect(selecteur).toBeHidden();
 
-    await page.getByTestId('enregistrer-entete').click();
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Bulletin corrigé et recalculé', { exact: true })).toBeVisible();
     expect(envois[0].corrections).toMatchObject({
       primes_corrigees: [{ saisie_id: 'saisie-qa-1', amount: 150 }],
@@ -234,8 +233,8 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
   test('seule la note change : enregistrée sans recalcul', async ({ page }) => {
     const envois = await preparerBulletin(page);
     await page.locator('#pdf-notes').fill('Note QA visible sur le bulletin');
-    await expect(page.getByTestId('enregistrer-entete')).toHaveText(/Enregistrer les notes/);
-    await page.getByTestId('enregistrer-entete').click();
+    await expect(page.getByTestId('barre-enregistrement')).toContainText('Seules les notes changent');
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Notes enregistrées', { exact: true })).toBeVisible();
     expect(envois[0]).toMatchObject({ corrections: {}, pdf_notes: 'Note QA visible sur le bulletin' });
   });
@@ -254,7 +253,7 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     });
     await ouvrirHeuresDuMois(page);
     await page.getByTestId('heures-sup-25').fill('4');
-    await page.getByTestId('enregistrer-entete').click();
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Corrections enregistrées, bulletin non recalculé', { exact: true }))
       .toBeVisible();
     await expect(page.getByText('Barème introuvable — utilisez « Régénérer ».', { exact: true }))
@@ -267,7 +266,7 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     });
     await ouvrirHeuresDuMois(page);
     await page.getByTestId('heures-sup-25').fill('4');
-    await page.getByTestId('enregistrer-entete').click();
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Le bulletin a changé depuis son ouverture', { exact: true })).toBeVisible();
     await ouvrirHeuresDuMois(page);
     await expect(page.getByTestId('heures-sup-25')).toHaveValue('2');
@@ -277,7 +276,7 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     const envois = await preparerBulletin(page, { statut: 'valide' });
     await ouvrirHeuresDuMois(page);
     await page.getByTestId('heures-sup-25').fill('4');
-    await page.getByTestId('enregistrer-entete').click();
+    await page.getByTestId('enregistrer-barre').click();
     const confirmation = page.getByRole('alertdialog', { name: 'Corriger un bulletin validé ?' });
     await expect(confirmation).toBeVisible();
     expect(envois).toHaveLength(0);
@@ -290,7 +289,7 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     await preparerBulletin(page, { verrouille: true });
     await expect(page.getByTestId('verrou-corriger')).toBeVisible();
     await expect(page.getByTestId('ajouter-une-ligne')).toBeHidden();
-    await expect(page.getByTestId('enregistrer-entete')).toBeDisabled();
+    await expect(page.getByTestId('enregistrer-barre')).toHaveCount(0);
   });
 });
 
@@ -338,7 +337,7 @@ test.describe('Corriger une ligne (théorème de la correction à la main)', () 
 
     await ligne.getByRole('button', { name: 'Remettre la valeur de Martine' }).click();
     await attente.getByRole('button', { name: 'Retirer' }).click();
-    await page.getByTestId('enregistrer-entete').click();
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Bulletin corrigé et recalculé', { exact: true })).toBeVisible();
     expect(envois[0].corrections).toEqual({ corrections_retirees: ['correction-qa-1', 'correction-qa-2'] });
   });
@@ -440,7 +439,7 @@ test.describe("Régulariser des heures d'un autre mois (données fictives)", () 
     await carte.getByLabel('Motif (obligatoire)').fill('Semaine 25 oubliée');
     await page.getByTestId('ajouter-regularisation-heures').click();
     await expect(carte).toContainText('3,5 h de 06/2026');
-    await page.getByTestId('enregistrer-entete').click();
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Bulletin corrigé et recalculé', { exact: true })).toBeVisible();
     expect(envois).toHaveLength(1);
     expect(envois[0].corrections).toEqual({

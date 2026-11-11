@@ -82,7 +82,7 @@ describe('manuel opérateur', () => {
       // Corriger sur le bulletin (crayon, poubelle, ajout), puis recalculer.
       'Ajouter une ligne',
       'crayon',
-      'Enregistrer et recalculer',
+      '« Appliquer »',
       // Bulletin déjà validé.
       'Corriger et repasser en brouillon',
       'Correction verrouillée',

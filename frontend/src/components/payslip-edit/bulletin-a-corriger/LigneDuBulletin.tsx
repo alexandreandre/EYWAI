@@ -78,6 +78,13 @@ function montantAffiche(ligne: LigneCorrigeable): string {
   return `${ligne.retenue ? '−' : ''}${eurosFr(ligne.montant)}`;
 }
 
+/** La valeur de Martine en clair : deux décimales pour un montant en euros. */
+function valeurDeMartine(valeur: number | null | undefined, unite: string): string {
+  if (valeur == null) return '—';
+  if (unite === '€') return valeur.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return String(valeur).replace('.', ',');
+}
+
 export default function LigneDuBulletin(props: Props) {
   const { ligne, etat, onChange, disabled, lienSource, demande, onEdition, report } = props;
   const reports = props.reports ?? {};
@@ -233,7 +240,7 @@ export default function LigneDuBulletin(props: Props) {
             ) : null}
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">
-                Martine : {champ.valeur != null ? String(champ.valeur).replace('.', ',') : '—'} {uniteDuChamp(ligne, champ.cle)}
+                Martine : {valeurDeMartine(champ.valeur, uniteDuChamp(ligne, champ.cle))} {uniteDuChamp(ligne, champ.cle)}
               </span>
               <span>· {libelleDuChamp(ligne, champ.cle)} :</span>
               <Input
