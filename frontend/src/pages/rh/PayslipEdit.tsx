@@ -162,7 +162,7 @@ export default function PayslipEdit() {
   const [isLoading, setIsLoading] = useState(true);
   const { data: salarieBulletin } = useEmployeeQuery(payslip?.employee_id);
   const [isSaving, setIsSaving] = useState(false);
-  const [resultat, setResultat] = useState<{ netAvant: number | null; netApres: number | null } | null>(null);
+  const [resultat, setResultat] = useState<{ netAvant: number | null; netApres: number | null; version: string | null } | null>(null);
   const [activeTab, setActiveTab] = useState(ONGLET_D_OUVERTURE);
   // Un geste de l'onglet « Bulletin » : la carte de l'onglet « Corriger » à ouvrir, pré-remplie.
   const [demande, setDemande] = useState<DemandeDeCorrection | null>(null);
@@ -291,6 +291,12 @@ export default function PayslipEdit() {
     return () => window.clearTimeout(minuteur);
   }, [delaiRelecture, payslip, recharger]);
   const recalculPrevu = initial && etat ? recalculAttendu(initial, etat) : false;
+  const resultatCourant =
+    resultat && !modifie && resultat.version === (payslip?.updated_at ?? null) ? resultat : null;
+
+  useEffect(() => {
+    if (modifie) setResultat(null);
+  }, [modifie]);
 
   useEffect(() => {
     const avantDeQuitter = (e: BeforeUnloadEvent) => {
@@ -353,7 +359,11 @@ export default function PayslipEdit() {
           title: 'Bulletin corrigé et recalculé',
           description: ['Brut, cotisations, net et cumuls ont suivi la correction.', ...phrasesApresCorrection(reponse)].join(' '),
         });
-        setResultat({ netAvant, netApres: netDuBulletin(reponse.payslip?.payslip_data) });
+        setResultat({
+          netAvant,
+          netApres: netDuBulletin(reponse.payslip?.payslip_data),
+          version: reponse.payslip?.updated_at ?? null,
+        });
       } else {
         toast({ title: 'Notes enregistrées' });
       }
@@ -853,7 +863,7 @@ export default function PayslipEdit() {
           changements={modifie ? Math.max(1, nombreDeChangements(initial, etat)) : 0}
           recalculPrevu={recalculPrevu}
           enCours={isSaving}
-          resultat={resultat}
+          resultat={resultatCourant}
           onAppliquer={demanderEnregistrement}
           onToutAnnuler={() => setEtat(initial)}
           onAnnulerLApplication={() => void annulerLApplication()}
