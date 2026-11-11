@@ -36,7 +36,7 @@ Clic sur ✎ : la ligne s'ouvre en place.
 
 - « Martine : 58,20 € · le bon montant : [ ] ». Pour une ligne en heures, on demande le nombre d'heures ; pour une ligne avec un taux, le champ proposé est celui que la règle 3 du théorème autorise, avec son unité. Si la base et le taux sont tous deux permis, la base est proposée et un lien discret « corriger le taux plutôt » bascule.
 - Le nouveau montant de la ligne s'affiche aussitôt (« 58,20 € → 63,00 € »), calculé comme aujourd'hui par `apercuDuMontant`.
-- **Motif en puces** : « Aligné sur Quadra », « Erreur de saisie », « Rappel d'un mois passé », « Autre… » (champ libre). Le motif reste obligatoire pour le serveur ; une puce le remplit.
+- **Motif en puces** : « Correction d’une erreur de calcul », « Correction d’une erreur de saisie », « Rappel d’un mois précédent », « Ligne non due ce mois-ci », « Autre… » (champ libre). Le motif reste obligatoire pour le serveur ; une puce le remplit. Le motif est imprimé sur le bulletin du salarié : aucune puce ne parle de Quadra.
 - ✕ annule la correction en attente.
 - Une ligne déjà corrigée l'affiche (« corrigée : motif ») avec « Remettre la valeur de Martine ».
 - Une ligne non corrigeable (raison donnée par le serveur) n'a pas de ✎ : à la place, sa raison et le lien vers sa source.
@@ -92,7 +92,7 @@ Nouveau dossier `frontend/src/components/payslip-edit/bulletin-a-corriger/` :
 
 L'état reste `EtatCorrections` ; l'enregistrement reste celui de `PayslipEdit.tsx` (`demanderEnregistrement`). Les anciennes cartes ne sont plus montées dans l'onglet ; elles sont retirées une fois les e2e passés.
 
-Serveur, ajout minimal à `GET /api/payslips/{id}/lignes-corrigeables` : pour chaque ligne, `origine` (`fiche`, `planning`, `saisie`, `calcul`, `cotisation`), `retirable` (booléen) et `lien_source` (jour du planning ou fiche, quand il existe). Lecture seule, aucun calcul changé.
+Aucun changement serveur. L'origine d'une ligne (fiche, planning, prime, régularisation, calcul) et son retrait se déduisent de son `code` (`codes_des_lignes.py`), dans `bulletinACorriger.ts`.
 
 ## 5. Tests et preuves
 
