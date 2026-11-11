@@ -3,6 +3,7 @@ from app.core.logging import get_logger, log_payroll_debug
 logger = get_logger("modules.payroll.engine.calcul_cotisations")
 # moteur_paie/calcul_cotisations.py
 
+from app.modules.payroll.engine.motif_recours import motif_recours_cdd
 from .contexte import ContextePaie
 from . import legal_constants as lc
 from .exoneration_alternance import (
@@ -82,6 +83,24 @@ def est_cdd(contexte: ContextePaie) -> bool:
     ):
         return False
     return "cdd" in type_contrat or "déterminée" in type_contrat or "determinee" in type_contrat
+
+
+#: Exonérées pour les apprentis d'un employeur de moins de 11 salariés [R93].
+COTISATIONS_EXONEREES_APPRENTI_MOINS_DE_11 = frozenset(
+    {"CFP", "taxe_apprentissage", "taxe_apprentissage_solde"}
+)
+
+#: Motifs de recours DSN (S21.G00.40.021) d'un emploi saisonnier (L1242-2, 3°).
+MOTIFS_RECOURS_SAISONNIER = frozenset({"03", "04"})
+
+
+def cdd_saisonnier(contexte: ContextePaie) -> bool:
+    """CDD saisonnier ou vendanges, d'après le motif de recours de la fiche."""
+    classification = (contexte.contrat.get("remuneration", {}) or {}).get(
+        "classification_conventionnelle"
+    )
+    spec = contexte.contrat.get("specificites_paie", {}) or {}
+    return motif_recours_cdd(classification, spec) in MOTIFS_RECOURS_SAISONNIER
 
 
 def _assiette_pour_base(
@@ -545,7 +564,25 @@ def _calculer_assiettes(
             tranche_2=assiette_tranche_2,
         )
 
-    # CALCUL ASSIETTE CSG (inchangé)
+    # --- Limite de 4 plafonds (chômage, AGS, APEC, abattement CSG) [R87] ---
+    # Même régularisation progressive que les tranches (CSS R242-2, II ;
+    # assiette du chômage alignée sur la Sécurité sociale, circulaire Unédic
+    # n° 2025-05) : la part « correcte »
+    # de l'année est min(cumul brut, 4 × cumul PSS) ; ce mois porte la
+    # différence avec la part des mois d'avant. Sous la limite (presque tous
+    # les salariés), c'est le brut du mois, au centime. Avant le 11/11/2026, ces
+    # cotisations portaient sur tout le brut, sans limite.
+    facteur_4p = lc.FACTEUR_PLAFOND_QUATRE_PLAFONDS
+    if cumul_pss_avant <= 0 < cumul_brut_avant:
+        # Cumuls incomplets (plafond des mois d'avant inconnu) : limite du mois.
+        assiette_4_plafonds = min(salaire_brut, facteur_4p * pss_calcule)
+    else:
+        assiette_4_plafonds = min(cumul_brut_incl, facteur_4p * cumul_pss_incl) - max(
+            0.0, min(cumul_brut_avant, facteur_4p * cumul_pss_avant)
+        )
+    assiette_4_plafonds = round(assiette_4_plafonds, 2)
+
+    # CALCUL ASSIETTE CSG
     salaire_brut_hors_hs = salaire_brut - remuneration_heures_supp
     base_csg_normale = (
         (salaire_brut_hors_hs * 0.9825)
@@ -554,6 +591,12 @@ def _calculer_assiettes(
         + part_patronale_frais_sante
     )
     base_csg_hs = remuneration_heures_supp * 0.9825
+    # L'abattement de 1,75 % ne vaut que jusqu'à 4 plafonds : au-delà, la CSG et
+    # la CRDS portent sur 100 % (CSS L136-2, I : « 1,75 % pour leur montant
+    # inférieur à quatre fois la valeur du plafond » ; service-public F2302).
+    excedent_4_plafonds = round(salaire_brut - assiette_4_plafonds, 2)
+    if excedent_4_plafonds:
+        base_csg_normale += excedent_4_plafonds * 0.0175
 
     return {
         "brut": salaire_brut,
@@ -563,6 +606,9 @@ def _calculer_assiettes(
         "brut_plafonne": brut_plafonne,
         "tranche_2": round(assiette_tranche_2, 2),
         "assiette_cet": round(assiette_cet, 2),
+        # Chômage, AGS (code) et APEC (base du barème) : limite de 4 plafonds.
+        "brut_4_plafonds": assiette_4_plafonds,
+        "brut_cadre_4_plafonds": assiette_4_plafonds,
         "csg_crds_base_normale": round(base_csg_normale, 2),
         "csg_crds_base_hs": round(base_csg_hs, 2),
         # Parts patronales entrant dans la base CSG SANS abattement frais pro
@@ -877,6 +923,18 @@ def calculer_cotisations(
         if str(coti_id or "").lower() in exclues_stage:
             continue
 
+        # Apprentis d'un employeur de moins de 11 salariés : rémunérations
+        # exonérées de la contribution à la formation professionnelle (Code du
+        # travail, L6331-1 : « Les rémunérations versées aux apprentis sont
+        # exonérées de cette contribution ») et de la taxe d'apprentissage
+        # (L6241-1-1, I) ; textes lus le 11/11/2026 [R93]. Avant, MAJI les payait.
+        if (
+            str(coti_id or "") in COTISATIONS_EXONEREES_APPRENTI_MOINS_DE_11
+            and contexte.is_apprenti
+            and contexte.effectif < lc.SEUIL_EFFECTIF_CFP
+        ):
+            continue
+
         libelle = coti_data.get("libelle", "")
         base_id = coti_data.get("base", "brut")
         assiette = assiettes.get(
@@ -885,6 +943,10 @@ def calculer_cotisations(
             if base_id == "plafond_ss"
             else assiettes["brut"],
         )
+        # Le barème dit « brut » pour le chômage et l'AGS : la limite de 4
+        # plafonds s'applique (R87, 11/11/2026).
+        if str(coti_id or "").lower() in ("assurance_chomage", "ags", "chomage"):
+            assiette = assiettes["brut_4_plafonds"]
 
         taux_salarial = coti_data.get("salarial")
         taux_patronal_brut = coti_data.get("patronal")
@@ -925,6 +987,11 @@ def calculer_cotisations(
         # les 43 bulletins de janvier à juillet 2026).
         if coti_id == "cpf_cdd" and not est_cdd(contexte):
             taux_patronal_final = 0.0
+        # Ni ceux « visant les salariés occupant un emploi à caractère saisonnier
+        # défini au 3° de l'article L. 1242-2 » (même article ; motifs DSN 03 et
+        # 04, code.travail.gouv.fr lu le 11/11/2026) [R93].
+        if coti_id == "cpf_cdd" and cdd_saisonnier(contexte):
+            continue
 
         # SMIC mensuel TEMPS PLEIN (non proratisé) — seuils légaux maladie/AF.
         # Centralisé sur le contexte (DRY) sans changer le comportement existant.

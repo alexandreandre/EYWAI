@@ -73,6 +73,12 @@ TAUX_PLAFOND_SJB_AT_MP_PASS: tuple[tuple[date, float], ...] = (
     (date(2026, 11, 1), 0.00226),
 )
 FACTEUR_PLAFOND_TRANCHE_2 = 8
+# Assurance chômage, AGS, APEC et abattement de 1,75 % de la CSG/CRDS : limite de
+# 4 plafonds de la Sécurité sociale (Unédic, « Quelles contributions chômage » :
+# « 16 020 € par mois en 2026 (4 fois le plafond mensuel de la sécurité
+# sociale) » ; service-public F31409 pour l'AGS, F2302 pour l'APEC et la CSG ;
+# Agirc-Arrco, paramètres 2026 pour l'APEC ; pages lues le 11/11/2026).
+FACTEUR_PLAFOND_QUATRE_PLAFONDS = 4
 
 # Seuils SMIC (maintien / allocations)
 SEUIL_SMIC_MALADIE = 2.5
