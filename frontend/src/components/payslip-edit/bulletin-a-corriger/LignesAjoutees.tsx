@@ -10,12 +10,16 @@ interface Props {
   disabled?: boolean;
 }
 
+function nb(x: number): string {
+  return String(Math.round(x * 100) / 100).replace('.', ',');
+}
+
 function Ligne({ texte, detail, onRetirer, disabled }: { texte: string; detail: string; onRetirer: () => void; disabled?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-2 border-b bg-green-50 px-3 py-2 text-sm dark:bg-green-950/20">
       <div>
         <span className="font-medium">{texte}</span>
-        <span className="ml-2 rounded bg-green-100 px-1.5 text-xs font-semibold text-green-800">Nouvelle</span>
+        <span className="ml-2 rounded bg-green-100 px-1.5 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-200">Nouvelle</span>
         <div className="text-xs text-muted-foreground">{detail}</div>
       </div>
       {disabled ? null : (
@@ -30,7 +34,11 @@ function Ligne({ texte, detail, onRetirer, disabled }: { texte: string; detail: 
 export default function LignesAjoutees({ initial, etat, onChange, disabled }: Props) {
   const heuresChangees = etat.hs25 !== initial.hs25 || etat.hs50 !== initial.hs50;
   const complementairesChangees = etat.hc1 !== initial.hc1 || etat.hc2 !== initial.hc2;
+  const planningHs = etat.revenirAuPlanning !== initial.revenirAuPlanning;
+  const planningHc = etat.hcAuPlanning !== initial.hcAuPlanning;
   const rien =
+    !planningHs &&
+    !planningHc &&
     !heuresChangees &&
     !complementairesChangees &&
     etat.primesAjoutees.length === 0 &&
@@ -39,10 +47,30 @@ export default function LignesAjoutees({ initial, etat, onChange, disabled }: Pr
   if (rien) return null;
   return (
     <div data-testid="lignes-ajoutees">
+      {planningHs ? (
+        <div className="flex items-center justify-between gap-2 border-b bg-green-50 px-3 py-2 text-sm dark:bg-green-950/20">
+          <span className="font-medium">Heures sup : celles du planning seront reprises</span>
+          {disabled ? null : (
+            <Button variant="ghost" size="sm" onClick={() => onChange({ ...etat, revenirAuPlanning: initial.revenirAuPlanning })}>
+              <Undo2 className="mr-1 h-4 w-4" /> Remettre
+            </Button>
+          )}
+        </div>
+      ) : null}
+      {planningHc ? (
+        <div className="flex items-center justify-between gap-2 border-b bg-green-50 px-3 py-2 text-sm dark:bg-green-950/20">
+          <span className="font-medium">Heures complémentaires : celles du planning seront reprises</span>
+          {disabled ? null : (
+            <Button variant="ghost" size="sm" onClick={() => onChange({ ...etat, hcAuPlanning: initial.hcAuPlanning })}>
+              <Undo2 className="mr-1 h-4 w-4" /> Remettre
+            </Button>
+          )}
+        </div>
+      ) : null}
       {heuresChangees ? (
         <div className="flex items-center justify-between gap-2 border-b bg-green-50 px-3 py-2 text-sm dark:bg-green-950/20">
           <span className="font-medium">
-            Heures sup du mois : {String(etat.hs25).replace('.', ',')} h à 25 %, {String(etat.hs50).replace('.', ',')} h à 50 %
+            Heures sup du mois : {nb(etat.hs25)} h à 25 %, {nb(etat.hs50)} h à 50 %
           </span>
           {disabled ? null : (
             <Button variant="ghost" size="sm" onClick={() => onChange({ ...etat, hs25: initial.hs25, hs50: initial.hs50 })}>
@@ -54,7 +82,7 @@ export default function LignesAjoutees({ initial, etat, onChange, disabled }: Pr
       {complementairesChangees ? (
         <div className="flex items-center justify-between gap-2 border-b bg-green-50 px-3 py-2 text-sm dark:bg-green-950/20">
           <span className="font-medium">
-            Heures complémentaires du mois : {String(etat.hc1).replace('.', ',')} h et {String(etat.hc2).replace('.', ',')} h
+            Heures complémentaires du mois : {nb(etat.hc1)} h et {nb(etat.hc2)} h
           </span>
           {disabled ? null : (
             <Button variant="ghost" size="sm" onClick={() => onChange({ ...etat, hc1: initial.hc1, hc2: initial.hc2 })}>
@@ -76,7 +104,7 @@ export default function LignesAjoutees({ initial, etat, onChange, disabled }: Pr
         <Ligne
           key={`heures-${i}`}
           texte={`Heures de ${moisAffiche(h.mois_origine)}`}
-          detail={`${String(h.quantite).replace('.', ',')} h — ${h.motif}`}
+          detail={`${nb(h.quantite)} h — ${h.motif}`}
           disabled={disabled}
           onRetirer={() =>
             onChange({ ...etat, heuresRegulariseesAjoutees: etat.heuresRegulariseesAjoutees.filter((_, j) => j !== i) })
