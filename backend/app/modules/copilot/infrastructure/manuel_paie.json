@@ -54,8 +54,8 @@
       "titre": "6. Corriger un bulletin",
       "paragraphes": [
         "Cliquez « Modifier » sur la ligne du salarié. Dans l’onglet « Corriger », changez les « Heures supplémentaires du mois » ou les « Primes du mois ». Ce que vous saisissez devient une variable du mois : on ne retouche jamais le PDF.",
-        "Cliquez « Enregistrer et recalculer » : tout le bulletin est refait (brut, cotisations, net, cumuls). Tant que ce n’est pas fait, la barre « Corrections non enregistrées » reste en bas de l’écran.",
-        "Le reste se corrige à sa source, par les liens « Ce qui se corrige ailleurs » : planning du mois, fiche du salarié, saisies du mois. Le bulletin passe alors « À recalculer »."
+        "Cliquez « Appliquer » dans la barre du bas (ou « Enregistrer et recalculer » en haut) : tout le bulletin est refait (brut, cotisations, net, cumuls). Tant que ce n’est pas fait, la barre des changements à appliquer reste en bas de l’écran ; après l’application, « Annuler » remet le bulletin dans son état d’avant.",
+        "Le reste se corrige à sa source, par les liens en bas de l’onglet « Corriger » : « Planning du mois », « Fiche du salarié » et les saisies du mois. Le bulletin passe alors « À recalculer »."
       ]
     },
     {
