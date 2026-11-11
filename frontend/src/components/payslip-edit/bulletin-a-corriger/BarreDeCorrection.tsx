@@ -68,17 +68,15 @@ export default function BarreDeCorrection(props: Props) {
                 </Button>
               </div>
             </>
-          ) : sansMotif > 0 ? (
-            <div className="text-sm" data-testid="barre-enregistrement">
-              <p className="font-semibold">Rien à appliquer pour l’instant</p>
-              <PhraseSansMotif nombre={sansMotif} />
-            </div>
           ) : resultat ? (
             <>
-              <p className="text-sm" data-testid="resultat-application" role="status" aria-live="polite">
-                Bulletin recalculé · Net : {net(resultat.netAvant)} →{' '}
-                <span className="font-bold text-green-300">{net(resultat.netApres)}</span>
-              </p>
+              <div className="text-sm">
+                <p data-testid="resultat-application" role="status" aria-live="polite">
+                  Bulletin recalculé · Net : {net(resultat.netAvant)} →{' '}
+                  <span className="font-bold text-green-300">{net(resultat.netApres)}</span>
+                </p>
+                <PhraseSansMotif nombre={sansMotif} />
+              </div>
               <div className="flex gap-2">
                 <Button variant="outline" className="bg-white text-gray-900 hover:bg-gray-100" data-testid="annuler-application" onClick={props.onAnnulerLApplication}>
                   <Undo2 className="mr-2 h-4 w-4" /> Annuler
@@ -88,6 +86,11 @@ export default function BarreDeCorrection(props: Props) {
                 </Button>
               </div>
             </>
+          ) : sansMotif > 0 ? (
+            <div className="text-sm" data-testid="barre-enregistrement">
+              <p className="font-semibold">Rien à appliquer pour l’instant</p>
+              <PhraseSansMotif nombre={sansMotif} />
+            </div>
           ) : null}
         </div>
       </div>
