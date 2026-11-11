@@ -24,6 +24,8 @@ interface Props {
   year: number;
   month: number;
   demande?: DemandeDeCorrection | null;
+  /** La demande de l'onglet « Bulletin » est consommée : elle ne se rouvre plus au remontage. */
+  onDemandeTraitee?: () => void;
 }
 
 export default function AjouterUneLigne(props: Props) {
@@ -31,6 +33,9 @@ export default function AjouterUneLigne(props: Props) {
   const [ouvert, setOuvert] = useState(false);
   const [tuile, setTuile] = useState<Tuile | null>(null);
   const [moisDesHeures, setMoisDesHeures] = useState<'ce_mois' | 'passe'>('ce_mois');
+  // La demande prise ici, gardée pour la carte qui se pré-remplit : celle de la
+  // page est vidée aussitôt, pour ne pas rouvrir la tuile à chaque remontage.
+  const [demandePrise, setDemandePrise] = useState<DemandeDeCorrection | null>(null);
   const racine = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,7 +48,9 @@ export default function AjouterUneLigne(props: Props) {
       setOuvert(true);
       setTuile('cotisation');
     } else return;
-    racine.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setDemandePrise(demande);
+    props.onDemandeTraitee?.();
+    racine.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demande?.jeton]);
 
@@ -73,6 +80,7 @@ export default function AjouterUneLigne(props: Props) {
               key={cle}
               type="button"
               data-testid={`tuile-${cle}`}
+              aria-pressed={tuile === cle}
               onClick={() => setTuile(tuile === cle ? null : cle)}
               className={cn(
                 'rounded-lg border p-3 text-left',
@@ -98,6 +106,7 @@ export default function AjouterUneLigne(props: Props) {
                 <button
                   type="button"
                   data-testid="heures-ce-mois"
+                  aria-pressed={moisDesHeures === 'ce_mois'}
                   onClick={() => setMoisDesHeures('ce_mois')}
                   className={cn('px-3 py-1', moisDesHeures === 'ce_mois' ? 'bg-primary text-primary-foreground' : 'bg-background')}
                 >
@@ -106,6 +115,7 @@ export default function AjouterUneLigne(props: Props) {
                 <button
                   type="button"
                   data-testid="heures-mois-passe"
+                  aria-pressed={moisDesHeures === 'passe'}
                   onClick={() => setMoisDesHeures('passe')}
                   className={cn('px-3 py-1', moisDesHeures === 'passe' ? 'bg-primary text-primary-foreground' : 'bg-background')}
                 >
@@ -120,7 +130,7 @@ export default function AjouterUneLigne(props: Props) {
                   onChange={onChange}
                   year={year}
                   month={month}
-                  demande={demande}
+                  demande={demandePrise}
                   tempsPartiel={tempsPartiel}
                 />
               )}
@@ -150,7 +160,7 @@ export default function AjouterUneLigne(props: Props) {
           onChange={onChange}
           year={year}
           month={month}
-          demande={demande}
+          demande={demandePrise}
         />
       ) : null}
     </div>

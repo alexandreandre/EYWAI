@@ -59,7 +59,7 @@ import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 
 import BulletinACorriger from '@/components/payslip-edit/bulletin-a-corriger/BulletinACorriger';
 import BarreDeCorrection from '@/components/payslip-edit/bulletin-a-corriger/BarreDeCorrection';
-import { nombreDeChangements } from '@/features/payroll/utils/bulletinACorriger';
+import { nombreDeChangements, versionAAnnuler } from '@/features/payroll/utils/bulletinACorriger';
 import LignesDuBulletinCard from '@/components/payslip-edit/LignesDuBulletinCard';
 import {
   choixApresCorrection,
@@ -162,10 +162,21 @@ export default function PayslipEdit() {
   const [isLoading, setIsLoading] = useState(true);
   const { data: salarieBulletin } = useEmployeeQuery(payslip?.employee_id);
   const [isSaving, setIsSaving] = useState(false);
-  const [resultat, setResultat] = useState<{ netAvant: number | null; netApres: number | null; version: string | null } | null>(null);
+  const [resultat, setResultat] = useState<{
+    netAvant: number | null;
+    netApres: number | null;
+    version: string | null;
+    /** La version d'historique écrite par cette application : « Annuler » ne remet qu'elle. */
+    versionHistorique: number | null;
+    etaitValide: boolean;
+  } | null>(null);
+  // « Tout annuler » remonte l'onglet : les lignes ouvertes se ferment.
+  const [remontage, setRemontage] = useState(0);
+  const [lignesSansMotif, setLignesSansMotif] = useState(0);
   const [activeTab, setActiveTab] = useState(ONGLET_D_OUVERTURE);
   // Un geste de l'onglet « Bulletin » : la carte de l'onglet « Corriger » à ouvrir, pré-remplie.
   const [demande, setDemande] = useState<DemandeDeCorrection | null>(null);
+  const demandeTraitee = useCallback(() => setDemande(null), []);
   const [confirmationValide, setConfirmationValide] = useState(false);
   const [saisiesDuMois, setSaisiesDuMois] = useState<SaisieDuMois[]>([]);
   // Le mois précédent à recalculer : la validation le dit avant de partir.
@@ -332,6 +343,7 @@ export default function PayslipEdit() {
     if (!payslipId || !payslip || !initial || !etat) return;
     setConfirmationValide(false);
     setResultat(null);
+    setDemande(null);
     setIsSaving(true);
     try {
       const netAvant = netDuBulletin(payslip.payslip_data);
@@ -359,10 +371,16 @@ export default function PayslipEdit() {
           title: 'Bulletin corrigé et recalculé',
           description: ['Brut, cotisations, net et cumuls ont suivi la correction.', ...phrasesApresCorrection(reponse)].join(' '),
         });
+        const historique = reponse.payslip?.edit_history;
         setResultat({
           netAvant,
           netApres: netDuBulletin(reponse.payslip?.payslip_data),
           version: reponse.payslip?.updated_at ?? null,
+          versionHistorique:
+            Array.isArray(historique) && historique.length > 0
+              ? historique.reduce((max, v) => Math.max(max, v.version), 0) || null
+              : null,
+          etaitValide: payslip.status === 'valide',
         });
       } else {
         toast({ title: 'Notes enregistrées' });
@@ -395,8 +413,22 @@ export default function PayslipEdit() {
     setIsSaving(true);
     try {
       const versions = await getPayslipHistory(payslipId);
-      const derniere = versions.reduce((max, v) => Math.max(max, v.version), 0);
-      if (!derniere) throw new Error('Aucune version précédente à remettre.');
+      // Seulement la version de cette application : une autre arrivée depuis
+      // (régénération, autre onglet) ne se remet pas en un clic.
+      const derniere = versionAAnnuler(versions, {
+        version: resultat?.versionHistorique ?? null,
+        netAvant: resultat?.netAvant ?? null,
+      });
+      if (derniere === null) {
+        toast({
+          title: 'Annulation impossible ici',
+          description: 'Le bulletin a changé depuis l’application. Ouvrez l’onglet « Historique » pour choisir la version.',
+          variant: 'destructive',
+        });
+        setResultat(null);
+        return;
+      }
+      const etaitValide = Boolean(resultat?.etaitValide) || payslip.status === 'valide';
       const reponse = await restorePayslipVersion(payslipId, derniere, payslip.company_id);
       const suite = choixApresCorrection(reponse);
       if (suite.kind === 'choix') {
@@ -405,7 +437,13 @@ export default function PayslipEdit() {
       } else if (suite.kind === 'regenerer') {
         toast({ title: 'Bulletin remis, non recalculé', description: `${suite.message} — utilisez « Régénérer ».`, variant: 'destructive' });
       } else {
-        toast({ title: 'Correction annulée', description: 'Le bulletin est revenu à sa version d’avant.' });
+        const brouillon = etaitValide && reponse.payslip?.status === 'brouillon';
+        toast({
+          title: 'Correction annulée',
+          description: brouillon
+            ? 'Le bulletin est revenu à sa version d’avant. Il est repassé en brouillon : validez-le de nouveau pour que le salarié le voie.'
+            : 'Le bulletin est revenu à sa version d’avant.',
+        });
       }
       setResultat(null);
       await apresChangement();
@@ -683,6 +721,7 @@ export default function PayslipEdit() {
         <TabsContent value="corriger" className="space-y-6 mt-6">
           <fieldset disabled={isEditLocked} className="space-y-6 border-0 p-0 m-0 min-w-0">
             <BulletinACorriger
+              key={`${remontage}:${payslip.updated_at ?? ''}`}
               payslipId={payslip.id}
               version={payslip.updated_at ?? null}
               payslipData={payslip.payslip_data}
@@ -699,6 +738,9 @@ export default function PayslipEdit() {
               forfaitJours={salarieBulletin?.is_forfait_jour === true}
               tempsPartiel={estTempsPartiel(salarieBulletin)}
               demande={demande}
+              onDemandeTraitee={demandeTraitee}
+              onLignesSansMotif={setLignesSansMotif}
+              raisonDuVerrou={payslip.manual_edit_lock_reason}
               saisiesApresCalcul={saisiesApresLeCalcul(saisiesDuMois, payslip.generated_at, etat)}
               onAller={aller}
             />
@@ -861,11 +903,15 @@ export default function PayslipEdit() {
       {!isEditLocked && initial && etat ? (
         <BarreDeCorrection
           changements={modifie ? Math.max(1, nombreDeChangements(initial, etat)) : 0}
+          lignesSansMotif={lignesSansMotif}
           recalculPrevu={recalculPrevu}
           enCours={isSaving}
           resultat={resultatCourant}
           onAppliquer={demanderEnregistrement}
-          onToutAnnuler={() => setEtat(initial)}
+          onToutAnnuler={() => {
+            setEtat(initial);
+            setRemontage((n) => n + 1);
+          }}
           onAnnulerLApplication={() => void annulerLApplication()}
           onFermerResultat={() => setResultat(null)}
         />

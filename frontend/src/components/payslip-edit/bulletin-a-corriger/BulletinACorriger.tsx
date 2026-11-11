@@ -3,9 +3,9 @@
  * (design du 11/11/2026, retours de Lyon). Chaque correction reste une
  * variable du mois ; « Appliquer » (barre du bas) recalcule tout.
  */
-import { useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ExternalLink, Lock, TriangleAlert } from 'lucide-react';
+import { ExternalLink, Lock, TriangleAlert, X } from 'lucide-react';
 
 import { getLignesCorrigeables, type LigneCorrigeable } from '@/api/payslips';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -17,20 +17,24 @@ import {
   type SaisieApresCalcul,
 } from '@/features/payroll/utils/correctionsBulletin';
 import {
+  autresMontantsDuNet,
   correctionEnAttente,
+  cotisationsAOuvrir,
   estRetiree,
   estSurLeNet,
   etapeEnCours,
   nombreDeChangements,
   origineDeLaLigne,
   primeDeLaLigne,
+  type StatutDeLigne,
+  suiviDesLignes,
 } from '@/features/payroll/utils/bulletinACorriger';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { queryKeys } from '@/lib/queryKeys';
 import AjouterUneLigne from './AjouterUneLigne';
 import BandeauEtapes from './BandeauEtapes';
 import LigneDePrime from './LigneDePrime';
-import LigneDuBulletin from './LigneDuBulletin';
+import LigneDuBulletin, { type ReportDeCorrection } from './LigneDuBulletin';
 import LignesAjoutees from './LignesAjoutees';
 
 interface Props {
@@ -50,6 +54,12 @@ interface Props {
   forfaitJours?: boolean;
   tempsPartiel?: boolean;
   demande?: DemandeDeCorrection | null;
+  /** La demande de l'onglet « Bulletin » est consommée : elle ne se rouvre plus au remontage. */
+  onDemandeTraitee?: () => void;
+  /** Le nombre de lignes ouvertes avec une valeur tapée et sans motif (dit dans la barre du bas). */
+  onLignesSansMotif?: (nombre: number) => void;
+  /** Pourquoi le bulletin ne se corrige pas, quand il est verrouillé. */
+  raisonDuVerrou?: string | null;
   saisiesApresCalcul?: SaisieApresCalcul[];
   onAller: (lien: string) => void;
 }
@@ -66,7 +76,7 @@ function Titre({ children }: { children: ReactNode }) {
 }
 
 export default function BulletinACorriger(props: Props) {
-  const { payslipId, version, payslipData, initial, etat, onChange, disabled, demande, onAller } = props;
+  const { payslipId, version, payslipData, initial, etat, onChange, disabled, demande, onAller, onLignesSansMotif } = props;
   const companyId = useActiveCompanyId();
   const query = useQuery({
     queryKey: queryKeys.lignesCorrigeables(companyId, payslipId, version),
@@ -74,18 +84,31 @@ export default function BulletinACorriger(props: Props) {
     enabled: Boolean(companyId && payslipId),
     staleTime: 30_000,
   });
-  const [enEdition, setEnEdition] = useState<Set<string>>(new Set());
-  const surEdition = (code: string, ouverte: boolean) =>
-    setEnEdition((avant) => {
-      const apres = new Set(avant);
-      if (ouverte) apres.add(code);
-      else apres.delete(code);
-      return apres;
-    });
+  // Les lignes ouvertes, et celles qui attendent leur motif. Le composant est
+  // remonté à chaque nouvelle version du bulletin et à « Tout annuler » : tout repart fermé.
+  const [statuts, setStatuts] = useState<ReadonlyMap<string, StatutDeLigne>>(new Map());
+  const surEdition = useCallback(
+    (code: string, statut: StatutDeLigne | null) =>
+      setStatuts((avant) => {
+        if ((avant.get(code) ?? null) === statut) return avant;
+        const apres = new Map(avant);
+        if (statut) apres.set(code, statut);
+        else apres.delete(code);
+        return apres;
+      }),
+    []
+  );
+  // « Reporter sur une autre ligne » : la correction non placée attend le crayon de la bonne ligne.
+  const [report, setReport] = useState<ReportDeCorrection | null>(null);
 
   const lignes = (query.data?.lignes ?? []).filter((l) => l.code);
   const enAttente = query.data?.en_attente ?? [];
-    const changements = nombreDeChangements(initial, etat);
+  const changements = nombreDeChangements(initial, etat);
+  const suivi = suiviDesLignes(statuts, etat);
+  useEffect(() => {
+    onLignesSansMotif?.(suivi.sansMotif);
+  }, [suivi.sansMotif, onLignesSansMotif]);
+  useEffect(() => () => onLignesSansMotif?.(0), [onLignesSansMotif]);
   const lienDe = (ligne: LigneCorrigeable) => {
     const origine = origineDeLaLigne(ligne);
     if (origine === 'planning') return { texte: 'Vient du planning · ouvrir le planning du mois', onOuvrir: () => onAller(props.lienPlanning) };
@@ -105,7 +128,10 @@ export default function BulletinACorriger(props: Props) {
         disabled={disabled}
         lienSource={lienDe(ligne)}
         demande={demande}
+        onDemandeTraitee={props.onDemandeTraitee}
         onEdition={surEdition}
+        report={report}
+        onReportPris={() => setReport(null)}
       />
     );
   };
@@ -113,51 +139,83 @@ export default function BulletinACorriger(props: Props) {
   const cotisations = lignes.filter((l) => l.bloc === 'cotisations');
   const impot = lignes.filter((l) => l.bloc === 'impot');
   const primesDuNet = etat.primes.filter(estSurLeNet);
-  const centimes = (x: number) => Math.round(Math.abs(x) * 100);
-  const autresMontantsDuNet = (query.data?.a_la_source ?? []).filter(
-    (b) => !etat.primes.some((p) => p.libelle === b.libelle && b.montant != null && centimes(p.montant) === centimes(b.montant)),
-  );
+  const montantsDuNet = autresMontantsDuNet(query.data?.a_la_source ?? [], initial);
   const nbChangementsCotisations = cotisations.filter((l) => correctionEnAttente(etat, l.code) || estRetiree(etat, l)).length;
+  // Le bloc replié s'ouvre par le code, jamais ne se referme par lui : piloter
+  // l'attribut `open` le refermait pendant la saisie.
+  const blocCotisations = useRef<HTMLDetailsElement>(null);
+  const ouvrirCotisations = cotisationsAOuvrir(cotisations, etat, statuts, demande);
+  useEffect(() => {
+    if (ouvrirCotisations && blocCotisations.current) blocCotisations.current.open = true;
+  }, [ouvrirCotisations]);
 
   return (
     <div className="space-y-4" data-testid="bulletin-a-corriger">
       {disabled ? (
         <Alert data-testid="verrou-corriger">
           <Lock className="h-4 w-4" />
-          <AlertDescription>Ce bulletin ne se corrige pas pour l’instant : la raison est affichée en haut de la page.</AlertDescription>
+          <AlertDescription>
+            {props.raisonDuVerrou?.trim()
+              ? 'Ce bulletin ne se corrige pas pour l’instant : la raison est affichée en haut de la page.'
+              : 'Ce bulletin ne se corrige pas pour l’instant.'}
+          </AlertDescription>
         </Alert>
       ) : (
-        <BandeauEtapes etape={etapeEnCours(enEdition.size > 0, changements)} />
+        <BandeauEtapes etape={etapeEnCours(suivi.enEdition > 0, changements)} />
       )}
 
       {enAttente.length > 0 ? (
         <Alert variant="destructive" data-testid="corrections-en-attente">
           <TriangleAlert className="h-4 w-4" />
           <AlertDescription className="space-y-2">
-            <p>Ces corrections ne sont plus sur le bulletin. Il ne peut pas être validé tant qu’elles ne sont pas retirées.</p>
+            <p>
+              Ces corrections ne sont plus sur le bulletin. Il ne peut pas être validé tant qu’elles ne sont pas
+              retirées ou reportées sur une autre ligne.
+            </p>
             {enAttente.map((attente) => {
               const id = String(attente.saisie_id ?? '');
               const retiree = etat.correctionsRetirees.includes(id);
+              const reportee = report?.id === id;
               return (
                 <div key={id || attente.ligne} className="flex flex-wrap items-center justify-between gap-2">
                   <span className={retiree ? 'line-through' : ''}>
                     {attente.libelle} — {attente.motif} ({attente.raison})
                   </span>
                   {id && !disabled ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        onChange({
-                          ...etat,
-                          correctionsRetirees: retiree
-                            ? etat.correctionsRetirees.filter((x) => x !== id)
-                            : [...etat.correctionsRetirees, id],
-                        })
-                      }
-                    >
-                      {retiree ? 'Garder' : 'Retirer'}
-                    </Button>
+                    <span className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          onChange({
+                            ...etat,
+                            correctionsRetirees: retiree
+                              ? etat.correctionsRetirees.filter((x) => x !== id)
+                              : [...etat.correctionsRetirees, id],
+                          })
+                        }
+                      >
+                        {retiree ? 'Garder' : 'Retirer'}
+                      </Button>
+                      {!retiree && !reportee ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          data-testid={`reporter-${id}`}
+                          onClick={() => setReport({ id, motif: attente.motif, libelle: attente.libelle })}
+                        >
+                          Reporter sur une autre ligne
+                        </Button>
+                      ) : null}
+                    </span>
+                  ) : null}
+                  {reportee ? (
+                    <div className="flex basis-full items-center justify-between gap-2 rounded-md bg-background/60 px-2 py-1" data-testid="report-en-cours">
+                      <span>Cliquez le crayon de la bonne ligne : son motif sera repris, et cette correction remplacée.</span>
+                      <Button variant="ghost" size="sm" aria-label="Abandonner le report" onClick={() => setReport(null)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   ) : null}
                 </div>
               );
@@ -184,14 +242,14 @@ export default function BulletinACorriger(props: Props) {
           {remuneration.map(ligneDe)}
         </div>
         <LignesAjoutees initial={initial} etat={etat} onChange={onChange} disabled={disabled} />
-        {primesDuNet.length > 0 || autresMontantsDuNet.length > 0 ? (
+        {primesDuNet.length > 0 || montantsDuNet.length > 0 ? (
           <div data-testid="bloc-sur-le-net">
             <Titre>Sur le net</Titre>
             {primesDuNet.map((p) => (
               <LigneDePrime key={p.saisieId} prime={p} etat={etat} onChange={onChange} disabled={disabled} />
             ))}
-            {autresMontantsDuNet.map((b) => (
-              <div key={`${b.libelle}-${b.source}`} className="flex items-center justify-between border-b px-3 py-2 text-sm">
+            {montantsDuNet.map((b, i) => (
+              <div key={`${b.libelle}-${b.source}-${i}`} className="flex items-center justify-between border-b px-3 py-2 text-sm">
                 <div>
                   <div className="font-medium">{b.libelle}</div>
                   {b.source.startsWith(SOURCE_DES_PRIMES) ? (
@@ -211,7 +269,7 @@ export default function BulletinACorriger(props: Props) {
           </div>
         ) : null}
         {cotisations.length > 0 ? (
-          <details data-testid="bloc-cotisations" open={nbChangementsCotisations > 0 || undefined}>
+          <details ref={blocCotisations} data-testid="bloc-cotisations">
             <summary className="cursor-pointer bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground">
               Cotisations ({cotisations.length} lignes) · elles se recalculent seules : ouvrez seulement si une cotisation précise est fausse
               {nbChangementsCotisations > 0 ? ` · ${nbChangementsCotisations} changement${nbChangementsCotisations > 1 ? 's' : ''} à appliquer` : ''}
@@ -240,6 +298,7 @@ export default function BulletinACorriger(props: Props) {
           year={props.year}
           month={props.month}
           demande={demande}
+          onDemandeTraitee={props.onDemandeTraitee}
         />
       </div>
 

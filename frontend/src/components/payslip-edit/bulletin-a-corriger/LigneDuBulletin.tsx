@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import {
   aideDeLaCorrection,
   apercuDuMontant,
+  avisSurLaLigne,
+  CE_QUI_SUIT_LA_CORRECTION,
   type ChampCorrigeable,
   type DemandeDeCorrection,
   type EtatCorrections,
@@ -30,11 +32,20 @@ import {
   remettre,
   retirer,
   retraitDeLaLigne,
+  type StatutDeLigne,
   uniteDuChamp,
+  valeurEnAttente,
 } from '@/features/payroll/utils/bulletinACorriger';
 import { lireNombre } from '@/lib/nombreSaisi';
 import { cn } from '@/lib/utils';
 import MotifEnPuces from './MotifEnPuces';
+
+/** Une correction en attente (non placée) à reporter sur la ligne dont on ouvrira le crayon. */
+export interface ReportDeCorrection {
+  id: string;
+  motif: string;
+  libelle: string;
+}
 
 interface Props {
   ligne: LigneCorrigeable;
@@ -43,7 +54,12 @@ interface Props {
   disabled?: boolean;
   lienSource: { texte: string; onOuvrir: () => void } | null;
   demande?: DemandeDeCorrection | null;
-  onEdition: (code: string, ouverte: boolean) => void;
+  /** La demande de l'onglet « Bulletin » est consommée : elle ne se rouvre plus. */
+  onDemandeTraitee?: () => void;
+  /** La ligne dit si elle est ouverte, et si une valeur y attend son motif (null : fermée). */
+  onEdition: (code: string, statut: StatutDeLigne | null) => void;
+  report?: ReportDeCorrection | null;
+  onReportPris?: () => void;
 }
 
 function montantAffiche(ligne: LigneCorrigeable): string {
@@ -58,46 +74,51 @@ function montantAffiche(ligne: LigneCorrigeable): string {
   return `${ligne.retenue ? '−' : ''}${eurosFr(ligne.montant)}`;
 }
 
-export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienSource, demande, onEdition }: Props) {
+export default function LigneDuBulletin(props: Props) {
+  const { ligne, etat, onChange, disabled, lienSource, demande, onEdition, report } = props;
   const code = String(ligne.code ?? '');
   const enAttente = correctionEnAttente(etat, code);
   const retiree = estRetiree(etat, ligne);
-  const retrait = retraitDeLaLigne(ligne);
+  const retrait = retraitDeLaLigne(ligne, etat);
   const propose = champPropose(ligne);
   const [ouverte, setOuverte] = useState(false);
   const [cle, setCle] = useState<ChampCorrigeable | ''>('');
   const [texte, setTexte] = useState('');
   const [motif, setMotif] = useState('');
   const [motifRetrait, setMotifRetrait] = useState<string | null>(null);
+  // La correction en attente (non placée) que cette ligne remplace, prise au crayon.
+  const [reportDe, setReportDe] = useState<ReportDeCorrection | null>(null);
   const racine = useRef<HTMLDivElement>(null);
   const champDe = (k: ChampCorrigeable | '') => (k && [propose, ...autresChamps(ligne)].find((c) => c?.cle === k)) || propose;
   const champ = champDe(cle);
 
   const ouvrir = () => {
     // Une correction déjà en attente : on rouvre sur son champ, avec sa valeur.
-    const valeurs = (enAttente ?? {}) as unknown as Record<string, unknown>;
-    const cleEnAttente = Object.keys(valeurs).find(
-      (k) => !['ligne', 'libelle', 'motif'].includes(k) && valeurs[k] != null
-    ) as ChampCorrigeable | undefined;
+    const dejaTapee = valeurEnAttente(enAttente);
     setOuverte(true);
-    setCle(cleEnAttente ?? '');
-    setTexte(cleEnAttente ? String(valeurs[cleEnAttente]).replace('.', ',') : '');
-    setMotif(enAttente?.motif ?? '');
-    onEdition(code, true);
+    setCle(dejaTapee?.cle ?? '');
+    setTexte(dejaTapee ? String(dejaTapee.valeur).replace('.', ',') : '');
+    // Un report en cours : le motif de la correction reportée est repris.
+    const repris = !enAttente && report ? report : null;
+    setReportDe(repris);
+    setMotif(enAttente?.motif ?? repris?.motif ?? '');
   };
   const fermer = () => {
     setOuverte(false);
     setTexte('');
     setMotif('');
     setCle('');
-    onEdition(code, false);
+    setReportDe(null);
   };
 
   useEffect(() => {
-    if (demande?.carte === 'ligne' && demande.code === code && propose && !disabled) {
+    if (demande?.carte !== 'ligne' || demande.code !== code) return;
+    if (propose && !disabled) {
       ouvrir();
-      racine.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Après l'ouverture du bloc replié des cotisations, sinon le défilement ne trouve rien.
+      window.requestAnimationFrame(() => racine.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' }));
     }
+    props.onDemandeTraitee?.();
     // Le jeton change à chaque clic venu de l'onglet « Bulletin ».
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demande?.jeton]);
@@ -108,22 +129,34 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
     setMotif(nouveauMotif);
     const cible = champDe(nouvelleCle);
     const nombre = lireNombre(nouveauTexte);
+    const options = { reporteDe: reportDe?.id ?? null };
     if (cible && nombre !== null && aideDeLaCorrection(nouveauTexte, nouveauMotif) === null) {
-      onChange(corrigerLaLigne(etat, ligne, cible.cle, nombre, nouveauMotif));
+      onChange(corrigerLaLigne(etat, ligne, cible.cle, nombre, nouveauMotif, options));
+      if (reportDe && report?.id === reportDe.id) props.onReportPris?.();
     } else {
-      onChange(annulerLaCorrection(etat, code));
+      onChange(annulerLaCorrection(etat, ligne, options));
     }
   };
 
   const retirerAvecMotif = (m: string) => {
     onChange(retirer(etat, ligne, m));
     setMotifRetrait(null);
-    onEdition(code, false);
   };
 
   const nombre = lireNombre(texte);
   const apercu = ouverte && champ && nombre !== null ? apercuDuMontant(ligne, champ.cle, nombre) : null;
+  // Ligne refermée avec une correction en attente : le nouveau montant reste dit.
+  const tapee = !ouverte && !retiree ? valeurEnAttente(enAttente) : null;
+  const apercuEnAttente = tapee ? apercuDuMontant(ligne, tapee.cle, tapee.valeur) : null;
   const aide = ouverte ? aideDeLaCorrection(texte, motif) : null;
+  // Une valeur tapée sans motif n'est pas en attente : dit en ambre, jamais en silence.
+  const sansMotif = ouverte && nombre !== null && aide?.champ === 'bouton';
+  const statut: StatutDeLigne | null = ouverte ? (sansMotif ? 'sans_motif' : 'edition') : motifRetrait !== null ? 'edition' : null;
+  useEffect(() => {
+    onEdition(code, statut);
+  }, [code, statut, onEdition]);
+  useEffect(() => () => onEdition(code, null), [code, onEdition]);
+  const avis = ouverte ? avisSurLaLigne(ligne) : null;
   const dejaCorrigee = Boolean(ligne.correction?.saisie_id);
   const correctionRetiree = dejaCorrigee && etat.correctionsRetirees.includes(String(ligne.correction?.saisie_id));
 
@@ -131,9 +164,11 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
     <div
       ref={racine}
       data-testid={`ligne-${code}`}
+      data-motif-manquant={sansMotif ? 'oui' : undefined}
       className={cn(
         'flex flex-col gap-2 border-b px-3 py-2 text-sm sm:flex-row sm:items-start sm:justify-between',
-        ouverte && 'bg-blue-50 outline outline-2 -outline-offset-2 outline-blue-500 dark:bg-blue-950/30',
+        ouverte && !sansMotif && 'bg-blue-50 outline outline-2 -outline-offset-2 outline-blue-500 dark:bg-blue-950/30',
+        sansMotif && 'bg-amber-50 outline outline-2 -outline-offset-2 outline-amber-500 dark:bg-amber-950/30',
         retiree && 'bg-red-50 dark:bg-red-950/20',
         !retiree && enAttente && !ouverte && 'bg-amber-50 dark:bg-amber-950/20'
       )}
@@ -141,9 +176,20 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
       <div className="min-w-0 flex-1 space-y-1">
         <div className={cn('font-medium', retiree && 'text-muted-foreground line-through')}>
           {ligne.libelle}
-          {retiree ? <span className="ml-2 rounded bg-red-100 px-1.5 text-xs font-semibold text-red-700">Retirée</span> : null}
+          {retiree ? (
+            <span className="ml-2 rounded bg-red-100 px-1.5 text-xs font-semibold text-red-700 dark:bg-red-950/60 dark:text-red-300">
+              Retirée
+            </span>
+          ) : null}
           {!retiree && enAttente ? (
-            <span className="ml-2 rounded bg-amber-100 px-1.5 text-xs font-semibold text-amber-800">À appliquer</span>
+            <span className="ml-2 rounded bg-amber-100 px-1.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-amber-200">
+              À appliquer
+            </span>
+          ) : null}
+          {sansMotif ? (
+            <span className="ml-2 rounded bg-amber-100 px-1.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-amber-200">
+              Motif manquant
+            </span>
           ) : null}
         </div>
         {lienSource ? (
@@ -162,6 +208,11 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
 
         {ouverte && champ ? (
           <div className="mt-2 space-y-3 rounded-md border bg-background p-3">
+            {reportDe ? (
+              <p className="text-xs text-muted-foreground" data-testid={`report-sur-${code}`}>
+                Report de la correction « {reportDe.libelle} » : elle sera remplacée par celle-ci.
+              </p>
+            ) : null}
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">
                 Martine : {champ.valeur != null ? String(champ.valeur).replace('.', ',') : '—'} {uniteDuChamp(ligne, champ.cle)}
@@ -170,6 +221,7 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
               <Input
                 autoFocus
                 data-testid={`valeur-${code}`}
+                aria-label={libelleDuChamp(ligne, champ.cle)}
                 inputMode="decimal"
                 className="w-28 border-2 border-blue-500 text-right font-semibold"
                 value={texte}
@@ -186,7 +238,7 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
                     <button
                       key={c!.cle}
                       type="button"
-                      className="text-blue-700 underline-offset-2 hover:underline"
+                      className="text-blue-700 underline-offset-2 hover:underline dark:text-blue-300"
                       onClick={() => {
                         setCle(c!.cle);
                         ecrire('', motif, c!.cle);
@@ -200,6 +252,19 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
             {aide?.champ === 'valeur' ? <p className="text-xs text-destructive">{aide.message}</p> : null}
             <MotifEnPuces testId={`motif-${code}`} valeur={motif} onValeur={(m) => ecrire(texte, m)} />
             {aide?.champ === 'motif' ? <p className="text-xs text-destructive">{aide.message}</p> : null}
+            {sansMotif ? (
+              <p className="text-xs font-medium text-amber-800 dark:text-amber-200" data-testid={`aide-motif-${code}`}>
+                Choisissez un motif : il est imprimé sur le bulletin. Sans motif, cette correction n’est pas appliquée.
+              </p>
+            ) : null}
+            {avis ? (
+              <p className="text-xs text-muted-foreground" data-testid="avis-sur-la-ligne">
+                {avis}
+              </p>
+            ) : null}
+            <p className="text-xs text-muted-foreground" data-testid="ce-qui-suit-la-correction">
+              {CE_QUI_SUIT_LA_CORRECTION}
+            </p>
           </div>
         ) : null}
 
@@ -223,14 +288,7 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
               >
                 Retirer la ligne
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setMotifRetrait(null);
-                  onEdition(code, false);
-                }}
-              >
+              <Button variant="ghost" size="sm" onClick={() => setMotifRetrait(null)}>
                 Annuler
               </Button>
             </div>
@@ -245,6 +303,10 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
             <span data-testid={`apercu-${code}`} className="ml-1 font-semibold">
               → {eurosFr(apercu)}
             </span>
+          ) : apercuEnAttente !== null ? (
+            <span data-testid={`apercu-${code}`} className="ml-1 font-semibold">
+              → {eurosFr(apercuEnAttente)}
+            </span>
           ) : null}
         </span>
         {disabled ? null : retiree ? (
@@ -257,7 +319,7 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
             size="sm"
             aria-label="Annuler cette correction"
             onClick={() => {
-              onChange(annulerLaCorrection(etat, code));
+              onChange(annulerLaCorrection(etat, ligne, { reporteDe: reportDe?.id ?? null }));
               fermer();
             }}
           >
@@ -274,20 +336,19 @@ export default function LigneDuBulletin({ ligne, etat, onChange, disabled, lienS
               <Button
                 variant="outline"
                 size="sm"
-                className="text-red-700"
+                className="text-red-700 dark:text-red-400"
                 data-testid={`retirer-${code}`}
                 aria-label={`Retirer ${ligne.libelle}`}
                 onClick={() => {
-                  if (retrait.type === 'montant_zero') {
-                    setMotifRetrait('');
-                    onEdition(code, true);
-                  } else onChange(retirer(etat, ligne, ''));
+                  if (retrait.type === 'montant_zero') setMotifRetrait('');
+                  else onChange(retirer(etat, ligne, ''));
                 }}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
             ) : null}
-            {dejaCorrigee ? (
+            {/* Une correction en attente remplace déjà celle du bulletin : la garder ferait refuser l'application. */}
+            {dejaCorrigee && !enAttente ? (
               <Button
                 variant="ghost"
                 size="sm"

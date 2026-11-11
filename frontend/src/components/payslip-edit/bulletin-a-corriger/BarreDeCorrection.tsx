@@ -9,6 +9,8 @@ import { eurosFr } from '@/features/payroll/utils/correctionsBulletin';
 
 interface Props {
   changements: number;
+  /** Lignes ouvertes avec une valeur tapée et sans motif : rien n'y est en attente. */
+  lignesSansMotif?: number;
   recalculPrevu: boolean;
   enCours: boolean;
   resultat: { netAvant: number | null; netApres: number | null } | null;
@@ -20,9 +22,21 @@ interface Props {
 
 const net = (valeur: number | null) => (valeur == null ? '—' : eurosFr(valeur));
 
+function PhraseSansMotif({ nombre }: { nombre: number }) {
+  if (nombre <= 0) return null;
+  return (
+    <p className="font-semibold text-amber-300" data-testid="lignes-sans-motif">
+      {nombre === 1
+        ? '1 ligne ouverte sans motif : choisissez son motif, sinon elle n’est pas appliquée.'
+        : `${nombre} lignes ouvertes sans motif : choisissez leur motif, sinon elles ne sont pas appliquées.`}
+    </p>
+  );
+}
+
 export default function BarreDeCorrection(props: Props) {
   const { changements, recalculPrevu, enCours, resultat } = props;
-  if (changements === 0 && !resultat && !enCours) return null;
+  const sansMotif = props.lignesSansMotif ?? 0;
+  if (changements === 0 && sansMotif === 0 && !resultat && !enCours) return null;
   return (
     <>
       <div className="h-24" aria-hidden="true" />
@@ -43,6 +57,7 @@ export default function BarreDeCorrection(props: Props) {
                     ? 'Le bulletin sera recalculé en entier : brut, cotisations, net et cumuls.'
                     : 'Seules les notes changent : le bulletin n’est pas recalculé.'}
                 </p>
+                <PhraseSansMotif nombre={sansMotif} />
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" className="bg-white text-gray-900 hover:bg-gray-100" onClick={props.onToutAnnuler}>
@@ -53,6 +68,11 @@ export default function BarreDeCorrection(props: Props) {
                 </Button>
               </div>
             </>
+          ) : sansMotif > 0 ? (
+            <div className="text-sm" data-testid="barre-enregistrement">
+              <p className="font-semibold">Rien à appliquer pour l’instant</p>
+              <PhraseSansMotif nombre={sansMotif} />
+            </div>
           ) : resultat ? (
             <>
               <p className="text-sm" data-testid="resultat-application" role="status" aria-live="polite">
