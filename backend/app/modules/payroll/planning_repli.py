@@ -160,6 +160,36 @@ def reel_heures_avec_repli_planning_si_sans_pointage(
     return reel_hors_mois + reel_synthese
 
 
+CODE_ALERTE_MOIS_SANS_POINTAGE = "mois_sans_pointage"
+
+
+def alerte_mois_sans_pointage(
+    reel_apres_repli: List[Dict[str, Any]], *, annee: int, mois: int
+) -> Dict[str, Any] | None:
+    """Contrat heures payé sur le planning faute de pointage : le bulletin le dit.
+
+    Périmètre validé par Elsa (R17, 11/11/2026) : « Martine garde le salaire et
+    prévient ». Le repli seul ne se voyait que dans les journaux.
+    """
+    jours = [
+        j
+        for j in reel_apres_repli
+        if j.get("source_repli_planning") and _dans_mois(j, annee=annee, mois=mois)
+    ]
+    if not jours:
+        return None
+    return {
+        "code": CODE_ALERTE_MOIS_SANS_POINTAGE,
+        "severity": "warning",
+        "critique": False,
+        "message": (
+            f"Aucun pointage en {mois:02d}/{annee} : Martine a payé les heures prévues "
+            f"au planning ({len(jours)} jour(s)). Si le salarié a travaillé autrement, "
+            "importez ou saisissez ses heures, puis recalculez."
+        ),
+    }
+
+
 def appliquer_repli_sans_pointage_par_mois(
     planned_data_all_months: List[Dict[str, Any]],
     actual_data_all_months: List[Dict[str, Any]],

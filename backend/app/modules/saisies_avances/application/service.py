@@ -269,6 +269,10 @@ def delete_salary_seizure(seizure_id: str) -> None:
     seizure_repository.delete(seizure_id)
 
 
+#: Motif posé quand la RH accorde plus que le plafond habituel sans en écrire un.
+MOTIF_AU_DELA_PAR_LA_RH = "Au-delà du plafond habituel, accordé par la RH"
+
+
 def _validate_advance_requested_amount(
     employee_id: str,
     requested_amount: Decimal,
@@ -276,10 +280,17 @@ def _validate_advance_requested_amount(
     advance_type: str = "avance_salaire",
     net_cap_override: bool = False,
     override_reason: Optional[str] = None,
-) -> None:
-    """Vérifie que le montant demandé respecte le disponible selon la nature."""
+    par_la_rh: bool = False,
+) -> bool:
+    """Vérifie que le montant demandé respecte le disponible selon la nature.
+
+    Retourne vrai si le montant dépasse le plafond habituel. Pour la RH, ce n'est
+    jamais un refus (périmètre validé par Elsa, R139, 11/11/2026 : « la RH ajuste,
+    juste un message d'alerte de la loi ») : l'écran l'avertit avant l'envoi et la
+    demande garde la trace du dépassement. Le salarié, lui, reste au plafond.
+    """
     if advance_type == "acompte_prime":
-        return
+        return False
 
     data = build_advance_available(
         employee_id,
@@ -287,6 +298,10 @@ def _validate_advance_requested_amount(
         requested_date.month,
         advance_type=advance_type,
     )
+    available = data["available_amount"]
+    if par_la_rh:
+        return requested_amount > available
+
     reference_net = data.get("reference_net_salary", Decimal("0"))
 
     if net_cap_override:
@@ -300,11 +315,10 @@ def _validate_advance_requested_amount(
                 "Le montant demandé dépasse le net de référence "
                 f"({reference_net:.2f} €)."
             )
-        return
+        return True
 
-    available = data["available_amount"]
     if requested_amount <= available:
-        return
+        return False
 
     max_from_net = data.get("max_advance_from_net", Decimal("0"))
     outstanding = data.get("outstanding_advances", Decimal("0"))
@@ -360,14 +374,20 @@ def create_salary_advance(advance_data: Any, ctx: UserContext) -> Dict[str, Any]
     if not company_id:
         raise NotFoundError("Employé non trouvé.")
 
-    _validate_advance_requested_amount(
+    par_la_rh = ctx.role != "collaborateur"
+    au_dela_du_plafond = _validate_advance_requested_amount(
         employee_id,
         Decimal(str(advance_data.requested_amount)),
         advance_data.requested_date,
         advance_type=advance_type,
         net_cap_override=plafond_net_override,
         override_reason=override_reason,
+        par_la_rh=par_la_rh,
     )
+    if par_la_rh and au_dela_du_plafond:
+        # La trace du dépassement reste sur la demande, avec un motif.
+        plafond_net_override = True
+        override_reason = (override_reason or "").strip() or MOTIF_AU_DELA_PAR_LA_RH
     is_employee_request = ctx.role == "collaborateur"
     initial_status = domain_rules.initial_advance_status(is_employee_request)
 
@@ -421,11 +441,13 @@ def approve_salary_advance(advance_id: str, approved_by_id: Any) -> Dict[str, An
     else:
         requested_date = date.today()
 
+    # C'est la RH qui approuve : le plafond habituel l'avertit, sans refus (R139).
     _validate_advance_requested_amount(
         advance["employee_id"],
         Decimal(str(advance["requested_amount"])),
         requested_date,
         advance_type=advance.get("advance_type", "avance_salaire"),
+        par_la_rh=True,
     )
 
     requested_amount = float(advance["requested_amount"])

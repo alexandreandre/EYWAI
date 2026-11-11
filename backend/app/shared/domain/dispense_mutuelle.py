@@ -51,6 +51,9 @@ MOTIFS_A_ECHEANCE = frozenset({"css", "assurance_individuelle"})
 MOTIF_JUSTIFIE_CHAQUE_ANNEE = "couverture_collective"
 MOTIFS_CDD = frozenset({"cdd_moins_12_mois", "cdd_12_mois_et_plus"})
 
+#: Code de l'alerte portée par le bulletin (R113, 11/11/2026) : jamais un refus.
+CODE_ALERTE_MUTUELLE = "mutuelle_absente_ou_dispense"
+
 #: Le contrôle d'avant le 05/11/2026 ne regardait que ces contrats ; inchangé.
 CONTRATS_CONTROLES = frozenset({"CDI", "CDD"})
 
@@ -171,4 +174,4 @@ def alerte_versement_sante(
     )
 
 
-__all__ = ["MOTIFS_DISPENSE", "alerte_mutuelle", "alerte_versement_sante"]
+__all__ = ["CODE_ALERTE_MUTUELLE", "MOTIFS_DISPENSE", "alerte_mutuelle", "alerte_versement_sante"]

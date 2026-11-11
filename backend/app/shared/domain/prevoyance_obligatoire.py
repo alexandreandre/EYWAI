@@ -1,4 +1,9 @@
-"""Prévoyance que la loi impose : sans elle, le bulletin ne se génère pas.
+"""Prévoyance que la loi impose : sans elle, le bulletin le signale.
+
+Depuis le 11/11/2026 (périmètre validé par Elsa, R109 et R111), c'est une
+alerte, plus un refus : un cadre multi-employeurs peut être couvert par
+ailleurs, et la RH tranche. Le bulletin se calcule sans ligne de prévoyance et
+porte l'alerte jusqu'à ce que la fiche soit complétée.
 
 Cadres. ANI du 17 novembre 2017 relatif à la prévoyance des cadres (en vigueur
 étendu, arrêté du 27 juillet 2018), art. 1er : « Les employeurs s'engagent à
@@ -13,8 +18,8 @@ dans tous les cas, un cadre sans prévoyance est une erreur.
 
 Le moteur ne pose pour un cadre que les lignes de prévoyance de sa fiche : sans
 adhésion, ou sans ligne, le bulletin n'en porte aucune (audit du 03/11/2026 :
-deux cadres sans prévoyance pendant des mois). D'où le refus, avant tout calcul,
-et l'alerte sur la fiche ; c'est la RH qui coche la prévoyance, jamais Martine.
+deux cadres sans prévoyance pendant des mois). D'où l'alerte, sur la fiche et
+sur le bulletin ; c'est la RH qui coche la prévoyance, jamais Martine.
 
 « Cadre » se lit comme pour l'APEC : statut de paie cadre, sauf si la
 classification de la fiche le déclare non-cadre (forfait jours non-cadre de la
@@ -64,16 +69,22 @@ IDCC_METALLURGIE = "3248"
 
 @dataclass(frozen=True)
 class PrevoyanceManquante:
-    """Ce qui manque, dit pour la fiche et pour le refus de génération."""
+    """Ce qui manque, dit pour la fiche et pour le bulletin."""
 
     code: str
     #: Sur la fiche, sans nom : le constat et le geste.
     fiche: str
-    #: Le refus de génération, avec `{prenom}` ; court (l'écran coupe à 220 signes).
-    refus: str
+    #: Sur le bulletin : le constat et le geste ; court (l'écran coupe à 220 signes).
+    bulletin: str
 
-    def refus_pour(self, prenom: str) -> str:
-        return self.refus.format(prenom=prenom)
+    def alerte_du_bulletin(self) -> Dict[str, Any]:
+        """L'alerte que porte le bulletin ; elle n'arrête pas le calcul."""
+        return {
+            "code": self.code,
+            "severity": "warning",
+            "critique": False,
+            "message": self.bulletin,
+        }
 
 
 _CADRE_SANS_PREVOYANCE = PrevoyanceManquante(
@@ -81,12 +92,12 @@ _CADRE_SANS_PREVOYANCE = PrevoyanceManquante(
     fiche=(
         "Cadre sans prévoyance : la loi l'impose, payée par l'employeur. Cochez "
         "« Adhésion prévoyance » et saisissez les lignes du contrat de prévoyance. "
-        "D'ici là, son bulletin ne se génère pas."
+        "D'ici là, son bulletin n'en porte aucune et le signale."
     ),
-    refus=(
-        "Bulletin non généré : {prenom} est cadre, sans prévoyance sur sa fiche. "
-        "La loi l'impose, payée par l'employeur. Cochez « Adhésion prévoyance » sur "
-        "la fiche, saisissez les lignes du contrat, puis relancez."
+    bulletin=(
+        "Cadre sans prévoyance sur sa fiche : le bulletin n'en porte aucune. La loi "
+        "l'impose, payée par l'employeur. S'il est couvert, cochez « Adhésion "
+        "prévoyance » sur la fiche, saisissez les lignes du contrat, puis recalculez."
     ),
 )
 
@@ -95,12 +106,12 @@ _CADRE_SANS_LIGNE = PrevoyanceManquante(
     fiche=(
         "Prévoyance cochée sans ligne : le bulletin de ce cadre n'en porterait "
         "aucune. Saisissez les lignes du contrat de prévoyance (taux salarial et "
-        "patronal). D'ici là, son bulletin ne se génère pas."
+        "patronal). D'ici là, son bulletin n'en porte aucune et le signale."
     ),
-    refus=(
-        "Bulletin non généré : {prenom} est cadre et sa prévoyance n'a aucune "
-        "ligne, le bulletin n'en porterait pas. Saisissez sur la fiche les lignes "
-        "du contrat de prévoyance, puis relancez."
+    bulletin=(
+        "Cadre, prévoyance cochée sans ligne : le bulletin n'en porte aucune. "
+        "Saisissez sur la fiche les lignes du contrat de prévoyance (taux salarial "
+        "et patronal), puis recalculez."
     ),
 )
 
@@ -110,14 +121,14 @@ _PLASTURGIE_SANS_PREVOYANCE = PrevoyanceManquante(
     fiche=(
         "Sans prévoyance après 3 mois d'ancienneté : la convention de la plasturgie "
         "l'impose (au moins 0,8 % du brut, moitié employeur). Cochez « Adhésion "
-        "prévoyance ». D'ici là, son bulletin ne se génère pas. Une dispense du "
+        "prévoyance ». D'ici là, son bulletin n'en porte aucune et le signale. Une dispense du "
         "salarié n'est possible que si l'acte de l'entreprise la prévoit (CSS "
         "R242-1-6) : Martine ne la gère pas, à régler avec le contrat de prévoyance."
     ),
-    refus=(
-        "Bulletin non généré : {prenom} a 3 mois d'ancienneté, sans prévoyance sur "
-        "sa fiche. La convention de la plasturgie l'impose. Cochez « Adhésion "
-        "prévoyance » sur la fiche, puis relancez."
+    bulletin=(
+        "3 mois d'ancienneté, sans prévoyance sur sa fiche : le bulletin n'en porte "
+        "aucune. La convention de la plasturgie l'impose. S'il est couvert, cochez "
+        "« Adhésion prévoyance » sur la fiche, puis recalculez."
     ),
 )
 

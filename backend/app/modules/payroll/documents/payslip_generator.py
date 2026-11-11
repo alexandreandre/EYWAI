@@ -5,6 +5,7 @@
 
 import calendar
 import json
+from app.modules.payroll.documents.alertes_d_entree import alertes_d_entree_courantes
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -91,7 +92,10 @@ from app.modules.jei_settings.application.queries import get_jei_settings_raw
 from app.modules.payroll.application.analyzer import (
     analyser_horaires_du_mois as payroll_analyzer_analyser,
 )
-from app.modules.payroll.planning_repli import appliquer_repli_sans_pointage_par_mois
+from app.modules.payroll.planning_repli import (
+    alerte_mois_sans_pointage,
+    appliquer_repli_sans_pointage_par_mois,
+)
 from app.shared.domain.employment_rules import (
     cumuls_precedents_du_contrat,
     is_forfait_jour,
@@ -677,6 +681,7 @@ def process_payslip_generation(
     automatique des variables, et n'écrit rien dans le planning du mois.
     """
     alerte_depart_zero = None
+    alerte_sans_pointage = None
     files_to_cleanup = []
     dirs_to_cleanup = []
     dossier_de_travail: Path | None = None
@@ -886,6 +891,11 @@ def process_payslip_generation(
             actual_data_all_months,
             year_months,
             is_forfait_jour=is_forfait_jour(employee_data.get("statut")),
+        )
+        alerte_sans_pointage = (
+            None
+            if is_forfait_jour(employee_data.get("statut"))
+            else alerte_mois_sans_pointage(actual_data_all_months, annee=year, mois=month)
         )
 
         weekly_map = None
@@ -1626,6 +1636,21 @@ def process_payslip_generation(
                 alerte_depart_zero,
             ]
             payslip_json_data[CLE_DEPART_A_ZERO] = dict(depart_a_zero)
+        if alerte_sans_pointage and isinstance(payslip_json_data, dict):
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = [
+                *(payslip_json_data.get("alertes_baremes") or []),
+                alerte_sans_pointage,
+            ]
+        # Ce que la fiche oublie (prévoyance que la loi impose, mutuelle…) : le
+        # bulletin le dit (posé par la commande, voir alertes_d_entree.py).
+        alertes_fiche = [] if bac_a_sable else alertes_d_entree_courantes()
+        if alertes_fiche and isinstance(payslip_json_data, dict):
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = [
+                *(payslip_json_data.get("alertes_baremes") or []),
+                *alertes_fiche,
+            ]
 
         from app.modules.payroll.application.empreinte_entrees_service import (
             poser_empreinte_depuis_lectures,

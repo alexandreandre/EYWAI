@@ -107,7 +107,9 @@ def test_la_fiche_le_dit():
     assert [a["code"] for a in alertes] == [CODE_PLASTURGIE_SANS_PREVOYANCE]
 
 
-def test_le_refus_tient_dans_l_ecran():
-    refus = prevoyance_manquante(_cdd(), idcc="0292", fin_du_mois=date(2026, 9, 30)).refus_pour("Marie-Christine")
-    assert refus.startswith("Bulletin non généré : Marie-Christine a 3 mois d'ancienneté")
-    assert len(refus) <= 220
+def test_l_alerte_du_bulletin_tient_dans_l_ecran_et_n_arrete_rien():
+    alerte = prevoyance_manquante(_cdd(), idcc="0292", fin_du_mois=date(2026, 9, 30)).alerte_du_bulletin()
+    assert alerte["code"] == CODE_PLASTURGIE_SANS_PREVOYANCE
+    assert alerte["message"].startswith("3 mois d'ancienneté, sans prévoyance")
+    assert alerte["critique"] is False
+    assert len(alerte["message"]) <= 220

@@ -669,7 +669,7 @@ export default function EmployeeDetail() {
         />
       )}
 
-      {/* Prévoyance que la loi impose : sans elle, le bulletin ne se génère pas. */}
+      {/* Prévoyance que la loi impose : sans elle, le bulletin le signale. */}
       {employeeId && employee && (
         <EmployeeAlertesPaieBanner employee={employee} onOpenEdit={() => setProfileEditOpen(true)} />
       )}

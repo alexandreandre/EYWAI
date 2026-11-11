@@ -10,6 +10,7 @@ Ce service détecte automatiquement si un employé est en forfait jour
 et utilise le générateur approprié.
 """
 
+from app.modules.payroll.documents.alertes_d_entree import alertes_d_entree_courantes
 from app.shared.domain.effectif_seuils import (
     alerte_effectif,
     alerte_franchissement_seuil,
@@ -726,6 +727,15 @@ def process_payslip_generation_forfait(
                 alerte_depart_zero,
             ]
             payslip_json_data[CLE_DEPART_A_ZERO] = dict(depart_a_zero)
+        # Ce que la fiche oublie (prévoyance que la loi impose, mutuelle…) : le
+        # bulletin le dit (posé par la commande, voir alertes_d_entree.py).
+        alertes_fiche = [] if bac_a_sable else alertes_d_entree_courantes()
+        if alertes_fiche and isinstance(payslip_json_data, dict):
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = [
+                *(payslip_json_data.get("alertes_baremes") or []),
+                *alertes_fiche,
+            ]
 
         from app.modules.payroll.application.empreinte_entrees_service import (
             poser_empreinte_depuis_lectures,

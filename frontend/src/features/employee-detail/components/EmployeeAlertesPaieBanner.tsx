@@ -12,7 +12,7 @@ type Props = {
 /**
  * Ce que la loi impose et que la fiche n'a pas (prévoyance des cadres, audit du
  * 03/11/2026). Le serveur dit le constat et le geste ; tant qu'il reste une
- * alerte, le bulletin du salarié ne se génère pas.
+ * alerte, le bulletin du salarié la porte aussi (plus de refus depuis le 11/11/2026).
  */
 export function EmployeeAlertesPaieBanner({ employee, onOpenEdit }: Props) {
   const alertes = (employee.alertes_paie ?? []).filter((a) => a?.message?.trim());

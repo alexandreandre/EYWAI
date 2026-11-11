@@ -90,13 +90,14 @@ def test_la_fiche_porte_une_alerte_code_et_message():
 @pytest.mark.parametrize(
     "prevoyance", [{"adhesion": False}, {"adhesion": True, "lignes_specifiques": []}]
 )
-def test_le_refus_nomme_la_personne_et_tient_dans_l_ecran(prevoyance):
+def test_l_alerte_du_bulletin_tient_dans_l_ecran(prevoyance):
     """L'écran coupe un message du serveur au-delà de 220 signes : la phrase entière
-    doit passer, prénom long compris."""
-    refus = prevoyance_manquante(_fiche(prevoyance=prevoyance)).refus_pour("Marie-Christine")
-    assert refus.startswith("Bulletin non généré : Marie-Christine est cadre")
-    assert refus.endswith("puis relancez.")
-    assert len(refus) <= 220
+    doit passer. Depuis le 11/11/2026, une alerte et non plus un refus (R109)."""
+    alerte = prevoyance_manquante(_fiche(prevoyance=prevoyance)).alerte_du_bulletin()
+    assert alerte["message"].startswith("Cadre")
+    assert alerte["message"].endswith("puis recalculez.")
+    assert alerte["severity"] == "warning" and alerte["critique"] is False
+    assert len(alerte["message"]) <= 220
 
 
 class TestMinimumCadre:

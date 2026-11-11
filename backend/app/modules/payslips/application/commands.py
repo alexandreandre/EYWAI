@@ -69,6 +69,8 @@ from app.modules.employees.application.contrat_du_mois import (
 )
 from app.shared.cle_du_bulletin import du_contrat
 from app.shared.domain.employment_rules import payslip_employment_period_block_reason
+from app.modules.payroll.documents.alertes_d_entree import alertes_d_entree
+from app.shared.domain.dispense_mutuelle import CODE_ALERTE_MUTUELLE, alerte_mutuelle
 from app.shared.domain.prevoyance_obligatoire import (
     dernier_jour_du_mois,
     idcc_de_la_classification,
@@ -642,6 +644,50 @@ def _idcc_du_salarie(employee: dict[str, Any]) -> str | None:
     return idcc or idcc_de_la_classification(employee) or None
 
 
+def _alertes_d_entree(employee: dict[str, Any], year: int, month: int) -> list[dict[str, Any]]:
+    """Ce que la fiche oublie et que le bulletin doit dire, sans s'arrêter.
+
+    Prévoyance que la loi impose (cadres : ANI du 17/11/2017 ; non-cadres de la
+    plasturgie après trois mois : accord du 29/10/2014). Un refus jusqu'au
+    11/11/2026 ; Elsa (R109, R111) : un salarié multi-employeurs peut être couvert
+    ailleurs, la RH tranche. Le bulletin se calcule sans ligne et porte l'alerte.
+    """
+    alertes: list[dict[str, Any]] = []
+    prevoyance = prevoyance_manquante(
+        employee,
+        idcc=lambda: _idcc_du_salarie(employee),
+        fin_du_mois=dernier_jour_du_mois(year, month),
+    )
+    if prevoyance:
+        logger.info(
+            "[generation] Alerte %s pour l'employé %s (%02d/%d).",
+            prevoyance.code,
+            employee.get("id"),
+            month,
+            year,
+        )
+        alertes.append(prevoyance.alerte_du_bulletin())
+    # Mutuelle absente sans dispense (R113) : la même phrase que la DSN. Un
+    # salarié couvert par la mutuelle de son conjoint a sa dispense à poser.
+    specificites = employee.get("specificites_paie")
+    mutuelle = alerte_mutuelle(
+        specificites.get("mutuelle") if isinstance(specificites, dict) else None,
+        employee.get("contract_type"),
+        year,
+        month,
+    )
+    if mutuelle:
+        alertes.append(
+            {
+                "code": CODE_ALERTE_MUTUELLE,
+                "severity": "warning",
+                "critique": False,
+                "message": mutuelle[0].upper() + mutuelle[1:],
+            }
+        )
+    return alertes
+
+
 def salarie_generable(
     employee_id: str, year: int, month: int, contract_period_id: str | None = None
 ) -> dict[str, Any]:
@@ -679,23 +725,8 @@ def salarie_generable(
     )
     if bascule_block_reason:
         raise PayslipBadRequestError(bascule_block_reason)
-    # Prévoyance que la loi impose (cadres : ANI du 17/11/2017 ; non-cadres de
-    # la plasturgie après trois mois : accord du 29/10/2014) : sans elle, le
-    # bulletin serait faux. Aucun forçage ; la RH la coche sur la fiche.
-    prevoyance = prevoyance_manquante(
-        employee,
-        idcc=lambda: _idcc_du_salarie(employee),
-        fin_du_mois=dernier_jour_du_mois(year, month),
-    )
-    if prevoyance:
-        logger.info(
-            "[generation] Refus %s pour l'employé %s (%02d/%d).",
-            prevoyance.code,
-            employee_id,
-            month,
-            year,
-        )
-        raise PayslipBadRequestError(prevoyance.refus_pour(_prenom(employee)))
+    # La prévoyance que la loi impose n'arrête plus le bulletin (11/11/2026,
+    # R109 et R111) : `_alertes_d_entree` la signale sur le bulletin.
     # Ce que le bulletin du mois a retenu (prêts…) doit pouvoir être défait avant
     # d'être refait : sinon, refus ici, avant la moindre écriture.
     if contract_period_id:
@@ -714,8 +745,8 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     délègue au provider (services legacy).
 
     Gardes (lot 3 — génération sûre), côté serveur, jamais dans les générateurs :
-    - cadre sans prévoyance (adhésion ou lignes absentes de la fiche) →
-      PayslipBadRequestError, sans forçage possible (`salarie_generable`) ;
+    - prévoyance que la loi impose absente de la fiche → alerte sur le
+      bulletin, plus de refus depuis le 11/11/2026 (`_alertes_d_entree`) ;
     - heures saisies un jour d'arrêt ou d'absence non travaillée →
       PayslipHeuresSurArretError (422), sans forçage possible ;
     - jour marqué « absent » à l'import sans type → PayslipAbsentATyperError
@@ -782,20 +813,22 @@ def _generer_sous_verrou(
     extra: dict[str, Any] = {"depart_a_zero": depart_a_zero} if depart_a_zero else {}
     if cmd.contract_period_id:
         extra["contract_period_id"] = cmd.contract_period_id
-    if is_forfait_jour(statut):
-        result = payslip_generator_provider.generate_forfait(
-            employee_id=cmd.employee_id,
-            year=cmd.year,
-            month=cmd.month,
-            **extra,
-        )
-    else:
-        result = payslip_generator_provider.generate_heures(
-            employee_id=cmd.employee_id,
-            year=cmd.year,
-            month=cmd.month,
-            **extra,
-        )
+    alertes_fiche = _alertes_d_entree(employee, cmd.year, cmd.month)
+    with alertes_d_entree(alertes_fiche):
+        if is_forfait_jour(statut):
+            result = payslip_generator_provider.generate_forfait(
+                employee_id=cmd.employee_id,
+                year=cmd.year,
+                month=cmd.month,
+                **extra,
+            )
+        else:
+            result = payslip_generator_provider.generate_heures(
+                employee_id=cmd.employee_id,
+                year=cmd.year,
+                month=cmd.month,
+                **extra,
+            )
 
     # Lot 3 : plus AUCUNE notification à la génération — le salarié n'est
     # prévenu qu'à la VALIDATION du bulletin (comparison_service), une fois.
