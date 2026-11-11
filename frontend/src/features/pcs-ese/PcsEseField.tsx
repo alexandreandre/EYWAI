@@ -155,9 +155,9 @@ export function PcsEseField({
                     <span>
                       <span className="font-medium">{rubrique.code}</span> — {rubrique.libelle}
                     </span>
-                    {propose ? <span className="text-xs text-muted-foreground">Proposé par Martine : {propose}</span> : null}
-                    {metier ? <span className="text-xs text-muted-foreground">Métier : {metier}</span> : null}
-                    {rubrique.ecap ? <span className="text-xs text-muted-foreground">{MENTION_ECAP}</span> : null}
+                    {propose ? <span className="text-xs opacity-75">Proposé par Martine : {propose}</span> : null}
+                    {metier ? <span className="text-xs opacity-75">Métier : {metier}</span> : null}
+                    {rubrique.ecap ? <span className="text-xs opacity-75">{MENTION_ECAP}</span> : null}
                   </span>
                 </CommandItem>
               ))}

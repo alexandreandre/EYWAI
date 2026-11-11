@@ -5,6 +5,13 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+## paie-2026-11-11.1
+
+### Lisibilité (passe de vérification du 11/11)
+- Congés d'ancienneté : le barème en place se voit (« Barème appliqué : Métallurgie (IDCC 3248) », bouton plein et coché) ; plus de code technique à l'écran.
+- Départ : « Documents à revoir » nomme l'attestation de portabilité en clair.
+- Code PCS-ESE : le métier et la proposition de Martine restent lisibles sur la ligne surlignée.
+
 ## paie-2026-11-10.9
 
 ### Corriger librement un bulletin : chaque ligne, un mois passé, la DSN (page client du 10/11)

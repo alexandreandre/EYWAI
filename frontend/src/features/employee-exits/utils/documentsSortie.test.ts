@@ -105,4 +105,10 @@ describe('documents de sortie à revoir', () => {
         'Attestation France Travail avant publication ou remise au collaborateur.'
     );
   });
+
+  it('nomme la portabilité en clair, jamais par son code (relevé du 11/11/2026)', () => {
+    expect(messageDocumentsARevoir(['attestation_portabilite_prevoyance', 'certificat_travail'])).toContain(
+      'régénérez Attestation de portabilité prévoyance, Certificat de travail'
+    );
+  });
 });

@@ -44,6 +44,28 @@ const CATEGORY_LABELS: Record<string, string> = {
   forfait: 'Forfait jour',
 };
 
+/** Les barèmes proposés en un clic, dans l'ordre des boutons. */
+const PRESETS_PROPOSES = ['plasturgie_idcc_0292', 'metallurgie_idcc_3248', 'lewis_agreement'] as const;
+
+const LIBELLES_COURTS_DES_PRESETS: Record<(typeof PRESETS_PROPOSES)[number], string> = {
+  plasturgie_idcc_0292: 'Plasturgie',
+  metallurgie_idcc_3248: 'Métallurgie',
+  lewis_agreement: 'Accord LEWIS',
+};
+
+const LIBELLES_DES_PRESETS: Record<string, string> = {
+  plasturgie_idcc_0292: 'Plasturgie (IDCC 0292)',
+  metallurgie_idcc_3248: 'Métallurgie (IDCC 3248)',
+  lewis_agreement: 'Accord d’entreprise LEWIS',
+  custom: 'Règles personnalisées',
+};
+
+/** Le nom lisible d'un barème ; un code inconnu reste affiché tel quel. */
+function libelleDuPreset(preset: string | null | undefined): string {
+  if (!preset) return 'Règles personnalisées';
+  return LIBELLES_DES_PRESETS[preset] ?? preset;
+}
+
 function emptyTier(): CpSeniorityTier {
   return { category: 'all', min_years: 2, days: 1 };
 }
@@ -171,7 +193,7 @@ export default function CpSenioritySettingsCard() {
         {data?.recommended_preset && !data.configured ? (
           <Alert>
             <AlertDescription className="flex flex-wrap items-center gap-2">
-              Convention suggérée : preset {data.recommended_preset}.
+              Convention suggérée : {libelleDuPreset(data.recommended_preset)}.
               {canEdit ? (
                 <Button
                   type="button"
@@ -186,8 +208,10 @@ export default function CpSenioritySettingsCard() {
             </AlertDescription>
           </Alert>
         ) : null}
-        {data?.rules_source ? (
-          <p className="text-xs text-muted-foreground">Source barème : {data.rules_source}</p>
+        {data?.configured ? (
+          <p className="text-sm" data-testid="cp-seniority-bareme-applique">
+            Barème appliqué : <span className="font-medium">{libelleDuPreset(data.preset)}</span>
+          </p>
         ) : null}
         <div className="flex flex-wrap items-center gap-3">
           <Switch
@@ -197,37 +221,25 @@ export default function CpSenioritySettingsCard() {
             onCheckedChange={(checked) => setForm({ ...form, enabled: checked })}
           />
           <Label htmlFor="cp-seniority-enabled">Activer les CP ancienneté</Label>
-          {canEdit && (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={applyPreset.isPending}
-                onClick={() => applyPreset.mutate('plasturgie_idcc_0292')}
-              >
-                Preset plasturgie
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={applyPreset.isPending}
-                onClick={() => applyPreset.mutate('metallurgie_idcc_3248')}
-              >
-                Preset métallurgie
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={applyPreset.isPending}
-                onClick={() => applyPreset.mutate('lewis_agreement')}
-              >
-                Preset LEWIS
-              </Button>
-            </>
-          )}
+          {canEdit &&
+            PRESETS_PROPOSES.map((preset) => {
+              // Le barème en place se voit : bouton plein et coché.
+              const actif = Boolean(data?.configured) && data?.preset === preset;
+              return (
+                <Button
+                  key={preset}
+                  type="button"
+                  variant={actif ? 'default' : 'outline'}
+                  size="sm"
+                  aria-pressed={actif}
+                  disabled={applyPreset.isPending}
+                  onClick={() => applyPreset.mutate(preset)}
+                >
+                  {actif ? '✓ ' : ''}
+                  {LIBELLES_COURTS_DES_PRESETS[preset]}
+                </Button>
+              );
+            })}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
