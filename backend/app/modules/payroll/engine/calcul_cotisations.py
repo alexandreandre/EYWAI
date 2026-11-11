@@ -577,8 +577,10 @@ def _calculer_assiettes(
         # Cumuls incomplets (plafond des mois d'avant inconnu) : limite du mois.
         assiette_4_plafonds = min(salaire_brut, facteur_4p * pss_calcule)
     else:
-        assiette_4_plafonds = min(cumul_brut_incl, facteur_4p * cumul_pss_incl) - max(
-            0.0, min(cumul_brut_avant, facteur_4p * cumul_pss_avant)
+        # Sans plancher à zéro sur la part d'avant : un cumul brut négatif (mois de
+        # retenue, reprise) laisse la base du mois égale à son brut (filet du 11/11).
+        assiette_4_plafonds = min(cumul_brut_incl, facteur_4p * cumul_pss_incl) - min(
+            cumul_brut_avant, facteur_4p * cumul_pss_avant
         )
     assiette_4_plafonds = round(assiette_4_plafonds, 2)
 

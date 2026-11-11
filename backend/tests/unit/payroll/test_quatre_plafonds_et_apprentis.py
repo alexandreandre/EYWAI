@@ -63,6 +63,16 @@ def test_un_gros_mois_reprend_le_plafond_inutilise_de_l_annee():
     assert assiettes["brut_4_plafonds"] == pytest.approx(20000.0, abs=0.01)
 
 
+def test_cumul_d_avant_negatif_l_assiette_reste_le_brut():
+    # Filet du 11/11 (Mont Blanc, mai) : cumul brut de −108,12 € après un mois de
+    # retenue ; le mois à 302,78 € doit être soumis en entier, CSG sans excédent.
+    ctx = build_test_contexte(cumuls=_cumuls(-108.12, 4 * _pss()))
+    ctx.month = 5
+    assiettes = _calculer_assiettes(ctx, 302.78, 0.0)
+    assert assiettes["brut_4_plafonds"] == 302.78
+    assert assiettes["csg_crds_base_normale"] == pytest.approx(302.78 * 0.9825, abs=0.01)
+
+
 def test_au_dela_du_cumul_seul_le_plafond_restant_est_soumis():
     pss = _pss()
     ctx = build_test_contexte(cumuls=_cumuls(4 * 3000.0, 4 * pss))
