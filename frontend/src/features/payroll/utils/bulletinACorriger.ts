@@ -4,12 +4,14 @@
  * corrige, comment elle se retire. Rien n'est calculé ici : toute correction
  * reste une variable du mois, recalculée en entier par Martine.
  */
-import type { CorrectionLigneAjoutee, LigneCorrigeable } from '@/api/payslips';
+import type { BlocALaSource, CorrectionLigneAjoutee, LigneCorrigeable } from '@/api/payslips';
 import {
   champsDeLaLigne,
   correctionDeLigne,
+  TAUX_EN_POURCENT,
   type ChampCorrigeable,
   type ChampDeLigne,
+  type DemandeDeCorrection,
   type EtatCorrections,
   type PrimeDuBulletin,
 } from './correctionsBulletin';
@@ -93,7 +95,7 @@ export function autresChamps(ligne: LigneCorrigeable): ChampDeLigne[] {
 export function libelleDuChamp(ligne: LigneCorrigeable, cle: ChampCorrigeable): string {
   switch (cle) {
     case 'base':
-      return ligne.bloc === 'cotisations' ? 'La bonne base' : 'Le bon nombre';
+      return ligne.bloc === 'cotisations' ? 'Le bon montant soumis' : 'Le bon nombre';
     case 'taux':
       return 'Le bon taux';
     case 'taux_salarial':
@@ -120,12 +122,20 @@ export type Retrait =
   | { type: 'prime' | 'regularisation_heures' | 'regularisation_cotisation'; saisieId: string }
   | { type: 'montant_zero' };
 
-/** Comment la ligne se retire, ou null : elle se corrige au crayon ou à sa source. */
-export function retraitDeLaLigne(ligne: LigneCorrigeable): Retrait | null {
+/**
+ * Comment la ligne se retire, ou null : elle se corrige au crayon ou à sa source.
+ * Une régularisation ne se retire que si sa saisie est connue du bulletin : un
+ * code ancien (au slug) n'aurait rien à envoyer, la poubelle serait sans effet.
+ */
+export function retraitDeLaLigne(ligne: LigneCorrigeable, etat: EtatCorrections): Retrait | null {
   const origine = origineDeLaLigne(ligne);
   const saisieId = saisieDuCode(ligne.code);
-  if (saisieId && (origine === 'prime' || origine === 'regularisation_heures' || origine === 'regularisation_cotisation')) {
-    return { type: origine, saisieId };
+  if (saisieId && origine === 'prime') return { type: origine, saisieId };
+  if (saisieId && origine === 'regularisation_heures') {
+    return etat.heuresRegularisees.some((h) => h.saisieId === saisieId) ? { type: origine, saisieId } : null;
+  }
+  if (saisieId && origine === 'regularisation_cotisation') {
+    return etat.regularisations.some((r) => r.saisieId === saisieId) ? { type: origine, saisieId } : null;
   }
   if (origine === 'calcul' && ligne.bloc === 'brut' && ligne.mode === 'montant' && !ligne.retenue) {
     return { type: 'montant_zero' };
@@ -140,27 +150,83 @@ export function correctionEnAttente(
   return code ? etat.correctionsAjoutees.find((c) => c.ligne === code) : undefined;
 }
 
-export function annulerLaCorrection(etat: EtatCorrections, code: string | null | undefined): EtatCorrections {
-  if (!code || !correctionEnAttente(etat, code)) return etat;
-  return { ...etat, correctionsAjoutees: etat.correctionsAjoutees.filter((c) => c.ligne !== code) };
+const ajouter = (liste: string[], id: string) => (liste.includes(id) ? liste : [...liste, id]);
+const enlever = (liste: string[], id: string) => liste.filter((x) => x !== id);
+
+/** La saisie de la correction déjà posée sur la ligne (au dernier calcul), ou null. */
+function correctionPosee(ligne: Pick<LigneCorrigeable, 'correction'>): string | null {
+  const id = ligne.correction?.saisie_id;
+  return id ? String(id) : null;
 }
 
+export interface OptionsDeCorrection {
+  /** La correction en attente (non placée) que cette correction remplace : « Reporter sur une autre ligne ». */
+  reporteDe?: string | null;
+}
+
+/**
+ * Annule la correction en attente de la ligne, avec ce qu'elle remplaçait :
+ * la correction déjà posée sur la ligne et la correction reportée reviennent.
+ */
+export function annulerLaCorrection(
+  etat: EtatCorrections,
+  ligne: Pick<LigneCorrigeable, 'code' | 'correction'>,
+  options: OptionsDeCorrection = {}
+): EtatCorrections {
+  const code = ligne.code;
+  if (!code || !correctionEnAttente(etat, code)) return etat;
+  let retirees = etat.correctionsRetirees;
+  const posee = correctionPosee(ligne);
+  if (posee) retirees = enlever(retirees, posee);
+  if (options.reporteDe) retirees = enlever(retirees, options.reporteDe);
+  return {
+    ...etat,
+    correctionsAjoutees: etat.correctionsAjoutees.filter((c) => c.ligne !== code),
+    correctionsRetirees: retirees,
+  };
+}
+
+/**
+ * Pose la correction de la ligne. Une ligne déjà corrigée voit sa correction
+ * remplacée (le serveur refuse deux corrections sur la même ligne) : la saisie
+ * d'avant part dans les corrections retirées du même enregistrement.
+ */
 export function corrigerLaLigne(
   etat: EtatCorrections,
   ligne: LigneCorrigeable,
   cle: ChampCorrigeable,
   valeur: number,
-  motif: string
+  motif: string,
+  options: OptionsDeCorrection = {}
 ): EtatCorrections {
-  const sans = annulerLaCorrection(etat, ligne.code);
-  return { ...sans, correctionsAjoutees: [...sans.correctionsAjoutees, correctionDeLigne(ligne, cle, valeur, motif)] };
+  const sans = annulerLaCorrection(etat, ligne, options);
+  let retirees = sans.correctionsRetirees;
+  const posee = correctionPosee(ligne);
+  if (posee) retirees = ajouter(retirees, posee);
+  if (options.reporteDe) retirees = ajouter(retirees, options.reporteDe);
+  return {
+    ...sans,
+    correctionsAjoutees: [...sans.correctionsAjoutees, correctionDeLigne(ligne, cle, valeur, motif)],
+    correctionsRetirees: retirees,
+  };
 }
 
-const ajouter = (liste: string[], id: string) => (liste.includes(id) ? liste : [...liste, id]);
-const enlever = (liste: string[], id: string) => liste.filter((x) => x !== id);
+/** Le champ et la valeur d'une correction en attente, dans l'unité de l'écran (taux en %). */
+export function valeurEnAttente(
+  correction: CorrectionLigneAjoutee | undefined
+): { cle: ChampCorrigeable; valeur: number } | null {
+  if (!correction) return null;
+  const valeurs = correction as unknown as Record<string, unknown>;
+  const cle = Object.keys(valeurs).find(
+    (k) => !['ligne', 'libelle', 'motif'].includes(k) && typeof valeurs[k] === 'number'
+  ) as ChampCorrigeable | undefined;
+  if (!cle) return null;
+  const brute = valeurs[cle] as number;
+  return { cle, valeur: TAUX_EN_POURCENT.has(cle) ? Math.round(brute * 100 * 1e4) / 1e4 : brute };
+}
 
 export function estRetiree(etat: EtatCorrections, ligne: LigneCorrigeable): boolean {
-  const retrait = retraitDeLaLigne(ligne);
+  const retrait = retraitDeLaLigne(ligne, etat);
   if (!retrait) return false;
   switch (retrait.type) {
     case 'prime':
@@ -175,7 +241,7 @@ export function estRetiree(etat: EtatCorrections, ligne: LigneCorrigeable): bool
 }
 
 export function retirer(etat: EtatCorrections, ligne: LigneCorrigeable, motif: string): EtatCorrections {
-  const retrait = retraitDeLaLigne(ligne);
+  const retrait = retraitDeLaLigne(ligne, etat);
   if (!retrait) return etat;
   switch (retrait.type) {
     case 'prime':
@@ -190,7 +256,7 @@ export function retirer(etat: EtatCorrections, ligne: LigneCorrigeable, motif: s
 }
 
 export function remettre(etat: EtatCorrections, ligne: LigneCorrigeable): EtatCorrections {
-  const retrait = retraitDeLaLigne(ligne);
+  const retrait = retraitDeLaLigne(ligne, etat);
   if (!retrait) return etat;
   switch (retrait.type) {
     case 'prime':
@@ -200,7 +266,7 @@ export function remettre(etat: EtatCorrections, ligne: LigneCorrigeable): EtatCo
     case 'regularisation_cotisation':
       return { ...etat, regularisationsRetirees: enlever(etat.regularisationsRetirees, retrait.saisieId) };
     default:
-      return annulerLaCorrection(etat, ligne.code);
+      return annulerLaCorrection(etat, ligne);
   }
 }
 
@@ -217,7 +283,10 @@ export function estSurLeNet(prime: PrimeDuBulletin): boolean {
 
 export function nombreDeChangements(initial: EtatCorrections, courant: EtatCorrections): number {
   const montants = new Map(initial.primes.map((p) => [p.saisieId, p.montant]));
-  const primesChangees = courant.primes.filter((p) => montants.has(p.saisieId) && montants.get(p.saisieId) !== p.montant).length;
+  // Une prime retirée compte une fois, même si son montant avait été changé avant.
+  const primesChangees = courant.primes.filter(
+    (p) => !courant.primesRetirees.includes(p.saisieId) && montants.has(p.saisieId) && montants.get(p.saisieId) !== p.montant
+  ).length;
   const heures =
     courant.hs25 !== initial.hs25 || courant.hs50 !== initial.hs50 || courant.revenirAuPlanning !== initial.revenirAuPlanning ? 1 : 0;
   const complementaires =
@@ -240,4 +309,79 @@ export function nombreDeChangements(initial: EtatCorrections, courant: EtatCorre
 export function etapeEnCours(enEdition: boolean, changements: number): 1 | 2 | 3 {
   if (enEdition) return 2;
   return changements > 0 ? 3 : 1;
+}
+
+/** Ce qu'une ligne ouverte dit d'elle : en cours, ou une valeur tapée sans motif. */
+export type StatutDeLigne = 'edition' | 'sans_motif';
+
+/**
+ * Les lignes ouvertes qui comptent pour l'étape 2 : seulement celles sans
+ * correction en attente (une valeur et un motif font l'étape 3, « Appliquez »).
+ */
+export function suiviDesLignes(
+  statuts: ReadonlyMap<string, StatutDeLigne>,
+  etat: EtatCorrections
+): { enEdition: number; sansMotif: number } {
+  let enEdition = 0;
+  let sansMotif = 0;
+  for (const [code, statut] of statuts) {
+    if (correctionEnAttente(etat, code)) continue;
+    enEdition += 1;
+    if (statut === 'sans_motif') sansMotif += 1;
+  }
+  return { enEdition, sansMotif };
+}
+
+const centimes = (x: number) => Math.round(Math.abs(x) * 100);
+
+/**
+ * Les montants sur le net qui ne sont pas déjà montrés comme primes. La
+ * comparaison se fait aux primes du serveur (état initial) : un montant en
+ * cours de modification faisait sinon réapparaître la prime en double.
+ */
+export function autresMontantsDuNet(aLaSource: BlocALaSource[], initial: EtatCorrections): BlocALaSource[] {
+  return aLaSource.filter(
+    (b) => !initial.primes.some((p) => p.libelle === b.libelle && b.montant != null && centimes(p.montant) === centimes(b.montant))
+  );
+}
+
+/**
+ * Le bloc replié des cotisations s'ouvre quand une cotisation y demande
+ * l'attention : en cours, en alerte, visée par l'onglet « Bulletin », ou changée.
+ */
+export function cotisationsAOuvrir(
+  cotisations: LigneCorrigeable[],
+  etat: EtatCorrections,
+  statuts: ReadonlyMap<string, StatutDeLigne>,
+  demande: DemandeDeCorrection | null | undefined
+): boolean {
+  return cotisations.some(
+    (l) =>
+      (l.code != null && statuts.has(l.code)) ||
+      Boolean(l.alerte) ||
+      (demande?.carte === 'ligne' && demande.code === l.code) ||
+      Boolean(correctionEnAttente(etat, l.code)) ||
+      estRetiree(etat, l)
+  );
+}
+
+/**
+ * La version à remettre par « Annuler » : la dernière de l'historique, à
+ * condition qu'elle soit celle de cette application (même numéro, même net
+ * d'avant quand l'historique le porte). Sinon null : la RH choisit dans
+ * l'onglet « Historique ».
+ */
+export function versionAAnnuler(
+  versions: ReadonlyArray<{ version: number; previous_payslip_data?: unknown }>,
+  attendu: { version: number | null; netAvant: number | null }
+): number | null {
+  if (versions.length === 0) return null;
+  const derniere = versions.reduce((max, v) => (v.version > max.version ? v : max));
+  if (!derniere.version) return null;
+  if (attendu.version != null && derniere.version !== attendu.version) return null;
+  const netArchive = (derniere.previous_payslip_data as { net_a_payer?: unknown } | null | undefined)?.net_a_payer;
+  if (attendu.netAvant != null && typeof netArchive === 'number' && Math.round(netArchive * 100) !== Math.round(attendu.netAvant * 100)) {
+    return null;
+  }
+  return derniere.version;
 }

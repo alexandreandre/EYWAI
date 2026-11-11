@@ -662,7 +662,7 @@ export interface ChampDeLigne {
   valeur: number | null;
 }
 
-const TAUX_EN_POURCENT: ReadonlySet<ChampCorrigeable> = new Set<ChampCorrigeable>(['taux_salarial', 'taux_patronal']);
+export const TAUX_EN_POURCENT: ReadonlySet<ChampCorrigeable> = new Set<ChampCorrigeable>(['taux_salarial', 'taux_patronal']);
 
 function pourcent(fraction: number | null | undefined): number | null {
   return typeof fraction === 'number' ? Math.round(fraction * 1e6) / 1e4 : null;
