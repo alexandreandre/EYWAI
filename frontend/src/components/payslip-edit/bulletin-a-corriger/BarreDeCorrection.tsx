@@ -29,7 +29,7 @@ export default function BarreDeCorrection(props: Props) {
       <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-gray-900 text-white shadow-[0_-4px_16px_rgba(0,0,0,0.15)]">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           {enCours ? (
-            <p className="flex items-center gap-2 text-sm">
+            <p className="flex items-center gap-2 text-sm" role="status" aria-live="polite">
               <Loader2 className="h-4 w-4 animate-spin" /> Martine recalcule le bulletin…
             </p>
           ) : changements > 0 ? (
@@ -45,22 +45,22 @@ export default function BarreDeCorrection(props: Props) {
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" className="text-gray-900" onClick={props.onToutAnnuler}>
+                <Button variant="outline" className="bg-white text-gray-900 hover:bg-gray-100" onClick={props.onToutAnnuler}>
                   <Undo2 className="mr-2 h-4 w-4" /> Tout annuler
                 </Button>
-                <Button className="bg-green-600 hover:bg-green-700" data-testid="enregistrer-barre" onClick={props.onAppliquer}>
+                <Button className="bg-green-700 hover:bg-green-800" data-testid="enregistrer-barre" onClick={props.onAppliquer}>
                   Appliquer
                 </Button>
               </div>
             </>
           ) : resultat ? (
             <>
-              <p className="text-sm" data-testid="resultat-application">
+              <p className="text-sm" data-testid="resultat-application" role="status" aria-live="polite">
                 Bulletin recalculé · Net : {net(resultat.netAvant)} →{' '}
                 <span className="font-bold text-green-300">{net(resultat.netApres)}</span>
               </p>
               <div className="flex gap-2">
-                <Button variant="outline" className="text-gray-900" data-testid="annuler-application" onClick={props.onAnnulerLApplication}>
+                <Button variant="outline" className="bg-white text-gray-900 hover:bg-gray-100" data-testid="annuler-application" onClick={props.onAnnulerLApplication}>
                   <Undo2 className="mr-2 h-4 w-4" /> Annuler
                 </Button>
                 <Button variant="ghost" size="sm" aria-label="Fermer" onClick={props.onFermerResultat}>
