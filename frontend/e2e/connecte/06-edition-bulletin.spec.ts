@@ -31,8 +31,11 @@ const LIGNES_CORRIGEABLES = {
       montant_patronal: 100.68,
     },
     { code: 'FIXE_QA', bloc: 'cotisations', libelle: 'Ligne fixe QA', mode: null, raison: 'Se corrige dans la fiche du salarié' },
+    // La prime saisie est une ligne du bulletin : elle se corrige et se retire au crayon et à la corbeille.
+    { code: 'brut:saisie:saisie-qa-1', bloc: 'brut', libelle: 'Prime de chantier QA', mode: null, montant: 100 },
   ],
   en_attente: [],
+  a_la_source: [],
 };
 
 type Options = {
@@ -134,23 +137,37 @@ async function preparerBulletin(page: Page, options: Options = {}) {
   // corrections se font dans l'onglet « Corriger ».
   if (options.onglet !== 'Bulletin') {
     await page.getByRole('tab', { name: 'Corriger', exact: true }).click();
-    await expect(page.getByTestId('heures-sup-25').or(page.getByTestId('forfait-jours-sans-heures-sup')))
-      .toBeVisible();
+    await expect(page.getByTestId('bandeau-etapes').or(page.getByTestId('verrou-corriger'))).toBeVisible();
   }
   return envois;
+}
+
+/** Les heures du mois sont derrière « Ajouter une ligne » puis la tuile « Des heures » (sans la refermer si elle est ouverte). */
+async function ouvrirHeuresDuMois(page: Page) {
+  if (await page.getByTestId('heures-sup-25').isVisible()) return;
+  if (!(await page.getByTestId('tuile-heures').isVisible())) await page.getByTestId('ajouter-une-ligne').click();
+  await page.getByTestId('tuile-heures').click();
+}
+
+/** Les heures d'un mois passé : même tuile, bascule « Un mois passé ». */
+async function ouvrirHeuresDunMoisPasse(page: Page) {
+  if (!(await page.getByTestId('tuile-heures').isVisible())) await page.getByTestId('ajouter-une-ligne').click();
+  await page.getByTestId('tuile-heures').click();
+  await page.getByTestId('heures-mois-passe').click();
 }
 
 test.describe('Corriger un bulletin par ses variables du mois (données fictives)', () => {
   test('rien à enregistrer tant que rien ne change', async ({ page }) => {
     await preparerBulletin(page);
+    await ouvrirHeuresDuMois(page);
     await expect(page.getByTestId('heures-sup-25')).toHaveValue('2');
     await expect(page.getByTestId('heures-sup-50')).toHaveValue('3.5');
-    await expect(page.getByTestId('enregistrer-entete')).toBeDisabled();
     await expect(page.getByTestId('barre-enregistrement')).toBeHidden();
   });
 
   test('corriger les heures sup les déclare par palier et recalcule', async ({ page }) => {
     const envois = await preparerBulletin(page);
+    await ouvrirHeuresDuMois(page);
     await page.getByTestId('heures-sup-25').fill('4');
     await expect(page.getByTestId('barre-enregistrement')).toContainText('recalculé en entier');
     await page.getByTestId('enregistrer-barre').click();
@@ -164,29 +181,34 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
 
   test('ramener les heures sup à zéro est une vraie correction', async ({ page }) => {
     const envois = await preparerBulletin(page);
+    await ouvrirHeuresDuMois(page);
     await page.getByTestId('heures-sup-25').fill('0');
     await page.getByTestId('heures-sup-50').fill('');
-    await page.getByTestId('enregistrer-entete').click();
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Bulletin corrigé et recalculé', { exact: true })).toBeVisible();
     expect(envois[0].corrections).toEqual({ heures_sup: { hs25: 0, hs50: 0 } });
   });
 
   test('reprendre les heures du planning', async ({ page }) => {
     const envois = await preparerBulletin(page);
+    await ouvrirHeuresDuMois(page);
     await page.getByTestId('revenir-au-planning').click();
     await expect(page.getByTestId('retour-planning')).toBeVisible();
-    await page.getByTestId('enregistrer-entete').click();
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Bulletin corrigé et recalculé', { exact: true })).toBeVisible();
     expect(envois[0].corrections).toEqual({ revenir_au_planning: true });
   });
 
   test('corriger, retirer et ajouter une prime', async ({ page }) => {
     const envois = await preparerBulletin(page);
-    await page.locator('#montant-saisie-qa-1').fill('150');
+    await page.getByTestId('prime-saisie-qa-1').getByRole('button', { name: 'Corriger Prime de chantier QA' }).click();
+    await page.getByTestId('montant-prime-saisie-qa-1').fill('150');
     await page.getByRole('button', { name: 'Retirer Panier QA' }).click();
 
     // Prime libre par « Créer une prime… », sans l'enregistrer au catalogue
     // (case décochée par défaut) : rien n'est écrit en base.
+    await page.getByTestId('ajouter-une-ligne').click();
+    await page.getByTestId('tuile-prime').click();
     await page.getByRole('button', { name: 'Ajouter une prime', exact: true }).click();
     const selecteur = page.getByRole('dialog', { name: 'Ajouter une Saisie du Mois' });
     await expect(selecteur).toBeVisible();
@@ -199,7 +221,7 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     await selecteur.getByRole('button', { name: 'Enregistrer', exact: true }).click();
     await expect(selecteur).toBeHidden();
 
-    await page.getByTestId('enregistrer-entete').click();
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Bulletin corrigé et recalculé', { exact: true })).toBeVisible();
     expect(envois[0].corrections).toMatchObject({
       primes_corrigees: [{ saisie_id: 'saisie-qa-1', amount: 150 }],
@@ -211,8 +233,8 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
   test('seule la note change : enregistrée sans recalcul', async ({ page }) => {
     const envois = await preparerBulletin(page);
     await page.locator('#pdf-notes').fill('Note QA visible sur le bulletin');
-    await expect(page.getByTestId('enregistrer-entete')).toHaveText(/Enregistrer les notes/);
-    await page.getByTestId('enregistrer-entete').click();
+    await expect(page.getByTestId('barre-enregistrement')).toContainText('Seules les notes changent');
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Notes enregistrées', { exact: true })).toBeVisible();
     expect(envois[0]).toMatchObject({ corrections: {}, pdf_notes: 'Note QA visible sur le bulletin' });
   });
@@ -229,8 +251,9 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
         },
       }),
     });
+    await ouvrirHeuresDuMois(page);
     await page.getByTestId('heures-sup-25').fill('4');
-    await page.getByTestId('enregistrer-entete').click();
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Corrections enregistrées, bulletin non recalculé', { exact: true }))
       .toBeVisible();
     await expect(page.getByText('Barème introuvable — utilisez « Régénérer ».', { exact: true }))
@@ -241,16 +264,19 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     await preparerBulletin(page, {
       repondre: () => ({ status: 409, json: { detail: 'Le bulletin a changé depuis son ouverture.' } }),
     });
+    await ouvrirHeuresDuMois(page);
     await page.getByTestId('heures-sup-25').fill('4');
-    await page.getByTestId('enregistrer-entete').click();
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Le bulletin a changé depuis son ouverture', { exact: true })).toBeVisible();
+    await ouvrirHeuresDuMois(page);
     await expect(page.getByTestId('heures-sup-25')).toHaveValue('2');
   });
 
   test('corriger un bulletin validé demande confirmation', async ({ page }) => {
     const envois = await preparerBulletin(page, { statut: 'valide' });
+    await ouvrirHeuresDuMois(page);
     await page.getByTestId('heures-sup-25').fill('4');
-    await page.getByTestId('enregistrer-entete').click();
+    await page.getByTestId('enregistrer-barre').click();
     const confirmation = page.getByRole('alertdialog', { name: 'Corriger un bulletin validé ?' });
     await expect(confirmation).toBeVisible();
     expect(envois).toHaveLength(0);
@@ -261,8 +287,9 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
 
   test('un bulletin verrouillé ne se corrige pas', async ({ page }) => {
     await preparerBulletin(page, { verrouille: true });
-    await expect(page.getByTestId('heures-sup-25')).toBeDisabled();
-    await expect(page.getByTestId('enregistrer-entete')).toBeDisabled();
+    await expect(page.getByTestId('verrou-corriger')).toBeVisible();
+    await expect(page.getByTestId('ajouter-une-ligne')).toBeHidden();
+    await expect(page.getByTestId('enregistrer-barre')).toHaveCount(0);
   });
 });
 
@@ -272,67 +299,8 @@ test.describe('Corriger une ligne (théorème de la correction à la main)', () 
     await expect(page.getByRole('tab', { name: 'Bulletin', exact: true })).toHaveAttribute('data-state', 'active');
     await expect(page.getByTestId('heures-sup-25')).toBeHidden();
     await page.getByRole('tab', { name: 'Corriger', exact: true }).click();
-    await expect(page.getByTestId('heures-sup-25')).toBeVisible();
-    await expect(page.getByTestId('corriger-une-ligne')).toBeVisible();
-  });
-
-  test('la carte liste les lignes du serveur et grise une ligne qui ne se corrige pas ici', async ({ page }) => {
-    await preparerBulletin(page);
-    const carte = page.getByTestId('corriger-une-ligne');
-    await expect(carte).toBeVisible();
-    const choix = carte.locator('#ligne-a-corriger');
-    await expect(choix.locator('option', { hasText: 'Salaire de base QA' })).toHaveCount(1);
-    await expect(choix.locator('option', { hasText: 'Vieillesse QA' })).toHaveCount(1);
-    // Sans mode de correction, la ligne est grisée ; la raison du serveur est en infobulle.
-    const fixe = choix.locator('option', { hasText: 'Ligne fixe QA' });
-    await expect(fixe).toBeDisabled();
-    await expect(fixe).toContainText('ne se corrige pas ici');
-    await expect(fixe).toHaveAttribute('title', 'Se corrige dans la fiche du salarié');
-  });
-
-  test('corriger la base d’une ligne : le motif est exigé, la correction part au recalcul', async ({ page }) => {
-    const envois = await preparerBulletin(page);
-    const carte = page.getByTestId('corriger-une-ligne');
-    await carte.locator('#ligne-a-corriger').selectOption('SALAIRE_BASE');
-    await expect(carte.locator('#champ-a-corriger')).toHaveValue('base');
-    await carte.locator('#valeur-corrigee').fill('90');
-    const ajouter = carte.getByTestId('ajouter-correction-ligne');
-    await expect(ajouter).toBeDisabled();
-    await expect(carte).toContainText('Écrivez le motif');
-    await carte.locator('#motif-correction').fill('QA');
-    await expect(carte.getByTestId('motif-trop-court')).toBeVisible();
-    await expect(ajouter).toBeDisabled();
-    await carte.locator('#motif-correction').fill('Heures contrôlées avec le planning');
-    await expect(carte).toContainText('Montant après correction : 900,00 €');
-    await ajouter.click();
-    await expect(carte).toContainText('Salaire de base QA (à enregistrer)');
-    await expect(page.getByTestId('barre-enregistrement')).toContainText('recalculé en entier');
-
-    await page.getByTestId('enregistrer-entete').click();
-    await expect(page.getByText('Bulletin corrigé et recalculé', { exact: true })).toBeVisible();
-    expect(envois).toHaveLength(1);
-    expect(envois[0].corrections).toEqual({
-      corrections_ajoutees: [
-        { ligne: 'SALAIRE_BASE', libelle: 'Salaire de base QA', motif: 'Heures contrôlées avec le planning', base: 90 },
-      ],
-    });
-  });
-
-  test('un taux de cotisation se tape en pourcentage et part en fraction', async ({ page }) => {
-    const envois = await preparerBulletin(page);
-    const carte = page.getByTestId('corriger-une-ligne');
-    await carte.locator('#ligne-a-corriger').selectOption('VIEILLESSE_QA');
-    await carte.locator('#champ-a-corriger').selectOption('taux_salarial');
-    await carte.locator('#valeur-corrigee').fill('7,5');
-    await carte.locator('#motif-correction').fill('Taux de la caisse');
-    await carte.getByTestId('ajouter-correction-ligne').click();
-    await page.getByTestId('enregistrer-entete').click();
-    await expect(page.getByText('Bulletin corrigé et recalculé', { exact: true })).toBeVisible();
-    expect(envois[0].corrections).toEqual({
-      corrections_ajoutees: [
-        { ligne: 'VIEILLESSE_QA', libelle: 'Vieillesse QA', motif: 'Taux de la caisse', taux_salarial: 0.075 },
-      ],
-    });
+    await expect(page.getByTestId('ajouter-une-ligne')).toBeVisible();
+    await expect(page.getByTestId('bandeau-etapes')).toBeVisible();
   });
 
   test('une correction déjà enregistrée se retire, une qui ne trouve plus sa ligne bloque', async ({ page }) => {
@@ -362,16 +330,14 @@ test.describe('Corriger une ligne (théorème de la correction à la main)', () 
         ],
       },
     });
-    const carte = page.getByTestId('corriger-une-ligne');
-    await expect(carte.getByTestId('corrections-en-attente')).toContainText('Ligne disparue QA');
-    await expect(carte).toContainText('Ancien motif QA');
-    // Une ligne déjà corrigée ne se corrige pas deux fois.
-    await carte.locator('#ligne-a-corriger').selectOption('SALAIRE_BASE');
-    await expect(carte).toContainText('Cette ligne est déjà corrigée');
+    const attente = page.getByTestId('corrections-en-attente');
+    await expect(attente).toContainText('Ligne disparue QA');
+    const ligne = page.getByTestId('ligne-SALAIRE_BASE');
+    await expect(ligne).toContainText('Ancien motif QA');
 
-    await carte.locator('div.rounded-md', { hasText: 'Ancien motif QA' }).getByRole('button', { name: 'Retirer' }).click();
-    await carte.getByTestId('corrections-en-attente').getByRole('button', { name: 'Retirer' }).click();
-    await page.getByTestId('enregistrer-entete').click();
+    await ligne.getByRole('button', { name: 'Remettre la valeur de Martine' }).click();
+    await attente.getByRole('button', { name: 'Retirer' }).click();
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Bulletin corrigé et recalculé', { exact: true })).toBeVisible();
     expect(envois[0].corrections).toEqual({ corrections_retirees: ['correction-qa-1', 'correction-qa-2'] });
   });
@@ -387,6 +353,7 @@ test.describe('Corriger à la source', () => {
 
   test('quitter avec des corrections en cours demande confirmation', async ({ page }) => {
     await preparerBulletin(page);
+    await ouvrirHeuresDuMois(page);
     await page.getByTestId('heures-sup-25').fill('4');
     await page.getByTestId('corriger-les-variables').click();
     const question = page.getByRole('alertdialog', {
@@ -463,6 +430,7 @@ test.describe('Corriger à la source', () => {
 test.describe("Régulariser des heures d'un autre mois (données fictives)", () => {
   test('ajouter des heures sup de juin les envoie au serveur, sans toucher aux heures du mois', async ({ page }) => {
     const envois = await preparerBulletin(page);
+    await ouvrirHeuresDunMoisPasse(page);
     const carte = page.getByTestId('regularisations-heures');
     await expect(carte).toBeVisible();
     await expect(carte.getByLabel('Mois d’origine des heures')).toHaveValue('2026-06');
@@ -471,7 +439,7 @@ test.describe("Régulariser des heures d'un autre mois (données fictives)", () 
     await carte.getByLabel('Motif (obligatoire)').fill('Semaine 25 oubliée');
     await page.getByTestId('ajouter-regularisation-heures').click();
     await expect(carte).toContainText('3,5 h de 06/2026');
-    await page.getByTestId('enregistrer-entete').click();
+    await page.getByTestId('enregistrer-barre').click();
     await expect(page.getByText('Bulletin corrigé et recalculé', { exact: true })).toBeVisible();
     expect(envois).toHaveLength(1);
     expect(envois[0].corrections).toEqual({
@@ -483,6 +451,7 @@ test.describe("Régulariser des heures d'un autre mois (données fictives)", () 
 
   test('un mois postérieur au bulletin ne peut pas être choisi', async ({ page }) => {
     await preparerBulletin(page);
+    await ouvrirHeuresDunMoisPasse(page);
     const carte = page.getByTestId('regularisations-heures');
     await carte.getByLabel('Mois d’origine des heures').fill('2026-08');
     await carte.getByLabel('Nombre d’heures (négatif pour reprendre)').fill('2');

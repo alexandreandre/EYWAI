@@ -79,9 +79,10 @@ describe('manuel opérateur', () => {
       'DSN mensuelle',
       'pas encore déposable',
       'ancien logiciel',
-      // Corriger par les variables du mois, puis recalculer.
-      'Primes du mois',
-      'Enregistrer et recalculer',
+      // Corriger sur le bulletin (crayon, poubelle, ajout), puis recalculer.
+      'Ajouter une ligne',
+      'crayon',
+      '« Appliquer »',
       // Bulletin déjà validé.
       'Corriger et repasser en brouillon',
       'Correction verrouillée',
