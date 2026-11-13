@@ -174,6 +174,7 @@ class DsnCoverageResponse(BaseModel):
     dsn_sync_mode: str
     status: str
     expected_last_period: str
+    import_cutoff_period: str | None = None
     next_import_period: Optional[str] = None
     last_period: Optional[str] = None
     last_import_at: Optional[str] = None
@@ -199,6 +200,7 @@ class DsnCoverageMatrixCompany(BaseModel):
     dsn_sync_mode: str
     status: str
     expected_last_period: str
+    import_cutoff_period: str | None = None
     last_period: Optional[str] = None
     last_import_at: Optional[str] = None
     gaps_count: int = 0

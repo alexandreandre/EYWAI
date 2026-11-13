@@ -4,6 +4,8 @@ import { getAbsencesForEmployee } from "@/api/absences";
 import { CalendarDays, ChevronLeft, ChevronRight, Grid3x3, Loader2, Save, Sparkles, Upload } from "lucide-react";
 import { CalendarDayCell } from "@/components/CalendarDayCell";
 import { CalendarAbsencesHint } from "@/components/employee-detail/CalendarAbsencesHint";
+import { CalendarEntryHelp } from '@/components/schedules/CalendarEntryHelp';
+import { CalendarSyncNotice } from '@/components/schedules/CalendarSyncNotice';
 import { CalendarKpiBand } from "@/components/employee-detail/CalendarKpiBand";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,6 +59,8 @@ interface CalendarTabProps {
   bulkCopyPlannedToActual: () => void;
   isCopyingPrevMonth: boolean;
   reloadCalendar: () => void;
+  calendarLoadError?: boolean;
+  calendarSaveError?: string | null;
 }
 
 export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
@@ -93,6 +97,8 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
     bulkCopyPlannedToActual,
     isCopyingPrevMonth,
     reloadCalendar,
+    calendarLoadError,
+    calendarSaveError,
   } = props;
 
   // Absences validées du salarié : mêmes clé/donnée que CalendarAbsencesHint
@@ -131,6 +137,7 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
 
   return (
     <>
+          <CalendarSyncNotice loadError={calendarLoadError} saveError={calendarSaveError} isDirty={isDirty} onReload={reloadCalendar} />
           {isForfaitJour && employee && (
             <div className="mb-2 rounded-md border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
               <span className="font-medium">Cadre forfait jours</span>
@@ -282,6 +289,7 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
 
 
              <CardContent className="p-0 md:p-2 pb-48">
+                {calendarView === 'month' && !isForfaitJour && <CalendarEntryHelp />}
                 {calendarView === 'month' && employeeId && (
                   <CalendarAbsencesHint
                     employeeId={employeeId}
@@ -313,7 +321,7 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                     daysInMonth={new Date(selectedDate.year, selectedDate.month, 0).getDate()}
                   />
                 )}
-                {isCalendarLoading ? <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div> : (
+                {calendarLoadError ? null : isCalendarLoading ? <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div> : (
                   <>
                     {calendarView === 'month' ? (
                       <div className="flex flex-col gap-4 p-2">

@@ -10,8 +10,30 @@ from fastapi import HTTPException
 from app.modules.payroll.documents import verrou_generation
 from app.modules.payroll.documents.verrou_generation import (
     GenerationDejaEnCours,
+    GenerationVerrouIndisponible,
     verrou_de_generation,
 )
+
+
+def test_mode_requis_refuse_une_prise_non_confirmee_et_tente_le_rendu(monkeypatch):
+    calls = []
+    def unavailable(name, params):
+        calls.append((name, params["p_jeton"]))
+        raise ConnectionError("simulated")
+    monkeypatch.setattr(verrou_generation, "_rpc", unavailable)
+    with pytest.raises(GenerationVerrouIndisponible), verrou_de_generation("e1", 2026, 11, required=True):
+        pytest.fail("Une écriture ne doit pas partir sans verrou confirmé")
+    assert len(calls) == 2 and calls[0][1] == calls[1][1]
+
+
+def test_un_contexte_sans_verrou_ne_prouve_pas_une_prise_reentrante(monkeypatch):
+    monkeypatch.setattr(verrou_generation, "_rpc", lambda *a: (_ for _ in ()).throw(ConnectionError()))
+    with (
+        verrou_de_generation("e1", 2026, 11),
+        pytest.raises(GenerationVerrouIndisponible),
+        verrou_de_generation("e1", 2026, 11, required=True),
+    ):
+        pytest.fail("Le repli sans verrou ne doit pas satisfaire le mode requis")
 
 RACINE = Path(__file__).resolve().parents[4]
 MIGRATION = RACINE / "supabase/migrations/20260926140000_verrou_generation_bulletin.sql"

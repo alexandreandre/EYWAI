@@ -7,6 +7,7 @@ conversion ScheduleAppError -> HTTPException, retour HTTP. Comportement identiqu
 
 import hashlib
 import json
+from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 
@@ -54,6 +55,8 @@ from app.modules.schedules.schemas.punch_accounting import (
     PunchShiftSlotUpdate,
 )
 from app.modules.users.schemas.responses import User
+from app.modules.schedules.application import calendar_edit
+from app.modules.schedules.schemas.requests import CalendarSaveRequest, CalendarSaveResponse, CalendarSnapshotResponse
 
 
 def _handle_schedule_error(e: ScheduleAppError) -> None:
@@ -81,6 +84,24 @@ router = APIRouter(
     prefix="/api/employees/{employee_id}",
     tags=["Schedules & Calendars"],
 )
+
+
+@router.get("/calendar-snapshot", response_model=CalendarSnapshotResponse)
+def get_calendar_snapshot(employee_id: str, year: int, month: int, current_user: Annotated[User, Depends(get_current_user)]):
+    try:
+        _require_employee_schedule_access(current_user, employee_id, "schedules.view_all")
+        return calendar_edit.get_snapshot(employee_id, str(current_user.active_company_id), year, month)
+    except ScheduleAppError as exc:
+        _handle_schedule_error(exc)
+
+
+@router.post("/calendar-save", response_model=CalendarSaveResponse)
+def save_calendar(employee_id: str, payload: CalendarSaveRequest, current_user: Annotated[User, Depends(get_current_user)]):
+    try:
+        _require_employee_schedule_access(current_user, employee_id, "schedules.update")
+        return calendar_edit.save_calendar(employee_id, str(current_user.active_company_id), payload)
+    except ScheduleAppError as exc:
+        _handle_schedule_error(exc)
 
 
 @router.get("/calendar-data", response_model=CalendarResponse)
@@ -122,7 +143,12 @@ def update_planned_calendar(
     """Met à jour (ou crée) le calendrier prévu dans la table employee_schedules."""
     try:
         _require_employee_schedule_access(current_user, employee_id, "schedules.update")
-        return commands.update_planned_calendar(employee_id, payload)
+        if "expected_revision" not in payload.model_fields_set:
+            raise HTTPException(428, "Rechargez la page : une révision du calendrier est requise avant l’enregistrement.")
+        return calendar_edit.save_calendar(employee_id, str(current_user.active_company_id), CalendarSaveRequest(
+            year=payload.year, month=payload.month, expected_revision=payload.expected_revision,
+            calendrier_prevu=payload.calendrier_prevu,
+        ))
     except ScheduleAppError as e:
         _handle_schedule_error(e)
 
@@ -151,7 +177,12 @@ def update_actual_hours(
     """Met à jour (ou crée) les heures réelles dans la table employee_schedules."""
     try:
         _require_employee_schedule_access(current_user, employee_id, "schedules.update")
-        return commands.update_actual_hours(employee_id, payload)
+        if "expected_revision" not in payload.model_fields_set:
+            raise HTTPException(428, "Rechargez la page : une révision du calendrier est requise avant l’enregistrement.")
+        return calendar_edit.save_calendar(employee_id, str(current_user.active_company_id), CalendarSaveRequest(
+            year=payload.year, month=payload.month, expected_revision=payload.expected_revision,
+            calendrier_reel=payload.calendrier_reel,
+        ))
     except ScheduleAppError as e:
         _handle_schedule_error(e)
 

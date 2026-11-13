@@ -21,20 +21,13 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { ToastAction } from '@/components/ui/toast';
 import { Loader2, Undo2 } from 'lucide-react';
-import apiClient from '@/api/apiClient';
 import * as calendarApi from '@/api/calendar';
 import { useToast } from '@/components/ui/use-toast';
-import { runWithConcurrency } from '@/lib/concurrency';
-import {
-  restoreActualSnapshots,
-  restorePlannedSnapshots,
-  type ActualSnapshot,
-  type PlannedSnapshot,
-} from '@/lib/calendarBulkUndo';
+import { runCalendarBatch } from '@/lib/calendarBatch';
+import { restoreCalendarSnapshots, type CalendarUndoSnapshot } from '@/lib/calendarBulkUndo';
 import {
   buildActualEntriesFromWeekConfig,
   buildPlannedEntriesFromWeekConfig,
-  sameWeekConfigAllMonth,
   type ApplyModelTarget,
   type ApplyModelWeekConfig,
 } from '@/lib/applyWeekModel';
@@ -50,6 +43,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import type { WeekTemplate } from '@/hooks/useCalendar';
 import type { DayConfig, WeekConfig } from './types';
 import { semaineDuModele } from '@/lib/weekTemplateDays';
+import { calendarSaveFailureMessage } from '@/lib/calendarSaveFeedback';
 import { accord, pluriel } from '@/lib/pluriel';
 
 const TIER_LABELS: Record<string, string> = {
@@ -183,99 +177,15 @@ export function ApplyModelDialog({
     setModeleChoisi(null);
   };
 
-  const restoreModel = async (
-    plannedSnapshots: PlannedSnapshot[],
-    actualSnapshots: ActualSnapshot[],
-  ) => {
+  const restoreModel = async (snapshots: CalendarUndoSnapshot[]) => {
     try {
-      if (plannedSnapshots.length > 0) {
-        await restorePlannedSnapshots(plannedSnapshots, year, month);
-      }
-      if (actualSnapshots.length > 0) {
-        await restoreActualSnapshots(actualSnapshots, year, month);
-      }
-      toast({
-        title: 'Action annulée',
-        description: 'L’état précédent a été restauré.',
-      });
+      await restoreCalendarSnapshots(snapshots, year, month);
+      toast({ title: 'Action annulée', description: 'L’état précédent a été restauré.' });
       onApplied();
-    } catch {
-      toast({
-        title: 'Erreur',
-        description: "Impossible d'annuler l'application du modèle.",
-        variant: 'destructive',
-      });
+    } catch (error) {
+      toast({ title: 'Annulation non confirmée', description: calendarSaveFailureMessage(error), variant: 'destructive' });
+      onApplied();
     }
-  };
-
-  const applyActualHours = async (config: ApplyModelWeekConfig) => {
-    const snapshots: ActualSnapshot[] = [];
-    const tasks = selectedEmployeeIds.map((id) => async () => {
-      const [plannedRes, actualRes] = await Promise.all([
-        calendarApi.getPlannedCalendar(id, year, month),
-        calendarApi.getActualHours(id, year, month),
-      ]);
-      const existing = actualRes.data.calendrier_reel ?? [];
-      snapshots.push({ id, actual: existing });
-      const ligne = overviewRows.find((row) => row.employee.id === id);
-      const isForfait = ligne?.isForfaitJour ?? false;
-      const entries = buildActualEntriesFromWeekConfig(
-        year,
-        month,
-        config,
-        isForfait,
-        {
-          existing,
-          planned: plannedRes.data.calendrier_prevu ?? [],
-          onlyDays: scopedDays,
-          dernierJour: ligne?.dernierJourContrat ?? null,
-        },
-      );
-      await calendarApi.updateActualHours(id, year, month, entries);
-    });
-    await runWithConcurrency(tasks, 5);
-    return snapshots;
-  };
-
-  const applyPlannedHours = async (config: ApplyModelWeekConfig) => {
-    const snapshots: PlannedSnapshot[] = [];
-    // Un salarié qui sort dans le mois passe par le calcul jour par jour : rien
-    // n'est posé après sa sortie (retour du 10/11).
-    const sortieDansLeMois = selectedEmployeeIds.some(
-      (id) => overviewRows.find((row) => row.employee.id === id)?.dernierJourContrat != null,
-    );
-    if (isMonthScope && !sortieDansLeMois) {
-      const snapshotTasks = selectedEmployeeIds.map((id) => async () => {
-        const res = await calendarApi.getPlannedCalendar(id, year, month);
-        snapshots.push({ id, planned: res.data.calendrier_prevu ?? [] });
-      });
-      await runWithConcurrency(snapshotTasks, 5);
-      await apiClient.post('/api/schedules/apply-model', {
-        employee_ids: selectedEmployeeIds,
-        year,
-        month,
-        week_configs: sameWeekConfigAllMonth(config),
-      });
-      return snapshots;
-    }
-
-    const tasks = selectedEmployeeIds.map((id) => async () => {
-      const res = await calendarApi.getPlannedCalendar(id, year, month);
-      const existing = res.data.calendrier_prevu ?? [];
-      snapshots.push({ id, planned: existing });
-      const ligne = overviewRows.find((row) => row.employee.id === id);
-      const isForfait = ligne?.isForfaitJour ?? false;
-      const entries = buildPlannedEntriesFromWeekConfig(
-        year,
-        month,
-        config,
-        isForfait,
-        { existing, onlyDays: scopedDays, dernierJour: ligne?.dernierJourContrat ?? null },
-      );
-      await calendarApi.updatePlannedCalendar(id, year, month, entries);
-    });
-    await runWithConcurrency(tasks, 5);
-    return snapshots;
   };
 
   const handleApply = async () => {
@@ -285,16 +195,26 @@ export function ApplyModelDialog({
       const writePlanned = applyTarget === 'planned' || applyTarget === 'both';
       const writeActual = applyTarget === 'actual' || applyTarget === 'both';
 
-      let plannedSnapshots: PlannedSnapshot[] = [];
-      let actualSnapshots: ActualSnapshot[] = [];
-
-      if (writePlanned) {
-        plannedSnapshots = await applyPlannedHours(weekConfig);
-      }
-      if (writeActual) {
-        actualSnapshots = await applyActualHours(weekConfig);
-      }
-
+      const snapshots: CalendarUndoSnapshot[] = [];
+      const tasks = selectedEmployeeIds.map((id) => async () => {
+        const before = (await calendarApi.getCalendarSnapshot(id, year, month, { companyId })).data;
+        const line = overviewRows.find((row) => row.employee.id === id);
+        const planned = writePlanned ? buildPlannedEntriesFromWeekConfig(year, month, weekConfig, line?.isForfaitJour ?? false, {
+          existing: before.calendrier_prevu, onlyDays: scopedDays, dernierJour: line?.dernierJourContrat ?? null,
+        }) : undefined;
+        const actual = writeActual ? buildActualEntriesFromWeekConfig(year, month, weekConfig, line?.isForfaitJour ?? false, {
+          existing: before.calendrier_reel, planned: planned ?? before.calendrier_prevu,
+          onlyDays: scopedDays, dernierJour: line?.dernierJourContrat ?? null,
+        }) : undefined;
+        const saved = await calendarApi.saveCalendar(id, year, month, {
+          expected_revision: before.revision, calendrier_prevu: planned, calendrier_reel: actual,
+        }, { companyId });
+        snapshots.push({ id, companyId, expectedRevision: saved.data.revision,
+          planned: writePlanned ? before.calendrier_prevu : undefined,
+          actual: writeActual ? before.calendrier_reel : undefined,
+        });
+      });
+      await runCalendarBatch(tasks);
       const count = selectedEmployeeIds.length;
       const toastCopy =
         applyTarget === 'actual'
@@ -317,7 +237,7 @@ export function ApplyModelDialog({
         action: (
           <ToastAction
             altText="Annuler l'application du modèle"
-            onClick={() => void restoreModel(plannedSnapshots, actualSnapshots)}
+            onClick={() => void restoreModel(snapshots)}
           >
             <Undo2 className="mr-1 h-3.5 w-3.5" />
             Annuler
@@ -327,16 +247,8 @@ export function ApplyModelDialog({
       onApplied();
       onOpenChange(false);
     } catch (err: unknown) {
-      const detail =
-        err &&
-        typeof err === 'object' &&
-        'response' in err &&
-        (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
-      toast({
-        title: 'Erreur',
-        description: String(detail ?? "Impossible d'appliquer le modèle."),
-        variant: 'destructive',
-      });
+      toast({ title: 'Application non confirmée', description: calendarSaveFailureMessage(err), variant: 'destructive' });
+      onApplied();
     } finally {
       setIsApplying(false);
     }

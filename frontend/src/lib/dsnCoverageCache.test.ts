@@ -12,6 +12,27 @@ import {
 import type { DsnCoverage } from '@/api/dsnImport';
 
 describe('dsnCoverageCache', () => {
+  it('un import optionnel après la bascule ne change pas les mois Martine en mois attendus', () => {
+    const queryClient = new QueryClient();
+    const coverage: DsnCoverage = {
+      company_id: 'co-1', dsn_sync_mode: 'transition', status: 'ok',
+      expected_last_period: '2026-09', import_cutoff_period: '2026-09',
+      next_import_period: null, months_covered: ['2026-09'], gaps: [],
+      timeline: [
+        { period: '2026-09', month: 9, state: 'covered' },
+        { period: '2026-10', month: 10, state: 'native' },
+      ],
+      batch_count: 1, recent_batches: [], alerts: [],
+    };
+    queryClient.setQueryData(['dsn-coverage', 'co-1'], coverage);
+    patchDsnCoverageMatrixCache(queryClient, { companyId: 'co-1', periods: ['2026-10'] });
+    const fresh = queryClient.getQueryData<DsnCoverage>(['dsn-coverage', 'co-1']);
+    expect(fresh?.timeline[1].state).toBe('native');
+    expect(fresh?.months_covered).toContain('2026-10');
+    expect(fresh?.expected_last_period).toBe('2026-09');
+    expect(fresh?.gaps).toEqual([]);
+    expect(fresh?.next_import_period).toBeNull();
+  });
   it('déploie une plage de périodes inclusive', () => {
     expect(expandPeriodRange('2026-01', '2026-03')).toEqual([
       '2026-01',

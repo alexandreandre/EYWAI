@@ -9,6 +9,8 @@ peut tourner sur plusieurs instances ; il expire seul après `DUREE_SECONDES`.
 Le verrou ne doit jamais empêcher la paie : si la base ne répond pas ou que la
 migration n'est pas appliquée, la génération continue sans verrou, comme avant,
 et un avertissement part dans les journaux.
+Les saisies du calendrier utilisent `required=True` : elles refusent toute
+écriture si la base ne confirme pas la prise du verrou du bulletin.
 
 Il est réentrant dans une même requête : corriger un bulletin prend le verrou,
 écrit les variables du mois, puis régénère — et la régénération le redemande.
@@ -62,9 +64,16 @@ class GenerationDejaEnCours(ValueError):
         )
 
 
+class GenerationVerrouIndisponible(RuntimeError):
+    """Une écriture qui exige le verrou ne peut pas continuer sans preuve de prise."""
+
+
 #: Verrous tenus par la requête en cours (salarié, année, mois).
 _TENUS: ContextVar[frozenset[tuple[str, int, int]]] = ContextVar(
     "verrous_de_generation_tenus", default=frozenset()
+)
+_PROUVES: ContextVar[frozenset[tuple[str, int, int]]] = ContextVar(
+    "verrous_de_generation_confirmes", default=frozenset()
 )
 
 
@@ -110,14 +119,18 @@ def _prolonger_tant_que(params: dict[str, Any], fini: threading.Event) -> None:
 
 
 @contextmanager
-def verrou_de_generation(employee_id: str, year: int, month: int) -> Iterator[None]:
+def verrou_de_generation(employee_id: str, year: int, month: int, *, required: bool = False) -> Iterator[None]:
     """Tient le verrou (salarié, année, mois) le temps du bloc.
 
     Lève `GenerationDejaEnCours` si une autre génération le tient déjà.
+    Avec `required=True`, une réponse incertaine lève aussi
+    `GenerationVerrouIndisponible` avant de commencer le bloc.
     """
     cle = (str(employee_id), int(year), int(month))
     tenus = _TENUS.get()
     if cle in tenus:
+        if required and cle not in _PROUVES.get():
+            raise GenerationVerrouIndisponible()
         yield
         return
     params = {
@@ -128,17 +141,17 @@ def verrou_de_generation(employee_id: str, year: int, month: int) -> Iterator[No
     }
     #: Rien n'est parti vers la base (calcul en lecture seule) : rien à rendre.
     rien_en_base = False
+    reponse = None
     try:
-        pris: bool | None = bool(
-            _rpc(
+        reponse = _rpc(
                 "prendre_verrou_generation_bulletin",
                 {**params, "p_duree_secondes": DUREE_SECONDES},
             )
-        )
+        pris: bool | None = bool(reponse)
     except Exception as exc:
         rien_en_base = isinstance(exc, EcritureEnLectureSeule)
         logger.warning(
-            "Verrou de génération indisponible : génération sans verrou "
+            "Verrou de génération indisponible "
             "(employee_id=%s, %02d/%s).",
             employee_id,
             int(month),
@@ -146,6 +159,13 @@ def verrou_de_generation(employee_id: str, year: int, month: int) -> Iterator[No
             exc_info=True,
         )
         pris = None
+    if required and reponse is not True and reponse is not False:
+        if not rien_en_base:
+            try:
+                _rpc("rendre_verrou_generation_bulletin", params)
+            except Exception:
+                logger.warning("Verrou requis non confirmé ; rendu tenté, expiration automatique", exc_info=True)
+        raise GenerationVerrouIndisponible()
     if pris is False:
         raise GenerationDejaEnCours()
     fini = threading.Event()
@@ -159,6 +179,7 @@ def verrou_de_generation(employee_id: str, year: int, month: int) -> Iterator[No
         )
         prolongateur.start()
     jeton_contexte = _TENUS.set(tenus | {cle})
+    jeton_preuve = _PROUVES.set(_PROUVES.get() | ({cle} if reponse is True else set()))
     try:
         yield
     finally:
@@ -169,6 +190,7 @@ def verrou_de_generation(employee_id: str, year: int, month: int) -> Iterator[No
         if prolongateur is not None:
             prolongateur.join(timeout=ATTENTE_FIN_PROLONGATION_SECONDES)
         _TENUS.reset(jeton_contexte)
+        _PROUVES.reset(jeton_preuve)
         # Pris, ou peut-être pris (la réponse s'est perdue) : rendu avec notre
         # jeton, qui ne supprime que le verrou de cette génération.
         if pris or (pris is None and not rien_en_base):

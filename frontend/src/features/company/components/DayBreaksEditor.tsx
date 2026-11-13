@@ -144,12 +144,16 @@ export function DayBreaksEditor({
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Net {hours} h · Payées {paid} min · Repas {unpaid} min
+            Net {hours} h · Payées {paid} min · Non payées {unpaid} min
             {grossNet !== null ? ` · Présence brute ≈ ${(grossNet + unpaid / 60).toFixed(2)} h` : ''}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Renseignez les heures nettes hors pauses non payées. Si les pointages importés
+            excluent déjà ces pauses, ne les déduisez pas une seconde fois du réel.
           </p>
           {hoursMismatch && (
             <p className="text-xs text-amber-700">
-              Écart horaires : fin − début − repas ({grossNet?.toFixed(2)} h) ≠ heures nettes (
+              Écart horaires : fin − début − pauses non payées ({grossNet?.toFixed(2)} h) ≠ heures nettes (
               {hours} h).
             </p>
           )}

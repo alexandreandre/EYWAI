@@ -30,11 +30,60 @@ export interface ActualHoursData {
 
 // --- FONCTIONS D'API ---
 
+/** Conserver la société d'une opération, même si la RH change de contexte. */
+export interface CalendarRequestContext {
+  companyId?: string;
+  expectedRevision?: string | null;
+}
+
+function calendarRequestConfig(context?: CalendarRequestContext) {
+  return context?.companyId
+    ? { headers: { 'X-Active-Company': context.companyId } }
+    : {};
+}
+
+export interface CalendarSnapshot extends ActualHoursResponse {
+  revision: string | null;
+  busy: boolean;
+  calendrier_prevu: PlannedEventData[];
+}
+
+export interface CalendarSaveData {
+  expected_revision: string | null;
+  calendrier_prevu?: PlannedEventData[];
+  calendrier_reel?: ActualHoursData[];
+  recalculate_payroll?: boolean;
+}
+
+export interface CalendarSaveResult extends CalendarSnapshot {
+  revision: string;
+  warnings: PlannedCalendarWarning[];
+  payroll_recalculated: boolean;
+}
+
+export const getCalendarSnapshot = (employeeId: string, year: number, month: number, context?: CalendarRequestContext) =>
+  apiClient.get<CalendarSnapshot>(`/api/employees/${employeeId}/calendar-snapshot`, {
+    ...calendarRequestConfig(context), params: { year, month },
+  });
+
+export const saveCalendar = (employeeId: string, year: number, month: number, data: CalendarSaveData, context?: CalendarRequestContext) => {
+  if (data.expected_revision === undefined) return Promise.reject(new Error('Rechargez le calendrier avant de l’enregistrer.'));
+  return apiClient.post<CalendarSaveResult>(`/api/employees/${employeeId}/calendar-save`, {
+    year, month, ...data,
+  }, calendarRequestConfig(context));
+};
+
+function expectedRevision(context?: CalendarRequestContext): string | null {
+  if (context?.expectedRevision === undefined) throw new Error('Rechargez le calendrier avant de l’enregistrer.');
+  return context.expectedRevision;
+}
+
 /**
  * Récupère le calendrier prévu pour un employé.
  */
-export const getPlannedCalendar = (employeeId: string, year: number, month: number) => {
+export const getPlannedCalendar = (employeeId: string, year: number, month: number, context?: CalendarRequestContext) => {
   return apiClient.get(`/api/employees/${employeeId}/planned-calendar`, {
+    ...calendarRequestConfig(context),
     params: { year, month }
   });
 };
@@ -59,12 +108,8 @@ export interface UpdatePlannedCalendarResponse {
 /**
  * Met à jour le calendrier prévu pour un employé.
  */
-export const updatePlannedCalendar = (employeeId: string, year: number, month: number, data: PlannedEventData[]) => {
-  return apiClient.post<UpdatePlannedCalendarResponse>(`/api/employees/${employeeId}/planned-calendar`, {
-    year,
-    month,
-    calendrier_prevu: data,
-  });
+export const updatePlannedCalendar = async (employeeId: string, year: number, month: number, data: PlannedEventData[], context?: CalendarRequestContext) => {
+  return saveCalendar(employeeId, year, month, { expected_revision: expectedRevision(context), calendrier_prevu: data }, context);
 };
 
 /**
@@ -81,8 +126,9 @@ export interface ActualHoursResponse {
   jours_en_conflit?: number[];
 }
 
-export const getActualHours = (employeeId: string, year: number, month: number) => {
+export const getActualHours = (employeeId: string, year: number, month: number, context?: CalendarRequestContext) => {
   return apiClient.get<ActualHoursResponse>(`/api/employees/${employeeId}/actual-hours`, {
+    ...calendarRequestConfig(context),
     params: { year, month }
   });
 };
@@ -90,12 +136,8 @@ export const getActualHours = (employeeId: string, year: number, month: number) 
 /**
  * Met à jour les heures réelles saisies pour un employé.
  */
-export const updateActualHours = (employeeId: string, year: number, month: number, data: ActualHoursData[]) => {
-  return apiClient.post(`/api/employees/${employeeId}/actual-hours`, {
-    year,
-    month,
-    calendrier_reel: data,
-  });
+export const updateActualHours = async (employeeId: string, year: number, month: number, data: ActualHoursData[], context?: CalendarRequestContext) => {
+  return saveCalendar(employeeId, year, month, { expected_revision: expectedRevision(context), calendrier_reel: data }, context);
 };
 
 export interface EffacerJoursResponse {
@@ -124,11 +166,11 @@ export const effacerHeuresDesJours = async (
   return data;
 };
 
-export const calculatePayrollEvents = (employeeId: string, year: number, month: number) => {
+export const calculatePayrollEvents = (employeeId: string, year: number, month: number, context?: CalendarRequestContext) => {
   return apiClient.post(`/api/employees/${employeeId}/calculate-payroll-events`, {
     year,
     month,
-  });
+  }, calendarRequestConfig(context));
 };
 
 export interface ImportBadgeuseResult {

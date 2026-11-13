@@ -43,14 +43,14 @@ export function BulkDayActionPanel({
 
     if (type) {
       updateData.type = type;
-      if (type !== 'travail') updateData.heures_prevues = null;
+      if (type !== 'travail') updateData.heures_prevues = type === 'repos' ? 0 : null;
       hasUpdate = true;
     }
 
     if (isForfaitJour) {
       const parsedPlanned =
         plannedHours.trim() !== '' ? parseFloat(plannedHours) : NaN;
-      if (!isNaN(parsedPlanned)) {
+      if (!isNaN(parsedPlanned) && type !== 'repos') {
         updateData.heures_prevues = parsedPlanned > 0 ? 1 : 0;
         if (type === '' && parsedPlanned > 0) updateData.type = 'travail';
         hasUpdate = true;
@@ -68,7 +68,7 @@ export function BulkDayActionPanel({
       }
     } else {
       const parsedPlanned = parseFloat(plannedHours);
-      if (!isNaN(parsedPlanned)) {
+      if (!isNaN(parsedPlanned) && type !== 'repos') {
         updateData.heures_prevues = parsedPlanned;
         if (type === '' && parsedPlanned > 0) updateData.type = 'travail';
         hasUpdate = true;
@@ -122,8 +122,11 @@ export function BulkDayActionPanel({
 
       <div className="flex flex-wrap items-center gap-2">
         <Label className="text-xs">Type</Label>
-        <Select value={type} onValueChange={setType} disabled={isSaving}>
-          <SelectTrigger className="h-8 w-[120px] text-xs">
+        <Select value={type} onValueChange={(value) => {
+          setType(value);
+          if (value === 'repos') setPlannedHours('0');
+        }} disabled={isSaving}>
+          <SelectTrigger className="h-auto min-h-8 w-[180px] text-left text-xs [&>span]:whitespace-normal [&>span]:line-clamp-none">
             <SelectValue placeholder="Type…" />
           </SelectTrigger>
           <SelectContent>
@@ -136,7 +139,7 @@ export function BulkDayActionPanel({
         </Select>
         {isForfaitJour ? (
           <>
-            <Select value={plannedHours} onValueChange={setPlannedHours} disabled={isSaving}>
+            <Select value={plannedHours} onValueChange={setPlannedHours} disabled={isSaving || type === 'repos'}>
               <SelectTrigger className="h-8 w-[110px] text-xs">
                 <SelectValue placeholder="Prévu" />
               </SelectTrigger>
@@ -166,14 +169,16 @@ export function BulkDayActionPanel({
               value={plannedHours}
               onChange={(e) => setPlannedHours(e.target.value)}
               placeholder="H. prév."
+              aria-label="Heures prévues"
               className="h-8 w-20 text-xs"
-              disabled={isSaving}
+              disabled={isSaving || type === 'repos'}
             />
             <Input
               type="number"
               value={actualHours}
               onChange={(e) => setActualHours(e.target.value)}
               placeholder="H. faites"
+              aria-label="Heures faites"
               className="h-8 w-20 text-xs"
               disabled={isSaving}
             />

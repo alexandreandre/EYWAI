@@ -77,13 +77,14 @@ export function BulkActionPanel({
 
     if (type) {
       updateData.type = type;
+      if (type === 'repos') updateData.heures_prevues = 0;
       hasUpdate = true;
     }
 
     if (isForfaitJour) {
       // Mode forfait jour : heures_prevues = 1 (jour prévu) ou 0 (jour non prévu)
       const parsedPlanned = plannedHours.trim() !== '' ? parseFloat(plannedHours) : NaN;
-      if (!isNaN(parsedPlanned)) {
+      if (!isNaN(parsedPlanned) && type !== 'repos') {
         updateData.heures_prevues = parsedPlanned > 0 ? 1 : 0;
         if (type === '' && parsedPlanned > 0) {
           updateData.type = 'travail';
@@ -93,7 +94,7 @@ export function BulkActionPanel({
     } else {
       // Mode normal : nombre d'heures
       const parsedPlanned = parseFloat(plannedHours);
-      if (!isNaN(parsedPlanned)) {
+      if (!isNaN(parsedPlanned) && type !== 'repos') {
         updateData.heures_prevues = parsedPlanned;
         if (type === '' && parsedPlanned > 0) {
           updateData.type = 'travail';
@@ -164,10 +165,13 @@ export function BulkActionPanel({
       </div>
       {/* --- FIN DE LA MODIFICATION DE L'UI --- */}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Label htmlFor="bulk-type" className="text-xs">Marquer comme:</Label>
-        <Select value={type} onValueChange={setType}>
-          <SelectTrigger id="bulk-type" className="h-8 w-[130px] text-xs"><SelectValue placeholder="Type..." /></SelectTrigger>
+        <Select value={type} onValueChange={(value) => {
+          setType(value);
+          if (value === 'repos') setPlannedHours('0');
+        }} disabled={isSaving}>
+          <SelectTrigger id="bulk-type" className="h-auto min-h-8 w-[180px] text-left text-xs [&>span]:whitespace-normal [&>span]:line-clamp-none"><SelectValue placeholder="Type..." /></SelectTrigger>
           <SelectContent>
             {CALENDAR_EDITABLE_TYPE_OPTIONS.map((t) => (
               <SelectItem key={t.value} value={t.value}>
@@ -208,6 +212,7 @@ export function BulkActionPanel({
           <Select
             value={plannedHours === '1' ? '1' : plannedHours === '0' ? '0' : ''}
             onValueChange={setPlannedHours}
+            disabled={isSaving || type === 'repos'}
           >
             <SelectTrigger id="bulk-planned-hours" className="h-8 w-[100px] text-xs">
               <SelectValue placeholder="–" />
@@ -218,7 +223,7 @@ export function BulkActionPanel({
             </SelectContent>
           </Select>
         ) : (
-          <Input id="bulk-planned-hours" type="number" value={plannedHours} onChange={e => setPlannedHours(e.target.value)} placeholder="ex: 8" className="h-8 w-20 text-xs" />
+          <Input id="bulk-planned-hours" type="number" value={plannedHours} onChange={e => setPlannedHours(e.target.value)} placeholder="ex: 8" className="h-8 w-20 text-xs" disabled={isSaving || type === 'repos'} />
         )}
         <Label htmlFor="bulk-actual-hours" className="text-xs">
           {isForfaitJour ? "J. travaillés:" : "H. faites:"}

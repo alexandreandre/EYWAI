@@ -61,6 +61,8 @@ import { LIBELLE_SOUMISE_COTISATIONS, LIBELLE_SOUMISE_IMPOT, phraseSaisiePonctue
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { accord, pluriel } from '@/lib/pluriel';
 import { ChampDecimal } from "@/components/ChampDecimal";
+import { erreurPeriodeSaisie, libelleAvecPeriode } from '@/components/saisies/periodeSaisie';
+import { PeriodeSaisieFields } from '@/components/saisies/PeriodeSaisieFields';
 
 // --- Types & Interfaces ---
 interface Employee {
@@ -87,6 +89,8 @@ const initialState = {
   name: "",
   amount: "" as number | "",
   description: "",
+  periodeDebut: "",
+  periodeFin: "",
   selectedEmployees: [] as string[],
   is_socially_taxed: true,
   is_taxable: true,
@@ -249,6 +253,14 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
       return;
     }
 
+    const periodeDebut = !isCustomPrime || sens === 'prime' ? formData.periodeDebut : '';
+    const periodeFin = !isCustomPrime || sens === 'prime' ? formData.periodeFin : '';
+    const erreurPeriode = erreurPeriodeSaisie(periodeDebut, periodeFin);
+    if (erreurPeriode) {
+      toast({ title: 'Période à corriger', description: erreurPeriode, variant: 'destructive' });
+      return;
+    }
+
     const currentYear = year || new Date().getFullYear();
     const currentMonth = month || new Date().getMonth() + 1;
 
@@ -322,7 +334,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
     // Créer les payloads pour chaque employé avec le montant calculé si disponible
     const payloads: MonthlyInputCreate[] = formData.selectedEmployees.map(empId => ({
       employee_id: empId,
-      name: formData.name,
+      name: libelleAvecPeriode(formData.name, periodeDebut, periodeFin),
       description: formData.description || undefined,
       ...champsDeLaSaisie(
         isCustomPrime ? sens : 'prime',
@@ -818,6 +830,12 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
             </>
           )}
           
+          {(!isCustomPrime || sens === 'prime') && (
+            <PeriodeSaisieFields nom={formData.name} debut={formData.periodeDebut} fin={formData.periodeFin}
+              onDebutChange={(periodeDebut) => setFormData((p) => ({ ...p, periodeDebut }))}
+              onFinChange={(periodeFin) => setFormData((p) => ({ ...p, periodeFin }))} />
+          )}
+
           {!employeeScopeId && (
              <div className="grid gap-2">
               <Label>Appliquer à</Label>

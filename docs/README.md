@@ -28,3 +28,4 @@ Architecture du code : [../ARCHITECTURE.md](../ARCHITECTURE.md).
 - [fiches-parametrage-oc.md](reference/fiches-parametrage-oc.md) : fiches des organismes complémentaires.
 - [colorplast-primes.md](reference/colorplast-primes.md) : primes Colorplast, guide RH.
 - [primes-equipes-planning.md](reference/primes-equipes-planning.md) : primes d'équipes et planning, guide RH.
+- [saisie-plannings-recuperation-externe.md](reference/saisie-plannings-recuperation-externe.md) : pas-à-pas de saisie, zéros importés et récupérations suivies hors Martine.

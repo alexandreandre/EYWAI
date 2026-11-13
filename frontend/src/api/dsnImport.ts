@@ -215,7 +215,7 @@ export type DsnCoverageStatus =
 export type DsnCoverageTimelineMonth = {
   period: string;
   month: number;
-  state: 'covered' | 'missing' | 'future';
+  state: 'covered' | 'missing' | 'future' | 'native';
 };
 
 export type DsnCoverage = {
@@ -223,6 +223,7 @@ export type DsnCoverage = {
   dsn_sync_mode: DsnSyncMode;
   status: DsnCoverageStatus;
   expected_last_period: string;
+  import_cutoff_period?: string | null;
   next_import_period?: string | null;
   last_period?: string | null;
   last_import_at?: string | null;
@@ -267,6 +268,7 @@ export type DsnCoverageMatrixCompany = {
   dsn_sync_mode: DsnSyncMode;
   status: DsnCoverageStatus;
   expected_last_period: string;
+  import_cutoff_period?: string | null;
   last_period?: string | null;
   last_import_at?: string | null;
   gaps_count: number;

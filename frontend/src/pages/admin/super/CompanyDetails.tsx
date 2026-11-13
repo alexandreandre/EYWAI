@@ -619,7 +619,7 @@ export default function CompanyDetails() {
               </button>
             </div>
           </div>
-          <DsnCoverageTimeline timeline={dsnCoverage.timeline} />
+          <DsnCoverageTimeline timeline={dsnCoverage.timeline} importedPeriods={dsnCoverage.months_covered} />
           {dsnCoverage.gaps.length > 0 && (
             <p className="mt-2 text-sm text-amber-800">
               Mois manquants : {listeDeMoisEnClair(dsnCoverage.gaps)}

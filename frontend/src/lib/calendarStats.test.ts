@@ -56,6 +56,10 @@ function buildFullJuneCalendar(
 }
 
 describe('isDayReadyForPayroll', () => {
+  it('un repos avec zéro réel est prêt, un travail prévu à zéro reste à vérifier', () => {
+    expect(isDayReadyForPayroll(planned(3, 'repos', 0), actual(3, 'travail', 0))).toBe(true);
+    expect(isDayReadyForPayroll(planned(3, 'travail', 7), actual(3, 'travail', 0))).toBe(false);
+  });
   it('exige prévu et réel pour un jour travail', () => {
     expect(
       isDayReadyForPayroll(planned(3, 'travail', 8), actual(3, 'travail', 8))

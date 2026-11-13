@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { DsnCoverageTimeline, dsnStatusLabel, dsnStatusVariant } from './DsnCoverageTimeline';
 import { Badge } from '@/components/ui/badge';
 import { libelleBascule } from '@/features/dsn-import/lib/bascule';
+import { DsnImportCutoffNote } from './DsnImportCutoffNote';
 
 const MODE_LABELS: Record<DsnSyncMode, string> = {
   external: 'Paie hors Martine (Cegid, etc.)',
@@ -102,7 +103,8 @@ export function DsnSyncModeCard({ company, coverage, readOnly = false, onUpdated
                 </span>
               )}
             </div>
-            <DsnCoverageTimeline timeline={coverage.timeline} compact />
+            <DsnCoverageTimeline timeline={coverage.timeline} importedPeriods={coverage.months_covered} compact />
+            <DsnImportCutoffNote period={coverage.import_cutoff_period} />
             {coverage.gaps.length > 0 && (
               <p className="text-xs text-amber-800">
                 Mois manquants : {listeDeMoisEnClair(coverage.gaps)}

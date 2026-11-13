@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   fetchAllEmployeesOverview,
   computeGlobalKpis,
   applyDayPatchToRow,
   persistEmployeeMonth,
+  rowFromCalendarSnapshot,
   type EmployeeCalendarOverviewRow,
   type SchedulesEmployeeInput,
   type GlobalOverviewKpis,
   type DayPatch,
 } from '@/lib/schedulesOverview';
+import { calendarSaveFailureMessage } from '@/lib/calendarSaveFeedback';
 import { invalidateRhSidebarBadges } from '@/lib/invalidateRhSidebarBadges';
 import { getPeriodeVariables } from '@/api/periodeVariables';
 import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
@@ -19,6 +21,8 @@ import {
   summarizePlanningWarnings,
 } from '@/lib/planningAbsenceWarnings';
 
+const EMPTY_ROWS: EmployeeCalendarOverviewRow[] = [];
+
 export function useEmployeeCalendarOverview(
   employees: SchedulesEmployeeInput[],
   year: number,
@@ -26,16 +30,30 @@ export function useEmployeeCalendarOverview(
 ) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { observedHolidayIds } = useObservedPublicHolidays();
+  const { activeCompanyId, observedHolidayIds } = useObservedPublicHolidays();
   const [rows, setRows] = useState<EmployeeCalendarOverviewRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadErrors, setLoadErrors] = useState(0);
   const rowsRef = useRef<EmployeeCalendarOverviewRow[]>([]);
-  rowsRef.current = rows;
+  const pending = useRef(new Set<string>());
+  const loadSequence = useRef(0);
+  const context = useMemo(() => ({ active: false, year, month, activeCompanyId, employees }), [year, month, activeCompanyId, employees]);
+  const [loadedContext, setLoadedContext] = useState<object | null>(null);
+  useLayoutEffect(() => {
+    context.active = true;
+    return () => { context.active = false; };
+  }, [context]);
+  const visibleRows = loadedContext === context ? rows : EMPTY_ROWS;
+  rowsRef.current = visibleRows;
 
   const load = useCallback(async () => {
+    if (!context.active) return;
+    const request = ++loadSequence.current;
+    const isCurrent = () => context.active && request === loadSequence.current;
+    setLoadedContext(null);
     if (employees.length === 0) {
       setRows([]);
+      setLoadedContext(context);
+      setIsLoading(false);
       return;
     }
     setIsLoading(true);
@@ -52,22 +70,23 @@ export function useEmployeeCalendarOverview(
         month,
         5,
         observedHolidayIds,
-        { finFenetre }
+        { finFenetre, companyId: activeCompanyId }
       );
+      if (!isCurrent()) return;
       setRows(result);
-      setLoadErrors(result.filter((r) => r.loadError).length);
+      setLoadedContext(context);
     } finally {
-      setIsLoading(false);
+      if (isCurrent()) setIsLoading(false);
     }
-  }, [employees, year, month, observedHolidayIds]);
+  }, [employees, year, month, observedHolidayIds, activeCompanyId, context]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   const globalKpis: GlobalOverviewKpis = useMemo(
-    () => computeGlobalKpis(rows),
-    [rows]
+    () => computeGlobalKpis(visibleRows),
+    [visibleRows]
   );
 
   const updateRow = useCallback(
@@ -83,14 +102,17 @@ export function useEmployeeCalendarOverview(
 
   /**
    * Mise à jour optimiste d'un jour pour un employé + persistance backend.
-   * Rollback automatique en cas d'erreur.
+   * Les saisies non confirmées restent visibles ; recharge explicite avant reprise.
    */
   const applyAndPersistDayPatch = useCallback(
     async (employeeId: string, day: number, patch: DayPatch): Promise<boolean> => {
       const previousRow = rowsRef.current.find(
         (r) => r.employee.id === employeeId
       );
-      if (!previousRow) return false;
+      if (!context.active || !previousRow || previousRow.loadError || previousRow.revision === undefined || pending.current.has(employeeId)) return false;
+      pending.current.add(employeeId);
+      const loadAtStart = loadSequence.current;
+      const isCurrent = () => context.active && loadAtStart === loadSequence.current;
 
       const nextRow = applyDayPatchToRow(previousRow, day, patch, year, month);
       setRows((prev) =>
@@ -98,35 +120,41 @@ export function useEmployeeCalendarOverview(
       );
 
       try {
-        const warnings = await persistEmployeeMonth(
+        const saved = await persistEmployeeMonth(
           employeeId,
           year,
           month,
           nextRow.planned,
-          nextRow.actual
+          nextRow.actual,
+          { companyId: activeCompanyId, expectedRevision: previousRow.revision },
         );
+        if (!isCurrent()) return false;
+        setRows((current) => current.map((r) => r.employee.id === employeeId ? rowFromCalendarSnapshot(nextRow, saved, year, month) : r));
         // Demandes de congé créées/annulées par la saisie, écarts de solde…
         // — la vue semaine doit le dire autant que le calendrier complet.
         const warningsToast = planningWarningsToast(
-          summarizePlanningWarnings(warnings)
+          summarizePlanningWarnings(saved.warnings)
         );
         if (warningsToast) toast(warningsToast);
         void invalidateRhSidebarBadges(queryClient);
         return true;
       } catch (err) {
-        setRows((prev) =>
-          prev.map((r) => (r.employee.id === employeeId ? previousRow : r))
-        );
-        throw err;
+        if (isCurrent()) {
+          setRows((prev) => prev.map((r) => r.employee.id === employeeId ? { ...nextRow, rowStatus: 'a_saisir', loadError: true } : r));
+          toast({ title: 'Enregistrement incomplet', description: calendarSaveFailureMessage(err), variant: 'destructive' });
+        }
+        return false;
+      } finally {
+        pending.current.delete(employeeId);
       }
     },
-    [year, month, queryClient, toast]
+    [year, month, queryClient, toast, context, activeCompanyId]
   );
 
   return {
-    rows,
-    isLoading,
-    loadErrors,
+    rows: visibleRows,
+    isLoading: isLoading || loadedContext !== context,
+    loadErrors: visibleRows.filter((row) => row.loadError).length,
     globalKpis,
     refetch: load,
     updateRow,

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/calendar', () => ({
-  getPlannedCalendar: vi.fn(),
+  getCalendarSnapshot: vi.fn(),
   getActualHours: vi.fn(),
 }));
 vi.mock('@/api/absences', () => ({
@@ -10,7 +10,7 @@ vi.mock('@/api/absences', () => ({
 
 import * as calendarApi from '@/api/calendar';
 import { getAbsencesForEmployee } from '@/api/absences';
-import { applyDayPatchToRow, fetchAllEmployeesOverview } from './schedulesOverview';
+import { applyDayPatchToRow, computeGlobalKpis, fetchAllEmployeesOverview } from './schedulesOverview';
 
 const SALARIE = { id: 'e1', first_name: 'Prénom', last_name: 'Nom', statut: 'Non-Cadre' };
 
@@ -29,8 +29,8 @@ function septembrePrevu() {
 
 /** Le réel de chaque mois demandé ; `'erreur'` fait échouer la lecture. */
 function reels(parMois: Record<number, unknown[] | 'erreur'>) {
-  vi.mocked(calendarApi.getPlannedCalendar).mockResolvedValue({
-    data: { calendrier_prevu: septembrePrevu() },
+  vi.mocked(calendarApi.getCalendarSnapshot).mockResolvedValue({
+    data: { revision: 'revision-a', busy: false, calendrier_prevu: septembrePrevu(), calendrier_reel: parMois[9] ?? [] },
   } as never);
   vi.mocked(calendarApi.getActualHours).mockImplementation(async (_id, _annee, mois) => {
     const reel = parMois[mois as number] ?? [];
@@ -57,6 +57,16 @@ describe('Plannings : un salarié qui ne pointe pas', () => {
     expect(ligne.loadError).toBe(false);
     expect(ligne.rowStatus).toBe('saisi');
     expect(calendarApi.getActualHours).toHaveBeenCalledWith('e1', 2026, 8);
+  });
+
+  it('ne compte jamais un calendrier non confirmé comme prêt pour la paie', async () => {
+    reels({ 8: [], 9: [] });
+    const ligne = await ligneDeSeptembre();
+    expect(ligne.rowStatus).toBe('saisi');
+
+    const kpis = computeGlobalKpis([{ ...ligne, loadError: true }]);
+
+    expect(kpis).toMatchObject({ saisis: 0, aSaisir: 1, prets: 0, pretsSansHeuresPointees: 0, progressPercent: 0 });
   });
 
   it('reste à saisir quand il a pointé le mois précédent (import du mois oublié)', async () => {

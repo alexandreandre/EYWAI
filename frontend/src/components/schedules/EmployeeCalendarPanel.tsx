@@ -18,10 +18,12 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { CalendarDayCell } from '@/components/CalendarDayCell';
 import { CalendarKpiBand } from '@/components/employee-detail/CalendarKpiBand';
 import { CalendarAbsencesHint } from '@/components/employee-detail/CalendarAbsencesHint';
+import { CalendarEntryHelp } from '@/components/schedules/CalendarEntryHelp';
 import { WeekTemplateForm } from '@/components/schedules/WeekTemplateForm';
 import { YearCalendarView } from '@/components/schedules/YearCalendarView';
 import { BulkDayActionPanel } from '@/components/schedules/BulkDayActionPanel';
 import { useCalendar } from '@/hooks/useCalendar';
+import { CalendarSyncNotice } from '@/components/schedules/CalendarSyncNotice';
 import { Loader2, Save, ChevronLeft, ChevronRight, CalendarDays, Grid3x3 } from 'lucide-react';
 import { Chargement } from '@/components/Chargement';
 import { cn } from '@/lib/utils';
@@ -74,6 +76,9 @@ export function EmployeeCalendarPanel({
     monthCompletionStatus,
     pointe,
     copyPlannedToActualForDay,
+    loadError,
+    saveError,
+    refetch,
   } = useCalendar(employeeId, employeeStatut, {
     isForfaitJour: employeeIsForfaitJour,
     sortie: employeeSortie ?? null,
@@ -162,12 +167,12 @@ export function EmployeeCalendarPanel({
   };
 
   const handleSave = async () => {
-    await saveAllCalendarData();
-    onSaved?.();
+    if (await saveAllCalendarData()) onSaved?.();
   };
 
   return (
     <div className="space-y-3 pb-24">
+      <CalendarSyncNotice loadError={loadError} saveError={saveError} isDirty={isDirty} onReload={() => void refetch()} />
       {isForfaitJour && (
         <div className="rounded-md border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-sm text-amber-950">
           <span className="font-medium">Cadre forfait jours</span>
@@ -248,6 +253,7 @@ export function EmployeeCalendarPanel({
                   {alerte.detail}
                 </p>
               )}
+              {!isForfaitJour && <CalendarEntryHelp />}
               <CalendarAbsencesHint
                 employeeId={employeeId}
                 year={selectedDate.year}
@@ -271,7 +277,7 @@ export function EmployeeCalendarPanel({
             </>
           )}
 
-          {isCalendarLoading ? (
+          {loadError ? null : isCalendarLoading ? (
             <Chargement label="Chargement du calendrier…" className="h-48" />
           ) : calendarView === 'month' ? (
             <div className="flex flex-col gap-3 p-2">

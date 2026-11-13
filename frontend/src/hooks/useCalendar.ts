@@ -1,7 +1,7 @@
 // src/hooks/useCalendar.ts
 
 import { log } from '@/lib/logger';
-import { useState, useEffect, useCallback, useMemo, useRef, type SetStateAction } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, type SetStateAction } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import * as calendarApi from '@/api/calendar';
 import { DayData } from '@/components/ScheduleModal';
@@ -17,10 +17,11 @@ import {
   summarizePlanningWarnings,
 } from '@/lib/planningAbsenceWarnings';
 import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
-import { avecLeReelEnregistre, joursAuxHeuresRetirees, messageHeuresRetirees } from '@/lib/heuresRetireesAuReel';
+import { joursAuxHeuresRetirees, messageHeuresRetirees } from '@/lib/heuresRetireesAuReel';
 import { copierMoisPrecedent, noteJoursGardes } from '@/lib/copieMoisPrecedent';
 import { modeleSemaineDuSalarie } from '@/lib/modeleSemaine';
 import { jourPrevuDuModele, valeurModelePourLeJour } from '@/lib/weekTemplateDays';
+import { calendarSaveFailureMessage } from '@/lib/calendarSaveFeedback';
 import { dernierJourDuContratDansLeMois } from '@/lib/employmentStatus';
 
 type PlannedEventData = calendarApi.PlannedEventData;
@@ -50,7 +51,7 @@ export function useCalendar(
     () => isForfaitJour(employeeStatut, options?.isForfaitJour),
     [employeeStatut, options?.isForfaitJour],
   );
-  const { observedHolidayIds } = useObservedPublicHolidays();
+  const { activeCompanyId, observedHolidayIds } = useObservedPublicHolidays();
 
   const [weekTemplate, setWeekTemplateBrut] = useState<WeekTemplate>(() =>
     modeleSemaineDuSalarie({
@@ -90,14 +91,32 @@ export function useCalendar(
   const [isSavingAfterApply, setIsSavingAfterApply] = useState(false);
   const [isCopyingPrevMonth, setIsCopyingPrevMonth] = useState(false);
   const [loadError, setLoadError] = useState(false);
-  const [loadedMonthKey, setLoadedMonthKey] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [revision, setRevision] = useState<string | null | undefined>(undefined);
+  const [loadedCalendarKey, setLoadedCalendarKey] = useState<string | null>(null);
+  const loadSequence = useRef(0);
+  const copySequence = useRef(0);
+  const editRevision = useRef(0);
+  const saveInFlight = useRef(false);
+  const applySavePending = useRef(false);
+  const mounted = useRef(false);
   // Heures pointées le mois précédent (que la fenêtre des variables chevauche).
   // Vrai tant qu'on ne sait pas, ou si la lecture échoue : règle stricte.
   const [pointeMoisPrecedent, setPointeMoisPrecedent] = useState(true);
 
-  const selectedMonthKey = `${selectedDate.year}-${selectedDate.month}`;
+  const calendarKey = JSON.stringify([activeCompanyId, employeeId, selectedDate.year, selectedDate.month]);
+  // Une nouvelle visite du même mois reste un nouveau contexte (A → B → A).
+  const context = useMemo(() => ({ active: false, key: calendarKey, enabled: fetchEnabled }), [calendarKey, fetchEnabled]);
+  useLayoutEffect(() => {
+    context.active = true;
+    return () => { context.active = false; };
+  }, [context]);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const isMonthDataReady =
-    loadedMonthKey === selectedMonthKey && plannedCalendar.length > 0;
+    fetchEnabled && !isLoading && !loadError && revision !== undefined && loadedCalendarKey === calendarKey && plannedCalendar.length > 0;
 
   // Comme le juge du serveur : un salarié qui ne pointe pas (aucune heure ni ce
   // mois ni le précédent) n'a rien « à saisir », le prévu fait foi.
@@ -126,10 +145,10 @@ export function useCalendar(
 
   /** Le réel du mois précédent a-t-il des heures ? Illisible : oui (règle stricte). */
   const lirePointeMoisPrecedent = useCallback(
-    (id: string, year: number, month: number): Promise<boolean> => {
+    (id: string, year: number, month: number, requestContext: calendarApi.CalendarRequestContext): Promise<boolean> => {
       const precedent = moisPrecedent(year, month);
       return calendarApi
-        .getActualHours(id, precedent.year, precedent.month)
+        .getActualHours(id, precedent.year, precedent.month, requestContext)
         .then((res) => aDesHeuresPointees(res.data.calendrier_reel ?? []))
         .catch(() => true);
     },
@@ -181,39 +200,55 @@ export function useCalendar(
   );
 
   const fetchAllCalendarData = useCallback(async () => {
+    if (!context.active) return;
+    const request = ++loadSequence.current;
+    const isCurrent = () => context.active && request === loadSequence.current;
+    ++editRevision.current;
+    setRevision(undefined);
+    setSaveError(null);
+    setSelectedDays([]);
+    setEditingDay(null);
+    setIsSavingAfterApply(false);
+    applySavePending.current = false;
+    setIsCopyingPrevMonth(false);
     if (!employeeId || !fetchEnabled) {
       setIsLoading(false);
       setLoadError(false);
-      setLoadedMonthKey(null);
+      setLoadedCalendarKey(null);
       setPlannedCalendar([]);
       setActualHours([]);
+      setOriginalPlanned([]);
+      setOriginalActual([]);
+      setIsDirty(false);
       setJoursEnConflit([]);
       return;
     }
 
     const year = selectedDate.year;
     const month = selectedDate.month;
-    const monthKey = `${year}-${month}`;
+    const requestContext = { companyId: activeCompanyId };
 
     setIsLoading(true);
     setIsDirty(false);
     setLoadError(false);
-    setLoadedMonthKey(null);
+    setLoadedCalendarKey(null);
     setPlannedCalendar([]);
     setActualHours([]);
     setJoursEnConflit([]);
     setPointeMoisPrecedent(true);
 
     try {
-      const [plannedRes, actualRes, pointeAvant] = await Promise.all([
-        calendarApi.getPlannedCalendar(employeeId, year, month),
-        calendarApi.getActualHours(employeeId, year, month),
-        lirePointeMoisPrecedent(employeeId, year, month),
+      const [snapshot, pointeAvant] = await Promise.all([
+        calendarApi.getCalendarSnapshot(employeeId, year, month, requestContext),
+        lirePointeMoisPrecedent(employeeId, year, month, requestContext),
       ]);
+      if (!isCurrent()) return;
+      if (snapshot.data.revision === undefined || snapshot.data.busy) throw new Error('Calendrier en cours d’enregistrement ou révision indisponible.');
+      setRevision(snapshot.data.revision);
       setPointeMoisPrecedent(pointeAvant);
 
-      const plannedDataFromApi = plannedRes.data.calendrier_prevu ?? [];
-      const actualDataFromApi = actualRes.data.calendrier_reel ?? [];
+      const plannedDataFromApi = snapshot.data.calendrier_prevu ?? [];
+      const actualDataFromApi = snapshot.data.calendrier_reel ?? [];
       const { finalPlannedCalendar, finalActualHours } = buildMonthCalendar(
         year,
         month,
@@ -223,12 +258,13 @@ export function useCalendar(
 
       setPlannedCalendar(finalPlannedCalendar);
       setActualHours(finalActualHours);
-      setJoursEnConflit(actualRes.data.jours_en_conflit ?? []);
+      setJoursEnConflit(snapshot.data.jours_en_conflit ?? []);
       setOriginalPlanned(finalPlannedCalendar);
       setOriginalActual(finalActualHours);
-      setLoadedMonthKey(monthKey);
+      setLoadedCalendarKey(calendarKey);
       setLoadError(false);
     } catch (error) {
+      if (!isCurrent()) return;
       log.error(error);
       setLoadError(true);
       toast({
@@ -237,7 +273,7 @@ export function useCalendar(
         variant: 'destructive',
       });
     } finally {
-      setIsLoading(false);
+      if (isCurrent()) setIsLoading(false);
     }
   }, [
     employeeId,
@@ -247,94 +283,22 @@ export function useCalendar(
     toast,
     fetchEnabled,
     lirePointeMoisPrecedent,
+    context,
+    calendarKey,
+    activeCompanyId,
   ]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    if (!employeeId || !fetchEnabled) {
-      setIsLoading(false);
-      setLoadError(false);
-      setLoadedMonthKey(null);
-      setPlannedCalendar([]);
-      setActualHours([]);
-      setJoursEnConflit([]);
-      return;
-    }
-
-    const year = selectedDate.year;
-    const month = selectedDate.month;
-    const monthKey = `${year}-${month}`;
-
-    setIsLoading(true);
-    setIsDirty(false);
-    setLoadError(false);
-    setLoadedMonthKey(null);
-    setPlannedCalendar([]);
-    setActualHours([]);
-    setJoursEnConflit([]);
-    setPointeMoisPrecedent(true);
-
-    void (async () => {
-      try {
-        const [plannedRes, actualRes, pointeAvant] = await Promise.all([
-          calendarApi.getPlannedCalendar(employeeId, year, month),
-          calendarApi.getActualHours(employeeId, year, month),
-          lirePointeMoisPrecedent(employeeId, year, month),
-        ]);
-        if (cancelled) return;
-        setPointeMoisPrecedent(pointeAvant);
-
-        const plannedDataFromApi = plannedRes.data.calendrier_prevu ?? [];
-        const actualDataFromApi = actualRes.data.calendrier_reel ?? [];
-        const { finalPlannedCalendar, finalActualHours } = buildMonthCalendar(
-          year,
-          month,
-          plannedDataFromApi,
-          actualDataFromApi
-        );
-
-        setPlannedCalendar(finalPlannedCalendar);
-        setActualHours(finalActualHours);
-        setJoursEnConflit(actualRes.data.jours_en_conflit ?? []);
-        setOriginalPlanned(finalPlannedCalendar);
-        setOriginalActual(finalActualHours);
-        setLoadedMonthKey(monthKey);
-        setLoadError(false);
-      } catch (error) {
-        if (cancelled) return;
-        log.error(error);
-        setLoadError(true);
-        toast({
-          title: 'Erreur',
-          description: 'Impossible de charger les données du calendrier.',
-          variant: 'destructive',
-        });
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    employeeId,
-    selectedDate.year,
-    selectedDate.month,
-    buildMonthCalendar,
-    toast,
-    fetchEnabled,
-    lirePointeMoisPrecedent,
-  ]);
+    void fetchAllCalendarData();
+  }, [fetchAllCalendarData]);
 
   useEffect(() => {
     modeleModifie.current = false;
-  }, [employeeId]);
+  }, [employeeId, activeCompanyId]);
 
   // Le modèle de semaine suit le prévu du salarié une fois son mois chargé.
   useEffect(() => {
-    if (modeleModifie.current || loadedMonthKey === null) return;
+    if (modeleModifie.current || loadedCalendarKey !== calendarKey) return;
     setWeekTemplateBrut(
       modeleSemaineDuSalarie({
         prevu: plannedCalendar,
@@ -346,23 +310,25 @@ export function useCalendar(
     );
     // Au chargement d'un mois, pas à chaque retouche du prévu.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadedMonthKey, isForfaitJourMode, options?.dureeHebdomadaire]);
+  }, [loadedCalendarKey, calendarKey, isForfaitJourMode, options?.dureeHebdomadaire]);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (isMonthDataReady) {
       const plannedChanged =
         JSON.stringify(plannedCalendar) !== JSON.stringify(originalPlanned);
       const actualChanged =
         JSON.stringify(actualHours) !== JSON.stringify(originalActual);
       setIsDirty(plannedChanged || actualChanged);
     }
-  }, [plannedCalendar, actualHours, originalPlanned, originalActual, isLoading]);
+  }, [plannedCalendar, actualHours, originalPlanned, originalActual, isMonthDataReady]);
 
   const dernierJourContrat = options?.sortie
     ? dernierJourDuContratDansLeMois(options.sortie, selectedDate.year, selectedDate.month)
     : null;
 
   const applyWeekTemplate = useCallback(() => {
+    if (!context.active || !isMonthDataReady) return;
+    ++editRevision.current;
     const newPlannedCalendar = plannedCalendar.map((day) => {
       // Après la sortie : jour à 0 h, rien du modèle (retour du 10/11).
       if (dernierJourContrat != null && day.jour > dernierJourContrat && day.origine !== 'absence') {
@@ -396,57 +362,36 @@ export function useCalendar(
         ? 'Le calendrier prévisionnel a été mis à jour (mode forfait jour).'
         : 'Le calendrier prévisionnel a été mis à jour.',
     });
-  }, [plannedCalendar, selectedDate, weekTemplate, isForfaitJourMode, toast, dernierJourContrat]);
+  }, [plannedCalendar, selectedDate, weekTemplate, isForfaitJourMode, toast, dernierJourContrat, context, isMonthDataReady]);
 
   const saveAllCalendarData = useCallback(async () => {
-    if (!employeeId) return;
+    if (!employeeId || !context.active || !isMonthDataReady || revision === undefined || saveInFlight.current) return false;
 
+    saveInFlight.current = true;
     setIsSaving(true);
+    const loadAtStart = loadSequence.current;
+    const revisionAtStart = editRevision.current;
+    const isCurrent = () => context.active && loadAtStart === loadSequence.current;
+    const requestContext = { companyId: activeCompanyId };
+    setSaveError(null);
     try {
-      const [plannedRes] = await Promise.all([
-        calendarApi.updatePlannedCalendar(
-          employeeId,
-          selectedDate.year,
-          selectedDate.month,
-          plannedCalendar
-        ),
-        calendarApi.updateActualHours(
-          employeeId,
-          selectedDate.year,
-          selectedDate.month,
-          actualHours
-        ),
-      ]);
-
-      await calendarApi.calculatePayrollEvents(
-        employeeId,
-        selectedDate.year,
-        selectedDate.month
+      const saved = await calendarApi.saveCalendar(employeeId, selectedDate.year, selectedDate.month, {
+        expected_revision: revision, calendrier_prevu: plannedCalendar,
+        calendrier_reel: actualHours, recalculate_payroll: true,
+      }, requestContext);
+      if (!isCurrent()) return false;
+      const snapshot = saved.data;
+      const { finalPlannedCalendar, finalActualHours } = buildMonthCalendar(
+        selectedDate.year, selectedDate.month, snapshot.calendrier_prevu, snapshot.calendrier_reel,
       );
-
-      setOriginalPlanned(plannedCalendar);
-      setOriginalActual(actualHours);
-
-      // Le marquage et le réel affichés suivent ce qui vient d'être enregistré
-      // (lecture tolérante) : le serveur remet à 0 les heures d'un jour
-      // d'arrêt ou d'absence, l'écran doit le montrer et le dire.
-      let heuresRetirees: number[] = [];
-      try {
-        const relu = await calendarApi.getActualHours(
-          employeeId,
-          selectedDate.year,
-          selectedDate.month
-        );
-        setJoursEnConflit(relu.data.jours_en_conflit ?? []);
-        const reelEnregistre = relu.data.calendrier_reel ?? [];
-        heuresRetirees = joursAuxHeuresRetirees(actualHours, reelEnregistre);
-        if (heuresRetirees.length > 0) {
-          const affiche = avecLeReelEnregistre(actualHours, reelEnregistre);
-          setActualHours(affiche);
-          setOriginalActual(affiche);
-        }
-      } catch (erreur) {
-        log.error(erreur);
+      const heuresRetirees = joursAuxHeuresRetirees(actualHours, snapshot.calendrier_reel);
+      setRevision(snapshot.revision);
+      setJoursEnConflit(snapshot.jours_en_conflit ?? []);
+      setOriginalPlanned(finalPlannedCalendar);
+      setOriginalActual(finalActualHours);
+      if (revisionAtStart === editRevision.current) {
+        setPlannedCalendar(finalPlannedCalendar);
+        setActualHours(finalActualHours);
       }
       if (heuresRetirees.length > 0) {
         toast({
@@ -460,7 +405,7 @@ export function useCalendar(
       // Depuis le chantier calendrier→paie il porte aussi les demandes de
       // congé créées/annulées et les écarts (solde, reprise…) : tout s'affiche.
       const warningsToast = planningWarningsToast(
-        summarizePlanningWarnings(plannedRes.data?.warnings)
+        summarizePlanningWarnings(saved.data.warnings)
       );
       if (warningsToast) {
         toast(warningsToast);
@@ -470,29 +415,36 @@ export function useCalendar(
           description: 'Calendrier et événements de paie sauvegardés et calculés.',
         });
       }
+      return true;
     } catch (error) {
       log.error(error);
-      toast({
-        title: 'Erreur',
-        description: 'La sauvegarde ou le calcul a échoué.',
-        variant: 'destructive',
-      });
+      if (isCurrent()) {
+        const message = calendarSaveFailureMessage(error);
+        setSaveError(message);
+        toast({ title: 'Enregistrement incomplet', description: message, variant: 'destructive' });
+      }
+      return false;
     } finally {
-      setIsSaving(false);
+      saveInFlight.current = false;
+      if (mounted.current) setIsSaving(false);
     }
-  }, [employeeId, selectedDate, plannedCalendar, actualHours, toast]);
+  }, [employeeId, selectedDate, plannedCalendar, actualHours, toast, context, isMonthDataReady, activeCompanyId, revision, buildMonthCalendar]);
 
   useEffect(() => {
-    if (isSavingAfterApply && !isSaving) {
-      saveAllCalendarData();
+    if (isSavingAfterApply && !isSaving && applySavePending.current) {
+      // Consommer avant tout effet de sauvegarde : une réponse immédiate ou
+      // une notification synchrone peut déclencher un rendu supplémentaire.
+      applySavePending.current = false;
       setIsSavingAfterApply(false);
+      void saveAllCalendarData();
     }
   }, [isSavingAfterApply, isSaving, saveAllCalendarData]);
 
   const updateDayData = (
     updatedDay: Partial<DayData> & { demi_journee?: 'matin' | 'apres_midi' | null }
   ) => {
-    if (updatedDay.jour === undefined) return;
+    if (!context.active || !isMonthDataReady || updatedDay.jour === undefined) return;
+    ++editRevision.current;
 
     setPlannedCalendar((prev) =>
       prev.map((p) => {
@@ -502,7 +454,8 @@ export function useCalendar(
         // Demi-journée d'un CP/RTT posé ici : part avec la demande créée.
         if (updatedDay.demi_journee !== undefined)
           newPlannedData.demi_journee = updatedDay.demi_journee;
-        if (updatedDay.heures_prevues !== undefined)
+        if ((updatedDay.type ?? p.type) === 'repos') newPlannedData.heures_prevues = 0;
+        else if (updatedDay.heures_prevues !== undefined)
           newPlannedData.heures_prevues = updatedDay.heures_prevues;
         return { ...p, ...newPlannedData };
       })
@@ -522,7 +475,8 @@ export function useCalendar(
 
   const copyPlannedToActualForDays = useCallback(
     (dayNumbers: number[]) => {
-      if (dayNumbers.length === 0) return;
+      if (!context.active || !isMonthDataReady || dayNumbers.length === 0) return;
+      ++editRevision.current;
 
       setActualHours((prev) =>
         prev.map((a) => {
@@ -551,7 +505,7 @@ export function useCalendar(
         description: `${dayNumbers.length} jour${dayNumbers.length > 1 ? 's' : ''} mis à jour.`,
       });
     },
-    [plannedCalendar, toast, isForfaitJourMode, dernierJourContrat]
+    [plannedCalendar, toast, isForfaitJourMode, dernierJourContrat, context, isMonthDataReady]
   );
 
   const copyPlannedToActualForDay = useCallback(
@@ -560,7 +514,11 @@ export function useCalendar(
   );
 
   const copyPreviousMonthPlanned = useCallback(async () => {
-    if (!employeeId) return;
+    if (!employeeId || !context.active || !isMonthDataReady) return;
+    const request = ++copySequence.current;
+    const loadAtStart = loadSequence.current;
+    const revisionAtStart = editRevision.current;
+    const isCurrent = () => context.active && request === copySequence.current && loadAtStart === loadSequence.current;
 
     let prevMonth = selectedDate.month - 1;
     let prevYear = selectedDate.year;
@@ -571,7 +529,13 @@ export function useCalendar(
 
     setIsCopyingPrevMonth(true);
     try {
-      const res = await calendarApi.getPlannedCalendar(employeeId, prevYear, prevMonth);
+      const res = await calendarApi.getPlannedCalendar(employeeId, prevYear, prevMonth, { companyId: activeCompanyId });
+      if (!isCurrent()) return;
+      if (revisionAtStart !== editRevision.current) {
+        toast({ title: 'Copie non appliquée', description: 'Le calendrier a été modifié pendant le chargement. Relancez la copie si nécessaire.' });
+        return;
+      }
+      ++editRevision.current;
       const prevData: PlannedEventData[] = res.data.calendrier_prevu ?? [];
       const daysInMonth = new Date(selectedDate.year, selectedDate.month, 0).getDate();
 
@@ -607,6 +571,7 @@ export function useCalendar(
           noteJoursGardes(copie.feriesGardes, copie.absencesGardees),
       });
     } catch (error) {
+      if (!isCurrent()) return;
       log.error(error);
       toast({
         title: 'Erreur',
@@ -614,17 +579,19 @@ export function useCalendar(
         variant: 'destructive',
       });
     } finally {
-      setIsCopyingPrevMonth(false);
+      if (isCurrent()) setIsCopyingPrevMonth(false);
     }
-  }, [employeeId, selectedDate, plannedCalendar, toast]);
+  }, [employeeId, selectedDate, plannedCalendar, toast, context, isMonthDataReady, activeCompanyId]);
 
   const handleDaySelection = (dayNumber: number) => {
+    if (!context.active || !isMonthDataReady) return;
     setSelectedDays((prev) =>
       prev.includes(dayNumber) ? prev.filter((d) => d !== dayNumber) : [...prev, dayNumber]
     );
   };
 
   const updateSelection = (mode: 'all' | 'weekdays' | 'none') => {
+    if (!context.active || !isMonthDataReady) return;
     if (mode === 'none') {
       setSelectedDays([]);
       return;
@@ -648,7 +615,7 @@ export function useCalendar(
   };
 
   const bulkUpdateDays = (updateData: Partial<Omit<DayData, 'jour'>>) => {
-    if (selectedDays.length === 0) return;
+    if (!context.active || !isMonthDataReady || selectedDays.length === 0) return;
 
     selectedDays.forEach((dayNumber) => {
       updateDayData({ jour: dayNumber, ...updateData });
@@ -662,12 +629,16 @@ export function useCalendar(
   };
 
   const applyWeekTemplateAndSave = () => {
+    if (!context.active || !isMonthDataReady || saveInFlight.current) return;
     applyWeekTemplate();
+    applySavePending.current = true;
     setIsSavingAfterApply(true);
   };
 
   const bulkUpdateDaysAndSave = (updateData: Partial<Omit<DayData, 'jour'>>) => {
+    if (!context.active || !isMonthDataReady || saveInFlight.current || selectedDays.length === 0) return;
     bulkUpdateDays(updateData);
+    applySavePending.current = true;
     setIsSavingAfterApply(true);
   };
 
@@ -680,12 +651,12 @@ export function useCalendar(
   return {
     selectedDate,
     setSelectedDate,
-    plannedCalendar,
+    plannedCalendar: isMonthDataReady ? plannedCalendar : [],
     setPlannedCalendar,
-    actualHours,
+    actualHours: isMonthDataReady ? actualHours : [],
     setActualHours,
-    joursEnConflit,
-    isLoading,
+    joursEnConflit: isMonthDataReady ? joursEnConflit : [],
+    isLoading: fetchEnabled && Boolean(employeeId) && (isLoading || (loadedCalendarKey !== calendarKey && !loadError)),
     isSaving,
     isCopyingPrevMonth,
     saveAllCalendarData,
@@ -695,11 +666,11 @@ export function useCalendar(
     applyWeekTemplate,
     editingDay,
     setEditingDay,
-    selectedDays,
+    selectedDays: isMonthDataReady ? selectedDays : [],
     setSelectedDays,
     handleDaySelection,
     bulkUpdateDays,
-    isDirty,
+    isDirty: isMonthDataReady && isDirty,
     applyWeekTemplateAndSave,
     bulkUpdateDaysAndSave,
     updateSelection,
@@ -712,6 +683,7 @@ export function useCalendar(
     copyPlannedToActualForDays,
     bulkCopyPlannedToActual,
     loadError,
+    saveError,
     isMonthDataReady,
     refetch: fetchAllCalendarData,
   };

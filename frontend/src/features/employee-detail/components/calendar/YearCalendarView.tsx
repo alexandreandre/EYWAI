@@ -12,6 +12,8 @@ import {
   type AbsenceLike,
 } from "@/lib/calendarStats";
 
+import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
+
 type PlannedEventData = { jour: number; type: string | null; heures_prevues: number | null };
 type ActualHoursData = { jour: number; heures_faites: number | null };
 
@@ -32,6 +34,10 @@ export function YearCalendarView({
   onMonthClick,
   absences,
 }: YearCalendarViewProps) {
+  const { activeCompanyId } = useObservedPublicHolidays();
+  const contextKey = JSON.stringify([activeCompanyId, employeeId, year]);
+  const [loadedContextKey, setLoadedContextKey] = useState<string | null>(null);
+  const [errorContextKey, setErrorContextKey] = useState<string | null>(null);
   const [yearData, setYearData] = useState<{
     [month: number]: {
       planned: PlannedEventData[];
@@ -47,14 +53,18 @@ export function YearCalendarView({
 
   // Charger les données de tous les mois de l'année
   useEffect(() => {
+    let cancelled = false;
     const loadYearData = async () => {
       setIsLoadingYear(true);
+      setYearData({});
+      setLoadedContextKey(null);
+      setErrorContextKey(null);
       try {
         const promises = Array.from({ length: 12 }, async (_, monthIndex) => {
           const month = monthIndex + 1;
           const [plannedRes, actualRes] = await Promise.all([
-            calendarApi.getPlannedCalendar(employeeId, year, month),
-            calendarApi.getActualHours(employeeId, year, month)
+            calendarApi.getPlannedCalendar(employeeId, year, month, { companyId: activeCompanyId }),
+            calendarApi.getActualHours(employeeId, year, month, { companyId: activeCompanyId })
           ]);
 
           const plannedDataFromApi = plannedRes.data.calendrier_prevu || [];
@@ -92,6 +102,7 @@ export function YearCalendarView({
         });
 
         const results = await Promise.all(promises);
+        if (cancelled) return;
         const dataByMonth: typeof yearData = {};
         results.forEach(result => {
           dataByMonth[result.month] = {
@@ -100,15 +111,19 @@ export function YearCalendarView({
           };
         });
         setYearData(dataByMonth);
+        setLoadedContextKey(contextKey);
       } catch (error) {
+        if (cancelled) return;
+        setErrorContextKey(contextKey);
         log.error("Erreur lors du chargement des données annuelles (calendrier)", error);
       } finally {
-        setIsLoadingYear(false);
+        if (!cancelled) setIsLoadingYear(false);
       }
     };
 
     loadYearData();
-  }, [year, employeeId]);
+    return () => { cancelled = true; };
+  }, [year, employeeId, activeCompanyId, contextKey]);
 
   const getTypeColor = (type: string | null | undefined) => {
     switch (type) {
@@ -280,12 +295,16 @@ export function YearCalendarView({
     };
   }, [absences, year, yearTotals.arrets]);
 
-  if (isLoadingYear) {
+  if (isLoadingYear || (loadedContextKey !== contextKey && errorContextKey !== contextKey)) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-12 w-12 animate-spin" />
       </div>
     );
+  }
+
+  if (errorContextKey === contextKey) {
+    return <p role="alert" className="p-4 text-sm text-destructive">Impossible de charger le calendrier annuel. Rouvrez cette vue pour réessayer.</p>;
   }
 
   return (

@@ -346,6 +346,12 @@ export default function PlanningSettingsCard() {
               </div>
             )}
           </div>
+          <p className="text-xs text-muted-foreground">
+            Indiquez le total des pauses payées et non payées pour un poste complet.
+            Par exemple, deux pauses payées de 10 minutes donnent 20 minutes dans « Payées ».
+            Les pauses déjà déduites des pointages ne doivent pas être retirées une seconde fois.
+            L’éligibilité « Panier » ne remplace pas la saisie manuelle lorsque celle-ci est retenue.
+          </p>
           {typesLoading ? (
             <Skeleton className="h-24 w-full" />
           ) : (
@@ -356,7 +362,7 @@ export default function PlanningSettingsCard() {
                   <TableHead>Libellé</TableHead>
                   <TableHead>Horaires</TableHead>
                   <TableHead>Payées (min)</TableHead>
-                  <TableHead>Repas (min)</TableHead>
+                  <TableHead>Non payées (min)</TableHead>
                   <TableHead>Panier</TableHead>
                   <TableHead>Nuit</TableHead>
                 </TableRow>

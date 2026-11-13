@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/calendar', () => ({
-  getPlannedCalendar: vi.fn(),
+  getCalendarSnapshot: vi.fn(),
   getActualHours: vi.fn(),
 }));
 vi.mock('@/api/absences', () => ({
@@ -42,14 +42,13 @@ function reelComplet() {
 describe('Calendrier : heures saisies un jour d’arrêt', () => {
   beforeEach(() => {
     vi.mocked(getAbsencesForEmployee).mockResolvedValue({ data: [] } as never);
-    vi.mocked(calendarApi.getPlannedCalendar).mockResolvedValue({
-      data: { calendrier_prevu: prevuOctobre() },
-    } as never);
+    vi.mocked(calendarApi.getActualHours).mockResolvedValue({ data: { calendrier_reel: [] } } as never);
+
   });
 
   it('garde les jours en conflit renvoyés par l’API et ne déclare pas le salarié prêt', async () => {
-    vi.mocked(calendarApi.getActualHours).mockResolvedValue({
-      data: { calendrier_reel: reelComplet(), jours_en_conflit: [19, 20] },
+    vi.mocked(calendarApi.getCalendarSnapshot).mockResolvedValue({
+      data: { revision: 'revision-a', busy: false, calendrier_prevu: prevuOctobre(), calendrier_reel: reelComplet(), jours_en_conflit: [19, 20] },
     } as never);
 
     const [ligne] = await fetchAllEmployeesOverview([SALARIE], 2026, 10);
@@ -59,8 +58,8 @@ describe('Calendrier : heures saisies un jour d’arrêt', () => {
   });
 
   it('sans conflit, le salarié complet reste prêt', async () => {
-    vi.mocked(calendarApi.getActualHours).mockResolvedValue({
-      data: { calendrier_reel: reelComplet(), jours_en_conflit: [] },
+    vi.mocked(calendarApi.getCalendarSnapshot).mockResolvedValue({
+      data: { revision: 'revision-a', busy: false, calendrier_prevu: prevuOctobre(), calendrier_reel: reelComplet(), jours_en_conflit: [] },
     } as never);
 
     const [ligne] = await fetchAllEmployeesOverview([SALARIE], 2026, 10);

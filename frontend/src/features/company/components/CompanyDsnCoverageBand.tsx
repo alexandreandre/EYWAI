@@ -1,6 +1,7 @@
 import { listeDeMoisEnClair, periodeEnClair } from '@/features/payroll/utils/payrollMonth';
 import { RefreshCw } from 'lucide-react';
 import type { DsnCoverage } from '@/api/dsnImport';
+import { DsnImportCutoffNote } from '@/features/dsn-import/components/DsnImportCutoffNote';
 import {
   DsnCoverageTimeline,
   dsnStatusLabel,
@@ -33,7 +34,8 @@ export function CompanyDsnCoverageBand({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <DsnCoverageTimeline timeline={coverage.timeline} compact />
+        <DsnCoverageTimeline timeline={coverage.timeline} importedPeriods={coverage.months_covered} compact />
+        <DsnImportCutoffNote period={coverage.import_cutoff_period} />
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           {coverage.last_period ? (
             <span>Dernier mois importé : {periodeEnClair(coverage.last_period)}</span>

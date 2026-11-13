@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.modules.dsn_import.infrastructure import repository as repo
+from app.shared.reprise_paie import lire_bascule
 
 DSN_SYNC_MODES_ALERTING = frozenset({"external", "transition"})
 GRACE_DAYS_AFTER_PAYDAY = 5
@@ -143,6 +144,8 @@ def _gaps_in_year(months_covered: Set[str], year: int, through_period: str) -> L
     if not end:
         return []
     start = (year, 1)
+    if end[0] < year:
+        return []
     if end[0] != year:
         end = (year, 12)
     all_months = set(_month_range(start, end))
@@ -173,7 +176,6 @@ def compute_coverage(
     months_covered: Set[str] = set()
     batch_history: List[Dict[str, Any]] = []
     last_import_at: Optional[str] = None
-    last_period: Optional[str] = None
 
     for batch in sorted(linked, key=lambda b: b.get("created_at") or ""):
         periods = _periods_from_batch(batch)
@@ -181,10 +183,6 @@ def compute_coverage(
         created = batch.get("created_at")
         if created and (last_import_at is None or created > last_import_at):
             last_import_at = created
-        if periods:
-            batch_max = max(periods)
-            if last_period is None or batch_max > last_period:
-                last_period = batch_max
         batch_history.append(
             {
                 "batch_id": str(batch.get("id")),
@@ -200,7 +198,17 @@ def compute_coverage(
         months_covered -= revoked_set
 
     months_sorted = sorted(months_covered)
+    # Le dernier mois encore présent, après révocation. L'historique des
+    # opérations reste dans recent_batches et last_import_at.
+    last_period = months_sorted[-1] if months_sorted else None
+    # L'ancien logiciel ne doit plus fournir de DSN pour les mois que
+    # Martine calcule après la reprise. La bascule est distincte du mode
+    # d'alertes DSN (« transition » peut rester choisi après la bascule).
+    bascule = lire_bascule(company_id)
+    cutoff = _period_str(bascule.annee, bascule.mois) if bascule else None
     expected = expected_last_period(company, ref)
+    if cutoff:
+        expected = min(expected, cutoff)
     year = ref.year
     gaps = _gaps_in_year(months_covered, year, expected) if months_covered else []
 
@@ -234,7 +242,9 @@ def compute_coverage(
     timeline: List[Dict[str, Any]] = []
     for m in range(1, 13):
         period = _period_str(year, m)
-        if m > ref.month and year == ref.year:
+        if cutoff and period > cutoff:
+            state = "native"
+        elif m > ref.month and year == ref.year:
             state = "future"
         elif period in months_covered:
             state = "covered"
@@ -261,6 +271,7 @@ def compute_coverage(
         "dsn_sync_mode": sync_mode,
         "status": status,
         "expected_last_period": expected,
+        "import_cutoff_period": cutoff,
         "next_import_period": next_import,
         "last_period": last_period,
         "last_import_at": last_import_at,
@@ -290,9 +301,9 @@ def resolve_next_import_period(coverage: Dict[str, Any]) -> Optional[str]:
 
 
 def count_timeline_coverage(coverage: Dict[str, Any]) -> Tuple[int, int]:
-    """Compte mois couverts / mois attendus (hors futurs), comme la matrice admin."""
+    """Compte les imports attendus, hors mois futurs ou gérés par Martine."""
     timeline = coverage.get("timeline") or []
-    applicable = [t for t in timeline if t.get("state") != "future"]
+    applicable = [t for t in timeline if t.get("state") not in {"future", "native"}]
     covered = [t for t in applicable if t.get("state") == "covered"]
     return len(covered), len(applicable)
 
@@ -431,7 +442,7 @@ def compute_admin_coverage_matrix(
             revoked_periods=revoked_by_company.get(cid, []),
         )
         status = cov["status"]
-        if status == "not_applicable" and not cov.get("months_covered"):
+        if status == "not_applicable" and not cov.get("months_covered") and count_timeline_coverage(cov)[1] > 0:
             status = "missing"
         rows.append(
             {
@@ -442,6 +453,7 @@ def compute_admin_coverage_matrix(
                 "dsn_sync_mode": cov["dsn_sync_mode"],
                 "status": status,
                 "expected_last_period": cov["expected_last_period"],
+                "import_cutoff_period": cov["import_cutoff_period"],
                 "last_period": cov["last_period"],
                 "last_import_at": cov["last_import_at"],
                 "gaps_count": len(cov["gaps"]),

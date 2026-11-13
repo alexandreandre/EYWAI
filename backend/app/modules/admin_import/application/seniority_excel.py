@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date, timedelta
 from typing import Dict, List, Optional
 
 from app.modules.admin_import.application.rib_excel import (
@@ -38,6 +39,8 @@ MATRICULE_ALIASES = (
     "time_tracking_id",
 )
 SENIORITY_DATE_ALIASES = (
+    # Intitulé tronqué des exports Quadratus « Liste des employés ».
+    "date ancien",
     "date anciennete",
     "date d anciennete",
     "date d'anciennete",
@@ -150,11 +153,12 @@ def parse_seniority_date_cell(value: str) -> Optional[str]:
         return None
     parsed = parse_french_date(raw)
     if parsed:
-        return parsed
+        try:
+            return date.fromisoformat(parsed).isoformat()
+        except ValueError:
+            return None
     if re.fullmatch(r"\d{5}(\.\d+)?", raw):
         try:
-            from datetime import date, timedelta
-
             serial = float(raw)
             if serial > 10000:
                 base = date(1899, 12, 30)

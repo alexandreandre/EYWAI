@@ -98,13 +98,18 @@ class SeniorityImportMissingEmployee(BaseModel):
     current_hire_date: Optional[str] = None
 
 
+class SeniorityImportRosterEmployee(RibImportRosterEmployee):
+    current_seniority_date: str | None = None
+    current_hire_date: str | None = None
+
+
 class SeniorityImportParseResponse(BaseModel):
     company_id: str
     company_name: str
     headers: List[str] = Field(default_factory=list)
     column_mapping: Dict[str, str] = Field(default_factory=dict)
     rows: List[SeniorityImportRowPreview] = Field(default_factory=list)
-    roster: List[RibImportRosterEmployee] = Field(default_factory=list)
+    roster: List[SeniorityImportRosterEmployee] = Field(default_factory=list)
     missing_employees: List[SeniorityImportMissingEmployee] = Field(default_factory=list)
     summary: Dict[str, int] = Field(default_factory=dict)
 

@@ -274,12 +274,13 @@ export function CalendarDayCell({
   useEffect(() => {
     if (isEditing && !isForfaitJour) {
       const t = window.setTimeout(() => {
-        plannedInputRef.current?.focus();
-        plannedInputRef.current?.select();
+        const input = plannedDay?.type === 'repos' ? actualInputRef.current : plannedInputRef.current;
+        input?.focus();
+        input?.select();
       }, 0);
       return () => window.clearTimeout(t);
     }
-  }, [isEditing, isForfaitJour]);
+  }, [isEditing, isForfaitJour, plannedDay?.type]);
 
   const commitHourEditing = () => {
     setIsEditing(false);
@@ -344,9 +345,10 @@ export function CalendarDayCell({
         defaultHours = 8;
       }
     }
-    if (newType === 'conges_payes' || newType === 'rtt') {
+    if (newType === 'conges_payes' || newType === 'rtt' || newType === 'repos') {
       // Jour d'absence : 0 h au planning (convention bulletin) — la demande
-      // validée créée côté serveur porte le décompte.
+      // validée créée côté serveur porte le décompte CP/RTT. Un repos n'en
+      // crée aucune : la récupération éventuelle est suivie à l'extérieur.
       defaultHours = 0;
     }
 
@@ -511,6 +513,7 @@ export function CalendarDayCell({
               <label className="flex items-center gap-2 text-xs">
                 <Checkbox
                   checked={Number(plannedDay.heures_prevues ?? 0) > 0}
+                  disabled={plannedDay.type === 'repos'}
                   onCheckedChange={(c) =>
                     updateDayData({
                       jour: dayNumber,
@@ -545,6 +548,8 @@ export function CalendarDayCell({
                   min={0}
                   step={0.5}
                   placeholder="H. prévues"
+                  aria-label={`Heures prévues le ${dayNumber}`}
+                  disabled={plannedDay.type === 'repos'}
                   value={plannedDay.heures_prevues ?? ''}
                   onChange={(e) =>
                     updateDayData({
@@ -563,6 +568,7 @@ export function CalendarDayCell({
                   min={0}
                   step={0.5}
                   placeholder="H. faites"
+                  aria-label={`Heures faites le ${dayNumber}`}
                   value={actualDay.heures_faites ?? ''}
                   onChange={(e) =>
                     updateDayData({

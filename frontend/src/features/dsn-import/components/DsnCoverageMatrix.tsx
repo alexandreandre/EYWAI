@@ -17,6 +17,12 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { dsnStatusLabel, dsnStatusVariant } from './DsnCoverageTimeline';
+import {
+  countExpectedDsnMonths,
+  dsnMatrixDisplayStatus,
+  dsnMonthActionState,
+  isDsnMonthImported,
+} from '../lib/coveragePresentation';
 
 const MONTH_SHORT = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
 const MONTH_FULL = [
@@ -38,22 +44,12 @@ const STATE_LABELS: Record<string, string> = {
   covered: 'DSN importée',
   missing: 'Mois manquant',
   future: 'Mois futur',
+  native: 'Paie Martine - import externe non attendu',
   preview: 'En analyse',
 };
 
-function countCoverage(company: DsnCoverageMatrixCompany) {
-  const applicable = company.timeline.filter((m) => m.state !== 'future');
-  const covered = applicable.filter((m) => m.state === 'covered').length;
-  const expected = applicable.length;
-  const pct = expected > 0 ? Math.round((covered / expected) * 100) : 0;
-  return { covered, expected, pct };
-}
-
 function companyDisplayStatus(company: DsnCoverageMatrixCompany) {
-  let status = company.status;
-  if (status === 'not_applicable' || status === 'never') {
-    status = countCoverage(company).covered === 0 ? 'missing' : status;
-  }
+  const status = dsnMatrixDisplayStatus(company);
   return { label: dsnStatusLabel(status), variant: dsnStatusVariant(status) };
 }
 
@@ -69,6 +65,7 @@ function MatrixMonthCell({
   onCellClick,
   companyId,
   companyName,
+  importedPeriods,
   compact = false,
 }: {
   month: DsnCoverageTimelineMonth;
@@ -80,11 +77,14 @@ function MatrixMonthCell({
   ) => void;
   companyId: string;
   companyName?: string | null;
+  importedPeriods: readonly string[];
   compact?: boolean;
 }) {
   const letter = MONTH_SHORT[month.month - 1] ?? '?';
-  const clickable =
-    Boolean(onCellClick) && (month.state === 'missing' || month.state === 'covered');
+  const actionState = dsnMonthActionState(month, importedPeriods);
+  const imported = isDsnMonthImported(month, importedPeriods);
+  const clickable = Boolean(onCellClick) && actionState !== null;
+  const optionalImportNote = imported && month.state !== 'covered' ? ' — DSN déjà importée' : '';
 
   const content = (
     <div
@@ -92,7 +92,7 @@ function MatrixMonthCell({
       tabIndex={clickable ? 0 : undefined}
       onClick={
         clickable
-          ? () => onCellClick!(companyId, month.period, month.state, companyName)
+          ? () => onCellClick!(companyId, month.period, actionState!, companyName)
           : undefined
       }
       onKeyDown={
@@ -100,7 +100,7 @@ function MatrixMonthCell({
           ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                onCellClick!(companyId, month.period, month.state, companyName);
+                onCellClick!(companyId, month.period, actionState!, companyName);
               }
             }
           : undefined
@@ -111,11 +111,12 @@ function MatrixMonthCell({
         month.state === 'covered' && 'border-emerald-600 bg-emerald-500 text-white shadow-sm shadow-emerald-500/25',
         month.state === 'missing' && 'border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200',
         month.state === 'future' && 'border-border bg-muted/40 text-muted-foreground/60',
+        month.state === 'native' && 'border-slate-200 bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-300',
         clickable && 'cursor-pointer hover:scale-105 hover:ring-2 hover:ring-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/40',
       )}
-      aria-label={`${MONTH_FULL[month.month - 1]} ${month.period} — ${STATE_LABELS[month.state] ?? month.state}`}
+      aria-label={`${MONTH_FULL[month.month - 1]} ${month.period} — ${STATE_LABELS[month.state] ?? month.state}${optionalImportNote}`}
     >
-      {month.state === 'covered' ? (
+      {imported ? (
         <>
           <Check className={cn(compact ? 'h-3 w-3' : 'h-4 w-4 sm:h-[18px] sm:w-[18px]')} strokeWidth={3} />
           <span className="sr-only">{letter}</span>
@@ -139,10 +140,11 @@ function MatrixMonthCell({
           {MONTH_FULL[month.month - 1]} {month.period.split('-')[0]}
         </p>
         <p className="text-xs text-muted-foreground">{STATE_LABELS[month.state] ?? month.state}</p>
-        {clickable && month.state === 'missing' && (
+        {optionalImportNote && <p className="text-xs">DSN déjà importée.</p>}
+        {clickable && actionState === 'missing' && (
           <p className="mt-1 text-xs text-primary">Cliquer pour importer ce mois</p>
         )}
-        {clickable && month.state === 'covered' && (
+        {clickable && actionState === 'covered' && (
           <p className="mt-1 text-xs text-primary">Cliquer pour réimporter ou supprimer</p>
         )}
       </TooltipContent>
@@ -163,6 +165,7 @@ export function CoverageLegend({ compact = false }: { compact?: boolean }) {
       label: 'Manquant',
     },
     { className: 'border-border bg-muted/40', icon: null, label: 'Futur' },
+    { className: 'border-slate-200 bg-slate-100', icon: null, label: 'Paie Martine — import non attendu' },
   ];
 
   return (
@@ -207,7 +210,7 @@ export function CompanyCoverageRow({
   onImportCompany?: (companyId: string) => void;
   embedded?: boolean;
 }) {
-  const { covered, expected, pct } = countCoverage(company);
+  const { covered, expected, pct } = countExpectedDsnMonths(company.timeline);
   const displayStatus = companyDisplayStatus(company);
 
   return (
@@ -301,6 +304,7 @@ export function CompanyCoverageRow({
               month={m}
               companyId={company.company_id}
               companyName={company.company_name}
+              importedPeriods={company.months_covered}
               onCellClick={onCellClick}
               compact
             />
@@ -326,6 +330,7 @@ export function CompanyCoverageRow({
                   month={m}
                   companyId={company.company_id}
                   companyName={company.company_name}
+                  importedPeriods={company.months_covered}
                   onCellClick={onCellClick}
                 />
               ))}
@@ -373,7 +378,7 @@ export function DsnCoverageMatrix({ year, onCellClick, onImportCompany }: Props)
     let totalCovered = 0;
     let lateCount = 0;
     companies.forEach((c) => {
-      const { covered } = countCoverage(c);
+        const { covered } = countExpectedDsnMonths(c.timeline);
       totalCovered += covered;
       if (c.status === 'missing' || c.status === 'late' || c.status === 'never') lateCount += 1;
     });

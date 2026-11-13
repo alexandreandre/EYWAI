@@ -16,7 +16,6 @@ import {
   type RibImportRosterEmployee,
   type SeniorityImportMissingEmployee,
   type SeniorityImportParseResponse,
-  type SeniorityImportRowPreview,
   type RibReviewStatus,
 } from '@/api/adminImport';
 import { Button } from '@/components/ui/button';
@@ -41,10 +40,11 @@ import { cn } from '@/lib/utils';
 import { EmployeeAssociateCombobox } from '@/components/schedules/assisted-fill/EmployeeAssociateCombobox';
 import type { RosterEmployee } from '@/api/calendar';
 import { getUserErrorMessage } from '@/lib/errorMessages';
-
-type EditableRow = SeniorityImportRowPreview & {
-  manuallyConfirmed: boolean;
-};
+import {
+  associateSeniorityRow,
+  isSavableSeniorityRow as isSavableRow,
+  type EditableSeniorityRow as EditableRow,
+} from '@/features/admin-import/lib/seniorityImportReview';
 
 type EditableMissingRow = SeniorityImportMissingEmployee & {
   seniority_date: string;
@@ -66,14 +66,6 @@ function formatDateFr(iso?: string | null) {
   const [y, m, d] = iso.split('-');
   if (!y || !m || !d) return iso;
   return `${d}/${m}/${y}`;
-}
-
-function isSavableRow(row: EditableRow): boolean {
-  if (!row.employee_id || !row.seniority_date || row.unchanged) return false;
-  if (row.review_status === 'ok') return true;
-  if (row.manuallyConfirmed && row.review_status === 'warning') return true;
-  if (row.manuallyConfirmed && row.review_status === 'error') return true;
-  return false;
 }
 
 function isSavableMissingRow(row: EditableMissingRow): boolean {
@@ -135,6 +127,8 @@ export function SeniorityImportPanel({
       return parseSeniorityImportFile(companyId, selectedFile);
     },
     onSuccess: (data) => {
+      if (data.company_id !== companyId) return;
+      commitMutation.reset();
       setParseResult(data);
       setRows(
         data.rows.map((row) => ({
@@ -187,6 +181,14 @@ export function SeniorityImportPanel({
       return commitSeniorityImport({ company_id: parseResult.company_id, rows: payload });
     },
     onSuccess: (data) => {
+      if (data.errors.length > 0) {
+        toast({
+          title: data.applied > 0 ? 'Import partiellement appliqué' : 'Import à corriger',
+          description: `${data.applied} fiche(s) mise(s) à jour ; ${data.skipped} ligne(s) ignorée(s). ${data.errors[0]}`,
+          variant: 'destructive',
+        });
+        return;
+      }
       toast({
         title: 'Dates d\'ancienneté enregistrées',
         description: `${data.applied} fiche(s) mise(s) à jour.`,
@@ -206,19 +208,10 @@ export function SeniorityImportPanel({
     setRows((prev) =>
       prev.map((row) => {
         if (row.row_index !== rowIndex) return row;
-        const matched = roster.find((e) => e.id === employeeId);
-        return {
-          ...row,
-          employee_id: employeeId,
-          matched_name: matched
-            ? `${matched.first_name} ${matched.last_name}`.trim()
-            : row.matched_name,
-          manuallyConfirmed: Boolean(employeeId),
-          review_status: employeeId && row.seniority_date ? 'warning' : 'error',
-        };
+        return associateSeniorityRow(row, employeeId, parseResult?.roster ?? []);
       }),
     );
-  }, [roster]);
+  }, [parseResult?.roster]);
 
   const hasCompany = Boolean(companyId);
 
@@ -231,9 +224,9 @@ export function SeniorityImportPanel({
         </p>
       ) : null}
       <p className="text-sm text-muted-foreground">
-        Fichier Excel ou CSV avec colonnes <strong>NOM</strong>, <strong>PRENOM</strong> et{' '}
-        <strong>Date ancienneté</strong> (tableau prime LEWIS / métallurgie). Seule la date est
-        importée — les montants restent calculés par Martine.
+        Fichier Excel ou CSV avec un nom ou matricule et une date d&apos;ancienneté
+        (par exemple <strong>Date ancien</strong> ou <strong>Date ancienneté</strong>).
+        La date d&apos;embauche est conservée ; les montants restent calculés par Martine.
       </p>
         <div className="flex flex-wrap items-center gap-3">
           <label
@@ -395,8 +388,9 @@ export function SeniorityImportPanel({
                     <TableRow key={row.row_index}>
                       <TableCell>
                         <Checkbox
-                          checked={isSavableRow(row) || row.manuallyConfirmed}
-                          disabled={!row.seniority_date || row.unchanged}
+                          aria-label={`Confirmer la ligne ${row.row_index}`}
+                          checked={isSavableRow(row)}
+                          disabled={!row.employee_id || !row.seniority_date || row.unchanged}
                           onCheckedChange={(checked) => {
                             setRows((prev) =>
                               prev.map((r) =>
@@ -445,6 +439,12 @@ export function SeniorityImportPanel({
                 </TableBody>
               </Table>
             </div>
+            {commitMutation.data?.errors.length ? (
+              <div role="alert" className="space-y-1 rounded-md border border-destructive/30 p-3 text-sm text-destructive">
+                <p>Enregistrement à vérifier : {commitMutation.data.applied} date(s) appliquée(s), {commitMutation.data.skipped} ligne(s) ignorée(s).</p>
+                {commitMutation.data.errors.map((error, index) => <p key={index}>{error}</p>)}
+              </div>
+            ) : null}
             <div className="flex justify-end">
               <Button
                 type="button"

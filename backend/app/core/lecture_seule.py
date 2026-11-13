@@ -42,6 +42,8 @@ from typing import Any, TypeVar
 
 import httpx
 
+from app.core.calendar_write_context import apply_calendar_write_token
+
 T = TypeVar("T")
 
 #: Méthodes HTTP qui ne changent rien en base.
@@ -159,6 +161,7 @@ class ClientHttpSupabase(httpx.Client):
     """
 
     def send(self, request: httpx.Request, **kwargs) -> httpx.Response:  # type: ignore[override]
+        apply_calendar_write_token(request)
         lectures = _EN_COURS.get()
         if lectures is None:
             partagees = _PARTAGEES.get()

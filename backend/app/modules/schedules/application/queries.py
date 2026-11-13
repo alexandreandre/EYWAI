@@ -76,7 +76,8 @@ def get_planned_calendar(employee_id: str, year: int, month: int) -> Dict[str, A
 
 
 def _jours_en_conflit_du_mois(
-    employee_id: str, year: int, month: int, calendrier_reel: List[Dict[str, Any]]
+    employee_id: str, year: int, month: int, calendrier_reel: List[Dict[str, Any]],
+    *, planned: list[dict[str, Any]] | None = None,
 ) -> List[int]:
     """Jours du mois où des heures sont saisies alors que le prévu est un arrêt
     ou une absence (règle de `conflits_arret`, la même que la garde de génération).
@@ -92,6 +93,7 @@ def _jours_en_conflit_du_mois(
             {**e, "annee": year, "mois": month}
             for e in extract_calendrier_prevu_from_planned_calendar(
                 schedule_repository.get_planned_calendar(employee_id, year, month)
+                if planned is None else {"calendrier_prevu": planned}
             )
             if isinstance(e, dict)
         ]

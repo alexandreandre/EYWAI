@@ -58,13 +58,18 @@ export type SeniorityImportMissingEmployee = {
   current_hire_date?: string | null;
 };
 
+export type SeniorityImportRosterEmployee = RibImportRosterEmployee & {
+  current_seniority_date?: string | null;
+  current_hire_date?: string | null;
+};
+
 export type SeniorityImportParseResponse = {
   company_id: string;
   company_name: string;
   headers: string[];
   column_mapping: Record<string, string>;
   rows: SeniorityImportRowPreview[];
-  roster: RibImportRosterEmployee[];
+  roster: SeniorityImportRosterEmployee[];
   missing_employees: SeniorityImportMissingEmployee[];
   summary: {
     total: number;

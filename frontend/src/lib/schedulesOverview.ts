@@ -18,7 +18,6 @@ import {
   detectAbsenceConflictDays,
   validatedAbsenceDaysInMonth,
 } from '@/lib/schedulesAbsenceConflict';
-import type { PlanningWarning } from '@/lib/planningAbsenceWarnings';
 import {
   buildBasePlannedCalendarWithHolidays,
 } from '@/lib/companyCalendarHolidays';
@@ -66,6 +65,8 @@ export interface EmployeeCalendarOverviewRow {
   /** Jours marqués « absent » à l'import, sans type encore : la paie est bloquée. */
   joursAbsentsATyper?: number[];
   loadError: boolean;
+  revision?: string | null;
+  companyId?: string;
   isForfaitJour: boolean;
   /**
    * Heures pointées le mois précédent (ou mois précédent illisible : règle
@@ -86,6 +87,7 @@ export interface EmployeeCalendarOverviewRow {
 /** Fin de la fenêtre des variables du mois affiché (ISO), si elle est connue. */
 export interface ContexteDuMois {
   finFenetre?: string | null;
+  companyId?: string;
 }
 
 /**
@@ -155,9 +157,8 @@ async function fetchEmployeeOverview(
 
   try {
     const precedent = moisPrecedent(year, month);
-    const [plannedRes, actualRes, absencesRes, reelMoisPrecedent] = await Promise.all([
-      calendarApi.getPlannedCalendar(employee.id, year, month),
-      calendarApi.getActualHours(employee.id, year, month),
+    const [snapshot, absencesRes, reelMoisPrecedent] = await Promise.all([
+      calendarApi.getCalendarSnapshot(employee.id, year, month, { companyId: contexte.companyId }),
       getAbsencesForEmployee(employee.id),
       // Lecture annexe : illisible, on garde la règle stricte (jamais d'erreur de ligne).
       calendarApi
@@ -166,10 +167,11 @@ async function fetchEmployeeOverview(
         .catch((): null => null),
     ]);
 
+    if (snapshot.data.busy || snapshot.data.revision === undefined) throw new Error('Calendrier indisponible.');
     const plannedFromApi: PlannedEventData[] =
-      plannedRes.data.calendrier_prevu ?? [];
+      snapshot.data.calendrier_prevu ?? [];
     const actualFromApi: ActualHoursData[] =
-      actualRes.data.calendrier_reel ?? [];
+      snapshot.data.calendrier_reel ?? [];
 
     const base = buildBasePlannedCalendar(year, month, forfait, observedHolidayIds);
     const planned = mergePlannedCalendar(base, plannedFromApi);
@@ -186,7 +188,7 @@ async function fetchEmployeeOverview(
     const stats = computeMonthStats(planned, actual, forfait);
     const pointeMoisPrecedent =
       reelMoisPrecedent === null || aDesHeuresPointees(reelMoisPrecedent);
-    const joursHeuresSurArret: number[] = actualRes.data.jours_en_conflit ?? [];
+    const joursHeuresSurArret: number[] = snapshot.data.jours_en_conflit ?? [];
     const joursAbsents = joursAbsentsATyper(planned);
     const pointe = pointeSurLaPeriode(actual, reelMoisPrecedent);
     const rowStatus = statutAvecHeuresSurArret(
@@ -218,6 +220,8 @@ async function fetchEmployeeOverview(
       joursHeuresSurArret,
       joursAbsentsATyper: joursAbsents,
       loadError: false,
+      revision: snapshot.data.revision,
+      companyId: contexte.companyId,
       isForfaitJour: forfait,
       pointeMoisPrecedent,
       dernierJourJuge: bornes.dernierJour ?? null,
@@ -280,8 +284,8 @@ export function computeGlobalKpis(
   rows: EmployeeCalendarOverviewRow[]
 ): GlobalOverviewKpis {
   const total = rows.length;
-  const saisis = rows.filter((r) => r.rowStatus !== 'a_saisir').length;
-  const aSaisir = rows.filter((r) => r.rowStatus === 'a_saisir').length;
+  const saisis = rows.filter((r) => !r.loadError && r.rowStatus !== 'a_saisir').length;
+  const aSaisir = rows.filter((r) => r.loadError || r.rowStatus === 'a_saisir').length;
   const avecEcart = rows.filter((r) => r.rowStatus === 'saisi_avec_ecart').length;
   const avecHeuresSurArret = rows.filter(
     (r) => (r.joursHeuresSurArret?.length ?? 0) > 0
@@ -297,7 +301,7 @@ export function computeGlobalKpis(
   // Prêt = saisi, sans heures sur un jour d'arrêt ni jour absent sans type
   // (la génération serait refusée).
   const bloque = (r: EmployeeCalendarOverviewRow) =>
-    (r.joursHeuresSurArret?.length ?? 0) > 0 || (r.joursAbsentsATyper?.length ?? 0) > 0;
+    r.loadError || (r.joursHeuresSurArret?.length ?? 0) > 0 || (r.joursAbsentsATyper?.length ?? 0) > 0;
   const prets = rows.filter((r) => r.rowStatus !== 'a_saisir' && !bloque(r)).length;
   const progressPercent = total > 0 ? Math.round((prets / total) * 100) : 0;
   const pretsSansHeuresPointees = rows.filter(
@@ -405,19 +409,26 @@ export function applyDayPatchToRow(
 }
 
 export async function persistEmployeeMonth(
-  employeeId: string,
-  year: number,
-  month: number,
-  planned: PlannedEventData[],
-  actual: ActualHoursData[]
-): Promise<PlanningWarning[]> {
-  const [plannedRes] = await Promise.all([
-    calendarApi.updatePlannedCalendar(employeeId, year, month, planned),
-    calendarApi.updateActualHours(employeeId, year, month, actual),
-  ]);
-  // Warnings du POST planned-calendar : demandes de congé créées/annulées
-  // depuis la saisie, écarts de solde… — à afficher par l'appelant.
-  return (plannedRes.data?.warnings ?? []) as PlanningWarning[];
+  employeeId: string, year: number, month: number,
+  planned: PlannedEventData[], actual: ActualHoursData[],
+  context: calendarApi.CalendarRequestContext,
+): Promise<calendarApi.CalendarSaveResult> {
+  if (context.expectedRevision === undefined) throw new Error('Rechargez le calendrier avant de l’enregistrer.');
+  const saved = await calendarApi.saveCalendar(employeeId, year, month, {
+    expected_revision: context.expectedRevision, calendrier_prevu: planned, calendrier_reel: actual,
+  }, context);
+  return saved.data;
+}
+
+export function rowFromCalendarSnapshot(row: EmployeeCalendarOverviewRow, snapshot: calendarApi.CalendarSnapshot, year: number, month: number): EmployeeCalendarOverviewRow {
+  const planned = mergePlannedCalendar(row.planned, snapshot.calendrier_prevu);
+  const actual = planned.map((day) => ({
+    jour: day.jour, type: day.type,
+    heures_faites: snapshot.calendrier_reel.find((d) => d.jour === day.jour)?.heures_faites ?? null,
+  }));
+  return applyDayPatchToRow({ ...row, planned, actual, revision: snapshot.revision,
+    joursHeuresSurArret: snapshot.jours_en_conflit ?? [], loadError: false,
+  }, -1, {}, year, month);
 }
 
 export type OverviewExportFormat = 'csv' | 'xlsx' | 'pdf';

@@ -5,6 +5,33 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+### Calendriers et saisies du mois (retours du 12 novembre)
+- Un repos ou une récupération suivie hors Martine se choisit au calendrier : prévu à zéro, pointages conservés, aide au choix du motif et légende complétée.
+- Les saisies groupées gardent le repos à zéro ; l'enregistrement du prévu précède celui du réel pour contrôler les heures contre le bon motif.
+- Les saisies peuvent porter une période Du/Au imprimée au bulletin ; suivi des imports DSN borné à la reprise de la société, fenêtres et avertissements plus lisibles, pauses payées/non payées expliquées et en-tête « Date ancien » reconnu à l'import.
+
+### DSN et lisibilité (recette du 12 novembre)
+- Une DSN déjà reçue après la reprise reste consultable ; la révocation actualise le dernier mois importé et les mois attendus restent comptés jusqu'à la reprise.
+- Le modèle de semaine garde son titre et ses boutons visibles sur un écran bas ; le commentaire et le total restent lisibles sur mobile, avec des champs identifiés par jour.
+- Les avertissements des bulletins gardent une largeur lisible avec leurs actions ; les pauses non payées sont nommées dans le contrôle des heures nettes.
+
+### Revue de l'import d'ancienneté
+- Une ligne décochée reste exclue de l'enregistrement ; une association manuelle montre les dates du salarié choisi et demande une confirmation.
+- Les dates impossibles et les lignes multiples confirmées pour un même salarié sont refusées ; une date déjà identique ne provoque pas une seconde écriture.
+- L'écran conserve les refus à corriger et ignore une analyse reçue après un changement de société ; la date d'embauche reste conservée.
+
+### Calendriers : changements de contexte et enregistrement
+- Une réponse tardive de chargement ou de copie ne remplace plus le calendrier d'un autre salarié, mois ou société ; les deux vues annuelles suivent aussi le contexte affiché.
+- Un double clic lance une seule sauvegarde dans le calendrier ouvert ; les étapes gardent leur société d'origine et les retouches faites pendant l'enregistrement restent à sauvegarder.
+- Un échec précise ce qui a été confirmé avant l'erreur ; le panneau n'annonce une réussite qu'après l'enregistrement et le calcul. Une copie retardée laisse les retouches en place et invite à la relancer.
+
+### Calendriers : saisies simultanées
+- Si le mois a changé depuis son ouverture ou qu'une autre saisie ou génération est en cours, l'enregistrement est refusé et le brouillon reste visible.
+- Le rechargement demande confirmation avant de remplacer les retouches ; les copies et modèles utilisent la même protection, y compris pour annuler une action.
+- Une action groupée attend tous les enregistrements lancés avant d'annoncer son résultat ; une ligne non confirmée ne compte plus parmi les calendriers prêts pour la paie.
+
+## paie-2026-11-11.7
+
 ### Périmètre coché par Elsa, lot 1 (paie de novembre)
 - Plus de blocage à la génération pour une prévoyance cadre ou une mutuelle manquante : le bulletin se calcule et l'alerte apparaît dans les points à voir, avec le geste à faire (« … puis recalculez »).
 - Mois sans aucun pointage : Martine paie les heures prévues au planning et le dit sur le bulletin (« Aucun pointage en 10/2026 … importez ou saisissez ses heures, puis recalculez »).

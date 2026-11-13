@@ -155,7 +155,7 @@ function DsnImportPageContent() {
     (
       cellCompanyId: string,
       period: string,
-      state: 'covered' | 'missing' | 'future' | 'preview',
+      state: 'covered' | 'missing' | 'future' | 'native' | 'preview',
       companyName?: string | null,
     ) => {
       setCompanyId(cellCompanyId);

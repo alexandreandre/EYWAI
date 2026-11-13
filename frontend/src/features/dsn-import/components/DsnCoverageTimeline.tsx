@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import type { DsnCoverageTimelineMonth } from '@/api/dsnImport';
+import { isDsnMonthImported } from '../lib/coveragePresentation';
 import {
   Tooltip,
   TooltipContent,
@@ -13,6 +14,7 @@ const STATE_STYLES: Record<string, string> = {
   covered: 'bg-emerald-500 text-white border-emerald-600',
   missing: 'bg-amber-400 text-amber-950 border-amber-500',
   future: 'bg-muted text-muted-foreground border-border',
+  native: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-900 dark:text-slate-300',
   preview: 'bg-sky-500 text-white border-sky-600',
 };
 
@@ -20,16 +22,19 @@ const STATE_LABELS: Record<string, string> = {
   covered: 'Importé',
   missing: 'Manquant',
   future: 'À venir',
+  native: 'Paie Martine - import externe non attendu',
   preview: 'En analyse',
 };
 
 export function DsnCoverageTimeline({
   timeline,
   compact = false,
+  importedPeriods = [],
   className,
 }: {
   timeline: DsnCoverageTimelineMonth[];
   compact?: boolean;
+  importedPeriods?: readonly string[];
   className?: string;
 }) {
   if (!timeline.length) return null;
@@ -46,14 +51,16 @@ export function DsnCoverageTimeline({
                   STATE_STYLES[m.state] ?? STATE_STYLES.future,
                   compact ? 'h-6 w-6 text-[10px]' : 'h-8 w-8 text-xs',
                 )}
-                aria-label={`${MONTH_LABELS[m.month - 1]} ${m.period} — ${STATE_LABELS[m.state] ?? m.state}`}
+                aria-label={`${MONTH_LABELS[m.month - 1]} ${m.period} — ${STATE_LABELS[m.state] ?? m.state}${m.state !== 'covered' && isDsnMonthImported(m, importedPeriods) ? ' — DSN déjà importée' : ''}`}
               >
                 {MONTH_LABELS[m.month - 1]}
+                {m.state !== 'covered' && isDsnMonthImported(m, importedPeriods) && <span aria-hidden className="ml-0.5">✓</span>}
               </div>
             </TooltipTrigger>
             <TooltipContent>
               <p className="font-medium">{m.period}</p>
               <p className="text-xs text-muted-foreground">{STATE_LABELS[m.state] ?? m.state}</p>
+              {m.state !== 'covered' && isDsnMonthImported(m, importedPeriods) && <p className="text-xs">DSN déjà importée.</p>}
             </TooltipContent>
           </Tooltip>
         ))}

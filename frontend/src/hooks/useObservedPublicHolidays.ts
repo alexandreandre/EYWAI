@@ -40,6 +40,7 @@ export function useObservedPublicHolidays() {
   );
 
   return {
+    activeCompanyId,
     observedHolidayIds,
     isLoading: query.isLoading,
     settings: query.data,

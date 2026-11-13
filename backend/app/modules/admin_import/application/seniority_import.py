@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import Counter
+from datetime import date
 from typing import Any, Dict, List, Optional
 
 from app.modules.admin_import.application.rib_matching import (
@@ -142,9 +144,9 @@ def parse_seniority_import_file(
             "Colonne « Date ancienneté » introuvable. "
             f"En-têtes détectés : {', '.join(sheet.headers[:8])}…"
         )
-    if not mapping.get("last_name") and not mapping.get("first_name"):
+    if not any(mapping.get(key) for key in ("last_name", "first_name", "full_name", "matricule")):
         raise ValueError(
-            "Colonnes NOM et PRENOM introuvables — impossible d'identifier les salariés."
+            "Colonnes d'identité ou de matricule introuvables — impossible d'identifier les salariés."
         )
 
     employees = _list_employees_for_seniority(company_id)
@@ -289,6 +291,18 @@ def parse_seniority_import_file(
         else:
             summary["error"] += 1
 
+    matched_counts = Counter(item["employee_id"] for item in previews if item.get("employee_id"))
+    for item in previews:
+        if matched_counts[item.get("employee_id")] <= 1:
+            continue
+        item["warnings"].append(
+            "Plusieurs lignes visent ce salarié — ne confirmez qu'une seule date."
+        )
+        if item["review_status"] == "ok":
+            item["review_status"] = "warning"
+            summary["ready"] -= 1
+            summary["warning"] += 1
+
     matched_ids = {
         str(item["employee_id"])
         for item in previews
@@ -313,6 +327,14 @@ def parse_seniority_import_file(
                 "first_name": e.first_name,
                 "last_name": e.last_name,
                 "time_tracking_id": e.time_tracking_id,
+                "current_seniority_date": (
+                    str(by_id[e.id]["seniority_reference_date"])[:10]
+                    if by_id[e.id].get("seniority_reference_date") else None
+                ),
+                "current_hire_date": (
+                    str(by_id[e.id]["hire_date"])[:10]
+                    if by_id[e.id].get("hire_date") else None
+                ),
             }
             for e in roster
         ],
@@ -327,6 +349,8 @@ def commit_seniority_import(body: SeniorityImportCommitBody) -> Dict[str, Any]:
 
     employees = _list_employees_for_seniority(body.company_id)
     allowed_ids = {str(e["id"]) for e in employees}
+    by_id = _employees_by_id(employees)
+    confirmed_counts = Counter(row.employee_id for row in body.rows if row.confirmed)
 
     applied = 0
     skipped = 0
@@ -341,9 +365,25 @@ def commit_seniority_import(body: SeniorityImportCommitBody) -> Dict[str, Any]:
             skipped += 1
             errors.append(f"Ligne {row.row_index} : employé hors entreprise.")
             continue
+        if confirmed_counts[row.employee_id] > 1:
+            skipped += 1
+            errors.append(f"Ligne {row.row_index} : plusieurs dates confirmées pour ce salarié.")
+            continue
         if not row.seniority_date:
             skipped += 1
             errors.append(f"Ligne {row.row_index} : date d'ancienneté manquante.")
+            continue
+        try:
+            parsed_date = date.fromisoformat(row.seniority_date)
+            if parsed_date.isoformat() != row.seniority_date:
+                raise ValueError
+        except ValueError:
+            skipped += 1
+            errors.append(f"Ligne {row.row_index} : date d'ancienneté invalide (AAAA-MM-JJ attendu).")
+            continue
+        current_date = by_id[row.employee_id].get("seniority_reference_date")
+        if current_date and str(current_date)[:10] == row.seniority_date:
+            skipped += 1
             continue
 
         try:

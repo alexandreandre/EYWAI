@@ -14,15 +14,11 @@ import {
 import * as calendarApi from '@/api/calendar';
 import type { PlannedEventData } from '@/api/calendar';
 import { useCompany } from '@/contexts/CompanyContext';
-import { runWithConcurrency } from '@/lib/concurrency';
+import { runCalendarBatch } from '@/lib/calendarBatch';
 import { useToast } from '@/components/ui/use-toast';
 import type { EmployeeCalendarOverviewRow } from '@/lib/schedulesOverview';
-import {
-  restoreActualSnapshots,
-  restorePlannedSnapshots,
-  type ActualSnapshot,
-  type PlannedSnapshot,
-} from '@/lib/calendarBulkUndo';
+import { restoreCalendarSnapshots, type CalendarUndoSnapshot } from '@/lib/calendarBulkUndo';
+import { calendarSaveFailureMessage } from '@/lib/calendarSaveFeedback';
 import { completerReelDepuisPrevu, messageReelDepuisPrevu } from '@/lib/reelDepuisPrevu';
 import { copierMoisPrecedent, noteJoursGardes } from '@/lib/copieMoisPrecedent';
 import { pluriel } from '@/lib/pluriel';
@@ -65,12 +61,13 @@ export function CalendarBulkActionsBar({
         description: "L'état précédent a été restauré.",
       });
       onActionComplete();
-    } catch {
+    } catch (error) {
       toast({
         title: 'Erreur',
-        description: "Impossible d'annuler l'action.",
+        description: calendarSaveFailureMessage(error),
         variant: 'destructive',
       });
+      onActionComplete();
     } finally {
       setBusy(null);
     }
@@ -101,18 +98,17 @@ export function CalendarBulkActionsBar({
     });
 
     try {
-      const snapshots: PlannedSnapshot[] = [];
+      const snapshots: CalendarUndoSnapshot[] = [];
       let feriesGardes = 0;
       let absencesGardees = 0;
       let requalifiedCount = 0;
       const tasks = selectedEmployeeIds.map((id) => async () => {
         const [prevRes, currentPlannedRes] = await Promise.all([
           calendarApi.getPlannedCalendar(id, prevYear, prevMonth),
-          calendarApi.getPlannedCalendar(id, year, month),
+          calendarApi.getCalendarSnapshot(id, year, month, { companyId }),
         ]);
         const prevData = prevRes.data.calendrier_prevu ?? [];
         const currentData: PlannedEventData[] = currentPlannedRes.data.calendrier_prevu ?? [];
-        snapshots.push({ id, planned: currentData });
         // Le mois copié tel que l'écran le montre : les jours enregistrés, et
         // pour les autres le planning par défaut (fériés de la société compris).
         const parDefaut = overviewRows.find((r) => r.employee.id === id)?.planned ?? [];
@@ -135,14 +131,15 @@ export function CalendarBulkActionsBar({
         feriesGardes += copie.feriesGardes;
         absencesGardees += copie.absencesGardees;
 
-        const res = await calendarApi.updatePlannedCalendar(id, year, month, copie.jours);
+        const res = await calendarApi.updatePlannedCalendar(id, year, month, copie.jours, { companyId, expectedRevision: currentPlannedRes.data.revision });
+        snapshots.push({ id, companyId, planned: currentData, expectedRevision: res.data.revision });
         // Défensif : `warnings` est absent tant que le backend ne le renvoie pas.
         requalifiedCount += (res.data?.warnings ?? []).filter(
           (w) => w.code === 'absence_validee_requalifiee'
         ).length;
       });
 
-      await runWithConcurrency(tasks, 5);
+      await runCalendarBatch(tasks);
       const noteGardes = noteJoursGardes(feriesGardes, absencesGardees);
       if (requalifiedCount > 0) {
         toast({
@@ -150,7 +147,7 @@ export function CalendarBulkActionsBar({
           description: `Ce changement requalifie ${pluriel(requalifiedCount, 'jour')} d'absence validée.${noteGardes}`,
           variant: 'warning',
           action: undoToastAction(() =>
-            restorePlannedSnapshots(snapshots, year, month)
+            restoreCalendarSnapshots(snapshots, year, month)
           ),
         });
       } else {
@@ -158,17 +155,18 @@ export function CalendarBulkActionsBar({
           title: 'Mois précédent copié',
           description: `Planning copié pour ${pourEmployes(selectedEmployeeIds.length)} : chaque jour reprend le même jour de la semaine de ${moisSource}.${noteGardes}`,
           action: undoToastAction(() =>
-            restorePlannedSnapshots(snapshots, year, month)
+            restoreCalendarSnapshots(snapshots, year, month)
           ),
         });
       }
       onActionComplete();
-    } catch {
+    } catch (error) {
       toast({
         title: 'Erreur',
-        description: 'Impossible de copier le mois précédent.',
+        description: calendarSaveFailureMessage(error),
         variant: 'destructive',
       });
+      onActionComplete();
     } finally {
       setBusy(null);
     }
@@ -177,43 +175,46 @@ export function CalendarBulkActionsBar({
   const copyPlannedToActual = async () => {
     setBusy('equal');
     try {
-      const snapshots: ActualSnapshot[] = [];
+      const snapshots: CalendarUndoSnapshot[] = [];
       let completes = 0;
       let gardes = 0;
       const tasks = selectedEmployeeIds.map((id) => async () => {
         const row = overviewRows.find((r) => r.employee.id === id);
         if (!row) return;
-        const prevActualRes = await calendarApi.getActualHours(id, year, month);
+        const prevActualRes = await calendarApi.getCalendarSnapshot(id, year, month, { companyId });
         const avant = prevActualRes.data.calendrier_reel ?? [];
-        snapshots.push({ id, actual: avant });
         // Seuls les jours de travail prévus SANS heures réelles sont remplis :
         // les heures déjà saisies (à la main ou importées) sont gardées, et un
         // jour sans prévu (week-end) n'est pas écrit.
-        const resultat = completerReelDepuisPrevu(row.planned, avant, {
+        const currentPlanned = [...prevActualRes.data.calendrier_prevu,
+          ...row.planned.filter((d) => !prevActualRes.data.calendrier_prevu.some((stored) => stored.jour === d.jour))];
+        const resultat = completerReelDepuisPrevu(currentPlanned, avant, {
           forfaitJours: row.isForfaitJour,
           dernierJour: row.dernierJourContrat ?? null,
         });
         completes += resultat.completes;
         gardes += resultat.gardes;
         if (resultat.completes > 0) {
-          await calendarApi.updateActualHours(id, year, month, resultat.actual);
+          const saved = await calendarApi.updateActualHours(id, year, month, resultat.actual, { companyId, expectedRevision: prevActualRes.data.revision });
+          snapshots.push({ id, companyId, actual: avant, expectedRevision: saved.data.revision });
         }
       });
-      await runWithConcurrency(tasks, 5);
+      await runCalendarBatch(tasks);
       toast({
         title: 'Heures réelles mises à jour',
         description: messageReelDepuisPrevu(selectedEmployeeIds.length, completes, gardes),
         action: undoToastAction(() =>
-          restoreActualSnapshots(snapshots, year, month)
+          restoreCalendarSnapshots(snapshots, year, month)
         ),
       });
       onActionComplete();
-    } catch {
+    } catch (error) {
       toast({
         title: 'Erreur',
-        description: 'Impossible de copier le prévu en réel.',
+        description: calendarSaveFailureMessage(error),
         variant: 'destructive',
       });
+      onActionComplete();
     } finally {
       setBusy(null);
     }
@@ -249,7 +250,7 @@ export function CalendarBulkActionsBar({
         });
       }
       onActionComplete();
-    } catch {
+    } catch (error) {
       toast({
         title: 'Erreur',
         description: "Impossible d'importer depuis la badgeuse.",

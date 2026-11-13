@@ -137,7 +137,7 @@ function patchMatrixCompany(
   const periodSet = new Set(periods);
   const monthsCovered = [...new Set([...company.months_covered, ...periods])].sort();
   const timeline = company.timeline.map((month) => {
-    if (!periodSet.has(month.period) || month.state === 'future') return month;
+    if (!periodSet.has(month.period) || month.state === 'future' || month.state === 'native') return month;
     return { ...month, state: 'covered' as const };
   });
   const gapsCount = timeline.filter(
@@ -165,7 +165,7 @@ function patchSingleCoverage(coverage: DsnCoverage, periods: string[]): DsnCover
   const periodSet = new Set(periods);
   const monthsCovered = [...new Set([...coverage.months_covered, ...periods])].sort();
   const timeline = coverage.timeline.map((month) => {
-    if (!periodSet.has(month.period) || month.state === 'future') return month;
+    if (!periodSet.has(month.period) || month.state === 'future' || month.state === 'native') return month;
     return { ...month, state: 'covered' as const };
   });
   const gaps = timeline

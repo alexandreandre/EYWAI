@@ -6,8 +6,9 @@ Comportement identique à l’ancien schemas/schedule.py et api/routers/schedule
 """
 
 from typing import Any, Dict, List, Literal, Optional
+from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # ----- Calendrier prévu (GET/POST /planned-calendar) -----
@@ -46,6 +47,7 @@ class PlannedCalendarRequest(BaseModel):
     year: int
     month: int
     calendrier_prevu: List[PlannedCalendarEntry]
+    expected_revision: UUID | None = None
 
 
 class PlannedCalendarEntryOut(BaseModel):
@@ -89,6 +91,7 @@ class ActualHoursRequest(BaseModel):
     year: int
     month: int
     calendrier_reel: List[ActualHoursEntry]
+    expected_revision: UUID | None = None
 
 
 class ActualHoursResponse(ActualHoursRequest):
@@ -97,6 +100,39 @@ class ActualHoursResponse(ActualHoursRequest):
     (règle de `domain.conflits_arret`)."""
 
     jours_en_conflit: List[int] = Field(default_factory=list)
+    expected_revision: UUID | None = Field(default=None, exclude=True)
+
+
+class CalendarSaveRequest(BaseModel):
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
+    # Champ obligatoire, null seulement si aucun mois n'existait à la lecture.
+    expected_revision: UUID | None
+    calendrier_prevu: list[PlannedCalendarEntry] | None = None
+    calendrier_reel: list[ActualHoursEntry] | None = None
+    recalculate_payroll: bool = False
+
+    @model_validator(mode="after")
+    def _has_entries(self):
+        if self.calendrier_prevu is None and self.calendrier_reel is None:
+            raise ValueError("Le prévu ou le réel à enregistrer est requis.")
+        return self
+
+
+class CalendarSnapshotResponse(BaseModel):
+    year: int
+    month: int
+    revision: UUID | None
+    busy: bool
+    calendrier_prevu: list[PlannedCalendarEntryOut]
+    calendrier_reel: list[ActualHoursEntry]
+    jours_en_conflit: list[int] = Field(default_factory=list)
+
+
+class CalendarSaveResponse(CalendarSnapshotResponse):
+    revision: UUID
+    warnings: list[dict[str, Any]] = Field(default_factory=list)
+    payroll_recalculated: bool
 
 
 class EffacerJoursRequest(BaseModel):

@@ -159,6 +159,8 @@ export default function EmployeeDetail() {
     bulkCopyPlannedToActual,
     isCopyingPrevMonth,
     refetch: refetchCalendar,
+    loadError: calendarLoadError,
+    saveError: calendarSaveError,
   } = useCalendar(employeeId, employeeStatut, {
     enabled: activeTab === "calendrier",
     isForfaitJour: employee?.is_forfait_jour,
@@ -860,6 +862,8 @@ export default function EmployeeDetail() {
               isCalendarLoading={isCalendarLoading}
               isSaving={isSaving}
               saveAllCalendarData={saveAllCalendarData}
+              calendarLoadError={calendarLoadError}
+              calendarSaveError={calendarSaveError}
               updateDayData={updateDayData}
               weekTemplate={weekTemplate}
               setWeekTemplate={setWeekTemplate}

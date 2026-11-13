@@ -90,6 +90,7 @@ export const CALENDAR_LEGEND_ITEMS: {
   { key: 'ferie', label: 'Férié', colorClass: 'bg-purple-500' },
   { key: 'arret_maladie', label: 'Arrêt maladie', colorClass: 'bg-red-500' },
   { key: 'weekend', label: 'Week-end', colorClass: 'bg-slate-400' },
+  { key: 'repos', label: 'Repos / récupération externe', colorClass: 'bg-slate-400' },
   { key: 'ecole', label: 'École', colorClass: 'bg-indigo-500' },
   { key: 'absent_a_typer', label: 'Absent, type à donner', colorClass: 'bg-red-600' },
   { key: 'today', label: "Aujourd'hui", colorClass: 'ring-2 ring-primary' },
@@ -110,6 +111,7 @@ export const CALENDAR_EDITABLE_TYPE_OPTIONS: { value: string; label: string }[] 
   { value: 'ferie', label: 'Férié' },
   { value: 'arret_maladie', label: 'Arrêt maladie' },
   { value: 'weekend', label: 'Week-end' },
+  { value: 'repos', label: 'Repos / récupération externe' },
   { value: 'absence_non_remuneree', label: 'Absence non rémunérée' },
   { value: 'ecole', label: 'École' },
 ];

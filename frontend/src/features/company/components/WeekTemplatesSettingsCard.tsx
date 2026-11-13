@@ -304,25 +304,25 @@ export default function WeekTemplatesSettingsCard() {
         )}
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-h-[90dvh] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto]">
             <DialogHeader>
               <DialogTitle>{form.id ? 'Modifier le modèle' : 'Nouveau modèle de semaine'}</DialogTitle>
             </DialogHeader>
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="space-y-1 sm:col-span-2">
-                  <Label>Nom</Label>
-                  <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <div className="min-h-0 space-y-3 overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,auto)]">
+                <div className="min-w-0 space-y-1">
+                  <Label htmlFor="week-template-name">Nom</Label>
+                  <Input id="week-template-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                 </div>
                 <div className="space-y-1">
-                  <Label>Type de semaine</Label>
+                  <Label htmlFor="week-template-tier">Type de semaine</Label>
                   <Select
                     value={form.modulation_tier}
                     onValueChange={(v: FormState['modulation_tier']) =>
                       setForm({ ...form, modulation_tier: v })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="week-template-tier" className="h-auto min-h-10 text-left [&>span]:whitespace-normal [&>span]:line-clamp-none">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -331,6 +331,9 @@ export default function WeekTemplatesSettingsCard() {
                       <SelectItem value="neutral">Neutre</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Neutre : horaire standard, hors alternance haute / basse.
+                  </p>
                 </div>
               </div>
 
@@ -354,6 +357,7 @@ export default function WeekTemplatesSettingsCard() {
                           <td className="px-2 py-1 font-medium">{DAY_LABELS[d.day - 1]}</td>
                           <td className="px-2 py-1 text-center">
                             <Checkbox
+                              aria-label={`${DAY_LABELS[d.day - 1]} travaillé`}
                               checked={d.worked}
                               onCheckedChange={(v) => setDay(idx, { worked: Boolean(v) })}
                             />
@@ -361,6 +365,7 @@ export default function WeekTemplatesSettingsCard() {
                           <td className="px-2 py-1">
                             <Input
                               type="number"
+                              aria-label={`Heures du ${DAY_LABELS[d.day - 1].toLowerCase()}`}
                               step={0.05}
                               className="h-8 w-20"
                               disabled={!d.worked}
@@ -371,6 +376,7 @@ export default function WeekTemplatesSettingsCard() {
                           <td className="px-2 py-1">
                             <Input
                               type="time"
+                              aria-label={`Début du ${DAY_LABELS[d.day - 1].toLowerCase()}`}
                               className="h-8 w-28"
                               disabled={!d.worked}
                               value={d.start}
@@ -380,6 +386,7 @@ export default function WeekTemplatesSettingsCard() {
                           <td className="px-2 py-1">
                             <Input
                               type="time"
+                              aria-label={`Fin du ${DAY_LABELS[d.day - 1].toLowerCase()}`}
                               className="h-8 w-28"
                               disabled={!d.worked}
                               value={d.end}
@@ -389,6 +396,7 @@ export default function WeekTemplatesSettingsCard() {
                           <td className="px-2 py-1">
                             <Input
                               type="number"
+                              aria-label={`Pause du ${DAY_LABELS[d.day - 1].toLowerCase()} en minutes`}
                               className="h-8 w-20"
                               disabled={!d.worked}
                               value={d.break_minutes}
@@ -403,6 +411,7 @@ export default function WeekTemplatesSettingsCard() {
                           </td>
                           <td className="px-2 py-1 text-center">
                             <Checkbox
+                              aria-label={`Pause payée du ${DAY_LABELS[d.day - 1].toLowerCase()}`}
                               checked={d.break_paid}
                               disabled={!d.worked}
                               onCheckedChange={(v) => {
@@ -442,17 +451,18 @@ export default function WeekTemplatesSettingsCard() {
                 </table>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <Label>Commentaire RH</Label>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <Label htmlFor="week-template-description">Commentaire RH</Label>
                   <Textarea
+                    id="week-template-description"
                     rows={2}
-                    className="w-80"
+                    className="w-full"
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
                   />
                 </div>
-                <div className="text-right">
+                <div className="shrink-0 sm:text-right">
                   <div className="text-xs text-muted-foreground">Total hebdomadaire</div>
                   <div className="text-2xl font-semibold">{total} h</div>
                 </div>

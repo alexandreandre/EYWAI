@@ -1532,7 +1532,7 @@ export function DsnImportWizard({
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <DsnCoverageTimeline timeline={coverageQuery.data.timeline} />
+                  <DsnCoverageTimeline timeline={coverageQuery.data.timeline} importedPeriods={coverageQuery.data.months_covered} />
                 </CardContent>
               </Card>
             ) : null}

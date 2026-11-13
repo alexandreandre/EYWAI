@@ -66,6 +66,10 @@ def mock_list_extra():
 
 
 class TestSeniorityExcel:
+    def test_detect_quadratus_date_ancien(self):
+        mapping = detect_seniority_column_mapping(['', 'Numero', 'Date ancien', 'Nom'])
+        assert mapping == {'matricule': 'Numero', 'seniority_date': 'Date ancien', 'last_name': 'Nom'}
+
     def test_detect_lewis_headers(self):
         headers = [
             "NOM",
@@ -86,6 +90,45 @@ class TestSeniorityExcel:
 
 
 class TestParseSeniorityImport:
+    def test_export_quadratus_avec_titre_et_sans_colonne_prenom(self, mock_repo):
+        employe = {
+            "id": "employe-test", "first_name": "Alix", "last_name": "EXEMPLE",
+            "time_tracking_id": "EXEMPLE", "hire_date": "2020-01-06",
+            "seniority_reference_date": "2020-01-06", "employment_status": "actif",
+        }
+        mock_repo.find_company.return_value = {"id": "co-1", "company_name": "Société test"}
+        content = (
+            ';Quadratus - Liste des employés;;Edité le 12/11/2026\n'
+            '\n\n'
+            ';Numero;Date ancien;Nom\n'
+            ';EXEMPLE;03/09/2018;EXEMPLE\n'
+        ).encode()
+        with patch(
+            'app.modules.admin_import.application.seniority_import._list_employees_for_seniority',
+            return_value=[employe],
+        ):
+            result = parse_seniority_import_file(content, 'anciennete.csv', 'co-1')
+        assert result['summary']['ready'] == 1
+        assert result['rows'][0]['employee_id'] == 'employe-test'
+        assert result['rows'][0]['seniority_date'] == '2018-09-03'
+
+    def test_un_matricule_tronque_commun_a_deux_salaries_reste_a_verifier(self, mock_repo):
+        employe = {
+            "id": "employe-test", "first_name": "Alix", "last_name": "EXEMPLE",
+            "time_tracking_id": "EXEMPLE", "hire_date": "2020-01-06",
+            "seniority_reference_date": "2020-01-06", "employment_status": "actif",
+        }
+        employees = [employe, {**employe, 'id': 'employe-autre', 'first_name': 'Camille'}]
+        mock_repo.find_company.return_value = {"id": "co-1", "company_name": "Société test"}
+        content = b'Numero;Date ancien;Nom\nEXEMPLE;03/09/2018;EXEMPLE\n'
+        with patch(
+            'app.modules.admin_import.application.seniority_import._list_employees_for_seniority',
+            return_value=employees,
+        ):
+            result = parse_seniority_import_file(content, 'anciennete.csv', 'co-1')
+        assert result['summary']['ready'] == 0
+        assert result['rows'][0]['review_status'] != 'ok'
+
     def test_matches_by_name(self, mock_repo, mock_list_extra):
         csv = (
             "NOM;PRENOM;Statut;Date ancienneté\n"

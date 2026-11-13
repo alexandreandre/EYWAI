@@ -21,7 +21,7 @@ export function DocumentFileRow({ name, subtitle, meta, actions, className, rowH
       <FileText className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-medium leading-snug">{name}</p>
-        {subtitle && <div className="mt-1 text-sm text-muted-foreground">{subtitle}</div>}
+        {subtitle && <div className="mt-1 break-words text-sm text-muted-foreground">{subtitle}</div>}
         {meta && <div className="mt-1.5 flex flex-wrap items-center gap-2">{meta}</div>}
       </div>
     </>
@@ -30,11 +30,11 @@ export function DocumentFileRow({ name, subtitle, meta, actions, className, rowH
   return (
     <li
       className={cn(
-        'flex flex-col gap-2 rounded-md border border-transparent p-3 transition-colors sm:flex-row sm:items-center sm:justify-between hover:bg-muted/60 hover:border-border',
+        'flex flex-col gap-2 rounded-md border border-transparent p-3 transition-colors sm:flex-row sm:flex-wrap sm:items-center sm:justify-between hover:bg-muted/60 hover:border-border',
         className
       )}
     >
-      <div className="flex min-w-0 flex-1 items-start gap-3">
+      <div className="flex min-w-0 flex-1 basis-full items-start gap-3 sm:basis-72">
         {rowHref ? (
           <Link
             to={rowHref}
@@ -46,7 +46,7 @@ export function DocumentFileRow({ name, subtitle, meta, actions, className, rowH
           inner
         )}
       </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">{actions}</div>
+      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 sm:justify-end">{actions}</div>
     </li>
   );
 }
