@@ -5,6 +5,11 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+## paie-2026-11-13.1
+
+### Onglet « Corriger » de retour
+- L'onglet « Corriger » refait le 11/11 (crayon, poubelle, « Ajouter une ligne », net avant/après) avait disparu avec la version du 11/11 au soir ; il est revenu.
+
 ### Calendriers et saisies du mois (retours du 12 novembre)
 - Un repos ou une récupération suivie hors Martine se choisit au calendrier : prévu à zéro, pointages conservés, aide au choix du motif et légende complétée.
 - Les saisies groupées gardent le repos à zéro ; l'enregistrement du prévu précède celui du réel pour contrôler les heures contre le bon motif.
