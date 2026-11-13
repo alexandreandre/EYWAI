@@ -104,7 +104,9 @@ _CLES_SAISIE = (
 
 #: Clés de `specificites_paie` que seules la DSN (export et import) lisent :
 #: les poser ou les corriger ne change aucun bulletin.
-_SPECIFICITES_DSN_SEULE = frozenset({"affiliations_psc", "dsn_reprise"})
+#: `jtc_atelier` n'est lu que par le calcul annuel des JTC (janvier) : aucun
+#: bulletin ne le lit non plus.
+_SPECIFICITES_DSN_SEULE = frozenset({"affiliations_psc", "dsn_reprise", "jtc_atelier"})
 #: La formule de société d'où viennent les lignes de prévoyance (02/11/2026) :
 #: aucun calcul ne la lit, le moteur ne lit que `lignes_specifiques`.
 _CLE_FORMULE_PREVOYANCE = "formule_id"

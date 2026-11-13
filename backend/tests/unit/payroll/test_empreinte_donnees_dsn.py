@@ -138,3 +138,12 @@ def test_la_fiche_lue_n_est_pas_modifiee():
     copie = copy.deepcopy(salarie)
     _globale(salarie)
     assert salarie == copie
+
+
+@pytest.mark.parametrize("valeur", [True, False])
+def test_le_marqueur_atelier_des_jtc_ne_change_pas_l_empreinte(valeur):
+    """`jtc_atelier` n'est lu que par le calcul annuel des JTC (janvier) :
+    le poser sur les fiches ne périme aucun bulletin (geste R-340)."""
+    salarie = _avec_specificites(jtc_atelier=valeur)
+    assert _globale(salarie) == EMPREINTE_GLOBALE_FIGEE
+    assert _partie_fiche(salarie) == EMPREINTE_FICHE_FIGEE
