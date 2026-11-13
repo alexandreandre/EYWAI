@@ -1,9 +1,9 @@
 # Saisir les plannings et les récupérations suivies hors Martine
 
 Guide pour les salariés à temps plein dont le temps est décompté en heures.
-Les temps partiels et les forfaits jours suivent leur propre circuit. Les libellés
-« Repos / récupération externe » et la période des saisies sont ajoutés dans
-le chantier du 12/11/2026 ; ils seront disponibles après son déploiement.
+Les temps partiels et les forfaits jours suivent leur propre circuit. Le type
+« Repos / récupération externe » et la période des saisies sont en ligne depuis
+la version paie-2026-11-13.1.
 
 **La compensation et le solde de récupération restent calculés dans votre
 suivi externe. Martine reçoit les jours qualifiés et les heures
@@ -72,12 +72,15 @@ rythme et ne constitue pas une nouvelle autorisation de récupération.
    peut être modifiée par un choix individuel de mise au compteur sur le mois :
    contrôlez aussi ce choix. Vérifiez les mouvements CET déjà validés pour
    le salarié et le mois, même si vous n'autorisez plus de nouvelles demandes.
-3. Générez un bulletin brouillon puis ouvrez ses corrections.
-4. Dans **Heures supplémentaires du mois**, déclarez les quantités définitives
-   à 25 % et à 50 %, puis enregistrez pour recalculer le bulletin.
+3. Générez un bulletin brouillon, ouvrez-le, puis l'onglet **Corriger**.
+4. Cliquez sur **Ajouter une ligne**, puis la tuile **Des heures** et
+   **Ce mois-ci**. Déclarez les quantités définitives dans **Majorées à 25 %**
+   et **Majorées à 50 %**, puis **Appliquer** : le bulletin est recalculé et le
+   net avant/après s'affiche.
 5. Si rien ne doit être payé, déclarez explicitement **0 aux deux taux** depuis
    cet écran. Une saisie ordinaire à zéro dans les variables ne suffit pas à
-   effacer les heures calculées depuis le planning.
+   effacer les heures calculées depuis le planning. **Reprendre les heures du
+   planning** annule la déclaration.
 6. Contrôlez les quantités et les montants au bulletin, puis les cotisations,
    le net et les cumuls après le recalcul.
 
@@ -88,8 +91,8 @@ au compteur, le choix RH **Payer ces heures ce mois-ci** permet de les payer
 sur ce bulletin. Contrôlez le résultat et l'absence d'un nouveau crédit après
 recalcul. Ne recopiez pas le solde externe dans ce compteur.
 
-Pour un **temps partiel**, utilisez la carte **Heures complémentaires du mois**
-dans les corrections du bulletin, avec les paliers affichés pour son contrat.
+Pour un **temps partiel**, la même tuile **Des heures → Ce mois-ci** propose
+les heures complémentaires, avec les paliers affichés pour son contrat.
 Les quantités déclarées remplacent celles du planning, y compris zéro ; elles
 ne doivent pas être saisies dans les heures supplémentaires du temps plein.
 Un **forfait jours** reste décompté en jours et n'utilise pas ces cartes d'heures.

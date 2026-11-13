@@ -9,7 +9,7 @@ export function CalendarEntryHelp() {
           {' '}« Repos / récupération externe », mettez le prévu à 0 h et gardez le réel à 0 h.
           Martine ne crée ni retenue d’absence, ni congé payé, ni débit de compteur pour ce repos.
           Déduisez les heures du compteur externe et déclarez les heures restant à payer
-          dans le circuit adapté au contrat.
+          dans l’onglet « Corriger » du bulletin (« Ajouter une ligne » → « Des heures »).
           Notez la durée de récupération autorisée dans ce suivi avant de mettre le prévu à zéro.
         </p>
         <p>
@@ -22,8 +22,8 @@ export function CalendarEntryHelp() {
         <p>
           <strong>Temps partiel :</strong> les heures au-delà du contrat sont des heures
           complémentaires. N’utilisez pas la déclaration d’heures supplémentaires à 25 % / 50 %
-          pour les remplacer. Leur déclaration se fait dans « Heures complémentaires du mois »
-          depuis les corrections du bulletin, aux paliers affichés.
+          pour les remplacer. Leur déclaration se fait dans l’onglet « Corriger » du bulletin :
+          {' '}« Ajouter une ligne » → « Des heures » → « Ce mois-ci », aux paliers affichés.
         </p>
         <p>
           <strong>Autre absence :</strong> choisissez son motif réel (congés payés, RTT,
