@@ -27,6 +27,16 @@ test('compteur de récupération : réglage, bulletin, choix du mois', async ({ 
   });
   const s = surveiller(page);
 
+  // La société du compte QA est MAJI (bulletins calculés) ; sans société mémorisée, l'application
+  // prend la première de la liste, dont l'ordre n'est pas garanti (LEWIS le 13/11 : bulletins tous importés).
+  await page.goto('/');
+  const societes = (await (
+    await page.request.get(`${API_URL}/api/users/my-companies`, { headers: await entetes(page) })
+  ).json()) as { company_id: string; company_name?: string }[];
+  const maji = societes.find((c) => /^maji$/i.test(c.company_name ?? ''));
+  expect(maji, 'la société MAJI du compte QA').toBeTruthy();
+  await page.evaluate((id) => localStorage.setItem('activeCompanyId', id), maji!.company_id);
+
   // --- Le réglage de la société
   const reglagesEcrits: unknown[] = [];
   await page.route('**/api/modulation/settings', async (route) => {
@@ -48,8 +58,13 @@ test('compteur de récupération : réglage, bulletin, choix du mois', async ({ 
   await page.getByRole('button', { name: /organisation du temps & compte d'heures/i }).first().click();
   const carte = page.getByTestId('reglage-heures-sup');
   await expect(carte).toBeVisible({ timeout: 20_000 });
+  const reglageActuel = (await (
+    await page.request.get(`${API_URL}/api/modulation/settings`, { headers: await entetes(page) })
+  ).json()) as { hour_account_enabled?: boolean; hs_routing_policy?: string };
+  const dejaAuCompteur = !!reglageActuel.hour_account_enabled && reglageActuel.hs_routing_policy === 'account_all';
   await carte.getByLabel(/mises au compteur de récupération/i).click();
-  await expect(carte.getByText(/L3121-37/)).toBeVisible();
+  // Le rappel de L3121-37 accompagne le passage au compteur, pas une société qui y est déjà.
+  if (!dejaAuCompteur) await expect(carte.getByText(/L3121-37/)).toBeVisible();
   await carte.getByLabel(/plafond du compteur/i).fill('abc');
   await expect(carte.getByRole('button', { name: /enregistrer/i })).toBeDisabled();
   await carte.getByLabel(/plafond du compteur/i).fill('40');

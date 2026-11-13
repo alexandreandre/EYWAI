@@ -17,6 +17,9 @@ const BRUIT: RegExp[] = [
   // /leaves. Allowlistés NOMMÉMENT : tout autre 404 reste une erreur.
   /status of 404 .*\/api\/employees\/me\]/,
   /status of 404 .*\/api\/absences\/[^/\]]+\/certificate\]/,
+  // L'aperçu du bulletin est une iframe `sandbox=""` sans script : Chrome y bloque
+  // le script d'initialisation que Playwright injecte dans chaque cadre (addInitScript).
+  /Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed/,
 ];
 
 // Texte exact de src/components/ErrorBoundary.tsx (apostrophe droite) ; le
