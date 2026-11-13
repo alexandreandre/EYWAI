@@ -11,6 +11,7 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 - Calculer un bulletin pendant qu'une autre personne enregistre le calendrier du même salarié et du même mois : Martine attend la fin de cet enregistrement pour écrire les cumuls du mois, au lieu de laisser le bulletin sans ses cumuls.
 - Verrouiller une semaine de planning dans le même cas : les heures des postes arrivent bien dans la paie, sans effacer ce que l'autre personne vient d'enregistrer.
 - Supprimer un bulletin efface aussi ses cumuls du mois, même pendant un enregistrement.
+- Générer les calendriers depuis un modèle dans le même cas : la génération reprend après l'enregistrement en gardant ce qui vient d'être saisi, sinon un message clair.
 
 ## paie-2026-11-13.3
 

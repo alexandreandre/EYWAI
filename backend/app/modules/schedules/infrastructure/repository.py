@@ -75,6 +75,10 @@ class ScheduleRepository(IScheduleRepository):
                 payload, on_conflict="employee_id,year,month"
             ).execute()
         except Exception as e:
+            if getattr(e, "code", None) == "PT409":
+                # Mois réservé par un enregistrement en cours : renvoyer la même écriture
+                # pourrait écraser la saisie de la RH. L'appelant rejoue en relisant.
+                raise
             logger.warning(f"❌ Erreur lors de l'upsert Supabase: {e}")
             logger.exception("Exception")
             supabase.table("employee_schedules").upsert(

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from app.core.calendar_write_context import CalendrierReserve
 from app.modules.schedules.application import calendar_generation
 from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.application.preset_apply import apply_preset as _apply_preset
@@ -63,14 +64,14 @@ def apply_preset(preset_key: str, current_user: Any) -> Dict[str, Any]:
 def generate(payload: Any, current_user: Any) -> Dict[str, Any]:
     company_id = _require_company(current_user)
     # Sans plan_id : génère tous les plans actifs de la société (précédence portée).
-    if not payload.plan_id:
-        return calendar_generation.generate_all_active_plans(
-            company_id,
-            year=payload.year,
-            dry_run=payload.dry_run,
-            recalculate_payroll=payload.recalculate_payroll,
-        )
     try:
+        if not payload.plan_id:
+            return calendar_generation.generate_all_active_plans(
+                company_id,
+                year=payload.year,
+                dry_run=payload.dry_run,
+                recalculate_payroll=payload.recalculate_payroll,
+            )
         return calendar_generation.generate_from_plan(
             company_id,
             payload.plan_id,
@@ -79,6 +80,8 @@ def generate(payload: Any, current_user: Any) -> Dict[str, Any]:
             dry_run=payload.dry_run,
             recalculate_payroll=payload.recalculate_payroll,
         )
+    except CalendrierReserve as e:
+        raise ScheduleAppError("calendar_busy", str(e), status_code=409) from e
     except ValueError as e:
         raise ScheduleAppError("validation", str(e), status_code=400) from e
 

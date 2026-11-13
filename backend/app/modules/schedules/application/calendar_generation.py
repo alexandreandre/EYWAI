@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
+from app.core.calendar_write_context import relancer_si_calendrier_reserve
 from app.core.logging import get_logger
 from app.modules.schedules.domain import rules as domain_rules
 from app.modules.schedules.domain.calendar_generation_rules import (
@@ -104,7 +105,26 @@ def generate(
     dry_run: bool = False,
     recalculate_payroll: bool = False,
 ) -> Dict[str, Any]:
-    """Exécute la génération et renvoie un résumé (ou un aperçu si dry_run)."""
+    """Exécute la génération et renvoie un résumé (ou un aperçu si dry_run).
+
+    Si une RH enregistre l'un des mois pendant l'écriture (PT409), la génération est
+    rejouée ENTIÈRE, relecture des calendriers comprise : le mode de conservation des
+    jours existants s'applique alors à ce que la RH vient d'enregistrer. Au-delà du
+    délai, `CalendrierReserve`.
+    """
+    if dry_run:
+        return _generate(spec, dry_run=True, recalculate_payroll=recalculate_payroll)
+    return relancer_si_calendrier_reserve(
+        lambda: _generate(spec, dry_run=False, recalculate_payroll=recalculate_payroll)
+    )
+
+
+def _generate(
+    spec: GenerationSpec,
+    *,
+    dry_run: bool,
+    recalculate_payroll: bool,
+) -> Dict[str, Any]:
     if not spec.template_cycle:
         return {
             "status": "skipped",
