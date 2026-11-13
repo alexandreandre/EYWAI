@@ -291,3 +291,60 @@ def test_le_canal_feuilles_reapplique_aussi_l_excedent_approuve():
     jour = out.employees[0].days[0]
     # théorique 8,0 + excédent approuvé 1,83 (10 h − 8 h − 10 min tolérance)
     assert jour.heures > 8.0, jour.heures
+
+
+class TestDecisionPendantUnEnregistrement:
+    """13/11 : le mois du jour est en cours d'enregistrement par une autre RH (PT409)."""
+
+    def _decider(self, refus_upsert: int):
+        from postgrest.exceptions import APIError
+
+        from app.modules.schedules.application import punch_accounting_commands as cmds
+        from app.modules.schedules.application.exceptions import ScheduleAppError
+
+        etat = {"actual": {"periode": {"annee": 2026, "mois": 7}, "calendrier_reel": [{"jour": 3, "heures_faites": 8.0, "type": "travail"}]}}
+        row = {"id": "rev-1", "employee_id": "emp-1", "work_date": "2026-07-03", "overtime_hours": 2.0, "status": "approved"}
+        fake_repo = MagicMock()
+        fake_repo.get_overtime_review_status.return_value = "pending"
+        fake_repo.update_overtime_review.return_value = row
+        fake_schedules = MagicMock()
+        fake_schedules.get_actual_hours.side_effect = lambda *a: {**etat["actual"], "calendrier_reel": [dict(e) for e in etat["actual"]["calendrier_reel"]]}
+        restants = {"n": refus_upsert}
+
+        def upsert(employee_id, company_id, year, month, actual_hours=None, **kw):
+            if restants["n"]:
+                restants["n"] -= 1
+                raise APIError({"code": "PT409", "message": "en cours", "details": None, "hint": None})
+            etat["actual"] = actual_hours
+
+        fake_schedules.upsert_schedule.side_effect = upsert
+        payload = MagicMock(status="approved", review_note=None)
+        erreur = None
+        with (
+            patch.object(cmds, "repo", fake_repo),
+            patch.object(cmds, "schedule_repository", fake_schedules, create=True),
+            patch.object(cmds, "list_punch_overtime_reviews", return_value=[]),
+            patch("app.core.calendar_write_context.time.sleep"),
+            patch("app.core.calendar_write_context.time.monotonic", side_effect=[0.0, 1.0, 2.0, 30.0, 31.0, 32.0, 33.0, 34.0]),
+        ):
+            try:
+                cmds.update_punch_overtime_review("comp-1", "rev-1", payload, reviewed_by="mgr-1")
+            except ScheduleAppError as exc:
+                if exc.status_code == 409:
+                    erreur = exc
+            except Exception:  # noqa: BLE001 — lookup final hors sujet
+                pass
+        heures = next(e for e in etat["actual"]["calendrier_reel"] if e["jour"] == 3)["heures_faites"]
+        return heures, fake_repo, erreur
+
+    def test_un_refus_passager_est_rejoue_une_seule_fois(self):
+        heures, _, erreur = self._decider(refus_upsert=1)
+        assert erreur is None
+        assert heures == 10.0  # l'excédent n'est ajouté qu'une fois
+
+    def test_mois_toujours_reserve_le_statut_revient_a_l_ancien(self):
+        heures, repo, erreur = self._decider(refus_upsert=99)
+        assert heures == 8.0
+        assert erreur is not None and erreur.status_code == 409
+        dernier = repo.update_overtime_review.call_args_list[-1]
+        assert dernier.kwargs["status"] == "pending"

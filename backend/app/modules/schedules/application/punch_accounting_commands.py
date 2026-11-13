@@ -241,7 +241,22 @@ def update_punch_overtime_review(
     )
     if not row:
         raise ScheduleAppError("not_found", "Revue HS introuvable.", status_code=404)
-    _appliquer_decision_hs(company_id, row, ancien_statut)
+    from app.core.calendar_write_context import CalendrierReserve, relancer_si_calendrier_reserve
+
+    try:
+        # Rejouée ENTIÈRE (relecture du réel comprise) si le mois est en cours
+        # d'enregistrement par une autre RH : l'excédent n'est ajouté qu'une fois.
+        relancer_si_calendrier_reserve(lambda: _appliquer_decision_hs(company_id, row, ancien_statut))
+    except CalendrierReserve as exc:
+        # Rien n'a été ajouté au réel : la décision redevient celle d'avant.
+        repo.update_overtime_review(
+            company_id,
+            review_id,
+            status=ancien_statut or "pending",
+            reviewed_by=reviewed_by,
+            review_note=payload.review_note,
+        )
+        raise ScheduleAppError("calendar_busy", str(exc), status_code=409) from exc
     reviews = list_punch_overtime_reviews(
         company_id,
         year=int(str(row["work_date"])[:4]),
