@@ -187,7 +187,7 @@ class TestSchedulesWiringApplyModel:
     """Flux POST /api/schedules/apply-model."""
 
     def test_apply_model_flow_uses_commands_and_repository(self, client: TestClient):
-        """POST /api/schedules/apply-model : get_current_user -> commands.apply_schedule_model -> employee_company_reader + repo."""
+        """POST /api/schedules/apply-model : ancienne route sans révision, refusée avant toute écriture."""
         from app.core.security import get_current_user
 
         day_config = {"type": "work", "hours": 8.0}
@@ -223,14 +223,7 @@ class TestSchedulesWiringApplyModel:
             finally:
                 app.dependency_overrides.pop(get_current_user, None)
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get("status") == "success"
-        assert data.get("details", {}).get("employee_count") == 1
-        reader.get_company_and_statut.assert_called_once_with(TEST_EMPLOYEE_ID)
-        repo.insert_schedule.assert_called_once()
-        call_args = repo.insert_schedule.call_args[0]
-        assert call_args[0] == TEST_EMPLOYEE_ID
-        assert call_args[1] == TEST_COMPANY_ID
-        assert call_args[2] == 2025
-        assert call_args[3] == 3
+        # Depuis paie-2026-11-13.1 : route refusée (428), rien n'est écrit.
+        assert response.status_code == 428
+        repo.insert_schedule.assert_not_called()
+        repo.update_planned_calendar.assert_not_called()

@@ -325,11 +325,13 @@ def apply_schedule_model(
     request: ApplyModelRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """Applique un modèle de planning à plusieurs employés pour un mois donné. Réservé aux RH."""
-    try:
-        return commands.apply_schedule_model(request, current_user)
-    except ScheduleAppError as e:
-        _handle_schedule_error(e)
+    """Ancienne application d'un modèle, sans révision du calendrier : refusée.
+
+    Depuis paie-2026-11-13.1, l'écran applique un modèle par `calendar-save`,
+    protégé contre les saisies simultanées. Seul un onglet ouvert avant cette
+    version appelle encore cette route : il est invité à recharger, rien n'est écrit.
+    """
+    raise HTTPException(428, "Rechargez la page : une révision du calendrier est requise avant l’enregistrement.")
 
 
 # ----- Plans de calendriers horaires + presets 2026 (RH) -----

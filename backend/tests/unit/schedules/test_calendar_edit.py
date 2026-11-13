@@ -198,3 +198,20 @@ def test_calendar_requires_confirmed_payslip_lock_before_any_write(gateway, monk
     with pytest.raises(ScheduleAppError) as caught:
         service.save_calendar("employee-a", "company-a", payload())
     assert caught.value.status_code == 503 and not gateway["calls"] and not gateway["commands"]
+
+
+def test_old_apply_model_route_is_refused_before_any_write(monkeypatch):
+    """Un onglet ouvert avant paie-2026-11-13.1 appelle encore POST /api/schedules/apply-model,
+    sans révision : il est invité à recharger, rien n'est écrit."""
+    app = FastAPI()
+    app.include_router(routes.router_rh)
+    app.dependency_overrides[get_current_user] = lambda: Mock(active_company_id="company-a")
+    app.dependency_overrides[routes._exiger_profil_rh] = lambda: Mock(active_company_id="company-a")
+    ecriture = Mock()
+    monkeypatch.setattr(routes.commands, "apply_schedule_model", ecriture)
+    body = {"employee_ids": ["employee-a"], "year": 2026, "month": 11, "week_configs": {}}
+    with TestClient(app) as client:
+        result = client.post("/api/schedules/apply-model", json=body)
+    assert result.status_code == 428
+    assert "Rechargez la page" in result.json()["detail"]
+    ecriture.assert_not_called()
