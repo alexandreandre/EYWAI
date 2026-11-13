@@ -56,9 +56,14 @@ def generer_et_enregistrer_evenements(
             "calendrier_analyse": evenements,
         }
 
-        supabase.table("employee_schedules").update(
-            {"payroll_events": payload, "updated_at": datetime.utcnow().isoformat()}
-        ).match({"employee_id": employee_id, "year": year, "month": month}).execute()
+        from app.modules.payroll.infrastructure.colonnes_paie_du_mois import (
+            ecrire_colonnes_paie_du_mois,
+        )
+
+        ecrire_colonnes_paie_du_mois(
+            supabase, employee_id, year, month,
+            {"payroll_events": payload, "updated_at": datetime.utcnow().isoformat()},
+        )
 
         logger.info(f'✅ [PayrollWriter] {len(evenements)} événements enregistrés pour {employee_name} ({month}/{year})')
         return payload

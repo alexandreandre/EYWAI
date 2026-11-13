@@ -1826,9 +1826,16 @@ def process_payslip_generation(
         # Les cumuls et le calendrier du mois sont ceux du contrat qui continue :
         # le bulletin d'un contrat rangé garde les siens dans son contenu [D3].
         if not contract_period_id:
-            supabase.table("employee_schedules").update(
-                {"cumuls": new_cumuls_json, "payroll_events": payroll_events_json}
-            ).match({"employee_id": employee_id, "year": year, "month": month}).execute()
+            from app.modules.payroll.infrastructure.colonnes_paie_du_mois import (
+                ecrire_colonnes_paie_du_mois,
+            )
+
+            # Attend la fin d'un enregistrement de calendrier en cours (PT409) : le
+            # bulletin est déjà en base, ses cumuls ne doivent pas se perdre.
+            ecrire_colonnes_paie_du_mois(
+                supabase, employee_id, year, month,
+                {"cumuls": new_cumuls_json, "payroll_events": payroll_events_json},
+            )
 
         try:
             from app.modules.repos_compensateur.application.service import (

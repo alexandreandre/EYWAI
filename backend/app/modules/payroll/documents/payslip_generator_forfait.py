@@ -918,9 +918,14 @@ def process_payslip_generation_forfait(
 
         # Les cumuls du mois sont ceux du contrat qui continue [D3].
         if not contract_period_id:
-            supabase.table("employee_schedules").update({"cumuls": new_cumuls_json}).match(
-                {"employee_id": employee_id, "year": year, "month": month}
-            ).execute()
+            from app.modules.payroll.infrastructure.colonnes_paie_du_mois import (
+                ecrire_colonnes_paie_du_mois,
+            )
+
+            # Attend la fin d'un enregistrement de calendrier en cours (PT409).
+            ecrire_colonnes_paie_du_mois(
+                supabase, employee_id, year, month, {"cumuls": new_cumuls_json}
+            )
 
         from app.modules.payroll.engine.controles_convention import (
             avertissements_de_generation,

@@ -7,6 +7,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
+from app.core.calendar_write_context import relancer_si_calendrier_reserve
 
 from app.modules.planning.domain.conflict_engine import run_all_checks
 from app.modules.planning.application import queries as planning_app_queries
@@ -659,59 +660,67 @@ def _transmit_to_payroll(
                 "planning_transmitted_at": transmitted_at,
             }
 
-            r = (
-                supabase.table("employee_schedules")
-                .select("id, payroll_events")
-                .eq("employee_id", employee_id)
-                .eq("year", year)
-                .eq("month", month)
-                .maybe_single()
-                .execute()
-            )
-            existing = r.data if r else None
-
-            if existing:
-                existing_events = existing.get("payroll_events") or {}
-                if not isinstance(existing_events, dict):
-                    existing_events = {}
-                merged = {**existing_events, **payload_planning}
-                try:
-                    from app.modules.planning.application.shift_payroll_aggregation import (
-                        aggregate_shift_payroll_metrics,
-                    )
-
-                    settings = planning_repository.get_company_planning_settings(
-                        company_id
-                    )
-                    if not settings or settings.get("payroll_shift_metrics_enabled", True):
-                        merged["shift_payroll_summary"] = aggregate_shift_payroll_metrics(
-                            employee_id,
-                            year,
-                            month,
-                            company_id=company_id,
-                        )
-                except Exception as agg_exc:
-                    logger.warning(
-                        "Agrégation métriques shift ignorée (%s/%s): %s",
-                        employee_id,
-                        month,
-                        agg_exc,
-                    )
-                supabase.table("employee_schedules").update(
-                    {
-                        "payroll_events": merged,
-                        "updated_at": transmitted_at,
-                    }
-                ).eq("id", existing["id"]).execute()
-            else:
-
-                logger.warning(
-                    "[Planning] Pas de ligne employee_schedules pour employee=%s "
-                    "%s-%s (transmission planning ignorée).",
-                    employee_id,
-                    year,
-                    month,
+            # Relecture, fusion et écriture rejouées ENTIÈRES si une RH enregistre ce
+            # mois (PT409) : son enregistrement recalcule aussi `payroll_events`.
+            def _transmettre_le_mois(
+                employee_id=employee_id, year=year, month=month,
+                payload_planning=payload_planning,
+            ) -> None:
+                r = (
+                    supabase.table("employee_schedules")
+                    .select("id, payroll_events")
+                    .eq("employee_id", employee_id)
+                    .eq("year", year)
+                    .eq("month", month)
+                    .maybe_single()
+                    .execute()
                 )
+                existing = r.data if r else None
+
+                if existing:
+                    existing_events = existing.get("payroll_events") or {}
+                    if not isinstance(existing_events, dict):
+                        existing_events = {}
+                    merged = {**existing_events, **payload_planning}
+                    try:
+                        from app.modules.planning.application.shift_payroll_aggregation import (
+                            aggregate_shift_payroll_metrics,
+                        )
+
+                        settings = planning_repository.get_company_planning_settings(
+                            company_id
+                        )
+                        if not settings or settings.get("payroll_shift_metrics_enabled", True):
+                            merged["shift_payroll_summary"] = aggregate_shift_payroll_metrics(
+                                employee_id,
+                                year,
+                                month,
+                                company_id=company_id,
+                            )
+                    except Exception as agg_exc:
+                        logger.warning(
+                            "Agrégation métriques shift ignorée (%s/%s): %s",
+                            employee_id,
+                            month,
+                            agg_exc,
+                        )
+                    supabase.table("employee_schedules").update(
+                        {
+                            "payroll_events": merged,
+                            "updated_at": transmitted_at,
+                        }
+                    ).eq("id", existing["id"]).execute()
+                else:
+
+                    logger.warning(
+                        "[Planning] Pas de ligne employee_schedules pour employee=%s "
+                        "%s-%s (transmission planning ignorée).",
+                        employee_id,
+                        year,
+                        month,
+                    )
+
+            relancer_si_calendrier_reserve(_transmettre_le_mois)
 
         planning_repository.set_payroll_transmitted(company_id, week_start_clean)
     except Exception as e:

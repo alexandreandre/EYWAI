@@ -90,13 +90,13 @@ class PayslipRepository:
             # payé. Effacés, un mois suivant déjà calculé passe « À recalculer »
             # (empreinte des cumuls), et le calcul suivant demande ce mois d'abord.
             try:
-                supabase.table("employee_schedules").update({"cumuls": None}).match(
-                    {
-                        "employee_id": row["employee_id"],
-                        "year": row["year"],
-                        "month": row["month"],
-                    }
-                ).execute()
+                from app.modules.payroll.infrastructure.colonnes_paie_du_mois import (
+                    ecrire_colonnes_paie_du_mois,
+                )
+
+                ecrire_colonnes_paie_du_mois(
+                    supabase, row["employee_id"], row["year"], row["month"], {"cumuls": None}
+                )
             except Exception as err:
                 import warnings
 
