@@ -5,6 +5,18 @@ Pour chaque changement : trois lignes, en mots d'utilisatrice.
 
 ## Pas encore déployé
 
+## paie-2026-11-13.3
+
+### Calendriers : saisies simultanées, suite
+- Une absence validée pendant qu'une autre personne enregistre le même mois attend la fin de cet enregistrement, puis arrive bien au planning ; sinon un message clair, et rien n'est écrit.
+- Valider des heures sup de badgeuse dans le même cas : les heures sont ajoutées une seule fois, ou la décision revient à l'état d'avant avec un message.
+- Un onglet ouvert avant la version du 13/11 ne peut plus appliquer un modèle sans contrôle : il demande de recharger la page. Le guide et l'aide du calendrier renvoient à l'onglet « Corriger » pour déclarer les heures sup.
+
+## paie-2026-11-13.2
+
+### JTC
+- Marquer les salariés concernés par les JTC ne fait plus passer leurs bulletins « à recalculer ».
+
 ## paie-2026-11-13.1
 
 ### Onglet « Corriger » de retour
