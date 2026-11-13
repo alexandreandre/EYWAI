@@ -735,3 +735,57 @@ class TestCancelValidatedAbsence:
                     "req-cp", "validated", current_user_id="user-1"
                 )
         repo.update.assert_not_called()
+
+
+class TestCalendrierReserveParUneAutreRH:
+    """13/11 : un mois en cours d'enregistrement par une autre RH (trigger PT409)."""
+
+    REQ = {
+        "id": "req-cp",
+        "employee_id": "emp-1",
+        "type": "conge_paye",
+        "status": "pending",
+        "selected_days": ["2026-11-30", "2026-12-01"],
+    }
+
+    def _valider(self, *, attente=None, projection=None):
+        with patch("app.modules.absences.application.commands.absence_repository") as repo, patch(
+            "app.modules.absences.application.commands.get_cp_solde_restant", return_value=25.0
+        ), patch("app.modules.absences.application.commands.calendar_update_provider") as cal, patch(
+            "app.modules.absences.application.commands.get_maintenance_settings",
+            return_value=MaintenanceSettings(company_id="company-1"),
+        ), patch(
+            "app.modules.absences.application.commands.attendre_calendriers_libres", side_effect=attente
+        ) as attendre, patch("app.core.calendar_write_context.time.sleep"):
+            repo.get_by_id.return_value = self.REQ
+            repo.update.return_value = {**self.REQ, "status": "validated"}
+            if projection is not None:
+                cal.update_calendar_from_days.side_effect = projection
+            try:
+                commands.update_absence_request_status("req-cp", "validated", current_user_id="u")
+                erreur = None
+            except Exception as exc:  # noqa: BLE001
+                erreur = exc
+        return repo, cal, attendre, erreur
+
+    def test_les_deux_mois_sont_attendus_avant_d_ecrire_le_statut(self):
+        repo, cal, attendre, erreur = self._valider()
+        assert erreur is None
+        assert attendre.call_args[0] == ("emp-1", {(2026, 11), (2026, 12)})
+        cal.update_calendar_from_days.assert_called_once()
+
+    def test_mois_toujours_reserve_rien_n_est_ecrit(self):
+        from app.core.calendar_write_context import CalendrierReserve
+
+        repo, cal, _, erreur = self._valider(attente=CalendrierReserve("occupé"))
+        assert isinstance(erreur, ValueError) and "occupé" in str(erreur)
+        repo.update.assert_not_called()
+        cal.update_calendar_from_days.assert_not_called()
+
+    def test_projection_refusee_une_fois_est_rejouee_entiere(self):
+        from postgrest.exceptions import APIError
+
+        refus = APIError({"code": "PT409", "message": "en cours", "details": None, "hint": None})
+        repo, cal, _, erreur = self._valider(projection=[refus, None])
+        assert erreur is None
+        assert cal.update_calendar_from_days.call_count == 2

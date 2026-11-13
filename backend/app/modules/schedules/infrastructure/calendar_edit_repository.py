@@ -121,3 +121,48 @@ def calendar_edit(employee_id: str, company_id: str, year: int, month: int, expe
                 _rpc("end_calendar_edit", params)
             except Exception:
                 logger.warning("Réservation du calendrier non libérée ; expiration automatique", exc_info=True)
+
+
+def attendre_calendriers_libres(
+    employee_id: str,
+    mois: set[tuple[int, int]],
+    *,
+    delai_max: float = 20.0,
+    dormir=None,
+    maintenant=None,
+) -> None:
+    """Attend qu'aucun des mois ne soit réservé par un enregistrement en cours.
+
+    Appelé AVANT qu'un auteur extérieur (validation d'absence) écrive son
+    statut : sinon la projection pourrait être refusée après coup et laisser
+    une absence validée hors du planning. Au-delà du délai : `CalendrierReserve`,
+    rien n'est écrit. Si la table de réservation est illisible, on n'attend pas :
+    la relance de la projection reste le filet.
+    """
+    import time
+    from datetime import UTC, datetime
+
+    from app.core.calendar_write_context import MESSAGE_CALENDRIER_RESERVE, CalendrierReserve
+
+    if not mois:
+        return
+    dormir = dormir or time.sleep
+    maintenant = maintenant or time.monotonic
+    debut = maintenant()
+    while True:
+        try:
+            rows = (
+                get_supabase_admin_client().table("calendar_edit_locks")
+                .select("year, month")
+                .eq("employee_id", str(employee_id))
+                .gt("locked_until", datetime.now(UTC).isoformat())
+                .execute().data or []
+            )
+        except Exception:
+            logger.warning("Réservations du calendrier illisibles : validation sans attente")
+            return
+        if not any((int(r["year"]), int(r["month"])) in mois for r in rows):
+            return
+        if maintenant() - debut >= delai_max:
+            raise CalendrierReserve(MESSAGE_CALENDRIER_RESERVE)
+        dormir(0.5)

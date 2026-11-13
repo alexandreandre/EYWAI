@@ -24,6 +24,8 @@ from app.modules.absences.domain.nature_arret import incoherence_nature_type_d_a
 from app.modules.absences.domain.rules import (
     quotite_demi_journees,
 )
+from app.core.calendar_write_context import relancer_si_calendrier_reserve
+from app.modules.schedules.infrastructure.calendar_edit_repository import attendre_calendriers_libres
 from app.modules.absences.infrastructure.providers import (
     calendar_update_provider,
     evenement_familial_provider,
@@ -387,8 +389,11 @@ def update_absence_request_status(
             if str(d)[:10] not in couverts
         ]
         if a_restaurer:
-            calendar_update_provider.restore_calendar_from_days(
-                employee_id, a_restaurer, str(req_before.get("type") or "")
+            attendre_calendriers_libres(employee_id, {(d.year, d.month) for d in a_restaurer})
+            relancer_si_calendrier_reserve(
+                lambda: calendar_update_provider.restore_calendar_from_days(
+                    employee_id, a_restaurer, str(req_before.get("type") or "")
+                )
             )
         if req_before.get("type") == "recuperation_modulation":
             # Les heures reviennent au compteur (spec 2026-11-05 § 3.5). Après le
@@ -399,6 +404,18 @@ def update_absence_request_status(
             )
 
             annuler_debits_de_recuperation(request_id)
+
+    if status == "validated" and not req_before.get("heures_par_jour"):
+        # Un mois en cours d'enregistrement par une autre RH refuserait la
+        # projection APRÈS l'écriture du statut : absence validée hors du
+        # planning. On attend la fin de cet enregistrement, sinon rien n'est écrit.
+        attendre_calendriers_libres(
+            str(req_before["employee_id"]),
+            {
+                (int(str(d)[:4]), int(str(d)[5:7]))
+                for d in req_before.get("selected_days") or []
+            },
+        )
 
     data = absence_repository.update(request_id, update_dict)
     if not data:
@@ -450,15 +467,17 @@ def update_absence_request_status(
             # débité — aucune projection.
             pass
         else:
-            calendar_update_provider.update_calendar_from_days(
-                data["employee_id"],
-                days_to_update,
-                absence_type,
-                arret_type=str(arret_type) if arret_type else None,
-                subrogation_active=sub_active if isinstance(sub_active, bool) else None,
-                nombre_enfants=nombre_enfants,
-                historique_arrets_annee=historique or None,
-                demi_journees=data.get("demi_journees") or None,
+            relancer_si_calendrier_reserve(
+                lambda: calendar_update_provider.update_calendar_from_days(
+                    data["employee_id"],
+                    days_to_update,
+                    absence_type,
+                    arret_type=str(arret_type) if arret_type else None,
+                    subrogation_active=sub_active if isinstance(sub_active, bool) else None,
+                    nombre_enfants=nombre_enfants,
+                    historique_arrets_annee=historique or None,
+                    demi_journees=data.get("demi_journees") or None,
+                )
             )
 
     return data

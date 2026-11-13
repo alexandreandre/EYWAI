@@ -53,3 +53,79 @@ def test_token_does_not_bypass_read_only_guard():
         calendar_write_token("owner"), lecture_seule(), pytest.raises(EcritureEnLectureSeule),
     ):
         client.post("https://example.test/rest/v1/employee_schedules", json={})
+
+
+# --- Relance d'un auteur extérieur quand le calendrier est réservé (13/11) ---
+
+from postgrest.exceptions import APIError  # noqa: E402
+
+from app.core.calendar_write_context import (  # noqa: E402
+    CalendrierReserve,
+    relancer_si_calendrier_reserve,
+)
+
+
+def _reserve() -> APIError:
+    return APIError({"code": "PT409", "message": "Un enregistrement de ce calendrier est en cours.", "details": None, "hint": None})
+
+
+class _Horloge:
+    def __init__(self):
+        self.t = 0.0
+        self.attentes = []
+
+    def maintenant(self):
+        return self.t
+
+    def dormir(self, s):
+        self.attentes.append(s)
+        self.t += s
+
+
+def test_une_operation_refusee_pendant_une_reservation_est_rejouee_entiere():
+    horloge, appels = _Horloge(), []
+
+    def projection():
+        appels.append("relit puis écrit")
+        if len(appels) < 3:
+            raise _reserve()
+        return "projeté"
+
+    assert relancer_si_calendrier_reserve(projection, dormir=horloge.dormir, maintenant=horloge.maintenant) == "projeté"
+    assert appels == ["relit puis écrit"] * 3
+
+
+def test_au_dela_du_delai_le_refus_est_explicite():
+    horloge = _Horloge()
+
+    def projection():
+        raise _reserve()
+
+    with pytest.raises(CalendrierReserve, match="en cours d’enregistrement"):
+        relancer_si_calendrier_reserve(projection, delai_max=5, dormir=horloge.dormir, maintenant=horloge.maintenant)
+    assert horloge.t >= 5
+
+
+def test_une_autre_erreur_n_est_jamais_rejouee():
+    horloge, appels = _Horloge(), []
+
+    def projection():
+        appels.append(1)
+        raise APIError({"code": "23505", "message": "doublon", "details": None, "hint": None})
+
+    with pytest.raises(APIError):
+        relancer_si_calendrier_reserve(projection, dormir=horloge.dormir, maintenant=horloge.maintenant)
+    assert appels == [1] and not horloge.attentes
+
+
+def test_l_enregistrement_qui_tient_la_reservation_n_attend_pas():
+    """Avec un jeton, PT409 veut dire « réservation expirée » : attendre ne changerait rien."""
+    horloge, appels = _Horloge(), []
+
+    def projection():
+        appels.append(1)
+        raise _reserve()
+
+    with calendar_write_token("jeton"), pytest.raises(APIError):
+        relancer_si_calendrier_reserve(projection, dormir=horloge.dormir, maintenant=horloge.maintenant)
+    assert appels == [1] and not horloge.attentes
