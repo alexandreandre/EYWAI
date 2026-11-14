@@ -921,7 +921,20 @@ def _suspendre_le_maintien(maintien: Dict[str, Any]) -> Dict[str, Any]:
         "paliers": [],
         "motif_non_maintien": MOTIF_MAINTIEN_EN_ATTENTE_DES_IJ,
         "en_attente_des_ij": True,
+        # Ce que Martine aurait versé avec les IJ estimées : le montant à rappeler.
+        "maintien_en_attente": round(float(maintien.get("maintien_verse") or 0.0), 2),
     }
+
+
+def alerte_maintien_en_attente(maintien: Dict[str, Any], du: Optional[date], au: Optional[date]) -> str:
+    montant = float(maintien.get("maintien_en_attente") or 0.0)
+    if montant <= 0 or du is None or au is None:
+        return ALERTE_MAINTIEN_EN_ATTENTE_DES_IJ
+    return (
+        f"{ALERTE_MAINTIEN_EN_ATTENTE_DES_IJ} Maintien en attente du {du:%d/%m/%Y} au "
+        f"{au:%d/%m/%Y} : {montant:.2f} € avec les IJ estimées, plus la prime "
+        "d'ancienneté de ces jours."
+    )
 
 
 def _motif_parentalite(qualification: Dict[str, Any]) -> str:
@@ -3035,7 +3048,11 @@ def calculer_maintien(
             "est négatif, aucune ligne de maintien n'est imprimée. Vérifiez la saisie."
         )
     if maintien.get("en_attente_des_ij"):
-        alertes.append(ALERTE_MAINTIEN_EN_ATTENTE_DES_IJ)
+        du_att, au_att = _intersection_dates(
+            date_debut_arret, date_fin_arret or date_debut_arret,
+            date_debut_periode, date_fin_periode,
+        )
+        alertes.append(alerte_maintien_en_attente(maintien, du_att, au_att))
     if maintien.get("alerte_parentalite"):
         alertes.append(maintien["alerte_parentalite"])
     if maintien.get("garantie_nette_non_calculee"):

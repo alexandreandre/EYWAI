@@ -75,7 +75,11 @@ def test_ij_non_saisies_maintien_en_attente_et_alerte():
     assert r["maintien"]["maintien_verse"] == 0
     assert r["maintien"]["maintien_applicable"] is False
     assert r["maintien"]["en_attente_des_ij"] is True
-    assert ALERTE_MAINTIEN_EN_ATTENTE_DES_IJ in r["alertes"]
+    avant = calculer_maintien(_arret(), _ctx(), _settings(), *SEPTEMBRE)
+    assert r["maintien"]["maintien_en_attente"] == avant["maintien"]["maintien_verse"] > 0
+    alerte = next(a for a in r["alertes"] if a.startswith(ALERTE_MAINTIEN_EN_ATTENTE_DES_IJ))
+    assert "du 01/09/2026 au 30/09/2026" in alerte
+    assert f"{avant['maintien']['maintien_verse']:.2f} €" in alerte
 
 
 def test_ij_saisies_le_maintien_revient():
@@ -109,4 +113,4 @@ def test_conge_de_paternite_plasturgie_attend_aussi_les_ij():
         *SEPTEMBRE,
     )
     assert r["maintien"]["maintien_verse"] == 0
-    assert ALERTE_MAINTIEN_EN_ATTENTE_DES_IJ in r["alertes"]
+    assert any(a.startswith(ALERTE_MAINTIEN_EN_ATTENTE_DES_IJ) for a in r["alertes"])
