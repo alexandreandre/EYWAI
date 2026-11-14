@@ -12,6 +12,7 @@ from app.core.logging import get_logger
 logger = get_logger("modules.repos_compensateur.application.service")
 
 from app.modules.repos_compensateur.application.dto import CalculerCreditsResult
+from app.modules.repos_compensateur.domain.contingent_rules import cumuls_nets_des_pauses
 from app.modules.repos_compensateur.domain.entities import ReposCredit
 from app.modules.repos_compensateur.domain.rules import (
     calculer_heures_cor_mois,
@@ -28,6 +29,27 @@ from app.modules.repos_compensateur.infrastructure import (
     upsert_credit,
     upsert_credits,
 )
+
+
+def _date(valeur: object):
+    from datetime import date
+
+    if isinstance(valeur, date):
+        return valeur
+    try:
+        return date.fromisoformat(str(valeur)[:10]) if valeur else None
+    except ValueError:
+        return None
+
+
+def _date_d_embauche(employee_id: str):
+    from app.core.database import supabase
+
+    rows = (
+        supabase.table("employees").select("hire_date").eq("id", employee_id).limit(1).execute().data
+        or []
+    )
+    return _date(rows[0].get("hire_date")) if rows else None
 
 
 def calculer_credits_repos(
@@ -70,8 +92,13 @@ def calculer_credits_repos(
         emp_id = emp["id"]
         company_id_emp = emp["company_id"]
         bulletins_mois = bulletins_par_employe.get(emp_id, {})
-        cumuls = cumuler_heures_hs_annee(
-            bulletins_mois, evenements_par_employe.get(str(emp_id), {}), year
+        cumuls = cumuls_nets_des_pauses(
+            cumuler_heures_hs_annee(
+                bulletins_mois, evenements_par_employe.get(str(emp_id), {}), year
+            ),
+            settings,
+            _date(emp.get("hire_date")),
+            year,
         )
         cumul_mois = cumuls.get(month, 0.0)
         cumul_precedent = cumuls.get(month - 1, 0.0) if month > 1 else 0.0
@@ -127,7 +154,12 @@ def recalculer_credits_repos_employe(
         evenements = get_payroll_events_par_mois_par_employe(
             company_id, year, [employee_id]
         ).get(str(employee_id), {})
-        cumuls = cumuler_heures_hs_annee(bulletins_mois, evenements, year)
+        cumuls = cumuls_nets_des_pauses(
+            cumuler_heures_hs_annee(bulletins_mois, evenements, year),
+            settings,
+            _date_d_embauche(employee_id) if settings.pause_deduction_enabled else None,
+            year,
+        )
 
         credits: list[ReposCredit] = []
         for month in range(1, 13):

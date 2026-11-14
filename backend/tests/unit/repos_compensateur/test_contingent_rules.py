@@ -149,3 +149,27 @@ class TestManagementContingentProrata:
         assert compute_effective_management_contingent(
             settings, date(2019, 10, 1), 2025
         ) == 360.0
+
+
+def test_cumuls_nets_des_pauses_retire_la_pause_au_prorata():
+    """Retour d'Elsa du 13/11 (Mont Blanc) : 0,0222 h par jour ouvré, 260 jours, 5,77 h par an."""
+    from datetime import date
+
+    from app.modules.repos_compensateur.domain.contingent_rules import (
+        ContingentSettings,
+        cumuls_nets_des_pauses,
+    )
+
+    reglage = ContingentSettings(
+        legal_cor_contingent_hours=360.0,
+        management_contingent_hours=360.0,
+        pause_deduction_enabled=True,
+        pause_hs_deduction_per_workday=0.0222,
+        workdays_per_year_for_pause=260,
+    )
+    cumuls = {m: 30.0 * m for m in range(1, 13)}
+    nets = cumuls_nets_des_pauses(cumuls, reglage, date(2015, 1, 1), 2025)
+    assert nets[12] == round(360.0 - 260 * 0.0222, 2)  # 354,23 h : 5,77 h retirées
+    assert nets[1] == round(30.0 - round(260 * 31 / 365, 2) * 0.0222, 2)
+    eteint = ContingentSettings(legal_cor_contingent_hours=360.0, management_contingent_hours=360.0)
+    assert cumuls_nets_des_pauses(cumuls, eteint, None, 2025) is cumuls

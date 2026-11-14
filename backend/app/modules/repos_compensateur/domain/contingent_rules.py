@@ -7,7 +7,7 @@ Logique pure : HS structurelles, HS payées (conjoncturelles), pauses, RCR, plaf
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from app.modules.repos_compensateur.domain.rules import (
@@ -208,6 +208,29 @@ def compute_pause_deduction(
         settings.workdays_per_year_for_pause,
     )
     return round(workdays * settings.pause_hs_deduction_per_workday, 2)
+
+
+def cumuls_nets_des_pauses(
+    cumuls: dict[int, float],
+    settings: ContingentSettings,
+    hire_date: date | None,
+    year: int,
+) -> dict[int, float]:
+    """Cumul des heures sup de chaque mois, pause payée retirée (réglage de la société).
+
+    Retour d'Elsa du 13/11 : « pour calcul des RC on enlève les pauses ». La pause
+    payée comprise dans les heures sup n'est pas du travail effectif : elle sort du
+    décompte du contingent, au même prorata de jours ouvrés que l'écran du
+    contingent (`compute_pause_deduction`, à la fin de chaque mois).
+    """
+    if not settings.pause_deduction_enabled:
+        return cumuls
+    nets: dict[int, float] = {}
+    for mois, cumul in cumuls.items():
+        fin = date(year, 12, 31) if mois == 12 else date(year, mois + 1, 1) - timedelta(days=1)
+        pause = compute_pause_deduction(settings, hire_date, year, fin)
+        nets[mois] = round(max(0.0, float(cumul) - pause), 2)
+    return nets
 
 
 def compute_rcr_hours(
