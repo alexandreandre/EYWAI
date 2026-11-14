@@ -1124,6 +1124,7 @@ def run_payslip_generation_heures(
         arret_data=arret_prefetch,
         date_debut_periode=date_debut_periode,
         date_fin_periode=date_fin_periode,
+        saisie_du_mois=saisie_du_mois,
     )
 
     hs_conj_decl = saisie_du_mois.get("heures_supplementaires_conjoncturelles")

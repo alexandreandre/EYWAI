@@ -547,10 +547,20 @@ def prefetch_jours_maintien_prime(
     arret_data: dict[str, Any] | None,
     date_debut_periode: date,
     date_fin_periode: date,
+    saisie_du_mois: dict[str, Any] | None = None,
 ) -> set[int]:
-    """Pré-calcule les jours du mois avec maintien (prorata prime d'ancienneté)."""
+    """Pré-calcule les jours du mois avec maintien (prorata prime d'ancienneté).
+
+    Le montant d'IJ saisi pour le mois compte déjà : sans lui, une société en
+    « maintien après réception des IJ » ne maintient aucun jour.
+    """
     if not company_id or not arret_data:
         return set()
+    saisie = saisie_du_mois or {}
+    if saisie.get("ijss_brut_override") is not None and "ijss_brut_override" not in arret_data:
+        arret_data = {**arret_data, "ijss_brut_override": saisie.get("ijss_brut_override")}
+    if saisie.get("maintien_base_ouvree"):
+        arret_data = {**arret_data, "ijss_releve_du_bulletin": True}
     try:
         from app.modules.maintenance_settings.application.queries import (
             get_maintenance_settings,

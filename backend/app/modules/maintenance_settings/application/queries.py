@@ -33,6 +33,7 @@ def _defaults(company_id: str) -> MaintenanceSettings:
         maintain_working_days=False,
         maintain_parental_leave=False,
         deduire_ijss_sans_subrogation=True,
+        maintien_apres_ij_recues=False,
         bareme_convention=None,
         created_at=None,
         updated_at=None,

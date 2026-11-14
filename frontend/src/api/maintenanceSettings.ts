@@ -33,6 +33,8 @@ export interface MaintenanceSettings {
   /** Arrêt sans subrogation : true, Martine ne verse que le complément (IJSS des
    * jours maintenus déduites) ; false, le salaire garanti en entier. */
   deduire_ijss_sans_subrogation: boolean;
+  /** Sans subrogation : maintien versé seulement quand les IJ du mois sont saisies. */
+  maintien_apres_ij_recues: boolean;
   /** Barème de la convention : null, les réglages manuels ; sinon les paliers du
    * barème, et les champs qu'il remplace disparaissent de l'écran. */
   bareme_convention: BaremeConvention | null;

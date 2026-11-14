@@ -35,6 +35,7 @@ class MaintenanceSettingsUpdate(BaseModel):
     maintain_working_days: Optional[bool] = None
     maintain_parental_leave: Optional[bool] = None
     deduire_ijss_sans_subrogation: Optional[bool] = None
+    maintien_apres_ij_recues: Optional[bool] = None
     bareme_convention: Optional[BaremeConventionLiteral] = None
 
     @field_validator("provident_maintenance_rate")

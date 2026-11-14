@@ -48,6 +48,9 @@ class MaintenanceSettings(BaseModel):
     #: ne verse que le complément, IJSS des jours maintenus déduites (règle
     #: légale, D1226-5). False : le salaire garanti en entier.
     deduire_ijss_sans_subrogation: bool = True
+    #: Sans subrogation : maintien versé seulement quand les IJ du mois sont
+    #: saisies, c'est-à-dire déclarées par le salarié (plasturgie, 13/11).
+    maintien_apres_ij_recues: bool = False
     #: Barème de la convention (24/10/2026) : None, les réglages manuels ;
     #: "plasturgie_0292", les paliers de la plasturgie (non-cadres et cadres).
     bareme_convention: Optional[BaremeConvention] = None

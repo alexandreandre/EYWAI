@@ -515,6 +515,7 @@ def run_payslip_generation_forfait(
         arret_data=arret_prefetch,
         date_debut_periode=date_debut_periode,
         date_fin_periode=date_fin_periode,
+        saisie_du_mois=saisie_du_mois,
     )
 
     resultat_brut = calculer_salaire_brut_forfait(

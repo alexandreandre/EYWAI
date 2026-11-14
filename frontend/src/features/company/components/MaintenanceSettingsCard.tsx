@@ -128,6 +128,7 @@ function toUpdatePayload(form: MaintenanceSettings): MaintenanceSettingsUpdate {
     maintain_working_days: form.maintain_working_days,
     maintain_parental_leave: form.maintain_parental_leave,
     deduire_ijss_sans_subrogation: form.deduire_ijss_sans_subrogation,
+    maintien_apres_ij_recues: form.maintien_apres_ij_recues,
     bareme_convention: form.bareme_convention ?? null,
   };
 }
@@ -593,6 +594,28 @@ export default function MaintenanceSettingsCard() {
                   </Button>
                 </div>
               ) : null}
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+              <div>
+                <Label htmlFor="maintien_apres_ij_recues">
+                  Maintien seulement quand le salarié a transmis ses IJ
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Arrêt sans subrogation : tant que le montant des indemnités journalières du
+                  mois n’est pas saisi dans le suivi IJSS, le bulletin ne porte ni maintien ni
+                  prime d’ancienneté de ces jours, et le dit en alerte. La saisie du montant
+                  recalcule le bulletin. Plasturgie : la convention ne maintient le salaire que
+                  sur les IJ déclarées par le salarié.
+                </p>
+              </div>
+              <Switch
+                id="maintien_apres_ij_recues"
+                checked={form.maintien_apres_ij_recues}
+                onCheckedChange={(v) =>
+                  setForm((p) => (p ? { ...p, maintien_apres_ij_recues: v } : p))
+                }
+                disabled={readOnly}
+              />
             </div>
             <div className="grid gap-2 max-w-xs">
               <Label htmlFor="provident_relay_days">Relais prévoyance (jours, optionnel)</Label>

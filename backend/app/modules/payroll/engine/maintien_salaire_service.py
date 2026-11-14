@@ -866,6 +866,64 @@ def _parentalite_sans_maintien(
     return not settings.get("maintain_parental_leave")
 
 
+MOTIF_MAINTIEN_EN_ATTENTE_DES_IJ = (
+    "Maintien en attente des indemnités journalières : sans subrogation, la société "
+    "ne maintient le salaire qu'une fois les IJ déclarées par le salarié."
+)
+ALERTE_MAINTIEN_EN_ATTENTE_DES_IJ = (
+    "Maintien de salaire en attente : le salarié n'a pas encore transmis ses "
+    "indemnités journalières. Quand il les transmet, saisissez le montant reçu dans "
+    "le suivi IJSS : le bulletin est recalculé avec le maintien et la prime "
+    "d'ancienneté de ces jours. Bulletin déjà remis : versez le maintien le mois "
+    "suivant avec la prime « Rappel de maintien de salaire »."
+)
+
+
+def _ij_recues(arret: Dict[str, Any]) -> bool:
+    """Le montant des IJ du mois est connu : saisi au suivi IJSS ou au bulletin."""
+    return arret.get("ijss_brut_override") is not None or bool(arret.get("ijss_releve_du_bulletin"))
+
+
+def _poser_ij_recues(arret: Dict[str, Any], settings: Dict[str, Any]) -> Dict[str, Any]:
+    """Réglage « maintien après réception des IJ » : la réception se juge une fois,
+    sur l'arrêt du mois (les sous-calculs par segment retirent le montant saisi)."""
+    if not settings.get("maintien_apres_ij_recues") or "_ij_recues" in settings:
+        return settings
+    return {**settings, "_ij_recues": _ij_recues(arret)}
+
+
+def _maintien_en_attente_des_ij(arret: Dict[str, Any], settings: Dict[str, Any]) -> bool:
+    """Plasturgie (retour d'Elsa du 13/11) : sans subrogation, le maintien n'est dû
+    que sur les IJ « déclarées à l'entreprise par l'intéressé »."""
+    if not settings.get("maintien_apres_ij_recues") or arret.get("subrogation_active"):
+        return False
+    if str(arret.get("arret_type") or "") == CONGE_SUPPLEMENTAIRE_NAISSANCE:
+        return False
+    recues = settings.get("_ij_recues")
+    return not (_ij_recues(arret) if recues is None else recues)
+
+
+def _suspendre_le_maintien(maintien: Dict[str, Any]) -> Dict[str, Any]:
+    if float(maintien.get("maintien_cible") or 0.0) <= 0.0:
+        return maintien
+    garde = {
+        k: v
+        for k, v in maintien.items()
+        if k not in (CLE_IJSS_DEDUITES, CLE_SOURCE, "garantie_nette", "plafond_net")
+    }
+    return {
+        **garde,
+        "maintien_applicable": False,
+        "maintien_cible": 0.0,
+        "maintien_verse": 0.0,
+        "nb_jours_maintien": 0,
+        "complement_employeur": 0.0,
+        "paliers": [],
+        "motif_non_maintien": MOTIF_MAINTIEN_EN_ATTENTE_DES_IJ,
+        "en_attente_des_ij": True,
+    }
+
+
 def _motif_parentalite(qualification: Dict[str, Any]) -> str:
     decision = qualification.get("parentalite") or {}
     return decision.get("motif") or MOTIF_PARENTALITE_SANS_MAINTIEN
@@ -2576,6 +2634,10 @@ def compute_jours_avec_maintien_mois(
     Jours du mois (numéro 1–31) où l'arrêt maladie/AT bénéficie d'un maintien employeur.
     Utilisé pour le prorata de la prime d'ancienneté.
     """
+    settings = _poser_ij_recues(arret, settings)
+    arret_subroge = bool(arret.get("subrogation_active")) and settings.get("subrogation_mode") != "never"
+    if _maintien_en_attente_des_ij({**arret, "subrogation_active": arret_subroge}, settings):
+        return set()
     segments = arret.get("arrets_du_mois") or []
     if len(segments) > 1:
         jours: set[int] = set()
@@ -2719,6 +2781,7 @@ def calculer_maintien(
     # Réglages société qui s'imposent à chaque arrêt, quelle que soit sa
     # saisie : subrogation « jamais » (IJSS versées au salarié, hors bulletin)
     # et maintien en jours ouvrés (7 h + quote-part d'heures sup structurelles).
+    settings = _poser_ij_recues(arret, settings)
     segments = arret.get("arrets_du_mois") or []
     if len(segments) > 1:
         return _calculer_maintien_des_arrets_du_mois(
@@ -2876,6 +2939,8 @@ def calculer_maintien(
     ):
         arret = {**arret, "subrogation_active": False}
         maintien = _maintien_de(arret)
+    if _maintien_en_attente_des_ij(arret, settings):
+        maintien = _suspendre_le_maintien(maintien)
 
     nb_jours_arret_total = jours_deja + _compter_jours_calendaires(
         date_debut_arret, date_fin_arret or date_debut_arret
@@ -2969,6 +3034,8 @@ def calculer_maintien(
             "Montant d'IJSS saisi supérieur au maintien garanti : le maintien calculé "
             "est négatif, aucune ligne de maintien n'est imprimée. Vérifiez la saisie."
         )
+    if maintien.get("en_attente_des_ij"):
+        alertes.append(ALERTE_MAINTIEN_EN_ATTENTE_DES_IJ)
     if maintien.get("alerte_parentalite"):
         alertes.append(maintien["alerte_parentalite"])
     if maintien.get("garantie_nette_non_calculee"):
