@@ -28,7 +28,7 @@ export interface MaintenanceSettings {
   /** Maintien en jours ouvrés : 7 h + heures sup structurelles, IJSS hors bulletin. */
   maintain_working_days: boolean;
   /** Maintien à 100 % pendant les congés de maternité, de paternité et
-   * d'adoption (convention) ; éteint par défaut. */
+   * d'adoption au-delà de la convention (appliquée d'office) ; éteint par défaut. */
   maintain_parental_leave: boolean;
   /** Arrêt sans subrogation : true, Martine ne verse que le complément (IJSS des
    * jours maintenus déduites) ; false, le salaire garanti en entier. */

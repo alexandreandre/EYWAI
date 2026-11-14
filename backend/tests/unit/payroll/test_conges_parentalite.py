@@ -78,9 +78,11 @@ def test_sans_reglage_le_conge_n_a_pas_de_maintien_et_les_ij_vont_au_salarie(arr
     r = _conge(arret_type, _settings())
     assert r["maintien"]["maintien_verse"] == 0
     assert r["maintien"]["maintien_applicable"] is False
+    libelle = {"maternite": "maternité", "paternite": "paternité", "adoption": "adoption"}
     assert r["maintien"]["motif_non_maintien"] == (
-        "Pas de maintien de salaire pendant les congés de maternité, de paternité "
-        "et d'adoption : réglage de la société."
+        f"Pas de maintien pendant le congé de {libelle[arret_type]} : ni la convention ni "
+        "le réglage de la société ne le prévoient. La caisse verse les indemnités "
+        "journalières au salarié."
     )
     assert r["subrogation_active"] is False
     assert "Ancienneté insuffisante pour le maintien légal" not in r["alertes"]
@@ -144,3 +146,73 @@ def test_l_adoption_prend_le_plafond_maternite_et_non_celui_de_la_maladie():
     plafonds = {"maladie": 42.97, "maternite_paternite": 104.02}
     assert plafond_ij_pour("adoption", 1, plafonds) == 104.02
     assert plafond_ij_pour("maternite", 1, plafonds) == 104.02
+
+
+# --- Maintien imposé par la convention (retour d'Elsa du 13/11, textes relus) ---
+
+
+def _ctx_ccn(idcc: str, date_entree: str = "2021-08-01") -> SimpleNamespace:
+    ctx = _ctx()
+    ctx.contrat = {
+        "contrat": {"date_entree": date_entree, "statut": "Non-Cadre"},
+        "remuneration": {"convention_collective": {"idcc": idcc}},
+    }
+    return ctx
+
+
+def test_plasturgie_maternite_sans_condition_d_anciennete():
+    # Embauchée le 01/06/2026 : trois mois d'ancienneté, maintenue quand même.
+    r = _conge("maternite", _settings(), ctx=_ctx_ccn("0292", "2026-06-01"))
+    assert r["maintien"]["maintien_applicable"] is True
+    assert r["maintien"]["taux_maintien"] == 1.0
+    assert r["maintien"]["nb_jours_maintien"] == 24
+    assert "plasturgie" in r["maintien"]["source_parentalite"]
+
+
+def test_plasturgie_maternite_bornee_a_16_semaines():
+    # Congé commencé le 01/06 : 16 semaines finissent le 20/09 inclus.
+    r = _conge("maternite", _settings(), debut="2026-06-01", ctx=_ctx_ccn("0292"))
+    assert r["maintien"]["nb_jours_maintien"] == 20  # du 01/09 au 20/09
+
+
+def test_plasturgie_paternite_maintenue():
+    r = _conge("paternite", _settings(), ctx=_ctx_ccn("292", "2026-06-01"))
+    assert r["maintien"]["maintien_applicable"] is True
+    assert r["maintien"]["maintien_verse"] > 0
+
+
+def test_plasturgie_adoption_non_imposee():
+    r = _conge("adoption", _settings(), ctx=_ctx_ccn("0292"))
+    assert r["maintien"]["maintien_applicable"] is False
+
+
+def test_metallurgie_maternite_un_an_d_anciennete():
+    jeune = _conge("maternite", _settings(), ctx=_ctx_ccn("3248", "2026-01-01"))
+    assert jeune["maintien"]["maintien_applicable"] is False
+    assert "12 mois d'ancienneté" in jeune["maintien"]["motif_non_maintien"]
+    ancienne = _conge("maternite", _settings(), ctx=_ctx_ccn("3248", "2021-08-01"))
+    assert ancienne["maintien"]["maintien_applicable"] is True
+
+
+def test_metallurgie_adoption_comme_la_maternite_et_pas_de_paternite():
+    assert _conge("adoption", _settings(), ctx=_ctx_ccn("3248"))["maintien"]["maintien_applicable"]
+    paternite = _conge("paternite", _settings(), ctx=_ctx_ccn("3248"))
+    assert paternite["maintien"]["maintien_applicable"] is False
+
+
+def test_syntec_paternite_maintenue_avec_alerte_du_plafond():
+    r = _conge("paternite", _settings(), ctx=_ctx_ccn("1486"))
+    assert r["maintien"]["maintien_applicable"] is True
+    assert any("plafond de la Sécurité sociale" in a for a in r["alertes"])
+
+
+def test_reglage_de_la_societe_etend_la_convention():
+    # Métallurgie : pas de paternité imposée, mais la société peut la maintenir.
+    r = _conge("paternite", _settings(maintain_parental_leave=True), ctx=_ctx_ccn("3248"))
+    assert r["maintien"]["maintien_applicable"] is True
+
+
+def test_jours_maintenus_pour_la_prime_d_anciennete_en_plasturgie():
+    arret = {"arret_type": "maternite", "date_debut": "2026-06-01", "date_fin": "2026-09-30"}
+    jours = compute_jours_avec_maintien_mois(arret, _ctx_ccn("0292"), _settings(), *SEPTEMBRE)
+    assert jours == set(range(1, 21))

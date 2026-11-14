@@ -88,7 +88,7 @@ describe("Réglage du maintien pendant les congés de parentalité", () => {
   it("la carte du maintien porte l'interrupteur, éteint par défaut côté serveur", () => {
     const t = lire("features/company/components/MaintenanceSettingsCard.tsx");
     expect(t).toContain('id="maintain_parental_leave"');
-    expect(t).toContain("Maintien pendant les congés de maternité, de paternité et d’adoption");
+    expect(t).toContain("Maintien au-delà de la convention pendant les congés de maternité, de paternité");
     expect(t).toContain("maintain_parental_leave: form.maintain_parental_leave");
     expect(lire("api/maintenanceSettings.ts")).toContain("maintain_parental_leave: boolean;");
   });

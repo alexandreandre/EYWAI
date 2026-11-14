@@ -494,13 +494,16 @@ export default function MaintenanceSettingsCard() {
             <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
               <div>
                 <Label htmlFor="maintain_parental_leave">
-                  Maintien pendant les congés de maternité, de paternité et d’adoption
+                  Maintien au-delà de la convention pendant les congés de maternité, de paternité
+                  et d’adoption
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Éteint : le congé est retenu, sans maintien, et la caisse verse les indemnités
-                  journalières au salarié. Allumé : le salaire est maintenu à 100 % dès le premier
-                  jour, sous la condition d’ancienneté du maintien. À activer seulement si la
-                  convention ou un accord le prévoit.
+                  Martine applique d’office ce que la convention impose. Métallurgie : maternité
+                  et adoption après un an d’ancienneté. Plasturgie : maternité pendant 16
+                  semaines et paternité, sans condition d’ancienneté. Syntec : maternité,
+                  paternité et adoption après un an. Allumé : tous ces congés sont maintenus à
+                  100 %, sous la condition d’ancienneté du maintien maladie, même quand la
+                  convention ne le prévoit pas.
                 </p>
               </div>
               <Switch

@@ -39,9 +39,10 @@ class MaintenanceSettings(BaseModel):
     #: Maintien en jours ouvrés : 7 h + quote-part d'heures sup structurelles,
     #: week-ends non maintenus, IJSS hors bulletin.
     maintain_working_days: bool = False
-    #: Maintien pendant les congés de maternité, de paternité et d'adoption :
-    #: 100 % dès le premier jour. Pas une obligation légale (convention) : éteint
-    #: par défaut, ces congés sont retenus et les IJ versées au salarié.
+    #: Maintien au-delà de la convention pendant les congés de maternité, de
+    #: paternité et d'adoption : 100 % dès le premier jour. La convention
+    #: s'applique d'office (payroll/engine/parentalite_convention.py) ; éteint
+    #: par défaut, le réglage ne l'étend pas.
     maintain_parental_leave: bool = False
     #: Arrêt sans subrogation : la CPAM verse les IJSS au salarié. True : Martine
     #: ne verse que le complément, IJSS des jours maintenus déduites (règle

@@ -36,6 +36,7 @@ from app.modules.payroll.domain.paliers_affiches import (
 from .contexte import ContextePaie
 from . import legal_constants as lc
 from .garantie_nette import ijss_ramenees_au_brut, taux_csg_crds_ijss, taux_salarial_marginal
+from .parentalite_convention import decider_parentalite
 from .paliers_convention import PlanConventionnel, arrets_pour_le_plan, plan_conventionnel
 from .prolongation_arret import chainer_arret, jours_legaux_des_12_mois
 
@@ -812,16 +813,62 @@ ALERTE_CONGE_NAISSANCE_CONGES_PAYES = (
 )
 
 
+def _idcc_du_contexte(contexte: Any) -> str:
+    try:
+        cc = (contexte.contrat.get("remuneration") or {}).get("convention_collective") or {}
+    except Exception:
+        return ""
+    return str(cc.get("idcc") or cc.get("code_idcc") or "") if isinstance(cc, dict) else ""
+
+
+def _poser_parentalite(
+    qualification: Dict[str, Any],
+    settings: Dict[str, Any],
+    contexte: Any,
+    arret_type: str,
+    anciennete_mois: int,
+    debut_conge: date,
+) -> Dict[str, Any]:
+    """Décision de maintien d'un congé de maternité, paternité ou adoption.
+
+    La convention s'applique d'office (retour d'Elsa du 13/11, textes relus) ; le
+    réglage de la société l'étend. Voir `parentalite_convention`.
+    """
+    if not qualification.get("est_maternite") or qualification.get("est_conge_naissance"):
+        return qualification
+    decision = decider_parentalite(
+        idcc=_idcc_du_contexte(contexte),
+        arret_type=arret_type,
+        anciennete_mois=anciennete_mois,
+        maintien_societe=bool(settings.get("maintain_parental_leave")),
+        anciennete_min_societe=(
+            0
+            if settings.get("no_seniority_condition")
+            else _min_seniority_months_for_arret(settings, False)
+        ),
+    )
+    return {**qualification, "parentalite": {**decision, "debut": debut_conge}}
+
+
 def _parentalite_sans_maintien(
     qualification: Dict[str, Any], settings: Dict[str, Any]
 ) -> bool:
-    """Le réglage de la société vise la maternité, la paternité et l'adoption ;
-    le congé supplémentaire de naissance n'ouvre aucun maintien."""
+    """Maternité, paternité, adoption : décision posée par `_poser_parentalite`
+    (convention, puis réglage de la société) ; à défaut, le réglage seul. Le congé
+    supplémentaire de naissance n'ouvre aucun maintien."""
     if qualification.get("est_conge_naissance"):
         return True
-    return bool(qualification.get("est_maternite")) and not settings.get(
-        "maintain_parental_leave"
-    )
+    if not qualification.get("est_maternite"):
+        return False
+    decision = qualification.get("parentalite")
+    if decision is not None:
+        return not decision.get("maintenu")
+    return not settings.get("maintain_parental_leave")
+
+
+def _motif_parentalite(qualification: Dict[str, Any]) -> str:
+    decision = qualification.get("parentalite") or {}
+    return decision.get("motif") or MOTIF_PARENTALITE_SANS_MAINTIEN
 
 
 def _resultat_parentalite_sans_maintien(motif: str) -> Dict[str, Any]:
@@ -1069,11 +1116,16 @@ def _calculer_maintien_employeur(
 
     if qualification.get("est_conge_naissance"):
         return _resultat_parentalite_sans_maintien(MOTIF_CONGE_NAISSANCE_SANS_MAINTIEN)
+    # Congé parental décidé par la convention ou la société : sa propre
+    # condition d'ancienneté remplace celle du maintien maladie.
+    parentalite_decidee = "parentalite" in qualification
+    if parentalite_decidee and _parentalite_sans_maintien(qualification, settings):
+        return _resultat_parentalite_sans_maintien(_motif_parentalite(qualification))
 
     est_at_mp = bool(qualification.get("est_at_mp"))
     min_senior = _min_seniority_months_for_arret(settings, est_at_mp)
     no_seniority = bool(settings.get("no_seniority_condition"))
-    if not no_seniority and anciennete_mois < min_senior:
+    if not parentalite_decidee and not no_seniority and anciennete_mois < min_senior:
         return {
             "maintien_applicable": False,
             "taux_maintien": 0.0,
@@ -1192,11 +1244,24 @@ def _calculer_maintien_employeur(
     # seuil `min_seniority_months` (return anticipé si non éligible).
     # Réf. : Code du travail L1225-17 et s. ; CCN métallurgie IDCC 3248 art. 92.
     if _parentalite_sans_maintien(qualification, settings):
-        return _resultat_parentalite_sans_maintien(MOTIF_PARENTALITE_SANS_MAINTIEN)
+        return _resultat_parentalite_sans_maintien(_motif_parentalite(qualification))
     if bool(qualification.get("est_maternite")):
+        # Plasturgie : 16 semaines depuis le début du congé, pas au-delà.
+        decision_par = qualification.get("parentalite") or {}
+        jours_max_par = decision_par.get("jours_max")
+        fin_maintien_par = (
+            decision_par["debut"] + timedelta(days=int(jours_max_par))
+            if jours_max_par and decision_par.get("debut")
+            else None
+        )
+        jours_maintenus_mat: set = set()
         jours_maintien_mat = 0
         for k in range(jours_intersection):
-            if maintien_base_ouvree and (inter_d + timedelta(days=k)).weekday() >= 5:
+            jour_mat = inter_d + timedelta(days=k)
+            if fin_maintien_par is not None and jour_mat >= fin_maintien_par:
+                continue  # au-delà de la durée de la convention
+            jours_maintenus_mat.add(jour_mat)
+            if maintien_base_ouvree and jour_mat.weekday() >= 5:
                 continue  # mode jours ouvrés : week-ends non maintenus
             jours_maintien_mat += 1
         maintien_cible_mat = brut_journalier * jours_maintien_mat  # taux 100 %
@@ -1211,10 +1276,10 @@ def _calculer_maintien_employeur(
         if bool(arret.get("subrogation_active")):
             maintien_verse_mat, deduction_mat = maintien_cible_mat, {}
         else:
-            # Tout le congé est maintenu, en jours calendaires.
-            jours_mat = {inter_d + timedelta(days=k) for k in range(jours_intersection)}
+            # Les jours maintenus du congé, en jours calendaires.
             maintien_verse_mat, deduction_mat = _verse_sans_subrogation(
-                maintien_cible_mat, settings, jours_mat, ijss, ijss_par_jour, releve_du_mois
+                maintien_cible_mat, settings, jours_maintenus_mat, ijss, ijss_par_jour,
+                releve_du_mois,
             )
 
         salaire_reel_mat = float(arret.get("salaire_periode_reelle") or 0.0)
@@ -1232,6 +1297,8 @@ def _calculer_maintien_employeur(
             "duree_par_taux_jours": 0,
             "duree_maintien_legale_jours": 0,
             "est_maternite": True,
+            **({"source_parentalite": decision_par["source"]} if decision_par.get("source") else {}),
+            **({"alerte_parentalite": decision_par["alerte"]} if decision_par.get("alerte") else {}),
             **deduction_mat,
         }
 
@@ -2546,10 +2613,14 @@ def compute_jours_avec_maintien_mois(
         date_entree, _parse_date(arret.get("date_debut_chaine")) or date_debut_arret
     )
 
+    qualification = _poser_parentalite(
+        qualification, settings, contexte, arret_type, anciennete_mois,
+        _parse_date(arret.get("date_debut_chaine")) or date_debut_arret,
+    )
     est_at_mp = bool(qualification.get("est_at_mp"))
     min_senior = _min_seniority_months_for_arret(settings, est_at_mp)
     no_seniority = bool(settings.get("no_seniority_condition"))
-    if not no_seniority and anciennete_mois < min_senior:
+    if "parentalite" not in qualification and not no_seniority and anciennete_mois < min_senior:
         return set()
     if _parentalite_sans_maintien(qualification, settings):
         return set()
@@ -2560,6 +2631,19 @@ def compute_jours_avec_maintien_mois(
     )
     if inter_d is None or inter_f is None:
         return set()
+
+    decision_par = qualification.get("parentalite")
+    if decision_par is not None:
+        # Congé parental maintenu : tous ses jours, dans la durée de la convention.
+        jours_max_par = decision_par.get("jours_max")
+        fin_par = (
+            decision_par["debut"] + timedelta(days=int(jours_max_par)) if jours_max_par else None
+        )
+        return {
+            (inter_d + timedelta(days=k)).day
+            for k in range(_compter_jours_calendaires(inter_d, inter_f))
+            if fin_par is None or inter_d + timedelta(days=k) < fin_par
+        }
 
     historique = list(arret.get("historique_arrets_annee") or [])
     carence = _calculer_carence(
@@ -2689,6 +2773,9 @@ def calculer_maintien(
 
     date_anciennete = _date_anciennete(contexte)
     anciennete_mois = _mois_anciennete(date_anciennete or debut_chaine, debut_chaine)
+    qualification = _poser_parentalite(
+        qualification, settings, contexte, arret_type, anciennete_mois, debut_chaine
+    )
 
     statut = ""
     try:
@@ -2882,6 +2969,8 @@ def calculer_maintien(
             "Montant d'IJSS saisi supérieur au maintien garanti : le maintien calculé "
             "est négatif, aucune ligne de maintien n'est imprimée. Vérifiez la saisie."
         )
+    if maintien.get("alerte_parentalite"):
+        alertes.append(maintien["alerte_parentalite"])
     if maintien.get("garantie_nette_non_calculee"):
         alertes.append(ALERTE_GARANTIE_NETTE_NON_CALCULEE)
     if maintien.get("plafond_net_non_calcule"):
