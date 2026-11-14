@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Literal, Optional
 
-MedalLevel = Literal["argent", "vermeil", "or", "grand_or"]
+# Échelon officiel (argent, vermeil, or, grand_or) ou « palier_<années> ».
+MedalLevel = str
 SeniorityBasis = Literal["total_career", "company_only", "seniority_reference_date"]
 AmountMode = Literal["fixed", "salary_months"]
 CaseStatus = Literal[
@@ -66,10 +67,13 @@ class WorkMedalCase:
 
 
 def tier_from_dict(raw: dict[str, Any]) -> MedalTier:
+    from app.modules.work_medals.domain.rules import level_for_years
+
+    years = int(raw["years"])
     return MedalTier(
-        level=raw["level"],
-        years=int(raw["years"]),
-        label=str(raw.get("label") or raw["level"]),
+        level=level_for_years(years),
+        years=years,
+        label=str(raw.get("label") or level_for_years(years)),
         amount_mode=raw.get("amount_mode", "fixed"),
         amount_value=float(raw.get("amount_value", 0)),
     )

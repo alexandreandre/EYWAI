@@ -4,7 +4,7 @@ import {
   CASE_STATUS_LABELS,
   dismissWorkMedalCase,
   listWorkMedalCases,
-  MEDAL_LEVEL_LABELS,
+  medalLevelLabel,
   type WorkMedalCase,
 } from '@/api/workMedals';
 import { Badge } from '@/components/ui/badge';
@@ -86,7 +86,7 @@ function ApproveRow({ caseItem, onDone }: ApproveRowProps) {
         <div>
           <p className="font-medium">{employeeName(caseItem)}</p>
           <p className="text-sm text-muted-foreground">
-            {MEDAL_LEVEL_LABELS[caseItem.medal_level]} — palier {caseItem.milestone_years} ans
+            {medalLevelLabel(caseItem.medal_level)} — palier {caseItem.milestone_years} ans
             (éligible le {new Date(caseItem.eligible_date).toLocaleDateString('fr-FR')})
           </p>
         </div>

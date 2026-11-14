@@ -7,7 +7,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-MedalLevel = Literal["argent", "vermeil", "or", "grand_or"]
+# Échelon officiel (argent, vermeil, or, grand_or) ou « palier_<années> ».
+MedalLevel = str
 SeniorityBasis = Literal["total_career", "company_only", "seniority_reference_date"]
 AmountMode = Literal["fixed", "salary_months"]
 CaseStatus = Literal[

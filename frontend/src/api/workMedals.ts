@@ -1,6 +1,7 @@
 import apiClient from '@/api/apiClient';
 
-export type MedalLevel = 'argent' | 'vermeil' | 'or' | 'grand_or';
+/** Échelon officiel (argent, vermeil, or, grand_or) ou « palier_<années> ». */
+export type MedalLevel = string;
 export type SeniorityBasis =
   | 'seniority_reference_date'
   | 'total_career'
@@ -160,12 +161,21 @@ export async function dismissWorkMedalCase(
   return res.data;
 }
 
-export const MEDAL_LEVEL_LABELS: Record<MedalLevel, string> = {
+export const MEDAL_LEVEL_LABELS: Record<string, string> = {
   argent: 'Médaille d\'argent',
   vermeil: 'Médaille de vermeil',
   or: 'Médaille d\'or',
   grand_or: 'Grande médaille d\'or',
 };
+
+/** Échelons de la médaille d'honneur du travail : un autre palier est une prime d'ancienneté. */
+export const OFFICIAL_MEDAL_YEARS = [20, 30, 35, 40];
+
+export function medalLevelLabel(level: string): string {
+  if (MEDAL_LEVEL_LABELS[level]) return MEDAL_LEVEL_LABELS[level];
+  const years = level.startsWith('palier_') ? level.slice('palier_'.length) : null;
+  return years ? `Prime d'ancienneté ${years} ans` : level;
+}
 
 export const CASE_STATUS_LABELS: Record<WorkMedalCaseStatus, string> = {
   upcoming: 'À venir',

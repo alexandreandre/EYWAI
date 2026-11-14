@@ -6,15 +6,17 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-MedalLevel = Literal["argent", "vermeil", "or", "grand_or"]
+# Échelon officiel (argent, vermeil, or, grand_or) ou « palier_<années> ».
+MedalLevel = str
 SeniorityBasis = Literal["total_career", "company_only", "seniority_reference_date"]
 AmountMode = Literal["fixed", "salary_months"]
 
 
 class MedalTierInput(BaseModel):
-    level: MedalLevel
+    # Déduit des années à l'enregistrement : la RH ne choisit que les années.
+    level: Optional[MedalLevel] = None
     years: int = Field(ge=1, le=50)
-    label: str
+    label: str = ""
     amount_mode: AmountMode = "fixed"
     amount_value: float = Field(ge=0)
 

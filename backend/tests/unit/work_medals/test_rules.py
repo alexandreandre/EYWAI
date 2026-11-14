@@ -113,3 +113,51 @@ def test_career_reference_date_utilise_la_date_d_anciennete_reprise():
     # Les deux bases historiques ne bougent pas.
     assert career_reference_date(hire, 24, "company_only") == hire
     assert career_reference_date(hire, 24, "total_career") == date(2010, 4, 1)
+
+
+# --- Paliers libres (retour d'Elsa du 13/11 : 10, 20, 30, 40 ans) ---
+
+
+def test_normalize_tiers_paliers_libres_et_cles_deduites():
+    from app.modules.work_medals.domain.rules import normalize_tiers
+
+    tiers = normalize_tiers(
+        [
+            {"years": 40, "label": "", "amount_value": 1500},
+            {"level": "or", "years": 10, "label": "Prime 10 ans", "amount_value": 300},
+            {"years": 20, "label": "Argent", "amount_value": 800},
+        ]
+    )
+    assert [t["years"] for t in tiers] == [10, 20, 40]
+    assert [t["level"] for t in tiers] == ["palier_10", "argent", "grand_or"]
+    assert tiers[0]["label"] == "Prime 10 ans"
+    assert tiers[2]["label"] == "Grande médaille d'or"
+
+
+def test_normalize_tiers_refuse_deux_paliers_aux_memes_annees():
+    import pytest
+
+    from app.modules.work_medals.domain.rules import normalize_tiers
+
+    with pytest.raises(ValueError, match="10 ans"):
+        normalize_tiers([{"years": 10}, {"years": 10}])
+
+
+def test_palier_hors_medaille_officielle_toujours_soumis():
+    from app.modules.work_medals.domain.rules import compute_social_tax_flag, is_official_medal
+
+    assert not is_official_medal(10)
+    assert is_official_medal(35)
+    # 10 ans : pas une médaille d'honneur du travail, soumis même sous le salaire de base.
+    assert compute_social_tax_flag(300, 2000, 2026, False, official_medal=False) is True
+    # Vraie médaille en 2026 sous le salaire de base : exonérée ; en 2027 : soumise.
+    assert compute_social_tax_flag(300, 2000, 2026, False, official_medal=True) is False
+    assert compute_social_tax_flag(300, 2000, 2027, False, official_medal=True) is True
+
+
+def test_tier_from_dict_palier_libre():
+    from app.modules.work_medals.domain.entities import tier_from_dict
+
+    tier = tier_from_dict({"years": 10, "label": "Prime 10 ans", "amount_value": 300})
+    assert tier.level == "palier_10"
+    assert tier.years == 10

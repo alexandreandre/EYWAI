@@ -14,6 +14,7 @@ from app.modules.work_medals.domain.rules import (
     can_transition,
     compute_social_tax_flag,
     compute_tier_amount,
+    is_official_medal,
     extract_base_salary,
     parse_tiers,
     prime_label,
@@ -51,7 +52,9 @@ def save_work_medal_settings(
     merged: Dict[str, Any] = current.model_dump(mode="json")
     patch = data.model_dump(exclude_unset=True)
     if "tiers" in patch and patch["tiers"] is not None:
-        patch["tiers"] = patch["tiers"]
+        from app.modules.work_medals.domain.rules import normalize_tiers
+
+        patch["tiers"] = normalize_tiers(patch["tiers"])
     merged.update(patch)
 
     if merged.get("enabled") and not merged.get("tiers"):
@@ -80,12 +83,15 @@ def _get_employee_row(employee_id: str) -> Dict[str, Any]:
     return r.data
 
 
-def _tier_for_case(settings: WorkMedalSettings, medal_level: str):
+def _tier_for_case(settings: WorkMedalSettings, medal_level: str, milestone_years: int):
     tiers = parse_tiers([t.model_dump() for t in settings.tiers])
     for tier in tiers:
-        if tier.level == medal_level:
+        if tier.years == milestone_years or tier.level == medal_level:
             return tier
-    raise ValueError(f"Palier {medal_level} non configuré")
+    raise ValueError(
+        f"Le palier de {milestone_years} ans n'est plus dans le barème : "
+        "remettez-le dans les réglages ou écartez ce dossier."
+    )
 
 
 def approve_work_medal_case(
@@ -101,7 +107,7 @@ def approve_work_medal_case(
         raise ValueError(f"Validation impossible depuis le statut {case.status}")
 
     settings = queries.get_work_medal_settings_raw(company_id)
-    tier = _tier_for_case(settings, case.medal_level)
+    tier = _tier_for_case(settings, case.medal_level, case.milestone_years)
     employee = _get_employee_row(case.employee_id)
     base_salary = extract_base_salary(employee)
     amount = (
@@ -118,6 +124,7 @@ def approve_work_medal_case(
         base_salary,
         body.payroll_year,
         settings.default_is_socially_taxed,
+        official_medal=is_official_medal(tier.years),
     )
 
     prime_data = MonthlyInputCreate(

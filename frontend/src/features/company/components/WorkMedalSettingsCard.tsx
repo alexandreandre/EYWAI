@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DEFAULT_MEDAL_TIERS,
+  OFFICIAL_MEDAL_YEARS,
   getWorkMedalSettings,
   saveWorkMedalSettings,
   scanWorkMedals,
@@ -26,7 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Award, RefreshCw } from 'lucide-react';
+import { Award, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { accord, pluriel } from '@/lib/pluriel';
 
 function toUpdatePayload(form: WorkMedalSettings): WorkMedalSettingsUpdate {
@@ -119,8 +120,39 @@ export default function WorkMedalSettingsCard() {
     setForm({ ...form, tiers });
   };
 
-  const handleSave = () => {
+  const addTier = () => {
     if (!form) return;
+    const used = new Set(form.tiers.map((t) => t.years));
+    let years = 10;
+    while (used.has(years) && years < 50) years += 5;
+    setForm({
+      ...form,
+      tiers: [
+        ...form.tiers,
+        { level: `palier_${years}`, years, label: '', amount_mode: 'fixed', amount_value: 0 },
+      ],
+    });
+  };
+
+  const removeTier = (index: number) => {
+    if (!form) return;
+    setForm({ ...form, tiers: form.tiers.filter((_, i) => i !== index) });
+  };
+
+  const duplicateYears = useMemo(() => {
+    if (!form) return null;
+    const seen = new Set<number>();
+    for (const t of form.tiers) {
+      if (seen.has(t.years)) return t.years;
+      seen.add(t.years);
+    }
+    return null;
+  }, [form]);
+
+  const invalidYears = form?.tiers.some((t) => !Number.isInteger(t.years) || t.years < 1 || t.years > 50);
+
+  const handleSave = () => {
+    if (!form || duplicateYears !== null || invalidYears) return;
     saveMutation.mutate(toUpdatePayload(form));
   };
 
@@ -156,7 +188,7 @@ export default function WorkMedalSettingsCard() {
           Médailles du travail
         </CardTitle>
         <CardDescription>
-          Primes aux paliers d&apos;ancienneté (20, 30, 35, 40 ans). Alertes RH et versement en
+          Primes aux paliers d&apos;ancienneté, années au choix. Alertes RH et versement en
           paie.
         </CardDescription>
       </CardHeader>
@@ -225,56 +257,125 @@ export default function WorkMedalSettingsCard() {
 
         <div className="space-y-3">
           <Label>Barème des primes</Label>
-          {form.tiers.map((tier, index) => (
-            <div
-              key={tier.level}
-              className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2 lg:grid-cols-4"
-            >
-              <div className="space-y-1">
-                <p className="text-sm font-medium">{tier.label}</p>
-                <p className="text-xs text-muted-foreground">{tier.years} ans</p>
+          <p className="text-xs text-muted-foreground">
+            La médaille du travail officielle a quatre échelons : 20, 30, 35 et 40 ans. Un
+            autre palier (10 ans par exemple) est une prime d&apos;ancienneté : elle est
+            toujours soumise à cotisations. La prime d&apos;une vraie médaille est exonérée en
+            2026 jusqu&apos;au salaire de base, puis soumise à partir du 1er janvier 2027.
+          </p>
+          {form.tiers.map((tier, index) => {
+            const official = OFFICIAL_MEDAL_YEARS.includes(tier.years);
+            return (
+              <div
+                key={index}
+                className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2 lg:grid-cols-[6rem_1fr_10rem_9rem_auto]"
+              >
+                <div className="space-y-1">
+                  <Label className="text-xs" htmlFor={`medal-years-${index}`}>
+                    Années
+                  </Label>
+                  <Input
+                    id={`medal-years-${index}`}
+                    type="number"
+                    min={1}
+                    max={50}
+                    step={1}
+                    disabled={readOnly}
+                    value={tier.years}
+                    onChange={(e) => updateTier(index, { years: Number(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs" htmlFor={`medal-label-${index}`}>
+                    Libellé sur le bulletin
+                  </Label>
+                  <Input
+                    id={`medal-label-${index}`}
+                    disabled={readOnly}
+                    value={tier.label}
+                    placeholder={official ? 'Médaille du travail' : `Prime ${tier.years} ans`}
+                    onChange={(e) => updateTier(index, { label: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {official
+                      ? 'Échelon officiel de la médaille du travail'
+                      : 'Prime d’ancienneté, soumise à cotisations'}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Mode</Label>
+                  <Select
+                    value={tier.amount_mode}
+                    disabled={readOnly}
+                    onValueChange={(v: 'fixed' | 'salary_months') =>
+                      updateTier(index, { amount_mode: v })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fixed">Montant fixe (€)</SelectItem>
+                      <SelectItem value="salary_months">Mois de salaire</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">
+                    {tier.amount_mode === 'fixed' ? 'Montant (€)' : 'Nombre de mois'}
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={tier.amount_mode === 'fixed' ? 1 : 0.5}
+                    disabled={readOnly}
+                    value={tier.amount_value}
+                    onChange={(e) =>
+                      updateTier(index, { amount_value: Number(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+                {canEdit ? (
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Retirer le palier de ${tier.years} ans`}
+                      onClick={() => removeTier(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : null}
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Mode</Label>
-                <Select
-                  value={tier.amount_mode}
-                  disabled={readOnly}
-                  onValueChange={(v: 'fixed' | 'salary_months') =>
-                    updateTier(index, { amount_mode: v })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fixed">Montant fixe (€)</SelectItem>
-                    <SelectItem value="salary_months">Mois de salaire</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1 sm:col-span-2">
-                <Label className="text-xs">
-                  {tier.amount_mode === 'fixed' ? 'Montant (€)' : 'Nombre de mois'}
-                </Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step={tier.amount_mode === 'fixed' ? 1 : 0.5}
-                  disabled={readOnly}
-                  value={tier.amount_value}
-                  onChange={(e) =>
-                    updateTier(index, { amount_value: Number(e.target.value) || 0 })
-                  }
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
+          {duplicateYears !== null ? (
+            <p className="text-sm text-destructive">
+              Deux paliers à {duplicateYears} ans : gardez-en un seul.
+            </p>
+          ) : null}
+          {invalidYears ? (
+            <p className="text-sm text-destructive">
+              Chaque palier doit être compris entre 1 et 50 ans.
+            </p>
+          ) : null}
+          {canEdit ? (
+            <Button type="button" variant="outline" size="sm" onClick={addTier}>
+              <Plus className="mr-2 h-4 w-4" />
+              Ajouter un palier
+            </Button>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-2">
           {canEdit ? (
             <>
-              <Button onClick={handleSave} disabled={saveMutation.isPending}>
+              <Button
+                onClick={handleSave}
+                disabled={saveMutation.isPending || duplicateYears !== null || Boolean(invalidYears)}
+              >
                 Enregistrer
               </Button>
               {form.enabled ? (

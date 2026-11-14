@@ -4,7 +4,7 @@ import {
   CASE_STATUS_LABELS,
   dismissWorkMedalCase,
   listEmployeeWorkMedalCases,
-  MEDAL_LEVEL_LABELS,
+  medalLevelLabel,
   type WorkMedalCase,
 } from '@/api/workMedals';
 import { Badge } from '@/components/ui/badge';
@@ -155,7 +155,7 @@ export function WorkMedalEmployeeSection({
             {cases.map((c) => (
               <li key={c.id} className="rounded-md border p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium">{MEDAL_LEVEL_LABELS[c.medal_level]}</span>
+                  <span className="font-medium">{medalLevelLabel(c.medal_level)}</span>
                   <Badge variant="outline">{CASE_STATUS_LABELS[c.status]}</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">

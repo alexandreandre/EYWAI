@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from app.core.database import supabase
-from app.modules.work_medals.domain.rules import MEDAL_LEVEL_LABELS
+from app.modules.work_medals.domain.rules import level_label
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ def notify_employee_approved(
     payroll_month: int,
     payroll_year: int,
 ) -> bool:
-    label = MEDAL_LEVEL_LABELS.get(medal_level, medal_level)  # type: ignore[arg-type]
+    label = level_label(medal_level)
     message = (
         f"Votre prime {label} de {amount:.2f} € a été validée "
         f"pour le bulletin de {payroll_month:02d}/{payroll_year}."

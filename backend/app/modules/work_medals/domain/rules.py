@@ -66,6 +66,54 @@ _ALLOWED_TRANSITIONS: dict[tuple[CaseStatus, CaseStatus], Literal["system", "emp
 }
 
 
+OFFICIAL_MEDAL_LEVELS: dict[int, str] = {20: "argent", 30: "vermeil", 35: "or", 40: "grand_or"}
+
+
+def is_official_medal(years: int) -> bool:
+    """Échelons de la médaille d'honneur du travail (décret 84-591)."""
+    return int(years) in OFFICIAL_MEDAL_LEVELS
+
+
+def level_for_years(years: int) -> str:
+    """Clé stable d'un palier : nom officiel, sinon « palier_<années> »."""
+    return OFFICIAL_MEDAL_LEVELS.get(int(years), f"palier_{int(years)}")
+
+
+def level_label(level: str) -> str:
+    if level in MEDAL_LEVEL_LABELS:
+        return MEDAL_LEVEL_LABELS[level]  # type: ignore[index]
+    if level.startswith("palier_"):
+        return f"Prime d'ancienneté {level.removeprefix('palier_')} ans"
+    return level
+
+
+def normalize_tiers(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Barème saisi par la RH : années libres, clé déduite des années, tri croissant.
+
+    Refuse deux paliers aux mêmes années (un dossier par salarié et palier).
+    """
+    out: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for t in raw:
+        years = int(t["years"])
+        if years < 1 or years > 50:
+            raise ValueError("Un palier doit être compris entre 1 et 50 ans.")
+        if years in seen:
+            raise ValueError(f"Deux paliers à {years} ans : gardez-en un seul.")
+        seen.add(years)
+        label = str(t.get("label") or "").strip() or level_label(level_for_years(years))
+        out.append(
+            {
+                "level": level_for_years(years),
+                "years": years,
+                "label": label,
+                "amount_mode": t.get("amount_mode") or "fixed",
+                "amount_value": float(t.get("amount_value") or 0),
+            }
+        )
+    return sorted(out, key=lambda t: t["years"])
+
+
 def parse_tiers(raw: list[dict[str, Any]] | None) -> list[MedalTier]:
     from app.modules.work_medals.domain.entities import tier_from_dict
 
@@ -178,12 +226,16 @@ def compute_social_tax_flag(
     base_salary_monthly: float,
     payroll_year: int,
     default_is_socially_taxed: bool,
+    official_medal: bool = True,
 ) -> bool:
     """
-    Règle simplifiée BOSS 2026 :
+    Règle simplifiée BOSS (communiqué du 10/04/2026) :
+    - palier hors échelons officiels (ex. 10 ans) : pas une médaille, soumis
     - 2026 : exonération sociale si montant <= salaire mensuel de base brut
     - 2027+ : soumis à cotisations
     """
+    if not official_medal:
+        return True
     if payroll_year >= 2027:
         return True
     if base_salary_monthly <= 0:
@@ -196,5 +248,4 @@ def prime_label(tier: MedalTier) -> str:
 
 
 def medal_level_for_years(years: int) -> MedalLevel | None:
-    mapping = {20: "argent", 30: "vermeil", 35: "or", 40: "grand_or"}
-    return mapping.get(years)  # type: ignore[return-value]
+    return OFFICIAL_MEDAL_LEVELS.get(years)
