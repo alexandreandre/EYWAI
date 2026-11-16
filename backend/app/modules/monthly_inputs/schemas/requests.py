@@ -8,7 +8,7 @@ Compatibilité : mêmes champs, types et défauts que l'existant.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -32,6 +32,10 @@ class MonthlyInput(BaseModel):
     catalog_prime_id: Optional[str] = None
     # Vrai : seul le net à payer bouge (retenue si négatif, versement si positif).
     sur_le_net: bool = False
+    # Nombre d'unités (paniers, repas…) : le moteur exonère chaque unité jusqu'au
+    # plafond ; sans lui, un total du mois compte pour un seul repas.
+    payroll_quantity: Optional[float] = None
+    quantity_kind: Optional[Literal["count", "unit_value"]] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

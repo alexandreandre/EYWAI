@@ -94,7 +94,13 @@ const initialState = {
   selectedEmployees: [] as string[],
   is_socially_taxed: true,
   is_taxable: true,
+  nombre: "" as number | "",
 };
+
+/** Panier ou repas : le nombre d'unités compte pour l'exonération. */
+function estUnPanier(nom: string): boolean {
+  return /panier|repas/i.test(nom);
+}
 
 const initialPrimeForm = {
   libelle: "",
@@ -342,6 +348,9 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
         { is_socially_taxed: formData.is_socially_taxed, is_taxable: formData.is_taxable },
       ),
       catalog_prime_id: isCustomPrime ? undefined : catalogPrimeId ?? undefined,
+      ...(estUnPanier(formData.name) && typeof formData.nombre === "number" && formData.nombre > 0
+        ? { payroll_quantity: formData.nombre, quantity_kind: "count" as const }
+        : {}),
       year: currentYear,
       month: currentMonth,
     }));
@@ -742,6 +751,21 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                   onValeur={amount => setFormData(p => ({ ...p, amount }))}
                   disabled={isCalculating || (selectedBonusTypeId && bonusTypes.find(bt => bt.id === selectedBonusTypeId)?.type === "selon_heures")}
                 />
+                {estUnPanier(formData.name) && (
+                  <div className="grid gap-1.5 rounded-md border p-3" data-testid="nombre-paniers">
+                    <Label htmlFor="nombre_paniers">Nombre de paniers (ou de repas) dans le mois</Label>
+                    <ChampDecimal
+                      id="nombre_paniers"
+                      value={formData.nombre}
+                      onValeur={(nombre) => setFormData(p => ({ ...p, nombre }))}
+                      placeholder="Ex. 20"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Le montant est le total du mois. Martine exonère chaque panier jusqu’au plafond de
+                      l’Urssaf : sans le nombre, le total compte pour un seul repas.
+                    </p>
+                  </div>
+                )}
                 <div className="flex flex-col gap-2 rounded-md border border-dashed p-3 sm:flex-row sm:items-end">
                   <div className="grid flex-1 gap-1.5">
                     <Label htmlFor="net_target" className="text-xs text-muted-foreground">

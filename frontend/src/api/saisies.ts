@@ -28,6 +28,8 @@ export interface MonthlyInput {
   sur_le_net?: boolean;
   /** Quantité en heures (heures sup corrigées depuis le bulletin, paniers…). */
   payroll_quantity?: number | null;
+  /** 'count' : nombre d'unités (paniers) ; 'unit_value' : valeur d'une unité. */
+  quantity_kind?: 'count' | 'unit_value' | null;
   /** Id catalogue (ex. "prime_partage_valeur") — déclenche les traitements dédiés du moteur (PPV…). */
   catalog_prime_id?: string | null;
   created_at: string;
