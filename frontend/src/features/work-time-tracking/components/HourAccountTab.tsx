@@ -88,6 +88,20 @@ export function HourAccountTab({
     enabled: Boolean(companyId && selectedEmployeeId),
   });
 
+  // Sans annualisation, Théorique, Réalisé et Écart restent à 0 : des colonnes
+  // vides qui faisaient croire à un compteur faux (retour d'Elsa du 16/11).
+  const avecAnnualisation = useMemo(
+    () =>
+      overview.some(
+        (r) =>
+          !r.estimated &&
+          (Math.abs(r.theoretical_hours) > 0.004 ||
+            Math.abs(r.actual_hours) > 0.004 ||
+            Math.abs(r.balance_hours) > 0.004),
+      ),
+    [overview],
+  );
+
   const selectedRow = useMemo(
     () => overview.find((r) => r.employee_id === selectedEmployeeId),
     [overview, selectedEmployeeId],
@@ -147,14 +161,16 @@ export function HourAccountTab({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Annualisation et compte d&apos;heures par salarié pour l&apos;année {year}.
+        Le compteur de récupération de chaque salarié en {year} : les heures sup mises au compteur,
+        moins les récupérations prises. Le repos compensateur obligatoire (au-delà du contingent) est
+        dans l&apos;onglet « Plafond annuel ».
       </p>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="overview">Vue d&apos;ensemble</TabsTrigger>
           <TabsTrigger value="history" disabled={!selectedEmployeeId}>
-            Historique
+            Détail du compteur
           </TabsTrigger>
         </TabsList>
 
@@ -171,10 +187,14 @@ export function HourAccountTab({
                   <TableHeader>
                     <TableRow>
                       <TableHead>Salarié</TableHead>
-                      <TableHead>Théorique (h)</TableHead>
-                      <TableHead>Réalisé (h)</TableHead>
-                      <TableHead>Écart annuel (h)</TableHead>
-                      <TableHead>Solde compte (h)</TableHead>
+                      {avecAnnualisation && (
+                        <>
+                          <TableHead>Théorique (h)</TableHead>
+                          <TableHead>Réalisé (h)</TableHead>
+                          <TableHead>Écart annuel (h)</TableHead>
+                        </>
+                      )}
+                      <TableHead>Solde du compteur (h)</TableHead>
                       <TableHead />
                     </TableRow>
                   </TableHeader>
@@ -184,6 +204,8 @@ export function HourAccountTab({
                         <TableCell>
                           {row.first_name} {row.last_name}
                         </TableCell>
+                        {avecAnnualisation && (
+                        <>
                         <TableCell>
                           {row.estimated ? (
                             <span title="Estimation (durée hebdomadaire × 52) : aucun compteur n'existe encore pour ce salarié.">
@@ -212,6 +234,8 @@ export function HourAccountTab({
                             </>
                           )}
                         </TableCell>
+                        </>
+                        )}
                         <TableCell className="font-medium">
                           {row.estimated ? '—' : row.account_balance_hours.toFixed(2)}
                         </TableCell>
@@ -221,7 +245,7 @@ export function HourAccountTab({
                             size="sm"
                             onClick={() => selectEmployee(row.employee_id)}
                           >
-                            Historique
+                            Détail du compteur
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -239,7 +263,7 @@ export function HourAccountTab({
               <CardTitle className="text-base">
                 {selectedRow
                   ? `${selectedRow.first_name} ${selectedRow.last_name}`
-                  : 'Historique'}
+                  : 'Détail du compteur'}
               </CardTitle>
               {selectedEmployeeId && (
                 <div className="flex flex-wrap gap-2">
