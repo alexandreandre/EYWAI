@@ -210,7 +210,7 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     await page.getByTestId('ajouter-une-ligne').click();
     await page.getByTestId('tuile-prime').click();
     await page.getByRole('button', { name: 'Ajouter une prime', exact: true }).click();
-    const selecteur = page.getByRole('dialog', { name: 'Ajouter une Saisie du Mois' });
+    const selecteur = page.getByRole('dialog', { name: 'Ajouter une saisie du mois' });
     await expect(selecteur).toBeVisible();
     await selecteur.getByPlaceholder('Sélectionnez ou saisissez un nom...').click();
     await page.getByRole('option', { name: 'Créer une prime...' }).click();

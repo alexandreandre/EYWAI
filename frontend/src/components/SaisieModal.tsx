@@ -492,7 +492,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="bg-background/80 backdrop-blur-xl border-white/20 sm:max-w-md max-h-[90vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
-          <DialogTitle>Ajouter une Saisie du Mois</DialogTitle>
+          <DialogTitle>Ajouter une saisie du mois</DialogTitle>
           <DialogDescription>
             {employeeScopeId ? phraseSaisiePonctuelle(year, month) : "Créez une saisie pour un ou plusieurs employés."}
           </DialogDescription>
