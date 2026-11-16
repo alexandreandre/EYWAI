@@ -6,13 +6,11 @@ export function WorkTimeHubIntro() {
     <Alert className="border-muted bg-muted/30">
       <Info className="h-4 w-4" />
       <AlertDescription className="text-sm leading-relaxed">
-        <strong>Plafond annuel</strong> : combien d&apos;heures supplémentaires ont été
-        consommées cette année, par rapport au seuil COR (220 h) et au plafond interne de
-        pilotage.
+        <strong>Plafond annuel</strong> : les heures supplémentaires faites cette année,
+        face au contingent (220 h par défaut) et au repos compensateur qu&apos;il déclenche.
         <br />
-        <strong>Compte d&apos;heures</strong> : comment les HS sont gérées sur l&apos;année
-        (annualisation 32/37 h, HS mises au compteur, récupérations) — indépendamment du
-        plafond légal.
+        <strong>Compteur récup</strong> : les heures sup mises au compteur au lieu d&apos;être
+        payées, les récupérations prises, et ce qui reste à prendre ou à payer.
       </AlertDescription>
     </Alert>
   );

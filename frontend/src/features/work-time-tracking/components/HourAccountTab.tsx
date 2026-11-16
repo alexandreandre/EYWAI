@@ -28,7 +28,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { libelleStatutMouvement } from '@/features/work-time-tracking/lib/hourAccountLabels';
+import {
+  detailMouvement,
+  libelleStatutMouvement,
+} from '@/features/work-time-tracking/lib/hourAccountLabels';
 import { workTimeHubPath } from '@/features/work-time-tracking/lib/workTimeTabRouting';
 import { useToast } from '@/hooks/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
@@ -165,6 +168,12 @@ export function HourAccountTab({
         moins les récupérations prises. Le repos compensateur obligatoire (au-delà du contingent) est
         dans l&apos;onglet « Plafond annuel ».
       </p>
+      <p className="text-sm text-muted-foreground">
+        Une heure sup à 25 % donne 1 h 15 au compteur, à 50 % 1 h 30 : quand le salarié récupère,
+        son salaire est maintenu sur ces heures. Il reçoit donc exactement ce que l&apos;heure sup
+        payée lui aurait rapporté (1 h à 25 % payée = 1 h 15 de salaire). Pour poser une
+        récupération : calendrier du salarié, « Poser une récupération ».
+      </p>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
@@ -297,9 +306,10 @@ export function HourAccountTab({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Heures</TableHead>
+                        <TableHead>Mois</TableHead>
+                        <TableHead>Mouvement</TableHead>
+                        <TableHead>Heures de repos</TableHead>
+                        <TableHead>Détail</TableHead>
                         <TableHead>Statut</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -307,14 +317,19 @@ export function HourAccountTab({
                       {movements.map((m) => (
                         <TableRow key={m.id}>
                           <TableCell>
-                            {m.created_at
-                              ? new Date(m.created_at).toLocaleDateString('fr-FR')
-                              : '—'}
+                            {m.month
+                              ? `${String(m.month).padStart(2, '0')}/${m.year}`
+                              : m.created_at
+                                ? new Date(m.created_at).toLocaleDateString('fr-FR')
+                                : '—'}
                           </TableCell>
                           <TableCell>
                             {MOVEMENT_LABELS[m.movement_type] ?? m.movement_type}
                           </TableCell>
                           <TableCell>{m.hours.toFixed(2)}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {detailMouvement(m)}
+                          </TableCell>
                           <TableCell>{libelleStatutMouvement(m.status)}</TableCell>
                         </TableRow>
                       ))}
@@ -332,8 +347,12 @@ export function HourAccountTab({
           <DialogHeader>
             <DialogTitle>Solde initial (reprise)</DialogTitle>
           </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Les heures de repos que le salarié avait déjà au compteur avant Martine (relevé de
+            l&apos;ancien logiciel ou du tableau de suivi).
+          </p>
           <div className="space-y-2">
-            <Label>Heures</Label>
+            <Label>Heures de repos</Label>
             <Input
               type="number"
               step={0.5}

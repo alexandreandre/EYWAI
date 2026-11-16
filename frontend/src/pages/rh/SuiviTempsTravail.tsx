@@ -83,7 +83,7 @@ export default function SuiviTempsTravailPage() {
     <div className="space-y-6">
       <RhPageHeader
         title="Temps de travail & HS"
-        description="Pilotage du plafond annuel et du compte d'heures par salarié."
+        description="Les heures sup de l'année (plafond annuel) et le compteur de récupération de chaque salarié."
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link to="/company?tab=paie&section=temps-travail">
@@ -105,7 +105,7 @@ export default function SuiviTempsTravailPage() {
           {hourAccountVisible && (
             <TabsTrigger value="compte-heures" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              Compte d&apos;heures
+              Compteur récup
             </TabsTrigger>
           )}
         </TabsList>
