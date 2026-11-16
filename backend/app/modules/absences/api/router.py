@@ -331,6 +331,11 @@ def create_absence_request(
                 rid,
                 "validated",
                 current_user_id=str(current_user.id),
+                subrogation_active=(
+                    request_data.subrogation_active
+                    if request_data.type in SALARY_CERTIFICATE_ABSENCE_TYPES
+                    else None
+                ),
             )
             data2 = absence_router.update_absence(rid, {"workflow_step": "approved_rh"})
             data = data2 or data

@@ -111,17 +111,21 @@ function canShowRhNewAbsenceButton(user: { role?: string; is_super_admin?: boole
 export default function AbsencesPage() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [showArretModal, setShowArretModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   // Congé validé en cours de modification (retour du 10/11).
   const [absenceAModifier, setAbsenceAModifier] = useState<AbsenceRequest | null>(null);
   const absencesQuery = useAbsencesQueries();
-  const pending = absencesQuery.pending as AbsenceRequest[];
+  // Les arrêts vivent dans « Arrêts & IJ » (retour d'Elsa du 16/11) : cette
+  // page ne montre plus que les congés et absences.
+  const pending = useMemo(
+    () => (absencesQuery.pending as AbsenceRequest[]).filter((r) => !estArretIjss(r.type)),
+    [absencesQuery.pending],
+  );
   const processed = useMemo(() => {
     const all = [
       ...(absencesQuery.validated as AbsenceRequest[]),
       ...(absencesQuery.rejected as AbsenceRequest[]),
-    ];
+    ].filter((r) => !estArretIjss(r.type));
     return all.sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
@@ -218,7 +222,7 @@ export default function AbsencesPage() {
     'jtc': 'JTC',
     'sans_solde': 'Congé sans solde', 
     'repos_compensateur': 'Repos compensateur',
-    'recuperation_modulation': 'Récupération (heures sup)',
+    'recuperation_modulation': 'Récupération / modulation',
     'evenement_familial': 'Événement familial',
     'arret_maladie': 'Arrêt maladie',
     'arret_at': 'Accident du travail',
@@ -508,28 +512,12 @@ export default function AbsencesPage() {
         actions={
           canShowRhNewAbsenceButton(user) ? (
             <div className="flex flex-wrap gap-2">
-              <Button type="button" onClick={() => setShowArretModal(true)}>
-                + Enregistrer un arrêt
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowLeaveModal(true)}
-              >
+              <Button type="button" onClick={() => setShowLeaveModal(true)}>
                 Nouveau congé
               </Button>
             </div>
           ) : null
         }
-      />
-      <AbsenceRequestModal
-        mode="rh_arret"
-        isOpen={showArretModal}
-        onClose={() => setShowArretModal(false)}
-        onSuccess={() => {
-          setShowArretModal(false);
-          void fetchData();
-        }}
       />
       <AbsenceRequestModal
         mode="rh_leave"
@@ -558,6 +546,13 @@ export default function AbsencesPage() {
           </>
         )}
         <RttYearEndRhSection />
+        <p className="text-sm text-muted-foreground" data-testid="renvoi-arrets">
+          Les arrêts (maladie, accident, maternité, paternité) s&apos;enregistrent et se suivent dans{' '}
+          <Link to="/suivi-ijss" className="text-primary underline-offset-4 hover:underline">
+            Arrêts &amp; IJ
+          </Link>
+          .
+        </p>
         <p className="text-sm text-muted-foreground">
           <Link to="/company?tab=paie#soldes-rtt" className="text-primary underline-offset-4 hover:underline">
             Gérer les soldes RTT effectif

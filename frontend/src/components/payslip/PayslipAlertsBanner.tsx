@@ -64,7 +64,7 @@ function collectAlerts(data: PayslipBulletinData | null | undefined): Array<{
     out.push({
       id: 'ijss-theorique',
       message:
-        'IJSS théoriques sur ce bulletin — validez le montant CPAM dans Suivi IJSS avant clôture paie.',
+        'IJSS théoriques sur ce bulletin — saisissez les IJ reçues dans Arrêts & IJ avant clôture paie.',
       critical: false,
     });
   }

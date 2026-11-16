@@ -212,7 +212,7 @@ const RH_PAIE_GROUPS: SidebarLinkGroup[] = [
         icon: Calendar,
       },
       { title: "Congés & Absences", url: "/leaves", icon: Plane },
-      { title: "Suivi IJSS / CPAM", url: "/suivi-ijss", icon: FileCheck },
+      { title: "Arrêts & IJ", url: "/suivi-ijss", icon: FileCheck },
       { title: "Temps de travail & HS", url: "/suivi-temps-travail", icon: Clock },
       { title: "Suivi CET", url: "/suivi-cet", icon: PiggyBank },
       { title: "Notes de frais", url: "/expenses", icon: Notebook },

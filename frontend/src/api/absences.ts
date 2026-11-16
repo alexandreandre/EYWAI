@@ -186,6 +186,8 @@ export interface AbsenceCreationPayload {
   heures_par_jour?: Record<string, number>;
   /** Accident ou maladie professionnelle : date de l'accident ou de la première constatation. */
   date_accident?: string;
+  /** Arrêt saisi par la RH : subrogation choisie ; absente = règle de la société. */
+  subrogation_active?: boolean;
 }
 
 /** (RH) Date de l'accident ou de la première constatation d'un arrêt déjà saisi. */

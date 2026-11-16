@@ -44,6 +44,10 @@ import {
 } from "@/lib/employeeAbsencesUtils";
 import { formatPeriodeArret } from "@/lib/arretPeriode";
 import { accord } from '@/lib/pluriel';
+import { useQuery } from "@tanstack/react-query";
+import { getMaintenanceSettings } from "@/api/maintenanceSettings";
+import { useActiveCompanyId } from "@/hooks/queries/useCompanyId";
+import { phraseSubrogationDeLaSociete, type ChoixSubrogation } from "@/lib/subrogationArret";
 
 /** Les absences qui se prennent aussi en heures (« 3,5 h le 14/08 »). */
 function priseEnHeures(type: string): boolean {
@@ -207,18 +211,28 @@ export function AbsenceRequestModal({
   const [confirmSansSoldeOpen, setConfirmSansSoldeOpen] = useState(false);
   const [arretType, setArretType] = useState<absencesApi.ArretType | "">("");
   const [dateAccident, setDateAccident] = useState("");
+  // Case « subrogation » de l'arrêt (retour d'Elsa du 16/11) : par défaut la
+  // règle de la société, sinon le choix de la RH pour cet arrêt.
+  const [subrogation, setSubrogation] = useState<ChoixSubrogation>("societe");
+  const societeActive = useActiveCompanyId();
+  const reglageMaintien = useQuery({
+    queryKey: ["maintenance-settings", societeActive],
+    queryFn: getMaintenanceSettings,
+    enabled: isOpen && isRhArret,
+    staleTime: 60_000,
+  });
   const [employees, setEmployees] = useState<EmployeeLite[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(false);
 
   // Soldes RH de l'employé choisi (mode « Nouveau congé ») : la ligne
-  // « Récupération (heures sup) » n'existe que si la société a activé le compte ET la
+  // « Récupération / modulation » n'existe que si la société a activé le compte ET la
   // récupération — c'est le gating serveur, pas une devinette côté client.
   const { data: rhBalances } = useEmployeeAbsenceBalancesQuery(
     isRhLeave && selectedEmployeeId ? selectedEmployeeId : undefined,
   );
   const modulationRhRow = (rhBalances ?? []).find(
-    (b) => b.type === "Récupération (heures sup)",
+    (b) => b.type === "Récupération / modulation",
   );
   const hasJtcRh = (rhBalances ?? []).some((b) => b.type === "JTC");
   // Soldes qui jugent la pose d'un congé payé : ceux du salarié choisi pour la
@@ -240,6 +254,7 @@ export function AbsenceRequestModal({
       setError("");
       setArretType("");
       setDateAccident("");
+      setSubrogation("societe");
       if (isRhMode) {
         setSelectedEmployeeId("");
       }
@@ -421,6 +436,9 @@ export function AbsenceRequestModal({
       if (arretAvecDateAccident(absenceType) && dateAccident) {
         payload.date_accident = dateAccident;
       }
+      if (isRhArret && isArretPrincipalType(absenceType) && subrogation !== "societe") {
+        payload.subrogation_active = subrogation === "oui";
+      }
       if (typeAvecDemiJournees) {
         // Seuls les jours encore sélectionnés partent (une désélection ne
         // doit pas laisser une demi-journée orpheline dans le payload).
@@ -591,11 +609,11 @@ export function AbsenceRequestModal({
     rtt: 'RTT',
     jtc: 'JTC',
     repos_compensateur: 'Repos Compensateur',
-    recuperation_modulation: 'Récupération (heures sup)',
+    recuperation_modulation: 'Récupération / modulation',
     evenement_familial: 'Événement Familial',
   };
 
-  const modBalance = balances.find((b) => b.type === 'Récupération (heures sup)');
+  const modBalance = balances.find((b) => b.type === 'Récupération / modulation');
   const modRestant =
     typeof modBalance?.remaining === 'number' ? modBalance.remaining : 0;
   // Le JTC n'existe que chez les sociétés qui l'ont activé : sans compteur
@@ -619,7 +637,7 @@ export function AbsenceRequestModal({
             ? [
                 {
                   value: "recuperation_modulation" as const,
-                  label: "Récupération (heures sup)",
+                  label: "Récupération / modulation",
                 },
               ]
             : []),
@@ -812,6 +830,26 @@ export function AbsenceRequestModal({
                   À saisir sous la nature du congé de naissance déjà pris : 1 ou 2 mois, fractionnable en 2 fois 1 mois. Pas de salaire ni de maintien : la CPAM indemnise le salarié. Le jour du signalement DSN, déposez aussi le formulaire de demande en PDF sur le compte employeur Net-entreprises.
                 </p>
               )}
+            </div>
+          )}
+
+          {isRhArret && isArretPrincipalType(absenceType) && arretType !== "conge_supplementaire_naissance" && (
+            <div className="grid gap-2">
+              <Label htmlFor="subrogation-arret">Subrogation</Label>
+              <Select value={subrogation} onValueChange={(v) => setSubrogation(v as ChoixSubrogation)}>
+                <SelectTrigger id="subrogation-arret"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="societe">
+                    {phraseSubrogationDeLaSociete(reglageMaintien.data?.subrogation_mode)}
+                  </SelectItem>
+                  <SelectItem value="oui">Oui : la CPAM verse les IJ à la société</SelectItem>
+                  <SelectItem value="non">Non : la CPAM verse les IJ au salarié</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Avec la subrogation, la société avance le salaire et reçoit les IJ. Sans elle, le salarié
+                vous transmet ses IJ et vous les saisissez dans Arrêts &amp; IJ.
+              </p>
             </div>
           )}
 

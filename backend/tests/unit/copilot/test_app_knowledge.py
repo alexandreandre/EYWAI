@@ -97,7 +97,7 @@ def test_guide_covers_badgeuse_accounting():
 
 def test_guide_covers_ijss_contingent_hs_and_cet():
     """Le guide documente Suivi IJSS, Temps de travail & HS et Suivi CET."""
-    assert "Suivi IJSS / CPAM" in APP_FEATURE_GUIDE
+    assert "Arrêts & IJ" in APP_FEATURE_GUIDE
     assert "Temps de travail & HS" in APP_FEATURE_GUIDE
     assert "plafond annuel" in APP_FEATURE_GUIDE
     assert "compte d'heures" in APP_FEATURE_GUIDE

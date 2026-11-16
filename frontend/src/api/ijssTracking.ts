@@ -227,3 +227,93 @@ export async function updateIjssImportProfile(
   );
   return data;
 }
+
+// ----- Écran « Arrêts & IJ » (retour d'Elsa du 16/11) -----
+
+export type TypeJustificatifArret = 'virement_cpam' | 'ij_salarie' | 'decompte_cpam' | 'autre';
+
+export const LIBELLES_JUSTIFICATIF_ARRET: Record<TypeJustificatifArret, string> = {
+  virement_cpam: 'Virement de la CPAM (subrogation)',
+  ij_salarie: 'IJ transmises par le salarié',
+  decompte_cpam: 'Décompte CPAM',
+  autre: 'Autre pièce',
+};
+
+export interface JustificatifArret {
+  id: string;
+  kind: TypeJustificatifArret;
+  filename: string | null;
+  url: string | null;
+  created_at: string | null;
+}
+
+export type EtatMaintienArret = 'bulletin_a_faire' | 'en_attente_des_ij' | 'verse' | 'sans_maintien';
+
+export interface ArretDuMois {
+  absence_id: string;
+  employee_id: string;
+  employee_name: string;
+  type: string;
+  arret_type: string | null;
+  date_debut: string | null;
+  date_fin: string | null;
+  jours_dans_le_mois: number;
+  subrogation_active: boolean;
+  certificat_url: string | null;
+  certificat_filename: string | null;
+  ij_estimees: number | null;
+  ij_recues: number | null;
+  ij_saisies_du_mois: number | null;
+  ij_appliquees_le: string | null;
+  bulletin_id: string | null;
+  maintien: {
+    etat: EtatMaintienArret;
+    montant_verse: number;
+    montant_en_attente: number;
+    motif: string | null;
+  };
+  justificatifs: JustificatifArret[];
+}
+
+export interface ArretsDuMois {
+  year: number;
+  month: number;
+  periode_cloturee: boolean;
+  arrets: ArretDuMois[];
+}
+
+export async function listerArretsDuMois(year: number, month: number): Promise<ArretsDuMois> {
+  const { data } = await apiClient.get<ArretsDuMois>('/api/ijss-tracking/arrets', {
+    params: { year, month },
+  });
+  return data;
+}
+
+export interface ReponseIjRecues {
+  statut: 'en_attente_du_bulletin' | 'bulletin_recalcule' | 'bulletin_remis';
+  message: string;
+  montant: number;
+}
+
+export async function enregistrerIjRecues(
+  absenceId: string,
+  body: { year: number; month: number; montant: number },
+): Promise<ReponseIjRecues> {
+  const { data } = await apiClient.post<ReponseIjRecues>(
+    `/api/ijss-tracking/arrets/${absenceId}/ij-recues`,
+    body,
+  );
+  return data;
+}
+
+export async function ajouterJustificatifArret(
+  absenceId: string,
+  body: { kind: TypeJustificatifArret; storage_path: string; filename: string | null },
+): Promise<unknown> {
+  const { data } = await apiClient.post(`/api/ijss-tracking/arrets/${absenceId}/justificatifs`, body);
+  return data;
+}
+
+export async function supprimerJustificatifArret(justificatifId: string): Promise<void> {
+  await apiClient.delete(`/api/ijss-tracking/justificatifs/${justificatifId}`);
+}

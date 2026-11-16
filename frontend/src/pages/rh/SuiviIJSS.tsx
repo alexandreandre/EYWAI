@@ -10,7 +10,6 @@ import {
   importBankRecap,
   importCpamDecompte,
   justifyIjssVariance,
-  syncCpamDecomptes,
   applyAllValidatedIjss,
   applyIjssToPayslip,
   validateIjssExpectedLine,
@@ -61,9 +60,13 @@ import {
 } from '@/lib/ijssAffichage';
 import { cn } from '@/lib/utils';
 import { IjssUnmatchedReceivedPanel } from '@/features/ijss/components/IjssUnmatchedReceivedPanel';
+import { ArretsDuMoisPanel } from '@/features/ijss/components/ArretsDuMoisPanel';
+import { AbsenceRequestModal } from '@/components/AbsenceRequestModal';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Download,
   RefreshCw,
@@ -297,6 +300,7 @@ export default function SuiviIJSSPage() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [selectedRow, setSelectedRow] = useState<IjssDashboardRow | null>(null);
+  const [saisieArretOuverte, setSaisieArretOuverte] = useState(false);
   const bankInputRef = useRef<HTMLInputElement>(null);
   const cpamInputRef = useRef<HTMLInputElement>(null);
 
@@ -318,23 +322,6 @@ export default function SuiviIJSSPage() {
       invalidate();
     },
     onError: (e: unknown) => toast(echecIjss('Synchronisation des bulletins impossible', e)),
-  });
-
-  const cpamSyncMut = useMutation({
-    mutationFn: () => syncCpamDecomptes(periodId!),
-    onSuccess: (res) => {
-      if (res.success) {
-        toast({ title: res.message });
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Sync Net-Entreprises indisponible',
-          description: res.message,
-        });
-      }
-      invalidate();
-    },
-    onError: (e: unknown) => toast(echecIjss('Synchronisation Net-Entreprises impossible', e)),
   });
 
   const closeMut = useMutation({
@@ -398,9 +385,43 @@ export default function SuiviIJSSPage() {
     <div className="space-y-6">
       {fenetreConfirmation}
       <RhPageHeader
-        title="Suivi IJSS / CPAM"
-        description="Rapprochez les IJSS théoriques (paie), les décomptes CPAM et les virements reçus sur le compte entreprise."
+        title="Arrêts & IJ"
+        description="Les arrêts, la subrogation, les IJ reçues et le maintien de salaire, au même endroit."
+        actions={
+          <Button type="button" onClick={() => setSaisieArretOuverte(true)}>
+            + Enregistrer un arrêt
+          </Button>
+        }
       />
+      <AbsenceRequestModal
+        mode="rh_arret"
+        isOpen={saisieArretOuverte}
+        onClose={() => setSaisieArretOuverte(false)}
+        onSuccess={() => {
+          setSaisieArretOuverte(false);
+          void queryClient.invalidateQueries({ queryKey: ['arrets-du-mois', companyId] });
+          invalidate();
+        }}
+      />
+
+      <Card className="border-dashed">
+        <CardContent className="pt-6 text-sm text-muted-foreground">
+          <ol className="list-decimal list-inside space-y-1">
+            <li>
+              <span className="text-foreground">Enregistrez l&apos;arrêt</span> et cochez la subrogation si la
+              société reçoit les IJ à la place du salarié.
+            </li>
+            <li>
+              <span className="text-foreground">Joignez les pièces si vous les avez</span> : virement de la
+              CPAM, IJ transmises par le salarié, décompte. C&apos;est facultatif.
+            </li>
+            <li>
+              <span className="text-foreground">Saisissez les IJ reçues du mois</span> en cliquant sur
+              l&apos;arrêt : Martine verse le maintien sur le bulletin.
+            </li>
+          </ol>
+        </CardContent>
+      </Card>
 
       <div className="flex flex-wrap items-end gap-3">
         <div>
@@ -433,7 +454,22 @@ export default function SuiviIJSSPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex flex-wrap gap-2 ml-auto">
+      </div>
+
+      <ArretsDuMoisPanel year={year} month={month} libelleMois={`${MONTHS[month - 1]} ${year}`} />
+
+      <Collapsible className="rounded-lg border">
+        <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium hover:bg-muted/50">
+          <span>
+            Rapprochement détaillé (facultatif)
+            <span className="block text-xs font-normal text-muted-foreground">
+              Imports de décomptes CPAM et de virements, export d&apos;audit, clôture du mois.
+            </span>
+          </span>
+          <ChevronDown className="h-4 w-4" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-6 border-t p-4">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -442,14 +478,6 @@ export default function SuiviIJSSPage() {
           >
             <RefreshCw className="mr-2 h-4 w-4" />
             Sync bulletins
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!periodId || cpamSyncMut.isPending || periodClosed}
-            onClick={() => cpamSyncMut.mutate()}
-          >
-            Sync Net-Entreprises
           </Button>
           <Button
             variant="outline"
@@ -503,7 +531,6 @@ export default function SuiviIJSSPage() {
             Clôturer le mois
           </Button>
         </div>
-      </div>
 
       <input
         ref={bankInputRef}
@@ -619,15 +646,17 @@ export default function SuiviIJSSPage() {
 
       <Card className="border-dashed">
         <CardContent className="pt-6 text-sm text-muted-foreground space-y-2">
-          <p className="font-medium text-foreground">Process mensuel</p>
+          <p className="font-medium text-foreground">Rapprochement détaillé, si vous le faites</p>
           <ol className="list-decimal list-inside space-y-1">
-            <li>Sync bulletins (montants théoriques).</li>
-            <li>Import décompte CPAM et récap virements (Marie).</li>
-            <li>Valider le brut CPAM ligne par ligne.</li>
-            <li>Appliquer sur le(s) bulletin(s), puis clôturer le mois.</li>
+            <li>« Sync bulletins » reprend les IJ estimées par Martine sur les bulletins du mois.</li>
+            <li>« Import décompte » ou « Import virements » lit un fichier CPAM ou bancaire (CSV, Excel).</li>
+            <li>Validez le brut ligne par ligne, puis « Appliquer validés » et « Clôturer le mois ».</li>
           </ol>
+          <p>Saisir les IJ reçues sur un arrêt, plus haut, fait la même chose en un geste.</p>
         </CardContent>
       </Card>
+        </CollapsibleContent>
+      </Collapsible>
 
       <DetailPanel
         row={

@@ -89,6 +89,9 @@ class AbsenceRequestCreate(BaseModel):
     # Accident du travail ou de trajet, maladie professionnelle : date de
     # l'accident ou de la première constatation (DSN 60.012). Facultative.
     date_accident: Optional[date] = None
+    # Arrêt saisi par la RH : case « subrogation » cochée ou non (retour d'Elsa
+    # du 16/11). Absente : la règle de la société décide, comme avant.
+    subrogation_active: Optional[bool] = None
 
     @model_validator(mode="after")
     def date_accident_coherente(self) -> "AbsenceRequestCreate":

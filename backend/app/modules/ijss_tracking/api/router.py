@@ -15,6 +15,8 @@ from app.modules.ijss_tracking.schemas.requests import (
     IjssJustifyBody,
     IjssMatchReceivedBody,
     IjssValidateBody,
+    IjRecuesBody,
+    JustificatifArretBody,
 )
 from app.modules.ijss_tracking.schemas.responses import (
     IjssAbsenceStatus,
@@ -323,3 +325,72 @@ def upsert_import_profile_route(
         profile_name=str(row.get("profile_name") or "default"),
         column_mapping=row.get("column_mapping") or {},
     )
+
+
+# ----- Écran « Arrêts et IJ » (retour d'Elsa du 16/11) -----
+
+
+@router.get("/arrets")
+def list_arrets_du_mois(
+    year: int = Query(..., ge=2020, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    current_user: User = Depends(get_current_user),
+):
+    """Les arrêts qui touchent le mois : subrogation, IJ, maintien, justificatifs."""
+    cid = _require_rh(current_user)
+    from app.modules.ijss_tracking.application import arrets
+
+    return arrets.lister_arrets_du_mois(cid, year, month)
+
+
+@router.post("/arrets/{absence_id}/ij-recues")
+def post_ij_recues(
+    absence_id: str,
+    body: IjRecuesBody,
+    current_user: User = Depends(get_current_user),
+):
+    """Les IJ du mois sont connues : validées, portées au bulletin, maintien versé."""
+    cid = _require_rh(current_user)
+    from app.modules.ijss_tracking.application import arrets
+
+    try:
+        return arrets.enregistrer_ij_recues(
+            cid, absence_id, body.year, body.month, body.montant, str(current_user.id)
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/arrets/{absence_id}/justificatifs", status_code=201)
+def post_justificatif_arret(
+    absence_id: str,
+    body: JustificatifArretBody,
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh(current_user)
+    from app.modules.ijss_tracking.application import arrets
+
+    try:
+        return arrets.ajouter_justificatif(
+            cid, absence_id, body.kind, body.storage_path, body.filename, str(current_user.id)
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.delete("/justificatifs/{justificatif_id}", status_code=204)
+def delete_justificatif_arret(
+    justificatif_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh(current_user)
+    from app.modules.ijss_tracking.application import arrets
+
+    try:
+        arrets.supprimer_justificatif(cid, justificatif_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e

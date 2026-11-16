@@ -471,7 +471,7 @@ def alerte_ij_mois_sans_bulletin(arret: Dict[str, Any], ij_du_mois: float) -> Op
         return None
     return (
         f"IJSS estimées : {3 - presents} mois de référence sans bulletin, salaire de la "
-        "fiche retenu. Reportez le décompte de la CPAM dans Suivi IJSS."
+        "fiche retenu. Saisissez les IJ reçues dans Arrêts & IJ."
     )
 
 

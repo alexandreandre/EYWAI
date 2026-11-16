@@ -16,7 +16,7 @@ pytestmark = pytest.mark.unit
 def test_dit_combien_de_mois_sont_estimes():
     assert alerte_ij_mois_sans_bulletin({"salaires_bruts_reference": [2000.0, None, None]}, 40.0) == (
         "IJSS estimées : 2 mois de référence sans bulletin, salaire de la fiche retenu. "
-        "Reportez le décompte de la CPAM dans Suivi IJSS."
+        "Saisissez les IJ reçues dans Arrêts & IJ."
     )
 
 

@@ -199,13 +199,11 @@ n'y figurent pas.
 Le menu « Martine Paie » range ces écrans dans l'ordre du parcours :
   ① Calendrier → valider les heures / calendriers du mois (même écran que
     « Calendriers » en Martine Gestion, mais accessible ici dans le workflow paie).
-  ② Congés & Absences → valider / refuser les demandes de congés et absences.
-     Pour les arrêts en subrogation : génération automatique de l'attestation de
-     salaire ; lien vers le rapprochement IJSS.
-  ③ Suivi IJSS / CPAM → chaque mois, rapprocher les IJSS théoriques (bulletins),
-     les décomptes CPAM (Net-Entreprises ou import fichier) et les virements reçus
-     (import récap compta). Sync bulletins, import virements, sync Net-Entreprises,
-     justifier les écarts, clôturer le mois, export audit Excel.
+  ② Congés & Absences → valider / refuser les demandes de congés et absences
+     (les arrêts n'y sont plus : étape ③).
+  ③ Arrêts & IJ → enregistrer les arrêts (subrogation ou non), saisir les IJ reçues du mois, joindre les pièces ; rapprochement détaillé facultatif
+     (sync bulletins, import des décomptes CPAM et des virements reçus,
+     justification des écarts, clôture du mois, export audit Excel).
   ④ Temps de travail & HS → hub unique avec deux vues : (1) plafond annuel
      (contingent COR / pilotage, alertes, repos compensateurs) ; (2) compte
      d'heures (annualisation semaines hautes/basses, franchise HS, crédits
@@ -424,7 +422,7 @@ FAQ RH TRANSVERSES
 — Participation / intéressement : simulation et campagne côté RH dans Primes →
   sous-onglet « Participation & Intéressement » ; réponse salarié dans
   « Participation » (espace collaborateur).
-— Suivi IJSS : Martine Paie → Suivi IJSS / CPAM (étape ③ du workflow paie).
+— Arrêts & IJ : Martine Paie → Arrêts & IJ (étape ③ du workflow paie) ; les arrêts ne sont plus dans Congés & Absences.
 — Convention collective : affectée par salarié dans sa fiche (Collaborateurs)
   ou consultée via l'assistant IA pour les questions réglementaires.
 — Mutuelle / prévoyance : paramétrage RH dans Mon Entreprise → Mutuelle ;
