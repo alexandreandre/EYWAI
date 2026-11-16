@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getAbsencesForEmployee } from "@/api/absences";
-import { CalendarDays, ChevronLeft, ChevronRight, Grid3x3, Loader2, Save, Sparkles, Upload } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Grid3x3, Hourglass, Loader2, Save, Sparkles, Upload } from "lucide-react";
+import { AbsenceRequestModal } from "@/components/AbsenceRequestModal";
+import { getModulationSettings } from "@/api/modulation";
+import { queryKeys } from "@/lib/queryKeys";
 import { CalendarDayCell } from "@/components/CalendarDayCell";
 import { CalendarAbsencesHint } from "@/components/employee-detail/CalendarAbsencesHint";
 import { CalendarEntryHelp } from '@/components/schedules/CalendarEntryHelp';
@@ -113,6 +116,42 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
     enabled: Boolean(employeeId),
     staleTime: 60_000,
   });
+
+  // « Récup » au calendrier (retour d'Elsa du 16/11) : la récupération passe
+  // par une demande validée, qui retire les heures du compteur ; le jour est
+  // ensuite projeté au planning comme un congé, et la case dit « Récupération ».
+  const queryClient = useQueryClient();
+  const { data: reglageCompteur } = useQuery({
+    queryKey: queryKeys.modulationSettings(activeCompanyId),
+    queryFn: getModulationSettings,
+    enabled: Boolean(activeCompanyId),
+    staleTime: 60_000,
+  });
+  const compteurRecup = Boolean(
+    reglageCompteur?.hour_account_enabled && reglageCompteur?.recovery_absence_enabled,
+  );
+  const [recupOuverte, setRecupOuverte] = useState(false);
+  const [joursRecupInitiaux, setJoursRecupInitiaux] = useState<Date[]>([]);
+  const joursRecup = useMemo(() => {
+    const prefixe = `${selectedDate.year}-${String(selectedDate.month).padStart(2, "0")}-`;
+    return (employeeAbsences ?? [])
+      .filter(
+        (a) =>
+          a.type === "recuperation_modulation" &&
+          a.status === "validated" &&
+          !(a.heures_par_jour && Object.keys(a.heures_par_jour).length > 0),
+      )
+      .flatMap((a) => a.selected_days ?? [])
+      .map((d) => String(d).slice(0, 10))
+      .filter((iso) => iso.startsWith(prefixe))
+      .map((iso) => Number(iso.slice(8, 10)));
+  }, [employeeAbsences, selectedDate.year, selectedDate.month]);
+  const poserRecup = (jours: number[]) => {
+    setJoursRecupInitiaux(
+      jours.map((j) => new Date(selectedDate.year, selectedDate.month - 1, j)),
+    );
+    setRecupOuverte(true);
+  };
 
   const [assistedFillOpen, setAssistedFillOpen] = useState(false);
   const [pointageImportOpen, setPointageImportOpen] = useState(false);
@@ -250,6 +289,23 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                       À jour
                     </Badge>
                   )}
+                  {compteurRecup && !isForfaitJour && (
+                    <Button
+                      variant="outline"
+                      data-testid="poser-recuperation"
+                      disabled={isDirty || isSaving}
+                      onClick={() => poserRecup(selectedDays)}
+                      title={
+                        isDirty
+                          ? "Enregistrez d'abord le calendrier"
+                          : "Poser des jours de récupération : les heures sont retirées du compteur, le salaire est maintenu"
+                      }
+                    >
+                      <Hourglass className="mr-2 h-4 w-4" />
+                      <span className="hidden sm:inline">Poser une récupération</span>
+                      <span className="sm:hidden">Récup</span>
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     onClick={() => setAssistedFillOpen(true)}
@@ -366,6 +422,12 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                                 isForfaitJour={isForfaitJour}
                                 pointe={pointe}
                                 onCopyPlannedToActual={copyPlannedToActualForDay}
+                                joursRecup={joursRecup}
+                                onPoserRecup={
+                                  compteurRecup && !isForfaitJour && !isDirty
+                                    ? (jour) => poserRecup([jour])
+                                    : undefined
+                                }
                               />
                             </div>
                           );
@@ -403,6 +465,21 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
         />
       )}
 
+      <AbsenceRequestModal
+        isOpen={recupOuverte}
+        onClose={() => setRecupOuverte(false)}
+        onSuccess={() => {
+          setRecupOuverte(false);
+          reloadCalendar();
+          void queryClient.invalidateQueries({ queryKey: ['employee-absences-calendar', employeeId] });
+          void queryClient.invalidateQueries({ queryKey: ['absences'] });
+        }}
+        showEmployeeSelector
+        mode="rh_leave"
+        salarieInitial={employeeId}
+        typeInitial="recuperation_modulation"
+        joursInitiaux={joursRecupInitiaux}
+      />
       <AssistedFillDialog
         open={assistedFillOpen}
         onOpenChange={setAssistedFillOpen}

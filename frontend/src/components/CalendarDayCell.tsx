@@ -59,6 +59,13 @@ interface CalendarDayCellProps {
   dernierJourJuge?: number | null;
   /** Dernier jour du contrat (sortie) : après, la case est grisée et fermée. */
   dernierJourContrat?: number | null;
+  /**
+   * Jours du mois pris en récupération (demande validée) : le calendrier les
+   * porte comme un congé, la case dit « Récupération » (retour d'Elsa du 16/11).
+   */
+  joursRecup?: number[];
+  /** Choix « Récupération (compteur) » : ouvre la pose de la récupération. */
+  onPoserRecup?: (dayNumber: number) => void;
 }
 
 // Types de saisie : source unique calendarTypes.ts — conges_payes/rtt créent
@@ -231,6 +238,8 @@ export function CalendarDayCell({
   pointe = true,
   dernierJourJuge = null,
   dernierJourContrat = null,
+  joursRecup,
+  onPoserRecup,
 }: CalendarDayCellProps) {
   const { observedHolidayIds } = useObservedPublicHolidays();
   const dayNumber = arg.date.getDate();
@@ -447,7 +456,9 @@ export function CalendarDayCell({
                 setTypePopoverOpen(true);
               }}
             >
-              {getCalendarTypeLabel(plannedDay.type)}
+              {plannedDay.type === 'conges_payes' && joursRecup?.includes(dayNumber)
+                ? 'Récupération (compteur)'
+                : getCalendarTypeLabel(plannedDay.type)}
               {showHolidayHint && (
                 <span className="text-purple-600 ml-0.5">(férié)</span>
               )}
@@ -498,6 +509,20 @@ export function CalendarDayCell({
                   )}
               </div>
             ))}
+            {onPoserRecup && !joursRecup?.includes(dayNumber) && (
+              <button
+                type="button"
+                data-testid="choisir-recuperation"
+                className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted"
+                title="Retire les heures du compteur de récupération ; le salaire du jour est maintenu."
+                onClick={() => {
+                  setTypePopoverOpen(false);
+                  onPoserRecup(dayNumber);
+                }}
+              >
+                Récupération (compteur)…
+              </button>
+            )}
           </PopoverContent>
         </Popover>
       </div>

@@ -141,6 +141,13 @@ interface AbsenceRequestModalProps {
    * le salarié restent (retour du 10/11, RTT posé au mauvais jour).
    */
   absenceAModifier?: absencesApi.AbsenceRequest | null;
+  /**
+   * Ouverture depuis le calendrier d'un salarié (retour d'Elsa du 16/11,
+   * « Poser une récupération ») : salarié, type et jours déjà choisis.
+   */
+  salarieInitial?: string;
+  typeInitial?: absencesApi.AbsenceCreationPayload['type'];
+  joursInitiaux?: Date[];
 }
 
 const RH_ARRET_TYPE_LABELS: Record<
@@ -179,6 +186,9 @@ export function AbsenceRequestModal({
   showEmployeeSelector = false,
   mode,
   absenceAModifier = null,
+  salarieInitial,
+  typeInitial,
+  joursInitiaux,
 }: AbsenceRequestModalProps) {
   const effectiveMode = resolveModalMode(mode, showEmployeeSelector);
   const enModification = Boolean(absenceAModifier) && effectiveMode === "rh_leave";
@@ -256,8 +266,10 @@ export function AbsenceRequestModal({
       setDateAccident("");
       setSubrogation("societe");
       if (isRhMode) {
-        setSelectedEmployeeId("");
+        setSelectedEmployeeId(salarieInitial ?? "");
       }
+      if (typeInitial) setAbsenceType(typeInitial);
+      if (joursInitiaux?.length) setSelectedDays(joursInitiaux);
       if (enModification && absenceAModifier) {
         // Le congé à modifier, tel qu'il est : on change ses jours.
         const a = absenceAModifier;
@@ -787,9 +799,18 @@ export function AbsenceRequestModal({
               absenceType === "recuperation_modulation" &&
               typeof modulationRhRow?.remaining === "number" && (
                 <p className="text-xs text-muted-foreground">
-                  Solde modulation : {modulationRhRow.remaining.toFixed(1)} h —
+                  Solde du compteur de récupération : {modulationRhRow.remaining.toFixed(1)} h —
                   le débit se fait en heures (jours sélectionnés × durée hebdo
-                  ÷ 5).
+                  ÷ 5). Le salaire du jour est maintenu.
+                </p>
+              )}
+            {isRhLeave &&
+              absenceType === "recuperation_modulation" &&
+              rhBalances !== undefined &&
+              !modulationRhRow && (
+                <p role="alert" className="text-xs font-medium text-destructive">
+                  Cette société n’a pas de compteur de récupération : activez-le dans
+                  Paramètres de la société, Paie, Heures supplémentaires.
                 </p>
               )}
           </div>
