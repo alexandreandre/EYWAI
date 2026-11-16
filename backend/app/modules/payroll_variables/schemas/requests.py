@@ -17,6 +17,7 @@ class PayrollVariableRuleSchema(BaseModel):
         "fixed_monthly",
         "per_astreinte_week",
         "per_shift_type",
+        "per_worked_day",
         "per_modulation_payout",
         "per_night_hour",
         "per_astreinte_weekend_km",

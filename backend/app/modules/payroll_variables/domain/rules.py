@@ -8,6 +8,7 @@ RuleType = Literal[
     "fixed_monthly",
     "per_astreinte_week",
     "per_shift_type",
+    "per_worked_day",
     "per_modulation_payout",
     "per_night_hour",
     "per_astreinte_weekend_km",
@@ -31,7 +32,7 @@ def compute_rule_amount(
         return round(float(amount or 0), 2)
     if rule_type == "per_astreinte_week":
         return round(float(amount or 0) * quantity, 2)
-    if rule_type == "per_shift_type":
+    if rule_type in ("per_shift_type", "per_worked_day"):
         return round(float(amount or 0) * quantity, 2)
     if rule_type == "per_night_hour":
         unit = float(rate if rate is not None else amount or 0)

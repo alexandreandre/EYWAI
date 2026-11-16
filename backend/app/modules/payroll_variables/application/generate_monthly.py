@@ -23,6 +23,10 @@ from app.modules.payroll_variables.domain.astreinte_weekend_majoration import (
     evaluate_astreinte_weekend_majoration,
 )
 from app.modules.payroll_variables.domain.hourly_rate import resolve_hourly_rate
+from app.modules.payroll_variables.domain.jours_travailles import (
+    compter_jours_travailles,
+    index_calendrier,
+)
 from app.modules.payroll_variables.domain.rules import (
     compute_rule_amount,
     employee_matches_conditions,
@@ -169,6 +173,37 @@ def _load_calendrier_reel(employee_id: str, year: int, month: int) -> list[dict[
         return []
     cal = actual.get("calendrier_reel") or []
     return cal if isinstance(cal, list) else []
+
+
+def _calendriers_de_la_fenetre(
+    employee_id: str, debut: date, fin: date
+) -> tuple[dict[date, Any], dict[date, Any]]:
+    """Calendriers prévu et réel du salarié sur les mois couverts par la fenêtre."""
+    mois: list[tuple[int, int]] = []
+    curseur = date(debut.year, debut.month, 1)
+    while curseur <= fin:
+        mois.append((curseur.year, curseur.month))
+        curseur = date(curseur.year + (curseur.month == 12), curseur.month % 12 + 1, 1)
+    prevu: dict[date, Any] = {}
+    reel: dict[date, Any] = {}
+    for annee, m in mois:
+        resp = (
+            supabase.table("employee_schedules")
+            .select("planned_calendar, actual_hours")
+            .eq("employee_id", employee_id)
+            .eq("year", annee)
+            .eq("month", m)
+            .limit(1)
+            .execute()
+        )
+        row = (resp.data or [{}])[0] if resp.data else {}
+        planned = row.get("planned_calendar") or {}
+        actual = row.get("actual_hours") or {}
+        if isinstance(planned, dict):
+            prevu.update(index_calendrier(annee, m, planned.get("calendrier_prevu")))
+        if isinstance(actual, dict):
+            reel.update(index_calendrier(annee, m, actual.get("calendrier_reel")))
+    return prevu, reel
 
 
 def _load_manual_trips(
@@ -703,6 +738,38 @@ def generate_monthly_variables(
                     quantity=qty,
                     name_suffix="",
                     details=presence.get("details"),
+                )
+                continue
+
+            if rule_type == "per_worked_day":
+                prevu, reel = _calendriers_de_la_fenetre(eid, debut_c, fin_c)
+                jours = compter_jours_travailles(
+                    prevu,
+                    reel,
+                    _jours_absence(absences_by_employee.get(eid, []), debut_c, fin_c),
+                    debut_c,
+                    fin_c,
+                    min_heures=conditions.get("min_heures"),
+                )
+                amount = compute_rule_amount(
+                    rule_type,
+                    float(rule["amount"]) if rule.get("amount") is not None else None,
+                    None,
+                    float(jours),
+                )
+                written = _append_generated_input(
+                    preview=preview,
+                    written=written,
+                    dry_run=dry_run,
+                    rule=rule,
+                    emp=emp,
+                    eid=eid,
+                    year=year,
+                    month=month,
+                    amount=amount,
+                    quantity=float(jours),
+                    name_suffix="",
+                    details={"jours_travailles": jours, "du": debut_c.isoformat(), "au": fin_c.isoformat()},
                 )
                 continue
 

@@ -2,6 +2,7 @@
 
 export const RULE_TYPE_LABELS: Record<string, string> = {
   fixed_monthly: 'Montant fixe mensuel',
+  per_worked_day: 'Par jour travaillé (calendrier)',
   per_astreinte_week: 'Par semaine d\'astreinte (simple)',
   per_astreinte_week_tiered: 'Astreinte hebdo (Noël / pont)',
   per_astreinte_weekend_majoration: 'Majoration astreinte WE',

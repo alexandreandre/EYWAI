@@ -46,6 +46,27 @@ import { useToast } from '@/hooks/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
 import { accord, pluriel } from '@/lib/pluriel';
 import { REGLES_SANS_MONTANT, RULE_TYPE_LABELS } from '@/features/company/lib/reglesVariables';
+import { useEmployeesSummaryQuery } from '@/hooks/queries/useEmployeesQuery';
+
+const NOMS_MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+
+/** Le mois en cours et les cinq précédents : la paie se génère souvent après la fin du mois. */
+function moisProposes(maintenant: Date): { valeur: string; libelle: string }[] {
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(maintenant.getFullYear(), maintenant.getMonth() - i, 1);
+    return { valeur: `${d.getFullYear()}-${d.getMonth() + 1}`, libelle: `${NOMS_MOIS[d.getMonth()]} ${d.getFullYear()}` };
+  });
+}
+
+function codeDepuisLibelle(libelle: string): string {
+  const base = libelle
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return base || 'regle';
+}
 
 
 const DEFAULT_ASTREINTE_TIERED: AstreinteWeekTieredConditions = {
@@ -125,6 +146,8 @@ export default function PayrollVariableRulesCard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const now = new Date();
+  const [moisChoisi, setMoisChoisi] = useState(() => moisProposes(new Date())[0].valeur);
+  const { data: salaries = [] } = useEmployeesSummaryQuery('active');
 
   const canEdit = useMemo(() => {
     const r = user?.role;
@@ -164,6 +187,12 @@ export default function PayrollVariableRulesCard() {
   });
 
   const [simulation, setSimulation] = useState<PayrollVariableGenerateResult | null>(null);
+  const salariesCibles = (draft.conditions?.employee_ids as string[] | undefined) ?? null;
+  const basculerSalarie = (id: string, coche: boolean) => {
+    const actuels = salariesCibles ?? [];
+    const suivants = coche ? [...new Set([...actuels, id])] : actuels.filter((x) => x !== id);
+    setDraft({ ...draft, conditions: { ...draft.conditions, employee_ids: suivants } });
+  };
   const selectedShiftCodes = (draft.conditions?.shift_type_codes as string[] | undefined) ?? [];
   const isAstreinteKm = draft.rule_type === 'per_astreinte_weekend_km';
   const isTiered = draft.rule_type === 'per_astreinte_week_tiered';
@@ -258,13 +287,19 @@ export default function PayrollVariableRulesCard() {
           absence_types: selectedAbsenceTypes,
         };
       }
+      if (Array.isArray(draft.conditions?.employee_ids)) {
+        if ((draft.conditions?.employee_ids as string[]).length === 0) {
+          throw new Error('Cochez au moins un salarié, ou choisissez « Tous les salariés ».');
+        }
+        conditions = { ...conditions, employee_ids: draft.conditions?.employee_ids };
+      }
       const ruleAmount = noAmountRule
         ? null
         : isPresenceWeek
           ? Number(draft.amount ?? presenceConditions.amount_per_week ?? 0)
           : (draft.amount ?? 0);
       return createPayrollVariableRule({
-        code: draft.code || 'rule',
+        code: draft.code || codeDepuisLibelle(draft.label || ''),
         label: draft.label || 'Nouvelle règle',
         enabled: true,
         rule_type: draft.rule_type || 'fixed_monthly',
@@ -304,7 +339,11 @@ export default function PayrollVariableRulesCard() {
 
   const generate = useMutation({
     mutationFn: (dryRun: boolean) =>
-      generatePayrollVariables(now.getFullYear(), now.getMonth() + 1, dryRun),
+      generatePayrollVariables(
+        Number(moisChoisi.split('-')[0]),
+        Number(moisChoisi.split('-')[1]),
+        dryRun,
+      ),
     onSuccess: (result) => {
       if (result.dry_run) setSimulation(result);
       toast({
@@ -386,6 +425,7 @@ export default function PayrollVariableRulesCard() {
                 <TableHead>Libellé</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Montant</TableHead>
+                <TableHead>Salariés</TableHead>
                 <TableHead>Mode</TableHead>
                 {canEdit && <TableHead className="w-12" />}
               </TableRow>
@@ -397,6 +437,11 @@ export default function PayrollVariableRulesCard() {
                   <TableCell>{r.label}</TableCell>
                   <TableCell>{RULE_TYPE_LABELS[r.rule_type] ?? r.rule_type}</TableCell>
                   <TableCell>{r.amount ?? '—'}</TableCell>
+                  <TableCell>
+                    {Array.isArray(r.conditions?.employee_ids)
+                      ? pluriel((r.conditions?.employee_ids as string[]).length, 'salarié')
+                      : 'Tous'}
+                  </TableCell>
                   <TableCell>{GENERATION_MODE_LABELS[r.generation_mode] ?? r.generation_mode}</TableCell>
                   {canEdit && r.id && (
                     <TableCell>
@@ -414,7 +459,7 @@ export default function PayrollVariableRulesCard() {
               ))}
               {rules.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={canEdit ? 6 : 5} className="text-muted-foreground">
+                  <TableCell colSpan={canEdit ? 7 : 6} className="text-muted-foreground">
                     Aucune règle configurée.
                   </TableCell>
                 </TableRow>
@@ -873,6 +918,82 @@ export default function PayrollVariableRulesCard() {
                 </div>
               </>
             )}
+
+            {draft.rule_type === 'per_worked_day' && (
+              <div className="space-y-2 sm:col-span-2" data-testid="regle-jour-travaille">
+                <p className="text-sm text-muted-foreground">
+                  Martine compte les jours travaillés du calendrier de chaque salarié sur le mois de paie
+                  (heures réelles, ou heures prévues sans absence), puis pose « montant × jours » dans
+                  Primes. Pour un panier, le nombre de paniers suit : chaque panier est exonéré jusqu&apos;au
+                  plafond de l&apos;Urssaf.
+                </p>
+                <Label htmlFor="min_heures">Seulement les jours d&apos;au moins (heures, facultatif)</Label>
+                <Input
+                  id="min_heures"
+                  type="number"
+                  min={0}
+                  step="0.5"
+                  className="max-w-[10rem]"
+                  placeholder="ex. 6"
+                  value={(draft.conditions?.min_heures as number | undefined) ?? ''}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      conditions: {
+                        ...draft.conditions,
+                        min_heures: e.target.value === '' ? undefined : Number(e.target.value),
+                      },
+                    })
+                  }
+                />
+              </div>
+            )}
+
+            {draft.rule_type !== 'transport_domicile_travail' && (
+              <div className="space-y-2 sm:col-span-2" data-testid="regle-salaries">
+                <Label>Salariés concernés</Label>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="regle-tous"
+                    checked={salariesCibles === null}
+                    onCheckedChange={(v) => {
+                      const conditions = { ...(draft.conditions ?? {}) } as Record<string, unknown>;
+                      if (v) delete conditions.employee_ids;
+                      else conditions.employee_ids = [];
+                      setDraft({ ...draft, conditions });
+                    }}
+                  />
+                  <Label htmlFor="regle-tous" className="cursor-pointer font-normal">
+                    Tous les salariés de la société
+                  </Label>
+                </div>
+                {salariesCibles !== null && (
+                  <div className="max-h-56 overflow-y-auto rounded-md border p-2 grid gap-1 sm:grid-cols-2">
+                    {salaries.map((s) => (
+                      <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={salariesCibles.includes(s.id)}
+                          onCheckedChange={(v) => basculerSalarie(s.id, Boolean(v))}
+                        />
+                        {s.last_name} {s.first_name}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Mois à simuler ou à générer</Label>
+              <Select value={moisChoisi} onValueChange={setMoisChoisi}>
+                <SelectTrigger className="max-w-[14rem]" data-testid="regle-mois"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {moisProposes(now).map((m) => (
+                    <SelectItem key={m.valeur} value={m.valeur}>{m.libelle}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <div className="flex flex-wrap gap-2 sm:col-span-2">
               <Button
