@@ -109,7 +109,6 @@ export const CALENDAR_EDITABLE_TYPE_OPTIONS: { value: string; label: string }[] 
   { value: 'conges_payes', label: 'Congés payés' },
   { value: 'rtt', label: 'RTT' },
   { value: 'ferie', label: 'Férié' },
-  { value: 'arret_maladie', label: 'Arrêt maladie' },
   { value: 'weekend', label: 'Week-end' },
   { value: 'repos', label: 'Repos / récupération externe' },
   { value: 'absence_non_remuneree', label: 'Absence non rémunérée' },
@@ -136,6 +135,11 @@ export function editableTypeOptionsFor(
       ...CALENDAR_EDITABLE_TYPE_OPTIONS,
       { value: 'conge', label: 'Congé (hors paie)' },
     ];
+  }
+  // Un arrêt s'enregistre dans « Arrêts & IJ » (retour d'Elsa du 16/11) : le
+  // calendrier ne le propose plus, sauf pour retyper un jour qui le porte déjà.
+  if (currentType === 'arret_maladie') {
+    return [...CALENDAR_EDITABLE_TYPE_OPTIONS, { value: 'arret_maladie', label: 'Arrêt maladie' }];
   }
   return CALENDAR_EDITABLE_TYPE_OPTIONS;
 }

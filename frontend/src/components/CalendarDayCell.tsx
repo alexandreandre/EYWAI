@@ -200,7 +200,7 @@ function DayGaugeRow({
         ? value === 1
           ? 'Oui'
           : 'Non'
-        : `${value}${unit === 'h' ? ' h' : ''}`;
+        : `${value.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}${unit === 'h' ? ' h' : ''}`;
 
   const barWidth = showBar ? percent : filled ? 100 : 0;
 
