@@ -62,7 +62,7 @@ test('compteur de récupération : réglage, bulletin, choix du mois', async ({ 
     await page.request.get(`${API_URL}/api/modulation/settings`, { headers: await entetes(page) })
   ).json()) as { hour_account_enabled?: boolean; hs_routing_policy?: string };
   const dejaAuCompteur = !!reglageActuel.hour_account_enabled && reglageActuel.hs_routing_policy === 'account_all';
-  await carte.getByLabel(/mises au compteur de récupération/i).click();
+  await carte.getByLabel(/toutes au compteur de récupération/i).click();
   // Le rappel de L3121-37 accompagne le passage au compteur, pas une société qui y est déjà.
   if (!dejaAuCompteur) await expect(carte.getByText(/L3121-37/)).toBeVisible();
   await carte.getByLabel(/plafond du compteur/i).fill('abc');
