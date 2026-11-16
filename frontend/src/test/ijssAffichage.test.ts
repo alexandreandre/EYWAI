@@ -5,9 +5,6 @@ import { describe, expect, it } from "vitest";
 import { choixIjssModifie } from "@/features/company/components/ijssSansSubrogation";
 import {
   libelleIjssDuDetail,
-  libelleIjssDuPanneau,
-  phraseAppliqueSansEffet,
-  phraseDeduitesDuMaintien,
   phraseSalaireJournalierRetenu,
   texteDeductionDuPliant,
 } from "@/lib/ijssAffichage";
@@ -15,57 +12,6 @@ import {
 const SRC = path.resolve(__dirname, "..");
 const lire = (rel: string) => readFileSync(path.join(SRC, rel), "utf8").replace(/\s+/g, " ");
 const eur = (n: number) => `${n.toFixed(2).replace(".", ",")} €`;
-
-describe("Suivi IJSS : le panneau d'une ligne", () => {
-  it("ne dit « subrogées » que pour un arrêt subrogé", () => {
-    expect(libelleIjssDuPanneau(true)).toBe("IJSS bulletin (subrogées)");
-    expect(libelleIjssDuPanneau(false)).not.toMatch(/subrog/i);
-    expect(libelleIjssDuPanneau(false)).toBe("IJSS versées au salarié par la CPAM");
-  });
-
-  it("dit la part déduite du maintien et ses jours quand une déduction a joué", () => {
-    expect(
-      phraseDeduitesDuMaintien({ ijss_deduites: 687.12, nb_jours_maintenus: 19 }, eur),
-    ).toBe("Déduites du maintien : 687,12 € (19 jours maintenus)");
-    expect(
-      phraseDeduitesDuMaintien({ ijss_deduites: 40, nb_jours_maintenus: 1 }, eur),
-    ).toBe("Déduites du maintien : 40,00 € (1 jour maintenu)");
-    expect(phraseDeduitesDuMaintien({ ijss_deduites: 40, nb_jours_maintenus: null }, eur)).toBe(
-      "Déduites du maintien : 40,00 €",
-    );
-  });
-
-  it("ne dit rien sans déduction", () => {
-    expect(phraseDeduitesDuMaintien({ ijss_deduites: null, nb_jours_maintenus: null }, eur)).toBeNull();
-    expect(phraseDeduitesDuMaintien({}, eur)).toBeNull();
-  });
-
-  it("dit qu'un montant appliqué ne change plus le bulletin", () => {
-    expect(phraseAppliqueSansEffet()).toBe(
-      "Appliqué, sans effet : la société verse le garanti en entier",
-    );
-  });
-
-  it("le panneau s'appuie sur ces textes, garde la fiche ouverte après la validation", () => {
-    const t = lire("pages/rh/SuiviIJSS.tsx");
-    expect(t).toContain("libelleIjssDuPanneau(row.subrogation_active)");
-    expect(t).toContain("phraseDeduitesDuMaintien(row, eur)");
-    expect(t).toContain("row.applique_sans_effet");
-    expect(t).toContain("phraseAppliqueSansEffet()");
-    // La validation ne ferme plus la fiche ; l'application, si.
-    expect(t).toContain("onValidated={invalidate}");
-    expect(t).toContain("onUpdated={() => { invalidate(); setSelectedRow(null); }}");
-    expect(t).toMatch(/validateMut = useMutation\(\{.*onSuccess: \(\) => \{ toast\(\{ title: 'Montant brut validé' \}\); onValidated\(\);/);
-    expect(t).toContain("rows.find(");
-  });
-
-  it("la ligne du tableau suit le dashboard", () => {
-    const t = lire("api/ijssTracking.ts");
-    for (const cle of ["ijss_deduites", "ijss_deduites_source", "nb_jours_maintenus", "applique_sans_effet"]) {
-      expect(t).toContain(cle);
-    }
-  });
-});
 
 describe("Détail du maintien : d'où vient le montant d'IJSS", () => {
   it("dit « validées (suivi IJSS) » pour un montant du suivi, « estimées » sinon", () => {

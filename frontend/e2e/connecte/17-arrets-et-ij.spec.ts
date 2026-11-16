@@ -17,8 +17,10 @@ test.describe('Arrêts & IJ', () => {
     await page.getByTestId('renvoi-arrets').getByRole('link', { name: 'Arrêts & IJ' }).click();
     await expect(page.getByRole('heading', { name: 'Arrêts & IJ' })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/^Arrêts de /)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText('Rapprochement détaillé (facultatif)')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Sync Net-Entreprises' })).toHaveCount(0);
+    // « Pas d'import, pas d'export » (Elsa, 16/11) : le rapprochement par fichiers est retiré.
+    await expect(page.getByText(/Rapprochement détaillé/)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Import décompte|Import virements|Export audit/ })).toHaveCount(0);
+    await expect(page.getByText(/cliquez sur « Reçues »/)).toBeVisible();
 
     await page.getByRole('button', { name: /Enregistrer un arrêt/ }).click();
     const fenetre = page.getByRole('dialog');

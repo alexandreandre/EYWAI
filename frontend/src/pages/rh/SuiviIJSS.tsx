@@ -1,28 +1,8 @@
-import { useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  closeIjssPeriod,
-  commitIjssImportBatch,
-  downloadIjssAuditExport,
-  getIjssPeriodDashboard,
-  IJSS_LINE_STATUS_LABELS,
-  importBankRecap,
-  importCpamDecompte,
-  justifyIjssVariance,
-  applyAllValidatedIjss,
-  applyIjssToPayslip,
-  validateIjssExpectedLine,
-  syncIjssExpected,
-  type IjssDashboardRow,
-  type IjssLineStatus,
-} from '@/api/ijssTracking';
+import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { RhPageHeader } from '@/components/layout';
-import { PageFetchIndicator } from '@/components/skeletons/PageFetchIndicator';
-import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -30,360 +10,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
-import { useConfirmation } from '@/hooks/useConfirmation';
-import { confirmationClotureIjss } from '@/lib/clotureIjss';
-import { useToast } from '@/hooks/use-toast';
-import { downloadBlob } from '@/lib/downloadBlob';
-import { getUserErrorMessage } from '@/lib/errorMessages';
-import { ControleIndisponible } from '@/features/payroll/components/ControleIndisponible';
-import {
-  libelleIjssDuPanneau,
-  phraseAppliqueSansEffet,
-  phraseDeduitesDuMaintien,
-} from '@/lib/ijssAffichage';
-import { cn } from '@/lib/utils';
-import { IjssUnmatchedReceivedPanel } from '@/features/ijss/components/IjssUnmatchedReceivedPanel';
 import { ArretsDuMoisPanel } from '@/features/ijss/components/ArretsDuMoisPanel';
 import { AbsenceRequestModal } from '@/components/AbsenceRequestModal';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import {
-  AlertCircle,
-  CheckCircle2,
-  ChevronDown,
-  Clock,
-  Download,
-  RefreshCw,
-  Upload,
-} from 'lucide-react';
-
-/** Un échec IJSS dit ce qui n'a pas été fait, et pourquoi, en clair (jamais le message d'axios). */
-function echecIjss(titre: string, e: unknown) {
-  return { variant: 'destructive' as const, title: titre, description: getUserErrorMessage(e) };
-}
 
 const MONTHS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
 ];
 
-function eur(n: number) {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n);
-}
-
-function statusVariant(status: IjssLineStatus) {
-  if (status === 'ok' || status === 'justified') return 'default';
-  if (status === 'variance' || status === 'partial') return 'destructive';
-  return 'secondary';
-}
-
-function Kpi({
-  label,
-  value,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: number | string;
-  icon: typeof CheckCircle2;
-  tone?: 'ok' | 'warn' | 'muted';
-}) {
-  return (
-    <div
-      className={cn(
-        'flex items-center gap-3 rounded-lg border p-4',
-        tone === 'ok' && 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20',
-        tone === 'warn' && 'border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20',
-      )}
-    >
-      <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
-      <div>
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="text-2xl font-semibold tabular-nums">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function DetailPanel({
-  row,
-  open,
-  onClose,
-  onJustified,
-  periodClosed,
-  onValidated,
-  onUpdated,
-}: {
-  row: IjssDashboardRow | null;
-  open: boolean;
-  onClose: () => void;
-  onJustified: () => void;
-  periodClosed: boolean;
-  /** Après « Valider le brut CPAM » : la fiche reste ouverte. */
-  onValidated: () => void;
-  /** Après « Appliquer sur le bulletin » : la fiche se ferme. */
-  onUpdated: () => void;
-}) {
-  const { toast } = useToast();
-  const [note, setNote] = useState('');
-  const [manualBrut, setManualBrut] = useState('');
-  const justifyMut = useMutation({
-    mutationFn: () => justifyIjssVariance(row!.expected_line_id!, note),
-    onSuccess: () => {
-      toast({ title: 'Écart justifié' });
-      setNote('');
-      onJustified();
-      onClose();
-    },
-    onError: (e: unknown) => toast(echecIjss('Écart non justifié', e)),
-  });
-  const validateMut = useMutation({
-    mutationFn: () => {
-      const amt = manualBrut.trim() ? Number(manualBrut.replace(',', '.')) : undefined;
-      return validateIjssExpectedLine(row!.expected_line_id!, amt, amt !== undefined ? 'manual' : undefined);
-    },
-    onSuccess: () => {
-      toast({ title: 'Montant brut validé' });
-      onValidated();
-    },
-    onError: (e: unknown) => toast(echecIjss('Montant brut non validé', e)),
-  });
-  const applyMut = useMutation({
-    mutationFn: () => applyIjssToPayslip(row!.expected_line_id!),
-    onSuccess: () => {
-      toast({ title: 'Montant appliqué sur le bulletin' });
-      onUpdated();
-    },
-    onError: (e: unknown) => toast(echecIjss('Montant non appliqué sur le bulletin', e)),
-  });
-
-  if (!row) return null;
-
-  return (
-    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="overflow-y-auto sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>{row.employee_name}</SheetTitle>
-          <SheetDescription>Rapprochement IJSS CPAM</SheetDescription>
-        </SheetHeader>
-        <dl className="mt-6 space-y-3 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">IJSS théorique</dt>
-            <dd className="font-medium tabular-nums">{eur(row.ijss_theorique)}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">{libelleIjssDuPanneau(row.subrogation_active)}</dt>
-            <dd className="font-medium tabular-nums">{eur(row.ijss_subrogees_bulletin)}</dd>
-          </div>
-          {phraseDeduitesDuMaintien(row, eur) ? (
-            <div className="font-medium">{phraseDeduitesDuMaintien(row, eur)}</div>
-          ) : null}
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">Décompte CPAM</dt>
-            <dd className="font-medium tabular-nums">{eur(row.received_cpam)}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">Virement banque</dt>
-            <dd className="font-medium tabular-nums">{eur(row.received_bank)}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">Brut validé</dt>
-            <dd className="font-medium tabular-nums">
-              {row.ijss_brut_validated != null ? eur(row.ijss_brut_validated) : '—'}
-            </dd>
-          </div>
-          {row.applied_to_payslip_at ? (
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Appliqué bulletin</dt>
-              <dd className="font-medium tabular-nums">
-                {row.applied_ijss_brut != null ? eur(row.applied_ijss_brut) : 'Oui'}
-              </dd>
-            </div>
-          ) : null}
-        </dl>
-        {row.applique_sans_effet ? (
-          <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
-            {phraseAppliqueSansEffet()}
-          </p>
-        ) : null}
-        {!periodClosed && row.expected_line_id && (
-          <div className="mt-6 space-y-3">
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Montant brut manuel (optionnel)</p>
-              <input
-                type="text"
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                placeholder={String(row.received_cpam || row.received_bank || '')}
-                value={manualBrut}
-                onChange={(e) => setManualBrut(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={validateMut.isPending}
-                onClick={() => validateMut.mutate()}
-              >
-                Valider le brut CPAM
-              </Button>
-              <Button
-                size="sm"
-                disabled={
-                  applyMut.isPending ||
-                  row.ijss_brut_validated == null && !manualBrut.trim()
-                }
-                onClick={() => {
-                  if (row.ijss_brut_validated == null && manualBrut.trim()) {
-                    validateMut.mutate(undefined, {
-                      onSuccess: () => applyMut.mutate(),
-                    });
-                  } else {
-                    applyMut.mutate();
-                  }
-                }}
-              >
-                Appliquer sur le bulletin
-              </Button>
-            </div>
-          </div>
-        )}
-        {row.line_status === 'variance' && row.expected_line_id && (
-          <div className="mt-6 space-y-2">
-            <p className="text-sm font-medium">Justifier l&apos;écart</p>
-            <Textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Ex. : décalage carence CPAM, arrondi…"
-              rows={3}
-            />
-            <Button
-              disabled={note.trim().length < 3 || justifyMut.isPending}
-              onClick={() => justifyMut.mutate()}
-            >
-              Enregistrer la justification
-            </Button>
-          </div>
-        )}
-        {row.absence_request_id && (
-          <Button variant="link" className="mt-4 px-0" asChild>
-            <Link to="/leaves">Voir l&apos;arrêt dans Absences</Link>
-          </Button>
-        )}
-      </SheetContent>
-    </Sheet>
-  );
-}
-
+/**
+ * Étape ③ du mode paie, « Arrêts & IJ » (retour d'Elsa du 16/11) : on
+ * enregistre l'arrêt (subrogation oui ou non), on joint les pièces si on veut,
+ * on dit « IJ reçues ». Pas d'import, pas d'export : le rapprochement par
+ * fichiers CPAM ou bancaires est retiré de l'écran.
+ */
 export default function SuiviIJSSPage() {
-  const { demander, fenetre: fenetreConfirmation } = useConfirmation();
   const companyId = useActiveCompanyId();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [selectedRow, setSelectedRow] = useState<IjssDashboardRow | null>(null);
   const [saisieArretOuverte, setSaisieArretOuverte] = useState(false);
-  const bankInputRef = useRef<HTMLInputElement>(null);
-  const cpamInputRef = useRef<HTMLInputElement>(null);
 
-  const dashboardQuery = useQuery({
-    queryKey: ['ijss-dashboard', companyId, year, month],
-    queryFn: () => getIjssPeriodDashboard(year, month),
-    enabled: Boolean(companyId),
-  });
-
-  const periodId = dashboardQuery.data?.period?.id;
-
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ['ijss-dashboard', companyId, year, month] });
-
-  const syncMut = useMutation({
-    mutationFn: () => syncIjssExpected(periodId!),
-    onSuccess: (res) => {
-      toast({ title: `${res.synced_count} bulletin(s) synchronisé(s)` });
-      invalidate();
-    },
-    onError: (e: unknown) => toast(echecIjss('Synchronisation des bulletins impossible', e)),
-  });
-
-  const closeMut = useMutation({
-    mutationFn: () => closeIjssPeriod(periodId!),
-    onSuccess: () => {
-      toast({ title: 'Période clôturée' });
-      invalidate();
-    },
-    onError: (e: unknown) => toast(echecIjss('Clôture du mois impossible', e)),
-  });
-
-  const importMut = useMutation({
-    mutationFn: async ({ file, kind }: { file: File; kind: 'bank' | 'cpam' }) => {
-      const preview =
-        kind === 'bank'
-          ? await importBankRecap(periodId!, file)
-          : await importCpamDecompte(periodId!, file);
-      await commitIjssImportBatch(preview.batch_id);
-      return preview;
-    },
-    onSuccess: (res) => {
-      toast({
-        title: 'Import enregistré',
-        description: `${res.preview?.line_count ?? 0} ligne(s) importée(s)`,
-      });
-      invalidate();
-    },
-    onError: (e: unknown) => toast(echecIjss('Import non enregistré', e)),
-  });
-
-  const exportMut = useMutation({
-    mutationFn: () => downloadIjssAuditExport(periodId!),
-    onSuccess: (blob) => {
-      downloadBlob(blob, `suivi_ijss_${year}_${String(month).padStart(2, '0')}.xlsx`);
-    },
-    onError: (e: unknown) => toast(echecIjss('Export du suivi IJSS impossible', e)),
-  });
-
-  const applyAllMut = useMutation({
-    mutationFn: () => applyAllValidatedIjss(periodId!),
-    onSuccess: (res: { applied_count?: number }) => {
-      toast({ title: `${res.applied_count ?? 0} bulletin(s) mis à jour` });
-      invalidate();
-    },
-    onError: (e: unknown) => toast(echecIjss('Application des montants validés impossible', e)),
-  });
-
-  const rows = dashboardQuery.data?.rows ?? [];
-  const unmatchedReceived = dashboardQuery.data?.unmatched_received ?? [];
-  const summary = dashboardQuery.data?.summary ?? { ok: 0, variance: 0, pending: 0 };
-  const periodClosed = dashboardQuery.data?.period?.status === 'closed';
-  /** Lecture du mois en échec : ne jamais afficher « aucune ligne » ni des compteurs à 0. */
-  const lectureEnEchec = dashboardQuery.isError && !dashboardQuery.data;
-
-  const yearOptions = useMemo(
-    () => [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1],
-    [now],
-  );
+  const yearOptions = useMemo(() => {
+    const y = new Date().getFullYear();
+    return [y - 1, y, y + 1];
+  }, []);
 
   return (
     <div className="space-y-6">
-      {fenetreConfirmation}
       <RhPageHeader
         title="Arrêts & IJ"
         description="Les arrêts, la subrogation, les IJ reçues et le maintien de salaire, au même endroit."
@@ -400,7 +56,6 @@ export default function SuiviIJSSPage() {
         onSuccess={() => {
           setSaisieArretOuverte(false);
           void queryClient.invalidateQueries({ queryKey: ['arrets-du-mois', companyId] });
-          invalidate();
         }}
       />
 
@@ -408,16 +63,17 @@ export default function SuiviIJSSPage() {
         <CardContent className="pt-6 text-sm text-muted-foreground">
           <ol className="list-decimal list-inside space-y-1">
             <li>
-              <span className="text-foreground">Enregistrez l&apos;arrêt</span> et cochez la subrogation si la
-              société reçoit les IJ à la place du salarié.
+              <span className="text-foreground">Enregistrez l&apos;arrêt</span> et dites s&apos;il y a
+              subrogation (la société reçoit les IJ à la place du salarié).
             </li>
             <li>
               <span className="text-foreground">Joignez les pièces si vous les avez</span> : virement de la
               CPAM, IJ transmises par le salarié, décompte. C&apos;est facultatif.
             </li>
             <li>
-              <span className="text-foreground">Saisissez les IJ reçues du mois</span> en cliquant sur
-              l&apos;arrêt : Martine verse le maintien sur le bulletin.
+              <span className="text-foreground">Quand les IJ sont reçues, cliquez sur « Reçues »</span> :
+              Martine retient le montant qu&apos;elle a estimé et verse le maintien sur le bulletin. Pour
+              un autre montant, ouvrez la ligne de l&apos;arrêt.
             </li>
           </ol>
         </CardContent>
@@ -457,227 +113,6 @@ export default function SuiviIJSSPage() {
       </div>
 
       <ArretsDuMoisPanel year={year} month={month} libelleMois={`${MONTHS[month - 1]} ${year}`} />
-
-      <Collapsible className="rounded-lg border">
-        <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium hover:bg-muted/50">
-          <span>
-            Rapprochement détaillé (facultatif)
-            <span className="block text-xs font-normal text-muted-foreground">
-              Imports de décomptes CPAM et de virements, export d&apos;audit, clôture du mois.
-            </span>
-          </span>
-          <ChevronDown className="h-4 w-4" />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-6 border-t p-4">
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!periodId || syncMut.isPending || periodClosed}
-            onClick={() => syncMut.mutate()}
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Sync bulletins
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!periodId || importMut.isPending || periodClosed}
-            onClick={() => bankInputRef.current?.click()}
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            Import virements
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!periodId || importMut.isPending || periodClosed}
-            onClick={() => cpamInputRef.current?.click()}
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            Import décompte
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!periodId || exportMut.isPending}
-            onClick={() => exportMut.mutate()}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Export audit
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!periodId || applyAllMut.isPending || periodClosed}
-            onClick={() => applyAllMut.mutate()}
-          >
-            Appliquer validés
-          </Button>
-          <Button
-            size="sm"
-            disabled={!periodId || closeMut.isPending || periodClosed}
-            onClick={async () => {
-              const confirme = await demander(
-                confirmationClotureIjss({
-                  libelleMois: `${MONTHS[month - 1]} ${year}`,
-                  ecarts: summary.variance,
-                  enAttente: summary.pending,
-                })
-              );
-              if (confirme) closeMut.mutate();
-            }}
-          >
-            Clôturer le mois
-          </Button>
-        </div>
-
-      <input
-        ref={bankInputRef}
-        type="file"
-        accept=".csv,.xlsx,.xls"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) importMut.mutate({ file: f, kind: 'bank' });
-          e.target.value = '';
-        }}
-      />
-      <input
-        ref={cpamInputRef}
-        type="file"
-        accept=".csv,.xlsx,.xls"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) importMut.mutate({ file: f, kind: 'cpam' });
-          e.target.value = '';
-        }}
-      />
-
-      <PageFetchIndicator isFetching={dashboardQuery.isFetching && !dashboardQuery.isLoading} />
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Kpi label="Arrêts OK" value={lectureEnEchec ? '—' : summary.ok} icon={CheckCircle2} tone="ok" />
-        <Kpi label="Écarts à traiter" value={lectureEnEchec ? '—' : summary.variance} icon={AlertCircle} tone="warn" />
-        <Kpi label="En attente CPAM" value={lectureEnEchec ? '—' : summary.pending} icon={Clock} />
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {MONTHS[month - 1]} {year}
-            {periodClosed && (
-              <Badge variant="outline" className="ml-2">
-                Clôturé
-              </Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {dashboardQuery.isLoading ? (
-            <TableSkeleton rows={6} columns={6} />
-          ) : lectureEnEchec ? (
-            <ControleIndisponible
-              titre="Le suivi IJSS de ce mois n'a pas pu être lu"
-              description={getUserErrorMessage(dashboardQuery.error)}
-              onRetry={() => void dashboardQuery.refetch()}
-              isRetrying={dashboardQuery.isFetching}
-            />
-          ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              Aucune ligne IJSS pour ce mois. Générez les bulletins puis cliquez sur « Sync bulletins ».
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Salarié</TableHead>
-                  <TableHead className="text-right">Théorique</TableHead>
-                  <TableHead className="text-right">Décompte CPAM</TableHead>
-                  <TableHead className="text-right">Virement</TableHead>
-                  <TableHead className="text-right">Brut validé</TableHead>
-                  <TableHead>Appliqué</TableHead>
-                  <TableHead>Statut</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row) => (
-                  <TableRow
-                    key={row.expected_line_id ?? row.employee_id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => setSelectedRow(row)}
-                  >
-                    <TableCell className="font-medium">{row.employee_name}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {eur(row.ijss_subrogees_bulletin || row.ijss_theorique)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{eur(row.received_cpam)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{eur(row.received_bank)}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {row.ijss_brut_validated != null ? eur(row.ijss_brut_validated) : '—'}
-                    </TableCell>
-                    <TableCell>
-                      {row.applied_to_payslip_at ? (
-                        <Badge variant="default">Oui</Badge>
-                      ) : (
-                        <Badge variant="outline">Non</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={statusVariant(row.line_status)}>
-                        {IJSS_LINE_STATUS_LABELS[row.line_status]}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      <IjssUnmatchedReceivedPanel
-        lines={unmatchedReceived}
-        dashboardRows={rows}
-        periodClosed={periodClosed}
-        onMatched={invalidate}
-      />
-
-      <Card className="border-dashed">
-        <CardContent className="pt-6 text-sm text-muted-foreground space-y-2">
-          <p className="font-medium text-foreground">Rapprochement détaillé, si vous le faites</p>
-          <ol className="list-decimal list-inside space-y-1">
-            <li>« Sync bulletins » reprend les IJ estimées par Martine sur les bulletins du mois.</li>
-            <li>« Import décompte » ou « Import virements » lit un fichier CPAM ou bancaire (CSV, Excel).</li>
-            <li>Validez le brut ligne par ligne, puis « Appliquer validés » et « Clôturer le mois ».</li>
-          </ol>
-          <p>Saisir les IJ reçues sur un arrêt, plus haut, fait la même chose en un geste.</p>
-        </CardContent>
-      </Card>
-        </CollapsibleContent>
-      </Collapsible>
-
-      <DetailPanel
-        row={
-          selectedRow
-            ? (rows.find(
-                (r) =>
-                  (r.expected_line_id ?? r.employee_id) ===
-                  (selectedRow.expected_line_id ?? selectedRow.employee_id),
-              ) ?? selectedRow)
-            : null
-        }
-        open={Boolean(selectedRow)}
-        onClose={() => setSelectedRow(null)}
-        onJustified={invalidate}
-        periodClosed={periodClosed}
-        onValidated={invalidate}
-        onUpdated={() => {
-          invalidate();
-          setSelectedRow(null);
-        }}
-      />
     </div>
   );
 }

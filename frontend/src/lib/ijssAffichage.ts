@@ -6,30 +6,6 @@
  * réglage de la société.
  */
 import { formatTauxFr } from '@/lib/employeeAbsencesUtils';
-import { pluriel } from '@/lib/pluriel';
-
-/** Libellé du montant d'IJSS dans la fiche d'une ligne du suivi. */
-export function libelleIjssDuPanneau(subrogationActive: boolean): string {
-  return subrogationActive ? 'IJSS bulletin (subrogées)' : 'IJSS versées au salarié par la CPAM';
-}
-
-/** « Déduites du maintien : 687,12 € (19 jours maintenus) », ou rien sans déduction. */
-export function phraseDeduitesDuMaintien(
-  row: { ijss_deduites?: number | null; nb_jours_maintenus?: number | null },
-  eur: (n: number) => string,
-): string | null {
-  const deduites = Number(row.ijss_deduites ?? 0);
-  if (!(deduites > 0)) return null;
-  const jours = Number(row.nb_jours_maintenus ?? 0);
-  const base = `Déduites du maintien : ${eur(deduites)}`;
-  if (!(jours > 0)) return base;
-  return `${base} (${pluriel(jours, 'jour')} ${jours < 2 ? 'maintenu' : 'maintenus'})`;
-}
-
-/** Un montant appliqué qui ne change plus le bulletin. */
-export function phraseAppliqueSansEffet(): string {
-  return 'Appliqué, sans effet : la société verse le garanti en entier';
-}
 
 /**
  * La ligne qui relie le salaire journalier de base à l'indemnité : les 21 %

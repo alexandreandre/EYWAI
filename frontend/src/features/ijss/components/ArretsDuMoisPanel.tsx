@@ -3,7 +3,8 @@
  *
  * Le parcours : enregistrer l'arrêt (subrogation cochée ou non), joindre si on
  * veut les preuves (virement CPAM, IJ transmises par le salarié, décompte),
- * saisir les IJ reçues du mois ; Martine verse alors le maintien.
+ * dire « IJ reçues » (un clic sur le montant estimé, ou un autre montant) ;
+ * Martine verse alors le maintien.
  */
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -133,6 +134,23 @@ export function ArretsDuMoisPanel({ year, month, libelleMois }: Props) {
 
   const arrets = query.data?.arrets ?? [];
   const selection = arrets.find((a) => a.absence_id === ouvert) ?? null;
+  const cloture = Boolean(query.data?.periode_cloturee);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  // « IJ reçues » en un clic (retour d'Elsa du 16/11 : « la RH coche ok,
+  // reçu ») : le montant estimé par Martine est retenu ; un autre montant se
+  // saisit dans la fiche de l'arrêt.
+  const recuesMut = useMutation({
+    mutationFn: (a: ArretDuMois) =>
+      enregistrerIjRecues(a.absence_id, { year, month, montant: a.ij_estimees ?? 0 }),
+    onSuccess: (res, a) => {
+      toast({ title: `IJ reçues : ${a.employee_name}`, description: res.message });
+      void queryClient.invalidateQueries({ queryKey: ['arrets-du-mois', companyId, year, month] });
+      void queryClient.invalidateQueries({ queryKey: ['ijss-dashboard', companyId, year, month] });
+    },
+    onError: (e: unknown) =>
+      toast({ variant: 'destructive', title: 'IJ non enregistrées', description: getUserErrorMessage(e) }),
+  });
 
   return (
     <Card>
@@ -197,9 +215,29 @@ export function ArretsDuMoisPanel({ year, month, libelleMois }: Props) {
                             {eur(a.ij_recues)}
                             <span className="block text-xs text-muted-foreground">reçues</span>
                           </span>
+                        ) : a.ij_estimees != null && !cloture ? (
+                          <span className="inline-flex flex-col items-end gap-1">
+                            <span className="text-muted-foreground">{eur(a.ij_estimees)} estimées</span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7"
+                              data-testid="ij-recues-un-clic"
+                              disabled={recuesMut.isPending}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                recuesMut.mutate(a);
+                              }}
+                            >
+                              {recuesMut.isPending && recuesMut.variables?.absence_id === a.absence_id && (
+                                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              )}
+                              Reçues
+                            </Button>
+                          </span>
                         ) : (
                           <span className="text-muted-foreground">
-                            {a.ij_estimees != null ? `${eur(a.ij_estimees)} estimées` : 'À saisir'}
+                            {a.ij_estimees != null ? `${eur(a.ij_estimees)} estimées` : 'À saisir (ouvrir la ligne)'}
                           </span>
                         )}
                       </TableCell>
@@ -241,7 +279,7 @@ export function ArretsDuMoisPanel({ year, month, libelleMois }: Props) {
         year={year}
         month={month}
         libelleMois={libelleMois}
-        cloture={Boolean(query.data?.periode_cloturee)}
+        cloture={cloture}
         onClose={() => setOuvert(null)}
       />
     </Card>
@@ -380,9 +418,22 @@ function FicheArret({
                   {arret.ij_appliquees_le ? ', porté au bulletin.' : '.'}
                 </p>
               )}
+              {arret.ij_estimees != null && arret.ij_recues == null && !cloture && (
+                <Button
+                  className="w-full"
+                  data-testid="ij-recues-estimees"
+                  onClick={() => ijMut.mutate(arret.ij_estimees ?? 0)}
+                  disabled={ijMut.isPending}
+                >
+                  {ijMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  IJ reçues : {eur(arret.ij_estimees)}
+                </Button>
+              )}
               <div className="flex items-end gap-2">
                 <div className="grid flex-1 gap-1">
-                  <Label htmlFor="montant-ij">Montant brut (€)</Label>
+                  <Label htmlFor="montant-ij">
+                    {arret.ij_estimees != null ? 'Autre montant brut (€)' : 'Montant brut (€)'}
+                  </Label>
                   <Input
                     id="montant-ij"
                     inputMode="decimal"
