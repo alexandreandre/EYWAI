@@ -23,6 +23,8 @@ export interface SalarieActivitePartielle {
   nom: string;
   statut: string | null;
   taux_horaire: number | null;
+  /** Forfait annuel en jours : 1 jour = 7 h, taux selon la fiche du ministère du Travail. */
+  forfait_jours?: boolean;
   heures_par_jour: number;
   deja: { heures: number | null; retenue: number; indemnite: number } | null;
 }

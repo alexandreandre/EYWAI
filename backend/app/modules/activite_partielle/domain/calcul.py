@@ -59,6 +59,28 @@ def taux_horaire_du_contrat(
     return round(mensuel / (hebdo * 52 / 12), 4)
 
 
+def taux_horaire_forfait_jours(
+    salaire_de_base: Any, jours_forfait: float | None
+) -> float | None:
+    """Forfait annuel en jours : la journée vaut le salaire mensuel ÷ (22 × jours ÷ 218),
+    l'heure la journée ÷ 7 (fiche « forfaits jours » du ministère du Travail, 11/2024 :
+    3 500 € pour 218 jours = 22,73 € de l'heure ; 2 000 € pour 109 jours = 25,97 €).
+    """
+    valeur = (
+        salaire_de_base.get("valeur")
+        if isinstance(salaire_de_base, dict)
+        else salaire_de_base
+    )
+    try:
+        mensuel = float(valeur)
+    except (TypeError, ValueError):
+        return None
+    jours = float(jours_forfait or 218)
+    if mensuel <= 0 or jours <= 0:
+        return None
+    return round(mensuel / (22 * jours / 218) / 7, 4)
+
+
 def calculer(
     heures_chomees: float,
     taux_horaire: float,

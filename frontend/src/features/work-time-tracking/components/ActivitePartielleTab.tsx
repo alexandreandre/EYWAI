@@ -183,6 +183,9 @@ export function ActivitePartielleTab() {
                           <TableCell className="font-medium">{s.nom}</TableCell>
                           <TableCell className="text-right tabular-nums">
                             {s.taux_horaire != null ? eur(s.taux_horaire) : 'salaire absent'}
+                            {s.forfait_jours && (
+                              <span className="block text-xs text-muted-foreground">forfait jours, 7 h par jour</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Input

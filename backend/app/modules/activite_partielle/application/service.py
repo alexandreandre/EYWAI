@@ -22,6 +22,7 @@ from app.modules.activite_partielle.domain.calcul import (
     calculer,
     refus_periode,
     taux_horaire_du_contrat,
+    taux_horaire_forfait_jours,
 )
 
 CHAMPS_REGLAGE = (
@@ -116,7 +117,7 @@ def _salaries_du_mois(company_id: str, year: int, month: int) -> list[dict[str, 
         .table("employees")
         .select(
             "id, first_name, last_name, nom_usage, statut, salaire_de_base, duree_hebdomadaire, "
-            "hire_date, employment_status"
+            "hire_date, employment_status, is_forfait_jour, specificites_paie"
         )
         .eq("company_id", company_id)
         .execute()
@@ -143,6 +144,32 @@ def _lignes_ap_du_mois(company_id: str, year: int, month: int) -> list[dict[str,
         .execute()
         .data
         or []
+    )
+
+
+def _taux_horaire(e: dict[str, Any]) -> float | None:
+    """Salaire horaire de référence : contrat en heures, ou forfait en jours."""
+    if e.get("is_forfait_jour"):
+        from app.modules.payroll.engine.forfait_individuel import (
+            jours_du_forfait_de_la_fiche,
+        )
+
+        try:
+            jours = jours_du_forfait_de_la_fiche(e.get("specificites_paie"))
+        except ValueError:
+            jours = None
+        return taux_horaire_forfait_jours(e.get("salaire_de_base"), jours)
+    return taux_horaire_du_contrat(
+        e.get("salaire_de_base"), e.get("duree_hebdomadaire")
+    )
+
+
+def _heures_par_jour(e: dict[str, Any], reglage: dict[str, Any]) -> float:
+    if e.get("is_forfait_jour"):
+        return 7.0  # une journée de forfait vaut 7 h (fiche du ministère du Travail)
+    return float(
+        reglage.get("heures_par_jour")
+        or round(float(e.get("duree_hebdomadaire") or 35) / 5, 2)
     )
 
 
@@ -173,18 +200,15 @@ def lister_mois(company_id: str, year: int, month: int) -> dict[str, Any]:
         _salaries_du_mois(company_id, year, month), key=lambda r: _nom(r).lower()
     ):
         eid = str(e["id"])
-        heures_jour = reglage.get("heures_par_jour") or round(
-            float(e.get("duree_hebdomadaire") or 35) / 5, 2
-        )
+        heures_jour = _heures_par_jour(e, reglage)
         deja = par_salarie.get(eid)
         salaries.append(
             {
                 "employee_id": eid,
                 "nom": _nom(e),
                 "statut": e.get("statut"),
-                "taux_horaire": taux_horaire_du_contrat(
-                    e.get("salaire_de_base"), e.get("duree_hebdomadaire")
-                ),
+                "taux_horaire": _taux_horaire(e),
+                "forfait_jours": bool(e.get("is_forfait_jour")),
                 "heures_par_jour": float(heures_jour),
                 "deja": (
                     {
@@ -273,9 +297,7 @@ def poser_heures_du_mois(
                 }
             )
             continue
-        taux = taux_horaire_du_contrat(
-            e.get("salaire_de_base"), e.get("duree_hebdomadaire")
-        )
+        taux = _taux_horaire(e)
         if heures > 0 and not taux:
             resultats.append(
                 {

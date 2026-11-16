@@ -8,6 +8,7 @@ from app.modules.activite_partielle.domain.calcul import (
     calculer,
     refus_periode,
     taux_horaire_du_contrat,
+    taux_horaire_forfait_jours,
 )
 
 
@@ -59,3 +60,15 @@ def test_periode():
     assert "avant" in refus_periode(reglage, 2026, 5)
     assert "après" in refus_periode(reglage, 2026, 12)
     assert "pas activée" in refus_periode({"active": False}, 2026, 6)
+
+
+def test_forfait_jours_selon_la_fiche_du_ministere():
+    assert taux_horaire_forfait_jours({"valeur": 3500}, 218) == pytest.approx(
+        22.73, abs=0.005
+    )
+    assert taux_horaire_forfait_jours({"valeur": 2000}, 109) == pytest.approx(
+        25.97, abs=0.005
+    )
+    assert taux_horaire_forfait_jours({"valeur": 3500}, None) == pytest.approx(
+        22.73, abs=0.005
+    )
