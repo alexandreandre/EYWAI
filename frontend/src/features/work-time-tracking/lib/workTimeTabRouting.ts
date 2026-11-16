@@ -1,4 +1,4 @@
-export const WORK_TIME_TABS = ['contingent', 'compte-heures'] as const;
+export const WORK_TIME_TABS = ['contingent', 'compte-heures', 'activite-partielle'] as const;
 
 export type WorkTimeTab = (typeof WORK_TIME_TABS)[number];
 

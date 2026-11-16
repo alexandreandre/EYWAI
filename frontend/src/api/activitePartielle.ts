@@ -1,0 +1,68 @@
+/**
+ * Activité partielle (retour d'Elsa du 16/11, LEWIS) : réglage de la société et
+ * heures chômées du mois. Martine pose les deux variables du mois (retenue et
+ * indemnité) que le moteur paie déjà.
+ */
+import apiClient from './apiClient';
+
+export interface ReglageActivitePartielle {
+  active: boolean;
+  date_debut: string | null;
+  date_fin: string | null;
+  taux_indemnite: number;
+  plancher_horaire: number;
+  plafond_horaire: number;
+  heures_par_jour: number | null;
+  reference_decision: string | null;
+  note: string | null;
+  updated_at?: string | null;
+}
+
+export interface SalarieActivitePartielle {
+  employee_id: string;
+  nom: string;
+  statut: string | null;
+  taux_horaire: number | null;
+  heures_par_jour: number;
+  deja: { heures: number | null; retenue: number; indemnite: number } | null;
+}
+
+export interface MoisActivitePartielle {
+  reglage: ReglageActivitePartielle;
+  refus: string | null;
+  salaries: SalarieActivitePartielle[];
+}
+
+export interface ResultatActivitePartielle {
+  employee_id: string;
+  nom?: string;
+  statut: 'pose' | 'retire' | 'rien' | 'refuse' | 'bulletin_remis';
+  message?: string;
+  heures?: number;
+  taux_horaire?: number;
+  indemnite_horaire?: number;
+  retenue?: number;
+  indemnite?: number;
+  regle?: string;
+}
+
+export const lireReglageActivitePartielle = async () =>
+  (await apiClient.get<ReglageActivitePartielle>('/api/activite-partielle/reglage')).data;
+
+export const enregistrerReglageActivitePartielle = async (r: ReglageActivitePartielle) =>
+  (await apiClient.put<ReglageActivitePartielle>('/api/activite-partielle/reglage', r)).data;
+
+export const lireMoisActivitePartielle = async (year: number, month: number) =>
+  (await apiClient.get<MoisActivitePartielle>('/api/activite-partielle/mois', { params: { year, month } })).data;
+
+export const poserHeuresActivitePartielle = async (
+  year: number,
+  month: number,
+  saisies: { employee_id: string; heures: number }[],
+) =>
+  (
+    await apiClient.post<{
+      resultats: ResultatActivitePartielle[];
+      bulletins_a_recalculer: { employee_id: string; year: number; month: number }[];
+    }>('/api/activite-partielle/mois', { year, month, saisies })
+  ).data;

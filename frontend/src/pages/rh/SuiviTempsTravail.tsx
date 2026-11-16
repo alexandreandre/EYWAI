@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ContingentHsTab } from '@/features/work-time-tracking/components/ContingentHsTab';
 import { HourAccountTab } from '@/features/work-time-tracking/components/HourAccountTab';
+import { ActivitePartielleTab } from '@/features/work-time-tracking/components/ActivitePartielleTab';
+import { lireReglageActivitePartielle } from '@/api/activitePartielle';
 import { WorkTimeHubIntro } from '@/features/work-time-tracking/components/WorkTimeHubIntro';
 import {
   parseWorkTimeTab,
@@ -14,7 +16,7 @@ import {
 } from '@/features/work-time-tracking/lib/workTimeTabRouting';
 import { useCompany } from '@/contexts/CompanyContext';
 import { queryKeys } from '@/lib/queryKeys';
-import { Clock, Gauge, Settings2 } from 'lucide-react';
+import { Clock, Gauge, PauseCircle, Settings2 } from 'lucide-react';
 
 export default function SuiviTempsTravailPage() {
   const { activeCompany } = useCompany();
@@ -35,8 +37,20 @@ export default function SuiviTempsTravailPage() {
     return modulationSettings.hour_account_enabled || modulationSettings.enabled;
   }, [modulationSettings]);
 
+  // Activité partielle (retour d'Elsa du 16/11) : l'onglet n'existe que pour
+  // une société qui l'a activée dans ses paramètres.
+  const { data: reglageAp } = useQuery({
+    queryKey: ['activite-partielle-reglage', companyId],
+    queryFn: lireReglageActivitePartielle,
+    enabled: Boolean(companyId),
+  });
+  const apVisible = Boolean(reglageAp?.active);
+
   const effectiveTab: WorkTimeTab =
-    !hourAccountVisible && activeTab === 'compte-heures' ? 'contingent' : activeTab;
+    (!hourAccountVisible && activeTab === 'compte-heures') ||
+    (!apVisible && activeTab === 'activite-partielle')
+      ? 'contingent'
+      : activeTab;
 
   useEffect(() => {
     if (!hourAccountVisible && activeTab === 'compte-heures') {
@@ -97,7 +111,7 @@ export default function SuiviTempsTravailPage() {
       <WorkTimeHubIntro />
 
       <Tabs value={effectiveTab} onValueChange={handleTabChange}>
-        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 sm:w-auto">
+        <TabsList className="grid w-full grid-cols-1 gap-1 sm:auto-cols-auto sm:grid-flow-col sm:w-auto">
           <TabsTrigger value="contingent" className="flex items-center gap-2">
             <Gauge className="h-4 w-4" />
             Plafond annuel (contingent)
@@ -106,6 +120,12 @@ export default function SuiviTempsTravailPage() {
             <TabsTrigger value="compte-heures" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               Compteur récup
+            </TabsTrigger>
+          )}
+          {apVisible && (
+            <TabsTrigger value="activite-partielle" className="flex items-center gap-2">
+              <PauseCircle className="h-4 w-4" />
+              Activité partielle
             </TabsTrigger>
           )}
         </TabsList>
@@ -124,6 +144,12 @@ export default function SuiviTempsTravailPage() {
               initialEmployeeId={selectedEmployeeId}
               onEmployeeSelect={handleEmployeeSelect}
             />
+          </TabsContent>
+        )}
+
+        {apVisible && (
+          <TabsContent value="activite-partielle" className="mt-6">
+            <ActivitePartielleTab />
           </TabsContent>
         )}
       </Tabs>

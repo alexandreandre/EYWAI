@@ -66,6 +66,7 @@ from app.modules.employees.api.router import router as employees_router
 from app.modules.expenses.api.router import router as expenses_router
 from app.modules.exports.api.router import router as exports_router
 from app.modules.ijss_tracking.api.router import router as ijss_tracking_router
+from app.modules.activite_partielle.api.router import router as activite_partielle_router
 from app.modules.interview_templates.api.router import (
     router as interview_templates_router,
 )
@@ -175,6 +176,7 @@ router.include_router(dsn_import_router)
 router.include_router(relecture_ia_router)
 router.include_router(admin_import_router)
 router.include_router(ijss_tracking_router)
+router.include_router(activite_partielle_router)
 router.include_router(employees_router)
 router.include_router(employee_exits_router)
 router.include_router(employee_loans_router)
