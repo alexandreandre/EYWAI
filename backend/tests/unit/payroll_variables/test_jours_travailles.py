@@ -87,3 +87,23 @@ def test_bornes_de_la_fenetre():
 
 def test_montant_par_jour():
     assert compute_rule_amount("per_worked_day", 7.5, None, 18) == 135.0
+
+
+def test_un_panier_genere_sans_type_de_prime_est_non_soumis():
+    from app.modules.payroll_variables.application.generate_monthly import (
+        _bonus_type_meta,
+    )
+
+    label, social, taxable, catalog_id, _, _ = _bonus_type_meta(
+        {"label": "Panier repas", "rule_type": "per_worked_day", "conditions": {}}
+    )
+    assert (label, social, taxable, catalog_id) == (
+        "Panier repas",
+        False,
+        False,
+        "indemnite_panier_repas",
+    )
+    _, social, taxable, catalog_id, _, _ = _bonus_type_meta(
+        {"label": "Prime d'équipe", "rule_type": "per_worked_day", "conditions": {}}
+    )
+    assert (social, taxable, catalog_id) == (True, True, None)

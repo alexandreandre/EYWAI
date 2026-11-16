@@ -430,6 +430,11 @@ def _bonus_type_meta(
         low = label.lower()
         if "panier" in low or "repas" in low:
             catalog_id = "indemnite_panier_repas"
+    if catalog_id == "indemnite_panier_repas":
+        # Un panier est un frais : non soumis, exonéré par panier jusqu'au
+        # plafond Urssaf, l'excédent réintégré par le bulletin. Soumis, il
+        # serait payé comme une prime ordinaire (tout cotisé).
+        return label, False, False, catalog_id, export_code, situation_repas
     return label, True, True, catalog_id, export_code, situation_repas
 
 
