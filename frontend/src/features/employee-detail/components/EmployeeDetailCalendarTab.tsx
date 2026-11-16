@@ -3,8 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getAbsencesForEmployee } from "@/api/absences";
 import { CalendarDays, ChevronLeft, ChevronRight, Grid3x3, Hourglass, Loader2, Save, Sparkles, Upload } from "lucide-react";
 import { AbsenceRequestModal } from "@/components/AbsenceRequestModal";
-import { getModulationSettings } from "@/api/modulation";
-import { queryKeys } from "@/lib/queryKeys";
+import { useEmployeeAbsenceBalancesQuery } from "@/hooks/queries/useEmployeeAbsenceBalancesQuery";
 import { CalendarDayCell } from "@/components/CalendarDayCell";
 import { CalendarAbsencesHint } from "@/components/employee-detail/CalendarAbsencesHint";
 import { CalendarEntryHelp } from '@/components/schedules/CalendarEntryHelp';
@@ -121,15 +120,11 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
   // par une demande validée, qui retire les heures du compteur ; le jour est
   // ensuite projeté au planning comme un congé, et la case dit « Récupération ».
   const queryClient = useQueryClient();
-  const { data: reglageCompteur } = useQuery({
-    queryKey: queryKeys.modulationSettings(activeCompanyId),
-    queryFn: getModulationSettings,
-    enabled: Boolean(activeCompanyId),
-    staleTime: 60_000,
-  });
-  const compteurRecup = Boolean(
-    reglageCompteur?.hour_account_enabled && reglageCompteur?.recovery_absence_enabled,
-  );
+  // Même règle que le serveur : la ligne « Récupération / modulation » des
+  // soldes n'existe que si la société met des heures au compteur, ou si le
+  // salarié en a déjà (une société qui paie ses heures sup n'en a pas).
+  const { data: soldesSalarie } = useEmployeeAbsenceBalancesQuery(employeeId || undefined);
+  const compteurRecup = (soldesSalarie ?? []).some((b) => b.type === "Récupération / modulation");
   const [recupOuverte, setRecupOuverte] = useState(false);
   const [joursRecupInitiaux, setJoursRecupInitiaux] = useState<Date[]>([]);
   const joursRecup = useMemo(() => {

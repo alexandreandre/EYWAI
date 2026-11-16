@@ -108,7 +108,12 @@ export function phraseMaintien(arret: ArretDuMois): { texte: string; ton: 'ok' |
     case 'verse':
       return { texte: `Versé : ${eur(m.montant_verse)}`, ton: 'ok' };
     default:
-      return { texte: m.motif ? `Pas de maintien (${m.motif})` : 'Pas de maintien', ton: 'neutre' };
+      return {
+        texte: m.motif
+          ? `Pas de maintien (${m.motif})`
+          : 'Pas de maintien sur le bulletin de ce mois (ouvrez le bulletin pour le détail)',
+        ton: 'neutre',
+      };
   }
 }
 
@@ -215,7 +220,7 @@ export function ArretsDuMoisPanel({ year, month, libelleMois }: Props) {
                             {eur(a.ij_recues)}
                             <span className="block text-xs text-muted-foreground">reçues</span>
                           </span>
-                        ) : a.ij_estimees != null && !cloture ? (
+                        ) : a.ij_estimees != null && a.ij_estimees > 0 && !cloture ? (
                           <span className="inline-flex flex-col items-end gap-1">
                             <span className="text-muted-foreground">{eur(a.ij_estimees)} estimées</span>
                             <Button
@@ -237,7 +242,9 @@ export function ArretsDuMoisPanel({ year, month, libelleMois }: Props) {
                           </span>
                         ) : (
                           <span className="text-muted-foreground">
-                            {a.ij_estimees != null ? `${eur(a.ij_estimees)} estimées` : 'À saisir (ouvrir la ligne)'}
+                            {a.ij_estimees != null && a.ij_estimees > 0
+                              ? `${eur(a.ij_estimees)} estimées`
+                              : 'À saisir (ouvrir la ligne)'}
                           </span>
                         )}
                       </TableCell>
@@ -418,7 +425,7 @@ function FicheArret({
                   {arret.ij_appliquees_le ? ', porté au bulletin.' : '.'}
                 </p>
               )}
-              {arret.ij_estimees != null && arret.ij_recues == null && !cloture && (
+              {arret.ij_estimees != null && arret.ij_estimees > 0 && arret.ij_recues == null && !cloture && (
                 <Button
                   className="w-full"
                   data-testid="ij-recues-estimees"
@@ -432,7 +439,7 @@ function FicheArret({
               <div className="flex items-end gap-2">
                 <div className="grid flex-1 gap-1">
                   <Label htmlFor="montant-ij">
-                    {arret.ij_estimees != null ? 'Autre montant brut (€)' : 'Montant brut (€)'}
+                    {arret.ij_estimees != null && arret.ij_estimees > 0 ? 'Autre montant brut (€)' : 'Montant brut (€)'}
                   </Label>
                   <Input
                     id="montant-ij"

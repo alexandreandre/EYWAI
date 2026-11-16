@@ -310,8 +310,10 @@ export function AbsenceRequestModal({
           rows
             .filter(
               (e) =>
-                // Le salarié du congé modifié reste affiché, même sorti depuis.
+                // Le salarié du congé modifié, ou celui du calendrier d'où l'on
+                // vient, reste affiché même hors du mois de paie retenu.
                 e.id === absenceAModifier?.employee_id ||
+                (salarieInitial !== undefined && e.id === salarieInitial) ||
                 filterEmployeesSaisissables([e], year, month).length > 0,
             )
             .map((e) => ({
@@ -324,7 +326,7 @@ export function AbsenceRequestModal({
       )
       .catch(() => setEmployees([]))
       .finally(() => setIsLoadingEmployees(false));
-  }, [isOpen, isRhMode, absenceAModifier?.employee_id]);
+  }, [isOpen, isRhMode, absenceAModifier?.employee_id, salarieInitial]);
 
   useEffect(() => {
     if (!isArretPrincipalType(absenceType)) {
@@ -1048,8 +1050,9 @@ export function AbsenceRequestModal({
                     );
                   })}
                 <p className="text-xs text-muted-foreground">
-                  La journée reste travaillée au planning : seules les heures
-                  saisies sont décomptées du compteur.
+                  Laissez vide pour une journée entière (le jour est posé au planning).
+                  Si vous saisissez des heures, la journée reste travaillée et seules
+                  ces heures sont retirées du compteur.
                 </p>
               </div>
             )}

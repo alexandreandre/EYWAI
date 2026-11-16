@@ -5,6 +5,11 @@ export function CalendarEntryHelp() {
       <summary className="cursor-pointer font-medium">Quel type choisir pour un jour à 0 h ?</summary>
       <div className="mt-2 space-y-2 text-xs text-muted-foreground">
         <p>
+          <strong>Récupération des heures du compteur Martine :</strong> dans la case du jour,
+          {' '}« Récupération (compteur)… », ou le bouton « Poser une récupération ». Les heures
+          sortent du compteur et le salaire du jour est maintenu.
+        </p>
+        <p>
           <strong>Récupération déjà validée et suivie hors Martine :</strong> choisissez
           {' '}« Repos / récupération externe », mettez le prévu à 0 h et gardez le réel à 0 h.
           Martine ne crée ni retenue d’absence, ni congé payé, ni débit de compteur pour ce repos.
@@ -28,8 +33,7 @@ export function CalendarEntryHelp() {
         <p>
           <strong>Autre absence :</strong> choisissez son motif réel (congés payés, RTT,
           arrêt ou absence non rémunérée). Un zéro importé ne donne pas le motif :
-          faites-le confirmer avant de choisir. Une récupération demandée sur un compteur
-          Martine passe par le module Absences.
+          faites-le confirmer avant de choisir.
         </p>
         <p>
           <strong>Travail prévu avec réel à 0 h :</strong> le calendrier reste à vérifier.
