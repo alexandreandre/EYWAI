@@ -360,3 +360,102 @@ def test_mois_partiel_inchange_par_le_plafond(base):
     retenue, _ = _deux(saisies)
     assert retenue["payroll_quantity"] == 70.0
     assert retenue["amount"] == pytest.approx(-70 * 2166.67 / (35 * 52 / 12), abs=0.01)
+
+
+# --- Sortie en cours de période : l'écran et la DSN lisent la sortie comme les
+# deux générateurs (jours d'après écartés ; en heures, fenêtre jusqu'à la sortie). ---
+
+
+def _jours_ap(employe, jours, mois=11):
+    prevu = [_jour_de(2026, mois, j) for j in jours]
+    res = svc.jours_chomes_des_bulletins(
+        "co", 2026, mois, [employe], {employe["id"]: (prevu, [])}
+    )
+    return [d.day for d, _ in res.get(employe["id"], [])]
+
+
+def test_sortie_en_heures_ecarte_les_jours_d_apres(base):
+    employe = {**base.tables["employees"][0], "contract_end_date": "2026-11-12"}
+    assert _jours_ap(employe, [10, 11, 13, 16]) == [10, 11]
+
+
+def test_sortie_apres_la_fenetre_paie_jusqu_a_la_sortie(base, monkeypatch):
+    monkeypatch.setattr(
+        svc, "bornes_du_bulletin", lambda *a, **k: (date(2026, 10, 23), date(2026, 11, 19))
+    )
+    employe = {**base.tables["employees"][0], "contract_end_date": "2026-11-26"}
+    assert _jours_ap(employe, [18, 20, 25, 27]) == [18, 20, 25]
+
+
+def test_sortie_au_forfait_jours_ecarte_les_jours_d_apres(base):
+    employe = {
+        **base.tables["employees"][0],
+        "is_forfait_jour": True,
+        "specificites_paie": {"forfait_annual_days": 218},
+        "contract_end_date": "2026-11-12",
+    }
+    assert _jours_ap(employe, [10, 13]) == [10]
+
+
+def test_sans_sortie_rien_ne_change(base):
+    assert _jours_ap(base.tables["employees"][0], [10, 13]) == [10, 13]
+
+
+# --- Relecture du 17/11 au soir : le plafond retire les heures non chômées du
+# mois, et ne joue que sur un mois civil entier sous contrat. ---
+
+
+def test_un_jour_travaille_sort_du_plafond(base):
+    employe = base.tables["employees"][0]
+    prevu = _tout_le_mois(22) + [_jour(24, "travail", 7.0)]
+    reel = [{"jour": 24, "heures_faites": 7.0}]
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 11, prevu, reel, [])
+    retenue, indemnite = _deux(saisies)
+    # 151,67 h − 7 h travaillées : 144,67 h chômées, pas 154 h ni 151,67 h.
+    assert retenue["payroll_quantity"] == 144.67
+    assert retenue["amount"] == pytest.approx(-144.67 * 2166.67 / (35 * 52 / 12), abs=0.01)
+    assert indemnite["payroll_quantity"] == 144.67
+
+
+def test_un_jour_de_conge_sort_aussi_du_plafond(base):
+    employe = base.tables["employees"][0]
+    # Le 30/11/2026 est un lundi : un congé posé à 0 h vaut une journée.
+    prevu = _tout_le_mois(22) + [_jour(30, "conges_payes", 0.0)]
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 11, prevu, [], [])
+    retenue, _ = _deux(saisies)
+    assert retenue["payroll_quantity"] == 144.67
+
+
+def test_mois_d_entree_sans_plafond(base):
+    employe = {**base.tables["employees"][0], "hire_date": "2026-11-02"}
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 11, _tout_le_mois(22), [], [])
+    retenue, _ = _deux(saisies)
+    assert retenue["payroll_quantity"] == 154.0
+
+
+def test_periode_decalee_sans_plafond(base):
+    employe = base.tables["employees"][0]
+    prevu = [_jour_de(2026, 10, j) for j in (26, 27, 28, 29, 30)] + [
+        _jour_de(2026, 11, j) for j in range(1, 21)
+    ]
+    saisies, _ = svc.lignes_du_calendrier(
+        "co", employe, 2026, 11, prevu, [], [], bornes=(date(2026, 10, 23), date(2026, 11, 19))
+    )
+    retenue, _ = _deux(saisies)
+    # Semaines entières, pas un mois (R5122-19) : les jours comptent.
+    assert retenue["payroll_quantity"] == 7.0 * 24
+
+
+def test_la_dsn_et_l_ecran_comptent_les_heures_du_bulletin(base):
+    employe = base.tables["employees"][0]
+    prevu = [_jour_de(2026, 11, j) for j in range(1, 24)]
+    jours = svc.jours_chomes_des_bulletins("co", 2026, 11, [employe], {"e1": (prevu, [])})["e1"]
+    assert len(jours) == 23
+    assert round(sum(h for _, h in jours), 2) == 151.67
+
+
+def test_saisie_a_la_main_au_dela_du_mois_le_dit(base):
+    res = svc.poser_heures_du_mois("co", 2026, 11, [{"employee_id": "e1", "heures": 160}], "u")
+    (r,) = res["resultats"]
+    assert r["heures"] == 151.67
+    assert r["message"].startswith("160 h saisies, ramenées à 151,67 h")

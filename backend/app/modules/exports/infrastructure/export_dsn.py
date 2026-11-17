@@ -356,6 +356,8 @@ def get_dsn_employees_data(
         nationalite,
         is_forfait_jour,
         contract_end_date,
+        current_exit_id,
+        company_id,
         employment_status
         """
         )

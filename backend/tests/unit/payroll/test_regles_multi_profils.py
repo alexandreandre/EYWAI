@@ -92,6 +92,24 @@ def test_un_mois_entier_chome_ne_retient_pas_plus_que_le_salaire(banc, profil): 
     assert float(donnees.get("salaire_brut") or 0.0) >= 0.0
 
 
+@pytest.mark.parametrize("profil", PROFILS)
+def test_un_mois_chome_avec_un_jour_sans_solde_ne_retient_pas_tout_deux_fois(banc, profil):  # noqa: F811
+    """Relecture du 17/11 au soir : un jour d'activité partielle est payé par
+    ses deux lignes ; il n'est pas une absence. Avec un jour sans solde, le mois
+    n'est pas « absent en entier » (brut à −2 500 € avant)."""
+    from calendar import monthrange
+    from datetime import date
+
+    from tests.unit.payroll.profils_salaries import ANNEE, MOIS
+
+    ouvres = [j for j in range(1, monthrange(ANNEE, MOIS)[1] + 1) if date(ANNEE, MOIS, j).weekday() < 5]
+    jours = {j: "activite_partielle" for j in ouvres[1:]}
+    jours[ouvres[0]] = "absence_non_remuneree"
+    donnees = banc.generer(profil, jours=jours)
+
+    assert float(donnees.get("salaire_brut") or 0.0) >= 0.0
+
+
 PRIME_DU_CATALOGUE = {
     "name": "Prime objectif",
     "amount": 300.0,

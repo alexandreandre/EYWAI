@@ -34,6 +34,8 @@ class CalculActivitePartielle:
     retenue: float
     indemnite: float
     regle: str
+    #: Heures ramenées au maximum de la période (R5122-19).
+    plafonne: bool = False
 
 
 def _r2(x: float) -> float:
@@ -88,16 +90,18 @@ def calculer(
     taux_indemnite: float = TAUX_LEGAL,
     plancher: float = PLANCHER_LEGAL,
     plafond: float = PLAFOND_LEGAL,
-    heures_du_mois: float | None = None,
-    salaire_du_mois: float | None = None,
+    heures_max: float | None = None,
+    retenue_si_tout_chome: float | None = None,
 ) -> CalculActivitePartielle:
-    """`heures_du_mois` : plafond des heures chômées d'un mois (R5122-19 : un
-    mois entier vaut la durée mensuelle du contrat) ; atteint, la retenue est
-    le salaire du mois, sans les centimes d'arrondi du taux horaire."""
+    """`heures_max` : les heures chômées au plus sur la période (R5122-19 :
+    durée de référence moins les heures travaillées). `retenue_si_tout_chome` :
+    le salaire du mois quand rien d'autre n'y est payé ; au plafond, il est la
+    retenue, sans les centimes d'arrondi du taux horaire."""
     heures = round(max(0.0, float(heures_chomees)), 2)
-    mois_entier = bool(heures_du_mois) and heures >= float(heures_du_mois)
-    if mois_entier:
-        heures = round(float(heures_du_mois), 2)
+    plafonne = heures_max is not None and heures > round(float(heures_max), 2)
+    if plafonne:
+        heures = round(max(0.0, float(heures_max)), 2)
+    au_plafond = heures_max is not None and heures >= round(float(heures_max), 2)
     horaire = float(taux_horaire)
     brute = horaire * float(taux_indemnite) / 100
     regle = f"{float(taux_indemnite):g} % du salaire horaire"
@@ -116,11 +120,12 @@ def calculer(
         heures_chomees=heures,
         taux_horaire=round(horaire, 4),
         indemnite_horaire=indemnite_horaire,
-        retenue=_r2(float(salaire_du_mois))
-        if mois_entier and salaire_du_mois
+        retenue=_r2(float(retenue_si_tout_chome))
+        if au_plafond and retenue_si_tout_chome
         else _r2(heures * horaire),
         indemnite=_r2(heures * indemnite_horaire),
         regle=regle,
+        plafonne=plafonne,
     )
 
 
