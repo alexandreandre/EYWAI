@@ -168,13 +168,18 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
   test('corriger les heures sup les déclare par palier et recalcule', async ({ page }) => {
     const envois = await preparerBulletin(page);
     await ouvrirHeuresDuMois(page);
-    await page.getByTestId('heures-sup-25').fill('4');
+    // Tapé au clavier, virgule comprise : « 4, » est un état intermédiaire que
+    // le champ doit garder (un `fill` d'un coup ne le joue jamais).
+    await page.getByTestId('heures-sup-25').click();
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.type('4,5', { delay: 30 });
+    await expect(page.getByTestId('heures-sup-25')).toHaveValue('4,5');
     await expect(page.getByTestId('barre-enregistrement')).toContainText('recalculé en entier');
     await page.getByTestId('enregistrer-barre').click();
 
     await expect(page.getByText('Bulletin corrigé et recalculé', { exact: true })).toBeVisible();
     expect(envois).toHaveLength(1);
-    expect(envois[0].corrections).toEqual({ heures_sup: { hs25: 4, hs50: 3.5 } });
+    expect(envois[0].corrections).toEqual({ heures_sup: { hs25: 4.5, hs50: 3.5 } });
     expect(envois[0].base_updated_at).toBe('2026-09-28T09:00:00+00:00');
     expect(envois[0]).not.toHaveProperty('payslip_data');
   });
@@ -214,8 +219,12 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     await expect(selecteur).toBeVisible();
     await selecteur.getByPlaceholder('Sélectionnez ou saisissez un nom...').click();
     await page.getByRole('option', { name: 'Créer une prime...' }).click();
-    await selecteur.getByPlaceholder("Ex: Prime d'assiduité").fill('Prime QA ajoutée');
-    await selecteur.getByPlaceholder('0,00').fill('80');
+    // Lettre par lettre : le 17/11, un nom tapé au clavier ne s'écrivait plus.
+    await selecteur.getByPlaceholder("Ex: Prime d'assiduité").click();
+    await page.keyboard.type('Prime QA ajoutée', { delay: 20 });
+    await selecteur.getByPlaceholder('0,00').click();
+    await page.keyboard.type('80,5', { delay: 30 });
+    await expect(selecteur.getByPlaceholder('0,00')).toHaveValue('80,5');
     const caseCatalogue = selecteur.locator('#save_to_catalogue');
     if (await caseCatalogue.count()) await expect(caseCatalogue).not.toBeChecked();
     await selecteur.getByRole('button', { name: 'Enregistrer', exact: true }).click();
@@ -226,7 +235,7 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     expect(envois[0].corrections).toMatchObject({
       primes_corrigees: [{ saisie_id: 'saisie-qa-1', amount: 150 }],
       primes_retirees: ['saisie-qa-2'],
-      primes_ajoutees: [{ name: 'Prime QA ajoutée', amount: 80 }],
+      primes_ajoutees: [{ name: 'Prime QA ajoutée', amount: 80.5 }],
     });
   });
 
