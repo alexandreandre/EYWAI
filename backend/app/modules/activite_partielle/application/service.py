@@ -279,8 +279,10 @@ def _sous_contrat_toute_la_periode(
     e: dict[str, Any], debut: date, fin: date, year: int, month: int
 ) -> bool:
     """Ni entré ni sorti pendant la période ou le mois de paie : une sortie
-    dans le mois proratise le salaire, même quand la fenêtre a été repoussée
-    jusqu'au jour de sortie (`fin_au_depart`)."""
+    dans le mois proratise le salaire. Période décalée (elle commence le mois
+    d'avant) et sortie dans le mois, même le dernier jour : le bulletin de
+    sortie rattrape les jours jusqu'à la sortie (`fin_au_depart`), plus d'un
+    mois de jours ; ils comptent un par un."""
     from app.modules.payroll.application.planning_apres_sortie import date_de_sortie
 
     premier = date(year, month, 1)
@@ -290,6 +292,7 @@ def _sous_contrat_toute_la_periode(
     return not (
         (embauche and embauche > min(debut, premier))
         or (sortie and sortie < max(fin, dernier))
+        or (sortie and debut < premier and premier <= sortie <= dernier)
     )
 
 

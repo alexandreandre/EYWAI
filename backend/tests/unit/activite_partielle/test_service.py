@@ -650,3 +650,23 @@ def test_heures_faites_un_jour_de_repos_ne_sont_pas_chomees(base):
     # « rien de travaillé » ; le mois n'est pas retenu en entier (151,67 h avant).
     assert retenue["payroll_quantity"] == 140.0
     assert retenue["amount"] == pytest.approx(-140 * TAUX_2166, abs=0.01)
+
+
+def test_sortie_le_dernier_jour_apres_une_fenetre_decalee_compte_les_jours(base):
+    # Quatrième relecture : sortie le 30/11, fenêtre 23/10–19/11 repoussée au 30/11 :
+    # 27 jours ouvrés rattrapés, comptés un par un (pas ramenés au salaire).
+    employe = {**base.tables["employees"][0], "contract_end_date": "2026-11-30"}
+    debut, fin = date(2026, 10, 23), date(2026, 11, 30)
+    prevu = _calendrier(2026, 11, debut, fin)
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 11, prevu, [], [], bornes=(debut, fin))
+    retenue, _ = _deux(saisies)
+    assert retenue["payroll_quantity"] == 7.0 * 27
+    assert retenue["amount"] == pytest.approx(-189 * TAUX_2166, abs=0.01)
+
+
+def test_sortie_le_dernier_jour_d_un_mois_civil_reste_un_mois_entier(base):
+    employe = {**base.tables["employees"][0], "contract_end_date": "2026-11-30"}
+    prevu = _calendrier(2026, 11, date(2026, 11, 1), date(2026, 11, 30))
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 11, prevu, [], [])
+    retenue, _ = _deux(saisies)
+    assert retenue["payroll_quantity"] == 151.67 and retenue["amount"] == -2166.67
