@@ -40,4 +40,9 @@ def test_un_frais_qui_n_est_pas_un_panier_reste_hors_mns():
 
 
 def test_le_forfait_lit_le_meme_reglage():
-    assert "entree_de_frais_non_soumis(row, company_data)" in Path(forfait.__file__).read_text(encoding="utf-8")
+    """Depuis le 17/11, les deux générateurs rangent les saisies par la même fonction."""
+    from app.modules.payroll.documents import saisies_du_bulletin
+
+    assert "entree_de_frais_non_soumis(row, company_data)" in Path(saisies_du_bulletin.__file__).read_text(encoding="utf-8")
+    for module in (heures, forfait):
+        assert "ranger_les_saisies(" in Path(module.__file__).read_text(encoding="utf-8")

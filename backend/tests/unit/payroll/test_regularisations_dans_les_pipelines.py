@@ -25,7 +25,12 @@ pytestmark = pytest.mark.unit
 
 @pytest.mark.parametrize("module", [payslip_generator, payslip_generator_forfait])
 def test_chaque_generateur_range_les_corrections_avant_les_primes(module):
-    source = inspect.getsource(module)
+    from app.modules.payroll.documents import saisies_du_bulletin
+
+    # Les deux générateurs rangent les saisies par la même fonction (17/11).
+    assert "ranger_les_saisies(" in inspect.getsource(module)
+    assert "ranger_regularisation(row, saisies_data)" not in inspect.getsource(module)
+    source = inspect.getsource(saisies_du_bulletin)
     assert "ranger_correction_manuelle(row, saisies_data)" in source
     assert "ranger_regularisation(row, saisies_data)" not in source
     assert source.index("ranger_correction_manuelle(row, saisies_data)") < source.index("est_saisie_ijss_validees(row)")

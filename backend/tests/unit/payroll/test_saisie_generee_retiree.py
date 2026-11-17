@@ -70,6 +70,10 @@ def test_la_prime_retiree_n_est_pas_imprimee(monkeypatch, moteur):
 def test_le_generateur_au_forfait_l_ecarte_aussi():
     from app.modules.payroll.documents import payslip_generator_forfait as pgf
 
-    source = inspect.getsource(pgf.process_payslip_generation_forfait)
-    debut = source.index("for row in saisies_res.data:")
+    from app.modules.payroll.documents import saisies_du_bulletin
+
+    # Les deux générateurs rangent les saisies par la même fonction (17/11).
+    assert "ranger_les_saisies(" in inspect.getsource(pgf.process_payslip_generation_forfait)
+    source = inspect.getsource(saisies_du_bulletin.ranger_les_saisies)
+    debut = source.index("for row in lignes or []:")
     assert source.index("if est_saisie_retiree(row):", debut) > debut

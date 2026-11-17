@@ -81,6 +81,10 @@ def test_le_generateur_relit_le_montant_comme_ijss_subrogees(monkeypatch, moteur
 def test_le_generateur_au_forfait_la_relit_aussi():
     from app.modules.payroll.documents import payslip_generator_forfait as pgf
 
-    source = inspect.getsource(pgf.process_payslip_generation_forfait)
+    from app.modules.payroll.documents import saisies_du_bulletin
+
+    # Les deux générateurs rangent les saisies par la même fonction (17/11).
+    assert "ranger_les_saisies(" in inspect.getsource(pgf.process_payslip_generation_forfait)
+    source = inspect.getsource(saisies_du_bulletin.ranger_les_saisies)
     debut = source.index("if est_saisie_ijss_validees(row):")
     assert source.index('saisies_data["ijss_brut_override"]', debut) > debut
