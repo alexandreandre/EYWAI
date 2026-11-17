@@ -14,6 +14,7 @@
  */
 
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { RefreshCw, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -28,7 +29,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/components/ui/use-toast';
-import { generatePayslip } from '@/api/payslips';
+import { generatePayslip, getLignesCorrigeables } from '@/api/payslips';
+import { queryKeys } from '@/lib/queryKeys';
 import { phraseSuiteARecalculer } from '@/features/payroll/utils/bulletinARecalculer';
 import { getPayrollGenerationErrorMessage } from '@/lib/errorMessages';
 import { BlocPeriodeVariables } from '@/features/payroll/components/BlocPeriodeVariables';
@@ -60,6 +62,8 @@ import {
 
 interface RegeneratePayslipButtonProps {
   employeeId: string;
+  /** Bulletin affiché : sert à dire, à la confirmation, que ses corrections sont gardées. */
+  payslipId?: string | null;
   year: number;
   month: number;
   /** Mois à deux contrats (D3) : le bulletin du contrat rangé se régénère par sa clé. */
@@ -89,6 +93,7 @@ interface RegeneratePayslipButtonProps {
 
 export default function RegeneratePayslipButton({
   employeeId,
+  payslipId,
   year,
   month,
   contractPeriodId,
@@ -103,6 +108,17 @@ export default function RegeneratePayslipButton({
 }: RegeneratePayslipButtonProps) {
   const { toast } = useToast();
   const [confirmationOuverte, setConfirmationOuverte] = useState(false);
+  // Les corrections de l'onglet « Corriger » sont rejouées à chaque calcul : on le dit.
+  const corrections = useQuery({
+    queryKey: queryKeys.lignesCorrigeables(companyId ?? undefined, payslipId ?? '', 'confirmation-regenerer'),
+    queryFn: () => getLignesCorrigeables(payslipId as string, companyId),
+    enabled: confirmationOuverte && Boolean(payslipId),
+    staleTime: 0,
+    retry: false,
+  });
+  const aDesCorrections =
+    (corrections.data?.lignes ?? []).some((l) => l.correction) ||
+    (corrections.data?.en_attente ?? []).length > 0;
   const [refusLocal, setRefus] = useState<GenerationRefusal | null>(null);
   const refus: GenerationRefusal | null =
     refusLocal ??
@@ -212,6 +228,11 @@ export default function RegeneratePayslipButton({
               {manuallyEdited
                 ? ' Ce bulletin porte des modifications manuelles : elles seront remplacées par le calcul.'
                 : ''}
+              {aDesCorrections ? (
+                <span data-testid="corrections-gardees">
+                  {' Vos corrections de l\u2019onglet Corriger sont gardées.'}
+                </span>
+              ) : null}
               {modificationsNonEnregistrees
                 ? ' Vos corrections non enregistrées seront abandonnées.'
                 : ''}

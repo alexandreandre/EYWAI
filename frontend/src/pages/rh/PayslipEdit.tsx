@@ -687,6 +687,7 @@ export default function PayslipEdit() {
           ) : null}
           <RegeneratePayslipButton
             employeeId={payslip.employee_id}
+            payslipId={payslip.id}
             year={payslip.year}
             month={payslip.month}
             contractPeriodId={payslip.contract_period_id}
