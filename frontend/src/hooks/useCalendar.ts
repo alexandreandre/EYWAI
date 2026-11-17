@@ -98,6 +98,7 @@ export function useCalendar(
   const copySequence = useRef(0);
   const editRevision = useRef(0);
   const saveInFlight = useRef(false);
+
   const applySavePending = useRef(false);
   const mounted = useRef(false);
   // Heures pointées le mois précédent (que la fenêtre des variables chevauche).
@@ -117,6 +118,20 @@ export function useCalendar(
   }, []);
   const isMonthDataReady =
     fetchEnabled && !isLoading && !loadError && revision !== undefined && loadedCalendarKey === calendarKey && plannedCalendar.length > 0;
+
+  // Des changements non enregistrés : le navigateur demande avant de quitter
+  // ou de recharger la page (Lyon, 17/11 : un calendrier laissé sans
+  // « Enregistrer » n'arrivait pas au bulletin).
+  const nonEnregistre = isMonthDataReady && isDirty;
+  useEffect(() => {
+    if (!nonEnregistre) return;
+    const avantDeQuitter = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', avantDeQuitter);
+    return () => window.removeEventListener('beforeunload', avantDeQuitter);
+  }, [nonEnregistre]);
 
   // Comme le juge du serveur : un salarié qui ne pointe pas (aucune heure ni ce
   // mois ni le précédent) n'a rien « à saisir », le prévu fait foi.
@@ -484,6 +499,9 @@ export function useCalendar(
           if (dernierJourContrat != null && a.jour > dernierJourContrat) return a;
           const planned = plannedCalendar.find((p) => p.jour === a.jour);
           if (!planned) return a;
+          // Un jour d'activité partielle reste chômé : recopier ses heures
+          // prévues en réel en ferait un jour travaillé (Lyon, 17/11).
+          if (planned.type === 'activite_partielle') return a;
           // Au forfait jours, le réel se pose en jours, même si le prévu est
           // en heures (retour du 10/11).
           const heures =

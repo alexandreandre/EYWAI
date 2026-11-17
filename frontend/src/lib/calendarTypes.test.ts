@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { editableTypeOptionsFor, typesDeSaisie } from './calendarTypes';
+import { editableTypeOptionsFor, reelApresChangementDeType, typesDeSaisie } from './calendarTypes';
 
 const valeurs = (o: { value: string }[]) => o.map((x) => x.value);
 
@@ -23,5 +23,28 @@ describe('editableTypeOptionsFor', () => {
   it('congé hors paie et arrêt restent proposés quand le jour les porte', () => {
     expect(valeurs(editableTypeOptionsFor('conge', true))).toEqual(expect.arrayContaining(['conge', 'activite_partielle']));
     expect(valeurs(editableTypeOptionsFor('arret_maladie'))).toContain('arret_maladie');
+  });
+});
+
+describe('reelApresChangementDeType (Lyon, 17/11)', () => {
+  it('un type non travaillé remet le réel à 0', () => {
+    for (const t of ['activite_partielle', 'conges_payes', 'repos', 'ferie', 'absence_non_remuneree', 'ecole']) {
+      expect(reelApresChangementDeType(t, 'travail')).toBe(0);
+    }
+  });
+  it('« Travail » et le même type ne touchent pas au réel', () => {
+    expect(reelApresChangementDeType('travail', 'activite_partielle')).toBeUndefined();
+    expect(reelApresChangementDeType('activite_partielle', 'activite_partielle')).toBeUndefined();
+  });
+  it('le réel saisi en même temps l’emporte (demi-journée)', () => {
+    expect(reelApresChangementDeType('activite_partielle', 'travail', 3.5)).toBe(3.5);
+  });
+});
+
+describe('editableTypeOptionsFor : la liste de la saisie rapide', () => {
+  it('propose l’activité partielle, le repos et l’école, pas l’arrêt', () => {
+    const valeurs = editableTypeOptionsFor('travail', true).map((o) => o.value);
+    expect(valeurs).toEqual(expect.arrayContaining(['activite_partielle', 'repos', 'ecole']));
+    expect(valeurs).not.toContain('arret_maladie');
   });
 });
