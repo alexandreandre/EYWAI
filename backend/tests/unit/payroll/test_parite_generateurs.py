@@ -146,6 +146,11 @@ COMMUNES: dict[str, dict[str, str]] = {
         "noter_repli": "un repli de calcul noté",
         "_parse_if_json_string": "les colonnes JSON lues en texte",
         "is_forfait_jour": "la lecture du forfait jours",
+        "lignes_du_calendrier": "l'activité partielle posée au calendrier (Lyon, 17/11)",
+        "alerte_arret_sans_demande": "arrêt posé au calendrier sans demande, ou sans type : alerte",
+        "alerte_arrets_contradictoires": "subrogation contradictoire entre deux arrêts : alerte",
+        "ecarter_apres_la_sortie": "rien après la sortie (au forfait : pour l'activité partielle)",
+        "date_de_sortie": "la date de sortie du planning",
     },
     "moteur": {
         "baremes_de_l_annee": "les barèmes de l'année du bulletin",
@@ -155,7 +160,9 @@ COMMUNES: dict[str, dict[str, str]] = {
         "definir_periode_de_paie": "la période de paie de la société",
         "bornes_mois_civil": "le mois civil du bulletin",
         "creer_calendrier_etendu": "le calendrier de la période",
-        "ligne_de_frais_professionnels": "les frais professionnels au net",
+        "frais_et_reintegration": "les frais professionnels au net, et leur part réintégrée",
+        "panier_non_soumis_plafonne": "le panier non soumis au-delà du plafond Urssaf",
+        "heures_et_taux": "indemnité d'activité partielle : heures et taux sur la ligne",
         "build_rappel_ijss_net_prime": "le rappel d'IJSS au net",
         "appliquer_exoneration_note_frais": "le plafond d'une note de frais",
         "lier_a_la_saisie": "la ligne liée à sa saisie",
@@ -197,12 +204,7 @@ COMMUNES: dict[str, dict[str, str]] = {
 
 TROUS_DU_FORFAIT: dict[str, dict[str, str]] = {
     "generateur": {
-        "lignes_du_calendrier": "l'activité partielle posée au calendrier (Lyon, 17/11)",
-        "alerte_arret_sans_demande": "arrêt posé au calendrier sans demande : alerte",
-        "alerte_arrets_contradictoires": "subrogation contradictoire entre deux arrêts : alerte",
-        "ecarter_apres_la_sortie": "rien après la sortie : planning écarté",
         "alerte_planning_apres_sortie": "le planning écarté après la sortie est dit",
-        "date_de_sortie": "la date de sortie du planning",
         "fin_au_depart": "mois de sortie : la fenêtre va jusqu'au départ",
         "generate_monthly_variables": "variables automatiques avant le bulletin",
         "get_company_planning_settings": "le réglage « variables automatiques avant le bulletin »",
@@ -211,11 +213,8 @@ TROUS_DU_FORFAIT: dict[str, dict[str, str]] = {
         "assembler_baremes": "barèmes assemblés pour le plafond transport",
     },
     "moteur": {
-        "reintegration_panier_plafonne": "panier au-delà du plafond Urssaf réintégré",
         "arrets_de_l_annee": "carence payée N jours par an : les arrêts de l'année",
         "fin_de_la_reprise_au_premier_mois": "premier mois après une reprise : absences déjà traitées",
-        "heures_et_taux": "indemnité d'activité partielle : heures et taux sur la ligne",
-        "valeur_unitaire": "nombre de paniers d'une saisie",
     },
 }
 
@@ -270,6 +269,7 @@ HEURES_SEULEMENT: dict[str, dict[str, str]] = {
 FORFAIT_SEULEMENT: dict[str, dict[str, str]] = {
     "generateur": {
         "_periode_de_paie_company": "période de paie de la société",
+        "bornes_periode_de_paie": "activité partielle sur la période de paie (aux heures : la fenêtre des variables)",
         "message_pas_forfait_jour": "refus d'un salarié qui n'est pas au forfait",
         "run_payslip_generation_forfait": "le moteur du forfait jours",
     },

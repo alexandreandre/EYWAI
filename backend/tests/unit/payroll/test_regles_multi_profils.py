@@ -35,10 +35,7 @@ def _texte(donnees: dict) -> str:
     return json.dumps(donnees, ensure_ascii=False, default=str)
 
 
-@pytest.mark.parametrize(
-    "profil",
-    _trou_du_forfait("Activité partielle non branchée au forfait jours (lot 1 de la session A, 17/11)"),
-)
+@pytest.mark.parametrize("profil", PROFILS)
 def test_activite_partielle_au_calendrier_fait_ses_deux_lignes(banc, profil):  # noqa: F811
     donnees = banc.generer(profil, jours={LUNDI: "activite_partielle", MARDI: "activite_partielle"})
 
@@ -54,10 +51,7 @@ def test_sans_activite_partielle_aucune_ligne(banc, profil):  # noqa: F811
     assert LIBELLE_INDEMNITE not in texte
 
 
-@pytest.mark.parametrize(
-    "profil",
-    _trou_du_forfait("Alerte « arrêt sans demande » absente au forfait jours (lot 1 de la session A, 17/11)"),
-)
+@pytest.mark.parametrize("profil", PROFILS)
 def test_arret_pose_au_calendrier_sans_demande_est_signale(banc, profil):  # noqa: F811
     donnees = banc.generer(profil, jours={LUNDI: "arret_maladie"})
 
@@ -75,10 +69,7 @@ PANIERS_AU_DESSUS_DU_PLAFOND = {
 }
 
 
-@pytest.mark.parametrize(
-    "profil",
-    _trou_du_forfait("Réintégration du panier plafonné absente au forfait jours (lot 1 de la session A, 17/11)"),
-)
+@pytest.mark.parametrize("profil", PROFILS)
 def test_panier_au_dessus_du_plafond_est_reintegre(banc, profil):  # noqa: F811
     donnees = banc.generer(profil, saisies=[PANIERS_AU_DESSUS_DU_PLAFOND])
 
