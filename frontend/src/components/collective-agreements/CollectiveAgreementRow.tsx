@@ -52,6 +52,8 @@ export type CollectiveAgreementRowProps = {
   name: string;
   idcc: string;
   sector?: string | null;
+  /** Date d'effet de la convention pour la société (AAAA-MM-JJ). */
+  dateDebut?: string | null;
   isActive?: boolean;
   readiness: ReadinessLevel;
   hasText: boolean;
@@ -203,6 +205,7 @@ export function CollectiveAgreementRow({
   name,
   idcc,
   sector,
+  dateDebut,
   isActive = true,
   readiness,
   hasText,
@@ -282,6 +285,11 @@ export function CollectiveAgreementRow({
               {sector && (
                 <Badge variant="secondary" className="shrink-0 text-xs">
                   {sector}
+                </Badge>
+              )}
+              {dateDebut && (
+                <Badge variant="outline" className="shrink-0 text-xs">
+                  À partir du {dateDebut.slice(8, 10)}/{dateDebut.slice(5, 7)}/{dateDebut.slice(0, 4)}
                 </Badge>
               )}
               {variant === 'admin' && <ActiveChip isActive={isActive} />}

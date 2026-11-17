@@ -31,6 +31,9 @@ export interface CompanyCollectiveAgreementWithDetails {
   collective_agreement_id: string;
   assigned_at: string;
   assigned_by?: string | null;
+  /** Date d'effet (AAAA-MM-JJ) : la convention vaut à partir de ce jour ; vide = toujours. */
+  date_debut?: string | null;
+  date_fin?: string | null;
   agreement_details: CollectiveAgreementCatalog;
 }
 
@@ -159,12 +162,21 @@ export const getMyCompanyAgreements = (companyId?: string) => {
 
 /**
  * Assigne une convention à une entreprise.
- * Passer `companyId` pour assigner à une filiale (admin groupe ou super admin).
+ * Passer `companyId` pour assigner à une filiale (admin groupe ou super admin),
+ * `dateDebut` (AAAA-MM-JJ) pour une convention qui vaut à partir de ce jour.
  */
-export const assignAgreement = (collectiveAgreementId: string, companyId?: string) => {
+export const assignAgreement = (
+  collectiveAgreementId: string,
+  companyId?: string,
+  dateDebut?: string | null
+) => {
   return apiClient.post(
     '/api/collective-agreements/assign',
-    { collective_agreement_id: collectiveAgreementId },
+    {
+      collective_agreement_id: collectiveAgreementId,
+      // Seulement si saisie : les mois d'avant gardent la convention précédente.
+      ...(dateDebut ? { date_debut: dateDebut } : {}),
+    },
     { headers: companyScopeHeaders(companyId) }
   );
 };
