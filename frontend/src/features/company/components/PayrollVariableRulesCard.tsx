@@ -962,7 +962,7 @@ export default function PayrollVariableRulesCard() {
                 <select
                   id="regle-situation-repas"
                   data-testid="regle-situation-repas"
-                  className="h-10 max-w-md rounded-md border bg-background px-3 text-sm"
+                  className="block h-10 w-full max-w-md rounded-md border bg-background px-3 text-sm"
                   value={(draft.conditions?.situation_repas as string | undefined) ?? SITUATION_REPAS_PAR_DEFAUT}
                   onChange={(e) =>
                     setDraft({ ...draft, conditions: { ...draft.conditions, situation_repas: e.target.value } })
