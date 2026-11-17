@@ -27,6 +27,13 @@ export interface SalarieActivitePartielle {
   forfait_jours?: boolean;
   heures_par_jour: number;
   deja: { heures: number | null; retenue: number; indemnite: number } | null;
+  /** Jours « Activité partielle » posés au calendrier du mois : ils font foi au bulletin. */
+  calendrier?: {
+    jours: number[];
+    heures: number;
+    retenue: number | null;
+    indemnite: number | null;
+  } | null;
 }
 
 export interface MoisActivitePartielle {

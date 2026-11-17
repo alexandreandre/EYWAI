@@ -1,7 +1,8 @@
+import { useActivitePartielleActive } from '@/hooks/useActivitePartielleActive';
 import { useState } from "react";
 import { Copy, Loader2, Save } from "lucide-react";
 import { DayData } from "@/components/ScheduleModal";
-import { CALENDAR_EDITABLE_TYPE_OPTIONS } from "@/lib/calendarTypes";
+import { typesDeSaisie } from "@/lib/calendarTypes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,6 +65,7 @@ export function BulkActionPanel({
   isSaving,
   isForfaitJour = false,
 }: BulkActionPanelProps) {
+  const activitePartielle = useActivitePartielleActive();
   const [type, setType] = useState('');
   const [plannedHours, setPlannedHours] = useState('');
   const [actualHours, setActualHours] = useState('');
@@ -173,7 +175,7 @@ export function BulkActionPanel({
         }} disabled={isSaving}>
           <SelectTrigger id="bulk-type" className="h-auto min-h-8 w-[180px] text-left text-xs [&>span]:whitespace-normal [&>span]:line-clamp-none"><SelectValue placeholder="Type..." /></SelectTrigger>
           <SelectContent>
-            {CALENDAR_EDITABLE_TYPE_OPTIONS.map((t) => (
+            {typesDeSaisie(activitePartielle).map((t) => (
               <SelectItem key={t.value} value={t.value}>
                 {t.label}
               </SelectItem>

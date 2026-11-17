@@ -45,9 +45,10 @@ function nombre(t: string): number | null {
 type Saisie = { jours: string; heures: string };
 
 /**
- * Heures chômées du mois (retour d'Elsa du 16/11, LEWIS) : la RH saisit des
- * jours ou des heures par salarié ; Martine pose la retenue et l'indemnité
- * dans les variables du mois. 0 retire les lignes.
+ * Activité partielle du mois (retour d'Elsa du 16/11, LEWIS). Les jours chômés
+ * se posent au calendrier (type « Activité partielle ») : le bulletin en tire
+ * la retenue et l'indemnité. Cet écran les récapitule ; la saisie d'heures à la
+ * main, repliée, reste pour un salarié sans jour au calendrier.
  */
 export function ActivitePartielleTab() {
   const companyId = useActiveCompanyId();
@@ -58,6 +59,7 @@ export function ActivitePartielleTab() {
   const [month, setMonth] = useState(initial.month);
   const [saisies, setSaisies] = useState<Record<string, Saisie>>({});
   const [resultats, setResultats] = useState<ResultatActivitePartielle[] | null>(null);
+  const [aLaMain, setALaMain] = useState(false);
 
   const query = useQuery({
     queryKey: ['activite-partielle-mois', companyId, year, month],
@@ -87,6 +89,8 @@ export function ActivitePartielleTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [salaries, saisies],
   );
+  // La saisie à la main s'ouvre d'elle-même quand un salarié en a déjà une.
+  const montrerMain = aLaMain || salaries.some((s) => s.deja);
   const invalide = aEnvoyer.some((s) => Number.isNaN(s.heures) || s.heures < 0 || s.heures > 250);
 
   const poser = useMutation({
@@ -115,10 +119,11 @@ export function ActivitePartielleTab() {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Saisissez les jours ou les heures chômés de chaque salarié pour le mois. Martine pose deux lignes
-        dans ses variables : la retenue des heures chômées (salaire horaire du contrat) et l’indemnité
-        d’activité partielle (taux du réglage de la société). Mettez 0 pour retirer.
+      <p className="text-sm text-muted-foreground" data-testid="ap-consigne">
+        Posez les jours chômés dans le calendrier du salarié : type <strong>Activité partielle</strong>,
+        un jour ou plusieurs à la fois. Une demi-journée travaillée : saisissez les heures faites, le reste
+        est chômé. Au bulletin, Martine retire les heures chômées et paie l’indemnité (taux du réglage de la
+        société). Ce tableau récapitule le mois.
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <div>
@@ -168,9 +173,14 @@ export function ActivitePartielleTab() {
                     <TableRow>
                       <TableHead>Salarié</TableHead>
                       <TableHead className="text-right">Salaire horaire</TableHead>
-                      <TableHead>Jours chômés</TableHead>
-                      <TableHead>ou heures</TableHead>
-                      <TableHead>Déjà posé ce mois</TableHead>
+                      <TableHead>Au calendrier</TableHead>
+                      {montrerMain && (
+                        <>
+                          <TableHead>Jours chômés</TableHead>
+                          <TableHead>ou heures</TableHead>
+                          <TableHead>Saisi à la main</TableHead>
+                        </>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -187,6 +197,23 @@ export function ActivitePartielleTab() {
                               <span className="block text-xs text-muted-foreground">forfait jours, 7 h par jour</span>
                             )}
                           </TableCell>
+                          <TableCell className="text-sm" data-testid="ap-calendrier">
+                            {s.calendrier ? (
+                              <span>
+                                {s.calendrier.jours.length} j · {s.calendrier.heures.toLocaleString('fr-FR')} h
+                                <span className="block text-xs text-muted-foreground">
+                                  retenue {eur(s.calendrier.retenue)} · indemnité {eur(s.calendrier.indemnite)}
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                            {s.calendrier && s.deja && (
+                              <span className="block text-xs text-amber-700">la saisie à la main n’est plus prise en compte</span>
+                            )}
+                          </TableCell>
+                          {montrerMain && (
+                            <>
                           <TableCell>
                             <Input
                               aria-label={`Jours chômés de ${s.nom}`}
@@ -194,6 +221,7 @@ export function ActivitePartielleTab() {
                               className="h-8 w-20 text-right"
                               placeholder="0"
                               value={saisie.jours}
+                              disabled={Boolean(s.calendrier)}
                               onChange={(e) => maj('jours', e.target.value)}
                               title={`${s.heures_par_jour.toLocaleString('fr-FR')} h par jour`}
                             />
@@ -209,6 +237,7 @@ export function ActivitePartielleTab() {
                                   : 'h'
                               }
                               value={saisie.heures}
+                              disabled={Boolean(s.calendrier)}
                               onChange={(e) => maj('heures', e.target.value)}
                             />
                           </TableCell>
@@ -217,6 +246,8 @@ export function ActivitePartielleTab() {
                               ? `${s.deja.heures != null ? `${s.deja.heures.toLocaleString('fr-FR')} h · ` : ''}retenue ${eur(s.deja.retenue)} · indemnité ${eur(s.deja.indemnite)}`
                               : '—'}
                           </TableCell>
+                            </>
+                          )}
                         </TableRow>
                       );
                     })}
@@ -226,6 +257,15 @@ export function ActivitePartielleTab() {
               {invalide && (
                 <p className="text-xs text-destructive">Une saisie n’est pas un nombre d’heures ou de jours valable.</p>
               )}
+              {!montrerMain ? (
+                <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setALaMain(true)} data-testid="ap-a-la-main">
+                  Saisir des heures à la main (salarié sans jour au calendrier)
+                </Button>
+              ) : (
+              <>
+              <p className="text-xs text-muted-foreground">
+                Un salarié qui a des jours au calendrier n’a rien à saisir ici : le calendrier fait foi.
+              </p>
               <Button
                 data-testid="ap-poser"
                 disabled={aEnvoyer.length === 0 || invalide || poser.isPending}
@@ -234,6 +274,8 @@ export function ActivitePartielleTab() {
                 {poser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Calculer et poser ({aEnvoyer.length})
               </Button>
+              </>
+              )}
             </>
           )}
           {resultats && resultats.length > 0 && (

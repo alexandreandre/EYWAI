@@ -25,6 +25,7 @@ export const CALENDAR_TYPE_LABELS: Record<string, string> = {
   ecole: 'École',
   // Case « absent » de l'import (retour d'Elsa du 28/10) : rouge vif, bloque la paie.
   absent_a_typer: 'Absent — type à donner',
+  activite_partielle: 'Activité partielle',
 };
 
 export const CALENDAR_TYPE_BAR_COLORS: Record<string, string> = {
@@ -41,6 +42,7 @@ export const CALENDAR_TYPE_BAR_COLORS: Record<string, string> = {
   absence_justifiee: 'bg-amber-500',
   ecole: 'bg-indigo-500',
   absent_a_typer: 'bg-red-600',
+  activite_partielle: 'bg-yellow-500',
 };
 
 /** Fonds de cellule/carte teintés par type (mêmes teintes que la vue semaine). */
@@ -58,6 +60,7 @@ export const CALENDAR_TYPE_BG_COLORS: Record<string, string> = {
   absence_justifiee: 'bg-amber-50 hover:bg-amber-100 border-amber-200/60',
   ecole: 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200/60',
   absent_a_typer: 'bg-red-100 hover:bg-red-200 border-red-500 ring-2 ring-red-500',
+  activite_partielle: 'bg-yellow-50 hover:bg-yellow-100 border-yellow-200/60',
 };
 
 /**
@@ -126,10 +129,25 @@ export const NON_COPYABLE_DAY_TYPES: ReadonlySet<string> = new Set([
   'ecole',
 ]);
 
+/** Jour chômé d'activité partielle : proposé seulement quand la société l'a
+ * activée (Paramètres, Paie). Le bulletin en tire la retenue et l'indemnité. */
+export const OPTION_ACTIVITE_PARTIELLE = { value: 'activite_partielle', label: 'Activité partielle' };
+
+/** Types proposés à la saisie, avec l'activité partielle si la société l'a activée. */
+export function typesDeSaisie(activitePartielle = false): { value: string; label: string }[] {
+  return activitePartielle
+    ? [...CALENDAR_EDITABLE_TYPE_OPTIONS, OPTION_ACTIVITE_PARTIELLE]
+    : CALENDAR_EDITABLE_TYPE_OPTIONS;
+}
+
 /** Option « Congé (hors paie) » ajoutée uniquement quand le jour la porte déjà. */
 export function editableTypeOptionsFor(
   currentType: string | null | undefined,
+  activitePartielle = false,
 ): { value: string; label: string }[] {
+  if (activitePartielle || currentType === 'activite_partielle') {
+    return [...editableTypeOptionsFor(currentType, false), OPTION_ACTIVITE_PARTIELLE];
+  }
   if (currentType === 'conge') {
     return [
       ...CALENDAR_EDITABLE_TYPE_OPTIONS,

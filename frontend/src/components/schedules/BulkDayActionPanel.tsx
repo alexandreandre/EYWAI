@@ -1,3 +1,4 @@
+import { useActivitePartielleActive } from '@/hooks/useActivitePartielleActive';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Loader2, Save } from 'lucide-react';
 import type { DayData } from '@/components/ScheduleModal';
-import { CALENDAR_EDITABLE_TYPE_OPTIONS } from '@/lib/calendarTypes';
+import { typesDeSaisie } from '@/lib/calendarTypes';
 
 interface BulkDayActionPanelProps {
   selectedCount: number;
@@ -30,6 +31,7 @@ export function BulkDayActionPanel({
   isSaving,
   isForfaitJour,
 }: BulkDayActionPanelProps) {
+  const activitePartielle = useActivitePartielleActive();
   const [type, setType] = useState('');
   const [plannedHours, setPlannedHours] = useState('');
   const [actualHours, setActualHours] = useState('');
@@ -43,7 +45,10 @@ export function BulkDayActionPanel({
 
     if (type) {
       updateData.type = type;
-      if (type !== 'travail') updateData.heures_prevues = type === 'repos' ? 0 : null;
+      // Activité partielle : les heures prévues du jour restent, ce sont les heures chômées.
+      if (type !== 'travail' && type !== 'activite_partielle') {
+        updateData.heures_prevues = type === 'repos' ? 0 : null;
+      }
       hasUpdate = true;
     }
 
@@ -130,7 +135,7 @@ export function BulkDayActionPanel({
             <SelectValue placeholder="Type…" />
           </SelectTrigger>
           <SelectContent>
-            {CALENDAR_EDITABLE_TYPE_OPTIONS.map((t) => (
+            {typesDeSaisie(activitePartielle).map((t) => (
               <SelectItem key={t.value} value={t.value}>
                 {t.label}
               </SelectItem>

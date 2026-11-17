@@ -149,3 +149,89 @@ def test_bulletin_remis_intouche(base, monkeypatch):
     )
     assert res["resultats"][0]["statut"] == "bulletin_remis"
     assert "monthly_inputs" not in base.tables or base.tables["monthly_inputs"] == []
+
+
+# --- Activité partielle posée au calendrier ------------------------------------
+
+AP = "activite_partielle"
+
+
+def _jour(j, type_, h):
+    return {"jour": j, "type": type_, "heures_prevues": h}
+
+
+def test_calendrier_remplace_la_saisie_a_la_main(base):
+    employe = base.tables["employees"][0]
+    prevu = [_jour(2, AP, 7.0), _jour(3, AP, 7.0), _jour(4, "travail", 7.0)]
+    reel = [{"jour": 3, "heures_faites": 3.0}, {"jour": 4, "heures_faites": 7.0}]
+    manuelle = {"name": "Heures chômées (act. part.)", "amount": -100.0, "payroll_quantity": 7}
+    prime = {"name": "Prime", "amount": 50.0}
+    saisies, alerte = svc.lignes_du_calendrier(
+        "co", employe, 2026, 11, prevu, reel, [manuelle, prime]
+    )
+    assert alerte is None
+    assert prime in saisies and manuelle not in saisies
+    retenue = next(s for s in saisies if s["name"] == "Heures chômées (act. part.)")
+    indemnite = next(s for s in saisies if s["name"] == "Indemnité activité partielle")
+    # 7 h le 2, 7 − 3 = 4 h le 3.
+    assert retenue["payroll_quantity"] == 11
+    assert retenue["amount"] == pytest.approx(-11 * 2166.67 / (35 * 52 / 12), abs=0.01)
+    assert indemnite["amount"] > 0 and indemnite["is_socially_taxed"] is False
+
+
+def test_sans_jour_au_calendrier_la_saisie_a_la_main_reste(base):
+    employe = base.tables["employees"][0]
+    manuelle = {"name": "Heures chômées (act. part.)", "amount": -100.0}
+    saisies, alerte = svc.lignes_du_calendrier(
+        "co", employe, 2026, 11, [_jour(2, "travail", 7.0)], [], [manuelle]
+    )
+    assert saisies == [manuelle] and alerte is None
+
+
+def test_jour_pose_sans_heures_vaut_une_journee(base):
+    employe = base.tables["employees"][0]
+    saisies, _ = svc.lignes_du_calendrier(
+        "co", employe, 2026, 11, [_jour(2, AP, None)], [], []
+    )
+    assert saisies[0]["payroll_quantity"] == 7.0
+
+
+def test_hors_reglage_paye_et_alerte(base):
+    employe = base.tables["employees"][0]
+    saisies, alerte = svc.lignes_du_calendrier(
+        "co", employe, 2026, 3, [_jour(2, AP, 7.0)], [], []
+    )
+    assert len(saisies) == 2
+    assert alerte["code"] == "activite_partielle_hors_reglage"
+
+
+def test_sans_salaire_alerte_critique(base):
+    employe = {**base.tables["employees"][0], "salaire_de_base": None}
+    saisies, alerte = svc.lignes_du_calendrier(
+        "co", employe, 2026, 11, [_jour(2, AP, 7.0)], [], []
+    )
+    assert saisies == [] and alerte["critique"] is True
+
+
+def test_recap_du_mois_lit_le_calendrier(base):
+    base.tables["employee_schedules"] = [
+        {
+            "employee_id": "e1",
+            "year": 2026,
+            "month": 11,
+            "planned_calendar": {"calendrier_prevu": [_jour(2, AP, 7.0), _jour(3, AP, 7.0)]},
+            "actual_hours": {"calendrier_reel": []},
+        }
+    ]
+    vue = svc.lister_mois("co", 2026, 11)
+    cal = vue["salaries"][0]["calendrier"]
+    assert cal["jours"] == [2, 3] and cal["heures"] == 14.0 and cal["retenue"] > 0
+
+
+def test_forfait_jours_un_jour_vaut_7_h():
+    from app.modules.activite_partielle.domain.calendrier import heures_chomees, jours_chomes
+
+    prevu = [_jour(2, AP, 1), _jour(3, AP, 1)]
+    reel = [{"jour": 3, "heures_faites": 0.5}]
+    jours = jours_chomes(prevu, reel, forfait_jours=True, heures_par_jour=7)
+    assert heures_chomees(jours) == 10.5

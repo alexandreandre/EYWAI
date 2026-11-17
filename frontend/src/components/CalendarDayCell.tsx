@@ -1,5 +1,6 @@
 // src/components/CalendarDayCell.tsx
 
+import { useActivitePartielleActive } from '@/hooks/useActivitePartielleActive';
 import { useState, useEffect, useRef } from 'react';
 import { PlannedEventData, ActualHoursData } from '@/api/calendar';
 import { DayData } from '@/components/ScheduleModal';
@@ -242,6 +243,7 @@ export function CalendarDayCell({
   onPoserRecup,
 }: CalendarDayCellProps) {
   const { observedHolidayIds } = useObservedPublicHolidays();
+  const activitePartielle = useActivitePartielleActive();
   const dayNumber = arg.date.getDate();
   const cellRef = useRef<HTMLDivElement>(null);
   const plannedInputRef = useRef<HTMLInputElement>(null);
@@ -349,7 +351,7 @@ export function CalendarDayCell({
 
     if (preserved === null || preserved === undefined) {
       if (isForfaitJour) {
-        defaultHours = newType === 'travail' ? 1 : 0;
+        defaultHours = newType === 'travail' || newType === 'activite_partielle' ? 1 : 0;
       } else if (newType === 'travail') {
         defaultHours = 8;
       }
@@ -473,7 +475,7 @@ export function CalendarDayCell({
                 Choisissez le type de l’absence.
               </p>
             )}
-            {editableTypeOptionsFor(plannedDay.type).map((t) => (
+            {editableTypeOptionsFor(plannedDay.type, activitePartielle).map((t) => (
               <div key={t.value}>
                 <button
                   type="button"

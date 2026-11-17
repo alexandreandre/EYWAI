@@ -4,6 +4,7 @@ Analyse des horaires et production des événements de paie.
 Source de vérité unique pour analyser_horaires_du_mois (signature in-memory).
 Migré depuis services/payroll_analyzer.py (fusion avec backend_api/payroll_analyzer.py).
 """
+from app.modules.activite_partielle.domain.calendrier import TYPE_JOUR as TYPE_ACTIVITE_PARTIELLE
 from app.core.logging import get_logger, log_payroll_debug
 
 from app.modules.payroll.planning_repli import mois_sans_pointage
@@ -364,6 +365,10 @@ def analyser_horaires_du_mois(
         # avec des heures pointées sur l'autre demi-journée — l'événement doit
         # quand même atteindre le bulletin (0,5 CP + matinée travaillée).
         for jour_prevu in data["jours_non_travailles"]:
+            if jour_prevu.get("type") == TYPE_ACTIVITE_PARTIELLE:
+                # Jour chômé : payé par les deux lignes d'activité partielle
+                # (payslip_generator), jamais retenu ici.
+                continue
             heures_reelles_ce_jour = any(
                 j["jour"] == jour_prevu["jour"]
                 and j["mois"] == jour_prevu["mois"]

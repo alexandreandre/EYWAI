@@ -10,6 +10,7 @@ où les données sont stockées en jours (0/1) plutôt qu'en heures.
 """
 
 import sys
+from app.modules.activite_partielle.domain.calendrier import TYPE_JOUR as TYPE_ACTIVITE_PARTIELLE
 from datetime import date
 from typing import Dict, Any, List
 from collections import defaultdict
@@ -129,6 +130,9 @@ def analyser_jours_forfait_du_mois(
     for cle_semaine, data in semaines.items():
         # On ajoute les jours non-travaillés prévus (congés, fériés, etc.)
         for jour_prevu in data["jours_non_travailles"]:
+            if jour_prevu.get("type") == TYPE_ACTIVITE_PARTIELLE:
+                # Jour chômé : payé par les lignes d'activité partielle.
+                continue
             jour_travaille_reel = any(
                 j["jour"] == jour_prevu["jour"]
                 and j["mois"] == jour_prevu["mois"]

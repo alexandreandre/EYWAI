@@ -1,8 +1,10 @@
 """Activité partielle : réglage de la société et heures chômées du mois.
 
-La RH saisit les heures (ou jours) chômées de chaque salarié ; Martine pose les
-deux variables du mois que le moteur paie déjà. Un bulletin déjà fait passe
-« À recalculer » ; un bulletin remis n'est pas touché.
+Les jours chômés se posent au calendrier (type « Activité partielle ») : le
+bulletin en tire les deux lignes du mois (retenue et indemnité), calculées ici
+(`lignes_du_calendrier`). La saisie d'heures du mois à la main reste un repli
+pour un salarié sans jour d'activité partielle au calendrier. Un bulletin déjà
+fait passe « À recalculer » ; un bulletin remis n'est pas touché.
 """
 
 from __future__ import annotations
@@ -12,6 +14,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.core.database import get_supabase_admin_client
+from app.modules.activite_partielle.domain.calendrier import (
+    TYPE_JOUR,
+    heures_chomees,
+    jours_chomes,
+)
 from app.modules.activite_partielle.domain.calcul import (
     LIBELLE_INDEMNITE,
     LIBELLE_RETENUE,
@@ -195,10 +202,10 @@ def lister_mois(company_id: str, year: int, month: int) -> dict[str, Any]:
                 )
         else:
             p["indemnite"] += float(ligne.get("amount") or 0)
+    du_mois = _salaries_du_mois(company_id, year, month)
+    recap = recap_du_calendrier(company_id, year, month, du_mois, reglage)
     salaries = []
-    for e in sorted(
-        _salaries_du_mois(company_id, year, month), key=lambda r: _nom(r).lower()
-    ):
+    for e in sorted(du_mois, key=lambda r: _nom(r).lower()):
         eid = str(e["id"])
         heures_jour = _heures_par_jour(e, reglage)
         deja = par_salarie.get(eid)
@@ -221,6 +228,8 @@ def lister_mois(company_id: str, year: int, month: int) -> dict[str, Any]:
                     if deja
                     else None
                 ),
+                # Jours posés au calendrier : ils font foi au bulletin.
+                "calendrier": recap.get(eid),
             }
         )
     return {
@@ -228,6 +237,153 @@ def lister_mois(company_id: str, year: int, month: int) -> dict[str, Any]:
         "refus": refus_periode(reglage, year, month),
         "salaries": salaries,
     }
+
+
+def _deux_lignes(c: Any) -> list[dict[str, Any]]:
+    """Les deux variables du mois que le moteur paie (forme de la saisie)."""
+    return [
+        {
+            "name": LIBELLE_RETENUE,
+            "description": f"{c.heures_chomees:g} h × {c.taux_horaire:.2f} €",
+            "amount": -c.retenue,
+            "payroll_quantity": c.heures_chomees,
+            "is_socially_taxed": True,
+            "is_taxable": True,
+        },
+        {
+            "name": LIBELLE_INDEMNITE,
+            "description": f"{c.heures_chomees:g} h × {c.indemnite_horaire:.2f} € ({c.regle})",
+            "amount": c.indemnite,
+            "payroll_quantity": c.heures_chomees,
+            "is_socially_taxed": False,
+            "is_taxable": True,
+        },
+    ]
+
+
+def _calcul(heures: float, taux: float, reglage: dict[str, Any]) -> Any:
+    return calculer(
+        heures,
+        taux,
+        taux_indemnite=float(reglage["taux_indemnite"]),
+        plancher=float(reglage["plancher_horaire"]),
+        plafond=float(reglage["plafond_horaire"]),
+    )
+
+
+def _jours_du_calendrier(
+    e: dict[str, Any], reglage: dict[str, Any], prevu: list, reel: list
+) -> list:
+    return jours_chomes(
+        prevu,
+        reel,
+        forfait_jours=bool(e.get("is_forfait_jour")),
+        heures_par_jour=_heures_par_jour(e, reglage),
+    )
+
+
+def lignes_du_calendrier(
+    company_id: str,
+    employee: dict[str, Any],
+    year: int,
+    month: int,
+    prevu_du_mois: list[dict[str, Any]],
+    reel_du_mois: list[dict[str, Any]],
+    saisies: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """Saisies du bulletin, avec l'activité partielle lue dans le calendrier.
+
+    Sans jour « Activité partielle » au calendrier du mois, rien ne change (la
+    saisie à la main, s'il y en a une, compte). Sinon les deux lignes sont
+    calculées depuis les jours chômés et remplacent celles saisies à la main :
+    le calendrier fait foi. Rien n'est écrit en base. Rend aussi l'alerte du
+    bulletin quand le calcul n'a pas pu se faire ou sort du réglage.
+    """
+    if not any(str(j.get("type") or "") == TYPE_JOUR for j in prevu_du_mois):
+        return saisies, None
+    reglage = lire_reglage(company_id)
+    jours = _jours_du_calendrier(employee, reglage, prevu_du_mois, reel_du_mois)
+    heures = heures_chomees(jours)
+    if heures <= 0:
+        return saisies, None
+    taux = _taux_horaire(employee)
+    if not taux:
+        return saisies, {
+            "code": "activite_partielle_sans_taux",
+            "severity": "warning",
+            "critique": True,
+            "message": (
+                f"Activité partielle au calendrier ({heures:g} h) non payée : "
+                "le salaire de base manque sur la fiche. Complétez-le, puis "
+                "recalculez ce bulletin."
+            ),
+        }
+    c = _calcul(heures, taux, reglage)
+    gardees = [r for r in saisies if r.get("name") not in LIBELLES]
+    commun = {
+        "company_id": company_id,
+        "employee_id": str(employee.get("id") or ""),
+        "year": year,
+        "month": month,
+        "source": "calendrier_activite_partielle",
+    }
+    lignes = [{**commun, **ligne} for ligne in _deux_lignes(c)]
+    refus = refus_periode(reglage, year, month)
+    alerte = (
+        {
+            "code": "activite_partielle_hors_reglage",
+            "severity": "warning",
+            "critique": False,
+            "message": (
+                f"Jours d'activité partielle au calendrier, payés ({heures:g} h), "
+                f"mais : {refus} Vérifiez le réglage de la société."
+            ),
+        }
+        if refus
+        else None
+    )
+    return gardees + lignes, alerte
+
+
+def recap_du_calendrier(
+    company_id: str, year: int, month: int, salaries: list[dict[str, Any]], reglage: dict[str, Any]
+) -> dict[str, dict[str, Any]]:
+    """Par salarié : jours et heures chômés au calendrier du mois, et leur effet."""
+    ids = [str(e["id"]) for e in salaries]
+    if not ids:
+        return {}
+    rows = (
+        _db()
+        .table("employee_schedules")
+        .select("employee_id, planned_calendar, actual_hours")
+        .in_("employee_id", ids)
+        .eq("year", year)
+        .eq("month", month)
+        .execute()
+        .data
+        or []
+    )
+    par_id = {str(e["id"]): e for e in salaries}
+    recap: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        e = par_id.get(str(row.get("employee_id")))
+        if e is None:
+            continue
+        prevu = (row.get("planned_calendar") or {}).get("calendrier_prevu") or []
+        reel = (row.get("actual_hours") or {}).get("calendrier_reel") or []
+        jours = _jours_du_calendrier(e, reglage, prevu, reel)
+        heures = heures_chomees(jours)
+        if heures <= 0:
+            continue
+        taux = _taux_horaire(e)
+        c = _calcul(heures, taux, reglage) if taux else None
+        recap[str(e["id"])] = {
+            "jours": [j.jour for j in jours],
+            "heures": heures,
+            "retenue": c.retenue if c else None,
+            "indemnite": c.indemnite if c else None,
+        }
+    return recap
 
 
 def _bulletin_remis(employee_id: str, year: int, month: int) -> bool:
@@ -326,13 +482,7 @@ def poser_heures_du_mois(
             if anciennes:
                 cibles.append((eid, year, month))
             continue
-        c = calculer(
-            heures,
-            taux,
-            taux_indemnite=float(reglage["taux_indemnite"]),
-            plancher=float(reglage["plancher_horaire"]),
-            plafond=float(reglage["plafond_horaire"]),
-        )
+        c = _calcul(heures, taux, reglage)
         commun = {
             "company_id": company_id,
             "employee_id": eid,
@@ -341,26 +491,7 @@ def poser_heures_du_mois(
             "manual_override": True,
         }
         _db().table("monthly_inputs").insert(
-            [
-                {
-                    **commun,
-                    "name": LIBELLE_RETENUE,
-                    "description": f"{c.heures_chomees:g} h × {c.taux_horaire:.2f} €",
-                    "amount": -c.retenue,
-                    "payroll_quantity": c.heures_chomees,
-                    "is_socially_taxed": True,
-                    "is_taxable": True,
-                },
-                {
-                    **commun,
-                    "name": LIBELLE_INDEMNITE,
-                    "description": f"{c.heures_chomees:g} h × {c.indemnite_horaire:.2f} € ({c.regle})",
-                    "amount": c.indemnite,
-                    "payroll_quantity": c.heures_chomees,
-                    "is_socially_taxed": False,
-                    "is_taxable": True,
-                },
-            ]
+            [{**commun, **ligne} for ligne in _deux_lignes(c)]
         ).execute()
         cibles.append((eid, year, month))
         resultats.append(
