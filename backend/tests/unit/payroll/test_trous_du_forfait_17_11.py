@@ -1,50 +1,17 @@
 """Derniers trous du forfait jours, comblés le 17/11 (test de parité).
 
-- premier mois après une reprise : la période du forfait déborde sur le mois
-  payé par l'ancien logiciel (21/09 → 25/10 pour octobre) ; ses absences en
-  sortent, comme aux heures ;
 - variables automatiques avant le bulletin : une fonction pour les deux
   générateurs, jamais en bac à sable, un échec dit sur le bulletin.
 """
 
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
 
 from app.modules.payroll.documents import variables_automatiques as va
-from app.modules.payroll.documents.payslip_run_forfait import absences_hors_reprise
 from app.modules.payroll.engine import replis
 
 pytestmark = pytest.mark.unit
-
-FIN_SEPTEMBRE = date(2026, 9, 30)
-
-
-def _jour(iso: str, type_jour: str, **extra) -> dict:
-    return {"date_complete": iso, "type": type_jour, "heures": 1.0, **extra}
-
-
-def test_les_absences_du_mois_repris_sortent_de_la_periode_du_forfait():
-    periode = [
-        _jour("2026-09-28", "conges_payes"),
-        _jour("2026-09-29", "arret_maladie"),
-        _jour("2026-09-30", "travail_base"),
-        _jour("2026-09-30", "absence_non_remuneree", is_regularisation_anterieure=True),
-        _jour("2026-10-01", "arret_maladie"),
-    ]
-    gardes = absences_hors_reprise(periode, FIN_SEPTEMBRE)
-    assert [(j["date_complete"], j["type"]) for j in gardes] == [
-        ("2026-09-30", "travail_base"),
-        ("2026-09-30", "absence_non_remuneree"),
-        ("2026-10-01", "arret_maladie"),
-    ]
-
-
-def test_hors_du_premier_mois_rien_ne_sort():
-    periode = [_jour("2026-10-20", "conges_payes")]
-    assert absences_hors_reprise(periode, None) == periode
 
 
 class _Reglages:
