@@ -44,6 +44,7 @@ import {
   FileSpreadsheet,
   Info,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useCompany } from "@/contexts/CompanyContext";
 import { proposeLeChoixDuFormat } from "@/components/exports/exportFileFormats";
 import { anneesProposees, optionsDeMois, periodeParDefaut } from "@/components/exports/periodesExport";
@@ -304,9 +305,25 @@ export function ExportCommonModel({
   const blockingAnomalies = useMemo(() => {
     if (!previewData) return [];
     return previewData.anomalies.filter(
-      (a) => a.severity === "blocking" && !isEmptyDataMessage(a.message),
+      (a) =>
+        a.severity === "blocking" &&
+        a.code !== "dsn_non_deposable" &&
+        !isEmptyDataMessage(a.message),
     );
   }, [previewData]);
+  // DSN pas encore déposable depuis Martine : voulu, dit à part (Lyon, 17/11 :
+  // sous « Anomalies bloquantes », on demandait « pourquoi bloquant ? »).
+  const dsnNonDeposable = previewData?.anomalies.find((a) => a.code === "dsn_non_deposable") ?? null;
+
+  // À voir sur une fiche (statut cadre contradictoire, PCS 9999) : un lien.
+  const aVoirSurLaFiche = useMemo(
+    () => (previewData?.anomalies ?? []).filter((a) => a.code === "a_voir_sur_la_fiche"),
+    [previewData],
+  );
+  // Le serveur refuse une DSN dont les avertissements ne sont pas acceptés.
+  const avertissementsAAccepter =
+    apiExportType === "dsn_mensuelle" &&
+    ((previewData?.warnings.length ?? 0) > 0 || aVoirSurLaFiche.length > 0);
 
   const previewWarnings = useMemo(() => {
     if (!previewData) return [];
@@ -613,16 +630,6 @@ export function ExportCommonModel({
                       placeholder="UUID établissement"
                     />
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="accept-warnings"
-                    checked={acceptWarnings}
-                    onCheckedChange={(c) => setAcceptWarnings(c === true)}
-                  />
-                  <Label htmlFor="accept-warnings" className="font-normal">
-                    Accepter les avertissements non bloquants à la génération
-                  </Label>
                 </div>
                 <div className="flex items-center gap-2">
                   <Checkbox
@@ -1023,6 +1030,14 @@ export function ExportCommonModel({
               </Card>
             ) : null}
 
+            {dsnNonDeposable && (
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>DSN pas encore déposable depuis Martine : voulu, déposez comme avant</AlertTitle>
+                <AlertDescription className="whitespace-pre-line">{dsnNonDeposable.message}</AlertDescription>
+              </Alert>
+            )}
+
             {/* Anomalies bloquantes (hors export vide) */}
             {blockingAnomalies.length > 0 && (
               <Alert variant="destructive">
@@ -1043,7 +1058,7 @@ export function ExportCommonModel({
             )}
 
             {/* Avertissements */}
-            {previewWarnings.length > 0 && (
+            {(previewWarnings.length > 0 || aVoirSurLaFiche.length > 0) && (
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Avertissements</AlertTitle>
@@ -1052,7 +1067,32 @@ export function ExportCommonModel({
                     {previewWarnings.map((warning, index) => (
                       <li key={index}>{warning}</li>
                     ))}
+                    {aVoirSurLaFiche.map((a, index) => (
+                      <li key={`fiche-${index}`}>
+                        {a.message}
+                        {a.employee_id ? (
+                          <>
+                            {" "}
+                            <Link className="underline" to={`/employees/${a.employee_id}`}>
+                              Ouvrir la fiche
+                            </Link>
+                          </>
+                        ) : null}
+                      </li>
+                    ))}
                   </ul>
+                  {avertissementsAAccepter && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <Checkbox
+                        id="accept-warnings"
+                        checked={acceptWarnings}
+                        onCheckedChange={(c) => setAcceptWarnings(c === true)}
+                      />
+                      <Label htmlFor="accept-warnings" className="font-normal">
+                        J&apos;ai lu ces avertissements et je les accepte pour générer la DSN
+                      </Label>
+                    </div>
+                  )}
                 </AlertDescription>
               </Alert>
             )}
@@ -1069,9 +1109,16 @@ export function ExportCommonModel({
               <Button variant="outline" onClick={handleBack} disabled={isLoading}>
                 Retour
               </Button>
-              <Button 
+              {avertissementsAAccepter && !acceptWarnings && (
+                <p className="self-center text-xs text-muted-foreground">
+                  Cochez l&apos;acceptation des avertissements ci-dessus pour générer.
+                </p>
+              )}
+              <Button
                 onClick={handleGenerate}
-                disabled={!previewData.can_generate || isLoading}
+                disabled={
+                  !previewData.can_generate || isLoading || (avertissementsAAccepter && !acceptWarnings)
+                }
               >
                 {isLoading ? "Génération..." : "Générer l'export"}
               </Button>

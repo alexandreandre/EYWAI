@@ -3,7 +3,9 @@ import {
   CONSEQUENCE_DU_CHOIX,
   heuresFr,
   jouerLeGeste,
+  lireHeuresAPayer,
   lireRecuperation,
+  saisieParDefaut,
 } from '@/features/payroll/utils/recuperationDuMois';
 
 describe('lireRecuperation', () => {
@@ -142,5 +144,32 @@ describe('jouerLeGeste (R-322)', () => {
     );
     expect(issue).toEqual({ kind: 'non_defait', erreur });
     expect(appels).toEqual(['geste']);
+  });
+});
+
+describe('carte : heures du compteur à payer (paiement partiel, 17/11)', () => {
+  it('le champ montre le solde tant que la RH n’a rien tapé', () => {
+    expect(saisieParDefaut(5)).toBe('5');
+    expect(saisieParDefaut(2.5)).toBe('2,5');
+    expect(lireHeuresAPayer(saisieParDefaut(5), 5)).toEqual({ kind: 'ok', heures: 5 });
+  });
+
+  it('une partie du solde : 3 h sur 5', () => {
+    expect(lireHeuresAPayer('3', 5)).toEqual({ kind: 'ok', heures: 3 });
+    expect(lireHeuresAPayer(' 1,5 ', 5)).toEqual({ kind: 'ok', heures: 1.5 });
+  });
+
+  it('au-delà du solde : refusé', () => {
+    expect(lireHeuresAPayer('5,01', 5)).toEqual({
+      kind: 'erreur',
+      message: 'Au plus 5 h, le solde du compteur.',
+    });
+  });
+
+  it('zéro, négatif ou vide : refusé', () => {
+    expect(lireHeuresAPayer('0', 5).kind).toBe('erreur');
+    expect(lireHeuresAPayer('-2', 5).kind).toBe('erreur');
+    expect(lireHeuresAPayer('', 5).kind).toBe('erreur');
+    expect(lireHeuresAPayer('abc', 5).kind).toBe('erreur');
   });
 });

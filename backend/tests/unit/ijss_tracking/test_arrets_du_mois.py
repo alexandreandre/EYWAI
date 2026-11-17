@@ -7,6 +7,8 @@ import pytest
 import app.modules.ijss_tracking.application.arrets as mod
 from app.modules.ijss_tracking.domain.arrets_du_mois import (
     bornes_arret,
+    bulletin_calcule_avant,
+    chiffres_du_bulletin,
     etat_du_maintien,
     ij_estimees_du_bulletin,
     jours_dans_le_mois,
@@ -226,3 +228,88 @@ def test_justificatif_chemin_d_un_autre_utilisateur_refuse(monkeypatch):
         mod.ajouter_justificatif(
             "co-1", "abs-1", "facture", "u-1/x.pdf", "x.pdf", "u-1"
         )
+
+
+# --- Ligne de suivi figée sur un bulletin d'avant l'arrêt (MAJI, 17/11) ---
+
+
+def test_le_montant_saisi_n_est_pas_une_estimation():
+    pdata = {
+        "bloc_maintien": {"ijss": {"ijss_theorique": 500.0, "ijss_brut_override": True}}
+    }
+    assert ij_estimees_du_bulletin(pdata) is None
+    assert "ijss_theorique" not in chiffres_du_bulletin(pdata)
+    pdata["bloc_maintien"]["ijss"]["ijss_brut_override"] = False
+    assert chiffres_du_bulletin(pdata)["ijss_theorique"] == 500.0
+
+
+def test_chiffres_du_bulletin_sans_arret():
+    chiffres = chiffres_du_bulletin({"bloc_maintien": {}, "synthese_net": {}})
+    assert chiffres["nb_jours_indemnises"] == 0
+    assert "ijss_theorique" not in chiffres
+
+
+def test_bulletin_calcule_avant():
+    bulletin = {"generated_at": "2026-11-10T14:20:00+00:00"}
+    assert bulletin_calcule_avant(bulletin, "2026-11-17T08:52:56.123456+00:00")
+    assert not bulletin_calcule_avant(bulletin, "2026-11-01T00:00:00Z")
+    assert not bulletin_calcule_avant(None, "2026-11-17T08:52:56+00:00")
+    assert not bulletin_calcule_avant(bulletin, None)
+    # Même seconde, fractions de longueurs différentes.
+    assert bulletin_calcule_avant(
+        {"updated_at": "2026-11-17T08:55:29+00:00"}, "2026-11-17T08:55:29.5+00:00"
+    )
+
+
+def test_la_ligne_figee_reprend_le_bulletin_recalcule(monkeypatch):
+    from app.modules.ijss_tracking.application import service as service_mod
+
+    ligne = {
+        "id": "l-1",
+        "absence_request_id": "a-1",
+        "updated_at": "2026-11-17T08:53:26+00:00",
+        "nb_jours_indemnises": 0,
+    }
+    bulletin = {
+        "id": "ps-1",
+        "generated_at": "2026-11-17T08:55:28.94+00:00",
+        "payslip_data": {
+            "bloc_maintien": {
+                "ijss": {"nb_jours_indemnises": 1, "ijss_theorique": 42.97}
+            }
+        },
+    }
+    ecrits: dict = {}
+    monkeypatch.setattr(
+        service_mod, "_bulletins_du_mois", lambda cid, y, m: {"e-1": bulletin}
+    )
+    monkeypatch.setattr(mod.repo, "list_expected_lines", lambda pid: [ligne])
+    monkeypatch.setattr(
+        mod.repo,
+        "update_expected_line",
+        lambda lid, f: ecrits.update(f) or {**ligne, **f},
+    )
+
+    rendue = mod._ligne_attendue_de_l_arret(
+        "c-1", {"id": "a-1", "employee_id": "e-1"}, {"id": "p-1"}, 2026, 10
+    )
+    assert rendue["nb_jours_indemnises"] == 1 and ecrits["ijss_theorique"] == 42.97
+
+    # Ligne plus récente que le bulletin : rendue telle quelle.
+    ecrits.clear()
+    ligne["updated_at"] = "2026-11-17T09:00:00+00:00"
+    assert (
+        mod._ligne_attendue_de_l_arret(
+            "c-1", {"id": "a-1", "employee_id": "e-1"}, {"id": "p-1"}, 2026, 10
+        )
+        is ligne
+    )
+    assert ecrits == {}
+
+
+def test_arret_enregistre_apres_le_bulletin_le_dit():
+    bulletin = {
+        "generated_at": "2026-11-10T14:20:00+00:00",
+        "payslip_data": {"bloc_maintien": {}},
+    }
+    assert bulletin_calcule_avant(bulletin, "2026-11-17T08:52:56+00:00")

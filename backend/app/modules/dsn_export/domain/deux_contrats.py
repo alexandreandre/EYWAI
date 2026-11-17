@@ -3,7 +3,8 @@
 Un CDD finit le 10/11, un nouveau contrat commence le 17/11 : novembre a un
 bulletin par contrat (D3). Chaque bulletin se construit seul, comme un mois
 ordinaire ; `fusionner` réunit ensuite les deux sous un individu, et
-`evenements_du_contrat` donne à chaque contrat ses arrêts et sa sortie.
+`evenements_du_contrat` donne à chaque contrat ses arrêts, sa sortie et ses
+jours d'activité partielle.
 
 Cahier technique DSN 2026.1 : numéro de contrat unique par individu (40.009
 CCH-12), numéro de versement distinct (50.003 CCH-11 et CCH-12), numéro du
@@ -52,7 +53,7 @@ def evenements_du_contrat(
     resultat = {
         cle: valeur
         for cle, valeur in evenements.items()
-        if cle not in ("absences_dsn", "sortie_dsn", "sorties_dsn")
+        if cle not in ("absences_dsn", "sortie_dsn", "sorties_dsn", "activite_partielle_dsn")
         and (contrat_de_la_fiche or cle not in _REPLI_SMIC)
     }
     absences = [
@@ -73,6 +74,17 @@ def evenements_du_contrat(
     ]
     if sorties:
         resultat["sortie_dsn"] = max(sorties, key=lambda s: str(s.get("last_working_day")))
+    # Jours d'activité partielle du calendrier : ceux qui tombent dans ses dates.
+    chomes = [
+        j
+        for j in evenements.get("activite_partielle_dsn") or []
+        if isinstance(j, dict)
+        and (jour := _jour(j.get("date")))
+        and debut <= jour
+        and (fin is None or jour <= fin)
+    ]
+    if chomes:
+        resultat["activite_partielle_dsn"] = chomes
     return resultat
 
 

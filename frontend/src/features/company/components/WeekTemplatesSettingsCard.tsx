@@ -43,7 +43,9 @@ import { queryKeys } from '@/lib/queryKeys';
 import {
   resolveBreaks,
   syncLegacyBreakFields,
+  aUnDetailDePauses,
   breaksFromLegacy,
+  libellePausesPayees,
   type DayBreak,
 } from '@/lib/breakPolicy';
 import { DayBreaksEditor } from '@/features/company/components/DayBreaksEditor';
@@ -393,6 +395,23 @@ export default function WeekTemplatesSettingsCard() {
                               onChange={(e) => setDay(idx, { end: e.target.value })}
                             />
                           </td>
+                          {aUnDetailDePauses(d.breaks) ? (
+                            <>
+                              <td className="px-2 py-1 text-center text-xs">
+                                <button
+                                  type="button"
+                                  className="underline"
+                                  disabled={!d.worked}
+                                  data-testid={`pauses-detail-${d.day}`}
+                                  onClick={() => setBreakDetailOpen((prev) => ({ ...prev, [d.day]: true }))}
+                                >
+                                  {d.break_minutes} min ({d.breaks.length} pauses, voir le détail)
+                                </button>
+                              </td>
+                              <td className="px-2 py-1 text-center text-xs">{libellePausesPayees(d.breaks)}</td>
+                            </>
+                          ) : (
+                          <>
                           <td className="px-2 py-1">
                             <Input
                               type="number"
@@ -423,6 +442,8 @@ export default function WeekTemplatesSettingsCard() {
                               }}
                             />
                           </td>
+                          </>
+                          )}
                         </tr>
                         {d.worked && (
                           <tr>

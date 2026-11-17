@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Coins, Trash2 } from 'lucide-react';
+import { Coins, Pencil, Trash2 } from 'lucide-react';
 import { getBonusTypes, type BonusType } from '@/api/bonusTypes';
 import { getShiftTypes, type ShiftType } from '@/api/planning';
 import {
   applyAstreinteEquipesPreset,
   applyShiftTeamsPayrollPreset,
   createPayrollVariableRule,
+  updatePayrollVariableRule,
   deletePayrollVariableRule,
   generatePayrollVariables,
   listPayrollVariableRules,
@@ -46,6 +47,7 @@ import { useToast } from '@/hooks/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
 import { accord, pluriel } from '@/lib/pluriel';
 import { REGLES_SANS_MONTANT, RULE_TYPE_LABELS } from '@/features/company/lib/reglesVariables';
+import { conditionsDuType, panierEnMontantFixe } from '@/features/company/lib/conditionsDuType';
 import { useEmployeesSummaryQuery } from '@/hooks/queries/useEmployeesQuery';
 import { SITUATIONS_REPAS, SITUATION_REPAS_PAR_DEFAUT } from '@/lib/situationsRepas';
 
@@ -188,6 +190,8 @@ export default function PayrollVariableRulesCard() {
   });
 
   const [simulation, setSimulation] = useState<PayrollVariableGenerateResult | null>(null);
+  // Règle en cours de modification (même formulaire, prérempli).
+  const [enModification, setEnModification] = useState<PayrollVariableRule | null>(null);
   const salariesCibles = (draft.conditions?.employee_ids as string[] | undefined) ?? null;
   const basculerSalarie = (id: string, coche: boolean) => {
     const actuels = salariesCibles ?? [];
@@ -305,7 +309,7 @@ export default function PayrollVariableRulesCard() {
         : isPresenceWeek
           ? Number(draft.amount ?? presenceConditions.amount_per_week ?? 0)
           : (draft.amount ?? 0);
-      return createPayrollVariableRule({
+      const regle = {
         code: draft.code || codeDepuisLibelle(draft.label || ''),
         label: draft.label || 'Nouvelle règle',
         enabled: true,
@@ -316,14 +320,18 @@ export default function PayrollVariableRulesCard() {
         generation_mode:
           draft.generation_mode
           || (noAmountRule ? 'suggest' : 'auto'),
-        sort_order: rules.length,
-      });
+        sort_order: enModification?.sort_order ?? rules.length,
+      };
+      return enModification?.id
+        ? updatePayrollVariableRule(enModification.id, { ...regle, enabled: enModification.enabled })
+        : createPayrollVariableRule(regle);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.payrollVariableRules(activeCompanyId),
       });
-      toast({ title: 'Règle créée' });
+      toast({ title: enModification ? 'Règle modifiée' : 'Règle créée' });
+      setEnModification(null);
       setDraft({
         code: '',
         label: '',
@@ -434,7 +442,7 @@ export default function PayrollVariableRulesCard() {
                 <TableHead>Montant</TableHead>
                 <TableHead>Salariés</TableHead>
                 <TableHead>Mode</TableHead>
-                {canEdit && <TableHead className="w-12" />}
+                {canEdit && <TableHead className="w-24" />}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -451,7 +459,18 @@ export default function PayrollVariableRulesCard() {
                   </TableCell>
                   <TableCell>{GENERATION_MODE_LABELS[r.generation_mode] ?? r.generation_mode}</TableCell>
                   {canEdit && r.id && (
-                    <TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Modifier la règle"
+                        onClick={() => {
+                          setEnModification(r);
+                          setDraft({ ...r, conditions: { ...(r.conditions ?? {}) } });
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -530,27 +549,30 @@ export default function PayrollVariableRulesCard() {
                 value={draft.rule_type}
                 onValueChange={(v) => {
                   const rt = v as PayrollVariableRule['rule_type'];
-                  let conditions = draft.conditions ?? {};
+                  // Les conditions d'un autre type partent ; les salariés
+                  // choisis restent (Lyon, 17/11).
+                  const communes = conditionsDuType(rt, draft.conditions);
+                  let conditions = communes;
                   let generation_mode = draft.generation_mode;
                   let amount = draft.amount;
                   if (rt === 'per_astreinte_weekend_km') {
-                    conditions = { ...DEFAULT_ASTREINTE_KM_CONDITIONS };
+                    conditions = { ...communes, ...DEFAULT_ASTREINTE_KM_CONDITIONS };
                     generation_mode = 'suggest';
                     amount = null;
                   } else if (rt === 'per_astreinte_week_tiered') {
-                    conditions = { ...DEFAULT_ASTREINTE_TIERED };
+                    conditions = { ...communes, ...DEFAULT_ASTREINTE_TIERED };
                     generation_mode = 'suggest';
                     amount = null;
                   } else if (rt === 'per_astreinte_weekend_majoration') {
-                    conditions = { ...DEFAULT_ASTREINTE_WEEKEND_MAJ };
+                    conditions = { ...communes, ...DEFAULT_ASTREINTE_WEEKEND_MAJ };
                     generation_mode = 'suggest';
                     amount = null;
                   } else if (rt === 'transport_domicile_travail') {
                     // Le montant vient de la fiche de chaque bénéficiaire.
-                    conditions = {};
+                    conditions = communes;
                     amount = null;
                   } else if (rt === 'per_week_without_absence') {
-                    conditions = { absence_types: [], amount_per_week: 6 };
+                    conditions = { ...communes, absence_types: [], amount_per_week: 6 };
                     generation_mode = 'auto';
                     amount = 6;
                   }
@@ -570,6 +592,27 @@ export default function PayrollVariableRulesCard() {
                   ))}
                 </SelectContent>
               </Select>
+              {panierEnMontantFixe(draft.label, draft.rule_type) && (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1" data-testid="panier-montant-fixe">
+                  Un panier s'exonère par repas : en montant fixe mensuel, Martine n'y voit qu'un seul
+                  panier (15 € donnent 7,50 € exonérés et 7,50 € cotisés). Choisissez plutôt{' '}
+                  <button
+                    type="button"
+                    className="underline font-medium"
+                    onClick={() =>
+                      setDraft({
+                        ...draft,
+                        rule_type: 'per_worked_day',
+                        conditions: conditionsDuType('per_worked_day', draft.conditions),
+                      })
+                    }
+                  >
+                    « Par jour travaillé (calendrier) »
+                  </button>{' '}
+                  (montant par panier × jours travaillés), ou une saisie du mois « montant par panier ×
+                  nombre de paniers ».
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>
@@ -1030,8 +1073,28 @@ export default function PayrollVariableRulesCard() {
                 disabled={createRule.isPending}
                 onClick={() => createRule.mutate()}
               >
-                Ajouter la règle
+                {enModification ? `Enregistrer « ${enModification.label} »` : 'Ajouter la règle'}
               </Button>
+              {enModification && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setEnModification(null);
+                    setDraft({
+                      code: '',
+                      label: '',
+                      rule_type: 'fixed_monthly',
+                      amount: 0,
+                      enabled: true,
+                      generation_mode: 'auto',
+                      conditions: {},
+                      sort_order: 0,
+                    });
+                  }}
+                >
+                  Annuler la modification
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 disabled={generate.isPending}

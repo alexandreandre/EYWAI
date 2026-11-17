@@ -16,6 +16,8 @@ export interface Employee {
     groupe_emploi?: string;
     classe_emploi?: number;
     coefficient?: number;
+    /** Statut conventionnel repris de l'ancienne DSN (« 04 » cadre…). */
+    code_statut_dsn?: string | null;
   } | null;
   prior_service_months?: number | null;
   seniority_reference_date?: string | null;

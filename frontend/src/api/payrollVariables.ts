@@ -199,3 +199,14 @@ export async function generatePayrollVariables(
   );
   return data;
 }
+
+export async function updatePayrollVariableRule(
+  ruleId: string,
+  payload: PayrollVariableRule,
+): Promise<PayrollVariableRule> {
+  const { data } = await apiClient.put<PayrollVariableRule>(
+    `/api/payroll-variables/rules/${ruleId}`,
+    payload,
+  );
+  return data;
+}

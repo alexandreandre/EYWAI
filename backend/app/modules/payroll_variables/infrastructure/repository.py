@@ -36,9 +36,10 @@ def upsert_rule(company_id: str, data: dict[str, Any], rule_id: str | None = Non
     now = datetime.now(timezone.utc).isoformat()
     row = {**data, "company_id": company_id, "updated_at": now}
     if rule_id:
+        # La règle d'une autre société ne se modifie pas d'ici.
         supabase.table("company_payroll_variable_rules").update(row).eq(
             "id", rule_id
-        ).execute()
+        ).eq("company_id", company_id).execute()
         return get_rule(company_id, rule_id) or row
     row["created_at"] = now
     resp = supabase.table("company_payroll_variable_rules").insert(row).execute()

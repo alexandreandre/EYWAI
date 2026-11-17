@@ -9,6 +9,8 @@ import {
 import { generatePayslip } from '@/api/payslips';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { getPayrollGenerationErrorMessage, getUserErrorMessage } from '@/lib/errorMessages';
 import {
@@ -16,7 +18,9 @@ import {
   CONSEQUENCE_DU_CHOIX,
   heuresFr,
   jouerLeGeste,
+  lireHeuresAPayer,
   lireRecuperation,
+  saisieParDefaut,
 } from '@/features/payroll/utils/recuperationDuMois';
 import { regenererPuisRecharger } from '@/features/payroll/utils/regenerationBulletin';
 
@@ -35,7 +39,8 @@ interface Props {
 
 /**
  * Heures de récupération du mois (spec 2026-11-05) : ce qui est parti au
- * compteur, le choix de payer ce mois-ci, le paiement du solde. Chaque geste
+ * compteur, le choix de payer ce mois-ci, le paiement du solde (en entier ou
+ * en partie : « 3 h sur 5 », le reste demeure au compteur). Chaque geste
  * recalcule le bulletin ; rien ne reste en attente sans le dire.
  */
 export function RecuperationDuMoisCard({
@@ -51,6 +56,8 @@ export function RecuperationDuMoisCard({
 }: Props) {
   const { toast } = useToast();
   const [enCours, setEnCours] = useState(false);
+  // null : la RH n'a rien tapé, le champ montre le solde (il suit le recalcul).
+  const [saisieHeures, setSaisieHeures] = useState<string | null>(null);
   const etat = lireRecuperation(payslipData);
   if (!etat) return null;
 
@@ -110,6 +117,9 @@ export function RecuperationDuMoisCard({
   };
 
   const bloque = disabled || enCours;
+  const saisie = saisieHeures ?? saisieParDefaut(etat.soldePayable);
+  const aPayer = lireHeuresAPayer(saisie, etat.soldePayable);
+  const toutLeSolde = aPayer.kind === 'ok' && aPayer.heures === Math.round(etat.soldePayable * 100) / 100;
   type Choix = 'payer' | 'compteur' | 'regle';
   const appliquerLeChoix = (choix: Choix) =>
     choisirLeMoisRecuperation(
@@ -203,24 +213,50 @@ export function RecuperationDuMoisCard({
             </div>
           ) : etat.soldePayable > 0 ? (
             <div className="space-y-1">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={bloque}
-                onClick={() =>
-                  agir(
-                    () =>
-                      payerSoldeRecuperation(employeeId, year, month, etat.soldePayable, companyId),
-                    () => annulerPaiementRecuperation(employeeId, year, month, companyId),
-                    `Solde de ${heuresFr(etat.soldePayable)} payé sur ce bulletin`,
-                  )
-                }
-              >
-                Payer le solde ({heuresFr(etat.soldePayable)})
-              </Button>
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="heures-recuperation-a-payer" className="text-xs">
+                    Heures à payer (solde : {heuresFr(etat.soldePayable)})
+                  </Label>
+                  <Input
+                    id="heures-recuperation-a-payer"
+                    data-testid="heures-recuperation-a-payer"
+                    inputMode="decimal"
+                    className="h-8 w-24"
+                    value={saisie}
+                    disabled={bloque}
+                    aria-invalid={aPayer.kind === 'erreur'}
+                    onChange={(e) => setSaisieHeures(e.target.value)}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={bloque || aPayer.kind === 'erreur'}
+                  onClick={() => {
+                    if (aPayer.kind !== 'ok') return;
+                    const heures = aPayer.heures;
+                    void agir(
+                      () => payerSoldeRecuperation(employeeId, year, month, heures, companyId),
+                      () => annulerPaiementRecuperation(employeeId, year, month, companyId),
+                      toutLeSolde
+                        ? `Solde de ${heuresFr(heures)} payé sur ce bulletin`
+                        : `${heuresFr(heures)} sur ${heuresFr(etat.soldePayable)} payées sur ce bulletin, le reste demeure au compteur`,
+                    ).then(() => setSaisieHeures(null));
+                  }}
+                >
+                  {aPayer.kind === 'ok' && !toutLeSolde
+                    ? `Payer ${heuresFr(aPayer.heures)} sur ${heuresFr(etat.soldePayable)}`
+                    : `Payer le solde (${heuresFr(etat.soldePayable)})`}
+                </Button>
+              </div>
+              {aPayer.kind === 'erreur' ? (
+                <p className="text-xs text-destructive">{aPayer.message}</p>
+              ) : null}
               <p className="text-xs text-muted-foreground">
                 Payé en prime, au taux horaire de base : des heures mises en repos n’ont plus
-                l’exonération ni les réductions des heures sup.
+                l’exonération ni les réductions des heures sup. Les heures non payées restent au
+                compteur.
               </p>
             </div>
           ) : null}

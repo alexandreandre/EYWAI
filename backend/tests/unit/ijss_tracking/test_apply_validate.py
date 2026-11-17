@@ -99,6 +99,22 @@ class _Saisies:
         return MagicMock(data=[])
 
 
+BULLETIN_RECALCULE = {
+    "id": "ps-new",
+    "generated_at": "2026-11-17T08:55:28.94+00:00",
+    "payslip_data": {
+        "bloc_maintien": {
+            "ijss": {
+                "nb_jours_indemnises": 1,
+                "ijss_theorique": 320.5,
+                "ijss_brut_override": True,
+            }
+        },
+        "synthese_net": {"ijss_subrogees": 0.0},
+    },
+}
+
+
 def _monter(monkeypatch, *, bulletin=None, refus_salarie=None, origine=None):
     from app.modules.payslips.application import commands as cmd_mod
     from app.modules.payslips.application.dto import PayslipBadRequestError
@@ -114,6 +130,10 @@ def _monter(monkeypatch, *, bulletin=None, refus_salarie=None, origine=None):
     monkeypatch.setattr(
         "app.modules.ijss_tracking.application.service._recompute_period",
         lambda p: p,
+    )
+    monkeypatch.setattr(
+        "app.modules.ijss_tracking.application.service._bulletins_du_mois",
+        lambda cid, y, m: {"emp-1": BULLETIN_RECALCULE},
     )
     saisies = _Saisies()
     monkeypatch.setattr(mod, "supabase", saisies)
@@ -142,7 +162,9 @@ def _monter(monkeypatch, *, bulletin=None, refus_salarie=None, origine=None):
     return saisies, generations, lignes
 
 
-def test_appliquer_ecrit_la_saisie_du_mois_puis_passe_par_la_generation_normale(monkeypatch):
+def test_appliquer_ecrit_la_saisie_du_mois_puis_passe_par_la_generation_normale(
+    monkeypatch,
+):
     from app.modules.ijss_tracking.domain.saisie_ijss import LIBELLE_IJSS_VALIDEES
 
     saisies, generations, lignes = _monter(monkeypatch, bulletin={"id": "ps-old"})
@@ -152,12 +174,22 @@ def test_appliquer_ecrit_la_saisie_du_mois_puis_passe_par_la_generation_normale(
     # La saisie précédente est remplacée, jamais doublée, avant le calcul.
     assert saisies.ordre == ["delete", "insert", "generation"]
     assert saisies.effacees == [
-        {"employee_id": "emp-1", "year": 2026, "month": 5, "name": LIBELLE_IJSS_VALIDEES}
+        {
+            "employee_id": "emp-1",
+            "year": 2026,
+            "month": 5,
+            "name": LIBELLE_IJSS_VALIDEES,
+        }
     ]
     [ecrite] = saisies.ecrites
     assert ecrite["name"] == LIBELLE_IJSS_VALIDEES
     assert ecrite["amount"] == 320.5
-    assert (ecrite["employee_id"], ecrite["company_id"], ecrite["year"], ecrite["month"]) == (
+    assert (
+        ecrite["employee_id"],
+        ecrite["company_id"],
+        ecrite["year"],
+        ecrite["month"],
+    ) == (
         "emp-1",
         "co-1",
         2026,
@@ -249,3 +281,19 @@ def test_un_bulletin_remis_au_salarie_est_refuse_sans_rien_ecrire(monkeypatch):
     assert saisies.ordre == []
     assert generations == []
     assert lignes == {}
+
+
+def test_apres_le_recalcul_la_ligne_reprend_les_jours_du_bulletin(monkeypatch):
+    """MAJI, 17/11 : la ligne restait à 0 jour indemnisé, prise sur un bulletin
+    d'avant l'arrêt. L'estimation d'avant la saisie reste : le bulletin porte
+    le montant saisi, ce n'est pas une estimation."""
+    _saisies, _gen, lignes = _monter(monkeypatch, bulletin={"id": "ps-old"})
+
+    apply_validated_ijss_to_payslip("co-1", "exp-1", "user-1")
+
+    assert lignes["nb_jours_indemnises"] == 1
+    assert (
+        lignes["calculation_snapshot"]["bloc_maintien"]["ijss"]["nb_jours_indemnises"]
+        == 1
+    )
+    assert "ijss_theorique" not in lignes

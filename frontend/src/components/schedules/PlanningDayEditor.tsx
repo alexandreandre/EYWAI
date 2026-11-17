@@ -27,10 +27,7 @@ const APPARENCE: Record<string, { label?: string; icon: LucideIcon; cls: string 
   arret_maladie: { label: 'Arrêt', icon: Stethoscope, cls: 'bg-red-100 text-red-700 border-red-200' },
   conge: { icon: TreePalm, cls: 'bg-amber-100 text-amber-700 border-amber-200' },
 };
-const APPARENCE_PAR_DEFAUT: { label?: string; icon: LucideIcon; cls: string } = {
-  icon: Briefcase,
-  cls: 'bg-muted text-foreground border-input',
-};
+const APPARENCE_PAR_DEFAUT: { label?: string; icon: LucideIcon; cls: string } = { icon: Briefcase, cls: 'bg-muted text-foreground border-input' };
 
 interface PlanningDayEditorProps {
   employeeName: string;

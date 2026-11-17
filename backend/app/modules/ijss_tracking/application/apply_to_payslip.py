@@ -220,8 +220,20 @@ def apply_validated_ijss_to_payslip(
             "payslip_id": payslip_id or expected.get("payslip_id"),
         },
     )
-    from app.modules.ijss_tracking.application.service import _recompute_period
+    # La ligne reprend les jours indemnisés et le détail du bulletin recalculé ;
+    # l'estimation d'avant la saisie reste (le bulletin porte le montant saisi).
+    from app.modules.ijss_tracking.application.arrets import rafraichir_la_ligne
+    from app.modules.ijss_tracking.application.service import (
+        _bulletins_du_mois,
+        _recompute_period,
+    )
 
+    try:
+        rafraichir_la_ligne(
+            expected, _bulletins_du_mois(company_id, year, month).get(employee_id)
+        )
+    except Exception:  # noqa: BLE001 — le montant est appliqué ; la ligne se relit à l'écran
+        logger.exception("[ijss] Ligne %s non rafraîchie après le recalcul", expected_line_id)
     _recompute_period(period)
     return {
         "expected_line_id": expected_line_id,

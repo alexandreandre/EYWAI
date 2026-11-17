@@ -6,8 +6,10 @@ import pytest
 
 from app.modules.modulation.application import hour_account_commands as cmd
 from app.modules.modulation.domain.hour_account_rules import (
+    etat_du_mois,
     heures_payees_du_mois,
     saisie_paiement_solde,
+    solde_payable,
 )
 
 pytestmark = pytest.mark.unit
@@ -75,6 +77,46 @@ def test_payer_plus_que_le_solde_est_refuse(mock_list, mock_insert):
     with pytest.raises(ValueError, match="2 h"):
         cmd.payer_le_solde("soc", "emp", 2027, 1, 3.0)
     mock_insert.assert_not_called()
+
+
+def _payer(mvts, heures, annee=2027, mois=1):
+    """Joue `payer_le_solde` sur ces mouvements ; rend le débit posé."""
+    with (
+        patch(f"{_C}.sync_account_balance_cache"),
+        patch(f"{_C}.repo.insert_movement", side_effect=lambda ligne: ligne) as mock_insert,
+        patch(f"{_C}.repo.list_movements_for_employee", return_value=mvts),
+    ):
+        cmd.payer_le_solde("soc", "emp", annee, mois, heures)
+    return mock_insert.call_args[0][0]
+
+
+def test_payer_une_partie_du_solde_ne_retire_que_ces_heures():
+    """Retour RH du 17/11 : payer 3 h sur 5, les 2 autres restent au compteur."""
+    mvts = [_mvt("opening_balance", 5.0, 2026, 9)]
+    debit = _payer(mvts, 3.0)
+    assert (debit["movement_type"], debit["hours"]) == ("debit_payout", 3.0)
+    apres = [*mvts, debit]
+    etat = etat_du_mois(apres, 2027, 1)
+    assert etat["paye"] == 3.0
+    assert etat["solde"] == 2.0
+    assert solde_payable(apres, 2027, 1) == 2.0
+    # Le bulletin paie ces 3 h seulement, au taux horaire de base.
+    assert heures_payees_du_mois(apres, 2027, 1) == 3.0
+    assert saisie_paiement_solde(heures_payees_du_mois(apres, 2027, 1), 12.0)["montant"] == 36.0
+
+
+def test_payer_tout_le_solde_vide_le_compteur():
+    mvts = [_mvt("opening_balance", 5.0, 2026, 9)]
+    debit = _payer(mvts, 5.0)
+    apres = [*mvts, debit]
+    assert etat_du_mois(apres, 2027, 1)["solde"] == 0.0
+    assert solde_payable(apres, 2027, 1) == 0.0
+    assert saisie_paiement_solde(heures_payees_du_mois(apres, 2027, 1), 12.0)["montant"] == 60.0
+
+
+def test_payer_un_centieme_de_plus_que_le_solde_est_refuse():
+    with pytest.raises(ValueError, match="5 h"):
+        _payer([_mvt("opening_balance", 5.0, 2026, 9)], 5.01)
 
 
 @patch(f"{_C}.otr_repo.upsert_decision")

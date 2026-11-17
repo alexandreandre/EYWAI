@@ -69,8 +69,12 @@ def message_non_deposable() -> str:
     )
 
 
+CODE_NON_DEPOSABLE = "dsn_non_deposable"
+
+
 def anomalie_non_deposable() -> dict:
     return {
+        "code": CODE_NON_DEPOSABLE,
         "type": "error",
         "message": message_non_deposable(),
         "severity": "blocking",

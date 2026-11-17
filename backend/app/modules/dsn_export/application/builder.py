@@ -492,6 +492,26 @@ def _cdd_court_ou_imprecis(nature: str, employee: Dict[str, Any]) -> bool:
     return terme_de_deux_mois_au_plus(debut, fin)
 
 
+def _jours_chomes_du_contrat(
+    employee: Dict[str, Any], debut_mois: Optional[date], fin_mois: Optional[date]
+) -> List[Tuple[date, float]]:
+    """(date, heures) des jours d'activité partielle posés au calendrier que
+    le bulletin paie (`activite_partielle_dsn`, joint par le chargeur), jusqu'au
+    dernier jour du contrat s'il tombe dans le mois (65.002 CCH-13)."""
+    fin_contrat = date_de_fin(employee, debut_mois, fin_mois) if debut_mois and fin_mois else None
+    jours: List[Tuple[date, float]] = []
+    for entree in employee.get("activite_partielle_dsn") or []:
+        if not isinstance(entree, dict):
+            continue
+        try:
+            jour = date.fromisoformat(str(entree.get("date") or "")[:10])
+        except ValueError:
+            continue
+        if fin_contrat is None or jour <= fin_contrat:
+            jours.append((jour, float(entree.get("heures") or 0)))
+    return jours
+
+
 def _jours_forfait(
     payslip_data: Dict[str, Any],
     period_start: str,
@@ -1184,7 +1204,10 @@ def build_individu_from_payroll(
     activite_partielle = None
     if debut_periode and fin_periode:
         blocs_602, activite_partielle, avertissements_ap = declaration_activite_partielle(
-            payslip_data, debut_periode, fin_periode
+            payslip_data,
+            debut_periode,
+            fin_periode,
+            _jours_chomes_du_contrat(employee, debut_mois, fin_mois),
         )
         blocs_65 += blocs_602
         warnings.extend(f"{a} (NIR {nir_dsn})" for a in avertissements_ap)

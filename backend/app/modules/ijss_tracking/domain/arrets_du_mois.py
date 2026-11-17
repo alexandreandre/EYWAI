@@ -7,7 +7,7 @@ Martine, reçues et saisies par la RH) et ce que le bulletin a fait du maintien.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any, Literal
 
 #: Les pièces qu'on peut joindre à un arrêt, toutes facultatives.
@@ -101,6 +101,10 @@ def ij_estimees_du_bulletin(payslip_data: Mapping[str, Any] | None) -> float | N
     if not payslip_data:
         return None
     ijss = (payslip_data.get("bloc_maintien") or {}).get("ijss") or {}
+    if ijss.get("ijss_brut_override"):
+        # Le bulletin a pris le montant saisi par la RH : ce n'est plus une
+        # estimation de Martine (MAJI, 17/11 : 500 € saisis montrés « estimés »).
+        return None
     valeur = ijss.get("ijss_theorique")
     if valeur is None:
         valeur = (payslip_data.get("synthese_net") or {}).get("ijss_subrogees")
@@ -108,6 +112,51 @@ def ij_estimees_du_bulletin(payslip_data: Mapping[str, Any] | None) -> float | N
         return round(float(valeur), 2) if valeur is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def chiffres_du_bulletin(payslip_data: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Ce que la ligne de suivi d'un arrêt reprend du bulletin du mois.
+
+    L'estimation n'est rendue que si le bulletin en a une (pas quand il porte
+    le montant saisi) : la ligne garde alors l'estimation d'avant la saisie.
+    """
+    pdata = payslip_data or {}
+    sn = pdata.get("synthese_net") or {}
+    bloc = pdata.get("bloc_maintien") or {}
+    chiffres: dict[str, Any] = {
+        "ijss_subrogees_bulletin": float(sn.get("ijss_subrogees") or 0.0),
+        "nb_jours_indemnises": int(
+            (bloc.get("ijss") or {}).get("nb_jours_indemnises") or 0
+        ),
+        "calculation_snapshot": {"bloc_maintien": bloc, "synthese_net": sn},
+    }
+    estimees = ij_estimees_du_bulletin(pdata)
+    if estimees is not None:
+        chiffres["ijss_theorique"] = estimees
+    return chiffres
+
+
+def bulletin_calcule_avant(bulletin: Mapping[str, Any] | None, instant: Any) -> bool:
+    """Bulletin calculé avant l'instant donné (création de l'arrêt, de la ligne) :
+    il ne connaît pas ce qui a suivi, il est à recalculer pour en tenir compte."""
+    if not bulletin:
+        return False
+    calcule = _instant(bulletin.get("generated_at") or bulletin.get("updated_at"))
+    reference = _instant(instant)
+    return calcule is not None and reference is not None and calcule < reference
+
+
+def _instant(valeur: Any) -> datetime | None:
+    if isinstance(valeur, datetime):
+        moment = valeur
+    elif isinstance(valeur, str) and valeur.strip():
+        try:
+            moment = datetime.fromisoformat(valeur.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
 
 
 def refus_montant_ij(montant: Any) -> str | None:

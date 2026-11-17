@@ -23,6 +23,9 @@ class ExportAnomaly(BaseModel):
     severity: Literal["blocking", "warning"]
     employee_id: Optional[str] = None
     employee_name: Optional[str] = None
+    #: Repère d'une anomalie que l'écran traite à part (ex. DSN pas encore
+    #: déposable : un blocage voulu, pas une anomalie des données).
+    code: Optional[str] = None
 
 
 class ExportTotals(BaseModel):

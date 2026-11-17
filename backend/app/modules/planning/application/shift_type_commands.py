@@ -41,7 +41,9 @@ def update_shift_type(
         raise LookupError("Type de poste introuvable.")
     settings = planning_repository.get_company_planning_settings(company_id)
     cc_id = (settings or {}).get("collective_agreement_id")
-    if cc_id and str(existing.get("collective_agreement_id")) != str(cc_id):
+    # Sans convention planning, aucun type n'est à la société : les types d'une
+    # autre convention sont partagés, on ne les modifie pas d'ici.
+    if not cc_id or str(existing.get("collective_agreement_id")) != str(cc_id):
         raise PermissionError("Ce type de poste n'appartient pas à la CC de l'entreprise.")
     return planning_repository.update_shift_type(shift_type_id, data)
 
@@ -52,6 +54,8 @@ def delete_shift_type(company_id: str, shift_type_id: str) -> None:
         raise LookupError("Type de poste introuvable.")
     settings = planning_repository.get_company_planning_settings(company_id)
     cc_id = (settings or {}).get("collective_agreement_id")
-    if cc_id and str(existing.get("collective_agreement_id")) != str(cc_id):
+    # Sans convention planning, aucun type n'est à la société : les types d'une
+    # autre convention sont partagés, on ne les modifie pas d'ici.
+    if not cc_id or str(existing.get("collective_agreement_id")) != str(cc_id):
         raise PermissionError("Ce type de poste n'appartient pas à la CC de l'entreprise.")
     planning_repository.deactivate_shift_type(shift_type_id)
