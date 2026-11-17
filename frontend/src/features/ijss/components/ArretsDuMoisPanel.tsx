@@ -106,6 +106,11 @@ export function phraseMaintien(arret: ArretDuMois): { texte: string; ton: 'ok' |
         texte: "Bulletin calculé avant l'arrêt : régénérez-le pour qu'il compte l'arrêt",
         ton: 'attente',
       };
+    case 'bulletin_remis_avant_l_arret':
+      return {
+        texte: "Bulletin déjà remis, calculé avant l'arrêt : le rappel se fait sur le bulletin du mois suivant",
+        ton: 'attente',
+      };
     case 'en_attente_des_ij':
       return {
         texte: `En attente des IJ : ${eur(m.montant_en_attente)} retenus`,

@@ -250,6 +250,7 @@ export interface JustificatifArret {
 export type EtatMaintienArret =
   | 'bulletin_a_faire'
   | 'bulletin_a_recalculer'
+  | 'bulletin_remis_avant_l_arret'
   | 'en_attente_des_ij'
   | 'verse'
   | 'sans_maintien';

@@ -10,6 +10,7 @@ from app.core.logging import get_logger, log_app_debug
 
 logger = get_logger("modules.collective_agreements.application.service")
 
+from datetime import date
 from typing import Any, List, Optional
 
 from fastapi import HTTPException
@@ -307,6 +308,8 @@ class CollectiveAgreementsService:
         collective_agreement_id: str,
         user_id: str,
         has_rh_access: bool,
+        *,
+        date_debut: Optional[date] = None,
     ) -> dict[str, Any]:
         if not has_rh_access:
             raise HTTPException(status_code=403, detail="Accès non autorisé")
@@ -316,7 +319,7 @@ class CollectiveAgreementsService:
                     "Cette convention est déjà signée par votre entreprise"
                 )
             return self._repo.assign_to_company(
-                company_id, collective_agreement_id, user_id
+                company_id, collective_agreement_id, user_id, date_debut=date_debut
             )
         except (NotFoundError, ForbiddenError, ValidationError) as e:
             raise _to_http(e)

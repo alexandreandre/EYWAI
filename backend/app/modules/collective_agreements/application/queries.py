@@ -6,6 +6,7 @@ Délèguent au CollectiveAgreementsService (logique extraite des routers legacy)
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, List, Optional
 
 from app.modules.collective_agreements.application.dto import (
@@ -84,9 +85,10 @@ def get_idcc_for_agreement(agreement_id: str) -> Optional[str]:
 def resolve_employee_idcc(
     employee_row: dict,
     company_row: dict,
+    a_la_date: Optional[date] = None,
 ) -> Optional[str]:
-    """IDCC applicable à un salarié (fiche → entreprise)."""
-    return _resolve_employee_idcc(employee_row, company_row)
+    """IDCC applicable à un salarié (fiche → entreprise en vigueur à la date)."""
+    return _resolve_employee_idcc(employee_row, company_row, a_la_date=a_la_date)
 
 
 def get_salary_minima_query(

@@ -8,7 +8,7 @@ Logique applicative : décision forfait jour vs heures, délégation aux provide
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from app.core.database import supabase
@@ -636,11 +636,15 @@ def _raison_de_blocage_du_salarie(
     return payroll_block_reason(employee)
 
 
-def _idcc_du_salarie(employee: dict[str, Any]) -> str | None:
-    """La convention du salarié (fiche, puis société), sinon celle que porte sa
-    classification reprise de la DSN."""
+def _idcc_du_salarie(
+    employee: dict[str, Any], a_la_date: date | None = None
+) -> str | None:
+    """La convention du salarié (fiche, puis société en vigueur à la date), sinon
+    celle que porte sa classification reprise de la DSN."""
     try:
-        idcc = resolve_employee_idcc(employee, {"id": employee.get("company_id")})
+        idcc = resolve_employee_idcc(
+            employee, {"id": employee.get("company_id")}, a_la_date=a_la_date
+        )
     except Exception:  # noqa: BLE001 — lecture du catalogue ; la classification reste
         logger.warning("Convention de l'employé %s illisible.", employee.get("id"), exc_info=True)
         idcc = None
@@ -658,7 +662,7 @@ def _alertes_d_entree(employee: dict[str, Any], year: int, month: int) -> list[d
     alertes: list[dict[str, Any]] = []
     prevoyance = prevoyance_manquante(
         employee,
-        idcc=lambda: _idcc_du_salarie(employee),
+        idcc=lambda: _idcc_du_salarie(employee, dernier_jour_du_mois(year, month)),
         fin_du_mois=dernier_jour_du_mois(year, month),
     )
     if prevoyance:

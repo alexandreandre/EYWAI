@@ -93,7 +93,8 @@ export function PlanningDayEditor({
     // Même règle que la case du calendrier : un type non travaillé remet le
     // réel à 0 ; la RH saisit ensuite les heures faites (demi-journée).
     const reel = reelApresChangementDeType(newType, type);
-    if (reel !== undefined && reel !== null) setActualHours(String(reel));
+    if (reel === null) setActualHours('');
+    else if (reel !== undefined) setActualHours(String(reel));
     if (isForfaitJour) {
       if (newType === 'activite_partielle') {
         // Le jour chômé reste un jour prévu : c'est lui qui est indemnisé.

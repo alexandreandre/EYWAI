@@ -22,6 +22,10 @@ from typing import Any, Mapping
 
 from app.core.database import supabase
 from app.core.logging import get_logger
+from app.modules.collective_agreements.domain.convention_datee import (
+    fiche_a_la_date,
+    fin_du_mois,
+)
 
 logger = get_logger(__name__)
 
@@ -136,7 +140,20 @@ def fiche_du_mois(
     month: int,
     contract_period_id: str | None = None,
 ) -> dict[str, Any]:
-    """La fiche sur laquelle le mois se calcule.
+    """La fiche sur laquelle le mois se calcule, avec la classification qui vaut
+    au dernier jour du mois (changement daté, `convention_datee`). Sans
+    changement daté, la classification est celle de la fiche, inchangée."""
+    fiche = _fiche_du_contrat(employee, year, month, contract_period_id)
+    return fiche_a_la_date(fiche, fin_du_mois(year, month))
+
+
+def _fiche_du_contrat(
+    employee: Mapping[str, Any],
+    year: int,
+    month: int,
+    contract_period_id: str | None = None,
+) -> dict[str, Any]:
+    """La fiche du contrat sur lequel le mois se calcule.
 
     Avec `contract_period_id` : la fiche de ce contrat rangé, quel que soit le
     mois. C'est le bulletin de l'ancien contrat dans un mois partagé [D3]. Sans

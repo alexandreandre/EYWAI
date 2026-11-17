@@ -5,9 +5,13 @@ Résolution canonique IDCC + minima conventionnels (paie réelle et simulation).
 from __future__ import annotations
 
 import json
+from datetime import date
 from typing import Any, Dict, List, Optional
 
 from app.core.database import get_supabase_client
+from app.modules.collective_agreements.domain.convention_datee import (
+    agreement_id_en_vigueur,
+)
 from app.modules.collective_agreements.domain.rules import idcc_variants
 from app.modules.collective_agreements.rules.constants import SMH_NATIONAL_IDCC
 from app.modules.collective_agreements.rules.repository import CCRulesRepository
@@ -49,23 +53,51 @@ def get_idcc_for_agreement(agreement_id: str, supabase_client: Any = None) -> Op
     return None
 
 
-def _first_company_agreement_id(company_id: str, supabase_client: Any) -> Optional[str]:
+def company_agreement_id_a_la_date(
+    company_id: str,
+    a_la_date: Optional[date] = None,
+    *,
+    supabase_client: Any = None,
+) -> Optional[str]:
+    """La convention de la société en vigueur à la date (catalogue), ou None.
+
+    Lit toutes les lignes (`select *` : sans la migration des dates d'effet,
+    elles n'ont pas de date et la première vaut, comme avant). Voir
+    `domain/convention_datee.ligne_en_vigueur`.
+    """
     if not company_id:
         return None
+    client = supabase_client or get_supabase_client()
     try:
         response = (
-            supabase_client.table("company_collective_agreements")
-            .select("collective_agreement_id")
+            client.table("company_collective_agreements")
+            .select("*")
             .eq("company_id", company_id)
-            .limit(1)
             .execute()
         )
-        rows = response.data or []
-        if rows:
-            return rows[0].get("collective_agreement_id")
+        rows = list(getattr(response, "data", None) or [])
     except Exception:
         return None
-    return None
+    return agreement_id_en_vigueur(rows, a_la_date)
+
+
+def employee_agreement_id_a_la_date(
+    employee_row: Dict[str, Any],
+    company_id: Optional[str] = None,
+    a_la_date: Optional[date] = None,
+    *,
+    supabase_client: Any = None,
+) -> Optional[str]:
+    """La convention d'un salarié à la date : celle de sa fiche, sinon celle de
+    la société en vigueur à la date. Sans date : aujourd'hui."""
+    agreement_id = employee_row.get("collective_agreement_id")
+    if agreement_id:
+        return str(agreement_id)
+    return company_agreement_id_a_la_date(
+        str(company_id or employee_row.get("company_id") or ""),
+        a_la_date,
+        supabase_client=supabase_client,
+    )
 
 
 def resolve_employee_idcc(
@@ -73,17 +105,22 @@ def resolve_employee_idcc(
     company_row: Dict[str, Any],
     *,
     supabase_client: Any = None,
+    a_la_date: Optional[date] = None,
 ) -> Optional[str]:
-    """
-    Priorité : CC fiche salarié → première CC assignée à l'entreprise → companies.idcc.
+    """La convention applicable à (société, salarié, date) : la fonction unique.
+
+    Priorité : CC fiche salarié → CC de l'entreprise en vigueur à `a_la_date`
+    (aujourd'hui sans date) → companies.idcc. Un mois de paie passe son dernier
+    jour (`convention_datee.fin_du_mois`). Sans date d'effet en base, la date ne
+    change rien : la première CC assignée vaut, comme avant.
     """
     client = supabase_client or get_supabase_client()
-    agreement_id = employee_row.get("collective_agreement_id")
-    if not agreement_id:
-        agreement_id = _first_company_agreement_id(
-            str(company_row.get("id") or employee_row.get("company_id") or ""),
-            client,
-        )
+    agreement_id = employee_agreement_id_a_la_date(
+        employee_row,
+        str(company_row.get("id") or employee_row.get("company_id") or ""),
+        a_la_date,
+        supabase_client=client,
+    )
     if agreement_id:
         idcc = get_idcc_for_agreement(str(agreement_id), client)
         if idcc:
@@ -99,9 +136,14 @@ def build_convention_collective_payload(
     company_row: Dict[str, Any],
     *,
     supabase_client: Any = None,
+    a_la_date: Optional[date] = None,
 ) -> Dict[str, Any]:
-    """Bloc convention_collective pour contrat.json / payload simulation."""
-    idcc = resolve_employee_idcc(employee_row, company_row, supabase_client=supabase_client)
+    """Bloc convention_collective pour contrat.json / payload simulation.
+
+    `a_la_date` : le dernier jour du mois du bulletin (convention datée)."""
+    idcc = resolve_employee_idcc(
+        employee_row, company_row, supabase_client=supabase_client, a_la_date=a_la_date
+    )
     if not idcc:
         return {}
     libelle = (

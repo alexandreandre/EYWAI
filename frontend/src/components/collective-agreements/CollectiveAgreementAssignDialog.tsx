@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -81,6 +82,7 @@ export function CollectiveAgreementAssignDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateDebut, setDateDebut] = useState('');
 
   const targetCompanyId = fixedCompanyId ?? companyId;
   const excluded = useMemo(() => new Set(excludedAgreementIds), [excludedAgreementIds]);
@@ -109,6 +111,7 @@ export function CollectiveAgreementAssignDialog({
     setCompanyId(fixedCompanyId ?? '');
     setAgreementId(fixedAgreement?.id ?? '');
     setSearchQuery('');
+    setDateDebut('');
     if (!fixedAgreement) {
       setIsLoadingCatalog(true);
       void collectiveAgreementsApi
@@ -135,7 +138,11 @@ export function CollectiveAgreementAssignDialog({
 
     setIsSubmitting(true);
     try {
-      await collectiveAgreementsApi.assignAgreement(selectedAgreementId, targetCompanyId);
+      await collectiveAgreementsApi.assignAgreement(
+        selectedAgreementId,
+        targetCompanyId,
+        dateDebut || null
+      );
       toast({
         title: 'Convention assignée',
         description: fixedCompanyName
@@ -281,6 +288,21 @@ export function CollectiveAgreementAssignDialog({
               </Popover>
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="cc-assign-date-debut">À partir du</Label>
+            <Input
+              id="cc-assign-date-debut"
+              type="date"
+              value={dateDebut}
+              onChange={(e) => setDateDebut(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              {dateDebut
+                ? 'Les mois d\'avant cette date gardent la convention précédente : leurs bulletins ne changent pas.'
+                : 'Laissé vide : la convention s\'applique à tous les mois, y compris les bulletins déjà faits.'}
+            </p>
+          </div>
         </div>
 
         <DialogFooter>

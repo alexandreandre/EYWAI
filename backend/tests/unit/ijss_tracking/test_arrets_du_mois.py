@@ -262,48 +262,41 @@ def test_bulletin_calcule_avant():
 
 
 def test_la_ligne_figee_reprend_le_bulletin_recalcule(monkeypatch):
+    """Cas réel MAJI : la ligne a été réécrite (updated_at) après le calcul du
+    bulletin, mais n'a jamais lu ce calcul : elle se rafraîchit quand même."""
     from app.modules.ijss_tracking.application import service as service_mod
 
     ligne = {
         "id": "l-1",
         "absence_request_id": "a-1",
-        "updated_at": "2026-11-17T08:53:26+00:00",
+        "updated_at": "2026-11-17T08:55:29.30+00:00",
         "nb_jours_indemnises": 0,
+        "calculation_snapshot": {"bloc_maintien": {}},
     }
     bulletin = {
         "id": "ps-1",
-        "generated_at": "2026-11-17T08:55:28.94+00:00",
+        "generated_at": "2026-11-17T08:55:28.61+00:00",
         "payslip_data": {
-            "bloc_maintien": {
-                "ijss": {"nb_jours_indemnises": 1, "ijss_theorique": 42.97}
-            }
+            "bloc_maintien": {"ijss": {"nb_jours_indemnises": 1, "ijss_theorique": 42.97}}
         },
     }
     ecrits: dict = {}
-    monkeypatch.setattr(
-        service_mod, "_bulletins_du_mois", lambda cid, y, m: {"e-1": bulletin}
-    )
+    monkeypatch.setattr(service_mod, "_bulletins_du_mois", lambda cid, y, m: {"e-1": bulletin})
     monkeypatch.setattr(mod.repo, "list_expected_lines", lambda pid: [ligne])
     monkeypatch.setattr(
-        mod.repo,
-        "update_expected_line",
-        lambda lid, f: ecrits.update(f) or {**ligne, **f},
+        mod.repo, "update_expected_line", lambda lid, f: ecrits.update(f) or {**ligne, **f}
     )
+    arret = {"id": "a-1", "employee_id": "e-1"}
 
-    rendue = mod._ligne_attendue_de_l_arret(
-        "c-1", {"id": "a-1", "employee_id": "e-1"}, {"id": "p-1"}, 2026, 10
-    )
+    rendue = mod._ligne_attendue_de_l_arret("c-1", arret, {"id": "p-1"}, 2026, 10)
     assert rendue["nb_jours_indemnises"] == 1 and ecrits["ijss_theorique"] == 42.97
+    assert ecrits["calculation_snapshot"]["bulletin_genere_le"] == bulletin["generated_at"]
 
-    # Ligne plus récente que le bulletin : rendue telle quelle.
+    # Ligne qui a déjà lu ce calcul : rendue telle quelle, quel que soit updated_at.
     ecrits.clear()
-    ligne["updated_at"] = "2026-11-17T09:00:00+00:00"
-    assert (
-        mod._ligne_attendue_de_l_arret(
-            "c-1", {"id": "a-1", "employee_id": "e-1"}, {"id": "p-1"}, 2026, 10
-        )
-        is ligne
-    )
+    ligne["calculation_snapshot"] = {"bulletin_genere_le": bulletin["generated_at"]}
+    ligne["updated_at"] = "2026-11-17T07:00:00+00:00"
+    assert mod._ligne_attendue_de_l_arret("c-1", arret, {"id": "p-1"}, 2026, 10) is ligne
     assert ecrits == {}
 
 

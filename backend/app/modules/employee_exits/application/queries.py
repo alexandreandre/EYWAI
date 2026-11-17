@@ -42,6 +42,9 @@ from app.modules.employee_exits.domain.notice_period import compute_notice_perio
 from app.shared.seniority_reference import resolve_seniority_reference_date
 from app.modules.employee_exits.domain.rules import exit_block_reason
 from app.modules.dsn_export.domain.motif_rupture import resume_du_dossier
+from app.modules.collective_agreements.application.idcc_resolution import (
+    employee_agreement_id_a_la_date,
+)
 from app.modules.collective_agreements.rules.repository import CCRulesRepository
 
 
@@ -111,23 +114,16 @@ def _resolve_employee_collective_agreement(
     employee: Dict[str, Any],
     company_id: str,
     supabase_client: Any,
+    a_la_date: Optional[date] = None,
 ) -> tuple[Optional[str], Optional[str], Optional[str]]:
-    """Retourne (agreement_id, idcc, name) pour l'employé ou l'entreprise."""
+    """Retourne (agreement_id, idcc, name) pour l'employé ou l'entreprise.
+
+    La convention de l'entreprise est celle en vigueur à `a_la_date` (date de
+    référence du départ) ; sans date d'effet en base, la première, comme avant."""
     sb = supabase_client
-    agreement_id = employee.get("collective_agreement_id")
-    if not agreement_id:
-        try:
-            company_cc = (
-                sb.table("company_collective_agreements")
-                .select("collective_agreement_id")
-                .eq("company_id", company_id)
-                .limit(1)
-                .execute()
-            )
-            if company_cc.data:
-                agreement_id = company_cc.data[0].get("collective_agreement_id")
-        except Exception:
-            agreement_id = None
+    agreement_id = employee_agreement_id_a_la_date(
+        employee, company_id, a_la_date, supabase_client=sb
+    )
 
     if not agreement_id:
         return None, None, None
@@ -170,7 +166,7 @@ def get_notice_period_preview(
         raise EmployeeExitApplicationError(404, "Employé non trouvé")
 
     agreement_id, idcc, agreement_name = _resolve_employee_collective_agreement(
-        employee, company_id, sb
+        employee, company_id, sb, reference_date
     )
     cc_rules: Optional[Dict[str, Any]] = None
     if agreement_id or idcc:

@@ -135,7 +135,7 @@ class TestAssignAgreementToCompany:
 
         assert result == expected
         mock_svc.assign_to_company.assert_called_once_with(
-            "c1", "agr-1", "user-1", True
+            "c1", "agr-1", "user-1", True, date_debut=None
         )
 
 

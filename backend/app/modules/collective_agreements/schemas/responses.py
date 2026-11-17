@@ -64,6 +64,9 @@ class CompanyCollectiveAgreement(BaseModel):
     collective_agreement_id: str
     assigned_at: datetime
     assigned_by: Optional[str] = None
+    # Date d'effet : la convention vaut de date_debut à date_fin (vides = toujours).
+    date_debut: Optional[date] = None
+    date_fin: Optional[date] = None
 
     model_config = ConfigDict(from_attributes=True)
 

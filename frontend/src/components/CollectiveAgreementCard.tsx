@@ -405,6 +405,7 @@ export default function CollectiveAgreementCard({
                     name={formatCatalogConventionName(assignment.agreement_details?.name)}
                     idcc={assignment.agreement_details?.idcc ?? ''}
                     sector={assignment.agreement_details?.sector}
+                    dateDebut={assignment.date_debut}
                     readiness={getReadinessFromRulesStatus(status)}
                     hasText={hasText}
                     legifranceUrl={extractLegifranceUrlFromDescription(

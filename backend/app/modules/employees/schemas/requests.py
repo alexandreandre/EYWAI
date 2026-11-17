@@ -103,6 +103,9 @@ class UpdateEmployee(BaseModel):
     is_temps_partiel: bool | None = None
     duree_hebdomadaire: float | None = None
     classification_conventionnelle: Dict[str, Any] | None = None
+    # La classification envoyée vaut à partir de cette date ; les mois d'avant
+    # gardent celle enregistrée (changement de convention daté, Zone 404).
+    classification_a_partir_du: date | None = None
     team_id: str | None = None
     salary_payment_method: str | None = None
     is_subject_to_residence_permit: bool | None = None

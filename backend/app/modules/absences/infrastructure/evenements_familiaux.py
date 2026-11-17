@@ -10,12 +10,15 @@ from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
 from app.modules.absences.domain.evenements_familiaux import duree_evenement
+from app.modules.collective_agreements.application.idcc_resolution import (
+    company_agreement_id_a_la_date,
+)
 
 
 def get_employee_collective_agreement(employee_id: str) -> Optional[str]:
     """
     Retourne l'UUID de la convention collective applicable à l'employé.
-    Priorité: 1) employees.collective_agreement_id  2) première CC assignée à l'entreprise
+    Priorité: 1) employees.collective_agreement_id  2) CC de l'entreprise en vigueur aujourd'hui
     """
     emp = (
         supabase.table("employees")
@@ -43,16 +46,8 @@ def get_employee_collective_agreement(employee_id: str) -> Optional[str]:
     if not company_id:
         return None
 
-    cca = (
-        supabase.table("company_collective_agreements")
-        .select("collective_agreement_id")
-        .eq("company_id", company_id)
-        .limit(1)
-        .execute()
-    )
-    if cca and cca.data and len(cca.data) > 0:
-        return cca.data[0]["collective_agreement_id"]
-    return None
+    # La convention de la société en vigueur aujourd'hui (date d'effet).
+    return company_agreement_id_a_la_date(str(company_id), supabase_client=supabase)
 
 
 def get_quota_evenement(employee_id: str, event_code: str) -> Optional[Dict[str, Any]]:
