@@ -165,7 +165,10 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
         pdata = (bulletin or {}).get("payslip_data") or None
         attendue = lignes_attendues.get(aid) or {}
         estimees = ij_estimees_du_bulletin(pdata)
-        if estimees is None and attendue.get("ijss_theorique") is not None:
+        # Repli sur la ligne suivie : son 0 est celui posé à la création quand
+        # le bulletin portait déjà le montant saisi, pas une estimation (« Martine
+        # les estime à 0,00 € » était faux). Un vrai 0 vient du bulletin, plus haut.
+        if estimees is None and float(attendue.get("ijss_theorique") or 0) > 0:
             estimees = round(float(attendue["ijss_theorique"]), 2)
         recues = attendue.get("ijss_brut_validated")
         lignes.append(
