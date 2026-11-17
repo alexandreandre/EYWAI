@@ -298,11 +298,15 @@ def process_payslip_generation_forfait(
         # retenus par la sortie, ils ne sont ni chômés ni indemnisés.
         from app.modules.payroll.application import planning_apres_sortie
 
+        from app.shared.infrastructure.forfait_jour import bornes_periode_de_paie
+
         prevu_ap, reel_ap, _ = planning_apres_sortie.ecarter_apres_la_sortie(
-            [j for j in planned_data_all_months if j.get("annee") == year and j.get("mois") == month],
-            [j for j in actual_data_all_months if j.get("annee") == year and j.get("mois") == month],
+            planned_data_all_months,
+            actual_data_all_months,
             planning_apres_sortie.date_de_sortie(employee_data.get("exit_last_working_day")),
         )
+        # Les jours de la période de paie de la société, comme les jours
+        # d'absence au forfait, hors jours payés avant la reprise.
         saisies_res.data, alerte_activite_partielle = lignes_du_calendrier(
             str(company_id),
             {**employee_data, "is_forfait_jour": True},
@@ -311,6 +315,9 @@ def process_payslip_generation_forfait(
             prevu_ap,
             reel_ap,
             list(saisies_res.data or []),
+            bornes=bornes_periode_de_paie(
+                {"periode_de_paie": _periode_de_paie_company(company_data)}, year, month
+            ),
         )
 
         last_day = calendar.monthrange(year, month)[1]
