@@ -358,23 +358,32 @@ def poser_les_arrets_connus(
 
 
 def arrets_de_l_annee(employee_id: str, year: int, month: int) -> list[dict[str, str]]:
-    """Les arrêts de l'année jusqu'au mois du bulletin, lus dans les calendriers.
+    """Les arrêts de l'année d'avant et de l'année jusqu'au mois du bulletin,
+    lus dans les calendriers.
 
     Sert au crédit de carence payée : ceux de janvier à juillet de Colorplast
     viennent des calendriers repris, pas de l'écran des absences. Chaque jour
     d'arrêt porte ses dates réelles (`date_debut_arret_reel`, `…fin…`).
+
+    L'année d'avant aussi : le crédit se compte par année civile de début de
+    l'arrêt (convention de la plasturgie : « premier arrêt de travail au cours
+    d'une année civile ») ; un arrêt de décembre payé en janvier (période du
+    forfait), ou prolongé en janvier, doit être reconnu comme tel.
     """
     from app.core.database import supabase
 
-    lignes = (
-        supabase.table("employee_schedules")
-        .select("month, planned_calendar")
-        .eq("employee_id", employee_id)
-        .eq("year", year)
-        .lte("month", month)
-        .execute()
-        .data
-    ) or []
+    def _lire(annee: int, jusqu_au_mois: int) -> list:
+        return (
+            supabase.table("employee_schedules")
+            .select("month, planned_calendar")
+            .eq("employee_id", employee_id)
+            .eq("year", annee)
+            .lte("month", jusqu_au_mois)
+            .execute()
+            .data
+        ) or []
+
+    lignes = _lire(year - 1, 12) + _lire(year, month)
     arrets: dict[tuple[str, str], str] = {}
     for ligne in lignes:
         calendrier = (ligne.get("planned_calendar") or {}).get("calendrier_prevu") or []

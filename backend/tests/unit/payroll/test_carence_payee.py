@@ -184,11 +184,61 @@ def test_les_arrets_de_l_annee_se_lisent_dans_les_calendriers():
         {"month": 8, "planned_calendar": {"calendrier_prevu": [
             jour(17, "2026-08-17", "2026-09-03", "maladie_simple")]}},
     ]
-    client = MagicMock()
-    client.table.return_value.select.return_value.eq.return_value.eq.return_value.lte.return_value.execute.return_value = MagicMock(data=lignes)
+    decembre = [
+        {"month": 12, "planned_calendar": {"calendrier_prevu": [
+            jour(29, "2025-12-29", "2026-01-09", "maladie")]}},
+    ]
+    client = _BaseParAnnee({2025: decembre, 2026: lignes})
     with patch("app.core.database.supabase", client):
         arrets = run.arrets_de_l_annee("e1", 2026, 8)
     assert arrets == [
+        {"debut": "2025-12-29", "fin": "2026-01-09", "type": "maladie"},
         {"debut": "2026-03-16", "fin": "2026-03-27", "type": "maladie"},
         {"debut": "2026-08-17", "fin": "2026-09-03", "type": "maladie_simple"},
     ]
+
+
+class _BaseParAnnee:
+    """Rend les lignes de l'année demandée, jusqu'au mois demandé."""
+
+    def __init__(self, par_annee):
+        self._par_annee = par_annee
+        self._annee = None
+        self._mois = 12
+
+    def table(self, _nom):
+        return self
+
+    def select(self, *_a):
+        return self
+
+    def eq(self, colonne, valeur):
+        if colonne == "year":
+            self._annee = valeur
+        return self
+
+    def lte(self, _colonne, valeur):
+        self._mois = valeur
+        return self
+
+    def execute(self):
+        from unittest.mock import MagicMock
+
+        lignes = [l for l in self._par_annee.get(self._annee, []) if l["month"] <= self._mois]
+        return MagicMock(data=lignes)
+
+
+def test_un_arret_de_decembre_prolonge_en_janvier_n_a_pas_de_nouvelle_carence():
+    """Le crédit est par année civile de début ; la prolongation se lit sur
+    l'arrêt de décembre (relecture du 17/11 : janvier ne voyait pas décembre)."""
+    from app.modules.payroll.engine.carence_payee import ArretDeLAnnee, jours_de_carence_payes
+
+    from datetime import date as _d
+
+    decembre = ArretDeLAnnee(_d(2025, 12, 15), _d(2026, 1, 2), "maladie")
+    janvier = ArretDeLAnnee(_d(2026, 1, 3), _d(2026, 1, 9), "maladie")
+    payes = jours_de_carence_payes(
+        [decembre, janvier], jours_par_an=3, date_entree=_d(2020, 1, 1), anciennete_min_mois=12
+    )
+    assert payes[janvier] == []
+    assert payes[decembre] == [_d(2025, 12, 15), _d(2025, 12, 16), _d(2025, 12, 17)]
