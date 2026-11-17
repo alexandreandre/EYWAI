@@ -108,6 +108,17 @@ def _conserver_evenement_a_zero_heure(type_ev: str, meta: Dict[str, Any]) -> boo
     return bool(meta.get("date_debut_arret_reel") or meta.get("date_fin_arret_reel"))
 
 
+_TYPES_TRAVAIL_REEL = frozenset({"travail", "travaille", "work"})
+
+
+def _travail_sans_heures(jour: Dict[str, Any]) -> bool:
+    """Jour « travail » du calendrier réel dont les heures n'ont pas été saisies."""
+    return (
+        str(jour.get("type") or "").lower() in _TYPES_TRAVAIL_REEL
+        and jour.get("heures_faites") in (None, "")
+    )
+
+
 def _absences_injustifiees_de_la_semaine(
     data: Dict[str, Any],
     reel_data: List[Dict[str, Any]],
@@ -309,7 +320,12 @@ def analyser_horaires_du_mois(
     log_payroll_debug(logger, f'INFO: Analyse des horaires pour {employee_name} - {mois:02d}/{annee}...')
 
     prevu_data = planned_data_all_months
-    reel_data = actual_data_all_months
+    # Un jour « travail » au réel sans heures saisies est un jour non saisi :
+    # il reste neutre (payé au prévu) comme un jour sans ligne au réel. Seul un
+    # 0 saisi dit « pas travaillé ». Avant, il valait 0 h et la journée entière
+    # était retenue en absence injustifiée (Colorplast, 26-30/10/2026), alors
+    # que l'écran du calendrier promet « payés à plein ».
+    reel_data = [j for j in actual_data_all_months if not _travail_sans_heures(j)]
     if mois_sans_pointage(reel_data, annee=annee, mois=mois):
         log_payroll_debug(
             logger,
