@@ -49,7 +49,10 @@ def test_un_arret_issu_d_une_demande_ne_dit_rien():
 
 
 def test_un_jour_couvert_par_une_demande_validee_ne_dit_rien():
-    demande = {"type": "arret_maternite", "status": "validated", "selected_days": ["2026-09-15"]}
+    demande = {
+        "type": "arret_maternite", "arret_type": "maternite",
+        "status": "validated", "selected_days": ["2026-09-15"],
+    }
     assert alerte_arret_sans_demande([_jour(15)], [demande], *SEPT) is None
 
 
@@ -60,3 +63,25 @@ def test_un_week_end_sans_heures_n_est_pas_retenu_et_ne_dit_rien():
 
 def test_hors_du_mois_du_bulletin_rien():
     assert alerte_arret_sans_demande([_jour(31, mois=8)], [], *SEPT) is None
+
+
+def test_un_arret_valide_sans_type_d_arret_est_dit_aussi():
+    """17/11 : une demande validée sans type d'arrêt couvre le jour, qui n'en
+    reçoit pas non plus ; le maintien l'écarte. Ce n'était dit nulle part."""
+    demande = {"type": "arret_paternite", "status": "validated", "selected_days": ["2026-09-15"]}
+    alerte = alerte_arret_sans_demande([_jour(15)], [demande], *SEPT)
+    assert alerte["code"] == "arret_sans_type"
+    assert [j["jour"] for j in alerte["jours"]] == [15]
+    assert alerte["message"] == (
+        "Arrêt enregistré sans type d'arrêt le 15 septembre : cette journée est retenue "
+        "sans maintien de salaire ni IJSS. Indiquez le type de l'arrêt dans Congés & "
+        "absences, puis recalculez ce bulletin."
+    )
+
+
+def test_un_arret_valide_avec_son_type_ne_dit_rien():
+    demande = {
+        "type": "arret_maladie", "arret_type": "maladie_simple",
+        "status": "validated", "selected_days": ["2026-09-15"],
+    }
+    assert alerte_arret_sans_demande([_jour(15)], [demande], *SEPT) is None

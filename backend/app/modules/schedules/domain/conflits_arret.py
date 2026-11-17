@@ -480,9 +480,14 @@ def alerte_arret_sans_demande(
     mais sans maintien, carence payée ni IJSS, et l'arrêt n'existe pas pour
     la DSN. On le dit, sans créer la demande à la place
     de la gestionnaire. Un jour couvert par une demande validée n'est pas
-    concerné (une demande sans type d'arrêt relève d'un autre défaut).
+    concerné ; une demande validée sans type d'arrêt l'est (code
+    `arret_sans_type`) : ses jours n'ont pas de type non plus.
     """
     couverts: set[date] = set()
+    # Couverts par une demande validée qui n'a pas de type d'arrêt : le jour
+    # n'en reçoit pas non plus, et le maintien l'écarte (17/11 : deux arrêts de
+    # paternité repris sans type). Avant, ce cas n'était dit nulle part.
+    sans_nature: set[date] = set()
     for absence in absences_validees or []:
         if not est_un_arret(str(absence.get("type") or "")):
             continue
@@ -490,38 +495,60 @@ def alerte_arret_sans_demande(
             continue
         for brut in absence.get("selected_days") or []:
             try:
-                couverts.add(date.fromisoformat(str(brut)[:10]))
+                jour_couvert = date.fromisoformat(str(brut)[:10])
             except ValueError:
                 continue
+            couverts.add(jour_couvert)
+            if not absence.get("arret_type"):
+                sans_nature.add(jour_couvert)
     jours: set[date] = set()
+    jours_sans_nature: set[date] = set()
     for entree in calendrier_prevu or []:
         if not est_un_arret(str(entree.get("type") or "")) or entree.get("arret_type"):
             continue
         jour = _date_du_jour(entree)
-        if jour is None or not (debut <= jour <= fin) or jour in couverts:
+        if jour is None or not (debut <= jour <= fin):
             continue
         heures = float(entree.get("heures_prevues") or entree.get("heures") or 0)
         if jour.weekday() >= 5 and not heures:
             continue
-        jours.add(jour)
-    if not jours:
+        if jour in sans_nature:
+            jours_sans_nature.add(jour)
+        elif jour not in couverts:
+            jours.add(jour)
+    if not jours and not jours_sans_nature:
         return None
-    tries = sorted(jours)
-    quand = libelle_des_dates((j.year, j.month, j.day) for j in tries)
-    retenue = (
-        "cette journée est retenue" if len(tries) == 1 else "ces journées sont retenues"
-    )
-    return {
-        "code": "arret_sans_demande",
-        "severity": "warning",
-        "critique": False,
-        "jours": [{"annee": j.year, "mois": j.month, "jour": j.day} for j in tries],
-        "message": (
+    phrases = []
+    if jours:
+        tries = sorted(jours)
+        quand = libelle_des_dates((j.year, j.month, j.day) for j in tries)
+        retenue = (
+            "cette journée est retenue" if len(tries) == 1 else "ces journées sont retenues"
+        )
+        phrases.append(
             f"Arrêt maladie posé au calendrier sans demande d'arrêt {quand} : "
             f"{retenue} sans maintien de salaire ni IJSS, et l'arrêt manque à "
             "la DSN. Enregistrez l'arrêt dans Congés & "
             "absences (« + Enregistrer un arrêt », avec son type d'arrêt), puis "
             "recalculez ce bulletin."
-        ),
+        )
+    if jours_sans_nature:
+        tries = sorted(jours_sans_nature)
+        quand = libelle_des_dates((j.year, j.month, j.day) for j in tries)
+        retenue = (
+            "cette journée est retenue" if len(tries) == 1 else "ces journées sont retenues"
+        )
+        phrases.append(
+            f"Arrêt enregistré sans type d'arrêt {quand} : {retenue} sans maintien "
+            "de salaire ni IJSS. Indiquez le type de l'arrêt dans Congés & absences, "
+            "puis recalculez ce bulletin."
+        )
+    tous = sorted(jours | jours_sans_nature)
+    return {
+        "code": "arret_sans_demande" if jours else "arret_sans_type",
+        "severity": "warning",
+        "critique": False,
+        "jours": [{"annee": j.year, "mois": j.month, "jour": j.day} for j in tous],
+        "message": " ".join(phrases),
     }
 
