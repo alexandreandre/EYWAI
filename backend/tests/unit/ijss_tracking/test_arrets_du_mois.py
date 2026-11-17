@@ -239,7 +239,7 @@ def test_le_montant_saisi_n_est_pas_une_estimation():
     }
     assert ij_estimees_du_bulletin(pdata) is None
     assert "ijss_theorique" not in chiffres_du_bulletin(pdata)
-    pdata["bloc_maintien"]["ijss"]["ijss_brut_override"] = False
+    pdata["bloc_maintien"]["ijss"]["ijss_brut_override"] = None
     assert chiffres_du_bulletin(pdata)["ijss_theorique"] == 500.0
 
 
@@ -355,3 +355,9 @@ def test_l_estimation_d_avant_la_saisie_reste(monkeypatch):
     saisi = {"bloc_maintien": {"ijss": {"ijss_brut_override": 500.0}}}
     ligne = _liste_avec(monkeypatch, payslip_data=saisi, ijss_theorique=43.12)
     assert ligne["ij_estimees"] == 43.12
+
+
+def test_un_montant_saisi_a_zero_est_une_saisie():
+    """0 € saisi par la RH (arrêt en carence) : pas « estimées » à la place."""
+    pdata = {"bloc_maintien": {"ijss": {"ijss_brut_override": 0.0, "ijss_theorique": 43.1}}}
+    assert ij_estimees_du_bulletin(pdata) is None

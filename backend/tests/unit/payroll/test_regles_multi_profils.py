@@ -31,6 +31,30 @@ def _trou_du_forfait(raison: str):
     ]
 
 
+def _retenues_ap(donnees: object) -> list[float]:
+    """Les montants de la ligne « Heures chômées (act. part.) », où qu'elle soit."""
+    trouvees: list[float] = []
+    if isinstance(donnees, dict):
+        if donnees.get("libelle") == LIBELLE_RETENUE and donnees.get("gain") is not None:
+            trouvees.append(float(donnees["gain"]))
+        for valeur in donnees.values():
+            trouvees += _retenues_ap(valeur)
+    elif isinstance(donnees, list):
+        for valeur in donnees:
+            trouvees += _retenues_ap(valeur)
+    return trouvees
+
+
+def _ne_retient_pas_plus_que_le_salaire(donnees: dict, profil: str) -> None:
+    from tests.unit.payroll.profils_salaries import fiche
+
+    salaire = float(fiche(profil)["salaire_de_base"]["valeur"])
+    retenues = _retenues_ap(donnees)
+    assert retenues, "pas de ligne d'activité partielle"
+    # Le brut ramené à 0 par le moteur forfait ne prouve rien : la ligne, si.
+    assert -sum(retenues) <= salaire + 0.01
+
+
 def _texte(donnees: dict) -> str:
     return json.dumps(donnees, ensure_ascii=False, default=str)
 
@@ -90,6 +114,7 @@ def test_un_mois_entier_chome_ne_retient_pas_plus_que_le_salaire(banc, profil): 
     donnees = banc.generer(profil, jours={j: "activite_partielle" for j in ouvres})
 
     assert float(donnees.get("salaire_brut") or 0.0) >= 0.0
+    _ne_retient_pas_plus_que_le_salaire(donnees, profil)
 
 
 @pytest.mark.parametrize("profil", PROFILS)
@@ -108,6 +133,7 @@ def test_un_mois_chome_avec_un_jour_sans_solde_ne_retient_pas_tout_deux_fois(ban
     donnees = banc.generer(profil, jours=jours)
 
     assert float(donnees.get("salaire_brut") or 0.0) >= 0.0
+    _ne_retient_pas_plus_que_le_salaire(donnees, profil)
 
 
 PRIME_DU_CATALOGUE = {

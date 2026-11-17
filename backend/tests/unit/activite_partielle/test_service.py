@@ -459,3 +459,129 @@ def test_saisie_a_la_main_au_dela_du_mois_le_dit(base):
     (r,) = res["resultats"]
     assert r["heures"] == 151.67
     assert r["message"].startswith("160 h saisies, ramenées à 151,67 h")
+
+
+# --- Deuxième relecture du 17/11 : période décalée, février, heures sup,
+# temps partiel, forfait en heures, saisie à la main d'un mois d'entrée. ---
+
+
+def _calendrier(an, mois, debut, fin, type_ouvre=AP, h=7.0, autres=None):
+    """Un jour par date, du lundi au vendredi `type_ouvre`, le week-end « weekend »."""
+    from datetime import timedelta
+
+    autres = autres or {}
+    jours, jour = [], debut
+    while jour <= fin:
+        if jour in autres:
+            type_, heures = autres[jour]
+        elif jour.weekday() < 5:
+            type_, heures = type_ouvre, h
+        else:
+            type_, heures = "weekend", 0.0
+        jours.append({"annee": jour.year, "mois": jour.month, "jour": jour.day, "type": type_, "heures_prevues": heures})
+        jour += timedelta(days=1)
+    return jours
+
+
+def test_fevrier_entierement_chome_retient_le_mois(base):
+    employe = base.tables["employees"][0]
+    prevu = _calendrier(2026, 2, date(2026, 2, 1), date(2026, 2, 28))
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 2, prevu, [], [])
+    retenue, indemnite = _deux(saisies)
+    # 20 jours ouvrés (140 h), mais un mois entier vaut 151,67 h (R5122-19).
+    assert retenue["payroll_quantity"] == 151.67 and indemnite["payroll_quantity"] == 151.67
+    assert retenue["amount"] == -2166.67
+
+
+@pytest.mark.parametrize(
+    "debut, fin, heures",
+    [(date(2026, 9, 19), date(2026, 10, 23), 175.0), (date(2026, 10, 24), date(2026, 11, 20), 140.0)],
+)
+def test_periode_decalee_entierement_chomee_retient_le_salaire(base, debut, fin, heures):
+    employe = base.tables["employees"][0]
+    prevu = _calendrier(fin.year, fin.month, debut, fin)
+    saisies, _ = svc.lignes_du_calendrier(
+        "co", employe, fin.year, fin.month, prevu, [], [], bornes=(debut, fin)
+    )
+    retenue, indemnite = _deux(saisies)
+    # Semaines entières : les jours comptent ; la retenue est le salaire, ni plus ni moins.
+    assert indemnite["payroll_quantity"] == heures
+    assert retenue["amount"] == -2166.67
+
+
+def test_periode_decalee_en_partie_chomee_ne_retient_pas_plus_que_le_salaire(base):
+    employe = base.tables["employees"][0]
+    debut, fin = date(2026, 9, 19), date(2026, 10, 23)
+    prevu = _calendrier(2026, 10, debut, fin, autres={date(2026, 10, 23): ("travail", 7.0)})
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 10, prevu, [], [], bornes=(debut, fin))
+    retenue, _ = _deux(saisies)
+    assert retenue["payroll_quantity"] == 168.0
+    assert retenue["amount"] == -2166.67
+    assert "ramenée au salaire du mois" in retenue["description"]
+
+
+def test_les_heures_sup_ne_mangent_pas_le_jour_chome(base):
+    employe = base.tables["employees"][0]
+    debut, fin = date(2026, 11, 1), date(2026, 11, 30)
+    autres = {date(2026, 11, 2): (AP, 7.0), date(2026, 11, 11): ("ferie", None)}
+    prevu = _calendrier(2026, 11, debut, fin, type_ouvre="travail", autres=autres)
+    reel = [{"annee": 2026, "mois": 11, "jour": j["jour"], "heures_faites": 8.0} for j in prevu if j["type"] == "travail"]
+    saisies, alerte = svc.lignes_du_calendrier("co", employe, 2026, 11, prevu, reel, [])
+    retenue, _ = _deux(saisies)
+    assert retenue["payroll_quantity"] == 7.0 and alerte is None
+
+
+def test_plafond_a_zero_le_dit(base):
+    employe = base.tables["employees"][0]
+    debut, fin = date(2026, 11, 1), date(2026, 11, 30)
+    # 21 jours ouvrés : 20 travaillés à 7 h (140 h) + 1 férié (7 h) dépassent 151,67 h − 7.
+    autres = {date(2026, 11, 2): (AP, 7.0), date(2026, 11, 11): ("ferie", None), date(2026, 11, 28): ("travail", 7.0)}
+    prevu = _calendrier(2026, 11, debut, fin, type_ouvre="travail", autres=autres)
+    prevu += [{"annee": 2026, "mois": 11, "jour": 29, "type": "travail", "heures_prevues": 7.0}]
+    saisies, alerte = svc.lignes_du_calendrier("co", employe, 2026, 11, prevu, [], [])
+    assert not [s for s in saisies if s.get("name", "").startswith(("Heures chômées", "Indemnité activité"))]
+    assert alerte["code"] == "activite_partielle_sans_heure"
+
+
+def test_temps_partiel_un_ferie_non_travaille_ne_compte_pas(base):
+    employe = {**base.tables["employees"][0], "duree_hebdomadaire": "24", "salaire_de_base": {"valeur": 1300.0}}
+    debut, fin = date(2026, 12, 1), date(2026, 12, 31)
+    prevu = [
+        j if date(2026, 12, j["jour"]).weekday() < 3 else {**j, "type": "", "heures_prevues": 0.0}
+        for j in _calendrier(2026, 12, debut, fin, h=8.0)
+    ]
+    prevu = [{**j, "type": "ferie", "heures_prevues": None} if j["jour"] == 25 else j for j in prevu]
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 12, prevu, [], [])
+    retenue, _ = _deux(saisies)
+    assert retenue["payroll_quantity"] == 104.0
+    assert retenue["amount"] == -1300.0
+
+
+def test_forfait_un_jour_de_travail_prevu_en_heures_compte(base):
+    employe = {
+        **base.tables["employees"][0],
+        "is_forfait_jour": True,
+        "specificites_paie": {"forfait_annual_days": 218},
+        "salaire_de_base": {"valeur": 4200.0},
+    }
+    debut, fin = date(2026, 11, 1), date(2026, 11, 30)
+    autres = {date(2026, 11, 30): ("travail", 7.0)}
+    prevu = _calendrier(2026, 11, debut, fin, h=1, autres=autres)
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 11, prevu, [], [])
+    retenue, _ = _deux(saisies)
+    # 20 jours chômés (140 h) sous le plafond 154 − 7 : les jours comptent.
+    assert retenue["payroll_quantity"] == 140.0
+
+
+def test_saisie_a_la_main_un_mois_d_entree_n_est_pas_bornee_au_mois(base):
+    base.tables["employees"][0]["hire_date"] = "2026-11-16"
+    res = svc.poser_heures_du_mois("co", 2026, 11, [{"employee_id": "e1", "heures": 151.67}], "u")
+    (r,) = res["resultats"]
+    assert "message" not in r
+
+
+def test_la_dsn_porte_les_heures_du_bulletin_en_fevrier(base):
+    employe = base.tables["employees"][0]
+    prevu = _calendrier(2026, 2, date(2026, 2, 1), date(2026, 2, 28))
+    jours = svc.jours_chomes_des_bulletins("co", 2026, 2, [employe], {"e1": (prevu, [])})["e1"]
+    assert round(sum(h for _, h in jours), 2) == 151.67
