@@ -140,26 +140,26 @@ export function typesDeSaisie(activitePartielle = false): { value: string; label
     : CALENDAR_EDITABLE_TYPE_OPTIONS;
 }
 
-/** Option « Congé (hors paie) » ajoutée uniquement quand le jour la porte déjà. */
+/** Option « Congé (hors paie) » ajoutée uniquement quand le jour la porte déjà.
+ * « Activité partielle » : proposée quand la société l'a activée, ou quand le
+ * jour la porte déjà (pour pouvoir le retyper). */
 export function editableTypeOptionsFor(
   currentType: string | null | undefined,
   activitePartielle = false,
 ): { value: string; label: string }[] {
-  if (activitePartielle || currentType === 'activite_partielle') {
-    return [...editableTypeOptionsFor(currentType, false), OPTION_ACTIVITE_PARTIELLE];
-  }
+  let options = CALENDAR_EDITABLE_TYPE_OPTIONS;
   if (currentType === 'conge') {
-    return [
-      ...CALENDAR_EDITABLE_TYPE_OPTIONS,
-      { value: 'conge', label: 'Congé (hors paie)' },
-    ];
+    options = [...options, { value: 'conge', label: 'Congé (hors paie)' }];
   }
   // Un arrêt s'enregistre dans « Arrêts & IJ » (retour d'Elsa du 16/11) : le
   // calendrier ne le propose plus, sauf pour retyper un jour qui le porte déjà.
   if (currentType === 'arret_maladie') {
-    return [...CALENDAR_EDITABLE_TYPE_OPTIONS, { value: 'arret_maladie', label: 'Arrêt maladie' }];
+    options = [...options, { value: 'arret_maladie', label: 'Arrêt maladie' }];
   }
-  return CALENDAR_EDITABLE_TYPE_OPTIONS;
+  if (activitePartielle || currentType === 'activite_partielle') {
+    options = [...options, OPTION_ACTIVITE_PARTIELLE];
+  }
+  return options;
 }
 
 export function getCalendarTypeLabel(type: string | null | undefined): string {
