@@ -407,6 +407,72 @@ def lignes_du_calendrier(
     return gardees + lignes, alerte
 
 
+def mois_voisins(year: int, month: int) -> list[tuple[int, int]]:
+    """Le mois et ses deux voisins : la période d'un bulletin peut déborder."""
+    return [
+        (year - 1, 12) if month == 1 else (year, month - 1),
+        (year, month),
+        (year + 1, 1) if month == 12 else (year, month + 1),
+    ]
+
+
+def calendriers_des_lignes(
+    rows: list[dict[str, Any]], year: int, month: int
+) -> dict[str, tuple[list, list]]:
+    """Par salarié : jours prévus et réels des mois voisins (lignes de
+    `employee_schedules`), chacun marqué de son `annee` et de son `mois`."""
+    voisins = mois_voisins(year, month)
+    par_salarie: dict[str, tuple[list, list]] = {}
+    for row in rows:
+        if (int(row.get("year")), int(row.get("month"))) not in voisins:
+            continue
+        an, mois = int(row["year"]), int(row["month"])
+        prevu, reel = par_salarie.setdefault(str(row.get("employee_id")), ([], []))
+        for j in (row.get("planned_calendar") or {}).get("calendrier_prevu") or []:
+            prevu.append({**j, "annee": an, "mois": mois})
+        for j in (row.get("actual_hours") or {}).get("calendrier_reel") or []:
+            reel.append({**j, "annee": an, "mois": mois})
+    return par_salarie
+
+
+def jours_chomes_des_bulletins(
+    company_id: str,
+    year: int,
+    month: int,
+    salaries: list[dict[str, Any]],
+    calendriers: dict[str, tuple[list, list]],
+    reglage: dict[str, Any] | None = None,
+) -> dict[str, list[tuple[date, float]]]:
+    """Par salarié : (date, heures chômées) des jours que le bulletin du mois
+    paie, même période que lui (`bornes_du_bulletin`), hors jours d'avant la
+    reprise. Un salarié sans jour « Activité partielle » posé n'y est pas."""
+    bornes: dict[bool, tuple[date, date]] = {}
+    resultat: dict[str, list[tuple[date, float]]] = {}
+    for e in salaries:
+        eid = str(e["id"])
+        prevu, reel = calendriers.get(eid, ([], []))
+        if not any(str(j.get("type") or "") == TYPE_JOUR for j in prevu):
+            continue
+        if reglage is None:
+            reglage = lire_reglage(company_id)
+        forfait = bool(e.get("is_forfait_jour"))
+        if forfait not in bornes:
+            debut, fin = bornes_du_bulletin(company_id, year, month, forfait_jours=forfait)
+            bornes[forfait] = (_apres_la_reprise(company_id, year, month, debut), fin)
+        debut, fin = bornes[forfait]
+        jours = _jours_du_calendrier(
+            e,
+            reglage,
+            dans_la_periode(prevu, debut, fin, annee=year, mois=month),
+            dans_la_periode(reel, debut, fin, annee=year, mois=month),
+        )
+        if jours:
+            resultat[eid] = [
+                (date(j.annee or year, j.mois or month, j.jour), j.heures) for j in jours
+            ]
+    return resultat
+
+
 def recap_du_calendrier(
     company_id: str, year: int, month: int, salaries: list[dict[str, Any]], reglage: dict[str, Any]
 ) -> dict[str, dict[str, Any]]:
@@ -415,11 +481,7 @@ def recap_du_calendrier(
     ids = [str(e["id"]) for e in salaries]
     if not ids:
         return {}
-    voisins = [
-        (year - 1, 12) if month == 1 else (year, month - 1),
-        (year, month),
-        (year + 1, 1) if month == 12 else (year, month + 1),
-    ]
+    voisins = mois_voisins(year, month)
     rows = (
         _db()
         .table("employee_schedules")
@@ -431,41 +493,20 @@ def recap_du_calendrier(
         .data
         or []
     )
-    par_salarie: dict[str, tuple[list, list]] = {}
-    for row in rows:
-        if (int(row.get("year")), int(row.get("month"))) not in voisins:
-            continue
-        an, mois = int(row["year"]), int(row["month"])
-        prevu, reel = par_salarie.setdefault(str(row.get("employee_id")), ([], []))
-        for j in (row.get("planned_calendar") or {}).get("calendrier_prevu") or []:
-            prevu.append({**j, "annee": an, "mois": mois})
-        for j in (row.get("actual_hours") or {}).get("calendrier_reel") or []:
-            reel.append({**j, "annee": an, "mois": mois})
-    bornes: dict[bool, tuple[date, date]] = {}
+    jours_par_salarie = jours_chomes_des_bulletins(
+        company_id, year, month, salaries, calendriers_des_lignes(rows, year, month), reglage
+    )
     recap: dict[str, dict[str, Any]] = {}
     for e in salaries:
         eid = str(e["id"])
-        if eid not in par_salarie:
-            continue
-        forfait = bool(e.get("is_forfait_jour"))
-        if forfait not in bornes:
-            debut, fin = bornes_du_bulletin(company_id, year, month, forfait_jours=forfait)
-            bornes[forfait] = (_apres_la_reprise(company_id, year, month, debut), fin)
-        debut, fin = bornes[forfait]
-        prevu, reel = par_salarie[eid]
-        jours = _jours_du_calendrier(
-            e,
-            reglage,
-            dans_la_periode(prevu, debut, fin, annee=year, mois=month),
-            dans_la_periode(reel, debut, fin, annee=year, mois=month),
-        )
-        heures = heures_chomees(jours)
+        jours = jours_par_salarie.get(eid) or []
+        heures = round(sum(h for _, h in jours), 2)
         if heures <= 0:
             continue
         taux = _taux_horaire(e)
         c = _calcul(heures, taux, reglage) if taux else None
         recap[eid] = {
-            "jours": [j.jour for j in jours],
+            "jours": [quand.day for quand, _ in jours],
             "heures": heures,
             "retenue": c.retenue if c else None,
             "indemnite": c.indemnite if c else None,

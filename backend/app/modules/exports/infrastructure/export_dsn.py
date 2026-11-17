@@ -181,6 +181,16 @@ def _evenements_dsn(
             # Toutes, pour un mois à deux contrats : chacun la sienne (D3.2).
             resultat[eid].setdefault("sorties_dsn", []).append(sortie)
 
+    # Activité partielle posée au calendrier : les jours chômés que le
+    # bulletin du mois paie (même période que lui), dates du bloc 65 (602).
+    for eid, jours in _jours_d_activite_partielle(
+        company_id, period, employee_ids, fiches
+    ).items():
+        if eid in resultat:
+            resultat[eid]["activite_partielle_dsn"] = [
+                {"date": jour.isoformat(), "heures": heures} for jour, heures in jours
+            ]
+
     # SMIC de la réduction générale d'un bulletin qui ne le porte pas : de
     # quoi le refaire comme le moteur (SMIC horaire de référence, cumul des
     # heures au bulletin précédent de l'année).
@@ -221,6 +231,41 @@ def _evenements_dsn(
                 par_salarie_bulletins.get(eid, []), annee, mois, fiches.get(eid, {})
             )
     return resultat
+
+
+def _jours_d_activite_partielle(
+    company_id: str,
+    period: str,
+    employee_ids: List[str],
+    fiches: Dict[str, Dict[str, Any]],
+) -> Dict[str, List[Tuple[date, float]]]:
+    """Par salarié : (date, heures) des jours d'activité partielle du
+    calendrier que le bulletin du mois paie, lus comme la paie les lit."""
+    from app.modules.activite_partielle.application.service import (
+        calendriers_des_lignes,
+        jours_chomes_des_bulletins,
+        mois_voisins,
+    )
+
+    if not employee_ids:
+        return {}
+    annee, mois = map(int, period.split("-"))
+    voisins = mois_voisins(annee, mois)
+    lignes = (
+        supabase.table("employee_schedules")
+        .select("employee_id,year,month,planned_calendar,actual_hours")
+        .in_("employee_id", employee_ids)
+        .in_("year", sorted({a for a, _ in voisins}))
+        .in_("month", sorted({m for _, m in voisins}))
+        .execute()
+    ).data or []
+    return jours_chomes_des_bulletins(
+        company_id,
+        annee,
+        mois,
+        [fiches.get(eid) or {"id": eid} for eid in employee_ids],
+        calendriers_des_lignes(lignes, annee, mois),
+    )
 
 
 def _specificites(employee: Dict[str, Any]) -> Dict[str, Any]:

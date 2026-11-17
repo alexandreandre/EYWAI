@@ -516,13 +516,33 @@ def activite_partielle_du_bulletin(payslip_data: Dict[str, Any]) -> Optional[Act
     return ActivitePartielle(round(heures, 2), round(indemnite, 2), sorted(periodes), en_heures)
 
 
+def plages_consecutives(jours: Iterable[date]) -> List[Tuple[date, date]]:
+    """Les jours regroupés en plages de jours qui se suivent."""
+    plages: List[Tuple[date, date]] = []
+    for jour in sorted(set(jours)):
+        if plages and jour == plages[-1][1] + timedelta(days=1):
+            plages[-1] = (plages[-1][0], jour)
+        else:
+            plages.append((jour, jour))
+    return plages
+
+
 def declaration_activite_partielle(
-    payslip_data: Dict[str, Any], debut_periode: date, fin_periode: date
+    payslip_data: Dict[str, Any],
+    debut_periode: date,
+    fin_periode: date,
+    jours_chomes: Optional[Iterable[Tuple[date, float]]] = None,
 ) -> Tuple[List[Dict[str, str]], Optional[Tuple[float, float]], List[str]]:
     """Blocs 65 (602), (heures, indemnité) du 019 et avertissements.
 
-    Les deux vont ensemble (65.001 SIG-11). Une saisie du mois ne porte pas de
-    dates : le bloc couvre alors la période, et un avertissement le dit.
+    Les deux vont ensemble (65.001 SIG-11). Les dates du 65 : celles du
+    libellé d'une ligne reprise, à défaut les jours chômés posés au
+    calendrier (`jours_chomes`, ceux que le bulletin paie), un bloc par plage
+    de jours qui se suivent — fiche net-entreprises n° 2309 : « autant de
+    blocs [65] que de périodes », un bloc lundi-mercredi par semaine chômée
+    du lundi au mercredi. Une saisie à la main sans jour au calendrier ne
+    porte pas de dates : le bloc couvre alors la période, et un avertissement
+    le dit.
     """
     activite = activite_partielle_du_bulletin(payslip_data)
     if activite is None:
@@ -534,6 +554,16 @@ def declaration_activite_partielle(
         ]
     avertissements: List[str] = []
     periodes = activite.periodes
+    jours = list(jours_chomes or [])
+    if not periodes and jours:
+        periodes = plages_consecutives(jour for jour, _ in jours)
+        heures_calendrier = round(sum(heures for _, heures in jours), 2)
+        if abs(heures_calendrier - activite.heures) > 0.01:
+            avertissements.append(
+                f"Activité partielle : {heures_calendrier:g} h chômées au calendrier, "
+                f"{activite.heures:g} h au bulletin — recalculez le bulletin avant "
+                "de déposer"
+            )
     if not periodes:
         periodes = [(debut_periode, fin_periode)]
         avertissements.append(
