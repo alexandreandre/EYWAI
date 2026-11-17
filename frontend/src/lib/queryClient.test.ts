@@ -76,3 +76,48 @@ describe('filet global des mutations', () => {
     expect(toastMock).not.toHaveBeenCalled();
   });
 });
+
+describe('filet global des lectures', () => {
+  beforeEach(() => {
+    toastMock.mockReset();
+  });
+
+  const lecture = (data: unknown, observateurs: number, meta?: { erreurAffichee?: boolean }) => ({
+    state: { data },
+    meta,
+    getObserversCount: () => observateurs,
+  });
+
+  it('une lecture en panne sur un écran vide le dit', async () => {
+    const { doitSignalerEchecDeLecture } = await import('./queryClient');
+    expect(doitSignalerEchecDeLecture(erreurApi(500, 'panne'), lecture(undefined, 1))).toBe(true);
+    expect(doitSignalerEchecDeLecture(new Error('Network Error'), lecture(undefined, 1))).toBe(true);
+  });
+
+  it('se tait : donnée déjà affichée, préchargement, droits, absence, écran qui le dit', async () => {
+    const { doitSignalerEchecDeLecture } = await import('./queryClient');
+    expect(doitSignalerEchecDeLecture(erreurApi(500, 'panne'), lecture([], 1))).toBe(false);
+    expect(doitSignalerEchecDeLecture(erreurApi(500, 'panne'), lecture(undefined, 0))).toBe(false);
+    for (const status of [401, 403, 404]) {
+      expect(doitSignalerEchecDeLecture(erreurApi(status, 'x'), lecture(undefined, 1))).toBe(false);
+    }
+    expect(
+      doitSignalerEchecDeLecture(erreurApi(500, 'panne'), lecture(undefined, 1, { erreurAffichee: true })),
+    ).toBe(false);
+    expect(doitSignalerEchecDeLecture(new CanceledError(), lecture(undefined, 1))).toBe(false);
+  });
+
+  it('le client branche le filet sur ses lectures', async () => {
+    const client = createAppQueryClient();
+    const observateur = client.getQueryCache().build(client, {
+      queryKey: ['essai-lecture'],
+      queryFn: () => Promise.reject(erreurApi(500, 'Service indisponible.')),
+      retry: false,
+    });
+    observateur.addObserver({ onQueryUpdate: () => undefined } as never);
+    await observateur.fetch().catch(() => undefined);
+    expect(toastMock).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: 'destructive', title: 'Données non chargées' }),
+    );
+  });
+});
