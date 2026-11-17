@@ -85,3 +85,47 @@ def test_un_arret_valide_avec_son_type_ne_dit_rien():
         "status": "validated", "selected_days": ["2026-09-15"],
     }
     assert alerte_arret_sans_demande([_jour(15)], [demande], *SEPT) is None
+
+
+class _BaseQuiProjette:
+    """Rend seulement les colonnes demandées par `select`, comme PostgREST."""
+
+    def __init__(self, lignes):
+        self._lignes = lignes
+        self._colonnes: list[str] = []
+
+    def table(self, _nom):
+        return self
+
+    def select(self, colonnes, *_a, **_k):
+        self._colonnes = [c.strip() for c in colonnes.split(",")]
+        return self
+
+    def eq(self, *_a):
+        return self
+
+    def execute(self):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            data=[{c: ligne.get(c) for c in self._colonnes} for ligne in self._lignes]
+        )
+
+
+def test_la_demande_lue_en_base_porte_son_type_d_arret(monkeypatch):
+    """Relecture du 17/11 : la lecture des demandes ne prenait pas `arret_type`,
+    donc toute demande validée passait pour « sans type ». Un jour du calendrier
+    sans type, couvert par une demande qui en a un, ne dit rien."""
+    from app.modules.payroll.documents import payslip_generator
+
+    demande = {
+        "type": "arret_maladie",
+        "arret_type": "maladie",
+        "status": "validated",
+        "selected_days": ["2026-09-15"],
+        "subrogation_active": False,
+    }
+    monkeypatch.setattr(payslip_generator, "supabase", _BaseQuiProjette([demande]))
+    calendrier = [_jour(15)]
+    demandes = payslip_generator._stamp_source_absence_conges(calendrier, "e1")
+    assert alerte_arret_sans_demande(calendrier, demandes, *SEPT) is None
