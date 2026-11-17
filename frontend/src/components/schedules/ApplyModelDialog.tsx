@@ -44,6 +44,7 @@ import type { WeekTemplate } from '@/hooks/useCalendar';
 import type { DayConfig, WeekConfig } from './types';
 import { semaineDuModele } from '@/lib/weekTemplateDays';
 import { calendarSaveFailureMessage } from '@/lib/calendarSaveFeedback';
+import { typesDUnModeleDeSemaine } from '@/lib/calendarTypes';
 import { accord, pluriel } from '@/lib/pluriel';
 
 const TIER_LABELS: Record<string, string> = {
@@ -390,11 +391,11 @@ export function ApplyModelDialog({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="travail">Travail</SelectItem>
-                      <SelectItem value="conge">Congé</SelectItem>
-                      <SelectItem value="ferie">Férié</SelectItem>
-                      <SelectItem value="arret_maladie">Arrêt</SelectItem>
-                      <SelectItem value="weekend">Week-end</SelectItem>
+                      {typesDUnModeleDeSemaine(conf.type).map((choix) => (
+                        <SelectItem key={choix.value} value={choix.value}>
+                          {choix.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <Input

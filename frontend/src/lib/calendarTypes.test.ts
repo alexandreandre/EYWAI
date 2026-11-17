@@ -48,3 +48,18 @@ describe('editableTypeOptionsFor : la liste de la saisie rapide', () => {
     expect(valeurs).not.toContain('arret_maladie');
   });
 });
+
+describe('typesDUnModeleDeSemaine', () => {
+  it('un modèle de semaine ne propose que travail, week-end et repos', async () => {
+    const { typesDUnModeleDeSemaine } = await import('./calendarTypes');
+    expect(typesDUnModeleDeSemaine().map((o) => o.value)).toEqual(['travail', 'weekend', 'repos']);
+  });
+
+  it('un type ancien porté par un modèle reste affiché, à son libellé', async () => {
+    const { typesDUnModeleDeSemaine } = await import('./calendarTypes');
+    const options = typesDUnModeleDeSemaine('arret_maladie');
+    expect(options.map((o) => o.value)).toContain('arret_maladie');
+    expect(options.find((o) => o.value === 'arret_maladie')?.label).not.toBe('arret_maladie');
+    expect(typesDUnModeleDeSemaine('travail')).toHaveLength(3);
+  });
+});

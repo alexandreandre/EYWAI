@@ -162,6 +162,21 @@ export function editableTypeOptionsFor(
   return options;
 }
 
+/** Types d'un jour dans un modèle de semaine (appliqué à des mois entiers) :
+ * un jour travaillé ou non. Congés, RTT, arrêts et fériés sont des faits
+ * datés, qui se posent au calendrier, pas dans un modèle (17/11 : le
+ * dialogue proposait « Congé », sans effet sur la paie, et « Arrêt », retenu
+ * sans maintien). Un type ancien porté par un modèle reste affiché. */
+export function typesDUnModeleDeSemaine(currentType?: string | null): { value: string; label: string }[] {
+  const options = CALENDAR_EDITABLE_TYPE_OPTIONS.filter((o) =>
+    ['travail', 'weekend', 'repos'].includes(o.value),
+  );
+  if (currentType && !options.some((o) => o.value === currentType)) {
+    return [...options, { value: currentType, label: getCalendarTypeLabel(currentType) }];
+  }
+  return options;
+}
+
 export function getCalendarTypeLabel(type: string | null | undefined): string {
   if (!type) return 'Week-end';
   return CALENDAR_TYPE_LABELS[type] ?? type;
