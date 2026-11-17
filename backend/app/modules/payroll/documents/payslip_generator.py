@@ -83,6 +83,9 @@ from app.modules.payroll.documents.pdf_du_bulletin import (
 from app.modules.payslips.domain.heures_sup import est_declaration_bulletin
 from app.modules.monthly_inputs.domain.rules import alertes_de_doublon_de_prime
 from app.modules.payroll.documents.saisies_du_bulletin import ranger_les_saisies
+from app.modules.payroll.documents.variables_automatiques import (
+    variables_automatiques_avant_bulletin,
+)
 from app.modules.payroll.documents.plafond_transport import alertes_plafond_transport
 from app.core.logging import get_logger, log_payroll_debug
 from app.core.paths import (
@@ -737,38 +740,16 @@ def process_payslip_generation(
                 detail="Ce collaborateur n'est rattaché à aucune entreprise. Complétez sa fiche employé.",
             )
 
-        try:
-            from app.modules.planning.infrastructure.repository import (
-                planning_repository,
-            )
-
-            planning_settings = planning_repository.get_company_planning_settings(
-                str(company_id)
-            )
-            # Jamais en bac à sable : la génération des variables écrit les
-            # saisies du mois, et le bac à sable ne doit rien écrire. Celles du
-            # seul salarié du bulletin : les autres ne changent pas [J8].
-            if bac_a_sable is None and not contract_period_id and planning_settings and planning_settings.get(
-                "auto_generate_payroll_variables_before_payslip"
-            ):
-                from app.modules.payroll_variables.application.generate_monthly import (
-                    generate_monthly_variables,
-                )
-
-                generate_monthly_variables(
-                    str(company_id),
-                    year,
-                    month,
-                    dry_run=False,
-                    employee_id=str(employee_id),
-                )
-        except Exception as auto_var_exc:
-            logger.warning(
-                "Génération auto variables paie ignorée: %s", auto_var_exc
-            )
-            from app.modules.payroll.engine.replis import CODE_REPLI_VARIABLES_AUTO, noter_repli
-
-            noter_repli(CODE_REPLI_VARIABLES_AUTO)
+        # Variables automatiques avant le bulletin (réglage de la société) : même
+        # fonction au forfait jours.
+        variables_automatiques_avant_bulletin(
+            str(company_id),
+            str(employee_id),
+            year,
+            month,
+            en_bac_a_sable=bac_a_sable is not None,
+            contract_period_id=contract_period_id,
+        )
 
         employee_folder_name = employee_data["employee_folder_name"]
 

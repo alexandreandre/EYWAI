@@ -80,9 +80,12 @@ from .payslip_run_common import (
 from .payslip_run_heures import (
     _appliquer_maintien_arret_maladie,
     _extraire_arret_pour_maintien,
+    arrets_de_l_annee,
     poser_les_arrets_connus,
     poser_le_depart_du_mois,
 )
+from app.modules.payroll.engine.calcul_brut import _est_une_absence
+from app.shared.reprise_paie import fin_de_la_reprise_au_premier_mois
 from app.modules.payroll.infrastructure.salaires_de_reference import (
     poser_salaires_de_reference,
 )
@@ -100,6 +103,29 @@ def poser_le_depart_du_forfait(contexte, employee_id: str, year: int, month: int
     debut_mois, fin_mois = bornes_mois_civil(year, month)
     contexte.bornes_du_depart = (debut_mois, fin_mois)
     poser_le_depart_du_mois(contexte, employee_id, year, month, debut_mois, fin_mois)
+
+
+def absences_hors_reprise(
+    evenements: List[Dict[str, Any]], fin_de_la_reprise: date | None
+) -> List[Dict[str, Any]]:
+    """Retire les absences datées jusqu'à la fin de la reprise (déjà traitées)."""
+    if not fin_de_la_reprise:
+        return evenements
+    gardes = []
+    for ev in evenements:
+        try:
+            jour = date.fromisoformat(str(ev.get("date_complete"))[:10])
+        except ValueError:
+            gardes.append(ev)
+            continue
+        if (
+            jour <= fin_de_la_reprise
+            and _est_une_absence(str(ev.get("type") or ""))
+            and not ev.get("is_regularisation_anterieure")
+        ):
+            continue
+        gardes.append(ev)
+    return gardes
 
 
 def message_pas_forfait_jour() -> str:
@@ -378,6 +404,14 @@ def run_payslip_generation_forfait(
                 ev["date_complete"] = date(ev_annee, ev_mois, ev_jour).isoformat()
             calendrier_etendu.append(ev)
 
+    # Premier mois après une reprise : une absence datée jusqu'à la bascule a été
+    # traitée par l'ancien logiciel sur son dernier bulletin. La période du
+    # forfait déborde sur ce mois (21/09 → 25/10 pour octobre) : sans ce filtre,
+    # l'absence serait retenue, et l'arrêt maintenu, une seconde fois. Même règle
+    # qu'aux heures (`calcul_brut`, fin_de_la_reprise).
+    contexte.fin_de_la_reprise = fin_de_la_reprise_au_premier_mois(company_id, year, month)
+    calendrier_etendu = absences_hors_reprise(calendrier_etendu, contexte.fin_de_la_reprise)
+
     primes_soumises = []
     primes_non_soumises = []
     primes_soumises_impot = []
@@ -593,6 +627,11 @@ def run_payslip_generation_forfait(
 
                 settings_maintien = get_maintenance_settings(company_id)
                 settings_dict = settings_maintien.model_dump(mode="json")
+                # Carence payée N jours par an : les arrêts de l'année, comme aux heures.
+                if settings_dict.get("paid_waiting_days_per_year") and resolved_employee_id:
+                    arret_data["arrets_annee"] = arrets_de_l_annee(
+                        str(resolved_employee_id), year, month
+                    )
                 poser_salaires_de_reference(arret_data, resolved_employee_id)
                 resultats_maintien = calculer_maintien(
                     arret_data,

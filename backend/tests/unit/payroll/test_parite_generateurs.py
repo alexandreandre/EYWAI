@@ -141,6 +141,8 @@ COMMUNES: dict[str, dict[str, str]] = {
         "alerte_arrets_contradictoires": "subrogation contradictoire entre deux arrêts : alerte",
         "ecarter_apres_la_sortie": "rien après la sortie (au forfait : pour l'activité partielle)",
         "date_de_sortie": "la date de sortie du planning",
+        "alerte_planning_apres_sortie": "le planning laissé après la sortie est dit (17/11)",
+        "variables_automatiques_avant_bulletin": "variables automatiques avant le bulletin, réglage de la société (17/11)",
     },
     "moteur": {
         "baremes_de_l_annee": "les barèmes de l'année du bulletin",
@@ -189,20 +191,16 @@ COMMUNES: dict[str, dict[str, str]] = {
         "poser_les_corrections_en_attente": "correction sans ligne : reste sur le bulletin",
         "mettre_a_jour_cumuls": "les cumuls du mois",
         "imprimer_le_bulletin": "le PDF",
+        "arrets_de_l_annee": "carence payée N jours par an : les arrêts de l'année (17/11)",
+        "fin_de_la_reprise_au_premier_mois": "premier mois après une reprise : absences déjà traitées (17/11)",
     },
 }
 
 TROUS_DU_FORFAIT: dict[str, dict[str, str]] = {
-    "generateur": {
-        "alerte_planning_apres_sortie": "le planning écarté après la sortie est dit",
-        "fin_au_depart": "mois de sortie : la fenêtre va jusqu'au départ",
-        "generate_monthly_variables": "variables automatiques avant le bulletin",
-        "get_company_planning_settings": "le réglage « variables automatiques avant le bulletin »",
-    },
-    "moteur": {
-        "arrets_de_l_annee": "carence payée N jours par an : les arrêts de l'année",
-        "fin_de_la_reprise_au_premier_mois": "premier mois après une reprise : absences déjà traitées",
-    },
+    # Tous comblés le 17/11 au soir ; une étape ajoutée aux heures seulement,
+    # qui concerne aussi le forfait, s'inscrit ici en attendant d'être branchée.
+    "generateur": {},
+    "moteur": {},
 }
 
 HEURES_SEULEMENT: dict[str, dict[str, str]] = {
@@ -228,6 +226,7 @@ HEURES_SEULEMENT: dict[str, dict[str, str]] = {
         "_build_temps_travail_payload": "temps de travail en heures (le forfait a le sien)",
         "log_payroll_debug": "traces de mise au point",
         "run_payslip_generation_heures": "le moteur des heures",
+        "fin_au_depart": "mois de sortie, fenêtre des variables jusqu'au départ : le forfait calcule sur la période de paie et le départ au mois civil",
     },
     "moteur": {
         "apply_modulation_hour_account_to_calendar": "compteur de récupération des heures sup",
@@ -270,6 +269,7 @@ FORFAIT_SEULEMENT: dict[str, dict[str, str]] = {
         "heures_reduction_forfait_jours": "idem",
         "poser_le_depart_du_forfait": "le départ au mois civil",
         "message_pas_forfait_jour": "refus d'un salarié qui n'est pas au forfait",
+        "absences_hors_reprise": "la période du forfait déborde sur le mois repris : ses absences en sortent (aux heures : dans calcul_brut)",
     },
 }
 

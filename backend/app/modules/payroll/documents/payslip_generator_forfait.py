@@ -194,6 +194,21 @@ def process_payslip_generation_forfait(
                 detail=message_pas_forfait_jour(),
             )
 
+        # Variables automatiques avant le bulletin (réglage de la société), comme
+        # aux heures ; avant la lecture des saisies du mois.
+        from app.modules.payroll.documents.variables_automatiques import (
+            variables_automatiques_avant_bulletin,
+        )
+
+        variables_automatiques_avant_bulletin(
+            str(company_id),
+            str(employee_id),
+            year,
+            month,
+            en_bac_a_sable=bac_a_sable is not None,
+            contract_period_id=contract_period_id,
+        )
+
         company_data = (
             supabase.table("companies")
             .select("*")
@@ -292,10 +307,18 @@ def process_payslip_generation_forfait(
 
         from app.shared.infrastructure.forfait_jour import bornes_periode_de_paie
 
-        prevu_ap, reel_ap, _ = planning_apres_sortie.ecarter_apres_la_sortie(
+        sortie_du_contrat = planning_apres_sortie.date_de_sortie(
+            employee_data.get("exit_last_working_day")
+        )
+        prevu_ap, reel_ap, jours_apres_sortie = planning_apres_sortie.ecarter_apres_la_sortie(
             planned_data_all_months,
             actual_data_all_months,
-            planning_apres_sortie.date_de_sortie(employee_data.get("exit_last_working_day")),
+            sortie_du_contrat,
+        )
+        # Le bulletin dit les jours du planning laissés après la sortie, comme
+        # aux heures : le prorata de sortie les retient, rien n'y est compté.
+        alerte_apres_sortie = planning_apres_sortie.alerte_planning_apres_sortie(
+            jours_apres_sortie, sortie_du_contrat, year, month
         )
         # Les jours de la période de paie de la société, comme les jours
         # d'absence au forfait, hors jours payés avant la reprise.
@@ -675,6 +698,7 @@ def process_payslip_generation_forfait(
                 payslip_json_data.get("alertes_baremes"), alertes_de_repli_generateur
             )
         for alerte_du_calendrier in (
+            alerte_apres_sortie,
             alerte_subrogation,
             alerte_arret_sans_type,
             alerte_activite_partielle,

@@ -132,7 +132,7 @@ SITES = [
     ("engine/reference_remuneration.py", "CODE_REPLI_REFERENCE_CONGES", 2),
     ("engine/bulletin.py", "CODE_REPLI_SOLDES_CONGES", 1),
     ("documents/payslip_generator.py", "CODE_REPLI_SORTIE", 1),
-    ("documents/payslip_generator.py", "CODE_REPLI_VARIABLES_AUTO", 1),
+    ("documents/variables_automatiques.py", "CODE_REPLI_VARIABLES_AUTO", 1),
     ("documents/payslip_generator.py", "CODE_REPLI_MODULATION", 1),
     ("documents/payslip_generator.py", "CODE_REPLI_PRIMES_POSTES", 1),
     ("documents/payslip_generator.py", "CODE_REPLI_EVOLUTION_SALAIRE", 1),
