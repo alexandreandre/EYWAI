@@ -60,10 +60,7 @@ from app.modules.payroll.engine.baremes_loader import (
     controler_baremes_sans_annee,
     controler_jour_solidarite,
 )
-from app.modules.payroll.engine.calcul_frais import (
-    appliquer_exoneration_note_frais,
-    valeur_unitaire,
-)
+from app.modules.payroll.engine.calcul_frais import appliquer_exoneration_note_frais
 from app.modules.payroll.engine.contexte import ContextePaie
 from app.shared.domain.periode_variables import bornes_mois_civil
 from app.modules.payroll.engine.ijss_bulletin import (
@@ -83,11 +80,17 @@ from .payslip_run_common import (
     prefetch_jours_maintien_prime,
     resolve_exit_state_for_payslip,
 )
-from app.modules.payroll.engine.activite_partielle import heures_et_taux
+from app.modules.payroll.engine.activite_partielle import (
+    est_l_indemnite,
+    lignes_csg_de_l_indemnite,
+    heures_chomees_de_la_retenue,
+    heures_et_taux,
+    ligne_d_indemnite,
+)
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 from app.modules.payroll.engine.frais_professionnels import (
-    ligne_de_frais_professionnels,
-    reintegration_panier_plafonne,
+    frais_et_reintegration,
+    panier_non_soumis_plafonne,
 )
 from app.modules.payroll.engine.ppv import classer_ppv, est_une_ppv
 from app.modules.payroll.documents.ppv_donnees import CLE_SAISIES as CLE_SAISIES_PPV
@@ -917,20 +920,12 @@ def run_payslip_generation_heures(
         for saisie in saisie_du_mois.get(cle, []):
             # Remboursement de frais professionnels (note de frais du module,
             # indemnité forfaitaire) : versé au net, hors montant net social.
-            ligne_frais = ligne_de_frais_professionnels(saisie)
+            ligne_frais, reint_frais = frais_et_reintegration(
+                saisie, contexte.baremes.get("frais_pro")
+            )
             if ligne_frais is not None:
-                reint_panier = reintegration_panier_plafonne(
-                    saisie, contexte.baremes.get("frais_pro")
-                )
-                if reint_panier > 0:
-                    ligne_frais["montant"] = round(ligne_frais["montant"] - reint_panier, 2)
-                    primes_soumises.append(
-                        {
-                            "libelle": f"Réintégration panier {ligne_frais['libelle']}",
-                            "montant": reint_panier,
-                            "prime_id": "reintegration_panier",
-                        }
-                    )
+                if reint_frais:
+                    primes_soumises.append(reint_frais)
                 primes_non_soumises.append(ligne_frais)
                 continue
             prime_id = (
@@ -956,34 +951,18 @@ def run_payslip_generation_heures(
                 # nette est ajoutée hors cotisations et hors net imposable.
                 primes_non_soumises.append(rappel_ijss_net)
 
-            _lib_low = f"{prime_id} {libelle}".lower()
-            heures_chomees_saisie = 0.0
-            if (
-                montant < 0
-                and ("chôm" in _lib_low or "chom" in _lib_low)
-                and "act" in _lib_low
-                and "part" in _lib_low
-            ):
-                # Le SMIC de référence de la réduction générale doit être
-                # proratisé des heures chômées non rémunérées. Le montant seul
-                # ne permet pas de retrouver ces heures de manière fiable :
-                # elles sont donc portées explicitement par la saisie.
-                heures_chomees_saisie = abs(float(saisie.get("quantity") or 0.0))
-                heures_activite_partielle += heures_chomees_saisie
-            if "indemn" in _lib_low and ("activit" in _lib_low and "partiel" in _lib_low):
-                # Indemnité d'activité partielle : revenu de remplacement (pas une
-                # prime soumise). Routée hors du circuit primes, CSG appliquée plus bas.
-                if montant > 0:
-                    indemnites_remplacement.append(
-                        {"prime_id": "indemnite_activite_partielle", "libelle": libelle, "montant": round(montant, 2)}
-                    )
-                continue
-
-            is_panier = (
-                "panier" in str(prime_id).lower()
-                or "repas" in str(prime_id).lower()
-                or str(saisie.get("type") or "").lower() == "panier"
+            # Activité partielle (mêmes fonctions qu'au forfait jours) : les
+            # heures chômées réduisent le Smic de la réduction générale ;
+            # l'indemnité, revenu de remplacement, sort du circuit des primes.
+            heures_chomees_saisie = heures_chomees_de_la_retenue(
+                prime_id, libelle, montant, saisie.get("quantity")
             )
+            heures_activite_partielle += heures_chomees_saisie
+            if est_l_indemnite(prime_id, libelle):
+                indemnite_ap = ligne_d_indemnite(libelle, montant)
+                if indemnite_ap:
+                    indemnites_remplacement.append(indemnite_ap)
+                continue
 
             if cle == "notes_de_frais" and montant > 0:
                 _exo, reint, _plafond = appliquer_exoneration_note_frais(
@@ -1000,39 +979,11 @@ def run_payslip_generation_heures(
                 if _exo and _exo > 0 and _plafond is not None:
                     montant = _exo
 
-            if is_panier and montant > 0 and not saisie.get(
-                "soumise_a_cotisations", saisie.get("soumise_a_csg", True)
-            ):
-                # `quantity` porte selon le libellé un nombre d'unités ou une
-                # valeur unitaire : diviser sans distinction donnait 22 € le
-                # panier au lieu de 7,50 € sur les 62 lignes Mont Blanc Composite.
-                unit = valeur_unitaire(
-                    montant, saisie.get("quantity"), saisie.get("quantity_kind")
-                )
-                qty = max(1.0, round(montant / unit)) if unit > 0 else 1.0
-                exo_total = 0.0
-                reint_total = 0.0
-                for _ in range(int(qty)):
-                    exo, reint, plafond = appliquer_exoneration_note_frais(
-                        {
-                            "montant": unit,
-                            "prime_id": prime_id,
-                            "type": "panier",
-                            "situation_repas": saisie.get("situation_repas"),
-                        },
-                        contexte.baremes.get("frais_pro"),
-                    )
-                    exo_total += exo
-                    reint_total += reint
-                if reint_total > 0:
-                    primes_soumises.append(
-                        {
-                            "libelle": f"Réintégration panier {libelle}",
-                            "montant": round(reint_total, 2),
-                            "prime_id": "reintegration_panier",
-                        }
-                    )
-                montant = round(exo_total, 2)
+            montant, reint_panier = panier_non_soumis_plafonne(
+                saisie, prime_id, libelle, montant, contexte.baremes.get("frais_pro")
+            )
+            if reint_panier:
+                primes_soumises.append(reint_panier)
 
             regles = catalogue_primes.get(prime_id)
             if regles:
@@ -1341,9 +1292,10 @@ def run_payslip_generation_heures(
         synchroniser_le_maintien(resultats_maintien, details_brut)
     # Indemnités d'activité partielle : revenu de remplacement exonéré de
     # cotisations, imposable. Ajoutées comme les IJSS via `ijss_imposables` (→
-    # net imposable + net à payer + MNS) ; la CSG/CRDS des revenus de remplacement
-    # est déjà appliquée en aval sur ces montants, il ne faut PAS l'ajouter ici
-    # (double compte, vérifié salarié 061/salarié 199 Lewis juin 2026).
+    # net imposable + net à payer + MNS). Leur CSG/CRDS, écrêtée au Smic, est
+    # posée après les cotisations (`lignes_csg_de_l_indemnite`). L'ancienne
+    # note « pas de CSG, vérifié chez LEWIS en juin » reposait sur deux salariés
+    # dont Quadra annule la CSG par l'écrêtement ; les autres la paient (17/11).
     if indemnites_remplacement:
         ijss_imposables = list(ijss_imposables) + list(indemnites_remplacement)
     if brut_modifie:
@@ -1404,6 +1356,19 @@ def run_payslip_generation_heures(
         )
     if ijss_imposables:
         primes_soumises_impot = list(primes_soumises_impot) + ijss_imposables
+    # CSG/CRDS de l'indemnité d'activité partielle, écrêtée au Smic (même
+    # fonction dans les deux moteurs).
+    lignes_csg_ap = lignes_csg_de_l_indemnite(
+        indemnites_remplacement,
+        salaire_brut=salaire_brut_calcule,
+        total_salarial=total_salarial,
+        smic_horaire=contexte.smic_horaire,
+    )
+    if lignes_csg_ap:
+        lignes_cotisations.extend(lignes_csg_ap)
+        total_salarial = round(
+            total_salarial + sum(float(ligne["montant_salarial"]) for ligne in lignes_csg_ap), 2
+        )
 
     # Participation : lignes d'affichage (gain brut + CSG/CRDS) sans impacter le
     # brut cotisable ni le total des cotisations salariales de salaire.

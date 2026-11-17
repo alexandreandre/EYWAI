@@ -663,8 +663,10 @@ def calculer_salaire_brut_forfait(
                 lier_a_la_saisie(
                     {
                         "libelle": prime.get("libelle", "Prime"),
-                        "quantite": None,
-                        "taux": None,
+                        # Seules les heures chômées d'activité partielle en
+                        # portent (comme en heures) ; les autres primes, rien.
+                        "quantite": prime.get("quantite"),
+                        "taux": prime.get("taux"),
                         "gain": prime.get("montant", 0.0),
                         "perte": None,
                     },

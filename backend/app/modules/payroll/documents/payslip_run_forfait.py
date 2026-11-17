@@ -40,7 +40,17 @@ from app.modules.payroll.engine.calcul_reduction_generale import (
 from app.modules.payroll.engine.forfait_individuel import jours_du_forfait_de_la_fiche
 from app.modules.payroll.engine.lectures import lire_ou_arreter
 from app.modules.payroll.engine.ijss_bulletin import build_rappel_ijss_net_prime
-from app.modules.payroll.engine.frais_professionnels import ligne_de_frais_professionnels
+from app.modules.payroll.engine.activite_partielle import (
+    est_l_indemnite,
+    lignes_csg_de_l_indemnite,
+    heures_chomees_de_la_retenue,
+    heures_et_taux,
+    ligne_d_indemnite,
+)
+from app.modules.payroll.engine.frais_professionnels import (
+    frais_et_reintegration,
+    panier_non_soumis_plafonne,
+)
 from app.modules.payroll.engine.exoneration_jei import (
     calculer_exoneration_jei,
     jei_applicable,
@@ -385,11 +395,20 @@ def run_payslip_generation_forfait(
     # Le Smic des 3 Smic : durée légale, sans heures sup, au prorata d'un temps partiel.
     heures_mensuelles_ppv = (lc.DUREE_LEGALE_HEBDO * 52) / 12
     lignes_cotisations_ppv: List[Dict[str, Any]] = []
+    # Indemnités d'activité partielle : revenus de remplacement exonérés de
+    # cotisations, imposables, ajoutés comme en heures après le brut.
+    indemnites_remplacement: List[Dict[str, Any]] = []
+    heures_activite_partielle = 0.0
     for cle in ["primes", "notes_de_frais", "autres"]:
         for saisie in saisie_du_mois.get(cle, []):
-            # Remboursement de frais professionnels : versé au net, hors montant net social.
-            ligne_frais = ligne_de_frais_professionnels(saisie)
+            # Remboursement de frais professionnels : versé au net, hors montant
+            # net social ; un panier au-delà du plafond est réintégré au brut.
+            ligne_frais, reint_frais = frais_et_reintegration(
+                saisie, contexte.baremes.get("frais_pro")
+            )
             if ligne_frais is not None:
+                if reint_frais:
+                    primes_soumises.append(reint_frais)
                 primes_non_soumises.append(ligne_frais)
                 continue
             prime_id = (
@@ -410,6 +429,18 @@ def run_payslip_generation_forfait(
             )
             if rappel_ijss_net:
                 primes_non_soumises.append(rappel_ijss_net)
+            # Activité partielle (mêmes fonctions qu'en heures) : les heures
+            # chômées réduisent le Smic de la réduction générale ; l'indemnité,
+            # revenu de remplacement, sort du circuit des primes.
+            heures_chomees_saisie = heures_chomees_de_la_retenue(
+                prime_id, libelle, montant, saisie.get("quantity")
+            )
+            heures_activite_partielle += heures_chomees_saisie
+            if est_l_indemnite(prime_id, libelle):
+                indemnite_ap = ligne_d_indemnite(libelle, montant)
+                if indemnite_ap:
+                    indemnites_remplacement.append(indemnite_ap)
+                continue
             if cle == "notes_de_frais" and montant > 0:
                 _exo, reint, _plafond = appliquer_exoneration_note_frais(
                     saisie, contexte.baremes.get("frais_pro")
@@ -424,6 +455,11 @@ def run_payslip_generation_forfait(
                     )
                 if _exo and _exo > 0 and _plafond is not None:
                     montant = _exo
+            montant, reint_panier = panier_non_soumis_plafonne(
+                saisie, prime_id, libelle, montant, contexte.baremes.get("frais_pro")
+            )
+            if reint_panier:
+                primes_soumises.append(reint_panier)
             regles = catalogue_primes.get(prime_id)
             if regles:
                 soumise_cotis = regles.get("soumise_a_cotisations", True)
@@ -441,6 +477,7 @@ def run_payslip_generation_forfait(
                 },
                 saisie,
             )
+            prime_calculee.update(heures_et_taux(montant, heures_chomees_saisie))
             if not soumise_cotis and est_une_ppv(prime_id, libelle):
                 # PPV, du catalogue ou saisie par son nom : effectif des seuils,
                 # 3 Smic, plafond annuel et nombre de primes (`engine.ppv`).
@@ -473,6 +510,9 @@ def run_payslip_generation_forfait(
                 primes_soumises_impot.append(prime_calculee)
             else:
                 primes_non_soumises.append(prime_calculee)
+
+    for indemnite in indemnites_remplacement:
+        indemnite.update(heures_et_taux(indemnite["montant"], heures_activite_partielle))
 
     # --- Participation / intéressement (part numéraire) : régime CSG 9,7 % seule ---
     # Exonéré de cotisations sociales, soumis à CSG/CRDS (6,8 % déductible + 2,9 %
@@ -614,6 +654,21 @@ def run_payslip_generation_forfait(
         )
     if ijss_imposables:
         primes_soumises_impot = list(primes_soumises_impot) + ijss_imposables
+    if indemnites_remplacement:
+        primes_soumises_impot = list(primes_soumises_impot) + indemnites_remplacement
+    # CSG/CRDS de l'indemnité d'activité partielle, écrêtée au Smic (même
+    # fonction dans les deux moteurs).
+    lignes_csg_ap = lignes_csg_de_l_indemnite(
+        indemnites_remplacement,
+        salaire_brut=salaire_brut_calcule,
+        total_salarial=total_salarial,
+        smic_horaire=contexte.smic_horaire,
+    )
+    if lignes_csg_ap:
+        lignes_cotisations.extend(lignes_csg_ap)
+        total_salarial = round(
+            total_salarial + sum(float(ligne["montant_salarial"]) for ligne in lignes_csg_ap), 2
+        )
 
     # Mêmes lignes informatives que le moteur horaire : la participation reste
     # hors brut cotisable, mais doit apparaître sur le bulletin forfait jours.
@@ -675,6 +730,9 @@ def run_payslip_generation_forfait(
         ),
     )
     signaler_rappels_de_maintien_en_prime_libre(contexte, primes_soumises)
+    # Les heures chômées (7 h par jour au forfait) ne sont pas rémunérées :
+    # elles sortent du Smic de référence, comme en heures.
+    heures_reduction = max(0.0, heures_reduction - heures_activite_partielle)
 
     ligne_exoneration_jei = calculer_exoneration_jei(
         contexte,
