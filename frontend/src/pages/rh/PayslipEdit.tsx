@@ -89,6 +89,7 @@ import PayslipPreviewFrame from '@/components/payslip-edit/PayslipPreviewFrame';
 import RegeneratePayslipButton from '@/components/payslip-edit/RegeneratePayslipButton';
 import { MaintenanceDetailModal } from '@/components/payslip/MaintenanceDetailModal';
 import { PayslipAlertsBanner } from '@/components/payslip/PayslipAlertsBanner';
+import { CorrectionsPerimeesAlerte } from '@/components/payslip/CorrectionsPerimeesAlerte';
 import { ReportNetNegatif } from '@/features/payroll/components/ReportNetNegatif';
 import { LignesExpliquees } from '@/features/payroll/components/LignesExpliquees';
 import { ComparaisonMoisDernier } from '@/features/payroll/components/ComparaisonMoisDernier';
@@ -560,6 +561,11 @@ export default function PayslipEdit() {
     <div className="container mx-auto space-y-6">
       {fenetre}
       <PayslipAlertsBanner data={payslip.payslip_data} />
+      <CorrectionsPerimeesAlerte
+        payslipId={payslip.id}
+        companyId={companyId}
+        version={payslip.updated_at ?? null}
+      />
       <ReportNetNegatif
         payslipId={payslip.id}
         companyId={payslip.company_id}
