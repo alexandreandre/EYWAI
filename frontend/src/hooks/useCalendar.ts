@@ -6,7 +6,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useQueryClient } from '@tanstack/react-query';
 import { invaliderApresBulletin } from '@/features/payroll/utils/invalidationsBulletin';
 import * as calendarApi from '@/api/calendar';
-import { DayData } from '@/components/ScheduleModal';
+import { DayData, type SaisieGroupee } from '@/components/ScheduleModal';
 import { isForfaitJour } from '@/utils/employeeUtils';
 import { applyHolidayHints } from '@/lib/companyCalendarHolidays';
 import { saisieGroupeeDuJour } from '@/lib/calendarTypes';
@@ -639,7 +639,7 @@ export function useCalendar(
     }
   };
 
-  const bulkUpdateDays = (updateData: Partial<Omit<DayData, 'jour'>>) => {
+  const bulkUpdateDays = (updateData: SaisieGroupee) => {
     if (!context.active || !isMonthDataReady || selectedDays.length === 0) return;
 
     selectedDays.forEach((dayNumber) => {
@@ -661,7 +661,7 @@ export function useCalendar(
     setIsSavingAfterApply(true);
   };
 
-  const bulkUpdateDaysAndSave = (updateData: Partial<Omit<DayData, 'jour'>>) => {
+  const bulkUpdateDaysAndSave = (updateData: SaisieGroupee) => {
     if (!context.active || !isMonthDataReady || saveInFlight.current || selectedDays.length === 0) return;
     bulkUpdateDays(updateData);
     applySavePending.current = true;

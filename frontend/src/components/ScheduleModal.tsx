@@ -15,6 +15,11 @@ export interface DayData {
   heures_faites: number | null;
 }
 
+/** Saisie groupée de jours : `type_par_defaut` vaut pour les jours qu'elle ne
+ * retype pas (des heures saisies sans type) ; chaque jour la lit avec son
+ * ancien type (`saisieGroupeeDuJour`). */
+export type SaisieGroupee = Partial<Omit<DayData, 'jour'>> & { type_par_defaut?: 'travail' };
+
 // Interface pour les props du composant
 interface ScheduleModalProps {
   isOpen: boolean;

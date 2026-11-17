@@ -284,7 +284,7 @@ export function ActivitePartielleTab() {
                 <p key={r.employee_id} className={r.statut === 'refuse' || r.statut === 'bulletin_remis' ? 'text-destructive' : ''}>
                   <span className="font-medium">{r.nom ?? r.employee_id}</span> :{' '}
                   {r.statut === 'pose'
-                    ? `${r.heures?.toLocaleString('fr-FR')} h chômées, retenue ${eur(r.retenue)}, indemnité ${eur(r.indemnite)} (${eur(r.indemnite_horaire)} de l’heure, ${r.regle})`
+                    ? `${r.heures?.toLocaleString('fr-FR')} h chômées, retenue ${eur(r.retenue)}, indemnité ${eur(r.indemnite)} (${eur(r.indemnite_horaire)} de l’heure, ${r.regle})${r.message ? `. ${r.message}` : ''}`
                     : r.statut === 'retire'
                       ? 'lignes retirées'
                       : r.statut === 'rien'

@@ -99,4 +99,21 @@ describe('saisieGroupeeDuJour : la saisie groupée suit la règle de la case du 
       heures_prevues: 7,
     });
   });
+  it('réappliquer Activité partielle garde le réel d\'une demi-journée', () => {
+    expect(saisieGroupeeDuJour({ type: 'activite_partielle' }, 'activite_partielle')).toEqual({
+      type: 'activite_partielle',
+    });
+  });
+  it('des heures sans type font un jour Travail', () => {
+    expect(saisieGroupeeDuJour({ heures_prevues: 7, type_par_defaut: 'travail' }, 'repos')).toEqual({
+      heures_prevues: 7,
+      type: 'travail',
+      heures_faites: null,
+    });
+  });
+  it('sauf un jour d\'activité partielle : il reste chômé avec ses heures faites', () => {
+    expect(
+      saisieGroupeeDuJour({ heures_faites: 3.5, type_par_defaut: 'travail' }, 'activite_partielle'),
+    ).toEqual({ heures_faites: 3.5 });
+  });
 });
