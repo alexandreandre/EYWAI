@@ -30,7 +30,8 @@ export function casesApresNouveauNom(
 ): { is_socially_taxed: boolean; is_taxable: boolean } {
   const avant = panierNonSoumisParDefaut(ancienNom);
   const apres = panierNonSoumisParDefaut(nouveauNom);
-  if (avant === apres) return cases;
+  // Seulement les deux cases : l'appelant étale ce résultat dans tout le formulaire.
+  if (avant === apres) return { is_socially_taxed: cases.is_socially_taxed, is_taxable: cases.is_taxable };
   return { is_socially_taxed: !apres, is_taxable: !apres };
 }
 

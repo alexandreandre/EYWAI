@@ -475,10 +475,11 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
     const isStandardPrime = primesCatalogue.some(p => p.libelle === value) ||
                            bonusTypes.some(bt => bt.libelle === value);
     // Un panier tapé à la main est exonéré par défaut (non soumis) ; les cases restent modifiables.
+    // Le nom tapé passe en dernier : rien ne doit l'écraser.
     setFormData(prev => ({
       ...prev,
-      name: value,
       ...(isStandardPrime ? {} : casesApresNouveauNom(prev.name, value, prev)),
+      name: value,
     }));
     setIsCustomPrime(!isStandardPrime);
     setCatalogPrimeId(primesCatalogue.find(p => p.libelle === value)?.id ?? null);

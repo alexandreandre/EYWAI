@@ -47,6 +47,33 @@ describe('panier tapé à la main', () => {
     expect(casesApresNouveauNom('Panier repas', 'Panier repas soumis', NON_SOUMIS)).toEqual(SOUMIS);
   });
 
+  it('ne renvoie que les deux cases, jamais le reste du formulaire (le nom tapé n’est pas écrasé)', () => {
+    const formulaire = { ...SOUMIS, name: '', amount: '', selectedEmployees: [] as string[] };
+    // Touche par touche : « P », « Pr »… la nature du nom ne change pas.
+    for (const [avant, apres] of [['', 'P'], ['P', 'Pr'], ['Prime', 'Prime e'], ['Pan', 'Pani']]) {
+      const formulaireComplet = { ...formulaire, name: avant };
+      expect(Object.keys(casesApresNouveauNom(avant, apres, formulaireComplet)).sort()).toEqual([
+        'is_socially_taxed',
+        'is_taxable',
+      ]);
+    }
+    // Simulation du setFormData de SaisieModal, lettre par lettre.
+    let etat = { ...formulaire };
+    for (const lettre of 'Panier repas') {
+      const valeur = etat.name + lettre;
+      etat = { ...etat, ...casesApresNouveauNom(etat.name, valeur, etat), name: valeur };
+    }
+    expect(etat.name).toBe('Panier repas');
+    expect(etat).toMatchObject(NON_SOUMIS);
+    etat = { ...formulaire };
+    for (const lettre of 'Prime exceptionnelle') {
+      const valeur = etat.name + lettre;
+      etat = { ...etat, ...casesApresNouveauNom(etat.name, valeur, etat), name: valeur };
+    }
+    expect(etat.name).toBe('Prime exceptionnelle');
+    expect(etat).toMatchObject(SOUMIS);
+  });
+
   it('panier coché « soumise » à la main : pas de bloc, rien de plus envoyé', () => {
     expect(afficherBlocPanier('Panier repas', SOUMIS)).toBe(false);
     expect(corps('Panier repas', SOUMIS)).not.toHaveProperty('situation_repas');

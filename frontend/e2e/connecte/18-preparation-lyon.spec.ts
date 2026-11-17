@@ -115,7 +115,11 @@ async function panierTapeALaMain(page: Page) {
   await expect(nouvelle).toBeVisible({ timeout: 45_000 });
   await nouvelle.click();
   const fen = page.getByRole('dialog');
-  await fen.getByPlaceholder('Sélectionnez ou saisissez un nom...').fill('Panier repas');
+  // Tapé au clavier, touche par touche, comme l'équipe : `fill` cachait un nom effacé à chaque touche.
+  const nom = fen.getByPlaceholder('Sélectionnez ou saisissez un nom...');
+  await nom.click();
+  await page.keyboard.type('Panier repas', { delay: 30 });
+  await expect(nom).toHaveValue('Panier repas');
   await fen.getByRole('heading', { name: /Ajouter une saisie du mois/ }).click();
   await expect(fen.getByTestId('nombre-paniers')).toBeVisible();
   await expect(fen.locator('#is_socially_taxed')).not.toBeChecked();
