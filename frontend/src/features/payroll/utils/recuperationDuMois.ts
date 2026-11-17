@@ -70,6 +70,30 @@ export function lireRecuperation(payslipData: unknown): EtatRecuperation | null 
   };
 }
 
+/** Ce que le champ « Heures à payer » affiche tant que la RH n'a rien tapé : le solde. */
+export function saisieParDefaut(soldePayable: number): string {
+  return String(Math.round(soldePayable * 100) / 100).replace('.', ',');
+}
+
+export type HeuresAPayer = { kind: 'ok'; heures: number } | { kind: 'erreur'; message: string };
+
+/**
+ * Le nombre d'heures du compteur à payer, tapé par la RH (virgule acceptée) :
+ * plus de 0, pas plus que le solde payable. Le serveur refuse aussi au-delà.
+ */
+export function lireHeuresAPayer(saisie: string, soldePayable: number): HeuresAPayer {
+  const texte = saisie.trim().replace(',', '.');
+  const n = texte === '' ? Number.NaN : Number(texte);
+  if (!Number.isFinite(n)) return { kind: 'erreur', message: 'Indiquez un nombre d’heures.' };
+  const heures = Math.round(n * 100) / 100;
+  if (heures <= 0) return { kind: 'erreur', message: 'Indiquez un nombre d’heures supérieur à 0.' };
+  const plafond = Math.round(soldePayable * 100) / 100;
+  if (heures > plafond) {
+    return { kind: 'erreur', message: `Au plus ${heuresFr(plafond)}, le solde du compteur.` };
+  }
+  return { kind: 'ok', heures };
+}
+
 export type IssueGeste =
   | { kind: 'recalcule' }
   | { kind: 'refuse'; erreur: unknown }
