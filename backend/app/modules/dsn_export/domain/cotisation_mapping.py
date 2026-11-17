@@ -469,6 +469,10 @@ def _nature_csg(libelle_bas: str) -> str:
     return " ".join(reste.split())
 
 
+#: CSG de l'indemnité d'activité partielle (Urssaf : 6,20 % seulement).
+TAUX_CSG_ACTIVITE_PARTIELLE = 0.062
+
+
 def _csg_et_crds(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
     """Regroupe toutes les lignes de CSG/CRDS du bulletin en `072` + `079`.
 
@@ -500,6 +504,18 @@ def _csg_et_crds(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
     crds_isolee = 0.0
     deductibles: Dict[float, List[Tuple[float, float]]] = {}
     non_deductibles: Dict[float, List[Tuple[float, float]]] = {}
+
+    # Indemnité d'activité partielle (revenu de remplacement) : comme le
+    # cabinet (DSN LEWIS de juin 2026), son assiette rejoint la base 04, avec
+    # sa propre ligne 072 à 6,20 % et sa CRDS dans la 079 du salaire.
+    assiette_ap = 0.0
+    montant_ap = 0.0
+    for ligne in lignes:
+        if ligne.get("is_csg_activite_partielle"):
+            assiette, sal, pat, _, _ = _parts(ligne)
+            assiette_ap = max(assiette_ap, round(assiette, 2))
+            montant_ap = round(montant_ap + sal + pat, 2)
+    lignes = [l for l in lignes if not l.get("is_csg_activite_partielle")]
 
     for ligne in lignes:
         coti_id = str(ligne.get("coti_id") or "")
@@ -556,8 +572,22 @@ def _csg_et_crds(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
             csg += sum(m for _, m in groupe) - crds_groupe
 
     resultat: List[LigneDsn] = []
+    if montant_ap > 0:
+        # Un écrêtement au Smic retire d'abord la CRDS (précompte : CSG
+        # déductible, CSG non déductible, puis CRDS).
+        csg_ap = min(montant_ap, _arrondi(assiette_ap * TAUX_CSG_ACTIVITE_PARTIELLE))
+        crds += round(montant_ap - csg_ap, 2)
+        resultat.append(
+            LigneDsn(
+                CODE_CSG,
+                BASE_CSG,
+                assiette_ap,
+                round(csg_ap, 2),
+                TAUX_CSG_ACTIVITE_PARTIELLE,
+                distincte=True,
+            )
+        )
     if assiette_salaires > 0:
-        crds = round(crds, 2)
         resultat.append(
             LigneDsn(
                 CODE_CSG,
@@ -567,12 +597,13 @@ def _csg_et_crds(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
                 TAUX_CSG_TOTAL,
             )
         )
+    if assiette_salaires > 0 or montant_ap > 0:
         resultat.append(
             LigneDsn(
                 CODE_CRDS,
                 BASE_CSG,
-                round(assiette_salaires, 2),
-                crds,
+                round(assiette_salaires + assiette_ap, 2),
+                round(crds, 2),
                 TAUX_CRDS,
             )
         )

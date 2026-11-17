@@ -294,13 +294,22 @@ def process_payslip_generation_forfait(
             lignes_du_calendrier,
         )
 
+        # Jours après la sortie écartés, comme en heures : ils sont déjà
+        # retenus par la sortie, ils ne sont ni chômés ni indemnisés.
+        from app.modules.payroll.application import planning_apres_sortie
+
+        prevu_ap, reel_ap, _ = planning_apres_sortie.ecarter_apres_la_sortie(
+            [j for j in planned_data_all_months if j.get("annee") == year and j.get("mois") == month],
+            [j for j in actual_data_all_months if j.get("annee") == year and j.get("mois") == month],
+            planning_apres_sortie.date_de_sortie(employee_data.get("exit_last_working_day")),
+        )
         saisies_res.data, alerte_activite_partielle = lignes_du_calendrier(
             str(company_id),
             {**employee_data, "is_forfait_jour": True},
             year,
             month,
-            [j for j in planned_data_all_months if j.get("annee") == year and j.get("mois") == month],
-            [j for j in actual_data_all_months if j.get("annee") == year and j.get("mois") == month],
+            prevu_ap,
+            reel_ap,
             list(saisies_res.data or []),
         )
 

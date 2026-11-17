@@ -5,7 +5,7 @@ from typing import Any
 from app.modules.payroll.documents.verrou_generation import (
     GenerationDejaEnCours,
     GenerationVerrouIndisponible,
-    verrou_de_generation,
+    verrous_des_bulletins_qui_lisent,
 )
 from app.modules.schedules.application import commands, queries
 from app.modules.schedules.application.exceptions import ScheduleAppError
@@ -40,7 +40,9 @@ def save_calendar(employee_id: str, company_id: str, payload: CalendarSaveReques
         # Prendre le verrou du bulletin AVANT celui des entrées : une
         # génération déjà engagée ne rencontre pas une réservation temporaire
         # de son calendrier alors que cette saisie va être refusée.
-        with verrou_de_generation(employee_id, payload.year, payload.month, required=True):
+        # Les trois bulletins qui lisent ce mois (mois d'avant, mois, mois
+        # d'après) : aucun ne se calcule pendant l'enregistrement.
+        with verrous_des_bulletins_qui_lisent(employee_id, payload.year, payload.month):
             return _save_reserved_calendar(employee_id, company_id, payload)
     except (GenerationDejaEnCours, GenerationVerrouIndisponible) as exc:
         busy = isinstance(exc, GenerationDejaEnCours)

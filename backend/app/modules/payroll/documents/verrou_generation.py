@@ -28,6 +28,7 @@ libère le bulletin en une minute au plus.
 from __future__ import annotations
 
 import threading
+import time
 import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -118,11 +119,50 @@ def _prolonger_tant_que(params: dict[str, Any], fini: threading.Event) -> None:
             )
 
 
+def _mois_voisins(year: int, month: int) -> list[tuple[int, int]]:
+    """Le mois d'avant, le mois, le mois d'après (dans l'ordre)."""
+    avant = (year, month - 1) if month > 1 else (year - 1, 12)
+    apres = (year, month + 1) if month < 12 else (year + 1, 1)
+    return [avant, (int(year), int(month)), apres]
+
+
 @contextmanager
-def verrou_de_generation(employee_id: str, year: int, month: int, *, required: bool = False) -> Iterator[None]:
+def verrous_des_bulletins_qui_lisent(employee_id: str, year: int, month: int) -> Iterator[None]:
+    """Pour enregistrer le calendrier d'un mois : les verrous des trois bulletins
+    qui le lisent (le bulletin d'un mois lit les calendriers du mois d'avant et
+    du mois d'après : période de la société du 21 au 20, fenêtre des variables).
+
+    Avant (Lyon, 17/11/2026), seul le verrou du mois était pris : enregistrer
+    septembre pendant que le bulletin d'octobre se calculait sur le 21-30/09
+    croisait les deux. Prises dans l'ordre des mois, sans attente.
+    """
+    from contextlib import ExitStack
+
+    with ExitStack() as pile:
+        for an, mois in _mois_voisins(int(year), int(month)):
+            pile.enter_context(verrou_de_generation(employee_id, an, mois, required=True))
+        yield
+
+
+#: Une génération attend la fin d'un enregistrement de calendrier (une ou deux
+#: secondes) plutôt que de refuser aussitôt.
+ATTENTE_GENERATION_SECONDES = 8.0
+PAS_D_ATTENTE_SECONDES = 1.0
+
+
+@contextmanager
+def verrou_de_generation(
+    employee_id: str,
+    year: int,
+    month: int,
+    *,
+    required: bool = False,
+    attente_secondes: float = 0.0,
+) -> Iterator[None]:
     """Tient le verrou (salarié, année, mois) le temps du bloc.
 
-    Lève `GenerationDejaEnCours` si une autre génération le tient déjà.
+    Lève `GenerationDejaEnCours` si une autre génération le tient déjà (après
+    `attente_secondes` d'essais, pour la génération d'un bulletin).
     Avec `required=True`, une réponse incertaine lève aussi
     `GenerationVerrouIndisponible` avant de commencer le bloc.
     """
@@ -144,6 +184,14 @@ def verrou_de_generation(employee_id: str, year: int, month: int, *, required: b
     reponse = None
     try:
         reponse = _rpc(
+                "prendre_verrou_generation_bulletin",
+                {**params, "p_duree_secondes": DUREE_SECONDES},
+            )
+        attendu = 0.0
+        while reponse is False and attendu < attente_secondes:
+            time.sleep(PAS_D_ATTENTE_SECONDES)
+            attendu += PAS_D_ATTENTE_SECONDES
+            reponse = _rpc(
                 "prendre_verrou_generation_bulletin",
                 {**params, "p_duree_secondes": DUREE_SECONDES},
             )

@@ -165,6 +165,14 @@ def _taux_horaire(e: dict[str, Any]) -> float | None:
             jours = jours_du_forfait_de_la_fiche(e.get("specificites_paie"))
         except ValueError:
             jours = None
+        if jours is None and e.get("company_id"):
+            # Sans forfait sur la fiche, celui de la société, comme la
+            # réduction générale (`jours_du_forfait_pour_reduction`).
+            from app.modules.absences.infrastructure import leave_settings_repository
+
+            jours = float(
+                leave_settings_repository.get_leave_policy(str(e["company_id"])).rtt_forfait_annual_days
+            )
         return taux_horaire_forfait_jours(e.get("salaire_de_base"), jours)
     return taux_horaire_du_contrat(
         e.get("salaire_de_base"), e.get("duree_hebdomadaire")

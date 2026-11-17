@@ -273,3 +273,51 @@ def test_un_verrou_abandonne_ne_bloque_qu_une_minute():
     message = str(GenerationDejaEnCours())
     assert "déjà en cours" in message
     assert "Réessayez dans une minute." in message
+
+
+# --- Lyon, 17/11/2026 : calendrier et bulletin ne se croisent plus -----------
+
+
+def test_enregistrer_un_mois_tient_les_bulletins_qui_le_lisent(verrous_de_generation):
+    """Le bulletin d'octobre lit le 21-30/09 : enregistrer septembre le bloque."""
+    from app.modules.payroll.documents.verrou_generation import verrous_des_bulletins_qui_lisent
+
+    def bulletin(an, mois):
+        def generer():
+            with verrou_de_generation("e1", an, mois):
+                pass
+        return generer
+
+    with verrous_des_bulletins_qui_lisent("e1", 2026, 9):
+        for an, mois in ((2026, 8), (2026, 9), (2026, 10)):
+            with pytest.raises(GenerationDejaEnCours):
+                _autre_requete(bulletin(an, mois))
+        _autre_requete(bulletin(2026, 11))  # pas lu par septembre
+    assert verrous_de_generation.tenus == {}
+
+
+def test_les_mois_voisins_passent_l_annee():
+    assert verrou_generation._mois_voisins(2026, 1) == [(2025, 12), (2026, 1), (2026, 2)]
+    assert verrou_generation._mois_voisins(2026, 12) == [(2026, 11), (2026, 12), (2027, 1)]
+
+
+def test_la_generation_attend_la_fin_d_un_enregistrement(monkeypatch):
+    reponses = iter([False, False, True])
+    appels = []
+
+    def rpc(nom, params):
+        appels.append(nom)
+        return next(reponses) if nom == "prendre_verrou_generation_bulletin" else None
+
+    monkeypatch.setattr(verrou_generation, "_rpc", rpc)
+    monkeypatch.setattr(verrou_generation, "_prolonger", lambda params: None)
+    monkeypatch.setattr(verrou_generation.time, "sleep", lambda s: None)
+    with verrou_de_generation("e1", 2026, 10, attente_secondes=8):
+        pass
+    assert appels.count("prendre_verrou_generation_bulletin") == 3
+
+
+def test_sans_attente_un_verrou_tenu_est_refuse_aussitot(monkeypatch):
+    monkeypatch.setattr(verrou_generation, "_rpc", lambda nom, params: False)
+    with pytest.raises(GenerationDejaEnCours), verrou_de_generation("e1", 2026, 10):
+        pass

@@ -1347,6 +1347,9 @@ def run_payslip_generation_heures(
     lignes_cotisations, total_salarial = calculer_cotisations(
         contexte, salaire_brut_calcule, remuneration_hs, heures_supp_nettes
     )
+    # Retenues du seul salaire : l'écrêtement de la CSG de l'activité partielle
+    # compare le salaire net au Smic, sans la CSG des IJSS (hors du brut).
+    total_salarial_du_salaire = total_salarial
     if lignes_csg_ijss:
         lignes_cotisations.extend(lignes_csg_ijss)
         total_salarial = round(
@@ -1361,7 +1364,7 @@ def run_payslip_generation_heures(
     lignes_csg_ap = lignes_csg_de_l_indemnite(
         indemnites_remplacement,
         salaire_brut=salaire_brut_calcule,
-        total_salarial=total_salarial,
+        total_salarial=total_salarial_du_salaire,
         smic_horaire=contexte.smic_horaire,
     )
     if lignes_csg_ap:
