@@ -99,6 +99,7 @@ from app.modules.payroll.documents.payslip_generator import (
 )
 from app.modules.monthly_inputs.domain.rules import alertes_de_doublon_de_prime
 from app.modules.payroll.documents.saisies_du_bulletin import ranger_les_saisies
+from app.modules.payroll.documents.plafond_transport import alertes_plafond_transport
 from app.modules.schedules.domain.conflits_arret import (
     alerte_arret_sans_demande,
     alerte_arrets_contradictoires,
@@ -907,6 +908,11 @@ def process_payslip_generation_forfait(
             ecrire_colonnes_paie_du_mois(
                 supabase, employee_id, year, month, {"cumuls": new_cumuls_json}
             )
+
+        # Plafond annuel d'exonération des trajets domicile-travail : une alerte,
+        # jamais un changement du bulletin ; même fonction qu'aux heures (17/11).
+        for alerte in alertes_plafond_transport(supabase, employee_id, employee_data, year, month):
+            final_payslip_data.setdefault("alertes_baremes", []).append(alerte)
 
         from app.modules.payroll.engine.controles_convention import (
             avertissements_de_generation,

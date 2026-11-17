@@ -82,6 +82,7 @@ from app.modules.payroll.documents.pdf_du_bulletin import (
 from app.modules.payslips.domain.heures_sup import est_declaration_bulletin
 from app.modules.monthly_inputs.domain.rules import alertes_de_doublon_de_prime
 from app.modules.payroll.documents.saisies_du_bulletin import ranger_les_saisies
+from app.modules.payroll.documents.plafond_transport import alertes_plafond_transport
 from app.core.logging import get_logger, log_payroll_debug
 from app.core.paths import (
     payroll_engine_root,
@@ -1813,63 +1814,10 @@ def process_payslip_generation(
                 except Exception:
                     logger.exception("Alerte de repos compensateur non enregistrée sur le bulletin %s", payslip_id)
 
-        # Plafond annuel d'exonération des trajets domicile-travail : cumul sur
-        # l'année civile, contrôle non bloquant qui n'altère jamais le bulletin.
-        try:
-            from app.modules.payroll.engine.baremes_loader import (
-                assembler_baremes,
-                charger_db_baremes,
-            )
-            from app.modules.payroll.engine.controles_convention import (
-                controle_plafond_transport,
-            )
-
-            saisies_annee = (
-                supabase.table("monthly_inputs")
-                .select("amount, name, month")
-                .eq("employee_id", employee_id)
-                .eq("year", year)
-                .execute()
-                .data
-                or []
-            )
-
-            # Le cumul s'arrête au mois du bulletin. Sans cette borne, un mois
-            # déjà saisi mais pas encore payé était compté comme versé : sur le
-            # bulletin de juillet de salarié 146 (Colorplast), l'août saisi d'avance
-            # faisait annoncer 2 000 € versés au lieu de 1 750 €.
-            def _cumul_transport(jusqu_au_mois: int) -> float:
-                return sum(
-                    float(s.get("amount") or 0)
-                    for s in saisies_annee
-                    if "transport" in (s.get("name") or "").lower()
-                    and int(s.get("month") or 0) <= jusqu_au_mois
-                )
-
-            cumul_transport = _cumul_transport(month)
-            cumul_transport_avant = _cumul_transport(month - 1)
-            if cumul_transport > 0:
-                spec_transport = (
-                    (employee_data.get("specificites_paie") or {}).get("transport") or {}
-                )
-                abonnement = float(
-                    spec_transport.get("abonnement_mensuel_total") or 0
-                )
-                frais_pro = assembler_baremes(charger_db_baremes(supabase)).get(
-                    "frais_pro"
-                )
-                for alerte in controle_plafond_transport(
-                    cumul_transport,
-                    frais_pro,
-                    avec_abonnement_public=abonnement > 0,
-                    annee=year,
-                    cumul_mois_precedents=cumul_transport_avant,
-                ):
-                    final_payslip_data.setdefault("alertes_baremes", []).append(alerte)
-        except Exception as transport_err:
-            logger.warning(
-                f"[WARNING] contrôle plafond transport: {transport_err}"
-            )
+        # Plafond annuel d'exonération des trajets domicile-travail : une alerte,
+        # jamais un changement du bulletin ; même fonction au forfait jours.
+        for alerte in alertes_plafond_transport(supabase, employee_id, employee_data, year, month):
+            final_payslip_data.setdefault("alertes_baremes", []).append(alerte)
 
         from app.modules.payroll.engine.controles_convention import (
             avertissements_de_generation,

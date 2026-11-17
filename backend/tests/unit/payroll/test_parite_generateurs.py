@@ -86,6 +86,7 @@ COMMUNES: dict[str, dict[str, str]] = {
         "payslip_employment_period_block_reason": "pas de bulletin hors du contrat",
         "variables_du_bulletin": "les saisies du mois du bulletin",
         "saisies_du_mois": "les saisies en mémoire du bac à sable",
+        "alertes_plafond_transport": "plafond annuel des frais de transport : alerte (17/11)",
         "ranger_les_saisies": "primes, frais, participations, IJSS et acomptes saisis : une seule fonction (17/11)",
         "_stamp_source_absence_conges": "les absences validées du calendrier",
         "_heures_sup_conjoncturelles_from_monthly_inputs": "les heures sup saisies au mois",
@@ -197,9 +198,6 @@ TROUS_DU_FORFAIT: dict[str, dict[str, str]] = {
         "fin_au_depart": "mois de sortie : la fenêtre va jusqu'au départ",
         "generate_monthly_variables": "variables automatiques avant le bulletin",
         "get_company_planning_settings": "le réglage « variables automatiques avant le bulletin »",
-        "controle_plafond_transport": "plafond annuel des frais de transport : alerte",
-        "charger_db_baremes": "barèmes lus pour le plafond transport",
-        "assembler_baremes": "barèmes assemblés pour le plafond transport",
     },
     "moteur": {
         "arrets_de_l_annee": "carence payée N jours par an : les arrêts de l'année",
