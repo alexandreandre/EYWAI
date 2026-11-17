@@ -107,3 +107,16 @@ def test_un_panier_genere_sans_type_de_prime_est_non_soumis():
         {"label": "Prime d'équipe", "rule_type": "per_worked_day", "conditions": {}}
     )
     assert (social, taxable, catalog_id) == (True, True, None)
+
+
+def test_la_situation_du_repas_de_la_regle_passe_a_la_saisie():
+    from app.modules.payroll_variables.application.generate_monthly import _bonus_type_meta
+
+    *_, situation = _bonus_type_meta(
+        {
+            "label": "Panier repas",
+            "rule_type": "per_worked_day",
+            "conditions": {"situation_repas": "sur_lieu_travail"},
+        }
+    )
+    assert situation == "sur_lieu_travail"

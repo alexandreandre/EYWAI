@@ -30,6 +30,8 @@ export interface MonthlyInput {
   payroll_quantity?: number | null;
   /** 'count' : nombre d'unités (paniers) ; 'unit_value' : valeur d'une unité. */
   quantity_kind?: 'count' | 'unit_value' | null;
+  /** Où le salarié prend son repas (panier) : fixe le plafond d'exonération. */
+  situation_repas?: 'sur_lieu_travail' | 'hors_locaux_sans_restaurant' | 'hors_locaux_avec_restaurant' | null;
   /** Id catalogue (ex. "prime_partage_valeur") — déclenche les traitements dédiés du moteur (PPV…). */
   catalog_prime_id?: string | null;
   created_at: string;

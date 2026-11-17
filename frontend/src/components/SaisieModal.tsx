@@ -63,6 +63,7 @@ import { accord, pluriel } from '@/lib/pluriel';
 import { ChampDecimal } from "@/components/ChampDecimal";
 import { erreurPeriodeSaisie, libelleAvecPeriode } from '@/components/saisies/periodeSaisie';
 import { PeriodeSaisieFields } from '@/components/saisies/PeriodeSaisieFields';
+import { SITUATIONS_REPAS, SITUATION_REPAS_PAR_DEFAUT, type SituationRepas } from "@/lib/situationsRepas";
 
 // --- Types & Interfaces ---
 interface Employee {
@@ -95,6 +96,7 @@ const initialState = {
   is_socially_taxed: true,
   is_taxable: true,
   nombre: "" as number | "",
+  situationRepas: SITUATION_REPAS_PAR_DEFAUT as SituationRepas,
 };
 
 /** Panier ou repas : le nombre d'unités compte pour l'exonération. */
@@ -351,6 +353,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
       ...(estUnPanier(formData.name) && typeof formData.nombre === "number" && formData.nombre > 0
         ? { payroll_quantity: formData.nombre, quantity_kind: "count" as const }
         : {}),
+      ...(estUnPanier(formData.name) ? { situation_repas: formData.situationRepas } : {}),
       year: currentYear,
       month: currentMonth,
     }));
@@ -764,6 +767,18 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                       Le montant est le total du mois. Martine exonère chaque panier jusqu’au plafond de
                       l’Urssaf : sans le nombre, le total compte pour un seul repas.
                     </p>
+                    <Label htmlFor="situation_repas" className="mt-2">Où le salarié prend son repas</Label>
+                    <select
+                      id="situation_repas"
+                      data-testid="situation-repas"
+                      className="h-10 rounded-md border bg-background px-3 text-sm"
+                      value={formData.situationRepas}
+                      onChange={(e) => setFormData(p => ({ ...p, situationRepas: e.target.value as SituationRepas }))}
+                    >
+                      {SITUATIONS_REPAS.map((s) => (
+                        <option key={s.valeur} value={s.valeur}>{s.libelle}</option>
+                      ))}
+                    </select>
                   </div>
                 )}
                 <div className="flex flex-col gap-2 rounded-md border border-dashed p-3 sm:flex-row sm:items-end">

@@ -47,6 +47,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { accord, pluriel } from '@/lib/pluriel';
 import { REGLES_SANS_MONTANT, RULE_TYPE_LABELS } from '@/features/company/lib/reglesVariables';
 import { useEmployeesSummaryQuery } from '@/hooks/queries/useEmployeesQuery';
+import { SITUATIONS_REPAS, SITUATION_REPAS_PAR_DEFAUT } from '@/lib/situationsRepas';
 
 const NOMS_MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
@@ -292,6 +293,12 @@ export default function PayrollVariableRulesCard() {
           throw new Error('Cochez au moins un salarié, ou choisissez « Tous les salariés ».');
         }
         conditions = { ...conditions, employee_ids: draft.conditions?.employee_ids };
+      }
+      if (/panier|repas/i.test(draft.label ?? '')) {
+        conditions = {
+          ...conditions,
+          situation_repas: draft.conditions?.situation_repas ?? SITUATION_REPAS_PAR_DEFAUT,
+        };
       }
       const ruleAmount = noAmountRule
         ? null
@@ -946,6 +953,28 @@ export default function PayrollVariableRulesCard() {
                     })
                   }
                 />
+              </div>
+            )}
+
+            {/panier|repas/i.test(draft.label ?? '') && (
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="regle-situation-repas">Où le salarié prend son repas</Label>
+                <select
+                  id="regle-situation-repas"
+                  data-testid="regle-situation-repas"
+                  className="h-10 max-w-md rounded-md border bg-background px-3 text-sm"
+                  value={(draft.conditions?.situation_repas as string | undefined) ?? SITUATION_REPAS_PAR_DEFAUT}
+                  onChange={(e) =>
+                    setDraft({ ...draft, conditions: { ...draft.conditions, situation_repas: e.target.value } })
+                  }
+                >
+                  {SITUATIONS_REPAS.map((s) => (
+                    <option key={s.valeur} value={s.valeur}>{s.libelle}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Au-delà de ce plafond par panier, Martine ajoute seule la ligne « Réintégration panier », soumise à cotisations.
+                </p>
               </div>
             )}
 

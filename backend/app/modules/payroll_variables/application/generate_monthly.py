@@ -417,7 +417,7 @@ def _bonus_type_meta(
             taxable = bool(row.get("soumise_a_impot", True))
             raw_export = row.get("export_code")
             export_code = str(raw_export) if raw_export else None
-            raw_situation = row.get("situation_repas")
+            raw_situation = row.get("situation_repas") or conditions.get("situation_repas")
             situation_repas = str(raw_situation) if raw_situation else None
             if not catalog_id:
                 low = libelle.lower()
@@ -430,6 +430,8 @@ def _bonus_type_meta(
         low = label.lower()
         if "panier" in low or "repas" in low:
             catalog_id = "indemnite_panier_repas"
+    if conditions.get("situation_repas"):
+        situation_repas = str(conditions["situation_repas"])
     if catalog_id == "indemnite_panier_repas":
         # Un panier est un frais : non soumis, exonéré par panier jusqu'au
         # plafond Urssaf, l'excédent réintégré par le bulletin. Soumis, il

@@ -36,6 +36,11 @@ class MonthlyInput(BaseModel):
     # plafond ; sans lui, un total du mois compte pour un seul repas.
     payroll_quantity: Optional[float] = None
     quantity_kind: Optional[Literal["count", "unit_value"]] = None
+    # Où le salarié prend son repas (panier) : fixe le plafond d'exonération
+    # (7,50 € sur le lieu de travail). Non précisé : le plafond le plus haut.
+    situation_repas: Optional[
+        Literal["sur_lieu_travail", "hors_locaux_sans_restaurant", "hors_locaux_avec_restaurant"]
+    ] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

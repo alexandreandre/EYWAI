@@ -75,7 +75,44 @@ def entree_de_frais_professionnels(row: Mapping[str, Any]) -> dict[str, Any]:
     }
     if row.get("id"):
         entree["saisie_id"] = str(row["id"])
+    # Panier : le nombre et la situation du repas fixent le plafond par panier
+    # (le moteur réintègre l'excédent, cf. reintegration_panier_plafonne).
+    if row.get("payroll_quantity") is not None:
+        entree["quantity"] = float(row["payroll_quantity"])
+    if row.get("quantity_kind"):
+        entree["quantity_kind"] = row["quantity_kind"]
+    if row.get("situation_repas"):
+        entree["situation_repas"] = row["situation_repas"]
     return entree
+
+
+def reintegration_panier_plafonne(
+    ligne: Mapping[str, Any], frais_pro: Mapping[str, Any] | None
+) -> float:
+    """Part d'un panier au-delà du plafond Urssaf, à réintégrer au brut.
+
+    Seulement quand la situation du repas est déclarée sur la saisie (7,50 € sur
+    le lieu de travail en 2026) : sans elle, rien ne change (le plafond le plus
+    haut ne se devine pas, cf. migration 20260803091000).
+    """
+    from app.modules.payroll.engine.calcul_frais import (
+        exoneration_repas,
+        valeur_unitaire,
+    )
+
+    situation = ligne.get("situation_repas")
+    texte = f"{ligne.get('prime_id') or ''} {ligne.get('libelle') or ''}".lower()
+    if not situation or not ("panier" in texte or "repas" in texte):
+        return 0.0
+    montant = float(ligne.get("montant") or 0.0)
+    if montant <= 0:
+        return 0.0
+    plafond = exoneration_repas(frais_pro, "repas", situation=str(situation))
+    if plafond is None:
+        return 0.0
+    unite = valeur_unitaire(montant, ligne.get("quantity"), ligne.get("quantity_kind"))
+    nombre = max(1, round(montant / unite)) if unite > 0 else 1
+    return round(max(0.0, montant - plafond * nombre), 2)
 
 
 def ligne_de_frais_professionnels(saisie: Mapping[str, Any]) -> dict[str, Any] | None:

@@ -85,7 +85,10 @@ from .payslip_run_common import (
 )
 from app.modules.payroll.engine.activite_partielle import heures_et_taux
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
-from app.modules.payroll.engine.frais_professionnels import ligne_de_frais_professionnels
+from app.modules.payroll.engine.frais_professionnels import (
+    ligne_de_frais_professionnels,
+    reintegration_panier_plafonne,
+)
 from app.modules.payroll.engine.ppv import classer_ppv, est_une_ppv
 from app.modules.payroll.documents.ppv_donnees import CLE_SAISIES as CLE_SAISIES_PPV
 
@@ -916,6 +919,18 @@ def run_payslip_generation_heures(
             # indemnité forfaitaire) : versé au net, hors montant net social.
             ligne_frais = ligne_de_frais_professionnels(saisie)
             if ligne_frais is not None:
+                reint_panier = reintegration_panier_plafonne(
+                    saisie, contexte.baremes.get("frais_pro")
+                )
+                if reint_panier > 0:
+                    ligne_frais["montant"] = round(ligne_frais["montant"] - reint_panier, 2)
+                    primes_soumises.append(
+                        {
+                            "libelle": f"Réintégration panier {ligne_frais['libelle']}",
+                            "montant": reint_panier,
+                            "prime_id": "reintegration_panier",
+                        }
+                    )
                 primes_non_soumises.append(ligne_frais)
                 continue
             prime_id = (

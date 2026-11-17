@@ -351,13 +351,22 @@ def entree_de_frais_non_soumis(row: dict, company_data: dict) -> dict:
     paramètre entreprise `paniers_non_soumis_dans_mns`.
     """
     if (company_data.get("settings") or {}).get("paniers_non_soumis_dans_mns") and _is_panier_input(row):
-        return {
+        entree = {
             "prime_id": row.get("catalog_prime_id") or row["name"].replace(" ", "_").lower(),
             "libelle": row["name"],
             "montant": float(row["amount"]),
             "soumise_a_cotisations": False,
             "soumise_a_impot": False,
         }
+        # Le moteur exonère panier par panier : sans le nombre, un total du
+        # mois comptait pour un seul repas (et l'excédent était réintégré).
+        if row.get("payroll_quantity") is not None:
+            entree["quantity"] = float(row["payroll_quantity"])
+        if row.get("quantity_kind"):
+            entree["quantity_kind"] = row["quantity_kind"]
+        if row.get("situation_repas"):
+            entree["situation_repas"] = row["situation_repas"]
+        return entree
     # Ligne à son libellé, ajoutée au net à payer, hors brut, hors cotisations et
     # hors montant net social (vidéo G, 11/10/2026, D1).
     return entree_de_frais_professionnels(row)
