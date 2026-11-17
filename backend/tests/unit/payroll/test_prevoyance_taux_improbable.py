@@ -83,3 +83,18 @@ def test_taux_en_fraction_ne_sont_pas_signales(statut):
 def test_seuils_inclus_ne_sont_pas_signales():
     _, alertes = _alertes("Cadre", [_ligne("Prévoyance", 0.10, 0.10, 0.20)])
     assert alertes == []
+
+
+def test_une_ligne_sans_aucun_taux_est_dite():
+    """Audit du 17/11 : sans taux, la ligne disparaissait du bulletin sans un mot."""
+    from app.modules.payroll.engine.calcul_cotisations import alertes_taux_prevoyance
+
+    alertes = alertes_taux_prevoyance([{"libelle": "Prévoyance TA", "base": "brut_plafonne"}])
+    assert [a["code"] for a in alertes] == ["prevoyance_sans_taux"]
+    assert "« Prévoyance TA » sans taux" in alertes[0]["message"]
+
+
+def test_un_taux_a_zero_d_un_cote_n_est_pas_un_oubli():
+    from app.modules.payroll.engine.calcul_cotisations import alertes_taux_prevoyance
+
+    assert alertes_taux_prevoyance([{"libelle": "Prévoyance", "salarial": 0, "patronal": 0.0075}]) == []

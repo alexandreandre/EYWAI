@@ -764,6 +764,20 @@ def alertes_taux_prevoyance(lignes: Any) -> List[Dict[str, Any]]:
     for ligne in lignes if isinstance(lignes, list) else []:
         if not isinstance(ligne, dict):
             continue
+        if all(ligne.get(cle) in (None, "") for cle in ("salarial", "patronal")):
+            # Sans aucun taux, la ligne disparaissait du bulletin sans un mot (audit du 17/11).
+            libelle = str(ligne.get("libelle") or "").strip() or "sans libellé"
+            alertes.append({
+                "code": "prevoyance_sans_taux",
+                "critique": False,
+                "severity": "warning",
+                "message": (
+                    f"Ligne de prévoyance « {libelle} » sans taux sur la fiche : elle n'apparaît "
+                    "pas sur le bulletin. Saisissez ses taux salarial et patronal sur la fiche."
+                ),
+                "donnee_non_officielle": False,
+            })
+            continue
         parts = []
         for cle, seuil, nom in SEUILS_TAUX_PREVOYANCE:
             try:
