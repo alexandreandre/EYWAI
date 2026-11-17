@@ -8,6 +8,16 @@ from typing import Any, Optional
 from app.core.database import get_supabase_client
 
 
+def _signaler_lecture_ratee() -> None:
+    """Une lecture ratée n'est pas « pas de règles » : le journal et le bulletin le disent."""
+    import logging
+
+    from app.modules.payroll.engine.replis import CODE_REPLI_CONVENTION, noter_repli
+
+    logging.getLogger(__name__).warning("Règles de convention collective non lues", exc_info=True)
+    noter_repli(CODE_REPLI_CONVENTION)
+
+
 class CCRulesRepository:
     """Accès Supabase pour les règles CC paie."""
 
@@ -25,6 +35,7 @@ class CCRulesRepository:
             )
             return response.data if response and response.data else None
         except Exception:
+            _signaler_lecture_ratee()
             return None
 
     def get_rules_by_agreement_id(self, agreement_id: str) -> Optional[dict[str, Any]]:
@@ -38,6 +49,7 @@ class CCRulesRepository:
             )
             return response.data if response and response.data else None
         except Exception:
+            _signaler_lecture_ratee()
             return None
 
     def upsert_rules(
@@ -165,6 +177,7 @@ class CCRulesRepository:
             )
             return response.data if response and response.data else None
         except Exception:
+            _signaler_lecture_ratee()
             return None
 
     def list_all_active_catalog(self) -> list[dict[str, Any]]:

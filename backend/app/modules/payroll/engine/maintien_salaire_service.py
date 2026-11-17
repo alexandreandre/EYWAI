@@ -1241,11 +1241,15 @@ def _calculer_maintien_employeur(
 
             taux_horaire_base = _get_salaire_horaire_base(contexte, duree_hebdo)
         except Exception:
-            taux_horaire_base = (
-                salaire_mensuel / lc.DIVISEUR_JOURS_CALENDAIRES
-                if salaire_mensuel
-                else 0.0
-            )
+            # Le repli prenait salaire ÷ 30,42 (un montant par JOUR) pour un taux
+            # horaire, multiplié ensuite par 7 h : un maintien sept fois trop fort,
+            # sans signal. Même règle que la base des jours ouvrés plus bas : 0 €
+            # et l'alerte sur le bulletin.
+            from app.modules.payroll.engine.replis import CODE_REPLI_TAUX_MAINTIEN, signaler_repli
+
+            logger.warning("Taux horaire du maintien illisible : maintien en jours ouvrés à 0 €", exc_info=True)
+            signaler_repli(contexte, CODE_REPLI_TAUX_MAINTIEN)
+            taux_horaire_base = 0.0
         # L'absence est retenue à l'horaire réel du mois (R-381) : la journée
         # maintenue se valorise au même taux.
         taux_horaire_base *= float(getattr(contexte, "coefficient_horaire_reel", 1.0) or 1.0)
@@ -1805,6 +1809,10 @@ def _heures_sup_structurelles_par_jour(
             return 0.0, 0.0
         majoration = _taux_majoration_hs(contexte, 0) or 0.0
     except Exception:
+        from app.modules.payroll.engine.replis import CODE_REPLI_HS_MAINTIEN, signaler_repli
+
+        logger.warning("Heures sup structurelles du maintien illisibles", exc_info=True)
+        signaler_repli(contexte, CODE_REPLI_HS_MAINTIEN)
         return 0.0, 0.0
     return heures_mois / jours_legaux, majoration
 

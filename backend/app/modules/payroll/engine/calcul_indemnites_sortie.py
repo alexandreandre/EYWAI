@@ -259,6 +259,9 @@ def _rythme_des_conges(employee_data: Dict[str, Any]) -> tuple[float, int]:
             )
         except Exception:
             logger.warning("Politique de congés illisible (%s)", company_id, exc_info=True)
+            from app.modules.payroll.engine.replis import CODE_REPLI_REGLAGES_CONGES, noter_repli
+
+            noter_repli(CODE_REPLI_REGLAGES_CONGES)
     return 2.5, 6
 
 
@@ -923,7 +926,10 @@ def calculer_indemnite_conges_restants(
 
             start_month = get_leave_policy(str(company_id)).cp_reference_period_start_month
         except Exception:
-            pass
+            logger.warning("Politique de congés illisible (%s)", company_id, exc_info=True)
+            from app.modules.payroll.engine.replis import CODE_REPLI_REGLAGES_CONGES, noter_repli
+
+            noter_repli(CODE_REPLI_REGLAGES_CONGES)
 
     ref_rem = None
     if employee_id and supabase_client:

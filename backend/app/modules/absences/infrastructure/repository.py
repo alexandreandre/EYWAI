@@ -66,6 +66,10 @@ def _with_planning_conges_payes(
             "Congés payés du planning ignorés pour le calcul des soldes",
             exc_info=True,
         )
+        # Pendant un bulletin, l'alerte y est posée ; ailleurs, rien ne change.
+        from app.modules.payroll.engine.replis import CODE_REPLI_CONGES_PLANNING, noter_repli
+
+        noter_repli(CODE_REPLI_CONGES_PLANNING)
         return validated
 
 

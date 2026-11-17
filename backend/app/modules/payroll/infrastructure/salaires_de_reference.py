@@ -75,6 +75,9 @@ def poser_salaires_de_reference(arret_data: dict[str, Any], employee_id: Any) ->
             employee_id,
             exc_info=True,
         )
+        from app.modules.payroll.engine.replis import CODE_REPLI_BRUTS_IJSS, noter_repli
+
+        noter_repli(CODE_REPLI_BRUTS_IJSS)
 
 
 __all__ = [

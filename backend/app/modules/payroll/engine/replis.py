@@ -49,6 +49,9 @@ CODE_REPLI_RETENUES_A_RECALCULER = "repli_retenues_a_recalculer"
 CODE_REPLI_RESTE_DU = "repli_reste_du_non_mis_a_jour"
 CODE_REPLI_TAUX_MAINTIEN = "repli_taux_horaire_maintien"
 CODE_REPLI_REPOS_COMPENSATEUR = "repli_repos_compensateur"
+CODE_REPLI_HS_MAINTIEN = "repli_heures_structurelles_maintien"
+CODE_REPLI_BRUTS_IJSS = "repli_bruts_reference_ijss"
+CODE_REPLI_CONGES_PLANNING = "repli_conges_du_planning"
 
 #: Repli de fin de CDD sans compteurs (R-249) : dit sur le bulletin, à la
 #: génération et au dossier de départ.
@@ -139,6 +142,20 @@ _MESSAGES: Dict[str, str] = {
         "Compteur de repos compensateur non recalculé après ce bulletin : le solde affiché "
         "peut être en retard d'un mois. Le prochain bulletin ou une nouvelle génération le "
         "remet à jour. À vérifier avant de valider ce bulletin."
+    ),
+    CODE_REPLI_HS_MAINTIEN: (
+        "Heures supplémentaires structurelles non lues pour le maintien : une journée "
+        "maintenue ne restitue que la base de 35 h. À vérifier avant de valider ce bulletin."
+    ),
+    CODE_REPLI_BRUTS_IJSS: (
+        "Salaires de référence des indemnités journalières non lus : elles sont "
+        "estimées sur le salaire de base, sans les primes ni les heures des mois "
+        "d'avant l'arrêt. À vérifier avant de valider ce bulletin."
+    ),
+    CODE_REPLI_CONGES_PLANNING: (
+        "Congés payés posés au planning non lus : les soldes sont calculés sur les "
+        "seules demandes validées et peuvent être trop hauts. "
+        "À vérifier avant de valider ce bulletin."
     ),
     CODE_REPLI_PRETS: (
         "Remboursements de prêts non calculés : une erreur a empêché le calcul. "

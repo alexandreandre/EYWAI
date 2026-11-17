@@ -58,7 +58,7 @@ def test_la_fusion_garde_les_alertes_du_bulletin_sans_doublon():
 
 def test_chaque_code_a_son_message():
     codes = [v for k, v in vars(replis).items() if k.startswith("CODE_REPLI_")]
-    assert len(codes) == 22
+    assert len(codes) == 25
     for code in codes:
         message = replis.alerte_de_repli(code)["message"]
         assert "À vérifier avant de" in message
@@ -143,7 +143,10 @@ SITES = [
     ("documents/payslip_run_forfait.py", "CODE_REPLI_FORFAIT_ANCIENNETE", 1),
     ("application/heures_sur_arret.py", "CODE_REPLI_ARRETS_ILLISIBLES", 1),
     ("documents/payslip_run_heures.py", "CODE_REPLI_ARRETS_ILLISIBLES", 1),
-    ("engine/maintien_salaire_service.py", "CODE_REPLI_TAUX_MAINTIEN", 1),
+    ("engine/maintien_salaire_service.py", "CODE_REPLI_TAUX_MAINTIEN", 2),
+    ("engine/maintien_salaire_service.py", "CODE_REPLI_HS_MAINTIEN", 1),
+    ("infrastructure/salaires_de_reference.py", "CODE_REPLI_BRUTS_IJSS", 1),
+    ("engine/calcul_indemnites_sortie.py", "CODE_REPLI_REGLAGES_CONGES", 2),
 ]
 
 
