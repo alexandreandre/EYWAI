@@ -216,6 +216,9 @@ def _plafond_du_mois(e: dict[str, Any]) -> tuple[float | None, float | None]:
 #: Jours sans heures dues : seules les heures faites y comptent.
 _TYPES_SANS_HEURES_DUES = frozenset({"", "weekend", "repos"})
 
+#: Jours payés sans être chômés : ils restent dus au salaire, hors activité partielle.
+_TYPES_PAYES_NON_CHOMES = frozenset({"ferie", "conges_payes", "conge", "rtt", "ecole"})
+
 
 def _sortie(e: dict[str, Any]) -> Any:
     """La sortie comme les générateurs la lisent (déjà posée sur leur fiche)."""
@@ -260,7 +263,7 @@ def _heures_hors_chomage(
             fait = min(1.0, fait) * 7
             prevues = (prevues if prevues <= 1 else 1.0) * 7 if prevues > 0 else 0.0
         if type_ == TYPE_JOUR or type_ in _TYPES_SANS_HEURES_DUES:
-            total += min(fait, par_jour) if type_ == TYPE_JOUR else 0.0
+            total += min(fait, par_jour)
         elif type_ == "travail":
             total += prevues or min(fait, par_jour)
         else:
@@ -272,21 +275,41 @@ def _heures_hors_chomage(
     return round(total, 2)
 
 
-def _sous_contrat_toute_la_periode(e: dict[str, Any], debut: date, fin: date) -> bool:
+def _sous_contrat_toute_la_periode(
+    e: dict[str, Any], debut: date, fin: date, year: int, month: int
+) -> bool:
+    """Ni entré ni sorti pendant la période ou le mois de paie : une sortie
+    dans le mois proratise le salaire, même quand la fenêtre a été repoussée
+    jusqu'au jour de sortie (`fin_au_depart`)."""
     from app.modules.payroll.application.planning_apres_sortie import date_de_sortie
 
+    premier = date(year, month, 1)
+    dernier = date(year, month, calendar.monthrange(year, month)[1])
     embauche = date_de_sortie(e.get("hire_date"))
     sortie = date_de_sortie(_sortie(e))
-    return not ((embauche and embauche > debut) or (sortie and sortie < fin))
+    return not (
+        (embauche and embauche > min(debut, premier))
+        or (sortie and sortie < max(fin, dernier))
+    )
 
 
-def _chaque_jour_ouvre_est_chome(
-    prevu: list, debut: date, fin: date, year: int, month: int
+def _rien_de_travaille(
+    e: dict[str, Any],
+    prevu: list,
+    reel: list,
+    debut: date,
+    fin: date,
+    year: int,
+    month: int,
 ) -> bool:
-    """Chaque jour du lundi au vendredi de la période est au calendrier, en
-    activité partielle ou sans heures dues : un jour absent du calendrier ne
-    dit pas qu'il était chômé (la période ne se retient pas en entier)."""
-    types: dict[date, str] = {}
+    """Aucune heure faite, et chaque jour du lundi au vendredi de la période
+    est au calendrier : en activité partielle, sans heures dues, ou payé sans
+    être chômé (congé, férié) avec ses heures connues. Un jour absent du
+    calendrier ne dit pas qu'il était chômé."""
+    if any(_nombre(j.get("heures_faites")) > 0 for j in reel if j.get("jour")):
+        return False
+    temps_plein = bool(e.get("is_forfait_jour")) or _nombre(e.get("duree_hebdomadaire") or 35) >= 35
+    jours: dict[date, dict[str, Any]] = {}
     for j in prevu:
         if not j.get("jour"):
             continue
@@ -294,15 +317,19 @@ def _chaque_jour_ouvre_est_chome(
             quand = date(int(j.get("annee") or year), int(j.get("mois") or month), int(j["jour"]))
         except (TypeError, ValueError):
             continue
-        types[quand] = str(j.get("type") or "")
+        jours[quand] = j
     jour = debut
     while jour <= fin:
         if jour.weekday() < 5:
-            type_ = types.get(jour)
-            if type_ is None or (type_ != TYPE_JOUR and type_ not in _TYPES_SANS_HEURES_DUES):
+            j = jours.get(jour)
+            type_ = None if j is None else str(j.get("type") or "")
+            if type_ in _TYPES_PAYES_NON_CHOMES:
+                if not (_nombre(j.get("heures_prevues")) > 0 or temps_plein):
+                    return False
+            elif type_ is None or (type_ != TYPE_JOUR and type_ not in _TYPES_SANS_HEURES_DUES):
                 return False
         jour += timedelta(days=1)
-    return any(t == TYPE_JOUR for t in types.values())
+    return any(str(j.get("type") or "") == TYPE_JOUR for j in jours.values())
 
 
 def _plafond_de_la_periode(
@@ -328,18 +355,22 @@ def _plafond_de_la_periode(
     - Période décalée (semaines entières) : sa durée est celle des jours
       qu'elle compte, les jours chômés comptent un par un.
     """
-    if not _sous_contrat_toute_la_periode(e, debut, fin):
+    if not _sous_contrat_toute_la_periode(e, debut, fin, year, month):
         return {}
     reference, salaire = _plafond_du_mois(e)
     autres = _heures_hors_chomage(e, reglage, prevu, reel, year, month)
+    sans_travail = _rien_de_travaille(e, prevu, reel, debut, fin, year, month)
     bornes: dict[str, Any] = {
         "salaire": salaire,
-        "tout_chome": autres <= 0 and _chaque_jour_ouvre_est_chome(prevu, debut, fin, year, month),
+        "tout_chome": autres <= 0 and sans_travail,
     }
     dernier = date(year, month, calendar.monthrange(year, month)[1])
     if reference and (debut, fin) == (date(year, month, 1), dernier):
         bornes["heures_max"] = max(0.0, round(reference - autres, 2))
-        bornes["heures_si_tout_chome"] = reference
+        # Rien de travaillé : la durée du mois moins les jours payés (fériés,
+        # congés), quel que soit le nombre de jours ouvrés du mois.
+        bornes["heures_si_tout_chome"] = bornes["heures_max"]
+        bornes["sans_travail"] = sans_travail
     return bornes
 
 
@@ -348,7 +379,7 @@ def _plafond_de_la_saisie(e: dict[str, Any], year: int, month: int) -> dict[str,
     salaire, seulement pour un salarié sous contrat tout le mois."""
     debut = date(year, month, 1)
     fin = date(year, month, calendar.monthrange(year, month)[1])
-    if not _sous_contrat_toute_la_periode(e, debut, fin):
+    if not _sous_contrat_toute_la_periode(e, debut, fin, year, month):
         return {}
     reference, salaire = _plafond_du_mois(e)
     return {"heures_max": reference, "salaire": salaire}
@@ -434,7 +465,8 @@ def _deux_lignes(c: Any) -> list[dict[str, Any]]:
             "description": f"{c.heures_chomees:g} h × {c.taux_horaire:.2f} €"
             + (
                 " (ramenée au salaire du mois)"
-                if abs(c.retenue - round(c.heures_chomees * c.taux_horaire, 2)) > 0.01
+                # Au-delà de l'arrondi du taux horaire affiché.
+                if abs(c.retenue - round(c.heures_chomees * c.taux_horaire, 2)) > 0.5
                 else ""
             ),
             "amount": -c.retenue,

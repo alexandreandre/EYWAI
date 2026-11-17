@@ -585,3 +585,68 @@ def test_la_dsn_porte_les_heures_du_bulletin_en_fevrier(base):
     prevu = _calendrier(2026, 2, date(2026, 2, 1), date(2026, 2, 28))
     jours = svc.jours_chomes_des_bulletins("co", 2026, 2, [employe], {"e1": (prevu, [])})["e1"]
     assert round(sum(h for _, h in jours), 2) == 151.67
+
+
+# --- Troisième relecture du 17/11 : férié ou congé dans un mois chômé, sortie
+# après une fenêtre décalée, mention d'arrondi, heures faites un jour de repos. ---
+
+TAUX_2166 = 2166.67 / (35 * 52 / 12)
+
+
+def test_mois_chome_avec_un_ferie_retient_le_mois_moins_le_ferie(base):
+    employe = base.tables["employees"][0]
+    prevu = _calendrier(
+        2026, 11, date(2026, 11, 1), date(2026, 11, 30), autres={date(2026, 11, 11): ("ferie", None)}
+    )
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 11, prevu, [], [])
+    retenue, indemnite = _deux(saisies)
+    # 151,67 h − 7 h fériées, pas les 20 jours chômés (140 h).
+    assert retenue["payroll_quantity"] == 144.67 and indemnite["payroll_quantity"] == 144.67
+    assert retenue["amount"] == pytest.approx(-144.67 * TAUX_2166, abs=0.01)
+    jours = svc.jours_chomes_des_bulletins("co", 2026, 11, [employe], {"e1": (prevu, [])})["e1"]
+    assert round(sum(h for _, h in jours), 2) == 144.67
+
+
+def test_fevrier_chome_avec_un_conge_retient_le_mois_moins_le_conge(base):
+    employe = base.tables["employees"][0]
+    prevu = _calendrier(
+        2026, 2, date(2026, 2, 1), date(2026, 2, 28), autres={date(2026, 2, 2): ("conges_payes", 7.0)}
+    )
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 2, prevu, [], [])
+    retenue, _ = _deux(saisies)
+    assert retenue["payroll_quantity"] == 144.67
+
+
+def test_sortie_apres_une_fenetre_decalee_ne_retient_pas_le_salaire_entier(base):
+    # Fenêtre arrêtée au 21/11, repoussée jusqu'à la sortie du 25/11 (fin_au_depart) :
+    # le bulletin est proratisé, la retenue n'est pas ramenée au salaire de la fiche.
+    employe = {**base.tables["employees"][0], "contract_end_date": "2026-11-25"}
+    debut, fin = date(2026, 10, 22), date(2026, 11, 25)
+    prevu = _calendrier(2026, 11, debut, fin)
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 11, prevu, [], [], bornes=(debut, fin))
+    retenue, _ = _deux(saisies)
+    assert retenue["payroll_quantity"] == 175.0
+    assert retenue["amount"] == pytest.approx(-175 * TAUX_2166, abs=0.01)
+
+
+def test_mois_entier_chome_sans_mention_d_arrondi(base):
+    employe = {**base.tables["employees"][0], "salaire_de_base": {"valeur": 2000.0}}
+    prevu = _calendrier(2026, 2, date(2026, 2, 1), date(2026, 2, 28))
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 2, prevu, [], [])
+    retenue, _ = _deux(saisies)
+    assert retenue["amount"] == -2000.0
+    assert "ramenée" not in retenue["description"]
+
+
+def test_heures_faites_un_jour_de_repos_ne_sont_pas_chomees(base):
+    employe = base.tables["employees"][0]
+    prevu = _calendrier(
+        2026, 11, date(2026, 11, 1), date(2026, 11, 30), autres={date(2026, 11, 30): ("repos", 0.0)}
+    )
+    reel = [{"annee": 2026, "mois": 11, "jour": 30, "heures_faites": 7.0}]
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 11, prevu, reel, [])
+    retenue, _ = _deux(saisies)
+    # 20 jours chômés (140 h) : le jour de repos travaillé n'est ni chômé ni
+    # « rien de travaillé » ; le mois n'est pas retenu en entier (151,67 h avant).
+    assert retenue["payroll_quantity"] == 140.0
+    assert retenue["amount"] == pytest.approx(-140 * TAUX_2166, abs=0.01)
