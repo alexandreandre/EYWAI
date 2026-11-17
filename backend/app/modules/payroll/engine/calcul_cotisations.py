@@ -315,6 +315,12 @@ def ratio_plafond_periode(
         if not (debut_arret and fin_arret):
             continue
         jour_arret = max(debut_arret, date_debut)
+        # Premier mois après une reprise : les jours de l'arrêt traités par
+        # l'ancien logiciel (période du forfait qui déborde sur le mois repris)
+        # ne réduisent pas le plafond du mois.
+        fin_reprise = getattr(contexte, "fin_de_la_reprise", None)
+        if fin_reprise and jour_arret <= fin_reprise:
+            jour_arret = fin_reprise + timedelta(days=1)
         borne = min(fin_arret, date_fin)
         while jour_arret <= borne:
             absents.add(jour_arret)

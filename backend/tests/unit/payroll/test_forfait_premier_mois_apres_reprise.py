@@ -104,3 +104,51 @@ def test_hors_premier_mois_rien_ne_change():
         _contexte(None), _ouvres("travail_base"), DEBUT, FIN, []
     )
     assert sans["salaire_brut_total"] == pytest.approx(3608.0, abs=0.01)
+
+
+def test_un_arret_a_cheval_ne_baisse_pas_le_plafond_pour_les_jours_repris():
+    """Relecture B1 : les dates réelles de l'arrêt (15/09 → 09/10) faisaient
+    compter absents les 21 au 30/09 ; le plafond tombait de 0,97 à 0,71."""
+    from app.modules.payroll.engine.calcul_cotisations import ratio_plafond_periode
+
+    calendrier = absences_hors_reprise(
+        _ouvres(
+            "arret_maladie",
+            jusqu_au=date(2026, 10, 9),
+            arret_type="maladie",
+            date_debut_arret_reel="2026-09-15",
+            date_fin_arret_reel="2026-10-09",
+        ),
+        FIN_REPRISE,
+    )
+    avec = ratio_plafond_periode(calendrier, DEBUT, FIN, _contexte())
+    sans_septembre = ratio_plafond_periode(
+        [j for j in calendrier if j["date_complete"] >= "2026-10-01"], DEBUT, FIN, _contexte(None)
+    )
+    # Seuls les jours d'octobre de l'arrêt (01 → 09/10) réduisent le plafond.
+    assert avec == pytest.approx(1 - 9 / 35, abs=0.001)
+    assert avec >= sans_septembre - 1e-9
+
+
+def test_un_arret_sans_dates_reelles_garde_son_debut_d_avant_la_bascule():
+    """Anciens calendriers sans dates réelles : le premier jour gardé recevrait
+    la carence une seconde fois ; il reçoit le premier jour retiré."""
+    calendrier = absences_hors_reprise(
+        _ouvres("arret_maladie", jusqu_au=date(2026, 10, 9), arret_type="maladie"), FIN_REPRISE
+    )
+    premier = min(calendrier, key=lambda j: j["date_complete"])
+    assert premier["date_complete"] == "2026-10-01"
+    assert premier["date_debut_arret_reel"] == "2026-09-21"
+    arret = _extraire_arret_pour_maintien(
+        calendrier, _contexte(), debut_apres_la_reprise(DEBUT, FIN_REPRISE), FIN
+    )
+    assert arret["date_debut"] == "2026-09-21"
+
+
+def test_un_arret_qui_commence_apres_la_bascule_n_est_pas_rattache():
+    calendrier = absences_hors_reprise(
+        _ouvres("absence_non_remuneree", jusqu_au=date(2026, 9, 25))
+        + [{"date_complete": "2026-10-12", "type": "arret_maladie", "heures": 1.0, "arret_type": "maladie"}],
+        FIN_REPRISE,
+    )
+    assert "date_debut_arret_reel" not in calendrier[0]

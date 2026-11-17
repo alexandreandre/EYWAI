@@ -108,23 +108,50 @@ def poser_le_depart_du_forfait(contexte, employee_id: str, year: int, month: int
 def absences_hors_reprise(
     evenements: List[Dict[str, Any]], fin_de_la_reprise: date | None
 ) -> List[Dict[str, Any]]:
-    """Retire les absences datées jusqu'à la fin de la reprise (déjà traitées)."""
+    """Retire les absences datées jusqu'à la fin de la reprise (déjà traitées).
+
+    Un arrêt à cheval sur la bascule garde son vrai début : sans dates réelles
+    au calendrier (anciens calendriers), son premier jour gardé recevrait la
+    carence une seconde fois ; il reçoit le premier jour retiré.
+    """
     if not fin_de_la_reprise:
         return evenements
     gardes = []
+    arrets_retires: list[date] = []
     for ev in evenements:
         try:
             jour = date.fromisoformat(str(ev.get("date_complete"))[:10])
         except ValueError:
             gardes.append(ev)
             continue
+        type_ev = str(ev.get("type") or "")
         if (
             jour <= fin_de_la_reprise
-            and _est_une_absence(str(ev.get("type") or ""))
+            and _est_une_absence(type_ev)
             and not ev.get("is_regularisation_anterieure")
         ):
+            if type_ev.startswith("arret"):
+                arrets_retires.append(jour)
             continue
         gardes.append(ev)
+    if arrets_retires and max(arrets_retires) >= fin_de_la_reprise - timedelta(days=3):
+        suite = sorted(
+            (ev for ev in gardes if str(ev.get("type") or "").startswith("arret")),
+            key=lambda ev: str(ev.get("date_complete")),
+        )
+        premier = suite[0] if suite else None
+        if (
+            premier is not None
+            and not premier.get("date_debut_arret_reel")
+            and str(premier.get("date_complete"))[:10]
+            <= (fin_de_la_reprise + timedelta(days=4)).isoformat()
+        ):
+            gardes = [
+                {**ev, "date_debut_arret_reel": min(arrets_retires).isoformat()}
+                if ev is premier
+                else ev
+                for ev in gardes
+            ]
     return gardes
 
 
