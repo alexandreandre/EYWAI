@@ -127,6 +127,11 @@ test('poser une dispense de mutuelle sur la fiche', async ({ page }) => {
   await test.step('la dispense se pose dans Modifier la fiche', async () => {
     await page.goto(`/employees/${cible!.id}?modifier=fiche`);
     const fenetre = page.getByRole('dialog');
+    // Pendant le démarrage, la page est dessinée derrière l'écran « Démarrage de Martine »,
+    // puis redessinée : la fenêtre ouverte avant la fin est remplacée (et la case cochée perdue).
+    await expect(page.getByRole('status').filter({ hasText: /Préparation de vos données/ })).toHaveCount(0, {
+      timeout: 30_000,
+    });
     await expect(fenetre).toBeVisible({ timeout: 30_000 });
     const caseDispense = fenetre.getByRole('checkbox', { name: /ne veut pas adhérer/i });
     await caseDispense.scrollIntoViewIfNeeded();
