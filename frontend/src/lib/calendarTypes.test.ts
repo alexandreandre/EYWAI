@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { editableTypeOptionsFor, reelApresChangementDeType, typesDeSaisie } from './calendarTypes';
+import { editableTypeOptionsFor, reelApresChangementDeType, saisieGroupeeDuJour, typesDeSaisie } from './calendarTypes';
 
 const valeurs = (o: { value: string }[]) => o.map((x) => x.value);
 
@@ -69,5 +69,34 @@ describe('typesDUnModeleDeSemaine', () => {
     expect(options.map((o) => o.value)).toContain('arret_maladie');
     expect(options.find((o) => o.value === 'arret_maladie')?.label).not.toBe('arret_maladie');
     expect(typesDUnModeleDeSemaine('travail')).toHaveLength(3);
+  });
+});
+
+describe('saisieGroupeeDuJour : la saisie groupée suit la règle de la case du jour', () => {
+  it('un jour d\'activité partielle repassé en Travail : réel à saisir', () => {
+    expect(saisieGroupeeDuJour({ type: 'travail' }, 'activite_partielle')).toEqual({
+      type: 'travail',
+      heures_faites: null,
+    });
+  });
+  it('un jour déjà en Travail : réel inchangé', () => {
+    expect(saisieGroupeeDuJour({ type: 'travail' }, 'travail')).toEqual({ type: 'travail' });
+  });
+  it('un jour passé en congé : réel à 0', () => {
+    expect(saisieGroupeeDuJour({ type: 'conges_payes' }, 'travail')).toEqual({
+      type: 'conges_payes',
+      heures_faites: 0,
+    });
+  });
+  it('le réel saisi dans le panneau l\'emporte', () => {
+    expect(saisieGroupeeDuJour({ type: 'travail', heures_faites: 3.5 }, 'activite_partielle')).toEqual({
+      type: 'travail',
+      heures_faites: 3.5,
+    });
+  });
+  it('sans type, rien ne change', () => {
+    expect(saisieGroupeeDuJour({ heures_prevues: 7 } as { type?: string; heures_prevues: number }, 'repos')).toEqual({
+      heures_prevues: 7,
+    });
   });
 });

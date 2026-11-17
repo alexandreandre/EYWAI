@@ -9,6 +9,7 @@ import * as calendarApi from '@/api/calendar';
 import { DayData } from '@/components/ScheduleModal';
 import { isForfaitJour } from '@/utils/employeeUtils';
 import { applyHolidayHints } from '@/lib/companyCalendarHolidays';
+import { saisieGroupeeDuJour } from '@/lib/calendarTypes';
 import {
   aDesHeuresPointees,
   computeMonthCompletionStatus,
@@ -642,7 +643,8 @@ export function useCalendar(
     if (!context.active || !isMonthDataReady || selectedDays.length === 0) return;
 
     selectedDays.forEach((dayNumber) => {
-      updateDayData({ jour: dayNumber, ...updateData });
+      const ancienType = plannedCalendar.find((p) => p.jour === dayNumber)?.type;
+      updateDayData({ jour: dayNumber, ...saisieGroupeeDuJour(updateData, ancienType) });
     });
 
     toast({
