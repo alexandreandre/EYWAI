@@ -203,7 +203,7 @@ export default function PunchAccountingSettingsCard() {
         </CardTitle>
         <CardDescription>
           Grilles horaires, tolérance et validation des heures supplémentaires détectées au pointage.
-                  {' '}Chaque champ s'enregistre quand vous quittez la case (un message le confirme).
+          {' '}Chaque champ s'enregistre quand vous quittez la case (un message le confirme).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
