@@ -74,3 +74,60 @@ def employee_matches_conditions(
     if min_productivity is not None:
         pass
     return True
+
+
+#: Conditions propres à chaque type de règle. Toute autre clé (salariés visés,
+#: situation du repas, code d'export, prime du catalogue, statuts) vaut pour
+#: tous les types et reste.
+CONDITIONS_PROPRES: dict[str, frozenset[str]] = {
+    "per_astreinte_weekend_km": frozenset(
+        {
+            "km_free_threshold_one_way",
+            "round_trip_multiplier",
+            "requires_astreinte",
+            "requires_weekend_work",
+            "astreinte_link_mode",
+            "quantity_mode",
+            "rate_mode",
+            "vehicle_type_default",
+            "manual_trips_input_name",
+            "weekend_weekday_numbers",
+        }
+    ),
+    "per_astreinte_week_tiered": frozenset(
+        {
+            "amount_normal",
+            "amount_christmas",
+            "amount_bridge",
+            "christmas_mode",
+            "bridge_mode",
+            "christmas_detection",
+            "bridge_requires_astreinte_on_day",
+        }
+    ),
+    "per_astreinte_weekend_majoration": frozenset(
+        {
+            "weekday_rates",
+            "min_hours",
+            "flat_hours",
+            "requires_astreinte_same_iso_week",
+            "weekend_weekday_numbers",
+        }
+    ),
+    "per_week_without_absence": frozenset(
+        {"absence_types", "amount_per_week", "min_locked_shifts_per_week", "workflow_steps"}
+    ),
+    "per_shift_type": frozenset({"shift_type_codes"}),
+    "per_worked_day": frozenset({"min_heures"}),
+    "per_modulation_payout": frozenset({"min_balance_hours"}),
+}
+
+
+def conditions_du_type(rule_type: str, conditions: dict[str, Any] | None) -> dict[str, Any]:
+    """Les conditions qu'une règle de ce type peut porter (Lyon, 17/11/2026 :
+    une « indemnité transport » en montant fixe gardait des conditions
+    d'astreinte d'un type choisi puis abandonné). Les clés propres aux autres
+    types sont retirées ; le choix des salariés est toujours gardé."""
+    propres = CONDITIONS_PROPRES.get(rule_type, frozenset())
+    d_autres_types = frozenset().union(*CONDITIONS_PROPRES.values()) - propres
+    return {k: v for k, v in (conditions or {}).items() if k not in d_autres_types}

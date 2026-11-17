@@ -84,3 +84,18 @@ export function formatBreakSummary(breaks: DayBreak[]): string {
   if (unpaid > 0) parts.push(`${unpaid} min repas`);
   return parts.length ? parts.join(' · ') : 'Aucune pause';
 }
+
+/** Plusieurs pauses : la colonne « Pause (min) » du modèle de semaine ne peut
+ * plus les remplacer par une seule (Lyon, 17/11/2026 : elle écrasait le
+ * détail). Elle montre le total et renvoie au détail. */
+export function aUnDetailDePauses(breaks: DayBreak[] | undefined): boolean {
+  return (breaks?.length ?? 0) > 1;
+}
+
+/** « Payée » d'un jour à plusieurs pauses : oui, non, ou en partie. */
+export function libellePausesPayees(breaks: DayBreak[]): 'Oui' | 'Non' | 'En partie' {
+  const { paid, unpaid } = computeBreakTotals(breaks);
+  if (unpaid === 0) return 'Oui';
+  if (paid === 0) return 'Non';
+  return 'En partie';
+}

@@ -103,6 +103,10 @@ export default function PlanningSettingsCard() {
   const [autoGenerate, setAutoGenerate] = useState(false);
   const [paidBreaksInBase, setPaidBreaksInBase] = useState(false);
   const [draft, setDraft] = useState<ShiftTypeCreatePayload>(emptyShiftTypeDraft());
+  // Le serveur refuse un type de poste tant que la convention du planning
+  // n'est pas ENREGISTRÉE (Lyon, 17/11 : choisie mais pas enregistrée, le
+  // formulaire s'ouvrait et l'ajout échouait sans dire pourquoi).
+  const conventionEnregistree = Boolean(settings?.collective_agreement_id);
 
   useEffect(() => {
     if (!settings) return;
@@ -330,7 +334,7 @@ export default function PlanningSettingsCard() {
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-medium">Types de poste</h4>
-            {canEdit && ccId && (
+            {canEdit && conventionEnregistree && (
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
@@ -458,7 +462,16 @@ export default function PlanningSettingsCard() {
           )}
         </div>
 
-        {canEdit && ccId && (
+        {canEdit && !conventionEnregistree && (
+          <p className="text-xs text-muted-foreground rounded-md border bg-muted/40 px-3 py-2" data-testid="types-de-poste-sans-convention">
+            Les types de poste (matin, après-midi, nuit, avec leurs pauses et paniers) servent au planning
+            d&apos;équipes et aux règles « Par type de poste » des variables de paie. Pour en ajouter :
+            choisissez la convention collective du planning ci-dessus
+            {ccId ? '' : ' (la convention de la société)'}, puis « Enregistrer les paramètres ».
+          </p>
+        )}
+
+        {canEdit && conventionEnregistree && (
           <div className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Code</Label>

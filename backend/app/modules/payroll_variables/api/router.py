@@ -14,15 +14,16 @@ from app.modules.payroll_variables.application.preset_astreinte_equipes import (
 from app.modules.payroll_variables.application.preset_shift_teams_payroll import (
     apply_shift_teams_payroll_preset,
 )
+from app.modules.payroll_variables.domain.rules import conditions_du_type
 from app.modules.payroll_variables.infrastructure import repository as repo
 from app.modules.payroll_variables.schemas.requests import (
     AstreintePresetResponse,
-    PeriodeVariablesSchema,
-    PeriodeVariablesSurcharge,
-    PeriodeVariablesUpdate,
     PayrollVariableGenerateResponse,
     PayrollVariablePreviewItem,
     PayrollVariableRuleSchema,
+    PeriodeVariablesSchema,
+    PeriodeVariablesSurcharge,
+    PeriodeVariablesUpdate,
     SpecialPayrollDaySchema,
 )
 from app.modules.users.schemas.responses import User
@@ -80,6 +81,7 @@ def create_rule(
     cid = _resolve_company_id(company_id, current_user)
     _require_rh(current_user, cid)
     data = body.model_dump(exclude={"id"}, exclude_unset=True)
+    data["conditions"] = conditions_du_type(body.rule_type, body.conditions)
     row = repo.upsert_rule(str(cid), data)
     return PayrollVariableRuleSchema(**row)
 
@@ -94,6 +96,7 @@ def update_rule(
     cid = _resolve_company_id(company_id, current_user)
     _require_rh(current_user, cid)
     data = body.model_dump(exclude={"id"}, exclude_unset=True)
+    data["conditions"] = conditions_du_type(body.rule_type, body.conditions)
     row = repo.upsert_rule(str(cid), data, rule_id=rule_id)
     return PayrollVariableRuleSchema(**row)
 
