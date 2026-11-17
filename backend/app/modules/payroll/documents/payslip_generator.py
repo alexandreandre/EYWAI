@@ -51,7 +51,6 @@ from app.modules.schedules.domain.conflits_arret import (
 )
 from app.modules.payroll.domain.report_nap_negatif import (
     CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
-    reports_du_mois,
 )
 from app.modules.payroll.engine.lectures import LectureIndispensable
 from app.modules.payroll.engine.frais_professionnels import (
@@ -81,9 +80,8 @@ from app.modules.payroll.documents.pdf_du_bulletin import (
     retirer_pdf_remplace,
 )
 from app.modules.payslips.domain.heures_sup import est_declaration_bulletin
-from app.modules.ijss_tracking.domain.saisie_ijss import est_saisie_ijss_validees
-from app.modules.monthly_inputs.domain.rules import alertes_de_doublon_de_prime, est_saisie_retiree
-from app.modules.payroll.engine.corrections_manuelles import ranger_correction_manuelle
+from app.modules.monthly_inputs.domain.rules import alertes_de_doublon_de_prime
+from app.modules.payroll.documents.saisies_du_bulletin import ranger_les_saisies
 from app.core.logging import get_logger, log_payroll_debug
 from app.core.paths import (
     payroll_engine_root,
@@ -1107,87 +1105,10 @@ def process_payslip_generation(
         if isinstance(summary, dict) and summary:
             saisies_data["shift_payroll_summary"] = summary
 
-        net_a_payer_only_correction_total = 0.0
-        reports_nap_negatif: list = []
-        for row in saisies_res.data:
-            if est_saisie_retiree(row):
-                # Prime de règle automatique retirée : gardée à 0 pour ne pas
-                # revenir, elle n'est pas une ligne du bulletin.
-                continue
-            if ranger_correction_manuelle(row, saisies_data):
-                # Régularisation de cotisation ou correction de ligne saisie depuis
-                # le bulletin : ce n'est pas une prime, le moteur la rejoue.
-                continue
-            if est_saisie_ijss_validees(row):
-                # Montant validé au suivi IJSS : les IJSS subrogées du mois, rien d'autre.
-                saisies_data["ijss_brut_override"] = abs(float(row["amount"]))
-                continue
-            if _is_heures_sup_conjoncturelle_input(row):
-                continue
-            if _is_cantine_input(row):
-                # Retenue repas : réduit MNS + net à payer, hors brut/imposable.
-                saisies_data["primes"].append({
-                    "prime_id": row.get("catalog_prime_id") or row["name"].replace(" ", "_").lower(),
-                    "libelle": row["name"],
-                    "montant": float(row["amount"]),
-                    "soumise_a_cotisations": False,
-                    "soumise_a_impot": False,
-                })
-                continue
-            if _is_net_a_payer_only_correction_input(row):
-                net_a_payer_only_correction_total += -float(row["amount"])
-                reports_nap_negatif.extend(reports_du_mois([row]))
-                continue
-            if _is_frais_pro_non_soumis_input(row):
-                saisies_data["primes"].append(entree_de_frais_non_soumis(row, company_data))
-                continue
-            if _is_ijss_override_input(row):
-                saisies_data["ijss_brut_override"] = abs(float(row["amount"]))
-                saisies_data["maintien_base_ouvree"] = True
-                continue
-            if _is_participation_pee_input(row):
-                saisies_data.setdefault("participations", []).append(
-                    {
-                        "libelle": row["name"],
-                        "brut": float(row["amount"]),
-                        "part_pee": float(row["amount"]),
-                    }
-                )
-                continue
-            if _is_participation_numeraire_input(row):
-                saisies_data.setdefault("participations", []).append(
-                    {
-                        "libelle": row["name"],
-                        "brut": float(row["amount"]),
-                    }
-                )
-                continue
-            catalog_id = row.get("catalog_prime_id")
-            prime_id = catalog_id or row["name"].replace(" ", "_").lower()
-            prime_entry = {
-                "prime_id": prime_id,
-                "libelle": row["name"],
-                "montant": row["amount"],
-                "soumise_a_cotisations": row.get("is_socially_taxed", True),
-                "soumise_a_impot": row.get("is_taxable", True),
-            }
-            if row.get("id"):
-                prime_entry["saisie_id"] = str(row["id"])
-            if row.get("export_code"):
-                prime_entry["export_code"] = row["export_code"]
-                ex = str(row["export_code"])
-                prime_entry["libelle"] = f"{row['name']} ({ex})"
-            if row.get("payroll_quantity") is not None:
-                prime_entry["quantity"] = float(row["payroll_quantity"])
-            # Sans ces deux clés, valeur_unitaire et le plafond situationnel
-            # seraient du code mort côté moteur.
-            if row.get("quantity_kind"):
-                prime_entry["quantity_kind"] = row["quantity_kind"]
-            if row.get("situation_repas"):
-                prime_entry["situation_repas"] = row["situation_repas"]
-            if catalog_id and ("panier" in str(catalog_id).lower() or "repas" in str(catalog_id).lower()):
-                prime_entry["type"] = "panier"
-            saisies_data["primes"].append(prime_entry)
+        # Une seule fonction range les saisies, pour les deux générateurs (audit du 17/11).
+        net_a_payer_only_correction_total, reports_nap_negatif = ranger_les_saisies(
+            saisies_res.data, saisies_data, company_data
+        )
 
         # Déclarées depuis le bulletin, les heures sup font foi : elles seules
         # comptent, une autre saisie d'heures du mois ne s'y ajoute pas.

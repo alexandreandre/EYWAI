@@ -104,3 +104,22 @@ def test_un_mois_entier_chome_ne_retient_pas_plus_que_le_salaire(banc, profil): 
     donnees = banc.generer(profil, jours={j: "activite_partielle" for j in ouvres})
 
     assert float(donnees.get("salaire_brut") or 0.0) >= 0.0
+
+
+PRIME_DU_CATALOGUE = {
+    "name": "Prime objectif",
+    "amount": 300.0,
+    "catalog_prime_id": "prime_objectif",
+    "export_code": "P12",
+    "is_socially_taxed": True,
+    "is_taxable": True,
+}
+
+
+@pytest.mark.parametrize("profil", PROFILS)
+def test_une_prime_du_catalogue_garde_son_code_d_export(banc, profil):  # noqa: F811
+    """17/11 : au forfait, la prime perdait son code d'export et son lien au
+    catalogue ; une seule fonction range les saisies des deux générateurs."""
+    texte = _texte(banc.generer(profil, saisies=[PRIME_DU_CATALOGUE]))
+
+    assert "Prime objectif (P12)" in texte

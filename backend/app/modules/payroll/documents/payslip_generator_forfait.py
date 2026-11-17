@@ -38,7 +38,6 @@ from app.shared.reprise_paie import (
 )
 from app.modules.payroll.domain.report_nap_negatif import (
     CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
-    reports_du_mois,
 )
 from app.modules.payroll.engine.lectures import LectureIndispensable
 from app.modules.payroll.engine.frais_professionnels import (
@@ -96,23 +95,14 @@ from app.shared.cle_du_bulletin import CONFLIT_BULLETIN
 from app.modules.payroll.documents.payslip_generator import (
     resolve_date_sortie,
     _parse_if_json_string,
-    _is_heures_sup_conjoncturelle_input,
     _heures_sup_conjoncturelles_from_monthly_inputs,
-    _is_net_a_payer_only_correction_input,
-    _is_cantine_input,
-    _is_frais_pro_non_soumis_input,
-    entree_de_frais_non_soumis,
-    _is_participation_pee_input,
-    _is_participation_numeraire_input,
-    _is_ijss_override_input,
 )
-from app.modules.ijss_tracking.domain.saisie_ijss import est_saisie_ijss_validees
-from app.modules.monthly_inputs.domain.rules import alertes_de_doublon_de_prime, est_saisie_retiree
+from app.modules.monthly_inputs.domain.rules import alertes_de_doublon_de_prime
+from app.modules.payroll.documents.saisies_du_bulletin import ranger_les_saisies
 from app.modules.schedules.domain.conflits_arret import (
     alerte_arret_sans_demande,
     alerte_arrets_contradictoires,
 )
-from app.modules.payroll.engine.corrections_manuelles import ranger_correction_manuelle
 
 
 def _periode_de_paie_company(company_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -345,78 +335,10 @@ def process_payslip_generation_forfait(
         if ijss_brut_override is not None:
             saisies_data["ijss_brut_override"] = float(ijss_brut_override)
 
-        net_a_payer_only_correction_total = 0.0
-        reports_nap_negatif: list = []
-        for row in saisies_res.data:
-            if est_saisie_retiree(row):
-                # Prime de règle automatique retirée : gardée à 0 pour ne pas
-                # revenir, elle n'est pas une ligne du bulletin.
-                continue
-            if ranger_correction_manuelle(row, saisies_data):
-                # Régularisation de cotisation ou correction de ligne saisie depuis
-                # le bulletin : ce n'est pas une prime, le moteur la rejoue.
-                continue
-            if est_saisie_ijss_validees(row):
-                # Montant validé au suivi IJSS : les IJSS subrogées du mois, rien d'autre.
-                saisies_data["ijss_brut_override"] = abs(float(row["amount"]))
-                continue
-            if _is_heures_sup_conjoncturelle_input(row):
-                continue
-            if _is_cantine_input(row):
-                # Retenue repas : réduit MNS + net à payer, hors brut/imposable.
-                saisies_data["primes"].append({
-                    "prime_id": row["name"].replace(" ", "_"),
-                    "libelle": row["name"],
-                    "montant": float(row["amount"]),
-                    "soumise_a_cotisations": False,
-                    "soumise_a_impot": False,
-                })
-                continue
-            if _is_net_a_payer_only_correction_input(row):
-                net_a_payer_only_correction_total += -float(row["amount"])
-                reports_nap_negatif.extend(reports_du_mois([row]))
-                continue
-            if _is_frais_pro_non_soumis_input(row):
-                # Ligne à son libellé, au net, hors MNS (D1), sauf panier selon le réglage (R-333).
-                saisies_data["primes"].append(entree_de_frais_non_soumis(row, company_data))
-                continue
-            if _is_ijss_override_input(row):
-                saisies_data["ijss_brut_override"] = abs(float(row["amount"]))
-                saisies_data["maintien_base_ouvree"] = True
-                continue
-            if _is_participation_pee_input(row):
-                saisies_data.setdefault("participations", []).append(
-                    {
-                        "libelle": row["name"],
-                        "brut": float(row["amount"]),
-                        "part_pee": float(row["amount"]),
-                    }
-                )
-                continue
-            if _is_participation_numeraire_input(row):
-                saisies_data.setdefault("participations", []).append(
-                    {
-                        "libelle": row["name"],
-                        "brut": float(row["amount"]),
-                    }
-                )
-                continue
-            prime_entry = {
-                "prime_id": row["name"].replace(" ", "_"),
-                "libelle": row["name"],
-                "montant": row["amount"],
-                "soumise_a_cotisations": row.get("is_socially_taxed", True),
-                "soumise_a_impot": row.get("is_taxable", True),
-            }
-            if row.get("id"):
-                prime_entry["saisie_id"] = str(row["id"])
-            if row.get("payroll_quantity") is not None:
-                prime_entry["quantity"] = float(row["payroll_quantity"])
-            if row.get("quantity_kind"):
-                prime_entry["quantity_kind"] = row["quantity_kind"]
-            if row.get("situation_repas"):
-                prime_entry["situation_repas"] = row["situation_repas"]
-            saisies_data["primes"].append(prime_entry)
+        # Une seule fonction range les saisies, pour les deux générateurs (audit du 17/11).
+        net_a_payer_only_correction_total, reports_nap_negatif = ranger_les_saisies(
+            saisies_res.data, saisies_data, company_data
+        )
 
         hs_conj_25, hs_conj_50 = _heures_sup_conjoncturelles_from_monthly_inputs(
             saisies_res.data or []
