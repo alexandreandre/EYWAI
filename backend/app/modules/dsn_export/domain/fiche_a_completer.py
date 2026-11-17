@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List
 
 from app.modules.pcs_ese.domain.referentiel import code_valide
+
 _DISPOSITIFS_APPRENTISSAGE = {"64", "65", "66", "81"}
 
 
@@ -105,3 +106,50 @@ def manques_fiche_dsn(employee: Dict[str, Any]) -> List[ManqueFiche]:
 def fiche_a_completer(employee: Dict[str, Any]) -> List[str]:
     """Les manques de la fiche, un message par rubrique, sans nom de salarié."""
     return [manque.message for manque in manques_fiche_dsn(employee)]
+
+
+#: Repère des avertissements de l'aperçu DSN qui renvoient à une fiche.
+CODE_A_VOIR_SUR_LA_FICHE = "a_voir_sur_la_fiche"
+
+
+def _fiche_cadre(employee: Dict[str, Any]) -> bool:
+    statut = str(employee.get("statut") or "").strip().lower().replace(" ", "").replace("-", "")
+    return "cadre" in statut and "noncadre" not in statut
+
+
+def statut_dsn_contredit_la_fiche(employee: Dict[str, Any]) -> str | None:
+    """La DSN déclare cadre ou non-cadre d'après le statut conventionnel repris
+    de l'ancienne DSN avant le statut de la fiche (constructeur, S21.G00.40.002
+    et .003). Quand les deux ne disent pas la même chose, la RH tranche sur la
+    fiche (Lyon, 17/11/2026)."""
+    from app.modules.dsn_export.domain.contract_map import map_statut_categoriel_rc
+
+    classification = _dict(employee.get("classification_conventionnelle"))
+    code = str(classification.get("code_statut_dsn") or "").strip()
+    if not code:
+        return None
+    fiche_cadre = _fiche_cadre(employee)
+    dsn_cadre = map_statut_categoriel_rc(code, fiche_cadre=fiche_cadre) in ("01", "02")
+    if fiche_cadre == dsn_cadre:
+        return None
+    return (
+        f"la fiche dit « {'Cadre' if fiche_cadre else 'Non-cadre'} », la DSN déclare "
+        f"« {'cadre' if dsn_cadre else 'non-cadre'} » (statut conventionnel {code} repris "
+        "de l'ancienne DSN) : vérifiez le statut sur la fiche"
+    )
+
+
+def avertissements_de_la_fiche(employee: Dict[str, Any]) -> List[str]:
+    """Ce que l'aperçu DSN signale sur la fiche sans bloquer : statut cadre
+    contradictoire, code PCS-ESE « 9999 » (valeur de la liste, mais à compléter)."""
+    avertissements = []
+    contradiction = statut_dsn_contredit_la_fiche(employee)
+    if contradiction:
+        avertissements.append(contradiction[0].upper() + contradiction[1:])
+    classification = _dict(employee.get("classification_conventionnelle"))
+    pcs = str(classification.get("pcs") or employee.get("pcs") or "").strip()
+    if pcs == "9999":
+        avertissements.append(
+            "Code PCS-ESE « 9999 » (S21.G00.40.004) : code à compléter sur la fiche"
+        )
+    return avertissements

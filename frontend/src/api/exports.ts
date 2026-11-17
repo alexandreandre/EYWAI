@@ -49,6 +49,8 @@ export interface ExportAnomaly {
   severity: "blocking" | "warning";
   employee_id?: string;
   employee_name?: string;
+  /** « dsn_non_deposable » : blocage voulu, affiché à part des anomalies. */
+  code?: string;
 }
 
 export interface ExportTotals {

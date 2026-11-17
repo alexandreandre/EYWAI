@@ -1,5 +1,9 @@
 # Générateur DSN mensuelle NEODeS P26V01 (fichier plat).
-from app.modules.dsn_export.domain.fiche_a_completer import fiche_a_completer
+from app.modules.dsn_export.domain.fiche_a_completer import (
+    CODE_A_VOIR_SUR_LA_FICHE,
+    avertissements_de_la_fiche,
+    fiche_a_completer,
+)
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
@@ -751,6 +755,18 @@ def check_dsn_data(
                 )
         for manque in fiche_a_completer(employee):
             warnings.append(f"Salarié {employee_name} : {manque}")
+        # À voir sur la fiche, sans bloquer : un lien vers la fiche à l'écran.
+        for avertissement in avertissements_de_la_fiche(employee):
+            anomalies.append(
+                {
+                    "type": "warning",
+                    "severity": "warning",
+                    "code": CODE_A_VOIR_SUR_LA_FICHE,
+                    "message": f"Salarié {employee_name} : {avertissement}",
+                    "employee_id": employee.get("id"),
+                    "employee_name": employee_name,
+                }
+            )
         if taux_pas_sans_identifiant(employee):
             warnings.append(
                 f"Salarié {employee_name} : taux PAS saisi à la main, sans identifiant du "

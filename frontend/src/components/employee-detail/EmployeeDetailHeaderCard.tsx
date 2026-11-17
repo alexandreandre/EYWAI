@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { statutDsnContreditLaFiche } from '@/lib/statutDsn';
 import { displayLastName, displayNamePrenomNom } from '@/lib/employeeName';
 import {
   Accessibility,
@@ -55,6 +56,7 @@ export interface EmployeeDetailHeaderEmployee {
   job_title: string | null;
   contract_type: string | null;
   statut: string | null;
+  classification_conventionnelle?: { code_statut_dsn?: string | null } | null;
   hire_date: string | null;
   email?: string | null;
   username?: string | null;
@@ -165,6 +167,10 @@ export function EmployeeDetailHeaderCard({
   hasWorkplaceAccommodation = false,
   payrollFocus = false,
 }: EmployeeDetailHeaderCardProps) {
+  const contradictionStatut = statutDsnContreditLaFiche(
+    employee.statut,
+    employee.classification_conventionnelle,
+  );
   const fullName = displayNamePrenomNom(employee);
   const initials = `${employee.first_name.charAt(0)}${(displayLastName(employee) || '?').charAt(0)}`;
   const showOnboarding = isRecentHire(employee.hire_date);
@@ -342,7 +348,14 @@ export function EmployeeDetailHeaderCard({
           <MetadataField label="Type de contrat">
             {getContractTypeBadge(employee.contract_type)}
           </MetadataField>
-          <MetadataField label="Statut">{getStatutCadreBadge(employee.statut)}</MetadataField>
+          <MetadataField label="Statut">
+            {getStatutCadreBadge(employee.statut)}
+            {contradictionStatut && (
+              <p className="mt-1 text-xs text-amber-800" data-testid="statut-dsn-contradictoire">
+                {contradictionStatut}
+              </p>
+            )}
+          </MetadataField>
           <MetadataField label="Date d'entrée">
             {formatEmployeeDateFR(employee.hire_date)}
           </MetadataField>

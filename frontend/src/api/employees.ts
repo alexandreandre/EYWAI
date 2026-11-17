@@ -54,6 +54,8 @@ export type UpdateEmployeePayload = {
     groupe_emploi?: string;
     classe_emploi?: number;
     coefficient?: number;
+    /** Statut conventionnel repris de l'ancienne DSN (« 04 » cadre…). */
+    code_statut_dsn?: string | null;
   };
   team_id?: string | null;
   time_tracking_id?: string | null;

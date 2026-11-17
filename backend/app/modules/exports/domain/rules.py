@@ -1,6 +1,7 @@
 # Règles métier pures exports (sans FastAPI, sans infrastructure).
 # Comportement strictement identique aux vérifications de l'ancien router.
 from typing import Any, Dict
+
 from app.shared.domain.pluriel import accord, pluriel
 
 
@@ -34,7 +35,11 @@ def validate_dsn_can_generate(
             f"Impossible de générer la DSN : {pluriel(len(blocking), 'anomalie')} "
             f"{accord(len(blocking), 'bloquante')} {accord(len(blocking), 'détectée')}"
         )
-    warnings = preview_data.get("warnings") or []
+    # « À voir sur la fiche » (statut cadre contradictoire, PCS 9999) : à accepter
+    # comme les avertissements ; les autres anomalies « warning » restent informatives.
+    warnings = (preview_data.get("warnings") or []) + [
+        a for a in anomalies if a.get("code") == "a_voir_sur_la_fiche"
+    ]
     if warnings and not accept_warnings:
         raise ValueError(
             "Des avertissements sont présents. Vous devez les accepter explicitement pour générer la DSN."
