@@ -178,7 +178,9 @@ def parse_and_stage(
         }
         for it in all_items
     ]
-    repo.insert_items(db_items)
+    perte = anomalie_elements_non_enregistres(len(db_items), repo.insert_items(db_items))
+    if perte:
+        anomalies.append(perte)
 
     return {
         "batch_id": batch_id,
@@ -186,6 +188,24 @@ def parse_and_stage(
         "anomalies": anomalies,
         "items": all_items,
         "can_commit": can_commit,
+    }
+
+
+def anomalie_elements_non_enregistres(attendus: int, enregistres: int) -> Optional[Dict[str, Any]]:
+    """L'enregistrement de l'aperçu a perdu des éléments (le dépôt réessaie sans
+    les absences ni les sorties) : l'aperçu le dit, au lieu de rester
+    « importable » sans eux (audit du 17/11). Rien n'est bloqué."""
+    if enregistres >= attendus:
+        return None
+    return {
+        "type": "elements_non_enregistres",
+        "message": (
+            f"{attendus - enregistres} élément(s) de la DSN sur {attendus} n'ont pas pu "
+            "être enregistrés pour l'import (absences et sorties d'abord). Importer "
+            "maintenant les laisserait de côté : relancez l'aperçu, ou vérifiez les "
+            "arrêts et les sorties après l'import."
+        ),
+        "severity": "warning",
     }
 
 
