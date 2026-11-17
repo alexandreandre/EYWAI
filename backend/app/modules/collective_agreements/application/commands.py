@@ -6,6 +6,7 @@ Délèguent au CollectiveAgreementsService (logique extraite des routers legacy)
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Optional
 
 from app.modules.collective_agreements.application.dto import CatalogCreateInput
@@ -58,11 +59,13 @@ def assign_agreement_to_company(
     user_id: str,
     has_rh_access: bool,
     service: Optional[CollectiveAgreementsService] = None,
+    *,
+    date_debut: Optional[date] = None,
 ) -> dict:
-    """Assigne une convention à l'entreprise (RH)."""
+    """Assigne une convention à l'entreprise (RH), datée si `date_debut`."""
     svc = service or get_collective_agreements_service()
     return svc.assign_to_company(
-        company_id, collective_agreement_id, user_id, has_rh_access
+        company_id, collective_agreement_id, user_id, has_rh_access, date_debut=date_debut
     )
 
 

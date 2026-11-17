@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
+from app.modules.collective_agreements.domain.convention_datee import classification_a_la_date
 from app.modules.payroll.engine.cp_solde_sortie import get_cp_solde_a_la_sortie
 from app.shared.seniority_reference import resolve_seniority_reference_date
 from app.modules.payroll.engine.indemnites_conventionnelles_branches import (
@@ -869,7 +870,9 @@ def calculer_indemnite_conges_restants(
             is_cdd=is_cdd,
             is_interim=is_interim,
             specificites=employee_data.get("specificites_paie") or {},
-            classification=employee_data.get("classification_conventionnelle"),
+            classification=classification_a_la_date(
+                employee_data.get("classification_conventionnelle"), exit_date
+            ),
         )
 
     params = lire_parametres_conges(baremes)
@@ -1314,6 +1317,8 @@ def _plancher_conventionnel(
             classification = json.loads(classification)
         except ValueError:
             classification = {}
+    # La classification qui vaut à la date de la sortie (changement daté).
+    classification = classification_a_la_date(classification, a_la_date)
     if not isinstance(classification, dict):
         classification = {}
     idcc = str(classification.get("idcc") or fiche.get("idcc") or "").strip()
@@ -1325,7 +1330,10 @@ def _plancher_conventionnel(
 
             idcc = str(
                 resolve_employee_idcc(
-                    fiche, {"id": fiche.get("company_id")}, supabase_client=supabase_client
+                    fiche,
+                    {"id": fiche.get("company_id")},
+                    supabase_client=supabase_client,
+                    a_la_date=a_la_date,
                 )
                 or ""
             )

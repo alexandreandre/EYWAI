@@ -21,6 +21,7 @@ from app.shared.domain.periode_variables import FenetreVariables, fin_au_depart
 from app.modules.collective_agreements.application.idcc_resolution import (
     build_convention_collective_payload,
 )
+from app.modules.collective_agreements.domain.convention_datee import fin_du_mois
 from app.core.constants import MESSAGE_ERREUR_GENERATION
 from app.core.database import supabase
 from app.modules.payroll.engine.reference_remuneration import base_precarite_du_bulletin
@@ -1356,7 +1357,10 @@ def process_payslip_generation(
                     )
                 ),
                 "convention_collective": build_convention_collective_payload(
-                    employee_data, company_data
+                    employee_data,
+                    company_data,
+                    # La convention de la société en vigueur à la fin du mois.
+                    a_la_date=fin_du_mois(year, month),
                 ),
                 "elements_variables": _parse_if_json_string(
                     employee_data.get("elements_variables")

@@ -9,7 +9,8 @@ Comportement HTTP identique au legacy (api/routers/collective_agreements*.py).
 from __future__ import annotations
 
 from io import BytesIO
-from typing import List
+from datetime import date
+from typing import List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -285,9 +286,13 @@ def get_my_company_agreements(
 @router.post("/assign", status_code=201)
 def assign_agreement_to_company(
     collective_agreement_id: str = Body(..., embed=True),
+    date_debut: Optional[date] = Body(None, embed=True),
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
-    """Assigne une convention à l'entreprise de l'utilisateur."""
+    """Assigne une convention à l'entreprise de l'utilisateur.
+
+    `date_debut` : la convention vaut à partir de ce jour (les mois d'avant
+    gardent la précédente) ; vide, elle vaut depuis toujours, comme avant."""
     try:
         company_id = _ensure_company_id(current_user)
         if not current_user.has_rh_access_in_company(company_id):
@@ -297,6 +302,7 @@ def assign_agreement_to_company(
             collective_agreement_id,
             str(current_user.id),
             current_user.has_rh_access_in_company(company_id),
+            date_debut=date_debut,
         )
         return {
             "message": "Convention collective assignée avec succès",

@@ -70,6 +70,7 @@ from app.modules.payroll.engine.reference_remuneration import base_precarite_du_
 from app.modules.collective_agreements.application.idcc_resolution import (
     build_convention_collective_payload,
 )
+from app.modules.collective_agreements.domain.convention_datee import fin_du_mois
 from app.modules.jei_settings.application.queries import get_jei_settings_raw
 from app.modules.payroll.application.monthly_specificites import (
     resolve_monthly_specificites,
@@ -524,7 +525,10 @@ def process_payslip_generation_forfait(
                     employee_data.get("classification_conventionnelle", {})
                 ),
                 "convention_collective": build_convention_collective_payload(
-                    employee_data, company_data
+                    employee_data,
+                    company_data,
+                    # La convention de la société en vigueur à la fin du mois.
+                    a_la_date=fin_du_mois(year, month),
                 ),
                 "avantages_en_nature": employee_data.get("avantages_en_nature") or {},
             },

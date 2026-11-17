@@ -20,6 +20,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
+from app.modules.collective_agreements.domain.convention_datee import classification_du_mois
 from app.shared.domain.effectif_seuils import effectif_retenu, palier_effectif
 from app.shared.pas_taux import zone_du_code_postal
 from app.modules.payroll.engine.baremes_loader import SEUIL_EFFECTIF_VERSEMENT_MOBILITE
@@ -117,13 +118,23 @@ def _extrait(source: Mapping[str, Any] | None, cles: Sequence[str]) -> dict[str,
     return {cle: row.get(cle) for cle in cles}
 
 
-def _fiche(employee: Mapping[str, Any] | None) -> dict[str, Any]:
+def _fiche(
+    employee: Mapping[str, Any] | None, year: int | None = None, month: int | None = None
+) -> dict[str, Any]:
     """La fiche hachée, sans les clés de `specificites_paie` propres à la DSN.
 
     Une fiche qui ne les porte pas est extraite telle quelle : son empreinte
     reste celle d'avant cette exclusion.
+
+    La classification est celle qui vaut au dernier jour du mois : un changement
+    daté (`convention_datee`) ne touche pas l'empreinte des mois d'avant sa date.
+    Sans changement daté, elle est hachée telle quelle.
     """
     fiche = _extrait(employee, _CLES_FICHE)
+    if year is not None and month is not None:
+        fiche["classification_conventionnelle"] = classification_du_mois(
+            fiche.get("classification_conventionnelle"), year, month
+        )
     specificites = fiche.get("specificites_paie")
     if isinstance(specificites, Mapping) and _SPECIFICITES_DSN_SEULE & specificites.keys():
         specificites = {
@@ -324,7 +335,7 @@ def entrees_depuis_lectures(
             "calendriers": _calendriers_de_la_fenetre(calendriers, absences_list, year, month),
             "absences": _absences_de_la_fenetre(absences_list, year, month),
             "saisies": [_extrait(s, _CLES_SAISIE) for s in saisies],
-            "fiche": _fiche(employee),
+            "fiche": _fiche(employee, year, month),
             "notes_de_frais": _notes_du_mois(notes_de_frais or [], year, month),
             "parametres_societe": parametres_societe_pour_empreinte(company, year),
             "fenetre_variables": _fenetre_pour_empreinte(

@@ -7,6 +7,7 @@ Contrats en dict pour rester aligné avec le comportement API actuel.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, List, Optional, Protocol
 
 
@@ -54,9 +55,14 @@ class ICollectiveAgreementRepository(Protocol):
         ...
 
     def assign_to_company(
-        self, company_id: str, collective_agreement_id: str, assigned_by: str
+        self,
+        company_id: str,
+        collective_agreement_id: str,
+        assigned_by: str,
+        *,
+        date_debut: Optional[date] = None,
     ) -> dict[str, Any]:
-        """Assigne une convention à une entreprise."""
+        """Assigne une convention à une entreprise, datée si `date_debut`."""
         ...
 
     def unassign_from_company(self, assignment_id: str, company_id: str) -> bool:

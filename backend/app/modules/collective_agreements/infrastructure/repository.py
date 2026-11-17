@@ -6,6 +6,7 @@ Implémentation des accès DB (Supabase). Lève domain.exceptions.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, List, Optional
 
 from app.core.database import get_supabase_admin_client, get_supabase_client
@@ -179,13 +180,22 @@ class CollectiveAgreementRepository:
         return _response_rows(response)
 
     def assign_to_company(
-        self, company_id: str, collective_agreement_id: str, assigned_by: str
+        self,
+        company_id: str,
+        collective_agreement_id: str,
+        assigned_by: str,
+        *,
+        date_debut: Optional[date] = None,
     ) -> dict[str, Any]:
         assignment_data = {
             "company_id": company_id,
             "collective_agreement_id": collective_agreement_id,
             "assigned_by": assigned_by,
         }
+        # Seulement si elle est saisie : sans la migration des dates d'effet,
+        # l'assignation sans date s'écrit comme avant.
+        if date_debut is not None:
+            assignment_data["date_debut"] = date_debut.isoformat()
         response = (
             self._admin.table("company_collective_agreements")
             .insert(assignment_data)
