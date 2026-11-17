@@ -299,3 +299,64 @@ def test_une_demi_journee_se_lit_sur_le_bon_mois(base):
         "co", employe, 2026, 10, prevu, reel, [], bornes=(date(2026, 9, 1), date(2026, 10, 31))
     )
     assert saisies[0]["payroll_quantity"] == 10.5
+
+
+# --- Mois entier chômé (R5122-19, al. 2) : la durée d'un mois entier est la
+# durée mensuelle du contrat, pas 22 × 7 h ; la retenue ne dépasse jamais le
+# salaire du mois. Un profil en heures, un temps partiel, un forfait jours. ---
+
+
+def _tout_le_mois(nb_jours=23, h=7.0):
+    return [_jour(j, AP, h) for j in range(1, nb_jours + 1)]
+
+
+def _deux(saisies):
+    retenue = next(s for s in saisies if s["name"] == "Heures chômées (act. part.)")
+    indemnite = next(s for s in saisies if s["name"] == "Indemnité activité partielle")
+    return retenue, indemnite
+
+
+def test_mois_entier_chome_en_heures_retient_le_salaire_et_pas_plus(base):
+    employe = base.tables["employees"][0]
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 11, _tout_le_mois(), [], [])
+    retenue, indemnite = _deux(saisies)
+    assert retenue["payroll_quantity"] == 151.67
+    assert retenue["amount"] == -2166.67
+    assert indemnite["payroll_quantity"] == 151.67
+
+
+def test_mois_entier_chome_a_temps_partiel_vaut_la_duree_du_contrat(base):
+    employe = {
+        **base.tables["employees"][0],
+        "duree_hebdomadaire": "24",
+        "salaire_de_base": {"valeur": 1300.0},
+    }
+    saisies, _ = svc.lignes_du_calendrier(
+        "co", employe, 2026, 11, _tout_le_mois(h=4.8), [], []
+    )
+    retenue, _ = _deux(saisies)
+    assert retenue["payroll_quantity"] == 104.0
+    assert retenue["amount"] == -1300.0
+
+
+def test_mois_entier_chome_au_forfait_jours_retient_le_salaire(base):
+    employe = {
+        **base.tables["employees"][0],
+        "is_forfait_jour": True,
+        "specificites_paie": {"forfait_annual_days": 218},
+        "salaire_de_base": {"valeur": 3500.0},
+    }
+    saisies, _ = svc.lignes_du_calendrier(
+        "co", employe, 2026, 11, _tout_le_mois(h=1), [], []
+    )
+    retenue, _ = _deux(saisies)
+    assert retenue["payroll_quantity"] == 154.0
+    assert retenue["amount"] == -3500.0
+
+
+def test_mois_partiel_inchange_par_le_plafond(base):
+    employe = base.tables["employees"][0]
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 11, _tout_le_mois(10), [], [])
+    retenue, _ = _deux(saisies)
+    assert retenue["payroll_quantity"] == 70.0
+    assert retenue["amount"] == pytest.approx(-70 * 2166.67 / (35 * 52 / 12), abs=0.01)

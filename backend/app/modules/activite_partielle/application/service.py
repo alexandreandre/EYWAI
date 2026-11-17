@@ -155,29 +155,59 @@ def _lignes_ap_du_mois(company_id: str, year: int, month: int) -> list[dict[str,
     )
 
 
+def _jours_du_forfait(e: dict[str, Any]) -> float | None:
+    from app.modules.payroll.engine.forfait_individuel import (
+        jours_du_forfait_de_la_fiche,
+    )
+
+    try:
+        jours = jours_du_forfait_de_la_fiche(e.get("specificites_paie"))
+    except ValueError:
+        jours = None
+    if jours is None and e.get("company_id"):
+        # Sans forfait sur la fiche, celui de la société, comme la
+        # réduction générale (`jours_du_forfait_pour_reduction`).
+        from app.modules.absences.infrastructure import leave_settings_repository
+
+        jours = float(
+            leave_settings_repository.get_leave_policy(str(e["company_id"])).rtt_forfait_annual_days
+        )
+    return jours
+
+
 def _taux_horaire(e: dict[str, Any]) -> float | None:
     """Salaire horaire de référence : contrat en heures, ou forfait en jours."""
     if e.get("is_forfait_jour"):
-        from app.modules.payroll.engine.forfait_individuel import (
-            jours_du_forfait_de_la_fiche,
-        )
-
-        try:
-            jours = jours_du_forfait_de_la_fiche(e.get("specificites_paie"))
-        except ValueError:
-            jours = None
-        if jours is None and e.get("company_id"):
-            # Sans forfait sur la fiche, celui de la société, comme la
-            # réduction générale (`jours_du_forfait_pour_reduction`).
-            from app.modules.absences.infrastructure import leave_settings_repository
-
-            jours = float(
-                leave_settings_repository.get_leave_policy(str(e["company_id"])).rtt_forfait_annual_days
-            )
-        return taux_horaire_forfait_jours(e.get("salaire_de_base"), jours)
+        return taux_horaire_forfait_jours(e.get("salaire_de_base"), _jours_du_forfait(e))
     return taux_horaire_du_contrat(
         e.get("salaire_de_base"), e.get("duree_hebdomadaire")
     )
+
+
+def _plafond_du_mois(e: dict[str, Any]) -> tuple[float | None, float | None]:
+    """Heures chômées au plus sur un mois, et salaire du mois (R5122-19).
+
+    La durée de référence d'un mois entier est la durée mensuelle du contrat
+    (151,67 h à temps plein), pas la somme des jours ouvrés (22 × 7 = 154 h) :
+    un mois entier chômé ne retient jamais plus que le salaire. Ce sont les
+    heures qui font le salaire horaire : contrat × 52 ÷ 12, ou au forfait
+    jours 22 × jours ÷ 218 jours de 7 h.
+    """
+    valeur = e.get("salaire_de_base")
+    valeur = valeur.get("valeur") if isinstance(valeur, dict) else valeur
+    try:
+        salaire = float(valeur)
+    except (TypeError, ValueError):
+        salaire = None
+    try:
+        if e.get("is_forfait_jour"):
+            jours = float(_jours_du_forfait(e) or 218)
+            heures = 22 * jours / 218 * 7
+        else:
+            heures = float(e.get("duree_hebdomadaire") or 35) * 52 / 12
+    except (TypeError, ValueError):
+        return None, salaire
+    return (round(heures, 2) if heures > 0 else None), salaire
 
 
 def _heures_par_jour(e: dict[str, Any], reglage: dict[str, Any]) -> float:
@@ -270,13 +300,18 @@ def _deux_lignes(c: Any) -> list[dict[str, Any]]:
     ]
 
 
-def _calcul(heures: float, taux: float, reglage: dict[str, Any]) -> Any:
+def _calcul(
+    heures: float, taux: float, reglage: dict[str, Any], e: dict[str, Any] | None = None
+) -> Any:
+    heures_du_mois, salaire = _plafond_du_mois(e) if e else (None, None)
     return calculer(
         heures,
         taux,
         taux_indemnite=float(reglage["taux_indemnite"]),
         plancher=float(reglage["plancher_horaire"]),
         plafond=float(reglage["plafond_horaire"]),
+        heures_du_mois=heures_du_mois,
+        salaire_du_mois=salaire,
     )
 
 
@@ -380,7 +415,7 @@ def lignes_du_calendrier(
                 "recalculez ce bulletin."
             ),
         }
-    c = _calcul(heures, taux, reglage)
+    c = _calcul(heures, taux, reglage, employee)
     gardees = [r for r in saisies if r.get("name") not in LIBELLES]
     commun = {
         "company_id": company_id,
@@ -504,7 +539,7 @@ def recap_du_calendrier(
         if heures <= 0:
             continue
         taux = _taux_horaire(e)
-        c = _calcul(heures, taux, reglage) if taux else None
+        c = _calcul(heures, taux, reglage, e) if taux else None
         recap[eid] = {
             "jours": [quand.day for quand, _ in jours],
             "heures": heures,
@@ -610,7 +645,7 @@ def poser_heures_du_mois(
             if anciennes:
                 cibles.append((eid, year, month))
             continue
-        c = _calcul(heures, taux, reglage)
+        c = _calcul(heures, taux, reglage, e)
         commun = {
             "company_id": company_id,
             "employee_id": eid,

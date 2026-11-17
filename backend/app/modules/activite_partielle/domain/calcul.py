@@ -88,8 +88,16 @@ def calculer(
     taux_indemnite: float = TAUX_LEGAL,
     plancher: float = PLANCHER_LEGAL,
     plafond: float = PLAFOND_LEGAL,
+    heures_du_mois: float | None = None,
+    salaire_du_mois: float | None = None,
 ) -> CalculActivitePartielle:
+    """`heures_du_mois` : plafond des heures chômées d'un mois (R5122-19 : un
+    mois entier vaut la durée mensuelle du contrat) ; atteint, la retenue est
+    le salaire du mois, sans les centimes d'arrondi du taux horaire."""
     heures = round(max(0.0, float(heures_chomees)), 2)
+    mois_entier = bool(heures_du_mois) and heures >= float(heures_du_mois)
+    if mois_entier:
+        heures = round(float(heures_du_mois), 2)
     horaire = float(taux_horaire)
     brute = horaire * float(taux_indemnite) / 100
     regle = f"{float(taux_indemnite):g} % du salaire horaire"
@@ -108,7 +116,9 @@ def calculer(
         heures_chomees=heures,
         taux_horaire=round(horaire, 4),
         indemnite_horaire=indemnite_horaire,
-        retenue=_r2(heures * horaire),
+        retenue=_r2(float(salaire_du_mois))
+        if mois_entier and salaire_du_mois
+        else _r2(heures * horaire),
         indemnite=_r2(heures * indemnite_horaire),
         regle=regle,
     )

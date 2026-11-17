@@ -76,25 +76,11 @@ def test_panier_au_dessus_du_plafond_est_reintegre(banc, profil):  # noqa: F811
     assert "Réintégration panier" in _texte(donnees)
 
 
-_RETENUE_AU_DELA_DU_SALAIRE = pytest.mark.xfail(
-    strict=True,
-    reason="Mois entier chômé : 22 jours × 7 h = 154 h retenues, au-delà des 151,67 h "
-    "mensualisées ; brut négatif (relecture du 17/11, pour la session A)",
-)
-
-
-@pytest.mark.parametrize(
-    "profil",
-    [
-        pytest.param(p, marks=_RETENUE_AU_DELA_DU_SALAIRE)
-        if p in ("heures", "apprenti", "temps_partiel")
-        else p
-        for p in PROFILS
-    ],
-)
+@pytest.mark.parametrize("profil", PROFILS)
 def test_un_mois_entier_chome_ne_retient_pas_plus_que_le_salaire(banc, profil):  # noqa: F811
     """Relecture du 17/11 : un mois entièrement chômé ne retient pas plus que le
-    salaire du mois ; le brut ne devient jamais négatif."""
+    salaire du mois ; le brut ne devient jamais négatif. Un mois entier vaut la
+    durée mensuelle du contrat (R5122-19, al. 2), pas 22 × 7 h."""
     from calendar import monthrange
     from datetime import date
 
