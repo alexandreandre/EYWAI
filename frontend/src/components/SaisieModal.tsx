@@ -512,10 +512,10 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
             </p>
           )}
 
-          {/* Masquer le champ "Nom / Type de Saisie" si on est en mode création de prime */}
+          {/* Masquer le champ "Nom / type de saisie" si on est en mode création de prime */}
           {!showCreatePrimeForm && (
             <div className="grid gap-2">
-              <Label>Nom / Type de Saisie</Label>
+              <Label>Nom / type de saisie</Label>
               <div className="flex gap-2">
                 <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
                   <PopoverAnchor asChild>

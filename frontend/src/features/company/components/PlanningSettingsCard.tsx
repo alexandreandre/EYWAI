@@ -153,6 +153,11 @@ export default function PlanningSettingsCard() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.planningShiftTypes(activeCompanyId),
       });
+      // Enregistré en quittant la case : on le dit (guide 1, 17/11).
+      toast({ title: 'Type de poste enregistré' });
+    },
+    onError: () => {
+      toast({ title: 'Erreur', description: 'Type de poste non enregistré.', variant: 'destructive' });
     },
   });
 
@@ -355,6 +360,7 @@ export default function PlanningSettingsCard() {
             Par exemple, deux pauses payées de 10 minutes donnent 20 minutes dans « Payées ».
             Les pauses déjà déduites des pointages ne doivent pas être retirées une seconde fois.
             L’éligibilité « Panier » ne remplace pas la saisie manuelle lorsque celle-ci est retenue.
+            Chaque case s’enregistre quand vous la quittez (un message le confirme).
           </p>
           {typesLoading ? (
             <Skeleton className="h-24 w-full" />

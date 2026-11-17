@@ -140,6 +140,11 @@ export default function PunchAccountingSettingsCard() {
       updatePunchShiftSlot(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.punchShiftSlots(activeCompanyId) });
+      // Enregistré en quittant la case : on le dit (guide 1, 17/11).
+      toast({ title: 'Créneau enregistré' });
+    },
+    onError: () => {
+      toast({ title: 'Erreur', description: 'Créneau non enregistré.', variant: 'destructive' });
     },
   });
 
@@ -198,6 +203,7 @@ export default function PunchAccountingSettingsCard() {
         </CardTitle>
         <CardDescription>
           Grilles horaires, tolérance et validation des heures supplémentaires détectées au pointage.
+                  {' '}Chaque champ s'enregistre quand vous quittez la case (un message le confirme).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

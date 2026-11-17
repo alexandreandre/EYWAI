@@ -227,15 +227,15 @@ def get_shift_types_for_company(company_id: str) -> list:
     Récupère get_company_planning_settings(company_id).
     Si collective_agreement_id défini :
         appelle planning_repository.get_shift_types_by_cc(cc_id).
-    Sinon :
-        appelle planning_repository.get_all_active_shift_types().
+    Sinon : aucun type (ceux des autres conventions ne sont pas à la société).
     """
     settings = planning_repository.get_company_planning_settings(company_id)
     cc_id = settings.get("collective_agreement_id") if settings else None
-    if cc_id:
-        rows = planning_repository.get_shift_types_by_cc(str(cc_id))
-    else:
-        rows = planning_repository.get_all_active_shift_types()
+    if not cc_id:
+        # Sans convention planning : aucun type. Avant, tous les types actifs de
+        # toutes les conventions s'affichaient (postes en double, Mont Blanc 17/11).
+        return []
+    rows = planning_repository.get_shift_types_by_cc(str(cc_id))
     return [
         {
             "id": str(r.get("id") or ""),
