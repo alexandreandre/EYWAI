@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -84,6 +84,8 @@ from .payslip_run_heures import (
     poser_les_arrets_connus,
     poser_le_depart_du_mois,
 )
+from app.modules.payroll.engine.calcul_brut import _est_une_absence
+from app.shared.reprise_paie import fin_de_la_reprise_au_premier_mois
 from app.modules.payroll.infrastructure.salaires_de_reference import (
     poser_salaires_de_reference,
 )
@@ -101,6 +103,36 @@ def poser_le_depart_du_forfait(contexte, employee_id: str, year: int, month: int
     debut_mois, fin_mois = bornes_mois_civil(year, month)
     contexte.bornes_du_depart = (debut_mois, fin_mois)
     poser_le_depart_du_mois(contexte, employee_id, year, month, debut_mois, fin_mois)
+
+
+def absences_hors_reprise(
+    evenements: List[Dict[str, Any]], fin_de_la_reprise: date | None
+) -> List[Dict[str, Any]]:
+    """Retire les absences datées jusqu'à la fin de la reprise (déjà traitées)."""
+    if not fin_de_la_reprise:
+        return evenements
+    gardes = []
+    for ev in evenements:
+        try:
+            jour = date.fromisoformat(str(ev.get("date_complete"))[:10])
+        except ValueError:
+            gardes.append(ev)
+            continue
+        if (
+            jour <= fin_de_la_reprise
+            and _est_une_absence(str(ev.get("type") or ""))
+            and not ev.get("is_regularisation_anterieure")
+        ):
+            continue
+        gardes.append(ev)
+    return gardes
+
+
+def debut_apres_la_reprise(date_debut_periode: date, fin_de_la_reprise: date | None) -> date:
+    """Premier jour de la période que l'ancien logiciel n'a pas traité."""
+    if fin_de_la_reprise and fin_de_la_reprise >= date_debut_periode:
+        return fin_de_la_reprise + timedelta(days=1)
+    return date_debut_periode
 
 
 def message_pas_forfait_jour() -> str:
@@ -379,6 +411,17 @@ def run_payslip_generation_forfait(
                 ev["date_complete"] = date(ev_annee, ev_mois, ev_jour).isoformat()
             calendrier_etendu.append(ev)
 
+    # Premier mois après une reprise : la période du forfait déborde sur le mois
+    # payé par l'ancien logiciel (21/09 → 25/10 pour octobre). Ses absences ont
+    # été traitées sur son dernier bulletin : elles sortent du calendrier, le
+    # maintien et les IJSS ne commencent qu'après la bascule, et le « mois
+    # entièrement absent » ne compte que les jours d'après (calcul_brut_forfait).
+    # La période elle-même ne bouge pas (prorata d'entrée, plafond). Aux heures,
+    # même règle dans `calcul_brut` ; le maintien y suit le mois civil.
+    contexte.fin_de_la_reprise = fin_de_la_reprise_au_premier_mois(company_id, year, month)
+    calendrier_etendu = absences_hors_reprise(calendrier_etendu, contexte.fin_de_la_reprise)
+    debut_maintien = debut_apres_la_reprise(date_debut_periode, contexte.fin_de_la_reprise)
+
     primes_soumises = []
     primes_non_soumises = []
     primes_soumises_impot = []
@@ -546,7 +589,7 @@ def run_payslip_generation_forfait(
         )
 
     arret_prefetch = _extraire_arret_pour_maintien(
-        calendrier_etendu, contexte, date_debut_periode, date_fin_periode
+        calendrier_etendu, contexte, debut_maintien, date_fin_periode
     )
     poser_les_arrets_connus(arret_prefetch, company_id, resolved_employee_id, year, month)
     contexte.arret_du_mois = arret_prefetch  # alerte de report des congés (L3141-19-3)
@@ -554,7 +597,7 @@ def run_payslip_generation_forfait(
         company_id=company_id,
         contexte=contexte,
         arret_data=arret_prefetch,
-        date_debut_periode=date_debut_periode,
+        date_debut_periode=debut_maintien,
         date_fin_periode=date_fin_periode,
         saisie_du_mois=saisie_du_mois,
     )
@@ -604,7 +647,7 @@ def run_payslip_generation_forfait(
                     arret_data,
                     contexte,
                     settings_dict,
-                    date_debut_periode,
+                    debut_maintien,
                     date_fin_periode,
                 )
             except Exception:

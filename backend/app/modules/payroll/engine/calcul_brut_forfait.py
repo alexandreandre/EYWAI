@@ -428,8 +428,15 @@ def calculer_salaire_brut_forfait(
     jours_dans_periode, _ = feries_retenus_avec_leur_absence(
         contexte,
         jours_dans_periode,
+        # Premier mois après une reprise : un jour travaillé du mois repris ne
+        # rend pas le mois partiel.
         mois_sans_travail=not any(
-            j.get("type") in TYPES_JOURS_TRAVAILLES_OU_PAYES for j in jours_dans_periode
+            j.get("type") in TYPES_JOURS_TRAVAILLES_OU_PAYES
+            and not (
+                getattr(contexte, "fin_de_la_reprise", None)
+                and date.fromisoformat(j["date_complete"]) <= contexte.fin_de_la_reprise
+            )
+            for j in jours_dans_periode
         ),
         retyper_le_mois_entier=True,
     )
@@ -614,8 +621,14 @@ def calculer_salaire_brut_forfait(
     # ouvrés du mois. Sans ce complément, février (20 j ouvrés) laissait un
     # brut résiduel de 7,7 % à un salarié absent tout le mois (ANDRE MAJI
     # 02/2026 : 513,86 € au lieu de 0), tandis que mars (22 j) sur-déduisait.
+    # Premier mois après une reprise : les jours que l'ancien logiciel a traités
+    # ne comptent pas (leurs absences ne sont plus au calendrier).
+    fin_de_la_reprise = getattr(contexte, "fin_de_la_reprise", None)
     jours_ouvres_contrat = [
-        jour for jour in jours_ouvres_mois if jour not in set(jours_hors_contrat)
+        jour
+        for jour in jours_ouvres_mois
+        if jour not in set(jours_hors_contrat)
+        and not (fin_de_la_reprise and jour <= fin_de_la_reprise)
     ]
     # Les fériés compris dans une absence y sont déjà, retypés plus haut. Arrêt
     # du 20/04 au 10/06/2026 : 21 jours ouvrés absents en mai, fériés compris ;

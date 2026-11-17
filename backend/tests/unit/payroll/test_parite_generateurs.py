@@ -191,22 +191,16 @@ COMMUNES: dict[str, dict[str, str]] = {
         "poser_les_corrections_en_attente": "correction sans ligne : reste sur le bulletin",
         "mettre_a_jour_cumuls": "les cumuls du mois",
         "imprimer_le_bulletin": "le PDF",
+        "fin_de_la_reprise_au_premier_mois": "premier mois après une reprise : absences déjà traitées (17/11)",
         "arrets_de_l_annee": "carence payée N jours par an : les arrêts de l'année (17/11)",
     },
 }
 
 TROUS_DU_FORFAIT: dict[str, dict[str, str]] = {
-    # Une étape ajoutée aux heures seulement, qui concerne aussi le forfait,
-    # s'inscrit ici en attendant d'être branchée.
+    # Tous comblés le 17/11 au soir. Une étape ajoutée aux heures seulement, qui
+    # concerne aussi le forfait, s'inscrit ici en attendant d'être branchée.
     "generateur": {},
-    "moteur": {
-        # Le forfait déborde sur le mois repris (21/09 → 25/10 pour octobre).
-        # Retirer seulement les absences du calendrier ne suffit pas : le maintien
-        # et les IJSS suivent les dates de l'arrêt, et les jours ouvrés de la
-        # période comptent encore ces jours (relecture du 17/11). À faire en une
-        # fois : borner la période du forfait au lendemain de la reprise.
-        "fin_de_la_reprise_au_premier_mois": "premier mois après une reprise : absences déjà traitées",
-    },
+    "moteur": {},
 }
 
 HEURES_SEULEMENT: dict[str, dict[str, str]] = {
@@ -275,6 +269,8 @@ FORFAIT_SEULEMENT: dict[str, dict[str, str]] = {
         "heures_reduction_forfait_jours": "idem",
         "poser_le_depart_du_forfait": "le départ au mois civil",
         "message_pas_forfait_jour": "refus d'un salarié qui n'est pas au forfait",
+        "absences_hors_reprise": "la période du forfait déborde sur le mois repris : ses absences en sortent (aux heures : dans calcul_brut)",
+        "debut_apres_la_reprise": "idem, le maintien commence après la bascule (aux heures : mois civil)",
     },
 }
 
