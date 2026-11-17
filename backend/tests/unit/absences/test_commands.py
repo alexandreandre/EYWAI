@@ -382,7 +382,9 @@ class TestUpdateAbsenceRequestStatus:
 class TestModulationRecoveryOnValidation:
     """Débit compte modulation à la validation d'une récup."""
 
-    def test_raises_when_balance_insufficient(self):
+    def test_au_dela_du_solde_le_compteur_passe_en_negatif(self):
+        """Compteur à 2 h, 3 jours posés : la récup est enregistrée et débitée
+        en entier (21 h), le compteur passe à -19 h (retour d'Elsa du 16/11)."""
         data = {
             "company_id": "company-1",
             "employee_id": "emp-1",
@@ -412,10 +414,14 @@ class TestModulationRecoveryOnValidation:
                     mock_bal.return_value = type(
                         "B", (), {"account_balance_hours": 2.0}
                     )()
-                    with pytest.raises(ValueError, match="Solde de récupération insuffisant"):
+                    with patch(
+                        "app.modules.modulation.application.hour_account_commands.create_debit_recovery_movements"
+                    ) as mock_debit:
                         commands._apply_modulation_recovery_on_validation(
                             data, "req-mod-1"
                         )
+                        mock_debit.assert_called_once()
+                        assert sum(mock_debit.call_args[0][2][(2026, 3)].values()) == 21.0
 
     def test_creates_debit_when_balance_sufficient(self):
         data = {

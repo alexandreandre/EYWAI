@@ -808,6 +808,21 @@ export function AbsenceRequestModal({
               )}
             {isRhLeave &&
               absenceType === "recuperation_modulation" &&
+              typeof modulationRhRow?.remaining === "number" &&
+              modulationRhRow.remaining <= 0 && (
+                <p
+                  data-testid="recup-compteur-negatif"
+                  className="text-xs font-medium text-amber-700 dark:text-amber-400"
+                >
+                  Le compteur est vide : la récupération est enregistrée quand même, le
+                  salaire est maintenu et le compteur passe en négatif. Les prochaines
+                  heures sup mises au compteur le remboursent. Si le salarié avait un
+                  solde dans l’ancien logiciel, saisissez-le : Temps de travail & HS,
+                  Compteur récup, « Solde initial ».
+                </p>
+              )}
+            {isRhLeave &&
+              absenceType === "recuperation_modulation" &&
               rhBalances !== undefined &&
               !modulationRhRow && (
                 <p role="alert" className="text-xs font-medium text-destructive">

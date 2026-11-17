@@ -97,11 +97,19 @@ def _verifier_modulation_recovery(data: dict[str, Any]):
     if hours <= 0:
         raise ValueError("Aucun jour sélectionné pour la récupération.")
 
+    # Au-delà du solde, la récupération est enregistrée et le compteur passe
+    # en négatif, comme un congé payé au-delà du solde (décision du 12/10) :
+    # les prochaines heures sup mises au compteur le remboursent. Refuser
+    # bloquait Elsa (Cartol, 16/11 : compteurs à 0 tant que les soldes de
+    # départ ne sont pas saisis, et les heures du mois ne sont créditées qu'au
+    # bulletin). La fenêtre de pose l'annonce avant d'enregistrer.
     balance = get_employee_account_balance(company_id, employee_id)
     if not can_debit_recovery(balance.account_balance_hours, hours):
-        raise ValueError(
-            f"Solde de récupération insuffisant : {balance.account_balance_hours:.2f} h "
-            f"disponibles pour {hours:.2f} h demandées."
+        logger.info(
+            "Récupération au-delà du compteur (salarié %s) : %.2f h pour %.2f h de solde",
+            employee_id,
+            hours,
+            balance.account_balance_hours,
         )
     return hours, settings, jours
 
