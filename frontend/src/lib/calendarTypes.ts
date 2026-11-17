@@ -216,3 +216,25 @@ export function reelApresChangementDeType(
   if (nouveauType === 'ecole') return undefined;
   return 0;
 }
+
+/** Saisie groupée appliquée à un jour : même règle du réel que la case du jour.
+ * Le panneau ne connaît pas l'ancien type de chaque jour ; ici on l'a :
+ * - un jour repassé en « Travail » depuis un congé ou une activité partielle
+ *   voit son réel redevenir à saisir, au lieu de garder le 0 qui en faisait
+ *   une absence ;
+ * - réappliquer le même type ne touche pas au réel (demi-journée gardée) ;
+ * - des heures saisies sans type font un jour « Travail » (`type_par_defaut`),
+ *   sauf un jour d'activité partielle : ses heures faites sont la part
+ *   travaillée de la demi-journée, le jour reste chômé. */
+export function saisieGroupeeDuJour<
+  T extends { type?: string | null; heures_faites?: number | null; type_par_defaut?: string },
+>(saisie: T, ancienType: string | null | undefined): Omit<T, 'type_par_defaut'> {
+  const { type_par_defaut, ...reste } = saisie;
+  let jour = reste as Omit<T, 'type_par_defaut'> & { type?: string | null; heures_faites?: number | null };
+  if (jour.type == null && type_par_defaut && ancienType !== 'activite_partielle') {
+    jour = { ...jour, type: type_par_defaut };
+  }
+  if (jour.type == null || jour.heures_faites !== undefined) return jour;
+  const reel = reelApresChangementDeType(jour.type, ancienType);
+  return reel === undefined ? jour : { ...jour, heures_faites: reel };
+}

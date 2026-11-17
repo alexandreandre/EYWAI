@@ -11,14 +11,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2, Save } from 'lucide-react';
-import type { DayData } from '@/components/ScheduleModal';
-import { reelApresChangementDeType, typesDeSaisie } from '@/lib/calendarTypes';
+import type { SaisieGroupee } from '@/components/ScheduleModal';
+import { typesDeSaisie } from '@/lib/calendarTypes';
 
 interface BulkDayActionPanelProps {
   selectedCount: number;
-  onBulkUpdate: (data: Partial<Omit<DayData, 'jour'>>) => void;
+  onBulkUpdate: (data: SaisieGroupee) => void;
   updateSelection: (mode: 'all' | 'weekdays' | 'none') => void;
-  onBulkUpdateAndSave: (data: Partial<Omit<DayData, 'jour'>>) => void;
+  onBulkUpdateAndSave: (data: SaisieGroupee) => void;
   isSaving: boolean;
   isForfaitJour: boolean;
 }
@@ -38,9 +38,9 @@ export function BulkDayActionPanel({
   const [actualHoursForfaitJour, setActualHoursForfaitJour] = useState('');
 
   const buildUpdateDataAndCall = (
-    callback: (data: Partial<Omit<DayData, 'jour'>>) => void
+    callback: (data: SaisieGroupee) => void
   ) => {
-    const updateData: Partial<Omit<DayData, 'jour'>> = {};
+    const updateData: SaisieGroupee = {};
     let hasUpdate = false;
 
     if (type) {
@@ -57,7 +57,7 @@ export function BulkDayActionPanel({
         plannedHours.trim() !== '' ? parseFloat(plannedHours) : NaN;
       if (!isNaN(parsedPlanned) && type !== 'repos') {
         updateData.heures_prevues = parsedPlanned > 0 ? 1 : 0;
-        if (type === '' && parsedPlanned > 0) updateData.type = 'travail';
+        if (type === '' && parsedPlanned > 0) updateData.type_par_defaut = 'travail';
         hasUpdate = true;
       }
       const parsedActual =
@@ -67,7 +67,7 @@ export function BulkDayActionPanel({
       if (!isNaN(parsedActual)) {
         updateData.heures_faites = parsedActual > 0 ? 1 : 0;
         if (type === '' && parsedActual > 0 && !updateData.type) {
-          updateData.type = 'travail';
+          updateData.type_par_defaut = 'travail';
         }
         hasUpdate = true;
       }
@@ -75,25 +75,21 @@ export function BulkDayActionPanel({
       const parsedPlanned = parseFloat(plannedHours);
       if (!isNaN(parsedPlanned) && type !== 'repos') {
         updateData.heures_prevues = parsedPlanned;
-        if (type === '' && parsedPlanned > 0) updateData.type = 'travail';
+        if (type === '' && parsedPlanned > 0) updateData.type_par_defaut = 'travail';
         hasUpdate = true;
       }
       const parsedActual = parseFloat(actualHours);
       if (!isNaN(parsedActual)) {
         updateData.heures_faites = parsedActual;
         if (type === '' && parsedActual > 0 && !updateData.type) {
-          updateData.type = 'travail';
+          updateData.type_par_defaut = 'travail';
         }
         hasUpdate = true;
       }
     }
 
-    // Un type de jour non travaillé remet le réel à 0, sauf réel saisi ici
-    // (même règle que la case du jour).
-    if (type) {
-      const reel = reelApresChangementDeType(type, null, updateData.heures_faites);
-      if (reel !== undefined) updateData.heures_faites = reel;
-    }
+    // Le réel d'un jour retypé se règle jour par jour, avec son ancien type
+    // (`saisieGroupeeDuJour`, dans le hook), comme dans la case du jour.
     if (hasUpdate) callback(updateData);
   };
 

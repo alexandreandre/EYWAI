@@ -31,6 +31,30 @@ def _trou_du_forfait(raison: str):
     ]
 
 
+def _retenues_ap(donnees: object) -> list[float]:
+    """Les montants de la ligne « Heures chômées (act. part.) », où qu'elle soit."""
+    trouvees: list[float] = []
+    if isinstance(donnees, dict):
+        if donnees.get("libelle") == LIBELLE_RETENUE and donnees.get("gain") is not None:
+            trouvees.append(float(donnees["gain"]))
+        for valeur in donnees.values():
+            trouvees += _retenues_ap(valeur)
+    elif isinstance(donnees, list):
+        for valeur in donnees:
+            trouvees += _retenues_ap(valeur)
+    return trouvees
+
+
+def _ne_retient_pas_plus_que_le_salaire(donnees: dict, profil: str) -> None:
+    from tests.unit.payroll.profils_salaries import fiche
+
+    salaire = float(fiche(profil)["salaire_de_base"]["valeur"])
+    retenues = _retenues_ap(donnees)
+    assert retenues, "pas de ligne d'activité partielle"
+    # Le brut ramené à 0 par le moteur forfait ne prouve rien : la ligne, si.
+    assert -sum(retenues) <= salaire + 0.01
+
+
 def _texte(donnees: dict) -> str:
     return json.dumps(donnees, ensure_ascii=False, default=str)
 
@@ -76,25 +100,11 @@ def test_panier_au_dessus_du_plafond_est_reintegre(banc, profil):  # noqa: F811
     assert "Réintégration panier" in _texte(donnees)
 
 
-_RETENUE_AU_DELA_DU_SALAIRE = pytest.mark.xfail(
-    strict=True,
-    reason="Mois entier chômé : 22 jours × 7 h = 154 h retenues, au-delà des 151,67 h "
-    "mensualisées ; brut négatif (relecture du 17/11, pour la session A)",
-)
-
-
-@pytest.mark.parametrize(
-    "profil",
-    [
-        pytest.param(p, marks=_RETENUE_AU_DELA_DU_SALAIRE)
-        if p in ("heures", "apprenti", "temps_partiel")
-        else p
-        for p in PROFILS
-    ],
-)
+@pytest.mark.parametrize("profil", PROFILS)
 def test_un_mois_entier_chome_ne_retient_pas_plus_que_le_salaire(banc, profil):  # noqa: F811
     """Relecture du 17/11 : un mois entièrement chômé ne retient pas plus que le
-    salaire du mois ; le brut ne devient jamais négatif."""
+    salaire du mois ; le brut ne devient jamais négatif. Un mois entier vaut la
+    durée mensuelle du contrat (R5122-19, al. 2), pas 22 × 7 h."""
     from calendar import monthrange
     from datetime import date
 
@@ -104,6 +114,26 @@ def test_un_mois_entier_chome_ne_retient_pas_plus_que_le_salaire(banc, profil): 
     donnees = banc.generer(profil, jours={j: "activite_partielle" for j in ouvres})
 
     assert float(donnees.get("salaire_brut") or 0.0) >= 0.0
+    _ne_retient_pas_plus_que_le_salaire(donnees, profil)
+
+
+@pytest.mark.parametrize("profil", PROFILS)
+def test_un_mois_chome_avec_un_jour_sans_solde_ne_retient_pas_tout_deux_fois(banc, profil):  # noqa: F811
+    """Relecture du 17/11 au soir : un jour d'activité partielle est payé par
+    ses deux lignes ; il n'est pas une absence. Avec un jour sans solde, le mois
+    n'est pas « absent en entier » (brut à −2 500 € avant)."""
+    from calendar import monthrange
+    from datetime import date
+
+    from tests.unit.payroll.profils_salaries import ANNEE, MOIS
+
+    ouvres = [j for j in range(1, monthrange(ANNEE, MOIS)[1] + 1) if date(ANNEE, MOIS, j).weekday() < 5]
+    jours = {j: "activite_partielle" for j in ouvres[1:]}
+    jours[ouvres[0]] = "absence_non_remuneree"
+    donnees = banc.generer(profil, jours=jours)
+
+    assert float(donnees.get("salaire_brut") or 0.0) >= 0.0
+    _ne_retient_pas_plus_que_le_salaire(donnees, profil)
 
 
 PRIME_DU_CATALOGUE = {

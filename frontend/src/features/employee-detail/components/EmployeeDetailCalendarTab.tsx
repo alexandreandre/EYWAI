@@ -23,7 +23,7 @@ import { PointageImportBanner } from "@/components/schedules/assisted-fill/Point
 import { usePointageImportJobs, type PointageImportJob } from "@/hooks/usePointageImportJobs";
 import type { Employee } from "@/features/employee-detail/types";
 import type { WeekTemplate, useCalendar } from "@/hooks/useCalendar";
-import type { DayData } from "@/components/ScheduleModal";
+import type { SaisieGroupee } from "@/components/ScheduleModal";
 
 /** Valeurs fournies par useCalendar, relayées telles quelles par la fiche salarié. */
 type CalendarHook = ReturnType<typeof useCalendar>;
@@ -50,8 +50,8 @@ interface CalendarTabProps {
   applyWeekTemplateAndSave: () => void;
   selectedDays: number[];
   handleDaySelection: CalendarHook["handleDaySelection"];
-  bulkUpdateDays: (data: Partial<Omit<DayData, "jour">>) => void;
-  bulkUpdateDaysAndSave: (data: Partial<Omit<DayData, "jour">>) => void;
+  bulkUpdateDays: (data: SaisieGroupee) => void;
+  bulkUpdateDaysAndSave: (data: SaisieGroupee) => void;
   updateSelection: (mode: "all" | "weekdays" | "none") => void;
   isDirty: boolean;
   monthCompletionStatus: string;

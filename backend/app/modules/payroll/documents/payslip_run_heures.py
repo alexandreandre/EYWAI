@@ -44,7 +44,7 @@ from app.modules.payroll.engine import legal_constants as lc
 # Jours qui empêchent la retenue « absence intégrale du mois ».
 # `ecole` : journée payée hors entreprise (alternant). Sans elle, un mois
 # sans jour « travail » effacerait aussi ces journées.
-TYPES_JOURS_COUVERTS = frozenset({"travail", "conges_payes", "ecole"})
+TYPES_JOURS_COUVERTS = frozenset({"travail", "conges_payes", "ecole", "activite_partielle"})
 from app.modules.payroll.engine.exoneration_jei import (
     calculer_exoneration_jei,
     jei_applicable,

@@ -239,7 +239,7 @@ def test_le_montant_saisi_n_est_pas_une_estimation():
     }
     assert ij_estimees_du_bulletin(pdata) is None
     assert "ijss_theorique" not in chiffres_du_bulletin(pdata)
-    pdata["bloc_maintien"]["ijss"]["ijss_brut_override"] = False
+    pdata["bloc_maintien"]["ijss"]["ijss_brut_override"] = None
     assert chiffres_du_bulletin(pdata)["ijss_theorique"] == 500.0
 
 
@@ -306,3 +306,58 @@ def test_arret_enregistre_apres_le_bulletin_le_dit():
         "payslip_data": {"bloc_maintien": {}},
     }
     assert bulletin_calcule_avant(bulletin, "2026-11-17T08:52:56+00:00")
+
+
+def _liste_avec(monkeypatch, *, payslip_data, ijss_theorique):
+    import app.modules.ijss_tracking.application.service as service
+
+    arret = {
+        "id": "a1",
+        "employee_id": "e1",
+        "type": "arret_maladie",
+        "selected_days": ["2026-10-20", "2026-10-21"],
+        "created_at": "2026-10-01T00:00:00+00:00",
+    }
+    monkeypatch.setattr(mod, "_arrets_valides", lambda _c: [arret])
+    monkeypatch.setattr(service, "_fetch_employees", lambda _c: [{"id": "e1"}])
+    monkeypatch.setattr(
+        service,
+        "_bulletins_du_mois",
+        lambda *_a: {
+            "e1": {
+                "id": "b1",
+                "payslip_data": payslip_data,
+                "generated_at": "2026-11-05T00:00:00+00:00",
+            }
+        },
+    )
+    monkeypatch.setattr(mod, "_saisies_ij_du_mois", lambda *_a: {})
+    monkeypatch.setattr(mod.repo, "get_or_create_period", lambda *_a: {"id": "p1"})
+    monkeypatch.setattr(
+        mod.repo,
+        "list_expected_lines",
+        lambda _p: [{"absence_request_id": "a1", "ijss_theorique": ijss_theorique}],
+    )
+    monkeypatch.setattr(mod, "_justificatifs", lambda _ids: {})
+    monkeypatch.setattr(mod, "_urls_signees", lambda _u: {})
+    return mod.lister_arrets_du_mois("co", 2026, 10)["arrets"][0]
+
+
+def test_le_zero_de_creation_n_est_pas_une_estimation(monkeypatch):
+    """Ligne créée quand le bulletin portait déjà le montant saisi : son 0 par
+    défaut ne s'affiche pas « Martine les estime à 0,00 € »."""
+    saisi = {"bloc_maintien": {"ijss": {"ijss_brut_override": 500.0}}}
+    ligne = _liste_avec(monkeypatch, payslip_data=saisi, ijss_theorique=0.0)
+    assert ligne["ij_estimees"] is None
+
+
+def test_l_estimation_d_avant_la_saisie_reste(monkeypatch):
+    saisi = {"bloc_maintien": {"ijss": {"ijss_brut_override": 500.0}}}
+    ligne = _liste_avec(monkeypatch, payslip_data=saisi, ijss_theorique=43.12)
+    assert ligne["ij_estimees"] == 43.12
+
+
+def test_un_montant_saisi_a_zero_est_une_saisie():
+    """0 € saisi par la RH (arrêt en carence) : pas « estimées » à la place."""
+    pdata = {"bloc_maintien": {"ijss": {"ijss_brut_override": 0.0, "ijss_theorique": 43.1}}}
+    assert ij_estimees_du_bulletin(pdata) is None

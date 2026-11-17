@@ -34,6 +34,8 @@ class CalculActivitePartielle:
     retenue: float
     indemnite: float
     regle: str
+    #: Heures ramenées au maximum de la période (R5122-19).
+    plafonne: bool = False
 
 
 def _r2(x: float) -> float:
@@ -81,6 +83,33 @@ def taux_horaire_forfait_jours(
     return round(mensuel / (22 * jours / 218) / 7, 4)
 
 
+def heures_retenues(
+    heures_chomees: float,
+    *,
+    heures_max: float | None = None,
+    heures_si_tout_chome: float | None = None,
+    tout_chome: bool = False,
+    sans_travail: bool = False,
+    **_autres: Any,
+) -> float:
+    """Les heures chômées que le bulletin paie, bornes de la période comprises
+    (voir `calculer`) ; l'écran et la DSN comptent les mêmes."""
+    heures = round(max(0.0, float(heures_chomees)), 2)
+    if (tout_chome or sans_travail) and heures_si_tout_chome is not None:
+        return round(max(0.0, float(heures_si_tout_chome)), 2)
+    if heures_max is not None and heures > round(float(heures_max), 2):
+        return round(max(0.0, float(heures_max)), 2)
+    return heures
+
+
+def _retenue(brute: float, salaire: float | None, tout_chome: bool) -> float:
+    if salaire and salaire > 0:
+        if tout_chome:
+            return _r2(salaire)
+        return _r2(min(brute, salaire))
+    return _r2(brute)
+
+
 def calculer(
     heures_chomees: float,
     taux_horaire: float,
@@ -88,8 +117,32 @@ def calculer(
     taux_indemnite: float = TAUX_LEGAL,
     plancher: float = PLANCHER_LEGAL,
     plafond: float = PLAFOND_LEGAL,
+    heures_max: float | None = None,
+    heures_si_tout_chome: float | None = None,
+    salaire: float | None = None,
+    tout_chome: bool = False,
+    sans_travail: bool = False,
 ) -> CalculActivitePartielle:
-    heures = round(max(0.0, float(heures_chomees)), 2)
+    """Bornes de la période (R5122-19), toutes facultatives :
+    - `heures_max` : heures chômées au plus (durée de référence moins les
+      heures non chômées) ;
+    - `tout_chome` : rien d'autre n'est dû sur la période ; les heures valent
+      alors `heures_si_tout_chome` (la durée d'un mois civil entier), s'il est
+      donné, et la retenue vaut le salaire ;
+    - `sans_travail` : aucune heure travaillée, mais des jours payés (férié,
+      congé) ; les heures valent `heures_si_tout_chome` (la durée du mois
+      moins ces jours) et la retenue reste bornée au salaire ;
+    - `salaire` : la retenue ne le dépasse jamais (salarié mensualisé sous
+      contrat toute la période : le bulletin ne paie pas plus que lui).
+    """
+    heures = heures_retenues(
+        heures_chomees,
+        heures_max=heures_max,
+        heures_si_tout_chome=heures_si_tout_chome,
+        tout_chome=tout_chome,
+        sans_travail=sans_travail,
+    )
+    plafonne = not (tout_chome or sans_travail) and heures < round(max(0.0, float(heures_chomees)), 2)
     horaire = float(taux_horaire)
     brute = horaire * float(taux_indemnite) / 100
     regle = f"{float(taux_indemnite):g} % du salaire horaire"
@@ -108,9 +161,10 @@ def calculer(
         heures_chomees=heures,
         taux_horaire=round(horaire, 4),
         indemnite_horaire=indemnite_horaire,
-        retenue=_r2(heures * horaire),
+        retenue=_retenue(heures * horaire, salaire, tout_chome),
         indemnite=_r2(heures * indemnite_horaire),
         regle=regle,
+        plafonne=plafonne,
     )
 
 

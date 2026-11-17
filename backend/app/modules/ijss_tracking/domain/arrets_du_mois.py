@@ -101,7 +101,7 @@ def ij_estimees_du_bulletin(payslip_data: Mapping[str, Any] | None) -> float | N
     if not payslip_data:
         return None
     ijss = (payslip_data.get("bloc_maintien") or {}).get("ijss") or {}
-    if ijss.get("ijss_brut_override"):
+    if ijss.get("ijss_brut_override") is not None:
         # Le bulletin a pris le montant saisi par la RH : ce n'est plus une
         # estimation de Martine (MAJI, 17/11 : 500 € saisis montrés « estimés »).
         return None
