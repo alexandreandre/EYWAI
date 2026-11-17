@@ -2,7 +2,7 @@ import { useActivitePartielleActive } from '@/hooks/useActivitePartielleActive';
 import { useState } from "react";
 import { Copy, Loader2, Save } from "lucide-react";
 import { DayData } from "@/components/ScheduleModal";
-import { typesDeSaisie } from "@/lib/calendarTypes";
+import { reelApresChangementDeType, typesDeSaisie } from "@/lib/calendarTypes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,6 +127,12 @@ export function BulkActionPanel({
       }
     }
 
+    // Un type de jour non travaillé remet le réel à 0, sauf réel saisi ici
+    // (même règle que la case du jour).
+    if (type) {
+      const reel = reelApresChangementDeType(type, null, updateData.heures_faites);
+      if (reel !== undefined) updateData.heures_faites = reel;
+    }
     if (hasUpdate) {
       callback(updateData);
     }
@@ -275,7 +281,7 @@ export function BulkActionPanel({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Modifier {selectedCount} jours et enregistrer ?</AlertDialogTitle>
-            <AlertDialogDescription>{preview}. L&apos;enregistrement lancera le calcul paie.</AlertDialogDescription>
+            <AlertDialogDescription>{preview}. Le bulletin n&apos;est pas recalculé tout seul : s&apos;il existe déjà, régénérez-le ensuite.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>

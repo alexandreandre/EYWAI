@@ -177,3 +177,21 @@ export function formatCalendarValue(
   }
   return `${value.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} h`;
 }
+
+/** Le réel d'un jour quand la RH change son type (Lyon, 17/11/2026).
+ *
+ * Un type de jour non travaillé (congé, repos, férié, activité partielle…)
+ * remet le réel à 0 (« Non » au forfait jours) : les heures faites gardées
+ * d'avant comptaient comme travaillées, et un jour chômé d'activité partielle
+ * avec 7 h faites ne chômait rien. Le réel saisi en même temps l'emporte : une
+ * demi-journée reste possible, la RH saisit ensuite les heures faites.
+ * « Travail » garde le réel. `undefined` : ne pas toucher au réel. */
+export function reelApresChangementDeType(
+  nouveauType: string | null | undefined,
+  ancienType: string | null | undefined,
+  reelSaisi?: number | null,
+): number | null | undefined {
+  if (reelSaisi !== undefined) return reelSaisi;
+  if (!nouveauType || nouveauType === 'travail' || nouveauType === ancienType) return undefined;
+  return 0;
+}

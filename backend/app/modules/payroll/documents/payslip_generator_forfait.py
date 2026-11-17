@@ -108,6 +108,10 @@ from app.modules.payroll.documents.payslip_generator import (
 )
 from app.modules.ijss_tracking.domain.saisie_ijss import est_saisie_ijss_validees
 from app.modules.monthly_inputs.domain.rules import alertes_de_doublon_de_prime, est_saisie_retiree
+from app.modules.schedules.domain.conflits_arret import (
+    alerte_arret_sans_demande,
+    alerte_arrets_contradictoires,
+)
 from app.modules.payroll.engine.corrections_manuelles import ranger_correction_manuelle
 
 
@@ -283,7 +287,51 @@ def process_payslip_generation_forfait(
 
         absences_rows = _stamp_source_absence_conges(planned_data_all_months, employee_id)
 
+        # Activité partielle posée au calendrier : les deux lignes du mois
+        # (retenue, indemnité), calculées comme en heures (même fonction), un
+        # jour chômé valant 7 h. En mémoire seulement : le calendrier fait foi.
+        from app.modules.activite_partielle.application.service import (
+            lignes_du_calendrier,
+        )
+
+        # Jours après la sortie écartés, comme en heures : ils sont déjà
+        # retenus par la sortie, ils ne sont ni chômés ni indemnisés.
+        from app.modules.payroll.application import planning_apres_sortie
+
+        from app.shared.infrastructure.forfait_jour import bornes_periode_de_paie
+
+        prevu_ap, reel_ap, _ = planning_apres_sortie.ecarter_apres_la_sortie(
+            planned_data_all_months,
+            actual_data_all_months,
+            planning_apres_sortie.date_de_sortie(employee_data.get("exit_last_working_day")),
+        )
+        # Les jours de la période de paie de la société, comme les jours
+        # d'absence au forfait, hors jours payés avant la reprise.
+        saisies_res.data, alerte_activite_partielle = lignes_du_calendrier(
+            str(company_id),
+            {**employee_data, "is_forfait_jour": True},
+            year,
+            month,
+            prevu_ap,
+            reel_ap,
+            list(saisies_res.data or []),
+            bornes=bornes_periode_de_paie(
+                {"periode_de_paie": _periode_de_paie_company(company_data)}, year, month
+            ),
+        )
+
         last_day = calendar.monthrange(year, month)[1]
+        # Arrêts : mêmes alertes qu'en heures. Un « Arrêt maladie » posé au
+        # calendrier sans demande est retenu sans maintien ni IJSS : on le dit.
+        alerte_subrogation = alerte_arrets_contradictoires(
+            absences_rows, date(year, month, 1), date(year, month, last_day)
+        )
+        alerte_arret_sans_type = alerte_arret_sans_demande(
+            planned_data_all_months,
+            absences_rows,
+            date(year, month, 1),
+            date(year, month, last_day),
+        )
         expense_reports_res = (
             supabase.table("expense_reports")
             .select("type, amount, date")
@@ -699,6 +747,17 @@ def process_payslip_generation_forfait(
             payslip_json_data["alertes_baremes"] = fusionner_replis(
                 payslip_json_data.get("alertes_baremes"), alertes_de_repli_generateur
             )
+        for alerte_du_calendrier in (
+            alerte_subrogation,
+            alerte_arret_sans_type,
+            alerte_activite_partielle,
+        ):
+            if alerte_du_calendrier and isinstance(payslip_json_data, dict):
+                payslip_json_data = dict(payslip_json_data)
+                payslip_json_data["alertes_baremes"] = [
+                    *(payslip_json_data.get("alertes_baremes") or []),
+                    alerte_du_calendrier,
+                ]
         alertes_doublons = alertes_de_doublon_de_prime(saisies_res.data or [])
         if alertes_doublons and isinstance(payslip_json_data, dict):
             payslip_json_data = dict(payslip_json_data)

@@ -56,6 +56,8 @@ def test_sans_retirer_les_heures_chomees_la_reduction_serait_trop_forte():
 def test_le_pipeline_retire_les_heures_chomees_et_garde_l_indemnite_hors_du_brut():
     source = inspect.getsource(payslip_run_heures.run_payslip_generation_heures)
     assert "max(0.0, heures_base_mois - heures_activite_partielle)" in source
-    assert 'heures_chomees_saisie = abs(float(saisie.get("quantity") or 0.0))' in source
+    # Mêmes fonctions qu'au forfait jours (calcul complet des deux moteurs :
+    # test_activite_partielle_deux_moteurs.py).
+    assert "heures_chomees_de_la_retenue(" in source
     # L'indemnité part au canal des revenus de remplacement, hors primes soumises.
-    assert '"prime_id": "indemnite_activite_partielle"' in source
+    assert "ligne_d_indemnite(" in source

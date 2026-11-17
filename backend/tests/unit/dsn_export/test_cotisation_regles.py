@@ -562,3 +562,27 @@ def test_la_base_03_est_toujours_le_brut():
     )
     base_03 = next(b for b in bases if b.code == "03")
     assert base_03.rubriques["S21.G00.78.004"] == "3750.00"
+
+
+def test_csg_de_l_activite_partielle_comme_le_cabinet():
+    """DSN LEWIS de juin 2026 (forfait jours, 683,61 € d'indemnité) : base 04 à
+    3 612,06 € (salaire 2 940,41 + indemnité 671,65), une 072 à 6,20 % sur
+    l'indemnité (41,64 €), la 072 du salaire, et la CRDS sur le tout (18,06 €)."""
+    bases, cotisations, _ = _construire(
+        [
+            {"coti_id": "csg_deductible", "libelle": "CSG déductible", "base": 2940.41, "taux_salarial": 0.068, "montant_salarial": 199.95},
+            {"coti_id": "csg_non_deductible", "libelle": "CSG/CRDS non déductible", "base": 2940.41, "taux_salarial": 0.029, "montant_salarial": 85.27},
+            {"libelle": "CSG déductible activité partielle", "base": 671.65, "taux_salarial": 0.038, "montant_salarial": 25.52, "is_csg_activite_partielle": True},
+            {"libelle": "CSG/CRDS non déductible activité partielle", "base": 671.65, "taux_salarial": 0.029, "montant_salarial": 19.48, "is_csg_activite_partielle": True},
+        ],
+        brut=2912.08,
+    )
+    csg = [c.rubriques for c in cotisations if c.code == "072"]
+    assert sorted((l["S21.G00.81.003"], l["S21.G00.81.004"]) for l in csg) == [
+        ("2940.41", "270.52"),
+        ("671.65", "41.64"),
+    ]
+    assert _ligne(cotisations, "079")["S21.G00.81.003"] == "3612.06"
+    assert _ligne(cotisations, "079")["S21.G00.81.004"] == "18.06"
+    base_04 = [b for b in bases if b.rubriques.get("S21.G00.78.001") == "04"][0]
+    assert base_04.rubriques["S21.G00.78.004"] == "3612.06"

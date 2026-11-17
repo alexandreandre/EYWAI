@@ -10,12 +10,13 @@ fait passe « À recalculer » ; un bulletin remis n'est pas touché.
 from __future__ import annotations
 
 import calendar
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from app.core.database import get_supabase_admin_client
 from app.modules.activite_partielle.domain.calendrier import (
     TYPE_JOUR,
+    dans_la_periode,
     heures_chomees,
     jours_chomes,
 )
@@ -165,6 +166,14 @@ def _taux_horaire(e: dict[str, Any]) -> float | None:
             jours = jours_du_forfait_de_la_fiche(e.get("specificites_paie"))
         except ValueError:
             jours = None
+        if jours is None and e.get("company_id"):
+            # Sans forfait sur la fiche, celui de la société, comme la
+            # réduction générale (`jours_du_forfait_pour_reduction`).
+            from app.modules.absences.infrastructure import leave_settings_repository
+
+            jours = float(
+                leave_settings_repository.get_leave_policy(str(e["company_id"])).rtt_forfait_annual_days
+            )
         return taux_horaire_forfait_jours(e.get("salaire_de_base"), jours)
     return taux_horaire_du_contrat(
         e.get("salaire_de_base"), e.get("duree_hebdomadaire")
@@ -282,23 +291,76 @@ def _jours_du_calendrier(
     )
 
 
+def bornes_du_bulletin(
+    company_id: str, year: int, month: int, *, forfait_jours: bool
+) -> tuple[date, date]:
+    """Les jours d'activité partielle que le bulletin du mois paie : ceux dont
+    il retient aussi les absences (Lyon, 17/11/2026). En heures, la fenêtre des
+    variables, comme les absences non rémunérées ; au forfait jours, la période
+    de paie de la société, comme les jours d'absence. Le premier mois après la
+    reprise, les jours que l'ancien logiciel a payés sont exclus.
+    """
+    if forfait_jours:
+        from app.modules.payroll.documents.payslip_generator_forfait import (
+            _periode_de_paie_company,
+        )
+        from app.shared.infrastructure.forfait_jour import bornes_periode_de_paie
+
+        societe = (
+            _db().table("companies").select("*").eq("id", company_id).single().execute().data
+            or {}
+        )
+        debut, fin = bornes_periode_de_paie(
+            {"periode_de_paie": _periode_de_paie_company(societe)}, year, month
+        )
+    else:
+        from app.modules.payroll.application.periode_variables_service import (
+            resoudre_fenetre_variables,
+        )
+
+        fenetre = resoudre_fenetre_variables(company_id, year, month)
+        debut, fin = fenetre.debut, fenetre.fin
+    return debut, fin
+
+
+def _apres_la_reprise(company_id: str, year: int, month: int, debut: date) -> date:
+    from app.shared.reprise_paie import fin_de_la_reprise_au_premier_mois
+
+    fin_reprise = fin_de_la_reprise_au_premier_mois(company_id, year, month)
+    return max(debut, fin_reprise + timedelta(days=1)) if fin_reprise else debut
+
+
 def lignes_du_calendrier(
     company_id: str,
     employee: dict[str, Any],
     year: int,
     month: int,
-    prevu_du_mois: list[dict[str, Any]],
-    reel_du_mois: list[dict[str, Any]],
+    prevu: list[dict[str, Any]],
+    reel: list[dict[str, Any]],
     saisies: list[dict[str, Any]],
+    *,
+    bornes: tuple[date, date] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     """Saisies du bulletin, avec l'activité partielle lue dans le calendrier.
 
-    Sans jour « Activité partielle » au calendrier du mois, rien ne change (la
-    saisie à la main, s'il y en a une, compte). Sinon les deux lignes sont
-    calculées depuis les jours chômés et remplacent celles saisies à la main :
-    le calendrier fait foi. Rien n'est écrit en base. Rend aussi l'alerte du
-    bulletin quand le calcul n'a pas pu se faire ou sort du réglage.
+    `prevu` et `reel` : les jours lus (ils portent `annee` et `mois`) ;
+    `bornes` : la période du bulletin (`bornes_du_bulletin`), le mois civil à
+    défaut. Les jours d'avant la reprise en sont exclus. Sans jour « Activité
+    partielle » dans la période, rien ne change (la saisie à la main, s'il y
+    en a une, compte). Sinon les deux lignes sont calculées depuis les jours
+    chômés et remplacent celles saisies à la main : le calendrier fait foi.
+    Rien n'est écrit en base. Rend aussi l'alerte du bulletin quand le calcul
+    n'a pas pu se faire ou sort du réglage.
     """
+    debut, fin = bornes or (
+        date(year, month, 1),
+        date(year, month, calendar.monthrange(year, month)[1]),
+    )
+    if not any(str(j.get("type") or "") == TYPE_JOUR for j in prevu):
+        return saisies, None
+    debut = _apres_la_reprise(company_id, year, month, debut)
+    prevu_du_mois = dans_la_periode(prevu, debut, fin, annee=year, mois=month)
+    reel_du_mois = dans_la_periode(reel, debut, fin, annee=year, mois=month)
     if not any(str(j.get("type") or "") == TYPE_JOUR for j in prevu_du_mois):
         return saisies, None
     reglage = lire_reglage(company_id)
@@ -348,36 +410,61 @@ def lignes_du_calendrier(
 def recap_du_calendrier(
     company_id: str, year: int, month: int, salaries: list[dict[str, Any]], reglage: dict[str, Any]
 ) -> dict[str, dict[str, Any]]:
-    """Par salarié : jours et heures chômés au calendrier du mois, et leur effet."""
+    """Par salarié : jours et heures chômés que le bulletin du mois paie (même
+    période que lui, `bornes_du_bulletin`), et leur effet."""
     ids = [str(e["id"]) for e in salaries]
     if not ids:
         return {}
+    voisins = [
+        (year - 1, 12) if month == 1 else (year, month - 1),
+        (year, month),
+        (year + 1, 1) if month == 12 else (year, month + 1),
+    ]
     rows = (
         _db()
         .table("employee_schedules")
-        .select("employee_id, planned_calendar, actual_hours")
+        .select("employee_id, year, month, planned_calendar, actual_hours")
         .in_("employee_id", ids)
-        .eq("year", year)
-        .eq("month", month)
+        .in_("year", sorted({a for a, _ in voisins}))
+        .in_("month", sorted({m for _, m in voisins}))
         .execute()
         .data
         or []
     )
-    par_id = {str(e["id"]): e for e in salaries}
-    recap: dict[str, dict[str, Any]] = {}
+    par_salarie: dict[str, tuple[list, list]] = {}
     for row in rows:
-        e = par_id.get(str(row.get("employee_id")))
-        if e is None:
+        if (int(row.get("year")), int(row.get("month"))) not in voisins:
             continue
-        prevu = (row.get("planned_calendar") or {}).get("calendrier_prevu") or []
-        reel = (row.get("actual_hours") or {}).get("calendrier_reel") or []
-        jours = _jours_du_calendrier(e, reglage, prevu, reel)
+        an, mois = int(row["year"]), int(row["month"])
+        prevu, reel = par_salarie.setdefault(str(row.get("employee_id")), ([], []))
+        for j in (row.get("planned_calendar") or {}).get("calendrier_prevu") or []:
+            prevu.append({**j, "annee": an, "mois": mois})
+        for j in (row.get("actual_hours") or {}).get("calendrier_reel") or []:
+            reel.append({**j, "annee": an, "mois": mois})
+    bornes: dict[bool, tuple[date, date]] = {}
+    recap: dict[str, dict[str, Any]] = {}
+    for e in salaries:
+        eid = str(e["id"])
+        if eid not in par_salarie:
+            continue
+        forfait = bool(e.get("is_forfait_jour"))
+        if forfait not in bornes:
+            debut, fin = bornes_du_bulletin(company_id, year, month, forfait_jours=forfait)
+            bornes[forfait] = (_apres_la_reprise(company_id, year, month, debut), fin)
+        debut, fin = bornes[forfait]
+        prevu, reel = par_salarie[eid]
+        jours = _jours_du_calendrier(
+            e,
+            reglage,
+            dans_la_periode(prevu, debut, fin, annee=year, mois=month),
+            dans_la_periode(reel, debut, fin, annee=year, mois=month),
+        )
         heures = heures_chomees(jours)
         if heures <= 0:
             continue
         taux = _taux_horaire(e)
         c = _calcul(heures, taux, reglage) if taux else None
-        recap[str(e["id"])] = {
+        recap[eid] = {
             "jours": [j.jour for j in jours],
             "heures": heures,
             "retenue": c.retenue if c else None,

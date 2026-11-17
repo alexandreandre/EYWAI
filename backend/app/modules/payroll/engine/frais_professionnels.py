@@ -133,3 +133,88 @@ def ligne_de_frais_professionnels(saisie: Mapping[str, Any]) -> dict[str, Any] |
     if saisie.get("saisie_id"):
         ligne["saisie_id"] = str(saisie["saisie_id"])
     return ligne
+
+
+def frais_et_reintegration(
+    saisie: Mapping[str, Any], frais_pro: Mapping[str, Any] | None
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Un remboursement de frais : sa ligne non soumise, et la réintégration au
+    brut de la part d'un panier au-delà du plafond (ou None).
+
+    (None, None) si la saisie n'est pas un remboursement de frais. Appelée par
+    les deux moteurs (heures et forfait jours).
+    """
+    ligne_frais = ligne_de_frais_professionnels(saisie)
+    if ligne_frais is None:
+        return None, None
+    reint = reintegration_panier_plafonne(saisie, frais_pro)
+    if reint <= 0:
+        return ligne_frais, None
+    ligne_frais["montant"] = round(ligne_frais["montant"] - reint, 2)
+    return ligne_frais, {
+        "libelle": f"Réintégration panier {ligne_frais['libelle']}",
+        "montant": reint,
+        "prime_id": "reintegration_panier",
+    }
+
+
+def est_un_panier(prime_id: Any, saisie: Mapping[str, Any]) -> bool:
+    return (
+        "panier" in str(prime_id).lower()
+        or "repas" in str(prime_id).lower()
+        or str(saisie.get("type") or "").lower() == "panier"
+    )
+
+
+def panier_non_soumis_plafonne(
+    saisie: Mapping[str, Any],
+    prime_id: Any,
+    libelle: Any,
+    montant: float,
+    frais_pro: Mapping[str, Any] | None,
+) -> tuple[float, dict[str, Any] | None]:
+    """Un panier non soumis passé comme prime : la part exonérée, et la
+    réintégration au brut de ce qui dépasse le plafond par panier (ou None).
+
+    `quantity` porte selon le libellé un nombre d'unités ou une valeur
+    unitaire : diviser sans distinction donnait 22 € le panier au lieu de
+    7,50 € sur les 62 lignes Mont Blanc Composite. Toute autre saisie revient
+    telle quelle. Appelée par les deux moteurs (heures et forfait jours).
+    """
+    from app.modules.payroll.engine.calcul_frais import (
+        appliquer_exoneration_note_frais,
+        valeur_unitaire,
+    )
+
+    if not (
+        est_un_panier(prime_id, saisie)
+        and montant > 0
+        and not saisie.get("soumise_a_cotisations", saisie.get("soumise_a_csg", True))
+    ):
+        return montant, None
+    unit = valeur_unitaire(montant, saisie.get("quantity"), saisie.get("quantity_kind"))
+    qty = max(1.0, round(montant / unit)) if unit > 0 else 1.0
+    exo_total = 0.0
+    reint_total = 0.0
+    for _ in range(int(qty)):
+        exo, reint, _plafond = appliquer_exoneration_note_frais(
+            {
+                "montant": unit,
+                "prime_id": prime_id,
+                "type": "panier",
+                "situation_repas": saisie.get("situation_repas"),
+            },
+            frais_pro,
+        )
+        exo_total += exo
+        reint_total += reint
+    reintegration = (
+        {
+            "libelle": f"Réintégration panier {libelle}",
+            "montant": round(reint_total, 2),
+            "prime_id": "reintegration_panier",
+        }
+        if reint_total > 0
+        else None
+    )
+    return round(exo_total, 2), reintegration

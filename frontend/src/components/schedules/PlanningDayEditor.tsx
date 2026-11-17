@@ -2,33 +2,32 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, ExternalLink, Briefcase, TreePalm, Sparkles, Stethoscope, Coffee, Leaf, Ban } from 'lucide-react';
+import { Loader2, ExternalLink, Briefcase, TreePalm, Sparkles, Stethoscope, Coffee, Leaf, Ban, Moon, GraduationCap, PauseCircle, type LucideIcon } from 'lucide-react';
+import { useActivitePartielleActive } from '@/hooks/useActivitePartielleActive';
+import { editableTypeOptionsFor, reelApresChangementDeType } from '@/lib/calendarTypes';
 import { estAbsentATyper } from '@/lib/absentATyper';
 import { cn } from '@/lib/utils';
 import type { PlannedEventData, ActualHoursData } from '@/api/calendar';
 import type { DayPatch } from '@/lib/schedulesOverview';
 
-// conges_payes/rtt : la saisie crée automatiquement la demande validée côté
-// serveur (« une saisie RH enregistre un fait »). L'ancien « conge » (hors
-// paie) n'apparaît que si le jour le porte déjà.
-const TYPE_OPTIONS = [
-  { value: 'travail', label: 'Travail', icon: Briefcase, cls: 'bg-sky-100 text-sky-700 border-sky-200' },
-  { value: 'conges_payes', label: 'CP', icon: TreePalm, cls: 'bg-green-100 text-green-700 border-green-200' },
-  { value: 'rtt', label: 'RTT', icon: Leaf, cls: 'bg-teal-100 text-teal-700 border-teal-200' },
-  { value: 'ferie', label: 'Férié', icon: Sparkles, cls: 'bg-purple-100 text-purple-700 border-purple-200' },
-  { value: 'arret_maladie', label: 'Arrêt', icon: Stethoscope, cls: 'bg-red-100 text-red-700 border-red-200' },
-  { value: 'weekend', label: 'Week-end', icon: Coffee, cls: 'bg-slate-100 text-slate-600 border-slate-200' },
-  // Pour typer un jour coché « absent » à l'import : les quatre types promis
-  // (congé, RTT, arrêt, absence non payée) sont tous ici.
-  { value: 'absence_non_remuneree', label: 'Abs. non payée', icon: Ban, cls: 'bg-orange-100 text-orange-700 border-orange-200' },
-] as const;
-
-const LEGACY_CONGE_OPTION = {
-  value: 'conge',
-  label: 'Congé (hors paie)',
-  icon: TreePalm,
-  cls: 'bg-amber-100 text-amber-700 border-amber-200',
-} as const;
+// Les types proposés sont ceux du calendrier complet (`editableTypeOptionsFor`) :
+// même liste, activité partielle comprise si la société l'a activée ; « Arrêt »
+// et l'ancien « Congé (hors paie) » seulement sur un jour qui les porte déjà
+// (Lyon, 17/11 : la liste écrite ici en dur divergeait). Ici, l'apparence.
+const APPARENCE: Record<string, { label?: string; icon: LucideIcon; cls: string }> = {
+  travail: { icon: Briefcase, cls: 'bg-sky-100 text-sky-700 border-sky-200' },
+  conges_payes: { label: 'CP', icon: TreePalm, cls: 'bg-green-100 text-green-700 border-green-200' },
+  rtt: { icon: Leaf, cls: 'bg-teal-100 text-teal-700 border-teal-200' },
+  ferie: { icon: Sparkles, cls: 'bg-purple-100 text-purple-700 border-purple-200' },
+  weekend: { icon: Coffee, cls: 'bg-slate-100 text-slate-600 border-slate-200' },
+  repos: { label: 'Repos / récup.', icon: Moon, cls: 'bg-slate-100 text-slate-700 border-slate-300' },
+  absence_non_remuneree: { label: 'Abs. non payée', icon: Ban, cls: 'bg-orange-100 text-orange-700 border-orange-200' },
+  ecole: { icon: GraduationCap, cls: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
+  activite_partielle: { label: 'Act. partielle', icon: PauseCircle, cls: 'bg-amber-100 text-amber-800 border-amber-200' },
+  arret_maladie: { label: 'Arrêt', icon: Stethoscope, cls: 'bg-red-100 text-red-700 border-red-200' },
+  conge: { icon: TreePalm, cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+};
+const APPARENCE_PAR_DEFAUT = { icon: Briefcase, cls: 'bg-muted text-foreground border-input' };
 
 interface PlanningDayEditorProps {
   employeeName: string;
@@ -58,6 +57,7 @@ export function PlanningDayEditor({
   onClose,
   onOpenFullCalendar,
 }: PlanningDayEditorProps) {
+  const activitePartielle = useActivitePartielleActive();
   const [type, setType] = useState<string>(planned?.type ?? 'travail');
   const [plannedHours, setPlannedHours] = useState<string>(
     planned?.heures_prevues != null ? String(planned.heures_prevues) : ''
@@ -90,10 +90,16 @@ export function PlanningDayEditor({
 
   const handleTypeChange = (newType: string) => {
     setType(newType);
+    // Même règle que la case du calendrier : un type non travaillé remet le
+    // réel à 0 ; la RH saisit ensuite les heures faites (demi-journée).
+    const reel = reelApresChangementDeType(newType, type);
+    if (reel !== undefined && reel !== null) setActualHours(String(reel));
     if (isForfaitJour) {
-      if (newType !== 'travail') {
+      if (newType === 'activite_partielle') {
+        // Le jour chômé reste un jour prévu : c'est lui qui est indemnisé.
+        if (plannedHours === '' || plannedHours === '0') setPlannedHours('1');
+      } else if (newType !== 'travail') {
         setPlannedHours('0');
-        setActualHours('0');
       } else if (plannedHours === '' || plannedHours === '0') {
         setPlannedHours('1');
       }
@@ -101,9 +107,6 @@ export function PlanningDayEditor({
       // Jour d'absence : 0 h au planning (convention bulletin) — la demande
       // validée créée côté serveur porte le décompte.
       setPlannedHours('0');
-      setActualHours('0');
-    } else if (newType !== 'travail' && plannedHours === '') {
-      // garde la saisie en cours
     } else if (newType === 'travail' && plannedHours === '') {
       setPlannedHours('8');
     }
@@ -132,9 +135,10 @@ export function PlanningDayEditor({
       // Pour congé/férié/arrêt : heures prévues à null par défaut si non renseignées
       if (plannedHours === '') patch.heures_prevues = null;
     }
-    if (type !== 'travail' && type !== 'work') {
+    if (type !== 'travail' && type !== 'work' && type !== 'activite_partielle') {
       // Un réel > 0 sur un jour non travaillé compte les heures comme
       // travaillées en paie et efface l'absence du bulletin : forcé à 0.
+      // Activité partielle : les heures faites d'une demi-journée restent.
       patch.heures_faites = 0;
     }
     return patch;
@@ -178,10 +182,9 @@ export function PlanningDayEditor({
       <div>
         <Label className="text-xs mb-1.5 block">Type</Label>
         <div className="grid grid-cols-3 gap-1.5">
-          {(type === 'conge'
-            ? [...TYPE_OPTIONS, LEGACY_CONGE_OPTION]
-            : TYPE_OPTIONS
-          ).map((opt) => {
+          {editableTypeOptionsFor(planned?.type, activitePartielle).map((choix) => {
+            const apparence = APPARENCE[choix.value] ?? APPARENCE_PAR_DEFAUT;
+            const opt = { ...choix, ...apparence, label: apparence.label ?? choix.label };
             const Icon = opt.icon;
             const active = type === opt.value;
             return (

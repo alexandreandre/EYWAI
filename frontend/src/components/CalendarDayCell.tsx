@@ -23,6 +23,7 @@ import {
   COULEUR_REEL,
   editableTypeOptionsFor,
   getCalendarTypeLabel,
+  reelApresChangementDeType,
 } from '@/lib/calendarTypes';
 import { isDayReadyForPayroll } from '@/lib/calendarStats';
 import { estAbsentATyper } from '@/lib/absentATyper';
@@ -363,10 +364,12 @@ export function CalendarDayCell({
       defaultHours = 0;
     }
 
+    const reel = reelApresChangementDeType(newType, plannedDay.type);
     updateDayData({
       jour: dayNumber,
       type: newType,
       heures_prevues: defaultHours,
+      ...(reel !== undefined ? { heures_faites: reel } : {}),
       ...(newType === 'conges_payes' || newType === 'rtt' ? { demi_journee: demiJournee } : {}),
     });
     setTypePopoverOpen(false);

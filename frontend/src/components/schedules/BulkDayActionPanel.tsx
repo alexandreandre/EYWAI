@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Loader2, Save } from 'lucide-react';
 import type { DayData } from '@/components/ScheduleModal';
-import { typesDeSaisie } from '@/lib/calendarTypes';
+import { reelApresChangementDeType, typesDeSaisie } from '@/lib/calendarTypes';
 
 interface BulkDayActionPanelProps {
   selectedCount: number;
@@ -88,6 +88,12 @@ export function BulkDayActionPanel({
       }
     }
 
+    // Un type de jour non travaillé remet le réel à 0, sauf réel saisi ici
+    // (même règle que la case du jour).
+    if (type) {
+      const reel = reelApresChangementDeType(type, null, updateData.heures_faites);
+      if (reel !== undefined) updateData.heures_faites = reel;
+    }
     if (hasUpdate) callback(updateData);
   };
 

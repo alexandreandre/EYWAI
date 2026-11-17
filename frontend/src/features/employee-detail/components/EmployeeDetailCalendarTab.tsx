@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { LignePeriodeDuBulletin } from '@/features/payroll/components/LignePeriodeDuBulletin';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getAbsencesForEmployee } from "@/api/absences";
 import { CalendarDays, ChevronLeft, ChevronRight, Grid3x3, Hourglass, Loader2, Save, Sparkles, Upload } from "lucide-react";
@@ -210,6 +211,9 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                         </Badge>
                       )}
                     </CardTitle>
+                    {calendarView === 'month' && (
+                      <LignePeriodeDuBulletin year={selectedDate.year} month={selectedDate.month} />
+                    )}
 
                     <CardDescription className="flex items-center gap-3 mt-0">
                       <Button

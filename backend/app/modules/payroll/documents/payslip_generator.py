@@ -961,22 +961,6 @@ def process_payslip_generation(
             "periode": {"annee": prev_year, "mois": prev_month},
             "calendrier_analyse": payroll_events_prev_list,
         }
-        # Activité partielle posée au calendrier : les deux lignes du mois
-        # (retenue, indemnité) en sont calculées et remplacent la saisie à la
-        # main. En mémoire seulement : le calendrier fait foi.
-        from app.modules.activite_partielle.application.service import (
-            lignes_du_calendrier,
-        )
-
-        saisies_res.data, alerte_activite_partielle = lignes_du_calendrier(
-            str(company_id),
-            employee_data,
-            year,
-            month,
-            [j for j in planned_data_all_months if j.get("annee") == year and j.get("mois") == month],
-            [j for j in actual_data_all_months if j.get("annee") == year and j.get("mois") == month],
-            list(saisies_res.data or []),
-        )
         log_payroll_debug(logger, f'\nDEBUG [Generator]: Nombre de saisies trouvées en BDD pour ce mois : {len(saisies_res.data)}\n')
 
         last_day = calendar.monthrange(year, month)[1]
@@ -1012,6 +996,25 @@ def process_payslip_generation(
                 fenetre_societe.fin, year, month, resolve_date_sortie(employee_data)
             ),
             origine=fenetre_societe.origine,
+        )
+        # Activité partielle posée au calendrier : les deux lignes du mois
+        # (retenue, indemnité) en sont calculées et remplacent la saisie à la
+        # main. En mémoire seulement : le calendrier fait foi. Les jours payés
+        # sont ceux de la fenêtre des variables, comme les absences non
+        # rémunérées (sortie comprise), hors jours payés avant la reprise.
+        from app.modules.activite_partielle.application.service import (
+            lignes_du_calendrier,
+        )
+
+        saisies_res.data, alerte_activite_partielle = lignes_du_calendrier(
+            str(company_id),
+            employee_data,
+            year,
+            month,
+            planned_data_all_months,
+            actual_data_all_months,
+            list(saisies_res.data or []),
+            bornes=(fenetre_variables.debut, fenetre_variables.fin),
         )
         alerte_apres_sortie = planning_apres_sortie.alerte_planning_apres_sortie(
             jours_apres_sortie, sortie_du_contrat, year, month, fenetre_variables.fin

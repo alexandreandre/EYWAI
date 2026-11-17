@@ -55,7 +55,10 @@ from app.modules.payslips.infrastructure.providers import (
     payslip_generator_provider,
 )
 from app.modules.payslips.infrastructure.readers import employee_statut_reader
-from app.modules.payroll.documents.verrou_generation import verrou_de_generation
+from app.modules.payroll.documents.verrou_generation import (
+    ATTENTE_GENERATION_SECONDES,
+    verrou_de_generation,
+)
 from app.modules.notifications.application.employee_document_alerts import (
     NOTIFICATION_TYPE_PAYSLIP,
     notify_employee_new_document,
@@ -768,7 +771,11 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
 
         # Une seule génération à la fois pour ce salarié et ce mois : tout ce qui
         # écrit (archive, calcul, bulletin, cumuls) se fait sous le verrou.
-        with verrou_de_generation(cmd.employee_id, cmd.year, cmd.month):
+        # Attend quelques secondes un enregistrement de calendrier en cours
+        # (il tient aussi ce verrou), au lieu de refuser aussitôt.
+        with verrou_de_generation(
+            cmd.employee_id, cmd.year, cmd.month, attente_secondes=ATTENTE_GENERATION_SECONDES
+        ):
             return _generer_sous_verrou(cmd, employee)
 
 

@@ -70,6 +70,18 @@ class _Base:
 
 @pytest.fixture
 def base(monkeypatch):
+    import calendar as _cal
+    from datetime import date as _date
+
+    import app.shared.reprise_paie as reprise
+
+    # Ni bascule de reprise, ni fenêtre de société : le mois civil.
+    monkeypatch.setattr(reprise, "fin_de_la_reprise_au_premier_mois", lambda *a, **k: None)
+    monkeypatch.setattr(
+        svc,
+        "bornes_du_bulletin",
+        lambda co, an, mois, forfait_jours: (_date(an, mois, 1), _date(an, mois, _cal.monthrange(an, mois)[1])),
+    )
     b = _Base()
     b.tables["employees"] = [
         {
@@ -235,3 +247,55 @@ def test_forfait_jours_un_jour_vaut_7_h():
     reel = [{"jour": 3, "heures_faites": 0.5}]
     jours = jours_chomes(prevu, reel, forfait_jours=True, heures_par_jour=7)
     assert heures_chomees(jours) == 10.5
+
+
+# --- Lyon, 17/11 : un jour chômé compte dans le bulletin qui retient les
+# absences de ce même jour, ni deux fois, ni jamais. ------------------------
+
+from datetime import date  # noqa: E402
+
+
+def _jour_de(an, mois, j, type_=AP, h=7.0):
+    return {"annee": an, "mois": mois, "jour": j, "type": type_, "heures_prevues": h}
+
+
+def test_les_jours_suivent_la_periode_du_bulletin(base):
+    """Fenêtre d'octobre du 21/09 au 25/10 : le 28/09 et le 2/10 y sont, le
+    28/10 part au bulletin de novembre."""
+    employe = base.tables["employees"][0]
+    prevu = [_jour_de(2026, 9, 28), _jour_de(2026, 10, 2), _jour_de(2026, 10, 28)]
+    saisies, _ = svc.lignes_du_calendrier(
+        "co", employe, 2026, 10, prevu, [], [], bornes=(date(2026, 9, 21), date(2026, 10, 25))
+    )
+    assert saisies[0]["payroll_quantity"] == 14.0
+    novembre, _ = svc.lignes_du_calendrier(
+        "co", employe, 2026, 11, prevu, [], [], bornes=(date(2026, 10, 26), date(2026, 11, 22))
+    )
+    assert novembre[0]["payroll_quantity"] == 7.0
+
+
+def test_le_premier_mois_apres_la_reprise_ne_repaie_pas_l_ancien_logiciel(base, monkeypatch):
+    """LEWIS : bascule au 30/09, Quadra a payé l'activité partielle de septembre."""
+    import app.shared.reprise_paie as reprise
+
+    monkeypatch.setattr(
+        reprise, "fin_de_la_reprise_au_premier_mois", lambda *a, **k: date(2026, 9, 30)
+    )
+    employe = base.tables["employees"][0]
+    prevu = [_jour_de(2026, 9, 28), _jour_de(2026, 10, 2)]
+    saisies, _ = svc.lignes_du_calendrier(
+        "co", employe, 2026, 10, prevu, [], [], bornes=(date(2026, 9, 21), date(2026, 10, 25))
+    )
+    assert saisies[0]["payroll_quantity"] == 7.0
+
+
+def test_une_demi_journee_se_lit_sur_le_bon_mois(base):
+    """Le 2/09 et le 2/10 ont le même numéro de jour : les heures faites du 2/10
+    ne réduisent pas le 2/09."""
+    employe = base.tables["employees"][0]
+    prevu = [_jour_de(2026, 9, 2), _jour_de(2026, 10, 2)]
+    reel = [{"annee": 2026, "mois": 10, "jour": 2, "heures_faites": 3.5}]
+    saisies, _ = svc.lignes_du_calendrier(
+        "co", employe, 2026, 10, prevu, reel, [], bornes=(date(2026, 9, 1), date(2026, 10, 31))
+    )
+    assert saisies[0]["payroll_quantity"] == 10.5
