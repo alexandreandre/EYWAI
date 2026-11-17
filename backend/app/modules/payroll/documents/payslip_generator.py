@@ -535,7 +535,9 @@ def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> lis
     jours_cp = [e for e in planned_entries if e.get("type") == "conges_payes"]
     res = (
         supabase.table("absence_requests")
-        .select("type, selected_days, subrogation_active")
+        # `arret_type` : l'alerte « arrêt sans type » le lit. L'empreinte ne garde
+        # que le type et les jours : rien ne passe « à recalculer ».
+        .select("type, arret_type, selected_days, subrogation_active")
         .eq("employee_id", employee_id)
         .eq("status", "validated")
         .execute()
