@@ -17,8 +17,7 @@ async function entetes(page: Page) {
   return { Authorization: `Bearer ${jeton}`, ...(societe ? { 'X-Active-Company': societe } : {}) };
 }
 
-test('préparation de Lyon : heures sup, compteur récup, activité partielle', async ({ page }) => {
-  test.setTimeout(180_000);
+async function reglagesDeLyon(page: Page) {
   await page.addInitScript(() => {
     if (window.top === window) localStorage.removeItem('martine-rq-cache-v2');
   });
@@ -70,7 +69,7 @@ test('préparation de Lyon : heures sup, compteur récup, activité partielle', 
 
   expect(ecritures, 'aucune écriture').toEqual([]);
   await verifierPageSaine(page, s);
-});
+}
 
 /** Société du compte QA par son nom, rendue active. */
 async function choisirSociete(page: Page, nom: RegExp): Promise<string> {
@@ -97,8 +96,7 @@ async function unSalarieEnHeures(page: Page): Promise<string> {
   return s!.id;
 }
 
-test('panier tapé à la main dans Primes : part non soumis, avec le nombre', async ({ page }) => {
-  test.setTimeout(120_000);
+async function panierTapeALaMain(page: Page) {
   await page.addInitScript(() => {
     if (window.top === window) localStorage.removeItem('martine-rq-cache-v2');
   });
@@ -148,10 +146,9 @@ test('panier tapé à la main dans Primes : part non soumis, avec le nombre', as
     situation_repas: 'sur_lieu_travail',
   });
   await verifierPageSaine(page, s);
-});
+}
 
-test('activité partielle au calendrier : choix chez LEWIS, absent ailleurs', async ({ page }) => {
-  test.setTimeout(150_000);
+async function activitePartielleAuCalendrier(page: Page) {
   await page.addInitScript(() => {
     if (window.top === window) localStorage.removeItem('martine-rq-cache-v2');
   });
@@ -160,28 +157,42 @@ test('activité partielle au calendrier : choix chez LEWIS, absent ailleurs', as
   const menuDuJour = async () => {
     await expect(page.getByRole('button', { name: /Importer un relevé/ })).toBeVisible({ timeout: 45_000 });
     await page.locator('button', { hasText: /^Travail$/ }).nth(3).click();
-    return page.locator('[data-radix-popper-content-wrapper]').last();
+    return page.getByRole('dialog').last();
   };
 
   // Une société sans activité partielle : le choix n'existe pas (d'abord, rien n'est modifié à l'écran).
   await choisirSociete(page, /mont[\s-]?blanc/i);
   await page.goto(`/employees/${await unSalarieEnHeures(page)}?tab=calendrier`);
   const autre = await menuDuJour();
-  await expect(autre.getByText(/^Repos$/).first()).toBeVisible();
-  await expect(autre.getByText(/^Activité partielle$/)).toHaveCount(0);
+  await expect(autre.getByRole('button', { name: 'Week-end' })).toBeVisible();
+  await expect(autre.getByRole('button', { name: 'Activité partielle' })).toHaveCount(0);
   await page.keyboard.press('Escape');
 
   // LEWIS : le choix est là, et la fiche tient une fois le jour passé en activité partielle.
   await choisirSociete(page, /^lewis/i);
   await page.goto(`/employees/${await unSalarieEnHeures(page)}?tab=calendrier`);
   const menu = await menuDuJour();
-  await menu.getByText(/^Activité partielle$/).first().click();
+  await menu.getByRole('button', { name: 'Activité partielle' }).click();
   await expect(page.locator('button', { hasText: /^Activité partielle$/ }).first()).toBeVisible();
   await expect(page.getByText("Cette page n'a pas pu s'afficher")).toHaveCount(0);
   // Rouvrir le menu du jour déjà en activité partielle (le plantage du 17/11).
   await page.locator('button', { hasText: /^Activité partielle$/ }).first().click();
-  await expect(page.locator('[data-radix-popper-content-wrapper]').last().getByText(/^Activité partielle$/).first()).toBeVisible();
+  await expect(page.getByRole('dialog').last().getByRole('button', { name: 'Activité partielle' })).toBeVisible();
   await expect(page.getByText("Cette page n'a pas pu s'afficher")).toHaveCount(0);
   await page.keyboard.press('Escape');
   await verifierPageSaine(page, s);
+}
+
+/**
+ * Un seul test, une seule page : des tests séparés repartent de la même session
+ * enregistrée et voient leur renouvellement refusé (401 sur /api/auth/refresh).
+ */
+test('préparation de Lyon : réglages, panier tapé à la main, activité partielle au calendrier', async ({ page }) => {
+  test.setTimeout(420_000);
+  await page.addInitScript(() => {
+    if (window.top === window) localStorage.removeItem('martine-rq-cache-v2');
+  });
+  await test.step('heures sup, compteur récup, réglage de l’activité partielle', () => reglagesDeLyon(page));
+  await test.step('panier tapé à la main dans Primes : part non soumis, avec le nombre', () => panierTapeALaMain(page));
+  await test.step('activité partielle au calendrier : choix chez LEWIS, absent ailleurs', () => activitePartielleAuCalendrier(page));
 });
