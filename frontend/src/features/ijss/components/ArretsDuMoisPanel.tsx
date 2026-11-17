@@ -100,6 +100,12 @@ export function phraseMaintien(arret: ArretDuMois): { texte: string; ton: 'ok' |
   switch (m.etat) {
     case 'bulletin_a_faire':
       return { texte: 'Bulletin du mois pas encore fait', ton: 'neutre' };
+    case 'bulletin_a_recalculer':
+      // Arrêt enregistré après le calcul du bulletin (MAJI, 17/11 : « 0 jour indemnisé »).
+      return {
+        texte: "Bulletin calculé avant l'arrêt : régénérez-le pour qu'il compte l'arrêt",
+        ton: 'attente',
+      };
     case 'en_attente_des_ij':
       return {
         texte: `En attente des IJ : ${eur(m.montant_en_attente)} retenus`,

@@ -17,6 +17,8 @@ from app.core.logging import get_logger
 from app.modules.ijss_tracking.domain.arrets_du_mois import (
     TYPES_JUSTIFICATIF,
     bornes_arret,
+    bulletin_calcule_avant,
+    chiffres_du_bulletin,
     etat_du_maintien,
     ij_estimees_du_bulletin,
     jours_dans_le_mois,
@@ -170,7 +172,18 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
                 "ij_saisies_du_mois": saisies.get(eid),
                 "ij_appliquees_le": attendue.get("applied_to_payslip_at"),
                 "bulletin_id": (bulletin or {}).get("id"),
-                "maintien": etat_du_maintien(pdata),
+                "maintien": (
+                    # Arrêt enregistré après le calcul du bulletin : le dire, pas
+                    # « pas de maintien » ni 0 jour indemnisé (MAJI, 17/11).
+                    {
+                        "etat": "bulletin_a_recalculer",
+                        "montant_verse": 0.0,
+                        "montant_en_attente": 0.0,
+                        "motif": None,
+                    }
+                    if bulletin_calcule_avant(bulletin, a.get("created_at"))
+                    else etat_du_maintien(pdata)
+                ),
                 "justificatifs": pieces.get(aid, []),
             }
         )
@@ -214,16 +227,20 @@ def _ligne_attendue_de_l_arret(
     """La ligne du suivi pour cet arrêt et ce mois ; créée si le bulletin n'a pas
     encore été synchronisé ou fait."""
     aid = str(arret["id"])
-    for l in repo.list_expected_lines(str(periode["id"])):
-        if str(l.get("absence_request_id") or "") == aid:
-            return l
     from app.modules.ijss_tracking.application.service import _bulletins_du_mois
 
     bulletin = _bulletins_du_mois(company_id, year, month).get(
         str(arret["employee_id"])
     )
+    for l in repo.list_expected_lines(str(periode["id"])):
+        if str(l.get("absence_request_id") or "") == aid:
+            # Bulletin recalculé depuis : la ligne reprend ses chiffres (elle
+            # restait figée sur un bulletin d'avant l'arrêt, MAJI 17/11).
+            if bulletin and bulletin_calcule_avant(l, bulletin.get("generated_at")):
+                return rafraichir_la_ligne(l, bulletin) or l
+            return l
     pdata = (bulletin or {}).get("payslip_data") or {}
-    sn = pdata.get("synthese_net") or {}
+    chiffres = chiffres_du_bulletin(pdata)
     ligne = repo.upsert_expected_line(
         {
             "company_id": company_id,
@@ -233,24 +250,29 @@ def _ligne_attendue_de_l_arret(
             "payslip_id": (bulletin or {}).get("id"),
             "period_year": year,
             "period_month": month,
-            "ijss_theorique": ij_estimees_du_bulletin(pdata) or 0.0,
-            "ijss_subrogees_bulletin": float(sn.get("ijss_subrogees") or 0.0),
-            "nb_jours_indemnises": int(
-                ((pdata.get("bloc_maintien") or {}).get("ijss") or {}).get(
-                    "nb_jours_indemnises"
-                )
-                or 0
-            ),
+            "ijss_theorique": 0.0,
+            **chiffres,
             "subrogation_active": bool(arret.get("subrogation_active")),
-            "calculation_snapshot": {
-                "bloc_maintien": pdata.get("bloc_maintien"),
-                "synthese_net": sn,
-            },
         }
     )
     if not ligne:
         raise RuntimeError("La ligne de suivi de cet arrêt n'a pas pu être créée.")
     return ligne
+
+
+def rafraichir_la_ligne(
+    ligne: dict[str, Any], bulletin: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    """La ligne de suivi reprend les chiffres du bulletin actuel du mois."""
+    if not bulletin:
+        return None
+    return repo.update_expected_line(
+        str(ligne["id"]),
+        {
+            **chiffres_du_bulletin(bulletin.get("payslip_data")),
+            "payslip_id": bulletin.get("id") or ligne.get("payslip_id"),
+        },
+    )
 
 
 def enregistrer_ij_recues(

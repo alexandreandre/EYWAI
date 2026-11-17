@@ -247,7 +247,12 @@ export interface JustificatifArret {
   created_at: string | null;
 }
 
-export type EtatMaintienArret = 'bulletin_a_faire' | 'en_attente_des_ij' | 'verse' | 'sans_maintien';
+export type EtatMaintienArret =
+  | 'bulletin_a_faire'
+  | 'bulletin_a_recalculer'
+  | 'en_attente_des_ij'
+  | 'verse'
+  | 'sans_maintien';
 
 export interface ArretDuMois {
   absence_id: string;
