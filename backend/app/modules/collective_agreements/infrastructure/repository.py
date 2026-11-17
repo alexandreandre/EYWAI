@@ -196,11 +196,20 @@ class CollectiveAgreementRepository:
         # l'assignation sans date s'écrit comme avant.
         if date_debut is not None:
             assignment_data["date_debut"] = date_debut.isoformat()
-        response = (
-            self._admin.table("company_collective_agreements")
-            .insert(assignment_data)
-            .execute()
-        )
+        try:
+            response = (
+                self._admin.table("company_collective_agreements")
+                .insert(assignment_data)
+                .execute()
+            )
+        except Exception as e:
+            # Base sans la migration 20261117120000 : la colonne n'existe pas encore.
+            if date_debut is not None and "date_debut" in str(e):
+                raise ValidationError(
+                    "La date « À partir du » n'est pas encore activée sur cette base. "
+                    "Rien n'a été assigné : laissez la date vide ou attendez son activation."
+                ) from e
+            raise
         row = _first_mutation_row(response)
         if not row:
             raise ValidationError("Échec de l'assignation")

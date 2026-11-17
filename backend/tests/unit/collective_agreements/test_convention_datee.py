@@ -427,3 +427,50 @@ def test_la_resolution_lit_toutes_les_lignes_sans_colonne_nommee():
     """`select *` : sans la migration des dates, la lecture ne casse pas."""
     source = inspect.getsource(idcc_resolution.company_agreement_id_a_la_date)
     assert '.select("*")' in source
+
+
+# --- Assignation datée sur une base sans la migration des dates d'effet ---
+
+
+class _InsertEnPanne:
+    """Client Supabase dont l'insertion échoue comme sans la colonne date_debut."""
+
+    def __init__(self, message: str):
+        self.message = message
+        self.envoye: list[dict] = []
+
+    def table(self, _nom):
+        return self
+
+    def insert(self, donnees):
+        self.envoye.append(donnees)
+        return self
+
+    def execute(self):
+        raise RuntimeError(self.message)
+
+
+def test_assignation_datee_sans_migration_donne_une_phrase_claire():
+    from app.modules.collective_agreements.domain.exceptions import ValidationError
+    from app.modules.collective_agreements.infrastructure.repository import (
+        CollectiveAgreementRepository,
+    )
+
+    client = _InsertEnPanne(
+        "Could not find the 'date_debut' column of 'company_collective_agreements'"
+    )
+    depot = CollectiveAgreementRepository(supabase_client=client, admin_client=client)
+    with pytest.raises(ValidationError, match="pas encore activée"):
+        depot.assign_to_company("soc", "cc", "u", date_debut=date(2026, 11, 1))
+
+
+def test_assignation_sans_date_garde_l_erreur_d_origine():
+    from app.modules.collective_agreements.infrastructure.repository import (
+        CollectiveAgreementRepository,
+    )
+
+    client = _InsertEnPanne("duplicate key value")
+    depot = CollectiveAgreementRepository(supabase_client=client, admin_client=client)
+    with pytest.raises(RuntimeError, match="duplicate key"):
+        depot.assign_to_company("soc", "cc", "u")
+    assert "date_debut" not in client.envoye[0]
