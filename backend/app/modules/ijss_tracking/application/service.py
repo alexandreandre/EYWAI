@@ -150,7 +150,7 @@ def _bulletins_du_mois(company_id: str, year: int, month: int) -> Dict[str, Dict
     lignes = (
         get_supabase_admin_client()
         .table("payslips")
-        .select("id, employee_id, payslip_data, generated_at, updated_at")
+        .select("id, employee_id, payslip_data, generated_at, updated_at, status, validated_at, year, month")
         .eq("company_id", company_id)
         .eq("year", year)
         .eq("month", month)

@@ -28,13 +28,21 @@ describe('editableTypeOptionsFor', () => {
 
 describe('reelApresChangementDeType (Lyon, 17/11)', () => {
   it('un type non travaillé remet le réel à 0', () => {
-    for (const t of ['activite_partielle', 'conges_payes', 'repos', 'ferie', 'absence_non_remuneree', 'ecole']) {
+    for (const t of ['activite_partielle', 'conges_payes', 'repos', 'ferie', 'absence_non_remuneree']) {
       expect(reelApresChangementDeType(t, 'travail')).toBe(0);
     }
   });
-  it('« Travail » et le même type ne touchent pas au réel', () => {
-    expect(reelApresChangementDeType('travail', 'activite_partielle')).toBeUndefined();
+  it('le même type ne touche pas au réel ; « Travail » sans ancien type non plus', () => {
     expect(reelApresChangementDeType('activite_partielle', 'activite_partielle')).toBeUndefined();
+    expect(reelApresChangementDeType('travail', 'travail')).toBeUndefined();
+    expect(reelApresChangementDeType('travail', null)).toBeUndefined();
+  });
+  it('retour à « Travail » : le réel redevient à saisir, pas 0 (sinon absence retenue)', () => {
+    expect(reelApresChangementDeType('travail', 'activite_partielle')).toBeNull();
+    expect(reelApresChangementDeType('travail', 'conges_payes')).toBeNull();
+  });
+  it('« École » garde ses heures : temps de travail effectif', () => {
+    expect(reelApresChangementDeType('ecole', 'travail')).toBeUndefined();
   });
   it('le réel saisi en même temps l’emporte (demi-journée)', () => {
     expect(reelApresChangementDeType('activite_partielle', 'travail', 3.5)).toBe(3.5);

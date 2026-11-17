@@ -139,6 +139,22 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
         [a["attachment_url"] for a in arrets if a.get("attachment_url")]
     )
 
+    jour_de_remise: list[int] = []
+
+    def est_remis(bulletin: dict[str, Any] | None) -> bool:
+        if not bulletin or bulletin.get("year") is None:
+            return False
+        from app.modules.payslips.domain.mise_a_disposition import remis_le_du_bulletin
+        from app.modules.payslips.infrastructure.mise_a_disposition_queries import (
+            jour_de_la_societe,
+        )
+        from app.shared.domain.temps_local import aujourd_hui_local
+
+        if not jour_de_remise:
+            jour_de_remise.append(jour_de_la_societe(company_id))
+        remis = remis_le_du_bulletin(bulletin, jour=jour_de_remise[0])
+        return bool(remis and remis <= aujourd_hui_local())
+
     lignes: list[dict[str, Any]] = []
     for a in arrets:
         aid = str(a["id"])
@@ -174,9 +190,14 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
                 "bulletin_id": (bulletin or {}).get("id"),
                 "maintien": (
                     # Arrêt enregistré après le calcul du bulletin : le dire, pas
-                    # « pas de maintien » ni 0 jour indemnisé (MAJI, 17/11).
+                    # « pas de maintien » ni 0 jour indemnisé (MAJI, 17/11). Un
+                    # bulletin déjà remis ne se régénère plus : rappel au suivant.
                     {
-                        "etat": "bulletin_a_recalculer",
+                        "etat": (
+                            "bulletin_remis_avant_l_arret"
+                            if est_remis(bulletin)
+                            else "bulletin_a_recalculer"
+                        ),
                         "montant_verse": 0.0,
                         "montant_en_attente": 0.0,
                         "motif": None,
@@ -236,11 +257,10 @@ def _ligne_attendue_de_l_arret(
         if str(l.get("absence_request_id") or "") == aid:
             # Bulletin recalculé depuis : la ligne reprend ses chiffres (elle
             # restait figée sur un bulletin d'avant l'arrêt, MAJI 17/11).
-            if bulletin and bulletin_calcule_avant(l, bulletin.get("generated_at")):
+            if bulletin and calcul_non_repris(l, bulletin):
                 return rafraichir_la_ligne(l, bulletin) or l
             return l
-    pdata = (bulletin or {}).get("payslip_data") or {}
-    chiffres = chiffres_du_bulletin(pdata)
+    chiffres = chiffres_de_la_ligne(bulletin)
     ligne = repo.upsert_expected_line(
         {
             "company_id": company_id,
@@ -269,9 +289,29 @@ def rafraichir_la_ligne(
     return repo.update_expected_line(
         str(ligne["id"]),
         {
-            **chiffres_du_bulletin(bulletin.get("payslip_data")),
+            **chiffres_de_la_ligne(bulletin),
             "payslip_id": bulletin.get("id") or ligne.get("payslip_id"),
         },
+    )
+
+
+#: Le calcul du bulletin que la ligne a repris (son `generated_at`).
+CLE_CALCUL_REPRIS = "bulletin_genere_le"
+
+
+def chiffres_de_la_ligne(bulletin: dict[str, Any] | None) -> dict[str, Any]:
+    """Les chiffres du bulletin, avec la trace du calcul repris."""
+    chiffres = chiffres_du_bulletin((bulletin or {}).get("payslip_data"))
+    chiffres["calculation_snapshot"][CLE_CALCUL_REPRIS] = (bulletin or {}).get("generated_at")
+    return chiffres
+
+
+def calcul_non_repris(ligne: dict[str, Any], bulletin: dict[str, Any]) -> bool:
+    """Le bulletin a été recalculé depuis que la ligne l'a lu. Pas `updated_at` :
+    le tableau de bord du suivi le réécrit à chaque ouverture (relecture du 17/11)."""
+    snapshot = ligne.get("calculation_snapshot") or {}
+    return bool(bulletin.get("generated_at")) and snapshot.get(CLE_CALCUL_REPRIS) != bulletin.get(
+        "generated_at"
     )
 
 

@@ -384,6 +384,8 @@ export function ExportCommonModel({
         });
 
         setPreviewData(preview);
+        // Nouvel aperçu, nouveaux avertissements : à relire et accepter de nouveau.
+        setAcceptWarnings(false);
         if (options?.advanceStep !== false) {
           setCurrentStep("previsualisation");
         }

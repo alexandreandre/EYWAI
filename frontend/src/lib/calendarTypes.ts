@@ -185,13 +185,19 @@ export function formatCalendarValue(
  * d'avant comptaient comme travaillées, et un jour chômé d'activité partielle
  * avec 7 h faites ne chômait rien. Le réel saisi en même temps l'emporte : une
  * demi-journée reste possible, la RH saisit ensuite les heures faites.
- * « Travail » garde le réel. `undefined` : ne pas toucher au réel. */
+ * « Travail » garde le réel, sauf en revenant d'un type non travaillé : réel
+ * à saisir (null). « École » garde ses heures. `undefined` : ne pas toucher au réel. */
 export function reelApresChangementDeType(
   nouveauType: string | null | undefined,
   ancienType: string | null | undefined,
   reelSaisi?: number | null,
 ): number | null | undefined {
   if (reelSaisi !== undefined) return reelSaisi;
-  if (!nouveauType || nouveauType === 'travail' || nouveauType === ancienType) return undefined;
+  if (!nouveauType || nouveauType === ancienType) return undefined;
+  // Retour à « Travail » depuis un type non travaillé : le 0 posé
+  // automatiquement ferait du jour une absence ; le réel redevient à saisir.
+  if (nouveauType === 'travail') return ancienType && ancienType !== 'travail' ? null : undefined;
+  // École (CFA) : temps de travail effectif, ses heures restent (F2918).
+  if (nouveauType === 'ecole') return undefined;
   return 0;
 }
