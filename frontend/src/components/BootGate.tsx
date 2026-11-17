@@ -133,18 +133,19 @@ export function BootGate({ children }: BootGateProps) {
     isTerminalKiosk,
   ]);
 
-  if (isTerminalKiosk) {
-    return <>{children}</>;
-  }
-
-  if (!isBooting) {
-    return <>{children}</>;
-  }
-
+  // Les enfants gardent toujours la même place dans l'arbre : invisibles
+  // pendant le démarrage, visibles ensuite. Les sortir du `div` à la fin du
+  // démarrage remontait toute la page (tout relu deux fois, une fenêtre
+  // ouverte par un lien remplacée).
+  const ecranDeDemarrage = isBooting && !isTerminalKiosk;
   return (
     <>
-      <AppBootScreen />
-      <div className="invisible" aria-hidden>
+      {ecranDeDemarrage ? <AppBootScreen /> : null}
+      <div
+        className={ecranDeDemarrage ? 'invisible' : 'contents'}
+        aria-hidden={ecranDeDemarrage || undefined}
+        data-testid="boot-gate-enfants"
+      >
         {children}
       </div>
     </>
