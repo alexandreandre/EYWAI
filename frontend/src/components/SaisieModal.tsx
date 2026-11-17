@@ -64,6 +64,7 @@ import { ChampDecimal } from "@/components/ChampDecimal";
 import { erreurPeriodeSaisie, libelleAvecPeriode } from '@/components/saisies/periodeSaisie';
 import { PeriodeSaisieFields } from '@/components/saisies/PeriodeSaisieFields';
 import { SITUATIONS_REPAS, SITUATION_REPAS_PAR_DEFAUT, type SituationRepas } from "@/lib/situationsRepas";
+import { afficherBlocPanier, casesApresNouveauNom, champsDuPanier, estUnPanier } from "@/components/saisies/panierSaisie";
 
 // --- Types & Interfaces ---
 interface Employee {
@@ -99,10 +100,6 @@ const initialState = {
   situationRepas: SITUATION_REPAS_PAR_DEFAUT as SituationRepas,
 };
 
-/** Panier ou repas : le nombre d'unités compte pour l'exonération. */
-function estUnPanier(nom: string): boolean {
-  return /panier|repas/i.test(nom);
-}
 
 const initialPrimeForm = {
   libelle: "",
@@ -340,23 +337,24 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
     }
 
     // Créer les payloads pour chaque employé avec le montant calculé si disponible
-    const payloads: MonthlyInputCreate[] = formData.selectedEmployees.map(empId => ({
-      employee_id: empId,
-      name: libelleAvecPeriode(formData.name, periodeDebut, periodeFin),
-      description: formData.description || undefined,
-      ...champsDeLaSaisie(
+    const payloads: MonthlyInputCreate[] = formData.selectedEmployees.map(empId => {
+      const champs = champsDeLaSaisie(
         isCustomPrime ? sens : 'prime',
         amountsByEmployee[empId] !== undefined ? amountsByEmployee[empId] : Number(formData.amount),
         { is_socially_taxed: formData.is_socially_taxed, is_taxable: formData.is_taxable },
-      ),
-      catalog_prime_id: isCustomPrime ? undefined : catalogPrimeId ?? undefined,
-      ...(estUnPanier(formData.name) && typeof formData.nombre === "number" && formData.nombre > 0
-        ? { payroll_quantity: formData.nombre, quantity_kind: "count" as const }
-        : {}),
-      ...(estUnPanier(formData.name) ? { situation_repas: formData.situationRepas } : {}),
-      year: currentYear,
-      month: currentMonth,
-    }));
+      );
+      return {
+        employee_id: empId,
+        name: libelleAvecPeriode(formData.name, periodeDebut, periodeFin),
+        description: formData.description || undefined,
+        ...champs,
+        catalog_prime_id: isCustomPrime ? undefined : catalogPrimeId ?? undefined,
+        // Nombre et situation : seulement pour un panier non soumis (le moteur les ignore sinon).
+        ...champsDuPanier(formData.name, champs, formData.nombre, formData.situationRepas),
+        year: currentYear,
+        month: currentMonth,
+      };
+    });
     onSave(payloads);
   };
   
@@ -473,10 +471,15 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
   };
   
   const handleCustomInputChange = (value: string) => {
-    setFormData(prev => ({ ...prev, name: value }));
     // Si l'utilisateur tape un nom qui ne correspond à aucune prime du catalogue, on active les cases
     const isStandardPrime = primesCatalogue.some(p => p.libelle === value) ||
                            bonusTypes.some(bt => bt.libelle === value);
+    // Un panier tapé à la main est exonéré par défaut (non soumis) ; les cases restent modifiables.
+    setFormData(prev => ({
+      ...prev,
+      name: value,
+      ...(isStandardPrime ? {} : casesApresNouveauNom(prev.name, value, prev)),
+    }));
     setIsCustomPrime(!isStandardPrime);
     setCatalogPrimeId(primesCatalogue.find(p => p.libelle === value)?.id ?? null);
     setSelectedBonusTypeId(null);
@@ -754,7 +757,12 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                   onValeur={amount => setFormData(p => ({ ...p, amount }))}
                   disabled={isCalculating || (selectedBonusTypeId && bonusTypes.find(bt => bt.id === selectedBonusTypeId)?.type === "selon_heures")}
                 />
-                {estUnPanier(formData.name) && (
+                {estUnPanier(formData.name) && formData.is_socially_taxed && (!isCustomPrime || sens === 'prime') && (
+                  <p className="text-xs text-muted-foreground" data-testid="panier-soumis">
+                    Coché « soumise à cotisations » : ce panier sera cotisé en entier, sans exonération.
+                  </p>
+                )}
+                {afficherBlocPanier(formData.name, { is_socially_taxed: formData.is_socially_taxed, sur_le_net: isCustomPrime && sens !== 'prime' }) && (
                   <div className="grid gap-1.5 rounded-md border p-3" data-testid="nombre-paniers">
                     <Label htmlFor="nombre_paniers">Nombre de paniers (ou de repas) dans le mois</Label>
                     <ChampDecimal
