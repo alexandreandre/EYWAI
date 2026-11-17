@@ -38,6 +38,22 @@ class TestComputePlanningSuggestions:
         assert "annual_forfait_jour" in types
         assert "annual_cadres" in types
 
+    def test_forfait_jour_par_la_case_comme_en_base(self):
+        """En base, le statut dit « Cadre » ou « Non-Cadre » ; la case dit le forfait
+        (audit du 17/11 : l'entretien de suivi du forfait n'était jamais proposé)."""
+        employees = [
+            {
+                "id": "e1",
+                "first_name": "Prenom",
+                "last_name": "Fictif",
+                "statut": "Non-Cadre",
+                "is_forfait_jour": True,
+                "employment_status": "actif",
+            }
+        ]
+        out = compute_planning_suggestions(employees, [], 2026, today=date(2026, 3, 1))
+        assert "annual_forfait_jour" in {s["interview_type"] for s in out}
+
     def test_no_suggestion_when_review_exists(self):
         employees = [
             {

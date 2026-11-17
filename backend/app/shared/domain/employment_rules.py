@@ -131,6 +131,19 @@ def is_forfait_jour(statut: str | None, explicit: bool | None = None) -> bool:
     return "forfait jour" in statut.lower()
 
 
+def est_au_forfait_jours(fiche: Mapping[str, Any] | None) -> bool:
+    """La seule façon de savoir, depuis une fiche `employees`, si le salarié est
+    au forfait jours : la case `is_forfait_jour`, le libellé en repli.
+
+    En base, `statut` ne vaut que « Cadre » ou « Non-Cadre » : un appel à
+    `is_forfait_jour(statut)` sans la case répond toujours « non » (audit du
+    17/11 : l'onglet « Corriger » et l'entretien annuel du forfait). Lire la
+    fiche avec `is_forfait_jour` dans le select, puis appeler cette fonction.
+    """
+    fiche = fiche or {}
+    return is_forfait_jour(fiche.get("statut"), fiche.get("is_forfait_jour"))
+
+
 def is_cadre(statut: str | None) -> bool:
     """Cadre / assimilé cadre (ex. « Cadre au forfait jour »), hors non-cadre."""
     compact = (statut or "").strip().lower().replace(" ", "").replace("-", "")

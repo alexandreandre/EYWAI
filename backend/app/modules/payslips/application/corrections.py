@@ -69,7 +69,7 @@ from app.modules.payslips.domain.heures_sup import (
 )
 from app.modules.payslips.domain.historique import entree_de_version
 from app.modules.payslips.domain.primes_editees import primes_saisies_du_bulletin
-from app.modules.payslips.domain.rules import is_forfait_jour
+from app.shared.domain.employment_rules import est_au_forfait_jours
 
 logger = logging.getLogger(__name__)
 
@@ -266,7 +266,7 @@ def _ecrire_regularisations_heures(
 def _fiche_temps_de_travail(employee_id: str) -> dict[str, Any]:
     r = (
         supabase.table("employees")
-        .select("statut, is_temps_partiel, duree_hebdomadaire")
+        .select("statut, is_forfait_jour, is_temps_partiel, duree_hebdomadaire")
         .eq("id", employee_id)
         .maybe_single()
         .execute()
@@ -275,7 +275,7 @@ def _fiche_temps_de_travail(employee_id: str) -> dict[str, Any]:
 
 
 def _est_au_forfait_jours(employee_id: str) -> bool:
-    return is_forfait_jour(_fiche_temps_de_travail(employee_id).get("statut"))
+    return est_au_forfait_jours(_fiche_temps_de_travail(employee_id))
 
 
 def est_temps_partiel(fiche: dict[str, Any]) -> bool:
@@ -457,7 +457,7 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
             refus = refus_des_heures_complementaires(
                 corrections,
                 temps_partiel=est_temps_partiel(fiche),
-                forfait_jours=is_forfait_jour(fiche.get("statut")),
+                forfait_jours=est_au_forfait_jours(fiche),
             )
         if not refus and corrections.regularisations_heures_ajoutees:
             refus = refus_des_regularisations_heures(

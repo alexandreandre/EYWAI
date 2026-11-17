@@ -19,7 +19,7 @@ from app.modules.annual_reviews.domain.interview_types import (
     COMPLETED_REVIEW_STATUSES,
     INTERVIEW_TYPE_LABELS,
 )
-from app.shared.domain.employment_rules import is_forfait_jour
+from app.shared.domain.employment_rules import est_au_forfait_jours, is_forfait_jour
 
 PlanningUrgency = Literal["due", "overdue"]
 
@@ -203,7 +203,7 @@ def compute_planning_suggestions(
         name = _employee_display_name(emp)
         urgency = _urgency_for_year(year, ref)
 
-        if is_forfait_jour(statut) and not _has_covered_review(
+        if est_au_forfait_jours(emp) and not _has_covered_review(
             reviews, eid, "annual_forfait_jour", year
         ):
             suggestions.append(
