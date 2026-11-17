@@ -3,6 +3,8 @@
 import { log } from '@/lib/logger';
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, type SetStateAction } from 'react';
 import { useToast } from "@/components/ui/use-toast";
+import { useQueryClient } from '@tanstack/react-query';
+import { invaliderApresBulletin } from '@/features/payroll/utils/invalidationsBulletin';
 import * as calendarApi from '@/api/calendar';
 import { DayData } from '@/components/ScheduleModal';
 import { isForfaitJour } from '@/utils/employeeUtils';
@@ -379,6 +381,7 @@ export function useCalendar(
     });
   }, [plannedCalendar, selectedDate, weekTemplate, isForfaitJourMode, toast, dernierJourContrat, context, isMonthDataReady]);
 
+  const queryClient = useQueryClient();
   const saveAllCalendarData = useCallback(async () => {
     if (!employeeId || !context.active || !isMonthDataReady || revision === undefined || saveInFlight.current) return false;
 
@@ -400,6 +403,9 @@ export function useCalendar(
         selectedDate.year, selectedDate.month, snapshot.calendrier_prevu, snapshot.calendrier_reel,
       );
       const heuresRetirees = joursAuxHeuresRetirees(actualHours, snapshot.calendrier_reel);
+      // Le serveur a marqué les bulletins touchés « à recalculer » : les écrans
+      // de paie le montrent tout de suite, pas après 5 minutes de cache.
+      void invaliderApresBulletin(queryClient, activeCompanyId, employeeId);
       setRevision(snapshot.revision);
       setJoursEnConflit(snapshot.jours_en_conflit ?? []);
       setOriginalPlanned(finalPlannedCalendar);
@@ -443,7 +449,7 @@ export function useCalendar(
       saveInFlight.current = false;
       if (mounted.current) setIsSaving(false);
     }
-  }, [employeeId, selectedDate, plannedCalendar, actualHours, toast, context, isMonthDataReady, activeCompanyId, revision, buildMonthCalendar]);
+  }, [employeeId, selectedDate, plannedCalendar, actualHours, toast, context, isMonthDataReady, activeCompanyId, revision, buildMonthCalendar, queryClient]);
 
   useEffect(() => {
     if (isSavingAfterApply && !isSaving && applySavePending.current) {
