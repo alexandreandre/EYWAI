@@ -631,6 +631,7 @@ def lignes_du_calendrier(
     }
     lignes = [{**commun, **ligne} for ligne in _deux_lignes(c)]
     refus = refus_periode(reglage, year, month)
+    au_dela = _au_dela_de_la_duree_legale(employee)
     alerte = (
         {
             "code": "activite_partielle_hors_reglage",
@@ -639,12 +640,46 @@ def lignes_du_calendrier(
             "message": (
                 f"Jours d'activité partielle au calendrier, payés ({heures:g} h), "
                 f"mais : {refus} Vérifiez le réglage de la société."
+                + (f" {au_dela}" if au_dela else "")
             ),
         }
         if refus
+        else {
+            "code": "activite_partielle_au_dela_de_35_h",
+            "severity": "warning",
+            "critique": False,
+            "message": au_dela,
+        }
+        if au_dela
         else None
     )
     return gardees + lignes, alerte
+
+
+def _au_dela_de_la_duree_legale(e: dict[str, Any]) -> str | None:
+    """Contrat au-delà de 35 h (A4, 18/11) : la phrase qui le dit, ou None.
+
+    R5122-18 : l'heure chômée se paie sur la rémunération (heures sup
+    structurelles comprises) ramenée à la durée légale, 151,67 h. R5122-19 :
+    sont indemnisables les heures sous la durée légale ; au-delà, seulement si
+    un accord (ou une convention de forfait) conclu avant le 24/04/2020 le
+    prévoit. Martine ne connaît pas cet accord : elle calcule au taux du
+    contrat, et le bulletin le dit plutôt que de se taire.
+    """
+    if e.get("is_forfait_jour"):
+        return None
+    try:
+        hebdo = float(e.get("duree_hebdomadaire") or 35)
+    except (TypeError, ValueError):
+        return None
+    if hebdo <= 35:
+        return None
+    return (
+        f"Activité partielle d'un salarié à {_fr(hebdo)} h par semaine : Martine "
+        "calcule l'heure chômée au taux du contrat. La loi la paie sur la durée "
+        "légale (151,67 h) et n'indemnise les heures au-delà de 35 h que si un "
+        "accord le prévoit. Vérifiez l'indemnité avant de valider."
+    )
 
 
 def mois_voisins(year: int, month: int) -> list[tuple[int, int]]:

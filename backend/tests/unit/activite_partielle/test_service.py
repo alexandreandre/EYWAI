@@ -217,6 +217,33 @@ def test_hors_reglage_paye_et_alerte(base):
     assert alerte["code"] == "activite_partielle_hors_reglage"
 
 
+def test_au_dela_de_35_h_le_bulletin_le_dit(base):
+    """A4 (18/11) : à 39 h, la loi paie l'heure sur 151,67 h et n'indemnise
+    les heures au-delà de 35 h que sur accord ; Martine calcule au taux du
+    contrat et le dit, plutôt que de se taire."""
+    employe = {**base.tables["employees"][0], "duree_hebdomadaire": 39}
+    saisies, alerte = svc.lignes_du_calendrier(
+        "co", employe, 2026, 11, [_jour(2, AP, 7.8)], [], []
+    )
+    assert len(saisies) == 2
+    assert alerte["code"] == "activite_partielle_au_dela_de_35_h"
+    assert "151,67 h" in alerte["message"] and alerte["critique"] is False
+
+
+def test_au_dela_de_35_h_et_hors_reglage_une_seule_alerte_qui_dit_les_deux(base):
+    employe = {**base.tables["employees"][0], "duree_hebdomadaire": 39}
+    _, alerte = svc.lignes_du_calendrier("co", employe, 2026, 3, [_jour(2, AP, 7.8)], [], [])
+    assert alerte["code"] == "activite_partielle_hors_reglage"
+    assert "151,67 h" in alerte["message"]
+
+
+def test_a_35_h_ou_au_forfait_pas_d_alerte(base):
+    employe = base.tables["employees"][0]
+    _, alerte = svc.lignes_du_calendrier("co", employe, 2026, 11, [_jour(2, AP, 7.0)], [], [])
+    assert alerte is None
+    assert svc._au_dela_de_la_duree_legale({"duree_hebdomadaire": 39, "is_forfait_jour": True}) is None
+
+
 def test_sans_salaire_alerte_critique(base):
     employe = {**base.tables["employees"][0], "salaire_de_base": None}
     saisies, alerte = svc.lignes_du_calendrier(
