@@ -132,7 +132,7 @@ describe('saisieGroupeeLaisseLeJour : des heures sans type ne retypent pas un co
       expect(saisieGroupeeLaisseLeJour(heuresSansType, ancien)).toBe(true);
     },
   );
-  it.each([null, undefined, '', 'travail', 'weekend', 'repos', 'activite_partielle'])(
+  it.each([null, undefined, '', 'travail', 'work', 'weekend', 'repos', 'rest', 'activite_partielle'])(
     'un jour %s reçoit les heures',
     (ancien) => {
       expect(saisieGroupeeLaisseLeJour(heuresSansType, ancien)).toBe(false);

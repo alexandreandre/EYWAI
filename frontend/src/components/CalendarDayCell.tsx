@@ -353,9 +353,9 @@ export function CalendarDayCell({
     if (preserved === null || preserved === undefined) {
       if (isForfaitJour) {
         defaultHours = newType === 'travail' || newType === 'activite_partielle' ? 1 : 0;
-      } else if (newType === 'travail') {
-        defaultHours = 8;
       }
+      // Heures : un prévu vide reste vide ; le hook y met les heures du modèle
+      // de semaine (avant : 8 h d'office, un temps partiel à 3 h en recevait 8).
     }
     if (newType === 'conges_payes' || newType === 'rtt' || newType === 'repos') {
       // Jour d'absence : 0 h au planning (convention bulletin) — la demande

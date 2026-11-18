@@ -218,8 +218,9 @@ export function reelApresChangementDeType(
 }
 
 /** Types qu'une saisie d'heures sans type peut faire « Travail » : un jour
- * travaillé, un week-end, un repos, ou un jour sans type. */
-const TYPES_REPRIS_PAR_DES_HEURES = new Set(['travail', 'weekend', 'repos', '']);
+ * travaillé, un week-end, un repos, ou un jour sans type (`work` et `rest` :
+ * anciens noms écrits par l'application du modèle). */
+const TYPES_REPRIS_PAR_DES_HEURES = new Set(['travail', 'work', 'weekend', 'repos', 'rest', '']);
 
 /** Saisie groupée d'heures sans type de jour (A5, 18/11) : un congé, un férié,
  * un jour d'école, un arrêt… de la sélection n'est pas touché. Avant, il

@@ -647,5 +647,5 @@ def test_exiger_le_pdf_imprime(tmp_path):
     present = tmp_path / "Bulletin.pdf"
     present.write_bytes(b"%PDF-1.4")
     exiger_le_pdf_imprime(present)
-    with pytest.raises(PdfNonImprime, match="rien n'est enregistré"):
+    with pytest.raises(PdfNonImprime, match="n'est pas enregistré"):
         exiger_le_pdf_imprime(tmp_path / "absent.pdf")

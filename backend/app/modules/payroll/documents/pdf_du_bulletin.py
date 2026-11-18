@@ -105,13 +105,16 @@ def exiger_le_pdf_imprime(chemin_pdf: Path) -> None:
     Au forfait jours, un PDF absent laissait au bulletin recalculé l'ancien
     PDF, sans le dire : l'écran montrait le nouveau calcul, le PDF l'ancien.
     Aux heures, l'erreur était celle du fichier introuvable. Les deux
-    générateurs s'arrêtent ici, avant d'enregistrer : le bulletin d'avant
-    reste entier, PDF compris.
+    générateurs s'arrêtent ici, avant d'enregistrer le bulletin et son PDF.
+    Ce que le calcul a déjà défait ou écrit avant (prêts et avances de
+    l'ancienne version, compteurs, CET, modulation) se remet d'accord au
+    calcul suivant : la phrase demande de relancer.
     """
     if not Path(chemin_pdf).exists():
         raise PdfNonImprime(
-            "Le PDF du bulletin n'a pas pu être imprimé : rien n'est enregistré, "
-            "le bulletin d'avant reste en place. Relancez le calcul ; si l'erreur "
+            "Le PDF du bulletin n'a pas pu être imprimé : le nouveau calcul n'est "
+            "pas enregistré. Relancez le calcul tout de suite (en attendant, prêts, "
+            "avances et compteurs ne sont pas à jour sur ce mois) ; si l'erreur "
             "revient, signalez-la."
         )
 

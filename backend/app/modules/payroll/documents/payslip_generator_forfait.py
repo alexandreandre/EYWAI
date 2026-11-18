@@ -66,6 +66,7 @@ from app.modules.payroll.documents.pdf_du_bulletin import (
     retirer_pdf_remplace,
 )
 
+from app.core.constants import MESSAGE_ERREUR_GENERATION
 from app.core.database import supabase
 from app.modules.payroll.engine.reference_remuneration import base_precarite_du_bulletin
 from app.modules.collective_agreements.application.idcc_resolution import (
@@ -982,7 +983,8 @@ def process_payslip_generation_forfait(
     except Exception as e:
         logging.error(f"Erreur lors de la génération de paie forfait jour: {e}")
         logger.exception("Échec de process_payslip_generation_forfait")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Comme aux heures : une phrase, pas le texte brut de l'erreur (relecture du 18/11).
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_GENERATION)
 
     finally:
         for file_path in files_to_cleanup:

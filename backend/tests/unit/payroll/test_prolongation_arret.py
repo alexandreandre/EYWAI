@@ -318,7 +318,9 @@ def test_l_apercu_d_une_demande_lit_les_arrets_connus_comme_le_bulletin(monkeypa
     monkeypatch.setattr(q.absence_repository, "get_by_id", lambda _id: absence)
     monkeypatch.setattr(q.supabase, "table", lambda nom: _Table(lignes.get(nom)))
     monkeypatch.setattr(q, "resolve_employee_id_for_user", lambda *_a: "emp-1")
-    monkeypatch.setattr(q, "_date_de_sortie", lambda _e: None)
+    monkeypatch.setattr(
+        "app.modules.payroll.documents.payslip_generator.resolve_date_sortie", lambda _e: None
+    )
     monkeypatch.setattr(
         q, "get_maintenance_settings",
         lambda _cid: SimpleNamespace(model_dump=lambda **_k: dict(REGLAGES_PLASTURGIE)),
@@ -372,7 +374,9 @@ def test_l_apercu_affiche_la_subrogation_eteinte_par_le_moteur(monkeypatch):
     monkeypatch.setattr(q.absence_repository, "get_by_id", lambda _id: absence)
     monkeypatch.setattr(q.supabase, "table", lambda nom: _Table(lignes.get(nom)))
     monkeypatch.setattr(q, "resolve_employee_id_for_user", lambda *_a: "emp-1")
-    monkeypatch.setattr(q, "_date_de_sortie", lambda _e: None)
+    monkeypatch.setattr(
+        "app.modules.payroll.documents.payslip_generator.resolve_date_sortie", lambda _e: None
+    )
     monkeypatch.setattr(
         q, "get_maintenance_settings",
         lambda _cid: SimpleNamespace(model_dump=lambda **_k: {"subrogation_mode": "when_maintien"}),
@@ -423,7 +427,10 @@ def test_l_apercu_s_arrete_a_la_sortie_comme_le_bulletin(monkeypatch):
     monkeypatch.setattr(q.absence_repository, "get_by_id", lambda _id: absence)
     monkeypatch.setattr(q.supabase, "table", lambda nom: _Table(lignes.get(nom)))
     monkeypatch.setattr(q, "resolve_employee_id_for_user", lambda *_a: "emp-1")
-    monkeypatch.setattr(q, "_date_de_sortie", lambda _e: date(2026, 10, 15))
+    monkeypatch.setattr(
+        "app.modules.payroll.documents.payslip_generator.resolve_date_sortie",
+        lambda _e: "2026-10-15",
+    )
     monkeypatch.setattr(
         q, "get_maintenance_settings",
         lambda _cid: SimpleNamespace(model_dump=lambda **_k: dict(REGLAGES_PLASTURGIE)),

@@ -1157,7 +1157,12 @@ def get_absence_maintenance_preview(
     date_fin_periode = parsed_days[-1]
     # Comme le bulletin (A1, 18/11) : ni maintien ni IJ subrogées après le
     # dernier jour du contrat.
-    sortie = _date_de_sortie(str(absence["employee_id"]))
+    from app.modules.payroll.application.planning_apres_sortie import date_de_sortie
+    from app.modules.payroll.documents.payslip_generator import resolve_date_sortie
+
+    # La même date que le bulletin : départ en cours, départ archivé d'un CDI,
+    # la plus proche d'une fin de CDD et d'un dernier jour (relecture du 18/11).
+    sortie = date_de_sortie(resolve_date_sortie(employee_row))
     fin_apres_la_sortie = None
     if sortie is not None and sortie < date_fin_periode:
         if sortie < date_debut_periode:

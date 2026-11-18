@@ -486,7 +486,9 @@ export function useCalendar(
         // Un congé (0 h prévue) repassé en « Travail » reprend les heures du
         // modèle de semaine, jour isolé ou saisie groupée (A6, 18/11).
         const prevu = newPlannedData.heures_prevues !== undefined ? newPlannedData.heures_prevues : p.heures_prevues;
-        if (updatedDay.type === 'travail' && p.type !== 'travail' && !(Number(prevu) > 0)) {
+        const apresLaSortie = dernierJourContrat != null && p.jour > dernierJourContrat;
+        const repasseEnTravail = p.type !== 'travail' || p.heures_prevues == null;
+        if (updatedDay.type === 'travail' && repasseEnTravail && !apresLaSortie && !(Number(prevu) > 0)) {
           const duModele = prevuDuModeleEnRepassantEnTravail(
             weekTemplate,
             new Date(selectedDate.year, selectedDate.month - 1, p.jour),
@@ -673,8 +675,8 @@ export function useCalendar(
       description:
         `${modifies} ${modifies > 1 ? 'jours modifiés' : 'jour modifié'}.` +
         (laisses > 0
-          ? ` ${laisses} ${laisses > 1 ? 'jours gardent leur' : 'jour garde son'} type (congé, férié, école…) ; ` +
-            `pour y saisir des heures, changez d'abord ${laisses > 1 ? 'leur' : 'son'} type.`
+          ? ` ${laisses} ${laisses > 1 ? 'jours gardent leur' : 'jour garde son'} type (congé, férié, école…) : ` +
+            'saisissez-y les heures jour par jour.'
           : ''),
     });
     setSelectedDays([]);
