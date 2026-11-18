@@ -95,6 +95,27 @@ def chemin_enregistre(
     return (ligne or {}).get("pdf_storage_path") or None
 
 
+class PdfNonImprime(RuntimeError):
+    """Le moteur n'a pas laissé de PDF : le bulletin n'est pas enregistré."""
+
+
+def exiger_le_pdf_imprime(chemin_pdf: Path) -> None:
+    """Le PDF que le moteur vient d'imprimer, ou une erreur claire (A3, 18/11).
+
+    Au forfait jours, un PDF absent laissait au bulletin recalculé l'ancien
+    PDF, sans le dire : l'écran montrait le nouveau calcul, le PDF l'ancien.
+    Aux heures, l'erreur était celle du fichier introuvable. Les deux
+    générateurs s'arrêtent ici, avant d'enregistrer : le bulletin d'avant
+    reste entier, PDF compris.
+    """
+    if not Path(chemin_pdf).exists():
+        raise PdfNonImprime(
+            "Le PDF du bulletin n'a pas pu être imprimé : rien n'est enregistré, "
+            "le bulletin d'avant reste en place. Relancez le calcul ; si l'erreur "
+            "revient, signalez-la."
+        )
+
+
 def retirer_pdf_remplace(client: Any, ancien: str | None, nouveau: str) -> None:
     """Retire l'ancien PDF une fois le bulletin enregistré. Jamais bloquant."""
     if not ancien or ancien == nouveau:

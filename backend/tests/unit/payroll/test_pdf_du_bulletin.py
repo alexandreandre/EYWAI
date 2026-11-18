@@ -409,6 +409,39 @@ class TestGenerateur:
         assert resultat["status"] == "success"
         assert "PDF remplacé non retiré" in caplog.text
 
+    def test_sans_pdf_imprime_rien_n_est_enregistre_et_la_phrase_le_dit(self, monkeypatch, imprimeur):
+        """A3 (18/11) : au forfait, un PDF absent laissait l'ancien au bulletin
+        recalculé, sans le dire ; aux heures, l'erreur était un fichier
+        introuvable. Les deux s'arrêtent avant d'enregistrer, avec une phrase."""
+        from fastapi import HTTPException
+
+        from app.modules.payroll.documents import payslip_run_heures
+
+        monkeypatch.setattr(
+            payslip_run_heures,
+            "run_payslip_generation_heures",
+            lambda *_a, **_k: {"alertes_baremes": [], "salaire_brut": 0.0, "net_a_payer": 0.0},
+        )
+        base = _BaseEcrite(chemin_en_place=CHEMIN_HISTORIQUE)
+
+        with pytest.raises(HTTPException) as erreur:
+            _generer(monkeypatch, base)
+
+        assert "n'a pas pu être imprimé" in str(erreur.value.detail)
+        assert [e[0] for e in base.journal if e[0] != "modifier"] == []
+
+    def test_l_alerte_du_plafond_transport_est_enregistree_avec_le_bulletin(self, monkeypatch, imprimeur):
+        """A8 (18/11) : posée après l'enregistrement, l'alerte n'était que dans
+        la réponse de la génération ; le bulletin rouvert ne la montrait plus."""
+        alerte = {"code": "plafond_transport", "severity": "warning", "message": "Plafond atteint"}
+        monkeypatch.setattr(pg, "alertes_plafond_transport", lambda *_a, **_k: [alerte])
+        base = _BaseEcrite(chemin_en_place=None)
+
+        _generer(monkeypatch, base)
+
+        enregistrer = [e for e in base.journal if e[0] == "enregistrer"][0]
+        assert alerte in enregistrer[2]["payslip_data"]["alertes_baremes"]
+
     def test_le_bac_a_sable_ne_touche_pas_au_stockage(self, monkeypatch, imprimeur):
         base = _BaseEcrite(chemin_en_place=CHEMIN_HISTORIQUE)
         base.storage = _StockageInterdit()
@@ -606,3 +639,13 @@ class TestBulletinDuContratRange:
         enregistrer = [e for e in base.journal if e[0] == "enregistrer"][0]
         assert enregistrer[2]["contract_period_id"] is None
         assert [e for e in base.journal if e[0] == "modifier" and e[1] == "employee_schedules"]
+
+
+def test_exiger_le_pdf_imprime(tmp_path):
+    from app.modules.payroll.documents.pdf_du_bulletin import PdfNonImprime, exiger_le_pdf_imprime
+
+    present = tmp_path / "Bulletin.pdf"
+    present.write_bytes(b"%PDF-1.4")
+    exiger_le_pdf_imprime(present)
+    with pytest.raises(PdfNonImprime, match="rien n'est enregistré"):
+        exiger_le_pdf_imprime(tmp_path / "absent.pdf")

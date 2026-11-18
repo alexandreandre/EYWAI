@@ -129,6 +129,7 @@ COMMUNES: dict[str, dict[str, str]] = {
         "suffixe_du_pdf": "le nom du PDF d'un contrat rangé",
         "chemin_enregistre": "le PDF remplacé",
         "chemin_horodate": "le chemin du nouveau PDF",
+        "exiger_le_pdf_imprime": "pas de PDF imprimé : rien n'est enregistré (A3, 18/11)",
         "retirer_pdf_remplace": "l'ancien PDF retiré",
         "html_imprime": "le HTML imprimé gardé",
         "enrich_payslip_after_upsert": "prêts et avances après l'enregistrement",

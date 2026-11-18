@@ -76,6 +76,8 @@ from app.modules.payroll.documents.bac_a_sable import (
     saisies_du_mois,
 )
 from app.modules.payroll.documents.pdf_du_bulletin import (
+    PdfNonImprime,
+    exiger_le_pdf_imprime,
     chemin_enregistre,
     chemin_horodate,
     retirer_pdf_remplace,
@@ -1688,6 +1690,18 @@ def process_payslip_generation(
                 *(payslip_json_data.get("alertes_baremes") or []),
                 alerte_mois_passe,
             ]
+        # Plafond annuel d'exonération des trajets domicile-travail : une alerte,
+        # jamais un changement du bulletin ; même fonction aux deux générateurs.
+        # Posée avant l'enregistrement : elle restait dans la seule réponse (A8).
+        alertes_transport = alertes_plafond_transport(
+            supabase, employee_id, employee_data, year, month
+        )
+        if alertes_transport:
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = [
+                *(payslip_json_data.get("alertes_baremes") or []),
+                *alertes_transport,
+            ]
 
         # Le moteur imprime sous le nom du mois ; le bulletin d'un contrat rangé
         # est publié sous un nom à lui, distinct de l'autre bulletin du mois [D3].
@@ -1704,6 +1718,7 @@ def process_payslip_generation(
         # Le HTML imprimé, gardé à côté du PDF par le moteur (lot 43).
         files_to_cleanup.append(local_pdf_path.with_suffix(".html"))
 
+        exiger_le_pdf_imprime(local_pdf_path)
         with open(local_pdf_path, "rb") as f:
             supabase.storage.from_("payslips").upload(
                 path=storage_path, file=f.read(), file_options={"x-upsert": "true"}
@@ -1801,10 +1816,6 @@ def process_payslip_generation(
                 except Exception:
                     logger.exception("Alerte de repos compensateur non enregistrée sur le bulletin %s", payslip_id)
 
-        # Plafond annuel d'exonération des trajets domicile-travail : une alerte,
-        # jamais un changement du bulletin ; même fonction au forfait jours.
-        for alerte in alertes_plafond_transport(supabase, employee_id, employee_data, year, month):
-            final_payslip_data.setdefault("alertes_baremes", []).append(alerte)
 
         from app.modules.payroll.engine.controles_convention import (
             avertissements_de_generation,
@@ -1830,6 +1841,10 @@ def process_payslip_generation(
         # Une donnée du bulletin n'a pas été lue : rien n'est calculé, la phrase
         # dit de réessayer (503, pas une erreur du logiciel).
         raise HTTPException(status_code=503, detail=str(e)) from e
+    except PdfNonImprime as e:
+        # Rien n'est enregistré : la phrase le dit, plutôt qu'un ancien PDF gardé.
+        logger.exception("PDF du bulletin non imprimé")
+        raise HTTPException(status_code=500, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:

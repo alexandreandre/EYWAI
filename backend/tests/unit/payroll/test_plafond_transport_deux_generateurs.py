@@ -68,3 +68,24 @@ def test_une_lecture_ratee_ne_fait_pas_tomber_le_bulletin():
             raise RuntimeError("base indisponible")
 
     assert alertes_plafond_transport(_Panne(), "e1", {}, 2026, 7) == []
+
+
+@pytest.mark.parametrize(
+    "module",
+    (
+        "app.modules.payroll.documents.payslip_generator",
+        "app.modules.payroll.documents.payslip_generator_forfait",
+    ),
+)
+def test_l_alerte_est_posee_avant_l_enregistrement(module):
+    """A8 (18/11) : les deux générateurs posent l'alerte avant d'écrire le
+    bulletin, pas dans la seule réponse."""
+    import importlib
+    import inspect
+
+    source = inspect.getsource(importlib.import_module(module))
+    alerte = source.index("alertes_plafond_transport(\n")
+    enregistrement = min(
+        i for i in (source.find('.upsert(\n                {'), source.find('table("payslips").upsert(')) if i >= 0
+    )
+    assert alerte < enregistrement
