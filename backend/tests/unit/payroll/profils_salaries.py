@@ -108,17 +108,21 @@ def _heures_du_jour(fiche_salarie: dict[str, Any]) -> float:
 
 
 def calendrier(
-    fiche_salarie: dict[str, Any], annee: int, mois: int, jours: dict[int, str] | None = None
+    fiche_salarie: dict[str, Any], annee: int, mois: int, jours: dict[int, Any] | None = None
 ) -> tuple[dict, dict]:
     """Prévu et réel d'un mois : du lundi au vendredi travaillés ; `jours` retype
-    des jours (`{5: "activite_partielle"}`), à 0 h faites."""
+    des jours (`{5: "activite_partielle"}`), à 0 h faites. Un jour peut aussi
+    porter ses métadonnées d'arrêt (`{5: {"type": "arret_maladie", "arret_type": …}}`)."""
     jours = jours or {}
     heures = _heures_du_jour(fiche_salarie)
     prevu, reel = [], []
     for jour in range(1, calendar.monthrange(annee, mois)[1] + 1):
         ouvre = date(annee, mois, jour).weekday() < 5
-        type_jour = jours.get(jour) or ("travail" if ouvre else "weekend")
-        prevu.append({"jour": jour, "type": type_jour, "heures_prevues": heures if ouvre else 0.0})
+        # Un jour peut porter ses métadonnées d'arrêt : {"type": …, "arret_type": …}.
+        valeur = jours.get(jour)
+        extra = dict(valeur) if isinstance(valeur, dict) else {"type": valeur}
+        type_jour = extra.pop("type", None) or ("travail" if ouvre else "weekend")
+        prevu.append({"jour": jour, "type": type_jour, "heures_prevues": heures if ouvre else 0.0, **extra})
         travaille = type_jour == "travail"
         reel.append({"jour": jour, "type": type_jour, "heures_faites": heures if travaille else 0.0})
     return {"calendrier_prevu": prevu}, {"calendrier_reel": reel}
@@ -135,7 +139,8 @@ class Banc:
         self,
         profil: str,
         *,
-        jours: dict[int, str] | None = None,
+        jours: dict[int, Any] | None = None,
+        jours_des_mois_voisins: dict[tuple[int, int], dict[int, Any]] | None = None,
         saisies: list[dict[str, Any]] | None = None,
         absences: list[dict[str, Any]] | None = None,
         fiche_en_plus: dict[str, Any] | None = None,
@@ -152,7 +157,10 @@ class Banc:
             m = mois + decalage
             a = annee + (m - 1) // 12
             m = (m - 1) % 12 + 1
-            prevu, reel = calendrier(salarie, a, m, jours if (a, m) == (annee, mois) else None)
+            # Période décalée (forfait : 21 du mois d'avant au 25) : les jours
+            # des mois voisins se typent par `jours_des_mois_voisins[(a, m)]`.
+            voisins = (jours_des_mois_voisins or {}).get((a, m))
+            prevu, reel = calendrier(salarie, a, m, jours if (a, m) == (annee, mois) else voisins)
             self.base.tables["employee_schedules"].append(
                 {
                     "employee_id": salarie["id"],

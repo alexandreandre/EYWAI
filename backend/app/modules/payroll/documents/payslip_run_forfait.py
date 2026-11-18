@@ -80,6 +80,7 @@ from .payslip_run_common import (
 from .payslip_run_heures import (
     _appliquer_maintien_arret_maladie,
     _extraire_arret_pour_maintien,
+    noter_l_arret_apres_la_sortie,
     arrets_de_l_annee,
     poser_les_arrets_connus,
     poser_le_depart_du_mois,
@@ -677,6 +678,7 @@ def run_payslip_generation_forfait(
                     debut_maintien,
                     date_fin_periode,
                 )
+                noter_l_arret_apres_la_sortie(arret_data, resultats_maintien)
             except Exception:
                 logging.exception(
                     "Maintien de salaire non calculé (forfait, company_id=%s)", company_id

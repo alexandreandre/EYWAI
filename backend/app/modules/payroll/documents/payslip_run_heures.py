@@ -211,9 +211,15 @@ def _appliquer_maintien_arret_maladie(
 
 
 def _arret_de_jours_candidats(
-    candidats: list[tuple[date, Dict[str, Any]]], contexte: ContextePaie
+    candidats: list[tuple[date, Dict[str, Any]]],
+    contexte: ContextePaie,
+    sortie: date | None = None,
 ) -> Dict[str, Any]:
-    """Le dict `arret` de calculer_maintien pour des jours d'un même arrêt."""
+    """Le dict `arret` de calculer_maintien pour des jours d'un même arrêt.
+
+    `sortie` : dernier jour du contrat. L'arrêt retenu s'y arrête ; au-delà,
+    ni maintien employeur, ni IJSS subrogées (la Sécurité sociale paie le
+    salarié directement)."""
     candidats = sorted(candidats, key=lambda x: x[0])
     first_ev = candidats[0][1]
     first_d, last_d = candidats[0][0], candidats[-1][0]
@@ -242,7 +248,12 @@ def _arret_de_jours_candidats(
     date_fin = last_d.isoformat()
     if fins_reelles and max(fins_reelles) > date_fin:
         date_fin = max(fins_reelles)
+    fin_apres_la_sortie = None
+    if sortie is not None and date_fin > sortie.isoformat():
+        fin_apres_la_sortie, date_fin = date_fin, sortie.isoformat()
     return {
+        # Fin déclarée de l'arrêt quand elle dépasse la sortie : le bulletin le dit.
+        "fin_apres_la_sortie": fin_apres_la_sortie,
         "arret_type": first_ev["arret_type"],
         "date_debut": str(date_debut_reel)[:10] if date_debut_reel else first_d.isoformat(),
         "date_fin": date_fin,
@@ -307,7 +318,15 @@ def _extraire_arret_pour_maintien(
 
     Plusieurs arrêts dans le mois : le dict du premier, et `arrets_du_mois`, un
     dict par arrêt, que calculer_maintien calcule chacun seul ([F11-bis]).
+
+    Mois de sortie : seuls les jours jusqu'au dernier jour du contrat comptent
+    (heures et forfait jours passent ici).
     """
+    from app.modules.payroll.application.planning_apres_sortie import date_de_sortie
+
+    sortie = date_de_sortie(((contexte.contrat or {}).get("contrat") or {}).get("date_sortie"))
+    if sortie is not None and sortie < date_fin_periode:
+        date_fin_periode = sortie
     candidats: list[tuple[date, Dict[str, Any]]] = []
     for ev in calendrier_etendu:
         dc = ev.get("date_complete")
@@ -324,10 +343,35 @@ def _extraire_arret_pour_maintien(
         candidats.append((d, ev))
     if not candidats:
         return None
-    arrets = [_arret_de_jours_candidats(jours, contexte) for jours in _regrouper_par_arret(candidats)]
+    arrets = [
+        _arret_de_jours_candidats(jours, contexte, sortie) for jours in _regrouper_par_arret(candidats)
+    ]
     if len(arrets) == 1:
         return arrets[0]
     return {**arrets[0], "arrets_du_mois": arrets}
+
+
+def noter_l_arret_apres_la_sortie(
+    arret: Dict[str, Any] | None, resultats_maintien: Dict[str, Any] | None
+) -> None:
+    """Arrêt qui continue après le dernier jour du contrat : une phrase sur le
+    bulletin, plutôt qu'un maintien et des IJ qui s'arrêtent sans le dire (A1)."""
+    if not arret or resultats_maintien is None:
+        return
+    fins = [arret.get("fin_apres_la_sortie")] + [
+        a.get("fin_apres_la_sortie") for a in arret.get("arrets_du_mois") or []
+    ]
+    fin = max((str(f)[:10] for f in fins if f), default=None)
+    if not fin:
+        return
+    phrase = (
+        f"Arrêt déclaré jusqu'au {date.fromisoformat(fin):%d/%m/%Y}, après le dernier "
+        "jour du contrat : le maintien et les IJ subrogées s'arrêtent à la sortie, "
+        "la Sécurité sociale paie ensuite le salarié directement."
+    )
+    alertes = list(resultats_maintien.get("alertes") or [])
+    if phrase not in alertes:
+        resultats_maintien["alertes"] = alertes + [phrase]
 
 
 def poser_les_arrets_connus(
@@ -1276,6 +1320,7 @@ def run_payslip_generation_heures(
                     date_debut_periode,
                     date_fin_periode,
                 )
+                noter_l_arret_apres_la_sortie(arret_data, resultats_maintien)
             except Exception:
                 logging.exception(
                     "Maintien de salaire non calculé (company_id=%s)", company_id

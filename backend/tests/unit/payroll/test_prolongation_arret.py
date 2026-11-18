@@ -318,6 +318,7 @@ def test_l_apercu_d_une_demande_lit_les_arrets_connus_comme_le_bulletin(monkeypa
     monkeypatch.setattr(q.absence_repository, "get_by_id", lambda _id: absence)
     monkeypatch.setattr(q.supabase, "table", lambda nom: _Table(lignes.get(nom)))
     monkeypatch.setattr(q, "resolve_employee_id_for_user", lambda *_a: "emp-1")
+    monkeypatch.setattr(q, "_date_de_sortie", lambda _e: None)
     monkeypatch.setattr(
         q, "get_maintenance_settings",
         lambda _cid: SimpleNamespace(model_dump=lambda **_k: dict(REGLAGES_PLASTURGIE)),
@@ -371,6 +372,7 @@ def test_l_apercu_affiche_la_subrogation_eteinte_par_le_moteur(monkeypatch):
     monkeypatch.setattr(q.absence_repository, "get_by_id", lambda _id: absence)
     monkeypatch.setattr(q.supabase, "table", lambda nom: _Table(lignes.get(nom)))
     monkeypatch.setattr(q, "resolve_employee_id_for_user", lambda *_a: "emp-1")
+    monkeypatch.setattr(q, "_date_de_sortie", lambda _e: None)
     monkeypatch.setattr(
         q, "get_maintenance_settings",
         lambda _cid: SimpleNamespace(model_dump=lambda **_k: {"subrogation_mode": "when_maintien"}),
@@ -392,3 +394,58 @@ def test_l_apercu_affiche_la_subrogation_eteinte_par_le_moteur(monkeypatch):
 
     apercu = q.get_absence_maintenance_preview("abs-mat", user)
     assert apercu["subrogation_active"] is False
+
+
+def test_l_apercu_s_arrete_a_la_sortie_comme_le_bulletin(monkeypatch):
+    """A1 (18/11) : sortie le 15/10, arrêt du 01 au 31/10 ; l'aperçu calcule
+    jusqu'au 15, comme le bulletin, et le dit."""
+    from app.modules.absences.application import queries as q
+
+    absence = {
+        "id": "abs-3",
+        "employee_id": "emp-1",
+        "arret_type": "maladie_simple",
+        "selected_days": ["2026-10-01", "2026-10-31"],
+    }
+    recu: dict = {}
+
+    class _Table:
+        def __init__(self, data):
+            self._data = data
+
+        def __getattr__(self, _nom):
+            return lambda *a, **k: self
+
+        def execute(self):
+            return SimpleNamespace(data=self._data)
+
+    lignes = {"employees": {"id": "emp-1", "company_id": "soc-1"}, "companies": {"id": "soc-1"}}
+    monkeypatch.setattr(q.absence_repository, "get_by_id", lambda _id: absence)
+    monkeypatch.setattr(q.supabase, "table", lambda nom: _Table(lignes.get(nom)))
+    monkeypatch.setattr(q, "resolve_employee_id_for_user", lambda *_a: "emp-1")
+    monkeypatch.setattr(q, "_date_de_sortie", lambda _e: date(2026, 10, 15))
+    monkeypatch.setattr(
+        q, "get_maintenance_settings",
+        lambda _cid: SimpleNamespace(model_dump=lambda **_k: dict(REGLAGES_PLASTURGIE)),
+    )
+    monkeypatch.setattr(q, "compute_subrogation_for_absence", lambda *a, **k: True)
+    monkeypatch.setattr(q, "resolve_nombre_enfants_employee", lambda _e: 0)
+    monkeypatch.setattr(q, "build_historique_arrets_annee", lambda *a, **k: [])
+    monkeypatch.setattr(q, "poser_salaires_de_reference", lambda *a, **k: None)
+    monkeypatch.setattr(q, "ChargerContexte", lambda *a, **k: _ctx())
+    monkeypatch.setattr(q, "arrets_connus_du_salarie", lambda *a: [])
+
+    def _calculer(arret, _ctx_, _reglages, debut, fin, **_k):
+        recu.update(arret, debut=debut, fin=fin)
+        return {"carence": {}, "ijss": {}, "maintien": {}, "anciennete_mois": 60, "alertes": []}
+
+    monkeypatch.setattr(q, "calculer_maintien", _calculer)
+    user = SimpleNamespace(
+        active_company_id="soc-1", id="u-1", is_platform_admin=False,
+        has_rh_access_in_company=lambda _c: True,
+    )
+
+    resultat = q.get_absence_maintenance_preview("abs-3", user)
+
+    assert recu["date_fin"] == "2026-10-15" and recu["fin"] == date(2026, 10, 15)
+    assert any("31/10/2026" in a and "dernier jour du contrat" in a for a in resultat["alertes"])

@@ -1155,6 +1155,17 @@ def get_absence_maintenance_preview(
     parsed_days = sorted(_parse_absence_day(d) for d in days_raw)
     date_debut_periode = parsed_days[0]
     date_fin_periode = parsed_days[-1]
+    # Comme le bulletin (A1, 18/11) : ni maintien ni IJ subrogées après le
+    # dernier jour du contrat.
+    sortie = _date_de_sortie(str(absence["employee_id"]))
+    fin_apres_la_sortie = None
+    if sortie is not None and sortie < date_fin_periode:
+        if sortie < date_debut_periode:
+            raise ValueError(
+                "Cet arrêt commence après le dernier jour du contrat : ni maintien "
+                "ni IJ subrogées sur le bulletin, la Sécurité sociale paie le salarié."
+            )
+        fin_apres_la_sortie, date_fin_periode = date_fin_periode, sortie
 
     settings_model = get_maintenance_settings(emp_company)
     settings_dict = settings_model.model_dump(mode="json")
@@ -1234,6 +1245,14 @@ def get_absence_maintenance_preview(
     )
 
     result = dict(result)
+    if fin_apres_la_sortie is not None:
+        from app.modules.payroll.documents.payslip_run_heures import (
+            noter_l_arret_apres_la_sortie,
+        )
+
+        noter_l_arret_apres_la_sortie(
+            {"fin_apres_la_sortie": fin_apres_la_sortie.isoformat()}, result
+        )
     result["subrogation_mode"] = settings_dict.get("subrogation_mode", "when_maintien")
     # Ce que la société fait des IJSS sans subrogation : le pliant le dit.
     result["deduire_ijss_sans_subrogation"] = bool(
