@@ -714,8 +714,8 @@ def _avant_la_sortie(
     e: dict[str, Any], prevu: list, reel: list, fin: date, year: int, month: int
 ) -> tuple[list, list, date]:
     """La sortie lue comme les deux générateurs la lisent : jours d'après la
-    sortie écartés ; en heures, la fenêtre va jusqu'au jour de sortie
-    (`fin_au_depart`). Sans cela, l'écran et la DSN comptaient des jours chômés
+    sortie écartés ; la fenêtre (heures) ou la période (forfait jours) va
+    jusqu'au jour de sortie (`fin_au_depart`). Sans cela, l'écran et la DSN comptaient des jours chômés
     que le bulletin ne paie pas, ou en oubliaient."""
     from app.modules.payroll.application import planning_apres_sortie
     from app.shared.domain.periode_variables import fin_au_depart
@@ -724,8 +724,8 @@ def _avant_la_sortie(
     if sortie is None:
         return prevu, reel, fin
     prevu, reel, _ = planning_apres_sortie.ecarter_apres_la_sortie(prevu, reel, sortie)
-    if not e.get("is_forfait_jour"):
-        fin = fin_au_depart(fin, year, month, sortie)
+    # Heures et forfait jours (A9, 18/11) : la période va jusqu'au jour de sortie.
+    fin = fin_au_depart(fin, year, month, sortie)
     return prevu, reel, fin
 
 

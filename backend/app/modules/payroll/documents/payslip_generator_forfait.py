@@ -324,7 +324,13 @@ def process_payslip_generation_forfait(
             jours_apres_sortie, sortie_du_contrat, year, month
         )
         # Les jours de la période de paie de la société, comme les jours
-        # d'absence au forfait, hors jours payés avant la reprise.
+        # d'absence au forfait, hors jours payés avant la reprise ; au mois de
+        # sortie, jusqu'au dernier jour du contrat (A9, 18/11).
+        from app.shared.domain.periode_variables import fin_au_depart
+
+        debut_ap, fin_ap = bornes_periode_de_paie(
+            {"periode_de_paie": _periode_de_paie_company(company_data)}, year, month
+        )
         saisies_res.data, alerte_activite_partielle = lignes_du_calendrier(
             str(company_id),
             {**employee_data, "is_forfait_jour": True},
@@ -333,9 +339,7 @@ def process_payslip_generation_forfait(
             prevu_ap,
             reel_ap,
             list(saisies_res.data or []),
-            bornes=bornes_periode_de_paie(
-                {"periode_de_paie": _periode_de_paie_company(company_data)}, year, month
-            ),
+            bornes=(debut_ap, fin_au_depart(fin_ap, year, month, sortie_du_contrat)),
         )
 
         last_day = calendar.monthrange(year, month)[1]

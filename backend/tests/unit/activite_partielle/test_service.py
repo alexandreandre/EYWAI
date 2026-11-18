@@ -424,6 +424,21 @@ def test_sortie_au_forfait_jours_ecarte_les_jours_d_apres(base):
     assert _jours_ap(employe, [10, 13]) == [10]
 
 
+def test_sortie_au_forfait_apres_la_periode_decalee_jusqu_a_la_sortie(base, monkeypatch):
+    """A9 (18/11) : période du forfait au 25/11, sortie le 27/11 ; le bulletin
+    paie jusqu'au 27, l'écran et la DSN aussi."""
+    monkeypatch.setattr(
+        svc, "bornes_du_bulletin", lambda *a, **k: (date(2026, 10, 26), date(2026, 11, 25))
+    )
+    employe = {
+        **base.tables["employees"][0],
+        "is_forfait_jour": True,
+        "specificites_paie": {"forfait_annual_days": 218},
+        "contract_end_date": "2026-11-27",
+    }
+    assert _jours_ap(employe, [24, 26, 27, 30]) == [24, 26, 27]
+
+
 def test_sans_sortie_rien_ne_change(base):
     assert _jours_ap(base.tables["employees"][0], [10, 13]) == [10, 13]
 

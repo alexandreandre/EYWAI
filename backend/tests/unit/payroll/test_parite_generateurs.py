@@ -87,6 +87,7 @@ COMMUNES: dict[str, dict[str, str]] = {
         "variables_du_bulletin": "les saisies du mois du bulletin",
         "saisies_du_mois": "les saisies en mémoire du bac à sable",
         "alertes_plafond_transport": "plafond annuel des frais de transport : alerte (17/11)",
+        "fin_au_depart": "mois de sortie : jusqu'au départ (heures : fenêtre des variables ; forfait : période de l'activité partielle, A9 18/11)",
         "ranger_les_saisies": "primes, frais, participations, IJSS et acomptes saisis : une seule fonction (17/11)",
         "_stamp_source_absence_conges": "les absences validées du calendrier",
         "_heures_sup_conjoncturelles_from_monthly_inputs": "les heures sup saisies au mois",
@@ -227,7 +228,6 @@ HEURES_SEULEMENT: dict[str, dict[str, str]] = {
         "_build_temps_travail_payload": "temps de travail en heures (le forfait a le sien)",
         "log_payroll_debug": "traces de mise au point",
         "run_payslip_generation_heures": "le moteur des heures",
-        "fin_au_depart": "mois de sortie, fenêtre des variables jusqu'au départ : le forfait calcule sur la période de paie et le départ au mois civil",
     },
     "moteur": {
         "apply_modulation_hour_account_to_calendar": "compteur de récupération des heures sup",
@@ -272,6 +272,7 @@ FORFAIT_SEULEMENT: dict[str, dict[str, str]] = {
         "message_pas_forfait_jour": "refus d'un salarié qui n'est pas au forfait",
         "absences_hors_reprise": "la période du forfait déborde sur le mois repris : ses absences en sortent (aux heures : dans calcul_brut)",
         "debut_apres_la_reprise": "idem, le maintien commence après la bascule (aux heures : mois civil)",
+        "fin_au_depart": "mois de sortie après la fin de la période décalée : la période va jusqu'au départ (A9 ; aux heures, dans le générateur, sur la fenêtre des variables)",
     },
 }
 

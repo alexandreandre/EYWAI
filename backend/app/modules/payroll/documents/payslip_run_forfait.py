@@ -372,6 +372,17 @@ def run_payslip_generation_forfait(
     date_debut_periode, date_fin_periode = definir_periode_de_paie(
         contexte, year, month
     )
+    # Mois de sortie après la fin de la période (A9, 18/11) : période du 26/11
+    # au 25/12, sortie le 31/12. Il n'y aura pas de bulletin suivant : la
+    # période va jusqu'au dernier jour du contrat, comme la fenêtre des heures.
+    from app.shared.domain.periode_variables import fin_au_depart
+
+    date_fin_periode = fin_au_depart(
+        date_fin_periode,
+        year,
+        month,
+        ((contexte.contrat or {}).get("contrat") or {}).get("date_sortie"),
+    )
     contexte.date_debut_periode = date_debut_periode
     contexte.date_fin_periode = date_fin_periode
     if resolved_employee_id:
