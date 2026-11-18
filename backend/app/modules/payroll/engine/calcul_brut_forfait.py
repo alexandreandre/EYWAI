@@ -645,7 +645,12 @@ def calculer_salaire_brut_forfait(
             for ligne in lignes_composants_brut
             if ligne.get("perte") and not ligne.get("is_entree_sortie")
         )
-        complement = round(salaire_contractuel - perte_entree_sortie - perte_absences, 2)
+        # Le salaire du mois tel que le bulletin le porte : corrigé à la main
+        # s'il l'a été (relecture A2, 18/11 : 4 400 € saisis, 200 € restaient).
+        salaire_du_mois = salaire_contractuel + lignes_composants_brut.effet.sur_le_brut(
+            "brut:salaire_base"
+        )
+        complement = round(salaire_du_mois - perte_entree_sortie - perte_absences, 2)
         if abs(complement) >= 0.01:
             retenues_absence_mois += complement
             lignes_composants_brut.append(
@@ -655,6 +660,7 @@ def calculer_salaire_brut_forfait(
                     "taux": None,
                     "gain": None if complement > 0 else round(-complement, 2),
                     "perte": complement if complement > 0 else None,
+                    "is_retenue_ramenee": True,
                 }
             )
 
@@ -732,11 +738,20 @@ def calculer_salaire_brut_forfait(
     # Protection : Les déductions d'absence ne peuvent pas dépasser le salaire de base
     # (sauf si des primes/avantages sont ajoutés)
     salaire_base_seul = salaire_forfait_mois
-    if total_pertes > salaire_base_seul:
-        logger.warning(f"AVERTISSEMENT: Les déductions d'absence ({total_pertes:.2f} €) dépassent le salaire de base ({salaire_base_seul:.2f} €). Les déductions sont limitées au salaire de base.")
+    # Le complément « retenue ramenée au salaire du mois » rend déjà en gain ce
+    # que les retenues du jour ont de trop : le plafond porte sur les retenues
+    # nettes de ce gain. Sinon le trop était rendu deux fois (mois entier sans
+    # solde sur une période du 21/09 au 25/10 : 645,50 € de brut au lieu de 0).
+    rendu_par_le_complement = sum(
+        ligne.get("gain", 0.0) or 0.0
+        for ligne in lignes_composants_brut
+        if ligne.get("is_retenue_ramenee")
+    )
+    if total_pertes - rendu_par_le_complement > salaire_base_seul:
+        logger.warning(f"AVERTISSEMENT: Les déductions d'absence ({total_pertes - rendu_par_le_complement:.2f} €) dépassent le salaire de base ({salaire_base_seul:.2f} €). Les déductions sont limitées au salaire de base.")
         # Limiter les déductions au salaire de base uniquement
         # (les primes et avantages peuvent compenser)
-        total_pertes = min(total_pertes, salaire_base_seul)
+        total_pertes = salaire_base_seul + rendu_par_le_complement
 
     total_brut = total_gains - total_pertes
 

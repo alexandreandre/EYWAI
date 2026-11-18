@@ -63,3 +63,20 @@ def test_une_absence_corrigee_suit_dans_les_retenues_du_mois():
     assert corrige["salaire_brut_total"] == pytest.approx(
         reference["salaire_brut_total"] - (absence1["perte"] - absence0["perte"]), abs=0.005
     )
+
+
+def test_mois_entier_sans_solde_avec_un_salaire_corrige_le_brut_tombe_a_zero():
+    """Relecture A2 (18/11) : le complément « retenue ramenée au salaire du
+    mois » partait du salaire non corrigé ; 3 700 € saisis, 92 € restaient."""
+    contexte = build_test_contexte(statut="Cadre", salaire_base=3608.0, specificites_extra={"is_forfait_jour": True})
+    contexte.year = 2026
+    contexte.corrections_du_mois = JournalDesCorrections(
+        [_c("brut:salaire_base", "Salaire de base (forfait jour)", montant=3700.0)]
+    )
+    sans_solde = [
+        {"date_complete": d.isoformat(), "type": "absence_non_remuneree", "heures": 7.8}
+        for d in (date(2026, 3, j) for j in range(1, 32))
+        if d.weekday() < 5
+    ]
+    resultat = calculer_salaire_brut_forfait(contexte, sans_solde, *MARS, [])
+    assert resultat["salaire_brut_total"] == pytest.approx(0.0, abs=0.01)
