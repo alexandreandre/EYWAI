@@ -9,7 +9,7 @@ import * as calendarApi from '@/api/calendar';
 import { DayData, type SaisieGroupee } from '@/components/ScheduleModal';
 import { isForfaitJour } from '@/utils/employeeUtils';
 import { applyHolidayHints } from '@/lib/companyCalendarHolidays';
-import { saisieGroupeeDuJour } from '@/lib/calendarTypes';
+import { saisieGroupeeDuJour, saisieGroupeeLaisseLeJour } from '@/lib/calendarTypes';
 import {
   aDesHeuresPointees,
   computeMonthCompletionStatus,
@@ -23,7 +23,11 @@ import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 import { joursAuxHeuresRetirees, messageHeuresRetirees } from '@/lib/heuresRetireesAuReel';
 import { copierMoisPrecedent, noteJoursGardes } from '@/lib/copieMoisPrecedent';
 import { modeleSemaineDuSalarie } from '@/lib/modeleSemaine';
-import { jourPrevuDuModele, valeurModelePourLeJour } from '@/lib/weekTemplateDays';
+import {
+  jourPrevuDuModele,
+  prevuDuModeleEnRepassantEnTravail,
+  valeurModelePourLeJour,
+} from '@/lib/weekTemplateDays';
 import { calendarSaveFailureMessage } from '@/lib/calendarSaveFeedback';
 import { dernierJourDuContratDansLeMois } from '@/lib/employmentStatus';
 
@@ -479,6 +483,17 @@ export function useCalendar(
         if ((updatedDay.type ?? p.type) === 'repos') newPlannedData.heures_prevues = 0;
         else if (updatedDay.heures_prevues !== undefined)
           newPlannedData.heures_prevues = updatedDay.heures_prevues;
+        // Un congé (0 h prévue) repassé en « Travail » reprend les heures du
+        // modèle de semaine, jour isolé ou saisie groupée (A6, 18/11).
+        const prevu = newPlannedData.heures_prevues !== undefined ? newPlannedData.heures_prevues : p.heures_prevues;
+        if (updatedDay.type === 'travail' && p.type !== 'travail' && !(Number(prevu) > 0)) {
+          const duModele = prevuDuModeleEnRepassantEnTravail(
+            weekTemplate,
+            new Date(selectedDate.year, selectedDate.month - 1, p.jour),
+            isForfaitJourMode,
+          );
+          if (duModele !== undefined) newPlannedData.heures_prevues = duModele;
+        }
         return { ...p, ...newPlannedData };
       })
     );
@@ -642,14 +657,25 @@ export function useCalendar(
   const bulkUpdateDays = (updateData: SaisieGroupee) => {
     if (!context.active || !isMonthDataReady || selectedDays.length === 0) return;
 
+    let laisses = 0;
     selectedDays.forEach((dayNumber) => {
       const ancienType = plannedCalendar.find((p) => p.jour === dayNumber)?.type;
+      if (saisieGroupeeLaisseLeJour(updateData, ancienType)) {
+        laisses += 1;
+        return;
+      }
       updateDayData({ jour: dayNumber, ...saisieGroupeeDuJour(updateData, ancienType) });
     });
 
+    const modifies = selectedDays.length - laisses;
     toast({
       title: 'Mise à jour groupée',
-      description: `${selectedDays.length} jours ont été modifiés.`,
+      description:
+        `${modifies} ${modifies > 1 ? 'jours modifiés' : 'jour modifié'}.` +
+        (laisses > 0
+          ? ` ${laisses} ${laisses > 1 ? 'jours gardent leur' : 'jour garde son'} type (congé, férié, école…) ; ` +
+            `pour y saisir des heures, changez d'abord ${laisses > 1 ? 'leur' : 'son'} type.`
+          : ''),
     });
     setSelectedDays([]);
   };

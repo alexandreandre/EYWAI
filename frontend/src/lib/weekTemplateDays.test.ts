@@ -4,6 +4,7 @@ import {
   JOURS_MODELE_SEMAINE,
   cleModeleDuJour,
   jourPrevuDuModele,
+  prevuDuModeleEnRepassantEnTravail,
   semaineDuModele,
   valeurModelePourLeJour,
 } from './weekTemplateDays';
@@ -65,5 +66,22 @@ describe('semaine du modèle enregistré (retour du 10/11)', () => {
     const semaine = semaineDuModele({ 1: '7', 2: '7', 3: '7', 4: '7', 5: '7', 6: '0', 7: '0' });
     expect(semaine.friday).toEqual({ type: 'travail', hours: 7 });
     expect(semaine.sunday).toEqual({ type: 'weekend', hours: 0 });
+  });
+});
+
+describe('jour repassé en Travail : le prévu du modèle (A6, 18/11)', () => {
+  // Lundi 9 novembre 2026, samedi 14 novembre 2026.
+  const lundi = new Date(2026, 10, 9);
+  const samedi = new Date(2026, 10, 14);
+
+  it('reprend les heures du modèle pour ce jour', () => {
+    expect(prevuDuModeleEnRepassantEnTravail({ 1: '7' }, lundi, false)).toBe(7);
+  });
+  it('au forfait jours, un jour coché vaut 1', () => {
+    expect(prevuDuModeleEnRepassantEnTravail({ 1: '7' }, lundi, true)).toBe(1);
+  });
+  it('le modèle ne dit rien : le prévu ne bouge pas', () => {
+    expect(prevuDuModeleEnRepassantEnTravail({ 1: '' }, lundi, false)).toBeUndefined();
+    expect(prevuDuModeleEnRepassantEnTravail({ 1: '7' }, samedi, false)).toBeUndefined();
   });
 });

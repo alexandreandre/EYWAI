@@ -217,6 +217,23 @@ export function reelApresChangementDeType(
   return 0;
 }
 
+/** Types qu'une saisie d'heures sans type peut faire « Travail » : un jour
+ * travaillé, un week-end, un repos, ou un jour sans type. */
+const TYPES_REPRIS_PAR_DES_HEURES = new Set(['travail', 'weekend', 'repos', '']);
+
+/** Saisie groupée d'heures sans type de jour (A5, 18/11) : un congé, un férié,
+ * un jour d'école, un arrêt… de la sélection n'est pas touché. Avant, il
+ * repassait en « Travail » et perdait son type sans le dire. Le jour
+ * d'activité partielle garde sa propre règle (heures gardées, jour chômé). */
+export function saisieGroupeeLaisseLeJour<T extends { type?: string | null; type_par_defaut?: string }>(
+  saisie: T,
+  ancienType: string | null | undefined,
+): boolean {
+  if (saisie.type != null || !saisie.type_par_defaut) return false;
+  if (ancienType == null || ancienType === 'activite_partielle') return false;
+  return !TYPES_REPRIS_PAR_DES_HEURES.has(ancienType);
+}
+
 /** Saisie groupée appliquée à un jour : même règle du réel que la case du jour.
  * Le panneau ne connaît pas l'ancien type de chaque jour ; ici on l'a :
  * - un jour repassé en « Travail » depuis un congé ou une activité partielle
@@ -225,7 +242,8 @@ export function reelApresChangementDeType(
  * - réappliquer le même type ne touche pas au réel (demi-journée gardée) ;
  * - des heures saisies sans type font un jour « Travail » (`type_par_defaut`),
  *   sauf un jour d'activité partielle : ses heures faites sont la part
- *   travaillée de la demi-journée, le jour reste chômé. */
+ *   travaillée de la demi-journée, le jour reste chômé ; un congé, un férié,
+ *   un jour d'école n'y arrivent pas (`saisieGroupeeLaisseLeJour`). */
 export function saisieGroupeeDuJour<
   T extends { type?: string | null; heures_faites?: number | null; type_par_defaut?: string },
 >(saisie: T, ancienType: string | null | undefined): Omit<T, 'type_par_defaut'> {

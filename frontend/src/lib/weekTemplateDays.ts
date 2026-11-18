@@ -51,6 +51,22 @@ export function jourPrevuDuModele(
   return { type: 'travail', heures_prevues: forfaitJours ? 1 : heures };
 }
 
+/**
+ * Prévu d'un jour qui repasse en « Travail » depuis un type non travaillé
+ * (congé, repos, activité partielle…) avec un prévu vide ou à 0 (A6, 18/11) :
+ * les heures du modèle de semaine pour ce jour, comme à l'application du
+ * modèle. `undefined` : le modèle ne dit rien (case vide, week-end), le prévu
+ * ne bouge pas.
+ */
+export function prevuDuModeleEnRepassantEnTravail(
+  template: WeekTemplate,
+  date: Date,
+  forfaitJours: boolean,
+): number | undefined {
+  const { heures_prevues } = jourPrevuDuModele(valeurModelePourLeJour(template, date.getDay()), forfaitJours);
+  return heures_prevues > 0 ? heures_prevues : undefined;
+}
+
 type JourDeSemaine = { type: 'travail' | 'weekend'; hours: number };
 export type SemaineDuModele = Record<
   'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday',

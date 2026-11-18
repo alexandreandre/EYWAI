@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { editableTypeOptionsFor, reelApresChangementDeType, saisieGroupeeDuJour, typesDeSaisie } from './calendarTypes';
+import {
+  editableTypeOptionsFor,
+  reelApresChangementDeType,
+  saisieGroupeeDuJour,
+  saisieGroupeeLaisseLeJour,
+  typesDeSaisie,
+} from './calendarTypes';
 
 const valeurs = (o: { value: string }[]) => o.map((x) => x.value);
 
@@ -115,5 +121,24 @@ describe('saisieGroupeeDuJour : la saisie groupée suit la règle de la case du 
     expect(
       saisieGroupeeDuJour({ heures_faites: 3.5, type_par_defaut: 'travail' }, 'activite_partielle'),
     ).toEqual({ heures_faites: 3.5 });
+  });
+});
+
+describe('saisieGroupeeLaisseLeJour : des heures sans type ne retypent pas un congé (A5, 18/11)', () => {
+  const heuresSansType = { heures_faites: 7, type_par_defaut: 'travail' };
+  it.each(['conges_payes', 'ferie', 'ecole', 'rtt', 'arret_maladie', 'absence_non_remuneree'])(
+    'un jour %s garde son type',
+    (ancien) => {
+      expect(saisieGroupeeLaisseLeJour(heuresSansType, ancien)).toBe(true);
+    },
+  );
+  it.each([null, undefined, '', 'travail', 'weekend', 'repos', 'activite_partielle'])(
+    'un jour %s reçoit les heures',
+    (ancien) => {
+      expect(saisieGroupeeLaisseLeJour(heuresSansType, ancien)).toBe(false);
+    },
+  );
+  it('un type choisi dans la saisie s\'applique à tous les jours', () => {
+    expect(saisieGroupeeLaisseLeJour({ type: 'travail', heures_faites: 7 }, 'conges_payes')).toBe(false);
   });
 });
