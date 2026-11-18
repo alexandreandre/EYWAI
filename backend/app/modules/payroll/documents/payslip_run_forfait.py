@@ -80,6 +80,7 @@ from .payslip_run_common import (
 from .payslip_run_heures import (
     _appliquer_maintien_arret_maladie,
     _extraire_arret_pour_maintien,
+    debut_sous_contrat,
     noter_l_arret_apres_la_sortie,
     arrets_de_l_annee,
     poser_les_arrets_connus,
@@ -459,7 +460,9 @@ def run_payslip_generation_forfait(
     # même règle dans `calcul_brut` ; le maintien y suit le mois civil.
     contexte.fin_de_la_reprise = fin_de_la_reprise_au_premier_mois(company_id, year, month)
     calendrier_etendu = absences_hors_reprise(calendrier_etendu, contexte.fin_de_la_reprise)
-    debut_maintien = debut_apres_la_reprise(date_debut_periode, contexte.fin_de_la_reprise)
+    debut_maintien = debut_sous_contrat(
+        contexte, debut_apres_la_reprise(date_debut_periode, contexte.fin_de_la_reprise)
+    )
 
     primes_soumises = []
     primes_non_soumises = []

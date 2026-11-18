@@ -53,3 +53,35 @@ def test_hors_mois_de_sortie_la_periode_ne_bouge_pas(banc):  # noqa: F811
     sans = banc.generer("forfait_jours", fiche_en_plus=novembre)
 
     assert float(avec["salaire_brut"]) == pytest.approx(float(sans["salaire_brut"]), abs=0.01)
+
+
+def _arret_a_cheval() -> tuple[dict[int, dict], dict[tuple[int, int], dict[int, dict]]]:
+    """Arrêt du 19/10 au 13/11 : les jours d'octobre et ceux de novembre."""
+    def jour(a: int, m: int, j: int) -> dict:
+        return {
+            "type": "arret_maladie" if date(a, m, j).weekday() < 5 else "weekend",
+            "arret_type": "maladie_simple",
+            "date_debut_arret_reel": "2026-10-19",
+            "date_fin_arret_reel": "2026-11-13",
+        }
+    octobre = {j: jour(2026, 10, j) for j in range(19, 32)}
+    novembre = {j: jour(2026, 11, j) for j in range(1, 14)}
+    return novembre, {(2026, 10): octobre}
+
+
+@pytest.mark.parametrize("profil", ("heures", "forfait_jours"))
+def test_un_nouveau_contrat_ne_repaie_pas_les_jours_d_avant_son_entree(banc, profil):  # noqa: F811
+    """Relecture A9 (18/11) : CDD jusqu'au 31/10, CDI au 01/11. Au forfait, la
+    période de novembre commence le 26/10 ; le bulletin du nouveau contrat
+    repayait IJ et maintien du 26 au 31/10, déjà payés par l'ancien."""
+    novembre, voisins = _arret_a_cheval()
+    donnees = banc.generer(
+        profil,
+        jours=novembre,
+        jours_des_mois_voisins=voisins,
+        mois=11,
+        fiche_en_plus={"hire_date": "2026-11-01"},
+    )
+
+    # Carence du 19 au 21/10 (ancien contrat) ; indemnisés du 01 au 13/11 seulement.
+    assert donnees["bloc_maintien"]["ijss"].get("nb_jours_indemnises") == 13

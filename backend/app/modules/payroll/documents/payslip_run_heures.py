@@ -351,6 +351,16 @@ def _extraire_arret_pour_maintien(
     return {**arrets[0], "arrets_du_mois": arrets}
 
 
+def debut_sous_contrat(contexte: ContextePaie, debut: date) -> date:
+    """Le début du maintien et des IJ subrogées du bulletin : jamais avant
+    l'entrée du contrat (relecture A9, 18/11). Un nouveau contrat le mois
+    d'après un départ repayait les jours que l'ancien contrat a déjà payés."""
+    from app.modules.payroll.application.planning_apres_sortie import date_de_sortie
+
+    entree = date_de_sortie(((contexte.contrat or {}).get("contrat") or {}).get("date_entree"))
+    return max(debut, entree) if entree is not None else debut
+
+
 def noter_l_arret_apres_la_sortie(
     arret: Dict[str, Any] | None, resultats_maintien: Dict[str, Any] | None
 ) -> None:
@@ -1120,8 +1130,9 @@ def run_payslip_generation_heures(
             }
         )
 
+    debut_maintien = debut_sous_contrat(contexte, date_debut_periode)
     arret_prefetch = _extraire_arret_pour_maintien(
-        calendrier_etendu, contexte, date_debut_periode, date_fin_periode
+        calendrier_etendu, contexte, debut_maintien, date_fin_periode
     )
     poser_les_arrets_connus(arret_prefetch, company_id, employee_id, year, month)
     contexte.arret_du_mois = arret_prefetch  # alerte de report des congés (L3141-19-3)
@@ -1141,7 +1152,7 @@ def run_payslip_generation_heures(
         company_id=company_id,
         contexte=contexte,
         arret_data=arret_prefetch,
-        date_debut_periode=date_debut_periode,
+        date_debut_periode=debut_maintien,
         date_fin_periode=date_fin_periode,
         saisie_du_mois=saisie_du_mois,
     )
@@ -1317,7 +1328,7 @@ def run_payslip_generation_heures(
                     arret_data,
                     contexte,
                     settings_dict,
-                    date_debut_periode,
+                    debut_maintien,
                     date_fin_periode,
                 )
                 noter_l_arret_apres_la_sortie(arret_data, resultats_maintien)

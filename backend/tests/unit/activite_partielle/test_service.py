@@ -439,6 +439,22 @@ def test_sortie_au_forfait_apres_la_periode_decalee_jusqu_a_la_sortie(base, monk
     assert _jours_ap(employe, [24, 26, 27, 30]) == [24, 26, 27]
 
 
+def test_un_nouveau_contrat_ne_compte_pas_les_jours_d_avant_son_entree(base, monkeypatch):
+    """Relecture A9 (18/11) : période du 26/10 au 25/11, CDI au 02/11 ; les jours
+    chômés d'avant l'entrée sont ceux de l'ancien contrat."""
+    monkeypatch.setattr(
+        svc, "bornes_du_bulletin", lambda *a, **k: (date(2026, 10, 26), date(2026, 11, 25))
+    )
+    employe = {**base.tables["employees"][0], "hire_date": "2026-11-02"}
+    prevu = [_jour_de(2026, 10, 27), _jour_de(2026, 10, 30), _jour_de(2026, 11, 2), _jour_de(2026, 11, 3)]
+    res = svc.jours_chomes_des_bulletins("co", 2026, 11, [employe], {employe["id"]: (prevu, [])})
+    assert [(d.month, d.day) for d, _ in res[employe["id"]]] == [(11, 2), (11, 3)]
+    saisies, _ = svc.lignes_du_calendrier(
+        "co", employe, 2026, 11, prevu, [], [], bornes=(date(2026, 10, 26), date(2026, 11, 25))
+    )
+    assert saisies[0]["payroll_quantity"] == 14.0
+
+
 def test_sans_sortie_rien_ne_change(base):
     assert _jours_ap(base.tables["employees"][0], [10, 13]) == [10, 13]
 
@@ -472,7 +488,8 @@ def test_mois_d_entree_sans_plafond(base):
     employe = {**base.tables["employees"][0], "hire_date": "2026-11-02"}
     saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 11, _tout_le_mois(22), [], [])
     retenue, _ = _deux(saisies)
-    assert retenue["payroll_quantity"] == 154.0
+    # Le 01/11, d'avant l'entrée, ne compte pas (relecture A9, 18/11) : 21 jours.
+    assert retenue["payroll_quantity"] == 147.0
 
 
 def test_periode_decalee_sans_plafond(base):

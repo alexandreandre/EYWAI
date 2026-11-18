@@ -583,7 +583,7 @@ def lignes_du_calendrier(
     )
     if not any(str(j.get("type") or "") == TYPE_JOUR for j in prevu):
         return saisies, None
-    debut = _apres_la_reprise(company_id, year, month, debut)
+    debut = _pas_avant_l_embauche(employee, _apres_la_reprise(company_id, year, month, debut))
     prevu_du_mois = dans_la_periode(prevu, debut, fin, annee=year, mois=month)
     reel_du_mois = dans_la_periode(reel, debut, fin, annee=year, mois=month)
     if not any(str(j.get("type") or "") == TYPE_JOUR for j in prevu_du_mois):
@@ -710,6 +710,15 @@ def calendriers_des_lignes(
     return par_salarie
 
 
+def _pas_avant_l_embauche(e: dict[str, Any], debut: date) -> date:
+    """Jamais un jour chômé d'avant l'entrée du contrat : le bulletin de
+    l'ancien contrat l'a payé (relecture A9, 18/11)."""
+    from app.modules.payroll.application.planning_apres_sortie import date_de_sortie
+
+    embauche = date_de_sortie(e.get("hire_date"))
+    return max(debut, embauche) if embauche is not None else debut
+
+
 def _avant_la_sortie(
     e: dict[str, Any], prevu: list, reel: list, fin: date, year: int, month: int
 ) -> tuple[list, list, date]:
@@ -798,6 +807,7 @@ def _jours_et_plafonds(
             debut, fin = bornes_du_bulletin(company_id, year, month, forfait_jours=forfait)
             bornes[forfait] = (_apres_la_reprise(company_id, year, month, debut), fin)
         debut, fin = bornes[forfait]
+        debut = _pas_avant_l_embauche(e, debut)
         prevu, reel, fin = _avant_la_sortie(e, prevu, reel, fin, year, month)
         prevu_p = dans_la_periode(prevu, debut, fin, annee=year, mois=month)
         reel_p = dans_la_periode(reel, debut, fin, annee=year, mois=month)
