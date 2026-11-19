@@ -84,6 +84,51 @@ class TestApercuSalaires:
         assert not any("Compte bancaire" in a["message"] for a in apercu["anomalies"])
 
 
+class TestApercuSalairesEnCsv:
+    """Le CSV se dépose à la main : rien d'un salarié ou de la société ne bloque tout (Elsa, 17/11)."""
+
+    IBAN_FAUX = {
+        "type": "error",
+        "message": "IBAN manquant ou invalide - Jean Dupont",
+        "severity": "blocking",
+        "employee_id": "e-2",
+        "employee_name": "Jean Dupont",
+    }
+    DOUBLON = {"type": "error", "message": "Doublon détecté - Paul Martin", "severity": "blocking"}
+
+    def _apercu(self, compte, anomalies, bank_format="csv"):
+        totals = {"virements_count": 1, "total_amount": 1800.0}
+        with patch.object(
+            export_paiement_salaires,
+            "get_paiement_salaires_data",
+            return_value=([_ligne()], totals, list(anomalies), []),
+        ), patch.object(export_paiement_salaires, "charger_compte_societe", return_value=compte):
+            return export_paiement_salaires.preview_paiement_salaires(
+                "co-1", "2026-07", bank_format=bank_format
+            )
+
+    def test_sans_compte_de_la_societe_le_csv_sort(self):
+        apercu = self._apercu(None, [])
+        assert apercu["can_generate"] is True
+        assert apercu["anomalies"] == []
+
+    def test_un_iban_faux_ecarte_le_salarie_nomme_sans_bloquer(self):
+        apercu = self._apercu(COMPTE, [self.IBAN_FAUX])
+        assert apercu["can_generate"] is True
+        assert apercu["anomalies"] == []
+        assert any(w.startswith("Jean Dupont : IBAN manquant ou invalide, hors du fichier") for w in apercu["warnings"])
+
+    def test_un_doublon_bloque_toujours(self):
+        apercu = self._apercu(COMPTE, [self.IBAN_FAUX, self.DOUBLON])
+        assert apercu["can_generate"] is False
+        assert apercu["anomalies"] == [self.DOUBLON]
+
+    def test_en_sepa_l_iban_faux_et_le_compte_bloquent_toujours(self):
+        apercu = self._apercu(None, [self.IBAN_FAUX], bank_format="sepa")
+        assert apercu["can_generate"] is False
+        assert len(apercu["anomalies"]) == 2
+
+
 class TestApercuAcomptes:
     def _apercu(self, compte, mode=None):
         totals = {"virements_count": 1, "employees_count": 1, "total_amount": 0.0}

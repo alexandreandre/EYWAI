@@ -202,6 +202,23 @@ def get_paiement_salaires_data(
     return paiement_data, totals, anomalies, warnings
 
 
+def _iban_hors_du_csv(
+    anomalies: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """Sépare les IBAN manquants ou invalides : avertissements nommés, hors du fichier."""
+    gardees: List[Dict[str, Any]] = []
+    ecartes: List[str] = []
+    for anomalie in anomalies:
+        if "iban" in str(anomalie.get("message", "")).lower():
+            nom = (anomalie.get("employee_name") or "").strip() or "Un salarié"
+            ecartes.append(
+                f"{nom} : IBAN manquant ou invalide, hors du fichier — à payer à part ou à corriger sur sa fiche."
+            )
+        else:
+            gardees.append(anomalie)
+    return gardees, ecartes
+
+
 def preview_paiement_salaires(
     company_id: str,
     period: str,
@@ -224,13 +241,18 @@ def preview_paiement_salaires(
     if totals["virements_count"] == 0:
         warnings.append("Aucun virement à générer pour cette période")
     if bank_format == "csv":
+        # Le CSV se dépose à la main, sans compte débiteur dans le fichier : ni le
+        # compte de la société ni l'IBAN faux d'un salarié ne bloquent tout le
+        # fichier. Le salarié écarté est nommé, à payer à part (Elsa, 17/11).
+        anomalies, ecartes = _iban_hors_du_csv(anomalies)
+        warnings.extend(ecartes)
         warnings.append("Fichier CSV — transmission manuelle à la banque.")
     else:
         bic_warning = missing_bic_warning(data)
         if bic_warning:
             warnings.append(bic_warning)
         warnings.append("Format SEPA pain.001.001.03 — transmission manuelle à la banque.")
-    if not charger_compte_societe(company_id):
+    if bank_format != "csv" and not charger_compte_societe(company_id):
         anomalies = anomalies + [anomalie_compte_manquant()]
     return {
         "employees_count": totals["virements_count"],
