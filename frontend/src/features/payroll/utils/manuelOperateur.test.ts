@@ -75,7 +75,7 @@ describe('manuel opérateur', () => {
       'Marquer comme transmis',
       'Exports à refaire',
       // DSN : l’état réel et quoi faire en attendant.
-      'Déclarations',
+      'onglet « DSN »',
       'DSN mensuelle',
       'pas encore déposable',
       'ancien logiciel',

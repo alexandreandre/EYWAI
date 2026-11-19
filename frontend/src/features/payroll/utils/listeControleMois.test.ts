@@ -415,17 +415,17 @@ describe('« c’est fini » : bulletins validés, DSN et export comptable faits
     const declarations = etape(resultat, ETAPE_DECLARATIONS);
     expect(declarations.etat).toBe('a_faire');
     expect(declarations.detail).toBe('La DSN est à refaire : un bulletin du mois a changé depuis.');
-    // La DSN se fait dans l'onglet Déclarations : le lien l'ouvre, sur le mois.
+    // La DSN se fait dans l'onglet DSN, ouvert par défaut : le lien l'ouvre, sur le mois.
     const action = resultat.actions.find((a) => a.id === ETAPE_DECLARATIONS);
-    expect(action?.href).toBe('/exports?tab=declarations&month=2026-09');
-    expect(action?.ouCliquer).toBe('Exports, onglet Déclarations');
+    expect(action?.href).toBe('/exports?month=2026-09');
+    expect(action?.ouCliquer).toBe('Exports, onglet DSN');
   });
 
-  it('seul l’export comptable manque : le lien ouvre l’onglet Paie & Comptabilité', () => {
+  it('seul l’export comptable manque : l’OD globale est aussi dans l’onglet DSN', () => {
     const resultat = listeControleDuMois(entree({ exportsDuMois: OK([DSN]) }));
     const action = resultat.actions.find((a) => a.id === ETAPE_DECLARATIONS);
     expect(action?.href).toBe('/exports?month=2026-09');
-    expect(action?.ouCliquer).toBe('Exports, onglet Paie & Comptabilité');
+    expect(action?.ouCliquer).toBe('Exports, onglet DSN');
   });
 
   it('historique des exports illisible ou non lu : à confirmer', () => {
@@ -501,7 +501,7 @@ describe('actions en attente', () => {
     const lien = (id: string) => resultat.actions.find((a) => a.id === id)?.href;
     expect(lien('calendriers')).toBe('/schedules?month=2026-09');
     expect(lien('conflits')).toBe('/schedules?month=2026-09');
-    expect(lien(ETAPE_DECLARATIONS)).toBe('/exports?tab=declarations&month=2026-09');
+    expect(lien(ETAPE_DECLARATIONS)).toBe('/exports?month=2026-09');
   });
 
   it('chaque étape non cochée devient une ligne : quoi, où cliquer, ce qu’elle doit voir', () => {
@@ -735,7 +735,7 @@ describe('DSN « faite » seulement une fois déposée (audit R1, geste 8)', () 
         'Déjà déposée ailleurs : « Marquer faite : DSN déposée hors de Martine ».',
     );
     const resultat = listeControleDuMois(entree({ exportsDuMois: OK([DSN, COMPTA]), transmissionsDuMois: OK([transmission('manual')]) }));
-    expect(resultat.actions.find((a) => a.id === ETAPE_DECLARATIONS)?.href).toBe('/exports?tab=declarations&month=2026-09');
+    expect(resultat.actions.find((a) => a.id === ETAPE_DECLARATIONS)?.href).toBe('/exports?month=2026-09');
   });
 
   it('marquée déposée (ou envoyée) : faite, avec la date', () => {

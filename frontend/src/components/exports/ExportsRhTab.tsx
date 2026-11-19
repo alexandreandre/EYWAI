@@ -15,19 +15,12 @@ export function ExportsRhTab() {
 
   // Mapping entre les IDs des cartes et les types d'export de l'API
   const exportTypeMapping: Record<string, string> = {
-    "charges-sociales": "charges_sociales",
     "conges-absences": "conges_absences",
     "provision-cp": "provision_cp",
     "notes-frais": "notes_frais",
   };
 
   const exports = [
-    {
-      id: "charges-sociales",
-      name: "Charges sociales par caisse",
-      description: "Tableau détaillé des charges sociales par organisme (URSSAF, Retraite, etc.)",
-      icon: FileSpreadsheet,
-    },
     {
       id: "conges-absences",
       name: "Congés payés / Absences",

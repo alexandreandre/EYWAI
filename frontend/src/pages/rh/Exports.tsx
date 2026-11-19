@@ -5,7 +5,7 @@ import { RhPageHeader } from '@/components/layout';
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calculator, FileText, Receipt, Users, History, CalendarClock } from "lucide-react";
+import { Calculator, FileText, Receipt, Users, History, CalendarClock, Landmark } from "lucide-react";
 import { useCompany, useHasActiveCompanyRhAccess } from "@/contexts/CompanyContext";
 import { Navigate, useSearchParams } from "react-router-dom";
 import {
@@ -13,6 +13,7 @@ import {
   useExportsPageAutoRefresh,
 } from "@/lib/exportsQuery";
 
+import { DsnTab } from "@/components/exports/DsnTab";
 import { PaieComptabiliteTab } from "@/components/exports/PaieComptabiliteTab";
 import { DeclarationsTab } from "@/components/exports/DeclarationsTab";
 import { PaiementsTab } from "@/components/exports/PaiementsTab";
@@ -20,7 +21,10 @@ import { ExportsRhTab } from "@/components/exports/ExportsRhTab";
 import { ExportHistory } from "@/components/exports/ExportHistory";
 import { PlanifiesTab } from "@/components/exports/PlanifiesTab";
 
+// « DSN » d'abord (demande d'Elsa du 17/11) : la déclaration du mois et ses exports.
+const ONGLET_PAR_DEFAUT = "dsn";
 const EXPORT_TABS = [
+  "dsn",
   "paie-comptabilite",
   "declarations",
   "paiements",
@@ -40,7 +44,7 @@ export default function Exports() {
   const initialTab =
     tabParam && EXPORT_TABS.includes(tabParam as (typeof EXPORT_TABS)[number])
       ? tabParam
-      : "paie-comptabilite";
+      : ONGLET_PAR_DEFAUT;
   const [activeTab, setActiveTab] = useState(initialTab);
   const [historyFilter, setHistoryFilter] = useState<string | undefined>(undefined);
   const deepLinkExport = searchParams.get("export");
@@ -62,7 +66,7 @@ export default function Exports() {
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     const next = new URLSearchParams(searchParams);
-    if (tab === "paie-comptabilite") {
+    if (tab === ONGLET_PAR_DEFAUT) {
       next.delete("tab");
     } else {
       next.set("tab", tab);
@@ -85,7 +89,11 @@ export default function Exports() {
       />
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+        <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7">
+          <TabsTrigger value="dsn" className="flex items-center gap-2 text-xs sm:text-sm">
+            <Landmark className="h-4 w-4 shrink-0" />
+            DSN
+          </TabsTrigger>
           <TabsTrigger value="paie-comptabilite" className="flex items-center gap-2 text-xs sm:text-sm">
             <Calculator className="h-4 w-4 shrink-0" />
             <span className="hidden sm:inline">Paie & Comptabilité</span>
@@ -114,6 +122,10 @@ export default function Exports() {
             <span className="sm:hidden">Hist.</span>
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="dsn" className="space-y-6 mt-6">
+          <DsnTab />
+        </TabsContent>
 
         <TabsContent value="paie-comptabilite" className="space-y-6 mt-6">
           <PaieComptabiliteTab

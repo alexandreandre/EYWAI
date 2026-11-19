@@ -8,7 +8,6 @@ import { FileText, Table2, FileCheck, FilePenLine, History, type LucideIcon } fr
 import { ExportCommonModel } from "./ExportCommonModel";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ExportHistoryModal } from "./ExportHistoryModal";
-import DsnTransmissionsPanel from "@/features/net-entreprises/components/DsnTransmissionsPanel";
 import { SignalementsArretCard } from "./SignalementsArretCard";
 import { AttestationDialog } from "@/components/documents/AttestationDialog";
 
@@ -19,7 +18,6 @@ export function DeclarationsTab() {
 
   // Mapping entre les IDs des cartes et les types d'export de l'API
   const exportTypeMapping: Record<string, string> = {
-    dsn_mensuelle: "dsn_mensuelle",
     "attestations-annexes": "attestations_annexes",
   };
 
@@ -31,12 +29,6 @@ export function DeclarationsTab() {
     /** Carte grisée et bouton désactivé ; aucune carte ne l'est aujourd'hui. */
     disabled?: boolean;
   }[] = [
-    {
-      id: "dsn_mensuelle",
-      name: "DSN mensuelle",
-      description: "Déclaration Sociale Nominative mensuelle pour Net-entreprises",
-      icon: FileText,
-    },
     {
       id: "attestations-annexes",
       name: "Récapitulatif des salaires du mois",
@@ -53,9 +45,8 @@ export function DeclarationsTab() {
         <CardHeader>
           <CardTitle>Déclarations</CardTitle>
           <CardDescription>
-            Production des déclarations sociales obligatoires (DSN) et du récapitulatif des salaires du mois.
-            Ces exports sont en lecture seule et ne déclenchent aucune déclaration automatique. Les attestations
-            de salaire pour la CPAM et France Travail partent dans la DSN.
+            Récapitulatif des salaires du mois, attestations et signalements d&apos;arrêt. La DSN mensuelle est
+            dans l&apos;onglet DSN. Les attestations de salaire pour la CPAM et France Travail partent dans la DSN.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -133,9 +124,6 @@ export function DeclarationsTab() {
 
       {/* Signalements d'arrêt et de reprise à déposer */}
       <SignalementsArretCard />
-
-      {/* Suivi des télétransmissions DSN (Net-entreprises) */}
-      <DsnTransmissionsPanel />
 
       {/* Modal d'export */}
       {selectedExport && (

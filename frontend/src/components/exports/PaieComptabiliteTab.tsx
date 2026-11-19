@@ -26,17 +26,10 @@ export function PaieComptabiliteTab({
 
   // Mapping entre les IDs des cartes et les types d'export de l'API
   const exportTypeMapping: Record<string, string> = {
-    journal_paie: "journal_paie",
-    od_salaires: "od_salaires",
-    od_charges_sociales: "od_charges_sociales",
-    od_pas: "od_pas",
-    od_globale: "od_globale",
     export_cabinet_generique: "export_cabinet_generique",
     export_cabinet_quadra: "export_cabinet_quadra",
-    export_cabinet_sage: "export_cabinet_sage",
     acomptes: "acomptes",
     saisies: "saisies",
-    fec: "fec",
     prets_employeur: "prets_employeur",
   };
 
@@ -61,42 +54,6 @@ export function PaieComptabiliteTab({
     disabled?: boolean;
   }[] = [
     {
-      id: "journal_paie",
-      name: "Journal de paie",
-      description: "Export du journal de paie pour la comptabilité générale",
-      icon: FileText,
-    },
-    {
-      id: "od_salaires",
-      name: "OD Salaires",
-      description: "Écritures comptables pour les salaires bruts et nets à payer",
-      icon: Calculator,
-    },
-    {
-      id: "od_charges_sociales",
-      name: "OD Charges sociales",
-      description: "Écritures comptables pour les charges sociales par caisse",
-      icon: Calculator,
-    },
-    {
-      id: "od_pas",
-      name: "OD PAS",
-      description: "Écritures comptables pour le prélèvement à la source",
-      icon: Calculator,
-    },
-    {
-      id: "od_globale",
-      name: "OD Globale de paie",
-      description: "Écritures comptables unifiées (salaires, charges, PAS, acomptes, saisies, prêts) — sans double comptabilisation",
-      icon: Calculator,
-    },
-    {
-      id: "fec",
-      name: "FEC",
-      description: "Fichier des Écritures Comptables (arrêté 2013) généré depuis le registre paie",
-      icon: FileSpreadsheet,
-    },
-    {
       id: "export_cabinet_generique",
       name: "Export format comptable générique",
       description: "Export structuré pour intégration dans les logiciels comptables",
@@ -106,12 +63,6 @@ export function PaieComptabiliteTab({
       id: "export_cabinet_quadra",
       name: "Export format Quadra",
       description: "Export au format Quadra (structure standardisée)",
-      icon: Database,
-    },
-    {
-      id: "export_cabinet_sage",
-      name: "Export format Sage",
-      description: "Export au format Sage (structure standardisée)",
       icon: Database,
     },
     {
@@ -139,8 +90,8 @@ export function PaieComptabiliteTab({
       <Alert>
         <AlertTitle>Guide exports comptables</AlertTitle>
         <AlertDescription className="text-sm">
-          Clôture mensuelle complète (OD + journal + FEC) : onglet Envois → Comptabilité.
-          Formats comptables Quadra / Sage : cartes ci-dessous. FEC seul : contrôle fiscal.
+          OD globale, journal de paie et charges par caisse : onglet DSN. Clôture mensuelle envoyée au
+          cabinet : onglet Envois → Comptabilité. Format Quadra : carte ci-dessous.
         </AlertDescription>
       </Alert>
       <AccountingIntegrationPanel />

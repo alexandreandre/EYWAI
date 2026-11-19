@@ -410,19 +410,6 @@ function depotDsn(
   return { etat: 'non_deposee' };
 }
 
-/** La DSN reste à faire, à refaire ou à déposer : le lien ouvre l'onglet Déclarations. */
-function dsnAFaire(
-  lecture: Lecture<readonly ExportPourControle[]>,
-  transmissions?: Lecture<readonly TransmissionPourControle[]>
-): boolean {
-  if (lecture.statut !== 'ok') return false;
-  if (lecture.valeur.some((e) => e.status === 'generated' && e.export_type === TYPE_DSN_HORS_MARTINE)) return false;
-  if (etatExport(lecture.valeur, [TYPE_EXPORT_DSN]) !== 'fait') return true;
-  const depot = depotDsn(transmissions);
-  // Régénérée après un dépôt aussi : « Marquer déposée » est dans l'onglet Déclarations.
-  return depot !== null && depot.etat !== 'deposee';
-}
-
 function etapeDeclarations(
   lecture: Lecture<readonly ExportPourControle[]>,
   transmissions?: Lecture<readonly TransmissionPourControle[]>
@@ -574,10 +561,9 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
   // Le Calendrier et les Exports s'ouvrent sur le mois de cette liste.
   const hrefCalendrier = lienAvecMois('/schedules', { year, month });
   const lectureExports = entree.exportsDuMois ?? { statut: 'indisponible' };
-  // La DSN se fait dans l'onglet Déclarations, l'export comptable dans l'onglet
-  // par défaut : le lien ouvre celui de ce qui manque, sur le mois (audit R1, geste 4).
-  const ongletDsn = dsnAFaire(lectureExports, entree.transmissionsDuMois);
-  const hrefExports = lienAvecMois(ongletDsn ? '/exports?tab=declarations' : '/exports', { year, month });
+  // La DSN et l'OD globale sont dans l'onglet DSN, ouvert par défaut (17/11) : le
+  // lien ouvre l'onglet sur le mois (audit R1, geste 4).
+  const hrefExports = lienAvecMois('/exports', { year, month });
   const lectureSalaries = entree.lectureSalaries ?? { statut: 'ok', valeur: salaries };
 
   const selonSalaries = (etape: EtapeControle): EtapeControle => {
@@ -718,7 +704,7 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
     }),
     actionSiNonFaite(declarations, {
       quoi: 'Faites la DSN du mois et l’export comptable.',
-      ouCliquer: ongletDsn ? 'Exports, onglet Déclarations' : 'Exports, onglet Paie & Comptabilité',
+      ouCliquer: 'Exports, onglet DSN',
       href: hrefExports,
       ensuite: 'La DSN mensuelle et l’export comptable du mois figurent dans l’historique, sans « à refaire ».',
     }),
