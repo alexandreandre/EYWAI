@@ -3,6 +3,7 @@
 // jours, cadres, alternants), heures de nuit, prime d'assiduité au calendrier.
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { ChampDecimal } from '@/components/ui/champ-decimal';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 
@@ -65,20 +66,13 @@ export function HeuresParJour({ conditions, onChange }: Props) {
   return (
     <div className="space-y-2">
       <Label htmlFor="heures_par_jour">Ou payer des heures par jour au taux horaire (facultatif)</Label>
-      <Input
+      <ChampDecimal
         id="heures_par_jour"
-        type="number"
-        min={0}
-        step="0.25"
         className="max-w-[10rem]"
         placeholder="ex. 0,5"
-        value={valeur ?? ''}
-        onChange={(e) =>
-          onChange(
-            e.target.value === ''
-              ? sansCle(conditions, 'heures_par_jour')
-              : { ...conditions, heures_par_jour: Number(e.target.value) },
-          )
+        value={valeur}
+        onValueChange={(v) =>
+          onChange(v == null ? sansCle(conditions, 'heures_par_jour') : { ...conditions, heures_par_jour: v })
         }
       />
       <p className="text-xs text-muted-foreground">
@@ -156,19 +150,13 @@ export function ReglageNuit({ conditions, onChange }: Props) {
         </>
       )}
       <Label htmlFor="majoration_pct">Majoration en % du taux horaire (sinon : montant par heure ci-dessus)</Label>
-      <Input
+      <ChampDecimal
         id="majoration_pct"
-        type="number"
-        min={0}
         className="max-w-[10rem]"
         placeholder="ex. 50"
-        value={(conditions.majoration_pct as number | undefined) ?? ''}
-        onChange={(e) =>
-          onChange(
-            e.target.value === ''
-              ? sansCle(conditions, 'majoration_pct')
-              : { ...conditions, majoration_pct: Number(e.target.value) },
-          )
+        value={conditions.majoration_pct as number | undefined}
+        onValueChange={(v) =>
+          onChange(v == null ? sansCle(conditions, 'majoration_pct') : { ...conditions, majoration_pct: v })
         }
       />
     </div>

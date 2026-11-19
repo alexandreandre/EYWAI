@@ -34,6 +34,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { ChampDecimal } from '@/components/ui/champ-decimal';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -644,10 +645,9 @@ export default function PayrollVariableRulesCard() {
                       ? 'Montant par heure de nuit (€)'
                       : 'Montant unitaire (€)'}
               </Label>
-              <Input
-                type="number"
+              <ChampDecimal
                 disabled={noAmountRule}
-                value={noAmountRule ? '' : (draft.amount ?? 0)}
+                value={noAmountRule ? null : (draft.amount ?? 0)}
                 placeholder={
                   draft.rule_type === 'transport_domicile_travail'
                     ? 'Indemnité de trajet de la fiche'
@@ -655,9 +655,7 @@ export default function PayrollVariableRulesCard() {
                       ? 'Voir conditions ci-dessous'
                       : undefined
                 }
-                onChange={(e) =>
-                  setDraft({ ...draft, amount: Number(e.target.value) || 0 })
-                }
+                onValueChange={(v) => setDraft({ ...draft, amount: v ?? 0 })}
               />
             </div>
             <div className="space-y-2">
@@ -684,7 +682,7 @@ export default function PayrollVariableRulesCard() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Code export paie (optionnel)</Label>
+              <Label>Code export paie (facultatif)</Label>
               <Input
                 value={String((draft.conditions as Record<string, unknown>)?.export_code ?? '')}
                 onChange={(e) =>
@@ -698,6 +696,10 @@ export default function PayrollVariableRulesCard() {
                 }
                 placeholder="SPEQ, B_P4…"
               />
+              <p className="text-xs text-muted-foreground">
+                À laisser vide. C&apos;est le code de la rubrique dans un autre logiciel de paie ; rempli, il
+                s&apos;imprime entre parenthèses après le libellé sur le bulletin et ne sert à aucun export.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Mode génération</Label>
@@ -797,32 +799,23 @@ export default function PayrollVariableRulesCard() {
               <>
                 <div className="space-y-2">
                   <Label>Prime normale / semaine (€)</Label>
-                  <Input
-                    type="number"
+                  <ChampDecimal
                     value={tieredConditions.amount_normal ?? 176.18}
-                    onChange={(e) =>
-                      setTieredCondition('amount_normal', Number(e.target.value) || 0)
-                    }
+                    onValueChange={(v) => setTieredCondition('amount_normal', v ?? 0)}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Prime semaine Noël (€)</Label>
-                  <Input
-                    type="number"
+                  <ChampDecimal
                     value={tieredConditions.amount_christmas ?? 352.36}
-                    onChange={(e) =>
-                      setTieredCondition('amount_christmas', Number(e.target.value) || 0)
-                    }
+                    onValueChange={(v) => setTieredCondition('amount_christmas', v ?? 0)}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Prime pont (€)</Label>
-                  <Input
-                    type="number"
+                  <ChampDecimal
                     value={tieredConditions.amount_bridge ?? 250}
-                    onChange={(e) =>
-                      setTieredCondition('amount_bridge', Number(e.target.value) || 0)
-                    }
+                    onValueChange={(v) => setTieredCondition('amount_bridge', v ?? 0)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -862,14 +855,12 @@ export default function PayrollVariableRulesCard() {
               <>
                 <div className="space-y-2">
                   <Label>Majoration samedi (0,25 = 25 %)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
+                  <ChampDecimal
                     value={weekendMajConditions.weekday_rates?.['5'] ?? 0.25}
-                    onChange={(e) =>
+                    onValueChange={(v) =>
                       setWeekendMajCondition('weekday_rates', {
                         ...weekendMajConditions.weekday_rates,
-                        '5': Number(e.target.value) || 0,
+                        '5': v ?? 0,
                         '6': weekendMajConditions.weekday_rates?.['6'] ?? 1,
                       })
                     }
@@ -877,39 +868,29 @@ export default function PayrollVariableRulesCard() {
                 </div>
                 <div className="space-y-2">
                   <Label>Majoration dimanche (1 = 100 %)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
+                  <ChampDecimal
                     value={weekendMajConditions.weekday_rates?.['6'] ?? 1}
-                    onChange={(e) =>
+                    onValueChange={(v) =>
                       setWeekendMajCondition('weekday_rates', {
                         ...weekendMajConditions.weekday_rates,
                         '5': weekendMajConditions.weekday_rates?.['5'] ?? 0.25,
-                        '6': Number(e.target.value) || 0,
+                        '6': v ?? 0,
                       })
                     }
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Heures minimum pointées</Label>
-                  <Input
-                    type="number"
-                    step="0.5"
+                  <ChampDecimal
                     value={weekendMajConditions.min_hours ?? 1}
-                    onChange={(e) =>
-                      setWeekendMajCondition('min_hours', Number(e.target.value) || 1)
-                    }
+                    onValueChange={(v) => setWeekendMajCondition('min_hours', v || 1)}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Heures forfait majorées</Label>
-                  <Input
-                    type="number"
-                    step="0.5"
+                  <ChampDecimal
                     value={weekendMajConditions.flat_hours ?? 1}
-                    onChange={(e) =>
-                      setWeekendMajCondition('flat_hours', Number(e.target.value) || 1)
-                    }
+                    onValueChange={(v) => setWeekendMajCondition('flat_hours', v || 1)}
                   />
                 </div>
               </>
@@ -1013,20 +994,17 @@ export default function PayrollVariableRulesCard() {
                   plafond de l&apos;Urssaf.
                 </p>
                 <Label htmlFor="min_heures">Seulement les jours d&apos;au moins (heures, facultatif)</Label>
-                <Input
+                <ChampDecimal
                   id="min_heures"
-                  type="number"
-                  min={0}
-                  step="0.5"
                   className="max-w-[10rem]"
                   placeholder="ex. 6"
-                  value={(draft.conditions?.min_heures as number | undefined) ?? ''}
-                  onChange={(e) =>
+                  value={draft.conditions?.min_heures as number | undefined}
+                  onValueChange={(v) =>
                     setDraft({
                       ...draft,
                       conditions: {
                         ...draft.conditions,
-                        min_heures: e.target.value === '' ? undefined : Number(e.target.value),
+                        min_heures: v ?? undefined,
                       },
                     })
                   }
