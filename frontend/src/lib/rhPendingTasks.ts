@@ -21,6 +21,11 @@ import { isPayrollFocusAllowed } from '@/lib/payrollFocus';
 import { MONTH_NAMES_FR } from '@/lib/analyticsPeriod';
 
 const nomDuMois = (mois: number) => (MONTH_NAMES_FR[mois - 1] ?? '').toLowerCase();
+/** « de novembre », « d'octobre » : élision devant une voyelle. */
+const duMois = (mois: number) => {
+  const nom = nomDuMois(mois);
+  return /^[aeiouyâàéèêîôû]/.test(nom) ? `d'${nom}` : `de ${nom}`;
+};
 
 export type RhPendingTaskId =
   | 'leaves'
@@ -228,11 +233,11 @@ export function buildRhPendingTasks(input: RhPendingTasksInput): RhPendingTaskIt
       input.schedulesDue,
       // Le mois compté est nommé (retour d'Elsa du 17/11 : « calendrier en
       // rouge » le 17/11, quand la pastille comptait déjà novembre).
-      input.schedulesMonth ? `Calendriers de ${nomDuMois(input.schedulesMonth)}` : 'Plannings du mois',
+      input.schedulesMonth ? `Calendriers ${duMois(input.schedulesMonth)}` : 'Plannings du mois',
       '/schedules',
       CalendarDays,
       input.schedulesMonth
-        ? `Horaires de ${nomDuMois(input.schedulesMonth)} à saisir ou valider`
+        ? `Horaires ${duMois(input.schedulesMonth)} à saisir ou valider`
         : 'Horaires à saisir ou valider',
       '/schedules',
     ),

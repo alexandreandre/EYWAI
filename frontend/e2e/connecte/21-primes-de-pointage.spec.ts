@@ -66,6 +66,11 @@ test('panier et assiduité liés aux pointages, sans rien enregistrer', async ({
   // Panier : postes de 4 h et de 12 h.
   await page.getByPlaceholder('Indemnité panier repas').fill('Panier équipe');
   await choisirType(page, /^Par jour travaillé/);
+  // Montant à virgule tapé au clavier (retour d'Elsa du 17/11 : impossible avant).
+  const montant = page.getByText('Montant unitaire (€)', { exact: true }).locator('..').getByRole('textbox');
+  await montant.fill('');
+  await montant.pressSequentially('7,60');
+  await expect(montant).toHaveValue('7,60');
   const bloc = page.getByTestId('plages-debut');
   await bloc.getByRole('button', { name: /Ajouter une plage/ }).click();
   await bloc.getByLabel('Début de la plage 1').fill('03:00');
@@ -81,6 +86,7 @@ test('panier et assiduité liés aux pointages, sans rien enregistrer', async ({
   await expect.poll(() => envoyees.length).toBe(1);
   expect(envoyees[0]).toMatchObject({
     rule_type: 'per_worked_day',
+    amount: 7.6,
     conditions: {
       plages_debut: [
         { de: '03:00', a: '05:00' },

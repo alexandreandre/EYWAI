@@ -46,6 +46,10 @@ describe('buildRhPendingTasks', () => {
     const [item] = buildRhPendingTasks({ ...emptyInput, schedulesDue: 5, schedulesMonth: 11 });
     expect(item.label).toBe('Calendriers de novembre');
     expect(item.hint).toBe('Horaires de novembre à saisir ou valider');
+    const [octobre] = buildRhPendingTasks({ ...emptyInput, schedulesDue: 1, schedulesMonth: 10 });
+    expect(octobre.label).toBe("Calendriers d'octobre");
+    const [aout] = buildRhPendingTasks({ ...emptyInput, schedulesDue: 1, schedulesMonth: 8 });
+    expect(aout.hint).toBe("Horaires d'août à saisir ou valider");
   });
 
   it('fusionne absences et clôtures RTT', () => {
