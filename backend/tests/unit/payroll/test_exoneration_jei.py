@@ -151,6 +151,17 @@ class TestCalculExoneration:
         assert montant_exo > 400.0
         assert montant_exo < brut * 0.30
 
+    def test_la_base_imprimee_est_le_brut_du_mois(self):
+        """Zone 404, 17/11 : la ligne imprimait le salaire du contrat (5 000 €)
+        pour un brut d'absence (4 772,73 €). Le montant ne change pas."""
+        ctx = _contexte_jei_rd()
+        ctx.year = 2026
+        ctx.month = 4
+        brut = round(ctx.salaire_base_mensuel * 0.95, 2)
+        lignes, _ = calculer_cotisations(ctx, brut, 0.0, 0.0)
+        exo = calculer_exoneration_jei(ctx, lignes, (35 * 52) / 12, year=2026, month=4)
+        assert exo["base"] == pytest.approx(brut)
+
     def test_ecretage_45_smic(self):
         ctx = _contexte_jei_rd(salaire_base=12000.0)
         ctx.year = 2026

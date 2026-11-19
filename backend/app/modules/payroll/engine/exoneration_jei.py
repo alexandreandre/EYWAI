@@ -197,8 +197,15 @@ def calculer_exoneration_jei(
     cotisations_exonerees = _cotisations_exonerees(config)
 
     montant_brut = 0.0
+    base_exoneree = 0.0
     for ligne in lignes_cotisations:
-        montant_brut += _montant_exonere_ligne(ligne, plafond_rem, cotisations_exonerees)
+        exonere = _montant_exonere_ligne(ligne, plafond_rem, cotisations_exonerees)
+        montant_brut += exonere
+        if exonere > 0:
+            # La base imprimée : l'assiette des cotisations exonérées (le brut
+            # du mois), pas le salaire du contrat (Zone 404, 17/11 : 5 000 €
+            # imprimés pour un brut de 4 772,73 €).
+            base_exoneree = max(base_exoneree, float(ligne.get("base") or 0.0))
 
     jei_params = contexte.entreprise.get("parametres_paie", {}).get("jei", {}) or {}
     taux = float(jei_params.get("taux_exoneration", 1.0) or 1.0)
@@ -231,7 +238,7 @@ def calculer_exoneration_jei(
     return enrichir_ligne_cotisation(
         {
             "libelle": "Exonération JEI (cotisations patronales)",
-            "base": round(min(plafond_rem, contexte.salaire_base_mensuel), 2),
+            "base": round(min(plafond_rem, base_exoneree or contexte.salaire_base_mensuel), 2),
             "taux_salarial": None,
             "montant_salarial": 0.0,
             "taux_patronal": None,
