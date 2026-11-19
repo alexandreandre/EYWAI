@@ -40,3 +40,20 @@ def test_resolve_rtt_calendar_still_works():
     policy = LeavePolicySettings(rtt_use_calendar_formula=True)
     assert resolve_rtt_annual_base(2025, policy) == 10.0
     assert resolve_rtt_annual_base(2024, policy) == 11.0
+
+
+def test_forfait_reduit_repos_au_prorata():
+    """Cartol, 19/11 : un forfait de 171 jours donnait 59 jours de « RTT » (tous
+    les jours non travaillés du contrat). Les repos du forfait plein suivent le
+    temps de travail."""
+    policy = LeavePolicySettings(
+        rtt_use_forfait_jours_formula=True,
+        rtt_forfait_annual_days=216,
+        rtt_forfait_cp_ouvres_deduction=25,
+    )
+    plein = resolve_rtt_annual_base(2026, policy)
+    reduit = resolve_rtt_annual_base(2026, policy, forfait_days_override=171)
+    assert reduit == round(plein * 171 / 216, 2)
+    assert reduit < plein
+    # Un forfait égal ou supérieur au plein garde le calcul habituel.
+    assert resolve_rtt_annual_base(2026, policy, forfait_days_override=216) == plein

@@ -384,11 +384,25 @@ def resolve_rtt_annual_base(
             calculate_rtt_annual_forfait_jours,
         )
 
+        plein = int(policy.rtt_forfait_annual_days)
         forfait_days = (
             int(forfait_days_override)
             if forfait_days_override is not None
-            else policy.rtt_forfait_annual_days
+            else plein
         )
+        if 0 < forfait_days < plein:
+            # Forfait réduit (171 jours au lieu de 216) : les jours non
+            # travaillés par le contrat ne sont pas des repos. Les repos du
+            # forfait plein suivent le temps de travail (décision de Vanessa
+            # du 13/11 pour un forfait de 43 jours ; Cartol, 19/11 : 59 jours
+            # de RTT au lieu de 7 chez Quadra).
+            repos_plein = calculate_rtt_annual_forfait_jours(
+                year,
+                forfait_days=plein,
+                cp_ouvres_deduction=policy.rtt_forfait_cp_ouvres_deduction,
+                observed_holiday_ids=observed_holiday_ids,
+            )
+            return round(repos_plein * forfait_days / plein, 2)
         return calculate_rtt_annual_forfait_jours(
             year,
             forfait_days=forfait_days,
