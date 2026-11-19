@@ -368,6 +368,22 @@ class TestCorps:
         libelles = _libelles(construire_vue_bulletin(bulletin)["lignes"])
         assert libelles.index("NET IMPOSABLE") < libelles.index("INDEMNITÉ DE PANIER")
 
+    def test_une_saisie_porte_son_libelle(self):
+        """Zone 404, 17/11 : « mettre le libellé de la saisie plutôt que Retenue sur salaire »."""
+        bulletin = bulletin_avec_cotisations()
+        bulletin["retenues_saisies"] = {
+            "total_preleve": 190.0,
+            "saisies": [
+                {"type": "atd", "montant": 150.0, "reference": "ATD SIP AMIENS", "creditor_name": "SIP AMIENS"},
+                {"type": "pension", "montant": 30.0, "reference": "", "creditor_name": "CAF"},
+            ],
+        }
+        montants = {l["libelle"]: l["montant_salarial"] for l in construire_vue_bulletin(bulletin)["lignes"]}
+        assert montants["ATD SIP AMIENS"] == pytest.approx(-150.0)
+        assert montants["Saisie sur salaire CAF"] == pytest.approx(-30.0)
+        # Le reste du total, sans détail, garde le libellé général.
+        assert montants["Retenues sur salaire"] == pytest.approx(-10.0)
+
     def test_retenues_sur_le_net_reprises_en_lignes(self):
         bulletin = bulletin_avec_cotisations()
         bulletin["remboursements_avances"] = {"total_rembourse": 150.0}
@@ -1007,3 +1023,23 @@ class TestCompteurCet:
         }
         colonnes = construire_vue_bulletin(bulletin)["compteurs"]["colonnes"]
         assert all(c["titre"] != "CET (h)" for c in colonnes)
+
+
+def test_arrets_du_forfait_groupes_avec_la_periode_dessous():
+    """Elsa, 17/11 : « grouper les arrêts et juste mettre la période dessous »."""
+    bulletin = bulletin_avec_cotisations()
+    bulletin["calcul_du_brut"] = [
+        {"libelle": "Salaire de base (forfait jour)", "quantite": 1, "taux": 3000, "gain": 3000.0, "perte": None},
+        *[
+            {"libelle": f"Absence maladie du {j:02d}/10/26", "quantite": 1.0, "taux": 138.4615, "gain": None, "perte": 138.46}
+            for j in (8, 9, 12, 13, 20)
+        ],
+    ]
+    lignes = construire_vue_bulletin(bulletin)["lignes"]
+    arrets = [l for l in lignes if l["libelle"].startswith("Absence maladie")]
+    assert len(arrets) == 1
+    assert arrets[0]["base"] == 5.0
+    assert arrets[0]["montant_salarial"] == pytest.approx(-692.3)
+    note = lignes[lignes.index(arrets[0]) + 1]
+    assert note["type"] == "note"
+    assert note["libelle"] == "Période : du 08/10/26 au 13/10/26, le 20/10/26"

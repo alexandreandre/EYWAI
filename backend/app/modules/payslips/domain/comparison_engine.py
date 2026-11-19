@@ -244,6 +244,8 @@ def compute_comparison(
     - is_forfait_jour: bool
     - has_contract_change: bool
     - mois_precedent_incomplet: bool (mois d'entrée en cours de mois)
+    - mois_precedent_repris: bool (le bulletin de comparaison vient de l'ancien
+      logiciel : l'écart du net est un avertissement, pas un blocage)
     - monthly_contract_hours: float (défaut 151.67)
     - recent_nets_asc: liste [net_n-3, net_n-2, net_n-1, net_n] pour R10
     """
@@ -358,15 +360,23 @@ def compute_comparison(
                 )
             )
 
-        # R03 / R04 — net à payer
+        # R03 / R04 — net à payer. Face à un mois repris de l'ancien logiciel,
+        # l'écart s'affiche sans bloquer la validation : la comparaison avec
+        # l'ancien logiciel a été faite pendant la paie en double (Zone 404,
+        # 17/11 : cinq bulletins bons, deux validables).
         if d_net > 10.0:
+            repris = bool(ctx.get("mois_precedent_repris"))
             alerts.append(
                 PayslipAlert(
                     rule_id="R03",
-                    level="CRITIQUE",
+                    level="AVERTISSEMENT" if repris else "CRITIQUE",
                     message=(
                         f"Le net à payer a varié de {_pct_fr(d_net)} "
-                        "(seuil critique > 10 %)."
+                        + (
+                            "par rapport au mois repris de l'ancien logiciel."
+                            if repris
+                            else "(seuil critique > 10 %)."
+                        )
                     ),
                     field="net_a_payer",
                     value_n=vn["net_a_payer"],

@@ -50,7 +50,9 @@ def test_un_depassement_n_est_pas_un_ajustement():
     assert "ajustement" not in soldes["conges_payes"]
 
 
-def test_le_bulletin_imprime_la_mention():
+def test_le_bulletin_n_imprime_plus_la_mention():
+    """Demande d'Elsa du 17/11 (Zone 404) : « enlever les mentions CP N-1 ».
+    L'ajustement reste dans les données du bulletin, il ne s'imprime plus."""
     compteurs = construire_compteurs(
         {
             "pied_de_page": {
@@ -66,8 +68,8 @@ def test_le_bulletin_imprime_la_mention():
             }
         }
     )
-    assert "CP N-1 : solde dont ajustement de +15,00 j (reprise ou recalage)" in compteurs["notes"]
-    assert "CP N : solde dont ajustement de −1,53 j (reprise ou recalage)" in compteurs["notes"]
+    assert not any("ajustement" in note for note in compteurs["notes"])
+    assert [c["titre"] for c in compteurs["colonnes"]][:2] == ["CP N-1", "CP N"]
 
 
 def test_un_bulletin_d_avant_n_a_pas_la_mention():

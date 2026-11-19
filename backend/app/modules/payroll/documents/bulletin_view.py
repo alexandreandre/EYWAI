@@ -9,6 +9,8 @@ et le formatage — le template ne fait que parcourir le résultat.
 from __future__ import annotations
 
 import calendar
+import re
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from app.modules.payroll.domain.report_nap_negatif import (
@@ -439,8 +441,6 @@ def construire_compteurs(bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     )
     if droit_a_repos:
         notes.append(droit_a_repos)
-    # Reprise ou recalage : le solde ne se retrouve plus par « acquis − pris ».
-    # La clé n'existe que sur les bulletins calculés depuis le 12/10/2026.
     for titre, cle in (("CP N-1", "conges_payes_periode_precedente"), ("CP N", "conges_payes")):
         compteur = solde.get(cle) if isinstance(solde.get(cle), dict) else {}
         indemnise = float(compteur.get("indemnise") or 0.0)
@@ -451,11 +451,9 @@ def construire_compteurs(bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 f"{titre} : {jours} j {payes} en indemnité compensatrice de congés "
                 "payés au départ, solde à zéro"
             )
-        ajustement = float(compteur.get("ajustement") or 0.0)
-        if abs(ajustement) >= 0.01:
-            signe = "+" if ajustement > 0 else "−"
-            valeur = f"{abs(ajustement):.2f}".replace(".", ",")
-            notes.append(f"{titre} : solde dont ajustement de {signe}{valeur} j (reprise ou recalage)")
+        # L'ajustement d'une reprise (« solde dont ajustement de −6,50 j ») reste
+        # dans les données du bulletin, mais ne s'imprime plus : c'est une
+        # mention de l'outil, pas une information du salarié (Zone 404, 17/11).
     fractionnement = solde.get("fractionnement") or {}
     if float(fractionnement.get("jours_acquis") or 0) > 0:
         libelle = fractionnement.get("libelle") or "Jours de fractionnement"
@@ -791,10 +789,7 @@ def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     retenues = (
         (acomptes, "Acomptes et avances"),
-        (
-            (bulletin.get("retenues_saisies") or {}).get("total_preleve"),
-            "Retenues sur salaire",
-        ),
+        *_retenues_par_saisie(bulletin.get("retenues_saisies") or {}),
         (
             (bulletin.get("remboursements_prets") or {}).get("total_rembourse"),
             "Remboursement prêt employeur",
@@ -807,6 +802,33 @@ def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
         if valeur > 0:
             lignes.append(_ligne("hors_brut", libelle, montant_salarial=-valeur))
 
+    return lignes
+
+
+def _retenues_par_saisie(retenues: Dict[str, Any]) -> List[tuple]:
+    """Une ligne par saisie, à son libellé (« ATD SIP AMIENS ») plutôt que
+    « Retenues sur salaire » (Zone 404, 17/11). Ce qui reste du total sans
+    saisie détaillée garde le libellé général."""
+    total = float(retenues.get("total_preleve") or 0.0)
+    lignes: List[tuple] = []
+    detail = 0.0
+    for saisie in retenues.get("saisies") or []:
+        if not isinstance(saisie, dict):
+            continue
+        montant = float(saisie.get("montant") or 0.0)
+        if montant <= 0:
+            continue
+        libelle = str(saisie.get("reference") or "").strip() or " ".join(
+            x for x in ("Saisie sur salaire", str(saisie.get("creditor_name") or "").strip()) if x
+        )
+        lignes.append((montant, libelle))
+        detail += montant
+    reste = round(total - detail, 2)
+    if detail > total + 0.005:
+        # Détail incohérent avec le total retenu : on garde le total seul.
+        return [(total, "Retenues sur salaire")]
+    if reste > 0:
+        lignes.append((reste, "Retenues sur salaire"))
     return lignes
 
 
@@ -859,6 +881,62 @@ def _mention_sous_la_ligne(bulletin: Dict[str, Any], detail: Dict[str, Any]) -> 
     return mention_ijss_deduites(bloc.get("maintien") if isinstance(bloc, dict) else None)
 
 
+_ABSENCE_D_UN_JOUR = re.compile(r"^(Absence maladie) du (\d{2}/\d{2}/\d{2})$")
+
+
+def _periodes(jours: List[date]) -> str:
+    """« du 05/10/26 au 09/10/26, le 14/10/26 » : jours ouvrés qui se suivent
+    (un week-end entre deux ne coupe pas la période)."""
+    morceaux: List[List[date]] = []
+    for jour in sorted(jours):
+        if morceaux and (jour - morceaux[-1][-1]).days <= 3:
+            morceaux[-1].append(jour)
+        else:
+            morceaux.append([jour])
+    textes = [
+        f"le {m[0]:%d/%m/%y}" if len(m) == 1 else f"du {m[0]:%d/%m/%y} au {m[-1]:%d/%m/%y}"
+        for m in morceaux
+    ]
+    return "Période : " + ", ".join(textes)
+
+
+def _arrets_groupes(details: List[Any]) -> List[Any]:
+    """Au forfait jours, une ligne « Absence maladie du jj/mm/aa » par jour
+    devient une ligne par taux, la période en note dessous (Elsa, 17/11 :
+    « grouper les arrêts et juste mettre la période dessous »). Les montants
+    sont additionnés tels quels : rien du calcul ne change."""
+    groupes: Dict[tuple, Dict[str, Any]] = {}
+    jours: Dict[tuple, List[date]] = {}
+    out: List[Any] = []
+    for detail in details:
+        m = _ABSENCE_D_UN_JOUR.match(str(detail.get("libelle") or "")) if isinstance(detail, dict) else None
+        if not m or detail.get("gain"):
+            out.append(detail)
+            continue
+        cle = (m.group(1), detail.get("taux"))
+        try:
+            jour = datetime.strptime(m.group(2), "%d/%m/%y").date()
+        except ValueError:
+            out.append(detail)
+            continue
+        if cle not in groupes:
+            groupes[cle] = {
+                "libelle": m.group(1),
+                "quantite": 0.0,
+                "taux": detail.get("taux"),
+                "gain": None,
+                "perte": 0.0,
+            }
+            jours[cle] = []
+            out.append(groupes[cle])
+        groupes[cle]["quantite"] = round(groupes[cle]["quantite"] + float(detail.get("quantite") or 0), 4)
+        groupes[cle]["perte"] = round(groupes[cle]["perte"] + float(detail.get("perte") or 0), 2)
+        jours[cle].append(jour)
+    for cle, groupe in groupes.items():
+        groupe["_periodes"] = _periodes(jours[cle])
+    return out
+
+
 def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
     lignes: List[Dict[str, Any]] = []
 
@@ -870,8 +948,12 @@ def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
         "details_conges",
         "details_absences",
     ):
-        for detail in bulletin.get(source) or []:
+        for detail in _arrets_groupes(bulletin.get(source) or []):
             if isinstance(detail, dict):
+                if detail.get("_periodes"):
+                    lignes.append(_ligne_brut({k: v for k, v in detail.items() if k != "_periodes"}))
+                    lignes.append(_ligne("note", str(detail["_periodes"])))
+                    continue
                 lignes.append(_ligne_brut(detail))
                 mention = _mention_sous_la_ligne(bulletin, detail)
                 if mention:

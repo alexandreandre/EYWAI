@@ -79,3 +79,19 @@ def test_mois_d_avant_complet_le_net_reste_critique():
     resultat = compute_comparison(_net(1567.04), _net(257.74, 330.0), _ctx())
     assert [a.level for a in resultat.alerts if a.rule_id == "R03"] == ["CRITIQUE"]
 
+
+
+def test_r03_face_a_un_mois_repris_n_est_qu_un_avertissement():
+    """Zone 404, 17/11 : le premier mois calculé par Martine se comparait à
+    septembre repris de Quadra ; un net à +60 % bloquait la validation."""
+    ctx = {**_ctx(), "mois_precedent_repris": True}
+    resultat = compute_comparison(_bulletin(3000.0, 2400.0), _bulletin(1800.0, 1500.0), ctx)
+    r03 = [a for a in resultat.alerts if a.rule_id == "R03"]
+    assert len(r03) == 1 and r03[0].level == "AVERTISSEMENT"
+    assert "ancien logiciel" in r03[0].message
+    assert resultat.has_critical is False
+
+
+def test_r03_entre_deux_mois_de_martine_reste_critique():
+    resultat = compute_comparison(_bulletin(3000.0, 2400.0), _bulletin(1800.0, 1500.0), _ctx())
+    assert [a.level for a in resultat.alerts if a.rule_id == "R03"] == ["CRITIQUE"]

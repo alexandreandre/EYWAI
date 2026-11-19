@@ -216,6 +216,7 @@ def get_payslip_comparison_for_user(payslip_id: str, ctx: UserContext) -> dict[s
         "is_forfait_jour": is_forfait_jour(statut),
         "has_contract_change": False,
         "mois_precedent_incomplet": _entre_en_cours_de_mois(emp_id, prev),
+        "mois_precedent_repris": bool(prev and prev.get("origine") == "importe"),
         "has_declared_advance": None,
         "recent_nets_asc": recent_nets,
     }
@@ -386,6 +387,7 @@ def validate_payslip_for_user(payslip_id: str, ctx: UserContext) -> None:
         "is_forfait_jour": is_forfait_jour(statut),
         "has_contract_change": False,
         "mois_precedent_incomplet": _entre_en_cours_de_mois(emp_id, prev),
+        "mois_precedent_repris": bool(prev and prev.get("origine") == "importe"),
         "has_declared_advance": None,
         "recent_nets_asc": recent_nets,
     }
