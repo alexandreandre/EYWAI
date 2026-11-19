@@ -60,6 +60,7 @@ def build_update_payload(
     type_value: str | None = None,
     description: str | None = None,
     description_definie: bool = False,
+    employee_id: str | None = None,
 ) -> Dict[str, Any]:
     """Payload d'update RÉELLEMENT partiel.
 
@@ -77,6 +78,8 @@ def build_update_payload(
         payload["type"] = type_value
     if description_definie:
         payload["description"] = description
+    if employee_id and employee_id != existing.get("employee_id"):
+        payload["employee_id"] = employee_id
 
     if amount is not None or vat_rate is not None:
         montant = amount if amount is not None else float(existing.get("amount") or 0)

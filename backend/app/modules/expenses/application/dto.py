@@ -37,6 +37,7 @@ class UpdateExpenseInput:
     description: Optional[str] = None
     # None peut vouloir dire « effacer » : la sentinelle distingue « absent ».
     description_definie: bool = False
+    employee_id: Optional[str] = None
 
 
 @dataclass

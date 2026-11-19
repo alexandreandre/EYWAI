@@ -287,7 +287,15 @@ def update_expense(
 ):
     """(Pour les RH) Modifie une note de frais — HT/TVA recalculés."""
     try:
-        _company_id, target = _charger_note_rh(expense_id, current_user)
+        company_id, target = _charger_note_rh(expense_id, current_user)
+        nouveau = (update.employee_id or "").strip() or None
+        if nouveau and nouveau != str(target.get("employee_id")):
+            # Le nouveau salarié : même société, et dans le périmètre de la RH.
+            if str(_expense_service.get_employee_company_id(nouveau) or "") != str(company_id):
+                raise HTTPException(status_code=404, detail="Salarié introuvable dans cette société.")
+            access_control_service.require_employee_access(
+                current_user, company_id, "expenses.approve", nouveau
+            )
         result = _expense_service.update_expense(
             UpdateExpenseInput(
                 expense_id=expense_id,
@@ -298,6 +306,7 @@ def update_expense(
                 description=update.description,
                 # None explicite = effacer ; absent = inchangé.
                 description_definie="description" in update.model_fields_set,
+                employee_id=nouveau,
             ),
             existing=target,
         )

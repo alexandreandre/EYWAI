@@ -50,6 +50,8 @@ class ExpenseUpdateRequest(BaseModel):
     vat_rate: float | None = Field(None, ge=0, le=100)
     type: ExpenseType | None = None
     description: str | None = None
+    # Note saisie sur le mauvais salarié : la RH la rattache au bon (Elsa, 17/11).
+    employee_id: str | None = None
 
 
 class ExpenseCreate(ExpenseBase):

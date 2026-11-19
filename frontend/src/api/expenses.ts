@@ -129,6 +129,8 @@ export interface ExpenseUpdatePayload {
   vat_rate?: number;
   type?: ExpenseType;
   description?: string | null;
+  /** RH : rattacher la note à un autre salarié de la société. */
+  employee_id?: string;
 }
 
 export const updateExpense = (id: string, payload: ExpenseUpdatePayload) => {

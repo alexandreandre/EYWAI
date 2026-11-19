@@ -282,12 +282,13 @@ export default function ExpensesPage() {
             toast({
               title: 'Pensez au bulletin',
               description:
-                'Cette note était validée : si le bulletin du mois est déjà généré, régénérez-le pour reprendre le bon montant.',
+                'Cette note était validée : si le bulletin du mois est déjà généré, régénérez-le pour reprendre le bon montant (les deux bulletins si vous avez changé de salarié).',
             });
           }
           void fetchData();
         }}
         expense={editingExpense}
+        showEmployeeSelector
       />
       <AlertDialog
         open={deletingExpense != null}

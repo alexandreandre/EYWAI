@@ -105,6 +105,7 @@ def update_expense(
         type_value=input.type,
         description=input.description,
         description_definie=input.description_definie,
+        employee_id=input.employee_id,
     )
     if not payload:
         return existing

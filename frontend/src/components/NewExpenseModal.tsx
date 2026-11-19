@@ -33,6 +33,8 @@ interface NewExpenseModalProps {
   /** Mode édition : note existante à modifier (le justificatif reste inchangé). */
   expense?: {
     id: string;
+    /** Avec `showEmployeeSelector`, la RH peut rattacher la note à un autre salarié. */
+    employee_id?: string;
     date: string;
     amount: number;
     vat_rate?: number | null;
@@ -108,6 +110,7 @@ export function NewExpenseModal({
         setCustomVatRate(preset === "custom" ? String(expense.vat_rate) : "");
       }
       setDescription(expense.description ?? "");
+      setEmployeeId(expense.employee_id ?? "");
     }
   }, [isOpen, expense]);
 
@@ -188,6 +191,8 @@ export function NewExpenseModal({
         if (type !== expense.type) patch.type = type;
         if (description !== (expense.description ?? ""))
           patch.description = description;
+        if (showEmployeeSelector && employeeId && employeeId !== (expense.employee_id ?? ""))
+          patch.employee_id = employeeId;
         if (Object.keys(patch).length > 0) {
           await expensesApi.updateExpense(expense.id, patch);
         }
@@ -251,14 +256,16 @@ export function NewExpenseModal({
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
             {enEdition
-              ? "Le statut et le justificatif restent inchangés. Le montant saisi est le montant TTC."
+              ? showEmployeeSelector
+                ? "Le statut et le justificatif restent inchangés. Le salarié se change ici s'il y a eu erreur. Le montant saisi est le montant TTC."
+                : "Le statut et le justificatif restent inchangés. Le montant saisi est le montant TTC."
               : showEmployeeSelector
                 ? "Saisie directe par les RH — enregistrée et validée immédiatement. Le montant saisi est le montant TTC."
                 : "Le justificatif (photo ou PDF) est recommandé — facultatif pendant la reprise des paies. Le montant saisi est le montant TTC."}
           </p>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          {showEmployeeSelector && !enEdition && (
+          {showEmployeeSelector && (
             <div className="grid gap-2">
               <Label htmlFor="expense-employee">Salarié</Label>
               <Select value={employeeId} onValueChange={setEmployeeId}>
