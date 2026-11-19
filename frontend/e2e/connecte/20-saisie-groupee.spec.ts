@@ -68,6 +68,10 @@ test('saisie groupée sans type et retour en Travail (A5, A6), sans enregistrer'
   await choisirSociete(page, /mont[\s-]?blanc/i);
   await page.goto(`/employees/${await unSalarieEnHeures(page)}?tab=calendrier`);
   await expect(page.getByRole('button', { name: /Importer un relevé/ })).toBeVisible({ timeout: 45_000 });
+  // Les cases arrivent après le bouton : sans cette attente, le parcours ne
+  // trouvait aucun jour (19/11, calendrier encore en chargement).
+  await expect(page.getByLabel('Sélectionner le jour 1', { exact: true })).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByText(/^Prévu$/i).first()).toBeVisible({ timeout: 45_000 });
 
   // Deux jours « Travail » du mois affiché, avec des heures prévues.
   const jours: number[] = [];
