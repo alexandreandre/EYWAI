@@ -8,7 +8,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
 from app.modules.exports.domain.accounting_plan import resolve_organisme_from_coti_id
-from app.modules.exports.domain.tableau_des_charges import ORGANISME_SOLDE_TA
+from app.modules.exports.domain.tableau_des_charges import LIBELLE_SOLDE_TA, ORGANISME_SOLDE_TA
 from app.modules.exports.infrastructure.export_ecritures_comptables import (
     get_payslip_data_for_od,
 )
@@ -65,7 +65,7 @@ def _aggregate_charges(
                 continue
             if coti.get("coti_id") == "taxe_apprentissage_solde":
                 # Déclaré et payé en avril N+1 : pas dans l'URSSAF du mois.
-                organisme = ORGANISME_SOLDE_TA
+                organisme = LIBELLE_SOLDE_TA
 
             montant_salarial = float(coti.get("montant_salarial", 0) or 0)
             montant_patronal = float(coti.get("montant_patronal", 0) or 0)

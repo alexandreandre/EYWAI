@@ -202,5 +202,9 @@ def test_lignes_reprises_de_quadra_rattachees_par_leur_libelle():
     assert resolve_organisme_from_coti_id("autre", "REDUCTION HS PP > 20") == "URSSAF"
     assert resolve_organisme_from_coti_id("autre", "Régul. JEI URSSAF VIEIL PLAF N") == "URSSAF"
     assert resolve_organisme_from_coti_id("autre", "Ligne inconnue") == "INCONNU"
+    assert resolve_organisme_from_coti_id("autre", "CSG/CRDS SUR PREV PATRONALE") == "URSSAF"
+    assert resolve_organisme_from_coti_id("autre", "FORFAIT SOCIAL 8% PREV CADRE") == "URSSAF"
+    assert resolve_organisme_from_coti_id("autre", "Retraite Sécurité sociale plafonnée") == "URSSAF"
+    assert resolve_organisme_from_coti_id("autre", "Retraite complémentaire T1 AGIRC-ARRCO") == "RETRAITE"
     # Un identifiant connu prime toujours sur le libellé.
     assert resolve_organisme_from_coti_id("mutuelle", "PREV GROUPAMA") == "MUTUELLE"

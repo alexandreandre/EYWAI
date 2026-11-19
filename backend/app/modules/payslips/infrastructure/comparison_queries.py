@@ -20,6 +20,29 @@ def _net_from_payslip_data(data: Any) -> float:
         return 0.0
 
 
+def mois_repris_entre(
+    employee_id: str,
+    company_id: str,
+    precedent: dict[str, Any] | None,
+    year: int,
+    month: int,
+) -> bool:
+    """Un bulletin repris de l'ancien logiciel tombe-t-il entre le bulletin de
+    comparaison (exclu, R-085) et le mois N ? Le mois juste avant N est alors
+    celui de l'ancien logiciel : l'écart du net ne prouve rien."""
+    r = (
+        supabase.table("payslips")
+        .select("year, month")
+        .eq("employee_id", employee_id)
+        .eq("company_id", company_id)
+        .eq("origine", "importe")
+        .or_(f"year.lt.{year},and(year.eq.{year},month.lt.{month})")
+        .execute()
+    )
+    borne = (int(precedent["year"]), int(precedent["month"])) if precedent else (0, 0)
+    return any((int(x["year"]), int(x["month"])) > borne for x in ((r.data if r else None) or []))
+
+
 def fetch_previous_validated_payslip(
     employee_id: str,
     company_id: str,

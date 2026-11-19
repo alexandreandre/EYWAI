@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import calendar
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.modules.payroll.domain.report_nap_negatif import (
@@ -805,6 +805,19 @@ def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
     return lignes
 
 
+def _libelle_de_saisie(saisie: Dict[str, Any]) -> str:
+    """« ATD SIP AMIENS » : le type de la saisie, et le créancier quand c'est
+    une administration (ATD, SATD). Jamais la référence du jugement ni le nom
+    d'un particulier (pension alimentaire)."""
+    type_saisie = str(saisie.get("type") or "").lower()
+    creancier = str(saisie.get("creditor_name") or "").strip()
+    if type_saisie in ("atd", "satd"):
+        return f"{type_saisie.upper()} {creancier}".strip()
+    if type_saisie == "pension_alimentaire":
+        return "Pension alimentaire"
+    return "Saisie sur salaire"
+
+
 def _retenues_par_saisie(retenues: Dict[str, Any]) -> List[tuple]:
     """Une ligne par saisie, à son libellé (« ATD SIP AMIENS ») plutôt que
     « Retenues sur salaire » (Zone 404, 17/11). Ce qui reste du total sans
@@ -818,9 +831,7 @@ def _retenues_par_saisie(retenues: Dict[str, Any]) -> List[tuple]:
         montant = float(saisie.get("montant") or 0.0)
         if montant <= 0:
             continue
-        libelle = str(saisie.get("reference") or "").strip() or " ".join(
-            x for x in ("Saisie sur salaire", str(saisie.get("creditor_name") or "").strip()) if x
-        )
+        libelle = _libelle_de_saisie(saisie)
         lignes.append((montant, libelle))
         detail += montant
     reste = round(total - detail, 2)
@@ -885,11 +896,16 @@ _ABSENCE_D_UN_JOUR = re.compile(r"^(Absence maladie) du (\d{2}/\d{2}/\d{2})$")
 
 
 def _periodes(jours: List[date]) -> str:
-    """« du 05/10/26 au 09/10/26, le 14/10/26 » : jours ouvrés qui se suivent
-    (un week-end entre deux ne coupe pas la période)."""
+    """« du 05/10/26 au 09/10/26, le 14/10/26 » : jours qui se suivent ; seul un
+    samedi ou un dimanche entre deux ne coupe pas la période (un jour
+    travaillé entre deux arrêts, si)."""
+    def _suit(avant: date, apres: date) -> bool:
+        entre = [avant + timedelta(days=k) for k in range(1, (apres - avant).days)]
+        return all(j.weekday() >= 5 for j in entre)
+
     morceaux: List[List[date]] = []
     for jour in sorted(jours):
-        if morceaux and (jour - morceaux[-1][-1]).days <= 3:
+        if morceaux and _suit(morceaux[-1][-1], jour):
             morceaux[-1].append(jour)
         else:
             morceaux.append([jour])
@@ -910,7 +926,9 @@ def _arrets_groupes(details: List[Any]) -> List[Any]:
     out: List[Any] = []
     for detail in details:
         m = _ABSENCE_D_UN_JOUR.match(str(detail.get("libelle") or "")) if isinstance(detail, dict) else None
-        if not m or detail.get("gain"):
+        # Une ligne corrigée à la main garde sa ligne et sa marque : la note
+        # des corrections la cite par son libellé et son montant.
+        if not m or detail.get("gain") or detail.get("correction"):
             out.append(detail)
             continue
         cle = (m.group(1), detail.get("taux"))

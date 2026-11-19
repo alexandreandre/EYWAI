@@ -316,21 +316,29 @@ def default_accounts_for_family(famille: str) -> Optional[AccountPair]:
 _LIBELLE_FALLBACK = (
     # Avant « CSG » : la CSG sur IJSS n'est pas due à l'URSSAF.
     ("IJSS", ORGANISME_IJSS),
-    # Lignes des bulletins repris de Quadra (code « autre ») : prévoyance
-    # Groupama (« PREV GROUPAMA NC TA »), réduction des heures sup, JEI.
-    ("PREV ", ORGANISME_PREVOYANCE),
-    ("REDUCTION HS", ORGANISME_URSSAF),
-    ("RÉDUCTION HS", ORGANISME_URSSAF),
-    ("JEI", ORGANISME_URSSAF),
+    # Avant « PREV » et « RETRAITE » : « CSG/CRDS SUR PREV PATRONALE »,
+    # « FORFAIT SOCIAL 8% PREV CADRE », « Retraite Sécurité sociale
+    # plafonnée » sont dus à l'URSSAF.
     ("CSG", ORGANISME_URSSAF),
     ("CRDS", ORGANISME_URSSAF),
     ("URSSAF", ORGANISME_URSSAF),
+    ("FORFAIT SOCIAL", ORGANISME_URSSAF),
+    ("SECURITE SOCIALE", ORGANISME_URSSAF),
+    ("SÉCURITÉ SOCIALE", ORGANISME_URSSAF),
+    ("SECU", ORGANISME_URSSAF),
+    ("SÉCU", ORGANISME_URSSAF),
+    # Lignes des bulletins repris de Quadra (code « autre »).
+    ("JEI", ORGANISME_URSSAF),
+    ("REDUCTION HS", ORGANISME_URSSAF),
+    ("RÉDUCTION HS", ORGANISME_URSSAF),
+    ("TAXE D'APPRENTISSAGE", ORGANISME_URSSAF),
     ("AGIRC", ORGANISME_RETRAITE),
     ("ARRCO", ORGANISME_RETRAITE),
     ("RETRAITE SUPP", ORGANISME_RETRAITE_SUP),
     ("RETRAITE", ORGANISME_RETRAITE),
     ("PREVOYANCE", ORGANISME_PREVOYANCE),
     ("PRÉVOYANCE", ORGANISME_PREVOYANCE),
+    ("PREV ", ORGANISME_PREVOYANCE),
     ("MUTUELLE", ORGANISME_MUTUELLE),
 )
 

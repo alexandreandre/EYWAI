@@ -95,3 +95,25 @@ def test_r03_face_a_un_mois_repris_n_est_qu_un_avertissement():
 def test_r03_entre_deux_mois_de_martine_reste_critique():
     resultat = compute_comparison(_bulletin(3000.0, 2400.0), _bulletin(1800.0, 1500.0), _ctx())
     assert [a.level for a in resultat.alerts if a.rule_id == "R03"] == ["CRITIQUE"]
+
+
+def test_mois_repris_entre_le_bulletin_de_comparaison_et_n(monkeypatch):
+    """Le serveur exclut les bulletins repris de la comparaison (R-085) : il faut
+    savoir si un mois repris tombe entre le bulletin comparé et N."""
+    from unittest.mock import MagicMock
+
+    from app.modules.payslips.infrastructure import comparison_queries as q
+
+    chaine = MagicMock()
+    for m in ("select", "eq", "or_"):
+        getattr(chaine, m).return_value = chaine
+    chaine.execute.return_value = MagicMock(data=[{"year": 2026, "month": 9}])
+    sb = MagicMock()
+    sb.table.return_value = chaine
+    monkeypatch.setattr(q, "supabase", sb)
+    # Septembre repris, aucun mois Martine avant : repris.
+    assert q.mois_repris_entre("e", "c", None, 2026, 10) is True
+    # Août calculé par Martine, septembre repris : repris.
+    assert q.mois_repris_entre("e", "c", {"year": 2026, "month": 8}, 2026, 10) is True
+    # Le bulletin comparé est postérieur au mois repris : non.
+    assert q.mois_repris_entre("e", "c", {"year": 2026, "month": 9}, 2026, 11) is False

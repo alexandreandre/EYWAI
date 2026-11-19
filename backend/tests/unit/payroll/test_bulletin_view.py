@@ -375,12 +375,13 @@ class TestCorps:
             "total_preleve": 190.0,
             "saisies": [
                 {"type": "atd", "montant": 150.0, "reference": "ATD SIP AMIENS", "creditor_name": "SIP AMIENS"},
-                {"type": "pension", "montant": 30.0, "reference": "", "creditor_name": "CAF"},
+                {"type": "pension_alimentaire", "montant": 30.0, "reference": "RG 24/01234", "creditor_name": "M. X"},
             ],
         }
         montants = {l["libelle"]: l["montant_salarial"] for l in construire_vue_bulletin(bulletin)["lignes"]}
         assert montants["ATD SIP AMIENS"] == pytest.approx(-150.0)
-        assert montants["Saisie sur salaire CAF"] == pytest.approx(-30.0)
+        # Ni la référence du jugement, ni le nom d'un particulier.
+        assert montants["Pension alimentaire"] == pytest.approx(-30.0)
         # Le reste du total, sans détail, garde le libellé général.
         assert montants["Retenues sur salaire"] == pytest.approx(-10.0)
 
@@ -1043,3 +1044,26 @@ def test_arrets_du_forfait_groupes_avec_la_periode_dessous():
     note = lignes[lignes.index(arrets[0]) + 1]
     assert note["type"] == "note"
     assert note["libelle"] == "Période : du 08/10/26 au 13/10/26, le 20/10/26"
+
+
+def test_deux_jours_d_arret_separes_par_un_jour_travaille_restent_deux_periodes():
+    bulletin = bulletin_avec_cotisations()
+    bulletin["calcul_du_brut"] = [
+        {"libelle": f"Absence maladie du {j:02d}/10/26", "quantite": 1.0, "taux": 100.0, "gain": None, "perte": 100.0}
+        for j in (6, 8, 9, 12)
+    ]
+    lignes = construire_vue_bulletin(bulletin)["lignes"]
+    note = [l for l in lignes if l["type"] == "note" and l["libelle"].startswith("Période")]
+    # Le 07 est travaillé ; le week-end des 10 et 11 ne coupe pas.
+    assert note[0]["libelle"] == "Période : le 06/10/26, du 08/10/26 au 12/10/26"
+
+
+def test_une_ligne_d_arret_corrigee_a_la_main_reste_seule():
+    bulletin = bulletin_avec_cotisations()
+    bulletin["calcul_du_brut"] = [
+        {"libelle": "Absence maladie du 06/10/26", "quantite": 1.0, "taux": 100.0, "gain": None, "perte": 80.0,
+         "correction": {"montant_calcule": 100.0}},
+        {"libelle": "Absence maladie du 07/10/26", "quantite": 1.0, "taux": 100.0, "gain": None, "perte": 100.0},
+    ]
+    libelles = [l["libelle"] for l in construire_vue_bulletin(bulletin)["lignes"]]
+    assert any(l.startswith("Absence maladie du 06/10/26") for l in libelles)

@@ -55,5 +55,8 @@ def test_forfait_reduit_repos_au_prorata():
     reduit = resolve_rtt_annual_base(2026, policy, forfait_days_override=171)
     assert reduit == round(plein * 171 / 216, 2)
     assert reduit < plein
-    # Un forfait égal ou supérieur au plein garde le calcul habituel.
+    # Un forfait plein, ou presque plein (214 jours), garde la formule légale.
     assert resolve_rtt_annual_base(2026, policy, forfait_days_override=216) == plein
+    assert resolve_rtt_annual_base(2026, policy, forfait_days_override=214) == calculate_rtt_annual_forfait_jours(
+        2026, forfait_days=214, cp_ouvres_deduction=25
+    )

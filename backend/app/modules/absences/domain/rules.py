@@ -369,6 +369,10 @@ def calculate_rtt_annual_calendar(year: int) -> float:
     return 10.0
 
 
+#: Sous 90 % du forfait plein, le forfait est réduit (temps partiel).
+FORFAIT_REDUIT_SOUS = 0.9
+
+
 def resolve_rtt_annual_base(
     year: int,
     policy: LeavePolicySettings | None = None,
@@ -390,12 +394,13 @@ def resolve_rtt_annual_base(
             if forfait_days_override is not None
             else plein
         )
-        if 0 < forfait_days < plein:
-            # Forfait réduit (171 jours au lieu de 216) : les jours non
-            # travaillés par le contrat ne sont pas des repos. Les repos du
-            # forfait plein suivent le temps de travail (décision de Vanessa
-            # du 13/11 pour un forfait de 43 jours ; Cartol, 19/11 : 59 jours
-            # de RTT au lieu de 7 chez Quadra).
+        if 0 < forfait_days < FORFAIT_REDUIT_SOUS * plein:
+            # Forfait réduit (171 jours au lieu de 216, temps partiel) : les
+            # jours non travaillés par le contrat ne sont pas des repos. Les
+            # repos du forfait plein suivent le temps de travail (décision de
+            # Vanessa du 13/11 pour un forfait de 43 jours ; Cartol, 19/11 :
+            # 59 jours de RTT au lieu de 7 chez Quadra). Un forfait presque
+            # plein (214 jours) garde la formule légale.
             repos_plein = calculate_rtt_annual_forfait_jours(
                 year,
                 forfait_days=plein,
