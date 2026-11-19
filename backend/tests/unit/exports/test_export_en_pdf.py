@@ -87,3 +87,10 @@ class TestService:
 
     def test_type_de_contenu(self):
         assert service._content_type("pdf") == "application/pdf"
+
+
+class TestRelecture:
+    def test_un_chevron_dans_un_libelle_ne_casse_pas_le_pdf(self):
+        lignes = [{"Libellé": "Péage A1<A6", "Montant": 12.5}, {"Libellé": "<i>client & co", "Montant": 3.0}]
+        texte = _texte(xlsx_en_pdf(generate_xlsx(lignes, ["Libellé", "Montant"]), "Notes"))
+        assert "Péage A1<A6" in texte and "<i>client & co" in texte

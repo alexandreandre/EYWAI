@@ -107,7 +107,7 @@ def _remediation_action(
             return ("Générer la paie du mois", "/payroll")
         return (
             "Ouvrir le journal de paie",
-            "/exports?tab=paie-comptabilite&export=journal_paie",
+            "/exports?tab=dsn&export=journal_paie",
         )
     if export_type in ("od_globale", "fec"):
         return ("Contrôler la paie du mois", "/payroll")

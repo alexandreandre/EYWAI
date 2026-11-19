@@ -12,6 +12,7 @@ import io
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, List
+from xml.sax.saxutils import escape
 
 from openpyxl import load_workbook
 from reportlab.lib import colors
@@ -107,6 +108,8 @@ def _tableau(lignes: List[List[Any]]) -> LongTable:
     nombres = [[k > 0 and _est_un_nombre(v) for v in ligne] for k, ligne in enumerate(lignes)]
     largeurs = _largeurs(textes, nombres, taille)
 
+    # Paragraph lit du balisage : « Péage A1<A6 » le faisait planter.
+    textes = [[escape(t) for t in ligne] for ligne in textes]
     donnees = [[Paragraph(t, style_entete) for t in textes[0]]]
     for k in range(1, len(lignes)):
         donnees.append(
@@ -117,7 +120,8 @@ def _tableau(lignes: List[List[Any]]) -> LongTable:
     style_total_droite = ParagraphStyle("total_droite", parent=style_total, alignment=2)
     for k in range(1, len(lignes)):
         libelle = next((t for j, t in enumerate(textes[k]) if t and not nombres[k][j]), "")
-        if len(libelle) > 3 and libelle.isupper():
+        # « SALAIRE BRUT », « NET A PAYER » : capitales et plusieurs mots (« URSSAF » seul n'est pas un total).
+        if " " in libelle.strip() and libelle.isupper():
             donnees[k] = [
                 Paragraph(t, style_total_droite if nombres[k][j] else style_total) for j, t in enumerate(textes[k])
             ]

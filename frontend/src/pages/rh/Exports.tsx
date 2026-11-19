@@ -71,7 +71,7 @@ export default function Exports() {
     } else {
       next.set("tab", tab);
     }
-    if (tab !== "paie-comptabilite" && tab !== "paiements") {
+    if (tab !== "dsn" && tab !== "paie-comptabilite" && tab !== "paiements") {
       next.delete("export");
     }
     setSearchParams(next, { replace: true });
@@ -124,7 +124,7 @@ export default function Exports() {
         </TabsList>
 
         <TabsContent value="dsn" className="space-y-6 mt-6">
-          <DsnTab />
+          <DsnTab initialExportId={activeTab === "dsn" ? deepLinkExport : null} />
         </TabsContent>
 
         <TabsContent value="paie-comptabilite" className="space-y-6 mt-6">

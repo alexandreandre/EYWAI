@@ -118,6 +118,11 @@ class TestApercuSalairesEnCsv:
         assert apercu["anomalies"] == []
         assert any(w.startswith("Jean Dupont : IBAN manquant ou invalide, hors du fichier") for w in apercu["warnings"])
 
+    def test_un_nom_qui_contient_iban_reste_bloquant(self):
+        doublon = {"type": "error", "message": "Doublon détecté - Luis Ibanez", "severity": "blocking"}
+        apercu = self._apercu(COMPTE, [doublon])
+        assert apercu["can_generate"] is False and apercu["anomalies"] == [doublon]
+
     def test_un_doublon_bloque_toujours(self):
         apercu = self._apercu(COMPTE, [self.IBAN_FAUX, self.DOUBLON])
         assert apercu["can_generate"] is False

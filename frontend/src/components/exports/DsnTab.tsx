@@ -2,7 +2,7 @@
 // Onglet « DSN » des exports (demande d'Elsa du 17/11/2026) : ce qui sort
 // chaque mois autour de la déclaration, au même endroit.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calculator, FileSpreadsheet, FileText, History, type LucideIcon } from "lucide-react";
@@ -43,8 +43,15 @@ export const EXPORTS_DSN: { id: string; type: string; name: string; description:
   },
 ];
 
-export function DsnTab() {
+export function DsnTab({ initialExportId }: { initialExportId?: string | null }) {
   const [selectedExport, setSelectedExport] = useState<string | null>(null);
+
+  // Lien « Ouvrir le journal de paie » des envois : la carte s'ouvre.
+  useEffect(() => {
+    if (initialExportId && EXPORTS_DSN.some((e) => e.id === initialExportId)) {
+      setSelectedExport(initialExportId);
+    }
+  }, [initialExportId]);
   const [historyModal, setHistoryModal] = useState<{ exportType: string; exportName: string } | null>(null);
 
   return (

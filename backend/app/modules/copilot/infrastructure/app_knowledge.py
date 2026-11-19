@@ -243,12 +243,16 @@ Autres outils de la section paie :
   arrêt maladie.
 — Suivi des taux (« Suivi des taux ») : cotisations, barèmes, synchronisation
   réglementaire.
-— Exports (« Exports ») : onglets « Paie & Comptabilité », « Déclarations »,
-  « Paiements », « Exports RH », « Envois » et « Historique ». Dans
+— Exports (« Exports ») : onglets « DSN » (ouvert par défaut : déclaration
+  mensuelle, charges sociales par caisse, OD globale de paie, journal de paie,
+  suivi des dépôts), « Paie & Comptabilité », « Déclarations » (récapitulatif
+  des salaires, attestations, signalements d'arrêt), « Paiements »,
+  « Exports RH », « Envois » et « Historique ». Chaque export en tableau sort
+  en Excel, CSV ou PDF. Dans
   « Paie & Comptabilité », le panneau « Intégration comptable » permet de
   « Connecter Cegid Loop » pour transmettre les écritures FEC. L'envoi du mois
   à la comptabilité et à la banque se fait dans « Envois » ; la DSN mensuelle
-  (« Déclarations ») n'est pas encore déposable : voir le manuel, étape 11.
+  (onglet « DSN ») n'est pas encore déposable : voir le manuel, étape 11.
 — Bulletins de paie (« Bulletins de paie ») : consultation des bulletins
   (onglets « Par collaborateur » et « Par mois »), liste de contrôle du mois et
   lien « Manuel de la paie ». L'édition d'un bulletin (« Modifier ») donne accès

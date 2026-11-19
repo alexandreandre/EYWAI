@@ -209,7 +209,8 @@ def _iban_hors_du_csv(
     gardees: List[Dict[str, Any]] = []
     ecartes: List[str] = []
     for anomalie in anomalies:
-        if "iban" in str(anomalie.get("message", "")).lower():
+        # Le message, pas le nom : « Doublon détecté - Ibanez » reste bloquant.
+        if str(anomalie.get("message", "")).startswith("IBAN manquant ou invalide"):
             nom = (anomalie.get("employee_name") or "").strip() or "Un salarié"
             ecartes.append(
                 f"{nom} : IBAN manquant ou invalide, hors du fichier — à payer à part ou à corriger sur sa fiche."
