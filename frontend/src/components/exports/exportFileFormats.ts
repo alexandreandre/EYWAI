@@ -1,7 +1,8 @@
 import type { ExportType } from '@/api/exports';
 
 /**
- * Exports dont l'écran laisse choisir CSV ou Excel. Quadra et Sage sont des
+ * Exports dont l'écran laisse choisir CSV, Excel ou PDF (le PDF est l'Excel mis
+ * en page par le serveur, demande d'Elsa du 17/11). Quadra et Sage sont des
  * fichiers texte (ASCII à largeur fixe, lignes à « | ») : un nom en « .xlsx »
  * ne s'ouvrirait pas, ils n'ont donc pas de choix de format.
  */

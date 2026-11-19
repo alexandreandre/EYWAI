@@ -65,7 +65,7 @@ class ExportGenerateRequest(BaseModel):
     company_id: Optional[str] = None
     employee_ids: Optional[List[str]] = None
     filters: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    format: Literal["csv", "xlsx", "xml"] = "csv"
+    format: Literal["csv", "xlsx", "xml", "pdf"] = "csv"
     excluded_employee_ids: Optional[List[str]] = None
     execution_date: Optional[str] = None
     payment_label: Optional[str] = None

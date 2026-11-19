@@ -19,29 +19,7 @@ except ImportError:
     OPENPYXL_AVAILABLE = False
 
 
-def generate_xlsx(
-    data: List[Dict[str, Any]],
-    headers: List[str],
-    sheet_name: str = "Export",
-) -> bytes:
-    """
-    Génère un fichier XLSX à partir de données.
-
-    Args:
-        data: Liste de dictionnaires représentant les lignes
-        headers: Liste des noms de colonnes
-        sheet_name: Nom de la feuille Excel
-
-    Returns:
-        Contenu du fichier XLSX
-    """
-    if not OPENPYXL_AVAILABLE:
-        raise ImportError(
-            "openpyxl n'est pas installé. Installez-le avec: pip install openpyxl"
-        )
-    wb = Workbook()
-    ws = wb.active
-    ws.title = sheet_name
+def _remplir_feuille(ws, data: List[Dict[str, Any]], headers: List[str]) -> None:
     header_fill = PatternFill(
         start_color="366092", end_color="366092", fill_type="solid"
     )
@@ -68,6 +46,47 @@ def generate_xlsx(
         ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = min(
             max_length + 2, 50
         )
+
+
+def generate_xlsx_feuilles(feuilles: List[tuple]) -> bytes:
+    """Un classeur à plusieurs feuilles : (nom, en-têtes, lignes) chacune."""
+    if not OPENPYXL_AVAILABLE:
+        raise ImportError(
+            "openpyxl n'est pas installé. Installez-le avec: pip install openpyxl"
+        )
+    wb = Workbook()
+    wb.remove(wb.active)
+    for nom, headers, data in feuilles:
+        _remplir_feuille(wb.create_sheet(nom[:31]), data, headers)
+    output = io.BytesIO()
+    wb.save(output)
+    return output.getvalue()
+
+
+def generate_xlsx(
+    data: List[Dict[str, Any]],
+    headers: List[str],
+    sheet_name: str = "Export",
+) -> bytes:
+    """
+    Génère un fichier XLSX à partir de données.
+
+    Args:
+        data: Liste de dictionnaires représentant les lignes
+        headers: Liste des noms de colonnes
+        sheet_name: Nom de la feuille Excel
+
+    Returns:
+        Contenu du fichier XLSX
+    """
+    if not OPENPYXL_AVAILABLE:
+        raise ImportError(
+            "openpyxl n'est pas installé. Installez-le avec: pip install openpyxl"
+        )
+    wb = Workbook()
+    ws = wb.active
+    ws.title = sheet_name
+    _remplir_feuille(ws, data, headers)
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)

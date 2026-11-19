@@ -48,6 +48,32 @@ def _horodater(nom: str, instant: int | None = None) -> str:
     return f"{base}_{horodatage}.{extension}"
 
 
+#: Les exports en tableau : leur Excel se met en PDF (Elsa, 17/11). Les fichiers
+#: à format imposé (DSN, FEC, Quadra, Sage, SEPA) n'ont pas de PDF.
+TYPES_EN_PDF = frozenset(
+    {
+        "journal_paie",
+        "charges_sociales",
+        "od_salaires",
+        "od_charges_sociales",
+        "od_pas",
+        "od_globale",
+        "export_cabinet_generique",
+        "notes_frais",
+        "acomptes",
+        "saisies",
+        "virement_salaires",
+        "virement_acomptes",
+        "paiement_organismes",
+        "prets_employeur",
+        "attestations_annexes",
+        "conges_absences",
+        "provision_cp",
+        "recapitulatif_montants",
+    }
+)
+
+
 def _assert_can_generate(company_id: str, request: ExportGenerateRequest) -> None:
     """Vérifie via preview que la génération est autorisée (sauf DSN : accept_warnings)."""
     if request.export_type == "dsn_mensuelle":
@@ -146,6 +172,8 @@ def generate_export(
     company_id = request.company_id or company_id
     if not domain_rules.is_supported_export_type_for_generate(request.export_type):
         raise ValueError(f"Type d'export '{request.export_type}' non implémenté")
+    if request.format == "pdf" and request.export_type not in TYPES_EN_PDF:
+        raise ValueError("Cet export ne sort pas en PDF : choisissez CSV ou Excel.")
     _assert_can_generate(company_id, request)
     user_name = get_user_display_name(user_id)
 
@@ -197,6 +225,8 @@ def generate_export(
 
 
 def _content_type(extension: str) -> str:
+    if extension == "pdf":
+        return "application/pdf"
     if extension == "xlsx":
         return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     if extension == "xml":

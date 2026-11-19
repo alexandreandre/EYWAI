@@ -54,7 +54,7 @@ import { getAccountingMappings, previewExport, generateExport, ExportPreviewResp
 import { fetchEmployeesSummary } from "@/api/employees";
 
 export type ExportStep = "parametrage" | "previsualisation" | "generation";
-export type ExportFileFormat = "csv" | "xlsx";
+export type ExportFileFormat = "csv" | "xlsx" | "pdf";
 export type NotesFraisCabinetFormat = "generique" | "quadra" | "sage";
 export type BankFileFormat = "sepa" | "csv";
 export type AcompteMode = "a_verser" | "verses";
@@ -669,6 +669,7 @@ export function ExportCommonModel({
                   <SelectContent>
                     <SelectItem value="xlsx">Excel (.xlsx)</SelectItem>
                     <SelectItem value="csv">CSV (.csv)</SelectItem>
+                    <SelectItem value="pdf">PDF (.pdf)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

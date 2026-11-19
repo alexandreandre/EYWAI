@@ -2,6 +2,8 @@
 # Plus aucune dépendance vers services/exports/*.
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.shared.utils.export_pdf import pdf_depuis_le_classeur
+
 from app.modules.dsn_export.domain.rectification import DeclarationRemplacee
 
 from .export_dsn import (
@@ -96,6 +98,7 @@ def preview_journal_paie(
     return _preview_journal_paie(company_id, period, employee_ids)
 
 
+@pdf_depuis_le_classeur("Journal de paie")
 def generate_journal_paie_export(
     company_id: str, period: str, employee_ids: Optional[List[str]], format: str
 ) -> bytes:
@@ -124,6 +127,7 @@ def preview_charges_sociales(
     )
 
 
+@pdf_depuis_le_classeur("Charges sociales par caisse")
 def generate_charges_sociales_export(
     company_id: str,
     period: str,
@@ -162,6 +166,7 @@ def preview_paiement_salaires(
     )
 
 
+@pdf_depuis_le_classeur("Virement des salaires")
 def generate_paiement_salaires_export(
     company_id: str,
     period: str,
@@ -279,6 +284,7 @@ def generate_od_globale(
     )
 
 
+@pdf_depuis_le_classeur("Écritures comptables de paie")
 def generate_od_export_file(
     ecritures: List[Dict[str, Any]], export_type: str, period: str, format: str
 ) -> bytes:
@@ -300,6 +306,7 @@ def preview_cabinet_export(
     return _preview_cabinet_export(company_id, period, export_type, employee_ids)
 
 
+@pdf_depuis_le_classeur("Export comptable")
 def generate_cabinet_generic_export(
     company_id: str, period: str, employee_ids: Optional[List[str]], format: str
 ) -> bytes:
@@ -327,6 +334,7 @@ def preview_notes_frais(
     return _preview_notes_frais(company_id, period, employee_ids, expense_types)
 
 
+@pdf_depuis_le_classeur("Notes de frais")
 def generate_notes_frais_export(
     company_id: str,
     period: str,
@@ -356,6 +364,7 @@ def preview_conges_absences(
     )
 
 
+@pdf_depuis_le_classeur("Congés et absences")
 def generate_conges_absences_export(
     company_id: str,
     period: str,
@@ -376,6 +385,7 @@ def preview_provision_cp(
     return _preview_provision_cp(company_id, period, employee_ids)
 
 
+@pdf_depuis_le_classeur("Provision congés payés")
 def generate_provision_cp_export(
     company_id: str,
     period: str,
@@ -403,6 +413,7 @@ def preview_recapitulatif_montants(
     )
 
 
+@pdf_depuis_le_classeur("Récapitulatif des montants")
 def generate_recapitulatif_montants_export(
     company_id: str,
     period: str,
@@ -478,12 +489,14 @@ def preview_acomptes(company_id: str, period: str) -> Dict[str, Any]:
     return _preview_acomptes(company_id, period)
 
 
+@pdf_depuis_le_classeur("Acomptes et avances")
 def generate_acomptes_export(
     company_id: str, period: str, file_format: str
 ) -> bytes:
     return _generate_acomptes_export(company_id, period, file_format)
 
 
+@pdf_depuis_le_classeur("Acomptes et avances : écritures")
 def generate_acomptes_ecritures_export(
     company_id: str, period: str, file_format: str
 ) -> bytes:
@@ -494,12 +507,14 @@ def preview_saisies(company_id: str, period: str) -> Dict[str, Any]:
     return _preview_saisies(company_id, period)
 
 
+@pdf_depuis_le_classeur("Saisies sur salaire")
 def generate_saisies_export(
     company_id: str, period: str, file_format: str
 ) -> bytes:
     return _generate_saisies_export(company_id, period, file_format)
 
 
+@pdf_depuis_le_classeur("Saisies sur salaire : écritures")
 def generate_saisies_ecritures_export(
     company_id: str, period: str, file_format: str
 ) -> bytes:
@@ -560,6 +575,7 @@ def get_virement_acomptes_data(
     )
 
 
+@pdf_depuis_le_classeur("Virement des acomptes")
 def generate_virement_acomptes_export(
     company_id: str,
     period: str,
@@ -612,6 +628,7 @@ def preview_paiement_organismes(
     return _preview_paiement_organismes(company_id, period, employee_ids)
 
 
+@pdf_depuis_le_classeur("Paiement des organismes")
 def generate_paiement_organismes_export(
     company_id: str, period: str, employee_ids: Optional[List[str]], file_format: str,
 ) -> bytes:
@@ -622,6 +639,7 @@ def preview_prets_employeur(company_id: str, period: str) -> Dict[str, Any]:
     return _preview_prets_employeur(company_id, period)
 
 
+@pdf_depuis_le_classeur("Prêts employeur")
 def generate_prets_employeur_export(
     company_id: str, period: str, file_format: str,
 ) -> bytes:
@@ -634,6 +652,7 @@ def preview_attestations(
     return _preview_attestations(company_id, period, employee_ids)
 
 
+@pdf_depuis_le_classeur("Récapitulatif des salaires du mois")
 def generate_attestations_export(
     company_id: str, period: str, employee_ids: Optional[List[str]], file_format: str,
 ) -> bytes:

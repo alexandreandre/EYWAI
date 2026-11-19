@@ -14,7 +14,11 @@ from app.modules.exports.infrastructure.payslip_accounting_extract import (
     extract_cotisations_from_payslip,
     extract_pas_amount,
 )
-from app.shared.utils.export import format_period, generate_csv, generate_xlsx
+from app.modules.exports.infrastructure.journal_recapitulatif import (
+    EN_TETES as EN_TETES_RECAPITULATIF,
+    journal_recapitulatif,
+)
+from app.shared.utils.export import format_period, generate_csv, generate_xlsx_feuilles
 
 
 def get_journal_paie_data(
@@ -151,34 +155,61 @@ def get_journal_paie_data(
     return journal_data, totals
 
 
+def _bulletins_du_mois(
+    company_id: str, period: str, employee_ids: Optional[List[str]] = None
+) -> List[Dict[str, Any]]:
+    year, month = map(int, period.split("-"))
+    query = (
+        supabase.table("payslips")
+        .select("employee_id, payslip_data")
+        .eq("company_id", company_id)
+        .eq("year", year)
+        .eq("month", month)
+    )
+    if employee_ids:
+        query = query.in_("employee_id", employee_ids)
+    return [b for b in (query.execute().data or []) if isinstance(b.get("payslip_data"), dict)]
+
+
+EN_TETES_PAR_SALARIE = [
+    "Matricule",
+    "Nom",
+    "Prénom",
+    "Type de contrat",
+    "Statut",
+    "Établissement",
+    "Période",
+    "Brut",
+    "Charges salariales",
+    "Charges patronales",
+    "Net imposable",
+    "PAS",
+    "Net à payer",
+    "Devise",
+]
+
+
 def generate_journal_paie_export(
     company_id: str,
     period: str,
     employee_ids: Optional[List[str]] = None,
     format: str = "csv",
 ) -> bytes:
-    data, totals = get_journal_paie_data(company_id, period, employee_ids)
-
-    headers = [
-        "Matricule",
-        "Nom",
-        "Prénom",
-        "Type de contrat",
-        "Statut",
-        "Établissement",
-        "Période",
-        "Brut",
-        "Charges salariales",
-        "Charges patronales",
-        "Net imposable",
-        "PAS",
-        "Net à payer",
-        "Devise",
-    ]
-
+    """Le journal au format de Quadra (cumul par rubrique) ; l'Excel ajoute le
+    détail par salarié en seconde feuille (Elsa, 17/11)."""
+    par_salarie, totaux = get_journal_paie_data(company_id, period, employee_ids)
+    recapitulatif = journal_recapitulatif(
+        [b["payslip_data"] for b in _bulletins_du_mois(company_id, period, employee_ids)],
+        totaux["employees_count"],
+    )
     if format == "xlsx":
-        return generate_xlsx(data, headers, f"Journal de paie {format_period(period)}")
-    return generate_csv(data, headers)
+        return generate_xlsx_feuilles(
+            [
+                (format_period(period), EN_TETES_RECAPITULATIF, recapitulatif),
+                ("Par salarié", EN_TETES_PAR_SALARIE, par_salarie),
+            ]
+        )
+    return generate_csv(recapitulatif, EN_TETES_RECAPITULATIF)
 
 
 def preview_journal_paie(

@@ -100,7 +100,7 @@ export interface ExportGenerateRequest {
   company_id?: string;
   employee_ids?: string[];
   filters?: Record<string, any>;
-  format: "csv" | "xlsx" | "xml";
+  format: "csv" | "xlsx" | "xml" | "pdf";
   excluded_employee_ids?: string[]; // Pour exclure manuellement des collaborateurs
   execution_date?: string; // Date d'exécution souhaitée
   payment_label?: string; // Libellé de virement
@@ -110,7 +110,7 @@ export interface ExportFileInfo {
   filename: string;
   path: string;
   size: number;
-  format: "csv" | "xlsx" | "zip" | "xml" | "txt" | "dsn";
+  format: "csv" | "xlsx" | "zip" | "xml" | "txt" | "dsn" | "pdf";
 }
 
 export interface ExportReport {
