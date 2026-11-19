@@ -141,6 +141,8 @@ interface EditableDay {
   nature: DayNature;
   punch_entry_raw?: string | null;
   punch_exit_raw?: string | null;
+  heure_debut?: string | null;
+  heure_fin?: string | null;
   // Mois/année réels si différents du mois affiché (semaine à cheval sur 2 mois).
   year?: number | null;
   month?: number | null;
@@ -486,6 +488,8 @@ export function AssistedFillReview({
         nature: d.nature,
         punch_entry_raw: d.punch_entry_raw ?? null,
         punch_exit_raw: d.punch_exit_raw ?? null,
+        heure_debut: d.heure_debut ?? null,
+        heure_fin: d.heure_fin ?? null,
         year: d.year ?? null,
         month: d.month ?? null,
       })),
@@ -954,6 +958,9 @@ export function AssistedFillReview({
             heures: d.heures,
             type: d.type,
             nature: d.nature,
+            // L'heure de début et de fin du relevé (primes de prise de poste, 17/11).
+            heure_debut: d.type === 'travail' ? (d.heure_debut ?? null) : null,
+            heure_fin: d.type === 'travail' ? (d.heure_fin ?? null) : null,
             year: d.year ?? null,
             month: d.month ?? null,
           })),

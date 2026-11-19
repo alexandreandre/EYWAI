@@ -317,6 +317,8 @@ def _build_proposal_from_cegid(
                     heures=d.heures,
                     type="travail",
                     nature=default_nature,
+                    heure_debut=getattr(d, "debut", None),
+                    heure_fin=getattr(d, "fin", None),
                     year=d.year if (d.year, d.month) != (year, month) else None,
                     month=d.month if (d.year, d.month) != (year, month) else None,
                 )
@@ -368,6 +370,8 @@ def _build_single_employee_from_cegid(
             heures=d.heures,
             type="travail",
             nature=default_nature,
+            heure_debut=getattr(d, "debut", None),
+            heure_fin=getattr(d, "fin", None),
             year=d.year if (d.year, d.month) != (year, month) else None,
             month=d.month if (d.year, d.month) != (year, month) else None,
         )

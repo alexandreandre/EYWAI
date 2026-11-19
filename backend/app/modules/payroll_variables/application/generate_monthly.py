@@ -23,8 +23,13 @@ from app.modules.payroll_variables.domain.astreinte_weekend_majoration import (
     evaluate_astreinte_weekend_majoration,
 )
 from app.modules.payroll_variables.domain.hourly_rate import resolve_hourly_rate
+from app.modules.payroll_variables.domain.assiduite import (
+    evaluer_assiduite_des_semaines,
+    evaluer_assiduite_du_mois,
+)
+from app.modules.schedules.domain.horaires_pointes import minutes_dans_la_nuit
 from app.modules.payroll_variables.domain.jours_travailles import (
-    compter_jours_travailles,
+    detail_jours_travailles,
     index_calendrier,
 )
 from app.modules.payroll_variables.domain.rules import (
@@ -343,6 +348,25 @@ def _count_shift_type_occurrences(
     return _count_planning_shift_entries(employee_id, year, month, shift_type_codes)
 
 
+def heures_de_nuit_du_calendrier(
+    employee_id: str, debut: date, fin: date, conditions: dict[str, Any]
+) -> float:
+    """Heures de nuit des jours réels pointés de la fenêtre (amplitude du
+    poste dans la plage de nuit, 22 h-6 h par défaut)."""
+    _prevu, reel = _calendriers_de_la_fenetre(employee_id, debut, fin)
+    minutes = 0
+    for jour, entree in reel.items():
+        if not (debut <= jour <= fin) or not entree.get("debut") or not entree.get("fin"):
+            continue
+        minutes += minutes_dans_la_nuit(
+            entree.get("debut"),
+            entree.get("fin"),
+            conditions.get("nuit_de") or "22:00",
+            conditions.get("nuit_a") or "06:00",
+        )
+    return round(minutes / 60.0, 2)
+
+
 def _resolve_quantity(
     rule: dict[str, Any],
     employee_id: str,
@@ -372,7 +396,13 @@ def _resolve_quantity(
         live = aggregate_shift_payroll_metrics(
             employee_id, year, month, company_id=company_id, start=start, end=end
         )
-        return float(live.get("night_hours") or 0)
+        if float(live.get("night_hours") or 0) > 0:
+            return float(live.get("night_hours") or 0)
+        # Sans module Planning : heures de nuit lues sur l'heure de début et de
+        # fin des jours pointés (Cartol, 17/11).
+        return heures_de_nuit_du_calendrier(
+            employee_id, start, end, rule.get("conditions") or {}
+        )
     if rule_type == "per_shift_type":
         shift_codes = (rule.get("conditions") or {}).get("shift_type_codes")
         codes = [str(c) for c in shift_codes] if isinstance(shift_codes, list) else None
@@ -515,7 +545,7 @@ def generate_monthly_variables(
         .select(
             "id, first_name, last_name, statut, specificites_paie, "
             "salaire_de_base, duree_hebdomadaire, hire_date, contract_end_date, "
-            "date_debut_execution"
+            "date_debut_execution, is_forfait_jour, contract_type"
         )
         .eq("company_id", company_id)
         .in_("employment_status", ["actif", "active"])
@@ -710,6 +740,76 @@ def generate_monthly_variables(
                     )
                 continue
 
+            if rule_type == "per_week_without_absence" and conditions.get(
+                "periode_assiduite"
+            ) in ("mois", "semaine"):
+                # Prime d'assiduité lue au calendrier (17/11) : les absences des
+                # usines y sont, pas dans les demandes d'absence.
+                prevu, reel = _calendriers_de_la_fenetre(eid, debut_c, fin_c)
+                types = conditions.get("types_qui_font_perdre") or None
+                jours_demandes = _jours_absence(
+                    [
+                        a for a in absences_by_employee.get(eid, [])
+                        if str(a.get("type") or "").lower()
+                        in {str(t).lower() for t in (conditions.get("absence_types") or [])}
+                    ],
+                    debut_c,
+                    fin_c,
+                )
+                if conditions.get("periode_assiduite") == "mois":
+                    resultat = evaluer_assiduite_du_mois(
+                        prevu,
+                        reel,
+                        _jours_absence(absences_by_employee.get(eid, []), debut_c, fin_c),
+                        debut_c,
+                        fin_c,
+                        montant=float(rule.get("amount") or 0),
+                        duree_hebdomadaire=emp.get("duree_hebdomadaire"),
+                        proratiser_temps_partiel=conditions.get("proratiser_temps_partiel", True) is not False,
+                        types=types,
+                    )
+                else:
+                    resultat = evaluer_assiduite_des_semaines(
+                        prevu,
+                        reel,
+                        jours_demandes,
+                        debut_c,
+                        fin_c,
+                        montant_par_semaine=float(
+                            conditions.get("amount_per_week") or rule.get("amount") or 0
+                        ),
+                        types=types,
+                    )
+                if dry_run and resultat["amount"] <= 0:
+                    preview.append(
+                        {
+                            "employee_id": eid,
+                            "first_name": emp.get("first_name"),
+                            "last_name": emp.get("last_name"),
+                            "rule_code": rule.get("code"),
+                            "rule_label": rule.get("label"),
+                            "amount": 0.0,
+                            "quantity": 0.0,
+                            "details": resultat["details"],
+                        }
+                    )
+                    continue
+                written = _append_generated_input(
+                    preview=preview,
+                    written=written,
+                    dry_run=dry_run,
+                    rule=rule,
+                    emp=emp,
+                    eid=eid,
+                    year=year,
+                    month=month,
+                    amount=float(resultat["amount"]),
+                    quantity=float(resultat["quantity"]),
+                    name_suffix="",
+                    details=resultat["details"],
+                )
+                continue
+
             if rule_type == "per_week_without_absence":
                 emp_absences = absences_by_employee.get(eid, [])
                 shift_dates = list_locked_shift_dates_for_employee(
@@ -750,20 +850,47 @@ def generate_monthly_variables(
 
             if rule_type == "per_worked_day":
                 prevu, reel = _calendriers_de_la_fenetre(eid, debut_c, fin_c)
-                jours = compter_jours_travailles(
+                detail = detail_jours_travailles(
                     prevu,
                     reel,
                     _jours_absence(absences_by_employee.get(eid, []), debut_c, fin_c),
                     debut_c,
                     fin_c,
                     min_heures=conditions.get("min_heures"),
+                    plages_debut=conditions.get("plages_debut") or None,
                 )
-                amount = compute_rule_amount(
-                    rule_type,
-                    float(rule["amount"]) if rule.get("amount") is not None else None,
-                    None,
-                    float(jours),
-                )
+                jours = detail["jours"]
+                unitaire = float(rule["amount"]) if rule.get("amount") is not None else None
+                heures_par_jour = conditions.get("heures_par_jour")
+                if heures_par_jour:
+                    # Pause payée de N h par poste, au taux horaire de base
+                    # (Cartol, 17/11).
+                    unitaire = round(float(heures_par_jour) * resolve_hourly_rate(emp), 4)
+                amount = compute_rule_amount(rule_type, unitaire, None, float(jours))
+                infos: dict[str, Any] = {
+                    "jours_travailles": jours,
+                    "du": debut_c.isoformat(),
+                    "au": fin_c.isoformat(),
+                }
+                if conditions.get("plages_debut"):
+                    infos["jours_sans_heure_de_debut"] = detail["sans_heure_de_debut"]
+                if heures_par_jour:
+                    infos["heures_par_jour"] = float(heures_par_jour)
+                if dry_run and amount <= 0 and detail["sans_heure_de_debut"]:
+                    # Rien de calculé faute d'heure de début : le dire à la RH.
+                    preview.append(
+                        {
+                            "employee_id": eid,
+                            "first_name": emp.get("first_name"),
+                            "last_name": emp.get("last_name"),
+                            "rule_code": rule.get("code"),
+                            "rule_label": rule.get("label"),
+                            "amount": 0.0,
+                            "quantity": 0.0,
+                            "details": infos,
+                        }
+                    )
+                    continue
                 written = _append_generated_input(
                     preview=preview,
                     written=written,
@@ -776,15 +903,19 @@ def generate_monthly_variables(
                     amount=amount,
                     quantity=float(jours),
                     name_suffix="",
-                    details={"jours_travailles": jours, "du": debut_c.isoformat(), "au": fin_c.isoformat()},
+                    details=infos,
                 )
                 continue
 
             qty = _resolve_quantity(rule, eid, company_id, year, month, bornes=bornes)
+            taux = float(rule["rate"]) if rule.get("rate") is not None else None
+            if rule_type == "per_night_hour" and conditions.get("majoration_pct"):
+                # Heure de nuit majorée de X % du taux horaire (Cartol : 50 %).
+                taux = round(resolve_hourly_rate(emp) * float(conditions["majoration_pct"]) / 100, 4)
             amount = compute_rule_amount(
                 rule_type,
                 float(rule["amount"]) if rule.get("amount") is not None else None,
-                float(rule["rate"]) if rule.get("rate") is not None else None,
+                taux,
                 qty,
                 conditions=conditions,
             )

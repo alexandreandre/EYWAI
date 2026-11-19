@@ -252,6 +252,10 @@ export interface AiDayEntry {
   nature: DayNature;
   punch_entry_raw?: string | null;
   punch_exit_raw?: string | null;
+  /** Première entrée et dernière sortie lues sur un relevé PDF (« HH:MM ») :
+   * gardées au calendrier pour les primes liées à l'heure de prise de poste. */
+  heure_debut?: string | null;
+  heure_fin?: string | null;
   shift_code?: string | null;
   // Mois/année réels du jour si différents du (year, month) de la proposition
   // (semaine hebdomadaire à cheval sur deux mois). Absent = mois de la proposition.

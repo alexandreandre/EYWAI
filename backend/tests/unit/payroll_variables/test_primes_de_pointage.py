@@ -1,0 +1,313 @@
+"""Primes liées aux pointages des usines (retour d'Elsa du 17/11/2026).
+
+- Panier ou prime de présence seulement si le poste commence dans une plage
+  (Mont Blanc et LEWIS : 4 h ou 12 h) ;
+- pause payée de N h par poste au taux horaire (Cartol) ;
+- prime d'assiduité perdue par un arrêt ou une absence injustifiée relevés au
+  calendrier : au mois (Mont Blanc 50 €, 25 € à mi-temps), à la semaine
+  (LEWIS 6 €) ;
+- heures de nuit lues sur l'heure de début et de fin, majorées d'un % du taux
+  horaire (Cartol 50 %) ;
+- périmètre : hors forfait jours, cadres et alternants.
+"""
+
+from __future__ import annotations
+
+from datetime import date, timedelta
+from unittest.mock import MagicMock
+
+import pytest
+
+from app.modules.payroll_variables.application import generate_monthly as gm
+from app.modules.payroll_variables.domain.assiduite import (
+    evaluer_assiduite_des_semaines,
+    evaluer_assiduite_du_mois,
+    lundis_de_la_fenetre,
+    motif_de_perte,
+)
+from app.modules.payroll_variables.domain.jours_travailles import detail_jours_travailles
+from app.modules.payroll_variables.domain.rules import employee_matches_conditions
+
+pytestmark = pytest.mark.unit
+
+DEBUT, FIN = date(2026, 10, 1), date(2026, 10, 31)
+PLAGES_4H_12H = [{"de": "03:30", "a": "04:30"}, {"de": "11:30", "a": "12:30"}]
+
+
+def _ouvres(debut: date, fin: date):
+    j = debut
+    while j <= fin:
+        if j.weekday() < 5:
+            yield j
+        j += timedelta(days=1)
+
+
+def _calendrier(debuts: dict[date, str] | None = None, types: dict[date, str] | None = None, heures=7.0):
+    """Prévu « travail » 7 h les jours ouvrés ; réel pointé avec les débuts donnés."""
+    prevu, reel = {}, {}
+    for j in _ouvres(DEBUT, FIN):
+        prevu[j] = {"jour": j.day, "type": "travail", "heures_prevues": heures}
+        t = (types or {}).get(j)
+        if t:
+            prevu[j] = {"jour": j.day, "type": t, "heures_prevues": 0}
+            reel[j] = {"jour": j.day, "type": t, "heures_faites": 0}
+            continue
+        entree = {"jour": j.day, "type": "travail", "heures_faites": heures}
+        if debuts is not None and j in debuts:
+            entree["debut"] = debuts[j]
+            entree["fin"] = "12:00"
+        reel[j] = entree
+    return prevu, reel
+
+
+class TestJoursSelonLHeureDeDebut:
+    def test_seuls_les_postes_de_4_h_et_12_h_comptent(self):
+        jours = list(_ouvres(DEBUT, FIN))
+        debuts = {j: ("03:50" if i % 3 == 0 else "11:55" if i % 3 == 1 else "05:43") for i, j in enumerate(jours)}
+        prevu, reel = _calendrier(debuts)
+        d = detail_jours_travailles(prevu, reel, set(), DEBUT, FIN, plages_debut=PLAGES_4H_12H)
+        attendu = sum(1 for i in range(len(jours)) if i % 3 != 2)
+        assert d["jours"] == attendu
+        assert d["sans_heure_de_debut"] == 0
+
+    def test_un_jour_sans_heure_de_debut_ne_compte_pas_et_se_voit(self):
+        prevu, reel = _calendrier({})
+        d = detail_jours_travailles(prevu, reel, set(), DEBUT, FIN, plages_debut=PLAGES_4H_12H)
+        assert d["jours"] == 0
+        assert d["sans_heure_de_debut"] == len(list(_ouvres(DEBUT, FIN)))
+
+    def test_sans_plage_rien_ne_change(self):
+        prevu, reel = _calendrier({})
+        assert detail_jours_travailles(prevu, reel, set(), DEBUT, FIN)["jours"] == 22
+
+
+class TestAssiduite:
+    def test_un_arret_fait_perdre_la_prime_du_mois(self):
+        prevu, reel = _calendrier(types={date(2026, 10, 14): "arret_maladie"})
+        r = evaluer_assiduite_du_mois(prevu, reel, set(), DEBUT, FIN, montant=50)
+        assert r["amount"] == 0
+        assert r["details"]["perdue"] == [{"jour": "2026-10-14", "motif": "arret_maladie"}]
+
+    def test_conges_et_recup_ne_font_rien_perdre(self):
+        prevu, reel = _calendrier(
+            types={date(2026, 10, 14): "conges_payes", date(2026, 10, 15): "rtt", date(2026, 10, 16): "repos"}
+        )
+        assert evaluer_assiduite_du_mois(prevu, reel, set(), DEBUT, FIN, montant=50)["amount"] == 50
+
+    def test_une_journee_prevue_non_faite_fait_perdre(self):
+        prevu, reel = _calendrier()
+        reel[date(2026, 10, 20)] = {"jour": 20, "type": "travail", "heures_faites": 0}
+        r = evaluer_assiduite_du_mois(prevu, reel, set(), DEBUT, FIN, montant=50)
+        assert r["amount"] == 0
+        assert r["details"]["perdue"][0]["motif"] == "journee_non_faite"
+
+    def test_mi_temps_moitie(self):
+        prevu, reel = _calendrier(heures=3.5)
+        assert evaluer_assiduite_du_mois(prevu, reel, set(), DEBUT, FIN, montant=50, duree_hebdomadaire=17.5)["amount"] == 25
+
+    def test_rien_travaille_pas_de_prime(self):
+        prevu, reel = {}, {}
+        assert evaluer_assiduite_du_mois(prevu, reel, set(), DEBUT, FIN, montant=50)["amount"] == 0
+
+    def test_semaines_lewis(self):
+        prevu, reel = _calendrier(types={date(2026, 10, 14): "absent_a_typer"})
+        r = evaluer_assiduite_des_semaines(prevu, reel, set(), DEBUT, FIN, montant_par_semaine=6)
+        lundis = lundis_de_la_fenetre(DEBUT, FIN)
+        assert [l.isoformat() for l in lundis] == ["2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"]
+        # La semaine du 12/10 est perdue ; la semaine du 26/10 compte (travaillée du 26 au 30).
+        assert r["quantity"] == 3
+        assert r["amount"] == 18
+
+    def test_une_semaine_a_cheval_ne_se_paie_qu_une_fois(self):
+        # Le lundi 28/09 appartient à la fenêtre de septembre, pas à octobre.
+        assert date(2026, 9, 28) not in lundis_de_la_fenetre(DEBUT, FIN)
+        assert date(2026, 9, 28) in lundis_de_la_fenetre(date(2026, 9, 1), date(2026, 9, 30))
+
+    def test_types_choisis_par_la_regle(self):
+        assert motif_de_perte({"type": "absence_non_remuneree"}, None) is None
+        assert motif_de_perte({"type": "absence_non_remuneree"}, None, ["absence_non_remuneree"]) == "absence_non_remuneree"
+        assert motif_de_perte({"type": "arret_at"}, None, ["arret"]) == "arret_at"
+
+
+class TestPerimetre:
+    @pytest.mark.parametrize(
+        "fiche,attendu",
+        [
+            ({"id": "1", "statut": "Non-Cadre", "is_forfait_jour": False, "contract_type": "CDI"}, True),
+            ({"id": "2", "statut": "Non-Cadre", "is_forfait_jour": True, "contract_type": "CDI"}, False),
+            ({"id": "3", "statut": "Cadre", "is_forfait_jour": False, "contract_type": "CDI"}, False),
+            ({"id": "4", "statut": "Non-Cadre", "is_forfait_jour": False, "contract_type": "Apprentissage"}, False),
+            ({"id": "5", "statut": "Non-Cadre", "is_forfait_jour": False, "contract_type": "CDD"}, True),
+        ],
+    )
+    def test_hors_forfait_cadres_alternants(self, fiche, attendu):
+        conditions = {"exclure_forfait_jours": True, "exclure_cadres": True, "exclure_alternants": True}
+        assert employee_matches_conditions(fiche, conditions) is attendu
+
+
+# ---------------------------------------------------------------- génération
+
+
+def _brancher(monkeypatch, regle, fiche, prevu, reel):
+    monkeypatch.setattr(gm, "_bornes_variables", lambda cid, a, m: (DEBUT, FIN))
+    repo = MagicMock()
+    repo.list_rules.return_value = [{"enabled": True, "generation_mode": "auto", "code": "r", **regle}]
+    repo.list_special_days.return_value = []
+    monkeypatch.setattr(gm, "repo", repo)
+    chaine = MagicMock()
+    chaine.select.return_value = chaine
+    chaine.eq.return_value = chaine
+    chaine.in_.return_value = chaine
+    chaine.execute.return_value = MagicMock(data=[fiche])
+    sb = MagicMock()
+    sb.table.return_value = chaine
+    monkeypatch.setattr(gm, "supabase", sb)
+    monkeypatch.setattr(gm, "list_validated_absences_for_employees_in_range", lambda *a, **k: [])
+    monkeypatch.setattr(gm, "_calendriers_de_la_fenetre", lambda eid, d, f: (prevu, reel))
+    return repo
+
+
+FICHE = {
+    "id": "e1",
+    "first_name": "A",
+    "last_name": "B",
+    "statut": "Non-Cadre",
+    "is_forfait_jour": False,
+    "contract_type": "CDI",
+    "salaire_de_base": 1823.03,
+    "duree_hebdomadaire": 35,
+}
+
+
+class TestGeneration:
+    def test_panier_mont_blanc_aux_postes_de_4_h(self, monkeypatch):
+        jours = list(_ouvres(DEBUT, FIN))
+        debuts = {j: ("03:50" if j.day % 2 else "05:43") for j in jours}
+        prevu, reel = _calendrier(debuts)
+        _brancher(
+            monkeypatch,
+            {
+                "rule_type": "per_worked_day",
+                "label": "Panier",
+                "amount": 10,
+                "conditions": {"plages_debut": PLAGES_4H_12H, "situation_repas": "sur_lieu_travail"},
+            },
+            FICHE,
+            prevu,
+            reel,
+        )
+        res = gm.generate_monthly_variables("c", 2026, 10, dry_run=True)
+        n = sum(1 for j in jours if j.day % 2)
+        assert res["preview"][0]["quantity"] == n
+        assert res["preview"][0]["amount"] == 10 * n
+
+    def test_sans_heure_de_debut_l_apercu_le_dit(self, monkeypatch):
+        prevu, reel = _calendrier({})
+        _brancher(
+            monkeypatch,
+            {"rule_type": "per_worked_day", "label": "Panier", "amount": 10, "conditions": {"plages_debut": PLAGES_4H_12H}},
+            FICHE,
+            prevu,
+            reel,
+        )
+        res = gm.generate_monthly_variables("c", 2026, 10, dry_run=True)
+        assert res["preview"][0]["amount"] == 0
+        assert res["preview"][0]["details"]["jours_sans_heure_de_debut"] == 22
+
+    def test_pause_payee_cartol_au_taux_horaire(self, monkeypatch):
+        prevu, reel = _calendrier({j: "05:00" for j in _ouvres(DEBUT, FIN)})
+        _brancher(
+            monkeypatch,
+            {
+                "rule_type": "per_worked_day",
+                "label": "Pause payée",
+                "amount": None,
+                "conditions": {"plages_debut": [{"de": "04:30", "a": "05:30"}], "heures_par_jour": 0.5},
+            },
+            FICHE,
+            prevu,
+            reel,
+        )
+        res = gm.generate_monthly_variables("c", 2026, 10, dry_run=True)
+        taux = 1823.03 / (35 * 52 / 12)
+        assert res["preview"][0]["amount"] == pytest.approx(round(22 * round(0.5 * round(taux, 4), 4), 2))
+
+    def test_assiduite_mensuelle_perdue_par_un_arret(self, monkeypatch):
+        prevu, reel = _calendrier(types={date(2026, 10, 7): "arret_maladie"})
+        repo = _brancher(
+            monkeypatch,
+            {
+                "rule_type": "per_week_without_absence",
+                "label": "Prime d'assiduité",
+                "amount": 50,
+                "conditions": {"periode_assiduite": "mois"},
+            },
+            FICHE,
+            prevu,
+            reel,
+        )
+        res = gm.generate_monthly_variables("c", 2026, 10, dry_run=True)
+        assert res["preview"][0]["amount"] == 0
+        assert res["preview"][0]["details"]["perdue"][0]["motif"] == "arret_maladie"
+        repo.upsert_monthly_input.assert_not_called()
+
+    def test_assiduite_mensuelle_ecrite(self, monkeypatch):
+        prevu, reel = _calendrier()
+        repo = _brancher(
+            monkeypatch,
+            {
+                "rule_type": "per_week_without_absence",
+                "label": "Prime d'assiduité",
+                "amount": 50,
+                "conditions": {"periode_assiduite": "mois"},
+            },
+            FICHE,
+            prevu,
+            reel,
+        )
+        res = gm.generate_monthly_variables("c", 2026, 10)
+        assert res["written_count"] == 1
+        payload = repo.upsert_monthly_input.call_args[0][0]
+        assert payload["amount"] == 50 and payload["is_socially_taxed"] is True
+
+    def test_forfait_jours_exclu(self, monkeypatch):
+        prevu, reel = _calendrier()
+        _brancher(
+            monkeypatch,
+            {
+                "rule_type": "per_week_without_absence",
+                "label": "Prime d'assiduité",
+                "amount": 50,
+                "conditions": {"periode_assiduite": "mois", "exclure_forfait_jours": True},
+            },
+            {**FICHE, "is_forfait_jour": True},
+            prevu,
+            reel,
+        )
+        assert gm.generate_monthly_variables("c", 2026, 10, dry_run=True)["preview"] == []
+
+    def test_nuit_cartol_depuis_le_calendrier(self, monkeypatch):
+        prevu, reel = _calendrier()
+        for j in _ouvres(DEBUT, FIN):
+            reel[j] = {**reel[j], "debut": "05:00", "fin": "13:15"}
+        _brancher(
+            monkeypatch,
+            {
+                "rule_type": "per_night_hour",
+                "label": "Heures de nuit",
+                "amount": None,
+                "rate": None,
+                "conditions": {"majoration_pct": 50},
+            },
+            FICHE,
+            prevu,
+            reel,
+        )
+        monkeypatch.setattr(gm, "_shift_payroll_summary", lambda *a, **k: {})
+        import app.modules.planning.application.shift_payroll_aggregation as agg
+
+        monkeypatch.setattr(agg, "aggregate_shift_payroll_metrics", lambda *a, **k: {})
+        res = gm.generate_monthly_variables("c", 2026, 10, dry_run=True)
+        taux = round(round(1823.03 / (35 * 52 / 12), 4) * 0.5, 4)
+        assert res["preview"][0]["quantity"] == 22.0
+        assert res["preview"][0]["amount"] == pytest.approx(round(taux * 22, 2))

@@ -8,9 +8,9 @@ export const RULE_TYPE_LABELS: Record<string, string> = {
   per_astreinte_weekend_majoration: 'Majoration astreinte WE',
   per_shift_type: 'Par type de poste',
   per_modulation_payout: 'Prime liquidation modulation',
-  per_night_hour: 'Par heure de nuit',
+  per_night_hour: 'Par heure de nuit (pointages ou planning)',
   per_astreinte_weekend_km: 'Indemnité km astreinte',
-  per_week_without_absence: 'Par semaine sans absence',
+  per_week_without_absence: 'Prime d’assiduité (semaine ou mois sans absence)',
   // Le moteur ne verse l'indemnité de la fiche que par cette règle : sans elle
   // dans la liste, impossible de la créer à l'écran ([B6], 12/10/2026).
   transport_domicile_travail: 'Indemnité de trajet domicile-travail',

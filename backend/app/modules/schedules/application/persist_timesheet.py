@@ -6,6 +6,7 @@ import calendar as cal_mod
 from typing import List
 
 from app.modules.schedules.domain.absent_a_typer import TYPE_ABSENT_A_TYPER
+from app.modules.schedules.domain.horaires_pointes import horaires_de_l_entree
 from app.modules.schedules.domain.rules import coerce_jour, merge_planned_entries
 from app.modules.schedules.schemas.ai import DayNature
 from app.modules.schedules.schemas.persist import (
@@ -97,6 +98,9 @@ def _merge_days(
             "jour": jour,
             "type": day.type,
             "heures_faites": day.heures,
+            # Première entrée et dernière sortie du relevé, si lues : les
+            # primes liées à l'heure de prise de poste en ont besoin.
+            **horaires_de_l_entree(day.model_dump()),
         }
     return [by_jour[jour] for jour in sorted(by_jour)]
 

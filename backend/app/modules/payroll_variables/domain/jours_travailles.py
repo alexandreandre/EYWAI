@@ -10,6 +10,12 @@ Un jour compte quand le salarié y a travaillé :
   couvert par une absence validée (c'est le jour que la paie paie au prévu).
 Un seuil d'heures facultatif écarte les jours trop courts (panier dû à partir
 de N heures, par exemple).
+
+Des plages d'heure de début facultatives ne gardent que les postes commencés
+dans l'une d'elles (retour d'Elsa du 17/11 : « panier si le poste commence à
+4 h ou 12 h »). L'heure de début est celle du relevé importé (`debut` du jour
+réel, voir `schedules.domain.horaires_pointes`) ; un jour travaillé sans heure
+de début ne compte pas et il est compté à part, pour le dire à la RH.
 """
 
 from __future__ import annotations
@@ -17,6 +23,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from datetime import date, timedelta
 from typing import Any
+
+from app.modules.schedules.domain.horaires_pointes import debut_dans_les_plages
 
 TYPES_TRAVAIL = {"travail", "travaille", "work"}
 
@@ -46,6 +54,53 @@ def index_calendrier(
     return index
 
 
+def heures_du_jour(
+    p: Mapping[str, Any] | None, r: Mapping[str, Any] | None, absent: bool
+) -> float:
+    """Heures travaillées d'un jour : le réel saisi, sinon le prévu « travail »
+    hors absence validée (le jour que la paie paie au prévu)."""
+    faites = _heures((r or {}).get("heures_faites"))
+    if faites is not None:
+        return faites
+    p = p or {}
+    if str(p.get("type") or "").lower() in TYPES_TRAVAIL and not absent:
+        return _heures(p.get("heures_prevues")) or 0.0
+    return 0.0
+
+
+def detail_jours_travailles(
+    prevu: Mapping[date, Mapping[str, Any]],
+    reel: Mapping[date, Mapping[str, Any]],
+    jours_absence: set[date],
+    debut: date,
+    fin: date,
+    min_heures: float | None = None,
+    plages_debut: Iterable[Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """`{jours, sans_heure_de_debut, dates}` : les jours qui comptent, et, si
+    des plages de début sont demandées, les jours travaillés sans heure lue."""
+    seuil = float(min_heures) if min_heures else 0.0
+    plages = [p for p in (plages_debut or []) if isinstance(p, Mapping)]
+    n = 0
+    sans_debut = 0
+    dates: list[str] = []
+    jour = debut
+    while jour <= fin:
+        r = reel.get(jour) or {}
+        heures = heures_du_jour(prevu.get(jour), r, jour in jours_absence)
+        if heures > 0 and heures >= seuil:
+            if not plages:
+                n += 1
+                dates.append(jour.isoformat())
+            elif not r.get("debut"):
+                sans_debut += 1
+            elif debut_dans_les_plages(r.get("debut"), plages):
+                n += 1
+                dates.append(jour.isoformat())
+        jour += timedelta(days=1)
+    return {"jours": n, "sans_heure_de_debut": sans_debut, "dates": dates}
+
+
 def compter_jours_travailles(
     prevu: Mapping[date, Mapping[str, Any]],
     reel: Mapping[date, Mapping[str, Any]],
@@ -53,22 +108,8 @@ def compter_jours_travailles(
     debut: date,
     fin: date,
     min_heures: float | None = None,
+    plages_debut: Iterable[Mapping[str, Any]] | None = None,
 ) -> int:
-    seuil = float(min_heures) if min_heures else 0.0
-    n = 0
-    jour = debut
-    while jour <= fin:
-        r = reel.get(jour) or {}
-        faites = _heures(r.get("heures_faites"))
-        if faites is not None:
-            heures = faites
-        else:
-            p = prevu.get(jour) or {}
-            type_prevu = str(p.get("type") or "").lower()
-            heures = 0.0
-            if type_prevu in TYPES_TRAVAIL and jour not in jours_absence:
-                heures = _heures(p.get("heures_prevues")) or 0.0
-        if heures > 0 and heures >= seuil:
-            n += 1
-        jour += timedelta(days=1)
-    return n
+    return detail_jours_travailles(
+        prevu, reel, jours_absence, debut, fin, min_heures, plages_debut
+    )["jours"]

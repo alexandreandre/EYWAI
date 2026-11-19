@@ -47,6 +47,10 @@ class CegidDayEntry:
     month: int
     year: int
     heures: float
+    # Premier et dernier badgeage du jour (« HH:MM »), si lisibles : pour les
+    # primes liées à l'heure de prise de poste (17/11).
+    debut: Optional[str] = None
+    fin: Optional[str] = None
 
 
 @dataclass
@@ -174,6 +178,40 @@ def _extract_day_hours(block: str, seg_start: int, seg_end: int) -> Optional[flo
         if _is_plausible_daily_hours(hours):
             return hours
     return None
+
+
+def _debut_fin_du_jour(block: str, seg_start: int, seg_end: int) -> tuple[Optional[str], Optional[str]]:
+    """Premier et dernier badgeage du jour, sans son total.
+
+    La ligne du jour finit par son total (« Lundi 5:43 9:01 … 14:00 7:34 »),
+    ou le total suit un « # » (« # 7:34 »). Un nombre impair de badgeages
+    (entrée sans sortie) laisse la fin inconnue.
+    """
+    ctx = _segment_for_day(block, seg_start, seg_end)
+    marque = _DAY_MARKER_RE.search(ctx)
+    if marque:
+        avant = ctx[: marque.start()]
+        lignes = [l for l in avant.splitlines() if _PUNCH_RE.search(l)]
+        badges = [b for l in lignes for b in _PUNCH_RE.findall(l)]
+    else:
+        ligne = next(
+            (l for l in ctx.splitlines() if _WEEKDAY_LINE_RE.match(l.strip()) and _PUNCH_RE.search(l)),
+            None,
+        )
+        if ligne is None:
+            return None, None
+        heures = _PUNCH_RE.findall(ligne)
+        badges = heures[:-1]  # le dernier est le total du jour
+    if not badges:
+        return None, None
+
+    def _hhmm(t: str) -> str:
+        h, m = t.split(":")
+        return f"{int(h):02d}:{m}"
+
+    debut = _hhmm(badges[0])
+    fin = _hhmm(badges[-1]) if len(badges) >= 2 and len(badges) % 2 == 0 else None
+    return debut, fin
 
 
 def _expected_workdays_in_period(
@@ -442,7 +480,8 @@ def _parse_block(
         if hours is None:
             continue
         seen.add(key)
-        entry = CegidDayEntry(jour=d, month=mo, year=y, heures=hours)
+        debut, fin = _debut_fin_du_jour(block, seg_start, seg_end)
+        entry = CegidDayEntry(jour=d, month=mo, year=y, heures=hours, debut=debut, fin=fin)
         week_days.append(entry)
         if day_date.weekday() < 5:
             parsed_in_period += 1

@@ -21,6 +21,9 @@ export interface JourRevu {
   nature: DayNature;
   year?: number | null;
   month?: number | null;
+  /** Heure de début et de fin lues sur le relevé (primes de prise de poste). */
+  heure_debut?: string | null;
+  heure_fin?: string | null;
   /** Jour non lu ajouté par la case : décoché, il disparaît (rien n'est écrit). */
   ajoutParCase?: boolean;
 }

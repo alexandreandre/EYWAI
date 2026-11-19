@@ -14,6 +14,10 @@ export type PayrollVariableRuleType =
   | 'transport_domicile_travail';
 
 export interface PresenceWeekRuleConditions {
+  /** Lue au calendrier (17/11) : « semaine » ou « mois ». Absente : ancienne règle. */
+  periode_assiduite?: 'semaine' | 'mois';
+  types_qui_font_perdre?: string[];
+  proratiser_temps_partiel?: boolean;
   amount_per_week?: number;
   absence_types?: string[];
   workflow_steps?: string[];
@@ -63,6 +67,13 @@ export interface AstreinteWeekendMajorationConditions {
 }
 
 export interface PayrollVariablePreviewDetails {
+  /** Primes de pointage (17/11) : jours travaillés sans heure de début lue. */
+  jours_sans_heure_de_debut?: number;
+  jours_travailles?: number;
+  heures_par_jour?: number;
+  /** Assiduité : jours qui ont fait perdre la prime, ou la raison. */
+  perdue?: { jour: string; motif: string }[] | string;
+  prorata_temps_partiel?: number;
   eligible?: boolean;
   skip_reason?: string;
   distance_km_one_way?: number;

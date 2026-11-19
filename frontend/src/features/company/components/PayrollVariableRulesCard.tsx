@@ -20,6 +20,13 @@ import {
   type PresenceWeekRuleConditions,
 } from '@/api/payrollVariables';
 import { ABSENCE_TYPE_LABELS } from '@/lib/employeeAbsencesUtils';
+import {
+  HeuresParJour,
+  PerimetrePointage,
+  PlagesDebut,
+  ReglageAssiduite,
+  ReglageNuit,
+} from './ConditionsPointage';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -124,6 +131,15 @@ function formatPreviewDetail(item: PayrollVariablePreviewItem): string {
     return SKIP_REASON_LABELS[d.skip_reason] ?? d.skip_reason;
   }
   const parts: string[] = [];
+  if (Array.isArray(d.perdue) && d.perdue.length) {
+    parts.push(`prime perdue : ${d.perdue.map((p) => `${p.jour.slice(8, 10)}/${p.jour.slice(5, 7)} ${p.motif.replace(/_/g, ' ')}`).join(', ')}`);
+  } else if (typeof d.perdue === 'string') {
+    parts.push(`prime perdue : ${d.perdue}`);
+  }
+  if (d.jours_sans_heure_de_debut) {
+    parts.push(`${d.jours_sans_heure_de_debut} jour(s) travaillé(s) sans heure de début : réimporter le relevé de pointage`);
+  }
+  if (d.prorata_temps_partiel != null) parts.push(`temps partiel ${Math.round(d.prorata_temps_partiel * 100)} %`);
   if (d.km_eligible != null) parts.push(`${d.km_eligible} km`);
   if (d.rate != null) parts.push(`${d.rate} €/km`);
   return parts.join(' · ');
@@ -274,7 +290,7 @@ export default function PayrollVariableRulesCard() {
 
   const createRule = useMutation({
     mutationFn: () => {
-      if (isPresenceWeek && selectedAbsenceTypes.length === 0) {
+      if (isPresenceWeek && !presenceConditions.periode_assiduite && selectedAbsenceTypes.length === 0) {
         throw new Error('Cochez au moins un type d\'absence disqualifiant.');
       }
       let conditions = draft.conditions || {};
@@ -572,7 +588,7 @@ export default function PayrollVariableRulesCard() {
                     conditions = communes;
                     amount = null;
                   } else if (rt === 'per_week_without_absence') {
-                    conditions = { ...communes, absence_types: [], amount_per_week: 6 };
+                    conditions = { ...communes, periode_assiduite: 'semaine', absence_types: [], amount_per_week: 6 };
                     generation_mode = 'auto';
                     amount = 6;
                   }
@@ -621,8 +637,12 @@ export default function PayrollVariableRulesCard() {
                   : noAmountRule
                   ? 'Montant (calculé auto)'
                   : isPresenceWeek
-                    ? 'Montant hebdomadaire (€)'
-                    : 'Montant unitaire (€)'}
+                    ? presenceConditions.periode_assiduite === 'mois'
+                      ? 'Montant mensuel à temps plein (€)'
+                      : 'Montant hebdomadaire (€)'
+                    : draft.rule_type === 'per_night_hour'
+                      ? 'Montant par heure de nuit (€)'
+                      : 'Montant unitaire (€)'}
               </Label>
               <Input
                 type="number"
@@ -724,11 +744,26 @@ export default function PayrollVariableRulesCard() {
               </div>
             )}
 
+            {isPresenceWeek && presenceConditions.periode_assiduite && (
+              <div className="sm:col-span-2">
+                <ReglageAssiduite
+                  conditions={draft.conditions ?? {}}
+                  onChange={(conditions) => setDraft({ ...draft, conditions })}
+                />
+              </div>
+            )}
+
             {isPresenceWeek && (
               <div className="space-y-3 sm:col-span-2">
-                <Label>Types d&apos;absence qui annulent la prime (semaine ISO)</Label>
+                <Label>
+                  {presenceConditions.periode_assiduite
+                    ? 'Demandes d’absence qui font aussi perdre la prime (facultatif)'
+                    : 'Types d’absence qui annulent la prime (semaine ISO)'}
+                </Label>
                 <p className="text-xs text-muted-foreground">
-                  Cochez explicitement les absences à surveiller — aucune sélection = règle inactive.
+                  {presenceConditions.periode_assiduite
+                    ? 'Le calendrier suffit ; cochez ici les demandes d’absence à surveiller en plus.'
+                    : 'Cochez explicitement les absences à surveiller — aucune sélection = règle inactive.'}
                 </p>
                 <div className="flex flex-wrap gap-3">
                   {Object.entries(ABSENCE_TYPE_LABELS).map(([key, label]) => (
@@ -995,6 +1030,32 @@ export default function PayrollVariableRulesCard() {
                       },
                     })
                   }
+                />
+                <PlagesDebut
+                  conditions={draft.conditions ?? {}}
+                  onChange={(conditions) => setDraft({ ...draft, conditions })}
+                />
+                <HeuresParJour
+                  conditions={draft.conditions ?? {}}
+                  onChange={(conditions) => setDraft({ ...draft, conditions })}
+                />
+              </div>
+            )}
+
+            {draft.rule_type === 'per_night_hour' && (
+              <div className="sm:col-span-2">
+                <ReglageNuit
+                  conditions={draft.conditions ?? {}}
+                  onChange={(conditions) => setDraft({ ...draft, conditions })}
+                />
+              </div>
+            )}
+
+            {['per_worked_day', 'per_week_without_absence', 'per_night_hour'].includes(draft.rule_type ?? '') && (
+              <div className="sm:col-span-2">
+                <PerimetrePointage
+                  conditions={draft.conditions ?? {}}
+                  onChange={(conditions) => setDraft({ ...draft, conditions })}
                 />
               </div>
             )}

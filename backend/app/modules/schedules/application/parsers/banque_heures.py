@@ -62,6 +62,24 @@ def _extract_daily_hours(rest: str) -> Optional[float]:
     return None
 
 
+def _debut_fin(rest: str) -> tuple[Optional[str], Optional[str]]:
+    """Première entrée et dernière sortie des créneaux E1 S1 … E4 S4.
+
+    Les créneaux précèdent le total décimal ; « __:__ » est un créneau vide.
+    Une entrée sans sa sortie laisse la fin inconnue.
+    """
+    creneaux: list[str | None] = []
+    for token in rest.split():
+        if not _TIME_TOKEN.match(token):
+            break
+        creneaux.append(token if token[0].isdigit() else None)
+    entrees = [t for i, t in enumerate(creneaux) if i % 2 == 0 and t]
+    sorties = [t for i, t in enumerate(creneaux) if i % 2 == 1 and t]
+    debut = entrees[0] if entrees else None
+    fin = sorties[-1] if sorties and len(sorties) == len(entrees) else None
+    return debut, fin
+
+
 def _split_employee_blocks(text: str) -> List[tuple[str, str, str]]:
     """Retourne [(matricule, raw_name, block_text), …]."""
     headers = list(_EMPLOYEE_HEADER.finditer(text))
@@ -115,12 +133,15 @@ def try_parse_banque_heures(
             if key in seen:
                 continue
             seen.add(key)
+            debut, fin = _debut_fin(rest)
             days.append(
                 CegidDayEntry(
                     jour=day_date.day,
                     month=day_date.month,
                     year=day_date.year,
                     heures=hours,
+                    debut=debut,
+                    fin=fin,
                 )
             )
 

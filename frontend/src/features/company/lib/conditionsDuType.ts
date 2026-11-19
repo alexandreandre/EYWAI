@@ -33,9 +33,18 @@ const CONDITIONS_PROPRES: Record<string, readonly string[]> = {
     'requires_astreinte_same_iso_week',
     'weekend_weekday_numbers',
   ],
-  per_week_without_absence: ['absence_types', 'amount_per_week', 'min_locked_shifts_per_week', 'workflow_steps'],
+  per_week_without_absence: [
+    'absence_types',
+    'amount_per_week',
+    'min_locked_shifts_per_week',
+    'workflow_steps',
+    'periode_assiduite',
+    'types_qui_font_perdre',
+    'proratiser_temps_partiel',
+  ],
   per_shift_type: ['shift_type_codes'],
-  per_worked_day: ['min_heures'],
+  per_worked_day: ['min_heures', 'plages_debut', 'heures_par_jour'],
+  per_night_hour: ['nuit_de', 'nuit_a', 'majoration_pct'],
   per_modulation_payout: ['min_balance_hours'],
 };
 

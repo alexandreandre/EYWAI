@@ -80,6 +80,13 @@ class AiDayEntry(BaseModel):
     nature: DayNature = "reel"
     punch_entry_raw: Optional[str] = None
     punch_exit_raw: Optional[str] = None
+    # Première entrée et dernière sortie lues sur un relevé PDF (Cegid, banque
+    # d'heures), « HH:MM ». Information seulement : contrairement aux badges
+    # ci-dessus, elles ne relancent pas la comptabilisation des heures. Gardées
+    # au calendrier réel (`debut`/`fin`) pour les primes liées à l'heure de
+    # prise de poste (17/11).
+    heure_debut: Optional[str] = None
+    heure_fin: Optional[str] = None
     shift_code: Optional[str] = None
     # Pause vue entre les paires de badges (relevé à trois paires) : plafonne
     # la pause du créneau (une demi-journée sans déjeuner ne perd pas 45 min).

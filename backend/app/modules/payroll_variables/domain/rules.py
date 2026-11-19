@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+from app.shared.domain.employment_rules import est_au_forfait_jours, is_cadre
+
 RuleType = Literal[
     "fixed_monthly",
     "per_astreinte_week",
@@ -48,6 +50,12 @@ def compute_rule_amount(
     return 0.0
 
 
+def _est_alternant(employee: dict[str, Any]) -> bool:
+    """Contrat d'apprentissage ou de professionnalisation."""
+    contrat = str(employee.get("contract_type") or "").lower()
+    return "apprentissage" in contrat or "professionnalisation" in contrat or "alternan" in contrat
+
+
 def employee_matches_conditions(
     employee: dict[str, Any],
     conditions: dict[str, Any] | None,
@@ -70,6 +78,15 @@ def employee_matches_conditions(
         emp_statut = (employee.get("statut") or "").lower()
         if any(s.lower() in emp_statut for s in exclude_statuts):
             return False
+    # Périmètre des primes de pointage (17/11 : « que la population qui
+    # pointe, hors forfait jours, cadres et alternants »). La fiche doit être
+    # lue avec `is_forfait_jour` et `contract_type`.
+    if conditions.get("exclure_forfait_jours") and est_au_forfait_jours(employee):
+        return False
+    if conditions.get("exclure_cadres") and is_cadre(employee.get("statut")):
+        return False
+    if conditions.get("exclure_alternants") and _est_alternant(employee):
+        return False
     min_productivity = conditions.get("min_productivity_amount")
     if min_productivity is not None:
         pass
@@ -115,10 +132,19 @@ CONDITIONS_PROPRES: dict[str, frozenset[str]] = {
         }
     ),
     "per_week_without_absence": frozenset(
-        {"absence_types", "amount_per_week", "min_locked_shifts_per_week", "workflow_steps"}
+        {
+            "absence_types",
+            "amount_per_week",
+            "min_locked_shifts_per_week",
+            "workflow_steps",
+            "periode_assiduite",
+            "types_qui_font_perdre",
+            "proratiser_temps_partiel",
+        }
     ),
     "per_shift_type": frozenset({"shift_type_codes"}),
-    "per_worked_day": frozenset({"min_heures"}),
+    "per_worked_day": frozenset({"min_heures", "plages_debut", "heures_par_jour"}),
+    "per_night_hour": frozenset({"nuit_de", "nuit_a", "majoration_pct"}),
     "per_modulation_payout": frozenset({"min_balance_hours"}),
 }
 

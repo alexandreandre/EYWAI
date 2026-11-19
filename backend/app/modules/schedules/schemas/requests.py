@@ -85,6 +85,11 @@ class ActualHoursEntry(BaseModel):
     jour: int
     heures_faites: float | None = None
     type: str | None = None
+    # Heure de début et de fin pointées (« HH:MM »), venues d'un import : voir
+    # `domain.horaires_pointes`. L'écran ne les renvoie pas ; le serveur les
+    # garde quand le jour n'a pas changé.
+    debut: str | None = None
+    fin: str | None = None
 
 
 class ActualHoursRequest(BaseModel):

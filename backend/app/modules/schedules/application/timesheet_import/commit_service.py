@@ -847,6 +847,8 @@ def _revues_des_jours_ecrits(
 _NOTES_DU_SERVEUR = (
     "punch_entry_raw",
     "punch_exit_raw",
+    "heure_debut",
+    "heure_fin",
     "shift_code",
     "punch_break_minutes",
     "planned_paid_break_minutes",
@@ -854,7 +856,13 @@ _NOTES_DU_SERVEUR = (
     "motif_heures_en_plus",
     "creneau_applique_id",
 )
-_NOTES_DU_JOUR_TRAVAILLE = ("heures_en_plus_a_valider", "motif_heures_en_plus", "creneau_applique_id")
+_NOTES_DU_JOUR_TRAVAILLE = (
+    "heures_en_plus_a_valider",
+    "motif_heures_en_plus",
+    "creneau_applique_id",
+    "heure_debut",
+    "heure_fin",
+)
 
 
 def _avec_notes_du_serveur(relu: Dict[str, Any], du_lot: List[Dict[str, Any]]) -> Dict[str, Any]:

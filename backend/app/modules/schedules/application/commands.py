@@ -22,6 +22,7 @@ from app.modules.schedules.application.service import (
     normalize_planned_calendar_for_employee,
 )
 from app.modules.schedules.domain import rules as domain_rules
+from app.modules.schedules.domain.horaires_pointes import garder_les_horaires
 from app.modules.schedules.domain.exceptions import ScheduleNotFoundError
 from app.modules.schedules.infrastructure.mappers import (
     extract_calendrier_prevu_from_planned_calendar,
@@ -256,7 +257,18 @@ def update_actual_hours(employee_id: str, payload: Any) -> Dict[str, str]:
         log_app_debug(logger, f'Company ID récupéré: {company_id}')
         log_app_debug(logger, f'Statut employé: {employee_statut}')
 
-        calendrier_reel_raw = [entry.model_dump() for entry in payload.calendrier_reel]
+        calendrier_reel_raw = [
+            {k: v for k, v in entry.model_dump().items() if k not in ("debut", "fin") or v}
+            for entry in payload.calendrier_reel
+        ]
+        # L'écran renvoie les jours sans l'heure de début et de fin pointées :
+        # elles restent tant que le jour n'a pas changé (primes liées à la
+        # prise de poste, 17/11).
+        reel_stocke = (
+            schedule_repository.get_actual_hours(employee_id, payload.year, payload.month)
+            or {}
+        ).get("calendrier_reel") or []
+        calendrier_reel_raw = garder_les_horaires(calendrier_reel_raw, reel_stocke)
         calendrier_reel_normalized = normalize_actual_hours_for_employee(
             calendrier_reel_raw, employee_statut
         )

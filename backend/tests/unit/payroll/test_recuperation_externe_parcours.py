@@ -60,6 +60,8 @@ def _enregistrer(monkeypatch, prevu, reel):
     monkeypatch.setattr(commands, "get_employee_company_and_statut", lambda _id: ("soc-test", "Non-Cadre"))
     monkeypatch.setattr(commands.queries, "get_planned_calendar", lambda *_a: deepcopy(stocke["planned_calendar"]))
     monkeypatch.setattr(commands.schedule_repository, "get_planned_calendar", lambda *_a: deepcopy(stocke["planned_calendar"]))
+    # L'enregistrement du réel relit le réel stocké (heures de début gardées, 17/11).
+    monkeypatch.setattr(commands.schedule_repository, "get_actual_hours", lambda *_a: deepcopy(stocke.get("actual_hours")))
 
     def sauvegarder(*_a, **colonnes):
         stocke.update(deepcopy(colonnes))
