@@ -396,10 +396,12 @@ def _resolve_quantity(
         live = aggregate_shift_payroll_metrics(
             employee_id, year, month, company_id=company_id, start=start, end=end
         )
-        if float(live.get("night_hours") or 0) > 0:
+        if float(live.get("night_hours") or 0) > 0 or not (rule.get("conditions") or {}).get(
+            "depuis_les_pointages"
+        ):
             return float(live.get("night_hours") or 0)
-        # Sans module Planning : heures de nuit lues sur l'heure de début et de
-        # fin des jours pointés (Cartol, 17/11).
+        # Règle réglée « depuis les pointages » (Cartol, 17/11) : sans planning,
+        # heures de nuit lues sur l'heure de début et de fin des jours pointés.
         return heures_de_nuit_du_calendrier(
             employee_id, start, end, rule.get("conditions") or {}
         )
@@ -484,8 +486,16 @@ def _append_generated_input(
     quantity: float,
     name_suffix: str,
     details: dict[str, Any] | None = None,
+    retirer_si_zero: bool = False,
 ) -> int:
     if amount <= 0:
+        if retirer_si_zero and not dry_run and rule.get("generation_mode") == "auto":
+            # La règle retombe à 0 (prime perdue, aucun poste retenu) : la
+            # saisie écrite par une génération précédente ne doit pas rester.
+            label = _bonus_type_meta(rule)[0]
+            repo.retirer_saisie_generee(
+                eid, year, month, f"{label} — {name_suffix}" if name_suffix else label
+            )
         return written
     label, social, taxable, catalog_id, export_code, situation_repas = _bonus_type_meta(rule)
     input_name = f"{label} — {name_suffix}" if name_suffix else label
@@ -558,8 +568,10 @@ def generate_monthly_variables(
     written = 0
     start, end = _bornes_variables(company_id, year, month)
     employee_ids = [str(e["id"]) for e in employees]
+    # Six jours de plus avant : la semaine d'assiduité payée ce mois-ci peut
+    # commencer le mois d'avant. Chaque règle borne ensuite ses jours.
     all_absences = list_validated_absences_for_employees_in_range(
-        employee_ids, start, end
+        employee_ids, start - timedelta(days=6), end
     )
     absences_by_employee: dict[str, list[dict[str, Any]]] = {}
     for row in all_absences:
@@ -745,40 +757,46 @@ def generate_monthly_variables(
             ) in ("mois", "semaine"):
                 # Prime d'assiduité lue au calendrier (17/11) : les absences des
                 # usines y sont, pas dans les demandes d'absence.
-                prevu, reel = _calendriers_de_la_fenetre(eid, debut_c, fin_c)
+                hebdo = conditions.get("periode_assiduite") == "semaine"
+                # La semaine se paie dans le mois de son dimanche : son lundi
+                # peut tomber la fenêtre d'avant, il faut la voir en entier.
+                lecture_du = debut_c - timedelta(days=6) if hebdo else debut_c
+                prevu, reel = _calendriers_de_la_fenetre(eid, lecture_du, fin_c)
                 types = conditions.get("types_qui_font_perdre") or None
+                absences_emp = absences_by_employee.get(eid, [])
+                types_demandes = {str(t).lower() for t in (conditions.get("absence_types") or [])}
                 jours_demandes = _jours_absence(
-                    [
-                        a for a in absences_by_employee.get(eid, [])
-                        if str(a.get("type") or "").lower()
-                        in {str(t).lower() for t in (conditions.get("absence_types") or [])}
-                    ],
-                    debut_c,
+                    [a for a in absences_emp if str(a.get("type") or "").lower() in types_demandes],
+                    lecture_du,
                     fin_c,
                 )
-                if conditions.get("periode_assiduite") == "mois":
+                jours_valides = _jours_absence(absences_emp, lecture_du, fin_c)
+                if not hebdo:
                     resultat = evaluer_assiduite_du_mois(
                         prevu,
                         reel,
-                        _jours_absence(absences_by_employee.get(eid, []), debut_c, fin_c),
+                        jours_valides,
                         debut_c,
                         fin_c,
                         montant=float(rule.get("amount") or 0),
                         duree_hebdomadaire=emp.get("duree_hebdomadaire"),
                         proratiser_temps_partiel=conditions.get("proratiser_temps_partiel", True) is not False,
                         types=types,
+                        jours_demandes_qui_font_perdre=jours_demandes,
                     )
                 else:
                     resultat = evaluer_assiduite_des_semaines(
                         prevu,
                         reel,
-                        jours_demandes,
+                        jours_valides,
                         debut_c,
                         fin_c,
                         montant_par_semaine=float(
                             conditions.get("amount_per_week") or rule.get("amount") or 0
                         ),
                         types=types,
+                        jours_demandes_qui_font_perdre=jours_demandes,
+                        debut_contrat=debut_c if debut_c > start else None,
                     )
                 if dry_run and resultat["amount"] <= 0:
                     preview.append(
@@ -807,6 +825,7 @@ def generate_monthly_variables(
                     quantity=float(resultat["quantity"]),
                     name_suffix="",
                     details=resultat["details"],
+                    retirer_si_zero=True,
                 )
                 continue
 
@@ -876,7 +895,9 @@ def generate_monthly_variables(
                     infos["jours_sans_heure_de_debut"] = detail["sans_heure_de_debut"]
                 if heures_par_jour:
                     infos["heures_par_jour"] = float(heures_par_jour)
-                if dry_run and amount <= 0 and detail["sans_heure_de_debut"]:
+                    if not unitaire:
+                        infos["skip_reason"] = "taux_horaire_inconnu"
+                if dry_run and amount <= 0 and (detail["sans_heure_de_debut"] or infos.get("skip_reason")):
                     # Rien de calculé faute d'heure de début : le dire à la RH.
                     preview.append(
                         {
@@ -904,6 +925,7 @@ def generate_monthly_variables(
                     quantity=float(jours),
                     name_suffix="",
                     details=infos,
+                    retirer_si_zero=bool(conditions.get("plages_debut") or heures_par_jour),
                 )
                 continue
 
@@ -919,7 +941,10 @@ def generate_monthly_variables(
                 qty,
                 conditions=conditions,
             )
-            if amount <= 0:
+            depuis_les_pointages = rule_type == "per_night_hour" and bool(
+                conditions.get("depuis_les_pointages")
+            )
+            if amount <= 0 and not depuis_les_pointages:
                 continue
             written = _append_generated_input(
                 preview=preview,
@@ -933,6 +958,7 @@ def generate_monthly_variables(
                 amount=amount,
                 quantity=qty,
                 name_suffix="",
+                retirer_si_zero=depuis_les_pointages,
             )
 
     return {

@@ -163,3 +163,44 @@ def test_la_reduction_generale_calculee_par_martine_fait_une_seule_ligne():
     ])
     [l] = t.sections[0].lignes
     assert (l.base, l.taux_patronal, l.montant_patronal) == (467.46, -100.0, -467.46)
+
+
+def test_jei_zone_404_une_ligne_dans_l_urssaf():
+    """Zone 404, 17/11 : l'exonération JEI partait en « organisme non rattaché », sur
+    deux lignes (taux retrouvés différents), et l'URSSAF gardait les cotisations pleines."""
+    t = construire_tableau([
+        _bulletin([
+            _ligne("securite_sociale_maladie", "Maladie", 5000.0, pat=350.0, taux_pat=0.07),
+            _ligne("exoneration_jei", "Exonération JEI (cotisations patronales)", 5000.0, pat=-1445.5),
+        ], employee_id="e1"),
+        _bulletin([
+            _ligne("securite_sociale_maladie", "Maladie", 3000.0, pat=210.0, taux_pat=0.07),
+            _ligne("exoneration_jei", "Exonération JEI (cotisations patronales)", 4000.0, pat=-1042.4),
+        ], employee_id="e2"),
+    ])
+    assert [s.organisme for s in t.sections] == ["URSSAF"]
+    jei = [l for l in t.sections[0].lignes if "JEI" in l.libelle]
+    assert len(jei) == 1
+    assert jei[0].montant_patronal == -2487.9
+    assert jei[0].taux_patronal is None
+
+
+def test_solde_de_taxe_d_apprentissage_a_part():
+    t = construire_tableau([_bulletin([
+        _ligne("taxe_apprentissage", "Taxe d'apprentissage", 5000.0, pat=34.0, taux_pat=0.0068),
+        _ligne("taxe_apprentissage_solde", "Solde taxe d'apprentissage", 5000.0, pat=4.5, taux_pat=0.0009),
+    ])])
+    assert [s.organisme for s in t.sections] == ["URSSAF", "URSSAF_SOLDE_TA"]
+    assert "avril N+1" in t.sections[1].libelle
+
+
+def test_lignes_reprises_de_quadra_rattachees_par_leur_libelle():
+    from app.modules.exports.domain.accounting_plan import resolve_organisme_from_coti_id
+
+    assert resolve_organisme_from_coti_id("autre", "PREV GROUPAMA NC TA") == "PREVOYANCE"
+    assert resolve_organisme_from_coti_id("autre", "E_V6 PREVOYANCE NON CADRE TU1 META") == "PREVOYANCE"
+    assert resolve_organisme_from_coti_id("autre", "REDUCTION HS PP > 20") == "URSSAF"
+    assert resolve_organisme_from_coti_id("autre", "Régul. JEI URSSAF VIEIL PLAF N") == "URSSAF"
+    assert resolve_organisme_from_coti_id("autre", "Ligne inconnue") == "INCONNU"
+    # Un identifiant connu prime toujours sur le libellé.
+    assert resolve_organisme_from_coti_id("mutuelle", "PREV GROUPAMA") == "MUTUELLE"

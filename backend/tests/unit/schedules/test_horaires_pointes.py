@@ -146,6 +146,11 @@ class TestEcritureAuCalendrier:
         assert "debut" not in jours[20]
         assert "debut" not in jours[21]
 
+    def test_un_samedi_travaille_garde_ses_horaires(self):
+        stocke = [{"jour": 24, "type": "travail", "heures_faites": 6.0, "debut": "04:00", "fin": "10:00"}]
+        ecran = [{"jour": 24, "type": "weekend", "heures_faites": 6.0}]
+        assert garder_les_horaires(ecran, stocke)[0]["debut"] == "04:00"
+
     def test_update_actual_hours_ne_perd_pas_les_horaires(self):
         stocke = {"calendrier_reel": [{"jour": 19, "type": "travail", "heures_faites": 7.5, "debut": "03:50", "fin": "12:00"}]}
         ecrit = {}

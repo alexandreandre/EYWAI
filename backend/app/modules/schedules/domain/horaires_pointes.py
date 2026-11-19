@@ -20,6 +20,9 @@ from typing import Any
 from app.modules.schedules.domain.punch_accounting_rules import parse_hhmm_value
 
 TYPES_TRAVAILLES = {"travail", "travaille", "work", ""}
+#: Jours qui peuvent porter un horaire pointé à l'écran (le réel y prend le
+#: type du prévu).
+TYPES_AVEC_HORAIRE = TYPES_TRAVAILLES | {"weekend", "ferie", "repos"}
 
 
 def en_hhmm(valeur: object) -> str | None:
@@ -75,8 +78,10 @@ def garder_les_horaires(
 
     L'écran ne connaît pas `debut`/`fin` et renvoie les jours sans eux : un
     simple enregistrement les effaçait. Ils restent quand le jour n'a pas
-    changé (même type travaillé, mêmes heures faites) ; un jour modifié à la
-    main les perd, car ils ne décriraient plus la journée.
+    changé (mêmes heures faites, toujours travaillé) ; un jour modifié à la
+    main les perd, car ils ne décriraient plus la journée. L'écran renvoie le
+    type du prévu : un samedi ou un férié travaillé arrive en « weekend » ou
+    « ferie », avec ses heures.
     """
     par_jour: dict[Any, Mapping[str, Any]] = {}
     for e in stocke or []:
@@ -89,8 +94,8 @@ def garder_les_horaires(
         if (
             ancien is not None
             and not jour.get("debut")
-            and _type_travaille(jour)
-            and str(jour.get("type") or "").lower() == str(ancien.get("type") or "").lower()
+            and str(jour.get("type") or "").strip().lower() in TYPES_AVEC_HORAIRE
+            and (_heures(jour.get("heures_faites")) or 0) > 0
             and _heures(jour.get("heures_faites")) == _heures(ancien.get("heures_faites"))
         ):
             jour["debut"] = ancien["debut"]

@@ -32,6 +32,7 @@ LIBELLE_DGFIP = "DGFIP — prélèvement à la source"
 #: L'ordre des caisses du tableau de Quadra ; une caisse absente n'a pas de section.
 ORDRE_DES_CAISSES = (
     ORGANISME_URSSAF,
+    "URSSAF_SOLDE_TA",
     ORGANISME_RETRAITE,
     ORGANISME_DGFIP,
     ORGANISME_MUTUELLE,
@@ -112,7 +113,12 @@ def _nombre(valeur: Any) -> float:
 #: Réductions : Quadra imprime la base en positif et le taux à −100 %.
 REDUCTIONS = frozenset({"reduction_generale", "reduction_generale_retraite"})
 #: Lignes sans taux : forfait (mutuelle) ou base en heures (déduction patronale, 1,50 €/h).
-SANS_TAUX = frozenset({"mutuelle", "deduction_hs_patronale"})
+SANS_TAUX = frozenset({"mutuelle", "deduction_hs_patronale", "exoneration_jei"})
+#: Le solde de la taxe d'apprentissage se déclare et se paie en avril N+1 (DSN
+#: de mars) : à part, pour que l'URSSAF du mois soit ce qui est dû ce mois-là
+#: (Zone 404, 17/11).
+ORGANISME_SOLDE_TA = "URSSAF_SOLDE_TA"
+LIBELLE_SOLDE_TA = "Solde de la taxe d'apprentissage (déclaré et payé en avril N+1)"
 
 
 def _taux_imprime(valeur: Any, *, en_fraction: bool = True) -> Optional[float]:
@@ -177,6 +183,8 @@ def construire_tableau(bulletins: Iterable[Dict[str, Any]]) -> TableauDesCharges
                 base = -(sal + pat)
             libelle = str(coti.get("libelle") or "Cotisation")
             organisme = resolve_organisme_from_coti_id(coti.get("coti_id"), libelle)
+            if coti_id == "taxe_apprentissage_solde":
+                organisme = ORGANISME_SOLDE_TA
             ts, tp = _taux_imprime(coti.get("taux_salarial")), _taux_imprime(coti.get("taux_patronal"))
             if coti_id in SANS_TAUX or coti_id in REDUCTIONS:
                 # Forfait, base en heures ou réduction (dont le « taux » imprimé est le
@@ -223,7 +231,11 @@ def construire_tableau(bulletins: Iterable[Dict[str, Any]]) -> TableauDesCharges
             ligne.taux_salarial = None if sans_taux else _taux_affiche(ligne.montant_salarial, ligne.base, nombres.get(cle, 1))
         if not pat_imprime:
             ligne.taux_patronal = None if sans_taux else _taux_affiche(ligne.montant_patronal, ligne.base, nombres.get(cle, 1))
-        libelle = LIBELLE_DGFIP if organisme == ORGANISME_DGFIP else ORGANISMES.get(organisme, organisme)
+        libelle = (
+            LIBELLE_DGFIP if organisme == ORGANISME_DGFIP
+            else LIBELLE_SOLDE_TA if organisme == ORGANISME_SOLDE_TA
+            else ORGANISMES.get(organisme, organisme)
+        )
         sections.setdefault(organisme, SectionDeCaisse(organisme=organisme, libelle=libelle)).lignes.append(ligne)
 
     rang = {o: i for i, o in enumerate(ORDRE_DES_CAISSES)}

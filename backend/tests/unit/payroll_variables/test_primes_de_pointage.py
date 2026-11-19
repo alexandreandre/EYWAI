@@ -113,20 +113,61 @@ class TestAssiduite:
         prevu, reel = _calendrier(types={date(2026, 10, 14): "absent_a_typer"})
         r = evaluer_assiduite_des_semaines(prevu, reel, set(), DEBUT, FIN, montant_par_semaine=6)
         lundis = lundis_de_la_fenetre(DEBUT, FIN)
-        assert [l.isoformat() for l in lundis] == ["2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"]
-        # La semaine du 12/10 est perdue ; la semaine du 26/10 compte (travaillée du 26 au 30).
+        # Les semaines qui finissent en octobre (dimanches 4, 11, 18, 25).
+        assert [l.isoformat() for l in lundis] == ["2026-09-28", "2026-10-05", "2026-10-12", "2026-10-19"]
+        # La semaine du 12/10 est perdue.
         assert r["quantity"] == 3
         assert r["amount"] == 18
 
-    def test_une_semaine_a_cheval_ne_se_paie_qu_une_fois(self):
-        # Le lundi 28/09 appartient à la fenêtre de septembre, pas à octobre.
-        assert date(2026, 9, 28) not in lundis_de_la_fenetre(DEBUT, FIN)
-        assert date(2026, 9, 28) in lundis_de_la_fenetre(date(2026, 9, 1), date(2026, 9, 30))
+    def test_une_semaine_a_cheval_se_paie_dans_le_mois_de_son_dimanche(self):
+        # La semaine du 26/10 au 01/11 se paie en novembre, une fois vécue.
+        assert date(2026, 10, 26) not in lundis_de_la_fenetre(DEBUT, FIN)
+        assert date(2026, 10, 26) in lundis_de_la_fenetre(date(2026, 11, 1), date(2026, 11, 30))
+
+    def test_un_arret_en_debut_de_semaine_du_mois_d_avant_se_voit(self):
+        prevu, reel = _calendrier()
+        prevu[date(2026, 9, 29)] = {"jour": 29, "type": "arret_maladie"}
+        r = evaluer_assiduite_des_semaines(prevu, reel, set(), DEBUT, FIN, montant_par_semaine=6)
+        assert r["details"]["weeks"][0] == {
+            "monday": "2026-09-28",
+            "eligible": False,
+            "reason": "absence",
+            "jours": ["2026-09-29"],
+        }
 
     def test_types_choisis_par_la_regle(self):
-        assert motif_de_perte({"type": "absence_non_remuneree"}, None) is None
-        assert motif_de_perte({"type": "absence_non_remuneree"}, None, ["absence_non_remuneree"]) == "absence_non_remuneree"
+        assert motif_de_perte({"type": "conges_payes"}, None) is None
+        assert motif_de_perte({"type": "absence_non_remuneree"}, None) == "absence_non_remuneree"
+        assert motif_de_perte({"type": "absence_non_remuneree"}, None, ["arret"]) is None
         assert motif_de_perte({"type": "arret_at"}, None, ["arret"]) == "arret_at"
+
+    def test_absence_non_remuneree_typee_a_l_ecran_fait_perdre(self):
+        prevu, reel = _calendrier(types={date(2026, 10, 14): "absence_non_remuneree"})
+        assert evaluer_assiduite_du_mois(prevu, reel, set(), DEBUT, FIN, montant=50)["amount"] == 0
+
+    def test_conge_maternite_ne_fait_jamais_perdre(self):
+        prevu, reel = _calendrier()
+        prevu[date(2026, 10, 14)] = {"jour": 14, "type": "arret_maladie", "arret_type": "maternite"}
+        reel[date(2026, 10, 14)] = {"jour": 14, "type": "arret_maladie", "heures_faites": 0}
+        assert evaluer_assiduite_du_mois(prevu, reel, set(), DEBUT, FIN, montant=50)["amount"] == 50
+
+    def test_un_jtc_valide_a_0_h_n_est_pas_une_journee_non_faite(self):
+        prevu, reel = _calendrier()
+        reel[date(2026, 10, 20)] = {"jour": 20, "type": "travail", "heures_faites": 0}
+        r = evaluer_assiduite_du_mois(prevu, reel, {date(2026, 10, 20)}, DEBUT, FIN, montant=50)
+        assert r["amount"] == 50
+
+    def test_un_mois_tout_en_conges_payes_garde_la_prime(self):
+        prevu, reel = _calendrier(types={j: "conges_payes" for j in _ouvres(DEBUT, FIN)})
+        assert evaluer_assiduite_du_mois(prevu, reel, set(), DEBUT, FIN, montant=50)["amount"] == 50
+
+    def test_au_mois_les_demandes_cochees_font_perdre(self):
+        prevu, reel = _calendrier()
+        r = evaluer_assiduite_du_mois(
+            prevu, reel, set(), DEBUT, FIN, montant=50, jours_demandes_qui_font_perdre={date(2026, 10, 9)}
+        )
+        assert r["amount"] == 0
+        assert r["details"]["perdue"] == [{"jour": "2026-10-09", "motif": "demande_d_absence"}]
 
 
 class TestPerimetre:
@@ -297,7 +338,7 @@ class TestGeneration:
                 "label": "Heures de nuit",
                 "amount": None,
                 "rate": None,
-                "conditions": {"majoration_pct": 50},
+                "conditions": {"majoration_pct": 50, "depuis_les_pointages": True},
             },
             FICHE,
             prevu,
@@ -311,3 +352,40 @@ class TestGeneration:
         taux = round(round(1823.03 / (35 * 52 / 12), 4) * 0.5, 4)
         assert res["preview"][0]["quantity"] == 22.0
         assert res["preview"][0]["amount"] == pytest.approx(round(taux * 22, 2))
+
+
+class TestRetombeAZero:
+    def test_la_prime_perdue_retire_la_saisie_deja_ecrite(self, monkeypatch):
+        prevu, reel = _calendrier(types={date(2026, 10, 7): "arret_maladie"})
+        repo = _brancher(
+            monkeypatch,
+            {
+                "rule_type": "per_week_without_absence",
+                "label": "Prime d'assiduité",
+                "amount": 50,
+                "conditions": {"periode_assiduite": "mois"},
+            },
+            FICHE,
+            prevu,
+            reel,
+        )
+        gm.generate_monthly_variables("c", 2026, 10)
+        repo.retirer_saisie_generee.assert_called_once_with("e1", 2026, 10, "Prime d'assiduité")
+        repo.upsert_monthly_input.assert_not_called()
+
+    def test_une_regle_de_nuit_ancienne_ne_lit_pas_les_pointages(self, monkeypatch):
+        prevu, reel = _calendrier()
+        for j in _ouvres(DEBUT, FIN):
+            reel[j] = {**reel[j], "debut": "05:00", "fin": "13:15"}
+        _brancher(
+            monkeypatch,
+            {"rule_type": "per_night_hour", "label": "Nuit", "amount": 2, "rate": None, "conditions": {}},
+            FICHE,
+            prevu,
+            reel,
+        )
+        monkeypatch.setattr(gm, "_shift_payroll_summary", lambda *a, **k: {})
+        import app.modules.planning.application.shift_payroll_aggregation as agg
+
+        monkeypatch.setattr(agg, "aggregate_shift_payroll_metrics", lambda *a, **k: {})
+        assert gm.generate_monthly_variables("c", 2026, 10, dry_run=True)["preview"] == []

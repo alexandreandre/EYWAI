@@ -125,10 +125,15 @@ export function ecartAvecMoisPrecedent(
   // Un écart que la RH a acquitté ou ignoré (R03 : net, R09 : heures sup) est
   // une décision prise : il ne met plus le bulletin « à revoir ».
   const acquittees = courant.alertes_acquittees ?? [];
+  // Un mois repris de l'ancien logiciel ne sert pas de référence : l'écart
+  // s'affiche, mais ne met pas le bulletin « à revoir » (Zone 404, 17/11 : les
+  // cinq bulletins d'octobre étaient bons, seuls deux pouvaient être validés).
+  const precedentRepris = precedent ? estBulletinImporte(precedent) : false;
   const netFort =
     netPct !== null &&
     Math.abs(netPct) - SEUIL_ECART_NET_PCT > TOLERANCE &&
-    !acquittees.includes('R03');
+    !acquittees.includes('R03') &&
+    !precedentRepris;
   const heuresFortes = heuresSup - SEUIL_HEURES_SUP > TOLERANCE && !acquittees.includes('R09');
   const raisons: string[] = [];
   if (netFort && netPct !== null) {

@@ -80,6 +80,10 @@ COTI_TO_ORGANISME: Dict[str, str] = {
     "deduction_hs_patronale": ORGANISME_URSSAF,
     "reduction_hs_salariale": ORGANISME_URSSAF,
     "exoneration_apprenti_salariale": ORGANISME_URSSAF,
+    # Jeune entreprise innovante : l'exonération des cotisations patronales
+    # réduit ce qui est dû à l'URSSAF (Zone 404, 17/11 : l'URSSAF du tableau
+    # par caisse gardait les cotisations pleines).
+    "exoneration_jei": ORGANISME_URSSAF,
     # --- Retraite complémentaire (AGIRC-ARRCO) ---
     "retraite_comp_t1": ORGANISME_RETRAITE,
     "retraite_comp_t2": ORGANISME_RETRAITE,
@@ -312,6 +316,12 @@ def default_accounts_for_family(famille: str) -> Optional[AccountPair]:
 _LIBELLE_FALLBACK = (
     # Avant « CSG » : la CSG sur IJSS n'est pas due à l'URSSAF.
     ("IJSS", ORGANISME_IJSS),
+    # Lignes des bulletins repris de Quadra (code « autre ») : prévoyance
+    # Groupama (« PREV GROUPAMA NC TA »), réduction des heures sup, JEI.
+    ("PREV ", ORGANISME_PREVOYANCE),
+    ("REDUCTION HS", ORGANISME_URSSAF),
+    ("RÉDUCTION HS", ORGANISME_URSSAF),
+    ("JEI", ORGANISME_URSSAF),
     ("CSG", ORGANISME_URSSAF),
     ("CRDS", ORGANISME_URSSAF),
     ("URSSAF", ORGANISME_URSSAF),
@@ -325,17 +335,23 @@ _LIBELLE_FALLBACK = (
 )
 
 
+#: Identifiants qui ne disent rien de la caisse (lignes reprises de l'ancien
+#: logiciel) : le libellé décide.
+CODES_GENERIQUES = frozenset({"autre"})
+
+
 def resolve_organisme_from_coti_id(
     coti_id: Optional[str], libelle: str = ""
 ) -> str:
     """Rattache une ligne de cotisation à son organisme.
 
     `coti_id` prime toujours. Le libellé n'est consulté que si l'identifiant est
-    absent — cas de la CSG sur participation, observé en production.
+    absent — cas de la CSG sur participation, observé en production — ou
+    générique (« autre », lignes reprises de Quadra).
     Retourne `INCONNU` si rien ne correspond : l'appelant doit le signaler, pas
     l'absorber.
     """
-    if coti_id:
+    if coti_id and coti_id not in CODES_GENERIQUES:
         return COTI_TO_ORGANISME.get(coti_id, ORGANISME_INCONNU)
 
     upper = (libelle or "").upper()

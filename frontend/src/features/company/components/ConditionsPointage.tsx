@@ -117,30 +117,44 @@ export function PerimetrePointage({ conditions, onChange }: Props) {
 
 /** Heures de nuit lues sur les pointages, majorées d'un % du taux horaire. */
 export function ReglageNuit({ conditions, onChange }: Props) {
+  const depuisPointages = Boolean(conditions.depuis_les_pointages);
   return (
     <div className="space-y-2" data-testid="reglage-nuit">
-      <p className="text-sm text-muted-foreground">
-        Sans planning d&apos;équipe, Martine compte les heures de chaque poste pointé (première entrée, dernière sortie)
-        tombées dans la plage de nuit. Un poste de 5 h donne 1 h de nuit (5 h - 6 h).
-      </p>
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        Nuit de
-        <Input
-          type="time"
-          aria-label="Début de la nuit"
-          className="w-28"
-          value={(conditions.nuit_de as string | undefined) ?? '22:00'}
-          onChange={(e) => onChange({ ...conditions, nuit_de: e.target.value })}
+      <label className="flex items-center gap-2 text-sm cursor-pointer">
+        <Checkbox
+          checked={depuisPointages}
+          onCheckedChange={(v) =>
+            onChange(v ? { ...conditions, depuis_les_pointages: true } : sansCle(conditions, 'depuis_les_pointages'))
+          }
         />
-        à
-        <Input
-          type="time"
-          aria-label="Fin de la nuit"
-          className="w-28"
-          value={(conditions.nuit_a as string | undefined) ?? '06:00'}
-          onChange={(e) => onChange({ ...conditions, nuit_a: e.target.value })}
-        />
-      </div>
+        Lire les heures de nuit sur les pointages (sans planning d&apos;équipe)
+      </label>
+      {depuisPointages && (
+        <>
+          <p className="text-sm text-muted-foreground">
+            Martine compte les heures de chaque poste pointé (première entrée, dernière sortie) tombées dans la plage
+            de nuit. Un poste de 5 h donne 1 h de nuit (5 h - 6 h).
+          </p>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            Nuit de
+            <Input
+              type="time"
+              aria-label="Début de la nuit"
+              className="w-28"
+              value={(conditions.nuit_de as string | undefined) ?? '22:00'}
+              onChange={(e) => onChange({ ...conditions, nuit_de: e.target.value })}
+            />
+            à
+            <Input
+              type="time"
+              aria-label="Fin de la nuit"
+              className="w-28"
+              value={(conditions.nuit_a as string | undefined) ?? '06:00'}
+              onChange={(e) => onChange({ ...conditions, nuit_a: e.target.value })}
+            />
+          </div>
+        </>
+      )}
       <Label htmlFor="majoration_pct">Majoration en % du taux horaire (sinon : montant par heure ci-dessus)</Label>
       <Input
         id="majoration_pct"
@@ -177,9 +191,10 @@ export function ReglageAssiduite({ conditions, onChange }: Props) {
         <option value="mois">par mois sans absence</option>
       </select>
       <p className="text-xs text-muted-foreground">
-        Martine lit le calendrier : un arrêt, un jour « absent, type à donner » ou une journée prévue avec un réel à
-        0 font perdre la prime. Congés payés, RTT, récupération, repos, fériés et activité partielle ne font rien
-        perdre. Une semaine se paie dans le mois de son lundi.
+        Martine lit le calendrier : un arrêt, une absence non rémunérée, un jour « absent, type à donner » ou une
+        journée prévue avec un réel à 0 font perdre la prime. Congés payés, RTT, récupération, repos, fériés,
+        activité partielle et congé maternité ou paternité ne font rien perdre. Une semaine se paie dans le mois
+        de son dimanche.
       </p>
       {periode === 'mois' && (
         <label className="flex items-center gap-2 text-sm cursor-pointer">

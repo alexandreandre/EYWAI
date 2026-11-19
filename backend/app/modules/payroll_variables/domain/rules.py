@@ -144,7 +144,7 @@ CONDITIONS_PROPRES: dict[str, frozenset[str]] = {
     ),
     "per_shift_type": frozenset({"shift_type_codes"}),
     "per_worked_day": frozenset({"min_heures", "plages_debut", "heures_par_jour"}),
-    "per_night_hour": frozenset({"nuit_de", "nuit_a", "majoration_pct"}),
+    "per_night_hour": frozenset({"nuit_de", "nuit_a", "majoration_pct", "depuis_les_pointages"}),
     "per_modulation_payout": frozenset({"min_balance_hours"}),
 }
 

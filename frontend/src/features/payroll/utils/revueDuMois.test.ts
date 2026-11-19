@@ -57,6 +57,14 @@ describe('ecartAvecMoisPrecedent — l’écart se lit dans la liste, sans ouvri
     expect(ecart.raison).toBeNull();
   });
 
+  it('un mois repris de l’ancien logiciel ne met pas « à revoir » (Zone 404, 17/11)', () => {
+    const repris = bulletin({ month: 8, net_a_payer: 1500, origine: 'importe', status: 'valide' });
+    const ecart = ecartAvecMoisPrecedent(bulletin({ net_a_payer: 2400 }), repris);
+    expect(ecart.netPct).toBeCloseTo(60, 5);
+    expect(ecart.fort).toBe(false);
+    expect(ecart.raison).toBeNull();
+  });
+
   it('une baisse forte compte aussi', () => {
     const ecart = ecartAvecMoisPrecedent(bulletin({ net_a_payer: 1200 }), AOUT);
     expect(ecart.fort).toBe(true);

@@ -235,7 +235,14 @@ def _calendriers_de_la_fenetre(
         row = calendriers.get((y, m)) or {}
         out[f"{y:04d}-{m:02d}"] = {
             "prevu": _avec_source_absence(_liste_prevu(row), absences, y, m),
-            "reel": [dict(e) for e in _liste_reel(row) if isinstance(e, Mapping)],
+            # L'heure de début et de fin pointées ne changent pas le bulletin
+            # (seulement les variables, qui ont leur propre empreinte) : un
+            # réimport identique ne met rien « à recalculer ».
+            "reel": [
+                {k: v for k, v in e.items() if k not in ("debut", "fin")}
+                for e in _liste_reel(row)
+                if isinstance(e, Mapping)
+            ],
         }
     return out
 

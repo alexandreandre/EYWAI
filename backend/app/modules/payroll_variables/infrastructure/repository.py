@@ -93,6 +93,17 @@ def upsert_monthly_input(row: dict[str, Any]) -> None:
         supabase.table("monthly_inputs").insert(row).execute()
 
 
+def retirer_saisie_generee(employee_id: str, year: int, month: int, name: str) -> bool:
+    """Retire la saisie générée d'une règle qui retombe à 0 (prime d'assiduité
+    perdue après un arrêt posé, plus aucun poste dans la plage…). Une ligne
+    corrigée à la main reste : la RH a tranché."""
+    existing = find_existing_monthly_input(employee_id, year, month, name)
+    if not existing or existing.get("manual_override"):
+        return False
+    supabase.table("monthly_inputs").delete().eq("id", existing["id"]).execute()
+    return True
+
+
 def list_special_days(
     company_id: str, year: int, month: int
 ) -> list[dict[str, Any]]:

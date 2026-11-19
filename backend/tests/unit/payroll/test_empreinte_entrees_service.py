@@ -588,3 +588,21 @@ def test_l_effectif_de_l_annee_saisi_apres_coup_fait_passer_a_recalculer():
     assert empreinte_des_lectures(
         **_kwargs(company=_societe_effectif({"2025": 5}))
     ) != empreinte_des_lectures(**_kwargs(company=_societe_effectif({"2025": 5, "2026": 5})))
+
+
+def test_l_heure_de_debut_pointee_ne_change_pas_l_empreinte():
+    """19/11 : réimporter un mois aux mêmes heures ajoute `debut`/`fin` au réel ;
+    rien du bulletin ne change, il ne doit pas passer « à recalculer »."""
+    from app.modules.payroll.application.empreinte_entrees_service import _calendriers_de_la_fenetre
+
+    sans = {"actual_hours": {"calendrier_reel": [{"jour": 5, "type": "travail", "heures_faites": 7.5}]}}
+    avec = {
+        "actual_hours": {
+            "calendrier_reel": [
+                {"jour": 5, "type": "travail", "heures_faites": 7.5, "debut": "03:50", "fin": "12:00"}
+            ]
+        }
+    }
+    a = _calendriers_de_la_fenetre({(2026, 10): sans}, [], 2026, 10)
+    b = _calendriers_de_la_fenetre({(2026, 10): avec}, [], 2026, 10)
+    assert a == b

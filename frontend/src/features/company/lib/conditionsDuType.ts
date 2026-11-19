@@ -44,7 +44,7 @@ const CONDITIONS_PROPRES: Record<string, readonly string[]> = {
   ],
   per_shift_type: ['shift_type_codes'],
   per_worked_day: ['min_heures', 'plages_debut', 'heures_par_jour'],
-  per_night_hour: ['nuit_de', 'nuit_a', 'majoration_pct'],
+  per_night_hour: ['nuit_de', 'nuit_a', 'majoration_pct', 'depuis_les_pointages'],
   per_modulation_payout: ['min_balance_hours'],
 };
 
