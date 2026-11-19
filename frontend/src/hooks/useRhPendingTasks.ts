@@ -289,6 +289,7 @@ export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string |
           ? countRecruitmentPriorityCandidates(recruitmentCandidatesQuery.data)
           : 0,
       schedulesDue: schedulesBadgeQuery.data ?? 0,
+      schedulesMonth,
       workMedalsAwaiting: workMedalsQuery.data?.awaiting_rh ?? 0,
       rttClosable,
       modulationAlerts: modulationWorkflowQuery.data?.alert_count ?? 0,
@@ -312,6 +313,7 @@ export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string |
     recruitmentSettingsQuery.data?.enabled,
     recruitmentCandidatesQuery.data,
     schedulesBadgeQuery.data,
+    schedulesMonth,
     workMedalsQuery.data?.awaiting_rh,
     rttClosable,
     modulationWorkflowQuery.data?.alert_count,

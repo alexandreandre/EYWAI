@@ -18,6 +18,9 @@ import {
 import { ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS } from '@/api/annualReviews';
 import { RIB_ALERTS_UI_ENABLED } from '@/lib/productFeatureFlags';
 import { isPayrollFocusAllowed } from '@/lib/payrollFocus';
+import { MONTH_NAMES_FR } from '@/lib/analyticsPeriod';
+
+const nomDuMois = (mois: number) => (MONTH_NAMES_FR[mois - 1] ?? '').toLowerCase();
 
 export type RhPendingTaskId =
   | 'leaves'
@@ -69,6 +72,8 @@ export interface RhPendingTasksInput {
   recruitmentEnabled: boolean;
   recruitmentPending: number;
   schedulesDue: number;
+  /** Mois de paie que compte la pastille des calendriers (1-12), pour le nommer. */
+  schedulesMonth?: number;
   workMedalsAwaiting: number;
   rttClosable: number;
   modulationAlerts: number;
@@ -221,10 +226,14 @@ export function buildRhPendingTasks(input: RhPendingTasksInput): RhPendingTaskIt
     schedules: itemOrNull(
       'schedules',
       input.schedulesDue,
-      'Plannings du mois',
+      // Le mois compté est nommé (retour d'Elsa du 17/11 : « calendrier en
+      // rouge » le 17/11, quand la pastille comptait déjà novembre).
+      input.schedulesMonth ? `Calendriers de ${nomDuMois(input.schedulesMonth)}` : 'Plannings du mois',
       '/schedules',
       CalendarDays,
-      'Horaires à saisir ou valider',
+      input.schedulesMonth
+        ? `Horaires de ${nomDuMois(input.schedulesMonth)} à saisir ou valider`
+        : 'Horaires à saisir ou valider',
       '/schedules',
     ),
     onboardingProfiles: itemOrNull(

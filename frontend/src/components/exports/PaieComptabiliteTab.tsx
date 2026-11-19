@@ -62,7 +62,8 @@ export function PaieComptabiliteTab({
     {
       id: "export_cabinet_quadra",
       name: "Export format Quadra",
-      description: "Export au format Quadra (structure standardisée)",
+      description:
+        "L'OD globale du mois, dans le fichier texte que QuadraCOMPTA importe directement. Utile seulement si le comptable tient les comptes sur Quadra.",
       icon: Database,
     },
     {

@@ -42,6 +42,12 @@ describe('buildRhPendingTasks', () => {
     expect(sumRhPendingActions(items)).toBe(8);
   });
 
+  it('nomme le mois que comptent les calendriers à saisir', () => {
+    const [item] = buildRhPendingTasks({ ...emptyInput, schedulesDue: 5, schedulesMonth: 11 });
+    expect(item.label).toBe('Calendriers de novembre');
+    expect(item.hint).toBe('Horaires de novembre à saisir ou valider');
+  });
+
   it('fusionne absences et clôtures RTT', () => {
     const items = buildRhPendingTasks({
       ...emptyInput,
