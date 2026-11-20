@@ -7,10 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Switch } from '@/components/ui/switch';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { getUserErrorMessage } from '@/lib/errorMessages';
 import { queryKeys } from '@/lib/queryKeys';
+import { etatInterrupteurCompteur, reglageCompteur } from '../lib/compteurRecuperation';
 
 type Choix = 'payees' | 'premieres' | 'compteur';
 
@@ -103,7 +105,24 @@ export default function HeuresSupRecuperationCard() {
       toast({ title: 'Rien n’a été changé', description: getUserErrorMessage(err), variant: 'destructive' }),
   });
 
+  // Compteur de récupération tenu ou non, sans changer le paiement des heures sup.
+  const basculerCompteur = useMutation({
+    mutationFn: (allumer: boolean) => updateModulationSettings(reglageCompteur(allumer)),
+    onSuccess: (saved, allumer) => {
+      queryClient.setQueryData(queryKeys.modulationSettings(companyId), saved);
+      toast({
+        title: allumer ? 'Compteur de récupération tenu' : 'Compteur de récupération coupé',
+        description: allumer
+          ? 'Il s’affiche sur la fiche de chaque salarié, onglet Soldes. Les heures sup restent payées comme avant.'
+          : 'Il ne s’affiche plus sur les fiches ni les bulletins. Les soldes saisis restent enregistrés.',
+      });
+    },
+    onError: (err) =>
+      toast({ title: 'Rien n’a été changé', description: getUserErrorMessage(err), variant: 'destructive' }),
+  });
+
   if (isLoading || !data) return null;
+  const interrupteur = etatInterrupteurCompteur(data);
 
   return (
     <Card data-testid="reglage-heures-sup">
@@ -188,6 +207,18 @@ export default function HeuresSupRecuperationCard() {
         <Button size="sm" disabled={enregistrer.isPending || plafondInvalide || premieresInvalides} onClick={() => enregistrer.mutate()}>
           Enregistrer
         </Button>
+        <div className="space-y-1 border-t pt-4" data-testid="tenir-compteur-recuperation">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="hs-tenir-compteur"
+              checked={interrupteur.allume}
+              disabled={!interrupteur.modifiable || basculerCompteur.isPending}
+              onCheckedChange={(v) => basculerCompteur.mutate(v)}
+            />
+            <Label htmlFor="hs-tenir-compteur">Tenir un compteur de récupération</Label>
+          </div>
+          <p className="text-xs text-muted-foreground">{interrupteur.explication}</p>
+        </div>
       </CardContent>
     </Card>
   );

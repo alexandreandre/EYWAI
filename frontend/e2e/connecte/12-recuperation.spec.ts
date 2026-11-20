@@ -75,6 +75,10 @@ test('compteur de récupération : réglage, bulletin, choix du mois', async ({ 
     hs_routing_policy: 'account_all',
     max_account_balance_hours: 40,
   });
+  // Heures sup au compteur : le compteur est forcément tenu, l'interrupteur ne se coupe pas.
+  const tenir = carte.getByTestId('tenir-compteur-recuperation');
+  await expect(tenir.getByRole('switch', { name: /tenir un compteur de récupération/i })).toBeDisabled();
+  await expect(tenir.getByText(/Toujours tenu/)).toBeVisible();
 
   // --- Un vrai bulletin, relu avec un compteur simulé
   const bulletins = await page.request.get(`${API_URL}/api/employees/summary?status=payroll`, {

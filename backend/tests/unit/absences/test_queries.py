@@ -207,6 +207,75 @@ class TestGetMyAbsenceBalances:
             assert "remaining" in b
 
 
+class TestLigneRecuperation:
+    """Ligne « Récupération / modulation » des soldes : présente dès que le
+    compteur est tenu, même à zéro et même si les heures sup sont payées."""
+
+    def _soldes(self, settings, balance):
+        with (
+            patch(
+                "app.modules.absences.application.queries.get_employee_hire_date",
+                return_value="2020-01-15",
+            ),
+            patch(
+                "app.modules.absences.application.queries._get_employee_company_id",
+                return_value="co-1",
+            ),
+            patch("app.modules.absences.application.queries.absence_repository") as repo,
+            patch(
+                "app.modules.absences.application.queries.get_repos_credits_by_employee_year",
+                return_value={},
+            ),
+            patch(
+                "app.modules.cet.application.queries.get_cet_cp_extra_committed_for_absences",
+                return_value=0,
+            ),
+            patch(
+                "app.modules.modulation.infrastructure.repository.get_modulation_settings",
+                return_value=settings,
+            ),
+            patch(
+                "app.modules.modulation.application.hour_account_queries.get_employee_account_balance",
+                return_value=balance,
+            ),
+            patch(
+                "app.modules.absences.infrastructure.fractionnement_repository.get_fractionnement_grant",
+                return_value=None,
+            ),
+            mock_leave_context(),
+        ):
+            repo.list_validated_for_employees.return_value = []
+            return queries.get_my_absence_balances("emp-1")
+
+    def _zero(self):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(acquired_hours=0.0, taken_hours=0.0, account_balance_hours=0.0)
+
+    def test_compteur_tenu_heures_payees_ligne_a_zero(self):
+        from app.modules.modulation.domain.entities import ModulationSettings
+
+        result = self._soldes(
+            ModulationSettings(
+                hour_account_enabled=True,
+                recovery_absence_enabled=True,
+                hs_routing_policy="pay_all",
+            ),
+            self._zero(),
+        )
+        ligne = next(b for b in result if b["type"] == "Récupération / modulation")
+        assert (ligne["acquired"], ligne["taken"], ligne["remaining"]) == (0.0, 0.0, 0.0)
+
+    def test_compteur_coupe_pas_de_ligne(self):
+        from app.modules.modulation.domain.entities import ModulationSettings
+
+        result = self._soldes(
+            ModulationSettings(hour_account_enabled=False, hs_routing_policy="pay_all"),
+            self._zero(),
+        )
+        assert "Récupération / modulation" not in [b["type"] for b in result]
+
+
 class TestGetMyMonthlyCalendar:
     """Query get_my_monthly_calendar."""
 

@@ -1,0 +1,82 @@
+import { describe, expect, it } from 'vitest';
+import {
+  etatInterrupteurCompteur,
+  phraseCompteurCoupe,
+  reglageCompteur,
+} from './compteurRecuperation';
+
+describe('etatInterrupteurCompteur', () => {
+  it('heures sup payées, compteur coupé : allumable', () => {
+    const e = etatInterrupteurCompteur({
+      hour_account_enabled: false,
+      recovery_absence_enabled: true,
+      hs_routing_policy: 'pay_all',
+    });
+    expect(e).toMatchObject({ allume: false, modifiable: true });
+    expect(e.explication).toContain('restent payées');
+  });
+
+  it('heures sup payées, compteur tenu : coupable, et dit ce que la coupure masque', () => {
+    const e = etatInterrupteurCompteur({
+      hour_account_enabled: true,
+      recovery_absence_enabled: true,
+      hs_routing_policy: 'pay_all',
+    });
+    expect(e).toMatchObject({ allume: true, modifiable: true });
+    expect(e.explication).toContain('soldes saisis restent enregistrés');
+  });
+
+  it('compteur ouvert sans les repos pris : compté comme éteint, pour tout rallumer', () => {
+    const e = etatInterrupteurCompteur({
+      hour_account_enabled: true,
+      recovery_absence_enabled: false,
+      hs_routing_policy: 'pay_all',
+    });
+    expect(e.allume).toBe(false);
+  });
+
+  it('heures sup au compteur : toujours tenu, non modifiable', () => {
+    for (const policy of ['account_all', 'franchise', 'manual'] as const) {
+      const e = etatInterrupteurCompteur({
+        hour_account_enabled: true,
+        recovery_absence_enabled: true,
+        hs_routing_policy: policy,
+      });
+      expect(e).toMatchObject({ allume: true, modifiable: false });
+      expect(e.explication).toContain('Payées au bulletin');
+    }
+  });
+});
+
+describe('reglageCompteur', () => {
+  it('n’envoie jamais la règle de paiement des heures sup', () => {
+    expect(reglageCompteur(true)).toEqual({
+      hour_account_enabled: true,
+      recovery_absence_enabled: true,
+    });
+    expect(reglageCompteur(false)).not.toHaveProperty('hs_routing_policy');
+  });
+});
+
+describe('phraseCompteurCoupe', () => {
+  it('dit où allumer le compteur quand il est coupé', () => {
+    const p = phraseCompteurCoupe({
+      hour_account_enabled: false,
+      recovery_absence_enabled: true,
+      hs_routing_policy: 'pay_all',
+    });
+    expect(p).toContain('Tenir un compteur de récupération');
+    expect(p).toContain('Heures supplémentaires');
+  });
+
+  it('rien quand le compteur est tenu, ni avant la lecture du réglage', () => {
+    expect(
+      phraseCompteurCoupe({
+        hour_account_enabled: true,
+        recovery_absence_enabled: true,
+        hs_routing_policy: 'pay_all',
+      }),
+    ).toBeNull();
+    expect(phraseCompteurCoupe(undefined)).toBeNull();
+  });
+});

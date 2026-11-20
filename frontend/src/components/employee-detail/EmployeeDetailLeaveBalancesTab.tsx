@@ -1,12 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 import { AlertCircle, CalendarDays, Loader2, Palmtree, Pencil } from 'lucide-react';
 import {
   updateEmployeeLeaveSolde,
   type CpRecalageResponse,
 } from '@/api/leaveSettings';
+import { getModulationSettings } from '@/api/modulation';
 import { useCompany } from '@/contexts/CompanyContext';
+import {
+  LIEN_REGLAGE_COMPTEUR,
+  phraseCompteurCoupe,
+} from '@/features/company/lib/compteurRecuperation';
 import { useEmployeeAbsenceBalancesQuery } from '@/hooks/queries/useEmployeeAbsenceBalancesQuery';
 import { EvenementFamilialBalanceDialog } from '@/components/dashboard/EvenementFamilialBalanceDialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -82,6 +87,13 @@ export function EmployeeDetailLeaveBalancesTab({
   const visibleBalances =
     balancesQuery.data?.filter(isRhLeaveBalanceVisible) ?? [];
   const currentYear = new Date().getFullYear();
+  // Compteur de récupération coupé : la ligne manque, on dit où l'allumer.
+  const modulationQuery = useQuery({
+    queryKey: queryKeys.modulationSettings(companyId ?? ''),
+    queryFn: getModulationSettings,
+    enabled: Boolean(companyId),
+  });
+  const phraseCompteur = phraseCompteurCoupe(modulationQuery.data);
 
   // Dialogue générique « Ajuster le solde » (RTT, JTC, repos compensateur) ; les CP ont le leur.
   const [adjustType, setAdjustType] = useState<string | null>(null);
@@ -305,6 +317,14 @@ export function EmployeeDetailLeaveBalancesTab({
               </Table>
             </div>
           )}
+          {phraseCompteur && !balancesQuery.isLoading ? (
+            <p className="mt-3 text-xs text-muted-foreground" data-testid="compteur-recuperation-coupe">
+              {phraseCompteur}{' '}
+              <Link to={LIEN_REGLAGE_COMPTEUR} className="underline">
+                Ouvrir le réglage
+              </Link>
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 
