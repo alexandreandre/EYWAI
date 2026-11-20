@@ -10,6 +10,22 @@ from typing import Any, Dict, List, Literal, Optional
 
 from app.shared.domain.pluriel import accord, pluriel
 
+_NOMS_DES_MOIS = (
+    "janvier", "février", "mars", "avril", "mai", "juin",
+    "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+)
+
+
+def _mois_en_clair(month: Any, year: Any, year_n: int) -> str | None:
+    """« septembre », ou « décembre 2025 » quand l'année n'est pas celle de N."""
+    try:
+        m, a = int(month), int(year)
+    except (TypeError, ValueError):
+        return None
+    if not 1 <= m <= 12:
+        return None
+    return _NOMS_DES_MOIS[m - 1] if a == year_n else f"{_NOMS_DES_MOIS[m - 1]} {a}"
+
 AlertLevel = Literal["CRITIQUE", "AVERTISSEMENT", "INFO"]
 
 #: Les règles que le moteur de comparaison sait produire (R01 à R10 et R12, R11 est retirée) : seules
@@ -246,6 +262,7 @@ def compute_comparison(
     - mois_precedent_incomplet: bool (mois d'entrée en cours de mois)
     - mois_precedent_repris: bool (le bulletin de comparaison vient de l'ancien
       logiciel : l'écart du net est un avertissement, pas un blocage)
+    - year_repris, month_repris: le mois repris, nommé dans R12 et R03
     - monthly_contract_hours: float (défaut 151.67)
     - recent_nets_asc: liste [net_n-3, net_n-2, net_n-1, net_n] pour R10
     """
@@ -302,13 +319,31 @@ def compute_comparison(
     add_line("Heures supplémentaires", "heures_supp", unite="h")
     add_line("Acompte versé", "acompte_verse")
 
+    # Mois repris de l'ancien logiciel juste avant N (exclu de la comparaison,
+    # R-085) et vrai mois de comparaison : nommés dans les messages.
+    mois_repris = (
+        _mois_en_clair(ctx.get("month_repris"), ctx.get("year_repris"), year_n)
+        if ctx.get("mois_precedent_repris")
+        else None
+    )
+    mois_compare = _mois_en_clair(month_n1, year_n1, year_n)
+
     # --- R12 : N-1 absent ---
     if bulletin_n1 is None:
+        if ctx.get("mois_precedent_repris"):
+            # Zone 404, 20/11 : « aucun bulletin N-1 validé » alors que septembre
+            # existe, repris de l'ancien logiciel. On dit pourquoi on ne compare pas.
+            message_r12 = (
+                f"{(mois_repris or 'Le mois précédent').capitalize()} vient de l'ancien "
+                "logiciel : pas de comparaison du net."
+            )
+        else:
+            message_r12 = "Aucun bulletin N-1 validé trouvé pour la comparaison."
         alerts.append(
             PayslipAlert(
                 rule_id="R12",
                 level="INFO",
-                message="Aucun bulletin N-1 validé trouvé pour la comparaison.",
+                message=message_r12,
                 field="bulletin_n1",
                 value_n=0.0,
                 value_n1=0.0,
@@ -373,7 +408,12 @@ def compute_comparison(
                     message=(
                         f"Le net à payer a varié de {_pct_fr(d_net)} "
                         + (
-                            "par rapport au mois repris de l'ancien logiciel."
+                            # Le mois repris est exclu : on compare au dernier
+                            # mois calculé par Martine, plus ancien (Zone 404, 20/11).
+                            f"par rapport à {mois_compare or 'un mois plus ancien'}, "
+                            "dernier mois calculé par Martine ("
+                            + (f"{mois_repris} vient" if mois_repris else "le mois précédent vient")
+                            + " de l'ancien logiciel)."
                             if repris
                             else "(seuil critique > 10 %)."
                         )

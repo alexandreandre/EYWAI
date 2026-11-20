@@ -26,7 +26,8 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  MESSAGE_AUCUN_BULLETIN_VALIDE,
+  messageMoisRepris,
+  messageSansBulletinDeReference,
   sousTitreComparaisonValidee,
 } from '@/features/payroll/utils/comparaisonMoisDernier';
 import {
@@ -229,7 +230,11 @@ export function PayslipComparisonTab({
               : ''}
           </h2>
           <p className="text-sm text-muted-foreground">
-            {sousTitreComparaisonValidee(result.month_n1, result.year_n1)}
+            {sousTitreComparaisonValidee(
+              result.month_n1,
+              result.year_n1,
+              messageMoisRepris(result.alerts) != null,
+            )}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -271,7 +276,7 @@ export function PayslipComparisonTab({
       {result.bulletin_n1_id == null ? (
         <Card className="border-sky-200 bg-sky-50/60 dark:bg-sky-950/20">
           <CardContent className="py-4 text-sm">
-            {MESSAGE_AUCUN_BULLETIN_VALIDE}
+            {messageSansBulletinDeReference(result.alerts)}
           </CardContent>
         </Card>
       ) : null}

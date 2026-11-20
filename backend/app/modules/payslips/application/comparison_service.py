@@ -38,7 +38,7 @@ from app.modules.payslips.infrastructure.comparison_queries import (
     fetch_recent_nets_asc_for_r10,
     fetch_validated_payslips_strictly_before,
     mark_payslip_validated,
-    mois_repris_entre,
+    dernier_mois_repris_entre,
     update_payslip_data_alerts_status,
 )
 from app.core.database import supabase
@@ -183,14 +183,27 @@ def _entre_en_cours_de_mois(employee_id: Any, precedent: dict[str, Any] | None) 
     )
 
 
-def _mois_repris(emp_id: str, comp_id: str, prev: dict[str, Any] | None, year: int, month: int) -> bool:
-    """Un mois repris de l'ancien logiciel juste avant N. Sans réponse de la
-    base, la règle reste stricte (l'écart du net reste critique)."""
+def _mois_repris(
+    emp_id: str, comp_id: str, prev: dict[str, Any] | None, year: int, month: int
+) -> tuple[int, int] | None:
+    """Le mois repris de l'ancien logiciel juste avant N, en (année, mois). Sans
+    réponse de la base, la règle reste stricte (l'écart du net reste critique)."""
     try:
-        return mois_repris_entre(emp_id, comp_id, prev, year, month)
+        return dernier_mois_repris_entre(emp_id, comp_id, prev, year, month)
     except Exception:  # noqa: BLE001 — lecture de confort, jamais bloquante
         logger.warning("Mois repris non vérifié pour la comparaison du net", exc_info=True)
-        return False
+        return None
+
+
+def _contexte_mois_repris(
+    emp_id: str, comp_id: str, prev: dict[str, Any] | None, year: int, month: int
+) -> dict[str, Any]:
+    repris = _mois_repris(emp_id, comp_id, prev, year, month)
+    return {
+        "mois_precedent_repris": repris is not None,
+        "year_repris": repris[0] if repris else None,
+        "month_repris": repris[1] if repris else None,
+    }
 
 
 def get_payslip_comparison_for_user(payslip_id: str, ctx: UserContext) -> dict[str, Any]:
@@ -227,7 +240,7 @@ def get_payslip_comparison_for_user(payslip_id: str, ctx: UserContext) -> dict[s
         "is_forfait_jour": is_forfait_jour(statut),
         "has_contract_change": False,
         "mois_precedent_incomplet": _entre_en_cours_de_mois(emp_id, prev),
-        "mois_precedent_repris": _mois_repris(emp_id, comp_id, prev, year, month),
+        **_contexte_mois_repris(emp_id, comp_id, prev, year, month),
         "has_declared_advance": None,
         "recent_nets_asc": recent_nets,
     }
@@ -398,7 +411,7 @@ def validate_payslip_for_user(payslip_id: str, ctx: UserContext) -> None:
         "is_forfait_jour": is_forfait_jour(statut),
         "has_contract_change": False,
         "mois_precedent_incomplet": _entre_en_cours_de_mois(emp_id, prev),
-        "mois_precedent_repris": _mois_repris(emp_id, comp_id, prev, year, month),
+        **_contexte_mois_repris(emp_id, comp_id, prev, year, month),
         "has_declared_advance": None,
         "recent_nets_asc": recent_nets,
     }

@@ -84,12 +84,62 @@ def test_mois_d_avant_complet_le_net_reste_critique():
 def test_r03_face_a_un_mois_repris_n_est_qu_un_avertissement():
     """Zone 404, 17/11 : le premier mois calculé par Martine se comparait à
     septembre repris de Quadra ; un net à +60 % bloquait la validation."""
-    ctx = {**_ctx(), "mois_precedent_repris": True}
+    ctx = {
+        **_ctx(),
+        "month_n": 10,
+        "year_n": 2026,
+        "month_n1": 8,
+        "year_n1": 2026,
+        "mois_precedent_repris": True,
+        "month_repris": 9,
+        "year_repris": 2026,
+    }
     resultat = compute_comparison(_bulletin(3000.0, 2400.0), _bulletin(1800.0, 1500.0), ctx)
     r03 = [a for a in resultat.alerts if a.rule_id == "R03"]
     assert len(r03) == 1 and r03[0].level == "AVERTISSEMENT"
-    assert "ancien logiciel" in r03[0].message
+    # Le texte nomme le vrai mois comparé (août) et le mois repris (septembre).
+    assert r03[0].message.endswith(
+        "par rapport à août, dernier mois calculé par Martine "
+        "(septembre vient de l'ancien logiciel)."
+    )
+    assert "par rapport au mois repris" not in r03[0].message
     assert resultat.has_critical is False
+
+
+def test_r12_mois_precedent_repris_le_dit_au_lieu_d_aucun_bulletin():
+    """Zone 404, 20/11 : premier mois calculé, septembre repris de Quadra ; le
+    serveur disait « Aucun bulletin N-1 validé trouvé »."""
+    ctx = {
+        **_ctx(),
+        "month_n": 10,
+        "year_n": 2026,
+        "mois_precedent_repris": True,
+        "month_repris": 9,
+        "year_repris": 2026,
+    }
+    resultat = compute_comparison(_bulletin(3000.0, 2400.0), None, ctx)
+    r12 = [a.message for a in resultat.alerts if a.rule_id == "R12"]
+    assert r12 == ["Septembre vient de l'ancien logiciel : pas de comparaison du net."]
+
+
+def test_r12_mois_repris_d_une_autre_annee_porte_l_annee():
+    ctx = {
+        **_ctx(),
+        "month_n": 1,
+        "year_n": 2027,
+        "mois_precedent_repris": True,
+        "month_repris": 12,
+        "year_repris": 2026,
+    }
+    resultat = compute_comparison(_bulletin(3000.0, 2400.0), None, ctx)
+    r12 = [a.message for a in resultat.alerts if a.rule_id == "R12"]
+    assert r12 == ["Décembre 2026 vient de l'ancien logiciel : pas de comparaison du net."]
+
+
+def test_r12_sans_mois_repris_garde_son_texte():
+    resultat = compute_comparison(_bulletin(3000.0, 2400.0), None, _ctx())
+    r12 = [a.message for a in resultat.alerts if a.rule_id == "R12"]
+    assert r12 == ["Aucun bulletin N-1 validé trouvé pour la comparaison."]
 
 
 def test_r03_entre_deux_mois_de_martine_reste_critique():
@@ -117,3 +167,6 @@ def test_mois_repris_entre_le_bulletin_de_comparaison_et_n(monkeypatch):
     assert q.mois_repris_entre("e", "c", {"year": 2026, "month": 8}, 2026, 10) is True
     # Le bulletin comparé est postérieur au mois repris : non.
     assert q.mois_repris_entre("e", "c", {"year": 2026, "month": 9}, 2026, 11) is False
+    # Le mois repris est nommé à l'écran : on le rend.
+    assert q.dernier_mois_repris_entre("e", "c", None, 2026, 10) == (2026, 9)
+    assert q.dernier_mois_repris_entre("e", "c", {"year": 2026, "month": 9}, 2026, 11) is None

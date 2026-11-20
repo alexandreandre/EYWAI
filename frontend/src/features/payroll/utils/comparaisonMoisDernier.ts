@@ -67,13 +67,37 @@ export function titreComparaisonMoisDernier(
 
 export function sousTitreComparaisonValidee(
   mois: number | null | undefined,
-  annee: number | null | undefined
+  annee: number | null | undefined,
+  moisPrecedentRepris = false
 ): string {
   if (!mois || !annee) {
-    return 'Analyse automatique par rapport au dernier bulletin validé, qui n’existe pas encore.';
+    return moisPrecedentRepris
+      ? 'Analyse automatique par rapport au dernier bulletin calculé par Martine, qui n’existe pas encore.'
+      : 'Analyse automatique par rapport au dernier bulletin validé, qui n’existe pas encore.';
   }
   return `Analyse automatique par rapport au dernier bulletin validé : ${moisEnToutesLettres(mois, annee)}.`;
 }
 
 export const MESSAGE_AUCUN_BULLETIN_VALIDE =
   'Aucun bulletin validé avant ce mois : la comparaison n’est pas possible pour ce salarié. « Ce qui a changé », dans l’onglet Bulletin, compare au bulletin du mois civil précédent, validé ou non.';
+
+/**
+ * Mois précédent repris de l'ancien logiciel (Zone 404, 20/11) : le serveur le
+ * dit dans R12 (« Septembre vient de l'ancien logiciel : pas de comparaison du
+ * net. »). On le reconnaît à ce texte, puisque R12 n'a pas de champ dédié.
+ */
+export function messageMoisRepris(
+  alertes: Array<{ rule_id: string; message: string }>
+): string | null {
+  const r12 = alertes.find((a) => a.rule_id === 'R12');
+  return r12 && /vient de l.ancien logiciel/.test(r12.message) ? r12.message : null;
+}
+
+/** L'encadré « pas de comparaison » : la vraie raison quand le mois précédent est repris. */
+export function messageSansBulletinDeReference(
+  alertes: Array<{ rule_id: string; message: string }>
+): string {
+  const repris = messageMoisRepris(alertes);
+  if (!repris) return MESSAGE_AUCUN_BULLETIN_VALIDE;
+  return `${repris} « Ce qui a changé », dans l’onglet Bulletin, compare au bulletin du mois civil précédent, validé ou non.`;
+}

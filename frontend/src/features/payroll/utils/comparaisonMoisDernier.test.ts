@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   MESSAGE_AUCUN_BULLETIN_VALIDE,
+  messageSansBulletinDeReference,
   TEXTE_PAS_DE_BULLETIN,
   messageComparaisonMoisDernier,
   sousTitreComparaisonValidee,
@@ -68,5 +69,35 @@ describe('la référence de chaque comparaison est nommée', () => {
   it('sans bulletin validé, l’onglet renvoie à l’autre comparaison', () => {
     expect(MESSAGE_AUCUN_BULLETIN_VALIDE).toContain('Aucun bulletin validé avant ce mois');
     expect(MESSAGE_AUCUN_BULLETIN_VALIDE).toContain('mois civil précédent, validé ou non');
+  });
+});
+
+describe('mois précédent repris de l’ancien logiciel (Zone 404, 20/11)', () => {
+  const r12Repris = {
+    rule_id: 'R12',
+    message: "Septembre vient de l'ancien logiciel : pas de comparaison du net.",
+  };
+
+  it('l’encadré dit la vraie raison au lieu de « aucun bulletin validé »', () => {
+    const msg = messageSansBulletinDeReference([r12Repris]);
+    expect(msg.startsWith("Septembre vient de l'ancien logiciel : pas de comparaison du net.")).toBe(
+      true
+    );
+    expect(msg).not.toContain('Aucun bulletin validé');
+  });
+
+  it('sans mois repris, le message habituel', () => {
+    expect(
+      messageSansBulletinDeReference([
+        { rule_id: 'R12', message: 'Aucun bulletin N-1 validé trouvé pour la comparaison.' },
+      ])
+    ).toBe(MESSAGE_AUCUN_BULLETIN_VALIDE);
+    expect(messageSansBulletinDeReference([])).toBe(MESSAGE_AUCUN_BULLETIN_VALIDE);
+  });
+
+  it('le sous-titre ne parle plus d’un bulletin validé qui « n’existe pas »', () => {
+    expect(sousTitreComparaisonValidee(null, null, true)).toBe(
+      'Analyse automatique par rapport au dernier bulletin calculé par Martine, qui n’existe pas encore.'
+    );
   });
 });

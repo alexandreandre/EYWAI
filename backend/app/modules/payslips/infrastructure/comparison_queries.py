@@ -30,6 +30,19 @@ def mois_repris_entre(
     """Un bulletin repris de l'ancien logiciel tombe-t-il entre le bulletin de
     comparaison (exclu, R-085) et le mois N ? Le mois juste avant N est alors
     celui de l'ancien logiciel : l'écart du net ne prouve rien."""
+    return dernier_mois_repris_entre(employee_id, company_id, precedent, year, month) is not None
+
+
+def dernier_mois_repris_entre(
+    employee_id: str,
+    company_id: str,
+    precedent: dict[str, Any] | None,
+    year: int,
+    month: int,
+) -> tuple[int, int] | None:
+    """Le plus récent mois repris de l'ancien logiciel entre le bulletin de
+    comparaison (exclu) et N, en (année, mois) ; None s'il n'y en a pas. Sert à
+    le nommer à l'écran (« Septembre vient de l'ancien logiciel »)."""
     r = (
         supabase.table("payslips")
         .select("year, month")
@@ -40,7 +53,12 @@ def mois_repris_entre(
         .execute()
     )
     borne = (int(precedent["year"]), int(precedent["month"])) if precedent else (0, 0)
-    return any((int(x["year"]), int(x["month"])) > borne for x in ((r.data if r else None) or []))
+    repris = [
+        (int(x["year"]), int(x["month"]))
+        for x in ((r.data if r else None) or [])
+        if (int(x["year"]), int(x["month"])) > borne
+    ]
+    return max(repris) if repris else None
 
 
 def fetch_previous_validated_payslip(
