@@ -139,6 +139,16 @@ async function panierTapeALaMain(page: Page) {
   await choix.click();
   await page.locator('[cmdk-item]').nth(1).click();
   await fen.getByRole('heading', { name: /Ajouter une saisie du mois/ }).click();
+
+  // Prime à 0 € (catalogue prérempli à 0, 20/11) : refusée, la raison est dite.
+  const champMontant = fen.getByText(/^Montant \(€\)/).locator('xpath=..').locator('input').first();
+  await champMontant.fill('0');
+  await expect(fen.getByTestId('montant-nul')).toContainText('Indiquez le montant de la prime');
+  await fen.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.getByText('Montant à indiquer').first()).toBeVisible();
+  expect(corps.length).toBe(0);
+  await champMontant.fill('150');
+  await expect(fen.getByTestId('montant-nul')).toHaveCount(0);
   await fen.getByRole('button', { name: 'Enregistrer' }).click();
 
   await expect.poll(() => corps.length, { timeout: 15_000 }).toBeGreaterThan(0);

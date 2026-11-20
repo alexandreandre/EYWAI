@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { champsDeLaSaisie, montantAEnvoyer, montantAEditer, libelleMontantSaisie } from './sensSaisie';
+import {
+  champsDeLaSaisie,
+  erreurMontantNul,
+  montantAEnvoyer,
+  montantAEditer,
+  libelleMontantSaisie,
+} from './sensSaisie';
 
 const cases = { is_socially_taxed: true, is_taxable: true };
 
@@ -44,5 +50,24 @@ describe('corriger un montant garde le sens', () => {
     expect(libelleMontantSaisie(-100, false)).toBe('Retenue sur le net');
     expect(libelleMontantSaisie(150, true)).toBeNull();
     expect(libelleMontantSaisie(300, false)).toBeNull();
+  });
+});
+
+describe('erreurMontantNul', () => {
+  it('refuse une prime à 0 €, par exemple préremplie depuis le catalogue', () => {
+    expect(erreurMontantNul('prime', 0)).toBe('Indiquez le montant de la prime.');
+    expect(erreurMontantNul('prime', '0')).toBe('Indiquez le montant de la prime.');
+    expect(erreurMontantNul('prime', '0,00')).toBe('Indiquez le montant de la prime.');
+  });
+
+  it('nomme la retenue et le versement sur le net', () => {
+    expect(erreurMontantNul('retenue_net', 0)).toBe('Indiquez le montant de la retenue.');
+    expect(erreurMontantNul('versement_net', 0)).toBe('Indiquez le montant du versement.');
+  });
+
+  it('laisse passer un montant non nul', () => {
+    expect(erreurMontantNul('prime', 7.6)).toBeNull();
+    expect(erreurMontantNul('prime', '7,60')).toBeNull();
+    expect(erreurMontantNul('retenue_net', 150)).toBeNull();
   });
 });

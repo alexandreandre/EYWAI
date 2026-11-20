@@ -58,3 +58,16 @@ export function montantAEnvoyer(ancien: number, saisi: number): number {
 export function libelleMontantSaisie(amount: number, _surLeNet: boolean): string | null {
   return amount < 0 ? 'Retenue sur le net' : null;
 }
+
+/**
+ * Une saisie à montant nul ne fait rien sur le bulletin : on la refuse avec la
+ * raison (20/11 : la prime « Indemnité cantine » du catalogue se préremplit
+ * à 0 € et s'enregistrait telle quelle).
+ */
+export function erreurMontantNul(sens: SensSaisie, montant: number | string): string | null {
+  const valeur = typeof montant === 'number' ? montant : Number.parseFloat(String(montant).replace(',', '.'));
+  if (Number.isFinite(valeur) && valeur !== 0) return null;
+  if (sens === 'retenue_net') return 'Indiquez le montant de la retenue.';
+  if (sens === 'versement_net') return 'Indiquez le montant du versement.';
+  return 'Indiquez le montant de la prime.';
+}

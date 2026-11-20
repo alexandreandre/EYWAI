@@ -46,7 +46,7 @@ import * as calendarApi from "@/api/calendar";
 import { reverseCalculation } from "@/api/simulation";
 import type { BonusType } from "@/api/bonusTypes";
 import { estRoleRh } from '@/lib/rolesRh';
-import { SENS_SAISIE, champsDeLaSaisie, type SensSaisie } from '@/components/saisies/sensSaisie';
+import { SENS_SAISIE, champsDeLaSaisie, erreurMontantNul, type SensSaisie } from '@/components/saisies/sensSaisie';
 import { chargerCatalogueDePrimes } from '@/components/saisies/catalogueDePrimes';
 import {
   explicationAffichee,
@@ -255,6 +255,13 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
         description: "Veuillez remplir le nom, le montant et sélectionner au moins un employé.",
         variant: "destructive",
       });
+      return;
+    }
+
+    // Une prime à 0 € ne fait rien sur le bulletin (catalogue prérempli à 0) : refusée.
+    const erreurMontant = erreurMontantNul(isCustomPrime ? sens : 'prime', formData.amount);
+    if (erreurMontant) {
+      toast({ title: 'Montant à indiquer', description: erreurMontant, variant: 'destructive' });
       return;
     }
 
@@ -758,6 +765,11 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                   onValeur={amount => setFormData(p => ({ ...p, amount }))}
                   disabled={isCalculating || (selectedBonusTypeId && bonusTypes.find(bt => bt.id === selectedBonusTypeId)?.type === "selon_heures")}
                 />
+                {formData.amount !== "" && erreurMontantNul(isCustomPrime ? sens : 'prime', formData.amount) && (
+                  <p className="text-xs text-destructive" data-testid="montant-nul">
+                    {erreurMontantNul(isCustomPrime ? sens : 'prime', formData.amount)} À 0 €, rien ne change sur le bulletin.
+                  </p>
+                )}
                 {estUnPanier(formData.name) && formData.is_socially_taxed && (!isCustomPrime || sens === 'prime') && (
                   <p className="text-xs text-muted-foreground" data-testid="panier-soumis">
                     Coché « soumise à cotisations » : ce panier sera cotisé en entier, sans exonération.
