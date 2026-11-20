@@ -685,6 +685,38 @@ def process_payslip_generation_forfait(
             run_payslip_generation_forfait,
         )
 
+        # Métallurgie (art. 103.5.1) : l'activité partielle ne fait pas baisser
+        # le net d'un forfait jours ; le complément est cherché par des calculs
+        # sans PDF, puis le bulletin est calculé une fois pour de bon.
+        from app.modules.payroll.engine import maintien_net_activite_partielle as maintien_ap
+
+        idcc_du_bulletin = (
+            (contrat_json_content.get("remuneration") or {}).get("convention_collective") or {}
+        ).get("idcc")
+        if maintien_ap.s_applique(idcc_du_bulletin, saisies_data.get("primes") or []):
+            primes_du_mois = list(saisies_data.get("primes") or [])
+
+            def _net_avec(primes: list[dict[str, Any]]) -> float:
+                write_temp_json(
+                    employee_path / "saisies" / f"{month:02d}.json",
+                    {**saisies_data, "primes": primes},
+                )
+                return maintien_ap.net_avant_impot(
+                    run_payslip_generation_forfait(
+                        employee_path,
+                        year,
+                        month,
+                        engine_root,
+                        company_id=str(company_id),
+                        employee_id=str(employee_id),
+                        persister=False,
+                    )
+                )
+
+            complement = maintien_ap.complement_qui_garde_le_net(primes_du_mois, _net_avec)
+            saisies_data["primes"] = maintien_ap.avec_complement(primes_du_mois, complement)
+            write_temp_json(employee_path / "saisies" / f"{month:02d}.json", saisies_data)
+
         payslip_json_data = run_payslip_generation_forfait(
             employee_path,
             year,

@@ -259,6 +259,12 @@ FORFAIT_SEULEMENT: dict[str, dict[str, str]] = {
         "bornes_periode_de_paie": "activité partielle sur la période de paie (aux heures : la fenêtre des variables)",
         "message_pas_forfait_jour": "refus d'un salarié qui n'est pas au forfait",
         "run_payslip_generation_forfait": "le moteur du forfait jours",
+        # CCN métallurgie art. 103.5.1 : le maintien du net en activité
+        # partielle ne vise que les conventions de forfait en jours.
+        "s_applique": "maintien du net en activité partielle, forfait jours en métallurgie",
+        "complement_qui_garde_le_net": "maintien du net en activité partielle, forfait jours en métallurgie",
+        "avec_complement": "maintien du net en activité partielle, forfait jours en métallurgie",
+        "net_avant_impot": "maintien du net en activité partielle, forfait jours en métallurgie",
     },
     "moteur": {
         "analyser_jours_forfait_du_mois": "les jours du forfait",
