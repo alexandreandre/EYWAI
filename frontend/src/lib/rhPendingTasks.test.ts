@@ -133,3 +133,26 @@ describe('tâche « Échéances » ([D6-6], 12/10/2026)', () => {
     expect(items.find((i) => i.id === 'residence')?.count).toBe(2);
   });
 });
+
+import { lienCalendrierDuMois } from './rhPendingTasks';
+
+describe('lien « Calendrier » du menu au nom du mois (20/11)', () => {
+  it('nomme le mois compté quand la pastille est rouge', () => {
+    expect(lienCalendrierDuMois('Calendrier', 3, 11)).toEqual({
+      title: 'Calendrier · novembre',
+      tooltip: '3 calendriers de novembre à saisir',
+    });
+  });
+
+  it('élide devant une voyelle et accorde au singulier', () => {
+    expect(lienCalendrierDuMois('Calendrier', 1, 10)).toEqual({
+      title: 'Calendrier · octobre',
+      tooltip: "1 calendrier d'octobre à saisir",
+    });
+  });
+
+  it('libellé inchangé sans calendrier à saisir ou sans mois connu', () => {
+    expect(lienCalendrierDuMois('Calendrier', 0, 11)).toEqual({ title: 'Calendrier' });
+    expect(lienCalendrierDuMois('Calendrier', 4, undefined)).toEqual({ title: 'Calendrier' });
+  });
+});

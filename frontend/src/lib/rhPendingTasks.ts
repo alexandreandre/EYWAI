@@ -352,3 +352,20 @@ export function rhPendingTasksToSidebarCounts(
   }
   return out;
 }
+
+/**
+ * Lien « Calendrier » du menu : quand sa pastille rouge compte des calendriers,
+ * le libellé nomme le mois compté (« Calendrier · novembre ») et l'infobulle
+ * le dit en clair. Sans calendrier à saisir, le libellé reste tel quel.
+ */
+export function lienCalendrierDuMois(
+  titre: string,
+  count: number,
+  mois?: number,
+): { title: string; tooltip?: string } {
+  if (count <= 0 || !mois || !nomDuMois(mois)) return { title: titre };
+  return {
+    title: `${titre} · ${nomDuMois(mois)}`,
+    tooltip: `${count} calendrier${count > 1 ? 's' : ''} ${duMois(mois)} à saisir`,
+  };
+}

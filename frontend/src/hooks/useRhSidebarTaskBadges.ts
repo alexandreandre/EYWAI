@@ -21,6 +21,7 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
     isPayrollPipelineError,
     retryFailed,
     getCount,
+    schedulesMonth,
   } = useRhPendingTasks(enabled);
 
   const prevPathRef = useRef<string | null>(null);
@@ -48,5 +49,6 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
     isPayrollPipelineError,
     retryFailed,
     totalRhPending,
+    schedulesMonth,
   };
 }

@@ -88,12 +88,15 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { VersionDuSite } from "@/components/VersionDuSite";
 import type { LucideIcon } from "lucide-react";
 import { ALT_LOGO_MARTINE, LOGO_MARTINE } from '@/lib/logoMartine';
+import { lienCalendrierDuMois } from '@/lib/rhPendingTasks';
 
 type SidebarLinkItem = {
   title: string;
   url: string;
   icon: LucideIcon;
   disabled?: boolean;
+  /** Infobulle du lien (ex. « 3 calendriers de novembre à saisir »). */
+  tooltip?: string;
 };
 type SidebarLinkGroup = {
   label?: string;
@@ -101,6 +104,21 @@ type SidebarLinkGroup = {
   /** Étapes du parcours paie (numérotées, ligne verticale). */
   workflow?: boolean;
 };
+
+/** Le lien des calendriers nomme le mois que compte sa pastille rouge. */
+function avecMoisDesCalendriers(
+  groups: SidebarLinkGroup[],
+  count: number,
+  mois?: number,
+): SidebarLinkGroup[] {
+  if (count <= 0 || !mois) return groups;
+  return groups.map((g) => ({
+    ...g,
+    items: g.items.map((item) =>
+      item.url === "/schedules" ? { ...item, ...lienCalendrierDuMois(item.title, count, mois) } : item,
+    ),
+  }));
+}
 
 /** Hiérarchie typo sidebar RH — alignée sur les primitives `sidebar.tsx`. */
 const SIDEBAR_NAV = {
@@ -424,7 +442,7 @@ function SidebarSubLinkContent({
         size="sm"
         className={cn(count > 0 && "pr-9")}
       >
-        <NavLink to={item.url} end={item.url === "/"}>
+        <NavLink to={item.url} end={item.url === "/"} title={item.tooltip}>
           <item.icon className={SIDEBAR_NAV.iconPrimary} />
           <span className={SIDEBAR_NAV.subLinkLabel}>{item.title}</span>
         </NavLink>
@@ -829,8 +847,9 @@ export function AppSidebar() {
     (user.role === "rh" ||
       user.role === "admin" ||
       (isCollaborateurRh && viewMode === "rh"));
-  const { getCount, totalRhPending, isPayrollPipelineLoading } =
+  const { getCount, totalRhPending, isPayrollPipelineLoading, schedulesMonth } =
     useRhSidebarTaskBadges(isRhMenu);
+  const calendriersASaisir = getCount("/schedules");
 
   const hasConsolidatedViews = accessibleGroups.length > 0;
   const monEntrepriseNav = useMemo(
@@ -851,7 +870,11 @@ export function AppSidebar() {
       // Mode paie : la section Gestion disparaît, sauf « Mon entreprise » qui
       // porte les paramètres de paie (période, fenêtre des variables, mutuelle).
       const kept = restrictToPayrollFocus('gestion', RH_GESTION_GROUPS);
-      return hasConsolidatedViews ? kept : [...kept, { items: [monEntrepriseNav] }];
+      return avecMoisDesCalendriers(
+        hasConsolidatedViews ? kept : [...kept, { items: [monEntrepriseNav] }],
+        calendriersASaisir,
+        schedulesMonth,
+      );
     }
     const base = RH_GESTION_GROUPS.map((g) => ({
       ...g,
@@ -862,12 +885,17 @@ export function AppSidebar() {
       const idx = usersIdx >= 0 ? usersIdx : base[0].items.length;
       base[0].items.splice(idx, 0, monEntrepriseNav);
     }
-    return base;
-  }, [payrollFocus, hasConsolidatedViews, monEntrepriseNav]);
+    return avecMoisDesCalendriers(base, calendriersASaisir, schedulesMonth);
+  }, [payrollFocus, hasConsolidatedViews, monEntrepriseNav, calendriersASaisir, schedulesMonth]);
 
   const rhPaieGroups = useMemo(
-    () => (payrollFocus ? restrictToPayrollFocus('paie', RH_PAIE_GROUPS) : RH_PAIE_GROUPS),
-    [payrollFocus],
+    () =>
+      avecMoisDesCalendriers(
+        payrollFocus ? restrictToPayrollFocus('paie', RH_PAIE_GROUPS) : RH_PAIE_GROUPS,
+        calendriersASaisir,
+        schedulesMonth,
+      ),
+    [payrollFocus, calendriersASaisir, schedulesMonth],
   );
 
   const rhCollapsedNavItems = useMemo(

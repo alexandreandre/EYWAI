@@ -405,5 +405,7 @@ export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string |
     /** Relance les seules requêtes en erreur. */
     retryFailed,
     getCount: (url: string) => sidebarCounts[url] ?? 0,
+    /** Mois de paie compté par la pastille des calendriers (1-12). */
+    schedulesMonth,
   };
 }
