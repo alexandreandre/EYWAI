@@ -83,6 +83,16 @@ describe('erreurDeLaRegle', () => {
     );
     expect(erreurDeLaRegle({ label: 'Panier', rule_type: 'per_worked_day', amount: 10 }, existantes, 'a')).toBeNull();
   });
+  it('laisse modifier une règle existante : retenue négative, taux, ancien doublon de libellé', () => {
+    expect(erreurDeLaRegle({ label: 'Retenue', rule_type: 'fixed_monthly', amount: -20 }, [], null)).toBeNull();
+    expect(erreurDeLaRegle({ label: 'Taux', rule_type: 'fixed_monthly', amount: null, rate: 1.5 }, [], null)).toBeNull();
+    const doublons = [regle({ id: 'a', label: 'Prime' }), regle({ id: 'b', label: 'Prime' })];
+    expect(erreurDeLaRegle({ label: 'Prime', rule_type: 'fixed_monthly', amount: 10 }, doublons, 'a')).toBeNull();
+  });
+  it('une majoration ou des heures à 0 ne remplacent pas le montant', () => {
+    expect(montantIgnore({ rule_type: 'per_night_hour', conditions: { majoration_pct: 0 } })).toBeNull();
+    expect(montantIgnore({ rule_type: 'per_worked_day', conditions: { heures_par_jour: 0 } })).toBeNull();
+  });
   it('exige un libellé', () => {
     expect(erreurDeLaRegle({ label: '  ', rule_type: 'fixed_monthly', amount: 10 }, [], null)).toMatch(/libellé/);
   });

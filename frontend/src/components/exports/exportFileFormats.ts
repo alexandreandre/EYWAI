@@ -61,9 +61,13 @@ export function proposeLeChoixDuFormat(exportType: ExportType): boolean {
 /** Les formats proposés, celui d'office en premier ; vide sans choix de format. */
 export function formatsProposes(exportType: ExportType): { value: ExportFileFormat; label: string }[] {
   if (!proposeLeChoixDuFormat(exportType)) return [];
-  const ordre: ExportFileFormat[] = PDF_D_OFFICE.has(exportType)
-    ? ['pdf', 'xlsx', 'csv']
-    : ['xlsx', 'csv', 'pdf'];
+  const dOffice = formatParDefaut(exportType);
+  const ordre: ExportFileFormat[] = [
+    dOffice,
+    ...((PDF_D_OFFICE.has(exportType) ? ['pdf', 'xlsx', 'csv'] : ['xlsx', 'csv', 'pdf']) as ExportFileFormat[]).filter(
+      (f) => f !== dOffice,
+    ),
+  ];
   return ordre
     .filter((f) => !(f === 'csv' && SANS_CSV.has(exportType)))
     .map((value) => ({ value, label: LIBELLES_FORMAT[value] }));

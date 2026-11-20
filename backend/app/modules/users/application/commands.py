@@ -110,10 +110,12 @@ def grant_company_access_by_user_id(
     }
     existing = access_repo.get_by_user_and_company(target_user_id, company_id)
     if existing:
-        result = access_repo.update(
-            target_user_id, company_id, {"role": role, "is_primary": is_primary}
+        # Jamais d'écrasement d'ici (relecture du 20/11) : une RH aurait pu
+        # rétrograder un accès plus élevé qu'elle ne voit pas, ou retirer la
+        # société principale. Un accès existant se change depuis sa société.
+        raise ValueError(
+            "Cette personne a déjà un accès à cette société : il se modifie depuis la société elle-même."
         )
-        message = "Accès mis à jour avec succès"
     else:
         result = access_repo.create(access_data)
         message = "Accès accordé avec succès"

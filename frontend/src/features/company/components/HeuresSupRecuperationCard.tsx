@@ -107,7 +107,7 @@ export default function HeuresSupRecuperationCard() {
 
   // Compteur de récupération tenu ou non, sans changer le paiement des heures sup.
   const basculerCompteur = useMutation({
-    mutationFn: (allumer: boolean) => updateModulationSettings(reglageCompteur(allumer)),
+    mutationFn: (allumer: boolean) => updateModulationSettings(reglageCompteur(allumer, data)),
     onSuccess: (saved, allumer) => {
       queryClient.setQueryData(queryKeys.modulationSettings(companyId), saved);
       toast({

@@ -872,7 +872,7 @@ export default function PayrollVariableRulesCard() {
               </div>
             )}
 
-            {isPresenceWeek && !presenceConditions.periode_assiduite && (
+            {isPresenceWeek && (!presenceConditions.periode_assiduite || selectedAbsenceTypes.length > 0) && (
               <div className="space-y-3 sm:col-span-2">
                 <Label>
                   {presenceConditions.periode_assiduite

@@ -49,12 +49,25 @@ describe('etatInterrupteurCompteur', () => {
 });
 
 describe('reglageCompteur', () => {
-  it('n’envoie jamais la règle de paiement des heures sup', () => {
-    expect(reglageCompteur(true)).toEqual({
+  it('allumé depuis « Payées », pose la règle « payées » (le défaut en base est la franchise)', () => {
+    expect(reglageCompteur(true, { hour_account_enabled: false, hs_routing_policy: 'franchise' })).toEqual({
       hour_account_enabled: true,
       recovery_absence_enabled: true,
+      hs_routing_policy: 'pay_all',
     });
-    expect(reglageCompteur(false)).not.toHaveProperty('hs_routing_policy');
+    expect(reglageCompteur(true, { hour_account_enabled: true, hs_routing_policy: 'pay_all' })).toEqual({
+      hour_account_enabled: true,
+      recovery_absence_enabled: true,
+      hs_routing_policy: 'pay_all',
+    });
+  });
+  it('ne touche jamais une règle « au compteur » déjà choisie, ni à l’extinction', () => {
+    expect(reglageCompteur(true, { hour_account_enabled: true, hs_routing_policy: 'franchise' })).not.toHaveProperty(
+      'hs_routing_policy',
+    );
+    expect(reglageCompteur(false, { hour_account_enabled: true, hs_routing_policy: 'pay_all' })).not.toHaveProperty(
+      'hs_routing_policy',
+    );
   });
 });
 

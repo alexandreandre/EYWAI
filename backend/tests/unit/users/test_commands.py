@@ -204,7 +204,7 @@ class TestGrantCompanyAccessByUserId:
     @patch("app.modules.users.application.commands.get_company_repository")
     @patch("app.modules.users.application.commands.get_user_company_access_repository")
     @patch("app.modules.users.application.commands.get_user_repository")
-    def test_existing_access_keeps_its_permissions(
+    def test_existing_access_is_never_overwritten(
         self, get_user_repo, get_access_repo, get_company_repo, get_tpl, copy_tpl
     ):
         get_user_repo.return_value.get_by_id.return_value = {"id": "u1"}
@@ -214,11 +214,12 @@ class TestGrantCompanyAccessByUserId:
             "company_id": "c1",
         }
 
-        result = commands.grant_company_access_by_user_id(
-            "u1", "c1", "collaborateur", False, _current_user()
-        )
+        with pytest.raises(ValueError, match="déjà un accès"):
+            commands.grant_company_access_by_user_id(
+                "u1", "c1", "collaborateur", False, _current_user()
+            )
 
-        assert result.message == "Accès mis à jour avec succès"
+        get_access_repo.return_value.update.assert_not_called()
         get_tpl.assert_not_called()
         copy_tpl.assert_not_called()
 

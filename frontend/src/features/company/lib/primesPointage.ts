@@ -113,10 +113,11 @@ export const MODELES_PRIMES_POINTAGE: ModelePrime[] = [
 /** Pourquoi le montant de la règle ne compte pas (heures au taux horaire, majoration en %), sinon null. */
 export function montantIgnore(regle: Partial<PayrollVariableRule>): string | null {
   const c = (regle.conditions ?? {}) as Record<string, unknown>;
-  if (regle.rule_type === 'per_worked_day' && c.heures_par_jour != null) {
+  // Le moteur ne lit les heures et la majoration que si elles valent plus que 0.
+  if (regle.rule_type === 'per_worked_day' && Number(c.heures_par_jour) > 0) {
     return 'Inutile : les heures par jour sont payées au taux horaire de chaque salarié.';
   }
-  if (regle.rule_type === 'per_night_hour' && c.majoration_pct != null) {
+  if (regle.rule_type === 'per_night_hour' && Number(c.majoration_pct) > 0) {
     return 'Inutile : la majoration en % s’applique au taux horaire de chaque salarié.';
   }
   return null;
@@ -137,12 +138,15 @@ export function erreurDeLaRegle(
 ): string | null {
   const libelle = (regle.label ?? '').trim();
   if (!libelle) return 'Donnez un libellé à la prime (il s’imprime sur le bulletin).';
-  const pris = regles.some(
-    (r) => r.id !== idEnModification && (r.label ?? '').trim().toLowerCase() === libelle.toLowerCase(),
-  );
+  const memeLibelle = (r: PayrollVariableRule) => (r.label ?? '').trim().toLowerCase() === libelle.toLowerCase();
+  // Une règle qu'on modifie sans changer son libellé passe, même si une ancienne porte le même.
+  const original = regles.find((r) => r.id === idEnModification);
+  const pris = !(original && memeLibelle(original)) && regles.some((r) => r.id !== idEnModification && memeLibelle(r));
   if (pris) return `Une règle s’appelle déjà « ${libelle} » : choisissez un autre libellé, ou modifiez celle-là.`;
   const typeAvecMontant = !SANS_MONTANT_SAISI.has(regle.rule_type ?? '');
-  if (typeAvecMontant && !montantIgnore(regle) && !(Number(regle.amount) > 0)) {
+  // Montant non nul (une retenue fixe est négative), ou un taux.
+  const montantDonne = (regle.amount != null && Number(regle.amount) !== 0) || regle.rate != null;
+  if (typeAvecMontant && !montantIgnore(regle) && !montantDonne) {
     return 'Indiquez le montant de la prime.';
   }
   return null;

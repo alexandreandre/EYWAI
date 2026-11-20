@@ -42,6 +42,7 @@ describe('formatParDefaut', () => {
 
 describe('formatsProposes', () => {
   it('le format d’office est le premier proposé', () => {
+    expect(formatsProposes('od_salaires')[0].value).toBe(formatParDefaut('od_salaires'));
     expect(formatsProposes('journal_paie').map((f) => f.value)).toEqual(['pdf', 'xlsx', 'csv']);
     expect(formatsProposes('conges_absences').map((f) => f.value)).toEqual(['xlsx', 'csv', 'pdf']);
   });

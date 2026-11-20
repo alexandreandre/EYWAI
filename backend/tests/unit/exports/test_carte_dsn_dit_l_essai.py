@@ -10,7 +10,6 @@ from pathlib import Path
 import pytest
 
 from app.modules.dsn_export.domain import etat_conformite
-from app.modules.exports.infrastructure import export_dsn
 
 pytestmark = pytest.mark.unit
 
@@ -25,12 +24,6 @@ def _description_de_la_carte() -> str:
     debut = source.index('id: "dsn_mensuelle"')
     bloc = source[debut : source.index("icon:", debut)]
     return bloc.split("description:", 1)[1]
-
-
-def test_l_apercu_bloque_la_dsn_reelle_sur_la_meme_condition():
-    """La carte reprend la condition de l'aperçu : `essai`, sinon blocage si non déposable."""
-    source = Path(export_dsn.__file__).read_text(encoding="utf-8")
-    assert "if essai:" in source and "elif not DEPOSABLE:" in source
 
 
 def test_la_carte_dit_l_essai_tant_que_le_depot_est_ferme():

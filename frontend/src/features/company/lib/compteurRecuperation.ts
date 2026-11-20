@@ -41,12 +41,24 @@ export function etatInterrupteurCompteur(
   };
 }
 
-/** Ce qu'on envoie au serveur : les deux interrupteurs, jamais la règle de paiement. */
-export function reglageCompteur(allumer: boolean): {
+/** Ce qu'on envoie au serveur : les deux interrupteurs. Allumé depuis « Payées »,
+ * la règle est posée explicitement à « payées » : la valeur par défaut en base est
+ * « N premières heures au compteur » (`franchise`), qui serait devenue active sans
+ * être choisie (relecture du 20/11). Jamais touchée sinon. */
+export function reglageCompteur(
+  allumer: boolean,
+  reglage?: Pick<ModulationSettings, 'hour_account_enabled' | 'hs_routing_policy'>,
+): {
   hour_account_enabled: boolean;
   recovery_absence_enabled: boolean;
+  hs_routing_policy?: 'pay_all';
 } {
-  return { hour_account_enabled: allumer, recovery_absence_enabled: allumer };
+  const affichePayees = !reglage?.hour_account_enabled || reglage.hs_routing_policy === 'pay_all';
+  return {
+    hour_account_enabled: allumer,
+    recovery_absence_enabled: allumer,
+    ...(allumer && affichePayees ? { hs_routing_policy: 'pay_all' as const } : {}),
+  };
 }
 
 /** Où s'allume le compteur, pour la fiche salarié. */
