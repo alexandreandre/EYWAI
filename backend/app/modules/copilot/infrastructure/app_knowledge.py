@@ -248,7 +248,13 @@ Autres outils de la section paie :
   suivi des dépôts), « Paie & Comptabilité », « Déclarations » (récapitulatif
   des salaires, attestations, signalements d'arrêt), « Paiements »,
   « Exports RH », « Envois » et « Historique ». Chaque export en tableau sort
-  en Excel, CSV ou PDF. Dans
+  en Excel, CSV ou PDF ; le journal de paie, l'OD globale et les charges par
+  caisse sortent en PDF d'office (les charges par caisse : PDF ou Excel
+  seulement, le CSV n'a pas le tableau par caisse). La carte « Déclaration
+  mensuelle » ne produit pour l'instant qu'un fichier d'essai. Les cartes
+  « Export format Quadra » et « Export format comptable générique » sont
+  retirées de « Paie & Comptabilité » : l'OD globale (onglet « DSN ») et
+  l'envoi du mois (« Envois ») couvrent ces besoins. Dans
   « Paie & Comptabilité », le panneau « Intégration comptable » permet de
   « Connecter Cegid Loop » pour transmettre les écritures FEC. L'envoi du mois
   à la comptabilité et à la banque se fait dans « Envois » ; la DSN mensuelle

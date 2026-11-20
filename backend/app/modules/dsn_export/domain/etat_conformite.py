@@ -8,7 +8,9 @@ Le chantier et sa méthode de mesure sont décrits dans
 ``docs/superpowers/specs/2026-08-03-dsn-export-conformite-design.md``.
 
 Lever le blocage (``DEPOSABLE = True``) est une décision d'Alexandre, pas un
-effet de bord d'un correctif : ce module ne dit que l'état, à jour du 02/11/2026
+effet de bord d'un correctif ; la carte « Déclaration mensuelle » de l'écran
+(frontend/src/components/exports/DsnTab.tsx), qui dit « fichier d'essai
+seulement », change avec lui : ce module ne dit que l'état, à jour du 02/11/2026
 (versements trimestriels produits depuis le 31/10/2026).
 """
 

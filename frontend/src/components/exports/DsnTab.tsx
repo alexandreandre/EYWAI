@@ -17,7 +17,11 @@ export const EXPORTS_DSN: { id: string; type: string; name: string; description:
     id: "dsn_mensuelle",
     type: "dsn_mensuelle",
     name: "Déclaration mensuelle",
-    description: "DSN mensuelle à déposer sur Net-entreprises",
+    // Tant que la DSN réelle est bloquée (DEPOSABLE = False dans
+    // backend/app/modules/dsn_export/domain/etat_conformite.py), seul le fichier
+    // d'essai sort : la carte le dit d'emblée. Un test backend garde l'accord.
+    description:
+      "Pour l'instant, fichier d'essai seulement : la DSN réelle ne se dépose pas encore depuis Martine, déposez-la comme avant. L'essai se dépose en mode test sur net-entreprises.",
     icon: FileText,
   },
   {

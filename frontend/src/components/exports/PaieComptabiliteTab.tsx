@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, Calculator, Database, History, Wallet, Scale, FileSpreadsheet, Landmark, type LucideIcon } from "lucide-react";
+import { History, Wallet, Scale, Landmark, type LucideIcon } from "lucide-react";
 import { ExportCommonModel } from "./ExportCommonModel";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ExportHistoryModal } from "./ExportHistoryModal";
@@ -25,9 +25,10 @@ export function PaieComptabiliteTab({
   const [historyModal, setHistoryModal] = useState<{ exportType: string; exportName: string } | null>(null);
 
   // Mapping entre les IDs des cartes et les types d'export de l'API
+  // « Export format Quadra » et « Export format comptable générique » retirés
+  // (Elsa, 20/11) : ils doublaient l'OD globale de l'onglet DSN et l'envoi du
+  // mois. Le serveur garde ces deux exports.
   const exportTypeMapping: Record<string, string> = {
-    export_cabinet_generique: "export_cabinet_generique",
-    export_cabinet_quadra: "export_cabinet_quadra",
     acomptes: "acomptes",
     saisies: "saisies",
     prets_employeur: "prets_employeur",
@@ -54,19 +55,6 @@ export function PaieComptabiliteTab({
     disabled?: boolean;
   }[] = [
     {
-      id: "export_cabinet_generique",
-      name: "Export format comptable générique",
-      description: "Export structuré pour intégration dans les logiciels comptables",
-      icon: Database,
-    },
-    {
-      id: "export_cabinet_quadra",
-      name: "Export format Quadra",
-      description:
-        "L'OD globale du mois, dans le fichier texte que QuadraCOMPTA importe directement. Utile seulement si le comptable tient les comptes sur Quadra.",
-      icon: Database,
-    },
-    {
       id: "acomptes",
       name: "Acomptes & avances",
       description: "Détail des versements et remboursements (425x) — déjà inclus dans l'OD globale",
@@ -92,7 +80,7 @@ export function PaieComptabiliteTab({
         <AlertTitle>Guide exports comptables</AlertTitle>
         <AlertDescription className="text-sm">
           OD globale, journal de paie et charges par caisse : onglet DSN. Clôture mensuelle envoyée au
-          cabinet : onglet Envois → Comptabilité. Format Quadra : carte ci-dessous.
+          cabinet : onglet Envois → Comptabilité.
         </AlertDescription>
       </Alert>
       <AccountingIntegrationPanel />
