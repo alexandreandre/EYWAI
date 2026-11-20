@@ -959,7 +959,7 @@ def _generate_od(
         )
 
     file_content = providers.generate_od_export_file(
-        ecritures, request.export_type, request.period, request.format
+        ecritures, request.export_type, request.period, request.format, company_id=company_id
     )
     period_formatted = request.period.replace("-", "_")
     type_label = {

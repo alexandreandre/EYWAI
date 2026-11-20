@@ -202,22 +202,61 @@ def get_paiement_salaires_data(
     return paiement_data, totals, anomalies, warnings
 
 
+#: Repère de l'anomalie « salarié écarté du CSV » : l'écran la montre dans un
+#: cadre à part, distinct des informations générales du fichier.
+CODE_IBAN_ECARTE = "iban_ecarte_du_csv"
+
+#: Ajouté aux blocages du SEPA qui ne bloqueraient pas le CSV (Elsa, 20/11 :
+#: qu'elle sache, sans chercher, comment sortir le fichier quand même).
+CONSEIL_CSV_IBAN = (
+    " Pour sortir le fichier quand même : au paramétrage du virement, "
+    "choisissez le format « CSV bancaire ». Le fichier sort alors sans ce "
+    "salarié, nommé à part, à payer à part."
+)
+CONSEIL_CSV_COMPTE = (
+    " Ou bien : au paramétrage du virement, choisissez le format « CSV "
+    "bancaire ». Le CSV n'a pas besoin du compte de la société ; un salarié à "
+    "l'IBAN faux y est écarté, nommé à part, à payer à part."
+)
+
+
+def _est_iban_faux(anomalie: Dict[str, Any]) -> bool:
+    # Le message, pas le nom : « Doublon détecté - Ibanez » reste bloquant.
+    return str(anomalie.get("message", "")).startswith("IBAN manquant ou invalide")
+
+
 def _iban_hors_du_csv(
     anomalies: List[Dict[str, Any]],
-) -> Tuple[List[Dict[str, Any]], List[str]]:
-    """Sépare les IBAN manquants ou invalides : avertissements nommés, hors du fichier."""
-    gardees: List[Dict[str, Any]] = []
-    ecartes: List[str] = []
+) -> List[Dict[str, Any]]:
+    """Les IBAN manquants ou invalides ne bloquent plus le CSV : le salarié est
+    hors du fichier, nommé dans une anomalie non bloquante à part."""
+    resultat: List[Dict[str, Any]] = []
     for anomalie in anomalies:
-        # Le message, pas le nom : « Doublon détecté - Ibanez » reste bloquant.
-        if str(anomalie.get("message", "")).startswith("IBAN manquant ou invalide"):
+        if _est_iban_faux(anomalie):
             nom = (anomalie.get("employee_name") or "").strip() or "Un salarié"
-            ecartes.append(
-                f"{nom} : IBAN manquant ou invalide, hors du fichier — à payer à part ou à corriger sur sa fiche."
+            resultat.append(
+                {
+                    **anomalie,
+                    "type": "warning",
+                    "severity": "warning",
+                    "code": CODE_IBAN_ECARTE,
+                    "message": (
+                        f"{nom} : IBAN manquant ou invalide, hors du fichier — "
+                        "à payer à part ou à corriger sur sa fiche."
+                    ),
+                }
             )
         else:
-            gardees.append(anomalie)
-    return gardees, ecartes
+            resultat.append(anomalie)
+    return resultat
+
+
+def _conseiller_le_csv(anomalies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """En SEPA, chaque IBAN faux dit comment sortir le fichier en CSV."""
+    return [
+        {**a, "message": f"{a.get('message', '')}.{CONSEIL_CSV_IBAN}"} if _est_iban_faux(a) else a
+        for a in anomalies
+    ]
 
 
 def preview_paiement_salaires(
@@ -245,16 +284,18 @@ def preview_paiement_salaires(
         # Le CSV se dépose à la main, sans compte débiteur dans le fichier : ni le
         # compte de la société ni l'IBAN faux d'un salarié ne bloquent tout le
         # fichier. Le salarié écarté est nommé, à payer à part (Elsa, 17/11).
-        anomalies, ecartes = _iban_hors_du_csv(anomalies)
-        warnings.extend(ecartes)
+        anomalies = _iban_hors_du_csv(anomalies)
         warnings.append("Fichier CSV — transmission manuelle à la banque.")
     else:
         bic_warning = missing_bic_warning(data)
         if bic_warning:
             warnings.append(bic_warning)
         warnings.append("Format SEPA pain.001.001.03 — transmission manuelle à la banque.")
-    if bank_format != "csv" and not charger_compte_societe(company_id):
-        anomalies = anomalies + [anomalie_compte_manquant()]
+        anomalies = _conseiller_le_csv(anomalies)
+        if not charger_compte_societe(company_id):
+            manquant = anomalie_compte_manquant()
+            manquant["message"] = f"{manquant['message']}{CONSEIL_CSV_COMPTE}"
+            anomalies = anomalies + [manquant]
     return {
         "employees_count": totals["virements_count"],
         "totals": {

@@ -1,6 +1,7 @@
 """PDF de chaque export en tableau, depuis son Excel (Elsa, 17/11)."""
 
 import io
+from unittest.mock import patch
 
 import pytest
 from openpyxl import Workbook
@@ -9,7 +10,8 @@ from PyPDF2 import PdfReader
 from app.modules.exports.application import service
 from app.modules.exports.infrastructure import providers
 from app.shared.utils.export import generate_xlsx
-from app.shared.utils.export_pdf import pdf_depuis_le_classeur, texte_de_cellule, xlsx_en_pdf
+from app.shared.utils import export_pdf
+from app.shared.utils.export_pdf import pdf_depuis_le_classeur, texte_de_cellule, titre_du_pdf, xlsx_en_pdf
 
 pytestmark = pytest.mark.unit
 
@@ -68,8 +70,52 @@ class TestDecorateur:
             return b"A\n1\n"
 
         assert generer("co", "2026-10", "csv") == b"A\n1\n"
-        assert generer("co", "2026-10", file_format="pdf").startswith(b"%PDF")
+        with patch.object(export_pdf, "nom_de_la_societe", return_value=""):
+            assert generer("co", "2026-10", file_format="pdf").startswith(b"%PDF")
         assert recu == ["csv", "xlsx"]
+
+    def test_le_titre_porte_la_societe_et_le_mois(self):
+        """Un groupe a plusieurs sociétés : le PDF dit de laquelle il parle (Elsa, 20/11)."""
+
+        @pdf_depuis_le_classeur("Journal de paie")
+        def generer(company_id, period, format="csv"):
+            return generate_xlsx([{"A": 1}], ["A"])
+
+        with patch.object(export_pdf, "nom_de_la_societe", return_value="Société Exemple") as lecture:
+            texte = _texte(generer("co-7", "2026-10", format="pdf"))
+        lecture.assert_called_once_with("co-7")
+        assert "Journal de paie — Société Exemple — Octobre 2026" in texte
+
+    def test_sans_nom_de_societe_le_titre_reste_lisible(self):
+        assert titre_du_pdf("Journal de paie", "", "Octobre 2026") == "Journal de paie — Octobre 2026"
+        assert titre_du_pdf("OD", "  ", "") == "OD"
+
+    def test_le_csv_ne_lit_pas_la_societe(self):
+        @pdf_depuis_le_classeur("Essai")
+        def generer(company_id, period, format="csv"):
+            return b"A\n1\n"
+
+        with patch.object(export_pdf, "nom_de_la_societe") as lecture:
+            generer("co", "2026-10", "csv")
+        lecture.assert_not_called()
+
+    def test_l_od_recoit_la_societe_pour_son_titre(self):
+        ecritures = [
+            {
+                "date_ecriture": "2026-10-31",
+                "journal": "OD",
+                "compte_comptable": "421",
+                "libelle": "Net",
+                "debit": 0.0,
+                "credit": 100.0,
+                "periode_paie": "2026-10",
+            }
+        ]
+        with patch.object(export_pdf, "nom_de_la_societe", return_value="Société Exemple"):
+            pdf = providers.generate_od_export_file(
+                ecritures, "od_globale", "2026-10", "pdf", company_id="co-7"
+            )
+        assert "Société Exemple" in _texte(pdf)
 
     def test_la_facade_des_exports_porte_le_decorateur(self):
         for nom in ("generate_journal_paie_export", "generate_charges_sociales_export", "generate_od_export_file"):

@@ -286,8 +286,13 @@ def generate_od_globale(
 
 @pdf_depuis_le_classeur("Écritures comptables de paie")
 def generate_od_export_file(
-    ecritures: List[Dict[str, Any]], export_type: str, period: str, format: str
+    ecritures: List[Dict[str, Any]],
+    export_type: str,
+    period: str,
+    format: str,
+    company_id: Optional[str] = None,
 ) -> bytes:
+    # `company_id` ne sert qu'au titre du PDF (nom de la société).
     return _generate_od_export_file(ecritures, export_type, period, format)
 
 

@@ -115,8 +115,18 @@ class TestApercuSalairesEnCsv:
     def test_un_iban_faux_ecarte_le_salarie_nomme_sans_bloquer(self):
         apercu = self._apercu(COMPTE, [self.IBAN_FAUX])
         assert apercu["can_generate"] is True
-        assert apercu["anomalies"] == []
-        assert any(w.startswith("Jean Dupont : IBAN manquant ou invalide, hors du fichier") for w in apercu["warnings"])
+        [ecarte] = apercu["anomalies"]
+        assert ecarte["severity"] == "warning"
+        assert ecarte["message"].startswith("Jean Dupont : IBAN manquant ou invalide, hors du fichier")
+        assert ecarte["employee_id"] == "e-2"
+
+    def test_le_salarie_ecarte_est_a_part_des_informations_generales(self):
+        """L'écran le montre dans son propre cadre, pas noyé sous « Fichier CSV »."""
+        apercu = self._apercu(COMPTE, [self.IBAN_FAUX])
+        [ecarte] = apercu["anomalies"]
+        assert ecarte["code"] == export_paiement_salaires.CODE_IBAN_ECARTE
+        assert not any("Jean Dupont" in w for w in apercu["warnings"])
+        assert "Fichier CSV — transmission manuelle à la banque." in apercu["warnings"]
 
     def test_un_nom_qui_contient_iban_reste_bloquant(self):
         doublon = {"type": "error", "message": "Doublon détecté - Luis Ibanez", "severity": "blocking"}
@@ -126,12 +136,26 @@ class TestApercuSalairesEnCsv:
     def test_un_doublon_bloque_toujours(self):
         apercu = self._apercu(COMPTE, [self.IBAN_FAUX, self.DOUBLON])
         assert apercu["can_generate"] is False
-        assert apercu["anomalies"] == [self.DOUBLON]
+        assert [a for a in apercu["anomalies"] if a["severity"] == "blocking"] == [self.DOUBLON]
 
     def test_en_sepa_l_iban_faux_et_le_compte_bloquent_toujours(self):
         apercu = self._apercu(None, [self.IBAN_FAUX], bank_format="sepa")
         assert apercu["can_generate"] is False
         assert len(apercu["anomalies"]) == 2
+        assert all(a["severity"] == "blocking" for a in apercu["anomalies"])
+
+    def test_en_sepa_chaque_blocage_dit_comment_sortir_le_csv(self):
+        """Elsa, 20/11 : le blocage dit en clair qu'en CSV le fichier sort, le salarié écarté et nommé."""
+        apercu = self._apercu(None, [self.IBAN_FAUX], bank_format="sepa")
+        iban, compte = apercu["anomalies"]
+        assert iban["message"].startswith("IBAN manquant ou invalide - Jean Dupont.")
+        assert "« CSV bancaire »" in iban["message"] and "à payer à part" in iban["message"]
+        assert "Paramètres de paie" in compte["message"]
+        assert "« CSV bancaire »" in compte["message"]
+
+    def test_en_sepa_un_doublon_ne_conseille_pas_le_csv(self):
+        apercu = self._apercu(COMPTE, [self.DOUBLON], bank_format="sepa")
+        assert apercu["anomalies"] == [self.DOUBLON]
 
 
 class TestApercuAcomptes:

@@ -168,14 +168,40 @@ def xlsx_en_pdf(contenu_xlsx: bytes, titre: str) -> bytes:
     return sortie.getvalue()
 
 
+def nom_de_la_societe(company_id: str) -> str:
+    """Nom de la société (lecture seule) ; vide si introuvable.
+
+    Un titre incomplet ne doit jamais faire échouer l'export."""
+    try:
+        from app.core.database import supabase
+
+        reponse = (
+            supabase.table("companies").select("company_name").eq("id", company_id).limit(1).execute()
+        )
+        lignes = reponse.data or []
+        return str((lignes[0] if lignes else {}).get("company_name") or "").strip()
+    except Exception:
+        return ""
+
+
+def titre_du_pdf(titre: str, societe: str = "", periode: str = "") -> str:
+    """« Journal de paie — Société — Octobre 2026 » : un groupe a plusieurs
+    sociétés, le PDF imprimé dit de laquelle il parle (Elsa, 20/11)."""
+    return " — ".join(p for p in (titre, societe.strip(), periode.strip()) if p)
+
+
 def pdf_depuis_le_classeur(titre: str):
     """Décorateur d'un générateur d'export : `format="pdf"` → son Excel, mis en PDF.
 
     Le générateur garde ses deux formats (csv, xlsx) ; il reçoit « xlsx » quand
     le PDF est demandé. Le paramètre s'appelle `format` ou `file_format`.
+    Le titre porte le nom de la société (`company_id`) et le mois (`period`)
+    quand le générateur les reçoit.
     """
     import functools
     import inspect
+
+    from app.shared.utils.export import format_period
 
     def decorer(generateur):
         signature = inspect.signature(generateur)
@@ -187,7 +213,14 @@ def pdf_depuis_le_classeur(titre: str):
             if arguments.arguments.get(nom) != "pdf":
                 return generateur(*args, **kwargs)
             arguments.arguments[nom] = "xlsx"
-            return xlsx_en_pdf(generateur(*arguments.args, **arguments.kwargs), titre)
+            company_id = arguments.arguments.get("company_id")
+            period = arguments.arguments.get("period")
+            titre_complet = titre_du_pdf(
+                titre,
+                nom_de_la_societe(company_id) if company_id else "",
+                format_period(period) if isinstance(period, str) and period else "",
+            )
+            return xlsx_en_pdf(generateur(*arguments.args, **arguments.kwargs), titre_complet)
 
         return generer
 
