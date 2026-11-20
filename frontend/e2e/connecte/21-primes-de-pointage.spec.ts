@@ -41,11 +41,6 @@ async function ouvrirVariables(page: Page) {
   await expect(page.getByText('Variables de paie récurrentes')).toBeVisible({ timeout: 20_000 });
 }
 
-async function choisirType(page: Page, libelle: RegExp) {
-  await page.getByText('Type de règle', { exact: true }).locator('..').getByRole('combobox').click();
-  await page.getByRole('option', { name: libelle }).click();
-}
-
 test('panier et assiduité liés aux pointages, sans rien enregistrer', async ({ page }) => {
   test.setTimeout(180_000);
   await page.addInitScript(() => {
@@ -63,34 +58,41 @@ test('panier et assiduité liés aux pointages, sans rien enregistrer', async ({
   await choisirSociete(page, /mont[\s-]?blanc/i);
   await ouvrirVariables(page);
 
-  // Panier : postes de 4 h et de 12 h.
+  // Réglage « préparer à chaque bulletin » visible dans la carte (on n'y touche pas : il écrit).
+  await expect(page.getByTestId('preparation-auto')).toBeVisible();
+
+  // Panier : parcours d'Elsa par le modèle, postes de 4 h et de 12 h tapés tels quels.
+  await page.getByTestId('modeles-primes').getByRole('button', { name: /heure d’arrivée/ }).click();
   await page.getByPlaceholder('Indemnité panier repas').fill('Panier équipe');
-  await choisirType(page, /^Par jour travaillé/);
+  const perimetre = page.getByTestId('perimetre-pointage');
+  await expect(perimetre.getByRole('checkbox', { name: 'Hors forfait jours' })).toBeChecked();
+  await expect(perimetre.getByRole('checkbox', { name: 'Hors cadres' })).toBeChecked();
+  await expect(perimetre.getByRole('checkbox', { name: /Hors alternants/ })).toBeChecked();
+  const bloc = page.getByTestId('plages-debut');
+  for (const heure of ['4', '12']) {
+    await bloc.getByLabel('Heure du poste').fill(heure);
+    await bloc.getByRole('button', { name: 'Ajouter ce poste' }).click();
+  }
+  await expect(bloc.getByText('Poste vers 4 h')).toBeVisible();
+  await expect(bloc.getByText('Poste vers 12 h')).toBeVisible();
+  // Montant oublié : refusé avec un message, rien n'est envoyé.
+  await page.getByRole('button', { name: 'Ajouter la règle' }).click();
+  await expect(page.getByText('Indiquez le montant de la prime.').first()).toBeVisible();
+  expect(envoyees).toHaveLength(0);
   // Montant à virgule tapé au clavier (retour d'Elsa du 17/11 : impossible avant).
   const montant = page.getByText('Montant unitaire (€)', { exact: true }).locator('..').getByRole('textbox');
-  await montant.fill('');
   await montant.pressSequentially('7,60');
   await expect(montant).toHaveValue('7,60');
-  const bloc = page.getByTestId('plages-debut');
-  await bloc.getByRole('button', { name: /Ajouter une plage/ }).click();
-  await bloc.getByLabel('Début de la plage 1').fill('03:00');
-  await bloc.getByLabel('Fin de la plage 1').fill('05:00');
-  await bloc.getByRole('button', { name: /Ajouter une plage/ }).click();
-  await bloc.getByLabel('Début de la plage 2').fill('11:00');
-  await bloc.getByLabel('Fin de la plage 2').fill('12:59');
-  const perimetre = page.getByTestId('perimetre-pointage');
-  await perimetre.getByRole('checkbox', { name: 'Hors forfait jours' }).click();
-  await perimetre.getByRole('checkbox', { name: 'Hors cadres' }).click();
-  await perimetre.getByRole('checkbox', { name: /Hors alternants/ }).click();
   await page.getByRole('button', { name: 'Ajouter la règle' }).click();
   await expect.poll(() => envoyees.length).toBe(1);
   expect(envoyees[0]).toMatchObject({
     rule_type: 'per_worked_day',
     amount: 7.6,
+    generation_mode: 'auto',
     conditions: {
       plages_debut: [
         { de: '03:00', a: '05:00' },
-        { de: '11:00', a: '12:59' },
+        { de: '11:00', a: '13:00' },
       ],
       exclure_forfait_jours: true,
       exclure_cadres: true,
@@ -99,16 +101,17 @@ test('panier et assiduité liés aux pointages, sans rien enregistrer', async ({
     },
   });
 
-  // Prime d'assiduité au mois, lue au calendrier.
-  await page.getByPlaceholder('Indemnité panier repas').fill('Prime assiduité');
-  await choisirType(page, /^Prime d’assiduité/);
-  await page.getByTestId('reglage-assiduite').getByLabel('Versée').selectOption('mois');
+  // Prime d'assiduité au mois, lue au calendrier, par le modèle.
+  await page.getByTestId('modeles-primes').getByRole('button', { name: /assiduité/ }).click();
   await expect(page.getByText('Montant mensuel à temps plein (€)')).toBeVisible();
+  const montantMois = page.getByText('Montant mensuel à temps plein (€)', { exact: true }).locator('..').getByRole('textbox');
+  await montantMois.pressSequentially('50');
   await page.getByRole('button', { name: 'Ajouter la règle' }).click();
   await expect.poll(() => envoyees.length).toBe(2);
   expect(envoyees[1]).toMatchObject({
     rule_type: 'per_week_without_absence',
-    conditions: { periode_assiduite: 'mois' },
+    amount: 50,
+    conditions: { periode_assiduite: 'mois', exclure_cadres: true },
   });
 
   await verifierPageSaine(page, s);

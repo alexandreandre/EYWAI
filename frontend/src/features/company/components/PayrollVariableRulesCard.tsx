@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Coins, Pencil, Trash2 } from 'lucide-react';
 import { getBonusTypes, type BonusType } from '@/api/bonusTypes';
-import { getShiftTypes, type ShiftType } from '@/api/planning';
+import { getPlanningSettings, getShiftTypes, updatePlanningSettings, type ShiftType } from '@/api/planning';
 import {
   applyAstreinteEquipesPreset,
   applyShiftTeamsPayrollPreset,
@@ -35,6 +35,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { ChampDecimal } from '@/components/ui/champ-decimal';
+import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -58,6 +59,14 @@ import { REGLES_SANS_MONTANT, RULE_TYPE_LABELS } from '@/features/company/lib/re
 import { conditionsDuType, panierEnMontantFixe } from '@/features/company/lib/conditionsDuType';
 import { useEmployeesSummaryQuery } from '@/hooks/queries/useEmployeesQuery';
 import { SITUATIONS_REPAS, SITUATION_REPAS_PAR_DEFAUT } from '@/lib/situationsRepas';
+import {
+  EXCLUSIONS_POINTAGE,
+  MODELES_PRIMES_POINTAGE,
+  TYPES_POINTAGE,
+  erreurDeLaRegle,
+  montantIgnore,
+  trierLaSimulation,
+} from '@/features/company/lib/primesPointage';
 
 const NOMS_MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
@@ -118,6 +127,7 @@ const SKIP_REASON_LABELS: Record<string, string> = {
   missing_distance_or_cv: 'Distance ou CV manquant',
   bareme_missing: 'Barème km indisponible',
   zero_quantity: 'Quantité nulle',
+  taux_horaire_inconnu: 'Taux horaire inconnu sur la fiche : prime non calculée',
 };
 
 const GENERATION_MODE_LABELS: Record<string, string> = {
@@ -138,7 +148,7 @@ function formatPreviewDetail(item: PayrollVariablePreviewItem): string {
     parts.push(`prime perdue : ${d.perdue}`);
   }
   if (d.jours_sans_heure_de_debut) {
-    parts.push(`${d.jours_sans_heure_de_debut} jour(s) travaillé(s) sans heure de début : réimporter le relevé de pointage`);
+    parts.push(`${d.jours_sans_heure_de_debut} jour(s) travaillé(s) sans heure d'arrivée dans les pointages`);
   }
   if (d.prorata_temps_partiel != null) parts.push(`temps partiel ${Math.round(d.prorata_temps_partiel * 100)} %`);
   if (d.km_eligible != null) parts.push(`${d.km_eligible} km`);
@@ -146,17 +156,41 @@ function formatPreviewDetail(item: PayrollVariablePreviewItem): string {
   return parts.join(' · ');
 }
 
-function formatPreview(result: PayrollVariableGenerateResult): string {
-  if (!result.preview.length) return 'Aucune ligne.';
-  return result.preview
-    .slice(0, 15)
-    .map((p) => {
-      const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.employee_id;
-      const detail = formatPreviewDetail(p);
-      const line = `${name} — ${p.rule_label ?? p.rule_code}: ${p.quantity} × ${(p.amount / Math.max(p.quantity, 1)).toFixed(2)} € = ${p.amount.toFixed(2)} €`;
-      return detail ? `${line} (${detail})` : line;
-    })
-    .join('\n');
+function formatPreviewLine(p: PayrollVariablePreviewItem): string {
+  const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.employee_id;
+  const detail = formatPreviewDetail(p);
+  const line = `${name} — ${p.rule_label ?? p.rule_code}: ${p.quantity} × ${(p.amount / Math.max(p.quantity, 1)).toFixed(2)} € = ${p.amount.toFixed(2)} €`;
+  return detail ? `${line} (${detail})` : line;
+}
+
+const LIGNES_MONTREES = 15;
+
+/** Résultat de la simulation ou de la génération : toutes les alertes d'abord, puis les lignes. */
+function ResultatDuMois({ result }: { result: PayrollVariableGenerateResult }) {
+  const { alertes, lignes } = trierLaSimulation(result);
+  return (
+    <div className="rounded-lg border bg-muted/40 p-3 text-sm space-y-2" data-testid="resultat-variables">
+      <p className="font-medium">
+        {result.dry_run ? 'Simulation' : 'Saisies générées'} {result.month}/{result.year} — {pluriel(lignes.length, 'ligne')}
+        {result.dry_run ? '' : `, ${pluriel(result.written_count, 'écriture')}`}
+      </p>
+      {alertes.length > 0 && (
+        <div className="rounded border border-amber-200 bg-amber-50 p-2 text-amber-900" data-testid="alertes-variables">
+          <p className="font-medium">À vérifier ({alertes.length})</p>
+          <ul className="list-disc pl-5">
+            {alertes.map((p, i) => (
+              <li key={`${p.employee_id}-${p.rule_code}-${i}`}>{formatPreviewLine(p)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {lignes.length === 0 && alertes.length === 0 && <p>Aucune ligne.</p>}
+      <div className="whitespace-pre-wrap">{lignes.slice(0, LIGNES_MONTREES).map(formatPreviewLine).join('\n')}</div>
+      {lignes.length > LIGNES_MONTREES && (
+        <p className="text-muted-foreground">… et {lignes.length - LIGNES_MONTREES} {accord(lignes.length - LIGNES_MONTREES, 'autre')}</p>
+      )}
+    </div>
+  );
 }
 
 export default function PayrollVariableRulesCard() {
@@ -199,7 +233,7 @@ export default function PayrollVariableRulesCard() {
     code: '',
     label: '',
     rule_type: 'fixed_monthly',
-    amount: 0,
+    amount: null,
     enabled: true,
     generation_mode: 'auto',
     conditions: {},
@@ -228,6 +262,41 @@ export default function PayrollVariableRulesCard() {
   const selectedAbsenceTypes = presenceConditions.absence_types ?? [];
 
   const hasNightHourRule = rules.some((r) => r.rule_type === 'per_night_hour' && r.enabled);
+
+  // « Martine prépare ces primes à chaque bulletin » : le réglage vivait dans la
+  // carte Planning équipes, que l'équipe n'ouvre pas ; sans lui, une génération
+  // oubliée laissait les bulletins sans paniers, sans rien dire (examen du 20/11).
+  const { data: planningSettings } = useQuery({
+    queryKey: queryKeys.planningSettings(activeCompanyId),
+    queryFn: getPlanningSettings,
+    enabled: Boolean(activeCompanyId),
+  });
+  const autoAvantBulletin = Boolean(planningSettings?.auto_generate_payroll_variables_before_payslip);
+  const reglerAuto = useMutation({
+    mutationFn: (actif: boolean) => updatePlanningSettings({ auto_generate_payroll_variables_before_payslip: actif }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(queryKeys.planningSettings(activeCompanyId), saved);
+      toast({
+        title: saved.auto_generate_payroll_variables_before_payslip
+          ? 'Les primes seront préparées à chaque bulletin'
+          : 'Préparation automatique coupée',
+      });
+    },
+    onError: (err: Error) => toast({ title: 'Erreur', description: err.message, variant: 'destructive' }),
+  });
+  const reglesActives = rules.some((r) => r.enabled && r.generation_mode === 'auto');
+  const commencerDepuisModele = (regle: Partial<PayrollVariableRule>) => {
+    setEnModification(null);
+    setSimulation(null);
+    setDraft({
+      code: '',
+      enabled: true,
+      generation_mode: 'auto',
+      sort_order: 0,
+      ...regle,
+      conditions: { ...(regle.conditions ?? {}) },
+    });
+  };
 
   const setTieredCondition = <K extends keyof AstreinteWeekTieredConditions>(
     key: K,
@@ -291,6 +360,8 @@ export default function PayrollVariableRulesCard() {
 
   const createRule = useMutation({
     mutationFn: () => {
+      const erreur = erreurDeLaRegle(draft, rules, enModification?.id);
+      if (erreur) throw new Error(erreur);
       if (isPresenceWeek && !presenceConditions.periode_assiduite && selectedAbsenceTypes.length === 0) {
         throw new Error('Cochez au moins un type d\'absence disqualifiant.');
       }
@@ -325,7 +396,9 @@ export default function PayrollVariableRulesCard() {
         ? null
         : isPresenceWeek
           ? Number(draft.amount ?? presenceConditions.amount_per_week ?? 0)
-          : (draft.amount ?? 0);
+          : montantIgnore(draft)
+            ? null
+            : (draft.amount ?? 0);
       const regle = {
         code: draft.code || codeDepuisLibelle(draft.label || ''),
         label: draft.label || 'Nouvelle règle',
@@ -353,7 +426,7 @@ export default function PayrollVariableRulesCard() {
         code: '',
         label: '',
         rule_type: 'fixed_monthly',
-        amount: 0,
+        amount: null,
         enabled: true,
         generation_mode: 'auto',
         conditions: {},
@@ -377,7 +450,7 @@ export default function PayrollVariableRulesCard() {
         dryRun,
       ),
     onSuccess: (result) => {
-      if (result.dry_run) setSimulation(result);
+      setSimulation(result);
       toast({
         title: result.dry_run ? 'Simulation terminée' : 'Variables générées',
         description: `${pluriel(result.preview.length, 'ligne')} — ${pluriel(result.written_count, 'écriture')}`,
@@ -441,9 +514,8 @@ export default function PayrollVariableRulesCard() {
         {hasNightHourRule && (
           <Alert className="border-amber-200 bg-amber-50/80">
             <AlertDescription>
-              Une règle « Par heure de nuit » est active : ne cumulez pas avec les
-              majorations nuit du planning (types de poste), sous peine de double comptage.
-              Préférez les <strong>night_windows</strong> à 50 % sur les postes (code B_P4).
+              Une règle « heures de nuit » est active : ne réglez pas en plus une majoration de nuit
+              sur les types de poste du planning, sinon la nuit serait payée deux fois.
             </AlertDescription>
           </Alert>
         )}
@@ -511,15 +583,47 @@ export default function PayrollVariableRulesCard() {
           </Table>
         )}
 
-        {simulation && (
-          <div className="rounded-lg border bg-muted/40 p-3 text-sm whitespace-pre-wrap">
-            <p className="font-medium mb-2">
-              Simulation {simulation.month}/{simulation.year} — {pluriel(simulation.preview.length, 'ligne')}
-            </p>
-            {formatPreview(simulation)}
-            {simulation.preview.length > 15 && (
-              <p className="text-muted-foreground mt-2">… et {simulation.preview.length - 15} {accord(simulation.preview.length - 15, 'autre')}</p>
+        {simulation && <ResultatDuMois result={simulation} />}
+
+        {canEdit && (
+          <div className="rounded-lg border p-3 space-y-2" data-testid="preparation-auto">
+            <div className="flex items-center gap-3">
+              <Switch
+                id="primes-auto"
+                checked={autoAvantBulletin}
+                disabled={!planningSettings || reglerAuto.isPending}
+                onCheckedChange={(v) => reglerAuto.mutate(Boolean(v))}
+              />
+              <Label htmlFor="primes-auto" className="cursor-pointer">
+                Martine prépare ces primes à chaque calcul de bulletin
+              </Label>
+            </div>
+            {planningSettings && !autoAvantBulletin && reglesActives && (
+              <p className="text-sm text-amber-800" data-testid="preparation-auto-coupee">
+                Coupé : les primes ne sortent sur les bulletins qu&apos;après « Générer les saisies » du mois.
+                Activez-le pour ne pas l&apos;oublier.
+              </p>
             )}
+          </div>
+        )}
+
+        {canEdit && (
+          <div className="space-y-2" data-testid="modeles-primes">
+            <p className="text-sm font-medium">Nouvelle prime liée aux pointages</p>
+            <div className="flex flex-wrap gap-2">
+              {MODELES_PRIMES_POINTAGE.map((m) => (
+                <Button
+                  key={m.id}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  title={m.aide}
+                  onClick={() => commencerDepuisModele(m.regle)}
+                >
+                  {m.titre}
+                </Button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -544,14 +648,6 @@ export default function PayrollVariableRulesCard() {
 
         {canEdit && (
           <div className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Code</Label>
-              <Input
-                value={draft.code ?? ''}
-                onChange={(e) => setDraft({ ...draft, code: e.target.value })}
-                placeholder="panier_poste"
-              />
-            </div>
             <div className="space-y-2">
               <Label>Libellé</Label>
               <Input
@@ -589,9 +685,14 @@ export default function PayrollVariableRulesCard() {
                     conditions = communes;
                     amount = null;
                   } else if (rt === 'per_week_without_absence') {
-                    conditions = { ...communes, periode_assiduite: 'semaine', absence_types: [], amount_per_week: 6 };
+                    // Pas de montant d'office : 6 € (LEWIS) versés par mois chez
+                    // Mont Blanc si on l'oubliait (examen du 20/11).
+                    conditions = { ...communes, periode_assiduite: 'semaine', absence_types: [] };
                     generation_mode = 'auto';
-                    amount = 6;
+                    amount = null;
+                  }
+                  if (!enModification && TYPES_POINTAGE.has(rt)) {
+                    conditions = { ...EXCLUSIONS_POINTAGE, ...conditions };
                   }
                   setDraft({
                     ...draft,
@@ -646,8 +747,8 @@ export default function PayrollVariableRulesCard() {
                       : 'Montant unitaire (€)'}
               </Label>
               <ChampDecimal
-                disabled={noAmountRule}
-                value={noAmountRule ? null : (draft.amount ?? 0)}
+                disabled={noAmountRule || Boolean(montantIgnore(draft))}
+                value={noAmountRule || montantIgnore(draft) ? null : draft.amount}
                 placeholder={
                   draft.rule_type === 'transport_domicile_travail'
                     ? 'Indemnité de trajet de la fiche'
@@ -655,7 +756,21 @@ export default function PayrollVariableRulesCard() {
                       ? 'Voir conditions ci-dessous'
                       : undefined
                 }
-                onValueChange={(v) => setDraft({ ...draft, amount: v ?? 0 })}
+                onValueChange={(v) => setDraft({ ...draft, amount: v })}
+              />
+              {montantIgnore(draft) && <p className="text-xs text-muted-foreground">{montantIgnore(draft)}</p>}
+            </div>
+            <details className="sm:col-span-2 rounded-md border px-3 py-2" data-testid="options-avancees">
+              <summary className="cursor-pointer text-sm text-muted-foreground">
+                Options avancées (code, type de prime du catalogue, code export, mode) : à laisser telles quelles
+              </summary>
+              <div className="grid gap-3 pt-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Code</Label>
+              <Input
+                value={draft.code ?? ''}
+                onChange={(e) => setDraft({ ...draft, code: e.target.value })}
+                placeholder="panier_poste"
               />
             </div>
             <div className="space-y-2">
@@ -723,6 +838,8 @@ export default function PayrollVariableRulesCard() {
                 Auto : écrit dans les saisies mensuelles. Suggest : visible uniquement en simulation.
               </p>
             </div>
+              </div>
+            </details>
 
             {showShiftCodes && (
               <div className="space-y-2 sm:col-span-2">
@@ -755,7 +872,7 @@ export default function PayrollVariableRulesCard() {
               </div>
             )}
 
-            {isPresenceWeek && (
+            {isPresenceWeek && !presenceConditions.periode_assiduite && (
               <div className="space-y-3 sm:col-span-2">
                 <Label>
                   {presenceConditions.periode_assiduite
@@ -1123,7 +1240,7 @@ export default function PayrollVariableRulesCard() {
                       code: '',
                       label: '',
                       rule_type: 'fixed_monthly',
-                      amount: 0,
+                      amount: null,
                       enabled: true,
                       generation_mode: 'auto',
                       conditions: {},

@@ -1,13 +1,16 @@
 // Réglages des primes liées aux pointages (retour d'Elsa du 17/11/2026) :
 // heure de début du poste, pause payée en heures, périmètre (hors forfait
 // jours, cadres, alternants), heures de nuit, prime d'assiduité au calendrier.
+import { useState } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { ChampDecimal } from '@/components/ui/champ-decimal';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { direPlage, plageAutourDe } from '@/features/company/lib/primesPointage';
 
-export type PlageDebut = { de: string; a: string };
+export type { PlageDebut } from '@/features/company/lib/primesPointage';
+import type { PlageDebut } from '@/features/company/lib/primesPointage';
 type Conditions = Record<string, unknown>;
 type Props = { conditions: Conditions; onChange: (next: Conditions) => void };
 
@@ -17,22 +20,31 @@ function sansCle(conditions: Conditions, cle: string): Conditions {
   return copie;
 }
 
-/** « Seulement les postes qui commencent entre … et … » (plusieurs plages). */
+/** « Seulement les postes qui commencent vers 4 h, 12 h » : on tape l'heure du poste,
+ * Martine pose la plage d'une heure de chaque côté (examen du 20/11), ajustable. */
 export function PlagesDebut({ conditions, onChange }: Props) {
   const plages = (conditions.plages_debut as PlageDebut[] | undefined) ?? [];
+  const [heure, setHeure] = useState('');
   const poser = (suivantes: PlageDebut[]) =>
     onChange(suivantes.length ? { ...conditions, plages_debut: suivantes } : sansCle(conditions, 'plages_debut'));
+  const plage = plageAutourDe(heure);
+  const ajouter = () => {
+    if (!plage) return;
+    poser([...plages, plage]);
+    setHeure('');
+  };
   return (
     <div className="space-y-2" data-testid="plages-debut">
-      <Label>Seulement les postes qui commencent (facultatif)</Label>
+      <Label htmlFor="heure-poste">Seulement les postes qui commencent vers (facultatif)</Label>
       <p className="text-xs text-muted-foreground">
-        L&apos;heure de début est la première entrée du relevé de pointage importé. Exemple pour un poste de 4 h
-        badgé à 3 h 50 : de 03:30 à 04:30. Un jour travaillé sans heure de début (saisi à la main, ou importé
-        avant le 19/11) ne compte pas : la simulation le signale.
+        Tapez l&apos;heure du poste (4, 12, 12h30) : Martine compte les arrivées pointées une heure avant ou après
+        (poste de 4 h : arrivée entre 3 h et 5 h). Sans heure ici, tous les jours travaillés comptent. Un jour
+        travaillé sans heure d&apos;arrivée dans les pointages est signalé à la simulation.
       </p>
       {plages.map((p, i) => (
-        <div key={i} className="flex items-center gap-2 text-sm">
-          de
+        <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="font-medium min-w-[7rem]">Poste {direPlage(p)}</span>
+          <span className="text-muted-foreground">arrivée de</span>
           <Input
             type="time"
             aria-label={`Début de la plage ${i + 1}`}
@@ -40,7 +52,7 @@ export function PlagesDebut({ conditions, onChange }: Props) {
             value={p.de}
             onChange={(e) => poser(plages.map((x, j) => (j === i ? { ...x, de: e.target.value } : x)))}
           />
-          à
+          <span className="text-muted-foreground">à</span>
           <Input
             type="time"
             aria-label={`Fin de la plage ${i + 1}`}
@@ -53,9 +65,28 @@ export function PlagesDebut({ conditions, onChange }: Props) {
           </Button>
         </div>
       ))}
-      <Button type="button" variant="outline" size="sm" onClick={() => poser([...plages, { de: '03:30', a: '04:30' }])}>
-        Ajouter une plage d&apos;heure de début
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          id="heure-poste"
+          aria-label="Heure du poste"
+          className="w-28"
+          placeholder="ex. 4"
+          value={heure}
+          onChange={(e) => setHeure(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              ajouter();
+            }
+          }}
+        />
+        <Button type="button" variant="outline" size="sm" disabled={!plage} onClick={ajouter}>
+          Ajouter ce poste
+        </Button>
+        {heure.trim() !== '' && !plage && (
+          <span className="text-xs text-destructive">Une heure, par exemple 4 ou 12h30.</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -149,7 +180,7 @@ export function ReglageNuit({ conditions, onChange }: Props) {
           </div>
         </>
       )}
-      <Label htmlFor="majoration_pct">Majoration en % du taux horaire (sinon : montant par heure ci-dessus)</Label>
+      <Label htmlFor="majoration_pct">Majoration en % du taux horaire</Label>
       <ChampDecimal
         id="majoration_pct"
         className="max-w-[10rem]"
