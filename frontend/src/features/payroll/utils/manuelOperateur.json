@@ -48,7 +48,7 @@
         "Dans l’onglet « Bulletin », le cadre « Ce qui a changé par rapport au mois dernier » compare au mois précédent. Si un montant change sans raison, ne validez pas.",
         "Sur l’onglet « Par mois », « Seulement à revoir » ne garde que les bulletins qui demandent votre regard. Chaque ligne dit pourquoi : toutes ses alertes, le net négatif, l’écart avec le mois précédent. Un bulletin validé n’est plus à revoir.",
         "Dans l’onglet « Comparaison N-1 », chaque alerte se traite : « Acquitter » (avec un commentaire si vous le souhaitez) quand l’écart est normal, « Ignorer » quand vous choisissez de ne pas la traiter. Le nom, la date et le commentaire restent écrits sous l’alerte et dans le journal d’audit. Un écart fort acquitté ne rend plus le bulletin « à revoir ».",
-        "Quand le mois précédent vient de l’ancien logiciel, l’onglet « Comparaison N-1 » le dit (« Septembre vient de l’ancien logiciel : pas de comparaison du net ») ; s’il existe un mois plus ancien calculé par Martine, l’écart du net s’y compare, le message nomme ce mois, et ce n’est qu’un avertissement."
+        "Quand le mois précédent vient de l’ancien logiciel, l’onglet « Comparaison N-1 » le dit et ne compare pas le net à ce mois-là ; s’il existe un mois plus ancien calculé par Martine, l’écart du net s’y compare, le message nomme ce mois, et ce n’est qu’un avertissement."
       ]
     },
     {
