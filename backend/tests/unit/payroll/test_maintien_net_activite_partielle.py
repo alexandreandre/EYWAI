@@ -59,3 +59,25 @@ def test_net_avant_impot_lu_dans_la_synthese_sinon_reconstruit():
         )
         == 3138.66
     )
+
+
+def test_lignes_reconnues_par_leurs_mots_comme_au_moteur():
+    a_la_main = [
+        PRIMES[0],
+        {"libelle": "Heures chômées activité partielle", "montant": -348.31, "soumise_a_cotisations": True},
+        {"libelle": "Indemnité d'activité partielle", "montant": 208.99, "soumise_a_cotisations": False},
+    ]
+    assert m.s_applique("3248", a_la_main)
+    assert m.sans_activite_partielle(a_la_main) == [PRIMES[0]]
+
+
+def test_la_recherche_s_arrete_quand_le_net_ne_bouge_plus():
+    appels = []
+
+    def net_fige(primes):
+        appels.append(1)
+        sans = not any("activit" in p["libelle"].lower() for p in primes)
+        return 3000.0 if sans else 2900.0
+
+    m.complement_qui_garde_le_net(PRIMES, net_fige)
+    assert len(appels) <= 4

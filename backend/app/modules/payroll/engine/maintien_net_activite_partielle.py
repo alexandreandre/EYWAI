@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from app.modules.activite_partielle.domain.calcul import LIBELLE_INDEMNITE, LIBELLES
+from app.modules.payroll.engine.activite_partielle import est_l_indemnite
 
 LIBELLE_COMPLEMENT = "Complément employeur activité partielle"
 IDCC_METALLURGIE = "3248"
@@ -36,19 +36,35 @@ def _idcc(valeur: object) -> str:
     return str(valeur or "").strip().lstrip("0")
 
 
+def _est_l_indemnite(p: dict[str, Any]) -> bool:
+    """Reconnue comme le moteur la reconnaît (mots, pas libellé exact)."""
+    return est_l_indemnite(p.get("prime_id"), p.get("libelle"))
+
+
+def _est_la_retenue(p: dict[str, Any]) -> bool:
+    """La retenue « Heures chômées (act. part.) », reconnue comme par le moteur."""
+    texte = f"{p.get('prime_id')} {p.get('libelle')}".lower()
+    return (
+        float(p.get("montant") or 0) < 0
+        and ("chôm" in texte or "chom" in texte)
+        and "act" in texte
+        and "part" in texte
+    )
+
+
 def s_applique(idcc: object, primes: list[dict[str, Any]]) -> bool:
     """Métallurgie, et une indemnité d'activité partielle dans le mois."""
     if _idcc(idcc) != IDCC_METALLURGIE:
         return False
-    return any(
-        str(p.get("libelle") or "").startswith(LIBELLE_INDEMNITE) and float(p.get("montant") or 0) > 0
-        for p in primes
-    )
+    return any(_est_l_indemnite(p) and float(p.get("montant") or 0) > 0 for p in primes)
 
 
 def _est_de_l_activite_partielle(p: dict[str, Any]) -> bool:
-    libelle = str(p.get("libelle") or "")
-    return any(libelle.startswith(x) for x in (*LIBELLES, LIBELLE_COMPLEMENT))
+    return (
+        str(p.get("libelle") or "") == LIBELLE_COMPLEMENT
+        or _est_l_indemnite(p)
+        or _est_la_retenue(p)
+    )
 
 
 def sans_activite_partielle(primes: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -101,6 +117,8 @@ def complement_qui_garde_le_net(
     for _ in range(_PASSES_MAX):
         if abs(net1 - cible) < 0.005:
             break
+        if net1 == net0:
+            break  # le net ne bouge plus avec le complément (montant figé à la main)
         pente = (net1 - net0) / (c1 - c0) if c1 != c0 else 1 - _PART_RETENUE_ESTIMEE
         if pente <= 0:
             pente = 1 - _PART_RETENUE_ESTIMEE
@@ -111,8 +129,9 @@ def complement_qui_garde_le_net(
         net1 = calculer_net(avec_complement(primes, c1))
     # Jamais sous le net d'avant, à un centime d'arrondi près du calcul.
     for _ in range(20):
-        if net1 >= cible - 0.005:
+        if net1 >= cible - 0.005 or net1 == net0:
             break
+        net0 = net1
         c1 = round(c1 + 0.01, 2)
         net1 = calculer_net(avec_complement(primes, c1))
     return max(0.0, c1)
