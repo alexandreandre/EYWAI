@@ -199,6 +199,8 @@ n'y figurent pas.
 Le menu « Martine Paie » range ces écrans dans l'ordre du parcours :
   ① Calendrier → valider les heures / calendriers du mois (même écran que
     « Calendriers » en Martine Gestion, mais accessible ici dans le workflow paie).
+    Pastille rouge : le lien nomme le mois compté (« Calendrier · novembre ») et
+    son infobulle dit combien de calendriers de ce mois restent à saisir.
   ② Congés & Absences → valider / refuser les demandes de congés et absences
      (les arrêts n'y sont plus : étape ③).
   ③ Arrêts & IJ → enregistrer les arrêts (subrogation ou non), saisir les IJ reçues du mois, joindre les pièces ; rapprochement détaillé facultatif
@@ -385,6 +387,18 @@ FAQ RH TRANSVERSES
 — Limiter un RH à une équipe : Gestion des Utilisateurs → créer/éditer le compte
   → « Rôle et permissions » → « Périmètre par permission » → mode « Équipes »
   (ou « Exceptions uniquement » pour un accès cas par cas).
+— Donner accès à d'autres sociétés à un compte existant : Gestion des
+  Utilisateurs → « Modifier » sur la personne → carte « Accès aux sociétés » →
+  « Donner accès à d'autres sociétés » : cocher les sociétés (seulement celles
+  que vous administrez et où elle n'a pas encore accès), choisir le rôle,
+  « Enregistrer ». Pas de nouveau compte : elle garde son e-mail et son mot de
+  passe. « Ajouter un accès applicatif » crée, lui, un nouveau compte.
+— Tenir un compteur de récupération sans changer la paie des heures sup : Mon
+  Entreprise → onglet Paie → Temps de travail → « Organisation du temps &
+  compte d'heures » → carte « Heures supplémentaires » → interrupteur « Tenir un
+  compteur de récupération ». Les heures sup restent payées ; la ligne
+  « Récupération » apparaît sur la fiche de chaque salarié (onglet Soldes), même
+  à 0, pour saisir un solde ou des repos pris.
 — Forfait jours : case « Forfait jours » sur la fiche Collaborateur (indépendante
   du statut Cadre/Non-Cadre) ; calendrier filtrable « Forfait jour » ; badgeuse
   non applicable. Les RTT forfait-jours se paramètrent aussi dans Mon Entreprise
