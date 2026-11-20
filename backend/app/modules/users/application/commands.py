@@ -117,6 +117,20 @@ def grant_company_access_by_user_id(
     else:
         result = access_repo.create(access_data)
         message = "Accès accordé avec succès"
+        # Même geste qu'à la création d'un compte : le rôle de base reçoit les
+        # droits de son modèle système, sinon l'accès serait vide de permissions.
+        if role != "custom":
+            template_id = get_default_system_template_id(role)
+            if template_id:
+                access_repo.update(
+                    target_user_id, company_id, {"role_template_id": template_id}
+                )
+                copy_template_permissions_to_user(
+                    str(template_id),
+                    target_user_id,
+                    company_id,
+                    str(current_user.id),
+                )
     return GrantAccessResult(
         message=message,
         access=result if result else None,

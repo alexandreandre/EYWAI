@@ -209,6 +209,22 @@ class TestUsersGrantAccessByUserId:
         )
         assert response.status_code == 422
 
+    def test_grant_access_by_user_id_role_above_hierarchy_returns_403(
+        self, client_with_user_override: TestClient
+    ):
+        """Un admin de la société ne peut pas donner le rôle admin (même règle qu'à la création)."""
+        response = client_with_user_override.post(
+            f"{USERS_PREFIX}/grant-access-by-user-id",
+            json={
+                "user_id": str(uuid4()),
+                "company_id": "company-1",
+                "role": "admin",
+                "is_primary": False,
+            },
+        )
+        assert response.status_code == 403
+        assert "rôle 'admin'" in response.json()["detail"]
+
 
 # ----- DELETE /api/users/revoke-access/{user_id}/{company_id} -----
 

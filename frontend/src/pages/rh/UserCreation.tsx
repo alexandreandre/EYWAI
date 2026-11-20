@@ -1,4 +1,5 @@
 import { log } from '@/lib/logger';
+import { messageErreurCreation } from '@/lib/accesAutresSocietes';
 import { RhPageHeader } from '@/components/layout';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -527,7 +528,7 @@ const UserCreation: React.FC = () => {
         navigate('/users');
       }, 2000);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Erreur lors de la création de l'utilisateur");
+      setError(messageErreurCreation(err.response?.data?.detail));
       log.error(err);
     } finally {
       setLoading(false);

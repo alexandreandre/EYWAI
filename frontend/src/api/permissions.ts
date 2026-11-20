@@ -356,3 +356,20 @@ export const getUserCompanyAccesses = async (userId: string): Promise<
   const response = await apiClient.get(`/api/users/company-accesses/${userId}`);
   return response.data;
 };
+
+/**
+ * Donne à un utilisateur existant l'accès à une société (sans créer de compte).
+ * Le serveur refuse un rôle au-dessus de celui de la personne connectée.
+ */
+export const grantCompanyAccessByUserId = async (payload: {
+  user_id: string;
+  company_id: string;
+  role: string;
+  is_primary?: boolean;
+}): Promise<{ message: string }> => {
+  const response = await apiClient.post('/api/users/grant-access-by-user-id', {
+    is_primary: false,
+    ...payload,
+  });
+  return response.data;
+};

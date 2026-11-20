@@ -140,6 +140,11 @@ def grant_company_access_by_user_id(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Vous devez avoir un accès RH dans l'entreprise pour accorder des accès",
             )
+        if not check_role_hierarchy(current_user, request.role, request.company_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Vous ne pouvez pas donner le rôle '{request.role}' dans cette entreprise",
+            )
     try:
         result = commands.grant_company_access_by_user_id(
             request.user_id,

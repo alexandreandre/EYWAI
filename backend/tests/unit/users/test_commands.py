@@ -167,11 +167,16 @@ class TestGrantCompanyAccessByUserId:
             )
         assert "Utilisateur non trouvé" in str(exc_info.value)
 
+    @patch("app.modules.users.application.commands.copy_template_permissions_to_user")
+    @patch(
+        "app.modules.users.application.commands.get_default_system_template_id",
+        return_value="tpl-collab-rh",
+    )
     @patch("app.modules.users.application.commands.get_company_repository")
     @patch("app.modules.users.application.commands.get_user_company_access_repository")
     @patch("app.modules.users.application.commands.get_user_repository")
     def test_grant_creates_access(
-        self, get_user_repo, get_access_repo, get_company_repo
+        self, get_user_repo, get_access_repo, get_company_repo, get_tpl, copy_tpl
     ):
         get_user_repo.return_value.get_by_id.return_value = {"id": "u1"}
         get_company_repo.return_value.get_name.return_value = "Société"
@@ -187,6 +192,54 @@ class TestGrantCompanyAccessByUserId:
 
         assert isinstance(result, GrantAccessResult)
         get_access_repo.return_value.create.assert_called_once()
+        # Comme à la création d'un compte : le modèle système du rôle donne ses droits.
+        get_tpl.assert_called_once_with("collaborateur_rh")
+        get_access_repo.return_value.update.assert_called_once_with(
+            "u1", "c1", {"role_template_id": "tpl-collab-rh"}
+        )
+        copy_tpl.assert_called_once_with("tpl-collab-rh", "u1", "c1", "user-1")
+
+    @patch("app.modules.users.application.commands.copy_template_permissions_to_user")
+    @patch("app.modules.users.application.commands.get_default_system_template_id")
+    @patch("app.modules.users.application.commands.get_company_repository")
+    @patch("app.modules.users.application.commands.get_user_company_access_repository")
+    @patch("app.modules.users.application.commands.get_user_repository")
+    def test_existing_access_keeps_its_permissions(
+        self, get_user_repo, get_access_repo, get_company_repo, get_tpl, copy_tpl
+    ):
+        get_user_repo.return_value.get_by_id.return_value = {"id": "u1"}
+        get_company_repo.return_value.get_name.return_value = "Société"
+        get_access_repo.return_value.get_by_user_and_company.return_value = {
+            "user_id": "u1",
+            "company_id": "c1",
+        }
+
+        result = commands.grant_company_access_by_user_id(
+            "u1", "c1", "collaborateur", False, _current_user()
+        )
+
+        assert result.message == "Accès mis à jour avec succès"
+        get_tpl.assert_not_called()
+        copy_tpl.assert_not_called()
+
+    @patch("app.modules.users.application.commands.copy_template_permissions_to_user")
+    @patch("app.modules.users.application.commands.get_default_system_template_id")
+    @patch("app.modules.users.application.commands.get_company_repository")
+    @patch("app.modules.users.application.commands.get_user_company_access_repository")
+    @patch("app.modules.users.application.commands.get_user_repository")
+    def test_custom_role_copies_no_template(
+        self, get_user_repo, get_access_repo, get_company_repo, get_tpl, copy_tpl
+    ):
+        get_user_repo.return_value.get_by_id.return_value = {"id": "u1"}
+        get_company_repo.return_value.get_name.return_value = "Société"
+        get_access_repo.return_value.get_by_user_and_company.return_value = None
+
+        commands.grant_company_access_by_user_id(
+            "u1", "c1", "custom", False, _current_user()
+        )
+
+        get_tpl.assert_not_called()
+        copy_tpl.assert_not_called()
 
 
 # ----- revoke_company_access -----

@@ -18,6 +18,7 @@ import {
   type PermissionGrantInput,
 } from '../../api/permissions';
 import PermissionsMatrix from '../../components/PermissionsMatrix';
+import AccesAutresSocietesCard from '@/components/users/AccesAutresSocietesCard';
 import { PermissionScopeEditor } from '@/features/access-control';
 import { Chargement } from '@/components/Chargement';
 import { cn } from '../../lib/utils';
@@ -236,6 +237,9 @@ const UserEdit: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Ouvrir d'autres sociétés à ce compte, sans en créer un nouveau */}
+      {userId && <AccesAutresSocietesCard userId={userId} roleActuel={currentRole} />}
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Informations personnelles */}
