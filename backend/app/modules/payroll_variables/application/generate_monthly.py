@@ -893,6 +893,10 @@ def generate_monthly_variables(
                 }
                 if conditions.get("plages_debut"):
                     infos["jours_sans_heure_de_debut"] = detail["sans_heure_de_debut"]
+                    if detail.get("aucun_badge"):
+                        infos["aucun_badge"] = True
+                    if detail.get("repris_de_la_semaine"):
+                        infos["jours_repris_de_la_semaine"] = len(detail["repris_de_la_semaine"])
                 if heures_par_jour:
                     infos["heures_par_jour"] = float(heures_par_jour)
                     if not unitaire:

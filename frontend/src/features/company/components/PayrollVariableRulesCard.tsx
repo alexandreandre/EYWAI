@@ -147,8 +147,17 @@ function formatPreviewDetail(item: PayrollVariablePreviewItem): string {
   } else if (typeof d.perdue === 'string') {
     parts.push(`prime perdue : ${d.perdue}`);
   }
-  if (d.jours_sans_heure_de_debut) {
-    parts.push(`${d.jours_sans_heure_de_debut} jour(s) travaillé(s) sans heure d'arrivée dans les pointages`);
+  if (d.aucun_badge) {
+    parts.push(
+      "aucun badge sur toute la période : importer son relevé, ou le retirer des salariés de la règle s'il ne badge pas",
+    );
+  } else if (d.jours_sans_heure_de_debut) {
+    parts.push(
+      `${d.jours_sans_heure_de_debut} jour(s) sans badge ni absence, que la semaine ne tranche pas : poser l'absence ou corriger le badge au calendrier`,
+    );
+  }
+  if (d.jours_repris_de_la_semaine) {
+    parts.push(`${d.jours_repris_de_la_semaine} jour(s) sans badge : poste repris des autres jours de la semaine`);
   }
   if (d.prorata_temps_partiel != null) parts.push(`temps partiel ${Math.round(d.prorata_temps_partiel * 100)} %`);
   if (d.km_eligible != null) parts.push(`${d.km_eligible} km`);

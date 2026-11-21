@@ -75,6 +75,40 @@ class TestJoursSelonLHeureDeDebut:
         d = detail_jours_travailles(prevu, reel, set(), DEBUT, FIN, plages_debut=PLAGES_4H_12H)
         assert d["jours"] == 0
         assert d["sans_heure_de_debut"] == len(list(_ouvres(DEBUT, FIN)))
+        assert d["aucun_badge"] is True
+
+    def test_un_badge_oublie_prend_le_poste_de_sa_semaine(self):
+        # Semaine du 5 au 9/10 au poste de 4 h, badge oublié le mercredi 7.
+        debuts = {j: "03:50" for j in _ouvres(date(2026, 10, 5), date(2026, 10, 9)) if j.day != 7}
+        prevu, reel = _calendrier(debuts)
+        d = detail_jours_travailles(prevu, reel, set(), date(2026, 10, 5), date(2026, 10, 9), plages_debut=PLAGES_4H_12H)
+        assert d["jours"] == 5
+        assert d["sans_heure_de_debut"] == 0
+        assert d["repris_de_la_semaine"] == ["2026-10-07"]
+
+    def test_une_semaine_hors_plage_ne_donne_rien_au_jour_oublie(self):
+        debuts = {j: "08:00" for j in _ouvres(date(2026, 10, 5), date(2026, 10, 9)) if j.day != 7}
+        prevu, reel = _calendrier(debuts)
+        d = detail_jours_travailles(prevu, reel, set(), date(2026, 10, 5), date(2026, 10, 9), plages_debut=PLAGES_4H_12H)
+        assert d["jours"] == 0
+        assert d["sans_heure_de_debut"] == 0
+        assert d["repris_de_la_semaine"] == ["2026-10-07"]
+
+    def test_une_semaine_a_postes_melanges_reste_a_verifier(self):
+        debuts = {date(2026, 10, 5): "03:50", date(2026, 10, 6): "11:55", date(2026, 10, 8): "03:50", date(2026, 10, 9): "03:50"}
+        prevu, reel = _calendrier(debuts)
+        d = detail_jours_travailles(prevu, reel, set(), date(2026, 10, 5), date(2026, 10, 9), plages_debut=PLAGES_4H_12H)
+        assert d["jours"] == 4
+        assert d["sans_heure_de_debut"] == 1
+        assert d["repris_de_la_semaine"] == []
+
+    def test_une_semaine_sans_aucun_badge_reste_a_verifier(self):
+        debuts = {j: "03:50" for j in _ouvres(date(2026, 10, 5), date(2026, 10, 9))}
+        prevu, reel = _calendrier(debuts)
+        d = detail_jours_travailles(prevu, reel, set(), date(2026, 10, 5), date(2026, 10, 16), plages_debut=PLAGES_4H_12H)
+        assert d["jours"] == 5
+        assert d["sans_heure_de_debut"] == 5
+        assert d["aucun_badge"] is False
 
     def test_sans_plage_rien_ne_change(self):
         prevu, reel = _calendrier({})

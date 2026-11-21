@@ -15,7 +15,10 @@ Des plages d'heure de début facultatives ne gardent que les postes commencés
 dans l'une d'elles (retour d'Elsa du 17/11 : « panier si le poste commence à
 4 h ou 12 h »). L'heure de début est celle du relevé importé (`debut` du jour
 réel, voir `schedules.domain.horaires_pointes`) ; un jour travaillé sans heure
-de début ne compte pas et il est compté à part, pour le dire à la RH.
+de début (badge oublié) prend le poste des autres jours badgés de sa semaine
+quand ils sont tous au même poste (retour d'Alexandre, 21/11 : 236 jours sur
+390 en octobre, aucun ne contredit sa semaine) ; sinon il ne compte pas et il
+est compté à part, pour le dire à la RH.
 """
 
 from __future__ import annotations
@@ -68,6 +71,25 @@ def heures_du_jour(
     return 0.0
 
 
+def _poste(debut: Any, plages: list[Mapping[str, Any]]) -> int | None:
+    """Rang de la plage où le poste commence, None hors de toute plage."""
+    for i, plage in enumerate(plages):
+        if debut_dans_les_plages(debut, [plage]):
+            return i
+    return None
+
+
+def postes_par_semaine(
+    reel: Mapping[date, Mapping[str, Any]], plages: list[Mapping[str, Any]]
+) -> dict[tuple[int, int], set[int | None]]:
+    """Les postes badgés de chaque semaine (ISO), lus sur les jours à heure de début."""
+    semaines: dict[tuple[int, int], set[int | None]] = {}
+    for jour, r in reel.items():
+        if isinstance(jour, date) and (r or {}).get("debut"):
+            semaines.setdefault(jour.isocalendar()[:2], set()).add(_poste(r.get("debut"), plages))
+    return semaines
+
+
 def detail_jours_travailles(
     prevu: Mapping[date, Mapping[str, Any]],
     reel: Mapping[date, Mapping[str, Any]],
@@ -77,13 +99,16 @@ def detail_jours_travailles(
     min_heures: float | None = None,
     plages_debut: Iterable[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """`{jours, sans_heure_de_debut, dates}` : les jours qui comptent, et, si
-    des plages de début sont demandées, les jours travaillés sans heure lue."""
+    """`{jours, sans_heure_de_debut, dates, repris_de_la_semaine, aucun_badge}` : les jours qui
+    comptent ; si des plages de début sont demandées, les jours travaillés sans
+    heure lue que leur semaine ne tranche pas, et ceux qu'elle a tranchés."""
     seuil = float(min_heures) if min_heures else 0.0
     plages = [p for p in (plages_debut or []) if isinstance(p, Mapping)]
     n = 0
     sans_debut = 0
     dates: list[str] = []
+    repris: list[str] = []
+    semaines = postes_par_semaine(reel, plages) if plages else {}
     jour = debut
     while jour <= fin:
         r = reel.get(jour) or {}
@@ -93,12 +118,29 @@ def detail_jours_travailles(
                 n += 1
                 dates.append(jour.isoformat())
             elif not r.get("debut"):
-                sans_debut += 1
+                postes = semaines.get(jour.isocalendar()[:2]) or set()
+                if len(postes) != 1:
+                    sans_debut += 1
+                else:
+                    repris.append(jour.isoformat())
+                    if next(iter(postes)) is not None:
+                        n += 1
+                        dates.append(jour.isoformat())
             elif debut_dans_les_plages(r.get("debut"), plages):
                 n += 1
                 dates.append(jour.isoformat())
         jour += timedelta(days=1)
-    return {"jours": n, "sans_heure_de_debut": sans_debut, "dates": dates}
+    return {
+        "jours": n,
+        "sans_heure_de_debut": sans_debut,
+        "dates": dates,
+        "repris_de_la_semaine": repris,
+        # Aucun badge de toute la fenêtre : relevé absent ou salarié hors
+        # badgeuse ; une seule alerte plutôt qu'un jour par jour.
+        "aucun_badge": bool(plages) and sans_debut > 0 and not any(
+            debut <= j <= fin and (r or {}).get("debut") for j, r in reel.items() if isinstance(j, date)
+        ),
+    }
 
 
 def compter_jours_travailles(
