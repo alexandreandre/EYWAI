@@ -102,6 +102,32 @@ class TestJoursSelonLHeureDeDebut:
         assert d["sans_heure_de_debut"] == 1
         assert d["repris_de_la_semaine"] == []
 
+    def test_un_seul_badge_ne_tranche_pas_la_semaine(self):
+        # Seul le vendredi badgé, à 8 h (formation) : les postes de 4 h oubliés restent à voir.
+        prevu, reel = _calendrier({date(2026, 10, 9): "08:00"})
+        d = detail_jours_travailles(prevu, reel, set(), date(2026, 10, 5), date(2026, 10, 9), plages_debut=PLAGES_4H_12H)
+        assert d["jours"] == 0
+        assert d["sans_heure_de_debut"] == 4
+        assert d["repris_de_la_semaine"] == []
+
+    def test_les_badges_hors_fenetre_ne_tranchent_rien(self):
+        # Nouveau contrat le mercredi 7 : les badges du lundi et du mardi sont à l'ancien.
+        prevu, reel = _calendrier({date(2026, 10, 5): "03:50", date(2026, 10, 6): "03:50"})
+        d = detail_jours_travailles(prevu, reel, set(), date(2026, 10, 7), date(2026, 10, 9), plages_debut=PLAGES_4H_12H)
+        assert d["jours"] == 0
+        assert d["sans_heure_de_debut"] == 3
+        assert d["aucun_badge"] is True
+
+    def test_un_jour_sous_le_seuil_ne_sert_pas_de_modele(self):
+        prevu, reel = _calendrier({date(2026, 10, 5): "03:50", date(2026, 10, 6): "03:50"})
+        reel[date(2026, 10, 5)]["heures_faites"] = 3.0
+        reel[date(2026, 10, 6)]["heures_faites"] = 3.0
+        d = detail_jours_travailles(
+            prevu, reel, set(), date(2026, 10, 5), date(2026, 10, 9), min_heures=6, plages_debut=PLAGES_4H_12H
+        )
+        assert d["jours"] == 0
+        assert d["sans_heure_de_debut"] == 3
+
     def test_une_semaine_sans_aucun_badge_reste_a_verifier(self):
         debuts = {j: "03:50" for j in _ouvres(date(2026, 10, 5), date(2026, 10, 9))}
         prevu, reel = _calendrier(debuts)

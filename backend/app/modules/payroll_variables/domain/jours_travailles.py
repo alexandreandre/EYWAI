@@ -16,7 +16,7 @@ dans l'une d'elles (retour d'Elsa du 17/11 : « panier si le poste commence à
 4 h ou 12 h »). L'heure de début est celle du relevé importé (`debut` du jour
 réel, voir `schedules.domain.horaires_pointes`) ; un jour travaillé sans heure
 de début (badge oublié) prend le poste des autres jours badgés de sa semaine
-quand ils sont tous au même poste (retour d'Alexandre, 21/11 : 236 jours sur
+(deux au moins, dans la fenêtre) quand ils sont tous au même poste (retour d'Alexandre, 21/11 : 236 jours sur
 390 en octobre, aucun ne contredit sa semaine) ; sinon il ne compte pas et il
 est compté à part, pour le dire à la RH.
 """
@@ -79,15 +79,31 @@ def _poste(debut: Any, plages: list[Mapping[str, Any]]) -> int | None:
     return None
 
 
+BADGES_MIN_PAR_SEMAINE = 2
+
+
 def postes_par_semaine(
-    reel: Mapping[date, Mapping[str, Any]], plages: list[Mapping[str, Any]]
+    reel: Mapping[date, Mapping[str, Any]],
+    plages: list[Mapping[str, Any]],
+    debut: date,
+    fin: date,
+    seuil: float = 0.0,
 ) -> dict[tuple[int, int], set[int | None]]:
-    """Les postes badgés de chaque semaine (ISO), lus sur les jours à heure de début."""
-    semaines: dict[tuple[int, int], set[int | None]] = {}
+    """Le poste de chaque semaine (ISO) quand elle en a un seul, lu sur au moins
+    deux jours badgés de la fenêtre qui comptent eux-mêmes (seuil d'heures).
+
+    Un seul badge ne suffit pas à trancher une semaine (une formation à 8 h
+    ferait perdre les paniers des postes de 4 h) ; les badges hors fenêtre
+    (autre contrat, mois suivant) ne tranchent rien."""
+    vus: dict[tuple[int, int], list[int | None]] = {}
     for jour, r in reel.items():
-        if isinstance(jour, date) and (r or {}).get("debut"):
-            semaines.setdefault(jour.isocalendar()[:2], set()).add(_poste(r.get("debut"), plages))
-    return semaines
+        if not isinstance(jour, date) or not (debut <= jour <= fin) or not (r or {}).get("debut"):
+            continue
+        faites = _heures(r.get("heures_faites"))
+        if faites is not None and (faites <= 0 or faites < seuil):
+            continue
+        vus.setdefault(jour.isocalendar()[:2], []).append(_poste(r.get("debut"), plages))
+    return {sem: set(p) for sem, p in vus.items() if len(p) >= BADGES_MIN_PAR_SEMAINE}
 
 
 def detail_jours_travailles(
@@ -108,7 +124,7 @@ def detail_jours_travailles(
     sans_debut = 0
     dates: list[str] = []
     repris: list[str] = []
-    semaines = postes_par_semaine(reel, plages) if plages else {}
+    semaines = postes_par_semaine(reel, plages, debut, fin, seuil) if plages else {}
     jour = debut
     while jour <= fin:
         r = reel.get(jour) or {}
