@@ -114,3 +114,20 @@ def test_conge_de_paternite_plasturgie_attend_aussi_les_ij():
     )
     assert r["maintien"]["maintien_verse"] == 0
     assert any(a.startswith(ALERTE_MAINTIEN_EN_ATTENTE_DES_IJ) for a in r["alertes"])
+
+
+def test_conge_de_maternite_plasturgie_attend_les_ij_puis_les_complete():
+    """Arbitrage du 23/11 : en plasturgie, on complète la maternité seulement si
+    la salariée transmet ses IJ, sans les réclamer."""
+    attente = calculer_maintien(
+        _arret(arret_type="maternite"), _ctx(), _settings(maintien_apres_ij_recues=True),
+        *SEPTEMBRE,
+    )
+    assert attente["maintien"]["maintien_verse"] == 0
+    assert any(a.startswith(ALERTE_MAINTIEN_EN_ATTENTE_DES_IJ) for a in attente["alertes"])
+
+    transmises = calculer_maintien(
+        _arret(arret_type="maternite", ijss_brut_override=1500.0), _ctx(),
+        _settings(maintien_apres_ij_recues=True), *SEPTEMBRE,
+    )
+    assert transmises["maintien"]["maintien_verse"] > 0
