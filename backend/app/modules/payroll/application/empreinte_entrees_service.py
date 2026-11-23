@@ -544,6 +544,19 @@ def _maintien_pour_empreinte(row: Mapping[str, Any] | None) -> dict[str, Any] | 
     return reglage
 
 
+_CLE_REPOS_SENIORS = "repos_seniors_enabled"
+
+
+def _conges_pour_empreinte(row: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """Les réglages de congés que le moteur lit : la case « Repos seniors »
+    seulement allumée. Sa colonne (23/11) ne fait pas passer « À recalculer »
+    tous les bulletins des sociétés où elle reste éteinte."""
+    reglage = _sans(row, _COLONNES_HORS_CALCUL | {_CLE_REPOS_SENIORS})
+    if reglage is not None and row.get(_CLE_REPOS_SENIORS) is True:
+        reglage[_CLE_REPOS_SENIORS] = True
+    return reglage
+
+
 def _reglages_societe_du_mois(
     complements: Complements,
     *,
@@ -626,7 +639,7 @@ def complements_du_mois(
         "mutuelle": _mutuelle_du_mois(complements.mutuelles, employee, year, month),
         "conges_ajustements": _ajustements_du_mois(complements.ajustements_conges, year),
         "conges_reglages": {
-            "conges": _sans(complements.reglages_conges),
+            "conges": _conges_pour_empreinte(complements.reglages_conges),
             "anciennete": _sans(complements.conges_anciennete),
         },
         "depart": _depart_du_mois(complements.sorties, bornes),

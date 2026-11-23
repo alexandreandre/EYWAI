@@ -172,6 +172,17 @@ def test_les_reglages_de_conges_comptent_pas_leurs_horodatages_ni_les_rappels():
     )
 
 
+
+def test_la_case_repos_seniors_eteinte_ne_change_pas_l_empreinte():
+    """La migration du 23/11 pose false partout : aucun bulletin ne se périme."""
+    reglages = COMPLEMENTS.reglages_conges
+    assert not _change("conges_reglages", reglages_conges={**reglages, "repos_seniors_enabled": False})
+
+
+def test_la_case_repos_seniors_allumee_rend_le_bulletin_a_recalculer():
+    reglages = COMPLEMENTS.reglages_conges
+    assert _change("conges_reglages", reglages_conges={**reglages, "repos_seniors_enabled": True})
+
 # --- Départ ---------------------------------------------------------------------
 
 DEPART = {
