@@ -76,6 +76,7 @@ export function EmployeeDetailLeaveBalancesSummary({
                       className={cn(
                         'min-w-[7rem] rounded-lg border bg-muted/30 px-3 py-2',
                         'transition-colors hover:bg-muted/50',
+                        balance.alerte && 'border-amber-500',
                       )}
                     >
                       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -98,6 +99,9 @@ export function EmployeeDetailLeaveBalancesSummary({
                         ? 'Quota et solde selon le type d’événement (convention collective).'
                         : formatRhLeaveBalanceDetail(balance)}
                     </p>
+                    {balance.alerte ? (
+                      <p className="mt-1 text-amber-700 dark:text-amber-400">{balance.alerte}</p>
+                    ) : null}
                   </TooltipContent>
                 </Tooltip>
               );

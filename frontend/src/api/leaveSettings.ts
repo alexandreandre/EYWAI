@@ -26,6 +26,8 @@ export interface LeaveSettings {
   jtc_enabled: boolean;
   jtc_annual_days: number;
   jtc_absence_threshold_days: number;
+  /** Repos seniors de la plasturgie (accord du 18/04/2025) : éteint par défaut. */
+  repos_seniors_enabled?: boolean;
   configured: boolean;
 }
 
@@ -51,6 +53,7 @@ export type LeaveSettingsUpdate = Partial<
     | 'jtc_enabled'
     | 'jtc_annual_days'
     | 'jtc_absence_threshold_days'
+    | 'repos_seniors_enabled'
   >
 >;
 

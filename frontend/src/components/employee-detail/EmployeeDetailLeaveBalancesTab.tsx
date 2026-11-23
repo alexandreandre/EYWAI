@@ -261,6 +261,11 @@ export function EmployeeDetailLeaveBalancesTab({
                               et le recalage à la main est refusé.
                             </p>
                           ) : null}
+                          {balance.alerte ? (
+                            <p className="text-xs font-normal text-amber-700 dark:text-amber-400">
+                              {balance.alerte}
+                            </p>
+                          ) : null}
                           {balance.type !== getRhLeaveBalanceShortLabel(balance.type) ? (
                             <p className="text-xs font-normal text-muted-foreground">
                               {balance.type}

@@ -25,6 +25,9 @@ export function EmployeeAbsenceBalanceRow({
   return (
     <div className="space-y-1 border-b border-border/60 pb-3 last:border-0 last:pb-0">
       <p className="text-sm font-medium">{balance.type || 'Type inconnu'}</p>
+      {balance.alerte ? (
+        <p className="text-xs text-amber-700 dark:text-amber-400">{balance.alerte}</p>
+      ) : null}
       {showAcquired && !isFamilial && (
         <p className="text-xs text-muted-foreground">
           Acquis : {acquiredDisplay} · Pris : {balance.taken} {unit} · Restant :{' '}
