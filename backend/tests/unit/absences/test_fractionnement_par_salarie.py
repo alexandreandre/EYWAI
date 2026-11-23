@@ -107,7 +107,30 @@ def test_un_droit_deja_valide_ne_sort_pas_au_bulletin_si_decoche():
 
 
 def test_cocher_ecrit_la_case_du_salarie():
-    table = _Table([])
+    table = _Table([{"id": "emp-1"}])
     with patch.object(fq.supabase, "table", return_value=table):
         assert fq.set_fractionnement_actif("comp-1", "emp-1", False) == {"employee_id": "emp-1", "actif": False}
     assert table.updates == [{"cp_fractionnement_actif": False}]
+
+
+def test_les_soldes_affiches_ignorent_le_droit_d_un_decoche():
+    with patch.object(fq.frac_repo, "get_fractionnement_grant", return_value={"status": "validated", "days_granted": 2}), \
+            patch.object(fq, "fractionnement_actif_du_salarie", return_value=False):
+        assert fq.droit_de_fractionnement_effectif("emp-1", 2026) is None
+    with patch.object(fq.frac_repo, "get_fractionnement_grant", return_value={"status": "validated", "days_granted": 2}), \
+            patch.object(fq, "fractionnement_actif_du_salarie", return_value=True):
+        assert fq.droit_de_fractionnement_effectif("emp-1", 2026)["days_granted"] == 2
+
+
+def test_une_case_illisible_ne_fait_pas_tomber_le_bulletin():
+    class _Panne(_Table):
+        def execute(self):
+            raise RuntimeError("colonne absente")
+
+    with patch.object(fq.supabase, "table", return_value=_Panne([])):
+        assert fq.fractionnement_actif_du_salarie("emp-1") is True
+
+
+def test_un_salarie_d_une_autre_societe_n_est_pas_touche():
+    with patch.object(fq.supabase, "table", return_value=_Table([])):
+        assert fq.set_fractionnement_actif("comp-1", "emp-x", False) is None

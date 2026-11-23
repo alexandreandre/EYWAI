@@ -26,8 +26,8 @@ from app.modules.absences.infrastructure.cp_seniority_repository import (
     get_cp_seniority_grant,
     get_cp_seniority_settings,
 )
-from app.modules.absences.infrastructure.fractionnement_repository import (
-    get_fractionnement_grant,
+from app.modules.absences.application.fractionnement_queries import (
+    droit_de_fractionnement_effectif,
 )
 from app.modules.absences.infrastructure.leave_settings_repository import (
     get_adjustments_by_employees_year,
@@ -193,7 +193,7 @@ def get_leave_balances_overview(
         n1 = soldes.get("conges_payes_n1") or {}
         n = soldes.get("conges_payes_n") or {}
         cp_grant = get_cp_seniority_grant(eid, ref_year)
-        frac_grant = get_fractionnement_grant(eid, ref_year)
+        frac_grant = droit_de_fractionnement_effectif(eid, ref_year)
         items.append(
             EmployeeLeaveBalanceOverviewItem(
                 employee_id=eid,

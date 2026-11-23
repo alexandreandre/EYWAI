@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Any
 
@@ -25,6 +26,7 @@ from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.payroll.application.payslip_commands import is_forfait_jour
 from app.shared.domain.pluriel import accord
 
+logger = logging.getLogger(__name__)
 
 def _settings_to_api(row: dict[str, Any]) -> dict[str, Any]:
     return {
@@ -302,23 +304,46 @@ def _ligne_decochee(emp: dict[str, Any], grant_year: int) -> dict[str, Any]:
 
 
 def fractionnement_actif_du_salarie(employee_id: str) -> bool:
-    """La case « fractionnement » du salarié (cochée par défaut)."""
-    resp = (
-        supabase.table("employees")
-        .select("cp_fractionnement_actif")
-        .eq("id", employee_id)
-        .limit(1)
-        .execute()
-    )
+    """La case « fractionnement » du salarié (cochée par défaut).
+
+    Lue au bulletin : une lecture impossible ne fait pas tomber la paie, elle
+    garde la case cochée (le comportement d'avant la case) et le journal le dit."""
+    try:
+        resp = (
+            supabase.table("employees")
+            .select("cp_fractionnement_actif")
+            .eq("id", employee_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception:
+        logger.warning("Case de fractionnement illisible (%s) : cochée par défaut", employee_id, exc_info=True)
+        return True
     rows = resp.data or []
     return not rows or rows[0].get("cp_fractionnement_actif") is not False
 
 
-def set_fractionnement_actif(company_id: str, employee_id: str, actif: bool) -> dict[str, Any]:
-    """Coche ou décoche le fractionnement d'un salarié de la société."""
-    supabase.table("employees").update({"cp_fractionnement_actif": bool(actif)}).eq(
-        "id", employee_id
-    ).eq("company_id", company_id).execute()
+def droit_de_fractionnement_effectif(employee_id: str, grant_year: int) -> dict[str, Any] | None:
+    """Le droit de l'année tel qu'il compte : aucun pour un salarié décoché, même
+    validé avant (soldes affichés comme bulletin)."""
+    grant = frac_repo.get_fractionnement_grant(employee_id, grant_year)
+    if grant and not fractionnement_actif_du_salarie(employee_id):
+        return None
+    return grant
+
+
+def set_fractionnement_actif(company_id: str, employee_id: str, actif: bool) -> dict[str, Any] | None:
+    """Coche ou décoche le fractionnement d'un salarié de la société ; None si
+    aucun salarié de cette société ne porte cet identifiant."""
+    resp = (
+        supabase.table("employees")
+        .update({"cp_fractionnement_actif": bool(actif)})
+        .eq("id", employee_id)
+        .eq("company_id", company_id)
+        .execute()
+    )
+    if not (resp.data or []):
+        return None
     return {"employee_id": employee_id, "actif": bool(actif)}
 
 

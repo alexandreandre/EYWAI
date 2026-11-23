@@ -135,11 +135,14 @@ export default function CpFractionnementSettingsCard() {
       setFractionnementActif(employeeId, actif),
     onSuccess: (_d, { actif }) => {
       void previewQuery.refetch();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.leaveCampaignDashboard(activeCompanyId, grantYear) });
       toast({
         title: actif ? 'Fractionnement activé' : 'Fractionnement désactivé',
-        description: actif
-          ? 'Ce salarié a de nouveau droit à ses jours de fractionnement.'
-          : 'Aucun jour de fractionnement pour ce salarié (renonciation).',
+        description: `${
+          actif
+            ? 'Ce salarié a de nouveau droit à ses jours de fractionnement.'
+            : 'Aucun jour de fractionnement pour ce salarié (renonciation).'
+        } Si son bulletin de novembre est déjà calculé, régénérez-le.`,
       });
     },
   });

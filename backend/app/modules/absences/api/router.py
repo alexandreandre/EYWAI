@@ -10,6 +10,8 @@ import logging
 from typing import List, Literal
 
 from postgrest.exceptions import APIError
+from uuid import UUID
+
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 
 from app.core.security import get_current_user
@@ -1237,7 +1239,14 @@ def set_fractionnement_actif_route(
     cid = _require_rh_company_context(current_user)
     if company_id and str(company_id) != str(cid):
         raise HTTPException(status_code=403, detail="Accès non autorisé.")
-    return fractionnement_queries.set_fractionnement_actif(str(cid), employee_id, body.actif)
+    try:
+        UUID(employee_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Salarié introuvable.")
+    res = fractionnement_queries.set_fractionnement_actif(str(cid), employee_id, body.actif)
+    if res is None:
+        raise HTTPException(status_code=404, detail="Salarié introuvable dans cette société.")
+    return res
 
 
 @router.post(

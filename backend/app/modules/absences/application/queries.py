@@ -825,11 +825,11 @@ def get_my_absence_balances(employee_id: str) -> List[dict]:
         except Exception:
             pass
     if company_id:
-        from app.modules.absences.infrastructure.fractionnement_repository import (
-            get_fractionnement_grant,
+        from app.modules.absences.application.fractionnement_queries import (
+            droit_de_fractionnement_effectif,
         )
 
-        frac = get_fractionnement_grant(employee_id, today.year)
+        frac = droit_de_fractionnement_effectif(employee_id, today.year)
         if frac:
             soldes = {
                 **soldes,
