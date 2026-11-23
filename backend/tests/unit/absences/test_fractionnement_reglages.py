@@ -126,6 +126,8 @@ def test_le_bulletin_de_novembre_credite_un_droit_valide():
     ), patch.object(
         fq.frac_repo, "get_fractionnement_grant", return_value=grant
     ), patch.object(
+        fq, "fractionnement_actif_du_salarie", return_value=True
+    ), patch.object(
         fq.frac_repo, "upsert_fractionnement_grant"
     ) as upsert:
         result = fq.apply_fractionnement_to_payslip_balances(

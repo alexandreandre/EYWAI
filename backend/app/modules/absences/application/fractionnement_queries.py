@@ -100,7 +100,7 @@ def compute_fractionnement_for_employee(
 
     emp_resp = (
         supabase.table("employees")
-        .select("id, statut, is_forfait_jour, first_name, last_name")
+        .select("id, statut, is_forfait_jour, first_name, last_name, cp_fractionnement_actif")
         .eq("id", employee_id)
         .eq("company_id", company_id)
         .limit(1)
@@ -113,6 +113,9 @@ def compute_fractionnement_for_employee(
     if settings.get("exclude_forfait_jours", True) and is_forfait_jour(
         emp.get("statut"), emp.get("is_forfait_jour")
     ):
+        return None
+    if emp.get("cp_fractionnement_actif") is False:
+        # Case décochée pour ce salarié (renonciation écrite, arbitrage du 23/11).
         return None
 
     ratio = settings["ouvres_to_ouvrables_ratio"]
@@ -233,6 +236,8 @@ def apply_fractionnement_to_payslip_balances(
     existing = frac_repo.get_fractionnement_grant(employee_id, grant_year)
     if not existing or existing.get("status") != "validated":
         return balances
+    if not fractionnement_actif_du_salarie(employee_id):
+        return balances
 
     days = int(existing.get("days_granted") or 0)
     snapshot = existing.get("calculation_snapshot") or {}
@@ -256,7 +261,7 @@ def apply_fractionnement_to_payslip_balances(
 def list_fractionnement_preview(company_id: str, grant_year: int) -> list[dict[str, Any]]:
     emp_resp = (
         supabase.table("employees")
-        .select("id, first_name, last_name, statut, is_forfait_jour")
+        .select("id, first_name, last_name, statut, is_forfait_jour, cp_fractionnement_actif")
         .eq("company_id", company_id)
         .in_("employment_status", ["actif", "active", "en_onboarding"])
         .execute()
@@ -265,14 +270,56 @@ def list_fractionnement_preview(company_id: str, grant_year: int) -> list[dict[s
     for emp in emp_resp.data or []:
         if is_forfait_jour(emp.get("statut"), emp.get("is_forfait_jour")):
             continue
+        if emp.get("cp_fractionnement_actif") is False:
+            rows.append(_ligne_decochee(emp, grant_year))
+            continue
         computed = compute_fractionnement_for_employee(
             str(emp["id"]), company_id, grant_year
         )
         if computed:
             grant = frac_repo.get_fractionnement_grant(str(emp["id"]), grant_year)
             computed["status"] = (grant or {}).get("status", "computed")
+            computed["actif"] = True
             rows.append(computed)
     return rows
+
+
+def _ligne_decochee(emp: dict[str, Any], grant_year: int) -> dict[str, Any]:
+    """Un salarié décoché : listé à 0 jour, pour que la RH le voie et puisse le recocher."""
+    return {
+        "employee_id": str(emp["id"]),
+        "first_name": emp.get("first_name") or "",
+        "last_name": emp.get("last_name") or "",
+        "grant_year": grant_year,
+        "solde_cp_n1_ouvres": 0.0,
+        "cp_reported_june_ouvres": 0.0,
+        "solde_ouvres": 0.0,
+        "solde_ouvrables": 0.0,
+        "days_granted": 0,
+        "status": "desactive",
+        "actif": False,
+    }
+
+
+def fractionnement_actif_du_salarie(employee_id: str) -> bool:
+    """La case « fractionnement » du salarié (cochée par défaut)."""
+    resp = (
+        supabase.table("employees")
+        .select("cp_fractionnement_actif")
+        .eq("id", employee_id)
+        .limit(1)
+        .execute()
+    )
+    rows = resp.data or []
+    return not rows or rows[0].get("cp_fractionnement_actif") is not False
+
+
+def set_fractionnement_actif(company_id: str, employee_id: str, actif: bool) -> dict[str, Any]:
+    """Coche ou décoche le fractionnement d'un salarié de la société."""
+    supabase.table("employees").update({"cp_fractionnement_actif": bool(actif)}).eq(
+        "id", employee_id
+    ).eq("company_id", company_id).execute()
+    return {"employee_id": employee_id, "actif": bool(actif)}
 
 
 def upsert_fractionnement_input(
@@ -333,6 +380,8 @@ def validate_fractionnement_grants(
     preview = list_fractionnement_preview(company_id, grant_year)
     count = 0
     for row in preview:
+        if row.get("actif") is False:
+            continue
         frac_repo.upsert_fractionnement_grant(
             company_id,
             row["employee_id"],

@@ -39,11 +39,16 @@ def get_leave_campaign_dashboard(
         if cp_settings.is_active
         else []
     )
-    frac_preview = (
-        fractionnement_queries.list_fractionnement_preview(company_id, grant_year)
-        if frac_settings.get("fractionnement_enabled")
-        else []
-    )
+    frac_preview = [
+        r
+        for r in (
+            fractionnement_queries.list_fractionnement_preview(company_id, grant_year)
+            if frac_settings.get("fractionnement_enabled")
+            else []
+        )
+        # Salariés décochés : listés à l'écran du fractionnement, pas comptés ici.
+        if r.get("actif") is not False
+    ]
 
     cp_grants = cp_repo.list_cp_seniority_grants_for_company(company_id, grant_year)
     validated_cp = sum(1 for g in cp_grants if g.get("status") == "validated")

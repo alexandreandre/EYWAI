@@ -5,6 +5,7 @@ import {
   getFractionnementPreview,
   getFractionnementSettings,
   resetFractionnementInputAuto,
+  setFractionnementActif,
   updateFractionnementInput,
   updateFractionnementSettings,
   validateFractionnementGrants,
@@ -126,6 +127,20 @@ export default function CpFractionnementSettingsCard() {
     onSuccess: () => {
       void previewQuery.refetch();
       toast({ title: 'Enregistré', description: 'Saisies salarié mises à jour.' });
+    },
+  });
+
+  const toggleActif = useMutation({
+    mutationFn: ({ employeeId, actif }: { employeeId: string; actif: boolean }) =>
+      setFractionnementActif(employeeId, actif),
+    onSuccess: (_d, { actif }) => {
+      void previewQuery.refetch();
+      toast({
+        title: actif ? 'Fractionnement activé' : 'Fractionnement désactivé',
+        description: actif
+          ? 'Ce salarié a de nouveau droit à ses jours de fractionnement.'
+          : 'Aucun jour de fractionnement pour ce salarié (renonciation).',
+      });
     },
   });
 
@@ -324,6 +339,7 @@ export default function CpFractionnementSettingsCard() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-20">Activé</TableHead>
                   <TableHead>Salarié</TableHead>
                   <TableHead className="text-right">CP N-1</TableHead>
                   {isManual ? (
@@ -351,10 +367,22 @@ export default function CpFractionnementSettingsCard() {
                     seniority: '0',
                     manualSolde: '0',
                   };
+                  const actif = row.actif !== false;
                   return (
-                    <TableRow key={row.employee_id}>
+                    <TableRow key={row.employee_id} className={actif ? undefined : 'text-muted-foreground'}>
+                      <TableCell>
+                        <Switch
+                          checked={actif}
+                          disabled={!canEdit || toggleActif.isPending}
+                          onCheckedChange={(checked) =>
+                            toggleActif.mutate({ employeeId: row.employee_id, actif: checked })
+                          }
+                          aria-label={`Fractionnement de ${row.first_name} ${row.last_name}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         {row.last_name} {row.first_name}
+                        {!actif ? <span className="ml-2 text-xs">(renonce au fractionnement)</span> : null}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {row.solde_cp_n1_ouvres.toFixed(1)}
@@ -366,7 +394,7 @@ export default function CpFractionnementSettingsCard() {
                             type="number"
                             min={0}
                             step="0.5"
-                            disabled={!canEdit}
+                            disabled={!canEdit || !actif}
                             value={draft.manualSolde}
                             onChange={(e) =>
                               setRowDrafts({
@@ -387,7 +415,7 @@ export default function CpFractionnementSettingsCard() {
                               type="number"
                               min={0}
                               step="0.5"
-                              disabled={!canEdit}
+                              disabled={!canEdit || !actif}
                               value={draft.reportJune}
                               onChange={(e) =>
                                 setRowDrafts({
@@ -406,7 +434,7 @@ export default function CpFractionnementSettingsCard() {
                               type="number"
                               min={0}
                               step="0.5"
-                              disabled={!canEdit}
+                              disabled={!canEdit || !actif}
                               value={draft.seniority}
                               onChange={(e) =>
                                 setRowDrafts({
@@ -435,7 +463,7 @@ export default function CpFractionnementSettingsCard() {
                         {row.days_granted}
                       </TableCell>
                       <TableCell>
-                        {canEdit ? (
+                        {canEdit && actif ? (
                           <div className="flex gap-1">
                             <Button
                               type="button"

@@ -81,6 +81,9 @@ def test_apply_fractionnement_november_wiring():
     ), patch(
         "app.modules.absences.application.fractionnement_queries.frac_repo.get_fractionnement_grant",
         return_value=grant,
+    ), patch(
+        "app.modules.absences.application.fractionnement_queries.fractionnement_actif_du_salarie",
+        return_value=True,
     ):
         result = apply_fractionnement_to_payslip_balances(
             "emp-1", "comp-1", 2026, 11, balances

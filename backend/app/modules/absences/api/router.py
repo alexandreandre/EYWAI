@@ -20,6 +20,7 @@ from app.modules.webhooks.application.service import trigger_webhook_event
 from app.modules.users.schemas.responses import User
 
 from app.modules.absences.schemas.fractionnement import (
+    FractionnementActifUpdate,
     FractionnementInputUpdate,
     FractionnementPreviewRow,
     FractionnementSettingsResponse,
@@ -1223,6 +1224,20 @@ def upsert_fractionnement_input(
         seniority_manual_override=body.seniority_manual_override,
         manual_solde_ouvrables=body.manual_solde_ouvrables,
     )
+
+
+@router.put("/fractionnement/employees/{employee_id}/actif")
+def set_fractionnement_actif_route(
+    employee_id: str,
+    body: FractionnementActifUpdate,
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    """Coche ou décoche le fractionnement d'un salarié (renonciation écrite)."""
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    return fractionnement_queries.set_fractionnement_actif(str(cid), employee_id, body.actif)
 
 
 @router.post(

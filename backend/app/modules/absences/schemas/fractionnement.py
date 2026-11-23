@@ -54,6 +54,12 @@ class FractionnementPreviewRow(BaseModel):
     days_granted: int
     calculation_method: str = "legal"
     status: str = "computed"
+    # Case « fractionnement » du salarié (arbitrage du 23/11) : décochée, 0 jour.
+    actif: bool = True
+
+
+class FractionnementActifUpdate(BaseModel):
+    actif: bool
 
 
 class FractionnementValidateResult(BaseModel):

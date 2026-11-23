@@ -37,6 +37,8 @@ export interface FractionnementPreviewRow {
   days_granted: number;
   calculation_method?: string;
   status?: string;
+  /** Case « fractionnement » du salarié (23/11) : décochée, 0 jour. */
+  actif?: boolean;
 }
 
 export interface LeaveCampaignDashboard {
@@ -105,6 +107,12 @@ export async function updateFractionnementInput(
     `/api/absences/fractionnement/inputs/${employeeId}`,
     payload,
   );
+  return res.data;
+}
+
+/** Coche ou décoche le fractionnement d'un salarié (renonciation écrite). */
+export async function setFractionnementActif(employeeId: string, actif: boolean): Promise<unknown> {
+  const res = await apiClient.put(`/api/absences/fractionnement/employees/${employeeId}/actif`, { actif });
   return res.data;
 }
 
