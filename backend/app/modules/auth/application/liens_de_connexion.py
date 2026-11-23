@@ -20,8 +20,6 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional
 
-from fastapi import HTTPException
-
 from app.core.logging import get_logger
 
 logger = get_logger("modules.auth.liens")
@@ -110,11 +108,12 @@ def demander_lien(email: str, envoyer: Optional[Callable[..., bool]] = None, cli
     return reponse
 
 
-def _refus_lien() -> HTTPException:
-    return HTTPException(
-        status_code=400,
-        detail={"code": CODE_LIEN_INVALIDE, "message": MESSAGE_LIEN_INVALIDE},
-    )
+class LienInvalide(Exception):
+    """Lien inconnu, déjà servi ou expiré (traduit en 400 `lien_invalide` par le service)."""
+
+
+def _refus_lien() -> LienInvalide:
+    return LienInvalide(MESSAGE_LIEN_INVALIDE)
 
 
 def consommer_lien(jeton: str, client=None) -> str:

@@ -185,7 +185,10 @@ def ouvrir_lien_de_connexion(jeton: str) -> dict:
     """Connexion par lien : le lien sert une fois, puis la session s'ouvre sans mot de passe."""
     from app.modules.auth.application import liens_de_connexion as liens
 
-    user_id = liens.consommer_lien(jeton)
+    try:
+        user_id = liens.consommer_lien(jeton)
+    except liens.LienInvalide as exc:
+        raise _refus(400, liens.CODE_LIEN_INVALIDE, liens.MESSAGE_LIEN_INVALIDE) from exc
     try:
         session = liens.session_du_compte(user_id)
     except Exception as exc:

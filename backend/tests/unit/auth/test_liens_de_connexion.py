@@ -80,10 +80,16 @@ def test_consommer_un_lien_valable():
 
 @pytest.mark.parametrize("jeton", ["", "x" * 201, "inconnu-servi-ou-expire"])
 def test_un_lien_inconnu_servi_ou_expire_est_refuse(jeton):
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(liens.LienInvalide):
         liens.consommer_lien(jeton, _Client())
+
+
+def test_le_refus_d_un_lien_dit_pourquoi():
+    with patch.object(liens, "consommer_lien", side_effect=liens.LienInvalide("x")):
+        with pytest.raises(HTTPException) as exc:
+            service.ouvrir_lien_de_connexion("jeton")
     assert exc.value.status_code == 400
-    assert exc.value.detail["code"] == liens.CODE_LIEN_INVALIDE
+    assert exc.value.detail == {"code": liens.CODE_LIEN_INVALIDE, "message": liens.MESSAGE_LIEN_INVALIDE}
 
 
 def test_demande_pour_un_compte_avec_acces():
