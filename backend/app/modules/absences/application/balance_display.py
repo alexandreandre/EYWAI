@@ -96,6 +96,16 @@ def balances_to_api_list(
             }
         )
 
+    # Repos seniors (plasturgie, accord du 18/04/2025) : seulement si la case
+    # de la société est allumée. Sans date de naissance, la ligne porte
+    # l'alerte au lieu de se taire.
+    if policy.repos_seniors_enabled:
+        brut = soldes.get("repos_seniors") or {}
+        ligne: dict = {"type": "Repos seniors", **_official_balance_row(brut)}
+        if brut.get("alerte"):
+            ligne["alerte"] = brut["alerte"]
+        result.append(ligne)
+
     # Repos compensateur : les trois chiffres du compteur tels que le bulletin
     # les imprime. Un repos pris sans crédit reste négatif : on n'invente pas
     # d'acquis pour boucler le triplet.

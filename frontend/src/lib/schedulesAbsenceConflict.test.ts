@@ -91,6 +91,14 @@ describe("detectAbsenceConflictDays", () => {
     expect(validatedAbsenceDaysInMonth([jtc], 2026, 8)).toEqual([]);
   });
 
+  it("ignore le repos senior, qui n'écrit pas le calendrier comme le JTC", () => {
+    const reposSenior = {
+      ...arret(["2026-08-14"]),
+      type: "repos_senior",
+    } as AbsenceRequest;
+    expect(validatedAbsenceDaysInMonth([reposSenior], 2026, 8)).toEqual([]);
+  });
+
   it("compte un congé sans solde et ne le signale pas si le jour est non rémunéré", () => {
     const sansSolde = {
       ...arret(["2026-08-14"]),

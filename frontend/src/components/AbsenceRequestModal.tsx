@@ -84,6 +84,7 @@ function BalanceHint({
     conge_paye: 'Congés Payés',
     rtt: 'RTT',
     jtc: 'JTC',
+    repos_senior: 'Repos seniors',
     repos_compensateur: 'Repos compensateur',
   };
   const label = labelByType[absenceType];
@@ -98,7 +99,9 @@ function BalanceHint({
         ? 'RTT'
         : absenceType === 'jtc'
           ? 'JTC'
-          : 'repos compensateur';
+          : absenceType === 'repos_senior'
+            ? 'repos seniors'
+            : 'repos compensateur';
 
   if (absenceType === 'conge_paye') {
     const available = getAvailableCongePayeDays(balances, pendingAbsences);
@@ -245,6 +248,9 @@ export function AbsenceRequestModal({
     (b) => b.type === "Récupération / modulation",
   );
   const hasJtcRh = (rhBalances ?? []).some((b) => b.type === "JTC");
+  // Repos seniors (plasturgie) : la ligne de solde n'existe que si la case de
+  // la société est allumée.
+  const hasReposSeniorsRh = (rhBalances ?? []).some((b) => b.type === "Repos seniors");
   // Soldes qui jugent la pose d'un congé payé : ceux du salarié choisi pour la
   // RH, les siens pour un salarié.
   const soldesPose = isRhLeave ? (rhBalances ?? []) : balances;
@@ -622,6 +628,7 @@ export function AbsenceRequestModal({
     conge_paye: 'Congé Payé',
     rtt: 'RTT',
     jtc: 'JTC',
+    repos_senior: 'Repos seniors',
     repos_compensateur: 'Repos Compensateur',
     recuperation_modulation: 'Récupération / modulation',
     evenement_familial: 'Événement Familial',
@@ -633,6 +640,7 @@ export function AbsenceRequestModal({
   // Le JTC n'existe que chez les sociétés qui l'ont activé : sans compteur
   // remonté par l'API, on ne propose pas le type.
   const hasJtc = balances.some((b) => b.type === 'JTC');
+  const hasReposSeniors = balances.some((b) => b.type === 'Repos seniors');
 
   const absenceTypeOptions: { value: AbsenceTypeValue; label: string }[] = isRhArret
     ? RH_ONLY_ABSENCE_TYPES.map((value) => ({
@@ -644,6 +652,9 @@ export function AbsenceRequestModal({
           { value: "conge_paye" as const, label: "Congé Payé" },
           { value: "rtt" as const, label: "RTT" },
           ...(hasJtcRh ? [{ value: "jtc" as const, label: "JTC" }] : []),
+          ...(hasReposSeniorsRh
+            ? [{ value: "repos_senior" as const, label: "Repos seniors" }]
+            : []),
           { value: "repos_compensateur" as const, label: "Repos Compensateur" },
           // Récupération des heures sup mises au compteur : la ligne de solde
           // n'existe que si la société met ses heures sup au compteur.
@@ -661,7 +672,8 @@ export function AbsenceRequestModal({
       : EMPLOYEE_REQUESTABLE_ABSENCE_TYPES.filter(
           (value) =>
             (value !== "recuperation_modulation" || modRestant > 0) &&
-            (value !== "jtc" || hasJtc),
+            (value !== "jtc" || hasJtc) &&
+            (value !== "repos_senior" || hasReposSeniors),
         ).map((value) => ({
           value,
           label: employeeAbsenceTypeLabels[value],

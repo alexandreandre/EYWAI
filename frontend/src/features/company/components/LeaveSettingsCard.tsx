@@ -149,6 +149,7 @@ export default function LeaveSettingsCard() {
       jtc_enabled: form.jtc_enabled ?? false,
       jtc_annual_days: form.jtc_annual_days ?? 3,
       jtc_absence_threshold_days: form.jtc_absence_threshold_days ?? 30,
+      repos_seniors_enabled: form.repos_seniors_enabled ?? false,
     });
   };
 
@@ -449,6 +450,26 @@ export default function LeaveSettingsCard() {
                 </div>
               </div>
             ) : null}
+          </div>
+
+          <div className="flex items-center justify-between gap-4 border-t pt-4">
+            <div>
+              <Label htmlFor="repos-seniors-enabled">Repos seniors (plasturgie)</Label>
+              <p className="text-xs text-muted-foreground">
+                Accord de branche du 18 avril 2025 : chaque 1er juin, 1 jour à 58 et
+                59 ans, 2 jours dès 60 ans, à prendre avant le 31 mai suivant. Aucun
+                jour après 12 mois d&apos;absence continue. Jours de repos payés,
+                compteur à part des congés payés.
+              </p>
+            </div>
+            <Switch
+              id="repos-seniors-enabled"
+              checked={form.repos_seniors_enabled ?? false}
+              disabled={!canEdit}
+              onCheckedChange={(v) =>
+                setForm((f) => (f ? { ...f, repos_seniors_enabled: v } : f))
+              }
+            />
           </div>
 
           <div className="flex items-center justify-between gap-4 border-t pt-4">

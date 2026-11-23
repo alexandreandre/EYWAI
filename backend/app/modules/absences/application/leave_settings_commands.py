@@ -89,6 +89,7 @@ _WRITABLE_POLICY_KEYS = frozenset(
         "rtt_carryover_enabled",
         "rtt_year_end_reminder_enabled",
         "rtt_year_end_reminder_days_before",
+        "repos_seniors_enabled",
     }
 )
 

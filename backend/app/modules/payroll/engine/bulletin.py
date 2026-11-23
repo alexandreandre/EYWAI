@@ -220,6 +220,24 @@ def alertes_des_compteurs_de_conges(
                     ),
                 }
             )
+    # Repos seniors (plasturgie) : l'accord dit lui-même que les jours non
+    # pris ne sont pas indemnisés à la rupture (art. 4). Rien à payer : on le
+    # dit pour que personne ne les cherche sur le reçu.
+    repos_seniors = solde_conges.get("repos_seniors")
+    if bulletin_de_sortie and isinstance(repos_seniors, dict):
+        reste = float(repos_seniors.get("solde") or 0.0)
+        if reste > 0:
+            alertes.append(
+                {
+                    "code": "repos_seniors_perdus_au_depart",
+                    "severity": "info",
+                    "critique": False,
+                    "message": (
+                        f"Départ : {_jours_fr(reste)} de repos seniors non pris, "
+                        "perdus sans indemnité (accord plasturgie du 18 avril 2025, art. 4)."
+                    ),
+                }
+            )
     recuperation = solde_conges.get("recuperation")
     if bulletin_de_sortie and isinstance(recuperation, dict):
         reste = float(recuperation.get("solde") or 0.0)

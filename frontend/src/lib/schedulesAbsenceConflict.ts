@@ -12,9 +12,10 @@ const ABSENCE_CALENDAR_TYPES = new Set([
   'absence_non_remuneree',
 ]);
 
-// Le JTC n'écrit jamais le calendrier : ses jours restent « travail ».
+// Le JTC et le repos senior n'écrivent jamais le calendrier : leurs jours
+// restent « travail ».
 // Le congé sans solde écrit `absence_non_remuneree`.
-const TYPES_SANS_CALENDRIER = new Set(['jtc']);
+const TYPES_SANS_CALENDRIER = new Set(['jtc', 'repos_senior']);
 
 export function validatedAbsenceDaysInMonth(
   absences: AbsenceRequest[],

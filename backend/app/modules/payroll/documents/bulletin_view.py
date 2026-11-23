@@ -399,6 +399,9 @@ def construire_compteurs(bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     # Compteur distinct, jamais fondu dans le total CP (note JTC, § 7).
     if _compteur_alimente(solde.get("jtc")):
         colonnes.append(_colonne_compteur("JTC", solde.get("jtc")))
+    # Repos seniors (plasturgie) : compteur à part, comme les JTC.
+    if _compteur_alimente(solde.get("repos_seniors")):
+        colonnes.append(_colonne_compteur("Repos seniors", solde.get("repos_seniors")))
     if _compteur_alimente(solde.get("repos_compensateur")):
         colonnes.append(
             _colonne_compteur("Repos comp. (h)", solde.get("repos_compensateur"))

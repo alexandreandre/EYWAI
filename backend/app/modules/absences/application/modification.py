@@ -25,6 +25,7 @@ TYPES_MODIFIABLES = frozenset(
         "conge_paye",
         "rtt",
         "jtc",
+        "repos_senior",
         "sans_solde",
         "repos_compensateur",
         "recuperation_modulation",

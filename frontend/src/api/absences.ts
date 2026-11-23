@@ -32,7 +32,7 @@ export interface AbsenceRequest {
   id: string;
   created_at: string;
   employee_id: string;
-  type: 'conge_paye' | 'rtt' | 'jtc' | 'sans_solde' | 'repos_compensateur' | 'recuperation_modulation' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro';
+  type: 'conge_paye' | 'rtt' | 'jtc' | 'repos_senior' | 'sans_solde' | 'repos_compensateur' | 'recuperation_modulation' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro';
   selected_days: string[]; // Tableau de dates au format 'YYYY-MM-DD'
   comment: string | null;
   status: 'pending' | 'validated' | 'rejected' | 'cancelled';
@@ -76,6 +76,8 @@ export interface AbsenceBalance {
   remaining: number | 'N/A' | 'selon événement';
   /** Congés payés repris d'un bulletin importé : pas d'acquisition ajoutée, recalage refusé. */
   suit_bulletin?: boolean;
+  /** Donnée manquante qui empêche le calcul du compteur (repos seniors sans date de naissance). */
+  alerte?: string | null;
 }
 
 export interface EvenementFamilialEvent {
@@ -169,7 +171,7 @@ export const getAbsencePageData = (year: number, month: number) => {
 // Interface pour la création d'une demande
 export interface AbsenceCreationPayload {
   employee_id: string;
-  type: 'conge_paye' | 'rtt' | 'jtc' | 'sans_solde' | 'repos_compensateur' | 'recuperation_modulation' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro';
+  type: 'conge_paye' | 'rtt' | 'jtc' | 'repos_senior' | 'sans_solde' | 'repos_compensateur' | 'recuperation_modulation' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro';
   /** Saisie jour par jour ('YYYY-MM-DD') — congés, mi-temps thérapeutique. */
   selected_days?: string[];
   /** Saisie par période calendaire — arrêts : le backend étend en jours, week-ends compris. */
