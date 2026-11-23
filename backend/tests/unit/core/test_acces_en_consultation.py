@@ -8,7 +8,7 @@ from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from app.core import security
-from app.core.consultation import MESSAGE_CONSULTATION, envoi_permis_en_consultation
+from app.core.consultation import MESSAGE_CONSULTATION, permis_en_consultation
 from app.modules.exports.application import commands as exports_commands
 from app.modules.users.schemas.responses import CompanyAccess, User
 
@@ -62,6 +62,10 @@ def _app():
     def valider(u: User = Depends(security.get_current_user)):
         return {"ok": True}
 
+    @app.post("/api/exports/{x}")
+    def export_quelconque(x: str, u: User = Depends(security.get_current_user)):
+        return {"ok": True}
+
     @app.post("/api/exports/preview")
     def apercu(u: User = Depends(security.get_current_user)):
         return {"ok": True}
@@ -103,6 +107,11 @@ def test_un_compte_en_consultation_voit_les_apercus_d_export(appeler):
     assert appeler(True, "POST", "/api/exports/preview").status_code == 200
 
 
+def test_un_point_d_interrogation_encode_ne_trompe_pas_le_controle(appeler):
+    """`request.url.path` couperait à « %3F » ; le routage, lui, voit « generate?x »."""
+    assert appeler(True, "POST", "/api/exports/generate%3Fx").status_code == 403
+
+
 def test_variables_du_mois_a_blanc_seulement(appeler):
     assert appeler(True, "POST", "/api/payroll-variables/generate?dry_run=true").status_code == 200
     assert appeler(True, "POST", "/api/payroll-variables/generate").status_code == 403
@@ -138,10 +147,13 @@ def test_un_compte_rh_ordinaire_n_est_pas_touche(appeler):
         ("PATCH", "/api/users/update-access/u/c", {}, False),
         ("POST", "/api/users/grant-access", {}, False),
         ("POST", "/api/notifications/123/read", {}, False),
+        ("GET", "/api/employees/abc/credentials-pdf", {}, False),
+        ("GET", "/api/employees/abc/credentials-pdf/content", {}, False),
+        ("GET", "/api/employees/abc", {}, True),
     ],
 )
-def test_envois_permis(methode, chemin, parametres, permis):
-    assert envoi_permis_en_consultation(methode, chemin, parametres) is permis
+def test_requetes_permises(methode, chemin, parametres, permis):
+    assert permis_en_consultation(methode, chemin, parametres) is permis
 
 
 def _user(*lectures, admin=False):
@@ -208,5 +220,20 @@ def test_un_export_ne_vise_que_la_societe_active():
          patch.object(exports_router, "_require_exports_company_access"):
         with pytest.raises(HTTPException) as exc:
             exports_router.generate_export(req, _user(False), "c0")
+    assert exc.value.status_code == 403
+    gen.assert_not_called()
+
+
+def test_les_virements_bancaires_sont_refuses_en_consultation():
+    from fastapi import HTTPException
+
+    from app.modules.exports.api import router as exports_router
+    from app.modules.exports.schemas.requests import ExportGenerateRequest
+
+    req = ExportGenerateRequest(export_type="virement_salaires", period="2026-10")
+    with patch.object(exports_router.export_service, "generate_export") as gen, \
+         patch.object(exports_router, "_require_exports_company_access"):
+        with pytest.raises(HTTPException) as exc:
+            exports_router.generate_export(req, _user(True), "c0")
     assert exc.value.status_code == 403
     gen.assert_not_called()

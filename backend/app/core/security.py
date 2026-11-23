@@ -22,7 +22,7 @@ try:
 except ImportError:  # compat anciennes installs
     from gotrue.errors import AuthApiError  # type: ignore[no-redef]
 
-from app.core.consultation import MESSAGE_CONSULTATION, envoi_permis_en_consultation
+from app.core.consultation import MESSAGE_CONSULTATION, permis_en_consultation
 from app.core.database import get_supabase_admin_client, supabase
 from app.core.logging import get_logger, is_app_debug_enabled
 from app.core.supabase_resilience import (
@@ -296,8 +296,8 @@ def get_current_user(
         if (
             request is not None
             and user_data.consultation
-            and not envoi_permis_en_consultation(
-                request.method, request.url.path, request.query_params
+            and not permis_en_consultation(
+                request.method, request.scope["path"], request.query_params
             )
         ):
             raise HTTPException(

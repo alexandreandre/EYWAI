@@ -10,6 +10,7 @@ from app.modules.access_control.application.service import access_control_servic
 from app.modules.users.schemas.responses import User
 from app.modules.exports.api.dependencies import get_active_company_id
 from app.modules.exports.application import service as export_service
+from app.core.consultation import EXPORTS_REFUSES_EN_CONSULTATION
 from app.modules.exports.application.commands import exports_sans_trace
 from app.modules.exports.application import scheduled_exports as scheduled_export_service
 from app.modules.exports.application import dispatch as dispatch_service
@@ -146,6 +147,12 @@ def generate_export(
         _require_exports_company_access(current_user, company_id)
         _exiger_la_societe_active(request.company_id, company_id)
         if current_user.consultation:
+            if request.export_type in EXPORTS_REFUSES_EN_CONSULTATION:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Accès en consultation : les fichiers de virement bancaire "
+                    "restent réservés à la société.",
+                )
             if request.export_type == "dsn_mensuelle":
                 request.filters = {**(request.filters or {}), "essai": True}
             with exports_sans_trace():
