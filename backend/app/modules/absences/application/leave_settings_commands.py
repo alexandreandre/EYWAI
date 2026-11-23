@@ -90,6 +90,11 @@ _WRITABLE_POLICY_KEYS = frozenset(
         "rtt_year_end_reminder_enabled",
         "rtt_year_end_reminder_days_before",
         "repos_seniors_enabled",
+        # La case « Compteur JTC » de l'écran ne s'enregistrait pas : ces clés
+        # manquaient et le serveur les ignorait sans rien dire (vu le 23/11).
+        "jtc_enabled",
+        "jtc_annual_days",
+        "jtc_absence_threshold_days",
     }
 )
 
