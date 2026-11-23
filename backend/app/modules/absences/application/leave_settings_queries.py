@@ -106,6 +106,7 @@ def _policy_to_response(
         jtc_enabled=policy.jtc_enabled,
         jtc_annual_days=policy.jtc_annual_days,
         jtc_absence_threshold_days=policy.jtc_absence_threshold_days,
+        repos_seniors_enabled=policy.repos_seniors_enabled,
         configured=get_leave_policy_row(company_id) is not None,
     )
 

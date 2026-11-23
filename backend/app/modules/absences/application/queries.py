@@ -448,6 +448,54 @@ def rtt_shortfall_message(
     )
 
 
+def refus_repos_seniors(
+    employee_id: str, selected_days: list, demi_journees: dict | None = None
+) -> str | None:
+    """Phrase qui refuse une pose de repos senior (case éteinte, demi-journée,
+    droit dépassé, date de naissance absente), ou `None`."""
+    from app.modules.absences.domain.repos_seniors import (
+        droit_repos_seniors,
+        fin_de_prise,
+        jours_repos_seniors_poses,
+        premier_juin_de_rattachement,
+        refus_pose_repos_seniors,
+    )
+
+    company_id = get_employee_company_id(employee_id)
+    if not company_id:
+        return None  # salarié inconnu : la création lève LookupError ensuite
+    policy = get_leave_policy(company_id)
+    jours = [
+        d if isinstance(d, date) else date.fromisoformat(str(d)[:10])
+        for d in selected_days
+    ]
+    if not policy.repos_seniors_enabled or demi_journees:
+        return refus_pose_repos_seniors(
+            enabled=policy.repos_seniors_enabled,
+            jours_demandes=jours,
+            demi_journees=bool(demi_journees),
+            droit_par_periode={},
+            deja_poses_par_periode={},
+        )
+    ctx = load_employee_cp_seniority_context(employee_id)
+    validees = absence_repository.list_validated_for_employees([employee_id])
+    periodes = {premier_juin_de_rattachement(j) for j in jours}
+    droits = {
+        p: droit_repos_seniors(
+            ctx.birth_date, p, validees, date_embauche=_parse_hire_date(employee_id)
+        )
+        for p in periodes
+    }
+    deja = {p: jours_repos_seniors_poses(validees, p, fin_de_prise(p)) for p in periodes}
+    return refus_pose_repos_seniors(
+        enabled=True,
+        jours_demandes=jours,
+        demi_journees=False,
+        droit_par_periode=droits,
+        deja_poses_par_periode=deja,
+    )
+
+
 def get_absence_balances_at_date(
     employee_id: str, ref_date: date
 ) -> dict[str, dict[str, float]] | None:
@@ -728,6 +776,10 @@ def get_absence_balances_for_payslip(
         "repos_compensateur": autres["repos_compensateur"],
         "cp_seniority_days": autres.get("cp_seniority_days", 0),
     }
+    # Repos seniors : la clé n'existe que si la case de la société est
+    # allumée ; éteinte, le pied de bulletin reste exactement celui d'avant.
+    if getattr(policy, "repos_seniors_enabled", False):
+        balances["repos_seniors"] = autres["repos_seniors"]
     company_id = _get_employee_company_id(employee_id)
     if company_id:
         from app.modules.absences.application.fractionnement_queries import (

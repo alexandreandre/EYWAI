@@ -106,6 +106,7 @@ def _row_to_policy(row: dict[str, Any] | None) -> LeavePolicySettings:
         jtc_absence_types=tuple(
             row.get("jtc_absence_types") or JTC_ABSENCE_TYPES_DEFAULT
         ),
+        repos_seniors_enabled=bool(row.get("repos_seniors_enabled", False)),
     )
 
 

@@ -60,6 +60,9 @@ class LeavePolicySettings:
     jtc_annual_days: int = JTC_ANNUAL_DAYS_DEFAULT
     jtc_absence_threshold_days: int = JTC_ABSENCE_THRESHOLD_DAYS_DEFAULT
     jtc_absence_types: tuple[str, ...] = JTC_ABSENCE_TYPES_DEFAULT
+    #: Jours de repos seniors de la plasturgie (accord du 18/04/2025). Éteint
+    #: par défaut : décision du client du 23/11/2026, allumé nulle part.
+    repos_seniors_enabled: bool = False
     #: Arrêt maladie ordinaire compté comme travail effectif par la convention
     #: de la société (métallurgie, art. 84) ; None : la loi seule, 2 jours
     #: ouvrables par mois d'arrêt (C. trav. L3141-5-1).

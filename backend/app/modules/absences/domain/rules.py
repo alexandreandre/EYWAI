@@ -35,6 +35,7 @@ from app.modules.absences.domain.leave_policy import (
     LeavePolicySettings,
     RTT_ANNUAL_DAYS_DEFAULT,
 )
+from app.modules.absences.domain.repos_seniors import solde_repos_seniors
 from app.shared.domain.pluriel import accord
 
 
@@ -1276,6 +1277,13 @@ def compute_absence_balances(
     jtc = compute_jtc_balance(
         validated_requests, ref_date, policy=policy, adjustment=adjustment
     )
+    repos_seniors = solde_repos_seniors(
+        validated_requests,
+        ref_date,
+        enabled=policy.repos_seniors_enabled,
+        date_naissance=employee_ctx.birth_date if employee_ctx else None,
+        date_embauche=hire_date,
+    )
 
     # Repos compensateur : compteur en HEURES des deux côtés (le crédit COR
     # est nativement en heures ; une prise « journée » vaut hours_per_rest_day).
@@ -1298,6 +1306,7 @@ def compute_absence_balances(
         "cp_legal_days": round(max(0.0, cp.get("acquis", 0) - seniority_n), 2),
         "rtt": rtt,
         "jtc": jtc,
+        "repos_seniors": repos_seniors,
         "repos_compensateur": _balance(repos_acquis, repos_pris),
     }
 

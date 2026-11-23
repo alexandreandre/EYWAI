@@ -207,6 +207,15 @@ def create_absence_request(
                 f"{refus}. Rapprochez-vous de votre direction pour une demande hors solde."
             )
 
+    if absence_type == "repos_senior":
+        # Pas de « hors solde » : un repos senior n'existe que dans la limite
+        # du droit de sa période (accord plasturgie du 18/04/2025).
+        from app.modules.absences.application.queries import refus_repos_seniors
+
+        refus = refus_repos_seniors(employee_id, selected_days, demi_journees=demi_journees)
+        if refus:
+            raise ValueError(refus)
+
     if absence_type == "evenement_familial":
         if not event_subtype:
             raise ValueError(

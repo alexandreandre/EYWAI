@@ -30,6 +30,7 @@ class LeaveSettingsResponse(BaseModel):
     jtc_enabled: bool = False
     jtc_annual_days: int = 3
     jtc_absence_threshold_days: int = 30
+    repos_seniors_enabled: bool = False
     configured: bool = False
 
 

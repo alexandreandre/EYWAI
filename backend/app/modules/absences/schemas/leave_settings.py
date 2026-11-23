@@ -29,6 +29,7 @@ class LeaveSettingsUpdate(BaseModel):
     jtc_enabled: Optional[bool] = None
     jtc_annual_days: Optional[int] = Field(None, ge=0, le=30)
     jtc_absence_threshold_days: Optional[int] = Field(None, ge=0, le=365)
+    repos_seniors_enabled: bool | None = None
 
 
 class EmployeeLeaveAdjustmentUpdate(BaseModel):

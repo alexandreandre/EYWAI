@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 ABSENCE_TYPE_LABELS = {
     "conge_paye": "congé payé",
     "rtt": "RTT",
+    "jtc": "JTC",
+    "repos_senior": "repos seniors",
     "sans_solde": "congé sans solde",
     "repos_compensateur": "repos compensateur",
     "recuperation_modulation": "récupération",

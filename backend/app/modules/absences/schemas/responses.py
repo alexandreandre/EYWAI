@@ -64,6 +64,9 @@ class AbsenceBalance(BaseModel):
     #: Congés payés repris d'un bulletin importé (« fidèle au bulletin ») : le
     #: solde ne reçoit plus d'acquisition et le recalage RH est refusé.
     suit_bulletin: bool = False
+    #: Donnée manquante qui empêche le calcul du compteur (repos seniors sans
+    #: date de naissance) : l'écran la montre sous la ligne.
+    alerte: str | None = None
 
 
 class AbsenceBalancesResponse(BaseModel):
