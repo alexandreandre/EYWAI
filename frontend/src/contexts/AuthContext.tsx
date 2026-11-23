@@ -32,6 +32,8 @@ interface User {
   is_super_admin?: boolean;
   is_group_admin?: boolean;
   must_change_password?: boolean;
+  /** Accès en consultation : voit tout, le serveur refuse toute modification. */
+  consultation?: boolean;
   active_company?: CompanyAccess;
 }
 

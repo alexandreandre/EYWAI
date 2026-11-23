@@ -103,10 +103,12 @@ const groupConsecutiveDates = (dates: Date[]): { start: Date, end: Date }[] => {
 };
 
 
-function canShowRhNewAbsenceButton(user: { role?: string; is_super_admin?: boolean } | null): boolean {
+function canShowRhNewAbsenceButton(
+  user: { role?: string; is_super_admin?: boolean; consultation?: boolean } | null,
+): boolean {
   if (!user) return false;
   if (isPlatformAdmin(user)) return true;
-  return estRoleRh(user.role);
+  return estRoleRh(user.role) && !user.consultation;
 }
 
 export default function AbsencesPage() {

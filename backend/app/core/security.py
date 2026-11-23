@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, Header, status
+from fastapi import Depends, HTTPException, Header, Request, status
 from fastapi.security import OAuth2PasswordBearer
 
 try:
@@ -22,6 +22,7 @@ try:
 except ImportError:  # compat anciennes installs
     from gotrue.errors import AuthApiError  # type: ignore[no-redef]
 
+from app.core.consultation import MESSAGE_CONSULTATION, envoi_permis_en_consultation
 from app.core.database import get_supabase_admin_client, supabase
 from app.core.logging import get_logger, is_app_debug_enabled
 from app.core.supabase_resilience import (
@@ -86,6 +87,7 @@ def _resoudre_acces_rh_custom(
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     x_active_company: Annotated[Optional[str], Header(alias="X-Active-Company")] = None,
+    request: Request = None,  # type: ignore[assignment]  # injectée par FastAPI
 ) -> User:
     """
     Valide le token JWT, récupère l'utilisateur depuis Supabase Auth,
@@ -165,7 +167,7 @@ def get_current_user(
         # par le provisioning resterait effectif.
         # Fallback si la migration n'est pas encore appliquée (évite un 500 login).
         _accesses_select = (
-            "company_id, role, is_primary, companies(id, company_name, siret, logo_url, logo_scale, group_id, company_groups(group_name, logo_url, logo_scale))"
+            "company_id, role, is_primary, lecture_seule, companies(id, company_name, siret, logo_url, logo_scale, group_id, company_groups(group_name, logo_url, logo_scale))"
         )
         try:
             accesses_response = execute_with_retry(
@@ -209,6 +211,7 @@ def get_current_user(
                         company_name=company_data.get("company_name", "Unknown"),
                         role=acc["role"],
                         is_primary=acc["is_primary"],
+                        lecture_seule=bool(acc.get("lecture_seule")),
                         siret=company_data.get("siret"),
                         logo_url=company_data.get("logo_url"),
                         logo_scale=company_data.get("logo_scale", 1.0),
@@ -287,6 +290,19 @@ def get_current_user(
             accessible_companies=accessible_companies,
             active_company_id=active_company_id,
         )
+
+        # 9. Accès en consultation : toute modification est refusée ici, pour
+        # toutes les routes à la fois (app/core/consultation.py).
+        if (
+            request is not None
+            and user_data.consultation
+            and not envoi_permis_en_consultation(
+                request.method, request.url.path, request.query_params
+            )
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail=MESSAGE_CONSULTATION
+            )
 
         if debug:
 

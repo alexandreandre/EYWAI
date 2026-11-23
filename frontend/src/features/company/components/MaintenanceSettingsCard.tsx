@@ -140,7 +140,10 @@ export default function MaintenanceSettingsCard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const canEdit = useMemo(() => estRoleRh(user?.role), [user?.role]);
+  const canEdit = useMemo(
+    () => estRoleRh(user?.role) && !user?.consultation,
+    [user?.role, user?.consultation],
+  );
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['maintenance-settings', activeCompanyId],

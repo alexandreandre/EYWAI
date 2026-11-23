@@ -32,6 +32,7 @@ import { employeeCollaboratorRoutes } from '@/app/employeeRoutes';
 import { isEmployeeOnlyPath } from '@/lib/routeAccess';
 import { etatHorsModePaie, isPayrollFocusActive, isPayrollFocusAllowed } from '@/lib/payrollFocus';
 import { AvisHorsModePaie } from '@/components/AvisHorsModePaie';
+import { BandeauConsultation } from '@/components/BandeauConsultation';
 import { BADGEUSE_RH_TERMINAL_PATH } from '@/lib/badgeuseRoutes';
 import { ALT_LOGO_MARTINE, LOGO_MARTINE } from '@/lib/logoMartine';
 
@@ -182,6 +183,7 @@ function ProtectedRoutes() {
           <main className="min-w-0 flex-1 overflow-x-auto overflow-y-auto bg-background p-6 lg:p-8">
             <BackgroundDataIndicator />
             <AvisHorsModePaie />
+            <BandeauConsultation />
             {/* Une page qui plante ne doit jamais laisser un écran blanc : la
                 limite d'erreur montre un message et un bouton pour recharger,
                 et se réarme à chaque changement d'écran (salarié 140, 12/09). */}

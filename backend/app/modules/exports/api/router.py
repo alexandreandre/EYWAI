@@ -10,6 +10,7 @@ from app.modules.access_control.application.service import access_control_servic
 from app.modules.users.schemas.responses import User
 from app.modules.exports.api.dependencies import get_active_company_id
 from app.modules.exports.application import service as export_service
+from app.modules.exports.application.commands import exports_sans_trace
 from app.modules.exports.application import scheduled_exports as scheduled_export_service
 from app.modules.exports.application import dispatch as dispatch_service
 from app.modules.exports.application import signalements as signalements_service
@@ -98,6 +99,16 @@ def _value_error_to_http(e: ValueError) -> HTTPException:
     return HTTPException(status_code=400, detail=msg)
 
 
+def _exiger_la_societe_active(demandee: Optional[str], active: str) -> None:
+    """Un export ne vise que la société active, dont l'accès vient d'être vérifié."""
+    if demandee and demandee != active:
+        raise HTTPException(
+            status_code=403,
+            detail="Cet export vise une autre société que la société affichée : "
+            "changez de société en haut de l'écran.",
+        )
+
+
 @router.post("/preview", response_model=ExportPreviewResponse)
 def preview_export(
     request: ExportPreviewRequest,
@@ -107,6 +118,7 @@ def preview_export(
     """Prévisualise un export sans générer de fichier."""
     try:
         _require_exports_company_access(current_user, company_id)
+        _exiger_la_societe_active(request.company_id, company_id)
         return export_service.preview_export(company_id, request)
     except HTTPException:
         raise
@@ -125,9 +137,21 @@ def generate_export(
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
 ):
-    """Génère un export et retourne les fichiers."""
+    """Génère un export et retourne les fichiers.
+
+    Pour un compte en consultation, l'export ne laisse aucune trace dans
+    l'historique de la société, et la DSN sort toujours en fichier d'essai.
+    """
     try:
         _require_exports_company_access(current_user, company_id)
+        _exiger_la_societe_active(request.company_id, company_id)
+        if current_user.consultation:
+            if request.export_type == "dsn_mensuelle":
+                request.filters = {**(request.filters or {}), "essai": True}
+            with exports_sans_trace():
+                return export_service.generate_export(
+                    company_id, current_user.id, request
+                )
         return export_service.generate_export(company_id, current_user.id, request)
     except HTTPException:
         raise

@@ -174,7 +174,10 @@ export default function CompanyPage() {
     enabled: Boolean(companyId),
   });
 
-  const canEdit = useMemo(() => estRoleRh(user?.role), [user?.role]);
+  const canEdit = useMemo(
+    () => estRoleRh(user?.role) && !user?.consultation,
+    [user?.role, user?.consultation],
+  );
 
   const company = detailsQuery.data?.company_data;
   const kpis = detailsQuery.data?.kpis;

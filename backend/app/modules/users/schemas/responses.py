@@ -25,6 +25,9 @@ class CompanyAccess(BaseModel):
     # `has_rh_access_in_company` puisse répondre juste sans accès base.
     # `None` = non résolu ; l'accès est alors refusé (fail-closed).
     has_rh_permissions: Optional[bool] = None
+    # Accès en consultation : voit tout ce que son rôle voit, ne modifie rien
+    # (colonne user_company_accesses.lecture_seule, app/core/consultation.py).
+    lecture_seule: bool = False
     siret: Optional[str] = None
     logo_url: Optional[str] = None
     logo_scale: Optional[float] = 1.0
@@ -113,6 +116,18 @@ class User(BaseModel):
                 return access.role
 
         return "collaborateur"  # Fallback
+
+    @computed_field
+    @property
+    def consultation(self) -> bool:
+        """Compte en consultation : le serveur lui refuse toute modification.
+
+        Un seul accès en consultation suffit : un `company_id` passé en paramètre
+        pourrait sinon viser une autre société du compte.
+        """
+        if self.is_platform_admin:
+            return False
+        return any(acces.lecture_seule for acces in self.accessible_companies)
 
     @computed_field
     @property
