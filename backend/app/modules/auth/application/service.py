@@ -127,36 +127,7 @@ def login(username_or_email: str, password: str) -> dict:
             session = auth_provider.sign_in_with_password(email_to_use, password)
         except Exception as exc:
             raise _refus_de_supabase(exc) from exc
-        access_token = session["access_token"]
-        user_info = user_from_token.get_user(access_token)
-
-        # Mot de passe vérifié : on peut dire qu'un compte n'a plus aucun accès,
-        # au lieu d'ouvrir une session vide.
-        if not getattr(user_info, "is_platform_admin", False) and not getattr(
-            user_info, "accessible_companies", None
-        ):
-            raise _refus(
-                403,
-                CODE_COMPTE_DESACTIVE,
-                "Ce compte n'a plus accès à Martine : ses accès ont été retirés. "
-                "Contactez votre service RH.",
-            )
-
-        if debug:
-
-            logger.debug(
-                "Connexion réussie (super_admin=%s)",
-                user_info.is_platform_admin,
-            )
-
-        return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "refresh_token": session.get("refresh_token"),
-            "expires_in": session.get("expires_in"),
-            "expires_at": session.get("expires_at"),
-            "user": user_info,
-        }
+        return _reponse_de_session(session)
 
     except HTTPException:
         raise
@@ -178,3 +149,48 @@ def _employee_count_hint() -> str:
         return str(len(get_employees_debug_snapshot()))
     except Exception:
         return "?"
+
+
+def _reponse_de_session(session: dict) -> dict:
+    """La réponse d'une connexion réussie (mot de passe ou lien) : jetons et utilisateur."""
+    access_token = session["access_token"]
+    user_info = user_from_token.get_user(access_token)
+
+    # Compte authentifié : on peut dire qu'il n'a plus aucun accès, au lieu
+    # d'ouvrir une session vide.
+    if not getattr(user_info, "is_platform_admin", False) and not getattr(
+        user_info, "accessible_companies", None
+    ):
+        raise _refus(
+            403,
+            CODE_COMPTE_DESACTIVE,
+            "Ce compte n'a plus accès à Martine : ses accès ont été retirés. "
+            "Contactez votre service RH.",
+        )
+
+    if is_app_debug_enabled():
+        logger.debug("Connexion réussie (super_admin=%s)", user_info.is_platform_admin)
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "refresh_token": session.get("refresh_token"),
+        "expires_in": session.get("expires_in"),
+        "expires_at": session.get("expires_at"),
+        "user": user_info,
+    }
+
+
+def ouvrir_lien_de_connexion(jeton: str) -> dict:
+    """Connexion par lien : le lien sert une fois, puis la session s'ouvre sans mot de passe."""
+    from app.modules.auth.application import liens_de_connexion as liens
+
+    user_id = liens.consommer_lien(jeton)
+    try:
+        session = liens.session_du_compte(user_id)
+    except Exception as exc:
+        if is_transient_supabase_error(exc):
+            raise _service_indisponible() from exc
+        logger.exception("Lien de connexion : session non ouverte")
+        raise _connexion_impossible() from exc
+    return _reponse_de_session(session)

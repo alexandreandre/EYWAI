@@ -364,6 +364,7 @@ export default function App() {
                     <Route path="/forgot-password" element={<Pages.ForgotPasswordPage />} />
                     <Route path="/reset-password" element={<Pages.ResetPasswordPage />} />
                     <Route path="/activation" element={<Pages.ActivationPage />} />
+                    <Route path="/connexion" element={<Pages.ConnexionParLienPage />} />
                     <Route
                       path="/super-admin"
                       element={

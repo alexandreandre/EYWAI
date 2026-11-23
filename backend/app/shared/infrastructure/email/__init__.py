@@ -18,3 +18,8 @@ def send_password_reset_email(
         reset_token=reset_token,
         user_name=user_name,
     )
+
+
+def send_lien_de_connexion_email(to_email: str, jeton: str) -> bool:
+    """Envoie un lien de connexion sans mot de passe (valable 30 minutes)."""
+    return get_smtp_mail_sender().send_lien_de_connexion_email(to_email=to_email, jeton=jeton)

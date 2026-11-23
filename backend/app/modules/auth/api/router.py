@@ -24,6 +24,9 @@ from app.modules.auth.schemas import (
     TokenWithUser,
 )
 from app.core.limite_debit import limite_de_debit
+from app.modules.auth.application import liens_de_connexion
+from app.modules.auth.application.service import ouvrir_lien_de_connexion
+from pydantic import BaseModel
 from app.modules.users.schemas import User
 
 router = APIRouter()
@@ -47,6 +50,33 @@ def login_route(form_data: OAuth2PasswordRequestForm = Depends()):
 def refresh_route(request: RefreshTokenRequest):
     """Renouvelle le JWT d'accès à partir du refresh token (sans ressaisir le mot de passe)."""
     return refresh_tokens(request.refresh_token)
+
+
+class DemandeDeLien(BaseModel):
+    email: str
+
+
+class OuvertureDeLien(BaseModel):
+    jeton: str
+
+
+@router.post(
+    "/lien-de-connexion",
+    dependencies=[Depends(limite_de_debit("demande-lien-connexion", 10))],
+)
+def demander_lien_de_connexion_route(demande: DemandeDeLien):
+    """Envoie un lien de connexion par e-mail (sans dire si l'adresse a un compte)."""
+    return liens_de_connexion.demander_lien(demande.email)
+
+
+@router.post(
+    "/lien-de-connexion/ouvrir",
+    response_model=TokenWithUser,
+    dependencies=[Depends(limite_de_debit("ouverture-lien-connexion", 30))],
+)
+def ouvrir_lien_de_connexion_route(ouverture: OuvertureDeLien):
+    """Connexion sans mot de passe : le lien sert une fois, puis la session s'ouvre."""
+    return ouvrir_lien_de_connexion(ouverture.jeton)
 
 
 @router.get("/me", response_model=User)
