@@ -474,6 +474,7 @@ def _bonus_type_meta(
 
 def _append_generated_input(
     *,
+    company_id: str,
     preview: list[dict[str, Any]],
     written: int,
     dry_run: bool,
@@ -513,6 +514,9 @@ def _append_generated_input(
     preview.append(entry)
     if not dry_run and rule.get("generation_mode") == "auto":
         payload: dict[str, Any] = {
+            # monthly_inputs.company_id est NOT NULL : sans elle, l'insertion
+            # échouait toujours et la prime manquait au bulletin (24/11).
+            "company_id": company_id,
             "employee_id": eid,
             "year": year,
             "month": month,
@@ -623,6 +627,7 @@ def generate_monthly_variables(
                     ),
                 )
                 written = _append_generated_input(
+                    company_id=company_id,
                     preview=preview,
                     written=written,
                     dry_run=dry_run,
@@ -707,6 +712,7 @@ def generate_monthly_variables(
                 for payout in payouts:
                     suffix = str(payout.get("monday") or payout.get("kind") or "")
                     written = _append_generated_input(
+                        company_id=company_id,
                         preview=preview,
                         written=written,
                         dry_run=dry_run,
@@ -737,6 +743,7 @@ def generate_monthly_variables(
                 for maj in majorations:
                     suffix = str(maj.get("work_date") or "")
                     written = _append_generated_input(
+                        company_id=company_id,
                         preview=preview,
                         written=written,
                         dry_run=dry_run,
@@ -813,6 +820,7 @@ def generate_monthly_variables(
                     )
                     continue
                 written = _append_generated_input(
+                    company_id=company_id,
                     preview=preview,
                     written=written,
                     dry_run=dry_run,
@@ -852,6 +860,7 @@ def generate_monthly_variables(
                 if qty <= 0 and not dry_run:
                     continue
                 written = _append_generated_input(
+                    company_id=company_id,
                     preview=preview,
                     written=written,
                     dry_run=dry_run,
@@ -917,6 +926,7 @@ def generate_monthly_variables(
                     )
                     continue
                 written = _append_generated_input(
+                    company_id=company_id,
                     preview=preview,
                     written=written,
                     dry_run=dry_run,
@@ -951,6 +961,7 @@ def generate_monthly_variables(
             if amount <= 0 and not depuis_les_pointages:
                 continue
             written = _append_generated_input(
+                company_id=company_id,
                 preview=preview,
                 written=written,
                 dry_run=dry_run,

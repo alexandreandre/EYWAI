@@ -140,3 +140,11 @@ def test_la_generation_d_un_bulletin_ne_genere_que_les_variables_de_son_salarie(
     assert generer.call_args.args[:3] == ("comp-1", 2026, 10)
     assert generer.call_args.kwargs.get("employee_id") == "emp-2"
     assert generer.call_args.kwargs.get("dry_run") is False
+
+
+def test_chaque_saisie_generee_porte_la_societe(ecritures):
+    """monthly_inputs.company_id est NOT NULL : sans la société, l'insertion
+    échouait toujours et le bulletin sortait sans la prime (repli silencieux)."""
+    generate_monthly_variables("comp-1", 2026, 10, dry_run=False)
+    assert ecritures
+    assert all(e.get("company_id") == "comp-1" for e in ecritures)
