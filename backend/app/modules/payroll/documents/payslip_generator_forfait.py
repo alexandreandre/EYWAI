@@ -331,6 +331,13 @@ def process_payslip_generation_forfait(
         debut_ap, fin_ap = bornes_periode_de_paie(
             {"periode_de_paie": _periode_de_paie_company(company_data)}, year, month
         )
+        # Les saisies telles que lues (base, et bac à sable s'il y en a un) :
+        # l'empreinte d'entrée porte sur elles, pas sur la liste que le
+        # calendrier complète. Les lignes d'activité partielle n'existent pas en
+        # base : hachées, elles rendaient le bulletin « à recalculer » dès sa
+        # génération (24/11/2026). Le calendrier, d'où elles sont tirées, est
+        # déjà haché. Sans jour d'activité partielle, la liste est la même.
+        saisies_lues = list(saisies_res.data or [])
         saisies_res.data, alerte_activite_partielle = lignes_du_calendrier(
             str(company_id),
             {**employee_data, "is_forfait_jour": True},
@@ -803,7 +810,7 @@ def process_payslip_generation_forfait(
             month=month,
             calendriers=db_data_map,
             absences=absences_rows,
-            saisies=saisies_res.data or [],
+            saisies=saisies_lues,
             employee=employee_data,
             company=company_data,
             notes_de_frais=(expense_reports_res.data or []) if expense_reports_res else [],
