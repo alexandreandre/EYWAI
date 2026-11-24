@@ -5,7 +5,7 @@ from __future__ import annotations
 import html
 import logging
 from datetime import date
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
 
 from app.core.database import supabase
 from app.modules.employees.domain.deadline_reminders import (
@@ -212,6 +212,8 @@ def _send_grouped_email(
     recipients: List[str],
     company_name: str,
     candidates: List[DeadlineCandidate],
+    *,
+    company_id: Optional[str] = None,
 ) -> tuple[int, int]:
     if not recipients or not candidates:
         return 0, 0
@@ -229,6 +231,7 @@ def _send_grouped_email(
             text_content=text_content,
             html_content=html_content,
             require_delivery=False,
+            company_id=company_id,
         )
         if ok:
             sent += 1
@@ -273,6 +276,7 @@ def send_hr_deadline_reminders(company_id: str) -> dict:
             recipients,
             company_name,
             to_send,
+            company_id=company_id,
         )
 
         if emails_sent == 0 and recipients:

@@ -3,11 +3,15 @@
 Sous `EMAIL_FORCE_REDIRECT_TO`, un e-mail part à la boîte de renvoi, sauf pour les adresses de
 `ACTIVATION_EMAIL_ALLOWLIST` et, depuis le 03/11, pour les comptes côté RH (`est_compte_rh`).
 Les collaborateurs restent redirigés. Toute panne de lecture ferme : rien n'est servi en direct.
+
+Depuis le 24/11, quand l'envoi part d'une société connue (`company_id`), seul un compte côté RH
+de CETTE société (accès actif) compte : un RH d'une autre société est redirigé, comme tout
+destinataire saisi librement. Sans société (activation, mot de passe oublié, alertes) : inchangé.
 """
 
 from __future__ import annotations
 
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 
 from app.core.database import get_supabase_admin_client
 from app.core.logging import get_logger
@@ -48,10 +52,16 @@ def _acces_et_permissions(client: Any, user_ids: list[str]) -> tuple[dict[str, l
     return acces, droits
 
 
-def adresses_rh(emails: Iterable[str]) -> frozenset[str]:
-    """Parmi `emails`, celles (en minuscules) d'un compte côté RH ; vide en cas de panne."""
+def adresses_rh(emails: Iterable[str], company_id: Optional[str] = None) -> frozenset[str]:
+    """Parmi `emails`, celles (en minuscules) d'un compte côté RH ; vide en cas de panne.
+
+    Avec `company_id`, seuls les accès et droits RH de cette société comptent ; une société
+    vide ferme (aucune adresse servie en direct).
+    """
     voulues = {(e or "").strip().lower() for e in emails if (e or "").strip()}
     if not voulues:
+        return frozenset()
+    if company_id is not None and not str(company_id).strip():
         return frozenset()
     try:
         client = get_supabase_admin_client()
@@ -63,6 +73,13 @@ def adresses_rh(emails: Iterable[str]) -> frozenset[str]:
         if not par_email:
             return frozenset()
         acces, droits = _acces_et_permissions(client, list(par_email.values()))
+        if company_id is not None:
+            societe = str(company_id).strip()
+            acces = {
+                uid: [a for a in lignes if str(a.get("company_id") or "").strip() == societe]
+                for uid, lignes in acces.items()
+            }
+            droits = {uid: (societes & {societe}) for uid, societes in droits.items()}
         return frozenset(
             e for e, uid in par_email.items() if est_compte_rh(acces.get(uid, []), droits.get(uid, set()))
         )
