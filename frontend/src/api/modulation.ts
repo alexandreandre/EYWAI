@@ -24,11 +24,27 @@ export interface ModulationSettings {
   recovery_absence_enabled: boolean;
   recovery_debit_timing: 'on_validation' | 'on_payroll';
   hs_routing_policy: HsRoutingPolicy;
+  /** Salariés qui suivent leur propre règle d'heures sup (posée sur leur fiche). */
+  salaries_regle_propre?: number;
+  /** Dont « toujours au compteur » : le compteur ne se coupe pas sans eux. */
+  salaries_toujours_au_compteur?: number;
 }
 
 export type ModulationSettingsUpdate = Partial<
-  Omit<ModulationSettings, 'company_id' | 'configured'>
+  Omit<
+    ModulationSettings,
+    'company_id' | 'configured' | 'salaries_regle_propre' | 'salaries_toujours_au_compteur'
+  >
 >;
+
+/** Règle d'heures sup propre au salarié ; null : celle de la société. */
+export type RegleHeuresSupSalarie = 'pay_all' | 'account_all' | null;
+
+export interface RegleHeuresSupDuSalarie {
+  regle: RegleHeuresSupSalarie;
+  regle_societe: HsRoutingPolicy;
+  compteur_ouvert: boolean;
+}
 
 export interface WeekScheduleTemplate {
   id?: string;
@@ -304,4 +320,24 @@ export async function annulerPaiementRecuperation(
   await apiClient.delete(`/api/modulation/recuperation/${employeeId}/paiement`, {
     params: { year, month, ...(companyId ? { company_id: companyId } : {}) },
   });
+}
+
+/** La règle des heures sup du salarié (fiche du salarié). */
+export async function getRegleHeuresSup(employeeId: string): Promise<RegleHeuresSupDuSalarie> {
+  const { data } = await apiClient.get<RegleHeuresSupDuSalarie>(
+    `/api/modulation/employees/${employeeId}/regle-heures-sup`,
+  );
+  return data;
+}
+
+/** Pose la règle propre au salarié, ou le rend à la règle de la société (null). */
+export async function setRegleHeuresSup(
+  employeeId: string,
+  regle: RegleHeuresSupSalarie,
+): Promise<RegleHeuresSupDuSalarie> {
+  const { data } = await apiClient.put<RegleHeuresSupDuSalarie>(
+    `/api/modulation/employees/${employeeId}/regle-heures-sup`,
+    { regle },
+  );
+  return data;
 }

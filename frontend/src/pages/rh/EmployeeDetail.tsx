@@ -49,6 +49,7 @@ import { EmployeeBoethCard } from "@/features/employee-detail/components/Employe
 import { getEmployeeBoeth } from "@/api/oethSettings";
 import { EmployeePasSettingsCard } from "@/features/employee-detail/components/EmployeePasSettingsCard";
 import { EmployeeTimeTrackingCard } from "@/features/employee-detail/components/EmployeeTimeTrackingCard";
+import { EmployeeRegleHeuresSupCard } from "@/features/employee-detail/components/EmployeeRegleHeuresSupCard";
 import {
   diffWatchedSnapshots,
   extractWatchedSnapshot,
@@ -779,6 +780,13 @@ export default function EmployeeDetail() {
                 canEdit={canEditEmployeePaySettings}
                 onEmployeeUpdated={(updated) => updateEmployeeCache(employeeId, updated)}
               />
+              {/* Le forfait jours n'a pas d'heures sup : le choix n'aurait aucun effet. */}
+              {!employee.is_forfait_jour && (
+                <EmployeeRegleHeuresSupCard
+                  employeeId={employeeId}
+                  canEdit={canEditEmployeePaySettings}
+                />
+              )}
               <EmployeePasSettingsCard
                 employeeId={employeeId}
                 employee={employee}

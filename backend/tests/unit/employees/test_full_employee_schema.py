@@ -25,7 +25,7 @@ COLONNES_EMPLOYEES = (
     "residence_permit_number collective_agreement_id is_poste_sir is_travail_nuit service_id "
     "team_id date_conclusion_contrat date_debut_execution contract_end_date "
     "prior_service_months phone_number sexe nom_usage seniority_reference_date "
-    "salary_payment_method matricule is_forfait_jour time_tracking_id"
+    "salary_payment_method matricule is_forfait_jour time_tracking_id hs_routing_override"
 ).split()
 
 

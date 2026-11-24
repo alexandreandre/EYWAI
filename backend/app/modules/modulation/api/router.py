@@ -20,6 +20,7 @@ from app.modules.modulation.schemas.requests import (
     OvertimeRoutingDecisionUpdate,
     OvertimeRoutingRow,
     PaiementSoldeRecuperation,
+    RegleHeuresSupDuSalarie,
     WeekTemplateSchema,
     WorkTimePeriodSchema,
     WorkTimePeriodUpdate,
@@ -544,3 +545,40 @@ def delete_paiement_solde_recuperation(
     _refuser_si_bulletin_fige(employee_id, year, month, current_user)
     annules = hour_account_commands.annuler_paiement_du_mois(cid, employee_id, year, month)
     return {"status": "ok", "annules": annules}
+
+
+@router.get("/employees/{employee_id}/regle-heures-sup")
+def get_regle_heures_sup(
+    employee_id: str,
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    """La règle des heures sup du salarié (fiche du salarié)."""
+    cid = _resolve_company_id(company_id, current_user)
+    _require_rh_on_employee(current_user, cid, employee_id)
+    return queries.regle_heures_sup_du_salarie(cid, employee_id)
+
+
+@router.put("/employees/{employee_id}/regle-heures-sup")
+def put_regle_heures_sup(
+    employee_id: str,
+    body: RegleHeuresSupDuSalarie,
+    company_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    """« Règle de la société » (null), « Toujours payées » ou « Toujours au
+    compteur ». Vaut pour les bulletins calculés ensuite ; aucun n'est recalculé."""
+    from app.modules.modulation.infrastructure import repository as repo
+
+    cid = _resolve_company_id(company_id, current_user)
+    _require_rh_on_employee(current_user, cid, employee_id)
+    try:
+        pose = repo.set_hs_routing_override(cid, employee_id, body.regle)
+    except repo.RegleHeuresSupIndisponible:
+        raise HTTPException(
+            status_code=409,
+            detail="Ce réglage n'est pas encore disponible : la base n'a pas été mise à jour. Rien n'a été changé.",
+        )
+    if not pose:
+        raise HTTPException(status_code=404, detail="Salarié introuvable dans cette société.")
+    return queries.regle_heures_sup_du_salarie(cid, employee_id)

@@ -40,7 +40,31 @@ def _settings_to_response(
         recovery_absence_enabled=settings.recovery_absence_enabled,
         recovery_debit_timing=settings.recovery_debit_timing,
         hs_routing_policy=settings.hs_routing_policy,
+        **_salaries_a_regle_propre(company_id, settings),
     )
+
+
+def _salaries_a_regle_propre(company_id: str, settings: ModulationSettings) -> dict[str, int]:
+    """Les salariés présents qui suivent leur propre règle ; sans compteur, la
+    règle n'a pas d'effet et rien n'est compté."""
+    if not settings.hour_account_enabled:
+        return {"salaries_regle_propre": 0, "salaries_toujours_au_compteur": 0}
+    regles = repo.list_hs_routing_overrides(company_id, sans_partis=True)
+    return {
+        "salaries_regle_propre": len(regles),
+        "salaries_toujours_au_compteur": sum(1 for r in regles.values() if r == "account_all"),
+    }
+
+
+def regle_heures_sup_du_salarie(company_id: str, employee_id: str) -> dict:
+    """Ce que la fiche du salarié montre : sa règle propre (None : celle de la
+    société), la règle de la société, et si la société a un compteur."""
+    settings = repo.get_modulation_settings(company_id)
+    return {
+        "regle": repo.get_hs_routing_override(employee_id),
+        "regle_societe": settings.hs_routing_policy,
+        "compteur_ouvert": settings.hour_account_enabled,
+    }
 
 
 def get_modulation_settings(company_id: str) -> ModulationSettingsResponse:

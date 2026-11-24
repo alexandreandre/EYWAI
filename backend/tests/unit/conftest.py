@@ -64,6 +64,11 @@ def pytest_configure(config) -> None:
         "effets_en_base: les effets d'un bulletin (prêts, avances, CET, modulation) "
         "sont lus et défaits pour de bon, sur une base en mémoire",
     )
+    config.addinivalue_line(
+        "markers",
+        "regle_heures_sup_en_base: la règle des heures sup du salarié se lit pour de "
+        "bon, sur une base en mémoire",
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -80,6 +85,19 @@ def aucun_effet_de_bulletin_en_base(request, monkeypatch) -> None:
         "defaire_avant_suppression",
     ):
         monkeypatch.setattr(effets, nom, lambda *a, **k: None)
+
+
+@pytest.fixture(autouse=True)
+def aucune_regle_heures_sup_du_salarie_lue_en_base(request, monkeypatch) -> None:
+    """La règle des heures sup propre au salarié se lit en base (`employees`) : en
+    test, aucune (règle de la société), sauf pour les tests qui portent
+    `regle_heures_sup_en_base` (base en mémoire) ou qui la remplacent eux-mêmes."""
+    if request.node.get_closest_marker("regle_heures_sup_en_base"):
+        return
+    from app.modules.modulation.infrastructure import repository as modulation_repo
+
+    monkeypatch.setattr(modulation_repo, "get_hs_routing_override", lambda *_a, **_k: None)
+    monkeypatch.setattr(modulation_repo, "list_hs_routing_overrides", lambda *_a, **_k: {})
 
 
 @pytest.fixture(autouse=True)

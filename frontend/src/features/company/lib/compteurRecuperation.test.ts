@@ -26,6 +26,17 @@ describe('etatInterrupteurCompteur', () => {
     expect(e.explication).toContain('soldes saisis restent enregistrés');
   });
 
+  it('heures sup payées, un salarié toujours au compteur : le compteur ne se coupe pas', () => {
+    const e = etatInterrupteurCompteur({
+      hour_account_enabled: true,
+      recovery_absence_enabled: true,
+      hs_routing_policy: 'pay_all',
+      salaries_toujours_au_compteur: 1,
+    });
+    expect(e).toMatchObject({ allume: true, modifiable: false });
+    expect(e.explication).toContain('1 salarié a ses heures sup « toujours au compteur »');
+  });
+
   it('compteur ouvert sans les repos pris : compté comme éteint, pour tout rallumer', () => {
     const e = etatInterrupteurCompteur({
       hour_account_enabled: true,

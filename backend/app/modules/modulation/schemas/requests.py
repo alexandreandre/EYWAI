@@ -34,6 +34,10 @@ class ModulationSettingsResponse(BaseModel):
     hs_routing_policy: Literal["pay_all", "account_all", "franchise", "manual"] = (
         "franchise"
     )
+    #: Salariés qui suivent leur propre règle d'heures sup (fiche du salarié).
+    salaries_regle_propre: int = 0
+    #: Dont « toujours au compteur » : le compteur ne se coupe pas sans eux.
+    salaries_toujours_au_compteur: int = 0
 
 
 class ModulationSettingsUpdate(BaseModel):
@@ -176,3 +180,9 @@ class PaiementSoldeRecuperation(BaseModel):
     """Heures du compteur à payer sur le bulletin du mois."""
 
     heures: float = Field(..., gt=0, le=1000)
+
+
+class RegleHeuresSupDuSalarie(BaseModel):
+    """La règle des heures sup propre au salarié ; null : celle de la société."""
+
+    regle: Optional[Literal["pay_all", "account_all"]] = None

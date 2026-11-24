@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -10,6 +11,8 @@ from app.modules.modulation.domain.entities import (
     ModulationSettings,
     WeekScheduleTemplate,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _row_to_settings(row: dict[str, Any]) -> ModulationSettings:
@@ -77,6 +80,100 @@ def get_modulation_settings(company_id: str) -> ModulationSettings:
     if not row:
         return ModulationSettings()
     return _row_to_settings(row)
+
+
+#: Les règles qu'un salarié peut suivre à la place de celle de la société
+#: (`employees.hs_routing_override`) ; null : la règle de la société.
+REGLES_DU_SALARIE = ("pay_all", "account_all")
+
+
+def _regle_lue(valeur: Any) -> str | None:
+    return valeur if valeur in REGLES_DU_SALARIE else None
+
+
+class RegleHeuresSupIndisponible(RuntimeError):
+    """La colonne `employees.hs_routing_override` n'existe pas encore en base."""
+
+
+def _colonne_absente(exc: Exception) -> bool:
+    """Colonne inconnue de Postgres (42703) ou du cache de PostgREST (PGRST204) :
+    le code est déployé avant la migration. Toute autre erreur doit remonter."""
+    return str(getattr(exc, "code", "") or "") in ("42703", "PGRST204")
+
+
+def get_hs_routing_override(employee_id: str) -> str | None:
+    """La règle des heures sup propre au salarié (« toujours payées » ou
+    « toujours au compteur ») ; None : il suit la règle de la société.
+
+    Colonne pas encore créée (code déployé avant la migration) : la règle de
+    la société, comme avant le réglage, et le journal le dit. Toute autre
+    erreur remonte : un bulletin ne se calcule pas sur une règle devinée."""
+    try:
+        resp = (
+            supabase.table("employees")
+            .select("hs_routing_override")
+            .eq("id", employee_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        if not _colonne_absente(exc):
+            raise
+        logger.warning(
+            "Règle des heures sup du salarié : colonne absente (%s), règle de la société",
+            employee_id,
+        )
+        return None
+    rows = resp.data or []
+    return _regle_lue(rows[0].get("hs_routing_override")) if rows else None
+
+
+def list_hs_routing_overrides(company_id: str, *, sans_partis: bool = False) -> dict[str, str]:
+    """Les salariés de la société qui suivent leur propre règle d'heures sup
+    (`sans_partis` : ceux qui n'ont pas quitté la société)."""
+    try:
+        requete = (
+            supabase.table("employees")
+            .select("id, hs_routing_override")
+            .eq("company_id", company_id)
+        )
+        if sans_partis:
+            requete = requete.neq("employment_status", "parti")
+        resp = requete.execute()
+    except Exception as exc:
+        if not _colonne_absente(exc):
+            raise
+        logger.warning(
+            "Règles des heures sup des salariés : colonne absente (%s), règle de la société",
+            company_id,
+        )
+        return {}
+    out: dict[str, str] = {}
+    for row in resp.data or []:
+        regle = _regle_lue(row.get("hs_routing_override"))
+        if regle:
+            out[str(row["id"])] = regle
+    return out
+
+
+def set_hs_routing_override(company_id: str, employee_id: str, regle: str | None) -> bool:
+    """Pose (ou retire, avec None) la règle propre au salarié ; False si aucun
+    salarié de cette société ne porte cet identifiant."""
+    if regle is not None and regle not in REGLES_DU_SALARIE:
+        raise ValueError(f"Règle inconnue : {regle}")
+    try:
+        resp = (
+            supabase.table("employees")
+            .update({"hs_routing_override": regle})
+            .eq("id", employee_id)
+            .eq("company_id", company_id)
+            .execute()
+        )
+    except Exception as exc:
+        if _colonne_absente(exc):
+            raise RegleHeuresSupIndisponible() from exc
+        raise
+    return bool(resp.data or [])
 
 
 def upsert_modulation_settings(

@@ -95,6 +95,13 @@ def _mouvements_du_compteur(employee_id: str) -> List[Dict[str, Any]]:
     return repo.list_movements_for_employee(employee_id)
 
 
+def _regle_du_salarie(employee_id: str, reglages: Dict[str, Any]) -> Any:
+    """La règle d'heures sup du salarié s'il en a une, sinon celle de la société."""
+    from app.modules.modulation.infrastructure import repository as repo
+
+    return repo.get_hs_routing_override(employee_id) or reglages.get("hs_routing_policy")
+
+
 def alerte_modulation_au_depart(employee_id: str, company_id: str) -> List[Dict[str, Any]]:
     """Compteur d'heures ouvert mais vide, société qui paie ses heures : un solde
     de modulation suivi hors de Martine (Cartol, payé en heures sup à la sortie
@@ -102,7 +109,7 @@ def alerte_modulation_au_depart(employee_id: str, company_id: str) -> List[Dict[
     reglages = _reglages_modulation(company_id)
     if not reglages or not reglages.get("hour_account_enabled"):
         return []
-    if reglages.get("hs_routing_policy") != "pay_all" or _mouvements_du_compteur(employee_id):
+    if _regle_du_salarie(employee_id, reglages) != "pay_all" or _mouvements_du_compteur(employee_id):
         return []
     return [
         _alerte(
