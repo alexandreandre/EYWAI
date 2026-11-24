@@ -611,6 +611,36 @@ def _arrets_anterieurs(
     return sorted(arrets, key=_cle_tri)
 
 
+#: Partie `activite_partielle` : le réglage de la société d'où le calendrier tire
+#: la retenue et l'indemnité (`lignes_du_calendrier`). Hachées, ces deux lignes
+#: n'existent pas en base : sans cette partie, un taux corrigé après le calcul ne
+#: se verrait pas. Elle n'existe qu'un mois avec un jour d'activité partielle ;
+#: partie à part, sans version : un bulletin calculé avant elle n'en a pas.
+PARTIE_ACTIVITE_PARTIELLE = "activite_partielle"
+_CLES_ACTIVITE_PARTIELLE_HORS_CALCUL = frozenset(
+    {*_COLONNES_HORS_CALCUL, "updated_by", "reference_decision", "note"}
+)
+
+
+def _activite_partielle_dans_le_mois(
+    calendriers: Mapping[tuple[int, int], Mapping[str, Any]],
+    year: int,
+    month: int,
+    bornes: tuple[date, date],
+) -> bool:
+    """Un jour « Activité partielle » posé au calendrier dans les bornes du mois."""
+    from app.modules.activite_partielle.domain.calendrier import TYPE_JOUR
+
+    for y, m in mois_de_la_fenetre(year, month):
+        for entree in _liste_prevu(calendriers.get((y, m))):
+            if not isinstance(entree, Mapping) or str(entree.get("type") or "") != TYPE_JOUR:
+                continue
+            iso = _iso_jour(entree, y, m)
+            if iso and bornes[0].isoformat() <= iso <= bornes[1].isoformat():
+                return True
+    return False
+
+
 def complements_du_mois(
     complements: Complements,
     *,
@@ -634,8 +664,18 @@ def complements_du_mois(
         if absences is not None and _arret_dans_le_mois(calendriers, year, month, bornes)
         else {}
     )
+    activite_partielle = (
+        {
+            PARTIE_ACTIVITE_PARTIELLE: _sans(
+                complements.activite_partielle, _CLES_ACTIVITE_PARTIELLE_HORS_CALCUL
+            )
+        }
+        if _activite_partielle_dans_le_mois(calendriers, year, month, bornes)
+        else {}
+    )
     return {
         **arrets,
+        **activite_partielle,
         "mutuelle": _mutuelle_du_mois(complements.mutuelles, employee, year, month),
         "conges_ajustements": _ajustements_du_mois(complements.ajustements_conges, year),
         "conges_reglages": {
@@ -902,7 +942,13 @@ def _hash_ou_none(valeur: Any) -> str | None:
 #: l'année close, et les recalculer leur appliquerait les valeurs de l'année
 #: suivante. Seul le filtre change : le contenu haché reste le même.
 _PARTIES_IGNOREES_SI_VALIDE = frozenset(
-    {PARTIE_FICHE, "parametres_societe", "reglages_societe", "adresse_societe"}
+    {
+        PARTIE_FICHE,
+        "parametres_societe",
+        "reglages_societe",
+        "adresse_societe",
+        PARTIE_ACTIVITE_PARTIELLE,
+    }
 )
 
 
