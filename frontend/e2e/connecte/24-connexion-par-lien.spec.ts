@@ -4,7 +4,8 @@ import { test, expect } from '../helpers/garde';
 // 1. La page de connexion propose « Recevoir un lien de connexion par e-mail » ; la
 //    demande est interceptée (aucun e-mail ne part).
 // 2. Avec E2E_LIEN_JETON (un lien d'invitation créé en base pour le compte QA, par le
-//    script de création des liens, hors dépôt) : le lien ouvre la session,
+//    script de création des liens, hors dépôt) : le lien affiche la page de connexion,
+//    sans rien consommer ; « Me connecter » ouvre la session,
 //    puis le même lien est refusé avec un message clair.
 
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -27,6 +28,16 @@ test('un lien ouvre la session une seule fois', async ({ page }) => {
   const jeton = process.env.E2E_LIEN_JETON;
   test.skip(!jeton, 'E2E_LIEN_JETON absent : lien d’invitation à créer en base');
   await page.goto(`/connexion?jeton=${jeton}`);
+  // Ouvrir le lien ne connecte pas : la page de connexion s'affiche d'abord.
+  const bouton = page.getByRole('button', { name: /me connecter/i });
+  await expect(bouton).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(1_000);
+  expect(new URL(page.url()).pathname).toBe('/connexion');
+  expect(await page.evaluate(() => localStorage.getItem('authToken'))).toBeFalsy();
+  // Recharger la page ne consomme pas le lien non plus.
+  await page.reload();
+  await expect(bouton).toBeVisible({ timeout: 30_000 });
+  await bouton.click();
   await page.waitForURL((url) => !url.pathname.startsWith('/connexion') && !url.pathname.startsWith('/login'), {
     timeout: 30_000,
   });
@@ -37,4 +48,5 @@ test('un lien ouvre la session une seule fois', async ({ page }) => {
   await page.evaluate(() => localStorage.clear());
   await page.goto(`/connexion?jeton=${jeton}`);
   await expect(page.getByRole('alert')).toContainText(/déjà servi ou il a expiré/i, { timeout: 30_000 });
+  await expect(page.getByRole('button', { name: /me connecter/i })).toHaveCount(0);
 });

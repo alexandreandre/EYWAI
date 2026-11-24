@@ -151,3 +151,21 @@ def test_les_routes_existent():
     chemins = {(r.path, tuple(sorted(r.methods))) for r in router.routes}
     assert ("/lien-de-connexion", ("POST",)) in chemins
     assert ("/lien-de-connexion/ouvrir", ("POST",)) in chemins
+    assert ("/lien-de-connexion/verifier", ("POST",)) in chemins
+
+
+def test_verifier_un_lien_ne_le_consomme_pas():
+    c = _Client({
+        ("liens_de_connexion", "select"): [{"user_id": "u-1"}],
+        ("profiles", "select"): [{"first_name": "Prénom"}],
+    })
+    assert liens.verifier_lien("jeton", c) == {"valide": True, "prenom": "Prénom"}
+    assert all(op == "select" for (_, op, _, _) in c.appels)
+    (_, _, _, filtres) = c.appels[0]
+    assert ("is", "used_at", "null") in filtres
+    assert any(f[0] == "gt" and f[1] == "expires_at" for f in filtres)
+
+
+@pytest.mark.parametrize("jeton", ["", "x" * 201, "servi-ou-expire"])
+def test_verifier_un_lien_servi_ou_expire(jeton):
+    assert liens.verifier_lien(jeton, _Client()) == {"valide": False, "prenom": None}

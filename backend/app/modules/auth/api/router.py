@@ -70,6 +70,15 @@ def demander_lien_de_connexion_route(demande: DemandeDeLien):
 
 
 @router.post(
+    "/lien-de-connexion/verifier",
+    dependencies=[Depends(limite_de_debit("verification-lien-connexion", 30))],
+)
+def verifier_lien_de_connexion_route(ouverture: OuvertureDeLien):
+    """Le lien est-il encore valable ? Sans le consommer (affichage de la page de connexion)."""
+    return liens_de_connexion.verifier_lien(ouverture.jeton)
+
+
+@router.post(
     "/lien-de-connexion/ouvrir",
     response_model=TokenWithUser,
     dependencies=[Depends(limite_de_debit("ouverture-lien-connexion", 30))],

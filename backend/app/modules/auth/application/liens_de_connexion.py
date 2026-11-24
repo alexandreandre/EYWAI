@@ -137,6 +137,35 @@ def consommer_lien(jeton: str, client=None) -> str:
     return lignes[0]["user_id"]
 
 
+def verifier_lien(jeton: str, client=None) -> dict:
+    """Le lien est-il encore valable ? Ne le consomme pas (la page de connexion s'affiche
+    d'abord ; seul le bouton « Me connecter » le sert). Rend le prénom pour l'accueil."""
+    if not jeton or len(jeton) > 200:
+        return {"valide": False, "prenom": None}
+    client = client or _client()
+    lignes = (
+        client.table("liens_de_connexion")
+        .select("user_id")
+        .eq("jeton_hash", empreinte(jeton))
+        .is_("used_at", "null")
+        .gt("expires_at", _maintenant().isoformat())
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not lignes:
+        return {"valide": False, "prenom": None}
+    profil = (
+        client.table("profiles")
+        .select("first_name")
+        .eq("id", lignes[0]["user_id"])
+        .limit(1)
+        .execute()
+        .data
+    )
+    return {"valide": True, "prenom": (profil[0].get("first_name") if profil else None)}
+
+
 def session_du_compte(user_id: str, client=None) -> dict:
     """Ouvre une session Supabase pour ce compte, sans mot de passe (jeton magique vérifié)."""
     from supabase import create_client
