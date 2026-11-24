@@ -326,8 +326,27 @@ def _impot_contre_sa_base(payslip_data: dict) -> list[PayslipAlert]:
     ]
 
 
+def _total_retenu(payslip_data: dict, bloc: str, total: str) -> float:
+    """Le total d'un bloc de retenues posé à l'enregistrement ; 0 s'il manque."""
+    valeur = payslip_data.get(bloc)
+    return _nombre(valeur.get(total)) if isinstance(valeur, dict) else 0.0
+
+
 def _net_contre_l_impot(payslip_data: dict) -> list[PayslipAlert]:
-    """Le net à payer est le net avant impôt moins l'impôt, sur un bulletin du moteur.
+    """Le net à payer est le net avant impôt, moins l'impôt, moins les retenues
+    faites sur le net après le moteur, sur un bulletin du moteur.
+
+    Le net avant impôt du moteur porte déjà ce qui passe par lui : acompte et
+    retenues saisis en variables, notes de frais et autres ajouts au net
+    (`creer_bulletin_final` : net à payer + impôt). Saisies sur salaire, avances
+    (acomptes du module « Avances » compris) et prêts sont retirés du net ensuite,
+    à l'enregistrement (`enrich_payslip_after_upsert`). Les ignorer levait B06
+    sur chaque bulletin avec une saisie ou une avance.
+
+    Pas de plancher à 0 : une retenue nouvelle est déjà bornée au net disponible.
+    Seul un prêt déjà retenu, repris au recalcul sur un net devenu trop faible,
+    voit `enrich_payslip_loans` ramener le net à 0 et effacer le net négatif à
+    reporter : ce net ne se retrouve plus depuis le bulletin, B06 le dit.
 
     Un bulletin repris porte le net avant impôt de l'ancien logiciel : la relation
     n'y tient pas (806 bulletins sur 2 087 en base).
@@ -339,10 +358,20 @@ def _net_contre_l_impot(payslip_data: dict) -> list[PayslipAlert]:
     if payslip_data.get("net_a_payer") is None or avant_impot is None or impot is None:
         return []
     imprime = _nombre(payslip_data.get("net_a_payer"))
-    rejoue = round(_nombre(avant_impot) - _nombre(impot), 2)
+    saisies_et_avances = _total_retenu(
+        payslip_data, "retenues_saisies", "total_preleve"
+    ) + _total_retenu(payslip_data, "remboursements_avances", "total_rembourse")
+    prets = _total_retenu(payslip_data, "remboursements_prets", "total_rembourse")
+    rejoue = round(_nombre(avant_impot) - _nombre(impot) - saisies_et_avances - prets, 2)
     ecart = round(imprime - rejoue, 2)
     if abs(ecart) <= 0.01:
         return []
+    retenues = round(saisies_et_avances + prets, 2)
+    formule = (
+        f"Le net avant impôt moins l'impôt et les retenues sur le net ({_euros(retenues)}) "
+        if retenues
+        else "Le net avant impôt moins l'impôt "
+    )
     return [
         _alerte(
             "B06",
@@ -350,7 +379,7 @@ def _net_contre_l_impot(payslip_data: dict) -> list[PayslipAlert]:
             imprime,
             rejoue,
             f"Le net à payer imprimé est {_euros(imprime)}. "
-            f"Le net avant impôt moins l'impôt donne {_euros(rejoue)} : {_sens(ecart)}.",
+            f"{formule}donne {_euros(rejoue)} : {_sens(ecart)}.",
         )
     ]
 
