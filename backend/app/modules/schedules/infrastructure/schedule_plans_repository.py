@@ -123,9 +123,14 @@ def resolve_scope_employees(
     scope_type: str,
     scope_ref: Optional[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
-    """Retourne les salariés actifs d'une portée : {id, statut, first_name, last_name, team_id, service_id}."""
+    """Retourne les salariés actifs d'une portée :
+    {id, statut, is_forfait_jour, first_name, last_name, team_id, service_id}.
+
+    `is_forfait_jour` est la case qui dit le forfait jours : le statut ne vaut que
+    « Cadre » ou « Non-Cadre » en base.
+    """
     scope_ref = scope_ref or {}
-    select = "id, statut, first_name, last_name, team_id, service_id"
+    select = "id, statut, is_forfait_jour, first_name, last_name, team_id, service_id"
 
     if scope_type == "employees":
         ids = [str(x) for x in (scope_ref.get("employee_ids") or [])]

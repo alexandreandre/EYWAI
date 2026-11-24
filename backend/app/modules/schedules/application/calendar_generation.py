@@ -15,7 +15,6 @@ from typing import Any, Callable, Dict, List, Optional
 
 from app.core.calendar_write_context import relancer_si_calendrier_reserve
 from app.core.logging import get_logger
-from app.modules.schedules.domain import rules as domain_rules
 from app.modules.schedules.domain.calendar_generation_rules import (
     OVERWRITE_ALL,
     OVERWRITE_MODES,
@@ -30,6 +29,7 @@ from app.modules.schedules.infrastructure.mappers import (
 )
 from app.modules.schedules.infrastructure.repository import schedule_repository
 from app.shared.public_holidays import day_numbers_observed_holidays
+from app.shared.domain.employment_rules import est_au_forfait_jours
 from app.shared.domain.pluriel import accord
 
 logger = get_logger("modules.schedules.application.calendar_generation")
@@ -180,7 +180,9 @@ def _generate(
 
     for emp in employees:
         employee_id = str(emp["id"])
-        is_forfait = domain_rules.is_forfait_jour(emp.get("statut"))
+        # La case `is_forfait_jour` d'abord, le libellé en repli : comme le
+        # générateur du bulletin forfait. Le libellé seul ne le dit jamais en base.
+        is_forfait = est_au_forfait_jours(emp)
         months_summary: List[Dict[str, Any]] = []
 
         # Une seule lecture des calendriers existants pour toute la plage.

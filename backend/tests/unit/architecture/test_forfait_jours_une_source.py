@@ -42,10 +42,6 @@ LIBELLE_SEUL_PERMIS: dict[tuple[str, str], str] = {
     ("modules/payroll/documents/payslip_generator.py", "process_payslip_generation"): (
         "générateur des heures : un salarié au forfait n'y passe jamais (aiguillage sur la case)"
     ),
-    ("modules/schedules/application/calendar_generation.py", "_generate"): (
-        "volontaire au 17/11 : les calendriers des forfaits sont en heures (7 h) et le moteur "
-        "du forfait les lit ainsi ; passer à 1 se vérifie d'abord au bac à sable"
-    ),
     ("modules/absences/application/commands.py", "create_absence_request"): (
         "décision en attente (17/11) : refuser la demi-journée au forfait serait un blocage nouveau"
     ),
