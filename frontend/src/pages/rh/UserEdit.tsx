@@ -239,7 +239,7 @@ const UserEdit: React.FC = () => {
       )}
 
       {/* Ouvrir d'autres sociétés à ce compte, sans en créer un nouveau */}
-      {userId && <AccesAutresSocietesCard userId={userId} roleActuel={currentRole} />}
+      {userId && <AccesAutresSocietesCard userId={userId} roleActuel={currentRole} modifiable={canEdit} />}
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Informations personnelles */}
