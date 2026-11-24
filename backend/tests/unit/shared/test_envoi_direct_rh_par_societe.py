@@ -198,7 +198,10 @@ def test_les_documents_du_salarie_passent_leur_societe():
 def test_les_relances_rh_passent_leur_societe():
     from datetime import date
 
-    from app.modules.employees.domain.deadline_reminders import REMINDER_TYPE_CDD, DeadlineCandidate
+    from app.modules.employees.domain.deadline_reminders import (
+        REMINDER_TYPE_CDD,
+        DeadlineCandidate,
+    )
     from app.modules.notifications.application import hr_deadline_reminders as relances
 
     candidat = DeadlineCandidate(

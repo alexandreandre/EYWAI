@@ -20,10 +20,9 @@ from __future__ import annotations
 import ipaddress
 import socket
 from dataclasses import dataclass
-from typing import Union
 from urllib.parse import urlsplit
 
-IP = Union[ipaddress.IPv4Address, ipaddress.IPv6Address]
+IP = ipaddress.IPv4Address | ipaddress.IPv6Address
 
 _NAT64 = ipaddress.ip_network("64:ff9b::/96")
 
