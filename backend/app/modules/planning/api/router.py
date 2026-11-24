@@ -465,6 +465,22 @@ def get_shift_detail_endpoint(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/collective-agreements")
+def get_planning_collective_agreements_endpoint(
+    current_user: User = Depends(get_current_user),
+):
+    """Conventions que la convention planning peut prendre (référentiel du planning)."""
+    company_id = _require_active_company(current_user)
+    _require_rh(current_user, company_id)
+    try:
+        return app_queries.list_planning_collective_agreements()
+    except (ValueError, LookupError, PermissionError, RuntimeError) as e:
+        _handle_application_errors(e)
+    except Exception as e:
+        logger.exception("Échec de get_planning_collective_agreements_endpoint")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/shift-types")
 def get_shift_types_endpoint(current_user: User = Depends(get_current_user)):
     company_id = _require_active_company(current_user)

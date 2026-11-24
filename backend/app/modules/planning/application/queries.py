@@ -222,37 +222,66 @@ def get_company_settings(company_id: str) -> dict:
     }
 
 
+def _shift_type_public(r: dict, origine: str) -> dict:
+    return {
+        "id": str(r.get("id") or ""),
+        "code": str(r.get("code") or ""),
+        "label": str(r.get("label") or ""),
+        "color": str(r.get("color") or ""),
+        "default_start": r.get("default_start"),
+        "default_end": r.get("default_end"),
+        "allows_overnight": bool(r.get("allows_overnight")),
+        "meal_allowance_eligible": bool(r.get("meal_allowance_eligible", True)),
+        "paid_break_minutes": int(r.get("paid_break_minutes") or 0),
+        "unpaid_break_minutes": int(r.get("unpaid_break_minutes") or 0),
+        "night_windows": r.get("night_windows") or [],
+        "premium_rule_code": r.get("premium_rule_code"),
+        "is_active": bool(r.get("is_active", True)),
+        # « societe » : appartient à la société ; « convention » : partagé
+        # (le modifier crée une copie propre à la société).
+        "origine": origine,
+    }
+
+
 def get_shift_types_for_company(company_id: str) -> list:
     """
-    Récupère get_company_planning_settings(company_id).
-    Si collective_agreement_id défini :
-        appelle planning_repository.get_shift_types_by_cc(cc_id).
-    Sinon : aucun type (ceux des autres conventions ne sont pas à la société).
+    Types de poste visibles par la société : les siens, puis ceux (partagés) de
+    sa convention planning qu'elle n'a ni copiés ni remplacés par un type de
+    même code. Ceux de la société passent toujours en priorité.
+    Sans convention planning : seulement les siens (jamais ceux des autres
+    conventions — postes en double, Mont Blanc 17/11).
     """
     settings = planning_repository.get_company_planning_settings(company_id)
     cc_id = settings.get("collective_agreement_id") if settings else None
-    if not cc_id:
-        # Sans convention planning : aucun type. Avant, tous les types actifs de
-        # toutes les conventions s'affichaient (postes en double, Mont Blanc 17/11).
-        return []
-    rows = planning_repository.get_shift_types_by_cc(str(cc_id))
+    propres = planning_repository.get_shift_types_by_company(company_id)
+    partages = planning_repository.get_shift_types_by_cc(str(cc_id)) if cc_id else []
+
+    remplaces = {
+        str(r.get("replaces_shift_type_id"))
+        for r in propres
+        if r.get("replaces_shift_type_id")
+    }
+    codes_propres = {str(r.get("code") or "").upper() for r in propres}
+    visibles = [_shift_type_public(r, "societe") for r in propres] + [
+        _shift_type_public(r, "convention")
+        for r in partages
+        if str(r.get("id")) not in remplaces
+        and str(r.get("code") or "").upper() not in codes_propres
+    ]
+    return sorted(visibles, key=lambda t: t["code"].upper())
+
+
+def list_planning_collective_agreements() -> list:
+    """Conventions du référentiel du planning (cibles valides de la convention
+    planning ; le catalogue des conventions de paie est une autre table)."""
     return [
         {
             "id": str(r.get("id") or ""),
             "code": str(r.get("code") or ""),
             "label": str(r.get("label") or ""),
-            "color": str(r.get("color") or ""),
-            "default_start": r.get("default_start"),
-            "default_end": r.get("default_end"),
-            "allows_overnight": bool(r.get("allows_overnight")),
-            "meal_allowance_eligible": bool(r.get("meal_allowance_eligible", True)),
-            "paid_break_minutes": int(r.get("paid_break_minutes") or 0),
-            "unpaid_break_minutes": int(r.get("unpaid_break_minutes") or 0),
-            "night_windows": r.get("night_windows") or [],
-            "premium_rule_code": r.get("premium_rule_code"),
-            "is_active": bool(r.get("is_active", True)),
+            "idcc": r.get("idcc"),
         }
-        for r in rows
+        for r in planning_repository.get_all_collective_agreements()
     ]
 
 

@@ -739,4 +739,14 @@ def update_company_settings(
 ) -> dict:
     """Met à jour les paramètres planning entreprise."""
     payload = data.model_dump(exclude_unset=True)
+    cc_id = payload.get("collective_agreement_id")
+    # La convention planning pointe sur le référentiel du planning
+    # (`collective_agreements`) : un identifiant d'ailleurs (catalogue des
+    # conventions de paie) violait la clé étrangère → erreur 500, « L'action
+    # n'a pas abouti » (24/11). On le dit avant d'écrire.
+    if cc_id and not planning_repository.get_cc_by_id(str(cc_id)):
+        raise ValueError(
+            "Cette convention n'est pas proposée par le planning : "
+            "choisissez-en une dans la liste, ou « Non définie »."
+        )
     return planning_repository.update_company_planning_settings(company_id, payload)
