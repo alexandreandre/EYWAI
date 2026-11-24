@@ -470,7 +470,8 @@ function PreviewCard({ result }: { result: GenerationResult }) {
         {result.employees.slice(0, 8).map((emp) => {
           const firstMonth = emp.months[0];
           const totals = firstMonth ? Object.values(firstMonth.weekly_totals) : [];
-          const sample = totals.slice(0, 4).map((h) => `${h}h`).join(' · ');
+          const unite = emp.is_forfait ? ' j' : 'h';
+          const sample = totals.slice(0, 4).map((h) => `${h}${unite}`).join(' · ');
           return (
             <div key={emp.employee_id} className="flex justify-between gap-2 text-sm">
               <span className="truncate">

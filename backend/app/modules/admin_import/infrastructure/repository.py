@@ -15,7 +15,7 @@ logger = get_logger("modules.admin_import.infrastructure.repository")
 
 _EMPLOYEE_BASE_COLUMNS = (
     "id, company_id, first_name, last_name, email, nir, coordonnees_bancaires, "
-    "employment_status, employee_folder_name, sexe"
+    "employment_status, employee_folder_name, sexe, statut, is_forfait_jour"
 )
 
 

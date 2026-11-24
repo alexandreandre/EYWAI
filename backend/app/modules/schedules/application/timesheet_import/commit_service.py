@@ -34,6 +34,7 @@ from app.modules.schedules.schemas.persist import (
     PersistTimesheetRequest,
 )
 from app.modules.schedules.schemas.timesheet_import import TimesheetImportCommitRequest
+from app.shared.domain.employment_rules import est_au_forfait_jours, is_forfait_jour
 from app.shared.domain.pluriel import accord, pluriel
 
 logger = logging.getLogger(__name__)
@@ -213,6 +214,25 @@ def _marques_absent_doublees(
     )
 
 
+def _en_jours_si_forfait(
+    days: List[AiDayEntry], forfait: bool
+) -> List[AiDayEntry]:
+    """Au forfait jours, un jour importé vaut 1 (prévu ou travaillé), jamais des heures.
+
+    Le moteur du forfait lit 1 = jour prévu / travaillé : un réel à 7 h face à un
+    prévu à 1 devenait une absence injustifiée. Comme `update_actual_hours` à
+    l'écran ; un 0 reste 0, un jour sans valeur reste sans valeur.
+    """
+    if not forfait:
+        return days
+    return [
+        d.model_copy(update={"heures": 1.0})
+        if isinstance(d.heures, (int, float)) and d.heures > 0
+        else d
+        for d in days
+    ]
+
+
 def _planning_par_defaut(year: int, month: int) -> List[Dict[str, Any]]:
     return [
         {
@@ -247,7 +267,9 @@ def _upsert_employees_for_month(
 
     for emp in employees:
         try:
-            company_id_emp, _ = get_employee_company_and_statut(emp.employee_id)
+            company_id_emp, statut_emp = get_employee_company_and_statut(emp.employee_id)
+            # Statut effectif : la case `is_forfait_jour` y est déjà comprise.
+            forfait = is_forfait_jour(statut_emp)
             if company_id_emp != company_id:
                 errors.append(
                     {
@@ -258,8 +280,12 @@ def _upsert_employees_for_month(
                 continue
 
             row = existing_rows.get(emp.employee_id, {})
-            prevu_days = [d for d in emp.days if d.nature == "prevu"]
-            reel_days = [d for d in emp.days if d.nature == "reel"]
+            prevu_days = _en_jours_si_forfait(
+                [d for d in emp.days if d.nature == "prevu"], forfait
+            )
+            reel_days = _en_jours_si_forfait(
+                [d for d in emp.days if d.nature == "reel"], forfait
+            )
 
             planned_existing: list = []
             actual_existing: list = []
@@ -348,6 +374,7 @@ def _upsert_employees_for_month_fast(
     existing_rows: Dict[str, Dict[str, Any]],
     employee_company_ids: Dict[str, str],
     arrets_valides: Dict[str, List[Dict[str, Any]]] | None = None,
+    au_forfait: Set[str] | None = None,
 ) -> tuple[
     List[Dict[str, Any]],
     int,
@@ -364,6 +391,7 @@ def _upsert_employees_for_month_fast(
     for emp in employees:
         try:
             company_id_emp = employee_company_ids.get(emp.employee_id)
+            forfait = emp.employee_id in (au_forfait or set())
             if company_id_emp != company_id:
                 errors.append(
                     {
@@ -374,8 +402,12 @@ def _upsert_employees_for_month_fast(
                 continue
 
             row = existing_rows.get(emp.employee_id, {})
-            prevu_days = [d for d in emp.days if d.nature == "prevu"]
-            reel_days = [d for d in emp.days if d.nature == "reel"]
+            prevu_days = _en_jours_si_forfait(
+                [d for d in emp.days if d.nature == "prevu"], forfait
+            )
+            reel_days = _en_jours_si_forfait(
+                [d for d in emp.days if d.nature == "reel"], forfait
+            )
 
             planned_existing: list = []
             actual_existing: list = []
@@ -654,6 +686,10 @@ def _commit_multi_month_batch(
         sorted({e.employee_id for emps in by_month.values() for e in emps}), month_keys
     )
     garde = GardeDesCorrections.du_lot(batch, company_id=company_id)
+    # La case `is_forfait_jour` d'abord, le libellé en repli.
+    au_forfait = {
+        emp_id for emp_id, meta in employee_meta.items() if est_au_forfait_jours(meta)
+    }
     summary = _emit_planning_commit_progress(
         batch_id,
         summary,
@@ -707,6 +743,7 @@ def _commit_multi_month_batch(
                 for emp_id, meta in employee_meta.items()
             },
             arrets_valides=arrets_valides,
+            au_forfait=au_forfait,
         )
         errors.extend(group_errors)
         warnings.extend(group_warnings)
