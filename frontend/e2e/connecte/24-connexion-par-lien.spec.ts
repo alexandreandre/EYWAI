@@ -3,8 +3,8 @@ import { test, expect } from '../helpers/garde';
 // Connexion par lien, sans mot de passe.
 // 1. La page de connexion propose « Recevoir un lien de connexion par e-mail » ; la
 //    demande est interceptée (aucun e-mail ne part).
-// 2. Avec E2E_LIEN_JETON (un lien d'invitation créé en base pour le compte QA, voir
-//    ~/dev/eywai-filet/compte-expert-comptable/lien.py) : le lien ouvre la session,
+// 2. Avec E2E_LIEN_JETON (un lien d'invitation créé en base pour le compte QA, par le
+//    script de création des liens, hors dépôt) : le lien ouvre la session,
 //    puis le même lien est refusé avec un message clair.
 
 test.use({ storageState: { cookies: [], origins: [] } });
