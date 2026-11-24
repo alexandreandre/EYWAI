@@ -215,22 +215,45 @@ def _marques_absent_doublees(
 
 
 def _en_jours_si_forfait(
-    days: List[AiDayEntry], forfait: bool
+    days: List[AiDayEntry],
+    forfait: bool,
+    prevu: Optional[List[Dict[str, Any]]] = None,
 ) -> List[AiDayEntry]:
     """Au forfait jours, un jour importé vaut 1 (prévu ou travaillé), jamais des heures.
 
     Le moteur du forfait lit 1 = jour prévu / travaillé : un réel à 7 h face à un
     prévu à 1 devenait une absence injustifiée. Comme `update_actual_hours` à
     l'écran ; un 0 reste 0, un jour sans valeur reste sans valeur.
+
+    Avec `prevu` (le planning du mois), un réel tombant sur un jour prévu autre
+    que travaillé (arrêt, congé, chômé) garde ses heures : à 1, le moteur y
+    verrait un jour travaillé et l'arrêt disparaîtrait du bulletin ; l'import le
+    signale déjà en conflit.
     """
     if not forfait:
         return days
+    types_prevus: Dict[int, str] = {}
+    for entree in prevu or []:
+        try:
+            types_prevus[int(entree.get("jour"))] = str(entree.get("type") or "travail")
+        except (TypeError, ValueError):
+            continue
     return [
         d.model_copy(update={"heures": 1.0})
-        if isinstance(d.heures, (int, float)) and d.heures > 0
+        if isinstance(d.heures, (int, float))
+        and d.heures > 0
+        and types_prevus.get(int(d.jour), "travail") == "travail"
         else d
         for d in days
     ]
+
+
+def _au_forfait_par_statut(employee_ids: List[str]) -> Set[str]:
+    """Salariés au forfait jours, sur le statut effectif (case comprise)."""
+    return {
+        e for e in dict.fromkeys(employee_ids)
+        if is_forfait_jour(get_employee_company_and_statut(e)[1])
+    }
 
 
 def _planning_par_defaut(year: int, month: int) -> List[Dict[str, Any]]:
@@ -283,9 +306,7 @@ def _upsert_employees_for_month(
             prevu_days = _en_jours_si_forfait(
                 [d for d in emp.days if d.nature == "prevu"], forfait
             )
-            reel_days = _en_jours_si_forfait(
-                [d for d in emp.days if d.nature == "reel"], forfait
-            )
+            reel_days = [d for d in emp.days if d.nature == "reel"]
 
             planned_existing: list = []
             actual_existing: list = []
@@ -320,6 +341,7 @@ def _upsert_employees_for_month(
                     - _marques_absent_doublees(prevu_days, reel_days, avertissements)
                 )
             if reel_days:
+                reel_days = _en_jours_si_forfait(reel_days, forfait, prevu=merged_planned)
                 merged_actual = _merge_days(actual_existing, reel_days, "reel")
                 days_written += len(reel_days)
                 conflits.append(
@@ -405,9 +427,7 @@ def _upsert_employees_for_month_fast(
             prevu_days = _en_jours_si_forfait(
                 [d for d in emp.days if d.nature == "prevu"], forfait
             )
-            reel_days = _en_jours_si_forfait(
-                [d for d in emp.days if d.nature == "reel"], forfait
-            )
+            reel_days = [d for d in emp.days if d.nature == "reel"]
 
             planned_existing: list = []
             actual_existing: list = []
@@ -442,6 +462,7 @@ def _upsert_employees_for_month_fast(
                     - _marques_absent_doublees(prevu_days, reel_days, avertissements)
                 )
             if reel_days:
+                reel_days = _en_jours_si_forfait(reel_days, forfait, prevu=merged_planned)
                 merged_actual = _merge_days(actual_existing, reel_days, "reel")
                 days_written += len(reel_days)
                 conflits.append(
@@ -725,7 +746,9 @@ def _commit_multi_month_batch(
         )
         if garde is not None:
             # Relecture : les jours corrigés à la main restent tels quels.
-            month_employees = garde.filtrer(month_employees, year, month, existing_rows)
+            month_employees = garde.filtrer(
+                month_employees, year, month, existing_rows, au_forfait=au_forfait
+            )
         (
             payloads,
             days_written,
@@ -1160,7 +1183,13 @@ def commit_batch_bulk(
         if garde is not None:
             # Relecture : les jours corrigés à la main depuis le premier
             # import ne sont pas réécrits, la valeur du calendrier reste.
-            employes_du_mois = garde.filtrer(employes_du_mois, annee, mois, existing_rows)
+            employes_du_mois = garde.filtrer(
+                employes_du_mois,
+                annee,
+                mois,
+                existing_rows,
+                au_forfait=_au_forfait_par_statut([e.employee_id for e in employes_du_mois]),
+            )
             if not employes_du_mois:
                 continue
         (

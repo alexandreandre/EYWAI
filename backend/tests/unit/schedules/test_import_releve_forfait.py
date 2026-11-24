@@ -127,3 +127,43 @@ def test_lot_multi_mois_lit_la_case_dans_la_fiche():
         (payloads,), _ = sched.bulk_upsert_schedules.call_args
     reel = {e["jour"]: e["heures_faites"] for e in payloads[0]["actual_hours"]["calendrier_reel"]}
     assert reel[2] == 1
+
+
+@patch(_STATUT, return_value=("c1", "Cadre au forfait jour"))
+def test_import_au_forfait_garde_les_heures_sur_un_arret(_statut):
+    """Un réel importé sur un jour prévu en arrêt garde ses heures (signalé en
+    conflit) : à 1, le moteur du forfait y verrait un jour travaillé."""
+    existant = _existant()
+    existant["e1"]["planned_calendar"]["calendrier_prevu"].append(
+        {"jour": 2, "type": "arret_maladie", "heures_prevues": 0, "origine": "absence"}
+    )
+    payloads, *_ = _upsert_employees_for_month(
+        company_id="c1", year=2026, month=11, employees=[_salarie()], existing_rows=existant,
+    )
+    reel, _ = _jours(payloads[0])
+    assert reel[2] == 7.0
+
+
+def test_reimport_au_forfait_ne_voit_pas_de_correction_a_la_main():
+    """Le lot précédent a lu 7 h, le calendrier porte 1 (écrit en jours), le
+    fichier relit 7 h : rien n'a été corrigé à la main."""
+    from app.modules.schedules.application.timesheet_import.reimport_service import (
+        GardeDesCorrections,
+    )
+    from app.modules.schedules.domain.corrections_a_la_main import ValeurJour
+
+    garde = GardeDesCorrections(ecrits={("e1", 2026, 11, 2): ValeurJour(7.0, "travail")})
+    emp = PersistTimesheetEmployee.model_validate({
+        "employee_id": "e1",
+        "days": [{"jour": 2, "heures": 7.0, "type": "travail", "nature": "reel"}],
+    })
+    lignes = {"e1": {"actual_hours": {"calendrier_reel": [
+        {"jour": 2, "type": "travail", "heures_faites": 1},
+    ]}}}
+    restants = garde.filtrer([emp], 2026, 11, lignes, au_forfait={"e1"})
+    assert garde.gardees == []
+    assert restants and restants[0].days
+    # Sans la case, la même lecture voit une correction (comportement en heures).
+    garde_heures = GardeDesCorrections(ecrits={("e1", 2026, 11, 2): ValeurJour(7.0, "travail")})
+    garde_heures.filtrer([emp], 2026, 11, lignes)
+    assert len(garde_heures.gardees) == 1

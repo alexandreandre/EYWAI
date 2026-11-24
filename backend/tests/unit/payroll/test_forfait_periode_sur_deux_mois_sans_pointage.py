@@ -81,3 +81,22 @@ def test_un_reel_reste_en_heures_compte_pour_un_jour_travaille():
     evenements = _evenements(1, reel)
     assert [e for e in evenements if "absence" in e["type"]] == []
     assert len({(e["mois"], e["jour"]) for e in evenements if e["type"] == "travail_base"}) == 20
+
+
+def test_un_reel_en_heures_sur_un_arret_ne_l_efface_pas():
+    """Un réel à 7 h (ancien import) posé sur un jour d'arrêt : l'arrêt reste."""
+    prevu = _prevu(2026, 10, 1) + _prevu(2026, 11, 1) + _prevu(2026, 12, 1)
+    for j in prevu:
+        if (j["mois"], j["jour"]) == (11, 10):
+            j.update({"type": "arret_maladie", "heures_prevues": 0})
+    reel = [
+        {"annee": 2026, "mois": 11, "jour": j, "type": "travail", "heures_faites": 7.0}
+        for j in range(2, 20) if date(2026, 11, j).isoweekday() <= 5
+    ]
+    evenements = analyser_jours_forfait_du_mois(
+        prevu, reel, 2026, 11, "test",
+        date_debut_periode=date(2026, 10, 23), date_fin_periode=date(2026, 11, 19),
+    )
+    du_10 = {e["type"] for e in evenements if (e["mois"], e["jour"]) == (11, 10)}
+    assert "arret_maladie" in du_10
+    assert "travail_base" not in du_10

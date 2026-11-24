@@ -93,13 +93,21 @@ def analyser_jours_forfait_du_mois(
     mois_a_couvrir = {(annee, mois)} | {
         (j.get("annee", annee), j["mois"]) for j in prevu_data if j.get("mois")
     }
-    # Un réel resté en heures (import de relevés d'avant le 24/11) dit un jour
-    # travaillé : ramené à 1, il ne devient jamais une absence injustifiée.
+    # Un réel resté en heures (import de relevés d'avant le 24/11) sur un jour
+    # prévu travaillé dit un jour travaillé : ramené à 1, il ne devient jamais une
+    # absence injustifiée. Sur un arrêt, un congé ou un jour chômé, il reste tel
+    # quel : à 1, le jour non travaillé disparaîtrait du bulletin.
+    type_prevu = {
+        (j.get("annee", annee), j.get("mois"), j.get("jour")): j.get("type")
+        for j in prevu_data
+    }
     reel_data = [
         {**j, "heures_faites": 1}
         if isinstance(j.get("heures_faites"), (int, float))
         and not isinstance(j.get("heures_faites"), bool)
         and j["heures_faites"] > 1
+        and type_prevu.get((j.get("annee", annee), j.get("mois"), j.get("jour")), "travail")
+        == "travail"
         else j
         for j in actual_data_all_months
     ]

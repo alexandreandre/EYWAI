@@ -465,8 +465,28 @@ class GardeDesCorrections:
         annee: int,
         mois: int,
         existing_rows: dict[str, dict[str, Any]],
+        au_forfait: set[str] | None = None,
     ) -> list[PersistTimesheetEmployee]:
-        """Les salariés du mois, sans leurs jours réels corrigés à la main."""
+        """Les salariés du mois, sans leurs jours réels corrigés à la main.
+
+        Au forfait jours (`au_forfait`), le calendrier porte 1 où le fichier et
+        le lot précédent portent des heures : la comparaison se fait en jours,
+        sinon chaque jour passerait pour une correction à la main.
+        """
+        au_forfait = au_forfait or set()
+
+        def en_jours(valeurs: dict[Cle, ValeurJour]) -> dict[Cle, ValeurJour]:
+            if not au_forfait:
+                return dict(valeurs)
+            return {
+                cle: (
+                    ValeurJour(heures=1.0, type=v.type)
+                    if cle[0] in au_forfait and isinstance(v.heures, (int, float)) and v.heures > 0
+                    else v
+                )
+                for cle, v in valeurs.items()
+            }
+
         jours: dict[Cle, ValeurJour] = {}
         for emp in employees:
             for d in emp.days:
@@ -475,7 +495,9 @@ class GardeDesCorrections:
                         heures=d.heures, type=d.type
                     )
         gardees = corrections_a_la_main(
-            jours, self.ecrits, _calendrier_reel_des_lignes(existing_rows, annee, mois)
+            en_jours(jours),
+            en_jours(self.ecrits),
+            en_jours(_calendrier_reel_des_lignes(existing_rows, annee, mois)),
         )
         self.gardees.extend(gardees)
         a_garder = {c.cle for c in gardees}

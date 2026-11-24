@@ -34,6 +34,7 @@ LIBELLE_SEUL_PERMIS: dict[tuple[str, str], str] = {
     ("modules/payslips/infrastructure/providers.py", "generate_en_bac_a_sable"): STATUT_EFFECTIF,
     ("modules/schedules/application/badgeuse_import.py", "import_actual_hours_from_badgeuse"): STATUT_EFFECTIF,
     ("modules/schedules/application/timesheet_import/commit_service.py", "_upsert_employees_for_month"): STATUT_EFFECTIF,
+    ("modules/schedules/application/timesheet_import/commit_service.py", "_au_forfait_par_statut"): STATUT_EFFECTIF,
     ("modules/schedules/application/commands.py", "update_planned_calendar"): STATUT_EFFECTIF,
     ("modules/schedules/application/commands.py", "update_actual_hours"): STATUT_EFFECTIF,
     ("modules/schedules/application/commands.py", "calculate_payroll_events"): STATUT_EFFECTIF,
