@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from typing import Any
 
@@ -131,6 +131,21 @@ def sync_employee_modulation_counter(
     )
 
 
+def reglages_du_salarie(company_id: str, employee_id: str) -> ModulationSettings:
+    """Les réglages du compteur tels qu'ils valent pour ce salarié : sa règle
+    d'heures sup propre (« toujours payées », « toujours au compteur ») prend
+    la place de celle de la société ; sans règle propre, ceux de la société.
+
+    Sans compteur, rien n'est lu : la règle n'a pas d'effet."""
+    settings = repo.get_modulation_settings(company_id)
+    if not settings.hour_account_enabled:
+        return settings
+    regle = repo.get_hs_routing_override(employee_id)
+    if regle and regle != settings.hs_routing_policy:
+        return replace(settings, hs_routing_policy=regle)
+    return settings
+
+
 def _decision_du_mois(employee_id: str, year: int, month: int) -> dict[str, Any] | None:
     """La décision de la RH pour ce salarié et ce mois (« payer ces heures »).
 
@@ -164,8 +179,9 @@ def apply_modulation_hour_account_to_calendar(
     - `heures_declarees` : heures sup saisies à la main (25 %, 50 %), qui font foi
       sur le planning ; ce qu'il en reste à payer revient dans le résultat.
     `persister=False` (bac à sable) : même calcul, aucun mouvement écrit.
+    La règle des heures sup est celle du salarié s'il en a une (alternants).
     """
-    settings = repo.get_modulation_settings(company_id)
+    settings = reglages_du_salarie(company_id, employee_id)
     if not settings.hour_account_enabled:
         return calendrier_etendu, [], ModulationPayrollResult()
     calendrier_d_origine = calendrier_etendu
@@ -337,7 +353,7 @@ def etat_recuperation_du_bulletin(
 
     `credit_du_calcul` : le crédit du calcul en cours, qui remplace celui d'une
     génération précédente ; None pour lire le compteur tel qu'il est en base."""
-    settings = repo.get_modulation_settings(company_id)
+    settings = reglages_du_salarie(company_id, employee_id)
     if not settings.hour_account_enabled:
         return None
     from app.modules.modulation.domain.hour_account_rules import etat_du_mois, solde_payable

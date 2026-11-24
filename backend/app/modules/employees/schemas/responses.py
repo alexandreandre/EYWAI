@@ -186,6 +186,9 @@ class FullEmployee(BaseModel):
     alertes_paie: List[Dict[str, str]] | None = None
     # Matricule badgeuse / GTA (import pointages Cegid)
     time_tracking_id: str | None = None
+    # Règle des heures sup propre au salarié (pay_all / account_all) ; null :
+    # celle de la société. Se pose par /api/modulation/employees/{id}/regle-heures-sup.
+    hs_routing_override: str | None = None
 
     # Colonnes de la table `employees` qui manquaient à la réponse : Pydantic
     # ignore les champs inconnus, la fiche ne pouvait donc jamais relire la

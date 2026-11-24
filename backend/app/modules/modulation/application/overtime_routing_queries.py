@@ -87,9 +87,14 @@ def list_overtime_routing(
         str(d["employee_id"]): d
         for d in otr_repo.list_for_period(company_id, year, month)
     }
+    # Un salarié qui suit sa propre règle (« toujours payées », « toujours au
+    # compteur ») n'attend pas de décision du mois.
+    regle_propre = mod_repo.list_hs_routing_overrides(company_id)
     out = []
     for emp in emp_res.data or []:
         eid = str(emp["id"])
+        if eid in regle_propre:
+            continue
         duree = float(emp.get("duree_hebdomadaire") or 35)
         total_hs = _employee_hs_for_month(company_id, eid, year, month, duree)
         if total_hs <= 0:
