@@ -215,10 +215,23 @@ class SupabasePlanningRepository(AbstractPlanningRepository):
     def get_shift_types_by_cc(
         self, collective_agreement_id: str
     ) -> List[Dict[str, Any]]:
+        """Types partagés d'une convention (jamais ceux propres à une société)."""
         r = (
             supabase.table("shift_types")
             .select("*")
             .eq("collective_agreement_id", collective_agreement_id)
+            .is_("company_id", "null")
+            .order("code")
+            .execute()
+        )
+        return (r.data or []) if r else []
+
+    def get_shift_types_by_company(self, company_id: str) -> List[Dict[str, Any]]:
+        """Types propres à la société (créés ou copiés depuis elle)."""
+        r = (
+            supabase.table("shift_types")
+            .select("*")
+            .eq("company_id", company_id)
             .order("code")
             .execute()
         )

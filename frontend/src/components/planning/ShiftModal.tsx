@@ -36,6 +36,7 @@ import type {
   ShiftType,
   ShiftUpdatePayload,
 } from '@/api/planning';
+import { typesProposesPourLeShift } from '@/features/planning/utils/typesProposes';
 
 const TRANSVERSE_OPTIONS: { code: string; label: string }[] = [
   { code: 'CP', label: 'Congé payé (CP)' },
@@ -196,7 +197,7 @@ export function ShiftModal({
   onClose,
   onSubmit,
   onDelete,
-  shiftTypes,
+  shiftTypes: typesDeLaListe,
   prefillEmployeeId,
   prefillDate,
   initialData,
@@ -204,6 +205,14 @@ export function ShiftModal({
   isLoading,
   conflictWarnings = [],
 }: ShiftModalProps) {
+  const shiftTypes = useMemo(
+    () =>
+      typesProposesPourLeShift(
+        typesDeLaListe,
+        mode === 'edit' ? initialData?.shift_type : undefined,
+      ),
+    [typesDeLaListe, mode, initialData?.shift_type],
+  );
   const shiftTypesKey = useMemo(
     () => shiftTypes.map((t) => t.id).join(','),
     [shiftTypes]

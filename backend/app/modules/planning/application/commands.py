@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from app.core.database import supabase
 from app.core.calendar_write_context import relancer_si_calendrier_reserve
@@ -739,4 +740,24 @@ def update_company_settings(
 ) -> dict:
     """Met à jour les paramètres planning entreprise."""
     payload = data.model_dump(exclude_unset=True)
+    if "collective_agreement_id" in payload and not payload["collective_agreement_id"]:
+        payload["collective_agreement_id"] = None
+    cc_id = payload.get("collective_agreement_id")
+    if cc_id:
+        try:
+            UUID(str(cc_id))
+        except ValueError:
+            raise ValueError(
+                "Cette convention n'est pas proposée par le planning : "
+                "choisissez-en une dans la liste, ou « Non définie »."
+            ) from None
+    # La convention planning pointe sur le référentiel du planning
+    # (`collective_agreements`) : un identifiant d'ailleurs (catalogue des
+    # conventions de paie) violait la clé étrangère → erreur 500, « L'action
+    # n'a pas abouti » (24/11). On le dit avant d'écrire.
+    if cc_id and not planning_repository.get_cc_by_id(str(cc_id)):
+        raise ValueError(
+            "Cette convention n'est pas proposée par le planning : "
+            "choisissez-en une dans la liste, ou « Non définie »."
+        )
     return planning_repository.update_company_planning_settings(company_id, payload)
