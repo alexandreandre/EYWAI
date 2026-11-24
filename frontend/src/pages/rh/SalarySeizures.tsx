@@ -1,5 +1,10 @@
 import { useConfirmation } from '@/hooks/useConfirmation';
-import { libelleMontantSaisie } from '@/components/saisies-avances/seizureFormat';
+import {
+  estSoldee,
+  libelleMontantSaisie,
+  libelleResteDu,
+  libelleStatutSaisie,
+} from '@/components/saisies-avances/seizureFormat';
 // frontend/src/pages/SalarySeizures.tsx
 
 import { RhPageHeader } from '@/components/layout';
@@ -21,12 +26,6 @@ const SEIZURE_TYPE_LABELS: Record<string, string> = {
   'pension_alimentaire': 'Pension alimentaire',
   'atd': 'Avis à tiers détenteur',
   'satd': 'Saisie administrative',
-};
-
-const STATUS_LABELS: Record<SalarySeizureStatus, string> = {
-  'active': 'Active',
-  'suspended': 'Suspendue',
-  'closed': 'Clôturée',
 };
 
 const STATUS_COLORS: Record<SalarySeizureStatus, string> = {
@@ -107,15 +106,20 @@ export default function SalarySeizures() {
     }
   };
 
+  // Une saisie soldée (reste dû nul) ne retient plus rien : comptée et
+  // filtrée avec les terminées, même si son statut reste « active ».
+  const statutDeLaListe = (s: SalarySeizure): SalarySeizureStatus =>
+    s.status === 'active' && estSoldee(s) ? 'closed' : s.status;
+
   const filteredSeizures = filterStatus === 'all'
     ? seizures
-    : seizures.filter(s => s.status === filterStatus);
+    : seizures.filter(s => statutDeLaListe(s) === filterStatus);
 
   const stats = {
     total: seizures.length,
-    active: seizures.filter(s => s.status === 'active').length,
-    suspended: seizures.filter(s => s.status === 'suspended').length,
-    closed: seizures.filter(s => s.status === 'closed').length,
+    active: seizures.filter(s => statutDeLaListe(s) === 'active').length,
+    suspended: seizures.filter(s => statutDeLaListe(s) === 'suspended').length,
+    closed: seizures.filter(s => statutDeLaListe(s) === 'closed').length,
   };
 
   return (
@@ -164,7 +168,7 @@ export default function SalarySeizures() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Clôturées</CardTitle>
+            <CardTitle className="text-sm font-medium">Clôturées ou soldées</CardTitle>
             <X className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
@@ -203,7 +207,7 @@ export default function SalarySeizures() {
             size="sm"
             onClick={() => setFilterStatus('closed')}
           >
-            Clôturées ({stats.closed})
+            Clôturées ou soldées ({stats.closed})
           </Button>
         </div>
         <Button onClick={() => setShowForm(true)}>
@@ -227,7 +231,7 @@ export default function SalarySeizures() {
                   <TableHead>Employé</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Créancier</TableHead>
-                  <TableHead>Montant/Mode</TableHead>
+                  <TableHead>Mensualité / reste dû</TableHead>
                   <TableHead>Dates</TableHead>
                   <TableHead>Statut</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -244,7 +248,7 @@ export default function SalarySeizures() {
                   filteredSeizures.map((seizure) => (
                     <TableRow key={seizure.id}>
                       <TableCell className="font-medium">
-                        {(seizure as any).employee_name || seizure.employee_id}
+                        {seizure.employee_name || seizure.employee_id}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
@@ -253,7 +257,12 @@ export default function SalarySeizures() {
                       </TableCell>
                       <TableCell>{seizure.creditor_name}</TableCell>
                       <TableCell>
-                        {libelleMontantSaisie(seizure)}
+                        <div>{libelleMontantSaisie(seizure)}</div>
+                        {libelleResteDu(seizure) && (
+                          <div className="text-sm text-muted-foreground">
+                            {libelleResteDu(seizure)}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
@@ -266,8 +275,8 @@ export default function SalarySeizures() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge className={STATUS_COLORS[seizure.status]}>
-                          {STATUS_LABELS[seizure.status]}
+                        <Badge className={STATUS_COLORS[statutDeLaListe(seizure)]}>
+                          {libelleStatutSaisie(seizure)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -334,6 +343,10 @@ export default function SalarySeizures() {
         <SalarySeizureDetail
           seizure={selectedSeizure}
           onClose={() => setSelectedSeizure(null)}
+          onUpdated={(misAJour) => {
+            setSelectedSeizure(misAJour);
+            fetchSeizures();
+          }}
         />
       )}
     </div>

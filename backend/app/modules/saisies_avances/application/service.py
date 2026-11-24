@@ -11,7 +11,7 @@ logger = get_logger("modules.saisies_avances.application.service")
 import os
 import uuid
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from functools import partial
 from typing import Any, Dict, List, Optional
 
@@ -49,6 +49,9 @@ from app.modules.saisies_avances.infrastructure.queries import (
     list_salary_advance_repayments_by_payslip,
     list_salary_seizure_deductions_by_payslip,
     list_seizures_with_employee,
+    retenues_des_autres_bulletins,
+    totaliser_les_retenues,
+    total_retenu_par_saisie,
 )
 from app.modules.saisies_avances.infrastructure.repository import (
     advance_payment_repository,
@@ -96,25 +99,46 @@ def _resolve_collaborator_advance_employee_id(
 # ----- Requêtes (lecture) -----
 
 
+def _avec_reste_du(saisies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Ajoute à chaque saisie qui a un montant total ce qui a déjà été retenu
+    (`total_retenu`) et ce qui reste dû (`reste_du`), en une lecture de
+    l'historique. Une saisie sans montant total n'est pas touchée."""
+    avec_total = [
+        str(s["id"])
+        for s in saisies
+        if isinstance(s, dict) and s.get("montant_total") is not None
+    ]
+    if not avec_total:
+        return saisies
+    totaux = total_retenu_par_saisie(avec_total)
+    for saisie in saisies:
+        if not isinstance(saisie, dict) or saisie.get("montant_total") is None:
+            continue
+        deja = totaux.get(str(saisie["id"]), Decimal("0"))
+        saisie["total_retenu"] = deja
+        saisie["reste_du"] = domain_rules.reste_du_de_la_saisie(saisie["montant_total"], deja)
+    return saisies
+
+
 def get_salary_seizures(
     employee_id: Optional[str] = None,
     status: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Liste des saisies avec filtres, enrichie employee_name."""
-    return list_seizures_with_employee(employee_id=employee_id, status=status)
+    """Liste des saisies avec filtres, enrichie employee_name et reste dû."""
+    return _avec_reste_du(list_seizures_with_employee(employee_id=employee_id, status=status))
 
 
 def get_salary_seizure(seizure_id: str) -> Dict[str, Any]:
-    """Détail d'une saisie."""
+    """Détail d'une saisie, avec son reste dû."""
     row = seizure_repository.get_by_id(seizure_id)
     if not row:
         raise NotFoundError("Saisie non trouvée.")
-    return row
+    return _avec_reste_du([row])[0]
 
 
 def get_employee_salary_seizures(employee_id: str) -> List[Dict[str, Any]]:
-    """Saisies d'un employé."""
-    return seizure_repository.list_(employee_id=employee_id)
+    """Saisies d'un employé, avec leur reste dû."""
+    return _avec_reste_du(seizure_repository.list_(employee_id=employee_id))
 
 
 def get_my_salary_advances(employee_id: str) -> List[Dict[str, Any]]:
@@ -246,7 +270,11 @@ def create_salary_seizure(seizure_data: Any, created_by_id: Any) -> Dict[str, An
     # possible avant la migration qui ajoute la colonne.
     if getattr(seizure_data, "dependents_count", 0):
         db_data["dependents_count"] = int(seizure_data.dependents_count)
-    return seizure_repository.create(db_data)
+    # Montant total de la dette : écrit seulement quand il est donné (une
+    # saisie sans total court sans fin, comme avant).
+    if getattr(seizure_data, "montant_total", None) is not None:
+        db_data["montant_total"] = float(seizure_data.montant_total)
+    return _avec_reste_du([seizure_repository.create(db_data)])[0]
 
 
 def update_salary_seizure(seizure_id: str, update_data: Any) -> Dict[str, Any]:
@@ -254,14 +282,22 @@ def update_salary_seizure(seizure_id: str, update_data: Any) -> Dict[str, Any]:
     update_dict = update_data.model_dump(exclude_none=True)
     if "amount" in update_dict:
         update_dict["amount"] = float(update_dict["amount"])
+    elif "amount" in update_data.model_fields_set and update_data.amount is None:
+        # Mensualité vidée (saisie au barème légal) : la quotité du mois.
+        update_dict["amount"] = None
     if "percentage" in update_dict:
         update_dict["percentage"] = float(update_dict["percentage"])
     if update_dict.get("end_date"):
         update_dict["end_date"] = update_dict["end_date"].isoformat()
+    # Le montant total se vide explicitement (null envoyé) : la saisie court
+    # alors sans fin, comme avant.
+    if "montant_total" in update_data.model_fields_set:
+        total = update_data.montant_total
+        update_dict["montant_total"] = None if total is None else float(total)
     row = seizure_repository.update(seizure_id, update_dict)
     if not row:
         raise NotFoundError("Saisie non trouvée.")
-    return row
+    return _avec_reste_du([row])[0]
 
 
 def delete_salary_seizure(seizure_id: str) -> None:
@@ -690,8 +726,32 @@ def enrich_payslip(
             )
             _signaler(CODE_REPLI_RETENUES_A_RECALCULER)
 
+    # Saisies avec un montant total : ce qui a déjà été retenu sur les autres
+    # bulletins (celui-ci refait sa retenue). Sans montant total, rien n'est lu.
+    avec_total = [str(s["id"]) for s in seizures if s.get("montant_total") is not None]
+    autres_retenues: List[Dict[str, Any]] = []
+    if avec_total:
+        autres_retenues = lire_ou_arreter(
+            lambda: retenues_des_autres_bulletins(avec_total, sauf_bulletin=payslip_id),
+            "Les retenues déjà faites sur les saisies sur salaire n'ont pas pu être lues",
+        )
+    deja_retenu = totaliser_les_retenues(autres_retenues)
+    # Saisies retenues sur un mois plus récent : le recalcul d'un mois passé
+    # n'est pas la retenue qui solde la dette, le bulletin ne le dit pas.
+    retenues_plus_tard = {
+        str(r.get("seizure_id"))
+        for r in autres_retenues
+        if (int(r.get("year") or 0), int(r.get("month") or 0)) > (year, month)
+    }
+
     for seizure in seizures:
         net_avant = net_disponible
+        # Reste dû de la dette (None sans montant total) : un plafond de plus,
+        # après la quotité saisissable et le net du mois.
+        reste_du = domain_rules.reste_du_de_la_saisie(
+            seizure.get("montant_total"),
+            deja_retenu.get(str(seizure.get("id")), Decimal("0")),
+        )
         if remaining_seizable <= 0 or net_disponible <= 0:
             deduction = Decimal("0")
         else:
@@ -699,10 +759,17 @@ def enrich_payslip(
                 seizure, base_saisissable, remaining_seizable, dependents_count
             )
             deduction = min(deduction, net_disponible)
+        if reste_du is not None:
+            # Au centime, comme l'historique l'enregistre : sans quoi une
+            # retenue au pourcentage (12,345) ne solderait pas un reste de 12,35.
+            deduction = min(deduction.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), reste_du)
         # Retenue moindre que la somme demandée : le bulletin dit combien,
         # sur combien et pourquoi (vidéo G, 11/10/2026 : 900 € demandés,
-        # 230,26 € retenus, sans un mot).
+        # 230,26 € retenus, sans un mot). Le reste dû borne ce qui est demandé :
+        # la dernière retenue n'est pas « plafonnée ».
         demande = domain_rules.montant_demande_de_la_saisie(seizure, base_saisissable)
+        if demande is not None and reste_du is not None:
+            demande = min(demande, reste_du)
         if demande is not None and deduction < demande:
             payslip_json_data.setdefault("alertes_baremes", []).append(
                 {
@@ -719,6 +786,27 @@ def enrich_payslip(
                         composition=domain_rules.composition_base_saisissable(
                             payslip_json_data
                         ),
+                    ),
+                }
+            )
+        # La dette est soldée par cette retenue. Rien n'est écrit sur la saisie : le reste dû nul suffit
+        # à ne plus rien retenir, et il remonte de lui-même si un bulletin est
+        # supprimé ou le montant total relevé.
+        soldee = (
+            reste_du is not None
+            and reste_du - deduction <= 0
+            and str(seizure.get("id")) not in retenues_plus_tard
+        )
+        if soldee and deduction > 0:
+            payslip_json_data.setdefault("alertes_baremes", []).append(
+                {
+                    "code": "saisie_soldee",
+                    "severity": "info",
+                    "critique": False,
+                    "message": domain_rules.message_saisie_soldee(
+                        creancier=seizure.get("creditor_name"),
+                        retenu=deduction,
+                        montant_total=seizure.get("montant_total"),
                     ),
                 }
             )

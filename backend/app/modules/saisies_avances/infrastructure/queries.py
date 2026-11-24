@@ -197,6 +197,44 @@ def list_advances_with_employee_and_remaining_to_pay(
     return advances
 
 
+def retenues_des_autres_bulletins(
+    seizure_ids: List[str], sauf_bulletin: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Les retenues déjà faites pour ces saisies (`salary_seizure_deductions`),
+    sans celles du bulletin `sauf_bulletin` : celui qu'on recalcule refait la
+    sienne. Chaque ligne : seizure_id, deducted_amount, year, month."""
+    if not seizure_ids:
+        return []
+    q = (
+        supabase.table("salary_seizure_deductions")
+        .select("seizure_id, deducted_amount, year, month, payslip_id")
+        .in_("seizure_id", list(seizure_ids))
+    )
+    if sauf_bulletin:
+        q = q.neq("payslip_id", sauf_bulletin)
+    r = q.execute()
+    return list((r.data if r else None) or [])
+
+
+def totaliser_les_retenues(lignes: List[Dict[str, Any]]) -> Dict[str, Decimal]:
+    """Le total retenu par saisie. Une saisie sans retenue n'y est pas."""
+    totaux: Dict[str, Decimal] = {}
+    for ligne in lignes:
+        cle = str(ligne.get("seizure_id"))
+        totaux[cle] = totaux.get(cle, Decimal("0")) + Decimal(
+            str(ligne.get("deducted_amount") or 0)
+        )
+    return totaux
+
+
+def total_retenu_par_saisie(
+    seizure_ids: List[str], sauf_bulletin: Optional[str] = None
+) -> Dict[str, Decimal]:
+    """Ce qui a déjà été retenu pour chaque saisie, tous bulletins confondus,
+    sans le bulletin `sauf_bulletin`."""
+    return totaliser_les_retenues(retenues_des_autres_bulletins(seizure_ids, sauf_bulletin))
+
+
 def get_seizures_for_period(
     employee_id: str, year: int, month: int
 ) -> List[Dict[str, Any]]:

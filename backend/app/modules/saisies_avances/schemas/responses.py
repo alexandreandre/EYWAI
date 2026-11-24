@@ -41,6 +41,11 @@ class SalarySeizure(BaseModel):
     document_url: Optional[str] = None
     notes: Optional[str] = None
     dependents_count: int = 0
+    # Montant total de la dette, ce qui en a déjà été retenu sur les bulletins
+    # et ce qui reste dû. Les trois vides sans montant total.
+    montant_total: Optional[Montant] = None
+    total_retenu: Optional[Montant] = None
+    reste_du: Optional[Montant] = None
     created_at: datetime
     updated_at: datetime
     created_by: Optional[str] = None
