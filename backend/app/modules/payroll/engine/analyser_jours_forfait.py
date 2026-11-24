@@ -87,9 +87,34 @@ def analyser_jours_forfait_du_mois(
     log_payroll_debug(logger, f'INFO: Analyse des jours forfait pour {employee_name} - {mois:02d}/{annee}...')
 
     prevu_data = planned_data_all_months
-    reel_data = reel_forfait_avec_repli_planning_si_sans_pointage(
-        prevu_data, actual_data_all_months, annee=annee, mois=mois
-    )
+    # Repli « sans pointage » mois par mois, comme le générateur des heures : une
+    # période de paie à cheval prend des jours du mois d'avant, qui sans repli
+    # restaient sans réel et devenaient des absences injustifiées (24/11).
+    mois_a_couvrir = {(annee, mois)} | {
+        (j.get("annee", annee), j["mois"]) for j in prevu_data if j.get("mois")
+    }
+    # Un réel resté en heures (import de relevés d'avant le 24/11) sur un jour
+    # prévu travaillé dit un jour travaillé : ramené à 1, il ne devient jamais une
+    # absence injustifiée. Sur un arrêt, un congé ou un jour chômé, il reste tel
+    # quel : à 1, le jour non travaillé disparaîtrait du bulletin.
+    type_prevu = {
+        (j.get("annee", annee), j.get("mois"), j.get("jour")): j.get("type")
+        for j in prevu_data
+    }
+    reel_data = [
+        {**j, "heures_faites": 1}
+        if isinstance(j.get("heures_faites"), (int, float))
+        and not isinstance(j.get("heures_faites"), bool)
+        and j["heures_faites"] > 1
+        and type_prevu.get((j.get("annee", annee), j.get("mois"), j.get("jour")), "travail")
+        == "travail"
+        else j
+        for j in actual_data_all_months
+    ]
+    for annee_m, mois_m in sorted(mois_a_couvrir):
+        reel_data = reel_forfait_avec_repli_planning_si_sans_pointage(
+            prevu_data, reel_data, annee=annee_m, mois=mois_m
+        )
     log_payroll_debug(logger, f'DEBUG: nb_jours_prevus={len(prevu_data)}, nb_jours_reels={len(reel_data)}')
 
     # Debug : Afficher la répartition par mois

@@ -33,6 +33,8 @@ LIBELLE_SEUL_PERMIS: dict[tuple[str, str], str] = {
     ("modules/payslips/infrastructure/providers.py", "generate"): STATUT_EFFECTIF,
     ("modules/payslips/infrastructure/providers.py", "generate_en_bac_a_sable"): STATUT_EFFECTIF,
     ("modules/schedules/application/badgeuse_import.py", "import_actual_hours_from_badgeuse"): STATUT_EFFECTIF,
+    ("modules/schedules/application/timesheet_import/commit_service.py", "_upsert_employees_for_month"): STATUT_EFFECTIF,
+    ("modules/schedules/application/timesheet_import/commit_service.py", "_au_forfait_par_statut"): STATUT_EFFECTIF,
     ("modules/schedules/application/commands.py", "update_planned_calendar"): STATUT_EFFECTIF,
     ("modules/schedules/application/commands.py", "update_actual_hours"): STATUT_EFFECTIF,
     ("modules/schedules/application/commands.py", "calculate_payroll_events"): STATUT_EFFECTIF,
@@ -41,10 +43,6 @@ LIBELLE_SEUL_PERMIS: dict[tuple[str, str], str] = {
     ("modules/schedules/domain/rules.py", "normalize_actual_hours_for_forfait_jour"): STATUT_EFFECTIF,
     ("modules/payroll/documents/payslip_generator.py", "process_payslip_generation"): (
         "générateur des heures : un salarié au forfait n'y passe jamais (aiguillage sur la case)"
-    ),
-    ("modules/schedules/application/calendar_generation.py", "_generate"): (
-        "volontaire au 17/11 : les calendriers des forfaits sont en heures (7 h) et le moteur "
-        "du forfait les lit ainsi ; passer à 1 se vérifie d'abord au bac à sable"
     ),
     ("modules/absences/application/commands.py", "create_absence_request"): (
         "décision en attente (17/11) : refuser la demi-journée au forfait serait un blocage nouveau"

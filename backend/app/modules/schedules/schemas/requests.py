@@ -21,7 +21,8 @@ class PlannedCalendarEntry(BaseModel):
     Note sur heures_prevues :
     - Pour forfait jour : 1 = jour travaillé, 0/null = jour non travaillé
     - Pour non forfait jour : nombre d'heures (ex: 8, 7.5)
-    Le forfait jour est déterminé par employees.statut (contient "forfait jour").
+    Le forfait jour est dit par la case employees.is_forfait_jour (le libellé
+    du statut en repli si elle est vide).
     """
 
     # Les métadonnées d'absence (arret_type, subrogation_active,
