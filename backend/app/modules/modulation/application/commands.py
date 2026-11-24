@@ -44,6 +44,25 @@ def _validate_settings_coherence(payload: dict[str, Any]) -> None:
         )
 
 
+def _refuser_si_salaries_toujours_au_compteur(company_id: str) -> None:
+    """Couper le compteur rendrait payées, sans le dire, les heures sup des
+    salariés dont la fiche dit « toujours au compteur »."""
+    nombre = sum(
+        1
+        for regle in repo.list_hs_routing_overrides(company_id, sans_partis=True).values()
+        if regle == "account_all"
+    )
+    if nombre:
+        qui = "1 salarié a" if nombre == 1 else f"{nombre} salariés ont"
+        raise ValueError(
+            f"{qui} ses heures sup « toujours au compteur » (réglage de la fiche) : "
+            "remettez la règle de la société sur sa fiche avant de couper le compteur."
+            if nombre == 1
+            else f"{qui} leurs heures sup « toujours au compteur » (réglage de leur fiche) : "
+            "remettez la règle de la société sur leur fiche avant de couper le compteur."
+        )
+
+
 def update_modulation_settings(
     company_id: str, payload: dict[str, Any]
 ) -> dict[str, Any]:
@@ -61,6 +80,8 @@ def update_modulation_settings(
             **filtered,
         }
         _validate_settings_coherence(merged)
+        if existing.hour_account_enabled and merged.get("hour_account_enabled") is False:
+            _refuser_si_salaries_toujours_au_compteur(company_id)
     if "cycle_start_week_iso" in filtered and hasattr(
         filtered["cycle_start_week_iso"], "isoformat"
     ):

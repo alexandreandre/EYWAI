@@ -21,7 +21,8 @@ export function etatInterrupteurCompteur(
   reglage: Pick<
     ModulationSettings,
     'hour_account_enabled' | 'recovery_absence_enabled' | 'hs_routing_policy'
-  >,
+  > &
+    Partial<Pick<ModulationSettings, 'salaries_toujours_au_compteur'>>,
 ): EtatInterrupteurCompteur {
   const allume = Boolean(reglage.hour_account_enabled && reglage.recovery_absence_enabled);
   if (reglage.hour_account_enabled && reglage.hs_routing_policy !== 'pay_all') {
@@ -30,6 +31,18 @@ export function etatInterrupteurCompteur(
       modifiable: false,
       explication:
         'Toujours tenu : les heures sup vont au compteur. Pour le couper, choisissez d’abord « Payées au bulletin ».',
+    };
+  }
+  const auCompteur = reglage.salaries_toujours_au_compteur ?? 0;
+  if (reglage.hour_account_enabled && auCompteur > 0) {
+    // Couper rendrait payées, sans le dire, les heures de ces salariés.
+    return {
+      allume: true,
+      modifiable: false,
+      explication:
+        auCompteur === 1
+          ? 'Toujours tenu : 1 salarié a ses heures sup « toujours au compteur » (réglage de sa fiche, onglet « Primes et autres »). Remettez-le à la règle de la société pour couper le compteur.'
+          : `Toujours tenu : ${auCompteur} salariés ont leurs heures sup « toujours au compteur » (réglage de leur fiche, onglet « Primes et autres »). Remettez-les à la règle de la société pour couper le compteur.`,
     };
   }
   return {

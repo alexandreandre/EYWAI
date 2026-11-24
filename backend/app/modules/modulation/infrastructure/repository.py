@@ -91,13 +91,23 @@ def _regle_lue(valeur: Any) -> str | None:
     return valeur if valeur in REGLES_DU_SALARIE else None
 
 
+class RegleHeuresSupIndisponible(RuntimeError):
+    """La colonne `employees.hs_routing_override` n'existe pas encore en base."""
+
+
+def _colonne_absente(exc: Exception) -> bool:
+    """Colonne inconnue de Postgres (42703) ou du cache de PostgREST (PGRST204) :
+    le code est déployé avant la migration. Toute autre erreur doit remonter."""
+    return str(getattr(exc, "code", "") or "") in ("42703", "PGRST204")
+
+
 def get_hs_routing_override(employee_id: str) -> str | None:
     """La règle des heures sup propre au salarié (« toujours payées » ou
     « toujours au compteur ») ; None : il suit la règle de la société.
 
-    Lue au bulletin : une lecture impossible (colonne pas encore créée, base
-    indisponible) ne fait pas tomber la paie, elle garde la règle de la société
-    — le comportement d'avant le réglage — et le journal le dit."""
+    Colonne pas encore créée (code déployé avant la migration) : la règle de
+    la société, comme avant le réglage, et le journal le dit. Toute autre
+    erreur remonte : un bulletin ne se calcule pas sur une règle devinée."""
     try:
         resp = (
             supabase.table("employees")
@@ -106,31 +116,36 @@ def get_hs_routing_override(employee_id: str) -> str | None:
             .limit(1)
             .execute()
         )
-    except Exception:
+    except Exception as exc:
+        if not _colonne_absente(exc):
+            raise
         logger.warning(
-            "Règle des heures sup du salarié illisible (%s) : règle de la société",
+            "Règle des heures sup du salarié : colonne absente (%s), règle de la société",
             employee_id,
-            exc_info=True,
         )
         return None
     rows = resp.data or []
     return _regle_lue(rows[0].get("hs_routing_override")) if rows else None
 
 
-def list_hs_routing_overrides(company_id: str) -> dict[str, str]:
-    """Les salariés de la société qui suivent leur propre règle d'heures sup."""
+def list_hs_routing_overrides(company_id: str, *, sans_partis: bool = False) -> dict[str, str]:
+    """Les salariés de la société qui suivent leur propre règle d'heures sup
+    (`sans_partis` : ceux qui n'ont pas quitté la société)."""
     try:
-        resp = (
+        requete = (
             supabase.table("employees")
             .select("id, hs_routing_override")
             .eq("company_id", company_id)
-            .execute()
         )
-    except Exception:
+        if sans_partis:
+            requete = requete.neq("employment_status", "parti")
+        resp = requete.execute()
+    except Exception as exc:
+        if not _colonne_absente(exc):
+            raise
         logger.warning(
-            "Règles des heures sup des salariés illisibles (%s) : règle de la société",
+            "Règles des heures sup des salariés : colonne absente (%s), règle de la société",
             company_id,
-            exc_info=True,
         )
         return {}
     out: dict[str, str] = {}
@@ -146,13 +161,18 @@ def set_hs_routing_override(company_id: str, employee_id: str, regle: str | None
     salarié de cette société ne porte cet identifiant."""
     if regle is not None and regle not in REGLES_DU_SALARIE:
         raise ValueError(f"Règle inconnue : {regle}")
-    resp = (
-        supabase.table("employees")
-        .update({"hs_routing_override": regle})
-        .eq("id", employee_id)
-        .eq("company_id", company_id)
-        .execute()
-    )
+    try:
+        resp = (
+            supabase.table("employees")
+            .update({"hs_routing_override": regle})
+            .eq("id", employee_id)
+            .eq("company_id", company_id)
+            .execute()
+        )
+    except Exception as exc:
+        if _colonne_absente(exc):
+            raise RegleHeuresSupIndisponible() from exc
+        raise
     return bool(resp.data or [])
 
 

@@ -475,3 +475,23 @@ def test_la_garde_d_entree_des_corrections_refuse_aussi(base):
 
     with pytest.raises(PayslipBadRequestError):
         commands.salarie_generable(SAL, AN, MOIS)
+
+
+@pytest.mark.regle_heures_sup_en_base
+@pytest.mark.parametrize(
+    ("regle", "payees", "credits"),
+    [
+        (None, 5.0, [12.5]),  # franchise de 10 h : 10 h au compteur (12,5 h de repos), 5 h payées
+        ("pay_all", 15.0, []),  # alternant : toujours payées, rien au compteur
+        ("account_all", 0.0, [18.75]),  # toujours au compteur : 15 h × 1,25
+    ],
+    ids=["regle-de-la-societe", "toujours-payees", "toujours-au-compteur"],
+)
+def test_la_regle_du_salarie_lue_sur_sa_fiche(base, regle, payees, credits):
+    """La génération lit la règle sur la fiche du salarié (table employees)."""
+    base.tables["employees"] = [{**SALARIE, "hs_routing_override": regle}]
+
+    _generer()
+
+    assert _etat(base)["bulletin"]["heures_sup_payees"] == payees
+    assert _etat(base)["credits_modulation"] == credits

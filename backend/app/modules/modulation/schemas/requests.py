@@ -36,6 +36,8 @@ class ModulationSettingsResponse(BaseModel):
     )
     #: Salariés qui suivent leur propre règle d'heures sup (fiche du salarié).
     salaries_regle_propre: int = 0
+    #: Dont « toujours au compteur » : le compteur ne se coupe pas sans eux.
+    salaries_toujours_au_compteur: int = 0
 
 
 class ModulationSettingsUpdate(BaseModel):

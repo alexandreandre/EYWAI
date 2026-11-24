@@ -572,6 +572,13 @@ def put_regle_heures_sup(
 
     cid = _resolve_company_id(company_id, current_user)
     _require_rh_on_employee(current_user, cid, employee_id)
-    if not repo.set_hs_routing_override(cid, employee_id, body.regle):
+    try:
+        pose = repo.set_hs_routing_override(cid, employee_id, body.regle)
+    except repo.RegleHeuresSupIndisponible:
+        raise HTTPException(
+            status_code=409,
+            detail="Ce réglage n'est pas encore disponible : la base n'a pas été mise à jour. Rien n'a été changé.",
+        )
+    if not pose:
         raise HTTPException(status_code=404, detail="Salarié introuvable dans cette société.")
     return queries.regle_heures_sup_du_salarie(cid, employee_id)

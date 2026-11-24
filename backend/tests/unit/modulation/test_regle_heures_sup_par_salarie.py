@@ -16,7 +16,7 @@ from app.modules.modulation.application import payroll_hook as hook
 from app.modules.modulation.domain.entities import ModulationSettings
 from app.modules.modulation.infrastructure import repository as repo
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.regle_heures_sup_en_base]
 
 
 def _calendrier(*heures: float) -> list[dict]:
@@ -156,14 +156,28 @@ def test_le_pied_du_bulletin_suit_la_regle_du_salarie(compteur):
 # --- Lecture du réglage ---
 
 
-def test_une_lecture_ratee_garde_la_regle_de_la_societe(monkeypatch, caplog):
-    """Colonne absente (code déployé avant la migration) ou base indisponible :
-    la paie ne tombe pas, elle suit la règle de la société, et le journal le dit."""
-    monkeypatch.setattr(repo.supabase, "table", Mock(side_effect=RuntimeError("colonne absente")))
+def test_colonne_absente_la_paie_garde_la_regle_de_la_societe(monkeypatch, caplog):
+    """Code déployé avant la migration : la paie ne tombe pas, elle suit la règle
+    de la société (comme avant), et le journal le dit ; la pose est refusée."""
+    from postgrest.exceptions import APIError
+
+    absente = APIError({"message": "column does not exist", "code": "42703", "hint": None, "details": None})
+    monkeypatch.setattr(repo.supabase, "table", Mock(side_effect=absente))
     with caplog.at_level("WARNING"):
         assert repo.get_hs_routing_override("emp-1") is None
         assert repo.list_hs_routing_overrides("soc-1") == {}
-    assert "heures sup" in caplog.text
+    assert "colonne absente" in caplog.text
+    with pytest.raises(repo.RegleHeuresSupIndisponible):
+        repo.set_hs_routing_override("soc-1", "emp-1", "pay_all")
+
+
+def test_une_autre_panne_remonte(monkeypatch):
+    """Base indisponible : le bulletin ne se calcule pas sur une règle devinée."""
+    monkeypatch.setattr(repo.supabase, "table", Mock(side_effect=RuntimeError("base indisponible")))
+    with pytest.raises(RuntimeError):
+        repo.get_hs_routing_override("emp-1")
+    with pytest.raises(RuntimeError):
+        repo.list_hs_routing_overrides("soc-1")
 
 
 @pytest.mark.parametrize("valeur", [None, "pay_all", "account_all", "franchise", "n'importe quoi"])
@@ -239,6 +253,7 @@ def test_alerte_de_depart_suit_la_regle_du_salarie(monkeypatch):
 
 _SOCIETE = "aaaaaaaa-1111-1111-1111-111111111111"
 _SALARIE = "bbbbbbbb-2222-2222-2222-222222222222"
+_AILLEURS = "cccccccc-3333-3333-3333-333333333333"
 
 
 def _client(role: str):
@@ -269,14 +284,23 @@ def _client(role: str):
 
 @pytest.fixture
 def base_salarie(monkeypatch):
+    from fastapi import HTTPException
+
     from app.modules.modulation.api import router as routes
     from tests.unit.base_en_memoire import BaseEnMemoire
 
     base = BaseEnMemoire(
         {
             "employees": [
-                {"id": _SALARIE, "company_id": _SOCIETE, "hs_routing_override": None},
-                {"id": "autre", "company_id": _SOCIETE, "hs_routing_override": "pay_all"},
+                {"id": _SALARIE, "company_id": _SOCIETE, "hs_routing_override": None,
+                 "employment_status": "actif"},
+                {"id": "autre", "company_id": _SOCIETE, "hs_routing_override": "pay_all",
+                 "employment_status": "actif"},
+                # Parti : ne compte plus sur l'écran de la société.
+                {"id": "parti", "company_id": _SOCIETE, "hs_routing_override": "account_all",
+                 "employment_status": "parti"},
+                {"id": _AILLEURS, "company_id": "autre-societe", "hs_routing_override": None,
+                 "employment_status": "actif"},
             ],
             "company_modulation_settings": [
                 {"company_id": _SOCIETE, "hour_account_enabled": True, "hs_routing_policy": "account_all"}
@@ -286,9 +310,11 @@ def base_salarie(monkeypatch):
     base.brancher(monkeypatch)
     # Sur la classe : un attribut posé sur l'instance y resterait après le test
     # (monkeypatch y remet la méthode liée) et masquerait les doublures des suivants.
-    monkeypatch.setattr(
-        type(routes.access_control_service), "assert_employee_in_company", lambda *_a: None
-    )
+    def perimetre(_self, societe, salarie):
+        if base.lignes("employees", id=salarie, company_id=societe) == []:
+            raise HTTPException(status_code=404, detail="Ressource introuvable")
+
+    monkeypatch.setattr(type(routes.access_control_service), "assert_employee_in_company", perimetre)
     return base
 
 
@@ -301,7 +327,8 @@ def test_la_fiche_lit_et_pose_la_regle_du_salarie(base_salarie):
     r = client.put(url, json={"regle": "pay_all"})
     assert r.status_code == 200 and r.json()["regle"] == "pay_all"
     assert base_salarie.ligne("employees", id=_SALARIE)["hs_routing_override"] == "pay_all"
-    assert client.get("/api/modulation/settings").json()["salaries_regle_propre"] == 2
+    reglages = client.get("/api/modulation/settings").json()
+    assert (reglages["salaries_regle_propre"], reglages["salaries_toujours_au_compteur"]) == (2, 0)
     r = client.put(url, json={"regle": None})
     assert r.json()["regle"] is None
     assert base_salarie.ligne("employees", id=_SALARIE)["hs_routing_override"] is None
@@ -312,3 +339,31 @@ def test_seule_la_rh_pose_la_regle(base_salarie):
     url = f"/api/modulation/employees/{_SALARIE}/regle-heures-sup"
     assert _client("collaborateur").put(url, json={"regle": "pay_all"}).status_code == 403
     assert base_salarie.ligne("employees", id=_SALARIE)["hs_routing_override"] is None
+
+
+def test_le_salarie_d_une_autre_societe_n_est_pas_touche(base_salarie):
+    url = f"/api/modulation/employees/{_AILLEURS}/regle-heures-sup"
+    assert _client("rh").put(url, json={"regle": "pay_all"}).status_code == 404
+    assert base_salarie.ligne("employees", id=_AILLEURS)["hs_routing_override"] is None
+
+
+def test_le_compteur_ne_se_coupe_pas_sous_un_salarie_toujours_au_compteur(base_salarie):
+    client = _client("rh")
+    base_salarie.ligne("company_modulation_settings", company_id=_SOCIETE)["hs_routing_policy"] = "pay_all"
+    client.put(f"/api/modulation/employees/{_SALARIE}/regle-heures-sup", json={"regle": "account_all"})
+    assert client.get("/api/modulation/settings").json()["salaries_toujours_au_compteur"] == 1
+    r = client.patch("/api/modulation/settings", json={"hour_account_enabled": False})
+    assert r.status_code == 400 and "toujours au compteur" in r.json()["detail"]
+    assert base_salarie.ligne("company_modulation_settings", company_id=_SOCIETE)["hour_account_enabled"] is True
+    # Remis à la règle de la société : le compteur se coupe.
+    client.put(f"/api/modulation/employees/{_SALARIE}/regle-heures-sup", json={"regle": None})
+    assert client.patch("/api/modulation/settings", json={"hour_account_enabled": False}).status_code == 200
+
+
+def test_avant_la_migration_la_pose_dit_pourquoi(base_salarie, monkeypatch):
+    monkeypatch.setattr(
+        repo, "set_hs_routing_override",
+        Mock(side_effect=repo.RegleHeuresSupIndisponible()),
+    )
+    r = _client("rh").put(f"/api/modulation/employees/{_SALARIE}/regle-heures-sup", json={"regle": "pay_all"})
+    assert r.status_code == 409 and "pas encore disponible" in r.json()["detail"]

@@ -19,7 +19,7 @@ describe('règle des heures sup du salarié', () => {
     expect(phraseDuChoix('societe', 'franchise')).toBe(
       'Comme les autres salariés : les premières heures sup du mois au compteur, le reste payé.',
     );
-    expect(phraseDuChoix('pay_all', 'account_all')).toMatch(/toujours payées/);
+    expect(phraseDuChoix('pay_all', 'account_all')).toMatch(/payées sur son bulletin chaque mois/);
     expect(phraseDuChoix('account_all', 'pay_all')).toMatch(/toujours à son compteur/);
   });
 

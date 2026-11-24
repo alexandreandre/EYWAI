@@ -780,10 +780,13 @@ export default function EmployeeDetail() {
                 canEdit={canEditEmployeePaySettings}
                 onEmployeeUpdated={(updated) => updateEmployeeCache(employeeId, updated)}
               />
-              <EmployeeRegleHeuresSupCard
-                employeeId={employeeId}
-                canEdit={canEditEmployeePaySettings}
-              />
+              {/* Le forfait jours n'a pas d'heures sup : le choix n'aurait aucun effet. */}
+              {!employee.is_forfait_jour && (
+                <EmployeeRegleHeuresSupCard
+                  employeeId={employeeId}
+                  canEdit={canEditEmployeePaySettings}
+                />
+              )}
               <EmployeePasSettingsCard
                 employeeId={employeeId}
                 employee={employee}

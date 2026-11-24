@@ -21,7 +21,7 @@ const REGLE_DE_LA_SOCIETE: Record<HsRoutingPolicy, string> = {
 /** La phrase qui dit, sous le choix, ce qui arrive aux heures sup du salarié. */
 export function phraseDuChoix(choix: ChoixRegleHeuresSup, regleSociete: HsRoutingPolicy): string {
   if (choix === 'pay_all') {
-    return 'Ses heures sup sont toujours payées sur son bulletin ; rien ne va à son compteur (alternants, par exemple).';
+    return 'Ses heures sup sont payées sur son bulletin chaque mois, quelle que soit la règle de la société (alternants, par exemple).';
   }
   if (choix === 'account_all') {
     return 'Ses heures sup vont toujours à son compteur de récupération (au-delà du plafond, elles sont payées).';

@@ -26,10 +26,15 @@ export interface ModulationSettings {
   hs_routing_policy: HsRoutingPolicy;
   /** Salariés qui suivent leur propre règle d'heures sup (posée sur leur fiche). */
   salaries_regle_propre?: number;
+  /** Dont « toujours au compteur » : le compteur ne se coupe pas sans eux. */
+  salaries_toujours_au_compteur?: number;
 }
 
 export type ModulationSettingsUpdate = Partial<
-  Omit<ModulationSettings, 'company_id' | 'configured' | 'salaries_regle_propre'>
+  Omit<
+    ModulationSettings,
+    'company_id' | 'configured' | 'salaries_regle_propre' | 'salaries_toujours_au_compteur'
+  >
 >;
 
 /** Règle d'heures sup propre au salarié ; null : celle de la société. */
