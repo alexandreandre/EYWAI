@@ -69,7 +69,8 @@ def adresse_publique(ip: IP) -> bool:
         if portee is not None and not adresse_publique(portee):
             return False
     return bool(ip.is_global) and not (
-        ip.is_multicast
+        getattr(ip, "is_site_local", False)  # fec0::/10, obsolète mais routable en interne
+        or ip.is_multicast
         or ip.is_reserved
         or ip.is_private
         or ip.is_loopback

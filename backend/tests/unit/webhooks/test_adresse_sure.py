@@ -89,6 +89,7 @@ def test_un_hote_introuvable_est_refuse(dns):
         "::ffff:169.254.169.254",
         "64:ff9b::a9fe:a9fe",  # NAT64 vers 169.254.169.254
         "2002:a9fe:a9fe::1",   # 6to4 vers 169.254.169.254
+        "fec0::1",             # site-local IPv6 (obsolète)
     ],
 )
 def test_une_adresse_interne_est_refusee(dns, ip):
@@ -126,10 +127,17 @@ def test_la_resolution_reelle_est_branchee_sur_getaddrinfo(monkeypatch):
 # --- l'envoi ----------------------------------------------------------------------------------
 
 
-def _client_double(status=200, text="ok"):
+def _client_double(status=200, blocs=(b"ok",)):
+    """httpx.Client doublé : `stream("POST", ...)` rend une réponse lue par blocs."""
     client = MagicMock()
-    client.__enter__.return_value.post.return_value = MagicMock(status_code=status, text=text)
+    reponse = MagicMock(status_code=status)
+    reponse.iter_bytes.return_value = iter(blocs)
+    client.__enter__.return_value.stream.return_value.__enter__.return_value = reponse
     return client
+
+
+def _appel(client, rang=0):
+    return client.__enter__.return_value.stream.call_args_list[rang]
 
 
 def test_a_l_envoi_une_adresse_interne_ne_part_pas(dns):
@@ -154,8 +162,8 @@ def test_a_l_envoi_la_connexion_part_sur_l_adresse_verifiee_sans_redirection(dns
     options = fabrique.call_args.kwargs
     assert options["follow_redirects"] is False
     assert options["trust_env"] is False
-    appel = client.__enter__.return_value.post.call_args
-    assert appel.args[0] == f"https://{PUBLIQUE}:8443/martine?x=1"
+    appel = _appel(client)
+    assert appel.args == ("POST", f"https://{PUBLIQUE}:8443/martine?x=1")
     assert appel.kwargs["headers"]["Host"] == "hooks.exemple.fr:8443"
     assert appel.kwargs["extensions"] == {"sni_hostname": "hooks.exemple.fr"}
 
@@ -165,9 +173,37 @@ def test_a_l_envoi_une_ipv6_publique_est_entre_crochets(dns):
     client = _client_double()
     with patch("app.modules.webhooks.infrastructure.repository.httpx.Client", return_value=client):
         WebhookRepository()._post_webhook({"url": "https://v6.exemple.fr/h"}, "x.test", "c", {})
-    appel = client.__enter__.return_value.post.call_args
-    assert appel.args[0] == "https://[2606:4700::1111]/h"
+    appel = _appel(client)
+    assert appel.args == ("POST", "https://[2606:4700::1111]/h")
     assert appel.kwargs["headers"]["Host"] == "v6.exemple.fr"
+
+
+def test_l_ipv4_passe_d_abord_et_l_adresse_suivante_est_tentee_si_la_connexion_echoue(dns):
+    import httpx
+
+    dns["double.exemple.fr"] = ["2606:4700::1111", PUBLIQUE]
+    client = _client_double()
+    interieur = client.__enter__.return_value
+    reussite = interieur.stream.return_value
+    interieur.stream.side_effect = [httpx.ConnectError("injoignable"), reussite]
+    with patch("app.modules.webhooks.infrastructure.repository.httpx.Client", return_value=client):
+        status, _, _, _ = WebhookRepository()._post_webhook(
+            {"url": "https://double.exemple.fr/h"}, "x.test", "c", {}
+        )
+    assert status == 200
+    assert _appel(client, 0).args[1] == f"https://{PUBLIQUE}/h"
+    assert _appel(client, 1).args[1] == "https://[2606:4700::1111]/h"
+
+
+def test_la_reponse_lue_est_bornee(dns):
+    dns["bavard.exemple.fr"] = [PUBLIQUE]
+    blocs = [b"x" * 4096] * 1000  # 4 Mo annoncés : on s'arrête bien avant
+    client = _client_double(blocs=blocs)
+    with patch("app.modules.webhooks.infrastructure.repository.httpx.Client", return_value=client):
+        _, texte, _, _ = WebhookRepository()._post_webhook(
+            {"url": "https://bavard.exemple.fr/h"}, "x.test", "c", {}
+        )
+    assert len(texte) <= 8000
 
 
 def test_un_evenement_vers_une_adresse_interne_est_journalise_sans_post(dns):
