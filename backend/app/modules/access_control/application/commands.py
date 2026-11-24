@@ -147,9 +147,15 @@ def _refuser_ses_propres_permissions(current_user: "User", user_id: str) -> None
 
 
 def _assert_can_manage_user_permissions(
-    current_user: "User", user_id: str, company_id: str
+    current_user: "User", user_id: str, company_id: str, *, ecriture: bool = False
 ) -> None:
-    """Vérifie que l'appelant peut modifier les permissions de l'utilisateur cible."""
+    """Vérifie que l'appelant peut voir (ou, en écriture, modifier) les permissions de la cible.
+
+    En écriture, hors super-admin (relecture du 24/11) : la cible a un rôle
+    strictement inférieur (pas un pair), un accès actif, et ne détient aucune
+    permission d'un niveau au-dessus de l'appelant (un « custom » doté de droits
+    admin par un admin n'est pas géré par une RH).
+    """
     access = permission_catalog_reader.get_user_company_access(user_id, company_id)
     if not access:
         raise HTTPException(
@@ -171,6 +177,31 @@ def _assert_can_manage_user_permissions(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Vous n'êtes pas autorisé à modifier les permissions de cet utilisateur",
             )
+        if ecriture:
+            role_appelant = current_user.get_role_in_company(company_id) or ""
+            refus = HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Vous n'êtes pas autorisé à modifier les permissions de cet utilisateur",
+            )
+            if target_user_role not in users_rules.get_editable_roles(role_appelant):
+                raise refus
+            if access.get("is_active") is False:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="L'accès de cette personne est coupé : seul un administrateur de la plateforme peut y toucher.",
+                )
+            deja = sorted(
+                str(p)
+                for p in permission_catalog_reader.get_user_permission_ids(user_id, company_id)
+            )
+            if deja:
+                niveaux = lire_niveaux_des_permissions(deja)
+                if any(
+                    pid in niveaux
+                    and not users_rules.niveau_de_permission_permis(role_appelant, niveaux[pid])
+                    for pid in deja
+                ):
+                    raise refus
 
 
 def replace_user_permissions(
@@ -189,7 +220,7 @@ def replace_user_permissions(
     from app.modules.users.infrastructure.repository import user_permission_repository
 
     _refuser_ses_propres_permissions(current_user, user_id)
-    _assert_can_manage_user_permissions(current_user, user_id, company_id)
+    _assert_can_manage_user_permissions(current_user, user_id, company_id, ecriture=True)
     grantor = str(current_user.id)
 
     if grants is not None:
@@ -253,7 +284,7 @@ def grant_user_permissions(
     from app.modules.users.infrastructure.repository import user_permission_repository
 
     _refuser_ses_propres_permissions(current_user, user_id)
-    _assert_can_manage_user_permissions(current_user, user_id, company_id)
+    _assert_can_manage_user_permissions(current_user, user_id, company_id, ecriture=True)
     _verifier_niveau_des_permissions_ajoutees(
         current_user, user_id, company_id, [str(p) for p in (permission_ids or [])]
     )

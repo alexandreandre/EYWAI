@@ -544,6 +544,18 @@ class TestModificationAcces:
         )
         assert r.status_code == 403
 
+    def test_admin_ne_choisit_pas_la_societe_principale_d_autrui(self, appel, base):
+        r = appel(ADMIN_GROUPE, "PATCH", f"/api/users/update-access/{CIBLE}/{CO_A}",
+                  {"is_primary": True})
+        assert r.status_code == 403
+        assert base.find(CIBLE, CO_A)["is_primary"] is False
+
+    def test_acces_coupe_non_modifiable(self, appel, base):
+        base.find(CIBLE, CO_A)["is_active"] = False
+        r = appel(ADMIN_GROUPE, "PATCH", f"/api/users/update-access/{CIBLE}/{CO_A}", {"role": "rh"})
+        assert r.status_code == 403
+        assert base.find(CIBLE, CO_A)["role"] == "collaborateur"
+
     def test_usage_legitime(self, appel, base):
         r = appel(ADMIN_GROUPE, "PATCH", f"/api/users/update-access/{CIBLE}/{CO_A}", {"role": "rh"})
         assert r.status_code == 200, r.text
@@ -593,11 +605,26 @@ class TestPermissions:
         )
         assert r.status_code == 403
 
-    def test_rh_garde_un_droit_admin_deja_donne_par_un_admin(self, appel, base):
+    def test_rh_ne_touche_pas_une_personne_dotee_d_un_droit_admin(self, appel, base):
+        """Relecture du 24/11 : un « custom » doté de droits admin par un admin
+        n'est pas géré par une RH (elle pourrait les lui retirer ou élargir)."""
         base.user_permissions[(CIBLE, CO_A)] = {P_BANQUE}
         r = self._put(appel, RH_A, CIBLE, [P_BANQUE, P_RH])
-        assert r.status_code == 200, r.text
-        assert base.user_permissions[(CIBLE, CO_A)] == {P_BANQUE, P_RH}
+        assert r.status_code == 403
+        vide = self._put(appel, RH_A, CIBLE, [])
+        assert vide.status_code == 403
+        assert base.user_permissions[(CIBLE, CO_A)] == {P_BANQUE}
+
+    def test_un_admin_ne_touche_pas_aux_droits_d_un_autre_admin(self, appel, base):
+        base.user_permissions[(ADMIN2_GROUPE, CO_A)] = {P_RH}
+        r = self._put(appel, ADMIN_GROUPE, ADMIN2_GROUPE, [])
+        assert r.status_code == 403
+        assert base.user_permissions[(ADMIN2_GROUPE, CO_A)] == {P_RH}
+
+    def test_acces_coupe_non_modifiable(self, appel, base):
+        base.find(CIBLE, CO_A)["is_active"] = False
+        r = self._put(appel, RH_A, CIBLE, [P_COLLAB])
+        assert r.status_code == 403
 
     def test_permission_inconnue_refusee(self, appel, base):
         r = self._put(appel, RH_A, CIBLE, [P_INCONNUE])
@@ -666,12 +693,19 @@ class TestDroitsFinsCreationModification:
         assert r.status_code == 403
         assert (CIBLE, CO_A) not in base.user_permissions
 
-    def test_rh_modifie_les_droits_d_un_collaborateur(self, appel, base):
+    def test_rh_ne_modifie_pas_une_personne_dotee_d_un_droit_admin(self, appel, base):
         base.user_permissions[(CIBLE, CO_A)] = {P_BANQUE}  # donné par un admin
         r = appel(RH_A, "PUT", f"/api/users/{CIBLE}/update",
-                  {"company_id": CO_A, "permission_ids": [P_BANQUE, P_RH]})
+                  {"company_id": CO_A, "base_role": "collaborateur", "permission_ids": []})
+        assert r.status_code == 403
+        assert base.user_permissions[(CIBLE, CO_A)] == {P_BANQUE}
+
+    def test_rh_modifie_les_droits_d_un_collaborateur(self, appel, base):
+        base.user_permissions[(CIBLE, CO_A)] = {P_COLLAB}
+        r = appel(RH_A, "PUT", f"/api/users/{CIBLE}/update",
+                  {"company_id": CO_A, "permission_ids": [P_COLLAB, P_RH]})
         assert r.status_code == 200, r.text
-        assert base.user_permissions[(CIBLE, CO_A)] == {P_BANQUE, P_RH}
+        assert base.user_permissions[(CIBLE, CO_A)] == {P_COLLAB, P_RH}
 
 
 class TestModeleDeRole:

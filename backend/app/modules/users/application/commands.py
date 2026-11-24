@@ -141,6 +141,29 @@ def _verifier_droits_donnes(
         )
 
 
+def _verifier_cible_sans_droit_superieur(
+    current_user: Any, user_id: str, company_id: str
+) -> None:
+    """Une personne qui détient une permission au-dessus du niveau de l'appelant
+    n'est pas gérée par lui (ex. un « custom » doté de droits admin par un admin)."""
+    if _est_admin_plateforme(current_user):
+        return
+    perm_repo = get_user_permission_repository()
+    deja = sorted({str(p) for p in perm_repo.get_permission_ids(user_id, company_id)})
+    if not deja:
+        return
+    niveaux = perm_repo.get_required_roles_by_ids(deja)
+    role_appelant = current_user.get_role_in_company(company_id) or ""
+    if any(
+        pid in niveaux
+        and not domain_rules.niveau_de_permission_permis(role_appelant, niveaux[pid])
+        for pid in deja
+    ):
+        raise PermissionError(
+            "Cette personne détient des droits au-dessus des vôtres : seul un supérieur peut la modifier."
+        )
+
+
 def _ouvrir_acces(
     target_user_id: str,
     company_id: str,
@@ -295,6 +318,15 @@ def update_company_access(
             raise PermissionError(
                 "Vous n'avez pas les droits pour modifier l'accès de cette personne"
             )
+        if cible.get("is_active") is False:
+            raise PermissionError(
+                "L'accès de cette personne est coupé : seul un administrateur de la plateforme peut y toucher."
+            )
+        if is_primary is not None:
+            raise PermissionError(
+                "La société principale d'une personne se choisit par elle-même."
+            )
+        _verifier_cible_sans_droit_superieur(current_user, user_id, company_id)
         if role is not None:
             _verifier_role_donnable(current_user, role, company_id)
     update_data = {}
@@ -470,6 +502,11 @@ def update_user_with_permissions(
             raise PermissionError(
                 "Vous n'avez pas les droits pour modifier cet utilisateur"
             )
+        if access.get("is_active") is False:
+            raise PermissionError(
+                "L'accès de cette personne est coupé : seul un administrateur de la plateforme peut y toucher."
+            )
+        _verifier_cible_sans_droit_superieur(current_user, user_id, company_id)
         if data.base_role:
             new_role = data.base_role
             if new_role not in editable_roles:

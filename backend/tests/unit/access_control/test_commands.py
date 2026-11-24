@@ -168,8 +168,12 @@ class TestRequireRhAccessForCompany:
 class TestQuickCreateRoleTemplate:
     """quick_create_role_template(...) — crée un template et associe les permissions."""
 
+    @patch(
+        "app.modules.access_control.application.commands.lire_niveaux_des_permissions",
+        return_value={"perm-1": "rh", "perm-2": None},
+    )
     @patch("app.modules.access_control.application.commands.role_template_repository")
-    def test_creates_template_and_returns_message(self, mock_repo: MagicMock):
+    def test_creates_template_and_returns_message(self, mock_repo: MagicMock, _niveaux):
         """Crée le template via le repo et retourne message, template_id, name."""
         mock_repo.role_template_name_exists.return_value = False
         mock_repo.create_role_template.return_value = "template-id-123"
