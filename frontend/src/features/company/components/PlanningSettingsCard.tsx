@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, Plus, Trash2 } from 'lucide-react';
-import { getCatalog, type CollectiveAgreementCatalog } from '@/api/collectiveAgreements';
 import {
   createShiftType,
   deleteShiftType,
+  getPlanningCollectiveAgreements,
   getPlanningSettings,
   getShiftTypes,
   applyIndustrial3x8Preset,
@@ -39,7 +39,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { getUserErrorMessage } from '@/lib/errorMessages';
 import { queryKeys } from '@/lib/queryKeys';
+import {
+  TITRE_ECHEC_PLANNING,
+  estTypeDeConvention,
+  libelleConventionPlanning,
+  messageListeVide,
+} from '@/features/company/lib/typesDePoste';
 
 const DEFAULT_NIGHT_WINDOWS: NightWindow[] = [
   { start: '22:00', end: '06:00', rate: 0.5 },
@@ -89,12 +96,13 @@ export default function PlanningSettingsCard() {
     enabled: Boolean(activeCompanyId),
   });
 
-  const { data: catalog = [] } = useQuery({
-    queryKey: ['collective-agreements', 'catalog', 'planning'],
-    queryFn: async () => {
-      const res = await getCatalog({ active_only: true });
-      return res.data ?? [];
-    },
+  // Le référentiel du planning, pas le catalogue des conventions de paie : les
+  // identifiants du catalogue étaient refusés en base (clé étrangère), d'où
+  // « L'action n'a pas abouti » en enregistrant la convention (24/11).
+  const { data: conventionsPlanning = [] } = useQuery({
+    queryKey: ['planning', 'collective-agreements'],
+    queryFn: getPlanningCollectiveAgreements,
+    enabled: Boolean(activeCompanyId),
   });
 
   const [ccId, setCcId] = useState<string | null>(null);
@@ -103,10 +111,11 @@ export default function PlanningSettingsCard() {
   const [autoGenerate, setAutoGenerate] = useState(false);
   const [paidBreaksInBase, setPaidBreaksInBase] = useState(false);
   const [draft, setDraft] = useState<ShiftTypeCreatePayload>(emptyShiftTypeDraft());
-  // Le serveur refuse un type de poste tant que la convention du planning
-  // n'est pas ENREGISTRÉE (Lyon, 17/11 : choisie mais pas enregistrée, le
-  // formulaire s'ouvrait et l'ajout échouait sans dire pourquoi).
-  const conventionEnregistree = Boolean(settings?.collective_agreement_id);
+  // Un type de poste appartient à la société : il ne demande plus de convention
+  // (24/11). La convention du planning n'ajoute que des postes partagés.
+  const signalerEchec = (titre: string) => (error: unknown) => {
+    toast({ title: titre, description: getUserErrorMessage(error), variant: 'destructive' });
+  };
 
   useEffect(() => {
     if (!settings) return;
@@ -133,6 +142,7 @@ export default function PlanningSettingsCard() {
       });
       toast({ title: 'Paramètres planning enregistrés' });
     },
+    onError: signalerEchec(TITRE_ECHEC_PLANNING.parametres),
   });
 
   const createType = useMutation({
@@ -144,6 +154,7 @@ export default function PlanningSettingsCard() {
       setDraft(emptyShiftTypeDraft());
       toast({ title: 'Type de poste créé' });
     },
+    onError: signalerEchec(TITRE_ECHEC_PLANNING.creation),
   });
 
   const patchType = useMutation({
@@ -156,8 +167,13 @@ export default function PlanningSettingsCard() {
       // Enregistré en quittant la case : on le dit (guide 1, 17/11).
       toast({ title: 'Type de poste enregistré' });
     },
-    onError: () => {
-      toast({ title: 'Erreur', description: 'Type de poste non enregistré.', variant: 'destructive' });
+    onError: (error) => {
+      // La case garde la valeur tapée : on recharge la liste pour remontrer la
+      // valeur enregistrée (jamais d'état silencieux).
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.planningShiftTypes(activeCompanyId),
+      });
+      signalerEchec(TITRE_ECHEC_PLANNING.modification)(error);
     },
   });
 
@@ -169,6 +185,7 @@ export default function PlanningSettingsCard() {
       });
       toast({ title: 'Type de poste désactivé' });
     },
+    onError: signalerEchec(TITRE_ECHEC_PLANNING.desactivation),
   });
 
   const applyIndustrialPreset = useMutation({
@@ -182,13 +199,7 @@ export default function PlanningSettingsCard() {
         description: `Créés : ${result.created_shift_types.join(', ') || 'aucun'}`,
       });
     },
-    onError: () => {
-      toast({
-        title: 'Erreur',
-        description: 'Vérifiez la CC planning et les codes déjà existants.',
-        variant: 'destructive',
-      });
-    },
+    onError: signalerEchec(TITRE_ECHEC_PLANNING.modele),
   });
 
   const applyTemplate3x8 = () => {
@@ -237,12 +248,12 @@ export default function PlanningSettingsCard() {
         });
         toast({ title: 'Modèle 3×8 appliqué (3 types de poste)' });
       })
-      .catch(() => {
-        toast({
-          title: 'Erreur',
-          description: 'Vérifiez la CC planning et les codes déjà existants.',
-          variant: 'destructive',
+      .catch((error: unknown) => {
+        // Une partie a pu être créée : la liste montre ce qui l'a été.
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.planningShiftTypes(activeCompanyId),
         });
+        signalerEchec(TITRE_ECHEC_PLANNING.modele)(error);
       });
   };
 
@@ -258,13 +269,14 @@ export default function PlanningSettingsCard() {
           Planning équipes
         </CardTitle>
         <CardDescription>
-          Convention collective planning, types de poste (panier, nuit, pause) et options paie.
+          Types de poste de la société (panier, nuit, pause), postes partagés d’une convention et
+          options paie.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>Convention collective (planning)</Label>
+            <Label>Postes partagés d’une convention (facultatif)</Label>
             <Select
               value={ccId ?? '__none__'}
               onValueChange={(v) => setCcId(v === '__none__' ? null : v)}
@@ -275,13 +287,17 @@ export default function PlanningSettingsCard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Non définie</SelectItem>
-                {(catalog as CollectiveAgreementCatalog[]).map((cc) => (
+                {conventionsPlanning.map((cc) => (
                   <SelectItem key={cc.id} value={cc.id}>
-                    {cc.name} ({cc.idcc})
+                    {libelleConventionPlanning(cc)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              Les types de poste créés ici appartiennent à la société. Modifier un poste partagé en
+              crée une copie pour la société seule.
+            </p>
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
@@ -339,7 +355,7 @@ export default function PlanningSettingsCard() {
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-medium">Types de poste</h4>
-            {canEdit && conventionEnregistree && (
+            {canEdit && (
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
@@ -380,7 +396,17 @@ export default function PlanningSettingsCard() {
               <TableBody>
                 {shiftTypes.map((st) => (
                   <TableRow key={st.id}>
-                    <TableCell>{st.code}</TableCell>
+                    <TableCell>
+                      {st.code}
+                      {estTypeDeConvention(st) && (
+                        <span
+                          className="ml-2 text-xs text-muted-foreground"
+                          title="Poste partagé de la convention : le modifier en crée une copie pour la société."
+                        >
+                          (convention)
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell>{st.label}</TableCell>
                     <TableCell>
                       {formatTime(st.default_start)} – {formatTime(st.default_end)}
@@ -458,8 +484,7 @@ export default function PlanningSettingsCard() {
                 {shiftTypes.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={8} className="text-muted-foreground">
-                      Aucun type de poste. Configurez la CC planning puis créez des types
-                      ou appliquez le modèle 3×8.
+                      {messageListeVide()}
                     </TableCell>
                   </TableRow>
                 )}
@@ -468,16 +493,7 @@ export default function PlanningSettingsCard() {
           )}
         </div>
 
-        {canEdit && !conventionEnregistree && (
-          <p className="text-xs text-muted-foreground rounded-md border bg-muted/40 px-3 py-2" data-testid="types-de-poste-sans-convention">
-            Les types de poste (matin, après-midi, nuit, avec leurs pauses et paniers) servent au planning
-            d&apos;équipes et aux règles « Par type de poste » des variables de paie. Pour en ajouter :
-            choisissez la convention collective du planning ci-dessus
-            {ccId ? '' : ' (la convention de la société)'}, puis « Enregistrer les paramètres ».
-          </p>
-        )}
-
-        {canEdit && conventionEnregistree && (
+        {canEdit && (
           <div className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Code</Label>

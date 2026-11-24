@@ -16,6 +16,16 @@ export interface ShiftType {
   night_windows?: NightWindow[];
   premium_rule_code?: string | null;
   is_active?: boolean;
+  /** « societe » : à la société ; « convention » : partagé (le modifier en crée une copie). */
+  origine?: 'societe' | 'convention';
+}
+
+/** Convention du référentiel du planning (seules valeurs acceptées par les paramètres). */
+export interface PlanningCollectiveAgreement {
+  id: string;
+  code: string;
+  label: string;
+  idcc?: string | null;
 }
 
 export interface NightWindow {
@@ -355,6 +365,13 @@ export async function duplicateWeek(
 
 export async function getShiftTypes(): Promise<ShiftType[]> {
   const { data } = await apiClient.get<ShiftType[]>('/api/planning/shift-types');
+  return data;
+}
+
+export async function getPlanningCollectiveAgreements(): Promise<PlanningCollectiveAgreement[]> {
+  const { data } = await apiClient.get<PlanningCollectiveAgreement[]>(
+    '/api/planning/collective-agreements',
+  );
   return data;
 }
 
