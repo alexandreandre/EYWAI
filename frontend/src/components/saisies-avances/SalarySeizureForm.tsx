@@ -13,7 +13,7 @@ import { Loader2 } from "lucide-react";
 import { createSalarySeizure } from '@/api/saisiesAvances';
 import type { SalarySeizureCreate } from '@/api/saisiesAvances';
 import apiClient from '@/api/apiClient';
-import { personnesACharge } from './seizureFormat';
+import { montantSaisi, personnesACharge } from './seizureFormat';
 
 interface Employee {
   id: string;
@@ -30,6 +30,7 @@ export function SalarySeizureForm({ onClose, onSuccess }: SalarySeizureFormProps
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [montantTotal, setMontantTotal] = useState('');
   const [formData, setFormData] = useState<Partial<SalarySeizureCreate>>({
     type: 'saisie_arret',
     calculation_mode: 'barème_legal',
@@ -58,10 +59,22 @@ export function SalarySeizureForm({ onClose, onSuccess }: SalarySeizureFormProps
       });
       return;
     }
+    const total = montantSaisi(montantTotal);
+    if (total === undefined) {
+      toast({
+        title: "Erreur",
+        description: "Montant total illisible : un montant en euros, positif.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsLoading(true);
     try {
-      await createSalarySeizure(formData as SalarySeizureCreate);
+      await createSalarySeizure({
+        ...(formData as SalarySeizureCreate),
+        ...(total !== null ? { montant_total: total } : {}),
+      });
       toast({
         title: "Succès",
         description: "Saisie créée avec succès.",
@@ -171,7 +184,7 @@ export function SalarySeizureForm({ onClose, onSuccess }: SalarySeizureFormProps
 
             {formData.calculation_mode === 'fixe' && (
               <div>
-                <Label>Montant (€)</Label>
+                <Label>Mensualité (€)</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -192,6 +205,20 @@ export function SalarySeizureForm({ onClose, onSuccess }: SalarySeizureFormProps
                 />
               </div>
             )}
+          </div>
+
+          <div>
+            <Label htmlFor="seizure-total">Montant total de la dette (€)</Label>
+            <Input
+              id="seizure-total"
+              inputMode="decimal"
+              value={montantTotal}
+              onChange={(e) => setMontantTotal(e.target.value)}
+              placeholder="Facultatif"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              La retenue s'arrête seule quand ce montant est atteint. Vide : la saisie court sans fin.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

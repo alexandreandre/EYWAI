@@ -1,5 +1,9 @@
 import { useConfirmation } from '@/hooks/useConfirmation';
-import { libelleMontantSaisie } from '@/components/saisies-avances/seizureFormat';
+import {
+  libelleMontantSaisie,
+  libelleResteDu,
+  libelleStatutSaisie,
+} from '@/components/saisies-avances/seizureFormat';
 // frontend/src/pages/SalarySeizures.tsx
 
 import { RhPageHeader } from '@/components/layout';
@@ -21,12 +25,6 @@ const SEIZURE_TYPE_LABELS: Record<string, string> = {
   'pension_alimentaire': 'Pension alimentaire',
   'atd': 'Avis à tiers détenteur',
   'satd': 'Saisie administrative',
-};
-
-const STATUS_LABELS: Record<SalarySeizureStatus, string> = {
-  'active': 'Active',
-  'suspended': 'Suspendue',
-  'closed': 'Clôturée',
 };
 
 const STATUS_COLORS: Record<SalarySeizureStatus, string> = {
@@ -227,7 +225,7 @@ export default function SalarySeizures() {
                   <TableHead>Employé</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Créancier</TableHead>
-                  <TableHead>Montant/Mode</TableHead>
+                  <TableHead>Mensualité / reste dû</TableHead>
                   <TableHead>Dates</TableHead>
                   <TableHead>Statut</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -244,7 +242,7 @@ export default function SalarySeizures() {
                   filteredSeizures.map((seizure) => (
                     <TableRow key={seizure.id}>
                       <TableCell className="font-medium">
-                        {(seizure as any).employee_name || seizure.employee_id}
+                        {seizure.employee_name || seizure.employee_id}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
@@ -253,7 +251,12 @@ export default function SalarySeizures() {
                       </TableCell>
                       <TableCell>{seizure.creditor_name}</TableCell>
                       <TableCell>
-                        {libelleMontantSaisie(seizure)}
+                        <div>{libelleMontantSaisie(seizure)}</div>
+                        {libelleResteDu(seizure) && (
+                          <div className="text-sm text-muted-foreground">
+                            {libelleResteDu(seizure)}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
@@ -267,7 +270,7 @@ export default function SalarySeizures() {
                       </TableCell>
                       <TableCell>
                         <Badge className={STATUS_COLORS[seizure.status]}>
-                          {STATUS_LABELS[seizure.status]}
+                          {libelleStatutSaisie(seizure)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -334,6 +337,10 @@ export default function SalarySeizures() {
         <SalarySeizureDetail
           seizure={selectedSeizure}
           onClose={() => setSelectedSeizure(null)}
+          onUpdated={(misAJour) => {
+            setSelectedSeizure(misAJour);
+            fetchSeizures();
+          }}
         />
       )}
     </div>

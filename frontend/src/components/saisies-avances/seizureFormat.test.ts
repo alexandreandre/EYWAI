@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { libelleMontantSaisie, libellePersonnesACharge, personnesACharge } from './seizureFormat';
+import {
+  libelleMontantSaisie,
+  libellePersonnesACharge,
+  libelleResteDu,
+  libelleStatutSaisie,
+  modificationDesMontants,
+  montantSaisi,
+  personnesACharge,
+} from './seizureFormat';
 
 describe('libelleMontantSaisie', () => {
   it('formate un montant fixe reçu en texte (les décimaux arrivent en chaîne de Supabase)', () => {
@@ -50,5 +58,87 @@ describe('libellePersonnesACharge', () => {
     expect(libellePersonnesACharge(undefined)).toBe('Aucune');
     expect(libellePersonnesACharge(1)).toBe('1 personne');
     expect(libellePersonnesACharge(3)).toBe('3 personnes');
+  });
+});
+
+describe('montantSaisi', () => {
+  it('lit un montant en euros, virgule ou point, espaces compris', () => {
+    expect(montantSaisi('1 200,50')).toBe(1200.5);
+    expect(montantSaisi('300.25')).toBe(300.25);
+  });
+
+  it('vide : aucun montant', () => {
+    expect(montantSaisi('')).toBeNull();
+    expect(montantSaisi('  ')).toBeNull();
+  });
+
+  it('négatif ou illisible : refusé', () => {
+    expect(montantSaisi('-5')).toBeUndefined();
+    expect(montantSaisi('abc')).toBeUndefined();
+  });
+});
+
+describe('libelleResteDu', () => {
+  it('dit le reste dû sur le total (décimaux reçus en texte compris)', () => {
+    expect(
+      libelleResteDu({ montant_total: '1000' as unknown as number, reste_du: 600 })
+    ).toBe('Reste dû : 600,00 € sur 1 000,00 €');
+  });
+
+  it('dit la dette soldée', () => {
+    expect(libelleResteDu({ montant_total: 1000, reste_du: 0 })).toBe('Soldée (1 000,00 €)');
+  });
+
+  it('sans montant total : rien', () => {
+    expect(libelleResteDu({ montant_total: null, reste_du: null })).toBeNull();
+    expect(libelleResteDu({})).toBeNull();
+  });
+});
+
+describe('libelleStatutSaisie', () => {
+  it('une saisie terminée à reste dû nul est « Soldée »', () => {
+    expect(libelleStatutSaisie({ status: 'closed', montant_total: 1000, reste_du: 0 })).toBe('Soldée');
+  });
+
+  it('sinon le statut habituel', () => {
+    expect(libelleStatutSaisie({ status: 'closed' })).toBe('Clôturée');
+    expect(libelleStatutSaisie({ status: 'active', montant_total: 1000, reste_du: 0 })).toBe('Active');
+    expect(libelleStatutSaisie({ status: 'suspended' })).toBe('Suspendue');
+  });
+});
+
+describe('modificationDesMontants', () => {
+  const saisie = { calculation_mode: 'fixe' as const, amount: 300, montant_total: 1000 };
+
+  it('envoie la mensualité et le total modifiés', () => {
+    expect(modificationDesMontants(saisie, { mensualite: '250', total: '1 200' })).toEqual({
+      amount: 250,
+      montant_total: 1200,
+    });
+  });
+
+  it('n’envoie que ce qui change', () => {
+    expect(modificationDesMontants(saisie, { mensualite: '250', total: '1000' })).toEqual({
+      amount: 250,
+    });
+    expect(modificationDesMontants(saisie, { mensualite: '300', total: '1000' })).toEqual({});
+  });
+
+  it('un total vidé est effacé (la saisie court sans fin)', () => {
+    expect(modificationDesMontants(saisie, { mensualite: '300', total: '' })).toEqual({
+      montant_total: null,
+    });
+  });
+
+  it('refuse un montant illisible ou une mensualité vide en montant fixe', () => {
+    expect(modificationDesMontants(saisie, { mensualite: 'abc', total: '1000' })).toBe(
+      'Mensualité illisible : un montant en euros, positif.'
+    );
+    expect(modificationDesMontants(saisie, { mensualite: '', total: '1000' })).toBe(
+      'Une saisie à montant fixe a besoin d’une mensualité.'
+    );
+    expect(modificationDesMontants(saisie, { mensualite: '300', total: '-1' })).toBe(
+      'Montant total illisible : un montant en euros, positif.'
+    );
   });
 });

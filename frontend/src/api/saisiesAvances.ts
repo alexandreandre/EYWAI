@@ -41,6 +41,13 @@ export interface SalarySeizure {
   notes?: string;
   /** Personnes à charge : relèvent les seuils du barème légal. */
   dependents_count?: number;
+  /** Montant total de la dette ; vide : la saisie court sans fin. */
+  montant_total?: number | null;
+  /** Déjà retenu sur les bulletins, et reste dû (vides sans montant total). */
+  total_retenu?: number | null;
+  reste_du?: number | null;
+  /** Nom complet joint à la liste RH. */
+  employee_name?: string;
   created_at: string;
   updated_at: string;
   created_by?: string;
@@ -61,6 +68,7 @@ export interface SalarySeizureCreate {
   document_url?: string;
   notes?: string;
   dependents_count?: number;
+  montant_total?: number;
 }
 
 export interface SalarySeizureUpdate {
@@ -71,6 +79,8 @@ export interface SalarySeizureUpdate {
   end_date?: string;
   notes?: string;
   dependents_count?: number;
+  /** null efface le montant total. */
+  montant_total?: number | null;
 }
 
 export interface SalaryAdvance {
