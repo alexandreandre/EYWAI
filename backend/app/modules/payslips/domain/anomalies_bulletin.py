@@ -340,9 +340,13 @@ def _net_contre_l_impot(payslip_data: dict) -> list[PayslipAlert]:
     retenues saisis en variables, notes de frais et autres ajouts au net
     (`creer_bulletin_final` : net à payer + impôt). Saisies sur salaire, avances
     (acomptes du module « Avances » compris) et prêts sont retirés du net ensuite,
-    à l'enregistrement (`enrich_payslip_after_upsert`), dans cet ordre ; le prêt
-    ne fait pas descendre le net sous 0 (`enrich_payslip_loans`). Les ignorer
-    levait B06 sur chaque bulletin avec une saisie ou une avance.
+    à l'enregistrement (`enrich_payslip_after_upsert`). Les ignorer levait B06
+    sur chaque bulletin avec une saisie ou une avance.
+
+    Pas de plancher à 0 : une retenue nouvelle est déjà bornée au net disponible.
+    Seul un prêt déjà retenu, repris au recalcul sur un net devenu trop faible,
+    voit `enrich_payslip_loans` ramener le net à 0 et effacer le net négatif à
+    reporter : ce net ne se retrouve plus depuis le bulletin, B06 le dit.
 
     Un bulletin repris porte le net avant impôt de l'ancien logiciel : la relation
     n'y tient pas (806 bulletins sur 2 087 en base).
@@ -358,10 +362,7 @@ def _net_contre_l_impot(payslip_data: dict) -> list[PayslipAlert]:
         payslip_data, "retenues_saisies", "total_preleve"
     ) + _total_retenu(payslip_data, "remboursements_avances", "total_rembourse")
     prets = _total_retenu(payslip_data, "remboursements_prets", "total_rembourse")
-    rejoue = _nombre(avant_impot) - _nombre(impot) - saisies_et_avances
-    if prets > 0:
-        rejoue = max(0.0, rejoue - prets)
-    rejoue = round(rejoue, 2)
+    rejoue = round(_nombre(avant_impot) - _nombre(impot) - saisies_et_avances - prets, 2)
     ecart = round(imprime - rejoue, 2)
     if abs(ecart) <= 0.01:
         return []

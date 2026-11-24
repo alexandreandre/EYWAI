@@ -373,10 +373,13 @@ def test_saisie_avance_et_pret_ensemble_ne_levent_pas_b06():
     assert _ids(_avec_retenues(1003.73, saisies=246.19, avances=150.0, prets=100.0)) == set()
 
 
-def test_un_pret_ne_fait_pas_descendre_le_net_sous_zero():
-    """`enrich_payslip_loans` borne le net à 0 : le contrôle aussi."""
-    bulletin = _avec_retenues(0.0, avances=1400.0, prets=200.0)
-    assert _ids(bulletin) == set()
+def test_un_net_ramene_a_zero_par_un_pret_deja_retenu_leve_b06():
+    """Recalcul : un prêt déjà retenu est repris sur un net devenu trop faible et
+    `enrich_payslip_loans` ramène le net à 0. Le net négatif à reporter (-100,08 €)
+    disparaît : le contrôle ne recopie pas ce plancher, il lève."""
+    alertes = {a.rule_id: a for a in anomalies_du_bulletin(_avec_retenues(0.0, avances=1400.0, prets=200.0))}
+    assert set(alertes) == {"B06"}
+    assert alertes["B06"].value_n1 == -100.08
 
 
 def test_acompte_en_variable_et_note_de_frais_ne_sont_pas_comptes_deux_fois():
