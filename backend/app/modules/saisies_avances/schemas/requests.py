@@ -39,7 +39,7 @@ class SalarySeizureCreate(BaseModel):
     dependents_count: int = Field(default=0, ge=0, le=20)
     # Montant total de la dette : la retenue s'arrête quand il est atteint.
     # Vide : la saisie court sans fin, comme avant.
-    montant_total: Optional[Decimal] = Field(default=None, ge=0)
+    montant_total: Optional[Decimal] = Field(default=None, gt=0, decimal_places=2)
 
 
 class SalarySeizureUpdate(BaseModel):
@@ -53,7 +53,7 @@ class SalarySeizureUpdate(BaseModel):
     notes: Optional[str] = None
     dependents_count: Optional[int] = Field(default=None, ge=0, le=20)
     # Envoyé à null : le montant total est effacé (voir le service).
-    montant_total: Optional[Decimal] = Field(default=None, ge=0)
+    montant_total: Optional[Decimal] = Field(default=None, gt=0, decimal_places=2)
 
 
 class SalaryAdvanceCreate(BaseModel):

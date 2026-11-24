@@ -1,5 +1,6 @@
 import { useConfirmation } from '@/hooks/useConfirmation';
 import {
+  estSoldee,
   libelleMontantSaisie,
   libelleResteDu,
   libelleStatutSaisie,
@@ -105,15 +106,20 @@ export default function SalarySeizures() {
     }
   };
 
+  // Une saisie soldée (reste dû nul) ne retient plus rien : comptée et
+  // filtrée avec les terminées, même si son statut reste « active ».
+  const statutDeLaListe = (s: SalarySeizure): SalarySeizureStatus =>
+    s.status === 'active' && estSoldee(s) ? 'closed' : s.status;
+
   const filteredSeizures = filterStatus === 'all'
     ? seizures
-    : seizures.filter(s => s.status === filterStatus);
+    : seizures.filter(s => statutDeLaListe(s) === filterStatus);
 
   const stats = {
     total: seizures.length,
-    active: seizures.filter(s => s.status === 'active').length,
-    suspended: seizures.filter(s => s.status === 'suspended').length,
-    closed: seizures.filter(s => s.status === 'closed').length,
+    active: seizures.filter(s => statutDeLaListe(s) === 'active').length,
+    suspended: seizures.filter(s => statutDeLaListe(s) === 'suspended').length,
+    closed: seizures.filter(s => statutDeLaListe(s) === 'closed').length,
   };
 
   return (
@@ -162,7 +168,7 @@ export default function SalarySeizures() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Clôturées</CardTitle>
+            <CardTitle className="text-sm font-medium">Clôturées ou soldées</CardTitle>
             <X className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
@@ -201,7 +207,7 @@ export default function SalarySeizures() {
             size="sm"
             onClick={() => setFilterStatus('closed')}
           >
-            Clôturées ({stats.closed})
+            Clôturées ou soldées ({stats.closed})
           </Button>
         </div>
         <Button onClick={() => setShowForm(true)}>
@@ -269,7 +275,7 @@ export default function SalarySeizures() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge className={STATUS_COLORS[seizure.status]}>
+                        <Badge className={STATUS_COLORS[statutDeLaListe(seizure)]}>
                           {libelleStatutSaisie(seizure)}
                         </Badge>
                       </TableCell>

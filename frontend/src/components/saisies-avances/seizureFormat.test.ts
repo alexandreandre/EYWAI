@@ -96,14 +96,15 @@ describe('libelleResteDu', () => {
 });
 
 describe('libelleStatutSaisie', () => {
-  it('une saisie terminée à reste dû nul est « Soldée »', () => {
+  it('une saisie à reste dû nul est « Soldée » (le statut n’est pas touché)', () => {
+    expect(libelleStatutSaisie({ status: 'active', montant_total: 1000, reste_du: 0 })).toBe('Soldée');
     expect(libelleStatutSaisie({ status: 'closed', montant_total: 1000, reste_du: 0 })).toBe('Soldée');
   });
 
   it('sinon le statut habituel', () => {
     expect(libelleStatutSaisie({ status: 'closed' })).toBe('Clôturée');
-    expect(libelleStatutSaisie({ status: 'active', montant_total: 1000, reste_du: 0 })).toBe('Active');
-    expect(libelleStatutSaisie({ status: 'suspended' })).toBe('Suspendue');
+    expect(libelleStatutSaisie({ status: 'active', montant_total: 1000, reste_du: 600 })).toBe('Active');
+    expect(libelleStatutSaisie({ status: 'suspended', montant_total: 1000, reste_du: 0 })).toBe('Suspendue');
   });
 });
 
@@ -122,6 +123,15 @@ describe('modificationDesMontants', () => {
       amount: 250,
     });
     expect(modificationDesMontants(saisie, { mensualite: '300', total: '1000' })).toEqual({});
+  });
+
+  it('au barème légal, la mensualité vidée est effacée (quotité du mois)', () => {
+    expect(
+      modificationDesMontants(
+        { calculation_mode: 'barème_legal', amount: 300, montant_total: null },
+        { mensualite: '', total: '' }
+      )
+    ).toEqual({ amount: null });
   });
 
   it('un total vidé est effacé (la saisie court sans fin)', () => {

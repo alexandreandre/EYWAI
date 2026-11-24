@@ -73,7 +73,8 @@ export interface SalarySeizureCreate {
 
 export interface SalarySeizureUpdate {
   status?: SalarySeizureStatus;
-  amount?: number;
+  /** null efface la mensualité (saisie au barème légal : la quotité du mois). */
+  amount?: number | null;
   calculation_mode?: CalculationMode;
   percentage?: number;
   end_date?: string;

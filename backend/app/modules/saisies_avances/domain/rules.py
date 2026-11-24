@@ -352,8 +352,8 @@ def message_saisie_soldee(
     qui = f"Saisie sur salaire ({creancier})" if creancier else "Saisie sur salaire"
     return (
         f"{qui} : dernière retenue de {_euros_fr(retenu)}, la dette de "
-        f"{_euros_fr(Decimal(str(montant_total)))} est soldée. La saisie est "
-        "terminée : plus rien ne sera retenu."
+        f"{_euros_fr(Decimal(str(montant_total)))} est soldée : plus rien ne sera "
+        "retenu sur les bulletins suivants."
     )
 
 

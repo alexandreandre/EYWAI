@@ -11,7 +11,7 @@ logger = get_logger("modules.saisies_avances.application.service")
 import os
 import uuid
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from functools import partial
 from typing import Any, Dict, List, Optional
 
@@ -49,6 +49,8 @@ from app.modules.saisies_avances.infrastructure.queries import (
     list_salary_advance_repayments_by_payslip,
     list_salary_seizure_deductions_by_payslip,
     list_seizures_with_employee,
+    retenues_des_autres_bulletins,
+    totaliser_les_retenues,
     total_retenu_par_saisie,
 )
 from app.modules.saisies_avances.infrastructure.repository import (
@@ -280,6 +282,9 @@ def update_salary_seizure(seizure_id: str, update_data: Any) -> Dict[str, Any]:
     update_dict = update_data.model_dump(exclude_none=True)
     if "amount" in update_dict:
         update_dict["amount"] = float(update_dict["amount"])
+    elif "amount" in update_data.model_fields_set and update_data.amount is None:
+        # Mensualité vidée (saisie au barème légal) : la quotité du mois.
+        update_dict["amount"] = None
     if "percentage" in update_dict:
         update_dict["percentage"] = float(update_dict["percentage"])
     if update_dict.get("end_date"):
@@ -676,7 +681,7 @@ def enrich_payslip(
     # base, comme le SMIC), sur la base saisissable (sans frais, acompte non
     # déduit, avantages en nature compris), seuils relevés par personne à charge.
     seizures = lire_ou_arreter(
-        lambda: get_seizures_for_period(employee_id, year, month, payslip_id=payslip_id),
+        lambda: get_seizures_for_period(employee_id, year, month),
         "Les saisies sur salaire du salarié n'ont pas pu être lues",
     )
     seizures = domain_rules.apply_priority_order(seizures)
@@ -724,12 +729,20 @@ def enrich_payslip(
     # Saisies avec un montant total : ce qui a déjà été retenu sur les autres
     # bulletins (celui-ci refait sa retenue). Sans montant total, rien n'est lu.
     avec_total = [str(s["id"]) for s in seizures if s.get("montant_total") is not None]
-    deja_retenu: Dict[str, Decimal] = {}
+    autres_retenues: List[Dict[str, Any]] = []
     if avec_total:
-        deja_retenu = lire_ou_arreter(
-            lambda: total_retenu_par_saisie(avec_total, sauf_bulletin=payslip_id),
+        autres_retenues = lire_ou_arreter(
+            lambda: retenues_des_autres_bulletins(avec_total, sauf_bulletin=payslip_id),
             "Les retenues déjà faites sur les saisies sur salaire n'ont pas pu être lues",
         )
+    deja_retenu = totaliser_les_retenues(autres_retenues)
+    # Saisies retenues sur un mois plus récent : le recalcul d'un mois passé
+    # n'est pas la retenue qui solde la dette, le bulletin ne le dit pas.
+    retenues_plus_tard = {
+        str(r.get("seizure_id"))
+        for r in autres_retenues
+        if (int(r.get("year") or 0), int(r.get("month") or 0)) > (year, month)
+    }
 
     for seizure in seizures:
         net_avant = net_disponible
@@ -747,7 +760,9 @@ def enrich_payslip(
             )
             deduction = min(deduction, net_disponible)
         if reste_du is not None:
-            deduction = min(deduction, reste_du)
+            # Au centime, comme l'historique l'enregistre : sans quoi une
+            # retenue au pourcentage (12,345) ne solderait pas un reste de 12,35.
+            deduction = min(deduction.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), reste_du)
         # Retenue moindre que la somme demandée : le bulletin dit combien,
         # sur combien et pourquoi (vidéo G, 11/10/2026 : 900 € demandés,
         # 230,26 € retenus, sans un mot). Le reste dû borne ce qui est demandé :
@@ -774,7 +789,14 @@ def enrich_payslip(
                     ),
                 }
             )
-        soldee = reste_du is not None and reste_du - deduction <= 0
+        # La dette est soldée par cette retenue. Rien n'est écrit sur la saisie : le reste dû nul suffit
+        # à ne plus rien retenir, et il remonte de lui-même si un bulletin est
+        # supprimé ou le montant total relevé.
+        soldee = (
+            reste_du is not None
+            and reste_du - deduction <= 0
+            and str(seizure.get("id")) not in retenues_plus_tard
+        )
         if soldee and deduction > 0:
             payslip_json_data.setdefault("alertes_baremes", []).append(
                 {
@@ -788,7 +810,6 @@ def enrich_payslip(
                     ),
                 }
             )
-        retenue_enregistree = True
         if deduction > 0:
             total_deductions += deduction
             remaining_seizable -= deduction
@@ -814,30 +835,8 @@ def enrich_payslip(
                         float(deduction),
                     )
                 except Exception:  # l'historique manque, le bulletin dit de recalculer
-                    retenue_enregistree = False
                     logger.exception(
                         "Prélèvement de la saisie %s non enregistré pour le bulletin %s",
-                        seizure.get("id"),
-                        payslip_id,
-                    )
-                    _signaler(CODE_REPLI_RETENUES_A_RECALCULER)
-        # Arrêt automatique : la dette soldée termine la saisie, plus rien
-        # n'est retenu ensuite. Un recalcul qui ne la solde plus la rouvre (la
-        # lecture ne rend une saisie terminée que si ce bulletin l'a soldée).
-        # Sans bulletin enregistré (aperçu), rien n'est écrit.
-        if payslip_id and reste_du is not None and retenue_enregistree:
-            statut = seizure.get("status")
-            nouveau = (
-                "closed" if soldee and statut == "active"
-                else "active" if not soldee and statut == "closed"
-                else None
-            )
-            if nouveau:
-                try:
-                    seizure_repository.update(seizure["id"], {"status": nouveau})
-                except Exception:  # recalculer le bulletin refait ce changement
-                    logger.exception(
-                        "Statut de la saisie %s non mis à jour (bulletin %s)",
                         seizure.get("id"),
                         payslip_id,
                     )

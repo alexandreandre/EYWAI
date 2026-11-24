@@ -87,12 +87,17 @@ const LIBELLES_STATUT: Record<SalarySeizureStatus, string> = {
   closed: 'Clôturée',
 };
 
-/** Le statut à l'écran : une saisie terminée parce que la dette est soldée dit « Soldée ». */
+/**
+ * Dette soldée : un montant total et plus rien de dû. Rien n'est plus retenu,
+ * sans que le statut change (il reprend seul si le reste dû remonte).
+ */
+export function estSoldee(saisie: SaisieReste): boolean {
+  return enNombre(saisie.montant_total) !== null && (enNombre(saisie.reste_du) ?? 1) <= 0;
+}
+
+/** Le statut à l'écran : une saisie dont la dette est soldée dit « Soldée ». */
 export function libelleStatutSaisie(saisie: SaisieReste & { status: SalarySeizureStatus }): string {
-  const total = enNombre(saisie.montant_total);
-  if (saisie.status === 'closed' && total !== null && (enNombre(saisie.reste_du) ?? 1) <= 0) {
-    return 'Soldée';
-  }
+  if (saisie.status !== 'suspended' && estSoldee(saisie)) return 'Soldée';
   return LIBELLES_STATUT[saisie.status] ?? saisie.status;
 }
 
@@ -112,7 +117,8 @@ export function modificationDesMontants(
     if (mensualite === null && saisie.calculation_mode === 'fixe') {
       return 'Une saisie à montant fixe a besoin d’une mensualité.';
     }
-    if (mensualite !== null && mensualite !== enNombre(saisie.amount)) {
+    // Vidée au barème légal : effacée, la retenue reprend la quotité du mois.
+    if (mensualite !== enNombre(saisie.amount)) {
       modification.amount = mensualite;
     }
   }

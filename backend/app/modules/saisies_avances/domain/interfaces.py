@@ -95,7 +95,7 @@ class ISeizuresAdvancesCalculator(ABC):
 
     @abstractmethod
     def get_seizures_for_period(
-        self, employee_id: str, year: int, month: int, payslip_id: Optional[str] = None
+        self, employee_id: str, year: int, month: int
     ) -> List[Dict[str, Any]]: ...
 
     @abstractmethod

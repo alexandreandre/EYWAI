@@ -119,7 +119,8 @@ export function SaisieMontantsEditables({ seizure, onUpdated }: SaisieMontantsEd
       )}
       <p className="text-xs text-muted-foreground">
         La retenue du mois ne dépasse ni la quotité saisissable (barème légal) ni le reste dû ;
-        à zéro, la saisie se termine.
+        à zéro, plus rien n’est retenu. Si le reste dû remonte (total relevé, bulletin
+        supprimé), la retenue reprend.
       </p>
       {erreur && <p className="text-sm text-destructive">{erreur}</p>}
       {enregistre && <p className="text-sm text-muted-foreground">{enregistre}</p>}

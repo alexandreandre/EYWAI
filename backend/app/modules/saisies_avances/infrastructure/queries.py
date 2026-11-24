@@ -197,24 +197,29 @@ def list_advances_with_employee_and_remaining_to_pay(
     return advances
 
 
-def total_retenu_par_saisie(
+def retenues_des_autres_bulletins(
     seizure_ids: List[str], sauf_bulletin: Optional[str] = None
-) -> Dict[str, Decimal]:
-    """Ce qui a déjà été retenu pour chaque saisie, tous bulletins confondus
-    (`salary_seizure_deductions`), sans le bulletin `sauf_bulletin` : celui
-    qu'on recalcule refait sa retenue. Une saisie sans retenue n'y est pas."""
+) -> List[Dict[str, Any]]:
+    """Les retenues déjà faites pour ces saisies (`salary_seizure_deductions`),
+    sans celles du bulletin `sauf_bulletin` : celui qu'on recalcule refait la
+    sienne. Chaque ligne : seizure_id, deducted_amount, year, month."""
     if not seizure_ids:
-        return {}
+        return []
     q = (
         supabase.table("salary_seizure_deductions")
-        .select("seizure_id, deducted_amount, payslip_id")
+        .select("seizure_id, deducted_amount, year, month, payslip_id")
         .in_("seizure_id", list(seizure_ids))
     )
     if sauf_bulletin:
         q = q.neq("payslip_id", sauf_bulletin)
     r = q.execute()
+    return list((r.data if r else None) or [])
+
+
+def totaliser_les_retenues(lignes: List[Dict[str, Any]]) -> Dict[str, Decimal]:
+    """Le total retenu par saisie. Une saisie sans retenue n'y est pas."""
     totaux: Dict[str, Decimal] = {}
-    for ligne in (r.data if r else None) or []:
+    for ligne in lignes:
         cle = str(ligne.get("seizure_id"))
         totaux[cle] = totaux.get(cle, Decimal("0")) + Decimal(
             str(ligne.get("deducted_amount") or 0)
@@ -222,50 +227,18 @@ def total_retenu_par_saisie(
     return totaux
 
 
-def saisies_soldees_par_le_bulletin(payslip_id: str) -> List[Dict[str, Any]]:
-    """Les saisies terminées parce que leur dette est soldée, qui ont une
-    retenue sur ce bulletin.
-
-    La retenue qui solde la dette termine la saisie (statut « closed ») : sans
-    elles, recalculer ce bulletin perdait la dernière retenue. Une saisie
-    terminée à la main avant d'être soldée, ou sans montant total, n'y est pas :
-    le recalcul la laisse tomber, comme avant.
-    """
-    r = (
-        supabase.table("salary_seizure_deductions")
-        .select("seizure_id")
-        .eq("payslip_id", payslip_id)
-        .execute()
-    )
-    ids = sorted({str(d["seizure_id"]) for d in (r.data if r else None) or [] if d.get("seizure_id")})
-    if not ids:
-        return []
-    r = (
-        supabase.table("salary_seizures")
-        .select("*")
-        .in_("id", ids)
-        .eq("status", "closed")
-        .execute()
-    )
-    fermees = [s for s in (r.data if r else None) or [] if s.get("montant_total") is not None]
-    if not fermees:
-        return []
-    totaux = total_retenu_par_saisie([str(s["id"]) for s in fermees])
-    return [
-        s
-        for s in fermees
-        if totaux.get(str(s["id"]), Decimal("0")) >= Decimal(str(s["montant_total"]))
-    ]
+def total_retenu_par_saisie(
+    seizure_ids: List[str], sauf_bulletin: Optional[str] = None
+) -> Dict[str, Decimal]:
+    """Ce qui a déjà été retenu pour chaque saisie, tous bulletins confondus,
+    sans le bulletin `sauf_bulletin`."""
+    return totaliser_les_retenues(retenues_des_autres_bulletins(seizure_ids, sauf_bulletin))
 
 
 def get_seizures_for_period(
-    employee_id: str, year: int, month: int, payslip_id: Optional[str] = None
+    employee_id: str, year: int, month: int
 ) -> List[Dict[str, Any]]:
-    """Saisies actives pour une période (dates dans la période).
-
-    Avec le bulletin : aussi les saisies que ce bulletin a soldées
-    (`saisies_soldees_par_le_bulletin`), pour que son recalcul les retienne.
-    """
+    """Saisies actives pour une période (dates dans la période)."""
     period_start = date(year, month, 1)
     if month == 12:
         period_end = date(year + 1, 1, 1) - date.resolution
@@ -280,13 +253,7 @@ def get_seizures_for_period(
         .or_(f"end_date.is.null,end_date.gte.{period_start}")
         .execute()
     )
-    saisies = r.data or []
-    if payslip_id:
-        deja = {str(s.get("id")) for s in saisies}
-        saisies += [
-            s for s in saisies_soldees_par_le_bulletin(payslip_id) if str(s.get("id")) not in deja
-        ]
-    return saisies
+    return r.data or []
 
 
 def get_retenues_sur_le_net_du_mois(

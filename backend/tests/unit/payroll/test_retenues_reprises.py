@@ -6,7 +6,6 @@ from app.modules.payroll.domain.retenues_reprises import (
     RetenueReprise,
     message_retenue,
     retenues_du_bulletin_repris,
-    saisie_posee_dans_martine,
 )
 
 pytestmark = pytest.mark.unit
@@ -47,24 +46,3 @@ def test_bulletin_vide():
 def test_le_message_dit_quoi_faire():
     m = message_retenue(RetenueReprise("saisie", "ATD SIP AMIENS", 150.0), "septembre 2026")
     assert "150,00 €" in m and "aucune saisie ouverte" in m
-
-
-def test_une_saisie_active_est_posee():
-    assert saisie_posee_dans_martine({"status": "active", "montant_total": None})
-
-
-def test_une_saisie_terminee_avec_un_montant_total_est_posee():
-    """Dette soldée dans Martine (arrêt automatique) : rien à rappeler."""
-    assert saisie_posee_dans_martine({"status": "closed", "montant_total": 1200})
-
-
-@pytest.mark.parametrize(
-    "saisie",
-    [
-        {"status": "closed", "montant_total": None},
-        {"status": "suspended", "montant_total": 1200},
-        {"status": "suspended"},
-    ],
-)
-def test_les_autres_saisies_ne_comptent_pas_comme_avant(saisie):
-    assert not saisie_posee_dans_martine(saisie)

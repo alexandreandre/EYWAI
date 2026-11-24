@@ -3,8 +3,11 @@
 Demande d'Elsa (Zone 404, 24/11/2026) : la saisie ne connaissait que la
 mensualité. On saisit désormais le montant total de la dette ; le reste dû est
 ce total moins ce qui a déjà été retenu (historique `salary_seizure_deductions`).
-La retenue du mois est plafonnée au reste dû, et la saisie se termine quand il
-atteint zéro : plus rien n'est retenu ensuite.
+La retenue du mois est plafonnée au reste dû ; à zéro, plus rien n'est retenu.
+Le statut n'est pas touché : un bulletin supprimé ou un total relevé fait
+remonter le reste dû, et la retenue reprend d'elle-même (relecture du 24/11 :
+une fin écrite dans le statut restait close après la suppression du bulletin
+qui l'avait soldée).
 
 La quotité saisissable (barème légal, L3252-2) reste le plafond : celui du reste
 dû s'y ajoute, il ne la remplace pas. Sans montant total, rien ne change.
@@ -48,10 +51,20 @@ def _saisie(**champs) -> dict:
     return saisie
 
 
-def _enrichir(net: float, saisies: list, deja_retenu: dict | None = None, payslip_id="bulletin-1"):
+def _enrichir(
+    net: float,
+    saisies: list,
+    deja_retenu: dict | None = None,
+    payslip_id="bulletin-1",
+    periode=(2026, 9),
+):
+    """`deja_retenu` : retenu sur d'autres bulletins, au mois `periode`."""
     ecritures = MagicMock()
     totaux = MagicMock(
-        return_value={k: Decimal(str(v)) for k, v in (deja_retenu or {}).items()}
+        return_value=[
+            {"seizure_id": k, "deducted_amount": v, "year": periode[0], "month": periode[1]}
+            for k, v in (deja_retenu or {}).items()
+        ]
     )
     with (
         patch.object(service, "get_seizures_for_period", return_value=[dict(s) for s in saisies]),
@@ -61,7 +74,7 @@ def _enrichir(net: float, saisies: list, deja_retenu: dict | None = None, paysli
         patch.object(service, "supprimer_deductions_du_bulletin"),
         patch.object(service, "insert_seizure_deduction", ecritures.saisie),
         patch.object(service, "seizure_repository", ecritures.depot),
-        patch.object(service, "total_retenu_par_saisie", totaux),
+        patch.object(service, "retenues_des_autres_bulletins", totaux),
     ):
         bulletin = service.enrich_payslip(
             {"net_a_payer": net, "salaire_brut": 3000.0}, "e1", 2026, 10, payslip_id=payslip_id
@@ -91,7 +104,7 @@ def test_reste_du_ne_descend_pas_sous_zero():
 # ----- Bulletin -----
 
 
-def test_la_retenue_est_plafonnee_au_reste_du_et_la_saisie_se_termine():
+def test_la_retenue_est_plafonnee_au_reste_du_et_le_bulletin_le_dit():
     bulletin, ecritures, totaux = _enrichir(
         2500.0, [_saisie(montant_total=1000)], deja_retenu={"saisie-1": 950}
     )
@@ -103,7 +116,8 @@ def test_la_retenue_est_plafonnee_au_reste_du_et_la_saisie_se_termine():
     # Dernière retenue dite, sans la fausse alerte « quotité ».
     assert SOLDEE in _codes(bulletin)
     assert PLAFONNEE not in _codes(bulletin)
-    ecritures.depot.update.assert_called_once_with("saisie-1", {"status": "closed"})
+    # Rien n'est écrit sur la saisie : le reste dû nul suffit.
+    ecritures.depot.update.assert_not_called()
 
 
 def test_rien_n_est_retenu_quand_le_reste_du_est_nul():
@@ -114,8 +128,8 @@ def test_rien_n_est_retenu_quand_le_reste_du_est_nul():
     assert bulletin["net_a_payer"] == 2500.0
     ecritures.saisie.assert_not_called()
     assert PLAFONNEE not in _codes(bulletin)
-    # Total ramené au déjà retenu à l'écran : la saisie se termine aussi.
-    ecritures.depot.update.assert_called_once_with("saisie-1", {"status": "closed"})
+    assert SOLDEE not in _codes(bulletin)
+    ecritures.depot.update.assert_not_called()
 
 
 def test_une_retenue_qui_ne_solde_pas_laisse_la_saisie_active():
@@ -158,34 +172,37 @@ def test_le_reste_du_plus_bas_que_la_quotite_prend_le_pas():
     assert SOLDEE in _codes(bulletin)
 
 
-def test_le_recalcul_qui_ne_solde_plus_rouvre_la_saisie():
-    """La saisie terminée par ce bulletin revient au recalcul ; si le nouveau
-    net ne permet plus de solder, elle reprend le mois suivant."""
+def test_le_recalcul_d_un_mois_passe_ne_dit_pas_la_dette_soldee():
+    """Janvier à mars à 300 €, avril solde : recalculer février garde ses 300 €
+    (plafond : total moins les autres retenues), sans dire « dernière retenue »."""
+    bulletin, _, _ = _enrichir(
+        2500.0, [_saisie(montant_total=1000)], deja_retenu={"saisie-1": 700}, periode=(2026, 11)
+    )
+    assert bulletin["retenues_saisies"]["total_preleve"] == 300.0
+    assert SOLDEE not in _codes(bulletin)
+
+
+def test_le_reste_du_remonte_et_la_retenue_reprend():
+    """Bulletin qui soldait supprimé (ses retenues partent avec lui) ou total
+    relevé : le reste dû redevient positif et la saisie, restée active, retient."""
     bulletin, ecritures, _ = _enrichir(
-        2500.0,
-        [_saisie(montant_total=1000, status="closed")],
-        deja_retenu={"saisie-1": 900},
+        2500.0, [_saisie(montant_total=1500)], deja_retenu={"saisie-1": 1000}
     )
-    assert bulletin["retenues_saisies"]["total_preleve"] == 100.0
-    ecritures.depot.update.assert_not_called()
-
-    bulletin, ecritures, _ = _enrichir(
-        700.0,
-        [_saisie(montant_total=1000, status="closed")],
-        deja_retenu={"saisie-1": 900},
-    )
-    assert bulletin["retenues_saisies"]["total_preleve"] < 100.0
-    ecritures.depot.update.assert_called_once_with("saisie-1", {"status": "active"})
-
-
-def test_un_apercu_n_ecrit_pas_le_statut():
-    _, ecritures, _ = _enrichir(
-        2500.0, [_saisie(montant_total=1000)], deja_retenu={"saisie-1": 950}, payslip_id=None
-    )
+    assert bulletin["retenues_saisies"]["total_preleve"] == 300.0
     ecritures.depot.update.assert_not_called()
 
 
-# ----- Lecture des saisies du bulletin -----
+def test_la_retenue_au_pourcentage_solde_au_centime():
+    """Une retenue au pourcentage non arrondie (12,345) solde un reste de 12,35."""
+    bulletin, _, _ = _enrichir(
+        2469.0,
+        [_saisie(calculation_mode="pourcentage", percentage=0.5, amount=None, montant_total=1000)],
+        deja_retenu={"saisie-1": Decimal("987.65")},
+    )
+    assert SOLDEE in _codes(bulletin)
+
+
+# ----- Lecture de l'historique -----
 
 
 class _Table:
@@ -204,53 +221,27 @@ class _Table:
         return MagicMock(data=self.lignes)
 
 
-def test_le_bulletin_qui_a_solde_la_saisie_la_retrouve_au_recalcul():
-    """Terminée par ce bulletin : sans elle, recalculer le bulletin perdait la
-    dernière retenue (la saisie n'est plus « active »)."""
-    tables = {
-        "salary_seizures": [
-            _Table([_saisie(id="active-1")]),
-            _Table(
-                [
-                    _saisie(id="soldee-1", status="closed", montant_total=1000),
-                    # Terminée à la main avant d'être soldée : reste dehors.
-                    _saisie(id="arretee-1", status="closed", montant_total=1000),
-                    # Terminée sans montant total : comportement d'avant.
-                    _saisie(id="sans-total", status="closed", montant_total=None),
-                ]
-            ),
-        ],
-        "salary_seizure_deductions": [
-            _Table(
-                [
-                    {"seizure_id": "soldee-1"},
-                    {"seizure_id": "arretee-1"},
-                    {"seizure_id": "sans-total"},
-                ]
-            ),
-        ],
-    }
+def test_le_total_retenu_se_lit_sans_le_bulletin_recalcule():
+    table = _Table(
+        [
+            {"seizure_id": "s1", "deducted_amount": "300.00"},
+            {"seizure_id": "s1", "deducted_amount": 150.5},
+            {"seizure_id": "s2", "deducted_amount": 20},
+        ]
+    )
     fake = MagicMock()
-    fake.table.side_effect = lambda nom: tables[nom].pop(0)
-    with (
-        patch.object(infra_queries, "supabase", fake),
-        patch.object(
-            infra_queries,
-            "total_retenu_par_saisie",
-            return_value={"soldee-1": Decimal("1000"), "arretee-1": Decimal("400")},
-        ),
-    ):
-        saisies = infra_queries.get_seizures_for_period("e1", 2026, 10, payslip_id="bulletin-1")
-    assert [s["id"] for s in saisies] == ["active-1", "soldee-1"]
-
-
-def test_sans_bulletin_seules_les_saisies_actives():
-    fake = MagicMock()
-    fake.table.return_value = _Table([_saisie(id="active-1")])
+    fake.table.return_value = table
     with patch.object(infra_queries, "supabase", fake):
-        saisies = infra_queries.get_seizures_for_period("e1", 2026, 10)
-    assert [s["id"] for s in saisies] == ["active-1"]
-    assert fake.table.call_count == 1
+        totaux = infra_queries.total_retenu_par_saisie(["s1", "s2"], sauf_bulletin="bulletin-1")
+    assert totaux == {"s1": Decimal("450.50"), "s2": Decimal("20")}
+    assert ("neq", ("payslip_id", "bulletin-1")) in table.filtres
+
+
+def test_sans_saisie_aucune_lecture():
+    fake = MagicMock()
+    with patch.object(infra_queries, "supabase", fake):
+        assert infra_queries.total_retenu_par_saisie([]) == {}
+    fake.table.assert_not_called()
 
 
 # ----- Réponse API et commandes -----
@@ -379,6 +370,25 @@ def test_le_montant_total_s_efface_explicitement():
     assert depot.update.call_args.args[1] == {"montant_total": None}
 
 
-def test_un_montant_total_negatif_est_refuse():
+@pytest.mark.parametrize("montant", ["-1", "0", "1000.005"])
+def test_un_montant_total_nul_negatif_ou_au_millieme_est_refuse(montant):
     with pytest.raises(Exception):
-        SalarySeizureUpdate(montant_total=Decimal("-1"))
+        SalarySeizureUpdate(montant_total=Decimal(montant))
+
+
+def test_la_mensualite_videe_revient_a_la_quotite():
+    """Saisie au barème légal : la mensualité vidée à l'écran est effacée."""
+    with (
+        patch.object(service, "seizure_repository") as depot,
+        patch.object(service, "total_retenu_par_saisie", return_value={}),
+    ):
+        depot.update.return_value = _ligne()
+        service.update_salary_seizure("saisie-1", SalarySeizureUpdate(amount=None))
+    assert depot.update.call_args.args[1] == {"amount": None}
+
+
+def test_une_modification_sans_mensualite_n_y_touche_pas():
+    with patch.object(service, "seizure_repository") as depot:
+        depot.update.return_value = _ligne()
+        service.update_salary_seizure("saisie-1", SalarySeizureUpdate(status="suspended"))
+    assert depot.update.call_args.args[1] == {"status": "suspended"}
