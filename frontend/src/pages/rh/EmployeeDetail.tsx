@@ -49,6 +49,7 @@ import { EmployeeBoethCard } from "@/features/employee-detail/components/Employe
 import { getEmployeeBoeth } from "@/api/oethSettings";
 import { EmployeePasSettingsCard } from "@/features/employee-detail/components/EmployeePasSettingsCard";
 import { EmployeeTimeTrackingCard } from "@/features/employee-detail/components/EmployeeTimeTrackingCard";
+import { EmployeeRegleHeuresSupCard } from "@/features/employee-detail/components/EmployeeRegleHeuresSupCard";
 import {
   diffWatchedSnapshots,
   extractWatchedSnapshot,
@@ -778,6 +779,10 @@ export default function EmployeeDetail() {
                 employee={employee}
                 canEdit={canEditEmployeePaySettings}
                 onEmployeeUpdated={(updated) => updateEmployeeCache(employeeId, updated)}
+              />
+              <EmployeeRegleHeuresSupCard
+                employeeId={employeeId}
+                canEdit={canEditEmployeePaySettings}
               />
               <EmployeePasSettingsCard
                 employeeId={employeeId}

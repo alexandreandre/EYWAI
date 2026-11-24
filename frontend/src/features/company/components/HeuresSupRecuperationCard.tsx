@@ -12,6 +12,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { getUserErrorMessage } from '@/lib/errorMessages';
 import { queryKeys } from '@/lib/queryKeys';
+import { phraseSalariesReglePropre } from '@/features/employee-detail/components/regleHeuresSup';
 import { etatInterrupteurCompteur, reglageCompteur } from '../lib/compteurRecuperation';
 
 type Choix = 'payees' | 'premieres' | 'compteur';
@@ -148,6 +149,11 @@ export default function HeuresSupRecuperationCard() {
             <Label htmlFor="hs-compteur">Toutes au compteur de récupération</Label>
           </div>
         </RadioGroup>
+        {phraseSalariesReglePropre(data.salaries_regle_propre) ? (
+          <p className="text-xs text-muted-foreground" data-testid="salaries-regle-propre">
+            {phraseSalariesReglePropre(data.salaries_regle_propre)}
+          </p>
+        ) : null}
         {avecCompteur ? (
           <div className="space-y-3 rounded-md border p-3">
             {choix === 'premieres' ? (

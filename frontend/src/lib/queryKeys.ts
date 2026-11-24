@@ -127,6 +127,8 @@ export const queryKeys = {
     companyQueryKey(companyId, 'leaveCampaign', 'dashboard', grantYear),
   modulationSettings: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'modulation', 'settings'),
+  regleHeuresSup: (companyId: string | undefined, employeeId: string | undefined) =>
+    companyQueryKey(companyId, 'employee', employeeId ?? 'none', 'regle-heures-sup'),
   punchAccountingSettings: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'punch-accounting', 'settings'),
   punchShiftSlots: (companyId: string | undefined) =>
