@@ -1238,7 +1238,7 @@ export default function PayrollVariableRulesCard() {
                 disabled={createRule.isPending}
                 onClick={() => createRule.mutate()}
               >
-                {enModification ? `Enregistrer « ${enModification.label} »` : 'Ajouter la règle'}
+                {enModification ? 'Enregistrer' : 'Ajouter la règle'}
               </Button>
               {enModification && (
                 <Button
