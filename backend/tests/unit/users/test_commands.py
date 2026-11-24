@@ -29,6 +29,11 @@ def _current_user(id_="user-1", is_platform_admin=False):
     return u
 
 
+def _admin_plateforme(id_="user-1"):
+    """Ces tests vérifient la plomberie ; les droits sont dans test_droits_gestion_acces."""
+    return _current_user(id_=id_, is_platform_admin=True)
+
+
 # ----- set_primary_company -----
 
 
@@ -78,7 +83,7 @@ class TestGrantCompanyAccessByEmail:
         get_user_repo.return_value.get_by_email.return_value = None
         with pytest.raises(LookupError) as exc_info:
             commands.grant_company_access_by_email(
-                "unknown@example.com", "c1", "rh", False, _current_user()
+                "unknown@example.com", "c1", "rh", False, _admin_plateforme()
             )
         assert "Utilisateur non trouvé" in str(exc_info.value)
 
@@ -93,15 +98,19 @@ class TestGrantCompanyAccessByEmail:
 
         with pytest.raises(LookupError) as exc_info:
             commands.grant_company_access_by_email(
-                "user@example.com", "bad-company", "rh", False, _current_user()
+                "user@example.com", "bad-company", "rh", False, _admin_plateforme()
             )
         assert "Entreprise non trouvée" in str(exc_info.value)
 
+    @patch(
+        "app.modules.users.application.commands.get_default_system_template_id",
+        return_value=None,
+    )
     @patch("app.modules.users.application.commands.get_company_repository")
     @patch("app.modules.users.application.commands.get_user_company_access_repository")
     @patch("app.modules.users.application.commands.get_user_repository")
     def test_grant_new_access_returns_success(
-        self, get_user_repo, get_access_repo, get_company_repo
+        self, get_user_repo, get_access_repo, get_company_repo, _get_tpl
     ):
         get_user_repo.return_value.get_by_email.return_value = {"id": "u1"}
         get_company_repo.return_value.get_name.return_value = "Ma Société"
@@ -112,7 +121,7 @@ class TestGrantCompanyAccessByEmail:
         }
 
         result = commands.grant_company_access_by_email(
-            "user@example.com", "c1", "rh", True, _current_user()
+            "user@example.com", "c1", "rh", True, _admin_plateforme()
         )
 
         assert isinstance(result, GrantAccessResult)
@@ -123,28 +132,22 @@ class TestGrantCompanyAccessByEmail:
     @patch("app.modules.users.application.commands.get_company_repository")
     @patch("app.modules.users.application.commands.get_user_company_access_repository")
     @patch("app.modules.users.application.commands.get_user_repository")
-    def test_update_existing_access_returns_success(
+    def test_existing_access_is_never_overwritten(
         self, get_user_repo, get_access_repo, get_company_repo
     ):
+        """Relecture du 24/11 : l'octroi par adresse n'écrase plus un accès existant."""
         get_user_repo.return_value.get_by_email.return_value = {"id": "u1"}
         get_company_repo.return_value.get_name.return_value = "Ma Société"
         get_access_repo.return_value.get_by_user_and_company.return_value = {
             "role": "collaborateur"
         }
-        get_access_repo.return_value.update.return_value = {
-            "user_id": "u1",
-            "company_id": "c1",
-            "role": "rh",
-        }
 
-        result = commands.grant_company_access_by_email(
-            "user@example.com", "c1", "rh", False, _current_user()
-        )
-
-        assert (
-            "mis à jour" in result.message.lower() or "succès" in result.message.lower()
-        )
-        get_access_repo.return_value.update.assert_called_once()
+        with pytest.raises(ValueError, match="déjà un accès"):
+            commands.grant_company_access_by_email(
+                "user@example.com", "c1", "rh", False, _admin_plateforme()
+            )
+        get_access_repo.return_value.update.assert_not_called()
+        get_access_repo.return_value.create.assert_not_called()
 
 
 # ----- grant_company_access_by_user_id -----
@@ -163,7 +166,7 @@ class TestGrantCompanyAccessByUserId:
 
         with pytest.raises(LookupError) as exc_info:
             commands.grant_company_access_by_user_id(
-                "unknown-uuid", "c1", "rh", False, _current_user()
+                "unknown-uuid", "c1", "rh", False, _admin_plateforme()
             )
         assert "Utilisateur non trouvé" in str(exc_info.value)
 
@@ -187,7 +190,7 @@ class TestGrantCompanyAccessByUserId:
         }
 
         result = commands.grant_company_access_by_user_id(
-            "u1", "c1", "collaborateur_rh", True, _current_user()
+            "u1", "c1", "collaborateur_rh", True, _admin_plateforme()
         )
 
         assert isinstance(result, GrantAccessResult)
@@ -216,7 +219,7 @@ class TestGrantCompanyAccessByUserId:
 
         with pytest.raises(ValueError, match="déjà un accès"):
             commands.grant_company_access_by_user_id(
-                "u1", "c1", "collaborateur", False, _current_user()
+                "u1", "c1", "collaborateur", False, _admin_plateforme()
             )
 
         get_access_repo.return_value.update.assert_not_called()
@@ -236,7 +239,7 @@ class TestGrantCompanyAccessByUserId:
         get_access_repo.return_value.get_by_user_and_company.return_value = None
 
         commands.grant_company_access_by_user_id(
-            "u1", "c1", "custom", False, _current_user()
+            "u1", "c1", "custom", False, _admin_plateforme()
         )
 
         get_tpl.assert_not_called()
@@ -256,7 +259,7 @@ class TestRevokeCompanyAccess:
         access_repo.count_admins.return_value = 2
         access_repo.delete.return_value = {"user_id": "u1", "company_id": "c1"}
 
-        result = commands.revoke_company_access("u1", "c1", _current_user())
+        result = commands.revoke_company_access("u1", "c1", _admin_plateforme())
 
         assert isinstance(result, RevokeAccessResult)
         assert result.user_id == "u1"
@@ -293,7 +296,7 @@ class TestRevokeCompanyAccess:
         access_repo.delete.return_value = None
 
         with pytest.raises(LookupError) as exc_info:
-            commands.revoke_company_access("u1", "c1", _current_user())
+            commands.revoke_company_access("u1", "c1", _admin_plateforme())
         assert "Accès non trouvé" in str(exc_info.value)
 
 
@@ -306,7 +309,7 @@ class TestUpdateCompanyAccess:
     @patch("app.modules.users.application.commands.get_user_company_access_repository")
     def test_no_modification_raises_value_error(self, get_repo):
         with pytest.raises(ValueError) as exc_info:
-            commands.update_company_access("u1", "c1", None, None, _current_user())
+            commands.update_company_access("u1", "c1", None, None, _admin_plateforme())
         assert "Aucune modification" in str(exc_info.value)
 
     @patch("app.modules.users.application.commands.get_user_company_access_repository")
@@ -319,7 +322,7 @@ class TestUpdateCompanyAccess:
             "role": "rh",
         }
 
-        result = commands.update_company_access("u1", "c1", "rh", None, _current_user())
+        result = commands.update_company_access("u1", "c1", "rh", None, _admin_plateforme())
 
         assert isinstance(result, UpdateAccessResult)
         assert result.access["role"] == "rh"
@@ -332,7 +335,7 @@ class TestUpdateCompanyAccess:
         access_repo.update.return_value = None
 
         with pytest.raises(LookupError) as exc_info:
-            commands.update_company_access("u1", "c1", "rh", None, _current_user())
+            commands.update_company_access("u1", "c1", "rh", None, _admin_plateforme())
         assert "Accès non trouvé" in str(exc_info.value)
 
 
@@ -361,7 +364,7 @@ class TestUpdateUserWithPermissions:
         data.permission_ids = None
 
         with pytest.raises(LookupError) as exc_info:
-            commands.update_user_with_permissions("u1", data, _current_user())
+            commands.update_user_with_permissions("u1", data, _admin_plateforme())
         assert "n'a pas d'accès" in str(exc_info.value)
 
     @patch("app.modules.users.application.commands.get_user_permission_repository")

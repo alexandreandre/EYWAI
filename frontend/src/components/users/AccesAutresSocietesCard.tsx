@@ -33,9 +33,14 @@ interface Props {
   userId: string;
   /** Rôle de la personne dans la société active, proposé par défaut. */
   roleActuel?: string | null;
+  /**
+   * Faux quand la personne connectée ne gère pas ce compte (soi-même, un pair, un
+   * supérieur) : le serveur refuserait l'ouverture, on ne propose donc pas le bouton.
+   */
+  modifiable?: boolean;
 }
 
-const AccesAutresSocietesCard: React.FC<Props> = ({ userId, roleActuel }) => {
+const AccesAutresSocietesCard: React.FC<Props> = ({ userId, roleActuel, modifiable = true }) => {
   const [chargement, setChargement] = useState(true);
   const [erreurChargement, setErreurChargement] = useState<string | null>(null);
   const [accesActuels, setAccesActuels] = useState<AccesActuel[]>([]);
@@ -139,7 +144,7 @@ const AccesAutresSocietesCard: React.FC<Props> = ({ userId, roleActuel }) => {
           <Building2 className="h-6 w-6 text-blue-600" />
           <h2 className="text-xl font-semibold text-gray-900">Accès aux sociétés</h2>
         </div>
-        {!chargement && !erreurChargement && proposables.length > 0 && !ouvert && (
+        {modifiable && !chargement && !erreurChargement && proposables.length > 0 && !ouvert && (
           <button
             type="button"
             onClick={() => {
@@ -183,7 +188,7 @@ const AccesAutresSocietesCard: React.FC<Props> = ({ userId, roleActuel }) => {
             </ul>
           )}
 
-          {proposables.length === 0 && (
+          {modifiable && proposables.length === 0 && (
             <p className="text-sm text-gray-500">
               Aucune autre société à ouvrir : la personne a déjà accès à toutes les sociétés que
               vous administrez.

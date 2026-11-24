@@ -4,7 +4,7 @@ Implémentations des repositories (accès DB Supabase).
 Comportement identique aux appels inline des anciens routers.
 """
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from app.core.database import supabase
 
@@ -72,6 +72,16 @@ class SupabaseUserCompanyAccessRepository(IUserCompanyAccessRepository):
 
     def get_access_with_companies(self, user_id: str) -> List[dict]:
         return self.get_accesses_for_user(user_id)
+
+    def get_access_roles_for_user(self, user_id: str) -> List[dict]:
+        """Société, rôle et état (actif ou coupé) de chaque accès de la personne."""
+        r = (
+            supabase.table("user_company_accesses")
+            .select("company_id, role, is_active")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        return r.data or []
 
     def get_by_user_and_company(self, user_id: str, company_id: str) -> Optional[dict]:
         r = (
@@ -190,6 +200,16 @@ class SupabaseRoleTemplateRepository(IRoleTemplateRepository):
         )
         return r.data[0]["id"] if r.data else None
 
+    def get_company_scope(self, template_id: str) -> Optional[dict]:
+        """Société (None = modèle commun) et état d'un modèle de rôle."""
+        r = (
+            supabase.table("role_templates")
+            .select("id, company_id, is_active")
+            .eq("id", template_id)
+            .execute()
+        )
+        return r.data[0] if r.data else None
+
     def get_template_permission_ids(self, template_id: str) -> List[str]:
         r = (
             supabase.table("role_template_permissions")
@@ -220,6 +240,21 @@ class SupabaseUserPermissionRepository(IUserPermissionRepository):
             return False
         except Exception:
             return False
+
+    def get_required_roles_by_ids(
+        self, permission_ids: List[str]
+    ) -> Dict[str, Optional[str]]:
+        """Niveau requis (`required_role`) des permissions ACTIVES demandées, par id."""
+        if not permission_ids:
+            return {}
+        r = (
+            supabase.table("permissions")
+            .select("id, required_role")
+            .in_("id", [str(p) for p in permission_ids])
+            .eq("is_active", True)
+            .execute()
+        )
+        return {str(row["id"]): row.get("required_role") for row in (r.data or [])}
 
     def get_permission_ids(
         self, user_id: str, company_id: str, role_template_id: Optional[str] = None

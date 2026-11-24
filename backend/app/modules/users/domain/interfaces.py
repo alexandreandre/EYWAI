@@ -39,6 +39,11 @@ class IUserCompanyAccessRepository(ABC):
         ...
 
     @abstractmethod
+    def get_access_roles_for_user(self, user_id: str) -> List[dict]:
+        """company_id, role, is_active de chaque accès, coupés compris."""
+        ...
+
+    @abstractmethod
     def get_by_user_and_company(
         self, user_id: str, company_id: str
     ) -> Optional[dict]: ...
@@ -94,6 +99,11 @@ class IRoleTemplateRepository(ABC):
         ...
 
     @abstractmethod
+    def get_company_scope(self, template_id: str) -> Optional[dict]:
+        """{id, company_id (None = modèle commun), is_active} ou None."""
+        ...
+
+    @abstractmethod
     def get_template_permission_ids(self, template_id: str) -> List[str]: ...
 
 
@@ -102,6 +112,13 @@ class IUserPermissionRepository(ABC):
 
     @abstractmethod
     def has_any_rh_permission(self, user_id: str, company_id: str) -> bool: ...
+
+    @abstractmethod
+    def get_required_roles_by_ids(
+        self, permission_ids: List[str]
+    ) -> Dict[str, Optional[str]]:
+        """Niveau requis des permissions actives, par id (absente = inconnue)."""
+        ...
 
     @abstractmethod
     def get_permission_ids(
