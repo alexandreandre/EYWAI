@@ -23,7 +23,9 @@ from .calcul_brut import (
     _calculer_iccp_cdd,
     _calculer_iccp_depart,
     _calculer_ifm_interim,
+    _alerte_prime_anciennete_remplacee,
     _calculer_prime_precarite_cdd,
+    _saisie_prime_anciennete_du_mois,
     _format_jours_conges,
     _jour_ferie_est_paye,
     _jours_evenement_conges,
@@ -673,6 +675,12 @@ def calculer_salaire_brut_forfait(
         jours_maintien=jours_maintien,
         actual_hours_raw=actual_hours_raw,
     )
+    # Comme au générateur des heures : la prime du mois saisie remplace le
+    # calcul conventionnel, et le bulletin le dit ; une régularisation s'ajoute.
+    saisie_anciennete = _saisie_prime_anciennete_du_mois(primes_saisies)
+    if ligne_prime_anciennete and saisie_anciennete is not None:
+        _alerte_prime_anciennete_remplacee(contexte, ligne_prime_anciennete, saisie_anciennete)
+        ligne_prime_anciennete = None
     if ligne_prime_anciennete:
         lignes_composants_brut.append(ligne_prime_anciennete)
 
