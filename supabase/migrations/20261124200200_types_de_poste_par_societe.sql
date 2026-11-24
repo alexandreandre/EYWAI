@@ -19,6 +19,10 @@
 -- Idempotent.
 -- ============================================================================
 
+-- `is_custom` existe en base mais n'était créée par aucune migration du dépôt.
+alter table public.shift_types
+    add column if not exists is_custom boolean not null default false;
+
 alter table public.shift_types
     add column if not exists company_id uuid null
         references public.companies (id) on delete cascade;
@@ -41,7 +45,7 @@ alter table public.shift_types
     drop constraint if exists shift_types_proprietaire_check;
 alter table public.shift_types
     add constraint shift_types_proprietaire_check
-        check (company_id is not null or collective_agreement_id is not null);
+        check ((company_id is null) <> (collective_agreement_id is null));
 
 -- Unicité du code : par convention pour les types partagés, par société pour
 -- les autres (deux sociétés d'une même convention peuvent avoir chacune MATIN).
@@ -57,8 +61,10 @@ create unique index if not exists shift_types_societe_code_key
 create index if not exists idx_shift_types_company_id
     on public.shift_types (company_id)
     where company_id is not null;
-create index if not exists idx_shift_types_replaces
-    on public.shift_types (replaces_shift_type_id)
+-- Une seule copie d'un type partagé par société (deux modifications quasi
+-- simultanées ne créent pas deux copies ; le backend relit la première).
+create unique index if not exists shift_types_societe_copie_key
+    on public.shift_types (company_id, replaces_shift_type_id)
     where replaces_shift_type_id is not null;
 
 -- --- RLS -------------------------------------------------------------------
@@ -78,11 +84,19 @@ create policy planning_shift_types_select_company
     to authenticated
     using (
         company_id is not null
-        and exists (
-            select 1
-            from public.user_company_accesses uca
-            where uca.user_id = auth.uid()
-              and uca.company_id = shift_types.company_id
+        and (
+            exists (
+                select 1
+                from public.user_company_accesses uca
+                where uca.user_id = (select auth.uid())
+                  and uca.company_id = shift_types.company_id
+            )
+            or exists (
+                select 1
+                from public.super_admins sa
+                where sa.user_id = (select auth.uid())
+                  and sa.is_active is true
+            )
         )
     );
 
@@ -98,7 +112,7 @@ create policy planning_shift_types_insert_company
         and exists (
             select 1
             from public.user_company_accesses uca
-            where uca.user_id = auth.uid()
+            where uca.user_id = (select auth.uid())
               and uca.company_id = shift_types.company_id
               and uca.role = any (array['admin'::text, 'rh'::text])
         )
@@ -114,7 +128,7 @@ create policy planning_shift_types_update_company
         and exists (
             select 1
             from public.user_company_accesses uca
-            where uca.user_id = auth.uid()
+            where uca.user_id = (select auth.uid())
               and uca.company_id = shift_types.company_id
               and uca.role = any (array['admin'::text, 'rh'::text])
         )
@@ -124,7 +138,7 @@ create policy planning_shift_types_update_company
         and exists (
             select 1
             from public.user_company_accesses uca
-            where uca.user_id = auth.uid()
+            where uca.user_id = (select auth.uid())
               and uca.company_id = shift_types.company_id
               and uca.role = any (array['admin'::text, 'rh'::text])
         )
@@ -140,7 +154,7 @@ create policy planning_shift_types_delete_company
         and exists (
             select 1
             from public.user_company_accesses uca
-            where uca.user_id = auth.uid()
+            where uca.user_id = (select auth.uid())
               and uca.company_id = shift_types.company_id
               and uca.role = any (array['admin'::text, 'rh'::text])
         )

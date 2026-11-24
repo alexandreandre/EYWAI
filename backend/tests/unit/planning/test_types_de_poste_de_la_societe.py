@@ -275,7 +275,10 @@ def test_convention_inconnue_du_planning_message_clair(monkeypatch):
     )
     with pytest.raises(ValueError, match="convention"):
         commands.update_company_settings(
-            CompanyPlanningSettingsUpdate(collective_agreement_id="cat-plasturgie"), "co-1"
+            CompanyPlanningSettingsUpdate(
+                collective_agreement_id="39e86454-778b-4913-ac4a-2b01735f89ef"
+            ),
+            "co-1",
         )
 
 
@@ -287,10 +290,11 @@ def test_convention_du_referentiel_enregistree(monkeypatch):
         "update_company_planning_settings",
         lambda cid, d: ecrit.append(d) or {"company_id": cid, **d},
     )
+    cc = "0dec56b2-ea4d-4fa8-9a9b-6daad0345039"
     commands.update_company_settings(
-        CompanyPlanningSettingsUpdate(collective_agreement_id="cc-1"), "co-1"
+        CompanyPlanningSettingsUpdate(collective_agreement_id=cc), "co-1"
     )
-    assert ecrit == [{"collective_agreement_id": "cc-1"}]
+    assert ecrit == [{"collective_agreement_id": cc}]
 
 
 def test_retirer_la_convention_sans_verification(monkeypatch):
@@ -318,3 +322,98 @@ def test_conventions_du_planning_listees(monkeypatch):
     assert queries.list_planning_collective_agreements() == [
         {"id": "cc-1", "code": "GENERIC_STD", "label": "Générique", "idcc": None}
     ]
+
+
+# --- Relecture du 24/11 ----------------------------------------------------
+
+
+def test_les_types_desactives_ne_sont_pas_proposes(repo):
+    repo["cc"] = "cc-1"
+    repo["partages"].append({**TYPE_CONVENTION, "id": "t-vieux", "code": "SOIR", "is_active": False})
+    repo["propres"] = [_propre(id="t-off", code="NUIT", is_active=False)]
+    assert [t["code"] for t in queries.get_shift_types_for_company("co-1")] == ["MATIN"]
+
+
+def test_un_type_desactive_de_la_societe_ne_masque_pas_par_son_code(repo):
+    """Une ancienne copie désactivée ne cache que le poste qu'elle remplace."""
+    repo["cc"] = "cc-1"
+    repo["propres"] = [_propre(id="t-off", is_active=False, replaces_shift_type_id="t-autre-cc")]
+    assert [t["id"] for t in queries.get_shift_types_for_company("co-1")] == ["t-cc"]
+
+
+def test_la_copie_desactivee_masque_le_poste_remplace(repo):
+    repo["cc"] = "cc-1"
+    repo["propres"] = [_propre(id="t-off", is_active=False, replaces_shift_type_id="t-cc")]
+    assert queries.get_shift_types_for_company("co-1") == []
+
+
+def test_recreer_un_code_desactive_le_reactive(repo):
+    repo["propres"] = [_propre(code="SOIR", is_active=False)]
+    shift_type_commands.create_shift_type("co-1", {"code": "soir", "label": "Soir 2"})
+    assert repo["crees"] == []
+    assert repo["maj"] == [("t-co", {"code": "soir", "label": "Soir 2", "is_active": True})]
+
+
+def test_la_copie_d_un_poste_de_convention_est_active(repo):
+    repo["cc"] = "cc-1"
+    copie = shift_type_commands.update_shift_type("co-1", "t-cc", {"label": "Matin long"})
+    assert copie["is_active"] is True
+
+
+def test_deux_modifications_simultanees_une_seule_copie(repo, monkeypatch):
+    """La seconde requête bute sur l'unicité (23505) : elle relit la copie et l'écrit."""
+    repo["cc"] = "cc-1"
+    copie_concurrente = _propre(id="t-copie", replaces_shift_type_id="t-cc")
+
+    class Doublon(Exception):
+        code = "23505"
+
+    def creer_en_conflit(data):
+        repo["propres"].append(copie_concurrente)
+        raise Doublon("duplicate key value violates unique constraint")
+
+    monkeypatch.setattr(planning_repository, "create_shift_type", creer_en_conflit)
+    shift_type_commands.update_shift_type("co-1", "t-cc", {"meal_allowance_eligible": False})
+    assert repo["maj"] == [("t-copie", {"meal_allowance_eligible": False})]
+
+
+def test_supprimer_un_poste_de_convention_deja_masque_ne_dit_pas_code_pris(repo):
+    repo["cc"] = "cc-1"
+    repo["propres"] = [_propre(id="t-matin-co")]
+    shift_type_commands.delete_shift_type("co-1", "t-cc")
+    assert repo["crees"] == [] and repo["desactives"] == []
+
+
+@pytest.mark.parametrize("cc", ["", "pas-un-uuid"])
+def test_convention_vide_ou_mal_formee(monkeypatch, cc):
+    ecrit = []
+    monkeypatch.setattr(
+        planning_repository, "get_cc_by_id", lambda c: pytest.fail("lecture d'un id invalide")
+    )
+    monkeypatch.setattr(
+        planning_repository,
+        "update_company_planning_settings",
+        lambda cid, d: ecrit.append(d) or {},
+    )
+    if cc == "":
+        commands.update_company_settings(
+            CompanyPlanningSettingsUpdate(collective_agreement_id=cc), "co-1"
+        )
+        assert ecrit == [{"collective_agreement_id": None}]
+    else:
+        with pytest.raises(ValueError, match="convention"):
+            commands.update_company_settings(
+                CompanyPlanningSettingsUpdate(collective_agreement_id=cc), "co-1"
+            )
+
+
+def test_creer_en_doublon_concurrent_message_clair(repo, monkeypatch):
+    class Doublon(Exception):
+        code = "23505"
+
+    def creer(data):
+        raise Doublon("duplicate key")
+
+    monkeypatch.setattr(planning_repository, "create_shift_type", creer)
+    with pytest.raises(ValueError, match="SOIR"):
+        shift_type_commands.create_shift_type("co-1", {"code": "SOIR", "label": "Soir"})

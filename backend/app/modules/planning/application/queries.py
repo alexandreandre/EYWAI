@@ -245,9 +245,11 @@ def _shift_type_public(r: dict, origine: str) -> dict:
 
 def get_shift_types_for_company(company_id: str) -> list:
     """
-    Types de poste visibles par la société : les siens, puis ceux (partagés) de
-    sa convention planning qu'elle n'a ni copiés ni remplacés par un type de
-    même code. Ceux de la société passent toujours en priorité.
+    Types de poste actifs visibles par la société : les siens, puis ceux
+    (partagés) de sa convention planning qu'elle n'a ni copiés ni remplacés par
+    un type de même code. Ceux de la société passent toujours en priorité.
+    Les types désactivés ne sont plus proposés (les shifts déjà posés gardent
+    leur type, lu par jointure).
     Sans convention planning : seulement les siens (jamais ceux des autres
     conventions — postes en double, Mont Blanc 17/11).
     """
@@ -256,16 +258,20 @@ def get_shift_types_for_company(company_id: str) -> list:
     propres = planning_repository.get_shift_types_by_company(company_id)
     partages = planning_repository.get_shift_types_by_cc(str(cc_id)) if cc_id else []
 
+    # Une copie (même désactivée) masque le poste partagé qu'elle remplace ; un
+    # type actif de la société masque aussi le poste partagé de même code.
     remplaces = {
         str(r.get("replaces_shift_type_id"))
         for r in propres
         if r.get("replaces_shift_type_id")
     }
-    codes_propres = {str(r.get("code") or "").upper() for r in propres}
-    visibles = [_shift_type_public(r, "societe") for r in propres] + [
+    actifs = [r for r in propres if r.get("is_active", True)]
+    codes_propres = {str(r.get("code") or "").upper() for r in actifs}
+    visibles = [_shift_type_public(r, "societe") for r in actifs] + [
         _shift_type_public(r, "convention")
         for r in partages
-        if str(r.get("id")) not in remplaces
+        if r.get("is_active", True)
+        and str(r.get("id")) not in remplaces
         and str(r.get("code") or "").upper() not in codes_propres
     ]
     return sorted(visibles, key=lambda t: t["code"].upper())
