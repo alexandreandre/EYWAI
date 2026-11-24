@@ -65,6 +65,7 @@ class SmtpMailSender:
         self,
         recipients: Sequence[str],
         subject: str,
+        company_id: Optional[str] = None,
     ) -> Tuple[list[str], str]:
         """
         En environnement de test, force tous les destinataires vers l'adresse
@@ -72,6 +73,10 @@ class SmtpMailSender:
 
         Lecture dynamique de settings.EMAIL_FORCE_REDIRECT_TO : la valeur est
         résolue à chaque envoi, jamais capturée à l'import.
+
+        `company_id` : la société d'où part l'envoi, quand elle est connue. Seuls ses
+        comptes côté RH reçoivent alors en direct (24/11/2026) ; sans société, tout compte
+        côté RH reçoit en direct, comme avant.
         """
         forced = settings.EMAIL_FORCE_REDIRECT_TO
         if not forced:
@@ -83,10 +88,11 @@ class SmtpMailSender:
         # l'invitation mais sourd au reset de mot de passe.
         allowlist = parse_email_allowlist(settings.ACTIVATION_EMAIL_ALLOWLIST)
         # Et, depuis le 03/11/2026, les comptes côté RH (admin, rh, collaborateur_rh,
-        # custom avec droits RH) : les collaborateurs restent redirigés.
+        # custom avec droits RH) : les collaborateurs restent redirigés. Depuis le 24/11,
+        # ceux de la société d'envoi seulement, quand elle est connue.
         hors_liste = [r for r in recipients if not is_direct_delivery_allowed(r, allowlist)]
         if hors_liste:
-            allowlist = allowlist | adresses_rh(hors_liste)
+            allowlist = allowlist | adresses_rh(hors_liste, company_id=company_id)
         direct = [
             r for r in recipients if is_direct_delivery_allowed(r, allowlist)
         ]
@@ -109,6 +115,7 @@ class SmtpMailSender:
         attachments: Sequence[tuple[str, bytes, str]],
         *,
         require_delivery: bool = False,
+        company_id: Optional[str] = None,
     ) -> Tuple[bool, Optional[str]]:
         """
         Envoie un e-mail HTML avec pièces jointes à une ou plusieurs adresses.
@@ -117,7 +124,9 @@ class SmtpMailSender:
         recipients = [e.strip() for e in to_emails if e and e.strip()]
         if not recipients:
             return True, None
-        recipients, subject = self._apply_forced_redirect(recipients, subject)
+        recipients, subject = self._apply_forced_redirect(
+            recipients, subject, company_id=company_id
+        )
 
         config = self._load_config()
         if not config.is_configured:
@@ -171,6 +180,7 @@ class SmtpMailSender:
         html_content: str,
         *,
         require_delivery: bool = False,
+        company_id: Optional[str] = None,
     ) -> Tuple[bool, Optional[str]]:
         """
         Envoie un e-mail texte + HTML.
@@ -179,7 +189,9 @@ class SmtpMailSender:
         La levée ciblée du redirect global (allowlist d'envoi direct) est
         appliquée par _apply_forced_redirect — jamais par l'appelant.
         """
-        recipients, subject = self._apply_forced_redirect([to_email], subject)
+        recipients, subject = self._apply_forced_redirect(
+            [to_email], subject, company_id=company_id
+        )
         to_email = recipients[0]
 
         config = self._load_config()

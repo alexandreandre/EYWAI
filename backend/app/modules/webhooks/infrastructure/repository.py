@@ -7,18 +7,53 @@ import logging
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import unquote, urlsplit, urlunsplit
 
 import httpx
 
 from app.core.database import supabase
+from app.modules.webhooks.infrastructure.adresse_sure import (
+    AdresseVerifiee,
+    AdresseWebhookRefusee,
+    verifier_adresse_webhook,
+)
 
 _log = logging.getLogger(__name__)
 
 _MAX_LOG_BODY = 8000
+# Durée totale de lecture de la réponse : le timeout httpx vaut par lecture, un serveur
+# qui répond au goutte-à-goutte tiendrait sinon la requête RH indéfiniment.
+_DUREE_MAX_SECONDES = 10.0
 
 
 def _stable_json(obj: Dict[str, Any]) -> str:
     return json.dumps(obj, separators=(",", ":"), sort_keys=True)
+
+
+def _adresses_par_preference(verifiee: AdresseVerifiee) -> List[Any]:
+    """IPv4 d'abord (sortie IPv6 pas toujours disponible), puis IPv6, ordre DNS gardé."""
+    return [a for a in verifiee.adresses if a.version == 4] + [
+        a for a in verifiee.adresses if a.version == 6
+    ]
+
+
+def _cible_epinglee(
+    verifiee: AdresseVerifiee, ip: Any
+) -> Tuple[str, str, str, Optional[Tuple[str, str]]]:
+    """URL réécrite sur une adresse vérifiée, en-tête Host, nom SNI, identifiants.
+
+    Le serveur reçoit le même Host et le même nom TLS qu'avec l'URL d'origine ; seule la
+    résolution est figée sur l'adresse que la garde a jugée publique.
+    """
+    parties = urlsplit(verifiee.url)
+    hote_ip = f"[{ip}]" if ip.version == 6 else str(ip)
+    suffixe_port = f":{verifiee.port}" if verifiee.port is not None else ""
+    cible = urlunsplit(("https", hote_ip + suffixe_port, parties.path or "/", parties.query, ""))
+    hote = f"[{verifiee.hote}]" if ":" in verifiee.hote else verifiee.hote
+    auth = None
+    if parties.username is not None:
+        auth = (unquote(parties.username), unquote(parties.password or ""))
+    return cible, hote + suffixe_port, verifiee.hote, auth
 
 
 class WebhookRepository:
@@ -165,10 +200,44 @@ class WebhookRepository:
         status = 0
         text: Optional[str] = None
         try:
-            with httpx.Client(timeout=5.0) as client:
-                r = client.post(str(webhook["url"]), content=body_bytes, headers=headers)
-                status = r.status_code
-                text = (r.text or "")[:_MAX_LOG_BODY]
+            # Garde SSRF à l'envoi : une adresse enregistrée avant la garde, ou un nom dont
+            # la réponse DNS a changé depuis, ne part pas vers une adresse interne.
+            verifiee = verifier_adresse_webhook(str(webhook.get("url") or ""))
+        except AdresseWebhookRefusee as refus:
+            _log.warning("[webhooks] envoi bloqué : %s", refus)
+            return 0, f"Envoi bloqué : {refus}", int((time.perf_counter() - t0) * 1000), envelope
+        try:
+            # Connexion sur une adresse vérifiée (pas de seconde résolution), certificat
+            # contrôlé contre le nom (SNI), aucune redirection suivie, aucun proxy d'env.
+            # Une adresse injoignable passe à la suivante ; la réponse lue est bornée.
+            with httpx.Client(timeout=5.0, follow_redirects=False, trust_env=False) as client:
+                adresses = _adresses_par_preference(verifiee)
+                for rang, ip in enumerate(adresses):
+                    cible, host_header, sni, auth = _cible_epinglee(verifiee, ip)
+                    headers["Host"] = host_header
+                    try:
+                        with client.stream(
+                            "POST",
+                            cible,
+                            content=body_bytes,
+                            headers=headers,
+                            auth=auth,
+                            extensions={"sni_hostname": sni},
+                        ) as r:
+                            status = r.status_code
+                            lu = bytearray()
+                            for bloc in r.iter_bytes():
+                                lu += bloc
+                                if (
+                                    len(lu) >= _MAX_LOG_BODY
+                                    or time.perf_counter() - t0 > _DUREE_MAX_SECONDES
+                                ):
+                                    break
+                            text = bytes(lu[:_MAX_LOG_BODY]).decode("utf-8", "replace")
+                        break
+                    except (httpx.ConnectError, httpx.ConnectTimeout):
+                        if rang == len(adresses) - 1:
+                            raise
         except Exception:
             _log.debug("[webhooks] POST échoué (silencieux)", exc_info=True)
             status = 0
@@ -250,6 +319,8 @@ class WebhookRepository:
             "message": "Ping Martine — webhook de test",
             "timestamp": int(time.time()),
         }
+        # « Tester » dit pourquoi l'adresse est refusée, au lieu d'un simple échec.
+        verifier_adresse_webhook(str(wh.get("url") or ""))
         status, _, _, _ = self._post_webhook(
             wh, "webhook.test", company_id, test_payload
         )

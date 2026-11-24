@@ -94,7 +94,7 @@ def _envoyer(sender, a):
 def test_sous_redirection_un_compte_rh_recoit_en_direct(sender, monkeypatch):
     monkeypatch.setattr(settings, "EMAIL_FORCE_REDIRECT_TO", "bac-a-sable@eywai.fr")
     monkeypatch.setattr(settings, "ACTIVATION_EMAIL_ALLOWLIST", "")
-    monkeypatch.setattr(mod, "adresses_rh", lambda emails: frozenset({"rh@maji.fr"}))
+    monkeypatch.setattr(mod, "adresses_rh", lambda emails, company_id=None: frozenset({"rh@maji.fr"}))
     msg = _envoyer(sender, "RH@maji.fr")
     assert msg["To"] == "RH@maji.fr"
     assert msg["Subject"] == "Sujet"
@@ -103,7 +103,7 @@ def test_sous_redirection_un_compte_rh_recoit_en_direct(sender, monkeypatch):
 def test_sous_redirection_un_collaborateur_reste_redirige(sender, monkeypatch):
     monkeypatch.setattr(settings, "EMAIL_FORCE_REDIRECT_TO", "bac-a-sable@eywai.fr")
     monkeypatch.setattr(settings, "ACTIVATION_EMAIL_ALLOWLIST", "")
-    monkeypatch.setattr(mod, "adresses_rh", lambda emails: frozenset({"rh@maji.fr"}))
+    monkeypatch.setattr(mod, "adresses_rh", lambda emails, company_id=None: frozenset({"rh@maji.fr"}))
     msg = _envoyer(sender, "salarie@maji.fr")
     assert msg["To"] == "bac-a-sable@eywai.fr"
     assert msg["Subject"] == "[dest. salarie@maji.fr] Sujet"

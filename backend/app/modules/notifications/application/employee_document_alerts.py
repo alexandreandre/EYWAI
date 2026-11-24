@@ -157,6 +157,7 @@ def _send_email(
     notification_type: str = NOTIFICATION_TYPE,
     *,
     subject_prefix: Optional[str] = None,
+    company_id: Optional[str] = None,
 ) -> bool:
     sender = get_smtp_mail_sender()
     config = get_resolved_email_config()
@@ -178,6 +179,7 @@ def _send_email(
         text_content=text_content,
         html_content=html_content,
         require_delivery=False,
+        company_id=company_id,
     )
     if not ok and err:
         logger.warning("[doc_notif] E-mail non envoyé à %s: %s", to_email, err)
@@ -250,4 +252,5 @@ def notify_employee_new_document(
         page_path=page_path,
         notification_type=notification_type,
         subject_prefix=subject_prefix,
+        company_id=company_id,
     )

@@ -267,6 +267,7 @@ Traiter la demande : {url}
         html_content,
         [],
         require_delivery=False,
+        company_id=company_id,
     )
     if not ok:
         logger.info("[absence_email] Email non envoyé: %s", err)

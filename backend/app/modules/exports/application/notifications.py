@@ -197,6 +197,7 @@ def notify_export_recipients(
         html_content,
         attachments,
         require_delivery=False,
+        company_id=company_id,
     )
     if ok:
         return NotifyResult(
