@@ -328,3 +328,87 @@ def test_une_ligne_informative_de_participation_ne_compte_pas_dans_le_brut():
         }
     )
     assert "B02" not in _ids(bulletin)
+
+
+# --- B06 et les retenues sur le net d'après le moteur ---
+# Le net avant impôt est celui du moteur. Saisies, avances (et acomptes du module
+# « Avances ») et prêts sont retirés du net APRÈS lui, à l'enregistrement
+# (`enrich_payslip_after_upsert`) : le contrôle les reprend. Une saisie de 150 €
+# levait B06 et bloquait la validation sans acquittement.
+
+
+def _avec_retenues(net, *, saisies=0.0, avances=0.0, prets=0.0):
+    bulletin = _avec_net(net=net)
+    if saisies:
+        bulletin["retenues_saisies"] = {"total_preleve": saisies, "saisies": []}
+    if avances:
+        bulletin["remboursements_avances"] = {"total_rembourse": avances, "avances": []}
+    if prets:
+        bulletin["remboursements_prets"] = {"total_rembourse": prets, "prets": []}
+    return bulletin
+
+
+def test_une_saisie_sur_salaire_ne_leve_pas_b06():
+    assert _ids(_avec_retenues(1349.92, saisies=150.0)) == set()
+
+
+def test_une_avance_remboursee_ne_leve_pas_b06():
+    assert _ids(_avec_retenues(1334.18, avances=165.74)) == set()
+
+
+def test_un_acompte_du_module_avances_ne_leve_pas_b06():
+    """L'acompte sur salaire du module « Avances » est rangé avec les avances."""
+    bulletin = _avec_retenues(1299.92, avances=200.0)
+    bulletin["remboursements_avances"]["avances"] = [
+        {"montant": 200.0, "type": "acompte_salaire", "type_label": "Acompte sur salaire"}
+    ]
+    assert _ids(bulletin) == set()
+
+
+def test_un_pret_rembourse_ne_leve_pas_b06():
+    assert _ids(_avec_retenues(1099.92, prets=400.0)) == set()
+
+
+def test_saisie_avance_et_pret_ensemble_ne_levent_pas_b06():
+    assert _ids(_avec_retenues(1003.73, saisies=246.19, avances=150.0, prets=100.0)) == set()
+
+
+def test_un_pret_ne_fait_pas_descendre_le_net_sous_zero():
+    """`enrich_payslip_loans` borne le net à 0 : le contrôle aussi."""
+    bulletin = _avec_retenues(0.0, avances=1400.0, prets=200.0)
+    assert _ids(bulletin) == set()
+
+
+def test_acompte_en_variable_et_note_de_frais_ne_sont_pas_comptes_deux_fois():
+    """Acompte saisi en variable et note de frais passent par le moteur : son net
+    avant impôt les porte déjà. Les retirer ou les ajouter une seconde fois
+    lèverait B06 à tort."""
+    bulletin = _avec_net(net=1499.92)
+    bulletin["synthese_net"]["acompte_verse"] = 200.0
+    bulletin["primes_non_soumises"] = [
+        {"libelle": "Remboursement note de frais Repas", "montant": 45.5}
+    ]
+    assert _ids(bulletin) == set()
+    bulletin["synthese_net"]["acompte_verse"] = -45.5
+    assert _ids(bulletin) == set()
+
+
+def test_un_net_faux_leve_toujours_b06_malgre_une_saisie():
+    """La saisie expliquée, 100 € de trop restent : B06 lève, sur le seul écart."""
+    alertes = {a.rule_id: a for a in anomalies_du_bulletin(_avec_retenues(1449.92, saisies=150.0))}
+    assert set(alertes) == {"B06"}
+    assert alertes["B06"].delta_eur == 100.0
+    assert alertes["B06"].value_n1 == 1349.92
+    assert "retenues sur le net" in alertes["B06"].message
+
+
+def test_une_retenue_non_retiree_du_net_leve_b06():
+    """Le bulletin annonce une saisie que son net ne porte pas."""
+    alertes = {a.rule_id: a for a in anomalies_du_bulletin(_avec_retenues(1499.92, saisies=150.0))}
+    assert set(alertes) == {"B06"}
+    assert alertes["B06"].delta_eur == 150.0
+
+
+def test_un_centime_apres_retenues_ne_leve_pas():
+    assert _ids(_avec_retenues(1349.93, saisies=150.0)) == set()
+    assert "B06" in _ids(_avec_retenues(1349.94, saisies=150.0))
