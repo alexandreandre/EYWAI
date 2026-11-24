@@ -7,10 +7,16 @@ import logging
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import unquote, urlsplit, urlunsplit
 
 import httpx
 
 from app.core.database import supabase
+from app.modules.webhooks.infrastructure.adresse_sure import (
+    AdresseVerifiee,
+    AdresseWebhookRefusee,
+    verifier_adresse_webhook,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -19,6 +25,26 @@ _MAX_LOG_BODY = 8000
 
 def _stable_json(obj: Dict[str, Any]) -> str:
     return json.dumps(obj, separators=(",", ":"), sort_keys=True)
+
+
+def _cible_epinglee(
+    verifiee: AdresseVerifiee,
+) -> Tuple[str, str, str, Optional[Tuple[str, str]]]:
+    """URL réécrite sur la première adresse vérifiée, en-tête Host, nom SNI, identifiants.
+
+    Le serveur reçoit le même Host et le même nom TLS qu'avec l'URL d'origine ; seule la
+    résolution est figée sur l'adresse que la garde a jugée publique.
+    """
+    parties = urlsplit(verifiee.url)
+    ip = verifiee.adresses[0]
+    hote_ip = f"[{ip}]" if ip.version == 6 else str(ip)
+    suffixe_port = f":{verifiee.port}" if verifiee.port is not None else ""
+    cible = urlunsplit(("https", hote_ip + suffixe_port, parties.path or "/", parties.query, ""))
+    hote = f"[{verifiee.hote}]" if ":" in verifiee.hote else verifiee.hote
+    auth = None
+    if parties.username is not None:
+        auth = (unquote(parties.username), unquote(parties.password or ""))
+    return cible, hote + suffixe_port, verifiee.hote, auth
 
 
 class WebhookRepository:
@@ -165,8 +191,25 @@ class WebhookRepository:
         status = 0
         text: Optional[str] = None
         try:
-            with httpx.Client(timeout=5.0) as client:
-                r = client.post(str(webhook["url"]), content=body_bytes, headers=headers)
+            # Garde SSRF à l'envoi : une adresse enregistrée avant la garde, ou un nom dont
+            # la réponse DNS a changé depuis, ne part pas vers une adresse interne.
+            verifiee = verifier_adresse_webhook(str(webhook.get("url") or ""))
+        except AdresseWebhookRefusee as refus:
+            _log.warning("[webhooks] envoi bloqué : %s", refus)
+            return 0, f"Envoi bloqué : {refus}", int((time.perf_counter() - t0) * 1000), envelope
+        cible, host_header, sni, auth = _cible_epinglee(verifiee)
+        headers["Host"] = host_header
+        try:
+            # Connexion sur l'adresse vérifiée (pas de seconde résolution), certificat
+            # contrôlé contre le nom (SNI), aucune redirection suivie, aucun proxy d'env.
+            with httpx.Client(timeout=5.0, follow_redirects=False, trust_env=False) as client:
+                r = client.post(
+                    cible,
+                    content=body_bytes,
+                    headers=headers,
+                    auth=auth,
+                    extensions={"sni_hostname": sni},
+                )
                 status = r.status_code
                 text = (r.text or "")[:_MAX_LOG_BODY]
         except Exception:
@@ -250,6 +293,8 @@ class WebhookRepository:
             "message": "Ping Martine — webhook de test",
             "timestamp": int(time.time()),
         }
+        # « Tester » dit pourquoi l'adresse est refusée, au lieu d'un simple échec.
+        verifier_adresse_webhook(str(wh.get("url") or ""))
         status, _, _, _ = self._post_webhook(
             wh, "webhook.test", company_id, test_payload
         )

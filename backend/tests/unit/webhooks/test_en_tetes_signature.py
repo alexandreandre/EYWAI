@@ -6,7 +6,11 @@ from unittest.mock import MagicMock, patch
 from app.modules.webhooks.infrastructure.repository import WebhookRepository
 
 
-def test_les_deux_en_tetes_de_signature_sont_envoyes():
+def test_les_deux_en_tetes_de_signature_sont_envoyes(monkeypatch):
+    from app.modules.webhooks.infrastructure import adresse_sure
+
+    # Aucune résolution réelle : l'hôte est servi par une adresse publique doublée.
+    monkeypatch.setattr(adresse_sure, "_resoudre", lambda hote, port: ["93.184.215.14"])
     repo = WebhookRepository()
     reponse = MagicMock(status_code=200, text="ok")
     client = MagicMock()

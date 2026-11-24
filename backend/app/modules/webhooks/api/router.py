@@ -9,6 +9,7 @@ from app.core.security import get_current_user
 from app.modules.exports.api.dependencies import get_active_company_id
 from app.modules.users.schemas.responses import User
 from app.modules.webhooks.application import service as webhook_service
+from app.modules.webhooks.infrastructure.adresse_sure import AdresseWebhookRefusee
 from app.modules.webhooks.schemas.responses import (
     WebhookConfigOut,
     WebhookCreate,
@@ -82,6 +83,8 @@ def create_webhook(
             created_by=str(current_user.id),
         )
         return _row_to_config_out(row)
+    except AdresseWebhookRefusee as refus:
+        raise HTTPException(status_code=400, detail=str(refus)) from None
     except Exception as e:
         logger.exception("Échec de create_webhook")
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -101,6 +104,8 @@ def update_webhook(
             patch["url"] = str(patch["url"])
         row = webhook_service.update_webhook(webhook_id, company_id, patch)
         return _row_to_config_out(row)
+    except AdresseWebhookRefusee as refus:
+        raise HTTPException(status_code=400, detail=str(refus)) from None
     except LookupError:
         raise HTTPException(status_code=404, detail="Webhook introuvable.") from None
     except Exception as e:
@@ -136,6 +141,8 @@ def test_webhook(
     try:
         status, ok = webhook_service.send_test_webhook(webhook_id, company_id)
         return WebhookTestResponse(status_code=status, success=ok)
+    except AdresseWebhookRefusee as refus:
+        raise HTTPException(status_code=400, detail=str(refus)) from None
     except LookupError:
         raise HTTPException(status_code=404, detail="Webhook introuvable.") from None
     except Exception as e:
