@@ -24,46 +24,18 @@ import {
   type ActivationVerifyResult,
 } from '@/api/activation';
 import {
-  getPasswordChecks,
-  getPasswordStrength,
   isPasswordAcceptable,
   MESSAGE_MOT_DE_PASSE_FAIBLE,
   raisonActivationImpossible,
 } from '@/lib/activationUtils';
-import { cn } from '@/lib/utils';
+import { JaugeMotDePasse as PasswordGauge } from '@/components/auth/JaugeMotDePasse';
 import { Loader2, CheckCircle2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 const GENERIC_LINK_ERROR =
   'Lien invalide ou expiré, demandez un nouveau lien à votre RH.';
 
-const STRENGTH_LABELS = ['', 'Trop faible', 'Faible', 'Presque', 'Correct'];
 
-function PasswordGauge({ password }: { password: string }) {
-  const strength = getPasswordStrength(password);
-  const checks = getPasswordChecks(password);
-  return (
-    <div className="space-y-2">
-      <div className="flex gap-1" aria-hidden>
-        {[1, 2, 3, 4].map((step) => (
-          <div
-            key={step}
-            className={cn(
-              'h-1.5 flex-1 rounded-full bg-muted',
-              strength >= step &&
-                (strength === 4 ? 'bg-green-500' : 'bg-amber-500'),
-            )}
-          />
-        ))}
-      </div>
-      <p className="text-xs text-muted-foreground">
-        {password
-          ? STRENGTH_LABELS[strength] || 'Trop faible'
-          : 'Au moins 8 caractères, avec majuscule, minuscule et chiffre.'}
-        {password && !checks.longueur ? ' — 8 caractères minimum' : null}
-      </p>
-    </div>
-  );
-}
+
 
 export default function ActivationPage() {
   const [searchParams] = useSearchParams();

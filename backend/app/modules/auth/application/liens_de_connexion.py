@@ -1,16 +1,12 @@
-"""Connexion par lien, sans mot de passe.
+"""Lien d'invitation : la personne invitée crée son mot de passe, puis se connecte.
 
-Deux façons d'obtenir un lien :
-- l'invitation : un lien créé pour un compte et remis à la main (valable 7 jours) ;
-- la demande : sur la page de connexion, « Recevoir un lien de connexion » envoie par e-mail
-  un lien valable 30 minutes.
+Un lien est créé pour un compte et remis à la main (valable 7 jours, usage unique). Il ouvre
+la page « Créez votre mot de passe » (/connexion?jeton=…) : l'ouvrir ne consomme rien, si
+bien qu'un aperçu de messagerie ou un antivirus qui suit l'adresse ne le grille pas. Le lien
+ne sert qu'au moment où le mot de passe est enregistré ; la session s'ouvre alors avec ce
+mot de passe. Ensuite, la personne se connecte normalement (adresse et mot de passe).
 
-Un lien sert une fois. Seule l'empreinte SHA-256 du jeton est gardée en base
-(`liens_de_connexion`). À l'ouverture, le serveur fait émettre par Supabase Auth un jeton
-magique pour ce compte et le vérifie aussitôt : la session obtenue est la même qu'après un
-mot de passe (jeton d'accès et de renouvellement).
-
-La demande répond toujours la même chose, que l'adresse ait un compte ou non.
+Seule l'empreinte SHA-256 du jeton est gardée en base (`liens_de_connexion`).
 """
 
 from __future__ import annotations
@@ -18,24 +14,19 @@ from __future__ import annotations
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Optional
-
-from app.core.logging import get_logger
-
-logger = get_logger("modules.auth.liens")
+from typing import Optional
 
 DUREE_INVITATION = timedelta(days=7)
-DUREE_DEMANDE = timedelta(minutes=30)
 
-MESSAGE_DEMANDE = (
-    "Si un compte existe pour cette adresse, un lien de connexion vient d'y être envoyé. "
-    "Il est valable 30 minutes."
-)
 CODE_LIEN_INVALIDE = "lien_invalide"
 MESSAGE_LIEN_INVALIDE = (
-    "Ce lien de connexion n'est plus valable : il a déjà servi ou il a expiré. "
-    "Demandez-en un nouveau sur la page de connexion."
+    "Ce lien d'invitation n'est plus valable : il a déjà servi ou il a expiré. "
+    "Demandez-en un nouveau à la personne qui vous l'a envoyé."
 )
+
+
+class LienInvalide(Exception):
+    """Lien inconnu, déjà servi ou expiré (traduit en 400 `lien_invalide` par le service)."""
 
 
 def empreinte(jeton: str) -> str:
@@ -70,59 +61,56 @@ def url_du_lien(frontend_url: str, jeton: str) -> str:
     return f"{frontend_url.rstrip('/')}/connexion?jeton={jeton}"
 
 
-def _compte_par_adresse(client, email: str) -> Optional[Any]:
-    from app.modules.auth.infrastructure import auth_provider
+def _jeton_lisible(jeton: str) -> bool:
+    return bool(jeton) and len(jeton) <= 200
 
-    user_id = auth_provider.find_user_id_by_email(email)
-    if not user_id:
+
+def compte_du_lien(jeton: str, client=None) -> Optional[str]:
+    """Le compte d'un lien encore valable (ni servi, ni expiré), sans le consommer."""
+    if not _jeton_lisible(jeton):
         return None
-    acces = (
-        client.table("user_company_accesses")
-        .select("company_id")
-        .eq("user_id", user_id)
-        .eq("is_active", True)
+    lignes = (
+        (client or _client())
+        .table("liens_de_connexion")
+        .select("user_id")
+        .eq("jeton_hash", empreinte(jeton))
+        .is_("used_at", "null")
+        .gt("expires_at", _maintenant().isoformat())
         .limit(1)
         .execute()
         .data
     )
-    return user_id if acces else None
+    return lignes[0]["user_id"] if lignes else None
 
 
-def demander_lien(email: str, envoyer: Optional[Callable[..., bool]] = None, client=None) -> dict:
-    """Envoie un lien de connexion à cette adresse si elle a un compte avec des accès."""
-    email = (email or "").strip().lower()
-    reponse = {"message": MESSAGE_DEMANDE}
-    if "@" not in email:
-        return reponse
+def email_du_compte(user_id: str, client=None) -> str:
+    return (client or _client()).auth.admin.get_user_by_id(user_id).user.email
+
+
+def verifier_lien(jeton: str, client=None) -> dict:
+    """Pour la page d'invitation : le lien est-il valable, et pour qui (prénom, adresse) ?"""
     client = client or _client()
-    try:
-        user_id = _compte_par_adresse(client, email)
-        if not user_id:
-            return reponse
-        jeton = creer_lien(user_id, "demande", DUREE_DEMANDE, client)
-        if envoyer is None:
-            from app.shared.infrastructure.email import send_lien_de_connexion_email as envoyer
-        envoyer(to_email=email, jeton=jeton)
-    except Exception:
-        logger.warning("Lien de connexion : demande non aboutie", exc_info=True)
-    return reponse
-
-
-class LienInvalide(Exception):
-    """Lien inconnu, déjà servi ou expiré (traduit en 400 `lien_invalide` par le service)."""
-
-
-def _refus_lien() -> LienInvalide:
-    return LienInvalide(MESSAGE_LIEN_INVALIDE)
+    user_id = compte_du_lien(jeton, client)
+    if not user_id:
+        return {"valide": False, "prenom": None, "email": None}
+    profil = (
+        client.table("profiles").select("first_name").eq("id", user_id).limit(1).execute().data
+    )
+    email = email_du_compte(user_id, client)
+    return {
+        "valide": True,
+        "prenom": profil[0].get("first_name") if profil else None,
+        "email": email,
+    }
 
 
 def consommer_lien(jeton: str, client=None) -> str:
     """Marque le lien servi et rend son compte ; refuse un lien inconnu, servi ou expiré."""
-    if not jeton or len(jeton) > 200:
-        raise _refus_lien()
+    if not _jeton_lisible(jeton):
+        raise LienInvalide(MESSAGE_LIEN_INVALIDE)
     client = client or _client()
     maintenant = _maintenant().isoformat()
-    # Une seule mise à jour conditionnelle : deux clics simultanés ne servent pas deux fois.
+    # Une seule mise à jour conditionnelle : deux envois simultanés ne servent pas deux fois.
     lignes = (
         client.table("liens_de_connexion")
         .update({"used_at": maintenant})
@@ -133,56 +121,5 @@ def consommer_lien(jeton: str, client=None) -> str:
         .data
     )
     if not lignes:
-        raise _refus_lien()
+        raise LienInvalide(MESSAGE_LIEN_INVALIDE)
     return lignes[0]["user_id"]
-
-
-def verifier_lien(jeton: str, client=None) -> dict:
-    """Le lien est-il encore valable ? Ne le consomme pas (la page de connexion s'affiche
-    d'abord ; seul le bouton « Me connecter » le sert). Rend le prénom pour l'accueil."""
-    if not jeton or len(jeton) > 200:
-        return {"valide": False, "prenom": None}
-    client = client or _client()
-    lignes = (
-        client.table("liens_de_connexion")
-        .select("user_id")
-        .eq("jeton_hash", empreinte(jeton))
-        .is_("used_at", "null")
-        .gt("expires_at", _maintenant().isoformat())
-        .limit(1)
-        .execute()
-        .data
-    )
-    if not lignes:
-        return {"valide": False, "prenom": None}
-    profil = (
-        client.table("profiles")
-        .select("first_name")
-        .eq("id", lignes[0]["user_id"])
-        .limit(1)
-        .execute()
-        .data
-    )
-    return {"valide": True, "prenom": (profil[0].get("first_name") if profil else None)}
-
-
-def session_du_compte(user_id: str, client=None) -> dict:
-    """Ouvre une session Supabase pour ce compte, sans mot de passe (jeton magique vérifié)."""
-    from supabase import create_client
-
-    from app.core.settings import get_supabase_anon_env
-
-    client = client or _client()
-    email = client.auth.admin.get_user_by_id(user_id).user.email
-    lien = client.auth.admin.generate_link({"type": "magiclink", "email": email})
-    anon_url, anon_key = get_supabase_anon_env()
-    res = create_client(anon_url, anon_key).auth.verify_otp(
-        {"token_hash": lien.properties.hashed_token, "type": "magiclink"}
-    )
-    session = res.session
-    return {
-        "access_token": session.access_token,
-        "refresh_token": session.refresh_token,
-        "expires_in": session.expires_in,
-        "expires_at": session.expires_at,
-    }

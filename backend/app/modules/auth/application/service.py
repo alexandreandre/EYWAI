@@ -181,19 +181,38 @@ def _reponse_de_session(session: dict) -> dict:
     }
 
 
-def ouvrir_lien_de_connexion(jeton: str) -> dict:
-    """Connexion par lien : le lien sert une fois, puis la session s'ouvre sans mot de passe."""
+def activer_invitation(jeton: str, mot_de_passe: str) -> dict:
+    """Lien d'invitation : la personne crée son mot de passe, puis la session s'ouvre avec lui.
+
+    Le lien n'est servi qu'une fois le mot de passe accepté : un mot de passe refusé ne le
+    grille pas.
+    """
+    from app.modules.activation.domain.rules import validate_activation_password
     from app.modules.auth.application import liens_de_connexion as liens
 
+    def lien_refuse() -> HTTPException:
+        return _refus(400, liens.CODE_LIEN_INVALIDE, liens.MESSAGE_LIEN_INVALIDE)
+
+    user_id = liens.compte_du_lien(jeton)
+    if not user_id:
+        raise lien_refuse()
+    erreur = validate_activation_password(mot_de_passe)
+    if erreur:
+        raise _refus(400, "mot_de_passe_invalide", erreur)
     try:
-        user_id = liens.consommer_lien(jeton)
-    except liens.LienInvalide as exc:
-        raise _refus(400, liens.CODE_LIEN_INVALIDE, liens.MESSAGE_LIEN_INVALIDE) from exc
-    try:
-        session = liens.session_du_compte(user_id)
+        auth_provider.update_user_password(user_id, mot_de_passe)
     except Exception as exc:
         if is_transient_supabase_error(exc):
             raise _service_indisponible() from exc
-        logger.exception("Lien de connexion : session non ouverte")
+        logger.exception("Invitation : mot de passe non enregistré")
         raise _connexion_impossible() from exc
+    try:
+        liens.consommer_lien(jeton)
+    except liens.LienInvalide as exc:
+        raise lien_refuse() from exc
+    email = liens.email_du_compte(user_id)
+    try:
+        session = auth_provider.sign_in_with_password(email, mot_de_passe)
+    except Exception as exc:
+        raise _refus_de_supabase(exc) from exc
     return _reponse_de_session(session)

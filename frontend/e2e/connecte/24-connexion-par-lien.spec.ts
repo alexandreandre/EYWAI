@@ -1,52 +1,42 @@
 import { test, expect } from '../helpers/garde';
 
-// Connexion par lien, sans mot de passe.
-// 1. La page de connexion propose « Recevoir un lien de connexion par e-mail » ; la
-//    demande est interceptée (aucun e-mail ne part).
-// 2. Avec E2E_LIEN_JETON (un lien d'invitation créé en base pour le compte QA, par le
-//    script de création des liens, hors dépôt) : le lien affiche la page de connexion,
-//    sans rien consommer ; « Me connecter » ouvre la session,
-//    puis le même lien est refusé avec un message clair.
+// Lien d'invitation : la personne crée son mot de passe, puis elle est connectée.
+// Avec E2E_LIEN_JETON (un lien d'invitation créé en base pour le compte QA, par le
+// script de création des liens, hors dépôt). Le « nouveau » mot de passe est celui
+// du compte QA : le compte ne change pas pour les autres parcours.
+//   1. Ouvrir le lien (et recharger la page) ne le consomme pas : formulaire affiché.
+//   2. Un mot de passe trop faible est refusé, sans griller le lien.
+//   3. Le mot de passe enregistré, la session s'ouvre.
+//   4. Le même lien, rouvert, dit qu'il n'est plus valable.
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-test('la page de connexion propose un lien par e-mail', async ({ page }) => {
-  let demande: unknown = null;
-  await page.route('**/api/auth/lien-de-connexion', async (route) => {
-    demande = route.request().postDataJSON();
-    await route.fulfill({ json: { message: 'Si un compte existe pour cette adresse, un lien de connexion vient d’y être envoyé. Il est valable 30 minutes.' } });
-  });
-  await page.goto('/login');
-  await page.getByRole('button', { name: /recevoir un lien de connexion par e-mail/i }).click();
-  await page.locator('#lien-email').fill('quelqu.un@example.test');
-  await page.getByRole('button', { name: /recevoir le lien/i }).click();
-  await expect(page.getByText(/lien de connexion vient d.y être envoyé/i)).toBeVisible();
-  expect(demande).toEqual({ email: 'quelqu.un@example.test' });
-});
-
-test('un lien ouvre la session une seule fois', async ({ page }) => {
+test('le lien d’invitation fait créer le mot de passe, une seule fois', async ({ page }) => {
   const jeton = process.env.E2E_LIEN_JETON;
   test.skip(!jeton, 'E2E_LIEN_JETON absent : lien d’invitation à créer en base');
+  const motDePasse = process.env.E2E_QA_PASSWORD!;
+
   await page.goto(`/connexion?jeton=${jeton}`);
-  // Ouvrir le lien ne connecte pas : la page de connexion s'affiche d'abord.
-  const bouton = page.getByRole('button', { name: /me connecter/i });
-  await expect(bouton).toBeVisible({ timeout: 30_000 });
-  await page.waitForTimeout(1_000);
-  expect(new URL(page.url()).pathname).toBe('/connexion');
-  expect(await page.evaluate(() => localStorage.getItem('authToken'))).toBeFalsy();
-  // Recharger la page ne consomme pas le lien non plus.
+  await expect(page.getByText(/créez votre mot de passe/i)).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#invitation-email')).toHaveValue(process.env.E2E_QA_EMAIL!.toLowerCase());
   await page.reload();
-  await expect(bouton).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/créez votre mot de passe/i)).toBeVisible({ timeout: 30_000 });
+  expect(await page.evaluate(() => localStorage.getItem('authToken'))).toBeFalsy();
+
+  const bouton = page.getByRole('button', { name: /créer mon mot de passe et me connecter/i });
+  await page.locator('#invitation-mot-de-passe').fill('court');
+  await page.locator('#invitation-confirmation').fill('court');
+  await expect(bouton).toBeDisabled();
+
+  await page.locator('#invitation-mot-de-passe').fill(motDePasse);
+  await page.locator('#invitation-confirmation').fill(motDePasse);
   await bouton.click();
   await page.waitForURL((url) => !url.pathname.startsWith('/connexion') && !url.pathname.startsWith('/login'), {
     timeout: 30_000,
   });
-  const jetonGarde = await page.evaluate(() => localStorage.getItem('authToken'));
-  expect(jetonGarde, 'session ouverte').toBeTruthy();
+  expect(await page.evaluate(() => localStorage.getItem('authToken')), 'session ouverte').toBeTruthy();
 
-  // Même lien, deuxième fois : refusé, et l'écran dit pourquoi.
   await page.evaluate(() => localStorage.clear());
   await page.goto(`/connexion?jeton=${jeton}`);
   await expect(page.getByRole('alert')).toContainText(/déjà servi ou il a expiré/i, { timeout: 30_000 });
-  await expect(page.getByRole('button', { name: /me connecter/i })).toHaveCount(0);
 });

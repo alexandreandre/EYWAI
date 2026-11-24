@@ -314,46 +314,6 @@ L'équipe Martine
         )
         return ok
 
-    def send_lien_de_connexion_email(self, to_email: str, jeton: str) -> bool:
-        """Lien de connexion sans mot de passe, demandé sur la page de connexion."""
-        from app.modules.auth.application.liens_de_connexion import url_du_lien
-
-        config = self._load_config()
-        lien = url_du_lien(config.frontend_url, jeton)
-        texte = f"""Bonjour,
-
-Pour vous connecter à Martine, cliquez sur ce lien :
-{lien}
-
-Il est valable 30 minutes et ne sert qu'une fois.
-
-Si vous n'avez pas demandé ce lien, ignorez cet e-mail : personne ne peut s'en servir sans votre boîte mail.
-
-L'équipe Martine"""
-        html = f"""<!DOCTYPE html>
-<html><head><meta charset="utf-8"></head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-  <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-    <p>Bonjour,</p>
-    <p>Pour vous connecter à Martine, cliquez sur ce bouton :</p>
-    <p style="text-align: center;">
-      <a href="{lien}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: #fff; text-decoration: none; border-radius: 5px;">Me connecter</a>
-    </p>
-    <p style="font-size: 14px; color: #6b7280;">Ou copiez ce lien :<br><a href="{lien}">{lien}</a></p>
-    <p><strong>Il est valable 30 minutes et ne sert qu'une fois.</strong></p>
-    <p style="font-size: 14px; color: #6b7280;">Si vous n'avez pas demandé ce lien, ignorez cet e-mail : personne ne peut s'en servir sans votre boîte mail.</p>
-    <p style="text-align: center; color: #6b7280; font-size: 12px;">Cet e-mail a été envoyé par Martine</p>
-  </div>
-</body></html>"""
-        ok, _ = self.send_multipart_email(
-            to_email=to_email,
-            subject="Votre lien de connexion à Martine",
-            text_content=texte,
-            html_content=html,
-            require_delivery=False,
-        )
-        return ok
-
 
 _default_sender: SmtpMailSender | None = None
 

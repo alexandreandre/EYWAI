@@ -25,7 +25,7 @@ from app.modules.auth.schemas import (
 )
 from app.core.limite_debit import limite_de_debit
 from app.modules.auth.application import liens_de_connexion
-from app.modules.auth.application.service import ouvrir_lien_de_connexion
+from app.modules.auth.application.service import activer_invitation
 from pydantic import BaseModel
 from app.modules.users.schemas import User
 
@@ -52,40 +52,32 @@ def refresh_route(request: RefreshTokenRequest):
     return refresh_tokens(request.refresh_token)
 
 
-class DemandeDeLien(BaseModel):
-    email: str
-
-
-class OuvertureDeLien(BaseModel):
+class VerificationDeLien(BaseModel):
     jeton: str
 
 
-@router.post(
-    "/lien-de-connexion",
-    dependencies=[Depends(limite_de_debit("demande-lien-connexion", 10))],
-)
-def demander_lien_de_connexion_route(demande: DemandeDeLien):
-    """Envoie un lien de connexion par e-mail (sans dire si l'adresse a un compte)."""
-    return liens_de_connexion.demander_lien(demande.email)
+class ActivationDInvitation(BaseModel):
+    jeton: str
+    mot_de_passe: str
 
 
 @router.post(
     "/lien-de-connexion/verifier",
     dependencies=[Depends(limite_de_debit("verification-lien-connexion", 30))],
 )
-def verifier_lien_de_connexion_route(ouverture: OuvertureDeLien):
-    """Le lien est-il encore valable ? Sans le consommer (affichage de la page de connexion)."""
-    return liens_de_connexion.verifier_lien(ouverture.jeton)
+def verifier_lien_de_connexion_route(verification: VerificationDeLien):
+    """Le lien d'invitation est-il valable, et pour qui ? Sans le consommer."""
+    return liens_de_connexion.verifier_lien(verification.jeton)
 
 
 @router.post(
-    "/lien-de-connexion/ouvrir",
+    "/lien-de-connexion/activer",
     response_model=TokenWithUser,
-    dependencies=[Depends(limite_de_debit("ouverture-lien-connexion", 30))],
+    dependencies=[Depends(limite_de_debit("activation-invitation", 20))],
 )
-def ouvrir_lien_de_connexion_route(ouverture: OuvertureDeLien):
-    """Connexion sans mot de passe : le lien sert une fois, puis la session s'ouvre."""
-    return ouvrir_lien_de_connexion(ouverture.jeton)
+def activer_invitation_route(activation: ActivationDInvitation):
+    """Lien d'invitation : enregistre le mot de passe choisi, puis ouvre la session."""
+    return activer_invitation(activation.jeton, activation.mot_de_passe)
 
 
 @router.get("/me", response_model=User)

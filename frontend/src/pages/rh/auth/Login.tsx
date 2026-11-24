@@ -18,9 +18,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // Connexion sans mot de passe : un lien envoyé par e-mail.
-  const [modeLien, setModeLien] = useState(false);
-  const [lienEnvoye, setLienEnvoye] = useState('');
   const { user, login, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -82,82 +79,6 @@ export default function LoginPage() {
       setIsSubmitting(false);
     }
   };
-
-  const demanderUnLien = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsSubmitting(true);
-    try {
-      const { data } = await apiClient.post('/api/auth/lien-de-connexion', { email: identifier.trim() });
-      setLienEnvoye(data?.message ?? 'Si un compte existe pour cette adresse, un lien de connexion vient d’y être envoyé.');
-    } catch (err: unknown) {
-      setError(messageEchecConnexion(err));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (modeLien) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background p-4">
-        <Card className="w-full max-w-sm">
-          <CardHeader>
-            <CardTitle className="text-2xl">Connexion par lien</CardTitle>
-            <CardDescription>
-              Recevez par e-mail un lien qui vous connecte, sans mot de passe.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {lienEnvoye ? (
-              <div className="space-y-4">
-                <p className="text-sm" role="status">
-                  {lienEnvoye} Pensez à regarder dans les indésirables.
-                </p>
-                <Button variant="outline" className="w-full" onClick={() => setLienEnvoye('')}>
-                  Renvoyer un lien
-                </Button>
-              </div>
-            ) : (
-              <form onSubmit={demanderUnLien} className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="lien-email">Adresse e-mail</Label>
-                  <Input
-                    id="lien-email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="email@example.com"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    required
-                  />
-                </div>
-                {error && (
-                  <p className="text-sm text-destructive" role="alert">
-                    {error}
-                  </p>
-                )}
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Recevoir le lien
-                </Button>
-              </form>
-            )}
-            <button
-              type="button"
-              className="mt-4 text-xs text-primary hover:underline"
-              onClick={() => {
-                setModeLien(false);
-                setLienEnvoye('');
-                setError('');
-              }}
-            >
-              Se connecter avec un mot de passe
-            </button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background p-4">
@@ -223,22 +144,6 @@ export default function LoginPage() {
               Se connecter
             </Button>
           </form>
-          <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="h-px flex-1 bg-border" />
-            ou
-            <span className="h-px flex-1 bg-border" />
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={() => {
-              setModeLien(true);
-              setError('');
-            }}
-          >
-            Recevoir un lien de connexion par e-mail
-          </Button>
         </CardContent>
       </Card>
     </div>
