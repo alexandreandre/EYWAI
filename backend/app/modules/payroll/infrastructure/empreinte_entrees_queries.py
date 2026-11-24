@@ -63,6 +63,9 @@ class Complements:
     historique_salaire: list[dict[str, Any]] = field(default_factory=list)
     maintien: dict[str, Any] | None = None
     jei: dict[str, Any] | None = None
+    #: Réglage d'activité partielle de la société (taux, plancher, plafond,
+    #: dates) : `lignes_du_calendrier` en tire la retenue et l'indemnité.
+    activite_partielle: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -125,7 +128,8 @@ _SALARIE_JOINT = (
 #: Réglages de congés, de maintien de salaire et JEI, joints à la société.
 _SOCIETE_JOINTE = (
     "id, company_leave_settings(*), company_cp_seniority_settings(*), "
-    "company_maintenance_settings(*), company_jei_settings(*)"
+    "company_maintenance_settings(*), company_jei_settings(*), "
+    "company_activite_partielle(*)"
 )
 
 
@@ -165,6 +169,7 @@ def lire_complements(
         ],
         maintien=_une_ligne(societe.get("company_maintenance_settings")),
         jei=_une_ligne(societe.get("company_jei_settings")),
+        activite_partielle=_une_ligne(societe.get("company_activite_partielle")),
     )
 
 

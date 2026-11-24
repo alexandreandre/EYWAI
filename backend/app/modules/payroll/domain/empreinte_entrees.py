@@ -293,6 +293,10 @@ _PARTIES: dict[str, tuple[str, str]] = {
         "Un arrêt d'un mois précédent a changé (limite annuelle du maintien)",
         "les arrêts des mois précédents",
     ),
+    "activite_partielle": (
+        "Le réglage d'activité partielle de la société a changé",
+        "le réglage d'activité partielle",
+    ),
 }
 
 
