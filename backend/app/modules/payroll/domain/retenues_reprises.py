@@ -54,6 +54,14 @@ def retenues_du_bulletin_repris(payslip_data: Mapping[str, Any] | None) -> list[
     return retenues
 
 
+def saisie_posee_dans_martine(saisie: Mapping[str, Any]) -> bool:
+    """La saisie reprise est posée dans Martine : active, ou terminée avec un
+    montant total (dette soldée, la saisie s'est arrêtée seule). Une saisie
+    terminée sans montant total ou suspendue ne compte pas, comme avant."""
+    statut = saisie.get("status")
+    return statut == "active" or (statut == "closed" and saisie.get("montant_total") is not None)
+
+
 def message_retenue(retenue: RetenueReprise, libelle_mois: str) -> str:
     montant = f"{retenue.montant:.2f}".replace(".", ",")
     if retenue.nature == "pret":

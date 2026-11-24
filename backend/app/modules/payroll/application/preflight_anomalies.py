@@ -34,6 +34,7 @@ from app.modules.payroll.domain.retenues_reprises import (
     MOIS_DE_RAPPEL,
     message_retenue,
     retenues_du_bulletin_repris,
+    saisie_posee_dans_martine,
 )
 from app.modules.payroll.infrastructure import preflight_repository
 from app.modules.payroll.schemas.preflight_responses import (
@@ -221,15 +222,20 @@ def _anomalies_retenues_a_poser(
             .data
             or []
         )
-        saisies = (
-            supabase.table("salary_seizures")
-            .select("employee_id")
-            .eq("company_id", company_id)
-            .eq("status", "active")
-            .execute()
-            .data
-            or []
-        )
+        # Une saisie soldée dans Martine s'est terminée seule : elle est posée.
+        saisies = [
+            s
+            for s in (
+                supabase.table("salary_seizures")
+                .select("employee_id, status, montant_total")
+                .eq("company_id", company_id)
+                .in_("status", ["active", "closed"])
+                .execute()
+                .data
+                or []
+            )
+            if saisie_posee_dans_martine(s)
+        ]
     except Exception:  # noqa: BLE001 - un rappel ne doit pas faire tomber la revue
         logger.warning("Retenues reprises illisibles pour la société %s", company_id, exc_info=True)
         return []

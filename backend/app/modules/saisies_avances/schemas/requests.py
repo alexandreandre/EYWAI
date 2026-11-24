@@ -37,6 +37,9 @@ class SalarySeizureCreate(BaseModel):
     # Personnes à charge du salarié : chacune relève les seuils du barème légal
     # (R3252-3 du Code du travail).
     dependents_count: int = Field(default=0, ge=0, le=20)
+    # Montant total de la dette : la retenue s'arrête quand il est atteint.
+    # Vide : la saisie court sans fin, comme avant.
+    montant_total: Optional[Decimal] = Field(default=None, ge=0)
 
 
 class SalarySeizureUpdate(BaseModel):
@@ -49,6 +52,8 @@ class SalarySeizureUpdate(BaseModel):
     end_date: Optional[date] = None
     notes: Optional[str] = None
     dependents_count: Optional[int] = Field(default=None, ge=0, le=20)
+    # Envoyé à null : le montant total est effacé (voir le service).
+    montant_total: Optional[Decimal] = Field(default=None, ge=0)
 
 
 class SalaryAdvanceCreate(BaseModel):

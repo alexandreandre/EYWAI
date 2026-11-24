@@ -333,6 +333,30 @@ def montant_demande_de_la_saisie(
     return None
 
 
+def reste_du_de_la_saisie(
+    montant_total: Any, deja_retenu: Decimal
+) -> Decimal | None:
+    """Ce qui reste dû au créancier : le montant total de la dette moins ce qui
+    a déjà été retenu sur les bulletins, jamais sous zéro. None sans montant
+    total : la saisie court alors sans fin, comme avant (demande d'Elsa du
+    24/11/2026)."""
+    if montant_total is None:
+        return None
+    return _centimes(max(Decimal("0"), Decimal(str(montant_total)) - deja_retenu))
+
+
+def message_saisie_soldee(
+    *, creancier: str | None, retenu: Decimal, montant_total: Any
+) -> str:
+    """Ce que dit le bulletin de la retenue qui solde la dette."""
+    qui = f"Saisie sur salaire ({creancier})" if creancier else "Saisie sur salaire"
+    return (
+        f"{qui} : dernière retenue de {_euros_fr(retenu)}, la dette de "
+        f"{_euros_fr(Decimal(str(montant_total)))} est soldée. La saisie est "
+        "terminée : plus rien ne sera retenu."
+    )
+
+
 def _euros_fr(montant: Decimal) -> str:
     texte = f"{abs(montant):,.2f}".replace(",", " ").replace(".", ",")
     return f"{'−' if montant < 0 else ''}{texte} €"
