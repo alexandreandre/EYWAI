@@ -35,6 +35,7 @@ def enregistrees(monkeypatch):
     monkeypatch.setattr(sq, "load_baremes", lambda: {})
     monkeypatch.setattr(sq, "_apply_cc_minimum_override", lambda scenario, **_k: scenario)
     monkeypatch.setattr(sq, "employee_to_payroll_payload", lambda *_a: {})
+    monkeypatch.setattr(sq, "_jours_neutralises", lambda _employee: 0)
     monkeypatch.setattr(sq, "company_to_payroll_payload", lambda *_a: {})
     monkeypatch.setattr(
         sq.simulation_commands,

@@ -15,10 +15,10 @@ from app.shared.domain.conge_parental import (
 )
 
 
-def jours_neutralises_du_salarie(employee_id: str | None, jusqu_au: date, client: Any = None) -> int:
-    """Jours d'ancienneté que les congés parentaux validés ne donnent pas."""
+def conges_parentaux_du_salarie(employee_id: str | None, client: Any = None) -> list[dict]:
+    """Les congés parentaux validés du salarié (type, sous-type, jours)."""
     if not employee_id:
-        return 0
+        return []
     if client is None:
         from app.core.database import supabase as client
     res = (
@@ -29,5 +29,15 @@ def jours_neutralises_du_salarie(employee_id: str | None, jusqu_au: date, client
         .eq("event_subtype", SOUS_TYPE_CONGE_PARENTAL)
         .execute()
     )
-    demandes = [r for r in (getattr(res, "data", None) or []) if r.get("type") == TYPE_DEMANDE_CONGE_PARENTAL]
-    return jours_d_anciennete_neutralises(demandes, jusqu_au)
+    return [r for r in (getattr(res, "data", None) or []) if r.get("type") == TYPE_DEMANDE_CONGE_PARENTAL]
+
+
+def jours_neutralises_du_salarie(
+    employee_id: str | None, jusqu_au: date, client: Any = None, depuis: date | None = None
+) -> int:
+    """Jours d'ancienneté que les congés parentaux validés ne donnent pas."""
+    if not employee_id:
+        return 0
+    return jours_d_anciennete_neutralises(
+        conges_parentaux_du_salarie(employee_id, client), jusqu_au, depuis
+    )

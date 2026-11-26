@@ -299,8 +299,15 @@ def get_employee_by_id(employee_id: str, company_id: str) -> Optional[Dict[str, 
     data = enrich_employee_with_annual_review(data)
     data = enrich_employee_with_exit_context(data)
     aujourd_hui = aujourd_hui_local()
+    from app.shared.infrastructure.conge_parental import jours_neutralises_du_salarie
+
     data["alertes_paie"] = alertes_prevoyance_de_la_fiche(
-        data,
+        {
+            **data,
+            "jours_anciennete_neutralises": lambda: jours_neutralises_du_salarie(
+                data.get("id"), dernier_jour_du_mois(aujourd_hui.year, aujourd_hui.month), supabase
+            ),
+        },
         idcc=lambda: _idcc_de_la_fiche(data),
         fin_du_mois=dernier_jour_du_mois(aujourd_hui.year, aujourd_hui.month),
         plafond_mensuel=_plafond_mensuel_de_l_annee(aujourd_hui.year),

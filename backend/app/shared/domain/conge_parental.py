@@ -107,7 +107,9 @@ def periode_du_jour(chaines: list[dict[str, str]], jour: str) -> dict[str, str] 
     return None
 
 
-def jours_d_anciennete_neutralises(demandes: Any, jusqu_au: date) -> int:
+def jours_d_anciennete_neutralises(
+    demandes: Any, jusqu_au: date, depuis: date | None = None
+) -> int:
     """Jours d'ancienneté que le congé parental à temps plein ne donne pas.
 
     C. trav. L1225-54 (version du 11/03/2023, loi n° 2023-171, art. 18 ; le
@@ -115,16 +117,21 @@ def jours_d_anciennete_neutralises(demandes: Any, jusqu_au: date) -> int:
     d'éducation à temps plein est prise en compte pour moitié pour la
     détermination des droits que le salarié tient de son ancienneté. » La
     moitié des jours calendaires de congé jusqu'à `jusqu_au` inclus, arrondie
-    à l'entier inférieur (au bénéfice du salarié), est retirée."""
+    à l'entier inférieur (au bénéfice du salarié), est retirée. `depuis` : le
+    départ de l'ancienneté ; un congé d'avant (contrat antérieur, réembauche
+    sans reprise d'ancienneté) n'en retire rien."""
     jours: set[str] = set()
     limite = jusqu_au.isoformat()
+    plancher = depuis.isoformat() if depuis else ""
     for demande in demandes or ():
         if not est_conge_parental(demande):
             continue
         if str(demande.get("status") or "validated") != "validated":
             continue
         jours.update(
-            str(j)[:10] for j in demande.get("selected_days") or [] if str(j)[:10] <= limite
+            str(j)[:10]
+            for j in demande.get("selected_days") or []
+            if plancher <= str(j)[:10] <= limite
         )
     return len(jours) // 2
 

@@ -59,7 +59,10 @@ def test_l_anciennete_des_conges_se_lit_en_une_requete_sans_la_colonne_absente()
     base = MagicMock()
     requete = base.table.return_value.select.return_value.eq.return_value.limit.return_value
     requete.execute.return_value = MagicMock(data=[{"hire_date": "2020-01-01", "statut": "Cadre"}])
-    with patch.object(module, "supabase", base):
+    # Les congés parentaux (ancienneté pour moitié) se lisent à part, ailleurs.
+    with patch.object(module, "supabase", base), patch(
+        "app.shared.infrastructure.conge_parental.conges_parentaux_du_salarie", return_value=[]
+    ):
         contexte = module.load_employee_cp_seniority_context("salarie-1")
 
     assert base.table.return_value.select.call_count == 1

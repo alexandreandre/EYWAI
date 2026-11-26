@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import calendar
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Dict, Optional
 
 from app.shared.domain.employment_rules import is_cadre
@@ -191,6 +191,13 @@ def anciennete_plasturgie_atteinte(employee: Dict[str, Any], fin_du_mois: date) 
     debut = _date(resolve_date_anciennete_prime(employee))
     if debut is None:
         return False
+    # Congé parental à temps plein : compté pour moitié (C. trav. L1225-54) ;
+    # l'appelant qui lit les demandes pose les jours à retirer sur la fiche
+    # (ou la fonction qui les lit, appelée seulement ici).
+    neutralises = employee.get("jours_anciennete_neutralises")
+    if callable(neutralises):
+        neutralises = neutralises()
+    debut += timedelta(days=int(neutralises or 0))
     return _plus_mois(debut, MOIS_D_ANCIENNETE_PLASTURGIE) <= fin_du_mois
 
 

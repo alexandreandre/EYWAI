@@ -199,6 +199,7 @@ def test_la_fiche_d_un_non_cadre_n_a_pas_d_alerte_de_prevoyance(mock_repo, *_):
     assert queries_module.get_employee_by_id("e1", "c1")["alertes_paie"] == []
 
 
+@patch("app.shared.infrastructure.conge_parental.conges_parentaux_du_salarie", new=lambda *_a, **_k: [])
 @patch("app.modules.employees.application.queries.aujourd_hui_local")
 @patch("app.modules.employees.application.queries.resolve_employee_idcc", return_value="0292")
 @patch("app.modules.employees.application.queries.enrich_employee_with_exit_context", side_effect=lambda d: d)

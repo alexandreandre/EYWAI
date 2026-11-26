@@ -187,7 +187,9 @@ def get_notice_period_preview(
         # porte une ; un congé parental à temps plein compte pour moitié (L1225-54).
         hire_date=decaler_l_anciennete(
             _debut_anciennete_preavis(employee),
-            jours_neutralises_du_salarie(str(employee_id), reference_date, sb),
+            jours_neutralises_du_salarie(
+                str(employee_id), reference_date, sb, _debut_anciennete_preavis(employee)
+            ),
         ),
         reference_date=reference_date,
         statut=employee.get("statut"),

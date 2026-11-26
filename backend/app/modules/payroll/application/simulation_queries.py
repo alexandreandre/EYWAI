@@ -120,6 +120,7 @@ def _apply_cc_minimum_override(
 def employee_to_payroll_payload(
     employee: Dict[str, Any],
     company: Dict[str, Any],
+    jours_anciennete_neutralises: int = 0,
 ) -> Dict[str, Any]:
     salaire_de_base = employee.get("salaire_de_base")
     salaire_base = 0.0
@@ -136,6 +137,14 @@ def employee_to_payroll_payload(
 
     seniority_ref = resolve_seniority_reference_date(employee) or ""
     date_anciennete_prime = resolve_date_anciennete_prime(employee) or hire_date
+    if jours_anciennete_neutralises and date_anciennete_prime:
+        # Congé parental à temps plein : compté pour moitié (C. trav. L1225-54).
+        from datetime import date as _date, timedelta as _timedelta
+
+        date_anciennete_prime = (
+            _date.fromisoformat(str(date_anciennete_prime)[:10])
+            + _timedelta(days=int(jours_anciennete_neutralises))
+        ).isoformat()
     return {
         "id": employee.get("id"),
         "first_name": employee.get("first_name") or "",
@@ -270,6 +279,16 @@ def company_to_payroll_payload(
     }
 
 
+def _jours_neutralises(employee: Dict[str, Any]) -> int:
+    """Jours d'ancienneté que les congés parentaux validés ne donnent pas, à ce jour."""
+    from app.modules.payroll.documents.payslip_generator import depart_de_l_anciennete
+    from app.shared.infrastructure.conge_parental import jours_neutralises_du_salarie
+
+    return jours_neutralises_du_salarie(
+        employee.get("id"), date.today(), None, depart_de_l_anciennete(employee)
+    )
+
+
 def resolve_employee_payload(
     company_id: str,
     employee_id: Optional[str],
@@ -278,7 +297,7 @@ def resolve_employee_payload(
     company = load_company(company_id)
     if employee_id:
         employee = load_employee(employee_id, company_id)
-        return employee_to_payroll_payload(employee, company)
+        return employee_to_payroll_payload(employee, company, _jours_neutralises(employee))
     return manual_employee_payload(options_or_scenario, company)
 
 
@@ -508,7 +527,7 @@ def create_payslip_simulation_record(
     )
     baremes = load_baremes()
     employee_payload = (
-        employee_to_payroll_payload(employee, company)
+        employee_to_payroll_payload(employee, company, _jours_neutralises(employee))
         if employee
         else manual_employee_payload(scenario_data or {}, company)
     )
@@ -611,7 +630,7 @@ def get_predefined_scenarios(company_id: str, employee_id: str) -> Dict[str, Any
     company = load_company(company_id)
     employee = load_employee(employee_id, company_id)
     scenarios = simulation_commands.generer_scenarios_predefinis(
-        employee_to_payroll_payload(employee, company)
+        employee_to_payroll_payload(employee, company, _jours_neutralises(employee))
     )
     return {"scenarios": scenarios}
 

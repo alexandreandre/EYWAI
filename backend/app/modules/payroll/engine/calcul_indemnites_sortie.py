@@ -1776,7 +1776,9 @@ def calculer_indemnites_sortie(
     # l'ancienneté (C. trav. L1225-54), donc dans l'indemnité de rupture.
     debut_anciennete = decaler_l_anciennete(
         debut_anciennete,
-        jours_neutralises_du_salarie(employee_data.get("id"), exit_date, supabase_client)
+        jours_neutralises_du_salarie(
+            employee_data.get("id"), exit_date, supabase_client, debut_anciennete
+        )
         if supabase_client is not None
         else 0,
     )
