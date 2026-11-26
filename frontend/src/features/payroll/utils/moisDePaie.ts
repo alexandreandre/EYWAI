@@ -15,6 +15,21 @@ import { moisDePaieParDefaut } from './payrollMonth';
 export type MoisDePaie = { year: number; month: number };
 
 const CLE_SESSION = 'martine-mois-de-paie';
+/** Prévenu à chaque mois retenu : le menu et ses pastilles le suivent. */
+export const EVENEMENT_MOIS_DE_PAIE = 'martine-mois-de-paie';
+
+/**
+ * Un mois retenu par société : LEWIS prépare octobre pendant qu'une autre
+ * société prépare novembre (Elsa, 26/11). Sans société active, la clé commune.
+ */
+function cleSession(): string {
+  try {
+    const societe = typeof window !== 'undefined' ? window.localStorage.getItem('activeCompanyId') : null;
+    return societe ? `${CLE_SESSION}:${societe}` : CLE_SESSION;
+  } catch {
+    return CLE_SESSION;
+  }
+}
 
 function params(search: string | URLSearchParams): URLSearchParams {
   if (typeof search !== 'string') return search;
@@ -68,7 +83,7 @@ function session(): Storage | null {
 /** Le dernier mois de paie affiché dans cet onglet ; null s'il n'y en a pas. */
 export function moisDePaieRetenu(stockage: Storage | null = session()): MoisDePaie | null {
   try {
-    const brut = stockage?.getItem(CLE_SESSION);
+    const brut = stockage?.getItem(cleSession());
     if (!brut) return null;
     const lu = JSON.parse(brut) as Partial<MoisDePaie>;
     return valide(Number(lu.year), Number(lu.month));
@@ -79,7 +94,11 @@ export function moisDePaieRetenu(stockage: Storage | null = session()): MoisDePa
 
 export function retenirMoisDePaie(mois: MoisDePaie, stockage: Storage | null = session()): void {
   try {
-    stockage?.setItem(CLE_SESSION, JSON.stringify({ year: mois.year, month: mois.month }));
+    const cle = cleSession();
+    const valeur = JSON.stringify({ year: mois.year, month: mois.month });
+    if (stockage?.getItem(cle) === valeur) return;
+    stockage?.setItem(cle, valeur);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(EVENEMENT_MOIS_DE_PAIE));
   } catch {
     // Navigation privée ou stockage plein : le mois reste dans l'adresse.
   }

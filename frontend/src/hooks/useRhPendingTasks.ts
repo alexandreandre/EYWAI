@@ -28,7 +28,7 @@ import { getWorkMedalSummary } from '@/api/workMedals';
 import { isRecruitmentPriorityCandidate } from '@/api/recruitment';
 import { ONBOARDING_LOOKBACK_DAYS } from '@/lib/onboardingUtils';
 import { RIB_ALERTS_UI_ENABLED } from '@/lib/productFeatureFlags';
-import { moisDePaieParDefaut } from '@/features/payroll/utils/payrollMonth';
+import { useMoisDePaieEnCours } from '@/features/payroll/hooks/useMoisDePaie';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPayrollFocusActive } from '@/lib/payrollFocus';
@@ -143,9 +143,9 @@ export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string |
   // « Plannings du mois » et le verrou « Lancer la paie » regardent le même
   // mois : début septembre, on prépare la paie d'août, pas les calendriers
   // vierges de septembre (retour Gaëlle 03/09).
-  const { year: schedulesYear, month: schedulesMonth } = moisDePaieParDefaut(
-    new Date()
-  );
+  // Le mois choisi pour la société s'il y en a un (paie d'octobre de LEWIS
+  // en cours le 26/11 : le menu comptait novembre).
+  const { year: schedulesYear, month: schedulesMonth } = useMoisDePaieEnCours();
 
   const schedulesBadgeQuery = useQuery({
     queryKey: ['schedules', 'sidebar-badges', companyId, schedulesYear, schedulesMonth],

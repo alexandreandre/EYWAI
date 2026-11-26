@@ -2,6 +2,7 @@ import { useConfirmation } from '@/hooks/useConfirmation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { isPresentDuringMonth, isPresentEmployee } from '@/lib/employmentStatus';
 import { moisDePaieParDefaut } from '@/features/payroll/utils/payrollMonth';
+import { moisDePaieRetenu, retenirMoisDePaie } from '@/features/payroll/utils/moisDePaie';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -130,9 +131,17 @@ export function GeneratePayrollModal({
     // précédent), aligné sur le verrou « Lancer la paie » — présélectionner
     // le mois calendaire courant faisait générer un mois aux calendriers
     // vierges d'un seul clic début de mois.
-    const { year, month } = moisDePaieParDefaut(new Date());
+    // Le mois déjà choisi pour la société passe avant : LEWIS en est à
+    // octobre le 26/11, la fenêtre s'ouvrait sur novembre.
+    const { year, month } = moisDePaieRetenu() ?? moisDePaieParDefaut(new Date());
     setSelectedMonth(`${year}-${String(month).padStart(2, '0')}`);
   }, []);
+
+  const choisirMois = (valeur: string) => {
+    setSelectedMonth(valeur);
+    const [a, m] = valeur.split('-').map(Number);
+    if (a && m) retenirMoisDePaie({ year: a, month: m });
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -332,7 +341,7 @@ export function GeneratePayrollModal({
               <Label htmlFor="month-select" className="text-sm font-medium mb-2 block">
                 Mois de paie
               </Label>
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <Select value={selectedMonth} onValueChange={choisirMois}>
                 <SelectTrigger id="month-select">
                   <SelectValue placeholder="Sélectionner un mois" />
                 </SelectTrigger>

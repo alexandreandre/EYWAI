@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { moisDePaieParDefaut } from '@/features/payroll/utils/payrollMonth';
 import {
+  EVENEMENT_MOIS_DE_PAIE,
   avecMoisDePaie,
   moisDePaieAffiche,
   moisDePaieRetenu,
@@ -36,4 +38,32 @@ export function useMoisDePaie(): { mois: MoisDePaie; choisir: (mois: MoisDePaie)
   );
 
   return { mois, choisir };
+}
+
+function abonner(rappel: () => void): () => void {
+  window.addEventListener(EVENEMENT_MOIS_DE_PAIE, rappel);
+  window.addEventListener('storage', rappel);
+  return () => {
+    window.removeEventListener(EVENEMENT_MOIS_DE_PAIE, rappel);
+    window.removeEventListener('storage', rappel);
+  };
+}
+
+function lireCle(): string {
+  const m = moisDePaieRetenu() ?? moisDePaieParDefaut(new Date());
+  return periodeDuMois(m);
+}
+
+/**
+ * Le mois de paie en préparation, hors d'un écran de paie (menu, pastilles,
+ * verrou) : le dernier mois choisi pour la société, sinon le mois de paie par
+ * défaut. Le menu restait sur novembre pendant qu'Elsa faisait la paie
+ * d'octobre de LEWIS (26/11).
+ */
+export function useMoisDePaieEnCours(): MoisDePaie {
+  const cle = useSyncExternalStore(abonner, lireCle, lireCle);
+  return useMemo(() => {
+    const [year, month] = cle.split('-').map(Number);
+    return { year, month };
+  }, [cle]);
 }

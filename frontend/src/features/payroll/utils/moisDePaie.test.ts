@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   avecMoisDePaie,
   lienAvecMois,
@@ -7,6 +7,7 @@ import {
   moisDePaieRetenu,
   periodeDuMois,
   retenirMoisDePaie,
+  EVENEMENT_MOIS_DE_PAIE,
 } from './moisDePaie';
 
 /** Un stockage de session en mémoire, comme sessionStorage. */
@@ -90,5 +91,47 @@ describe('un seul mois de paie d’un écran à l’autre', () => {
     expect(moisDePaieRetenu(session)).toBeNull();
     expect(moisDePaieRetenu(null)).toBeNull();
     expect(() => retenirMoisDePaie({ year: 2026, month: 9 }, null)).not.toThrow();
+  });
+});
+
+describe('un mois retenu par société, et le menu prévenu (Elsa, 26/11)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function fenetre(societe: string) {
+    const local = stockage();
+    local.setItem('activeCompanyId', societe);
+    const evenements: string[] = [];
+    vi.stubGlobal('window', {
+      localStorage: local,
+      dispatchEvent: (e: Event) => {
+        evenements.push(e.type);
+        return true;
+      },
+    });
+    return { local, evenements };
+  }
+
+  it('LEWIS en octobre, une autre société en novembre', () => {
+    const session = stockage();
+    const f = fenetre('lewis');
+    retenirMoisDePaie({ year: 2026, month: 10 }, session);
+    expect(f.evenements).toEqual([EVENEMENT_MOIS_DE_PAIE]);
+    expect(moisDePaieRetenu(session)).toEqual({ year: 2026, month: 10 });
+
+    f.local.setItem('activeCompanyId', 'autre');
+    expect(moisDePaieRetenu(session)).toBeNull();
+    retenirMoisDePaie({ year: 2026, month: 11 }, session);
+    expect(moisDePaieRetenu(session)).toEqual({ year: 2026, month: 11 });
+
+    f.local.setItem('activeCompanyId', 'lewis');
+    expect(moisDePaieRetenu(session)).toEqual({ year: 2026, month: 10 });
+  });
+
+  it('retenir le même mois ne prévient personne (pas de boucle de rendu)', () => {
+    const session = stockage();
+    const f = fenetre('lewis');
+    retenirMoisDePaie({ year: 2026, month: 10 }, session);
+    retenirMoisDePaie({ year: 2026, month: 10 }, session);
+    expect(f.evenements).toHaveLength(1);
   });
 });
