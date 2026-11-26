@@ -55,8 +55,13 @@ from app.modules.schedules.schemas.punch_accounting import (
     PunchShiftSlotUpdate,
 )
 from app.modules.users.schemas.responses import User
-from app.modules.schedules.application import calendar_edit
-from app.modules.schedules.schemas.requests import CalendarSaveRequest, CalendarSaveResponse, CalendarSnapshotResponse
+from app.modules.schedules.application import activite_partielle_en_masse, calendar_edit
+from app.modules.schedules.schemas.requests import (
+    ActivitePartielleEnMasseRequest,
+    CalendarSaveRequest,
+    CalendarSaveResponse,
+    CalendarSnapshotResponse,
+)
 
 
 def _handle_schedule_error(e: ScheduleAppError) -> None:
@@ -332,6 +337,46 @@ def apply_schedule_model(
     version appelle encore cette route : il est invité à recharger, rien n'est écrit.
     """
     raise HTTPException(428, "Rechargez la page : une révision du calendrier est requise avant l’enregistrement.")
+
+
+# ----- Activité partielle en masse (26/11, LEWIS : tous les vendredis) -----
+
+
+def _garde_activite_partielle_en_masse(current_user: User, employee_ids: list[str]) -> str:
+    """La garde du calendrier d'un salarié (`calendar-save`), pour chacun."""
+    company_id = str(current_user.active_company_id or "")
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Entreprise active requise.")
+    for employee_id in dict.fromkeys(employee_ids):
+        _require_employee_schedule_access(current_user, employee_id, "schedules.update")
+    return company_id
+
+
+@router_rh.post("/activite-partielle-en-masse/apercu")
+def apercu_activite_partielle_en_masse(
+    payload: ActivitePartielleEnMasseRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Ce que la pose en masse ferait, jour par jour et par salarié. Rien n'est écrit."""
+    try:
+        company_id = _garde_activite_partielle_en_masse(current_user, payload.employee_ids)
+        return activite_partielle_en_masse.apercu(company_id, payload.employee_ids, payload.dates)
+    except ScheduleAppError as exc:
+        _handle_schedule_error(exc)
+
+
+@router_rh.post("/activite-partielle-en-masse")
+def poser_activite_partielle_en_masse(
+    payload: ActivitePartielleEnMasseRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Pose l'activité partielle sur les jours qui passent, par le chemin du
+    calendrier d'un salarié, et rend le décompte de ce qui a été fait et laissé."""
+    try:
+        company_id = _garde_activite_partielle_en_masse(current_user, payload.employee_ids)
+        return activite_partielle_en_masse.appliquer(company_id, payload.employee_ids, payload.dates)
+    except ScheduleAppError as exc:
+        _handle_schedule_error(exc)
 
 
 # ----- Plans de calendriers horaires + presets 2026 (RH) -----
