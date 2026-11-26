@@ -666,7 +666,7 @@ export function ParticipationInteressementTab() {
           <div className="flex items-center gap-2 pb-2 border-b">
             <Label className="text-sm text-muted-foreground">Charger une simulation :</Label>
             <Select 
-              value={selectedSimulationId || ""} 
+              value={selectedSimulationId || undefined} 
               onValueChange={(value) => {
                 setSelectedSimulationId(value);
                 if (value && value !== 'none') {
