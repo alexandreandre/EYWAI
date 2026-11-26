@@ -237,7 +237,10 @@ def jours_maintenus_du_mois(
     restent sans rémunération et réduisent le plafond.
     """
     bloc = ((resultats_maintien or {}).get("maintien") or {})
-    return set(jours_maintien or ()) if float(bloc.get("maintien_verse") or 0.0) > 0 else set()
+    # Le maintien d'un arrêt reporté d'un bulletin précédent ne couvre aucun
+    # jour de ce mois (défaut A11) : seule la part du mois compte.
+    verse = bloc.get("maintien_verse_du_mois", bloc.get("maintien_verse"))
+    return set(jours_maintien or ()) if float(verse or 0.0) > 0 else set()
 
 
 def ratio_plafond_periode(

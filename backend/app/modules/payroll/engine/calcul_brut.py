@@ -168,6 +168,11 @@ def _periodes_d_arret(
 def _libelle_periode_d_arret(periode: Dict[str, Any]) -> str:
     nature = LIBELLES_ARRET.get(periode["type"], "arrêt de travail")
     debut, fin = periode["debut"], periode["fin"]
+    if periode.get("regularisation"):
+        # Jours d'un mois précédent (arrêt reporté) : l'année se lit aussi.
+        if debut == fin:
+            return f"Absence {nature} du {debut:%d/%m/%y} (arrêt reporté)"
+        return f"Absence {nature} du {debut:%d/%m/%y} au {fin:%d/%m/%y} (arrêt reporté)"
     if debut == fin:
         return f"Absence {nature} du {debut:%d/%m}"
     return f"Absence {nature} du {debut:%d/%m} au {fin:%d/%m}"

@@ -11,6 +11,10 @@ import calendar
 import re
 from jinja2 import Environment, FileSystemLoader
 
+from app.modules.payroll.documents.arrets_reportes_bulletin import (
+    appliquer_le_maintien_reporte,
+    poser_la_trace,
+)
 from app.modules.payroll.engine.bulletin import creer_bulletin_final, creer_bulletin_sortie
 from app.modules.payroll.engine.calcul_brut import (
     calculer_salaire_brut,
@@ -1344,6 +1348,11 @@ def run_payslip_generation_heures(
                 signaler_repli(contexte, CODE_REPLI_MAINTIEN)
                 resultats_maintien = None
 
+    # Arrêt reporté du bulletin précédent : son maintien et ses IJ, sur ses
+    # seules dates, rejoignent ceux du mois (une ligne de chaque au bulletin).
+    resultats_maintien = appliquer_le_maintien_reporte(
+        resultats_maintien, calendrier_etendu, contexte, company_id, employee_id
+    )
     # Arrêt maladie : recomposer le brut (maintien employeur soumis cotisations)
     # AVANT cotisations/RGDU ; préparer les IJSS subrogées et leur CSG/CRDS.
     lignes_csg_ijss, ijss_imposables, brut_modifie = _appliquer_maintien_arret_maladie(
@@ -1653,6 +1662,8 @@ def run_payslip_generation_heures(
 
     # Règle 7 : une correction qui n'a pas trouvé sa ligne reste sur le bulletin.
     poser_les_corrections_en_attente(bulletin_final, contexte.corrections_du_mois)
+    # Les jours d'arrêt que ce bulletin a traités : le suivant reprend les autres.
+    poser_la_trace(bulletin_final, calendrier_etendu, date_debut_periode, date_fin_periode)
 
     smic_calcule_mois = (
         contexte.baremes.get("smic", {}).get("cas_general", 0.0) * total_heures_mois

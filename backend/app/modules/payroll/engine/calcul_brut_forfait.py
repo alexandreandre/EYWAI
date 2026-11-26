@@ -19,6 +19,8 @@ from typing import Dict, Any, List, Optional
 from app.shared.domain.employment_rules import is_cadre
 from .calcul_conges import calculer_indemnite_conges
 from .calcul_brut import (
+    LIBELLES_ARRET,
+    _nature_de_l_arret,
     LIBELLE_ICCP_DEPART,
     _calculer_iccp_cdd,
     _calculer_iccp_depart,
@@ -418,6 +420,8 @@ def calculer_salaire_brut_forfait(
         j
         for j in calendrier_saisie
         if "date_complete" in j
+        # Un arrêt reporté se retient à part (2 bis), une seule fois.
+        and not j.get("is_regularisation_anterieure")
         and date_debut_periode
         <= date.fromisoformat(j["date_complete"])
         <= date_fin_periode
@@ -551,6 +555,41 @@ def calculer_salaire_brut_forfait(
                     "perte": montant_deduction,
                 }
             )
+
+    # 2 bis. Arrêt reporté d'un bulletin précédent (régularisation antérieure,
+    # retour d'Elsa du 26/11) : hors de la période, retenu à ses dates sur la
+    # journée de forfait. Il ne rend pas ce mois-ci « entièrement absent » ; le
+    # maintien et les IJ de ses jours sont ajoutés en aval, comme pour le mois.
+    jours_d_arret_reporte: list[date] = []
+    for evenement in calendrier_saisie:
+        if not (
+            evenement.get("is_regularisation_anterieure")
+            and str(evenement.get("type") or "").startswith("arret")
+        ):
+            continue
+        try:
+            jour_arret = date.fromisoformat(evenement["date_complete"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        # Un jour de forfait est un jour ouvré : le week-end ne se retient pas.
+        if jour_arret.weekday() >= 5:
+            continue
+        jours_d_arret_reporte.append(jour_arret)
+        jours_abs = _jours_evenement_absence(evenement)
+        montant_deduction = round(jours_abs * salaire_journalier_absence, 2)
+        retenues_absence_mois += montant_deduction
+        nature = LIBELLES_ARRET.get(_nature_de_l_arret(evenement), "arrêt de travail")
+        lignes_composants_brut.append(
+            {
+                "libelle": f"Absence {nature} du {jour_arret:%d/%m/%y} (arrêt reporté)",
+                "quantite": jours_abs,
+                "taux": round(salaire_journalier_absence, 4),
+                "gain": None,
+                "perte": montant_deduction,
+                "is_arret_maladie": True,
+                "arret_reporte": True,
+            }
+        )
 
     # 3. Calcul des congés payés (somme des quotités : une demi-journée = 0,5)
     if jours_conges_dans_periode:
