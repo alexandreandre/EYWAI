@@ -11,7 +11,7 @@ from app.shared.domain.pluriel import pluriel
 
 logger = get_logger("modules.absences.application.commands")
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Dict
 
 from app.core.database import supabase
@@ -560,20 +560,21 @@ def _refus_chevauchement_conge_parental(
     return None
 
 
-def _meta_conge_parental(demande: Dict[str, Any]) -> Dict[str, Any]:
+def _meta_conge_parental(
+    demande: Dict[str, Any], autres: list | None = None
+) -> Dict[str, Any]:
     """Motif et bornes posés sur les jours d'un congé parental d'éducation.
 
     Une prolongation saisie le lendemain de la fin d'un congé déjà validé
     prend les bornes du congé entier (premier jour du premier, fin du
-    dernier) : un seul congé, un seul bloc DSN 632."""
+    dernier) : un seul congé, un seul bloc DSN 632. `autres` : les demandes
+    déjà lues par l'appelant (import DSN, sur son propre client)."""
     if not est_conge_parental(demande):
         return {}
     periode = periode_de_la_demande(demande.get("selected_days"))
-    autres = [
-        r
-        for r in absence_repository.list_by_employee_id(str(demande.get("employee_id") or "")) or []
-        if str(r.get("id") or "") != str(demande.get("id") or "")
-    ]
+    if autres is None:
+        autres = absence_repository.list_by_employee_id(str(demande.get("employee_id") or "")) or []
+    autres = [r for r in autres if str(r.get("id") or "") != str(demande.get("id") or "")]
     if periode:
         chaine = periode_du_jour(
             periodes_chainees([*autres, {**demande, "status": "validated"}]), periode["debut"]
@@ -635,18 +636,22 @@ def create_reconciliation_absence(
 
     existing = (
         sb.table("absence_requests")
-        .select("id, selected_days, type")
+        .select("id, selected_days, type, event_subtype")
         .eq("employee_id", employee_id)
         .eq("type", absence_type)
         .eq("status", "validated")
         .execute()
     )
+    lignes_existantes = [dict(r) for r in (existing.data or [])]
+    alertes: list[str] = []
+    if est_conge_parental({"type": absence_type, "event_subtype": event_subtype}):
+        alertes = _requalifier_en_conge_parental(employee_id, days_iso, lignes_existantes, sb)
     deja_couverts: set[str] = set()
     premiere_qui_recouvre: dict | None = None
-    for row in existing.data or []:
-        existing_days = set(row.get("selected_days") or [])
+    for row in lignes_existantes:
+        existing_days = {str(j)[:10] for j in row.get("selected_days") or []}
         if existing_days == set(days_iso):
-            return row
+            return {**row, "alertes": alertes} if alertes else row
         if premiere_qui_recouvre is None and existing_days & set(days_iso):
             premiere_qui_recouvre = row
         deja_couverts |= existing_days
@@ -656,7 +661,8 @@ def create_reconciliation_absence(
     # manquent sont créés, une demande par suite de jours contigus.
     morceaux = _jours_contigus(sorted(set(days_iso) - deja_couverts))
     if not morceaux:
-        return premiere_qui_recouvre or {}
+        retour = premiere_qui_recouvre or {}
+        return {**retour, "alertes": alertes} if alertes else retour
 
     created: dict = {}
     for jours in morceaux:
@@ -693,12 +699,58 @@ def create_reconciliation_absence(
                 days_to_update,
                 absence_type,
                 arret_type=arret_type,
-                **_meta_conge_parental({**db_data, **(created or {})}),
+                **_meta_conge_parental({**db_data, **(created or {})}, lignes_existantes),
             )
         except Exception:
             logger.exception("Sync calendrier absence DSN échouée pour %s", created.get("id"))
 
+    if alertes:
+        created = {**(created or {}), "alertes": alertes}
     return created
+
+
+def _requalifier_en_conge_parental(
+    employee_id: str, jours_importes: list[str], existantes: list[dict], sb: Any
+) -> list[str]:
+    """Import d'un 632 : les sans solde non typés qui recouvrent ses jours
+    deviennent le congé parental (sous-type, motif au planning). Rend les
+    alertes : une période importée qui finit avant le congé déjà saisi
+    (hors fin de mois, où l'ancien logiciel borne sa déclaration) annonce
+    peut-être une fin anticipée."""
+    jours = set(jours_importes)
+    for row in existantes:
+        if est_conge_parental(row) or not jours & {str(j)[:10] for j in row.get("selected_days") or []}:
+            continue
+        sb.table("absence_requests").update({"event_subtype": SOUS_TYPE_CONGE_PARENTAL}).eq(
+            "id", row["id"]
+        ).execute()
+        row["event_subtype"] = SOUS_TYPE_CONGE_PARENTAL
+        meta = _meta_conge_parental({**row, "employee_id": employee_id}, existantes)
+        try:
+            calendar_update_provider.poser_le_motif_du_conge_parental(
+                employee_id,
+                [date.fromisoformat(str(j)[:10]) for j in row.get("selected_days") or []],
+                meta.get("periode_absence"),
+            )
+        except Exception:
+            logger.exception("Motif du congé parental non posé au planning pour %s", row.get("id"))
+    if not jours_importes:
+        return []
+    fin_importee = max(jours_importes)
+    chaine = periode_du_jour(
+        periodes_chainees([*existantes, {"type": "sans_solde", "event_subtype": SOUS_TYPE_CONGE_PARENTAL,
+                                         "selected_days": jours_importes}]),
+        fin_importee,
+    )
+    fin = date.fromisoformat(fin_importee)
+    fin_de_mois = (fin + timedelta(days=1)).day == 1
+    if chaine and chaine["fin"] > fin_importee and not fin_de_mois:
+        return [
+            f"Congé parental : la DSN déclare la fin au {fin:%d/%m/%Y}, le congé saisi va "
+            f"jusqu'au {date.fromisoformat(chaine['fin']):%d/%m/%Y}. Fin anticipée ? "
+            "Si oui, modifiez la fin prévue du congé."
+        ]
+    return []
 
 
 def _jours_contigus(jours: list[str]) -> list[list[str]]:

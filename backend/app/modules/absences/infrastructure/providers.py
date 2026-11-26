@@ -432,6 +432,39 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                     }
                 ).execute()
 
+    def poser_le_motif_du_conge_parental(
+        self,
+        employee_id: str,
+        days: List[date],
+        periode_absence: Optional[Dict[str, str]],
+    ) -> None:
+        """Un sans solde devenu congé parental (import d'un 632) : ses jours déjà
+        en absence non rémunérée prennent le motif et les bornes du congé ; le
+        type et les heures ne bougent pas."""
+        grouped: Dict[tuple, set] = {}
+        for d in days:
+            grouped.setdefault((d.year, d.month), set()).add(d.day)
+        for (year, month), jours in grouped.items():
+            schedule = (
+                supabase.table("employee_schedules")
+                .select("planned_calendar")
+                .match({"employee_id": employee_id, "year": year, "month": month})
+                .maybe_single()
+                .execute()
+            )
+            calendrier = (schedule.data or {}).get("planned_calendar") if schedule else None
+            if not isinstance(calendrier, dict):
+                continue
+            change = False
+            for entry in calendrier.get("calendrier_prevu", []):
+                if entry.get("jour") in jours and entry.get("type") == "absence_non_remuneree":
+                    self._appliquer_motif(entry, "conge_parental_education", periode_absence)
+                    change = True
+            if change:
+                supabase.table("employee_schedules").update({"planned_calendar": calendrier}).match(
+                    {"employee_id": employee_id, "year": year, "month": month}
+                ).execute()
+
     def restore_calendar_from_days(
         self,
         employee_id: str,
