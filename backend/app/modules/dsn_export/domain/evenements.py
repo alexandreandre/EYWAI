@@ -253,8 +253,16 @@ def blocs_arret(
     *,
     compte_employeur: Optional[Tuple[str, str]] = None,
     subrogation_paie: Optional[bool] = None,
+    jours_reportes: Iterable[date] = (),
 ) -> List[Dict[str, str]]:
     """Blocs 60 des arrêts qui touchent le mois (« supra-mensuel » compris).
+
+    ``jours_reportes`` : jours d'un arrêt d'avant le mois que le bulletin du
+    mois reprend (arrêt pris en compte après la clôture de la paie de son
+    mois). L'arrêt se déclare dans cette DSN, à ses vraies dates, comme dans
+    l'exemple « DSN mensuelle … dans le cas de prise en compte avant la clôture
+    de la paie du mois » de la fiche net-entreprises « Gestion des arrêts de
+    travail en DSN » : pris en compte après, il va dans la DSN suivante.
 
     ``compte_employeur`` : (IBAN, BIC) de l'employeur, obligatoires en
     subrogation (60.007 / 60.008). ``subrogation_paie`` : ce que la paie du
@@ -262,8 +270,10 @@ def blocs_arret(
     """
     blocs: List[Dict[str, str]] = []
     periodes = periodes_d_arret(absences)
+    reportes = set(jours_reportes or ())
     for periode in periodes:
-        if periode.fin < debut_mois or periode.debut > fin_mois:
+        reportee = any(periode.debut <= j <= periode.fin for j in reportes)
+        if (periode.fin < debut_mois or periode.debut > fin_mois) and not reportee:
             continue
         if subrogation_paie is not None:
             periode.subrogation = subrogation_paie
@@ -297,7 +307,17 @@ def blocs_arret(
 # Temps partiel thérapeutique (66), obligatoire sous les motifs 15 à 18
 # --------------------------------------------------------------------------
 
-_LIGNE_ARRET_MARTINE = re.compile(r" du (\d{2})/(\d{2})(?: au (\d{2})/(\d{2}))?")
+#: « du 01/10 au 30/10 », ou avec l'année : « du 28/09/26 au 30/09/26 (arrêt reporté) ».
+_LIGNE_ARRET_MARTINE = re.compile(
+    r" du (\d{2})/(\d{2})(?:/(\d{2,4}))?(?: au (\d{2})/(\d{2})(?:/(\d{2,4}))?)?"
+)
+
+
+def _annee_du_libelle(texte: Optional[str], annee: int) -> int:
+    if not texte:
+        return annee
+    valeur = int(texte)
+    return valeur + 2000 if valeur < 100 else valeur
 
 
 def _bornes_ligne_d_arret(ligne: Dict[str, Any], annee: int) -> Optional[Tuple[date, date]]:
@@ -311,9 +331,13 @@ def _bornes_ligne_d_arret(ligne: Dict[str, Any], annee: int) -> Optional[Tuple[d
     trouve = _LIGNE_ARRET_MARTINE.search(libelle)
     if not trouve:
         return None
-    jour, mois, jour_fin, mois_fin = trouve.groups()
-    debut = date(annee, int(mois), int(jour))
-    fin = date(annee, int(mois_fin), int(jour_fin)) if jour_fin else debut
+    jour, mois, an, jour_fin, mois_fin, an_fin = trouve.groups()
+    debut = date(_annee_du_libelle(an, annee), int(mois), int(jour))
+    fin = (
+        date(_annee_du_libelle(an_fin or an, annee), int(mois_fin), int(jour_fin))
+        if jour_fin
+        else debut
+    )
     return debut, fin
 
 

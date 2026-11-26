@@ -239,6 +239,15 @@ def _montant_positif(montant: float) -> str:
     return _montant_signe(max(0.0, round(float(montant or 0), 2)))
 
 
+def _jours_d_arret_reportes(payslip_data: Dict[str, Any]) -> List[date]:
+    """Les jours d'arrêt d'avant le mois que le bulletin reprend (sa trace)."""
+    from app.modules.payroll.application.arrets_reportes import (
+        jours_reportes_par_le_bulletin,
+    )
+
+    return sorted(jours_reportes_par_le_bulletin(payslip_data))
+
+
 def _net_imposable(payslip_data: Dict[str, Any]) -> float:
     synthese = payslip_data.get("synthese_net")
     if isinstance(synthese, dict):
@@ -1189,6 +1198,7 @@ def build_individu_from_payroll(
             date_dsn(date_debut),
             compte_employeur=compte,
             subrogation_paie=subrogation_paie if isinstance(subrogation_paie, bool) else None,
+            jours_reportes=_jours_d_arret_reportes(payslip_data),
         )
         if debut_mois
         else []
