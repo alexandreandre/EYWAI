@@ -37,10 +37,10 @@ function eur(n: number | null | undefined): string {
 }
 
 /** L'indemnité annoncée : celle du bulletin s'il existe (prime d'ancienneté
- * comprise), sinon le calcul de l'écran, dit « avant prime d'ancienneté ». */
+ * comprise), sinon le calcul de l'écran, dit « hors prime d'ancienneté éventuelle ». */
 function indemniteAnnoncee(montantEcran: number | null | undefined, auBulletin: number | null | undefined): string {
   if (auBulletin != null) return `indemnité ${eur(auBulletin)} au bulletin`;
-  return `indemnité ${eur(montantEcran)} avant prime d’ancienneté, recalculée au bulletin`;
+  return `indemnité ${eur(montantEcran)} hors prime d’ancienneté éventuelle, recalculée au bulletin`;
 }
 
 function nombre(t: string): number | null {
@@ -291,7 +291,7 @@ export function ActivitePartielleTab() {
                 <p key={r.employee_id} className={r.statut === 'refuse' || r.statut === 'bulletin_remis' ? 'text-destructive' : ''}>
                   <span className="font-medium">{r.nom ?? r.employee_id}</span> :{' '}
                   {r.statut === 'pose'
-                    ? `${r.heures?.toLocaleString('fr-FR')} h chômées, retenue ${eur(r.retenue)}, indemnité ${eur(r.indemnite)} avant prime d’ancienneté, recalculée au bulletin (${eur(r.indemnite_horaire)} de l’heure, ${r.regle})${r.message ? `. ${r.message}` : ''}`
+                    ? `${r.heures?.toLocaleString('fr-FR')} h chômées, retenue ${eur(r.retenue)}, indemnité ${eur(r.indemnite)} hors prime d’ancienneté éventuelle, recalculée au bulletin (${eur(r.indemnite_horaire)} de l’heure, ${r.regle})${r.message ? `. ${r.message}` : ''}`
                     : r.statut === 'retire'
                       ? 'lignes retirées'
                       : r.statut === 'rien'
