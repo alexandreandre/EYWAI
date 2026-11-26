@@ -1,4 +1,5 @@
 import { MESSAGE_FORFAIT_REDUIT, joursDuForfaitSaisis } from './forfaitReduit';
+import { RETRAITE_PROGRESSIVE_VIDE, erreursRetraiteProgressive } from './retraiteProgressive';
 import { z } from 'zod';
 import { classificationSaisieSchema } from '@/features/employees/utils/classificationConventionnelle';
 import { titresRestaurantSchema } from '@/lib/titresRestaurant';
@@ -114,6 +115,19 @@ export const employeeProfileEditSchema = z
       salaire_hors_hs_structurelles: z.boolean().optional(),
       // Forfait jours réduit (jours par an) ; vide : le forfait de la société.
       forfait_annual_days: z.string().optional().default(''),
+      // Retraite progressive et cotisations vieillesse sur un temps plein.
+      retraite_progressive: z
+        .object({
+          actif: z.boolean(),
+          quotite: z.string(),
+          date_debut: z.string(),
+          date_fin: z.string(),
+          vieillesse_temps_plein: z.boolean(),
+          complementaire_temps_plein: z.boolean(),
+          prise_en_charge_part_salariale: z.boolean(),
+          salaire_temps_plein: z.string(),
+        })
+        .default({ ...RETRAITE_PROGRESSIVE_VIDE }),
       deplacement_astreinte: z
         .object({
           enabled: z.boolean().optional().default(false),
@@ -193,6 +207,14 @@ export const employeeProfileEditSchema = z
         code: z.ZodIssueCode.custom,
         message: MESSAGE_FORFAIT_REDUIT,
         path: ['specificites_paie', 'forfait_annual_days'],
+      });
+    }
+    const erreursRp = erreursRetraiteProgressive(data.specificites_paie.retraite_progressive);
+    for (const [champ, message] of Object.entries(erreursRp)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message,
+        path: ['specificites_paie', 'retraite_progressive', champ],
       });
     }
     const anciennete = data.seniority_reference_date?.trim();

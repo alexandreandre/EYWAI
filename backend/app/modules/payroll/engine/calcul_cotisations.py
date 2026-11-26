@@ -30,6 +30,7 @@ from .regime_indemnites_rupture import (
 from .baremes_loader import resoudre_taux_vm_pour_paie
 from app.shared.domain.employment_rules import is_cadre
 from app.modules.payroll.engine.mutuelles import mutuelles_du_salarie
+from app.modules.payroll.engine.retraite_progressive import part_complementaire_prise_en_charge
 from app.modules.payroll.engine.codes_des_lignes import BLOC_COTISATIONS
 from app.modules.payroll.engine.corrections_manuelles import LignesCorrigees, journal_du_contexte
 
@@ -819,6 +820,70 @@ def _dernier_jour_du_mois_de_paie(contexte: ContextePaie) -> Optional[date]:
     return fin if isinstance(fin, date) else None
 
 
+def _surcotisation_retraite_progressive(
+    contexte: ContextePaie,
+    brut_cotisable: float,
+    assiettes: Dict[str, float],
+    cotisations_du_bareme: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Lignes de surcotisation du mois, et leurs alertes ; [] sans réglage."""
+    from .forfait_individuel import jours_du_forfait_de_la_fiche
+    from .retraite_progressive import (
+        alertes_du_mois,
+        lignes_de_surcotisation,
+        lire_reglage,
+        salaires_temps_plein,
+    )
+
+    def signaler(alertes: List[Dict[str, Any]]) -> None:
+        if isinstance(contexte.alertes_baremes, list):
+            connus = {a.get("code") for a in contexte.alertes_baremes if isinstance(a, dict)}
+            contexte.alertes_baremes.extend(a for a in alertes if a["code"] not in connus)
+
+    specificites = contexte.contrat.get("specificites_paie", {}) or {}
+    reglage = lire_reglage(specificites)
+    annee, mois = getattr(contexte, "year", None), getattr(contexte, "month", None)
+    if reglage is None or not (annee and mois) or not reglage.couvre(int(annee), int(mois)):
+        return []
+    # Aucune cotisation cochée, début ou fin en cours de mois : jamais en silence.
+    alertes = alertes_du_mois(reglage, int(annee), int(mois))
+    if not (reglage.vieillesse_temps_plein or reglage.complementaire_temps_plein):
+        signaler(alertes)
+        return []
+    au_forfait = bool(contexte.is_forfait_jour)
+    salaires = salaires_temps_plein(
+        reglage,
+        brut=float(brut_cotisable or 0.0),
+        au_forfait_jours=au_forfait,
+        jours_forfait=jours_du_forfait_de_la_fiche(specificites) if au_forfait else None,
+        heures_contrat_mois=(float(contexte.duree_hebdo_contrat or 0.0) * 52) / 12,
+        heures_complementaires_mois=float(getattr(contexte, "heures_complementaires_mois", 0.0) or 0.0),
+        smic_horaire=float(contexte.smic_horaire or 0.0),
+    )
+    signaler(list(salaires.alertes) + alertes)
+
+    # Plafond entier du temps plein (R241-0-2, V), réduit seulement d'une
+    # entrée, d'une sortie ou d'une absence non payée (ratio de la période).
+    pss_mensuel = float((contexte.baremes.get("pss", {}) or {}).get("mensuel", 0.0) or 0.0)
+    ratio = getattr(contexte, "ratio_plafond_ss", None)
+    try:
+        ratio = float(ratio) if ratio is not None else 1.0
+    except (TypeError, ValueError):
+        ratio = 1.0
+    plafond = round(pss_mensuel * ratio, 2) if 0.0 <= ratio < 1.0 else pss_mensuel
+    return lignes_de_surcotisation(
+        reglage,
+        salaires,
+        cotisations_du_bareme=cotisations_du_bareme,
+        brut=float(brut_cotisable or 0.0),
+        plafond=plafond,
+        assiette_plafonnee=float(assiettes.get("brut_plafonne") or 0.0),
+        assiette_tranche_2=float(assiettes.get("tranche_2") or 0.0),
+        assiette_cet=float(assiettes.get("assiette_cet") or 0.0),
+        calculer_ligne=_calculer_une_ligne,
+    )
+
+
 def calculer_cotisations(
     contexte: ContextePaie,
     salaire_brut: float,
@@ -888,6 +953,23 @@ def calculer_cotisations(
         "cotisations",
     )
     liste_cotisations_brutes = contexte.baremes["cotisations"].get(root_key, [])
+    # Retraite progressive : les lignes de surcotisation se calculent avant la
+    # CSG, parce que la part salariale complémentaire prise en charge par
+    # l'employeur entre dans son assiette (engine/retraite_progressive,
+    # `part_complementaire_prise_en_charge`). [] sans réglage : rien ne bouge.
+    lignes_retraite_progressive = _surcotisation_retraite_progressive(
+        contexte, brut_cotisable, assiettes, liste_cotisations_brutes
+    )
+    prise_complementaire = part_complementaire_prise_en_charge(lignes_retraite_progressive)
+    if prise_complementaire > 0:
+        # Revenu d'activité hors L242-1, II : abattement de 1,75 % (L136-2, I),
+        # sauf au-delà de quatre plafonds.
+        sous_4_plafonds = assiettes["brut_4_plafonds"] >= assiettes["brut"]
+        assiettes["csg_crds_base_normale"] = round(
+            assiettes["csg_crds_base_normale"]
+            + prise_complementaire * (0.9825 if sous_4_plafonds else 1.0),
+            2,
+        )
     # Chaque cotisation naît corrigée si une correction faite à la main la vise :
     # le total salarial, le plafond de la réduction des heures sup et l'assiette
     # du forfait social lisent la ligne corrigée.
@@ -1215,6 +1297,12 @@ def calculer_cotisations(
                 coti_id="exoneration_apprenti_salariale",
             )
         )
+
+    # Retraite progressive : vieillesse (et complémentaire) sur un temps plein,
+    # lignes « Surcotisation retraite progressive » (engine/retraite_progressive).
+    # Sans réglage sur la fiche, aucune ligne : bulletin inchangé au centime.
+    # Calculées avant la boucle (leur CSG en dépend), posées ici.
+    bulletin_cotisations.extend(lignes_retraite_progressive)
 
     # Ajout manuel des cotisations forfaitaires (mutuelle, etc.)
     mutuelle_spec = contexte.contrat.get("specificites_paie", {}).get("mutuelle", {})

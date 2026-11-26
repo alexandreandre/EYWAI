@@ -1,4 +1,5 @@
 import { joursDuForfaitSaisis } from './forfaitReduit';
+import { retraiteProgressiveDuFormulaire, retraiteProgressivePourEnvoi } from './retraiteProgressive';
 import { titresPourEnvoi } from '@/lib/titresRestaurant';
 import {
   GROUPE_NON_PRECISE,
@@ -248,6 +249,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
         spec.forfait_annual_days === null || spec.forfait_annual_days === undefined
           ? ''
           : String(spec.forfait_annual_days),
+      retraite_progressive: retraiteProgressiveDuFormulaire(spec.retraite_progressive),
       deplacement_astreinte: {
         enabled: Boolean(deplacementAstreinte?.enabled),
         distance_km_one_way: deplacementAstreinte?.distance_km_one_way ?? undefined,
@@ -445,6 +447,10 @@ export function buildUpdatePayload(
       personnel_rd_eligible_jei: Boolean(values.specificites_paie.personnel_rd_eligible_jei),
       salaire_hors_hs_structurelles: Boolean(values.specificites_paie.salaire_hors_hs_structurelles),
       forfait_annual_days: forfaitReduitPourEnvoi(values, existingSpec.forfait_annual_days),
+      retraite_progressive: retraiteProgressivePourEnvoi(
+        values.specificites_paie.retraite_progressive,
+        existingSpec.retraite_progressive,
+      ),
     },
   };
 

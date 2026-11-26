@@ -61,11 +61,19 @@ BASE_FORFAIT_SOCIAL = "05"
 BASE_CHOMAGE = "07"
 BASE_PREVOYANCE = "31"
 BASE_VERSEMENT_MOBILITE = "57"
+#: Retraite progressive, vieillesse sur un temps plein (fiche net-entreprises
+#: « salarié à temps partiel cotisant […] sur la base d'une assiette temps
+#: plein », v2.1) : différentiel entre le temps plein et le réel, non plafonné
+#: (22) et plafonné (24, plafond entier moins la base 02).
+BASE_BRUTE_SPECIFIQUE = "22"
+BASE_PLAFONNEE_SPECIFIQUE = "24"
 
 # Ordre d'émission des bases, celui du cabinet.
 ORDRE_BASES = [
     BASE_PLAFONNEE,
     BASE_BRUT_DEPLAFONNE,
+    BASE_BRUTE_SPECIFIQUE,
+    BASE_PLAFONNEE_SPECIFIQUE,
     BASE_CSG,
     BASE_FORFAIT_SOCIAL,
     BASE_CHOMAGE,
@@ -179,7 +187,19 @@ REGLES: Dict[str, Regle] = {
     "prevoyance_cadre": Regle(PSC_COTISATION_CODE, BASE_PREVOYANCE),
     "prevoyance_non_cadre": Regle(PSC_COTISATION_CODE, BASE_PREVOYANCE),
     "retraite_sup": Regle(PSC_COTISATION_CODE, BASE_PREVOYANCE),
+    # Bases 22 et 24 — surcotisation de la retraite progressive : vieillesse
+    # (076, CTP 288 au bordereau) et Agirc-Arrco (131, montant seul).
+    "surcotisation_vieillesse_plafonnee": Regle("076", BASE_PLAFONNEE_SPECIFIQUE),
+    "surcotisation_vieillesse_deplafonnee": Regle("076", BASE_BRUTE_SPECIFIQUE),
+    "surcotisation_retraite_comp_t1": Regle(CODE_AGIRC_ARRCO, BASE_PLAFONNEE_SPECIFIQUE),
+    "surcotisation_ceg_t1": Regle(CODE_AGIRC_ARRCO, BASE_PLAFONNEE_SPECIFIQUE),
+    "surcotisation_retraite_comp_t2": Regle(CODE_AGIRC_ARRCO, BASE_BRUTE_SPECIFIQUE),
+    "surcotisation_ceg_t2": Regle(CODE_AGIRC_ARRCO, BASE_BRUTE_SPECIFIQUE),
+    "surcotisation_cet": Regle(CODE_AGIRC_ARRCO, BASE_BRUTE_SPECIFIQUE),
 }
+
+#: Lignes de surcotisation de la retraite progressive (engine/retraite_progressive).
+COTI_ID_SURCOTISATION = frozenset(c for c in REGLES if c.startswith("surcotisation_"))
 
 # Rubriques traitées à part, parce qu'une règle « une ligne → un code » ne les
 # décrit pas : elles se découpent, se regroupent, ou dépendent d'un taux.
@@ -900,6 +920,59 @@ def _exoneration_jei(ligne: Dict[str, Any]) -> List[LigneDsn]:
     return [LigneDsn(CODE_EXONERATION_JEI, regle.base, assiette, 0.0, taux_sal)]
 
 
+def _surcotisation(ligne: Dict[str, Any]) -> List[LigneDsn]:
+    """Une ligne de surcotisation sous sa base 22 ou 24, qui en porte le montant.
+
+    La vieillesse (076) garde assiette et taux, comme sur les bases 02 et 03 ;
+    l'Agirc-Arrco (131) ne déclare que son montant, sans la part patronale à
+    part (142, 146), qui ne sert qu'au contrôle de la réduction générale.
+    """
+    regle = REGLES[str(ligne.get("coti_id"))]
+    assiette, sal, pat, taux_sal, taux_pat = _parts(ligne)
+    montant = round(sal + pat, 2)
+    if not montant:
+        return []
+    # Le moteur pose le montant de la base (22 : temps plein − réel ; 24 :
+    # plafond − base 02) ; une ligne de tranche 2 n'en porte qu'une part.
+    base = round(_flottant(ligne.get("assiette_base_dsn")) or abs(assiette), 2)
+    if regle.code == CODE_AGIRC_ARRCO:
+        return [LigneDsn(regle.code, regle.base, 0.0, montant, 0.0, assiette_de_base=base)]
+    return [
+        LigneDsn(
+            regle.code,
+            regle.base,
+            round(assiette, 2),
+            montant,
+            abs(round(taux_sal + taux_pat, 6)),
+            assiette_de_base=base,
+        )
+    ]
+
+
+def _bases_specifiques(produites: List[LigneDsn], avertissements: List[str]) -> Dict[str, float]:
+    """Montant des bases 22 et 24 : celui de la vieillesse (076) quand elle y est.
+
+    Au forfait jours, la vieillesse de base (1,7 SMIC) et l'Agirc-Arrco (218 /
+    jours du forfait) n'ont pas le même salaire temps plein ; une base ne porte
+    qu'un montant : celui de la vieillesse, et l'aperçu le signale.
+    """
+    montants: Dict[str, float] = {}
+    for code_base in (BASE_BRUTE_SPECIFIQUE, BASE_PLAFONNEE_SPECIFIQUE):
+        vieillesse = [l.assiette_de_base for l in produites if l.base == code_base and l.code == "076"]
+        complementaire = [l.assiette_de_base for l in produites if l.base == code_base and l.code == CODE_AGIRC_ARRCO]
+        if vieillesse:
+            montants[code_base] = max(vieillesse)
+            if complementaire and abs(max(complementaire) - montants[code_base]) > 0.01:
+                avertissements.append(
+                    f"Retraite progressive : base {code_base} à {montants[code_base]:.2f} € pour la vieillesse, "
+                    f"{max(complementaire):.2f} € pour l'Agirc-Arrco (salaires temps plein différents) : "
+                    "seule la première est déclarée, à vérifier"
+                )
+        elif complementaire:
+            montants[code_base] = max(complementaire)
+    return montants
+
+
 def _vieillesse_apprenti(ligne: Dict[str, Any], exoneree: float) -> Tuple[List[LigneDsn], float]:
     """La vieillesse d'un apprenti, scindée à l'assiette exonérée : le seul taux
     patronal sur la part exonérée, le taux plein au-delà (fiche net-entreprises
@@ -1238,6 +1311,9 @@ def build_bases_and_cotisations(
         if jei_totale and coti_id in COTI_ID_EXONERES_JEI:
             produites.extend(_exoneration_jei(ligne))
             continue
+        if coti_id in COTI_ID_SURCOTISATION:
+            produites.extend(_surcotisation(ligne))
+            continue
         if scinder and REGLES.get(coti_id, Regle("", "")).code == "076":
             vieillesse, exoneration = _vieillesse_apprenti(ligne, exoneree)
             produites.extend(vieillesse)
@@ -1307,6 +1383,8 @@ def build_bases_and_cotisations(
             )
         else:
             montants_base.setdefault(ligne.base, 0.0)
+
+    montants_base.update(_bases_specifiques(produites, avertissements))
 
     bases: List[BaseAssujettieBlock] = []
     for code in ORDRE_BASES:
