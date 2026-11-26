@@ -528,7 +528,7 @@ def _jours_forfait(
 
     from app.modules.absences.domain.rtt_forfait import french_public_holiday_dates
     from app.modules.dsn_export.domain.evenements import (
-        MOTIF_CONGE_NON_REMUNERE,
+        MOTIFS_SUSPENSION_NON_REMUNEREE,
         periodes_d_arret,
         suspensions_du_bulletin,
     )
@@ -547,7 +547,7 @@ def _jours_forfait(
             absents.add(jour)
             jour += timedelta(days=1)
     for motif, debut_s, fin_s in suspensions_du_bulletin(payslip_data):
-        if motif == MOTIF_CONGE_NON_REMUNERE:
+        if motif in MOTIFS_SUSPENSION_NON_REMUNEREE:
             jour = debut_s
             while jour <= fin_s:
                 absents.add(jour)

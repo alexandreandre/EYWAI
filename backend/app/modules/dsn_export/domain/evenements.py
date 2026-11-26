@@ -9,8 +9,8 @@ Sources, et pourquoi :
 - les arrêts viennent des demandes d'absence validées — elles seules
   donnent l'étendue de l'arrêt (dernier jour travaillé, fin prévisionnelle,
   reprise) et la subrogation ; le bulletin n'en voit que la part du mois ;
-- les absences non rémunérées (501) et les congés pour événement familial
-  (637) viennent des lignes du bulletin, qui sont ce qui a été retenu — y
+- les absences non rémunérées (501), les congés parentaux d'éducation (632)
+  et les congés pour événement familial (637) viennent des lignes du bulletin, qui sont ce qui a été retenu — y
   compris les absences injustifiées venues du planning, qui ne sont pas des
   demandes ;
 - la fin du contrat vient de la sortie, à défaut du terme du CDD.
@@ -28,6 +28,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from app.modules.absences.domain.date_accident import date_accident_de
 from app.modules.dsn_export.domain.motif_rupture import motif_propose, motif_refuse
+from app.shared.domain.conge_parental import MOTIF_DSN_CONGE_PARENTAL
 
 #: Type de demande d'absence → motif d'arrêt (S21.G00.60.001).
 MOTIF_ARRET = {
@@ -59,6 +60,11 @@ REPRISE_NORMALE = "01"
 REPRISE_TPT = "02"
 
 MOTIF_CONGE_NON_REMUNERE = "501"
+#: Congé parental d'éducation (65.001), un congé sans solde qui dit son nom.
+MOTIF_CONGE_PARENTAL = MOTIF_DSN_CONGE_PARENTAL
+#: Suspensions sans salaire : leurs jours sortent du plafond et des jours
+#: travaillés, comme les arrêts.
+MOTIFS_SUSPENSION_NON_REMUNEREE = frozenset({MOTIF_CONGE_NON_REMUNERE, MOTIF_CONGE_PARENTAL})
 #: Activité partielle : chômage sans rupture du contrat (65.001).
 MOTIF_CHOMAGE_PARTIEL = "602"
 MOTIF_EVENEMENT_FAMILIAL = "637"
@@ -365,9 +371,11 @@ def blocs_temps_partiel_therapeutique(
 # Autres suspensions (65), lues sur les lignes d'absence du bulletin
 # --------------------------------------------------------------------------
 
-#: Bulletin calculé : « Absence injustifiée du 14/09/26 (base) ».
+#: Bulletin calculé : « Absence injustifiée du 14/09/26 (base) », « Absence
+#: congé parental du 01/11/26 au 30/11/26 ».
 _LIGNE_MARTINE = re.compile(
-    r"absence (injustifiée|injustifiee|non rémunérée|non remuneree|événement familial|evenement familial)"
+    r"absence (injustifiée|injustifiee|non rémunérée|non remuneree|événement familial|evenement familial"
+    r"|congé parental|conge parental)"
     r" du (\d{2}/\d{2}/\d{2,4})(?: au (\d{2}/\d{2}/\d{2,4}))?",
     re.IGNORECASE,
 )
@@ -393,6 +401,8 @@ def _jour_reprise(texte: str) -> Optional[date]:
 
 def _motif_suspension(libelle: str) -> Optional[str]:
     texte = libelle.lower()
+    if "parental" in texte:
+        return MOTIF_CONGE_PARENTAL
     if "famil" in texte:
         return MOTIF_EVENEMENT_FAMILIAL
     if any(
@@ -401,6 +411,18 @@ def _motif_suspension(libelle: str) -> Optional[str]:
     ):
         return MOTIF_CONGE_NON_REMUNERE
     return None
+
+
+def _suspension_portee(ligne: Dict[str, Any]) -> Optional[Tuple[str, date, date]]:
+    """La suspension entière qu'une ligne porte (congé parental : du premier
+    jour à la fin prévue, cahier technique 2026, 65.002 et 65.003)."""
+    portee = ligne.get("suspension_dsn")
+    if not isinstance(portee, dict) or not portee.get("motif"):
+        return None
+    debut, fin = _date(portee.get("debut")), _date(portee.get("fin"))
+    if not debut or not fin or fin < debut:
+        return None
+    return str(portee["motif"]), debut, fin
 
 
 def suspensions_du_bulletin(payslip_data: Dict[str, Any]) -> List[Tuple[str, date, date]]:
@@ -422,6 +444,12 @@ def suspensions_du_bulletin(payslip_data: Dict[str, Any]) -> List[Tuple[str, dat
             continue
         motif = _motif_suspension(libelle)
         if not motif:
+            continue
+        portee = _suspension_portee(ligne)
+        if portee is not None:
+            if portee not in vues:
+                vues.add(portee)
+                resultat.append(portee)
             continue
         trouve = _LIGNE_MARTINE.search(libelle)
         if trouve:
@@ -603,7 +631,7 @@ def jours_hors_plafond(
         for decalage in range(_chevauchement(periode.debut, periode.fin, debut_periode, fin_periode)):
             jours.add(max(periode.debut, debut_periode) + timedelta(days=decalage))
     for motif, debut, fin in suspensions_du_bulletin(payslip_data):
-        if motif != MOTIF_CONGE_NON_REMUNERE:
+        if motif not in MOTIFS_SUSPENSION_NON_REMUNEREE:
             continue
         for decalage in range(_chevauchement(debut, fin, debut_periode, fin_periode)):
             jours.add(max(debut, debut_periode) + timedelta(days=decalage))

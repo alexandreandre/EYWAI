@@ -63,6 +63,7 @@ from .salary_evolution_brut import (
 )
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 from app.modules.payroll.engine.codes_des_lignes import BLOC_BRUT
+from app.modules.payroll.engine.conge_parental import RetenuesDuCongeParental
 from app.modules.payroll.engine.corrections_manuelles import LignesCorrigees, journal_du_contexte
 
 #: Jours travaillés ou payés d'un mois au forfait : sans aucun d'eux, le mois
@@ -451,6 +452,8 @@ def calculer_salaire_brut_forfait(
     jours_absence_non_payes = 0.0
 
     jours_hors_contrat_set = set(jours_hors_contrat)
+    # Congé parental d'éducation : retenu comme un sans solde, écrit par période.
+    retenues_conge_parental = RetenuesDuCongeParental()
     for evenement in jours_dans_periode:
         type_ev = evenement.get("type", "")
         heures = evenement.get("heures", 0.0)
@@ -500,15 +503,23 @@ def calculer_salaire_brut_forfait(
             )
             montant_deduction = round(jours_abs * salaire_journalier_absence, 2)
             retenues_absence_mois += montant_deduction
-            lignes_composants_brut.append(
-                {
-                    "libelle": f"Absence non rémunérée du {date_absence} ({_format_jours_conges(jours_abs)})",
-                    "quantite": jours_abs,
-                    "taux": round(salaire_journalier_absence, 4),
-                    "gain": None,
-                    "perte": montant_deduction,
-                }
-            )
+            if retenues_conge_parental.retient(evenement):
+                retenues_conge_parental.ajouter(
+                    evenement,
+                    quantite=jours_abs,
+                    taux=salaire_journalier_absence,
+                    perte=montant_deduction,
+                )
+            else:
+                lignes_composants_brut.append(
+                    {
+                        "libelle": f"Absence non rémunérée du {date_absence} ({_format_jours_conges(jours_abs)})",
+                        "quantite": jours_abs,
+                        "taux": round(salaire_journalier_absence, 4),
+                        "gain": None,
+                        "perte": montant_deduction,
+                    }
+                )
         elif type_ev == "ferie" and not _jour_ferie_est_paye(contexte, evenement):
             # Férié chômé non payé (ancienneté < 3 mois, art. L3133-3) : même
             # règle qu'en mode horaire, une journée de forfait retenue.
@@ -551,6 +562,12 @@ def calculer_salaire_brut_forfait(
                     "perte": montant_deduction,
                 }
             )
+
+    lignes_composants_brut.extend(
+        retenues_conge_parental.lignes(
+            date_debut_periode, date_fin_periode, suffixe=_format_jours_conges
+        )
+    )
 
     # 3. Calcul des congés payés (somme des quotités : une demi-journée = 0,5)
     if jours_conges_dans_periode:

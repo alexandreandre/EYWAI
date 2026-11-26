@@ -31,6 +31,7 @@ from .salaire_contractuel import (
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
 from app.modules.payroll.engine.codes_des_lignes import BLOC_BRUT
+from app.modules.payroll.engine.conge_parental import RetenuesDuCongeParental
 from app.modules.payroll.engine.corrections_manuelles import (
     CLE_REGULARISATIONS_HEURES,
     effet_des_regularisations_heures,
@@ -1901,6 +1902,8 @@ def calculer_salaire_brut(
     montant_absence_pleine_total = 0.0
     #: Jours d'arrêt retenus : (date, type, heures, régularisation antérieure).
     jours_d_arret_a_retenir: list[tuple[date, str, float, bool]] = []
+    # Congé parental d'éducation : retenu comme un sans solde, écrit par période.
+    retenues_conge_parental = RetenuesDuCongeParental()
     for evenement in jours_dans_periode:
         type_ev = evenement.get("type", "")
         heures = evenement.get("heures", 0.0)
@@ -2027,18 +2030,23 @@ def calculer_salaire_brut(
                         heures_abs / lc.DUREE_LEGALE_HEBDO * 5
                     )
                 montant_absence_pleine_total += montant_deduction
-            date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
-                "%d/%m/%y"
-            )
-            lignes_composants_brut.append(
-                {
-                    "libelle": f"Absence non rémunérée du {date_absence}",
-                    "quantite": heures_abs,
-                    "taux": round(taux_retenue, 4),
-                    "gain": None,
-                    "perte": montant_deduction,
-                }
-            )
+            if retenues_conge_parental.retient(evenement):
+                retenues_conge_parental.ajouter(
+                    evenement, quantite=heures_abs, taux=taux_retenue, perte=montant_deduction
+                )
+            else:
+                date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
+                    "%d/%m/%y"
+                )
+                lignes_composants_brut.append(
+                    {
+                        "libelle": f"Absence non rémunérée du {date_absence}",
+                        "quantite": heures_abs,
+                        "taux": round(taux_retenue, 4),
+                        "gain": None,
+                        "perte": montant_deduction,
+                    }
+                )
         elif type_ev == "conges_payes":
             jours_conges_dans_periode.append(evenement)
         elif type_ev == "evenement_familial":
@@ -2160,6 +2168,10 @@ def calculer_salaire_brut(
             jours_d_arret_a_retenir.append(
                 (jour_arret, _nature_de_l_arret(evenement), heures_abs, regularisation)
             )
+
+    lignes_composants_brut.extend(
+        retenues_conge_parental.lignes(date_debut_periode, date_fin_periode)
+    )
 
     # Une ligne par période d'arrêt, comme le cabinet (« Absence maladie
     # 170826-310826 ») : les heures de la période au taux de base, arrondies une

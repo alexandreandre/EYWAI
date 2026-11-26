@@ -26,6 +26,13 @@ from app.core.constants import MESSAGE_ERREUR_GENERATION
 from app.core.database import supabase
 from app.modules.payroll.engine.reference_remuneration import base_precarite_du_bulletin
 from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
+from app.shared.domain.conge_parental import (
+    CLE_MOTIF_ABSENCE,
+    CLE_PERIODE_ABSENCE,
+    SOUS_TYPE_CONGE_PARENTAL,
+    est_conge_parental,
+    periode_de_la_demande,
+)
 from app.shared.reprise_paie import (
     CLE_DEPART_A_ZERO,
     RepriseNonPosee,
@@ -542,7 +549,7 @@ def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> lis
         supabase.table("absence_requests")
         # `arret_type` : l'alerte « arrêt sans type » le lit. L'empreinte ne garde
         # que le type et les jours : rien ne passe « à recalculer ».
-        .select("type, arret_type, selected_days, subrogation_active")
+        .select("type, arret_type, event_subtype, selected_days, subrogation_active")
         .eq("employee_id", employee_id)
         .eq("status", "validated")
         .execute()
@@ -617,6 +624,9 @@ def _stamp_feries_des_absences_retenues(planned_entries: list, demandes: list) -
             continue
         type_par_date[iso] = e.get("type")
     source_par_date: dict = {}
+    # Un férié d'un congé parental d'éducation en prend aussi le motif et les
+    # bornes : sa retenue rejoint la ligne « Absence congé parental ».
+    conge_parental_par_date: dict = {}
     for row in demandes or []:
         type_jour = ABSENCE_TYPE_TO_CALENDAR_TYPE.get(str(row.get("type") or ""))
         if type_jour != "absence_non_remuneree":
@@ -626,6 +636,10 @@ def _stamp_feries_des_absences_retenues(planned_entries: list, demandes: list) -
             continue
         for iso in jours:
             source_par_date.setdefault(iso, row.get("type"))
+        if est_conge_parental(row):
+            periode = periode_de_la_demande(jours)
+            for iso in jours:
+                conge_parental_par_date.setdefault(iso, periode)
     if not source_par_date:
         return
     for e in planned_entries:
@@ -638,6 +652,10 @@ def _stamp_feries_des_absences_retenues(planned_entries: list, demandes: list) -
         source = source_par_date.get(iso)
         if source:
             e["source_absence"] = source
+        if iso in conge_parental_par_date:
+            e[CLE_MOTIF_ABSENCE] = SOUS_TYPE_CONGE_PARENTAL
+            if conge_parental_par_date[iso]:
+                e[CLE_PERIODE_ABSENCE] = conge_parental_par_date[iso]
 
 
 def _stamp_nature_des_arrets(planned_entries: list, demandes: list) -> None:

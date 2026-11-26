@@ -1,8 +1,9 @@
 """Ce que la DSN de Martine ne sait pas déclarer : dit, jamais silencieux.
 
 Cahier technique NEODeS 2026.1.2 (dans le dépôt, docs/audit-maji-2026/sources) :
-- S21.G00.65.001 : 501 congé divers non rémunéré, 607 présence parentale, 632
-  congé parental d'éducation, 636 enfant malade, 650 proche aidant ;
+- S21.G00.65.001 : 501 congé divers non rémunéré, 607 présence parentale, 636
+  enfant malade, 650 proche aidant (632 congé parental d'éducation : déclaré
+  depuis le 26/11/2026, saisi comme un congé sans solde « congé parental ») ;
 - S21.G00.40.036 et 037 : emplois et employeurs multiples ;
 - § 2.1.3.6 : les rappels survenant après la rupture suivent les mêmes principes,
   « les périodes de paie afférentes devront toutefois être bornées sur la date de
@@ -34,8 +35,10 @@ def avertissements_du_bulletin(payslip_data: Dict[str, Any], nir: str) -> List[s
     if any(motif == MOTIF_CONGE_NON_REMUNERE for motif, _, _ in suspensions_du_bulletin(payslip_data)):
         alertes.append(
             f"Congé sans solde déclaré 501 (NIR {nir or '?'}) : s'il s'agit d'un congé parental "
-            "(632), d'une présence parentale (607), d'un proche aidant (650) ou d'un enfant "
-            "malade (636), Martine ne sait pas le déclarer : corrigez le motif avant dépôt."
+            "d'éducation, saisissez-le comme tel (Nouveau congé, « Congé parental "
+            "d'éducation ») et Martine le déclare en 632. Une présence parentale (607), "
+            "un proche aidant (650) ou un enfant malade (636), Martine ne sait pas les "
+            "déclarer : corrigez le motif avant dépôt."
         )
     if payslip_data.get("bulletin_kind") == GENRE_REGULARISATION_PARTICIPATION:
         alertes.append(

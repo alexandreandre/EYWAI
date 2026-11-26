@@ -55,6 +55,8 @@ _MAINTIEN_EVENT_META_KEYS: tuple[str, ...] = (
     "quotite_absence",  # fraction de jour d'absence (0.5 = demi-journée de CP)
     "demi_journee",  # "matin" / "apres_midi" — informatif (affichage/traçabilité)
     "source_absence",  # type de la demande d'origine (conge_paye / recuperation_modulation ; arret_at, arret_maternite… sur un jour d'arrêt)
+    "motif_absence",  # "conge_parental_education" sur un jour de congé parental (libellé de la retenue, DSN 632)
+    "periode_absence",  # {"debut", "fin"} : les bornes de ce congé parental
 )
 
 
