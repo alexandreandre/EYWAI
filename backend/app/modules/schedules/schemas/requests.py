@@ -5,6 +5,7 @@ Définitions canoniques : calendrier prévu/réel, apply-model.
 Comportement identique à l’ancien schemas/schedule.py et api/routers/schedules.py.
 """
 
+from datetime import date
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
@@ -139,6 +140,15 @@ class CalendarSaveResponse(CalendarSnapshotResponse):
     revision: UUID
     warnings: list[dict[str, Any]] = Field(default_factory=list)
     payroll_recalculated: bool
+
+
+class ActivitePartielleEnMasseRequest(BaseModel):
+    """Corps de l'activité partielle en masse (aperçu et enregistrement) : les
+    salariés et les jours. Les bornes ne servent qu'à refuser un corps aberrant
+    (plus d'une année de jours, plus de salariés qu'une société n'en a)."""
+
+    employee_ids: List[str] = Field(min_length=1, max_length=5000)
+    dates: List[date] = Field(min_length=1, max_length=366)
 
 
 class EffacerJoursRequest(BaseModel):

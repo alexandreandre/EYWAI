@@ -24,6 +24,7 @@ import { CalendarEmployeeTable } from '@/components/schedules/CalendarEmployeeTa
 import { CalendarEmployeeDrawer } from '@/components/schedules/CalendarEmployeeDrawer';
 import { CalendarBulkActionsBar } from '@/components/schedules/CalendarBulkActionsBar';
 import { ApplyModelDialog } from '@/components/schedules/ApplyModelDialog';
+import { ActivitePartielleEnMasseDialog } from '@/components/schedules/ActivitePartielleEnMasseDialog';
 import { AssistedFillDialog } from '@/components/schedules/assisted-fill/AssistedFillDialog';
 import { PointageImportDialog } from '@/components/schedules/assisted-fill/PointageImportDialog';
 import { PointageImportBanner } from '@/components/schedules/assisted-fill/PointageImportBanner';
@@ -109,6 +110,7 @@ export default function Schedules() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [drawerEmployeeId, setDrawerEmployeeId] = useState<string | null>(null);
   const [applyModelOpen, setApplyModelOpen] = useState(false);
+  const [apEnMasseOpen, setApEnMasseOpen] = useState(false);
   const [assistedFillOpen, setAssistedFillOpen] = useState(false);
   const [aiTargetIds, setAiTargetIds] = useState<string[] | null>(null);
   const [calendarImportOpen, setCalendarImportOpen] = useState(false);
@@ -424,6 +426,7 @@ export default function Schedules() {
         isLoading={isPageLoading}
         onOpenAssistedFill={openAssistedFillFromHeader}
         onOpenPointageImport={() => setPointageImportOpen(true)}
+        onOpenActivitePartielleEnMasse={() => setApEnMasseOpen(true)}
       />
 
       <PointageImportBanner
@@ -661,6 +664,17 @@ export default function Schedules() {
           setSelectedIds(new Set());
           refreshCalendars();
         }}
+      />
+
+      <ActivitePartielleEnMasseDialog
+        open={apEnMasseOpen}
+        onOpenChange={setApEnMasseOpen}
+        employees={(employeesQuery.data ?? []) as Employee[]}
+        employeesLoading={employeesLoading}
+        employeesError={employeesLoadError}
+        year={selectedYear}
+        month={selectedMonth}
+        onApplied={refreshCalendars}
       />
 
       <AssistedFillDialog

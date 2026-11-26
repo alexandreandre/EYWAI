@@ -2,7 +2,8 @@ import { Button } from '@/components/ui/button';
 import { libelleEntetePilotage } from '@/lib/calendrierPilotage';
 import { Progress } from '@/components/ui/progress';
 import { pageTitleClassName } from '@/components/layout';
-import { Sparkles, Upload } from 'lucide-react';
+import { CalendarOff, Sparkles, Upload } from 'lucide-react';
+import { useActivitePartielleActive } from '@/hooks/useActivitePartielleActive';
 import type { EmployeeCalendarOverviewRow, GlobalOverviewKpis } from '@/lib/schedulesOverview';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CALENDAR_MONTHS } from './CalendarPeriodSelect';
@@ -15,6 +16,8 @@ interface CalendarPilotHeaderProps {
   exportRows: EmployeeCalendarOverviewRow[];
   onOpenAssistedFill: () => void;
   onOpenPointageImport: () => void;
+  /** Activité partielle en masse : le bouton n'apparaît que si la société l'a activée. */
+  onOpenActivitePartielleEnMasse?: () => void;
   isLoading?: boolean;
 }
 
@@ -25,8 +28,10 @@ export function CalendarPilotHeader({
   exportRows,
   onOpenAssistedFill,
   onOpenPointageImport,
+  onOpenActivitePartielleEnMasse,
   isLoading = false,
 }: CalendarPilotHeaderProps) {
+  const activitePartielle = useActivitePartielleActive();
   const periodLabel = `${CALENDAR_MONTHS[month - 1]} ${year}`;
   const libelleEntete = libelleEntetePilotage(kpis);
 
@@ -61,6 +66,18 @@ export function CalendarPilotHeader({
               <Upload className="mr-2 h-4 w-4" />
               Importer des pointages
             </Button>
+
+            {activitePartielle && onOpenActivitePartielleEnMasse && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onOpenActivitePartielleEnMasse}
+                className="h-9"
+              >
+                <CalendarOff className="mr-2 h-4 w-4" />
+                Activité partielle en masse
+              </Button>
+            )}
 
             <CalendarExportMenu rows={exportRows} year={year} month={month} />
         </div>
