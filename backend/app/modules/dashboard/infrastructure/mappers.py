@@ -11,6 +11,7 @@ from datetime import date
 from typing import Any, Dict, List
 
 from app.modules.dashboard.application.dto import ABSENCE_TYPE_LABELS, MONTH_NAMES_FR
+from app.shared.domain.conge_parental import LIBELLE_CONGE_PARENTAL, est_conge_parental
 from app.modules.dashboard.schemas.responses import (
     ChartDataPoint,
     SimpleEmployee,
@@ -38,7 +39,11 @@ def to_team_pulse_employees(
                 id=emp["id"],
                 first_name=emp.get("first_name", ""),
                 last_name=emp.get("last_name", ""),
-                status=labels.get(row.get("type") or "", "Absent"),
+                status=(
+                    LIBELLE_CONGE_PARENTAL
+                    if est_conge_parental(row)
+                    else labels.get(row.get("type") or "", "Absent")
+                ),
             )
         )
     return result

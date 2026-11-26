@@ -7,6 +7,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from app.modules.dsn_import.domain.normalize import normalize_date_dsn
 from app.shared.domain.absence_calendar import daterange_days
+from app.shared.domain.conge_parental import MOTIF_DSN_CONGE_PARENTAL, SOUS_TYPE_CONGE_PARENTAL
 
 # Motifs de rupture DSN (S21.G00.62.002) → type de départ de Martine.
 # Source : cahier technique DSN 2026.1 (NEODeS, 24/12/2025), rubrique
@@ -360,17 +361,24 @@ def build_absence_payload_from_suspension(
     bornes = bornes_suspension(suspension)
     if absence_type is None or bornes is None:
         return None
-    return _payload(
+    motif = _code(suspension.motif, 3)
+    conge_parental = motif == MOTIF_DSN_CONGE_PARENTAL
+    payload = _payload(
         *bornes,
         absence_type,
         None,
-        _code(suspension.motif, 3),
+        motif,
         siret=siret,
         nir=nir,
         employee_label=employee_label,
         dsn_block="G00.65",
         suffixe=":suspension",
     )
+    if conge_parental:
+        # Un congé parental d'éducation (632) se reprend comme tel : sans
+        # sous-type, Martine le redéclarerait en 501.
+        payload["event_subtype"] = SOUS_TYPE_CONGE_PARENTAL
+    return payload
 
 
 def build_exit_payload_from_fin_contrat(

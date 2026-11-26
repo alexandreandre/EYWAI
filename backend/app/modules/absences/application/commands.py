@@ -40,6 +40,8 @@ from app.shared.domain.conge_parental import (
     SOUS_TYPE_CONGE_PARENTAL,
     est_conge_parental,
     periode_de_la_demande,
+    periode_du_jour,
+    periodes_chainees,
 )
 from app.shared.domain.employment_rules import is_forfait_jour
 from app.modules.absences.infrastructure.repository import absence_repository
@@ -559,13 +561,25 @@ def _refus_chevauchement_conge_parental(
 
 
 def _meta_conge_parental(demande: Dict[str, Any]) -> Dict[str, Any]:
-    """Motif et bornes posés sur les jours d'un congé parental d'éducation."""
+    """Motif et bornes posés sur les jours d'un congé parental d'éducation.
+
+    Une prolongation saisie le lendemain de la fin d'un congé déjà validé
+    prend les bornes du congé entier (premier jour du premier, fin du
+    dernier) : un seul congé, un seul bloc DSN 632."""
     if not est_conge_parental(demande):
         return {}
-    return {
-        "motif_absence": SOUS_TYPE_CONGE_PARENTAL,
-        "periode_absence": periode_de_la_demande(demande.get("selected_days")),
-    }
+    periode = periode_de_la_demande(demande.get("selected_days"))
+    autres = [
+        r
+        for r in absence_repository.list_by_employee_id(str(demande.get("employee_id") or "")) or []
+        if str(r.get("id") or "") != str(demande.get("id") or "")
+    ]
+    if periode:
+        chaine = periode_du_jour(
+            periodes_chainees([*autres, {**demande, "status": "validated"}]), periode["debut"]
+        )
+        periode = chaine or periode
+    return {"motif_absence": SOUS_TYPE_CONGE_PARENTAL, "periode_absence": periode}
 
 
 def create_reconciliation_absence(
@@ -579,6 +593,7 @@ def create_reconciliation_absence(
     comment: str | None = None,
     source: str = "dsn_import",
     supabase_client: Any = None,
+    event_subtype: str | None = None,
 ) -> dict:
     """
     Crée une absence historique (bypass workflow / soldes CP).
@@ -656,6 +671,9 @@ def create_reconciliation_absence(
         }
         if arret_type:
             db_data["arret_type"] = arret_type
+        if est_conge_parental({"type": absence_type, "event_subtype": event_subtype}):
+            # DSN 65 motif 632 : un congé parental d'éducation, pas un sans solde.
+            db_data["event_subtype"] = SOUS_TYPE_CONGE_PARENTAL
 
         try:
             created = absence_repository.create(db_data)
@@ -675,6 +693,7 @@ def create_reconciliation_absence(
                 days_to_update,
                 absence_type,
                 arret_type=arret_type,
+                **_meta_conge_parental({**db_data, **(created or {})}),
             )
         except Exception:
             logger.exception("Sync calendrier absence DSN échouée pour %s", created.get("id"))

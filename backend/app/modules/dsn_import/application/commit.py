@@ -1042,6 +1042,7 @@ def _commit_absence(
         selected_days=payload.get("selected_days") or [],
         arret_type=payload.get("arret_type"),
         source="dsn_import",
+        event_subtype=payload.get("event_subtype"),
     )
 
 
