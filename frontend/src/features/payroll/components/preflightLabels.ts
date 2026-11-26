@@ -60,17 +60,46 @@ export function formatEcartValue(anomaly: PreflightAnomaly): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(1)}${unit}`;
 }
 
-export function verifyPathForAnomaly(anomaly: PreflightAnomaly): string {
+/** Types qui se corrigent dans le calendrier du salarié. */
+const SE_CORRIGE_AU_CALENDRIER: ReadonlySet<PreflightAnomalyType> = new Set<PreflightAnomalyType>([
+  'pointage',
+  'absent_a_typer',
+  'arret_a_confirmer',
+  'ecart_heures',
+  'heures_non_saisies',
+  'conflit_absence',
+]);
+
+/**
+ * Le mois où corriger : celui du premier jour en cause (le 24/09 d'une paie
+ * d'octobre est dans septembre), sinon le mois de paie contrôlé. Sans mois,
+ * le calendrier s'ouvrait sur le mois en cours (Elsa, 26/11 : « les messages
+ * restent bloqués sur novembre »).
+ */
+function moisOuCorriger(
+  anomaly: PreflightAnomaly,
+  moisDePaie?: { year: number; month: number },
+): { year: number; month: number } | undefined {
+  const premier = [...(anomaly.jours_manquants ?? [])].sort()[0];
+  const m = premier ? /^(\d{4})-(\d{2})-\d{2}$/.exec(premier) : null;
+  if (m) return { year: Number(m[1]), month: Number(m[2]) };
+  return moisDePaie && moisDePaie.year > 0 ? moisDePaie : undefined;
+}
+
+export function verifyPathForAnomaly(
+  anomaly: PreflightAnomaly,
+  moisDePaie?: { year: number; month: number },
+): string {
   if (anomaly.type === 'hs_routing_pending') {
     return '/schedules';
   }
   if (anomaly.type === 'hs_pointage_a_valider') {
     return '/company?tab=paie';
   }
-  if (anomaly.type === 'pointage' || anomaly.type === 'absent_a_typer' || anomaly.type === 'arret_a_confirmer') {
+  if (SE_CORRIGE_AU_CALENDRIER.has(anomaly.type) && anomaly.employee_id) {
     // Le calendrier du salarié permet de corriger le pointage et reste dans le
     // périmètre du mode paie (la badgeuse, elle, y est inatteignable).
-    return lienCalendrierDuSalarie(anomaly.employee_id);
+    return lienCalendrierDuSalarie(anomaly.employee_id, moisOuCorriger(anomaly, moisDePaie));
   }
   if (anomaly.type === 'fiche_dsn') {
     return lienModifierFiche(anomaly.employee_id);

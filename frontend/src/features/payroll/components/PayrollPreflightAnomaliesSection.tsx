@@ -18,6 +18,8 @@ interface PayrollPreflightAnomaliesSectionProps {
   onRetry?: () => void;
   isRetrying?: boolean;
   onVerify?: (path: string) => void;
+  /** Mois de paie contrôlé : « Vérifier » ouvre le calendrier sur ce mois. */
+  moisDePaie?: { year: number; month: number };
   className?: string;
 }
 
@@ -28,6 +30,7 @@ export function PayrollPreflightAnomaliesSection({
   onRetry,
   isRetrying = false,
   onVerify,
+  moisDePaie,
   className,
 }: PayrollPreflightAnomaliesSectionProps) {
   const [expanded, setExpanded] = useState(false);
@@ -112,7 +115,7 @@ export function PayrollPreflightAnomaliesSection({
                 size="sm"
                 variant="outline"
                 className="h-8 shrink-0 border-amber-300/70 bg-background hover:bg-muted/60"
-                onClick={() => onVerify?.(verifyPathForAnomaly(anomaly))}
+                onClick={() => onVerify?.(verifyPathForAnomaly(anomaly, moisDePaie))}
               >
                 Vérifier
               </Button>

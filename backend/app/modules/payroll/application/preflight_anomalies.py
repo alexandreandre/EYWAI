@@ -72,6 +72,17 @@ OPEN_STATUSES = frozenset({"a_traiter"})
 #: Anomalies qui ne se justifient pas : seule la correction les range.
 NON_JUSTIFIABLES = frozenset({"fiche_dsn"})
 
+_MOIS_FR = (
+    "janvier", "février", "mars", "avril", "mai", "juin",
+    "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+)
+
+
+def _de_mois(month: int) -> str:
+    """« de mars », « d'octobre »."""
+    nom = _MOIS_FR[month - 1]
+    return f"d'{nom}" if nom[0] in "aeiouéè" else f"de {nom}"
+
 
 def _anomaly_id(employee_id: str, anomaly_type: str) -> str:
     return f"{employee_id}:{anomaly_type}"
@@ -656,10 +667,12 @@ def build_preflight_anomalies(
             bloquants = [j.jour for j in periode.bloquants] if periode is not None else []
             if bloquants:
                 debut, fin = periode.fenetre
+                # « Fenêtre des variables » ne parlait à personne (Elsa, 26/11) :
+                # le mois de paie et ses pointages, en clair.
                 message = (
-                    f"{pluriel(len(bloquants), 'jour')} à saisir dans la fenêtre des variables "
-                    f"({debut:%d/%m} → {fin:%d/%m}) : {libelle_plages(bloquants)} "
-                    f"({raisons_en_clair(periode.bloquants)})."
+                    f"{pluriel(len(bloquants), 'jour')} à compléter pour la paie "
+                    f"{_de_mois(month)} (pointages du {debut:%d/%m} au {fin:%d/%m}) : "
+                    f"{libelle_plages(bloquants)} ({raisons_en_clair(periode.bloquants)})."
                 )
             else:
                 message = "Calendrier du mois incomplet — heures planifiées manquantes."

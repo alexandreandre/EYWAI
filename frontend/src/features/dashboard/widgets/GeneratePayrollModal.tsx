@@ -318,6 +318,7 @@ export function GeneratePayrollModal({
                 onRetry={() => void refetchPreflight()}
                 isRetrying={preflightFetching}
                 onVerify={handleVerifyAnomaly}
+                moisDePaie={selectedMonth ? parsedMonth : undefined}
               />
             </div>
 

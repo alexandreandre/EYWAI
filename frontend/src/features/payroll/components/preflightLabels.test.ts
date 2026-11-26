@@ -59,3 +59,25 @@ describe('liens des anomalies en mode paie', () => {
     expect(isPayrollFocusAllowed(correctionPathForType('pointage'))).toBe(true);
   });
 });
+
+describe('« Vérifier » ouvre le bon mois (Elsa, 26/11)', () => {
+  it('heures non saisies : le mois du premier jour manquant', () => {
+    const a = { ...anomalie('heures_non_saisies'), jours_manquants: ['2026-10-05', '2026-09-24'] };
+    expect(verifyPathForAnomaly(a, { year: 2026, month: 10 })).toBe(
+      '/employees/e1?tab=calendrier&year=2026&month=9',
+    );
+  });
+
+  it('écart d’heures : le calendrier du salarié sur le mois de paie contrôlé', () => {
+    expect(verifyPathForAnomaly(anomalie('ecart_heures'), { year: 2026, month: 10 })).toBe(
+      '/employees/e1?tab=calendrier&year=2026&month=10',
+    );
+  });
+
+  it('les liens de mois restent permis en mode paie', () => {
+    for (const type of PREFLIGHT_ANOMALY_TYPE_ORDER) {
+      const chemin = verifyPathForAnomaly(anomalie(type), { year: 2026, month: 10 });
+      expect(isPayrollFocusAllowed(chemin), `${type} → ${chemin}`).toBe(true);
+    }
+  });
+});
