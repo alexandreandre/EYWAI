@@ -396,6 +396,14 @@ def _jour_ferie_est_paye(contexte: ContextePaie, evenement: Dict[str, Any]) -> b
     if not date_ferie:
         return True
 
+    # Un férié qui tombe un samedi ou un dimanche sans heures prévues n'est pas
+    # chômé : aucune journée de travail n'est perdue, il n'y a rien à retenir.
+    # L3133-3 garantit le salaire du jour férié chômé ; un jour de repos n'en
+    # est pas un. Cartol, novembre 2026 (forfait entré le 07/09) : le dimanche
+    # 01/11 retenait une journée de forfait, 143,05 €.
+    if date_ferie.weekday() >= 5 and not float(evenement.get("heures") or 0):
+        return True
+
     # 1er mai : chômé et payé sans condition d'ancienneté (art. L3133-4/5 C. trav.).
     if date_ferie.month == 5 and date_ferie.day == 1:
         return True
