@@ -30,6 +30,7 @@ from .regime_indemnites_rupture import (
 from .baremes_loader import resoudre_taux_vm_pour_paie
 from app.shared.domain.employment_rules import is_cadre
 from app.modules.payroll.engine.mutuelles import mutuelles_du_salarie
+from app.modules.payroll.engine.retraite_progressive import part_complementaire_prise_en_charge
 from app.modules.payroll.engine.codes_des_lignes import BLOC_COTISATIONS
 from app.modules.payroll.engine.corrections_manuelles import LignesCorrigees, journal_du_contexte
 
@@ -952,6 +953,23 @@ def calculer_cotisations(
         "cotisations",
     )
     liste_cotisations_brutes = contexte.baremes["cotisations"].get(root_key, [])
+    # Retraite progressive : les lignes de surcotisation se calculent avant la
+    # CSG, parce que la part salariale complémentaire prise en charge par
+    # l'employeur entre dans son assiette (engine/retraite_progressive,
+    # `part_complementaire_prise_en_charge`). [] sans réglage : rien ne bouge.
+    lignes_retraite_progressive = _surcotisation_retraite_progressive(
+        contexte, brut_cotisable, assiettes, liste_cotisations_brutes
+    )
+    prise_complementaire = part_complementaire_prise_en_charge(lignes_retraite_progressive)
+    if prise_complementaire > 0:
+        # Revenu d'activité hors L242-1, II : abattement de 1,75 % (L136-2, I),
+        # sauf au-delà de quatre plafonds.
+        sous_4_plafonds = assiettes["brut_4_plafonds"] >= assiettes["brut"]
+        assiettes["csg_crds_base_normale"] = round(
+            assiettes["csg_crds_base_normale"]
+            + prise_complementaire * (0.9825 if sous_4_plafonds else 1.0),
+            2,
+        )
     # Chaque cotisation naît corrigée si une correction faite à la main la vise :
     # le total salarial, le plafond de la réduction des heures sup et l'assiette
     # du forfait social lisent la ligne corrigée.
@@ -1283,9 +1301,8 @@ def calculer_cotisations(
     # Retraite progressive : vieillesse (et complémentaire) sur un temps plein,
     # lignes « Surcotisation retraite progressive » (engine/retraite_progressive).
     # Sans réglage sur la fiche, aucune ligne : bulletin inchangé au centime.
-    bulletin_cotisations.extend(
-        _surcotisation_retraite_progressive(contexte, brut_cotisable, assiettes, liste_cotisations_brutes)
-    )
+    # Calculées avant la boucle (leur CSG en dépend), posées ici.
+    bulletin_cotisations.extend(lignes_retraite_progressive)
 
     # Ajout manuel des cotisations forfaitaires (mutuelle, etc.)
     mutuelle_spec = contexte.contrat.get("specificites_paie", {}).get("mutuelle", {})

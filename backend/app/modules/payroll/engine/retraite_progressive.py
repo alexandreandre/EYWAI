@@ -60,8 +60,10 @@ Textes ouverts le 26/11/2026 :
 
 Le supplément ne touche ni le brut ni la CSG : ce sont des lignes de cotisation
 en plus, « Surcotisation retraite progressive », part patronale à l'employeur,
-part salariale au salarié sauf prise en charge (alors versée par l'employeur, et
-soumise au forfait social de 20 % pour la part complémentaire).
+part salariale au salarié sauf prise en charge (alors versée par l'employeur).
+La part complémentaire prise en charge entre dans l'assiette de la CSG et de la
+CRDS et paie le forfait social de 20 % ; celle de la vieillesse de base n'entre
+dans aucune des deux (`part_complementaire_prise_en_charge`).
 Un salarié sans réglage ne voit rien changer : la fonction rend une liste vide.
 """
 
@@ -423,7 +425,8 @@ def lignes_de_surcotisation(
             if reglage.prise_en_charge_part_salariale and ligne.get("montant_salarial"):
                 # R241-0-3, II : la part salariale du supplément est payée par
                 # l'employeur ; elle ne passe pas par le brut. Part complémentaire :
-                # forfait social de 20 % (L137-15), posé après la boucle.
+                # CSG/CRDS (calcul_cotisations) et forfait social de 20 % (L137-15),
+                # posé après la boucle.
                 prise = float(ligne["montant_salarial"])
                 ligne["montant_patronal"] = round(float(ligne.get("montant_patronal") or 0.0) + prise, 2)
                 ligne["taux_patronal"] = round((taux_pat or 0.0) + (taux_sal or 0.0), 6)
@@ -437,15 +440,7 @@ def lignes_de_surcotisation(
     # cotisations ou contributions destinées au financement des régimes de retraite
     # complémentaire […] ». Taux de 20 % (L137-16), quel que soit l'effectif. Même
     # ligne que le forfait social de la retraite supplémentaire : 071, CTP 012.
-    ids_complementaire = {s for _, s, _ in COMPLEMENTAIRE}
-    prise_complementaire = round(
-        sum(
-            float(l.get("prise_en_charge_part_salariale") or 0.0)
-            for l in lignes
-            if l.get("coti_id") in ids_complementaire
-        ),
-        2,
-    )
+    prise_complementaire = part_complementaire_prise_en_charge(lignes)
     if prise_complementaire > 0:
         ligne_fs = calculer_ligne(
             LIBELLE_FORFAIT_SOCIAL,
@@ -458,6 +453,37 @@ def lignes_de_surcotisation(
             ligne_fs["retraite_progressive"] = True
             lignes.append(ligne_fs)
     return lignes
+
+
+def part_complementaire_prise_en_charge(lignes: List[Dict[str, Any]]) -> float:
+    """Part salariale Agirc-Arrco de la surcotisation payée par l'employeur.
+
+    Elle entre dans l'assiette de la CSG et de la CRDS (CSS L136-1-1, I : « toutes
+    les sommes [...] dues en contrepartie ou à l'occasion d'un travail [...] que
+    cette attribution soit directe ou indirecte »). Aucune exclusion du III, 2° ne
+    la couvre :
+    - b) vise « Les contributions mises à la charge des employeurs en application
+      d'une disposition législative ou réglementaire ou d'un accord national
+      interprofessionnel [...] destinées au financement des régimes de retraite
+      complémentaire » : la part salariale prise en charge n'est pas mise à la
+      charge de l'employeur par l'ANI, il la prend en charge par accord
+      (R241-0-3, II : « L'employeur peut prendre en charge ») ;
+    - d) vise « La part des cotisations salariales prise en charge par l'employeur
+      dans les conditions prévues aux articles L. 241-3-1 et L. 241-3-2 » ;
+      L241-3-1 ne parle que des « cotisations destinées à financer l'assurance
+      vieillesse », par dérogation à L241-3 (régime général), alors que L241-3-2
+      nomme expressément les « régimes de retraite complémentaire ».
+    La part de la vieillesse de base prise en charge reste hors CSG (d).
+    """
+    ids_complementaire = {s for _, s, _ in COMPLEMENTAIRE}
+    return round(
+        sum(
+            float(l.get("prise_en_charge_part_salariale") or 0.0)
+            for l in lignes
+            if isinstance(l, dict) and l.get("coti_id") in ids_complementaire
+        ),
+        2,
+    )
 
 
 def assiettes_dsn(lignes: List[Dict[str, Any]]) -> Dict[str, float]:

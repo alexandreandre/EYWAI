@@ -270,6 +270,8 @@ def test_bulletin_porte_la_surcotisation_et_le_reste_ne_bouge_pas(banc, profil):
 
 @pytest.mark.parametrize("profil", ["temps_partiel", "forfait_jours"])
 def test_prise_en_charge_net_inchange(banc, profil):  # noqa: F811
+    """Vieillesse de base seule : la prise en charge reste hors CSG (L136-1-1,
+    III, 2° d), le net ne bouge pas."""
     sans = banc.generer(profil, fiche_en_plus=_fiche(profil, None))
     avec = banc.generer(
         profil, fiche_en_plus=_fiche(profil, {**REGLAGE_FICHE, "prise_en_charge_part_salariale": True})
@@ -401,9 +403,26 @@ def test_bulletin_forfait_social_sur_la_prise_en_charge_complementaire(banc_agir
     nouveaux = [l for l in _forfait_social(lignes) if "retraite progressive" in l["libelle"]]
     assert len(nouveaux) == 1
     assert nouveaux[0]["base"] == prise and nouveaux[0]["montant_patronal"] == round(prise * 0.20, 2)
-    # Le net ne bouge pas ; le forfait social de la prévoyance non plus.
-    assert avec["net_a_payer"] == sans["net_a_payer"]
+    # Le forfait social de la prévoyance ne bouge pas.
     assert [l for l in _forfait_social(lignes) if l not in nouveaux] == _forfait_social(_cotisations(sans))
+    # CSS L136-1-1 : la part complémentaire prise en charge entre dans l'assiette
+    # de la CSG et de la CRDS, avec l'abattement de 1,75 % (L136-2, I).
+    def csg(donnees, coti_id):
+        (ligne,) = [
+            l for l in _cotisations(donnees)
+            if l.get("coti_id") == coti_id and "HS" not in str(l.get("libelle"))
+        ]
+        return ligne
+    for coti_id in ("csg_deductible", "csg_non_deductible"):
+        assert round(csg(avec, coti_id)["base"] - csg(sans, coti_id)["base"], 2) == round(prise * 0.9825, 2)
+    hausse_csg = round(
+        sum(csg(avec, c)["montant_salarial"] - csg(sans, c)["montant_salarial"]
+            for c in ("csg_deductible", "csg_non_deductible")),
+        2,
+    )
+    assert hausse_csg > 0
+    # Le net ne baisse que de cette CSG/CRDS : la surcotisation elle-même est à l'employeur.
+    assert round(float(sans["net_a_payer"]) - float(avec["net_a_payer"]), 2) == hausse_csg
 
 
 @pytest.mark.parametrize(
