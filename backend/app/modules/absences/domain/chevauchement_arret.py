@@ -19,7 +19,9 @@ from typing import Iterable, Mapping, Optional
 from app.modules.absences.domain.enums import IJSS_ELIGIBLE_TYPES
 from app.modules.absences.domain.nature_arret import LIBELLES_NATURE
 
-STATUTS_QUI_COMPTENT = frozenset({"validated", "pending"})
+# Seuls les arrêts validés comptent : un arrêt resté « en attente » (validation
+# automatique interrompue) n'est visible nulle part et ne doit pas bloquer.
+STATUTS_QUI_COMPTENT = frozenset({"validated"})
 
 
 def _jour(valeur: object) -> date:
@@ -30,37 +32,63 @@ def _fr(jour: date) -> str:
     return jour.strftime("%d/%m/%Y")
 
 
+def _blocs(jours: set[date]) -> list[tuple[date, date]]:
+    """Les jours regroupés en périodes continues (un arrêt importé de la DSN
+    est découpé en plusieurs lignes qui se suivent)."""
+    blocs: list[tuple[date, date]] = []
+    for jour in sorted(jours):
+        if blocs and jour - blocs[-1][1] <= timedelta(days=1):
+            blocs[-1] = (blocs[-1][0], jour)
+        else:
+            blocs.append((jour, jour))
+    return blocs
+
+
 def refus_chevauchement_arret(
     nature: Optional[str],
     jours: Iterable[object],
     absences_existantes: Iterable[Mapping[str, object]],
 ) -> Optional[str]:
-    """La phrase de refus si `jours` recouvre un arrêt validé ou en attente, sinon None."""
+    """La phrase de refus si `jours` recouvre un arrêt validé, sinon None."""
     if nature not in IJSS_ELIGIBLE_TYPES:
         return None
     nouveaux = {_jour(j) for j in jours}
     if not nouveaux:
         return None
+    existants: set[date] = set()
+    natures: dict[date, str] = {}
     for absence in absences_existantes:
         if absence.get("type") not in IJSS_ELIGIBLE_TYPES:
             continue
         if absence.get("status") not in STATUTS_QUI_COMPTENT:
             continue
-        existants = {_jour(j) for j in (absence.get("selected_days") or [])}
-        if not existants & nouveaux:
-            continue
-        debut, fin = min(existants), max(existants)
-        libelle = LIBELLES_NATURE.get(str(absence.get("type")), "arrêt").lower()
-        phrase = (
-            f"Ce salarié a déjà un {libelle} enregistré du {_fr(debut)} au {_fr(fin)}, "
-            "qui recouvre la période saisie."
+        for j in absence.get("selected_days") or []:
+            jour = _jour(j)
+            existants.add(jour)
+            natures[jour] = str(absence.get("type"))
+    if not existants & nouveaux:
+        return None
+    debut, fin = next(
+        (d, f) for d, f in _blocs(existants) if any(d <= j <= f for j in nouveaux)
+    )
+    libelle = LIBELLES_NATURE.get(natures[debut], "Arrêt")
+    phrase = (
+        f"Ce salarié a déjà un arrêt enregistré du {_fr(debut)} au {_fr(fin)} "
+        f"({libelle}), qui recouvre la période saisie."
+    )
+    if min(nouveaux) >= debut and max(nouveaux) > fin:
+        phrase += (
+            f" Pour une prolongation, saisissez la période à partir du "
+            f"{_fr(fin + timedelta(days=1))}."
         )
-        if max(nouveaux) > fin:
-            phrase += (
-                f" Pour une prolongation, saisissez la période à partir du "
-                f"{_fr(fin + timedelta(days=1))}."
-            )
-        else:
-            phrase += " Pour le modifier, annulez-le puis saisissez la bonne période."
-        return phrase
-    return None
+    elif min(nouveaux) < debut and max(nouveaux) <= fin:
+        phrase += (
+            f" Saisissez seulement les jours d'avant, jusqu'au "
+            f"{_fr(debut - timedelta(days=1))}."
+        )
+    else:
+        phrase += (
+            " Pour le remplacer, annulez-le, puis saisissez la "
+            "bonne période."
+        )
+    return phrase

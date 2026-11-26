@@ -50,7 +50,7 @@ def test_une_periode_contenue_dans_l_arret_existant_dit_d_annuler():
     assert refus is not None and "annulez-le" in refus
 
 
-@pytest.mark.parametrize("statut", ["cancelled", "rejected"])
+@pytest.mark.parametrize("statut", ["cancelled", "rejected", "pending"])
 def test_un_arret_annule_ou_refuse_ne_compte_pas(statut):
     assert (
         refus_chevauchement_arret(
@@ -60,6 +60,37 @@ def test_un_arret_annule_ou_refuse_ne_compte_pas(statut):
         )
         is None
     )
+
+
+def test_un_arret_importe_en_morceaux_se_lit_comme_un_seul():
+    morceaux = [
+        {"type": "arret_maladie", "status": "validated",
+         "selected_days": _jours(date(2026, 6, 1), date(2026, 6, 30))},
+        {"type": "arret_maladie", "status": "validated",
+         "selected_days": _jours(date(2025, 9, 24), date(2026, 5, 31))},
+    ]
+    refus = refus_chevauchement_arret(
+        "arret_maladie", _jours(date(2026, 5, 1), date(2026, 11, 27)), morceaux
+    )
+    assert "du 24/09/2025 au 30/06/2026" in refus
+    assert "à partir du 01/07/2026" in refus
+
+
+def test_une_periode_qui_englobe_l_arret_ne_propose_pas_de_prolongation():
+    refus = refus_chevauchement_arret(
+        "arret_maladie", _jours(date(2027, 1, 1), date(2027, 2, 15)),
+        [{"type": "arret_maladie_pro", "status": "validated",
+          "selected_days": _jours(date(2027, 1, 10), date(2027, 1, 31))}],
+    )
+    assert "prolongation" not in refus and "annulez-le" in refus
+    assert "un arrêt enregistré" in refus and "(Maladie professionnelle)" in refus
+
+
+def test_une_periode_qui_finit_dans_l_arret_dit_jusqu_ou_saisir():
+    refus = refus_chevauchement_arret(
+        "arret_maladie", _jours(date(2025, 9, 1), date(2025, 10, 5)), [ARRET_IMPORTE]
+    )
+    assert "jusqu'au 23/09/2025" in refus
 
 
 def test_un_conge_n_est_pas_un_arret():
