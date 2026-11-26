@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
-from app.shared.domain.pluriel import pluriel
+from app.shared.domain.pluriel import phrase_jours_a_completer, pluriel
 from app.shared.reprise_paie import ORIGINE_IMPORTE, lire_bascule, rang_du_mois
 from app.core.database import supabase
 from app.core.logging import get_logger
@@ -72,16 +72,6 @@ OPEN_STATUSES = frozenset({"a_traiter"})
 #: Anomalies qui ne se justifient pas : seule la correction les range.
 NON_JUSTIFIABLES = frozenset({"fiche_dsn"})
 
-_MOIS_FR = (
-    "janvier", "février", "mars", "avril", "mai", "juin",
-    "juillet", "août", "septembre", "octobre", "novembre", "décembre",
-)
-
-
-def _de_mois(month: int) -> str:
-    """« de mars », « d'octobre »."""
-    nom = _MOIS_FR[month - 1]
-    return f"d'{nom}" if nom[0] in "aeiouéè" else f"de {nom}"
 
 
 def _anomaly_id(employee_id: str, anomaly_type: str) -> str:
@@ -670,8 +660,7 @@ def build_preflight_anomalies(
                 # « Fenêtre des variables » ne parlait à personne (Elsa, 26/11) :
                 # le mois de paie et ses pointages, en clair.
                 message = (
-                    f"{pluriel(len(bloquants), 'jour')} à compléter pour la paie "
-                    f"{_de_mois(month)} (pointages du {debut:%d/%m} au {fin:%d/%m}) : "
+                    f"{phrase_jours_a_completer(len(bloquants), month, debut, fin)} : "
                     f"{libelle_plages(bloquants)} ({raisons_en_clair(periode.bloquants)})."
                 )
             else:

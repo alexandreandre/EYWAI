@@ -18,7 +18,7 @@ from app.modules.onboarding.domain.profile import (
     missing_payroll_fields,
     payroll_block_reason,
 )
-from app.shared.domain.pluriel import pluriel
+from app.shared.domain.pluriel import phrase_jours_a_completer, pluriel
 from app.modules.payslips.application.dto import (
     GeneratePayslipInput,
     GeneratePayslipResult,
@@ -207,9 +207,9 @@ def _check_calendar_guard(
         return None
     bloquants = [j.jour for j in periode.bloquants]
     message = (
-        f"{cmd.month:02d}/{cmd.year} — {pluriel(len(bloquants), 'jour')} à saisir dans la fenêtre "
-        f"des variables ({debut:%d/%m} → {fin:%d/%m}) : {libelle_plages(bloquants)} "
-        f"({raisons_en_clair(periode.bloquants)}). "
+        f"{cmd.month:02d}/{cmd.year} — "
+        f"{phrase_jours_a_completer(len(bloquants), cmd.month, debut, fin)} : "
+        f"{libelle_plages(bloquants)} ({raisons_en_clair(periode.bloquants)}). "
         "Complétez le planning avant de générer. Si vous forcez, ces jours sont payés à plein."
     )
     if not cmd.force_calendrier_incomplet:

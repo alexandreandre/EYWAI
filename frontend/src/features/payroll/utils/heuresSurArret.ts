@@ -169,6 +169,20 @@ export function lireNatureDuLien(valeur: string | null | undefined): NatureConfl
   return valeur === 'arret' || valeur === 'absence' || valeur === 'mixte' ? valeur : null;
 }
 
+/**
+ * Le mois où corriger : celui du premier jour à compléter (le 24/09 d'une paie
+ * d'octobre est en septembre), sinon le mois de paie. Sans mois, le calendrier
+ * s'ouvrait sur le mois en cours (Elsa, 26/11).
+ */
+export function moisDuPremierJour(
+  jours: readonly string[] | undefined,
+  moisDePaie: { year: number; month: number },
+): { year: number; month: number } {
+  const premier = [...(jours ?? [])].sort()[0];
+  const m = premier ? /^(\d{4})-(\d{2})-\d{2}$/.exec(premier) : null;
+  return m ? { year: Number(m[1]), month: Number(m[2]) } : moisDePaie;
+}
+
 /** Onglet Calendrier de la fiche du salarié : là où se corrige ce qui a été saisi au planning. */
 export function lienCalendrierDuSalarie(
   employeeId: string,

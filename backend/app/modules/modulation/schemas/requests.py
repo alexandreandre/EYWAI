@@ -131,6 +131,8 @@ class ModulationOverviewRow(BaseModel):
     period_paid_hours: float = 0.0
     # True quand aucun compteur n'existe : les heures sont un repli (durée x 52), pas un relevé.
     estimated: bool = False
+    # Faux quand le salarié n'a jamais eu aucun mouvement au compteur (toutes années).
+    has_movements: bool = True
 
 
 class ModulationBalanceResponse(BaseModel):

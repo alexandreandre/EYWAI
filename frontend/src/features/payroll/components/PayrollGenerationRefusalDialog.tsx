@@ -25,7 +25,11 @@ import {
   estForcable,
   refusForcablesEnGroupe,
 } from '@/features/payroll/utils/generationGuards';
-import { aDesJoursAEffacer, lienCalendrierDuSalarie } from '@/features/payroll/utils/heuresSurArret';
+import {
+  aDesJoursAEffacer,
+  lienCalendrierDuSalarie,
+  moisDuPremierJour,
+} from '@/features/payroll/utils/heuresSurArret';
 import { monthYearLabel } from '@/features/payroll/utils/payrollMonth';
 
 type PayrollGenerationRefusalDialogProps = {
@@ -136,7 +140,10 @@ export function PayrollGenerationRefusalDialog({
         {single?.code === 'calendrier_incomplet' && single.details && (
           <JoursASaisirListe
             details={single.details}
-            lienPlanning={lienCalendrierDuSalarie(single.job.employeeId)}
+            lienPlanning={lienCalendrierDuSalarie(
+              single.job.employeeId,
+              moisDuPremierJour(single.details.joursManquants, single.job),
+            )}
             onLienClick={onDismiss}
           />
         )}
@@ -178,7 +185,11 @@ export function PayrollGenerationRefusalDialog({
               onModifier={onDismiss}
             />
           ) : (
-            <HeuresSurArretSansJours employeeId={single.job.employeeId} onOuvrir={onDismiss} />
+            <HeuresSurArretSansJours
+              employeeId={single.job.employeeId}
+              mois={single.job}
+              onOuvrir={onDismiss}
+            />
           ))}
 
         {!single && (
@@ -230,7 +241,10 @@ export function PayrollGenerationRefusalDialog({
                     <>
                       {' · '}
                       <Link
-                        to={lienCalendrierDuSalarie(refusal.job.employeeId)}
+                        to={lienCalendrierDuSalarie(
+                          refusal.job.employeeId,
+                          moisDuPremierJour(refusal.details?.joursManquants, refusal.job),
+                        )}
                         onClick={onDismiss}
                         className="underline underline-offset-2"
                       >
@@ -270,6 +284,7 @@ export function PayrollGenerationRefusalDialog({
                 ) : (
                   <HeuresSurArretSansJours
                     employeeId={refusal.job.employeeId}
+                    mois={refusal.job}
                     onOuvrir={onDismiss}
                   />
                 )}

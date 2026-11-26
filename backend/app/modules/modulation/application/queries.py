@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import unicodedata
 from datetime import date
 
 from app.core.database import supabase
 from app.modules.modulation.domain.entities import ModulationSettings
+from app.modules.modulation.domain.hour_account_rules import solde_au
 from app.modules.modulation.infrastructure import repository as repo
 from app.modules.modulation.schemas.requests import (
     ModulationOverviewRow,
@@ -89,6 +91,13 @@ def list_week_templates(company_id: str) -> list[WeekTemplateSchema]:
     ]
 
 
+def _cle_de_tri(texte: str) -> str:
+    """« Écuyer » avant « Zola » : sans accents ni casse."""
+    return "".join(
+        c for c in unicodedata.normalize("NFD", texte or "") if unicodedata.category(c) != "Mn"
+    ).lower()
+
+
 def get_modulation_overview(
     company_id: str, year: int | None = None
 ) -> list[ModulationOverviewRow]:
@@ -122,9 +131,14 @@ def get_modulation_overview(
                 period_paid_hours=float(c.get("period_paid_hours") or 0),
             )
         )
+    sans_compteur = [str(e["id"]) for e in emp_resp.data or [] if str(e["id"]) not in vus]
+    mouvements: dict[str, list[dict]] = {}
+    for m in repo.list_movements_for_employees(sans_compteur):
+        mouvements.setdefault(str(m.get("employee_id")), []).append(m)
     for emp in emp_resp.data or []:
         if str(emp["id"]) in vus:
             continue
+        leurs = mouvements.get(str(emp["id"]), [])
         weekly = float(emp.get("duree_hebdomadaire") or settings.average_weekly_hours)
         theoretical = round(weekly * 52, 2)
         rows.append(
@@ -135,8 +149,12 @@ def get_modulation_overview(
                 theoretical_hours=theoretical,
                 actual_hours=theoretical,
                 balance_hours=0.0,
+                # Pas encore de ligne pour l'année : le solde d'avant se reporte
+                # (repos non pris = dû), il ne repart pas de zéro au 1er janvier.
+                account_balance_hours=solde_au(leurs, ref_year, 12),
+                has_movements=bool(leurs),
                 estimated=True,
             )
         )
-    rows.sort(key=lambda r: (r.last_name.lower(), r.first_name.lower()))
+    rows.sort(key=lambda r: (_cle_de_tri(r.last_name), _cle_de_tri(r.first_name)))
     return rows

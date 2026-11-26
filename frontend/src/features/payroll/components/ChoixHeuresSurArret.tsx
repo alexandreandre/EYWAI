@@ -139,9 +139,12 @@ export function ChoixHeuresSurArret({
 /** Refus d'heures sur un arrêt sans jour lisible : pas d'« effacer », le calendrier. */
 export function HeuresSurArretSansJours({
   employeeId,
+  mois,
   onOuvrir,
 }: {
   employeeId: string;
+  /** Mois de paie refusé : le calendrier s'ouvre sur ce mois. */
+  mois?: { year: number; month: number };
   /** Appelé quand on quitte pour le calendrier (fermer le dialogue). */
   onOuvrir?: () => void;
 }) {
@@ -149,7 +152,7 @@ export function HeuresSurArretSansJours({
     <p className="text-sm" data-testid="heures-sur-arret-sans-jours">
       {TEXTE_HEURES_SANS_JOURS}{' '}
       <Link
-        to={lienCalendrierDuSalarie(employeeId)}
+        to={lienCalendrierDuSalarie(employeeId, mois)}
         onClick={onOuvrir}
         className="font-medium text-primary underline underline-offset-2"
       >

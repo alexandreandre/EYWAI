@@ -92,6 +92,8 @@ export interface ModulationOverviewRow {
   period_paid_hours: number;
   /** Vrai quand aucun compteur n'existe : les heures sont un repli, pas un relevé. */
   estimated?: boolean;
+  /** Faux quand le salarié n'a jamais eu de mouvement au compteur (toutes années). */
+  has_movements?: boolean;
 }
 
 export interface ModulationMovement {

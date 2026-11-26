@@ -49,7 +49,7 @@ test('compteur de récupération : l’écran dit quand il se remplit (LEWIS)', 
   await expect(ligne, 'LEWIS a des salariés sans mouvement au compteur').toBeVisible({ timeout: 45_000 });
   await ligne.getByRole('button', { name: 'Détail du compteur', exact: true }).click();
   await expect(page.getByTestId('compteur-vide')).toContainText(
-    'passeront au compteur au calcul de son prochain bulletin',
+    'passent au calcul du bulletin du mois',
     { timeout: 30_000 },
   );
   await verifierPageSaine(page, s);

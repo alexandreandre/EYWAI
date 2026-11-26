@@ -40,6 +40,20 @@ describe('la fenêtre « Calendrier incomplet » dit où corriger', () => {
       path.resolve(__dirname, './PayrollGenerationRefusalDialog.tsx'),
       'utf8'
     );
-    expect(source).toMatch(/lienPlanning=\{lienCalendrierDuSalarie\(single\.job\.employeeId\)\}/);
+    // Avec le mois du premier jour à compléter (Elsa, 26/11 : sans mois, novembre s'ouvrait).
+    expect(source).toMatch(
+      /lienPlanning=\{lienCalendrierDuSalarie\(\s*single\.job\.employeeId,\s*moisDuPremierJour\(single\.details\.joursManquants, single\.job\),?\s*\)\}/,
+    );
+  });
+});
+
+describe('le mois du premier jour à compléter', () => {
+  it('prend le plus tôt des jours, sinon le mois de paie', async () => {
+    const { moisDuPremierJour } = await import('@/features/payroll/utils/heuresSurArret');
+    expect(moisDuPremierJour(['2026-10-02', '2026-09-24'], { year: 2026, month: 10 })).toEqual({
+      year: 2026,
+      month: 9,
+    });
+    expect(moisDuPremierJour([], { year: 2026, month: 10 })).toEqual({ year: 2026, month: 10 });
   });
 });

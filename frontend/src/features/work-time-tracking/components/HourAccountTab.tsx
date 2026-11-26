@@ -79,7 +79,12 @@ export function HourAccountTab({
     }
   }, [initialEmployeeId]);
 
-  const { data: overview = [], isLoading } = useQuery({
+  const {
+    data: overview = [],
+    isLoading,
+    isError: erreurVue,
+    refetch: refetchVue,
+  } = useQuery({
     queryKey: queryKeys.modulationOverview(companyId, year),
     queryFn: () => getModulationOverview(year),
     enabled: Boolean(companyId),
@@ -88,6 +93,7 @@ export function HourAccountTab({
   const {
     data: movements = [],
     isLoading: chargementMouvements,
+    isError: erreurMouvements,
     refetch: refetchMovements,
   } = useQuery({
     queryKey: queryKeys.modulationMovements(companyId, selectedEmployeeId ?? '', year),
@@ -201,6 +207,13 @@ export function HourAccountTab({
             <CardContent>
               {isLoading ? (
                 <p className="text-sm text-muted-foreground">Chargement…</p>
+              ) : erreurVue ? (
+                <p className="text-sm text-destructive">
+                  Les compteurs n&apos;ont pas pu être chargés.{' '}
+                  <Button variant="link" size="sm" className="h-auto p-0" onClick={() => void refetchVue()}>
+                    Réessayer
+                  </Button>
+                </p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -256,12 +269,16 @@ export function HourAccountTab({
                         </>
                         )}
                         <TableCell className="font-medium">
-                          {row.estimated ? (
+                          {row.estimated && row.has_movements === false ? (
                             <span
                               className="font-normal text-muted-foreground"
-                              title="Aucun mouvement cette année : rien n'est encore passé au compteur par un bulletin calculé."
+                              title="Aucun mouvement : rien n'est encore passé au compteur par un bulletin calculé."
                             >
                               0.00 (aucun mouvement)
+                            </span>
+                          ) : row.estimated ? (
+                            <span title={`Solde reporté des années d'avant : aucun mouvement encore en ${year}.`}>
+                              {row.account_balance_hours.toFixed(2)} (report)
                             </span>
                           ) : (
                             row.account_balance_hours.toFixed(2)
@@ -333,15 +350,25 @@ export function HourAccountTab({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {!chargementMouvements && movements.length === 0 && (
+                      {erreurMouvements && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-sm text-destructive">
+                            Les mouvements du compteur n&apos;ont pas pu être chargés.{' '}
+                            <Button variant="link" size="sm" className="h-auto p-0" onClick={() => void refetchMovements()}>
+                              Réessayer
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {!chargementMouvements && !erreurMouvements && movements.length === 0 && (
                         <TableRow>
                           <TableCell
                             colSpan={5}
                             className="text-sm text-muted-foreground"
                             data-testid="compteur-vide"
                           >
-                            Aucun mouvement en {year}. Les heures sup de ce salarié passeront au
-                            compteur au calcul de son prochain bulletin.
+                            Aucun mouvement en {year}. Les heures sup mises au compteur y
+                            passent au calcul du bulletin du mois.
                           </TableCell>
                         </TableRow>
                       )}

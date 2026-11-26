@@ -32,6 +32,7 @@ class _Supabase:
 
 def test_sans_compteur_les_lignes_sont_marquees_estimees(monkeypatch):
     monkeypatch.setattr(queries.repo, "list_employee_counters", lambda *_a: [])
+    monkeypatch.setattr(queries.repo, "list_movements_for_employees", lambda ids: [])
     monkeypatch.setattr(
         queries.repo,
         "get_modulation_settings",
@@ -49,6 +50,7 @@ def test_sans_compteur_les_lignes_sont_marquees_estimees(monkeypatch):
 
 
 def test_avec_compteur_les_lignes_ne_sont_pas_estimees(monkeypatch):
+    monkeypatch.setattr(queries.repo, "list_movements_for_employees", lambda ids: [])
     monkeypatch.setattr(
         queries.repo,
         "list_employee_counters",
@@ -88,3 +90,35 @@ def test_un_seul_compteur_ne_cache_pas_les_autres_salaries(monkeypatch):
     rows = queries.get_modulation_overview("c1", 2026)
     assert [r.employee_id for r in rows] == ["e2", "e1"]
     assert [r.estimated for r in rows] == [True, False]
+
+
+def test_sans_ligne_de_l_annee_le_solde_d_avant_se_reporte(monkeypatch):
+    """1er janvier : 12 h de l'année d'avant restent dues, pas « 0.00 »."""
+    monkeypatch.setattr(queries.repo, "list_employee_counters", lambda *_a: [])
+    monkeypatch.setattr(
+        queries.repo,
+        "get_modulation_settings",
+        lambda *_a: SimpleNamespace(average_weekly_hours=35.0),
+    )
+    monkeypatch.setattr(
+        queries.repo,
+        "list_movements_for_employees",
+        lambda ids: [
+            {"employee_id": "e1", "year": 2026, "month": 11, "movement_type": "credit_hs",
+             "hours": 12, "status": "validated"},
+        ],
+    )
+    monkeypatch.setattr(
+        queries,
+        "supabase",
+        _Supabase(
+            [
+                {"id": "e1", "first_name": "A", "last_name": "Zola", "duree_hebdomadaire": 35},
+                {"id": "e2", "first_name": "B", "last_name": "Écuyer", "duree_hebdomadaire": 35},
+            ]
+        ),
+    )
+    rows = queries.get_modulation_overview("c1", 2027)
+    assert [r.employee_id for r in rows] == ["e2", "e1"]
+    assert rows[1].account_balance_hours == 12.0 and rows[1].has_movements is True
+    assert rows[0].account_balance_hours == 0.0 and rows[0].has_movements is False
