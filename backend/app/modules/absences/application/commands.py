@@ -251,6 +251,15 @@ def create_absence_request(
     if not company_id:
         raise LookupError("Employé non trouvé.")
 
+    if absence_type == "sans_solde":
+        refus = _refus_chevauchement_conge_parental(
+            {"type": absence_type, "event_subtype": event_subtype},
+            selected_days,
+            absence_repository.list_by_employee_id(employee_id) or [],
+        )
+        if refus:
+            raise ValueError(refus)
+
     if absence_type in IJSS_ELIGIBLE_TYPES:
         refus = refus_chevauchement_arret(
             absence_type,
@@ -518,6 +527,35 @@ def update_absence_request_status(
             )
 
     return data
+
+
+def _refus_chevauchement_conge_parental(
+    nouvelle: Dict[str, Any], jours: list, existantes: list
+) -> str | None:
+    """Un congé parental ne recouvre pas un congé sans solde, ni l'inverse.
+
+    Les deux écrivent le même type de jour : le second ne convertirait pas les
+    jours du premier (ils resteraient en 501 au milieu d'un 632), et annuler
+    l'un laisserait aux jours de l'autre le motif du premier."""
+    demandes = {str(j)[:10] for j in jours}
+    for row in existantes:
+        if row.get("type") != "sans_solde" or row.get("status") not in ("pending", "validated"):
+            continue
+        if not (est_conge_parental(nouvelle) or est_conge_parental(row)):
+            continue
+        communs = sorted(demandes & {str(j)[:10] for j in row.get("selected_days") or []})
+        if communs:
+            autre = (
+                "un congé parental d'éducation"
+                if est_conge_parental(row)
+                else "un congé sans solde"
+            )
+            return (
+                f"Ces dates recouvrent {autre} déjà posé (à partir du "
+                f"{date.fromisoformat(communs[0]).strftime('%d/%m/%Y')}) : modifiez-le "
+                "ou annulez-le d'abord."
+            )
+    return None
 
 
 def _meta_conge_parental(demande: Dict[str, Any]) -> Dict[str, Any]:

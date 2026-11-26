@@ -129,3 +129,53 @@ def test_un_sans_solde_reste_declare_501(banc, profil):  # noqa: F811
 
     motifs = {motif for motif, _, _ in suspensions_du_bulletin(sans_solde)}
     assert motifs == {"501"}
+
+
+def test_fenetre_des_variables_decalee_le_libelle_s_y_borne(monkeypatch):
+    """LEWIS : variables du 26/10 au 22/11. Les jours retenus sont ceux de la
+    fenêtre : le libellé ne cite ni le 23 au 30/11 (bulletin suivant) ni le
+    début d'octobre (bulletin précédent)."""
+    from app.modules.payroll.engine import calcul_brut as cb
+    from app.modules.payroll.engine.calcul_brut import calculer_salaire_brut
+
+    from .helpers import build_test_contexte
+
+    monkeypatch.setattr(cb, "coefficient_horaire_reel", lambda *_: 1.0)
+    contexte = build_test_contexte(salaire_base=1870.83, duree_hebdo=35.0, date_entree="2025-09-23")
+    calendrier = [
+        {
+            "date_complete": d.isoformat(),
+            "type": "absence_non_remuneree",
+            "heures": 0.0,
+            "motif_absence": SOUS_TYPE_CONGE_PARENTAL,
+            "periode_absence": PERIODE,
+        }
+        for d in (date(2026, 10, j) for j in range(26, 31))
+    ] + [
+        {
+            "date_complete": d.isoformat(),
+            "type": "absence_non_remuneree",
+            "heures": 0.0,
+            "motif_absence": SOUS_TYPE_CONGE_PARENTAL,
+            "periode_absence": PERIODE,
+        }
+        for d in (date(2026, 11, j) for j in range(2, 21))
+        if d.weekday() < 5
+    ]
+    resultat = calculer_salaire_brut(
+        contexte, calendrier, date(2026, 11, 1), date(2026, 11, 30), [],
+        date_debut_variables=date(2026, 10, 26), date_fin_variables=date(2026, 11, 22),
+    )
+    libelles = [l["libelle"] for l in resultat["lignes_composants_brut"] if "congé parental" in l["libelle"]]
+    assert libelles == [
+        "Absence congé parental du 26/10/26 au 31/10/26",
+        "Absence congé parental du 01/11/26 au 22/11/26",
+    ]
+
+
+def test_une_presence_parentale_reprise_n_est_pas_un_conge_parental():
+    from app.modules.dsn_export.domain.evenements import _motif_suspension
+
+    assert _motif_suspension("Abs. présence parentale 020326") is None
+    assert _motif_suspension("Absence congé parental du 01/11/26 au 30/11/26") == "632"
+    assert _motif_suspension("Absence non rémunérée du 03/11/26") == "501"

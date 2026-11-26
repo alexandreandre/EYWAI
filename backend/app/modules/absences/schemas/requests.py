@@ -198,7 +198,9 @@ class AbsenceRequestCreate(BaseModel):
         if a_periode:
             if self.date_debut is None or self.date_fin is None:
                 raise ValueError(
-                    "Une période d'arrêt doit porter une date de début ET une date de fin."
+                    "Un congé parental doit porter son premier jour ET sa fin prévue."
+                    if self.est_conge_parental()
+                    else "Une période d'arrêt doit porter une date de début ET une date de fin."
                 )
             if self.date_fin < self.date_debut:
                 raise ValueError(

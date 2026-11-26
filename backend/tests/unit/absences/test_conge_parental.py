@@ -58,7 +58,7 @@ class TestSaisie:
         assert len(demande.selected_days) == 365
 
     def test_la_fin_prevue_est_obligatoire(self):
-        with pytest.raises(ValidationError, match="date de début ET une date de fin"):
+        with pytest.raises(ValidationError, match="premier jour ET sa fin prévue"):
             _creation(date_debut=date(2026, 7, 1))
 
     def test_un_sans_solde_ordinaire_ne_se_saisit_pas_par_periode(self):
@@ -310,3 +310,61 @@ def test_le_compteur_sans_solde_n_inclut_pas_le_conge_parental():
     ]
     filtrees = [r for r in demandes if not queries.est_conge_parental(r)]
     assert count_absence_days_taken(filtrees, "sans_solde", date(2026, 12, 31)) == 1
+
+
+class TestChevauchement:
+    def _creer(self, demande, existantes):
+        with (
+            patch.object(commands, "get_employee_company_id", return_value="comp-1"),
+            patch.object(commands, "absence_repository") as repo,
+        ):
+            repo.list_by_employee_id.return_value = existantes
+            repo.create.side_effect = lambda d: d
+            return commands.create_absence_request(demande)
+
+    def test_un_conge_parental_ne_recouvre_pas_un_sans_solde(self):
+        existante = {"type": "sans_solde", "status": "validated", "selected_days": ["2026-07-03"]}
+        with pytest.raises(ValueError, match="recouvrent un congé sans solde"):
+            self._creer(_creation(date_debut=date(2026, 7, 1), date_fin=date(2026, 7, 31)), [existante])
+
+    def test_un_sans_solde_ne_recouvre_pas_un_conge_parental(self):
+        existante = {
+            "type": "sans_solde",
+            "event_subtype": SOUS_TYPE_CONGE_PARENTAL,
+            "status": "validated",
+            "selected_days": ["2026-07-01", "2026-07-02"],
+        }
+        demande = AbsenceRequestCreate(
+            employee_id="emp-1", type="sans_solde", selected_days=[date(2026, 7, 2)]
+        )
+        with pytest.raises(ValueError, match="congé parental d'éducation déjà posé"):
+            self._creer(demande, [existante])
+
+    def test_annule_ou_hors_dates_ne_gene_pas(self):
+        existantes = [
+            {"type": "sans_solde", "status": "cancelled", "selected_days": ["2026-07-03"]},
+            {"type": "sans_solde", "status": "validated", "selected_days": ["2026-08-03"]},
+        ]
+        cree = self._creer(_creation(date_debut=date(2026, 7, 1), date_fin=date(2026, 7, 31)), existantes)
+        assert cree["event_subtype"] == SOUS_TYPE_CONGE_PARENTAL
+
+    def test_deux_sans_solde_ordinaires_restent_permis(self):
+        existante = {"type": "sans_solde", "status": "validated", "selected_days": ["2026-07-03"]}
+        demande = AbsenceRequestCreate(
+            employee_id="emp-1", type="sans_solde", selected_days=[date(2026, 7, 3)]
+        )
+        assert self._creer(demande, [existante])["type"] == "sans_solde"
+
+
+def test_changer_la_fin_prevue_ne_met_pas_les_mois_payes_a_recalculer():
+    from app.modules.payroll.application.empreinte_entrees_service import _avec_source_absence
+
+    jour = {
+        "jour": 3,
+        "type": "absence_non_remuneree",
+        "heures_prevues": 0,
+        "motif_absence": SOUS_TYPE_CONGE_PARENTAL,
+        "periode_absence": {"debut": "2026-07-01", "fin": "2027-06-30"},
+    }
+    prolonge = {**jour, "periode_absence": {"debut": "2026-07-01", "fin": "2027-12-31"}}
+    assert _avec_source_absence([jour], [], 2026, 7) == _avec_source_absence([prolonge], [], 2026, 7)

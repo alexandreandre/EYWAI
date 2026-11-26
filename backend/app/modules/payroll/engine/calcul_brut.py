@@ -2169,8 +2169,14 @@ def calculer_salaire_brut(
                 (jour_arret, _nature_de_l_arret(evenement), heures_abs, regularisation)
             )
 
+    # Les absences du bulletin suivent la fenêtre des variables quand la
+    # société en a une (LEWIS : du 26/10 au 22/11) : le libellé s'y borne,
+    # sinon deux bulletins citeraient les mêmes jours.
     lignes_composants_brut.extend(
-        retenues_conge_parental.lignes(date_debut_periode, date_fin_periode)
+        retenues_conge_parental.lignes(
+            date_debut_variables if date_debut_variables and date_fin_variables else date_debut_periode,
+            date_fin_variables if date_debut_variables and date_fin_variables else date_fin_periode,
+        )
     )
 
     # Une ligne par période d'arrêt, comme le cabinet (« Absence maladie

@@ -401,7 +401,7 @@ def _jour_reprise(texte: str) -> Optional[date]:
 
 def _motif_suspension(libelle: str) -> Optional[str]:
     texte = libelle.lower()
-    if "parental" in texte:
+    if "congé parental" in texte or "conge parental" in texte:
         return MOTIF_CONGE_PARENTAL
     if "famil" in texte:
         return MOTIF_EVENEMENT_FAMILIAL
