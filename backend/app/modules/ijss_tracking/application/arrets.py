@@ -20,6 +20,7 @@ from app.modules.ijss_tracking.domain.arrets_du_mois import (
     bulletin_calcule_avant,
     chiffres_du_bulletin,
     etat_du_maintien,
+    etat_du_report,
     ij_estimees_du_bulletin,
     jours_dans_le_mois,
     refus_montant_ij,
@@ -126,6 +127,15 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
     ]
     salaries = {str(e["id"]): e for e in _fetch_employees(company_id)}
     bulletins = _bulletins_du_mois(company_id, year, month)
+    suivants: dict[str, dict[str, Any]] | None = None
+
+    def bulletin_suivant(eid: str) -> dict[str, Any] | None:
+        nonlocal suivants
+        if suivants is None:
+            annee_s, mois_s = (year, month + 1) if month < 12 else (year + 1, 1)
+            suivants = _bulletins_du_mois(company_id, annee_s, mois_s)
+        return suivants.get(eid)
+
     saisies = _saisies_ij_du_mois(company_id, year, month)
     periode = repo.get_or_create_period(company_id, year, month) or {}
     lignes_attendues = {
@@ -154,6 +164,11 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
             jour_de_remise.append(jour_de_la_societe(company_id))
         remis = remis_le_du_bulletin(bulletin, jour=jour_de_remise[0])
         return bool(remis and remis <= aujourd_hui_local())
+
+    def est_valide(bulletin: dict[str, Any] | None) -> bool:
+        # Validé ou remis : il ne se régénère plus sans forçage, c'est le
+        # bulletin suivant qui reprend l'arrêt (même règle qu'au moteur).
+        return bool(bulletin) and (bulletin.get("status") == "valide" or est_remis(bulletin))
 
     lignes: list[dict[str, Any]] = []
     for a in arrets:
@@ -194,13 +209,12 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
                 "maintien": (
                     # Arrêt enregistré après le calcul du bulletin : le dire, pas
                     # « pas de maintien » ni 0 jour indemnisé (MAJI, 17/11). Un
-                    # bulletin déjà remis ne se régénère plus, et le suivant ne
-                    # lit pas les jours de ce mois : l'arrêt se porte à la main
-                    # sur le bulletin suivant (Elsa, 26/11 ; Quadra fait de même).
+                    # bulletin validé ne se régénère plus : le bulletin suivant
+                    # reprend l'arrêt à ses dates, comme Quadra (Elsa, 26/11).
                     {
                         "etat": (
-                            "bulletin_remis_avant_l_arret"
-                            if est_remis(bulletin)
+                            etat_du_report(aid, bulletin_suivant(eid))
+                            if est_valide(bulletin)
                             else "bulletin_a_recalculer"
                         ),
                         "montant_verse": 0.0,

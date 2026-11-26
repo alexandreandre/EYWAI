@@ -251,6 +251,9 @@ export type EtatMaintienArret =
   | 'bulletin_a_faire'
   | 'bulletin_a_recalculer'
   | 'bulletin_remis_avant_l_arret'
+  | 'reporte_sur_le_bulletin_suivant'
+  | 'report_au_prochain_calcul'
+  | 'report_a_recalculer'
   | 'en_attente_des_ij'
   | 'verse'
   | 'sans_maintien';
