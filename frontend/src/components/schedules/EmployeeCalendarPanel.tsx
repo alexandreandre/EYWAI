@@ -27,6 +27,7 @@ import { CalendarSyncNotice } from '@/components/schedules/CalendarSyncNotice';
 import { Loader2, Save, ChevronLeft, ChevronRight, CalendarDays, Grid3x3 } from 'lucide-react';
 import { Chargement } from '@/components/Chargement';
 import { cn } from '@/lib/utils';
+import { useCasesVoisines } from '@/components/schedules/useCasesVoisines';
 
 interface EmployeeCalendarPanelProps {
   employeeId: string;
@@ -166,6 +167,16 @@ export function EmployeeCalendarPanel({
     }
   };
 
+  const casesVoisines = useCasesVoisines({
+    employeeId,
+    annee: selectedDate.year,
+    mois: selectedDate.month,
+    actif: calendarView === 'month',
+    isForfaitJour,
+    isDirty,
+    ouvrirMois: setSelectedDate,
+  });
+
   const handleSave = async () => {
     if (await saveAllCalendarData()) onSaved?.();
   };
@@ -290,14 +301,10 @@ export function EmployeeCalendarPanel({
                 {(() => {
                   const year = selectedDate.year;
                   const month = selectedDate.month - 1;
-                  const firstDay = new Date(year, month, 1);
                   const lastDay = new Date(year, month + 1, 0);
-                  const startDay = (firstDay.getDay() + 6) % 7;
                   const daysInMonth = lastDay.getDate();
                   const cells = [];
-                  for (let i = 0; i < startDay; i++) {
-                    cells.push(<div key={`empty-${i}`} />);
-                  }
+                  cells.push(...casesVoisines.avant);
                   for (let day = 1; day <= daysInMonth; day++) {
                     const date = new Date(year, month, day);
                     const isToday =
@@ -330,6 +337,7 @@ export function EmployeeCalendarPanel({
                       </div>
                     );
                   }
+                  cells.push(...casesVoisines.apres);
                   return cells;
                 })()}
               </div>

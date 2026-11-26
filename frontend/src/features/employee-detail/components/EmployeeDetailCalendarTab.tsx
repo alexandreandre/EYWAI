@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import { useCasesVoisines } from "@/components/schedules/useCasesVoisines";
 import { LignePeriodeDuBulletin } from '@/features/payroll/components/LignePeriodeDuBulletin';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getAbsencesForEmployee } from "@/api/absences";
@@ -103,6 +104,15 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
     calendarLoadError,
     calendarSaveError,
   } = props;
+  const casesVoisines = useCasesVoisines({
+    employeeId,
+    annee: selectedDate.year,
+    mois: selectedDate.month,
+    actif: calendarView === 'month',
+    isForfaitJour,
+    isDirty,
+    ouvrirMois: setSelectedDate,
+  });
 
   // Absences validées du salarié : mêmes clé/donnée que CalendarAbsencesHint
   // (React Query dédoublonne) — alimente les compteurs calendaires
@@ -392,13 +402,10 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                       {(() => {
                         const year = selectedDate.year;
                         const month = selectedDate.month - 1;
-                        const firstDay = new Date(year, month, 1);
                         const lastDay = new Date(year, month + 1, 0);
-                        const startDay = (firstDay.getDay() + 6) % 7;
                         const daysInMonth = lastDay.getDate();
 
-                        const days = [];
-                        for (let i = 0; i < startDay; i++) days.push(<div key={`empty-${i}`} />);
+                        const days: ReactNode[] = [...casesVoisines.avant];
                         for (let day = 1; day <= daysInMonth; day++) {
                           const date = new Date(year, month, day);
                           const isToday = date.toDateString() === new Date().toDateString();
@@ -431,6 +438,7 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                             </div>
                           );
                         }
+                        days.push(...casesVoisines.apres);
                         return days;
                       })()}
                     </div>
