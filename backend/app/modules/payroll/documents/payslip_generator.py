@@ -33,6 +33,7 @@ from app.shared.reprise_paie import (
     detail_du_refus,
     raison_de_cumul_manquant,
 )
+from app.modules.payroll.application import arrets_reportes
 from app.modules.payroll.application.compensation_semaines import (
     alerte_semaines_a_zero,
     appliquer_aux_mois,
@@ -1067,6 +1068,27 @@ def process_payslip_generation(
             payroll_events_json["calendrier_analyse"] = payroll_events_list
             payroll_events_M_minus_1["calendrier_analyse"] = payroll_events_prev_list
             saisies_data["compensation_semaines"] = compensation_semaines.resume()
+
+        # Arrêt arrivé après la validation du bulletin précédent : il passe sur
+        # ce bulletin, avec ses vraies dates, comme chez Quadra et au cabinet
+        # (retour d'Elsa du 26/11). Et l'inverse : un jour déjà repris par le
+        # bulletin suivant n'est pas recompté si ce bulletin-ci est régénéré.
+        report_des_arrets = arrets_reportes.preparer_le_report(
+            supabase,
+            employee_id,
+            year,
+            month,
+            forfait_jours=False,
+            company_data=company_data,
+            planned_calendar_du_mois=(db_data_map.get((year, month)) or {}).get(
+                "planned_calendar"
+            ),
+            saisies=saisies_lues,
+        )
+        payroll_events_list = arrets_reportes.appliquer_le_report_aux_evenements(
+            payroll_events_list, payroll_events_prev_list, report_des_arrets, year, month
+        )
+        payroll_events_json["calendrier_analyse"] = payroll_events_list
 
         # Le cache posé à l'enregistrement du planning compte sur le mois
         # civil ; les paniers d'équipe suivent la fenêtre des variables. On
