@@ -62,10 +62,11 @@ test('activité partielle en masse (LEWIS) : les vendredis d’une période, ape
 
   // Du 01/12/2026 au 31/12/2026, tapé au clavier (champ de date en français).
   const du = fenetre.getByLabel('Du', { exact: true });
-  await du.pressSequentially('01122026');
+  // Champ date natif : l'ordre jour/mois dépend de la langue du navigateur ; on donne la date ISO.
+  await du.fill('2026-12-01');
   await expect(du).toHaveValue('2026-12-01');
   const au = fenetre.getByLabel('Au', { exact: true });
-  await au.pressSequentially('31122026');
+  await au.fill('2026-12-31');
   await expect(au).toHaveValue('2026-12-31');
   await expect(fenetre.getByText('Cochez les jours de la semaine à prendre sur cette période.')).toBeVisible();
 

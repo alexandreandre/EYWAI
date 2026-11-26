@@ -36,7 +36,10 @@ export function useCasesVoisines({
       queryFn: async () =>
         (await getCalendarSnapshot(employeeId, m!.annee, m!.mois, { companyId: societeActive })).data,
       enabled: actif && Boolean(m) && Boolean(employeeId),
-      staleTime: 30_000,
+      // Relu à chaque affichage : un enregistrement du mois voisin passe hors
+      // de ce cache (useCalendar).
+      staleTime: 0,
+      refetchOnMount: 'always' as const,
     };
   };
   const avant = useQuery(lire(voisins.avant));

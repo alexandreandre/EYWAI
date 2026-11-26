@@ -292,9 +292,10 @@ def list_fractionnement_preview(company_id: str, grant_year: int) -> list[dict[s
     # 35 s (MBC, 26/11) et l'écran restait vide. En parallèle, ordre conservé.
     employes = list(emp_resp.data or [])
     with ThreadPoolExecutor(max_workers=_FILS_APERCU) as pool:
-        lignes = list(
-            pool.map(lambda e: contextvars.copy_context().run(_ligne, e), employes)
-        )
+        # Une copie du contexte de l'appelant par salarié, faite ICI (dans le
+        # fil appelant) : lecture seule, jetons et verrous suivent le calcul.
+        futurs = [pool.submit(contextvars.copy_context().run, _ligne, e) for e in employes]
+        lignes = [f.result() for f in futurs]
     return [ligne for ligne in lignes if ligne]
 
 

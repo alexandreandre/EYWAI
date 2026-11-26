@@ -68,7 +68,7 @@ test('les jours des mois voisins complètent les semaines à cheval', async ({ p
   }
   await expect(voisins.first()).toBeVisible();
   await expect(voisins.first()).not.toContainText('Chargement', { timeout: 30_000 });
-  await expect(voisins.first()).toContainText(/Prévu|Rien de saisi/);
+  await expect(voisins.first()).toContainText(/Prévu|Pas encore enregistré/);
   await expect(voisins.first()).toContainText(/S\d+/);
 
   // Un clic ouvre le mois du jour voisin : le 1er jour de la grille change.

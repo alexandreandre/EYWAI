@@ -59,7 +59,7 @@ export function JourVoisinCell({
         <span>Jour illisible : ouvrez {moisLong}.</span>
       ) : chargement ? (
         <span>Chargement…</span>
-      ) : prevu ? (
+      ) : prevu || reel ? (
         <>
           <span className="flex items-center gap-1">
             <span
@@ -67,11 +67,11 @@ export function JourVoisinCell({
             />
             {getCalendarTypeLabel(type)}
           </span>
-          <span>Prévu : {formatCalendarValue(prevu.heures_prevues, isForfaitJour)}</span>
+          <span>Prévu : {formatCalendarValue(prevu?.heures_prevues, isForfaitJour)}</span>
           <span>Fait : {formatCalendarValue(reel?.heures_faites, isForfaitJour)}</span>
         </>
       ) : (
-        <span>Rien de saisi</span>
+        <span>Pas encore enregistré : ouvrez {moisLong}.</span>
       )}
     </button>
   );

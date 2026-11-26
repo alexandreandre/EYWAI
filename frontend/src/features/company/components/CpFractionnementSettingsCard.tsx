@@ -52,6 +52,7 @@ export default function CpFractionnementSettingsCard() {
   const queryClient = useQueryClient();
   const [grantYearState, setGrantYearState] = useState(new Date().getFullYear());
   const grantYear = grantYearState;
+  const [anneeSaisie, setAnneeSaisie] = useState(String(grantYearState));
 
   const canEdit = useMemo(() => {
     const r = user?.role;
@@ -100,6 +101,10 @@ export default function CpFractionnementSettingsCard() {
         saved,
       );
       setForm(saved);
+      // La méthode, le ratio ou la 5e semaine changent les jours : liste recalculée.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.fractionnementPreview(activeCompanyId, grantYear),
+      });
       toast({ title: 'Enregistré', description: 'Paramètres fractionnement mis à jour.' });
     },
   });
@@ -302,20 +307,30 @@ export default function CpFractionnementSettingsCard() {
           </Button>
         ) : null}
 
+        {form.fractionnement_enabled ? (
+          <div className="flex items-center gap-2 border-t pt-4">
+            <Label htmlFor="frac-year" className="text-sm">Année</Label>
+            <Input
+              id="frac-year"
+              inputMode="numeric"
+              className="w-24 h-8"
+              value={anneeSaisie}
+              onChange={(e) => {
+                // L'année ne change qu'à 4 chiffres : « 2 » en cours de frappe
+                // ne part pas au serveur (refus, puis liste disparue).
+                const v = e.target.value.replace(/\D/g, '').slice(0, 4);
+                setAnneeSaisie(v);
+                const n = Number(v);
+                if (v.length === 4 && n >= 2000 && n <= 2100) setGrantYearState(n);
+              }}
+            />
+          </div>
+        ) : null}
+
         {form.fractionnement_enabled && previewQuery.data && previewQuery.data.length > 0 ? (
-          <div className="border-t pt-4 space-y-3 overflow-x-auto">
+          <div className="pt-2 space-y-3 overflow-x-auto">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="frac-year" className="text-sm">Année</Label>
-                <Input
-                  id="frac-year"
-                  type="number"
-                  className="w-24 h-8"
-                  value={grantYearState}
-                  onChange={(e) => setGrantYearState(Number(e.target.value) || grantYearState)}
-                />
-                <p className="text-sm font-medium">Prévision au 31/10</p>
-              </div>
+              <p className="text-sm font-medium">Prévision au 31/10/{grantYear}</p>
               <div className="flex items-center gap-2">
                 {canEdit ? (
                   <Button
@@ -503,7 +518,7 @@ export default function CpFractionnementSettingsCard() {
         ) : form.fractionnement_enabled ? (
           // Jamais d'état silencieux : la liste par salarié (case « Activé »)
           // peut mettre du temps à se calculer (retour d'Elsa du 26/11, MBC).
-          <div className="border-t pt-4" data-testid="frac-liste-etat">
+          <div className="pt-2" data-testid="frac-liste-etat">
             {!data?.fractionnement_enabled ? (
               <p className="text-sm text-muted-foreground">
                 Enregistrez les paramètres pour voir la liste des salariés, avec la case « Activé » de chacun.
@@ -518,7 +533,7 @@ export default function CpFractionnementSettingsCard() {
               </p>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Aucun salarié concerné pour {grantYear} : les cadres au forfait jours sont exclus et aucun autre salarié n&apos;a de jours de fractionnement.
+                Aucun salarié concerné pour {grantYear} : la liste ne compte que les salariés actifs hors forfait jours.
               </p>
             )}
           </div>
