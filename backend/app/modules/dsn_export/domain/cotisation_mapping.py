@@ -932,8 +932,11 @@ def _surcotisation(ligne: Dict[str, Any]) -> List[LigneDsn]:
     montant = round(sal + pat, 2)
     if not montant:
         return []
+    # Le moteur pose le montant de la base (22 : temps plein − réel ; 24 :
+    # plafond − base 02) ; une ligne de tranche 2 n'en porte qu'une part.
+    base = round(_flottant(ligne.get("assiette_base_dsn")) or abs(assiette), 2)
     if regle.code == CODE_AGIRC_ARRCO:
-        return [LigneDsn(regle.code, regle.base, 0.0, montant, 0.0, assiette_de_base=round(assiette, 2))]
+        return [LigneDsn(regle.code, regle.base, 0.0, montant, 0.0, assiette_de_base=base)]
     return [
         LigneDsn(
             regle.code,
@@ -941,9 +944,33 @@ def _surcotisation(ligne: Dict[str, Any]) -> List[LigneDsn]:
             round(assiette, 2),
             montant,
             abs(round(taux_sal + taux_pat, 6)),
-            assiette_de_base=round(assiette, 2),
+            assiette_de_base=base,
         )
     ]
+
+
+def _bases_specifiques(produites: List[LigneDsn], avertissements: List[str]) -> Dict[str, float]:
+    """Montant des bases 22 et 24 : celui de la vieillesse (076) quand elle y est.
+
+    Au forfait jours, la vieillesse de base (1,7 SMIC) et l'Agirc-Arrco (218 /
+    jours du forfait) n'ont pas le même salaire temps plein ; une base ne porte
+    qu'un montant : celui de la vieillesse, et l'aperçu le signale.
+    """
+    montants: Dict[str, float] = {}
+    for code_base in (BASE_BRUTE_SPECIFIQUE, BASE_PLAFONNEE_SPECIFIQUE):
+        vieillesse = [l.assiette_de_base for l in produites if l.base == code_base and l.code == "076"]
+        complementaire = [l.assiette_de_base for l in produites if l.base == code_base and l.code == CODE_AGIRC_ARRCO]
+        if vieillesse:
+            montants[code_base] = max(vieillesse)
+            if complementaire and abs(max(complementaire) - montants[code_base]) > 0.01:
+                avertissements.append(
+                    f"Retraite progressive : base {code_base} à {montants[code_base]:.2f} € pour la vieillesse, "
+                    f"{max(complementaire):.2f} € pour l'Agirc-Arrco (salaires temps plein différents) : "
+                    "seule la première est déclarée, à vérifier"
+                )
+        elif complementaire:
+            montants[code_base] = max(complementaire)
+    return montants
 
 
 def _vieillesse_apprenti(ligne: Dict[str, Any], exoneree: float) -> Tuple[List[LigneDsn], float]:
@@ -1356,6 +1383,8 @@ def build_bases_and_cotisations(
             )
         else:
             montants_base.setdefault(ligne.base, 0.0)
+
+    montants_base.update(_bases_specifiques(produites, avertissements))
 
     bases: List[BaseAssujettieBlock] = []
     for code in ORDRE_BASES:

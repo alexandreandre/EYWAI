@@ -291,3 +291,33 @@ def test_pas_avant_la_date_de_debut(banc):  # noqa: F811
         "forfait_jours", fiche_en_plus=_fiche("forfait_jours", {**REGLAGE_FICHE, "date_debut": "2026-11-01"})
     )
     assert _surcotisations(donnees) == []
+
+
+def test_complementaire_au_dela_du_plafond_tranche_2_et_cet():
+    """Forfait de 109 jours à 2 068,12 € : Agirc-Arrco sur 4 136,24 € (218 / 109)."""
+    bareme = BAREME + [
+        {"id": "retraite_comp_t2", "libelle": "Retraite complémentaire T2", "base": "tranche_2",
+         "salarial": 0.0864, "patronal": 0.1295},
+        {"id": "cet", "libelle": "CET", "base": "assiette_cet", "salarial": 0.0014, "patronal": 0.0021},
+    ]
+    reglage = _reglage(vieillesse_temps_plein=False, complementaire_temps_plein=True)
+    s = salaires_temps_plein(
+        reglage, brut=2068.12, au_forfait_jours=True, jours_forfait=109,
+        heures_contrat_mois=151.67, heures_complementaires_mois=0.0, smic_horaire=SMIC_HORAIRE,
+    )
+    assert s.base is None and s.complementaire == 4136.24
+    lignes = {
+        l["coti_id"]: l
+        for l in lignes_de_surcotisation(
+            reglage, s, cotisations_du_bareme=bareme, brut=2068.12, plafond=4005.0,
+            assiette_plafonnee=2068.12, assiette_tranche_2=0.0, assiette_cet=0.0,
+            calculer_ligne=_calculer_une_ligne,
+        )
+    }
+    assert lignes["surcotisation_retraite_comp_t1"]["base"] == 1936.88
+    assert lignes["surcotisation_retraite_comp_t2"]["base"] == 131.24
+    assert lignes["surcotisation_cet"]["base"] == 4136.24
+    # Base DSN : 24 = plafond − base 02 ; 22 = temps plein − réel.
+    assert lignes["surcotisation_retraite_comp_t1"]["assiette_base_dsn"] == 1936.88
+    assert lignes["surcotisation_retraite_comp_t2"]["assiette_base_dsn"] == 2068.12
+    assert lignes["surcotisation_cet"]["assiette_base_dsn"] == 2068.12

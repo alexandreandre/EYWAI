@@ -117,3 +117,28 @@ def test_complementaire_seule_rubrique_vide_et_avertie():
         {"retraite_progressive": {"actif": True, "complementaire_temps_plein": True}}, "2026-11"
     )
     assert resultat.code is None and "complémentaire seule" in (resultat.avertissement or "")
+
+
+def test_forfait_vieillesse_et_complementaire_differentes_base_de_la_vieillesse_et_avertie():
+    """Forfait jours : vieillesse à 1,7 SMIC, Agirc-Arrco à 218 / jours ; la base 22
+    porte la vieillesse (temps plein − réel), jamais une part de tranche 2."""
+    lignes = [dict(l) for l in LIGNES] + [
+        {"coti_id": "surcotisation_retraite_comp_t2", "libelle": "Surcotisation retraite progressive – T2",
+         "base": 131.24, "assiette_base_dsn": 2068.12, "montant_salarial": 11.34, "montant_patronal": 17.0},
+        {"coti_id": "surcotisation_cet", "libelle": "Surcotisation retraite progressive – CET",
+         "base": 4136.24, "assiette_base_dsn": 2068.12, "montant_salarial": 5.79, "montant_patronal": 8.69},
+    ]
+    bases, par_base, avertissements = _construire(lignes)
+    assert bases["22"] == 1173.93
+    assert [c["S21.G00.81.001"] for c in par_base["22"]] == ["076", "131"]
+    assert any("base 22" in a and "2068.12" in a for a in avertissements)
+
+
+def test_complementaire_seule_porte_sa_base():
+    lignes = [dict(l) for l in LIGNES[:2]] + [
+        {"coti_id": "surcotisation_retraite_comp_t1", "libelle": "Surcotisation retraite progressive – T1",
+         "base": 1936.88, "assiette_base_dsn": 1936.88, "montant_salarial": 61.01, "montant_patronal": 91.42},
+    ]
+    bases, par_base, avertissements = _construire(lignes)
+    assert bases["24"] == 1936.88 and "22" not in bases
+    assert avertissements == []

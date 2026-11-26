@@ -302,14 +302,22 @@ def lignes_de_surcotisation(
     ``calculer_ligne`` : `_calculer_une_ligne` du moteur des cotisations.
     """
     differentiels: Dict[str, float] = {}
+    #: Montant de la base DSN de chaque ligne : 24 (plafonnée) ou 22 (déplafonnée).
+    bases_dsn: Dict[str, float] = {}
     if salaires.base is not None:
         differentiels["plafonnee"] = max(0.0, min(salaires.base, plafond) - assiette_plafonnee)
         differentiels["deplafonnee"] = max(0.0, salaires.base - brut)
+        bases_dsn["plafonnee"] = differentiels["plafonnee"]
+        bases_dsn["deplafonnee"] = differentiels["deplafonnee"]
     if salaires.complementaire is not None:
         tp = min(salaires.complementaire, FACTEUR_PLAFOND_COMPLEMENTAIRE * plafond)
         differentiels["t1"] = max(0.0, min(tp, plafond) - assiette_plafonnee)
         differentiels["t2"] = max(0.0, max(0.0, tp - plafond) - max(0.0, assiette_tranche_2))
+        # CET : due sur toute la rémunération quand elle dépasse le plafond ;
+        # la part réelle n'en payait pas si le brut restait dessous.
         differentiels["cet"] = max(0.0, tp - assiette_cet) if tp > plafond else 0.0
+        bases_dsn["t1"] = differentiels["t1"]
+        bases_dsn["t2"] = bases_dsn["cet"] = max(0.0, tp - brut)
 
     lignes: List[Dict[str, Any]] = []
     suivies = (VIEILLESSE_DE_BASE if salaires.base is not None else ()) + (
@@ -334,6 +342,7 @@ def lignes_de_surcotisation(
             if not ligne:
                 continue
             ligne["retraite_progressive"] = True
+            ligne["assiette_base_dsn"] = round(bases_dsn.get(assiette_cle, assiette), 2)
             if reglage.prise_en_charge_part_salariale and ligne.get("montant_salarial"):
                 # R241-0-3, II : la part salariale du supplément est payée par
                 # l'employeur ; elle ne passe ni par le brut ni par la CSG (L241-3-1).
@@ -352,8 +361,9 @@ def assiettes_dsn(lignes: List[Dict[str, Any]]) -> Dict[str, float]:
     bases: Dict[str, float] = {}
     for ligne in lignes:
         coti_id = str(ligne.get("coti_id") or "")
+        montant = float(ligne.get("assiette_base_dsn") or ligne.get("base") or 0.0)
         if coti_id == "surcotisation_vieillesse_deplafonnee":
-            bases["22"] = max(bases.get("22", 0.0), float(ligne.get("base") or 0.0))
+            bases["22"] = max(bases.get("22", 0.0), montant)
         elif coti_id == "surcotisation_vieillesse_plafonnee":
-            bases["24"] = max(bases.get("24", 0.0), float(ligne.get("base") or 0.0))
+            bases["24"] = max(bases.get("24", 0.0), montant)
     return bases
