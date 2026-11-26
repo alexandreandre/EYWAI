@@ -1,8 +1,8 @@
 import { useRhSidebarTaskBadges } from '@/hooks/useRhSidebarTaskBadges';
 import { etatVerrouPaie, peutLancerLaPaie } from '@/features/payroll/lib/controleAvantPaie';
 
-// Le badge « /schedules » est calé sur le MOIS DE PAIE en préparation
-// (moisDePaieParDefaut dans useRhPendingTasks) : le verrou et la pastille
+// Le badge « /schedules » est calé sur la PAIE EN COURS de la société
+// (useMoisDePaieEnCours dans useRhPendingTasks) : le verrou et la pastille
 // sidebar lisent le même compteur — un seul balayage, une seule vérité.
 export const PAYROLL_WORKFLOW_URLS = [
   '/schedules',

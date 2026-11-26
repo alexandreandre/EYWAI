@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { moisDePaieParDefaut } from '@/features/payroll/utils/payrollMonth';
 import {
   EVENEMENT_MOIS_DE_PAIE,
+  paieEnCours,
   avecMoisDePaie,
   moisDePaieAffiche,
   moisDePaieRetenu,
@@ -50,15 +50,14 @@ function abonner(rappel: () => void): () => void {
 }
 
 function lireCle(): string {
-  const m = moisDePaieRetenu() ?? moisDePaieParDefaut(new Date());
-  return periodeDuMois(m);
+  return periodeDuMois(paieEnCours(new Date()));
 }
 
 /**
- * Le mois de paie en préparation, hors d'un écran de paie (menu, pastilles,
- * verrou) : le dernier mois choisi pour la société, sinon le mois de paie par
- * défaut. Le menu restait sur novembre pendant qu'Elsa faisait la paie
- * d'octobre de LEWIS (26/11).
+ * La paie en cours (menu, pastilles, verrou) : le mois choisi dans « Générer
+ * la Paie » pour la société, sinon le mois de paie par défaut. Consulter un
+ * autre mois ne la change pas. Le menu restait sur novembre pendant qu'Elsa
+ * faisait la paie d'octobre de LEWIS (26/11).
  */
 export function useMoisDePaieEnCours(): MoisDePaie {
   const cle = useSyncExternalStore(abonner, lireCle, lireCle);

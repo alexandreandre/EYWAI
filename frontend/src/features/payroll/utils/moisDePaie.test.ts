@@ -8,6 +8,8 @@ import {
   periodeDuMois,
   retenirMoisDePaie,
   EVENEMENT_MOIS_DE_PAIE,
+  choisirPaieEnCours,
+  paieEnCours,
 } from './moisDePaie';
 
 /** Un stockage de session en mémoire, comme sessionStorage. */
@@ -94,8 +96,9 @@ describe('un seul mois de paie d’un écran à l’autre', () => {
   });
 });
 
-describe('un mois retenu par société, et le menu prévenu (Elsa, 26/11)', () => {
+describe('la paie en cours, par société, choisie et non consultée (Elsa, 26/11)', () => {
   afterEach(() => vi.unstubAllGlobals());
+  const LE_26_NOVEMBRE = new Date(2026, 10, 26, 9, 0);
 
   function fenetre(societe: string) {
     const local = stockage();
@@ -111,27 +114,39 @@ describe('un mois retenu par société, et le menu prévenu (Elsa, 26/11)', () =
     return { local, evenements };
   }
 
-  it('LEWIS en octobre, une autre société en novembre', () => {
-    const session = stockage();
-    const f = fenetre('lewis');
-    retenirMoisDePaie({ year: 2026, month: 10 }, session);
-    expect(f.evenements).toEqual([EVENEMENT_MOIS_DE_PAIE]);
-    expect(moisDePaieRetenu(session)).toEqual({ year: 2026, month: 10 });
-
-    f.local.setItem('activeCompanyId', 'autre');
-    expect(moisDePaieRetenu(session)).toBeNull();
-    retenirMoisDePaie({ year: 2026, month: 11 }, session);
-    expect(moisDePaieRetenu(session)).toEqual({ year: 2026, month: 11 });
-
-    f.local.setItem('activeCompanyId', 'lewis');
-    expect(moisDePaieRetenu(session)).toEqual({ year: 2026, month: 10 });
+  it('sans choix : le mois de paie par défaut', () => {
+    fenetre('lewis');
+    expect(paieEnCours(LE_26_NOVEMBRE)).toEqual({ year: 2026, month: 11 });
   });
 
-  it('retenir le même mois ne prévient personne (pas de boucle de rendu)', () => {
-    const session = stockage();
+  it('LEWIS choisit octobre, une autre société reste en novembre', () => {
     const f = fenetre('lewis');
-    retenirMoisDePaie({ year: 2026, month: 10 }, session);
-    retenirMoisDePaie({ year: 2026, month: 10 }, session);
+    choisirPaieEnCours({ year: 2026, month: 10 });
+    expect(f.evenements).toEqual([EVENEMENT_MOIS_DE_PAIE]);
+    expect(paieEnCours(LE_26_NOVEMBRE)).toEqual({ year: 2026, month: 10 });
+    f.local.setItem('activeCompanyId', 'autre');
+    expect(paieEnCours(LE_26_NOVEMBRE)).toEqual({ year: 2026, month: 11 });
+    f.local.setItem('activeCompanyId', 'lewis');
+    expect(paieEnCours(LE_26_NOVEMBRE)).toEqual({ year: 2026, month: 10 });
+  });
+
+  it('consulter un mois (mois retenu de l’affichage) ne change pas la paie en cours', () => {
+    const f = fenetre('lewis');
+    retenirMoisDePaie({ year: 2026, month: 9 }, stockage());
+    expect(f.evenements).toEqual([]);
+    expect(paieEnCours(LE_26_NOVEMBRE)).toEqual({ year: 2026, month: 11 });
+  });
+
+  it('un choix trop ancien ou trop loin revient au mois par défaut', () => {
+    fenetre('lewis');
+    choisirPaieEnCours({ year: 2025, month: 10 });
+    expect(paieEnCours(LE_26_NOVEMBRE)).toEqual({ year: 2026, month: 11 });
+  });
+
+  it('choisir le même mois ne prévient personne', () => {
+    const f = fenetre('lewis');
+    choisirPaieEnCours({ year: 2026, month: 10 });
+    choisirPaieEnCours({ year: 2026, month: 10 });
     expect(f.evenements).toHaveLength(1);
   });
 });

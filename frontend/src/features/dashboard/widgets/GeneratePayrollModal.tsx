@@ -1,8 +1,7 @@
 import { useConfirmation } from '@/hooks/useConfirmation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { isPresentDuringMonth, isPresentEmployee } from '@/lib/employmentStatus';
-import { moisDePaieParDefaut } from '@/features/payroll/utils/payrollMonth';
-import { moisDePaieRetenu, retenirMoisDePaie } from '@/features/payroll/utils/moisDePaie';
+import { choisirPaieEnCours, paieEnCours } from '@/features/payroll/utils/moisDePaie';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -133,14 +132,14 @@ export function GeneratePayrollModal({
     // vierges d'un seul clic début de mois.
     // Le mois déjà choisi pour la société passe avant : LEWIS en est à
     // octobre le 26/11, la fenêtre s'ouvrait sur novembre.
-    const { year, month } = moisDePaieRetenu() ?? moisDePaieParDefaut(new Date());
+    const { year, month } = paieEnCours(new Date());
     setSelectedMonth(`${year}-${String(month).padStart(2, '0')}`);
   }, []);
 
   const choisirMois = (valeur: string) => {
     setSelectedMonth(valeur);
     const [a, m] = valeur.split('-').map(Number);
-    if (a && m) retenirMoisDePaie({ year: a, month: m });
+    if (a && m) choisirPaieEnCours({ year: a, month: m });
   };
 
   useEffect(() => {
