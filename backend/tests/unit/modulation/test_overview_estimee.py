@@ -62,5 +62,29 @@ def test_avec_compteur_les_lignes_ne_sont_pas_estimees(monkeypatch):
             }
         ],
     )
+    monkeypatch.setattr(
+        queries.repo,
+        "get_modulation_settings",
+        lambda *_a: SimpleNamespace(average_weekly_hours=35.0),
+    )
+    monkeypatch.setattr(
+        queries,
+        "supabase",
+        _Supabase(
+            [
+                {"id": "e1", "first_name": "A", "last_name": "B", "duree_hebdomadaire": 35},
+                {"id": "e2", "first_name": "C", "last_name": "A", "duree_hebdomadaire": 35},
+            ]
+        ),
+    )
     rows = queries.get_modulation_overview("c1", 2026)
-    assert rows[0].estimated is False
+    par_id = {r.employee_id: r for r in rows}
+    assert par_id["e1"].estimated is False
+
+
+def test_un_seul_compteur_ne_cache_pas_les_autres_salaries(monkeypatch):
+    """LEWIS, 26/11 : un compteur créé pour un salarié faisait disparaître les autres."""
+    test_avec_compteur_les_lignes_ne_sont_pas_estimees(monkeypatch)
+    rows = queries.get_modulation_overview("c1", 2026)
+    assert [r.employee_id for r in rows] == ["e2", "e1"]
+    assert [r.estimated for r in rows] == [True, False]

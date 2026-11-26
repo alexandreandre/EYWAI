@@ -94,25 +94,8 @@ def get_modulation_overview(
 ) -> list[ModulationOverviewRow]:
     ref_year = year or date.today().year
     counters = repo.list_employee_counters(company_id, ref_year)
-    if counters:
-        rows: list[ModulationOverviewRow] = []
-        for c in counters:
-            emp = c.get("employees") or {}
-            rows.append(
-                ModulationOverviewRow(
-                    employee_id=str(c["employee_id"]),
-                    first_name=emp.get("first_name") or "",
-                    last_name=emp.get("last_name") or "",
-                    theoretical_hours=float(c.get("theoretical_hours") or 0),
-                    actual_hours=float(c.get("actual_hours") or 0),
-                    balance_hours=float(c.get("balance_hours") or 0),
-                    account_balance_hours=float(c.get("account_balance_hours") or 0),
-                    period_credited_hours=float(c.get("period_credited_hours") or 0),
-                    period_paid_hours=float(c.get("period_paid_hours") or 0),
-                )
-            )
-        return rows
-
+    # Tous les salariés actifs, avec ou sans compteur : dès qu'un seul salarié
+    # avait un compteur, les autres disparaissaient de la liste (LEWIS, 26/11).
     emp_resp = (
         supabase.table("employees")
         .select("id, first_name, last_name, duree_hebdomadaire")
@@ -121,8 +104,27 @@ def get_modulation_overview(
         .execute()
     )
     settings = repo.get_modulation_settings(company_id)
-    rows = []
+    rows: list[ModulationOverviewRow] = []
+    vus: set[str] = set()
+    for c in counters:
+        emp = c.get("employees") or {}
+        vus.add(str(c["employee_id"]))
+        rows.append(
+            ModulationOverviewRow(
+                employee_id=str(c["employee_id"]),
+                first_name=emp.get("first_name") or "",
+                last_name=emp.get("last_name") or "",
+                theoretical_hours=float(c.get("theoretical_hours") or 0),
+                actual_hours=float(c.get("actual_hours") or 0),
+                balance_hours=float(c.get("balance_hours") or 0),
+                account_balance_hours=float(c.get("account_balance_hours") or 0),
+                period_credited_hours=float(c.get("period_credited_hours") or 0),
+                period_paid_hours=float(c.get("period_paid_hours") or 0),
+            )
+        )
     for emp in emp_resp.data or []:
+        if str(emp["id"]) in vus:
+            continue
         weekly = float(emp.get("duree_hebdomadaire") or settings.average_weekly_hours)
         theoretical = round(weekly * 52, 2)
         rows.append(
@@ -136,4 +138,5 @@ def get_modulation_overview(
                 estimated=True,
             )
         )
+    rows.sort(key=lambda r: (r.last_name.lower(), r.first_name.lower()))
     return rows

@@ -85,7 +85,11 @@ export function HourAccountTab({
     enabled: Boolean(companyId),
   });
 
-  const { data: movements = [], refetch: refetchMovements } = useQuery({
+  const {
+    data: movements = [],
+    isLoading: chargementMouvements,
+    refetch: refetchMovements,
+  } = useQuery({
     queryKey: queryKeys.modulationMovements(companyId, selectedEmployeeId ?? '', year),
     queryFn: () => getEmployeeModulationMovements(selectedEmployeeId!, year),
     enabled: Boolean(companyId && selectedEmployeeId),
@@ -174,6 +178,12 @@ export function HourAccountTab({
         payée lui aurait rapporté (1 h à 25 % payée = 1 h 15 de salaire). Pour poser une
         récupération : calendrier du salarié, « Poser une récupération ».
       </p>
+      <p className="text-sm text-muted-foreground" data-testid="compteur-quand">
+        Le compteur se remplit au calcul du bulletin : les heures sup de la période de paie y
+        passent quand le bulletin du mois est calculé, pas au pointage. Les heures sup payées avant
+        Martine (ancien logiciel) n&apos;y sont pas ; un reste d&apos;avant se saisit en « Solde
+        initial ».
+      </p>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
@@ -246,7 +256,16 @@ export function HourAccountTab({
                         </>
                         )}
                         <TableCell className="font-medium">
-                          {row.estimated ? '—' : row.account_balance_hours.toFixed(2)}
+                          {row.estimated ? (
+                            <span
+                              className="font-normal text-muted-foreground"
+                              title="Aucun mouvement cette année : rien n'est encore passé au compteur par un bulletin calculé."
+                            >
+                              0.00 (aucun mouvement)
+                            </span>
+                          ) : (
+                            row.account_balance_hours.toFixed(2)
+                          )}
                         </TableCell>
                         <TableCell>
                           <Button
@@ -314,6 +333,18 @@ export function HourAccountTab({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
+                      {!chargementMouvements && movements.length === 0 && (
+                        <TableRow>
+                          <TableCell
+                            colSpan={5}
+                            className="text-sm text-muted-foreground"
+                            data-testid="compteur-vide"
+                          >
+                            Aucun mouvement en {year}. Les heures sup de ce salarié passeront au
+                            compteur au calcul de son prochain bulletin.
+                          </TableCell>
+                        </TableRow>
+                      )}
                       {movements.map((m) => (
                         <TableRow key={m.id}>
                           <TableCell>

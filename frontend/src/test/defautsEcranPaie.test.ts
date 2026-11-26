@@ -65,6 +65,12 @@ describe("onglet Compte d'heures", () => {
   it("marque les chiffres de repli comme estimés", () => {
     expect(texte).toContain("row.estimated");
   });
+
+  it("dit quand le compteur se remplit, et ne reste jamais vide sans phrase (26/11)", () => {
+    expect(texte).toContain("Le compteur se remplit au calcul du bulletin");
+    expect(texte).toContain('data-testid="compteur-vide"');
+    expect(texte).toContain("0.00 (aucun mouvement)");
+  });
 });
 
 describe("pose d'un RTT sans solde par la RH", () => {
