@@ -67,7 +67,7 @@ export function EmployeeCalendarMonthList({
                       <span className="ml-2 text-xs font-normal text-primary">Aujourd&apos;hui</span>
                     )}
                   </span>
-                  <span className="text-xs text-muted-foreground">{getCalendarTypeLabel(dayType)}</span>
+                  <span className="text-xs text-muted-foreground">{getCalendarTypeLabel(dayType, planned?.motif_absence)}</span>
                 </div>
                 {(dayType === 'travail' || planned?.heures_prevues != null) && (
                   <p className="text-xs text-muted-foreground tabular-nums">

@@ -63,6 +63,15 @@ describe("Congé parental d'éducation : libellés", () => {
     expect(lire("components/EmployeeCalendarDayCell.tsx")).toContain(
       "getCalendarTypeLabel(dayType, dayData?.motif_absence)",
     );
+    for (const vue of [
+      "components/employee-calendar/EmployeePlanningWeekView.tsx",
+      "components/employee-calendar/EmployeeCalendarMonthList.tsx",
+      "components/employee-calendar/EmployeeCalendarDaySheet.tsx",
+      "components/schedules/JourVoisinCell.tsx",
+    ]) {
+      expect(lire(vue)).toMatch(/getCalendarTypeLabel\([^)]*motif_absence\)/);
+      expect(lire(vue)).not.toMatch(/getCalendarTypeLabel\((dayType|type)\)/);
+    }
   });
 });
 

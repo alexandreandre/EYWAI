@@ -400,7 +400,7 @@ export function EmployeePlanningWeekView({
                     >
                       <p className="text-sm font-medium">{dayLabel(day.iso)}</p>
                       <p className="text-[11px] text-muted-foreground tabular-nums">
-                        {getCalendarTypeLabel(dayType)}
+                        {getCalendarTypeLabel(dayType, day.planned?.motif_absence)}
                       </p>
                     </button>
                     <div
@@ -424,7 +424,7 @@ export function EmployeePlanningWeekView({
                     >
                       <div className="flex items-center gap-2">
                         <span className={cn('h-8 w-1 shrink-0 rounded-full', barColor)} aria-hidden />
-                        <span className="text-xs font-medium">{getCalendarTypeLabel(dayType)}</span>
+                        <span className="text-xs font-medium">{getCalendarTypeLabel(dayType, day.planned?.motif_absence)}</span>
                       </div>
                       <dl className="space-y-1.5 text-xs">
                         <div>
