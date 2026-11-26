@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  MESSAGE_AUCUNE_COTISATION,
   RETRAITE_PROGRESSIVE_VIDE,
   erreursRetraiteProgressive,
   joursAttendus,
@@ -64,6 +65,18 @@ describe('retraite progressive : réglage de la fiche', () => {
       prise_en_charge_part_salariale: false,
       salaire_temps_plein: null,
     });
+  });
+
+  it('refuse un réglage actif sans vieillesse ni complémentaire', () => {
+    const rien = { ...COCHE, vieillesse_temps_plein: false, complementaire_temps_plein: false };
+    expect(erreursRetraiteProgressive(rien)).toEqual({ vieillesse_temps_plein: MESSAGE_AUCUNE_COTISATION });
+    expect(erreursRetraiteProgressive({ ...rien, complementaire_temps_plein: true })).toEqual({});
+    expect(erreursRetraiteProgressive({ ...rien, actif: false })).toEqual({});
+  });
+
+  it('lit une vieillesse absente de la fiche comme décochée, comme le moteur', () => {
+    expect(retraiteProgressiveDuFormulaire({ actif: true, quotite: 0.5 }).vieillesse_temps_plein).toBe(false);
+    expect(RETRAITE_PROGRESSIVE_VIDE.vieillesse_temps_plein).toBe(true);
   });
 
   it('donne les jours du forfait attendus (218 à temps plein)', () => {

@@ -32,6 +32,7 @@ function Case({
           <div className="space-y-1 leading-none">
             <FormLabel>{libelle}</FormLabel>
             <p className="text-xs text-muted-foreground">{aide}</p>
+            <FormMessage />
           </div>
         </FormItem>
       )}
@@ -150,7 +151,7 @@ export function RetraiteProgressiveFields({
             control={control}
             cle="prise_en_charge_part_salariale"
             libelle="L'employeur paie aussi la part salariale du supplément"
-            aide="Décoché : l'employeur paie sa part, le salarié la sienne (retenue sur son net)."
+            aide="Décoché : l'employeur paie sa part, le salarié la sienne (retenue sur son net). Coché avec la complémentaire : l'employeur paie en plus le forfait social de 20 % sur la part complémentaire prise en charge."
           />
           <FormField
             control={control}

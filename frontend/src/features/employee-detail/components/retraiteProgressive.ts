@@ -7,7 +7,11 @@
  * - vieillesse sur un temps plein (CSS L241-3-1) : accord écrit de l'employeur ;
  * - complémentaire sur un temps plein (ANI Agirc-Arrco, art. 75) ;
  * - prise en charge par l'employeur de la part salariale du supplément
- *   (CSS R241-0-3, II) ; sans elle, chacun paie sa part.
+ *   (CSS R241-0-3, II) ; sans elle, chacun paie sa part. Sur la part
+ *   complémentaire, la prise en charge paie le forfait social de 20 % (L137-15).
+ *
+ * Une case absente d'une fiche enregistrée vaut « non », comme pour le moteur ;
+ * seul un réglage neuf part avec la vieillesse cochée.
  */
 
 export interface RetraiteProgressiveFiche {
@@ -45,6 +49,8 @@ export const RETRAITE_PROGRESSIVE_VIDE: RetraiteProgressiveForm = {
 
 export const MESSAGE_QUOTITE = 'Une quotité entre 40 et 80 % du temps plein (ex. 50).';
 export const MESSAGE_DATE_DEBUT = 'La date de début de la retraite progressive.';
+export const MESSAGE_AUCUNE_COTISATION =
+  'Cochez la vieillesse ou la retraite complémentaire sur un temps plein : sans elles, le bulletin ne change pas.';
 
 /** Le formulaire est typé partiel par zod : les cases absentes prennent leur valeur vide. */
 function complet(saisie: Partial<RetraiteProgressiveForm> | undefined): RetraiteProgressiveForm {
@@ -78,7 +84,7 @@ export function retraiteProgressiveDuFormulaire(fiche: unknown): RetraiteProgres
         : String(Math.round((quotite <= 1 ? quotite * 100 : quotite) * 100) / 100),
     date_debut: (r.date_debut ?? '').slice(0, 10),
     date_fin: (r.date_fin ?? '').slice(0, 10),
-    vieillesse_temps_plein: r.vieillesse_temps_plein ?? true,
+    vieillesse_temps_plein: Boolean(r.vieillesse_temps_plein),
     complementaire_temps_plein: Boolean(r.complementaire_temps_plein),
     prise_en_charge_part_salariale: Boolean(r.prise_en_charge_part_salariale),
     salaire_temps_plein:
@@ -96,6 +102,9 @@ export function erreursRetraiteProgressive(
   const quotite = quotiteSaisie(form.quotite);
   if (quotite === null || Number.isNaN(quotite)) erreurs.quotite = MESSAGE_QUOTITE;
   if (!form.date_debut) erreurs.date_debut = MESSAGE_DATE_DEBUT;
+  if (!form.vieillesse_temps_plein && !form.complementaire_temps_plein) {
+    erreurs.vieillesse_temps_plein = MESSAGE_AUCUNE_COTISATION;
+  }
   if (form.date_fin && form.date_debut && form.date_fin < form.date_debut) {
     erreurs.date_fin = 'La date de fin ne peut pas précéder la date de début.';
   }
