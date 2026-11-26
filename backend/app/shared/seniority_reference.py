@@ -33,6 +33,35 @@ def resolve_date_anciennete_prime(employee: dict[str, Any] | None) -> str | None
     return str(hire)[:10] if hire else None
 
 
+#: Clé du bloc `contrat` du bulletin : jours d'ancienneté que le congé parental
+#: d'éducation à temps plein ne donne pas (C. trav. L1225-54, pour moitié).
+CLE_JOURS_NEUTRALISES = "jours_anciennete_neutralises"
+
+
+def jours_neutralises_du_contrat(contrat: dict[str, Any] | None) -> int:
+    block = (contrat or {}).get("contrat") if isinstance(contrat, dict) else None
+    try:
+        return max(0, int((block or {}).get(CLE_JOURS_NEUTRALISES) or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def decaler_selon_le_contrat(valeur: Any, contrat: dict[str, Any] | None) -> Any:
+    """La date d'ancienneté (date ou ISO) repoussée des jours de congé parental
+    que la loi ne compte pas ; inchangée sans congé parental."""
+    jours = jours_neutralises_du_contrat(contrat)
+    if not jours or not valeur:
+        return valeur
+    from datetime import date, timedelta
+
+    if isinstance(valeur, date):
+        return valeur + timedelta(days=jours)
+    try:
+        return (date.fromisoformat(str(valeur)[:10]) + timedelta(days=jours)).isoformat()
+    except ValueError:
+        return valeur
+
+
 def resolve_date_anciennete_from_contrat(contrat: dict[str, Any] | None) -> str | None:
     """Lit la date ancienneté prime depuis un contrat.json paie."""
     if not contrat or not isinstance(contrat, dict):

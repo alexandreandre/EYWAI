@@ -469,10 +469,10 @@ class ContextePaie:
     @property
     def date_anciennete_prime(self) -> str:
         """Date reprise ou embauche pour prime d'ancienneté."""
+        from app.shared.seniority_reference import decaler_selon_le_contrat
+
         ref = resolve_date_anciennete_from_contrat(self.contrat)
-        if ref:
-            return ref
-        return self.date_entree
+        return decaler_selon_le_contrat(ref or self.date_entree, self.contrat)
 
     @property
     def date_fin_contrat(self) -> str:

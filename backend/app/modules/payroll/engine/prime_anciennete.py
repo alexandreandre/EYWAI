@@ -50,8 +50,15 @@ def _prorata_config(regles_prime: dict[str, Any], resolved: dict[str, Any]) -> d
 
 
 def _resolve_date_entree(contexte: ContextePaie | Any) -> str:
-    """Date d'ancienneté pour la prime — reprise prioritaire sur date d'embauche."""
+    """Date d'ancienneté pour la prime — reprise prioritaire sur date d'embauche,
+    repoussée de la moitié des congés parentaux à temps plein (L1225-54)."""
+    from app.shared.seniority_reference import decaler_selon_le_contrat
+
     contrat = getattr(contexte, "contrat", None) or {}
+    return decaler_selon_le_contrat(_date_entree_brute(contexte, contrat), contrat if isinstance(contrat, dict) else None)
+
+
+def _date_entree_brute(contexte: ContextePaie | Any, contrat: Any) -> str:
     if isinstance(contrat, dict):
         ref = resolve_date_anciennete_from_contrat(contrat)
         if ref:

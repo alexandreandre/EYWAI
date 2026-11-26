@@ -19,6 +19,8 @@ from dateutil.relativedelta import relativedelta
 
 from app.modules.collective_agreements.domain.convention_datee import classification_a_la_date
 from app.modules.payroll.engine.cp_solde_sortie import get_cp_solde_a_la_sortie
+from app.shared.domain.conge_parental import decaler_l_anciennete
+from app.shared.infrastructure.conge_parental import jours_neutralises_du_salarie
 from app.shared.seniority_reference import resolve_seniority_reference_date
 from app.modules.payroll.engine.indemnites_conventionnelles_branches import (
     IDCC_PLASTURGIE,
@@ -1770,6 +1772,14 @@ def calculer_indemnites_sortie(
     # dit. `prior_service_months` n'est pas lu : il porte un double compte connu.
     # Le salaire de référence reste lu sur la présence réelle, depuis l'embauche.
     debut_anciennete, alerte_reprise = _debut_de_l_anciennete(employee_data, hire_date)
+    # Congé parental d'éducation à temps plein : compté pour moitié dans
+    # l'ancienneté (C. trav. L1225-54), donc dans l'indemnité de rupture.
+    debut_anciennete = decaler_l_anciennete(
+        debut_anciennete,
+        jours_neutralises_du_salarie(employee_data.get("id"), exit_date, supabase_client)
+        if supabase_client is not None
+        else 0,
+    )
     alertes_reference: list[str] = [alerte_reprise] if alerte_reprise else []
     phrase_arret: Optional[str] = None
     mois_a_la_notification: Optional[int] = None
