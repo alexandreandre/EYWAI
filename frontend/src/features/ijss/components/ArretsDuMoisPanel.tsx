@@ -95,7 +95,31 @@ export function libelleArret(arret: Pick<ArretDuMois, 'type' | 'arret_type'>): s
 }
 
 /** Ce que la colonne « Maintien » dit, en clair, sans état silencieux. */
-export function phraseMaintien(arret: ArretDuMois): { texte: string; ton: 'ok' | 'attente' | 'neutre' } {
+const NOMS_DES_MOIS = [
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre',
+];
+
+/** « de septembre », « d'octobre » : le bulletin d'un mois, élision comprise. */
+function duMois(month: number): string {
+  const nom = NOMS_DES_MOIS[(((month - 1) % 12) + 12) % 12];
+  return /^[aeiouéâ]/.test(nom) ? `d'${nom}` : `de ${nom}`;
+}
+
+export function phraseMaintien(
+  arret: ArretDuMois,
+  mois?: { year: number; month: number },
+): { texte: string; ton: 'ok' | 'attente' | 'neutre' } {
   const m = arret.maintien;
   switch (m.etat) {
     case 'bulletin_a_faire':
@@ -106,11 +130,20 @@ export function phraseMaintien(arret: ArretDuMois): { texte: string; ton: 'ok' |
         texte: "Bulletin calculé avant l'arrêt : régénérez-le pour qu'il compte l'arrêt",
         ton: 'attente',
       };
-    case 'bulletin_remis_avant_l_arret':
+    case 'bulletin_remis_avant_l_arret': {
+      // Retour d'Elsa du 26/11 : « le rappel se fait sur le mois suivant » était
+      // faux, rien ne reporte l'arrêt seul. L'arrêt reste au mois civil (c'est
+      // ce que fait Quadra chez LEWIS et Cartol, comme le cabinet de Colorplast) ;
+      // arrivé après la paie du mois, il se porte sur le bulletin suivant, à la main.
+      const ceBulletin = mois ? `Bulletin ${duMois(mois.month)}` : 'Bulletin du mois';
+      const suivant = mois ? `le bulletin ${duMois(mois.month + 1)}` : 'le bulletin suivant';
       return {
-        texte: "Bulletin déjà remis, calculé avant l'arrêt : le rappel se fait sur le bulletin du mois suivant",
+        texte:
+          `${ceBulletin} remis avant la saisie de l'arrêt : il ne le compte pas, et Martine ` +
+          `ne le reporte pas seule. À porter sur ${suivant} (onglet « Corriger »)`,
         ton: 'attente',
       };
+    }
     case 'en_attente_des_ij':
       return {
         texte: `En attente des IJ : ${eur(m.montant_en_attente)} retenus`,
@@ -203,7 +236,7 @@ export function ArretsDuMoisPanel({ year, month, libelleMois }: Props) {
               </TableHeader>
               <TableBody>
                 {arrets.map((a) => {
-                  const maintien = phraseMaintien(a);
+                  const maintien = phraseMaintien(a, { year, month });
                   return (
                     <TableRow
                       key={a.absence_id}
@@ -386,7 +419,7 @@ function FicheArret({
 
   const valeur = Number.parseFloat(montant.replace(/\s/g, '').replace(',', '.'));
   const montantValide = montant.trim() !== '' && Number.isFinite(valeur) && valeur >= 0;
-  const maintien = arret ? phraseMaintien(arret) : null;
+  const maintien = arret ? phraseMaintien(arret, { year, month }) : null;
 
   return (
     <Sheet
