@@ -144,6 +144,12 @@ ETAT_REPORT_AU_PROCHAIN_CALCUL = "report_au_prochain_calcul"
 ETAT_REPORT_A_RECALCULER = "report_a_recalculer"
 #: Bulletin suivant validé lui aussi sans l'arrêt : à porter à la main.
 ETAT_REMIS_SANS_REPORT = "bulletin_remis_avant_l_arret"
+#: Arrêt saisi tard, mais déjà retenu par le bulletin de son mois (repris de Quadra).
+ETAT_COMPTE_PAR_LE_BULLETIN = "compte_par_le_bulletin"
+#: Arrêt saisi tard, déjà porté à la main par la gestionnaire sur le bulletin suivant.
+ETAT_PORTE_A_LA_MAIN = "porte_a_la_main"
+#: Au forfait jours : le jour est dans la période de paie du mois suivant.
+ETAT_DANS_LA_PERIODE_SUIVANTE = "dans_la_periode_suivante"
 
 
 def etat_du_report(absence_id: str, bulletin_suivant: Mapping[str, Any] | None) -> str:

@@ -151,6 +151,27 @@ export function phraseMaintien(
           `recalculez ${mois ? `le bulletin ${duMois(mois.month + 1)}` : 'le bulletin suivant'} pour qu'il le reprenne`,
         ton: 'attente',
       };
+    // Rien à reprendre : le dire, jamais une consigne qui ferait retenir deux fois.
+    case 'compte_par_le_bulletin':
+      return {
+        texte: mois ? `Compté par le bulletin ${duMois(mois.month)}` : 'Compté par le bulletin du mois',
+        ton: 'ok',
+      };
+    case 'porte_a_la_main':
+      return {
+        texte: mois
+          ? `Déjà porté à la main sur le bulletin ${duMois(mois.month + 1)}`
+          : 'Déjà porté à la main sur le bulletin suivant',
+        ton: 'ok',
+      };
+    case 'dans_la_periode_suivante':
+      // Forfait jours : la période de paie d'octobre commence en septembre.
+      return {
+        texte: mois
+          ? `Dans la période de paie ${duMois(mois.month + 1)} : compté par le bulletin ${duMois(mois.month + 1)}`
+          : 'Dans la période de paie du mois suivant : compté par son bulletin',
+        ton: 'neutre',
+      };
     case 'bulletin_remis_avant_l_arret': {
       // Le bulletin suivant était déjà validé lui aussi : Martine ne remonte pas
       // plus loin, l'arrêt se porte à la main.

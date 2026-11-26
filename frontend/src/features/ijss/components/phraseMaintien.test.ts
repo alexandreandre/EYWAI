@@ -42,4 +42,17 @@ describe('phraseMaintien', () => {
     ).toBe('Reporté sur le bulletin de janvier');
     expect(phraseMaintien(arret('report_au_prochain_calcul')).texte).toContain('le bulletin suivant');
   });
+
+  it("ne demande rien quand l'arrêt est déjà retenu ou déjà porté à la main", () => {
+    const mois = { year: 2026, month: 9 };
+    expect(phraseMaintien(arret('compte_par_le_bulletin'), mois).texte).toBe(
+      'Compté par le bulletin de septembre',
+    );
+    expect(phraseMaintien(arret('porte_a_la_main'), mois).texte).toBe(
+      "Déjà porté à la main sur le bulletin d'octobre",
+    );
+    expect(phraseMaintien(arret('dans_la_periode_suivante'), mois).texte).toBe(
+      "Dans la période de paie d'octobre : compté par le bulletin d'octobre",
+    );
+  });
 });

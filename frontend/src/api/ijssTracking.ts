@@ -254,6 +254,9 @@ export type EtatMaintienArret =
   | 'reporte_sur_le_bulletin_suivant'
   | 'report_au_prochain_calcul'
   | 'report_a_recalculer'
+  | 'compte_par_le_bulletin'
+  | 'porte_a_la_main'
+  | 'dans_la_periode_suivante'
   | 'en_attente_des_ij'
   | 'verse'
   | 'sans_maintien';

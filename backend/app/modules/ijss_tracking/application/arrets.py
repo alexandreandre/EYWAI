@@ -15,6 +15,9 @@ from typing import Any
 from app.core.database import get_supabase_admin_client
 from app.core.logging import get_logger
 from app.modules.ijss_tracking.domain.arrets_du_mois import (
+    ETAT_COMPTE_PAR_LE_BULLETIN,
+    ETAT_DANS_LA_PERIODE_SUIVANTE,
+    ETAT_PORTE_A_LA_MAIN,
     TYPES_JUSTIFICATIF,
     bornes_arret,
     bulletin_calcule_avant,
@@ -170,6 +173,8 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
         # bulletin suivant qui reprend l'arrêt (même règle qu'au moteur).
         return bool(bulletin) and (bulletin.get("status") == "valide" or est_remis(bulletin))
 
+    report = _ReportDesArrets(company_id, year, month, bulletin_suivant)
+
     lignes: list[dict[str, Any]] = []
     for a in arrets:
         aid = str(a["id"])
@@ -186,6 +191,25 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
         if estimees is None and float(attendue.get("ijss_theorique") or 0) > 0:
             estimees = round(float(attendue["ijss_theorique"]), 2)
         recues = attendue.get("ijss_brut_validated")
+        # Arrêt enregistré après le calcul du bulletin : le dire, pas « pas de
+        # maintien » ni 0 jour indemnisé (MAJI, 17/11). Un bulletin validé ne se
+        # régénère plus : la même analyse que le moteur dit si le bulletin
+        # suivant reprend l'arrêt (Elsa, 26/11), ou si rien n'est à reprendre
+        # (déjà retenu, déjà porté à la main). Jamais une consigne qui ferait
+        # retenir deux fois.
+        etat = etat_du_maintien(pdata)
+        etat_tardif = report.etat(a, bulletin, est_valide(bulletin))
+        if etat_tardif is not None:
+            etat = {
+                "etat": etat_tardif,
+                "montant_verse": 0.0,
+                "montant_en_attente": 0.0,
+                "motif": None,
+            }
+            reporte = report.bloc_reporte(a)
+            if reporte is not None:
+                estimees = round(float(reporte.get("ijss_theorique") or 0.0), 2)
+                etat["montant_verse"] = round(float(reporte.get("maintien_verse") or 0.0), 2)
         lignes.append(
             {
                 "absence_id": aid,
@@ -206,24 +230,7 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
                 "ij_saisies_du_mois": saisies.get(eid),
                 "ij_appliquees_le": attendue.get("applied_to_payslip_at"),
                 "bulletin_id": (bulletin or {}).get("id"),
-                "maintien": (
-                    # Arrêt enregistré après le calcul du bulletin : le dire, pas
-                    # « pas de maintien » ni 0 jour indemnisé (MAJI, 17/11). Un
-                    # bulletin validé ne se régénère plus : le bulletin suivant
-                    # reprend l'arrêt à ses dates, comme Quadra (Elsa, 26/11).
-                    {
-                        "etat": (
-                            etat_du_report(aid, bulletin_suivant(eid))
-                            if est_valide(bulletin)
-                            else "bulletin_a_recalculer"
-                        ),
-                        "montant_verse": 0.0,
-                        "montant_en_attente": 0.0,
-                        "motif": None,
-                    }
-                    if bulletin_calcule_avant(bulletin, a.get("created_at"))
-                    else etat_du_maintien(pdata)
-                ),
+                "maintien": etat,
                 "justificatifs": pieces.get(aid, []),
             }
         )
@@ -234,6 +241,156 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
         "periode_cloturee": periode.get("status") == "closed",
         "arrets": lignes,
     }
+
+
+class _ReportDesArrets:
+    """L'état d'un arrêt saisi après le calcul du bulletin de son mois, lu comme
+    le moteur le lit (`payroll.application.arrets_reportes.analyser_le_report`).
+
+    Les lectures (fiche, planning et saisies du mois suivant, bulletin repris
+    voisin au forfait) ne se font que pour ces arrêts-là."""
+
+    def __init__(self, company_id: str, year: int, month: int, bulletin_suivant: Any) -> None:
+        self.company_id = company_id
+        self.year = year
+        self.month = month
+        self.bulletin_suivant = bulletin_suivant
+        self.suivant = (year, month + 1) if month < 12 else (year + 1, 1)
+        self._societe: dict[str, Any] | None = None
+        self._forfait: dict[str, bool] = {}
+
+    def _parametres(self) -> dict[str, Any]:
+        if self._societe is None:
+            ligne = (
+                _client()
+                .table("companies")
+                .select("paie_jour_de_fin, paie_occurrence")
+                .eq("id", self.company_id)
+                .maybe_single()
+                .execute()
+            )
+            self._societe = (getattr(ligne, "data", None) or {}) if ligne else {}
+        return self._societe
+
+    def _est_au_forfait(self, eid: str) -> bool:
+        if eid not in self._forfait:
+            from app.shared.domain.employment_rules import est_au_forfait_jours
+
+            ligne = (
+                _client()
+                .table("employees")
+                .select("statut, is_forfait_jour")
+                .eq("id", eid)
+                .maybe_single()
+                .execute()
+            )
+            self._forfait[eid] = est_au_forfait_jours((getattr(ligne, "data", None) or {}) if ligne else {})
+        return self._forfait[eid]
+
+    def _periode(self, eid: str) -> tuple[Any, Any]:
+        from app.modules.payroll.application.arrets_reportes import bornes_de_la_periode
+
+        societe = self._parametres()
+        return bornes_de_la_periode(
+            self.year,
+            self.month,
+            forfait_jours=self._est_au_forfait(eid),
+            # None : la règle par défaut (avant-dernier vendredi) ; 0 est un lundi.
+            jour_de_fin=societe.get("paie_jour_de_fin"),
+            occurrence=societe.get("paie_occurrence"),
+        )
+
+    def _deja_portes(self, eid: str) -> tuple[set[Any], float]:
+        from app.modules.payroll.application.arrets_reportes import (
+            dates_des_regularisations_manuelles,
+            heures_reprises_a_la_main,
+        )
+        from app.modules.payroll.engine.corrections_manuelles import (
+            est_regularisation_heures,
+        )
+
+        annee_s, mois_s = self.suivant
+        planning = (
+            _client()
+            .table("employee_schedules")
+            .select("planned_calendar")
+            .eq("employee_id", eid)
+            .eq("year", annee_s)
+            .eq("month", mois_s)
+            .maybe_single()
+            .execute()
+        )
+        planned = ((getattr(planning, "data", None) or {}) if planning else {}).get("planned_calendar")
+        saisies = (
+            _client()
+            .table("monthly_inputs")
+            .select("correction_ligne")
+            .eq("employee_id", eid)
+            .eq("year", annee_s)
+            .eq("month", mois_s)
+            .execute()
+        ).data or []
+        heures = heures_reprises_a_la_main(
+            [s["correction_ligne"] for s in saisies if est_regularisation_heures(s)],
+            self.year,
+            self.month,
+        )
+        # Le forfait jours n'applique pas les régularisations antérieures du planning.
+        dates = set() if self._est_au_forfait(eid) else dates_des_regularisations_manuelles(planned)
+        return dates, heures
+
+    def etat(self, arret: dict[str, Any], bulletin: dict[str, Any] | None, valide: bool) -> str | None:
+        """None : l'état du maintien du bulletin dit vrai (arrêt connu au calcul)."""
+        from datetime import date as _date
+
+        from app.modules.payroll.application.arrets_reportes import analyser_le_report
+
+        eid = str(arret.get("employee_id") or "")
+        calcule_avant = bulletin_calcule_avant(bulletin, arret.get("created_at"))
+        if not valide and not calcule_avant:
+            return None
+        debut, fin = self._periode(eid)
+        jours = sorted(
+            _date.fromisoformat(str(d)[:10]) for d in arret.get("selected_days") or []
+        )
+        du_mois = [d for d in jours if (d.year, d.month) == (self.year, self.month)]
+        if du_mois and all(d > fin for d in du_mois):
+            # Au forfait jours, la période d'octobre commence en septembre.
+            return ETAT_DANS_LA_PERIODE_SUIVANTE
+        if not valide:
+            return "bulletin_a_recalculer"
+        dates, heures = self._deja_portes(eid)
+        voisins = []
+        if debut.month != self.month:
+            from app.modules.ijss_tracking.application.service import _bulletins_du_mois
+
+            voisin = _bulletins_du_mois(self.company_id, debut.year, debut.month).get(eid)
+            voisins = [voisin] if voisin else []
+        analyse = analyser_le_report(
+            [arret],
+            [bulletin] if bulletin else [],
+            (debut, fin),
+            annee_origine=self.year,
+            mois_origine=self.month,
+            deja_portes=dates,
+            heures_a_la_main=heures,
+            bulletins_repris_voisins=voisins,
+        )
+        if analyse.jours:
+            return etat_du_report(str(arret["id"]), self.bulletin_suivant(eid))
+        if analyse.portes_a_la_main and not analyse.comptes:
+            return ETAT_PORTE_A_LA_MAIN
+        if calcule_avant:
+            return ETAT_COMPTE_PAR_LE_BULLETIN
+        return None
+
+    def bloc_reporte(self, arret: dict[str, Any]) -> dict[str, Any] | None:
+        """Le bloc de l'arrêt sur le bulletin suivant qui l'a repris."""
+        suivant = self.bulletin_suivant(str(arret.get("employee_id") or ""))
+        for bloc in ((suivant or {}).get("payslip_data") or {}).get("arrets_reportes") or []:
+            if str((bloc or {}).get("absence_id") or "") == str(arret.get("id")):
+                return bloc
+        return None
 
 
 def _arret_de_la_societe(company_id: str, absence_id: str) -> dict[str, Any]:
