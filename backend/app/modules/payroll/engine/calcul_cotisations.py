@@ -819,6 +819,78 @@ def _dernier_jour_du_mois_de_paie(contexte: ContextePaie) -> Optional[date]:
     return fin if isinstance(fin, date) else None
 
 
+def _surcotisation_retraite_progressive(
+    contexte: ContextePaie,
+    brut_cotisable: float,
+    assiettes: Dict[str, float],
+    cotisations_du_bareme: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Lignes de surcotisation du mois, et leurs alertes ; [] sans réglage."""
+    from .forfait_individuel import jours_du_forfait_de_la_fiche
+    from .retraite_progressive import (
+        lignes_de_surcotisation,
+        lire_reglage,
+        salaires_temps_plein,
+    )
+
+    specificites = contexte.contrat.get("specificites_paie", {}) or {}
+    reglage = lire_reglage(specificites)
+    annee, mois = getattr(contexte, "year", None), getattr(contexte, "month", None)
+    if reglage is None or not (annee and mois) or not reglage.couvre(int(annee), int(mois)):
+        return []
+    if not (reglage.vieillesse_temps_plein or reglage.complementaire_temps_plein):
+        return []
+    au_forfait = bool(contexte.is_forfait_jour)
+    salaires = salaires_temps_plein(
+        reglage,
+        brut=float(brut_cotisable or 0.0),
+        au_forfait_jours=au_forfait,
+        jours_forfait=jours_du_forfait_de_la_fiche(specificites) if au_forfait else None,
+        heures_contrat_mois=(float(contexte.duree_hebdo_contrat or 0.0) * 52) / 12,
+        heures_complementaires_mois=float(getattr(contexte, "heures_complementaires_mois", 0.0) or 0.0),
+        smic_horaire=float(contexte.smic_horaire or 0.0),
+    )
+    alertes = list(salaires.alertes)
+    debut = reglage.date_debut
+    if debut and (debut.year, debut.month) == (int(annee), int(mois)) and debut.day > 1:
+        alertes.append(
+            {
+                "code": "retraite_progressive_debut_en_cours_de_mois",
+                "critique": False,
+                "severity": "warning",
+                "message": (
+                    f"Retraite progressive depuis le {debut.strftime('%d/%m/%Y')} : la surcotisation "
+                    "porte sur tout le mois. Corrigez la ligne à la main pour la part d'avant."
+                ),
+                "donnee_non_officielle": False,
+            }
+        )
+    if isinstance(contexte.alertes_baremes, list):
+        connus = {a.get("code") for a in contexte.alertes_baremes if isinstance(a, dict)}
+        contexte.alertes_baremes.extend(a for a in alertes if a["code"] not in connus)
+
+    # Plafond entier du temps plein (R241-0-2, V), réduit seulement d'une
+    # entrée, d'une sortie ou d'une absence non payée (ratio de la période).
+    pss_mensuel = float((contexte.baremes.get("pss", {}) or {}).get("mensuel", 0.0) or 0.0)
+    ratio = getattr(contexte, "ratio_plafond_ss", None)
+    try:
+        ratio = float(ratio) if ratio is not None else 1.0
+    except (TypeError, ValueError):
+        ratio = 1.0
+    plafond = round(pss_mensuel * ratio, 2) if 0.0 <= ratio < 1.0 else pss_mensuel
+    return lignes_de_surcotisation(
+        reglage,
+        salaires,
+        cotisations_du_bareme=cotisations_du_bareme,
+        brut=float(brut_cotisable or 0.0),
+        plafond=plafond,
+        assiette_plafonnee=float(assiettes.get("brut_plafonne") or 0.0),
+        assiette_tranche_2=float(assiettes.get("tranche_2") or 0.0),
+        assiette_cet=float(assiettes.get("assiette_cet") or 0.0),
+        calculer_ligne=_calculer_une_ligne,
+    )
+
+
 def calculer_cotisations(
     contexte: ContextePaie,
     salaire_brut: float,
@@ -1215,6 +1287,13 @@ def calculer_cotisations(
                 coti_id="exoneration_apprenti_salariale",
             )
         )
+
+    # Retraite progressive : vieillesse (et complémentaire) sur un temps plein,
+    # lignes « Surcotisation retraite progressive » (engine/retraite_progressive).
+    # Sans réglage sur la fiche, aucune ligne : bulletin inchangé au centime.
+    bulletin_cotisations.extend(
+        _surcotisation_retraite_progressive(contexte, brut_cotisable, assiettes, liste_cotisations_brutes)
+    )
 
     # Ajout manuel des cotisations forfaitaires (mutuelle, etc.)
     mutuelle_spec = contexte.contrat.get("specificites_paie", {}).get("mutuelle", {})

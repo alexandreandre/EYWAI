@@ -71,6 +71,9 @@ COTI_TO_ORGANISME: Dict[str, str] = {
     # l'URSSAF).
     "vieillesse_plafonnee": ORGANISME_URSSAF,
     "vieillesse_deplafonnee": ORGANISME_URSSAF,
+    # Retraite progressive : supplément de vieillesse sur un temps plein (CTP 288).
+    "surcotisation_vieillesse_plafonnee": ORGANISME_URSSAF,
+    "surcotisation_vieillesse_deplafonnee": ORGANISME_URSSAF,
     "autres_contributions": ORGANISME_URSSAF,
     # Allègements et exonérations : même organisme, montant négatif
     "reduction_generale": ORGANISME_URSSAF,
@@ -91,6 +94,12 @@ COTI_TO_ORGANISME: Dict[str, str] = {
     "ceg_t2": ORGANISME_RETRAITE,
     "cet": ORGANISME_RETRAITE,
     "apec": ORGANISME_RETRAITE,
+    # Retraite progressive : complémentaire sur un temps plein (ANI, art. 75).
+    "surcotisation_retraite_comp_t1": ORGANISME_RETRAITE,
+    "surcotisation_retraite_comp_t2": ORGANISME_RETRAITE,
+    "surcotisation_ceg_t1": ORGANISME_RETRAITE,
+    "surcotisation_ceg_t2": ORGANISME_RETRAITE,
+    "surcotisation_cet": ORGANISME_RETRAITE,
     # --- Retraite supplémentaire ---
     "retraite_sup": ORGANISME_RETRAITE_SUP,
     "retraite_supplementaire": ORGANISME_RETRAITE_SUP,
