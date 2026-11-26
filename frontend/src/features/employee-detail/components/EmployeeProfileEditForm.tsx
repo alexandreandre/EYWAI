@@ -37,6 +37,7 @@ import type { EmployeeProfileEditFormValues } from '@/features/employee-detail/c
 import { queryKeys } from '@/lib/queryKeys';
 import { MutuelleSelectionField } from '@/components/mutuelle/MutuelleSelectionField';
 import { DispenseMutuelleFields } from '@/features/employee-detail/components/DispenseMutuelleFields';
+import { RetraiteProgressiveFields } from '@/features/employee-detail/components/RetraiteProgressiveFields';
 import { AIDE_INDEMNITE_TRAJET, LIBELLE_INDEMNITE_TRAJET } from '@/features/company/lib/reglesVariables';
 import {
   filterMutuellesForEmployee,
@@ -156,6 +157,7 @@ export function EmployeeProfileEditForm({
   const avertissementNaissance = avertissementNaissanceDsn({ lieu_naissance: lieuNaissance, nationalite });
   const contractType = useWatch({ control, name: 'contract_type' });
   const isForfaitJour = useWatch({ control, name: 'is_forfait_jour' });
+  const joursForfaitSaisis = useWatch({ control, name: 'specificites_paie.forfait_annual_days' });
   const salaireBase = useWatch({ control, name: 'salaire_de_base.valeur' });
   const modePaiement = useWatch({ control, name: 'salary_payment_method' });
   // Le salaire de la fiche à l'ouverture : ce que le champ direct remplacerait.
@@ -456,6 +458,11 @@ export function EmployeeProfileEditForm({
             )}
           />
         )}
+        <RetraiteProgressiveFields
+          control={control}
+          isForfaitJour={Boolean(isForfaitJour)}
+          joursForfait={joursForfaitSaisis ?? ''}
+        />
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField
             control={control}
