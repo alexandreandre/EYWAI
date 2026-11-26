@@ -1513,7 +1513,7 @@ def build_individu_from_payroll(
         "S21.G00.40.014": modalite,
         "S21.G00.40.019": company_siret.replace(" ", "")[:14],
     }
-    temps_plein = salarie_cotisant_a_temps_plein(employee.get("specificites_paie"), period)
+    temps_plein = salarie_cotisant_a_temps_plein(employee.get("specificites_paie"), period, cot_lines)
     if temps_plein.code:
         rubriques_contrat["S21.G00.40.044"] = temps_plein.code
     if temps_plein.avertissement:

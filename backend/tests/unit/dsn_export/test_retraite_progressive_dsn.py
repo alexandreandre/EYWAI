@@ -96,27 +96,59 @@ def test_bordereau_ctp_288():
     assert {(l["ctp"], l["qualifiant"]) for l in lignes_23 if l["ctp"] == "100"} == {("100", "920"), ("100", "921")}
 
 
+REGLAGE_BASE = {"actif": True, "date_debut": "2026-10-01", "vieillesse_temps_plein": True}
+REGLAGE_BASE_ET_COMP = {**REGLAGE_BASE, "complementaire_temps_plein": True}
+
+
 @pytest.mark.parametrize(
-    "reglage,periode,attendu",
+    "reglage,periode,lignes,attendu",
     [
-        (None, "2026-11", None),
-        ({"actif": True, "date_debut": "2026-10-01", "vieillesse_temps_plein": True}, "2026-11", "01"),
-        ({"actif": True, "date_debut": "2026-10-01", "vieillesse_temps_plein": True,
-          "complementaire_temps_plein": True}, "2026-11", "02"),
-        ({"actif": True, "date_debut": "2026-10-01", "vieillesse_temps_plein": True}, "2026-09", None),
-        ({"actif": False, "vieillesse_temps_plein": True}, "2026-11", None),
+        (None, "2026-11", LIGNES, None),
+        (REGLAGE_BASE, "2026-11", LIGNES, "01"),
+        (REGLAGE_BASE_ET_COMP, "2026-11", LIGNES + COMPLEMENTAIRE, "02"),
+        (REGLAGE_BASE, "2026-09", LIGNES, None),
+        ({**REGLAGE_BASE, "actif": False}, "2026-11", LIGNES, None),
+        # Le bulletin prime : la complémentaire cochée mais non posée ne fait pas « 02 ».
+        (REGLAGE_BASE_ET_COMP, "2026-11", LIGNES, "01"),
     ],
 )
-def test_rubrique_40_044(reglage, periode, attendu):
+def test_rubrique_40_044(reglage, periode, lignes, attendu):
     specificites = {"retraite_progressive": reglage} if reglage is not None else {}
-    assert salarie_cotisant_a_temps_plein(specificites, periode).code == attendu
+    assert salarie_cotisant_a_temps_plein(specificites, periode, lignes).code == attendu
+
+
+@pytest.mark.parametrize("lignes", [LIGNES[:2], []], ids=["forfait_au_dela_1_7_smic", "brut_nul"])
+def test_rubrique_40_044_absente_sans_surcotisation_au_bulletin(lignes):
+    """Réglage actif, mais le moteur n'a rien posé (forfait au-delà de 1,7 SMIC,
+    brut nul) : pas de S21.G00.40.044, et l'aperçu le dit."""
+    resultat = salarie_cotisant_a_temps_plein({"retraite_progressive": REGLAGE_BASE}, "2026-11", lignes)
+    assert resultat.code is None
+    assert "aucune surcotisation au bulletin" in (resultat.avertissement or "")
 
 
 def test_complementaire_seule_rubrique_vide_et_avertie():
     resultat = salarie_cotisant_a_temps_plein(
-        {"retraite_progressive": {"actif": True, "complementaire_temps_plein": True}}, "2026-11"
+        {"retraite_progressive": {"actif": True, "complementaire_temps_plein": True}},
+        "2026-11",
+        LIGNES[:2] + COMPLEMENTAIRE,
     )
     assert resultat.code is None and "complémentaire seule" in (resultat.avertissement or "")
+
+
+def test_forfait_social_de_la_prise_en_charge_071_a_20_pourcent_ctp_012():
+    """Prise en charge de la part salariale complémentaire : forfait social
+    (CSS L137-15) au code 071, base 05, taux 20 %, CTP 012 du bordereau."""
+    forfait_social = {
+        "coti_id": "forfait_social", "libelle": "Forfait social 20% sur prise en charge retraite progressive",
+        "base": 47.08, "montant_salarial": 0.0, "montant_patronal": 9.42,
+        "taux_salarial": None, "taux_patronal": 0.20,
+    }
+    _, par_base, avertissements = _construire(LIGNES + COMPLEMENTAIRE + [forfait_social])
+    assert avertissements == []
+    (fs,) = par_base["05"]
+    assert fs["S21.G00.81.001"] == "071"
+    assert fs["S21.G00.81.003"] == "47.08" and fs["S21.G00.81.004"] == "9.42"
+    assert ctp_du_code("071", "05", 20.0) == ("012", "920")
 
 
 def test_forfait_vieillesse_et_complementaire_differentes_base_de_la_vieillesse_et_avertie():
