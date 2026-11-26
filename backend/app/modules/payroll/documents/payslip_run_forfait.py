@@ -40,7 +40,9 @@ from app.modules.payroll.engine.calcul_reduction_generale import (
 from app.modules.payroll.engine.forfait_individuel import jours_du_forfait_de_la_fiche
 from app.modules.payroll.engine.lectures import lire_ou_arreter
 from app.modules.payroll.engine.ijss_bulletin import build_rappel_ijss_net_prime
+from app.modules.activite_partielle.domain.calcul import CLE_CALCUL_INDEMNITE
 from app.modules.payroll.engine.activite_partielle import (
+    indemnite_avec_la_prime,
     est_l_indemnite,
     lignes_csg_de_l_indemnite,
     heures_chomees_de_la_retenue,
@@ -484,6 +486,9 @@ def run_payslip_generation_forfait(
     # Indemnités d'activité partielle : revenus de remplacement exonérés de
     # cotisations, imposables, ajoutés comme en heures après le brut.
     indemnites_remplacement: List[Dict[str, Any]] = []
+    #: Les indemnités calculées au calendrier, avec de quoi y porter la prime
+    #: d'ancienneté une fois le brut calculé (R5122-18).
+    calculs_des_indemnites: List[tuple] = []
     heures_activite_partielle = 0.0
     for cle in ["primes", "notes_de_frais", "autres"]:
         for saisie in saisie_du_mois.get(cle, []):
@@ -526,6 +531,9 @@ def run_payslip_generation_forfait(
                 indemnite_ap = ligne_d_indemnite(libelle, montant)
                 if indemnite_ap:
                     indemnites_remplacement.append(indemnite_ap)
+                    calculs_des_indemnites.append(
+                        (indemnite_ap, saisie.get(CLE_CALCUL_INDEMNITE))
+                    )
                 continue
             if cle == "notes_de_frais" and montant > 0:
                 _exo, reint, _plafond = appliquer_exoneration_note_frais(
@@ -656,6 +664,12 @@ def run_payslip_generation_forfait(
     details_brut = resultat_brut["lignes_composants_brut"]
     remuneration_hs = resultat_brut["remuneration_brute_heures_supp"]
     total_heures_supp = resultat_brut["total_heures_supp"]
+    # La prime d'ancienneté du mois, maintenant connue, entre dans l'assiette des
+    # indemnités d'activité partielle calculées au calendrier (R5122-18).
+    for indemnite_ap, calcul_ap in calculs_des_indemnites:
+        indemnite_avec_la_prime(
+            indemnite_ap, calcul_ap, getattr(contexte, "prime_anciennete_plein_mois", None)
+        )
 
     # Arrêt maladie (forfait jour) : maintien employeur + IJSS subrogées.
     resultats_maintien: Dict[str, Any] | None = None

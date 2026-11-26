@@ -51,7 +51,6 @@ def test_embauche_recente_pas_alerte_non_eligible():
     contexte = _contexte_metallurgie("2025-09-08")  # < 3 ans au 31/01/2026
     ligne = calculer_ligne_prime_anciennete(
         contexte,
-        calendrier_saisie=[],
         date_debut_periode=date(2026, 1, 1),
         date_fin_periode=date(2026, 1, 31),
     )

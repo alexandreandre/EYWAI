@@ -124,6 +124,12 @@ def entree_de_prime(row: dict[str, Any]) -> dict[str, Any]:
         prime_entry["quantity_kind"] = row["quantity_kind"]
     if row.get("situation_repas"):
         prime_entry["situation_repas"] = row["situation_repas"]
+    # L'indemnité d'activité partielle calculée au calendrier (jamais une saisie
+    # à la main) : de quoi la recalculer avec la prime d'ancienneté (R5122-18).
+    from app.modules.activite_partielle.domain.calcul import CLE_CALCUL_INDEMNITE
+
+    if isinstance(row.get(CLE_CALCUL_INDEMNITE), dict):
+        prime_entry[CLE_CALCUL_INDEMNITE] = dict(row[CLE_CALCUL_INDEMNITE])
     if catalog_id and ("panier" in str(catalog_id).lower() or "repas" in str(catalog_id).lower()):
         prime_entry["type"] = "panier"
     return prime_entry

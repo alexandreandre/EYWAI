@@ -37,17 +37,6 @@ def _metallurgie_baremes():
     return baremes
 
 
-def _calendrier_plein_mois() -> list[dict]:
-    return [
-        {
-            "date_complete": f"2026-05-{d:02d}",
-            "type": "travail",
-            "heures": 6.894,
-        }
-        for d in range(1, 23)
-    ]
-
-
 class TestSeniorityReferencePrime:
     def test_saisie_mensuelle_prime_anciennete_remplace_calcul_auto(self):
         assert _prime_anciennete_deja_saisie(
@@ -125,7 +114,6 @@ class TestSeniorityReferencePrime:
         ctx = ChargerContexte(employee, company, _metallurgie_baremes())
         ligne = calculer_ligne_prime_anciennete(
             ctx,
-            calendrier_saisie=_calendrier_plein_mois(),
             date_debut_periode=date(2026, 5, 1),
             date_fin_periode=date(2026, 5, 31),
         )

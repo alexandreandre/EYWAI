@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict
+from typing import Any, Dict
 
 
 def heures_et_taux(montant: float, heures: float) -> Dict[str, float]:
@@ -40,6 +40,27 @@ def heures_chomees_de_la_retenue(
         except (TypeError, ValueError):
             return 0.0
     return 0.0
+
+
+def heures_chomees_des_saisies(saisies: object) -> float:
+    """Heures chômées d'activité partielle des saisies du mois, telles que le
+    moteur les reçoit (`libelle`, `montant`, `quantite` posée par
+    `heures_et_taux`) : calendrier et saisie à la main passent par là."""
+    total = 0.0
+    for saisie in saisies or []:
+        if not isinstance(saisie, dict):
+            continue
+        try:
+            montant = float(saisie.get("montant") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        total += heures_chomees_de_la_retenue(
+            saisie.get("prime_id"),
+            saisie.get("libelle") or saisie.get("name"),
+            montant,
+            saisie.get("quantite", saisie.get("quantity")),
+        )
+    return round(total, 2)
 
 
 def est_l_indemnite(prime_id: object, libelle: object) -> bool:
@@ -121,3 +142,45 @@ def lignes_csg_de_l_indemnite(
                 }
             )
     return lignes
+
+
+def indemnite_avec_la_prime(
+    indemnite: Dict[str, Any],
+    calcul: Dict[str, Any] | None,
+    prime_mensuelle: float | None,
+) -> None:
+    """Recalcule, avec la prime d'ancienneté du mois dans l'assiette, l'indemnité
+    d'activité partielle calculée au calendrier (`calcul`, posé par
+    `activite_partielle.application.service.lignes_du_calendrier`).
+
+    R5122-18 : 60 % (ou le taux de la société) de la rémunération servant
+    d'assiette de l'indemnité de congés payés (L3141-24, II), prime d'ancienneté
+    comprise, avec le plancher, le plafond et jamais plus que l'assiette. La
+    retenue des heures chômées reste au salaire horaire : la prime du mois en est
+    déjà diminuée (`temps_travail_mois`). Une indemnité saisie à la main n'a pas
+    de `calcul` : elle reste telle quelle. Sans prime, rien ne change.
+    """
+    from app.modules.activite_partielle.domain.calcul import (
+        assiette_horaire_avec_prime,
+        indemnite_du_mois,
+        indemnite_par_heure,
+    )
+
+    if not calcul or not prime_mensuelle or prime_mensuelle <= 0:
+        return
+    try:
+        heures = float(calcul["heures"])
+        taux = float(calcul["taux_horaire"])
+        assiette = assiette_horaire_avec_prime(taux, calcul.get("salaire_mensuel"), prime_mensuelle)
+        horaire, _regle = indemnite_par_heure(
+            assiette,
+            taux_indemnite=float(calcul["taux_indemnite"]),
+            plancher=float(calcul["plancher"]),
+            plafond=float(calcul["plafond"]),
+        )
+    except (KeyError, TypeError, ValueError):
+        return
+    if heures <= 0:
+        return
+    indemnite["montant"] = indemnite_du_mois(heures, horaire)
+    indemnite.update(heures_et_taux(indemnite["montant"], heures))

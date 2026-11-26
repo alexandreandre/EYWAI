@@ -80,7 +80,9 @@ from .payslip_run_common import (
     prefetch_jours_maintien_prime,
     resolve_exit_state_for_payslip,
 )
+from app.modules.activite_partielle.domain.calcul import CLE_CALCUL_INDEMNITE
 from app.modules.payroll.engine.activite_partielle import (
+    indemnite_avec_la_prime,
     est_l_indemnite,
     lignes_csg_de_l_indemnite,
     heures_chomees_de_la_retenue,
@@ -947,6 +949,9 @@ def run_payslip_generation_heures(
         contexte.cet_du_mois = etat_cet_du_bulletin(
             contexte, settings_row, employee_id, year, month, hprd
         )
+    # Lu sous la clé `calendrier`, absente des lignes en base (chemin mort, cf.
+    # `payslip_generator`) : seuls les compteurs de pied de bulletin le lisent
+    # encore. La prime d'ancienneté ne s'en sert plus (26/11).
     chemin_horaires = employee_path / "horaires" / f"{month:02d}.json"
     saisie_horaires = (
         json.loads(chemin_horaires.read_text(encoding="utf-8"))
@@ -966,6 +971,9 @@ def run_payslip_generation_heures(
     # de remplacement (même 3,8 %/2,9 % que les IJSS), imposables. Traitées via le
     # même canal que les IJSS subrogées (cf. plus bas).
     indemnites_remplacement: List[Dict[str, Any]] = []
+    #: Les indemnités calculées au calendrier, avec de quoi y porter la prime
+    #: d'ancienneté une fois le brut calculé (R5122-18).
+    calculs_des_indemnites: List[tuple] = []
     heures_activite_partielle = 0.0
     catalogue_primes = {p["id"]: p for p in contexte.baremes["primes"]}
     effectif_entreprise = contexte.effectif
@@ -1025,6 +1033,9 @@ def run_payslip_generation_heures(
                 indemnite_ap = ligne_d_indemnite(libelle, montant)
                 if indemnite_ap:
                     indemnites_remplacement.append(indemnite_ap)
+                    calculs_des_indemnites.append(
+                        (indemnite_ap, saisie.get(CLE_CALCUL_INDEMNITE))
+                    )
                 continue
 
             if cle == "notes_de_frais" and montant > 0:
@@ -1219,7 +1230,6 @@ def run_payslip_generation_heures(
         date_fin_periode=date_fin_periode,
         primes_saisies=primes_soumises,
         jours_maintien=jours_maintien,
-        actual_hours_raw=calendrier_du_mois,
         nb_jours_travail_planifies=nb_jours_travail_planifies,
         date_debut_variables=date_debut_variables,
         date_fin_variables=date_fin_variables,
@@ -1231,6 +1241,12 @@ def run_payslip_generation_heures(
     details_brut = resultat_brut["lignes_composants_brut"]
     remuneration_hs = resultat_brut["remuneration_brute_heures_supp"]
     total_heures_supp = resultat_brut["total_heures_supp"]
+    # La prime d'ancienneté du mois, maintenant connue, entre dans l'assiette des
+    # indemnités d'activité partielle calculées au calendrier (R5122-18).
+    for indemnite_ap, calcul_ap in calculs_des_indemnites:
+        indemnite_avec_la_prime(
+            indemnite_ap, calcul_ap, getattr(contexte, "prime_anciennete_plein_mois", None)
+        )
 
     if shift_payroll_summary:
         # Garde-fou : ne pas cumuler avec une règle per_night_hour (monthly_inputs)

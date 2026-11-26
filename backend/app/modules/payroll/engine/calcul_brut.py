@@ -29,6 +29,13 @@ from .salaire_contractuel import (
     taux_horaire_base_hors_hs_structurelles,
 )
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
+from app.modules.payroll.engine.activite_partielle import heures_chomees_des_saisies
+from app.modules.payroll.engine.temps_travail_mois import (
+    HEURES_MOIS_DUREE_LEGALE,
+    TempsDuMois,
+    quotite_heures,
+    reference_heures_du_contrat,
+)
 from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
 from app.modules.payroll.engine.codes_des_lignes import BLOC_BRUT
 from app.modules.payroll.engine.corrections_manuelles import (
@@ -389,6 +396,14 @@ def _jour_ferie_est_paye(contexte: ContextePaie, evenement: Dict[str, Any]) -> b
 
     date_ferie = _parse_date_contrat(evenement.get("date_complete"))
     if not date_ferie:
+        return True
+
+    # Un férié qui tombe un samedi ou un dimanche sans heures prévues n'est pas
+    # chômé : aucune journée de travail n'est perdue, il n'y a rien à retenir.
+    # L3133-3 garantit le salaire du jour férié chômé ; un jour de repos n'en
+    # est pas un. Cartol, novembre 2026 (forfait entré le 07/09) : le dimanche
+    # 01/11 retenait une journée de forfait, 143,05 €.
+    if date_ferie.weekday() >= 5 and not float(evenement.get("heures") or 0):
         return True
 
     # 1er mai : chômé et payé sans condition d'ancienneté (art. L3133-4/5 C. trav.).
@@ -1031,21 +1046,19 @@ def montant_avantages_en_nature(contexte: ContextePaie) -> float:
 def _calculer_prime_anciennete(
     contexte: ContextePaie,
     *,
-    calendrier_saisie: List[Dict[str, Any]],
     date_debut_periode: date,
     date_fin_periode: date,
     jours_maintien: Optional[set[int]] = None,
-    actual_hours_raw: Optional[List[Dict[str, Any]]] = None,
+    temps_du_mois: Optional[TempsDuMois] = None,
 ) -> Dict[str, Any] | None:
     from app.modules.payroll.engine.prime_anciennete import calculer_ligne_prime_anciennete
 
     ligne = calculer_ligne_prime_anciennete(
         contexte,
-        calendrier_saisie=calendrier_saisie,
         date_debut_periode=date_debut_periode,
         date_fin_periode=date_fin_periode,
         jours_maintien=jours_maintien,
-        actual_hours_raw=actual_hours_raw,
+        temps_du_mois=temps_du_mois,
     )
     if not ligne:
         return None
@@ -1099,6 +1112,31 @@ def _prime_anciennete_deja_saisie(
 ) -> bool:
     """La prime du mois est saisie : elle remplace le calcul conventionnel."""
     return _saisie_prime_anciennete_du_mois(primes_saisies) is not None
+
+
+def _prime_saisie_hors_assiette_activite_partielle(
+    contexte: ContextePaie, primes_saisies: Optional[List[Dict[str, Any]]]
+) -> None:
+    """La prime d'ancienneté saisie remplace le calcul : l'indemnité d'activité
+    partielle ne porte alors aucune prime dans son assiette, et le bulletin le
+    dit s'il y a des heures chômées (jamais en silence)."""
+    contexte.prime_anciennete_plein_mois = None
+    if heures_chomees_des_saisies(primes_saisies) <= 0:
+        return
+    alertes = getattr(contexte, "alertes_baremes", None)
+    if isinstance(alertes, list):
+        alertes.append(
+            {
+                "code": "activite_partielle_sans_prime_saisie",
+                "severity": "warning",
+                "critique": False,
+                "message": (
+                    "La prime d'ancienneté du mois est saisie à la main : l'indemnité "
+                    "d'activité partielle est calculée sans elle (R5122-18 la compte "
+                    "dans l'assiette). Vérifiez l'indemnité avant de valider."
+                ),
+            }
+        )
 
 
 def _alerte_prime_anciennete_remplacee(
@@ -1440,7 +1478,6 @@ def calculer_salaire_brut(
     date_fin_periode: date,
     primes_saisies: List[Dict[str, Any]] = None,
     jours_maintien: Optional[set[int]] = None,
-    actual_hours_raw: Optional[List[Dict[str, Any]]] = None,
     actual_hours_all_months: Optional[List[Dict[str, Any]]] = None,
     nb_jours_travail_planifies: Optional[int] = None,
     date_debut_variables: Optional[date] = None,
@@ -1811,6 +1848,10 @@ def calculer_salaire_brut(
     # (Colorplast, avril 2026) : 30,50 h retirées de sa paie mais laissées dans
     # son compteur, 82,02 € d'allègement de trop.
     heures_absence_non_payees = float(retenue_entree_sortie_heures or 0.0)
+    #: Les mêmes heures, sans l'entrée ou la sortie ni le férié non payé : ce
+    #: que la prime d'ancienneté perd pour une absence injustifiée, non
+    #: rémunérée ou sans solde (`temps_travail_mois`).
+    heures_absences_non_payees_prime = 0.0
 
     contrat_dates = contexte.contrat.get("contrat", {}) or {}
     date_entree_contrat = _parse_date_contrat(contrat_dates.get("date_entree"))
@@ -1949,13 +1990,16 @@ def calculer_salaire_brut(
                 if not evenement.get("is_regularisation_anterieure"):
                     heures_hs_structurelles_perdues += part_hs
                     heures_absence_non_payees += part_hs
+                    heures_absences_non_payees_prime += part_hs
                 heures_absence_non_payees += part_base
+                heures_absences_non_payees_prime += part_base
                 heures_abs = part_base
                 taux_deduction = taux_horaire_de_base
                 type_ev = "absence_injustifiee_base"
             elif is_hs_absence:
                 heures_absence_hs_total += heures_abs
                 heures_absence_non_payees += heures_abs
+                heures_absences_non_payees_prime += heures_abs
             else:
                 # Même règle que l'arrêt maladie (cf. bloc arret_maladie plus
                 # bas, cas salarié 222) : la retenue « base » d'une journée
@@ -1974,6 +2018,7 @@ def calculer_salaire_brut(
                     heures_abs, _heures_journalieres_contrat(duree_contrat_hebdo)
                 )
                 heures_absence_non_payees += heures_abs
+                heures_absences_non_payees_prime += heures_abs
                 if not evenement.get("is_regularisation_anterieure"):
                     jours_absence_legale_equivalents += (
                         heures_abs / lc.DUREE_LEGALE_HEBDO * 5
@@ -2018,10 +2063,12 @@ def calculer_salaire_brut(
             # cf. salarié 170 mai 2026 MBC : sans cette exclusion, la retenue est
             # sur-évaluée d'une réduction HS structurelles fantôme).
             heures_absence_non_payees += heures_abs
+            heures_absences_non_payees_prime += heures_abs
             if not evenement.get("is_regularisation_anterieure"):
                 if duree_contrat_hebdo > lc.DUREE_LEGALE_HEBDO:
                     heures_hs_structurelles_perdues += part_hs
                     heures_absence_non_payees += part_hs
+                    heures_absences_non_payees_prime += part_hs
                 else:
                     jours_absence_legale_equivalents += (
                         heures_abs / lc.DUREE_LEGALE_HEBDO * 5
@@ -2489,13 +2536,39 @@ def calculer_salaire_brut(
             )
 
     # 6. Ajout des primes, avantages et calcul des totaux
+    # La prime d'ancienneté suit le temps payé du mois (CCN métallurgie, art.
+    # 142 ; `temps_travail_mois`) : ce que la boucle ci-dessus a retenu, les
+    # heures chômées d'activité partielle saisies, les heures sup payées.
+    reference_prime = reference_heures_du_contrat(duree_contrat_hebdo)
+    if retenue_entree_sortie_heures is not None:
+        hors_contrat_prime = float(retenue_entree_sortie_heures)
+    else:
+        hors_contrat_prime = reference_prime * (1.0 - facteur_prorata)
     ligne_prime_anciennete = _calculer_prime_anciennete(
         contexte,
-        calendrier_saisie=calendrier_saisie,
         date_debut_periode=date_debut_periode,
         date_fin_periode=date_fin_periode,
         jours_maintien=jours_maintien,
-        actual_hours_raw=actual_hours_raw,
+        temps_du_mois=TempsDuMois(
+            unite="heures",
+            reference=reference_prime,
+            absences_non_payees=heures_absences_non_payees_prime,
+            activite_partielle=heures_chomees_des_saisies(primes_saisies),
+            hors_contrat=hors_contrat_prime,
+            # Une journée d'arrêt non maintenue retire la journée du contrat
+            # (7,80 h sur 39 h) : la retenue en compte 7 h de base, plus la
+            # quote-part des heures sup structurelles retirée à part.
+            jours_arret=tuple(
+                (jour, quantite * max(duree_contrat_hebdo, lc.DUREE_LEGALE_HEBDO) / lc.DUREE_LEGALE_HEBDO)
+                for jour, _nature, quantite, _regul in jours_d_arret_a_retenir
+            ),
+            heures_sup_majorees=(
+                heures_travail_hs25_total * (1 + majoration_hs25)
+                + heures_travail_hs50_total * (1 + majoration_hs50)
+            ),
+            quotite=quotite_heures(duree_contrat_hebdo),
+            reference_heures_sup=HEURES_MOIS_DUREE_LEGALE,
+        ),
     )
     # La prime du mois saisie remplace le calcul conventionnel, et le bulletin
     # le dit ; une régularisation s'ajoute au calcul.
@@ -2503,6 +2576,8 @@ def calculer_salaire_brut(
     if ligne_prime_anciennete and saisie_anciennete is not None:
         _alerte_prime_anciennete_remplacee(contexte, ligne_prime_anciennete, saisie_anciennete)
         ligne_prime_anciennete = None
+    if saisie_anciennete is not None:
+        _prime_saisie_hors_assiette_activite_partielle(contexte, primes_saisies)
     if ligne_prime_anciennete:
         lignes_composants_brut.append(ligne_prime_anciennete)
     if primes_saisies:

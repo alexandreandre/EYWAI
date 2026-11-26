@@ -34,6 +34,12 @@ export interface SalarieActivitePartielle {
     retenue: number | null;
     indemnite: number | null;
   } | null;
+  /**
+   * Indemnité portée par le bulletin du mois, s'il existe : prime d'ancienneté
+   * comprise dans l'assiette (R5122-18). Sans bulletin, les montants de l'écran
+   * sont avant la prime ; le bulletin les recalcule.
+   */
+  indemnite_bulletin?: number | null;
 }
 
 export interface MoisActivitePartielle {

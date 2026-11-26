@@ -60,7 +60,6 @@ def test_plasturgie_under_first_seniority_tier_has_no_classification_warning():
 
     ligne = calculer_ligne_prime_anciennete(
         contexte,
-        calendrier_saisie=[],
         date_debut_periode=date(2026, 1, 1),
         date_fin_periode=date(2026, 1, 31),
     )

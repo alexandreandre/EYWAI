@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import date
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 from app.modules.collective_agreements.rules.prime_calcul import (
     MOTIF_ANCIENNETE_INSUFFISANTE,
@@ -22,7 +22,7 @@ from app.modules.payroll.engine.contexte import ContextePaie
 
 #: Majoration de la prime d'ancienneté au forfait en jours sur l'année (CCN métallurgie, art. 142 et 139).
 MAJORATION_FORFAIT_JOURS_METALLURGIE = 0.30
-from app.modules.payroll.engine.temps_travail_mois import compute_temps_retenu_mois
+from app.modules.payroll.engine.temps_travail_mois import TempsDuMois, ratio_du_temps_paye
 from app.shared.seniority_reference import resolve_date_anciennete_from_contrat
 from app.modules.payroll.engine.salaire_contractuel import salaire_du_mois_complet
 
@@ -44,7 +44,6 @@ def _prorata_config(regles_prime: dict[str, Any], resolved: dict[str, Any]) -> d
         "mode": raw.get("mode") or "none",
         "inclure_heures_sup": bool(raw.get("inclure_heures_sup", True)),
         "maladie_si_maintien": bool(raw.get("maladie_si_maintien", True)),
-        "sans_pointage_policy": raw.get("sans_pointage_policy") or "plein_mois",
         "ratio_plafond": raw.get("ratio_plafond"),
     }
 
@@ -67,13 +66,18 @@ def _resolve_date_entree(contexte: ContextePaie | Any) -> str:
 def calculer_ligne_prime_anciennete(
     contexte: ContextePaie,
     *,
-    calendrier_saisie: List[Dict[str, Any]],
     date_debut_periode: date,
     date_fin_periode: date,
     jours_maintien: Optional[Set[int]] = None,
-    actual_hours_raw: Optional[List[Dict[str, Any]]] = None,
+    temps_du_mois: Optional[TempsDuMois] = None,
 ) -> Dict[str, Any] | None:
-    """Calcule la ligne bulletin prime d'ancienneté (avec prorata si activé)."""
+    """Calcule la ligne bulletin prime d'ancienneté (avec prorata si activé).
+
+    `temps_du_mois` : ce que le générateur a retenu du mois (absences non payées,
+    activité partielle, arrêts, jours hors contrat, heures sup). Le prorata en
+    suit le temps payé (`temps_travail_mois.ratio_du_temps_paye`). Sans lui, le
+    mois est réputé payé en entier.
+    """
     specificites = contexte.contrat.get("specificites_paie", {}) or {}
     if isinstance(specificites, dict):
         prime_anc_spec = specificites.get("prime_anciennete", {}) or {}
@@ -233,29 +237,33 @@ def calculer_ligne_prime_anciennete(
     ratio = 1.0
     temps_detail: dict[str, Any] = {}
 
-    if prorata_cfg["enabled"]:
+    if prorata_cfg["enabled"] and prorata_cfg["mode"] != "none":
         plafond = prorata_cfg.get("ratio_plafond")
         try:
             plafond_f = float(plafond) if plafond is not None else None
         except (TypeError, ValueError):
             plafond_f = None
 
-        mode = prorata_cfg["mode"]
-        if mode == "heures_contrat" and getattr(contexte, "is_forfait_jour", False):
-            mode = "jours_forfait"
-
-        temps = compute_temps_retenu_mois(
-            mode=mode,
-            calendrier_saisie=calendrier_saisie,
-            duree_hebdo=contexte.duree_hebdo_contrat,
-            date_debut=date_debut_periode,
-            date_fin=date_fin_periode,
+        # Les deux modes en base (« heures_contrat », et « jours_forfait » choisi
+        # pour un forfait) mènent à la même règle : le temps payé du mois, mesuré
+        # par le générateur dans son unité (heures, ou jours au forfait).
+        if temps_du_mois is None:
+            temps_du_mois = TempsDuMois(unite="heures", reference=1.0)
+        # La prime d'un mois travaillé (plein mois × quotité du temps partiel ou
+        # du forfait réduit) entre dans l'assiette de l'indemnité d'activité
+        # partielle (R5122-18 ; `activite_partielle.indemnite_avec_la_prime`),
+        # même quand un mois chômé en entier ramène la prime à zéro. Seulement
+        # quand la prime baisse avec les heures chômées : une prime versée en
+        # entier (sans prorata) les paie déjà, la compter deux fois serait trop.
+        contexte.prime_anciennete_plein_mois = round(
+            plein_mois.montant_plein_mois * min(max(float(temps_du_mois.quotite), 0.0), 1.0), 2
+        )
+        temps = ratio_du_temps_paye(
+            temps_du_mois,
             jours_maintien=jours_maintien,
-            inclure_heures_sup=prorata_cfg["inclure_heures_sup"],
             maladie_si_maintien=prorata_cfg["maladie_si_maintien"],
-            sans_pointage_policy=prorata_cfg["sans_pointage_policy"],
+            inclure_heures_sup=prorata_cfg["inclure_heures_sup"],
             ratio_plafond=plafond_f,
-            actual_hours_raw=actual_hours_raw,
         )
         ratio = temps.ratio
         temps_detail = {

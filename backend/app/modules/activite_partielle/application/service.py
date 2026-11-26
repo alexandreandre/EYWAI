@@ -22,6 +22,7 @@ from app.modules.activite_partielle.domain.calendrier import (
     jours_chomes,
 )
 from app.modules.activite_partielle.domain.calcul import (
+    CLE_CALCUL_INDEMNITE,
     LIBELLE_INDEMNITE,
     LIBELLE_RETENUE,
     LIBELLES,
@@ -176,6 +177,16 @@ def _jours_du_forfait(e: dict[str, Any]) -> float | None:
             leave_settings_repository.get_leave_policy(str(e["company_id"])).rtt_forfait_annual_days
         )
     return jours
+
+
+def _salaire_mensuel(e: dict[str, Any]) -> float | None:
+    """Le salaire du mois qui fait le salaire horaire (`_taux_horaire`)."""
+    valeur = e.get("salaire_de_base")
+    valeur = valeur.get("valeur") if isinstance(valeur, dict) else valeur
+    try:
+        return float(valeur)
+    except (TypeError, ValueError):
+        return None
 
 
 def _taux_horaire(e: dict[str, Any]) -> float | None:
@@ -425,6 +436,7 @@ def lister_mois(company_id: str, year: int, month: int) -> dict[str, Any]:
             p["indemnite"] += float(ligne.get("amount") or 0)
     du_mois = _salaries_du_mois(company_id, year, month)
     recap = recap_du_calendrier(company_id, year, month, du_mois, reglage)
+    au_bulletin = _indemnites_des_bulletins(company_id, year, month)
     salaries = []
     for e in sorted(du_mois, key=lambda r: _nom(r).lower()):
         eid = str(e["id"])
@@ -451,6 +463,10 @@ def lister_mois(company_id: str, year: int, month: int) -> dict[str, Any]:
                 ),
                 # Jours posés au calendrier : ils font foi au bulletin.
                 "calendrier": recap.get(eid),
+                # L'indemnité du bulletin du mois, s'il existe : prime
+                # d'ancienneté comprise (R5122-18). Sans bulletin, l'écran dit que
+                # ses montants sont avant la prime, recalculés au bulletin.
+                "indemnite_bulletin": au_bulletin.get(eid),
             }
         )
     return {
@@ -581,6 +597,7 @@ def lignes_du_calendrier(
         date(year, month, 1),
         date(year, month, calendar.monthrange(year, month)[1]),
     )
+    saisies = _calcul_des_lignes_de_l_onglet(company_id, employee, saisies)
     if not any(str(j.get("type") or "") == TYPE_JOUR for j in prevu):
         return saisies, None
     debut = _pas_avant_l_embauche(employee, _apres_la_reprise(company_id, year, month, debut))
@@ -630,6 +647,10 @@ def lignes_du_calendrier(
         "source": "calendrier_activite_partielle",
     }
     lignes = [{**commun, **ligne} for ligne in _deux_lignes(c)]
+    # Ce qu'il faut au bulletin pour porter la prime d'ancienneté dans
+    # l'assiette de l'indemnité (R5122-18), une fois la prime connue
+    # (`payroll.engine.activite_partielle.indemnite_avec_la_prime`).
+    lignes[1][CLE_CALCUL_INDEMNITE] = _calcul_de_l_indemnite(c, employee, reglage)
     refus = refus_periode(reglage, year, month)
     au_dela = _au_dela_de_la_duree_legale(employee)
     alerte = (
@@ -654,6 +675,49 @@ def lignes_du_calendrier(
         else None
     )
     return gardees + lignes, alerte
+
+
+def _calcul_de_l_indemnite(c: Any, employee: dict[str, Any], reglage: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "heures": c.heures_chomees,
+        "taux_horaire": c.taux_horaire,
+        "salaire_mensuel": _salaire_mensuel(employee),
+        "taux_indemnite": float(reglage["taux_indemnite"]),
+        "plancher": float(reglage["plancher_horaire"]),
+        "plafond": float(reglage["plafond_horaire"]),
+    }
+
+
+def _calcul_des_lignes_de_l_onglet(
+    company_id: str, employee: dict[str, Any], saisies: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """L'indemnité posée depuis l'onglet « Activité partielle » (`poser_heures_du_mois`)
+    reçoit le même calcul que celle du calendrier, pour que le bulletin y porte la
+    prime d'ancienneté (R5122-18). Elle se reconnaît sans colonne nouvelle : son
+    nom, sa marque `manual_override`, ses heures, et un montant égal à ce que
+    l'onglet calcule aujourd'hui pour ces heures. Une ligne retouchée à la main
+    (autre montant) reste telle quelle. Rien n'est écrit : la ligne est copiée."""
+    candidates = [
+        i
+        for i, r in enumerate(saisies)
+        if r.get("name") == LIBELLE_INDEMNITE
+        and r.get("manual_override")
+        and _nombre(r.get("payroll_quantity")) > 0
+        and CLE_CALCUL_INDEMNITE not in r
+    ]
+    if not candidates:
+        return saisies
+    taux = _taux_horaire(employee)
+    if not taux:
+        return saisies
+    reglage = lire_reglage(company_id)
+    resultat = list(saisies)
+    for i in candidates:
+        ligne = saisies[i]
+        c = _calcul(_nombre(ligne["payroll_quantity"]), taux, reglage)
+        if abs(c.indemnite - _nombre(ligne.get("amount"))) < 0.005:
+            resultat[i] = {**ligne, CLE_CALCUL_INDEMNITE: _calcul_de_l_indemnite(c, employee, reglage)}
+    return resultat
 
 
 def _au_dela_de_la_duree_legale(e: dict[str, Any]) -> str | None:
@@ -860,6 +924,33 @@ def recap_du_calendrier(
             "indemnite": c.indemnite if c else None,
         }
     return recap
+
+
+def _indemnites_des_bulletins(company_id: str, year: int, month: int) -> dict[str, float]:
+    """Par salarié : l'indemnité d'activité partielle de ses bulletins du mois."""
+    from app.modules.payroll.engine.activite_partielle import PRIME_ID_INDEMNITE
+
+    rows = (
+        _db()
+        .table("payslips")
+        .select("employee_id, revenus:payslip_data->revenus_hors_brut_imposables")
+        .eq("company_id", company_id)
+        .eq("year", year)
+        .eq("month", month)
+        .execute()
+        .data
+        or []
+    )
+    par_salarie: dict[str, float] = {}
+    for r in rows:
+        revenus = r.get("revenus")
+        if revenus is None:
+            revenus = (r.get("payslip_data") or {}).get("revenus_hors_brut_imposables")
+        for ligne in revenus or []:
+            if isinstance(ligne, dict) and ligne.get("prime_id") == PRIME_ID_INDEMNITE:
+                eid = str(r["employee_id"])
+                par_salarie[eid] = round(par_salarie.get(eid, 0.0) + _nombre(ligne.get("montant")), 2)
+    return par_salarie
 
 
 def _bulletin_remis(employee_id: str, year: int, month: int) -> bool:
