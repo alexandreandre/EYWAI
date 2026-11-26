@@ -15,7 +15,7 @@ from app.modules.payroll.application.arrets_reportes import (
     appliquer_le_report_aux_evenements,
 )
 from app.modules.payroll.documents.arrets_reportes_bulletin import (
-    appliquer_le_maintien_reporte,
+    appliquer_les_arrets_reportes,
     poser_la_trace,
 )
 from app.modules.payroll.engine.analyser_jours_forfait import (
@@ -216,6 +216,7 @@ def heures_reduction_du_mois(
     resultat_brut: Dict[str, Any],
     resultats_maintien: Dict[str, Any] | None,
     jours_du_forfait: float,
+    maintien_des_arrets_reportes: float = 0.0,
 ) -> float:
     """Heures du SMIC de référence de la réduction générale pour ce bulletin forfait.
 
@@ -224,9 +225,10 @@ def heures_reduction_du_mois(
     arrêt sans maintien intégral, entrée ou sortie : corrigé du rapport des
     salaires, maintien employeur compris (CSS D241-7, IV, 3e et 5e alinéas).
     """
+    # Les retenues du mois comprennent celles des arrêts reportés : leur maintien aussi.
     maintien_verse = float(
         ((resultats_maintien or {}).get("maintien", {}) or {}).get("maintien_verse") or 0.0
-    )
+    ) + float(maintien_des_arrets_reportes or 0.0)
     rapport = rapport_salaires_forfait_jours(
         float(resultat_brut.get("salaire_forfait_mois") or 0.0),
         float(resultat_brut.get("retenues_absence_mois") or 0.0),
@@ -459,29 +461,6 @@ def run_payslip_generation_forfait(
                 ev["date_complete"] = date(ev_annee, ev_mois, ev_jour).isoformat()
             calendrier_etendu.append(ev)
 
-        # Arrêt arrivé après la validation du bulletin précédent (Elsa, 26/11) :
-        # ses jours, analysés sur la période précédente, sont repris ici à leur
-        # date ; ceux que le bulletin suivant a déjà repris ne sont pas recomptés.
-        report_des_arrets = Report.depuis_les_saisies(saisie_du_mois)
-        if report_des_arrets.jours or report_des_arrets.repris:
-            debut_precedent, fin_precedente = definir_periode_de_paie(
-                contexte, annee_prec, mois_prec
-            )
-            calendrier_etendu = appliquer_le_report_aux_evenements(
-                calendrier_etendu,
-                analyser_jours_forfait_du_mois(
-                    planned_data_all_months,
-                    actual_data_all_months,
-                    annee_prec,
-                    mois_prec,
-                    employee_folder_name,
-                    date_debut_periode=debut_precedent,
-                    date_fin_periode=fin_precedente,
-                ),
-                report_des_arrets,
-                year,
-                month,
-            )
 
     # Premier mois après une reprise : la période du forfait déborde sur le mois
     # payé par l'ancien logiciel (21/09 → 25/10 pour octobre). Ses absences ont
@@ -491,6 +470,13 @@ def run_payslip_generation_forfait(
     # La période elle-même ne bouge pas (prorata d'entrée, plafond). Aux heures,
     # même règle dans `calcul_brut` ; le maintien y suit le mois civil.
     contexte.fin_de_la_reprise = fin_de_la_reprise_au_premier_mois(company_id, year, month)
+    # Arrêt arrivé après la validation du bulletin précédent (Elsa, 26/11) :
+    # ses jours, tirés du planning de leur mois (mois d'avant la période
+    # compris), sont repris ici à leur date ; ceux que le bulletin suivant a
+    # déjà repris ne sont pas recomptés.
+    calendrier_etendu = appliquer_le_report_aux_evenements(
+        calendrier_etendu, [], Report.depuis_les_saisies(saisie_du_mois), year, month
+    )
     # La trace des arrêts voit aussi les jours que l'ancien logiciel a traités :
     # le bulletin suivant ne doit pas les reprendre.
     calendrier_de_la_trace = list(calendrier_etendu)
@@ -740,14 +726,27 @@ def run_payslip_generation_forfait(
                 signaler_repli(contexte, CODE_REPLI_MAINTIEN)
                 resultats_maintien = None
 
-    # Arrêt reporté du bulletin précédent : son maintien et ses IJ, sur ses
-    # seules dates, rejoignent ceux du mois (une ligne de chaque au bulletin).
-    resultats_maintien = appliquer_le_maintien_reporte(
-        resultats_maintien, calendrier_etendu, contexte, company_id, resolved_employee_id
-    )
     lignes_csg_ijss, ijss_imposables, brut_modifie = _appliquer_maintien_arret_maladie(
         contexte, resultats_maintien, details_brut
     )
+    # Arrêt reporté du bulletin précédent : son maintien et ses IJ, calculés
+    # sur ses seules dates, une ligne de chaque par arrêt (Elsa, 26/11).
+    effet_du_report = appliquer_les_arrets_reportes(
+        contexte,
+        calendrier_etendu,
+        details_brut,
+        lignes_csg_ijss,
+        ijss_imposables,
+        company_id=company_id,
+        employee_id=resolved_employee_id,
+        year=year,
+        month=month,
+        saisie_du_mois=saisie_du_mois,
+        avec_arret_du_mois=resultats_maintien is not None,
+    )
+    lignes_csg_ijss = effet_du_report.lignes_csg_ijss
+    ijss_imposables = effet_du_report.ijss_imposables
+    brut_modifie = brut_modifie or effet_du_report.brut_modifie
     # Lignes de gain posées après le calcul du brut (nuit, pause, maintien) :
     # corrigées ici, puis le brut se refait sur les lignes.
     effet_gains = corriger_les_lignes_de_gain(details_brut, contexte.corrections_du_mois)
@@ -853,7 +852,9 @@ def run_payslip_generation_forfait(
     # 150,28 h pour 216 jours). Aussi le « Cumul heures » des cumuls, que relit
     # la régularisation du mois suivant.
     jours_du_forfait = jours_du_forfait_pour_reduction(contexte, company_id)
-    heures_reduction = heures_reduction_du_mois(resultat_brut, resultats_maintien, jours_du_forfait)
+    heures_reduction = heures_reduction_du_mois(
+        resultat_brut, resultats_maintien, jours_du_forfait, effet_du_report.maintien_verse
+    )
     # Le maintien d'arrêts passés, payé ce mois-ci, en rétablit les heures (BOSS § 800).
     heures_reduction = max(
         0.0,
@@ -968,7 +969,14 @@ def run_payslip_generation_forfait(
     # Règle 7 : une correction qui n'a pas trouvé sa ligne reste sur le bulletin.
     poser_les_corrections_en_attente(bulletin_final, contexte.corrections_du_mois)
     # Les jours d'arrêt que ce bulletin a traités : le suivant reprend les autres.
-    poser_la_trace(bulletin_final, calendrier_de_la_trace, date_debut_periode, date_fin_periode)
+    poser_la_trace(
+        bulletin_final,
+        calendrier_de_la_trace,
+        date_debut_periode,
+        date_fin_periode,
+        saisie_du_mois,
+        effet_du_report.blocs,
+    )
 
     smic_calcule_mois = (
         contexte.baremes.get("smic", {}).get("cas_general", 0.0) * heures_equivalentes

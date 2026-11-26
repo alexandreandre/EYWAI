@@ -196,7 +196,7 @@ COMMUNES: dict[str, dict[str, str]] = {
         "imprimer_le_bulletin": "le PDF",
         "fin_de_la_reprise_au_premier_mois": "premier mois après une reprise : absences déjà traitées (17/11)",
         "arrets_de_l_annee": "carence payée N jours par an : les arrêts de l'année (17/11)",
-        "appliquer_le_maintien_reporte": "maintien et IJ de l'arrêt repris du bulletin précédent, sur ses seules dates (26/11)",
+        "appliquer_les_arrets_reportes": "maintien et IJ de l'arrêt repris du bulletin précédent, sur ses seules dates, un bloc par arrêt (26/11)",
         "poser_la_trace": "les jours d'arrêt traités par le bulletin, pour le bulletin suivant (26/11)",
     },
 }
@@ -284,8 +284,7 @@ FORFAIT_SEULEMENT: dict[str, dict[str, str]] = {
         "debut_apres_la_reprise": "idem, le maintien commence après la bascule (aux heures : mois civil)",
         "fin_au_depart": "mois de sortie après la fin de la période décalée : la période va jusqu'au départ (A9 ; aux heures, dans le générateur, sur la fenêtre des variables)",
         "appliquer_le_report_aux_evenements": "arrêts repris du bulletin précédent : le moteur du forfait analyse ses jours (aux heures, dans le générateur)",
-        "definir_periode_de_paie": "la période précédente, d'où viennent les jours d'arrêt repris",
-        "depuis_les_saisies": "idem, le report passé par le générateur du forfait dans les saisies du mois",
+        "depuis_les_saisies": "idem, le report passé par le générateur du forfait dans les saisies du mois (aux heures, lu par la trace et les lignes du report)",
     },
 }
 

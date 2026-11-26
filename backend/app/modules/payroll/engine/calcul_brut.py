@@ -129,7 +129,7 @@ def _heures_absence_non_remuneree(evenement: Dict[str, Any], duree_hebdo: float)
 
 
 def _periodes_d_arret(
-    jours: list[tuple[date, str, float, bool]],
+    jours: list[tuple[date, str, float, Any]],
 ) -> list[Dict[str, Any]]:
     """Regroupe les jours d'arrêt retenus en périodes continues.
 
@@ -168,7 +168,7 @@ def _periodes_d_arret(
 def _libelle_periode_d_arret(periode: Dict[str, Any]) -> str:
     nature = LIBELLES_ARRET.get(periode["type"], "arrêt de travail")
     debut, fin = periode["debut"], periode["fin"]
-    if periode.get("regularisation"):
+    if periode.get("regularisation") == "reporte":
         # Jours d'un mois précédent (arrêt reporté) : l'année se lit aussi.
         if debut == fin:
             return f"Absence {nature} du {debut:%d/%m/%y} (arrêt reporté)"
@@ -1904,8 +1904,9 @@ def calculer_salaire_brut(
     # mensualisé total (ci-dessus) UNIQUEMENT si `nb_jours_travail_planifies==0`
     # (aucun jour "travail" dans le calendrier BRUT du mois, cf. docstring).
     montant_absence_pleine_total = 0.0
-    #: Jours d'arrêt retenus : (date, type, heures, régularisation antérieure).
-    jours_d_arret_a_retenir: list[tuple[date, str, float, bool]] = []
+    #: Jours d'arrêt retenus : (date, type, heures, régularisation antérieure :
+    #: False, True, ou « reporte » pour un arrêt repris du bulletin précédent).
+    jours_d_arret_a_retenir: list[tuple[date, str, float, Any]] = []
     for evenement in jours_dans_periode:
         type_ev = evenement.get("type", "")
         heures = evenement.get("heures", 0.0)
@@ -2155,8 +2156,17 @@ def calculer_salaire_brut(
                 _heures_journalieres_contrat(duree_contrat_hebdo),
             )
             heures_arret_deduites += heures_abs
-            regularisation = bool(evenement.get("is_regularisation_anterieure"))
-            if not regularisation:
+            # Arrêt reporté d'un bulletin précédent (Elsa, 26/11) : comme Quadra
+            # chez Comitech (juillet 2026, arrêt du 29-30/06 sur juillet, 20
+            # journées × 0,80 h), sa journée retire aussi sa part d'heures sup
+            # structurelles. Une régularisation saisie à la main garde la règle
+            # du cabinet de MBC (salarié 170, mai 2026) : pas de part d'HS.
+            regularisation = (
+                "reporte"
+                if evenement.get("arret_reporte")
+                else bool(evenement.get("is_regularisation_anterieure"))
+            )
+            if not regularisation or regularisation == "reporte":
                 jours_absence_legale_equivalents += (
                     heures_abs / lc.DUREE_LEGALE_HEBDO * 5
                 )

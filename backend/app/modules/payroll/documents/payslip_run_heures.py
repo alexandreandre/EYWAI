@@ -12,7 +12,7 @@ import re
 from jinja2 import Environment, FileSystemLoader
 
 from app.modules.payroll.documents.arrets_reportes_bulletin import (
-    appliquer_le_maintien_reporte,
+    appliquer_les_arrets_reportes,
     poser_la_trace,
 )
 from app.modules.payroll.engine.bulletin import creer_bulletin_final, creer_bulletin_sortie
@@ -1348,16 +1348,29 @@ def run_payslip_generation_heures(
                 signaler_repli(contexte, CODE_REPLI_MAINTIEN)
                 resultats_maintien = None
 
-    # Arrêt reporté du bulletin précédent : son maintien et ses IJ, sur ses
-    # seules dates, rejoignent ceux du mois (une ligne de chaque au bulletin).
-    resultats_maintien = appliquer_le_maintien_reporte(
-        resultats_maintien, calendrier_etendu, contexte, company_id, employee_id
-    )
     # Arrêt maladie : recomposer le brut (maintien employeur soumis cotisations)
     # AVANT cotisations/RGDU ; préparer les IJSS subrogées et leur CSG/CRDS.
     lignes_csg_ijss, ijss_imposables, brut_modifie = _appliquer_maintien_arret_maladie(
         contexte, resultats_maintien, details_brut
     )
+    # Arrêt reporté du bulletin précédent : son maintien et ses IJ, calculés
+    # sur ses seules dates, une ligne de chaque par arrêt (Elsa, 26/11).
+    effet_du_report = appliquer_les_arrets_reportes(
+        contexte,
+        calendrier_etendu,
+        details_brut,
+        lignes_csg_ijss,
+        ijss_imposables,
+        company_id=company_id,
+        employee_id=employee_id,
+        year=year,
+        month=month,
+        saisie_du_mois=saisie_du_mois,
+        avec_arret_du_mois=resultats_maintien is not None,
+    )
+    lignes_csg_ijss = effet_du_report.lignes_csg_ijss
+    ijss_imposables = effet_du_report.ijss_imposables
+    brut_modifie = brut_modifie or effet_du_report.brut_modifie
     # Lignes de gain posées après le calcul du brut (nuit, pause, maintien) :
     # corrigées ici, puis le brut se refait sur les lignes.
     effet_gains = corriger_les_lignes_de_gain(details_brut, contexte.corrections_du_mois)
@@ -1543,9 +1556,10 @@ def run_payslip_generation_heures(
     heures_arret_non_maintenues = 0.0
     if heures_arret > 0:
         deduction_arret = float(resultat_brut.get("deduction_arret_maladie") or 0.0)
+        # Le maintien des arrêts reportés répond à leurs heures, retenues ici aussi.
         maintien_verse = float(
             ((resultats_maintien or {}).get("maintien", {}) or {}).get("maintien_verse") or 0.0
-        )
+        ) + effet_du_report.maintien_verse
         part_maintenue = (
             min(1.0, maintien_verse / deduction_arret) if deduction_arret > 0 else 0.0
         )
@@ -1663,7 +1677,14 @@ def run_payslip_generation_heures(
     # Règle 7 : une correction qui n'a pas trouvé sa ligne reste sur le bulletin.
     poser_les_corrections_en_attente(bulletin_final, contexte.corrections_du_mois)
     # Les jours d'arrêt que ce bulletin a traités : le suivant reprend les autres.
-    poser_la_trace(bulletin_final, calendrier_etendu, date_debut_periode, date_fin_periode)
+    poser_la_trace(
+        bulletin_final,
+        calendrier_etendu,
+        date_debut_periode,
+        date_fin_periode,
+        saisie_du_mois,
+        effet_du_report.blocs,
+    )
 
     smic_calcule_mois = (
         contexte.baremes.get("smic", {}).get("cas_general", 0.0) * total_heures_mois
