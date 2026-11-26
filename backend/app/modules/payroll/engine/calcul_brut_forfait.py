@@ -35,7 +35,8 @@ from .calcul_brut import (
     montant_iccp_saisie,
 )
 from .activite_partielle import heures_chomees_des_saisies
-from .temps_travail_mois import TempsDuMois, jours_ouvres_hors_feries
+from .forfait_individuel import jours_du_forfait_de_la_fiche
+from .temps_travail_mois import TempsDuMois, jours_ouvres_hors_feries, quotite_forfait
 
 #: Une journée de forfait vaut 7 h (fiche « forfaits jours » du ministère du
 #: Travail) : les heures chômées d'activité partielle en jours.
@@ -547,7 +548,9 @@ def calculer_salaire_brut_forfait(
             jours_abs = _jours_evenement_absence(evenement)
             jours_absence_non_payes += jours_abs
             jour_arret = date.fromisoformat(evenement["date_complete"])
-            if jour_arret.weekday() < 5 and jour_arret not in feries_periode:
+            # Un férié compris dans l'arrêt y est retypé (`feries_retenus_avec_leur_absence`) :
+            # retenu comme jour d'arrêt, il compte aussi pour la prime.
+            if jour_arret.weekday() < 5:
                 jours_arret_prime.append((jour_arret, jours_abs))
             date_absence = jour_arret.strftime("%d/%m/%y")
             montant_deduction = round(jours_abs * salaire_journalier_absence, 2)
@@ -679,7 +682,19 @@ def calculer_salaire_brut_forfait(
     # 4. Ajout des primes, avantages et calcul des totaux
     # La prime d'ancienneté suit les jours payés de la période (CCN métallurgie,
     # art. 142 ; `temps_travail_mois`) : congés, fériés, RTT, formation et arrêt
-    # maintenu restent payés ; une journée d'activité partielle vaut 7 h.
+    # maintenu restent payés ; une journée d'activité partielle vaut 7 h. Les
+    # jours hors contrat s'y retirent dans la même proportion que du salaire
+    # (jours ouvrés du mois, fériés compris) ; un forfait réduit la touche au
+    # prorata de ses jours (÷ 218).
+    reference_prime = float(len(jours_ouvres_hors_feries(debut_prorata, fin_prorata, feries_periode)))
+    hors_contrat_prime = (
+        reference_prime * len(jours_hors_contrat) / len(jours_ouvres_mois) if jours_ouvres_mois else 0.0
+    )
+    try:
+        jours_forfait_fiche = jours_du_forfait_de_la_fiche((contexte.contrat or {}).get("specificites_paie"))
+    except ValueError:
+        # Forfait de fiche illisible : la réduction générale arrête le bulletin et le dit.
+        jours_forfait_fiche = None
     ligne_prime_anciennete = _calculer_prime_anciennete(
         contexte,
         date_debut_periode=date_debut_periode,
@@ -687,11 +702,12 @@ def calculer_salaire_brut_forfait(
         jours_maintien=jours_maintien,
         temps_du_mois=TempsDuMois(
             unite="jours",
-            reference=float(len(jours_ouvres_hors_feries(debut_prorata, fin_prorata, feries_periode))),
+            reference=reference_prime,
             absences_non_payees=jours_absences_non_payees_prime,
             activite_partielle=heures_chomees_des_saisies(primes_saisies) / HEURES_JOURNEE_FORFAIT,
-            hors_contrat=float(sum(1 for jour in jours_hors_contrat if jour not in feries_periode)),
+            hors_contrat=hors_contrat_prime,
             jours_arret=tuple(jours_arret_prime),
+            quotite=quotite_forfait(jours_forfait_fiche),
         ),
     )
     # Comme au générateur des heures : la prime du mois saisie remplace le

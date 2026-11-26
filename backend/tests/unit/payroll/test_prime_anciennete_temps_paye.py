@@ -39,16 +39,24 @@ PERIODE_19_JOURS = (date(2026, 11, 2), date(2026, 11, 27))
 LIBELLE_AP = "Heures chômées (act. part.)"
 
 
-def _contexte(*, forfait: bool = False, date_sortie: str | None = None):
+def _contexte(
+    *,
+    forfait: bool = False,
+    date_sortie: str | None = None,
+    duree: float = 35,
+    classe: int = 8,
+    date_entree: str = "2021-06-14",
+    jours_forfait: float | None = None,
+):
     employee = {
-        "date_entree": "2021-06-14",
+        "date_entree": date_entree,
         "statut": "Non-cadre",
-        "duree_hebdomadaire": 35,
+        "duree_hebdomadaire": duree,
         "salaire_base": 2400.0,
         "is_forfait_jour": forfait,
         "type_contrat": "CDI",
         "convention_collective": {"idcc": "3248", "libelle": "Métallurgie"},
-        "classification_conventionnelle": {"classe_emploi": 8, "coefficient": 8},
+        "classification_conventionnelle": {"classe_emploi": classe, "coefficient": classe},
     }
     company = {
         "adresse_code_postal": "79140",
@@ -59,6 +67,8 @@ def _contexte(*, forfait: bool = False, date_sortie: str | None = None):
     ctx.year = 2026
     if date_sortie:
         ctx.contrat["contrat"]["date_sortie"] = date_sortie
+    if jours_forfait is not None:
+        ctx.contrat.setdefault("specificites_paie", {})["forfait_annual_days"] = jours_forfait
     return ctx
 
 
@@ -208,20 +218,24 @@ def test_forfait_arret_maintenu_puis_non_maintenu():
     assert _forfait(cal, jours_maintien={17, 18}) == round(PLEIN_FORFAIT * round(18 / 19, 6), 2)
 
 
-# 8) Mois de sortie : la prime suit les jours sous contrat.
+# 8) Mois de sortie : la prime suit les jours sous contrat, dans la même proportion que le salaire.
 def test_heures_mois_de_sortie():
     """Sortie le vendredi 13/11 : 10 jours ouvrés sous contrat sur 21."""
     ctx = _contexte(date_sortie="2026-11-13")
     cal = _calendrier_heures(date(2026, 11, 1), date(2026, 11, 13), {11: FERIE})
     attendu = round(PLEIN_HEURES * round(10 / 21, 6), 2)
-    assert _heures(cal, ctx=ctx) == attendu
+    assert _heures(cal, ctx=ctx) == attendu == 40.05
 
 
-def test_forfait_mois_de_sortie():
-    """Sortie le vendredi 13/11, mois civil : 9 jours sous contrat sur 20 (11/11 férié)."""
+def test_forfait_mois_de_sortie_suit_le_salaire():
+    """Sortie le vendredi 13/11, mois civil : le salaire du forfait paie 10 jours ouvrés sur 21
+    (fériés compris des deux côtés) ; la prime aussi, comme aux heures, et non 9 sur 20."""
     ctx = _contexte(forfait=True, date_sortie="2026-11-13")
     cal = _calendrier_forfait(date(2026, 11, 1), date(2026, 11, 30), {11: FERIE})
-    assert _forfait(cal, periode=NOVEMBRE, ctx=ctx) == round(PLEIN_FORFAIT * round(9 / 20, 6), 2)
+    resultat = calculer_salaire_brut_forfait(ctx, cal, *NOVEMBRE, [], jours_maintien=set())
+    retenue = next(l for l in resultat["lignes_composants_brut"] if l.get("is_entree_sortie"))
+    assert retenue["quantite"] == 11.0  # 11 jours ouvrés sur 21 retirés du salaire
+    assert _prime(resultat) == round(PLEIN_FORFAIT * round(10 / 21, 6), 2) == 52.06
 
 
 # 9) Forfait : 2 jours d'activité partielle sur 19 → 17/19.
@@ -248,3 +262,63 @@ def test_forfait_rtt_formation_ecole_restent_payes():
 def test_forfait_absence_injustifiee_un_jour():
     cal = _calendrier_forfait(*PERIODE_19_JOURS, {11: FERIE, 16: {"type": "absence_injustifiee_base", "heures": 1.0}})
     assert _forfait(cal) == round(PLEIN_FORFAIT * round(18 / 19, 6), 2)
+
+
+# Férié compris dans un arrêt non maintenu : retenu avec l'arrêt, au salaire comme à la prime.
+def test_heures_ferie_dans_un_arret_non_maintenu():
+    """Arrêt du lundi 9 au vendredi 13/11, le 11 férié, rien de maintenu : 5 × 7 h."""
+    cal = _calendrier_heures(*NOVEMBRE, {**{d: ARRET for d in (9, 10, 12, 13)}, 11: FERIE})
+    assert _heures(cal, jours_maintien=set()) == round(PLEIN_HEURES * round((151.67 - 35) / 151.67, 6), 2)
+
+
+def test_forfait_ferie_dans_un_arret_non_maintenu():
+    """Même arrêt au forfait : le salaire retient 5 journées, la prime aussi (14/19, pas 15/19)."""
+    cal = _calendrier_forfait(*PERIODE_19_JOURS, {**{d: ARRET for d in (9, 10, 12, 13)}, 11: FERIE})
+    resultat = calculer_salaire_brut_forfait(_contexte(forfait=True), cal, *PERIODE_19_JOURS, [], jours_maintien=set())
+    retenus = [l for l in resultat["lignes_composants_brut"] if str(l.get("libelle")).startswith("Absence maladie")]
+    assert len(retenus) == 5
+    assert _prime(resultat) == round(PLEIN_FORFAIT * round(14 / 19, 6), 2)
+
+
+# Temps partiel et forfait réduit : la prime suit la durée du contrat rapportée à la durée pleine.
+def test_heures_temps_partiel_28_h_comme_le_cabinet():
+    """28 h, classe 4, 11 ans, point de 5,70 € (février 2026) : le cabinet a versé
+    5,70 × 1,95 % × 100 × 11 × 0,8 = 97,81 € ; la durée du contrat seule donnait 122,27 €.
+    Martine arrondit le plein mois avant le prorata (122,27 × 0,8 = 97,82) : un centime d'écart,
+    connu, hors de ce lot."""
+    ctx = _contexte(duree=28, classe=4, date_entree="2015-01-05")
+    assert _heures(_calendrier_heures(*FEVRIER), periode=FEVRIER, ctx=ctx) == round(122.27 * 0.8, 2) == 97.82
+
+
+def test_heures_temps_partiel_avec_une_absence():
+    """28 h : une journée d'absence injustifiée de 5,6 h sur les 121,33 h du contrat."""
+    ctx = _contexte(duree=28)
+    cal = _calendrier_heures(*NOVEMBRE, {16: {"type": "absence_injustifiee_base", "heures": 5.6}})
+    attendu = round(PLEIN_HEURES * round(0.8 * (121.33 - 5.6) / 121.33, 6), 2)
+    assert _heures(cal, ctx=ctx) == attendu
+
+
+def test_heures_au_dela_de_35_h_prime_pleine_sans_majorer_les_heures_structurelles():
+    """37,5 h, classe 6, 3 ans, février 2026 : le cabinet verse 5,70 × 2,45 % × 100 × 3 = 41,90 €.
+    Question ouverte : l'art. 142 dit que la prime « supporte » les majorations d'heures sup."""
+    # Martine : 41,89 (5,70 × 2,45 × 3 = 41,895, arrondi du plein mois en flottant) ; un centime
+    # d'écart avec le cabinet, connu, hors de ce lot. La prime n'est pas majorée par les 2,5 h.
+    ctx = _contexte(duree=37.5, classe=6, date_entree="2022-06-13")
+    assert _heures(_calendrier_heures(*FEVRIER), periode=FEVRIER, ctx=ctx) == 41.89
+
+
+def test_heures_au_dela_de_35_h_les_heures_sup_du_mois_se_rapportent_a_151_67():
+    ctx = _contexte(duree=37.5, classe=6, date_entree="2022-06-13")
+    cal = _calendrier_heures(*FEVRIER, {6: {"type": "travail_hs25", "heures": 6.93}})
+    assert _heures(cal, periode=FEVRIER, ctx=ctx) == round(41.89 * round(1 + 6.93 * 1.25 / 151.67, 6), 2)
+
+
+def test_forfait_reduit_au_prorata_de_ses_jours():
+    """Forfait de 109 jours : la moitié de 218, la moitié de la prime."""
+    ctx = _contexte(forfait=True, jours_forfait=109)
+    assert _forfait(_calendrier_forfait(*PERIODE_19_JOURS, {11: FERIE}), ctx=ctx) == round(PLEIN_FORFAIT * 0.5, 2)
+
+
+def test_forfait_plein_sur_la_fiche_prime_pleine():
+    ctx = _contexte(forfait=True, jours_forfait=218)
+    assert _forfait(_calendrier_forfait(*PERIODE_19_JOURS, {11: FERIE}), ctx=ctx) == PLEIN_FORFAIT

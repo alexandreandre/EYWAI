@@ -20,10 +20,19 @@ Règle (enquête du 26/11/2026, textes ouverts sur Légifrance) :
   Au forfait en jours, la majoration de 30 % est déjà portée par le plein mois
   (art. 139) : pas de part d'heures supplémentaires.
 
-Référence : la durée mensuelle du contrat (durée hebdomadaire × 52 ÷ 12) au
-générateur des heures ; les jours ouvrés de la période (lundi à vendredi hors
-fériés) au forfait jours. Le générateur mesure ce qu'il a retenu et le donne ici
-(`TempsDuMois`) : la prime ne relit ni le calendrier ni les pointages.
+Le temps payé se mesure sur la durée du contrat : la durée mensuelle du contrat
+(durée hebdomadaire × 52 ÷ 12) au générateur des heures, les jours ouvrés de la
+période (lundi à vendredi hors fériés) au forfait jours. Il est ensuite ramené à
+la durée pleine (`quotite`) : 151,67 h, ou 218 jours au forfait. Un temps partiel
+de 28 h touche 80 % de la prime, comme le cabinet la verse (prime × 0,8, vérifié
+sur deux bulletins). Au-delà de 35 h, la quotité reste 1 : le cabinet verse la
+prime pleine sans majorer les heures sup structurelles (37,5 h : prime pleine,
+vérifié au centime) ; question ouverte au regard de l'art. 142 (« supporte […]
+les majorations pour heures supplémentaires »). Les heures sup du mois se
+rapportent à la durée légale (151,67 h).
+
+Le générateur mesure ce qu'il a retenu et le donne ici (`TempsDuMois`) : la
+prime ne relit ni le calendrier ni les pointages.
 """
 
 from __future__ import annotations
@@ -52,6 +61,11 @@ class TempsDuMois:
     jours_arret: tuple[tuple[date, float], ...] = field(default_factory=tuple)
     #: Σ heures supplémentaires × (1 + majoration) ; 0 au forfait jours.
     heures_sup_majorees: float = 0.0
+    #: Part de la durée pleine : contrat ÷ 151,67 h (temps partiel), jours du
+    #: forfait ÷ 218 (forfait réduit) ; jamais plus de 1.
+    quotite: float = 1.0
+    #: Durée à laquelle se rapportent les heures sup (151,67 h) ; la référence à défaut.
+    reference_heures_sup: float | None = None
 
 
 @dataclass(frozen=True)
@@ -63,9 +77,29 @@ class TempsRetenuResult:
     detail: dict[str, Any]
 
 
+#: Durée pleine : 35 h par semaine, 151,67 h par mois ; 218 jours au forfait
+#: (CSS D241-7, IV, comme la réduction générale du forfait réduit).
+HEURES_MOIS_DUREE_LEGALE = 151.67
+JOURS_FORFAIT_PLEIN = 218.0
+
+
 def reference_heures_du_contrat(duree_hebdo: float) -> float:
     """Durée mensuelle du contrat : 151,67 h pour 35 h."""
     return round((duree_hebdo * 52) / 12, 2) if duree_hebdo and duree_hebdo > 0 else 151.67
+
+
+def quotite_heures(duree_hebdo: float) -> float:
+    """Temps partiel : contrat ÷ 35 h ; au-delà de 35 h, 1."""
+    if not duree_hebdo or duree_hebdo <= 0:
+        return 1.0
+    return min(float(duree_hebdo) / 35.0, 1.0)
+
+
+def quotite_forfait(jours_du_forfait: float | None) -> float:
+    """Forfait réduit : jours du forfait ÷ 218 ; sans forfait propre, 1."""
+    if not jours_du_forfait or jours_du_forfait <= 0:
+        return 1.0
+    return min(float(jours_du_forfait) / JOURS_FORFAIT_PLEIN, 1.0)
 
 
 def jours_ouvres_hors_feries(debut: date, fin: date, feries: Iterable[date]) -> list[date]:
@@ -113,9 +147,11 @@ def ratio_du_temps_paye(
             mode=temps.unite,
             detail={"reason": "reference_nulle"},
         )
+    quotite = min(max(float(temps.quotite), 0.0), 1.0)
     present = min(max(reference - non_paye, 0.0), reference)
     heures_sup = float(temps.heures_sup_majorees) if inclure_heures_sup else 0.0
-    ratio = (present + heures_sup) / reference
+    reference_hs = float(temps.reference_heures_sup or reference)
+    ratio = quotite * present / reference + (heures_sup / reference_hs if reference_hs > 0 else 0.0)
     if ratio_plafond is not None:
         ratio = min(ratio, ratio_plafond)
     return TempsRetenuResult(
@@ -129,5 +165,6 @@ def ratio_du_temps_paye(
             "hors_contrat": round(float(temps.hors_contrat), 2),
             "arret_non_maintenu": round(arret_non_maintenu, 2),
             "heures_sup_majorees": round(heures_sup, 2),
+            "quotite": round(quotite, 6),
         },
     )

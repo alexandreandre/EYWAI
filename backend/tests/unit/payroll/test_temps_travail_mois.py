@@ -84,3 +84,23 @@ def test_reference_du_contrat():
 def test_jours_ouvres_hors_feries():
     jours = jours_ouvres_hors_feries(date(2026, 11, 2), date(2026, 11, 27), {date(2026, 11, 11), date(2026, 11, 1)})
     assert len(jours) == 19
+
+
+def test_temps_partiel_quotite_et_heures_sup_rapportees_a_la_duree_legale():
+    temps = TempsDuMois(
+        unite="heures", reference=121.33, absences_non_payees=5.6, quotite=0.8,
+        heures_sup_majorees=2.5, reference_heures_sup=151.67,
+    )
+    res = ratio_du_temps_paye(temps)
+    assert res.ratio == round(0.8 * (121.33 - 5.6) / 121.33 + 2.5 / 151.67, 6)
+    assert res.detail["quotite"] == 0.8
+
+
+def test_quotites():
+    from app.modules.payroll.engine.temps_travail_mois import quotite_forfait, quotite_heures
+
+    assert quotite_heures(28) == 0.8
+    assert quotite_heures(39) == 1.0
+    assert quotite_forfait(None) == 1.0
+    assert quotite_forfait(109) == 0.5
+    assert quotite_forfait(218) == 1.0

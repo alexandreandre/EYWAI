@@ -31,7 +31,9 @@ from .salaire_contractuel import (
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 from app.modules.payroll.engine.activite_partielle import heures_chomees_des_saisies
 from app.modules.payroll.engine.temps_travail_mois import (
+    HEURES_MOIS_DUREE_LEGALE,
     TempsDuMois,
+    quotite_heures,
     reference_heures_du_contrat,
 )
 from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
@@ -2539,6 +2541,8 @@ def calculer_salaire_brut(
                 heures_travail_hs25_total * (1 + majoration_hs25)
                 + heures_travail_hs50_total * (1 + majoration_hs50)
             ),
+            quotite=quotite_heures(duree_contrat_hebdo),
+            reference_heures_sup=HEURES_MOIS_DUREE_LEGALE,
         ),
     )
     # La prime du mois saisie remplace le calcul conventionnel, et le bulletin
