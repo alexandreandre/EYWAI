@@ -736,3 +736,49 @@ def test_sortie_le_dernier_jour_d_un_mois_civil_reste_un_mois_entier(base):
     saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 11, prevu, [], [])
     retenue, _ = _deux(saisies)
     assert retenue["payroll_quantity"] == 151.67 and retenue["amount"] == -2166.67
+
+
+# --- Prime d'ancienneté dans l'assiette de l'indemnité (R5122-18) ----------------
+
+
+def test_l_indemnite_posee_depuis_l_onglet_recoit_le_calcul_du_bulletin(base):
+    from app.modules.activite_partielle.domain.calcul import CLE_CALCUL_INDEMNITE
+
+    svc.poser_heures_du_mois("co", 2026, 11, [{"employee_id": "e1", "heures": 56}], "u")
+    lues = [dict(r) for r in base.tables["monthly_inputs"]]
+    employe = base.tables["employees"][0]
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 11, [], [], lues)
+    indemnite = next(s for s in saisies if s["name"] == "Indemnité activité partielle")
+    retenue = next(s for s in saisies if s["name"] == "Heures chômées (act. part.)")
+    assert indemnite[CLE_CALCUL_INDEMNITE]["heures"] == 56
+    assert CLE_CALCUL_INDEMNITE not in retenue
+    # Rien n'est écrit : la ligne en base reste sans calcul.
+    assert all(CLE_CALCUL_INDEMNITE not in r for r in base.tables["monthly_inputs"])
+
+
+def test_une_indemnite_retouchee_a_la_main_reste_sans_calcul(base):
+    from app.modules.activite_partielle.domain.calcul import CLE_CALCUL_INDEMNITE
+
+    svc.poser_heures_du_mois("co", 2026, 11, [{"employee_id": "e1", "heures": 56}], "u")
+    lues = [dict(r) for r in base.tables["monthly_inputs"]]
+    for r in lues:
+        if r["name"] == "Indemnité activité partielle":
+            r["amount"] = 600.0
+    employe = base.tables["employees"][0]
+    saisies, _ = svc.lignes_du_calendrier("co", employe, 2026, 11, [], [], lues)
+    assert all(CLE_CALCUL_INDEMNITE not in s for s in saisies)
+
+
+def test_l_ecran_donne_l_indemnite_du_bulletin_quand_il_existe(base):
+    base.tables["payslips"] = [
+        {
+            "employee_id": "e1", "company_id": "co", "year": 2026, "month": 11,
+            "payslip_data": {"revenus_hors_brut_imposables": [
+                {"prime_id": "indemnite_activite_partielle", "montant": 560.12},
+            ]},
+        }
+    ]
+    vue = svc.lister_mois("co", 2026, 11)
+    assert vue["salaries"][0]["indemnite_bulletin"] == 560.12
+    base.tables["payslips"] = []
+    assert svc.lister_mois("co", 2026, 11)["salaries"][0]["indemnite_bulletin"] is None

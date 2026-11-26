@@ -1114,6 +1114,31 @@ def _prime_anciennete_deja_saisie(
     return _saisie_prime_anciennete_du_mois(primes_saisies) is not None
 
 
+def _prime_saisie_hors_assiette_activite_partielle(
+    contexte: ContextePaie, primes_saisies: Optional[List[Dict[str, Any]]]
+) -> None:
+    """La prime d'ancienneté saisie remplace le calcul : l'indemnité d'activité
+    partielle ne porte alors aucune prime dans son assiette, et le bulletin le
+    dit s'il y a des heures chômées (jamais en silence)."""
+    contexte.prime_anciennete_plein_mois = None
+    if heures_chomees_des_saisies(primes_saisies) <= 0:
+        return
+    alertes = getattr(contexte, "alertes_baremes", None)
+    if isinstance(alertes, list):
+        alertes.append(
+            {
+                "code": "activite_partielle_sans_prime_saisie",
+                "severity": "warning",
+                "critique": False,
+                "message": (
+                    "La prime d'ancienneté du mois est saisie à la main : l'indemnité "
+                    "d'activité partielle est calculée sans elle (R5122-18 la compte "
+                    "dans l'assiette). Vérifiez l'indemnité avant de valider."
+                ),
+            }
+        )
+
+
 def _alerte_prime_anciennete_remplacee(
     contexte: ContextePaie, calculee: Dict[str, Any], saisie: Dict[str, Any]
 ) -> None:
@@ -2551,6 +2576,8 @@ def calculer_salaire_brut(
     if ligne_prime_anciennete and saisie_anciennete is not None:
         _alerte_prime_anciennete_remplacee(contexte, ligne_prime_anciennete, saisie_anciennete)
         ligne_prime_anciennete = None
+    if saisie_anciennete is not None:
+        _prime_saisie_hors_assiette_activite_partielle(contexte, primes_saisies)
     if ligne_prime_anciennete:
         lignes_composants_brut.append(ligne_prime_anciennete)
     if primes_saisies:

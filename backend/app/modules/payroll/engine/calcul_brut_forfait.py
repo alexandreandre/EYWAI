@@ -24,6 +24,7 @@ from .calcul_brut import (
     _calculer_iccp_depart,
     _calculer_ifm_interim,
     _alerte_prime_anciennete_remplacee,
+    _prime_saisie_hors_assiette_activite_partielle,
     _calculer_prime_precarite_cdd,
     _saisie_prime_anciennete_du_mois,
     _format_jours_conges,
@@ -716,6 +717,8 @@ def calculer_salaire_brut_forfait(
     if ligne_prime_anciennete and saisie_anciennete is not None:
         _alerte_prime_anciennete_remplacee(contexte, ligne_prime_anciennete, saisie_anciennete)
         ligne_prime_anciennete = None
+    if saisie_anciennete is not None:
+        _prime_saisie_hors_assiette_activite_partielle(contexte, primes_saisies)
     if ligne_prime_anciennete:
         lignes_composants_brut.append(ligne_prime_anciennete)
 
