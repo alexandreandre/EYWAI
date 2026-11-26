@@ -1084,10 +1084,13 @@ def process_payslip_generation(
                 "planned_calendar"
             ),
             saisies=saisies_lues,
+            heures_par_jour=float(duree_hebdo or 35.0) / 5.0,
         )
         payroll_events_list = arrets_reportes.appliquer_le_report_aux_evenements(
             payroll_events_list, payroll_events_prev_list, report_des_arrets, year, month
         )
+        # Le moteur en lit les jours repris par le bulletin suivant (trace) et les alertes.
+        saisies_data.update(report_des_arrets.vers_les_saisies())
         payroll_events_json["calendrier_analyse"] = payroll_events_list
 
         # Le cache posé à l'enregistrement du planning compte sur le mois
