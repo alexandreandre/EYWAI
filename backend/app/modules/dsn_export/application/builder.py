@@ -103,6 +103,7 @@ from app.modules.dsn_import.domain.model import (
 from app.shared.domain.employment_rules import mois_du_contrat_en_cours
 from app.shared.dsn_validation import build_siret_from_siren_nic
 from app.shared.pas_taux import terme_de_deux_mois_au_plus
+from app.modules.dsn_export.domain.temps_plein_reconstitue import salarie_cotisant_a_temps_plein
 from app.modules.dsn_export.domain.situations_non_gerees import (
     AVERTISSEMENT_EMPLOYEURS_MULTIPLES,
     avertissement_cotisations_hors_bulletin,
@@ -1512,6 +1513,11 @@ def build_individu_from_payroll(
         "S21.G00.40.014": modalite,
         "S21.G00.40.019": company_siret.replace(" ", "")[:14],
     }
+    temps_plein = salarie_cotisant_a_temps_plein(employee.get("specificites_paie"), period)
+    if temps_plein.code:
+        rubriques_contrat["S21.G00.40.044"] = temps_plein.code
+    if temps_plein.avertissement:
+        warnings.append(f"NIR {nir_dsn} : {temps_plein.avertissement}")
     # CDD et contrats à terme : la date de fin prévisionnelle est obligatoire
     # (CCH-12), le motif de recours attendu (SIG-11). La date vit déjà sur la
     # fiche ; le motif vient du contrat quand il y est, sinon de la reprise.

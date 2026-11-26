@@ -66,6 +66,13 @@ def ctp_du_code(code: str, base: str, taux: float, montant: float = 0.0) -> Opti
         return "100", "920"
     if code == "076" and base == "02":
         return "100", "921"
+    # Vieillesse sur un temps plein (retraite progressive, temps partiel) : le
+    # différentiel des bases 22 et 24 au CTP 288 « Vieillesse temps partiel ou
+    # Mayotte », 920 déplafonné, 921 plafonné (fiche net-entreprises v2.1).
+    if code == "076" and base == "22":
+        return "288", "920"
+    if code == "076" and base == "24":
+        return "288", "921"
     if code == CODE_EXONERATION_JEI:
         return CTP_JEI_PLAFONNE if base == "02" else CTP_JEI_DEPLAFONNE
     if code in ("072", "073", "079"):
