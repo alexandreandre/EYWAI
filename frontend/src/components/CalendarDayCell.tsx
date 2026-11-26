@@ -463,7 +463,7 @@ export function CalendarDayCell({
             >
               {plannedDay.type === 'conges_payes' && joursRecup?.includes(dayNumber)
                 ? 'Récupération (compteur)'
-                : getCalendarTypeLabel(plannedDay.type)}
+                : getCalendarTypeLabel(plannedDay.type, plannedDay.motif_absence)}
               {showHolidayHint && (
                 <span className="text-purple-600 ml-0.5">(férié)</span>
               )}

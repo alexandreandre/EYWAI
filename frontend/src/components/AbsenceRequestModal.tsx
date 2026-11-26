@@ -40,6 +40,12 @@ import {
   getAvailableCongePayeDays,
   avertissementSoldeInsuffisantRh,
   typesArretProposes,
+  bornesDesJours,
+  estCongeParental,
+  joursDeLaPeriode,
+  refusPeriodeCongeParental,
+  LIBELLE_CONGE_PARENTAL,
+  SOUS_TYPE_CONGE_PARENTAL,
   type EmployeeRequestableAbsenceType,
 } from "@/lib/employeeAbsencesUtils";
 import { formatPeriodeArret } from "@/lib/arretPeriode";
@@ -55,6 +61,13 @@ function priseEnHeures(type: string): boolean {
 }
 
 export type AbsenceRequestModalMode = "employee" | "rh_arret" | "rh_leave";
+
+/**
+ * Choix « Congé parental d'éducation » de la liste des types (RH) : il part
+ * en congé sans solde de sous-type `conge_parental_education` (retour d'Elsa
+ * du 26/11), saisi du premier jour à la fin prévue.
+ */
+const CHOIX_CONGE_PARENTAL = "conge_parental_education" as const;
 
 /** Types d’absence pour lesquels la qualification d’arrêt est obligatoire. */
 const ARRET_PRINCIPAL_TYPES = [
@@ -202,7 +215,10 @@ export function AbsenceRequestModal({
   const { data: myEmployeeProfile } = useEmployeeProfileQuery(user?.id);
   const { toast } = useToast();
 
-  type AbsenceTypeValue = EmployeeRequestableAbsenceType | absencesApi.AbsenceCreationPayload['type'];
+  type AbsenceTypeValue =
+    | EmployeeRequestableAbsenceType
+    | absencesApi.AbsenceCreationPayload['type']
+    | typeof CHOIX_CONGE_PARENTAL;
   const [absenceType, setAbsenceType] = useState<AbsenceTypeValue | ''>('');
   const [eventSubtype, setEventSubtype] = useState<string>('');
   const [evenementFamilialEvents, setEvenementFamilialEvents] = useState<absencesApi.EvenementFamilialEvent[]>([]);
@@ -216,6 +232,9 @@ export function AbsenceRequestModal({
   // en porter (le serveur refuse les demandes mixtes heures + journées).
   const [heuresParJour, setHeuresParJour] = useState<Record<string, string>>({});
   const [arretRange, setArretRange] = useState<DateRange | undefined>(undefined);
+  // Congé parental d'éducation : premier jour et fin prévue (yyyy-MM-dd).
+  const [parentalDebut, setParentalDebut] = useState("");
+  const [parentalFin, setParentalFin] = useState("");
   const [comment, setComment] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -265,6 +284,8 @@ export function AbsenceRequestModal({
       setDemiJournees({});
       setHeuresParJour({});
       setArretRange(undefined);
+      setParentalDebut("");
+      setParentalFin("");
       setComment("");
       setFile(null);
       setError("");
@@ -279,7 +300,14 @@ export function AbsenceRequestModal({
       if (enModification && absenceAModifier) {
         // Le congé à modifier, tel qu'il est : on change ses jours.
         const a = absenceAModifier;
-        setAbsenceType(a.type as AbsenceTypeValue);
+        setAbsenceType(
+          estCongeParental(a) ? CHOIX_CONGE_PARENTAL : (a.type as AbsenceTypeValue),
+        );
+        if (estCongeParental(a)) {
+          const bornes = bornesDesJours(a.selected_days);
+          setParentalDebut(bornes?.debut ?? "");
+          setParentalFin(bornes?.fin ?? "");
+        }
         setEventSubtype(a.event_subtype ?? "");
         setSelectedEmployeeId(a.employee_id);
         setSelectedDays((a.selected_days ?? []).map((iso) => parseISO(String(iso).slice(0, 10))));
@@ -387,6 +415,7 @@ export function AbsenceRequestModal({
     isRhArret &&
     isArretPrincipalType(absenceType) &&
     arretType !== "mi_temps_therapeutique";
+  const estChoixCongeParental = absenceType === CHOIX_CONGE_PARENTAL;
 
   const availableCongePayeDays = useMemo(
     () => getAvailableCongePayeDays(balances, pendingAbsences),
@@ -399,7 +428,9 @@ export function AbsenceRequestModal({
     quotiteSelectionnee > availableCongePayeDays;
 
   const doSubmit = async () => {
-    if (isSaisiePeriode) {
+    if (estChoixCongeParental) {
+      if (refusPeriodeCongeParental(parentalDebut, parentalFin)) return;
+    } else if (isSaisiePeriode) {
       // Un seul clic dans le sélecteur de plage = arrêt d'un jour (to absent).
       if (!arretRange?.from) return;
     } else if (!selectedDays || selectedDays.length === 0) {
@@ -433,12 +464,23 @@ export function AbsenceRequestModal({
       // Créer la demande d'absence avec ou sans justificatif
       const payload: absencesApi.AbsenceCreationPayload = {
         employee_id: employeeId,
-        type: absenceType as absencesApi.AbsenceCreationPayload["type"],
+        type: estChoixCongeParental
+          ? "sans_solde"
+          : (absenceType as absencesApi.AbsenceCreationPayload["type"]),
         comment: comment || null,
         attachment_url: attachmentUrl,
         filename: filename,
       };
-      if (isSaisiePeriode && arretRange?.from) {
+      if (estChoixCongeParental) {
+        payload.event_subtype = SOUS_TYPE_CONGE_PARENTAL;
+        if (enModification) {
+          // La modification remplace les jours : la période s'étend ici.
+          payload.selected_days = joursDeLaPeriode(parentalDebut, parentalFin);
+        } else {
+          payload.date_debut = parentalDebut;
+          payload.date_fin = parentalFin;
+        }
+      } else if (isSaisiePeriode && arretRange?.from) {
         // Période calendaire : le backend étend en jours, week-ends compris.
         payload.date_debut = format(arretRange.from, "yyyy-MM-dd");
         payload.date_fin = format(arretRange.to ?? arretRange.from, "yyyy-MM-dd");
@@ -553,7 +595,13 @@ export function AbsenceRequestModal({
       setError("Veuillez sélectionner le type d'arrêt.");
       return;
     }
-    if (isSaisiePeriode) {
+    if (estChoixCongeParental) {
+      const refus = refusPeriodeCongeParental(parentalDebut, parentalFin);
+      if (refus) {
+        setError(refus);
+        return;
+      }
+    } else if (isSaisiePeriode) {
       if (!arretRange?.from) {
         setError("Veuillez sélectionner la période d'arrêt (du … au …).");
         return;
@@ -668,6 +716,7 @@ export function AbsenceRequestModal({
             : []),
           { value: "evenement_familial" as const, label: "Événement Familial" },
           { value: "sans_solde" as const, label: "Congé sans solde" },
+          { value: CHOIX_CONGE_PARENTAL, label: LIBELLE_CONGE_PARENTAL },
         ]
       : EMPLOYEE_REQUESTABLE_ABSENCE_TYPES.filter(
           (value) =>
@@ -954,6 +1003,45 @@ export function AbsenceRequestModal({
             </div>
           )}
 
+          {estChoixCongeParental && (
+            <div className="grid gap-2" data-testid="periode-conge-parental">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="grid gap-1">
+                  <Label htmlFor="conge-parental-debut">Premier jour</Label>
+                  <Input
+                    id="conge-parental-debut"
+                    type="date"
+                    value={parentalDebut}
+                    onChange={(e) => {
+                      setError("");
+                      setParentalDebut(e.target.value);
+                    }}
+                  />
+                </div>
+                <div className="grid gap-1">
+                  <Label htmlFor="conge-parental-fin">Fin prévue</Label>
+                  <Input
+                    id="conge-parental-fin"
+                    type="date"
+                    value={parentalFin}
+                    onChange={(e) => {
+                      setError("");
+                      setParentalFin(e.target.value);
+                    }}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Congé parental à temps plein : le contrat est suspendu, le salaire n&apos;est pas versé
+                et aucun congé payé n&apos;est acquis. La DSN le déclare en suspension 632. Pour une
+                prolongation, posez un nouveau congé à la suite ; pour une reprise anticipée,
+                modifiez la fin prévue. Un congé parental à temps partiel ne se saisit pas ici : il
+                réduit l&apos;horaire du contrat.
+              </p>
+            </div>
+          )}
+
+          {!estChoixCongeParental && (
           <div className="grid gap-2">
             <Label>{isRhArret ? "Période d'arrêt" : "Jours demandés"}</Label>
             <Popover>
@@ -1138,6 +1226,8 @@ export function AbsenceRequestModal({
               </div>
             )}
           </div>
+
+          )}
 
           <div className="grid gap-2">
             <Label htmlFor="attachment">

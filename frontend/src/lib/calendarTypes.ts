@@ -177,8 +177,22 @@ export function typesDUnModeleDeSemaine(currentType?: string | null): { value: s
   return options;
 }
 
-export function getCalendarTypeLabel(type: string | null | undefined): string {
+/** Motif posé par le serveur sur un jour de congé parental d'éducation. */
+export const MOTIF_CONGE_PARENTAL = 'conge_parental_education';
+
+/**
+ * Libellé d'un jour. Un jour « absence non rémunérée » issu d'un congé
+ * parental d'éducation (motif posé par le serveur) dit son nom (retour d'Elsa
+ * du 26/11) ; sa couleur reste celle de l'absence non rémunérée.
+ */
+export function getCalendarTypeLabel(
+  type: string | null | undefined,
+  motifAbsence?: string | null,
+): string {
   if (!type) return 'Week-end';
+  if (type === 'absence_non_remuneree' && motifAbsence === MOTIF_CONGE_PARENTAL) {
+    return "Congé parental d'éducation";
+  }
   return CALENDAR_TYPE_LABELS[type] ?? type;
 }
 

@@ -20,6 +20,8 @@ export interface PlannedEventData {
   quotite_absence?: number | null;
   /** 'matin' | 'apres_midi' pour une demi-journée de CP. */
   demi_journee?: string | null;
+  /** 'conge_parental_education' sur un jour de congé parental (lecture seule). */
+  motif_absence?: string | null;
 }
 
 export interface ActualHoursData {
