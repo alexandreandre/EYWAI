@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import contextvars
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import Any
 
@@ -260,6 +262,9 @@ def apply_fractionnement_to_payslip_balances(
     return balances
 
 
+_FILS_APERCU = 8
+
+
 def list_fractionnement_preview(company_id: str, grant_year: int) -> list[dict[str, Any]]:
     emp_resp = (
         supabase.table("employees")
@@ -268,22 +273,29 @@ def list_fractionnement_preview(company_id: str, grant_year: int) -> list[dict[s
         .in_("employment_status", ["actif", "active", "en_onboarding"])
         .execute()
     )
-    rows: list[dict[str, Any]] = []
-    for emp in emp_resp.data or []:
+    def _ligne(emp: dict[str, Any]) -> dict[str, Any] | None:
         if is_forfait_jour(emp.get("statut"), emp.get("is_forfait_jour")):
-            continue
+            return None
         if emp.get("cp_fractionnement_actif") is False:
-            rows.append(_ligne_decochee(emp, grant_year))
-            continue
+            return _ligne_decochee(emp, grant_year)
         computed = compute_fractionnement_for_employee(
             str(emp["id"]), company_id, grant_year
         )
-        if computed:
-            grant = frac_repo.get_fractionnement_grant(str(emp["id"]), grant_year)
-            computed["status"] = (grant or {}).get("status", "computed")
-            computed["actif"] = True
-            rows.append(computed)
-    return rows
+        if not computed:
+            return None
+        grant = frac_repo.get_fractionnement_grant(str(emp["id"]), grant_year)
+        computed["status"] = (grant or {}).get("status", "computed")
+        computed["actif"] = True
+        return computed
+
+    # Une dizaine de lectures par salarié : en série, 67 salariés prenaient
+    # 35 s (MBC, 26/11) et l'écran restait vide. En parallèle, ordre conservé.
+    employes = list(emp_resp.data or [])
+    with ThreadPoolExecutor(max_workers=_FILS_APERCU) as pool:
+        lignes = list(
+            pool.map(lambda e: contextvars.copy_context().run(_ligne, e), employes)
+        )
+    return [ligne for ligne in lignes if ligne]
 
 
 def _ligne_decochee(emp: dict[str, Any], grant_year: int) -> dict[str, Any]:

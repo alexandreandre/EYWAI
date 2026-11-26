@@ -500,6 +500,28 @@ export default function CpFractionnementSettingsCard() {
               </TableBody>
             </Table>
           </div>
+        ) : form.fractionnement_enabled ? (
+          // Jamais d'état silencieux : la liste par salarié (case « Activé »)
+          // peut mettre du temps à se calculer (retour d'Elsa du 26/11, MBC).
+          <div className="border-t pt-4" data-testid="frac-liste-etat">
+            {!data?.fractionnement_enabled ? (
+              <p className="text-sm text-muted-foreground">
+                Enregistrez les paramètres pour voir la liste des salariés, avec la case « Activé » de chacun.
+              </p>
+            ) : previewQuery.isError ? (
+              <p role="alert" className="text-sm font-medium text-destructive">
+                La liste des salariés n&apos;a pas pu être calculée. Rechargez la page ; si cela persiste, prévenez-nous.
+              </p>
+            ) : previewQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">
+                Calcul des jours de chaque salarié en cours… La liste, avec la case « Activé » de chacun, s&apos;affiche ici.
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Aucun salarié concerné pour {grantYear} : les cadres au forfait jours sont exclus et aucun autre salarié n&apos;a de jours de fractionnement.
+              </p>
+            )}
+          </div>
         ) : null}
       </CardContent>
     </Card>
