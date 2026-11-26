@@ -154,6 +154,21 @@ class CalendarUpdateProvider(ICalendarUpdateService):
         if date_fin_arret_reel:
             entry["date_fin_arret_reel"] = date_fin_arret_reel
 
+    @staticmethod
+    def _appliquer_motif(
+        entry: Dict[str, Any],
+        motif_absence: Optional[str],
+        periode_absence: Optional[Dict[str, str]],
+    ) -> None:
+        """Motif et bornes d'un congé parental d'éducation sur un jour converti
+        (clés serveur) : le calendrier l'affiche, le moteur en tire le libellé
+        de la retenue et la DSN le motif 632."""
+        if not motif_absence:
+            return
+        entry["motif_absence"] = motif_absence
+        if periode_absence:
+            entry["periode_absence"] = dict(periode_absence)
+
     def update_calendar_from_days(
         self,
         employee_id: str,
@@ -167,6 +182,8 @@ class CalendarUpdateProvider(ICalendarUpdateService):
         demi_journees: Optional[Dict[str, str]] = None,
         adopter_jours_deja_types: bool = False,
         photos_avant: Optional[Dict[str, Dict[str, Any]]] = None,
+        motif_absence: Optional[str] = None,
+        periode_absence: Optional[Dict[str, str]] = None,
     ) -> None:
         # adopter_jours_deja_types : saisie RH directe au CALENDRIER — le jour
         # est DÉJÀ typé comme la cible quand la demande auto-créée se projette.
@@ -269,6 +286,7 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                         if demi:
                             entry["quotite_absence"] = 0.5
                             entry["demi_journee"] = demi
+                        self._appliquer_motif(entry, motif_absence, periode_absence)
                         calendrier_prevu.append(entry)
                     elif est_weekend:
                         # Jour de remplissage OU jour d'absence tombant le
@@ -333,6 +351,7 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                         entry["type"] = new_calendar_type
                         entry["heures_prevues"] = 0
                         entry["origine"] = ORIGINE_ABSENCE
+                        self._appliquer_motif(entry, motif_absence, periode_absence)
                         if new_calendar_type == "arret_maladie":
                             self._appliquer_meta_arret(
                                 entry,
@@ -392,6 +411,7 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                         if demi:
                             entry["quotite_absence"] = 0.5
                             entry["demi_journee"] = demi
+                        self._appliquer_motif(entry, motif_absence, periode_absence)
                     if new_calendar_type == "arret_maladie":
                         self._appliquer_meta_arret(
                             entry,

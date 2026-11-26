@@ -247,6 +247,9 @@ def test_les_cles_serveur_sont_definies_a_un_seul_endroit():
             # Demi-journée de CP (quotité 0,5 posée par la validation).
             "quotite_absence",
             "demi_journee",
+            # Congé parental d'éducation : motif et bornes de la demande.
+            "motif_absence",
+            "periode_absence",
         }
     )
 

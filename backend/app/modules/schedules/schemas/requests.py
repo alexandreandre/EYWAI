@@ -72,6 +72,10 @@ class PlannedCalendarEntryOut(BaseModel):
     # quotite_absence=0.5 + demi_journee "matin"/"apres_midi" pour l'affichage.
     quotite_absence: float | None = None
     demi_journee: str | None = None
+    # Congé parental d'éducation (LECTURE seulement, mêmes règles) : le
+    # calendrier affiche « Congé parental d'éducation » au lieu de « Absence
+    # non rémunérée ».
+    motif_absence: str | None = None
 
 
 class PlannedCalendarResponse(BaseModel):

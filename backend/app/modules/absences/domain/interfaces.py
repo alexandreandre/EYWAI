@@ -126,6 +126,8 @@ class ICalendarUpdateService(ABC):
         nombre_enfants: int = 0,
         historique_arrets_annee: Optional[List[Dict[str, Any]]] = None,
         demi_journees: Optional[Dict[str, str]] = None,
+        motif_absence: Optional[str] = None,
+        periode_absence: Optional[Dict[str, str]] = None,
     ) -> None:
         """Met à jour ou crée les plannings pour les mois concernés."""
         ...

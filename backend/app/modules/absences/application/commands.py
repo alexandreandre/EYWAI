@@ -36,6 +36,11 @@ from app.modules.absences.infrastructure.queries import (
     get_employee_hire_date,
     get_employee_statut,
 )
+from app.shared.domain.conge_parental import (
+    SOUS_TYPE_CONGE_PARENTAL,
+    est_conge_parental,
+    periode_de_la_demande,
+)
 from app.shared.domain.employment_rules import is_forfait_jour
 from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.maintenance_settings.application.queries import get_maintenance_settings
@@ -279,6 +284,10 @@ def create_absence_request(
         }
     if absence_type == "evenement_familial" and event_subtype:
         db_data["event_subtype"] = event_subtype
+    if est_conge_parental({"type": absence_type, "event_subtype": event_subtype}):
+        # Congé parental d'éducation : un sans solde qui dit son nom (libellé,
+        # DSN 632). La paie est celle du sans solde.
+        db_data["event_subtype"] = SOUS_TYPE_CONGE_PARENTAL
 
     arret_type = getattr(request_data, "arret_type", None)
     if isinstance(arret_type, str) and arret_type:
@@ -504,10 +513,21 @@ def update_absence_request_status(
                     nombre_enfants=nombre_enfants,
                     historique_arrets_annee=historique or None,
                     demi_journees=data.get("demi_journees") or None,
+                    **_meta_conge_parental(data),
                 )
             )
 
     return data
+
+
+def _meta_conge_parental(demande: Dict[str, Any]) -> Dict[str, Any]:
+    """Motif et bornes posés sur les jours d'un congé parental d'éducation."""
+    if not est_conge_parental(demande):
+        return {}
+    return {
+        "motif_absence": SOUS_TYPE_CONGE_PARENTAL,
+        "periode_absence": periode_de_la_demande(demande.get("selected_days")),
+    }
 
 
 def create_reconciliation_absence(

@@ -239,6 +239,7 @@ class SupabaseAbsenceRepository(IAbsenceRepository):
                 "demi_journees",
                 "heures_par_jour",
                 "arret_type",
+                "event_subtype",
             )
             .in_("employee_id", employee_ids)
             .eq("status", "validated")
