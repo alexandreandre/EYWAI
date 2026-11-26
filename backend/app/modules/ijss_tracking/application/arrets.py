@@ -194,7 +194,9 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
                 "maintien": (
                     # Arrêt enregistré après le calcul du bulletin : le dire, pas
                     # « pas de maintien » ni 0 jour indemnisé (MAJI, 17/11). Un
-                    # bulletin déjà remis ne se régénère plus : rappel au suivant.
+                    # bulletin déjà remis ne se régénère plus, et le suivant ne
+                    # lit pas les jours de ce mois : l'arrêt se porte à la main
+                    # sur le bulletin suivant (Elsa, 26/11 ; Quadra fait de même).
                     {
                         "etat": (
                             "bulletin_remis_avant_l_arret"
