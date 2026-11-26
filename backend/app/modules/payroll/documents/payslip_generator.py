@@ -31,8 +31,11 @@ from app.shared.domain.conge_parental import (
     CLE_PERIODE_ABSENCE,
     SOUS_TYPE_CONGE_PARENTAL,
     est_conge_parental,
-    periode_de_la_demande,
+    jours_d_anciennete_neutralises,
+    periode_du_jour,
+    periodes_chainees,
 )
+from app.shared.seniority_reference import CLE_JOURS_NEUTRALISES
 from app.shared.reprise_paie import (
     CLE_DEPART_A_ZERO,
     RepriseNonPosee,
@@ -600,7 +603,54 @@ def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> lis
             e["source_absence"] = src
     _stamp_nature_des_arrets(planned_entries, toutes)
     _stamp_feries_des_absences_retenues(planned_entries, toutes)
+    _stamp_periodes_du_conge_parental(planned_entries, toutes)
     return toutes
+
+
+def marquer_les_regularisations_du_conge_parental(evenements: list, demandes: list) -> list:
+    """Une régularisation d'absence non rémunérée sur un jour de congé parental
+    en prend le motif et les bornes : libellé « Absence congé parental » et
+    DSN 632, comme les jours du mois. Les autres régularisations ne changent pas."""
+    chaines = periodes_chainees(demandes)
+    if not chaines:
+        return evenements
+    for ev in evenements:
+        if ev.get("type") != "absence_non_remuneree":
+            continue
+        chaine = periode_du_jour(chaines, str(ev.get("date_complete") or ""))
+        if chaine:
+            ev[CLE_MOTIF_ABSENCE] = SOUS_TYPE_CONGE_PARENTAL
+            ev[CLE_PERIODE_ABSENCE] = dict(chaine)
+    return evenements
+
+
+def neutralisation_de_l_anciennete(demandes: list, year: int, month: int) -> dict:
+    """Jours d'ancienneté que le congé parental à temps plein ne donne pas
+    (C. trav. L1225-54, pour moitié), au dernier jour du mois du bulletin ;
+    rien sans congé parental. Partagé par les deux générateurs."""
+    jours = jours_d_anciennete_neutralises(
+        demandes, date(year, month, calendar.monthrange(year, month)[1])
+    )
+    return {CLE_JOURS_NEUTRALISES: jours} if jours else {}
+
+
+def _stamp_periodes_du_conge_parental(planned_entries: list, demandes: list) -> None:
+    """Les bornes du congé parental, lues sur les demandes validées : une
+    prolongation saisie à la suite repousse la fin du même congé (un seul bloc
+    632). Le planning garde les bornes posées à la validation, en repli."""
+    chaines = periodes_chainees(demandes)
+    if not chaines:
+        return
+    for e in planned_entries:
+        if e.get(CLE_MOTIF_ABSENCE) != SOUS_TYPE_CONGE_PARENTAL:
+            continue
+        try:
+            iso = date(int(e["annee"]), int(e["mois"]), int(e["jour"])).isoformat()
+        except (KeyError, TypeError, ValueError):
+            continue
+        chaine = periode_du_jour(chaines, iso)
+        if chaine:
+            e[CLE_PERIODE_ABSENCE] = dict(chaine)
 
 
 def _stamp_feries_des_absences_retenues(planned_entries: list, demandes: list) -> None:
@@ -627,6 +677,7 @@ def _stamp_feries_des_absences_retenues(planned_entries: list, demandes: list) -
     # Un férié d'un congé parental d'éducation en prend aussi le motif et les
     # bornes : sa retenue rejoint la ligne « Absence congé parental ».
     conge_parental_par_date: dict = {}
+    chaines = periodes_chainees(demandes)
     for row in demandes or []:
         type_jour = ABSENCE_TYPE_TO_CALENDAR_TYPE.get(str(row.get("type") or ""))
         if type_jour != "absence_non_remuneree":
@@ -637,9 +688,8 @@ def _stamp_feries_des_absences_retenues(planned_entries: list, demandes: list) -
         for iso in jours:
             source_par_date.setdefault(iso, row.get("type"))
         if est_conge_parental(row):
-            periode = periode_de_la_demande(jours)
             for iso in jours:
-                conge_parental_par_date.setdefault(iso, periode)
+                conge_parental_par_date.setdefault(iso, periode_du_jour(chaines, iso))
     if not source_par_date:
         return
     for e in planned_entries:
@@ -943,8 +993,9 @@ def process_payslip_generation(
         # clos/payé), voir `regularisation_events_from_calendar` docstring.
         current_month_row = db_data_map.get((year, month))
         if current_month_row:
-            payroll_events_list = payroll_events_list + regularisation_events_from_calendar(
-                current_month_row.get("planned_calendar")
+            payroll_events_list = payroll_events_list + marquer_les_regularisations_du_conge_parental(
+                regularisation_events_from_calendar(current_month_row.get("planned_calendar")),
+                absences_rows,
             )
         payroll_events_json = {
             "periode": {"annee": year, "mois": month},
@@ -1264,6 +1315,7 @@ def process_payslip_generation(
                 "seniority_reference_date": employee_data.get(
                     "seniority_reference_date"
                 ),
+                **neutralisation_de_l_anciennete(absences_rows, year, month),
                 "prior_service_months": employee_data.get("prior_service_months"),
                 "type_contrat": employee_data.get("contract_type"),
                 "date_conclusion_contrat": employee_data.get(

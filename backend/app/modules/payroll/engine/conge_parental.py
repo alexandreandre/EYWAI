@@ -49,17 +49,16 @@ class RetenuesDuCongeParental:
     def retient(self, evenement: Mapping[str, Any]) -> bool:
         """Vrai si ce jour d'absence non rémunérée va sur une ligne de période.
 
-        Une régularisation d'un mois antérieur garde sa ligne du jour."""
-        return est_jour_de_conge_parental(evenement) and not evenement.get(
-            "is_regularisation_anterieure"
-        )
+        Une régularisation d'un mois antérieur aussi : sur sa propre ligne,
+        datée de son mois (elle ne se mêle pas aux jours du mois courant)."""
+        return est_jour_de_conge_parental(evenement)
 
     def ajouter(
         self, evenement: Mapping[str, Any], *, quantite: float, taux: float, perte: float
     ) -> None:
         jour = date.fromisoformat(str(evenement["date_complete"])[:10])
         bornes = bornes_du_jour(evenement)
-        cle = (bornes, jour.year, jour.month)
+        cle = (bornes, jour.year, jour.month, bool(evenement.get("is_regularisation_anterieure")))
         periode = self.periodes.setdefault(cle, _Periode(bornes=bornes))
         periode.jours.append(jour)
         periode.quantite += float(quantite)

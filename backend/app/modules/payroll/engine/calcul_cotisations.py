@@ -30,6 +30,7 @@ from .regime_indemnites_rupture import (
 from .baremes_loader import resoudre_taux_vm_pour_paie
 from app.shared.domain.employment_rules import is_cadre
 from app.modules.payroll.engine.mutuelles import mutuelles_du_salarie
+from app.shared.domain.conge_parental import bornes_du_jour, est_jour_de_conge_parental
 from app.modules.payroll.engine.codes_des_lignes import BLOC_COTISATIONS
 from app.modules.payroll.engine.corrections_manuelles import LignesCorrigees, journal_du_contexte
 
@@ -312,6 +313,11 @@ def ratio_plafond_periode(
     for ev in calendrier or []:
         debut_arret = _d(ev.get("date_debut_arret_reel"))
         fin_arret = _d(ev.get("date_fin_arret_reel"))
+        if not (debut_arret and fin_arret) and est_jour_de_conge_parental(ev):
+            # Le congé parental suspend le contrat de date à date, week-ends
+            # compris, comme un arrêt : ses bornes sont celles de la demande.
+            bornes = bornes_du_jour(ev)
+            debut_arret, fin_arret = bornes if bornes else (None, None)
         if not (debut_arret and fin_arret):
             continue
         jour_arret = max(debut_arret, date_debut)
@@ -472,6 +478,17 @@ def _calculer_assiettes(
     assiette_tranche_1 = round(
         max(0.0, cumul_tranche_1_correct - cumul_t1_applique_avant), 2
     )
+    if abs(salaire_brut) < 0.005 and pss_calcule <= 0.0 and cumul_t1_applique_avant < 0.0:
+        # Mois sans rémunération ni plafond (contrat suspendu tout le mois :
+        # congé parental, sans solde) après un cumul appliqué négatif (rappel
+        # d'IJSS repris en brut négatif) : le plancher à 0 du cumul correct
+        # rattrapait ce négatif sur un mois sans salaire (salariée A, LEWIS,
+        # novembre 2026 : 375,58 € de tranche 1 sur un brut nul). Les
+        # cotisations portent sur les rémunérations versées (CSS L242-1) : rien
+        # ce mois-ci ; le cumul garde son négatif, que le premier mois payé
+        # absorbe comme aujourd'hui.
+        assiette_tranche_1 = 0.0
+        cumul_tranche_1_correct = cumul_t1_applique_avant
     # CET (Contribution d'Équilibre Technique, 0,14 % sur tout le salaire
     # plafonné à 8 PSS) : due par les seuls salariés dont la rémunération
     # dépasse le plafond — apprécié comme les tranches, sur le cumul annuel :

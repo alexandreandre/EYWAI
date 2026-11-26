@@ -32,6 +32,7 @@ from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
 from app.modules.payroll.engine.codes_des_lignes import BLOC_BRUT
 from app.modules.payroll.engine.conge_parental import RetenuesDuCongeParental
+from app.shared.domain.conge_parental import est_jour_de_conge_parental
 from app.modules.payroll.engine.corrections_manuelles import (
     CLE_REGULARISATIONS_HEURES,
     effet_des_regularisations_heures,
@@ -412,7 +413,10 @@ def _jour_ferie_est_paye(contexte: ContextePaie, evenement: Dict[str, Any]) -> b
     ancres = [d for d in ancres if d]
     if not ancres:
         return True
-    date_ref = min(ancres)
+    from app.shared.seniority_reference import decaler_selon_le_contrat
+
+    # Congé parental à temps plein : compté pour moitié (L1225-54).
+    date_ref = decaler_selon_le_contrat(min(ancres), contexte.contrat)
 
     mois_anciennete = (date_ferie.year - date_ref.year) * 12 + (
         date_ferie.month - date_ref.month
@@ -1422,9 +1426,13 @@ def evenements_de_la_periode(
             date_evenement = date.fromisoformat(evenement["date_complete"])
         except (KeyError, TypeError, ValueError):
             continue
+        # Le congé parental d'éducation suspend le contrat et porte ses propres
+        # dates (DSN 632) : comme l'arrêt, il reste au mois civil, même posé
+        # sous le type du sans solde (C. trav. L1225-47).
         if (
             bornes_variables is not None
             and evenement.get("type") in TYPES_RATTACHES_AUX_VARIABLES
+            and not est_jour_de_conge_parental(evenement)
         ):
             debut, fin = bornes_variables
         else:
@@ -2169,14 +2177,10 @@ def calculer_salaire_brut(
                 (jour_arret, _nature_de_l_arret(evenement), heures_abs, regularisation)
             )
 
-    # Les absences du bulletin suivent la fenêtre des variables quand la
-    # société en a une (LEWIS : du 26/10 au 22/11) : le libellé s'y borne,
-    # sinon deux bulletins citeraient les mêmes jours.
+    # Le congé parental suit le mois civil (`evenements_de_la_periode`) : le
+    # libellé se borne au mois du bulletin.
     lignes_composants_brut.extend(
-        retenues_conge_parental.lignes(
-            date_debut_variables if date_debut_variables and date_fin_variables else date_debut_periode,
-            date_fin_variables if date_debut_variables and date_fin_variables else date_fin_periode,
-        )
+        retenues_conge_parental.lignes(date_debut_periode, date_fin_periode)
     )
 
     # Une ligne par période d'arrêt, comme le cabinet (« Absence maladie

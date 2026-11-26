@@ -214,6 +214,7 @@ HEURES_SEULEMENT: dict[str, dict[str, str]] = {
         "resolve_effective_weekly_hours_map": "modulation des heures hebdomadaires",
         "payroll_analyzer_analyser": "analyse des heures ; le forfait analyse ses jours dans le moteur",
         "regularisation_events_from_calendar": "régularisations d'heures d'un mois passé",
+        "marquer_les_regularisations_du_conge_parental": "idem : le forfait n'a pas de régularisation antérieure",
         "option_active": "compensation des heures entre semaines",
         "s_applique_au_contrat": "idem",
         "bornes_du_contrat": "idem",

@@ -293,6 +293,7 @@ def process_payslip_generation_forfait(
 
         from app.modules.payroll.documents.payslip_generator import (
             _stamp_source_absence_conges,
+            neutralisation_de_l_anciennete,
         )
 
         absences_rows = _stamp_source_absence_conges(planned_data_all_months, employee_id)
@@ -468,6 +469,7 @@ def process_payslip_generation_forfait(
                 "seniority_reference_date": employee_data.get(
                     "seniority_reference_date"
                 ),
+                **neutralisation_de_l_anciennete(absences_rows, year, month),
                 "type_contrat": employee_data.get("contract_type"),
                 "date_conclusion_contrat": employee_data.get(
                     "date_conclusion_contrat"

@@ -31,7 +31,7 @@ Sources, lues le 26/11/2026 :
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 #: Sous-type (`absence_requests.event_subtype`) d'un congé sans solde qui est
@@ -75,6 +75,67 @@ def periode_de_la_demande(selected_days: Any) -> dict[str, str] | None:
     return {"debut": jours[0], "fin": jours[-1]}
 
 
+def periodes_chainees(demandes: Any) -> list[dict[str, str]]:
+    """Les congés parentaux validés, une période par suite de demandes qui se
+    suivent : une prolongation saisie le lendemain de la fin prévue repousse
+    la fin du même congé (un seul bloc 632, fin prévisionnelle repoussée).
+
+    Rend des {"debut", "fin"} en ISO, triés."""
+    bornes: list[tuple[date, date]] = []
+    for demande in demandes or ():
+        if not est_conge_parental(demande):
+            continue
+        if str(demande.get("status") or "validated") != "validated":
+            continue
+        periode = periode_de_la_demande(demande.get("selected_days"))
+        if periode:
+            bornes.append((date.fromisoformat(periode["debut"]), date.fromisoformat(periode["fin"])))
+    chaines: list[list[date]] = []
+    for debut, fin in sorted(bornes):
+        if chaines and debut <= chaines[-1][1] + timedelta(days=1):
+            chaines[-1][1] = max(chaines[-1][1], fin)
+        else:
+            chaines.append([debut, fin])
+    return [{"debut": d.isoformat(), "fin": f.isoformat()} for d, f in chaines]
+
+
+def periode_du_jour(chaines: list[dict[str, str]], jour: str) -> dict[str, str] | None:
+    """La période chaînée qui couvre ce jour ISO, ou None."""
+    for chaine in chaines:
+        if chaine["debut"] <= jour[:10] <= chaine["fin"]:
+            return chaine
+    return None
+
+
+def jours_d_anciennete_neutralises(demandes: Any, jusqu_au: date) -> int:
+    """Jours d'ancienneté que le congé parental à temps plein ne donne pas.
+
+    C. trav. L1225-54 (version du 11/03/2023, loi n° 2023-171, art. 18 ; le
+    texte d'avant le comptait déjà pour moitié) : « La durée du congé parental
+    d'éducation à temps plein est prise en compte pour moitié pour la
+    détermination des droits que le salarié tient de son ancienneté. » La
+    moitié des jours calendaires de congé jusqu'à `jusqu_au` inclus, arrondie
+    à l'entier inférieur (au bénéfice du salarié), est retirée."""
+    jours: set[str] = set()
+    limite = jusqu_au.isoformat()
+    for demande in demandes or ():
+        if not est_conge_parental(demande):
+            continue
+        if str(demande.get("status") or "validated") != "validated":
+            continue
+        jours.update(
+            str(j)[:10] for j in demande.get("selected_days") or [] if str(j)[:10] <= limite
+        )
+    return len(jours) // 2
+
+
+def decaler_l_anciennete(debut: date | None, jours_neutralises: int) -> date | None:
+    """La date d'ancienneté repoussée des jours que le congé ne donne pas."""
+    if debut is None or not jours_neutralises:
+        return debut
+    return debut + timedelta(days=int(jours_neutralises))
+
+
 def bornes_du_jour(jour: Mapping[str, Any]) -> tuple[date, date] | None:
     """Les bornes du congé parental portées par un jour, ou None."""
     periode = jour.get(CLE_PERIODE_ABSENCE)
@@ -89,6 +150,10 @@ def bornes_du_jour(jour: Mapping[str, Any]) -> tuple[date, date] | None:
 
 
 __all__ = [
+    "decaler_l_anciennete",
+    "jours_d_anciennete_neutralises",
+    "periode_du_jour",
+    "periodes_chainees",
     "CLE_MOTIF_ABSENCE",
     "CLE_PERIODE_ABSENCE",
     "LIBELLE_CONGE_PARENTAL",
