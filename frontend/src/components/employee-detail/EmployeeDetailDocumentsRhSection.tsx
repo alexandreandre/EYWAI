@@ -428,7 +428,7 @@ export function useEmployeeDocumentGeneration(
           <div className="space-y-3 py-2">
             <div className="space-y-2">
               <Label>Type de contrat</Label>
-              <Select value={genDocType || undefined} onValueChange={setGenDocType}>
+              <Select value={genDocType || ""} onValueChange={setGenDocType}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choisir…" />
                 </SelectTrigger>
@@ -483,7 +483,7 @@ export function useEmployeeDocumentGeneration(
           <div className="space-y-3 py-2">
             <div className="space-y-2">
               <Label>Type d&apos;avenant</Label>
-              <Select value={genDocType || undefined} onValueChange={setGenDocType}>
+              <Select value={genDocType || ""} onValueChange={setGenDocType}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choisir…" />
                 </SelectTrigger>
@@ -549,7 +549,7 @@ export function useEmployeeDocumentGeneration(
           <div className="space-y-3 py-2">
             <div className="space-y-2">
               <Label>Modèle</Label>
-              <Select value={genTemplate || undefined} onValueChange={setGenTemplate}>
+              <Select value={genTemplate || ""} onValueChange={setGenTemplate}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choisir un modèle…" />
                 </SelectTrigger>

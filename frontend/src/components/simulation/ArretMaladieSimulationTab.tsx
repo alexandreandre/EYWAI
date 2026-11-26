@@ -170,7 +170,7 @@ export function ArretMaladieSimulationTab({ employees }: ArretMaladieSimulationT
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2 sm:col-span-2">
           <Label>Employé</Label>
-          <Select value={employeeId || undefined} onValueChange={setEmployeeId}>
+          <Select value={employeeId || ""} onValueChange={setEmployeeId}>
             <SelectTrigger>
               <SelectValue placeholder="Sélectionner un employé…" />
             </SelectTrigger>

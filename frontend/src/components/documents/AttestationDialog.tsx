@@ -165,7 +165,7 @@ export function AttestationDialog({ open, onOpenChange, employee, onGenerated }:
             <div className="space-y-2">
               <Label htmlFor="attestation-salarie">Salarié</Label>
               <Select
-                value={employeeId || undefined}
+                value={employeeId || ""}
                 onValueChange={(v) => {
                   setEmployeeId(v);
                   setErreur(null);
@@ -188,7 +188,7 @@ export function AttestationDialog({ open, onOpenChange, employee, onGenerated }:
           <div className="space-y-2">
             <Label htmlFor="attestation-type">Type d&apos;attestation</Label>
             <Select
-              value={type || undefined}
+              value={type || ""}
               onValueChange={(v) => {
                 setType(v as AttestationType);
                 setTemplateId('__martine__');

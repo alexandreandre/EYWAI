@@ -302,7 +302,7 @@ export function SupportTicketDetailSheet({
                   <Label htmlFor="support-ticket-status">Changer le statut</Label>
                   <div className="flex flex-wrap items-center gap-3">
                     <Select
-                      value={statusSelect || undefined}
+                      value={statusSelect || ""}
                       onValueChange={(v) => setStatusSelect(v as TicketStatusAdminUpdate)}
                     >
                       <SelectTrigger id="support-ticket-status" className="w-[200px]">

@@ -760,7 +760,7 @@ export function AbsenceRequestModal({
                 </p>
               ) : (
                 <Select
-                  value={selectedEmployeeId || undefined}
+                  value={selectedEmployeeId || ""}
                   onValueChange={setSelectedEmployeeId}
                   disabled={enModification}
                 >
@@ -848,7 +848,7 @@ export function AbsenceRequestModal({
             <div className="grid gap-2">
               <Label htmlFor="arret-type">Type d&apos;arrêt</Label>
               <Select
-                value={arretType || undefined}
+                value={arretType || ""}
                 onValueChange={(v) => {
                   const suivant = v as absencesApi.ArretType;
                   // Basculement période ↔ jour par jour (mi-temps) : purger la

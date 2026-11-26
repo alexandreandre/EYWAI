@@ -19,6 +19,7 @@ from app.modules.absences.domain.enums import (
     IJSS_ELIGIBLE_TYPES,
     type_calendrier_projete,
 )
+from app.modules.absences.domain.chevauchement_arret import refus_chevauchement_arret
 from app.modules.absences.domain.date_accident import avec_date_accident, refus_date_accident
 from app.modules.absences.domain.nature_arret import incoherence_nature_type_d_arret
 from app.modules.absences.domain.rules import (
@@ -244,6 +245,15 @@ def create_absence_request(
     company_id = get_employee_company_id(employee_id)
     if not company_id:
         raise LookupError("Employé non trouvé.")
+
+    if absence_type in IJSS_ELIGIBLE_TYPES:
+        refus = refus_chevauchement_arret(
+            absence_type,
+            selected_days,
+            absence_repository.list_by_employee_id(employee_id) or [],
+        )
+        if refus:
+            raise ValueError(refus)
 
     db_data = {
         "employee_id": employee_id,

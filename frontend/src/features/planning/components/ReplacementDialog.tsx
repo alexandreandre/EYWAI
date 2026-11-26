@@ -73,7 +73,7 @@ export function ReplacementDialog(props: Props) {
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="rep-original">Salarié remplacé</Label>
-              <Select value={originalId || undefined} onValueChange={onOriginalIdChange}>
+              <Select value={originalId || ""} onValueChange={onOriginalIdChange}>
                 <SelectTrigger id="rep-original">
                   <SelectValue placeholder="Choisir…" />
                 </SelectTrigger>
@@ -88,7 +88,7 @@ export function ReplacementDialog(props: Props) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="rep-replacing">Salarié remplaçant</Label>
-              <Select value={replacingId || undefined} onValueChange={onReplacingIdChange}>
+              <Select value={replacingId || ""} onValueChange={onReplacingIdChange}>
                 <SelectTrigger id="rep-replacing">
                   <SelectValue placeholder="Choisir…" />
                 </SelectTrigger>
@@ -103,7 +103,7 @@ export function ReplacementDialog(props: Props) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="rep-type">Type de shift</Label>
-              <Select value={shiftTypeId || undefined} onValueChange={onShiftTypeIdChange}>
+              <Select value={shiftTypeId || ""} onValueChange={onShiftTypeIdChange}>
                 <SelectTrigger id="rep-type">
                   <SelectValue placeholder="Choisir un type" />
                 </SelectTrigger>

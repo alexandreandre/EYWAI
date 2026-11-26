@@ -60,7 +60,7 @@ export function OnCallDialog(props: Props) {
             <div className="space-y-2">
               <Label htmlFor="oncall-employee">Employé</Label>
               <Select
-                value={employeeId || undefined}
+                value={employeeId || ""}
                 onValueChange={onEmployeeIdChange}
               >
                 <SelectTrigger id="oncall-employee">
