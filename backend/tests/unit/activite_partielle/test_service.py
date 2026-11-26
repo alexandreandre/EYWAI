@@ -189,6 +189,13 @@ def test_calendrier_remplace_la_saisie_a_la_main(base):
     assert retenue["payroll_quantity"] == 11
     assert retenue["amount"] == pytest.approx(-11 * 2166.67 / (35 * 52 / 12), abs=0.01)
     assert indemnite["amount"] > 0 and indemnite["is_socially_taxed"] is False
+    # De quoi recalculer l'indemnité au bulletin avec la prime d'ancienneté (R5122-18) ;
+    # la retenue n'en porte pas.
+    from app.modules.activite_partielle.domain.calcul import CLE_CALCUL_INDEMNITE
+
+    calcul = indemnite[CLE_CALCUL_INDEMNITE]
+    assert calcul["heures"] == 11 and calcul["salaire_mensuel"] == pytest.approx(2166.67)
+    assert calcul["taux_indemnite"] == 60.0 and CLE_CALCUL_INDEMNITE not in retenue
 
 
 def test_sans_jour_au_calendrier_la_saisie_a_la_main_reste(base):

@@ -20,6 +20,9 @@ from typing import Any
 LIBELLE_RETENUE = "Heures chômées (act. part.)"
 LIBELLE_INDEMNITE = "Indemnité activité partielle"
 LIBELLES = (LIBELLE_RETENUE, LIBELLE_INDEMNITE)
+#: Clé portée par la ligne d'indemnité calculée au calendrier : heures, salaire
+#: horaire et réglage, pour la recalculer au bulletin avec la prime d'ancienneté.
+CLE_CALCUL_INDEMNITE = "calcul_indemnite_activite_partielle"
 
 TAUX_LEGAL = 60.0
 PLANCHER_LEGAL = 9.74
@@ -83,6 +86,54 @@ def taux_horaire_forfait_jours(
     return round(mensuel / (22 * jours / 218) / 7, 4)
 
 
+def assiette_horaire_avec_prime(
+    taux_horaire: float, salaire_mensuel: float | None, prime_mensuelle: float | None
+) -> float:
+    """Rémunération horaire de l'indemnité, prime d'ancienneté comprise.
+
+    R5122-18 : l'indemnité vaut 60 % de la « rémunération brute servant
+    d'assiette de l'indemnité de congés payés telle que prévue au II de
+    l'article L. 3141-24 », ramenée à l'heure (code.travail.gouv.fr, lu le
+    26/11/2026). Ce II est le maintien du salaire que le salarié aurait perçu
+    s'il avait travaillé : la prime d'ancienneté du mois en fait partie (elle
+    reste payée pendant les congés, et la base du dixième la compte). Même
+    nombre d'heures que le salaire horaire : salaire horaire × (1 + prime ÷
+    salaire).
+    """
+    try:
+        salaire = float(salaire_mensuel or 0.0)
+        prime = float(prime_mensuelle or 0.0)
+    except (TypeError, ValueError):
+        return float(taux_horaire)
+    if salaire <= 0 or prime <= 0:
+        return float(taux_horaire)
+    return round(float(taux_horaire) * (1 + prime / salaire), 4)
+
+
+def indemnite_par_heure(
+    assiette_horaire: float, *, taux_indemnite: float, plancher: float, plafond: float
+) -> tuple[float, str]:
+    """L'indemnité d'une heure chômée et la règle qui l'a fixée : le taux de la
+    société, borné par le plancher et le plafond, jamais plus que l'assiette."""
+    assiette = float(assiette_horaire)
+    indemnite = assiette * float(taux_indemnite) / 100
+    regle = f"{float(taux_indemnite):g} % du salaire horaire"
+    if indemnite < plancher:
+        indemnite = plancher
+        regle = f"plancher de {plancher:.2f} € par heure".replace(".", ",")
+    if indemnite > plafond:
+        indemnite = plafond
+        regle = f"plafond de {plafond:.2f} € par heure".replace(".", ",")
+    if indemnite > assiette:
+        indemnite = assiette
+        regle = "salaire horaire (l'indemnité ne le dépasse pas)"
+    return round(indemnite, 4), regle
+
+
+def indemnite_du_mois(heures: float, indemnite_horaire: float) -> float:
+    return _r2(float(heures) * float(indemnite_horaire))
+
+
 def heures_retenues(
     heures_chomees: float,
     *,
@@ -122,8 +173,13 @@ def calculer(
     salaire: float | None = None,
     tout_chome: bool = False,
     sans_travail: bool = False,
+    assiette_horaire: float | None = None,
 ) -> CalculActivitePartielle:
-    """Bornes de la période (R5122-19), toutes facultatives :
+    """`assiette_horaire` : la rémunération horaire de l'indemnité (R5122-18),
+    quand elle dépasse le salaire horaire (prime d'ancienneté comprise, voir
+    `assiette_horaire_avec_prime`). La retenue reste au salaire horaire.
+
+    Bornes de la période (R5122-19), toutes facultatives :
     - `heures_max` : heures chômées au plus (durée de référence moins les
       heures non chômées) ;
     - `tout_chome` : rien d'autre n'est dû sur la période ; les heures valent
@@ -144,25 +200,18 @@ def calculer(
     )
     plafonne = not (tout_chome or sans_travail) and heures < round(max(0.0, float(heures_chomees)), 2)
     horaire = float(taux_horaire)
-    brute = horaire * float(taux_indemnite) / 100
-    regle = f"{float(taux_indemnite):g} % du salaire horaire"
-    indemnite_horaire = brute
-    if indemnite_horaire < plancher:
-        indemnite_horaire = plancher
-        regle = f"plancher de {plancher:.2f} € par heure".replace(".", ",")
-    if indemnite_horaire > plafond:
-        indemnite_horaire = plafond
-        regle = f"plafond de {plafond:.2f} € par heure".replace(".", ",")
-    if indemnite_horaire > horaire:
-        indemnite_horaire = horaire
-        regle = "salaire horaire (l'indemnité ne le dépasse pas)"
-    indemnite_horaire = round(indemnite_horaire, 4)
+    indemnite_horaire, regle = indemnite_par_heure(
+        horaire if assiette_horaire is None else float(assiette_horaire),
+        taux_indemnite=taux_indemnite,
+        plancher=plancher,
+        plafond=plafond,
+    )
     return CalculActivitePartielle(
         heures_chomees=heures,
         taux_horaire=round(horaire, 4),
         indemnite_horaire=indemnite_horaire,
         retenue=_retenue(heures * horaire, salaire, tout_chome),
-        indemnite=_r2(heures * indemnite_horaire),
+        indemnite=indemnite_du_mois(heures, indemnite_horaire),
         regle=regle,
         plafonne=plafonne,
     )

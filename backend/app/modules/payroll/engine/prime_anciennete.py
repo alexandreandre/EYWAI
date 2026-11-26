@@ -233,6 +233,10 @@ def calculer_ligne_prime_anciennete(
             meta={**(plein_mois.meta or {}), "majoration_forfait_jours": MAJORATION_FORFAIT_JOURS_METALLURGIE},
         )
 
+    # Le plein mois, avant le prorata : l'assiette de l'indemnité d'activité
+    # partielle le reprend (R5122-18 ; `activite_partielle.indemnite_avec_la_prime`),
+    # même quand le mois chômé en entier ramène la prime à zéro.
+    contexte.prime_anciennete_plein_mois = plein_mois.montant_plein_mois
     prorata_cfg = _prorata_config(regles_prime, resolved)
     ratio = 1.0
     temps_detail: dict[str, Any] = {}

@@ -22,6 +22,7 @@ from app.modules.activite_partielle.domain.calendrier import (
     jours_chomes,
 )
 from app.modules.activite_partielle.domain.calcul import (
+    CLE_CALCUL_INDEMNITE,
     LIBELLE_INDEMNITE,
     LIBELLE_RETENUE,
     LIBELLES,
@@ -176,6 +177,16 @@ def _jours_du_forfait(e: dict[str, Any]) -> float | None:
             leave_settings_repository.get_leave_policy(str(e["company_id"])).rtt_forfait_annual_days
         )
     return jours
+
+
+def _salaire_mensuel(e: dict[str, Any]) -> float | None:
+    """Le salaire du mois qui fait le salaire horaire (`_taux_horaire`)."""
+    valeur = e.get("salaire_de_base")
+    valeur = valeur.get("valeur") if isinstance(valeur, dict) else valeur
+    try:
+        return float(valeur)
+    except (TypeError, ValueError):
+        return None
 
 
 def _taux_horaire(e: dict[str, Any]) -> float | None:
@@ -630,6 +641,17 @@ def lignes_du_calendrier(
         "source": "calendrier_activite_partielle",
     }
     lignes = [{**commun, **ligne} for ligne in _deux_lignes(c)]
+    # Ce qu'il faut au bulletin pour porter la prime d'ancienneté dans
+    # l'assiette de l'indemnité (R5122-18), une fois la prime connue
+    # (`payroll.engine.activite_partielle.indemnite_avec_la_prime`).
+    lignes[1][CLE_CALCUL_INDEMNITE] = {
+        "heures": c.heures_chomees,
+        "taux_horaire": c.taux_horaire,
+        "salaire_mensuel": _salaire_mensuel(employee),
+        "taux_indemnite": float(reglage["taux_indemnite"]),
+        "plancher": float(reglage["plancher_horaire"]),
+        "plafond": float(reglage["plafond_horaire"]),
+    }
     refus = refus_periode(reglage, year, month)
     au_dela = _au_dela_de_la_duree_legale(employee)
     alerte = (
