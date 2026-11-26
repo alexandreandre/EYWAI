@@ -321,3 +321,149 @@ def test_complementaire_au_dela_du_plafond_tranche_2_et_cet():
     assert lignes["surcotisation_retraite_comp_t1"]["assiette_base_dsn"] == 1936.88
     assert lignes["surcotisation_retraite_comp_t2"]["assiette_base_dsn"] == 2068.12
     assert lignes["surcotisation_cet"]["assiette_base_dsn"] == 2068.12
+
+
+# --- Relecture du 26/11 ---------------------------------------------------
+
+
+def _forfait_social(lignes: list[dict]) -> list[dict]:
+    return [l for l in lignes if l.get("coti_id") == "forfait_social"]
+
+
+def test_prise_en_charge_complementaire_soumise_au_forfait_social_20_pourcent():
+    """CSS L137-15 : la part salariale complémentaire prise en charge par
+    l'employeur est soumise au forfait social, à 20 % (L137-16)."""
+    reglage = _reglage(complementaire_temps_plein=True, prise_en_charge_part_salariale=True)
+    heures = 17.5 * 52 / 12
+    s = salaires_temps_plein(
+        reglage, brut=1250.0, au_forfait_jours=False, jours_forfait=None,
+        heures_contrat_mois=heures, heures_complementaires_mois=0.0, smic_horaire=SMIC_HORAIRE,
+    )
+    lignes = _lignes(reglage, s, brut=1250.0)
+    comp = [l for l in lignes if l["coti_id"] in {"surcotisation_retraite_comp_t1", "surcotisation_ceg_t1"}]
+    prise = round(sum(l["prise_en_charge_part_salariale"] for l in comp), 2)
+    # T1 : 1 250 × 3,15 % = 39,38 ; CEG : 1 250 × 0,86 % = 10,75.
+    assert prise == 50.13
+    (fs,) = _forfait_social(lignes)
+    assert fs["base"] == 50.13 and fs["taux_patronal"] == 0.20
+    assert fs["montant_patronal"] == round(50.13 * 0.20, 2) == 10.03
+    assert fs["montant_salarial"] == 0.0
+    assert fs["rubrique"] == "autres_contributions_employeur"
+
+
+def test_prise_en_charge_de_la_vieillesse_seule_sans_forfait_social():
+    reglage = _reglage(prise_en_charge_part_salariale=True)
+    s = salaires_temps_plein(
+        reglage, brut=2000.0, au_forfait_jours=True, jours_forfait=109,
+        heures_contrat_mois=151.67, heures_complementaires_mois=0.0, smic_horaire=SMIC_HORAIRE,
+    )
+    assert _forfait_social(_lignes(reglage, s)) == []
+
+
+def test_sans_prise_en_charge_pas_de_forfait_social():
+    reglage = _reglage(complementaire_temps_plein=True)
+    s = salaires_temps_plein(
+        reglage, brut=1250.0, au_forfait_jours=False, jours_forfait=None,
+        heures_contrat_mois=17.5 * 52 / 12, heures_complementaires_mois=0.0, smic_horaire=SMIC_HORAIRE,
+    )
+    assert _forfait_social(_lignes(reglage, s, brut=1250.0)) == []
+
+
+@pytest.fixture
+def banc_agirc_arrco(monkeypatch, request):
+    """Le banc, avec l'Agirc-Arrco T1 et la CEG T1 au barème (absents des barèmes figés)."""
+    import tests.unit.payslips.test_theoreme_chemin_complet as chemin
+
+    vrai = chemin._baremes_de_paie
+
+    def avec_agirc_arrco():
+        baremes = vrai()
+        baremes["cotisations"]["cotisations"] += [dict(l) for l in BAREME if l["id"] in {"retraite_comp_t1", "ceg_t1"}]
+        return baremes
+
+    monkeypatch.setattr(chemin, "_baremes_de_paie", avec_agirc_arrco)
+    return request.getfixturevalue("banc")
+
+
+@pytest.mark.parametrize("profil", ["temps_partiel", "forfait_jours"])
+def test_bulletin_forfait_social_sur_la_prise_en_charge_complementaire(banc_agirc_arrco, profil):
+    banc = banc_agirc_arrco
+    reglage = {**REGLAGE_FICHE, "complementaire_temps_plein": True, "prise_en_charge_part_salariale": True}
+    sans = banc.generer(profil, fiche_en_plus=_fiche(profil, None))
+    avec = banc.generer(profil, fiche_en_plus=_fiche(profil, reglage))
+    lignes = _cotisations(avec)
+    comp = [
+        l for l in lignes
+        if l.get("coti_id") in {"surcotisation_retraite_comp_t1", "surcotisation_ceg_t1"}
+    ]
+    assert comp and all(l["montant_salarial"] == 0.0 for l in comp)
+    prise = round(sum(l["prise_en_charge_part_salariale"] for l in comp), 2)
+    nouveaux = [l for l in _forfait_social(lignes) if "retraite progressive" in l["libelle"]]
+    assert len(nouveaux) == 1
+    assert nouveaux[0]["base"] == prise and nouveaux[0]["montant_patronal"] == round(prise * 0.20, 2)
+    # Le net ne bouge pas ; le forfait social de la prévoyance non plus.
+    assert avec["net_a_payer"] == sans["net_a_payer"]
+    assert [l for l in _forfait_social(lignes) if l not in nouveaux] == _forfait_social(_cotisations(sans))
+
+
+@pytest.mark.parametrize(
+    "quotite,alerte",
+    [(0.395, False), (0.394, True), (0.804, False), (0.805, True), (0.5, False)],
+)
+def test_quotite_arrondie_a_l_unite_avant_les_bornes(quotite, alerte):
+    """R161-19-6, I : quotité en pourcentage arrondie à l'unité, 0,5 compté pour 1."""
+    s = salaires_temps_plein(
+        _reglage(quotite=quotite), brut=0.0, au_forfait_jours=False, jours_forfait=None,
+        heures_contrat_mois=quotite * 151.67, heures_complementaires_mois=0.0, smic_horaire=SMIC_HORAIRE,
+    )
+    codes = [a["code"] for a in s.alertes]
+    assert ("retraite_progressive_quotite_hors_bornes" in codes) is alerte
+
+
+@pytest.mark.parametrize("profil", ["temps_partiel", "forfait_jours"])
+def test_aucune_cotisation_cochee_alerte_au_bulletin(banc, profil):  # noqa: F811
+    reglage = {**REGLAGE_FICHE, "vieillesse_temps_plein": False, "complementaire_temps_plein": False}
+    donnees = banc.generer(profil, fiche_en_plus=_fiche(profil, reglage))
+    assert _surcotisations(donnees) == []
+    assert "retraite_progressive_aucune_cotisation" in alertes(donnees)
+
+
+@pytest.mark.parametrize("profil", ["temps_partiel", "forfait_jours"])
+def test_fin_en_cours_de_mois_alerte_comme_le_debut(banc, profil):  # noqa: F811
+    donnees = banc.generer(
+        profil, fiche_en_plus=_fiche(profil, {**REGLAGE_FICHE, "date_fin": "2026-10-15"})
+    )
+    assert _surcotisations(donnees)
+    assert "retraite_progressive_fin_en_cours_de_mois" in alertes(donnees)
+    fin_de_mois = banc.generer(
+        profil, fiche_en_plus=_fiche(profil, {**REGLAGE_FICHE, "date_fin": "2026-10-31"})
+    )
+    assert "retraite_progressive_fin_en_cours_de_mois" not in alertes(fin_de_mois)
+
+
+def test_vieillesse_absente_du_reglage_vaut_non():
+    """Le moteur lit une case absente comme décochée ; l'écran fait de même."""
+    reglage = lire_reglage({"retraite_progressive": {"actif": True, "quotite": 0.5}})
+    assert reglage is not None and reglage.vieillesse_temps_plein is False
+
+
+@pytest.mark.parametrize("brut,alerte", [(2000.0, True), (3244.48, False)])
+def test_complementaire_seule_au_forfait_sous_1_7_smic_alerte(brut, alerte):
+    """Avenant 23 (circulaire Agirc-Arrco 2025-6) : la complémentaire seule est
+    réservée aux salariés exclus du régime de base par leur rémunération."""
+    s = salaires_temps_plein(
+        _reglage(vieillesse_temps_plein=False, complementaire_temps_plein=True), brut=brut,
+        au_forfait_jours=True, jours_forfait=109, heures_contrat_mois=151.67,
+        heures_complementaires_mois=0.0, smic_horaire=SMIC_HORAIRE,
+    )
+    codes = [a["code"] for a in s.alertes]
+    assert ("retraite_progressive_complementaire_seule_sous_1_7_smic" in codes) is alerte
+    assert s.complementaire == round(brut * 2, 2)
+
+
+def test_complementaire_seule_au_forfait_sous_1_7_smic_alerte_au_bulletin(banc_agirc_arrco):
+    banc = banc_agirc_arrco
+    reglage = {**REGLAGE_FICHE, "vieillesse_temps_plein": False, "complementaire_temps_plein": True}
+    donnees = banc.generer("forfait_jours", fiche_en_plus=_fiche("forfait_jours", reglage))
+    assert "retraite_progressive_complementaire_seule_sous_1_7_smic" in alertes(donnees)
+    assert {l["coti_id"] for l in _surcotisations(donnees)} >= {"surcotisation_retraite_comp_t1"}

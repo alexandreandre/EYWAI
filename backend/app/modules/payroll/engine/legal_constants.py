@@ -21,6 +21,9 @@ SEUIL_EFFECTIF_CFP = 11
 # (moins de 11 salariés non assujettis) et L137-16 (taux de 8 %).
 SEUIL_EFFECTIF_FORFAIT_SOCIAL_PREVOYANCE = 11
 TAUX_FORFAIT_SOCIAL_PREVOYANCE = 0.08
+# Taux de droit commun du forfait social (CSS L137-16 : « Le taux de la
+# contribution mentionnée à l'article L. 137-15 est fixé à 20 %. »).
+TAUX_FORFAIT_SOCIAL_DROIT_COMMUN = 0.20
 
 # Bascule réduction générale : Fillon (RGCP) jusqu'en 2025, RGDU à partir de 2026
 # (réforme des allègements généraux, LFSS 2025 art. 18 / décret n°2025-887).

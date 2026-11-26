@@ -41,25 +41,45 @@ Textes ouverts le 26/11/2026 :
   au-delà de 1,7 SMIC.
 - DSN (fiche net-entreprises v2.1) : base 22 = différentiel déplafonné, base 24 =
   différentiel plafonné (plafond entier − base 02), CTP 288 ; S21.G00.40.044.
+- CSS R161-19-6, I (édition codes.droit.org du 20/11/2026) : « La quotité de temps
+  de travail mentionnée au 1° de l'article L. 161-22-1-5 ne peut être inférieure à
+  40 % ou supérieure à 80 % de la durée de travail à temps complet. Cette quotité
+  de travail, exprimée en pourcentage, est arrondie à l'unité la plus proche. La
+  fraction égale à 0,5 est comptée pour 1. »
+- CSS L137-15 (même édition) : « Sont également soumises à cette contribution les
+  sommes correspondant à la prise en charge par l'employeur de la part salariale
+  des cotisations ou contributions destinées au financement des régimes de
+  retraite complémentaire mentionnée au b du 2° du III de l'article L. 136-1-1. »
+  Taux : 20 % (L137-16, premier alinéa) ; l'exonération des moins de onze
+  salariés ne vise que la prévoyance. La prise en charge de la vieillesse de base
+  n'y est pas soumise.
+- Circulaire Agirc-Arrco 2025-6-SG-DRJ du 19/03/2025 (avenant 23) : la
+  complémentaire seule au forfait jours est ouverte aux salariés « lorsqu'ils ne
+  sont pas éligibles au même dispositif pour le régime de base en raison du niveau
+  de leur rémunération (et donc si leur rémunération excède 1,7 SMIC) ».
 
 Le supplément ne touche ni le brut ni la CSG : ce sont des lignes de cotisation
 en plus, « Surcotisation retraite progressive », part patronale à l'employeur,
-part salariale au salarié sauf prise en charge (alors versée par l'employeur).
+part salariale au salarié sauf prise en charge (alors versée par l'employeur, et
+soumise au forfait social de 20 % pour la part complémentaire).
 Un salarié sans réglage ne voit rien changer : la fonction rend une liste vide.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+import calendar
 from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from . import legal_constants as lc
 
 CLE_REGLAGE = "retraite_progressive"
-#: Quotité de travail permise (CSS R161-19-6 : « ne peut être inférieure à 40 %
-#: ou supérieure à 80 % de la durée de travail à temps complet »).
-QUOTITE_MIN, QUOTITE_MAX = 0.40, 0.80
+#: Quotité de travail permise (CSS R161-19-6, I : « ne peut être inférieure à 40 %
+#: ou supérieure à 80 % de la durée de travail à temps complet », en pourcentage
+#: « arrondie à l'unité la plus proche », 0,5 compté pour 1).
+QUOTITE_MIN_POURCENT, QUOTITE_MAX_POURCENT = 40, 80
 #: Seuil du forfait jours pour la vieillesse de base, en SMIC.
 COEFFICIENT_SMIC_FORFAIT = 1.7
 #: Limite de l'assiette Agirc-Arrco (ANI du 17/11/2017, art. 32 : huit plafonds).
@@ -83,6 +103,8 @@ COMPLEMENTAIRE: Tuple[Tuple[str, str, str], ...] = (
 #: Toutes les lignes que ce module peut poser (rubrique « Retraite », DSN).
 COTI_IDS_SURCOTISATION = frozenset(s for _, s, _ in VIEILLESSE_DE_BASE + COMPLEMENTAIRE)
 LIBELLE = "Surcotisation retraite progressive"
+#: Forfait social sur la part salariale complémentaire prise en charge (L137-15).
+LIBELLE_FORFAIT_SOCIAL = "Forfait social 20% sur prise en charge retraite progressive"
 
 
 @dataclass(frozen=True)
@@ -203,7 +225,7 @@ def salaires_temps_plein(
         if quotite_fiche is not None and quotite_fiche >= 0.9999:
             quotite_fiche = None
     quotite = reglage.quotite if reglage.quotite is not None else quotite_fiche
-    if quotite is not None and not QUOTITE_MIN - 1e-9 <= quotite <= QUOTITE_MAX + 1e-9:
+    if quotite is not None and not QUOTITE_MIN_POURCENT <= _pourcent_arrondi(quotite) <= QUOTITE_MAX_POURCENT:
         alertes.append(_alerte(
             "retraite_progressive_quotite_hors_bornes",
             f"Retraite progressive à {quotite * 100:.0f} % : la loi la permet entre 40 et 80 % "
@@ -230,6 +252,24 @@ def salaires_temps_plein(
     complementaire: Optional[float] = None
     if brut <= 0:
         return SalairesTempsPlein(None, None, quotite, tuple(alertes))
+
+    seuil_mensuel = COEFFICIENT_SMIC_FORFAIT * smic_horaire * heures_temps_plein
+    if (
+        au_forfait_jours
+        and reglage.complementaire_temps_plein
+        and not reglage.vieillesse_temps_plein
+        and 0 < brut < seuil_mensuel
+    ):
+        # Circulaire Agirc-Arrco 2025-6 (avenant 23) : la complémentaire seule est
+        # réservée à ceux que leur rémunération (au-delà de 1,7 SMIC) exclut du
+        # régime de base. Sous ce seuil, la base est ouverte : on la propose.
+        alertes.append(_alerte(
+            "retraite_progressive_complementaire_seule_sous_1_7_smic",
+            f"Forfait jours : la retraite complémentaire seule sur un temps plein est réservée "
+            f"aux salariés exclus du régime de base par leur rémunération (au-delà de 1,7 SMIC, "
+            f"{_euros(seuil_mensuel)} ce mois) ; le brut est de {_euros(brut)}. Cochez aussi "
+            "la vieillesse de base, ou vérifiez l'accord (Agirc-Arrco, avenant 23).",
+        ))
 
     if reglage.salaire_temps_plein is not None:
         if reglage.vieillesse_temps_plein:
@@ -277,6 +317,43 @@ def salaires_temps_plein(
 
     arrondi = lambda v: round(v, 2) if v is not None and v > brut else None  # noqa: E731
     return SalairesTempsPlein(arrondi(base), arrondi(complementaire), quotite, tuple(alertes))
+
+
+def _pourcent_arrondi(quotite: float) -> int:
+    """Quotité en pourcentage arrondie à l'unité, 0,5 compté pour 1 (R161-19-6, I)."""
+    return int(Decimal(str(quotite * 100)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def alertes_du_mois(reglage: ReglageRetraiteProgressive, annee: int, mois: int) -> List[Dict[str, Any]]:
+    """Ce que le bulletin du mois doit signaler, hors calcul des salaires.
+
+    - aucune cotisation cochée : le réglage est actif mais ne pose rien ;
+    - début ou fin en cours de mois : la surcotisation porte sur tout le mois.
+    """
+    alertes: List[Dict[str, Any]] = []
+    if not (reglage.vieillesse_temps_plein or reglage.complementaire_temps_plein):
+        alertes.append(_alerte(
+            "retraite_progressive_aucune_cotisation",
+            "Retraite progressive active, mais ni la vieillesse ni la retraite complémentaire "
+            "sur un temps plein ne sont cochées : aucune surcotisation n'est posée. Cochez ce "
+            "que prévoit l'accord, ou décochez la retraite progressive sur la fiche.",
+        ))
+        return alertes
+    dernier = calendar.monthrange(annee, mois)[1]
+    debut, fin = reglage.date_debut, reglage.date_fin
+    if debut and (debut.year, debut.month) == (annee, mois) and debut.day > 1:
+        alertes.append(_alerte(
+            "retraite_progressive_debut_en_cours_de_mois",
+            f"Retraite progressive depuis le {debut.strftime('%d/%m/%Y')} : la surcotisation "
+            "porte sur tout le mois. Corrigez la ligne à la main pour la part d'avant.",
+        ))
+    if fin and (fin.year, fin.month) == (annee, mois) and fin.day < dernier:
+        alertes.append(_alerte(
+            "retraite_progressive_fin_en_cours_de_mois",
+            f"Retraite progressive jusqu'au {fin.strftime('%d/%m/%Y')} : la surcotisation "
+            "porte sur tout le mois. Corrigez la ligne à la main pour la part d'après.",
+        ))
+    return alertes
 
 
 def _lignes_du_bareme(cotisations: List[Dict[str, Any]], identifiant: str) -> List[Dict[str, Any]]:
@@ -345,7 +422,8 @@ def lignes_de_surcotisation(
             ligne["assiette_base_dsn"] = round(bases_dsn.get(assiette_cle, assiette), 2)
             if reglage.prise_en_charge_part_salariale and ligne.get("montant_salarial"):
                 # R241-0-3, II : la part salariale du supplément est payée par
-                # l'employeur ; elle ne passe ni par le brut ni par la CSG (L241-3-1).
+                # l'employeur ; elle ne passe pas par le brut. Part complémentaire :
+                # forfait social de 20 % (L137-15), posé après la boucle.
                 prise = float(ligne["montant_salarial"])
                 ligne["montant_patronal"] = round(float(ligne.get("montant_patronal") or 0.0) + prise, 2)
                 ligne["taux_patronal"] = round((taux_pat or 0.0) + (taux_sal or 0.0), 6)
@@ -353,6 +431,32 @@ def lignes_de_surcotisation(
                 ligne["taux_salarial"] = None
                 ligne["prise_en_charge_part_salariale"] = round(prise, 2)
             lignes.append(ligne)
+
+    # CSS L137-15 : « Sont également soumises à cette contribution les sommes
+    # correspondant à la prise en charge par l'employeur de la part salariale des
+    # cotisations ou contributions destinées au financement des régimes de retraite
+    # complémentaire […] ». Taux de 20 % (L137-16), quel que soit l'effectif. Même
+    # ligne que le forfait social de la retraite supplémentaire : 071, CTP 012.
+    ids_complementaire = {s for _, s, _ in COMPLEMENTAIRE}
+    prise_complementaire = round(
+        sum(
+            float(l.get("prise_en_charge_part_salariale") or 0.0)
+            for l in lignes
+            if l.get("coti_id") in ids_complementaire
+        ),
+        2,
+    )
+    if prise_complementaire > 0:
+        ligne_fs = calculer_ligne(
+            LIBELLE_FORFAIT_SOCIAL,
+            prise_complementaire,
+            None,
+            lc.TAUX_FORFAIT_SOCIAL_DROIT_COMMUN,
+            coti_id="forfait_social",
+        )
+        if ligne_fs:
+            ligne_fs["retraite_progressive"] = True
+            lignes.append(ligne_fs)
     return lignes
 
 

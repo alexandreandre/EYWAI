@@ -828,17 +828,26 @@ def _surcotisation_retraite_progressive(
     """Lignes de surcotisation du mois, et leurs alertes ; [] sans réglage."""
     from .forfait_individuel import jours_du_forfait_de_la_fiche
     from .retraite_progressive import (
+        alertes_du_mois,
         lignes_de_surcotisation,
         lire_reglage,
         salaires_temps_plein,
     )
+
+    def signaler(alertes: List[Dict[str, Any]]) -> None:
+        if isinstance(contexte.alertes_baremes, list):
+            connus = {a.get("code") for a in contexte.alertes_baremes if isinstance(a, dict)}
+            contexte.alertes_baremes.extend(a for a in alertes if a["code"] not in connus)
 
     specificites = contexte.contrat.get("specificites_paie", {}) or {}
     reglage = lire_reglage(specificites)
     annee, mois = getattr(contexte, "year", None), getattr(contexte, "month", None)
     if reglage is None or not (annee and mois) or not reglage.couvre(int(annee), int(mois)):
         return []
+    # Aucune cotisation cochée, début ou fin en cours de mois : jamais en silence.
+    alertes = alertes_du_mois(reglage, int(annee), int(mois))
     if not (reglage.vieillesse_temps_plein or reglage.complementaire_temps_plein):
+        signaler(alertes)
         return []
     au_forfait = bool(contexte.is_forfait_jour)
     salaires = salaires_temps_plein(
@@ -850,24 +859,7 @@ def _surcotisation_retraite_progressive(
         heures_complementaires_mois=float(getattr(contexte, "heures_complementaires_mois", 0.0) or 0.0),
         smic_horaire=float(contexte.smic_horaire or 0.0),
     )
-    alertes = list(salaires.alertes)
-    debut = reglage.date_debut
-    if debut and (debut.year, debut.month) == (int(annee), int(mois)) and debut.day > 1:
-        alertes.append(
-            {
-                "code": "retraite_progressive_debut_en_cours_de_mois",
-                "critique": False,
-                "severity": "warning",
-                "message": (
-                    f"Retraite progressive depuis le {debut.strftime('%d/%m/%Y')} : la surcotisation "
-                    "porte sur tout le mois. Corrigez la ligne à la main pour la part d'avant."
-                ),
-                "donnee_non_officielle": False,
-            }
-        )
-    if isinstance(contexte.alertes_baremes, list):
-        connus = {a.get("code") for a in contexte.alertes_baremes if isinstance(a, dict)}
-        contexte.alertes_baremes.extend(a for a in alertes if a["code"] not in connus)
+    signaler(list(salaires.alertes) + alertes)
 
     # Plafond entier du temps plein (R241-0-2, V), réduit seulement d'une
     # entrée, d'une sortie ou d'une absence non payée (ratio de la période).
