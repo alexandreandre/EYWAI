@@ -1908,6 +1908,11 @@ def calculer_salaire_brut(
     # mensualisé total (ci-dessus) UNIQUEMENT si `nb_jours_travail_planifies==0`
     # (aucun jour "travail" dans le calendrier BRUT du mois, cf. docstring).
     montant_absence_pleine_total = 0.0
+    # Retenues des jours d'avant le mois civil (fenêtre des variables qui
+    # commence le mois précédent) : jamais absorbées par le plafond ou le
+    # complément du mois entier, qui ne valent que pour le mois civil.
+    retenue_avant_le_mois = 0.0
+    jours_avant_le_mois: list[date] = []
     #: Jours d'arrêt retenus : (date, type, heures, régularisation antérieure).
     jours_d_arret_a_retenir: list[tuple[date, str, float, bool]] = []
     # Congé parental d'éducation : retenu comme un sans solde, écrit par période.
@@ -2038,6 +2043,10 @@ def calculer_salaire_brut(
                         heures_abs / lc.DUREE_LEGALE_HEBDO * 5
                     )
                 montant_absence_pleine_total += montant_deduction
+                jour_de_l_absence = date.fromisoformat(evenement["date_complete"])
+                if jour_de_l_absence < date_debut_periode:
+                    retenue_avant_le_mois += montant_deduction
+                    jours_avant_le_mois.append(jour_de_l_absence)
             if retenues_conge_parental.retient(evenement):
                 retenues_conge_parental.ajouter(
                     evenement, quantite=heures_abs, taux=taux_retenue, perte=montant_deduction
@@ -2325,10 +2334,10 @@ def calculer_salaire_brut(
     # retenue y reste celle des jours d'absence, jamais plus que le salaire.
     if (
         nb_jours_travail_planifies == 0
-        and montant_absence_pleine_total > 0
+        and montant_absence_pleine_total - retenue_avant_le_mois > 0
     ):
         complement_absence_pleine = round(
-            montant_base_mensualise - montant_absence_pleine_total, 2
+            montant_base_mensualise - (montant_absence_pleine_total - retenue_avant_le_mois), 2
         )
         if complement_absence_pleine > 0.01 and mois_entierement_absent:
             lignes_composants_brut.append(
@@ -2355,6 +2364,37 @@ def calculer_salaire_brut(
                     "perte": None,
                 }
             )
+        if retenue_avant_le_mois > 0.01 and mois_entierement_absent:
+            # Mois civil entièrement suspendu : les absences de la fin du mois
+            # précédent (fenêtre des variables) n'ont plus de salaire sur
+            # lequel se retenir. Rendues en clair, jamais absorbées en silence
+            # par la retenue du mois entier ; l'alerte dit où les porter.
+            jours_tries = sorted(jours_avant_le_mois)
+            montant_fr = f"{round(retenue_avant_le_mois, 2):.2f}".replace(".", ",")
+            lignes_composants_brut.append(
+                {
+                    "libelle": "Absences du mois précédent non retenues (salaire du mois suspendu)",
+                    "quantite": None,
+                    "taux": None,
+                    "gain": round(retenue_avant_le_mois, 2),
+                    "perte": None,
+                }
+            )
+            alertes = getattr(contexte, "alertes_baremes", None)
+            if isinstance(alertes, list):
+                alertes.append(
+                    {
+                        "code": "absences_mois_precedent_non_retenues",
+                        "message": (
+                            f"{len(jours_tries)} jour{'s' if len(jours_tries) > 1 else ''} "
+                            f"d'absence non rémunérée du {jours_tries[0]:%d/%m/%Y} au "
+                            f"{jours_tries[-1]:%d/%m/%Y} ({montant_fr} €) non retenus : le "
+                            "salaire de ce mois est entièrement suspendu. Portez-les sur le "
+                            "bulletin du mois précédent (régularisation) ou sur le premier "
+                            "mois payé."
+                        ),
+                    }
+                )
 
     # Saisie manuelle (monthly_inputs) : HS conjoncturelles déclarées sans badgeage.
     declared_conj = float(contexte.heures_sup_du_mois or 0)

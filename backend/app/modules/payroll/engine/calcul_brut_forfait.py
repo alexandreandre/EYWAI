@@ -415,6 +415,9 @@ def calculer_salaire_brut_forfait(
         )
 
     # 2. Traitement des événements de la période
+    # Une seule période pour tout au forfait jours (pas de fenêtre des
+    # variables) : le congé parental la suit, comme l'arrêt — pas le mois
+    # civil, qui ne vaut qu'au générateur des heures (`evenements_de_la_periode`).
     jours_dans_periode = [
         j
         for j in calendrier_saisie

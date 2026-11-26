@@ -125,7 +125,7 @@ def calculer_base_dixieme(brut: float | None, lignes: Iterable[Mapping[str, Any]
         texte = texte_normalise(ligne.get("libelle"))
         famille = _famille(ligne)
         perte, gain = _montant(ligne, "perte"), _montant(ligne, "gain")
-        if famille in {"retenue_absence_integrale", "retenue_absence_mois_complet", "complement_absence_integrale", "reduction_hs_absence"}:
+        if famille in {"retenue_absence_integrale", "retenue_absence_mois_complet", "complement_absence_integrale", "reduction_hs_absence", "absences_mois_precedent_non_retenues"}:
             annexes.append((perte - gain, ligne.get("dixieme_part_reconstituee"), bool(ligne.get("dixieme_hors_conges_payes"))))
             continue
         if not famille and "absence" in texte and not est_libelle_absence(texte):

@@ -53,6 +53,7 @@ FAMILLES: dict[str, dict] = {
     "brut:complement_absence_integrale": _gain("Complément retenue absence intégrale du mois"),
     "brut:retenue_absence_integrale": _perte("Retenue absence intégrale du mois limitée au salaire mensuel"),
     "brut:retenue_absence_mois_complet": _perte("Absence sur tout le mois : retenue ramenée au salaire du mois"),
+    "brut:absences_mois_precedent_non_retenues": _gain("Absences du mois précédent non retenues (salaire du mois suspendu)"),
     "brut:lissage_modulation": _gain("Lissage modulation"),
     "brut:absence_conges_payes": _perte("Absence congés payés du 05/10 au 09/10/26", 500.0),
     "brut:indemnite_conges_payes": _gain("Indemnité de congés payés (octobre)", 500.0),

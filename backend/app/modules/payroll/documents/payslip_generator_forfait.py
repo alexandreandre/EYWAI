@@ -469,7 +469,7 @@ def process_payslip_generation_forfait(
                 "seniority_reference_date": employee_data.get(
                     "seniority_reference_date"
                 ),
-                **neutralisation_de_l_anciennete(absences_rows, year, month),
+                **neutralisation_de_l_anciennete(absences_rows, year, month, employee_data),
                 "type_contrat": employee_data.get("contract_type"),
                 "date_conclusion_contrat": employee_data.get(
                     "date_conclusion_contrat"
