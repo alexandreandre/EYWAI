@@ -947,6 +947,9 @@ def run_payslip_generation_heures(
         contexte.cet_du_mois = etat_cet_du_bulletin(
             contexte, settings_row, employee_id, year, month, hprd
         )
+    # Lu sous la clé `calendrier`, absente des lignes en base (chemin mort, cf.
+    # `payslip_generator`) : seuls les compteurs de pied de bulletin le lisent
+    # encore. La prime d'ancienneté ne s'en sert plus (26/11).
     chemin_horaires = employee_path / "horaires" / f"{month:02d}.json"
     saisie_horaires = (
         json.loads(chemin_horaires.read_text(encoding="utf-8"))
@@ -1219,7 +1222,6 @@ def run_payslip_generation_heures(
         date_fin_periode=date_fin_periode,
         primes_saisies=primes_soumises,
         jours_maintien=jours_maintien,
-        actual_hours_raw=calendrier_du_mois,
         nb_jours_travail_planifies=nb_jours_travail_planifies,
         date_debut_variables=date_debut_variables,
         date_fin_variables=date_fin_variables,

@@ -1460,8 +1460,9 @@ def process_payslip_generation(
             )
         # Réel BRUT, sans le filet des heures sur arrêt. `payslip_run_heures`
         # ne le relit que sous la clé `calendrier`, qu'aucune ligne n'a en base
-        # (toutes ont `calendrier_reel`) : chemin mort aujourd'hui. S'il revivait,
-        # il contournerait le filet : il faudrait alors lui passer le réel filtré.
+        # (toutes ont `calendrier_reel`) : chemin mort aujourd'hui. La prime
+        # d'ancienneté ne le lit plus (26/11, `temps_travail_mois`). S'il
+        # revivait, il contournerait le filet : il faudrait lui passer le réel filtré.
         write_temp_json(
             employee_path / "horaires" / f"{month:02d}.json",
             (db_data_map.get((year, month)) or {}).get("actual_hours") or {},

@@ -38,24 +38,19 @@ def _contexte(*, forfait: bool, classe: int = 8, date_entree: str = "2021-06-14"
     return ChargerContexte(employee, company, _metallurgie_baremes())
 
 
-def _jours_forfait(n: int = 17) -> list[dict]:
-    return [{"date_complete": f"2026-10-{d:02d}", "type": "travail_base", "heures": 1.0} for d in range(1, n + 1)]
-
-
 def test_au_forfait_en_jours_la_prime_est_majoree_de_30_pour_cent():
     """Classe 8 (2,9 %), point des Deux-Sèvres 2026 (5,80 €), 5 ans : 5,80 × 2,9 × 5 = 84,10 €,
     majoré de 30 % = 109,33 €."""
     ligne = calculer_ligne_prime_anciennete(
-        _contexte(forfait=True), calendrier_saisie=_jours_forfait(),
+        _contexte(forfait=True),
         date_debut_periode=date(2026, 10, 1), date_fin_periode=date(2026, 10, 31))
     assert ligne is not None
     assert ligne["gain"] == pytest.approx(109.33, abs=0.01)
 
 
 def test_hors_forfait_la_prime_n_est_pas_majoree():
-    cal = [{"date_complete": f"2026-10-{d:02d}", "type": "travail", "heures": 151.67 / 22} for d in range(1, 23)]
     ligne = calculer_ligne_prime_anciennete(
-        _contexte(forfait=False), calendrier_saisie=cal,
+        _contexte(forfait=False),
         date_debut_periode=date(2026, 10, 1), date_fin_periode=date(2026, 10, 31))
     assert ligne is not None
     assert ligne["gain"] == pytest.approx(84.10, abs=0.02)
@@ -69,7 +64,7 @@ def test_la_majoration_vaut_aussi_pour_les_regles_en_valeur_du_point_de_la_metal
     regles = ctx.baremes["conventions_collectives"]["idcc_3248"]["prime_anciennete"]
     regles["base_de_calcul"] = {**(regles.get("base_de_calcul") or {}), "methode": "valeur_du_point"}
     ligne = calculer_ligne_prime_anciennete(
-        ctx, calendrier_saisie=_jours_forfait(),
+        ctx,
         date_debut_periode=date(2026, 10, 1), date_fin_periode=date(2026, 10, 31))
     assert ligne is not None
     assert ligne["gain"] == pytest.approx(109.33, abs=0.01)

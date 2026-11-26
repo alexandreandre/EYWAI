@@ -42,6 +42,27 @@ def heures_chomees_de_la_retenue(
     return 0.0
 
 
+def heures_chomees_des_saisies(saisies: object) -> float:
+    """Heures chômées d'activité partielle des saisies du mois, telles que le
+    moteur les reçoit (`libelle`, `montant`, `quantite` posée par
+    `heures_et_taux`) : calendrier et saisie à la main passent par là."""
+    total = 0.0
+    for saisie in saisies or []:
+        if not isinstance(saisie, dict):
+            continue
+        try:
+            montant = float(saisie.get("montant") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        total += heures_chomees_de_la_retenue(
+            saisie.get("prime_id"),
+            saisie.get("libelle") or saisie.get("name"),
+            montant,
+            saisie.get("quantite", saisie.get("quantity")),
+        )
+    return round(total, 2)
+
+
 def est_l_indemnite(prime_id: object, libelle: object) -> bool:
     """La ligne est l'indemnité d'activité partielle (revenu de remplacement)."""
     texte = _texte(prime_id, libelle)

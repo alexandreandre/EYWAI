@@ -34,6 +34,12 @@ from .calcul_brut import (
     iccp_saisie_au_mois,
     montant_iccp_saisie,
 )
+from .activite_partielle import heures_chomees_des_saisies
+from .temps_travail_mois import TempsDuMois, jours_ouvres_hors_feries
+
+#: Une journée de forfait vaut 7 h (fiche « forfaits jours » du ministère du
+#: Travail) : les heures chômées d'activité partielle en jours.
+HEURES_JOURNEE_FORFAIT = 7.0
 
 # Jours ouvrés moyens par mois (261 j / 12) : valorisation d'une journée de
 # forfait, à défaut d'un paramètre société `forfait_jours_ouvres_mois`.
@@ -136,11 +142,10 @@ def _construire_ligne_avantages_en_nature(
 def _calculer_prime_anciennete(
     contexte: ContextePaie,
     *,
-    calendrier_saisie: List[Dict[str, Any]],
     date_debut_periode: date,
     date_fin_periode: date,
     jours_maintien: Optional[set[int]] = None,
-    actual_hours_raw: Optional[List[Dict[str, Any]]] = None,
+    temps_du_mois: Optional[TempsDuMois] = None,
 ) -> Dict[str, Any] | None:
     # La prime d'ancienneté de la CCN plasturgie (IDCC 292) est réservée aux
     # non-cadres (ouvriers/employés/techniciens). Les salariés en forfait jour
@@ -154,11 +159,10 @@ def _calculer_prime_anciennete(
 
     ligne = calculer_ligne_prime_anciennete(
         contexte,
-        calendrier_saisie=calendrier_saisie,
         date_debut_periode=date_debut_periode,
         date_fin_periode=date_fin_periode,
         jours_maintien=jours_maintien,
-        actual_hours_raw=actual_hours_raw,
+        temps_du_mois=temps_du_mois,
     )
     if not ligne:
         return None
@@ -304,7 +308,6 @@ def calculer_salaire_brut_forfait(
     date_fin_periode: date,
     primes_saisies: List[Dict[str, Any]] = None,
     jours_maintien: Optional[set[int]] = None,
-    actual_hours_raw: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
     Calcule le salaire brut pour un employé en forfait jour.
@@ -449,6 +452,10 @@ def calculer_salaire_brut_forfait(
     # Journées retenues (arrêt, non rémunérée, injustifiée, férié non payé) :
     # sert à reconnaître un mois entièrement absent.
     jours_absence_non_payes = 0.0
+    #: Pour la prime d'ancienneté (`temps_travail_mois`) : journées d'absence
+    #: injustifiée ou non rémunérée, et jours d'arrêt retenus.
+    jours_absences_non_payees_prime = 0.0
+    jours_arret_prime: list[tuple[date, float]] = []
 
     jours_hors_contrat_set = set(jours_hors_contrat)
     for evenement in jours_dans_periode:
@@ -477,6 +484,7 @@ def calculer_salaire_brut_forfait(
             jours_abs = _jours_evenement_absence(evenement)
             nombre_jours_absence_injustifiee += jours_abs
             jours_absence_non_payes += jours_abs
+            jours_absences_non_payees_prime += jours_abs
             date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
                 "%d/%m/%y"
             )
@@ -495,6 +503,7 @@ def calculer_salaire_brut_forfait(
             jours_abs = _jours_evenement_absence(evenement)
             nombre_jours_absence_injustifiee += jours_abs
             jours_absence_non_payes += jours_abs
+            jours_absences_non_payees_prime += jours_abs
             date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
                 "%d/%m/%y"
             )
@@ -537,9 +546,10 @@ def calculer_salaire_brut_forfait(
             # ajoutés en aval par le moteur maintien, pas ici.
             jours_abs = _jours_evenement_absence(evenement)
             jours_absence_non_payes += jours_abs
-            date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
-                "%d/%m/%y"
-            )
+            jour_arret = date.fromisoformat(evenement["date_complete"])
+            if jour_arret.weekday() < 5 and jour_arret not in feries_periode:
+                jours_arret_prime.append((jour_arret, jours_abs))
+            date_absence = jour_arret.strftime("%d/%m/%y")
             montant_deduction = round(jours_abs * salaire_journalier_absence, 2)
             retenues_absence_mois += montant_deduction
             lignes_composants_brut.append(
@@ -667,13 +677,22 @@ def calculer_salaire_brut_forfait(
             )
 
     # 4. Ajout des primes, avantages et calcul des totaux
+    # La prime d'ancienneté suit les jours payés de la période (CCN métallurgie,
+    # art. 142 ; `temps_travail_mois`) : congés, fériés, RTT, formation et arrêt
+    # maintenu restent payés ; une journée d'activité partielle vaut 7 h.
     ligne_prime_anciennete = _calculer_prime_anciennete(
         contexte,
-        calendrier_saisie=calendrier_saisie,
         date_debut_periode=date_debut_periode,
         date_fin_periode=date_fin_periode,
         jours_maintien=jours_maintien,
-        actual_hours_raw=actual_hours_raw,
+        temps_du_mois=TempsDuMois(
+            unite="jours",
+            reference=float(len(jours_ouvres_hors_feries(debut_prorata, fin_prorata, feries_periode))),
+            absences_non_payees=jours_absences_non_payees_prime,
+            activite_partielle=heures_chomees_des_saisies(primes_saisies) / HEURES_JOURNEE_FORFAIT,
+            hors_contrat=float(sum(1 for jour in jours_hors_contrat if jour not in feries_periode)),
+            jours_arret=tuple(jours_arret_prime),
+        ),
     )
     # Comme au générateur des heures : la prime du mois saisie remplace le
     # calcul conventionnel, et le bulletin le dit ; une régularisation s'ajoute.

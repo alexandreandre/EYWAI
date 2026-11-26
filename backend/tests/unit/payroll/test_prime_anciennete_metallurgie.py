@@ -16,6 +16,7 @@ from app.modules.collective_agreements.rules.seeds.metallurgie_3248 import (
 )
 from app.modules.payroll.engine.contexte import ChargerContexte, ContextePaie
 from app.modules.payroll.engine.prime_anciennete import calculer_ligne_prime_anciennete
+from app.modules.payroll.engine.temps_travail_mois import TempsDuMois
 from tests.unit.payroll.fixtures.baremes_snapshot import baremes_snapshot
 
 
@@ -62,16 +63,14 @@ def _contexte(
     return ChargerContexte(employee, company, _metallurgie_baremes())
 
 
-def _calendrier_heures(total: float, nb_jours: int = 22) -> list[dict]:
-    heures_jour = total / nb_jours
-    return [
-        {
-            "date_complete": f"2026-04-{d:02d}",
-            "type": "travail",
-            "heures": round(heures_jour, 4),
-        }
-        for d in range(1, nb_jours + 1)
-    ]
+def _temps(*, heures_sup: float = 0.0, non_payees: float = 0.0) -> TempsDuMois:
+    """Le mois tel que le générateur le mesure : heures sup à 25 %, absences non payées."""
+    return TempsDuMois(
+        unite="heures",
+        reference=151.67,
+        absences_non_payees=non_payees,
+        heures_sup_majorees=heures_sup * 1.25,
+    )
 
 
 DATE_DEBUT = date(2026, 4, 1)
@@ -79,11 +78,18 @@ DATE_FIN = date(2026, 4, 30)
 
 
 class TestPrimeAncienneteMetallurgieGolden:
+    """Bulletins d'avril 2026 de l'ancien logiciel (tableur de contrôle).
+
+    L'ancien logiciel proratisait la prime sur 151,67 + heures sup, sans majoration
+    (BONNET : 112,86 × 153,77 ÷ 151,67 = 114,42). La CCN, art. 142, veut que la prime
+    « supporte […] les majorations pour heures supplémentaires » : Martine compte chaque
+    heure sup avec sa majoration (26/11/2026), d'où quelques centimes de plus.
+    """
+
     def test_barumet_plein_mois(self):
         ctx = _contexte(date_entree="2018-09-03", classe=4)
         ligne = calculer_ligne_prime_anciennete(
             ctx,
-            calendrier_saisie=_calendrier_heures(151.67),
             date_debut_periode=DATE_DEBUT,
             date_fin_periode=DATE_FIN,
         )
@@ -95,19 +101,20 @@ class TestPrimeAncienneteMetallurgieGolden:
         ctx = _contexte(date_entree="2017-03-01", classe=5)
         ligne = calculer_ligne_prime_anciennete(
             ctx,
-            calendrier_saisie=_calendrier_heures(153.77),
+            temps_du_mois=_temps(heures_sup=2.10),
             date_debut_periode=DATE_DEBUT,
             date_fin_periode=DATE_FIN,
         )
         assert ligne is not None
         assert ligne["meta"]["plein_mois"] == pytest.approx(112.86, abs=0.02)
-        assert ligne["gain"] == pytest.approx(114.42, abs=0.05)
+        # Ancien logiciel : 114,42 (heures sup non majorées).
+        assert ligne["gain"] == 114.81
 
     def test_cavival_temps_zero(self):
         ctx = _contexte(date_entree="2018-09-03", classe=4)
         ligne = calculer_ligne_prime_anciennete(
             ctx,
-            calendrier_saisie=[],
+            temps_du_mois=_temps(non_payees=151.67),
             date_debut_periode=DATE_DEBUT,
             date_fin_periode=DATE_FIN,
         )
@@ -117,19 +124,19 @@ class TestPrimeAncienneteMetallurgieGolden:
         ctx = _contexte(date_entree="2022-06-13", classe=5)
         ligne = calculer_ligne_prime_anciennete(
             ctx,
-            calendrier_saisie=_calendrier_heures(166.08),
+            temps_du_mois=_temps(heures_sup=14.41),
             date_debut_periode=DATE_DEBUT,
             date_fin_periode=DATE_FIN,
         )
         assert ligne is not None
         assert ligne["meta"]["plein_mois"] == pytest.approx(37.62, abs=0.02)
-        assert ligne["gain"] == pytest.approx(41.19, abs=0.05)
+        # Ancien logiciel : 41,19 (heures sup non majorées).
+        assert ligne["gain"] == 42.09
 
     def test_cadre_ferubel_exclu(self):
         ctx = _contexte(date_entree="2014-12-15", statut="Cadre", classe=11)
         ligne = calculer_ligne_prime_anciennete(
             ctx,
-            calendrier_saisie=_calendrier_heures(151.67),
             date_debut_periode=DATE_DEBUT,
             date_fin_periode=DATE_FIN,
         )
@@ -139,7 +146,6 @@ class TestPrimeAncienneteMetallurgieGolden:
         ctx = _contexte(date_entree="2023-07-10", classe=8)
         ligne = calculer_ligne_prime_anciennete(
             ctx,
-            calendrier_saisie=_calendrier_heures(151.67),
             date_debut_periode=DATE_DEBUT,
             date_fin_periode=DATE_FIN,
         )
@@ -149,10 +155,11 @@ class TestPrimeAncienneteMetallurgieGolden:
         ctx = _contexte(date_entree="2014-06-26", classe=3)
         ligne = calculer_ligne_prime_anciennete(
             ctx,
-            calendrier_saisie=_calendrier_heures(152.16),
+            temps_du_mois=_temps(heures_sup=0.49),
             date_debut_periode=DATE_DEBUT,
             date_fin_periode=DATE_FIN,
         )
         assert ligne is not None
         assert ligne["meta"]["plein_mois"] == pytest.approx(109.73, abs=0.02)
-        assert ligne["gain"] == pytest.approx(110.08, abs=0.05)
+        # Ancien logiciel : 110,08 (heures sup non majorées).
+        assert ligne["gain"] == 110.17

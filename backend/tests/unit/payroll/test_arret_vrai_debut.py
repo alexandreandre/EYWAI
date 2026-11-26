@@ -85,28 +85,21 @@ def test_mois_ne_contenant_que_le_week_end_d_un_arret_reste_visible():
     assert arret["date_fin"] == "2026-08-02"
 
 
-from app.modules.payroll.engine.temps_travail_mois import compute_temps_retenu_mois
+from app.modules.payroll.engine.temps_travail_mois import TempsDuMois, ratio_du_temps_paye
 
 
-def test_prorata_arret_plein_mois_sans_pointage_ratio_zero():
-    """Arrêt tout le mois, aucun pointage, maintien épuisé (jours_maintien vide) :
-    la présence retenue (pour proratiser la prime d'ancienneté) doit être 0 —
-    surtout PAS le repli 'plein_mois' (ratio 1.0)."""
-    cal = [{"jour": d, "type": "arret_maladie"} for d in range(1, 32)]
-    res = compute_temps_retenu_mois(
-        mode="heures_contrat", calendrier_saisie=cal, duree_hebdo=35.0,
-        date_debut=date(2026, 1, 1), date_fin=date(2026, 1, 31),
-        jours_maintien=set(), actual_hours_raw=[], sans_pointage_policy="plein_mois",
+def test_prorata_arret_plein_mois_maintien_epuise_ratio_zero():
+    """Arrêt tout le mois, maintien épuisé (jours_maintien vide) : la prime d'ancienneté
+    (proratisée sur le temps payé) tombe à 0."""
+    jours = [date(2026, 1, d) for d in range(1, 32) if date(2026, 1, d).weekday() < 5]
+    res = ratio_du_temps_paye(
+        TempsDuMois(unite="heures", reference=151.67, jours_arret=tuple((j, 7.0) for j in jours)),
+        jours_maintien=set(),
     )
     assert res.ratio == 0.0
 
 
-def test_prorata_mois_normal_sans_pointage_conserve_repli_plein_mois():
-    """Non-régression : mois normal sans pointage (pas d'arrêt) → repli plein_mois (1.0)."""
-    cal = [{"jour": d, "type": "travail", "heures": 0} for d in range(1, 32)]
-    res = compute_temps_retenu_mois(
-        mode="heures_contrat", calendrier_saisie=cal, duree_hebdo=35.0,
-        date_debut=date(2026, 1, 1), date_fin=date(2026, 1, 31),
-        actual_hours_raw=[], sans_pointage_policy="plein_mois",
-    )
+def test_prorata_mois_normal_sans_absence_reste_plein():
+    """Non-régression : mois sans absence, pointé ou non → ratio 1."""
+    res = ratio_du_temps_paye(TempsDuMois(unite="heures", reference=151.67))
     assert res.ratio == 1.0

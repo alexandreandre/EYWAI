@@ -1,4 +1,8 @@
-"""Tests unitaires — temps retenu mensuel (prorata prime d'ancienneté)."""
+"""Tests unitaires — temps payé du mois (prorata de la prime d'ancienneté, CCN métallurgie art. 142).
+
+ratio = 1 − temps non payé ÷ référence, plus heures sup × (1 + majoration) ÷ référence.
+Les cas de bout en bout, aux deux générateurs : `test_prime_anciennete_temps_paye.py`.
+"""
 
 from __future__ import annotations
 
@@ -6,239 +10,77 @@ from datetime import date
 
 import pytest
 
-from app.modules.payroll.engine.temps_travail_mois import compute_temps_retenu_mois
+from app.modules.payroll.engine.temps_travail_mois import (
+    TempsDuMois,
+    jours_ouvres_hors_feries,
+    ratio_du_temps_paye,
+    reference_heures_du_contrat,
+)
+
+pytestmark = pytest.mark.unit
 
 
-def _cal_travail(heures: float, *, jour: int = 1) -> dict:
-    return {
-        "date_complete": f"2026-04-{jour:02d}",
-        "type": "travail",
-        "heures": heures,
-    }
+def _heures(**kw) -> TempsDuMois:
+    return TempsDuMois(unite="heures", reference=151.67, **kw)
 
 
-def _cal_arret(jour: int) -> dict:
-    return {
-        "date_complete": f"2026-04-{jour:02d}",
-        "type": "arret_maladie",
-        "heures": 0,
-    }
+def test_mois_sans_absence_ratio_un():
+    assert ratio_du_temps_paye(_heures()).ratio == 1.0
 
 
-class TestTempsTravailMois:
-    def test_mode_none_ratio_un(self):
-        result = compute_temps_retenu_mois(
-            mode="none",
-            calendrier_saisie=[],
-            duree_hebdo=35.0,
-            date_debut=date(2026, 4, 1),
-            date_fin=date(2026, 4, 30),
-        )
-        assert result.ratio == 1.0
-
-    def test_heures_contrat_plein_mois(self):
-        heures_jour = 151.67 / 22
-        cal = [_cal_travail(heures_jour, jour=d) for d in range(1, 23)]
-        result = compute_temps_retenu_mois(
-            mode="heures_contrat",
-            calendrier_saisie=cal,
-            duree_hebdo=35.0,
-            date_debut=date(2026, 4, 1),
-            date_fin=date(2026, 4, 30),
-        )
-        assert result.reference == 151.67
-        assert result.temps_retenu == pytest.approx(151.67, abs=0.02)
-        assert result.ratio == pytest.approx(1.0, abs=0.01)
-
-    def test_heures_contrat_avec_hs(self):
-        """153,77 h sur 151,67 h de référence (cas CAVANDE Excel)."""
-        heures_jour = 153.77 / 22
-        cal = [_cal_travail(heures_jour, jour=d) for d in range(1, 23)]
-        result = compute_temps_retenu_mois(
-            mode="heures_contrat",
-            calendrier_saisie=cal,
-            duree_hebdo=35.0,
-            date_debut=date(2026, 4, 1),
-            date_fin=date(2026, 4, 30),
-        )
-        assert result.temps_retenu == 153.77
-        assert result.ratio == round(153.77 / 151.67, 6)
-
-    def test_heures_contrat_zero_sans_maintien(self):
-        result = compute_temps_retenu_mois(
-            mode="heures_contrat",
-            calendrier_saisie=[],
-            duree_hebdo=35.0,
-            date_debut=date(2026, 4, 1),
-            date_fin=date(2026, 4, 30),
-        )
-        assert result.ratio == 0.0
-
-    def test_maintien_compte_heures_journalieres(self):
-        cal = [_cal_travail(7.0, jour=1), _cal_arret(2), _cal_arret(3)]
-        result = compute_temps_retenu_mois(
-            mode="heures_contrat",
-            calendrier_saisie=cal,
-            duree_hebdo=35.0,
-            date_debut=date(2026, 4, 1),
-            date_fin=date(2026, 4, 30),
-            jours_maintien={2, 3},
-            maladie_si_maintien=True,
-        )
-        assert result.temps_retenu == 7.0 + 14.0
-        assert result.detail["heures_maintien"] == 14.0
-
-    def test_maintien_non_compte_sans_jours_maintien(self):
-        cal = [_cal_arret(2), _cal_arret(3)]
-        result = compute_temps_retenu_mois(
-            mode="heures_contrat",
-            calendrier_saisie=cal,
-            duree_hebdo=35.0,
-            date_debut=date(2026, 4, 1),
-            date_fin=date(2026, 4, 30),
-            jours_maintien=set(),
-        )
-        assert result.ratio == 0.0
-
-    def test_sans_pointage_policy_plein_mois(self):
-        result = compute_temps_retenu_mois(
-            mode="heures_contrat",
-            calendrier_saisie=[],
-            duree_hebdo=35.0,
-            date_debut=date(2026, 4, 1),
-            date_fin=date(2026, 4, 30),
-            sans_pointage_policy="plein_mois",
-            actual_hours_raw=[{"jour": 1, "type": "sans_pointage"}],
-        )
-        assert result.ratio == 1.0
-        assert result.detail.get("sans_pointage") is True
-
-    def test_jours_forfait(self):
-        cal = [
-            {"date_complete": f"2026-04-{d:02d}", "type": "travail"}
-            for d in range(1, 19)
-        ]
-        result = compute_temps_retenu_mois(
-            mode="jours_forfait",
-            calendrier_saisie=cal,
-            duree_hebdo=35.0,
-            date_debut=date(2026, 4, 1),
-            date_fin=date(2026, 4, 30),
-        )
-        assert result.temps_retenu == 18.0
-        assert 0 < result.ratio <= 1.0
-
-    def test_jours_forfait_compte_les_jours_du_moteur_forfait(self):
-        """Le moteur forfait (analyser_jours_forfait) type ses jours travaillés « travail_base »
-        (1 jour = 1). Seul « travail » était compté : ratio nul, prime d'ancienneté à 0 pour tous
-        les forfaits jours non cadres (Cartol, LEWIS, octobre 2026 à blanc)."""
-        cal = [
-            {"date_complete": f"2026-10-{d:02d}", "type": "travail_base", "heures": 1.0}
-            for d in range(1, 18)
-        ]
-        result = compute_temps_retenu_mois(
-            mode="jours_forfait",
-            calendrier_saisie=cal,
-            duree_hebdo=35.0,
-            date_debut=date(2026, 10, 1),
-            date_fin=date(2026, 10, 31),
-        )
-        assert result.temps_retenu == 17.0
-        assert result.ratio == 1.0
-
-    def test_jours_forfait_un_jour_d_absence_non_maintenu_reste_hors_du_temps(self):
-        cal = [
-            {"date_complete": f"2026-10-{d:02d}", "type": "travail_base", "heures": 1.0}
-            for d in range(1, 17)
-        ] + [{"date_complete": "2026-10-17", "type": "absence_non_remuneree", "heures": 1.0}]
-        result = compute_temps_retenu_mois(
-            mode="jours_forfait",
-            calendrier_saisie=cal,
-            duree_hebdo=35.0,
-            date_debut=date(2026, 10, 1),
-            date_fin=date(2026, 10, 31),
-        )
-        assert result.temps_retenu == 16.0
-        assert result.ratio == round(16 / 17, 6)
+def test_absences_non_payees_activite_partielle_et_hors_contrat_s_additionnent():
+    res = ratio_du_temps_paye(_heures(absences_non_payees=7.0, activite_partielle=14.0, hors_contrat=21.0))
+    assert res.ratio == round((151.67 - 42) / 151.67, 6)
+    assert res.detail["activite_partielle"] == 14.0
 
 
-class TestMoisSansPointageAvecArretPartiel:
-    """Art. 142 CCN métallurgie : la prime « varie avec l'horaire de travail » ; règle de Martine :
-    elle se maintient en cas de maladie maintenue. Sans pointage, les jours hors arrêt restent
-    présumés travaillés : seul un arrêt non maintenu fait baisser la prime."""
+def test_absence_injustifiee_22_92_h():
+    assert round(ratio_du_temps_paye(_heures(absences_non_payees=22.92)).ratio, 4) == 0.8489
 
-    def _calcul(self, cal: list[dict], *, jours_maintien: set[int], annee: int = 2026, mois: int = 4):
-        fin = date(annee, mois + 1, 1).toordinal() - 1
-        return compute_temps_retenu_mois(
-            mode="heures_contrat",
-            calendrier_saisie=cal,
-            duree_hebdo=35.0,
-            date_debut=date(annee, mois, 1),
-            date_fin=date.fromordinal(fin),
-            jours_maintien=jours_maintien,
-            sans_pointage_policy="plein_mois",
-            actual_hours_raw=[],
-        )
 
-    def test_arret_partiel_entierement_maintenu_prime_pleine(self):
-        # avril 2026 : arrêt des mercredi 1er au vendredi 3, maintenus ; le reste présumé travaillé
-        result = self._calcul([_cal_arret(1), _cal_arret(2), _cal_arret(3)], jours_maintien={1, 2, 3})
-        assert result.ratio == 1.0
-        assert result.temps_retenu == 151.67
-        assert result.detail["heures_arret_non_maintenues"] == 0.0
+def test_heures_sup_majorees_s_ajoutent():
+    res = ratio_du_temps_paye(_heures(heures_sup_majorees=5.25 * 1.25))
+    assert res.ratio == round(1 + 5.25 * 1.25 / 151.67, 6)
 
-    def test_jour_d_arret_non_maintenu_retire_ses_heures(self):
-        # carence du jeudi 16/04 : 7 h non maintenues sur 151,67 h
-        cal = [_cal_arret(16), _cal_arret(17)]
-        result = self._calcul(cal, jours_maintien={17})
-        assert result.temps_retenu == 144.67
-        assert result.ratio == round(144.67 / 151.67, 6)
-        assert result.detail["heures_arret_non_maintenues"] == 7.0
 
-    def test_arret_sur_tout_le_mois_ne_bouge_pas(self):
-        # février 2026 : du lundi 2 au vendredi 27, tout est en arrêt maintenu
-        ouvres = [d for d in range(2, 28) if date(2026, 2, d).weekday() < 5]
-        cal = [
-            {"date_complete": f"2026-02-{d:02d}", "type": "arret_maladie", "heures": 0}
-            for d in ouvres
-        ]
-        result = self._calcul(cal, jours_maintien=set(ouvres), mois=2)
-        assert result.temps_retenu == 140.0
-        assert result.ratio == round(140 / 151.67, 6)
+def test_heures_sup_ignorees_si_la_regle_les_exclut():
+    res = ratio_du_temps_paye(_heures(heures_sup_majorees=10.0), inclure_heures_sup=False)
+    assert res.ratio == 1.0
 
-    def test_arret_sur_tout_le_mois_maintien_epuise_reste_a_zero(self):
-        ouvres = [d for d in range(2, 28) if date(2026, 2, d).weekday() < 5]
-        cal = [
-            {"date_complete": f"2026-02-{d:02d}", "type": "arret_maladie", "heures": 0}
-            for d in ouvres
-        ]
-        assert self._calcul(cal, jours_maintien=set(), mois=2).ratio == 0.0
 
-    def test_mois_sans_arret_ni_pointage_reste_plein(self):
-        assert self._calcul([], jours_maintien=set()).ratio == 1.0
+def test_arret_maintenu_reste_paye_le_non_maintenu_retire_sa_journee():
+    arret = tuple((date(2026, 4, d), 7.0) for d in (15, 16, 17))
+    assert ratio_du_temps_paye(_heures(jours_arret=arret), jours_maintien={15, 16, 17}).ratio == 1.0
+    res = ratio_du_temps_paye(_heures(jours_arret=arret), jours_maintien={16, 17})
+    assert res.ratio == round(144.67 / 151.67, 6)
+    assert res.detail["arret_non_maintenu"] == 7.0
 
-    def test_mois_pointe_avec_arret_compte_toujours_les_heures_pointees(self):
-        cal = [_cal_travail(7.0, jour=1), _cal_arret(2), _cal_arret(3)]
-        result = compute_temps_retenu_mois(
-            mode="heures_contrat",
-            calendrier_saisie=cal,
-            duree_hebdo=35.0,
-            date_debut=date(2026, 4, 1),
-            date_fin=date(2026, 4, 30),
-            jours_maintien={2, 3},
-            actual_hours_raw=[{"jour": 1, "mois": 4, "annee": 2026, "heures_faites": 7.0}],
-        )
-        assert result.temps_retenu == 21.0
 
-    def test_politique_mois_a_zero_garde_la_lecture_stricte(self):
-        result = compute_temps_retenu_mois(
-            mode="heures_contrat",
-            calendrier_saisie=[_cal_arret(1), _cal_arret(2)],
-            duree_hebdo=35.0,
-            date_debut=date(2026, 4, 1),
-            date_fin=date(2026, 4, 30),
-            jours_maintien={1, 2},
-            sans_pointage_policy="zero",
-            actual_hours_raw=[],
-        )
-        assert result.temps_retenu == 14.0
+def test_arret_maintenu_retire_si_la_regle_ne_le_compte_pas():
+    arret = ((date(2026, 4, 15), 7.0),)
+    res = ratio_du_temps_paye(_heures(jours_arret=arret), jours_maintien={15}, maladie_si_maintien=False)
+    assert res.ratio == round(144.67 / 151.67, 6)
+
+
+def test_ratio_borne_a_zero_mois_entierement_non_paye():
+    assert ratio_du_temps_paye(_heures(absences_non_payees=160.0)).ratio == 0.0
+
+
+def test_plafond_du_ratio():
+    assert ratio_du_temps_paye(_heures(heures_sup_majorees=20.0), ratio_plafond=1.0).ratio == 1.0
+
+
+def test_forfait_en_jours():
+    temps = TempsDuMois(unite="jours", reference=19.0, activite_partielle=2.0)
+    assert ratio_du_temps_paye(temps).ratio == round(17 / 19, 6)
+
+
+def test_reference_du_contrat():
+    assert reference_heures_du_contrat(35) == 151.67
+    assert reference_heures_du_contrat(39) == 169.0
+    assert reference_heures_du_contrat(0) == 151.67
+
+
+def test_jours_ouvres_hors_feries():
+    jours = jours_ouvres_hors_feries(date(2026, 11, 2), date(2026, 11, 27), {date(2026, 11, 11), date(2026, 11, 1)})
+    assert len(jours) == 19
