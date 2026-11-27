@@ -41,15 +41,18 @@ test('vider le calendrier du mois : aperçu chiffré, rien d’écrit ; vider un
   });
   const s = surveiller(page);
 
-  // Seule écriture laissée passer : l'aperçu, qui n'écrit rien.
+  // Seule requête laissée passer : l'aperçu, qui n'écrit rien. Un vrai
+  // vidage est bloqué ici et fait échouer le test.
   const apercus: string[] = [];
+  const vidages: string[] = [];
   await page.route(/\/api\/employees\/[^/]+\/calendar\/vider-mois$/, async (route) => {
     const corps = route.request().postData() ?? '';
     if (JSON.parse(corps || '{}').apercu === true) {
       apercus.push(corps);
       await route.continue();
     } else {
-      await route.fallback();
+      vidages.push(corps);
+      await route.abort('blockedbyclient');
     }
   });
 
@@ -88,5 +91,6 @@ test('vider le calendrier du mois : aperçu chiffré, rien d’écrit ; vider un
     await expect(page.getByText('Absence posée : elle se retire dans Congés ou Arrêts & IJ')).toBeVisible();
   }
   await page.keyboard.press('Escape');
+  expect(vidages, 'aucun vidage ne part').toEqual([]);
   await verifierPageSaine(page, s);
 });
