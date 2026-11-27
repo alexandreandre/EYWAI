@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import calendar
 from datetime import date
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -18,6 +19,7 @@ from app.modules.payroll.application.periode_variables_service import (
     resoudre_fenetre_variables,
 )
 from app.modules.schedules.application import calendar_edit
+from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.domain.vider_mois import jours_lus_par_les_bulletins, plan_de_vidage
 from app.modules.schedules.infrastructure.vider_mois_queries import (
     absences_validees_du_salarie,
@@ -30,6 +32,22 @@ from app.modules.schedules.schemas.requests import (
     PlannedCalendarEntry,
 )
 from app.shared.domain.pluriel import pluriel
+
+
+logger = logging.getLogger(__name__)
+
+MESSAGE_LECTURE = (
+    "Le calendrier, les absences ou les bulletins de ce mois n'ont pas pu être lus : "
+    "rien n'a été vidé. Réessayez dans un instant."
+)
+MESSAGE_ECRITURE = (
+    "Le vidage n'a pas pu être enregistré : rien n'a été vidé, ou seulement en partie. "
+    "Rechargez le calendrier pour voir son état, puis réessayez."
+)
+
+
+def _refus(code: str, message: str) -> ScheduleAppError:
+    return ScheduleAppError(code, message, 503, {"code": code, "message": message})
 
 
 def _voisins(annee: int, mois: int) -> list[tuple[int, int]]:
@@ -85,15 +103,21 @@ def vider_mois(
     expected_revision: UUID | str | None,
     apercu: bool,
 ) -> dict[str, Any]:
-    snapshot = calendar_edit.get_snapshot(employee_id, company_id, annee, mois)
-    plan = plan_de_vidage(
-        annee,
-        mois,
-        snapshot.get("calendrier_prevu") or [],
-        snapshot.get("calendrier_reel") or [],
-        jours_absence_validee=jours_d_absence_validee(employee_id, annee, mois),
-        jours_bulletin=jours_des_bulletins_valides(employee_id, company_id, annee, mois),
-    )
+    try:
+        snapshot = calendar_edit.get_snapshot(employee_id, company_id, annee, mois)
+        plan = plan_de_vidage(
+            annee,
+            mois,
+            snapshot.get("calendrier_prevu") or [],
+            snapshot.get("calendrier_reel") or [],
+            jours_absence_validee=jours_d_absence_validee(employee_id, annee, mois),
+            jours_bulletin=jours_des_bulletins_valides(employee_id, company_id, annee, mois),
+        )
+    except ScheduleAppError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — dit à l'écran, jamais un 500 muet
+        logger.exception("Vidage du calendrier illisible (%s, %02d/%d)", employee_id, mois, annee)
+        raise _refus("vider_mois_illisible", MESSAGE_LECTURE) from exc
     resume: dict[str, Any] = {
         "year": annee,
         "month": mois,
@@ -109,7 +133,19 @@ def vider_mois(
     if apercu or not plan.jours_vides:
         return resume
     revision = expected_revision if expected_revision is not None else snapshot.get("revision")
-    saved = calendar_edit.save_calendar(
+    try:
+        saved = _enregistrer(employee_id, company_id, annee, mois, revision, plan)
+    except ScheduleAppError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — dit à l'écran, jamais un 500 muet
+        logger.exception("Vidage du calendrier non enregistré (%s, %02d/%d)", employee_id, mois, annee)
+        raise _refus("vider_mois_non_enregistre", MESSAGE_ECRITURE) from exc
+    resume["revision"] = saved.get("revision")
+    return resume
+
+
+def _enregistrer(employee_id, company_id, annee, mois, revision, plan) -> dict[str, Any]:
+    return calendar_edit.save_calendar(
         employee_id,
         company_id,
         CalendarSaveRequest(
@@ -117,11 +153,18 @@ def vider_mois(
             month=mois,
             expected_revision=revision,
             calendrier_prevu=[PlannedCalendarEntry(**e) for e in plan.calendrier_prevu],
-            calendrier_reel=[
-                ActualHoursEntry(**{k: v for k, v in e.items() if k in ActualHoursEntry.model_fields})
-                for e in plan.calendrier_reel
-            ],
+            calendrier_reel=[_entree_reel(e) for e in plan.calendrier_reel],
         ),
     )
-    resume["revision"] = saved.get("revision")
-    return resume
+
+
+def _entree_reel(entree: dict[str, Any]) -> ActualHoursEntry:
+    """Un jour du réel réécrit tel quel ; un horaire stocké illisible n'est pas
+    renvoyé (le serveur garde alors le sien) plutôt que de bloquer le vidage."""
+    from app.modules.schedules.domain.horaires_pointes import en_hhmm
+
+    champs = {k: v for k, v in entree.items() if k in ActualHoursEntry.model_fields}
+    for cle in ("debut", "fin"):
+        if cle in champs and champs[cle] and en_hhmm(champs[cle]) is None:
+            champs.pop(cle)
+    return ActualHoursEntry(**champs)

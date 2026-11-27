@@ -169,3 +169,50 @@ class TestRoute:
             assert module.vider_mois_du_calendrier("sal", ViderMoisRequest(year=2026, month=10, apercu=True), user) == {"ok": True}
         assert appels == ["schedules.update"]
         assert vider.call_args.kwargs["apercu"] is True
+
+
+class TestErreurs:
+    """Relecture de L17 : une erreur de vidage est dite, jamais un 500 muet."""
+
+    def test_lecture_impossible_donne_un_refus_lisible(self):
+        import pytest
+
+        from app.modules.schedules.application.exceptions import ScheduleAppError
+
+        with patch.object(service.calendar_edit, "get_snapshot", return_value={"revision": None, "calendrier_prevu": [], "calendrier_reel": []}), \
+             patch.object(service, "jours_d_absence_validee", side_effect=RuntimeError("base injoignable")), \
+             patch.object(service.calendar_edit, "save_calendar") as save:
+            with pytest.raises(ScheduleAppError) as refus:
+                service.vider_mois("sal", "soc", 2026, 10, expected_revision=None, apercu=True)
+        save.assert_not_called()
+        assert refus.value.status_code == 503
+        assert "rien n'a été vidé" in str(refus.value)
+
+    def test_un_refus_de_l_enregistrement_passe_tel_quel(self):
+        import pytest
+
+        from app.modules.schedules.application.exceptions import ScheduleAppError
+
+        snapshot = {"revision": "11111111-1111-1111-1111-111111111111", "calendrier_prevu": [{"jour": 1, "type": "travail", "heures_prevues": 7}], "calendrier_reel": []}
+        refus_save = ScheduleAppError("calendar_busy", "Une saisie est en cours.", 409)
+        with patch.object(service.calendar_edit, "get_snapshot", return_value=snapshot), \
+             patch.object(service, "jours_d_absence_validee", return_value=set()), \
+             patch.object(service, "jours_des_bulletins_valides", return_value=set()), \
+             patch.object(service.calendar_edit, "save_calendar", side_effect=refus_save):
+            with pytest.raises(ScheduleAppError) as refus:
+                service.vider_mois("sal", "soc", 2026, 10, expected_revision=None, apercu=False)
+        assert refus.value.status_code == 409
+
+    def test_une_erreur_inattendue_a_l_ecriture_est_dite(self):
+        import pytest
+
+        from app.modules.schedules.application.exceptions import ScheduleAppError
+
+        snapshot = {"revision": "11111111-1111-1111-1111-111111111111", "calendrier_prevu": [{"jour": 1, "type": "travail", "heures_prevues": 7}], "calendrier_reel": []}
+        with patch.object(service.calendar_edit, "get_snapshot", return_value=snapshot), \
+             patch.object(service, "jours_d_absence_validee", return_value=set()), \
+             patch.object(service, "jours_des_bulletins_valides", return_value=set()), \
+             patch.object(service.calendar_edit, "save_calendar", side_effect=ValueError("révision")):
+            with pytest.raises(ScheduleAppError) as refus:
+                service.vider_mois("sal", "soc", 2026, 10, expected_revision=None, apercu=False)
+        assert refus.value.status_code == 503
