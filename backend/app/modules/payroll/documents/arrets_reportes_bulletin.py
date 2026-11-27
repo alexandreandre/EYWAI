@@ -70,17 +70,41 @@ def _mois_civil(jour: date) -> tuple[date, date]:
     return bornes_mois_civil(jour.year, jour.month)
 
 
-def _bornes_du_report(jours: list[date]) -> tuple[date, date]:
-    """Les jours reportés ; le mois civil entier s'ils en couvrent tous les jours ouvrés."""
-    debut_mois, fin_mois = _mois_civil(min(jours))
-    ouvres = {
-        debut_mois + timedelta(days=k)
-        for k in range((fin_mois - debut_mois).days + 1)
-        if (debut_mois + timedelta(days=k)).weekday() < 5
-    }
-    if ouvres and ouvres <= set(jours):
-        return debut_mois, fin_mois
-    return min(jours), max(jours)
+def _periodes_d_origine(jours: list[date], contexte: Any, year: int, month: int) -> list[tuple[date, date]]:
+    """Le mois civil des jours reportés, et au forfait jours la période de paie
+    du bulletin précédent (24/08 au 20/09 pour septembre)."""
+    periodes = [_mois_civil(min(jours))]
+    try:
+        from app.modules.payroll.engine.maintien_salaire_service import (
+            _contexte_is_forfait_jours,
+        )
+
+        if contexte is not None and _contexte_is_forfait_jours(contexte):
+            from app.modules.payroll.engine.period_forfait import (
+                definir_periode_de_paie,
+            )
+
+            annee_o, mois_o = (year, month - 1) if month > 1 else (year - 1, 12)
+            periodes.append(tuple(definir_periode_de_paie(contexte, annee_o, mois_o)))
+    except Exception:
+        logger.warning("Période d'origine du forfait non lue : mois civil seul", exc_info=True)
+    return periodes
+
+
+def _bornes_du_report(
+    jours: list[date], periodes: list[tuple[date, date]] | None = None
+) -> tuple[tuple[date, date], bool]:
+    """Les jours calendaires reportés (week-ends compris) ; toute la période
+    d'origine s'ils en couvrent tous les jours ouvrés. Dit si elle est entière."""
+    for debut, fin in periodes or [_mois_civil(min(jours))]:
+        ouvres = {
+            debut + timedelta(days=k)
+            for k in range((fin - debut).days + 1)
+            if (debut + timedelta(days=k)).weekday() < 5
+        }
+        if ouvres and ouvres <= set(jours):
+            return (debut, fin), True
+    return (min(jours), max(jours)), False
 
 
 def _date_contrat(contexte: Any, cle: str) -> date | None:
@@ -152,11 +176,12 @@ def maintien_des_arrets_reportes(
     for groupe in groupes:
         arret = _arret_de_jours_candidats(groupe, contexte, sortie)
         jours = [d for d, _ in groupe]
-        debut, fin = _bornes_du_report(jours)
+        (debut, fin), entiere = _bornes_du_report(jours, _periodes_d_origine(jours, contexte, year, month))
         # La période du calcul est celle des jours reportés : le moteur la
         # verrait sinon « entièrement en arrêt » et maintiendrait le salaire
-        # du mois pour un seul jour. Le mois d'origine entier reste reconnu.
-        arret["mois_entier_en_arret"] = (debut, fin) == _mois_civil(jours[0])
+        # du mois pour un seul jour. La période d'origine entière (mois civil,
+        # ou période du forfait) reste reconnue.
+        arret["mois_entier_en_arret"] = entiere
         # Mêmes données que l'arrêt du mois : la chaîne des arrêts connus
         # (prolongation, jours légaux sur douze mois D1226-4, barème), la
         # carence payée, les salaires de référence, la saisie du mois.
@@ -399,7 +424,12 @@ def trace_des_arrets(
         "jours_retenus": {j.isoformat(): retenus[j] for j in sorted(retenus) if j not in comptes},
         "jours_repris_par_le_suivant": [j.isoformat() for j in sorted(exclus)],
         "reportes": [
-            {"date": d.isoformat(), "absence_id": str(ev.get("absence_id") or "")}
+            {
+                "date": d.isoformat(),
+                "absence_id": str(ev.get("absence_id") or ""),
+                # Repris sans seconde retenue (absence déjà retenue à l'origine).
+                "sans_retenue": bool(ev.get("sans_retenue")),
+            }
             for d, ev in reportes
         ],
     }
