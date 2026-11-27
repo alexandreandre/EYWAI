@@ -67,9 +67,16 @@ def _smic_reference(donnees: dict) -> float:
 
 
 @pytest.mark.parametrize("duree,heures_contrat,heures_retirees", ((35, 151.67, 35.0), (39, 169.0, 39.0)))
-def test_mois_partiel_sans_solde_garde_les_heures_payees(banc, duree, heures_contrat, heures_retirees):  # noqa: F811
-    """Cinq jours sans solde en février : 35 h retirées à 35 h (5 × 7 h) ; 39 h à 39 h (5 × 7 h de base
-    et 5 × 0,80 h sup structurelles). Le SMIC de référence reste celui des heures payées."""
+def test_mois_partiel_sans_solde_garde_le_comportement_actuel_en_heures(banc, duree, heures_contrat, heures_retirees):  # noqa: F811
+    """Garde-fou du comportement ACTUEL, non affirmé comme légal : L15 ne touche pas aux mois en partie
+    travaillés. Cinq jours sans solde en février : le moteur retire les heures de l'absence, 35 h à 35 h
+    (5 × 7 h), 39 h à 39 h (5 × 7 h de base et 5 × 0,80 h sup structurelles).
+
+    Écart connu au BOSS, allègements généraux, § 770 : le salaire minimum se proratise sur le RAPPORT DES
+    SALAIRES (salaire versé ÷ salaire de la présence), pas sur les heures. À 35 h, 2 500 € de base et
+    5 jours retenus à 125 € : 151,67 × 1 875 ÷ 2 500 = 113,75 h, contre 116,67 h ici (7 h par jour sur
+    un mois de 151,67 h). Corriger cette branche touche tous les mois à absence partielle, Colorplast
+    compris : décision à prendre à part (relecture du 27/11)."""
     fiche = {"duree_hebdomadaire": duree}
     jours = {d: "absence_non_remuneree" for d in (9, 10, 11, 12, 13)}
     donnees = banc.generer("heures", jours=jours, mois=2, fiche_en_plus=fiche)

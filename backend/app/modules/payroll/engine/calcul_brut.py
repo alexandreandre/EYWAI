@@ -3004,6 +3004,20 @@ def calculer_salaire_brut(
         # Salaire du mois retenu en entier (aucun jour prévu travaillé) : les heures du
         # contrat que la retenue jour par jour ne couvre pas ne sont pas payées non plus.
         "salaire_retenu_en_entier": bool(salaire_retenu_en_entier),
+        # Salaire de la période sous contrat (base et heures sup structurelles, déjà
+        # proratisées sur un mois d'entrée ou de sortie, moins la ligne « Absence pour
+        # entrée ou sortie » s'il y en a une) et les heures de cette ligne : la référence
+        # du SMIC d'un mois retenu en entier (BOSS allègements § 770).
+        "salaire_du_mois_sous_contrat": round(
+            montant_base_mensualise
+            - (
+                round(retenue_entree_sortie_heures * taux_horaire_de_base, 2)
+                if retenue_entree_sortie_heures is not None
+                else 0.0
+            ),
+            2,
+        ),
+        "heures_hors_contrat": round(float(retenue_entree_sortie_heures or 0.0), 2),
         # Part « heures sup structurelles » de ces absences, déjà retirée du brut
         # par la ligne « Heures sup. du contrat non faites ». Le compteur d'heures sup
         # imprimé la retranche aussi (salarié 068 16,97 et non 17,33 ; salarié 140

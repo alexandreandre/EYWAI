@@ -7,8 +7,10 @@ Maintien intégral : le salaire minimum de la présence (§ 750). Les IJSS subro
 le rapport (§ 790) : le maintien versé est le complément de l'employeur.
 
 Deux cas :
-- mois au salaire retenu en entier (aucun jour prévu travaillé) : les heures du contrat, heures sup
-  structurelles comprises, valent au prorata du maintien sur le salaire du mois complet. La retenue
+- mois au salaire retenu en entier (aucun jour prévu travaillé) : les heures de la période sous
+  contrat, heures sup structurelles comprises, valent au prorata du maintien sur le salaire de cette
+  période (§ 770). Sur un mois d'entrée ou de sortie, heures et salaire sont tous deux ceux de la
+  présence : rapporter le maintien au salaire du mois complet proratiserait deux fois. La retenue
   jour par jour n'y fait pas foi : elle ne couvre pas toujours les heures du contrat (20 jours × 7 h
   = 140 h sur 151,67 h en février ; vendredis de 5 h à 39 h) et peut les dépasser (22 jours × 7 h =
   154 h) ; le « Complément retenue absence intégrale » ou la « Retenue limitée au salaire » ramène
@@ -40,6 +42,7 @@ def heures_remunerees_pour_la_reduction(
     heures_retablies_par_rappels: float,
     salaire_retenu_en_entier: bool,
     salaire_du_mois_complet: float,
+    heures_hors_contrat: float = 0.0,
     heures_arret_d_autres_mois: float = 0.0,
     retenue_arret_d_autres_mois: float = 0.0,
     maintien_d_autres_mois: float = 0.0,
@@ -55,6 +58,7 @@ def heures_remunerees_pour_la_reduction(
         heures_sup_structurelles = max(0.0, total_heures_supp - heures_sup_conjoncturelles)
         maintien_du_mois = max(0.0, maintien_verse - maintien_d_autres_mois)
         part_payee = min(1.0, maintien_du_mois / salaire_du_mois_complet)
+        heures_sous_contrat = max(0.0, heures_base_payees + heures_sup_structurelles - heures_hors_contrat)
         heures_d_autres_mois_non_payees = 0.0
         if heures_arret_d_autres_mois > 0:
             part_maintenue = (
@@ -65,7 +69,7 @@ def heures_remunerees_pour_la_reduction(
             heures_d_autres_mois_non_payees = heures_arret_d_autres_mois * (1.0 - part_maintenue)
         return max(
             0.0,
-            (heures_base_payees + heures_sup_structurelles) * part_payee
+            heures_sous_contrat * part_payee
             - heures_d_autres_mois_non_payees
             + heures_sup_conjoncturelles
             + en_plus,
