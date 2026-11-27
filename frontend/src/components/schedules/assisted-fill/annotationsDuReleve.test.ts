@@ -5,7 +5,7 @@ import {
   estAnnotationReleve,
   lireAnnotationsReleve,
   phraseAnnotations,
-} from './annotationsReleve';
+} from './annotationsDuReleve';
 
 const SEMAINE_39 =
   'Relevé à relire — Martine a retenu les heures du badge, pas les annotations : ' +

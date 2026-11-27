@@ -56,7 +56,7 @@ import {
 } from './reviewRowRules';
 import { ImportPunchRuleBar } from './ImportPunchRuleBar';
 import { AnnotationsReleveBandeau, AnnotationsReleveLigne } from './AnnotationsReleve';
-import { annotationsDesLignes, estAnnotationReleve } from './annotationsReleve';
+import { annotationsDesLignes, estAnnotationReleve } from './annotationsDuReleve';
 import { joursNonLus, phraseJoursNonLus, suiteResultatJoursNonLus } from './joursNonLus';
 import {
   absentsMarques,

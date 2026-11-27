@@ -148,16 +148,16 @@ describe('jours payés par l’ancien logiciel (bascule)', () => {
 
 describe('jour hors contrat qui porte une saisie (relecture L17)', () => {
   it('des heures ou une absence avant l’entrée restent visibles', () => {
-    expect(jourHorsContratAvecSaisie({ jour: 2, type: 'travail', heures_prevues: 7 }, undefined, false)).toBe(true);
-    expect(jourHorsContratAvecSaisie(undefined, { jour: 2, type: 'travail', heures_faites: 7 }, false)).toBe(true);
-    expect(jourHorsContratAvecSaisie({ jour: 2, type: 'conges_payes', heures_prevues: 0 }, undefined, false)).toBe(true);
-    expect(jourHorsContratAvecSaisie(undefined, { jour: 2, type: 'travail', heures_faites: null, debut: '07:00' }, false)).toBe(true);
+    expect(jourHorsContratAvecSaisie({ type: 'travail', heures_prevues: 7 }, undefined, false)).toBe(true);
+    expect(jourHorsContratAvecSaisie(undefined, { heures_faites: 7 }, false)).toBe(true);
+    expect(jourHorsContratAvecSaisie({ type: 'conges_payes', heures_prevues: 0 }, undefined, false)).toBe(true);
+    expect(jourHorsContratAvecSaisie(undefined, { heures_faites: null, debut: '07:00' }, false)).toBe(true);
   });
 
   it('un jour par défaut reste grisé', () => {
-    expect(jourHorsContratAvecSaisie({ jour: 2, type: 'travail', heures_prevues: null }, { jour: 2, type: 'travail', heures_faites: null }, false)).toBe(false);
-    expect(jourHorsContratAvecSaisie({ jour: 3, type: 'weekend', heures_prevues: 0 }, { jour: 3, type: 'weekend', heures_faites: null }, false)).toBe(false);
+    expect(jourHorsContratAvecSaisie({ type: 'travail', heures_prevues: null }, { heures_faites: null }, false)).toBe(false);
+    expect(jourHorsContratAvecSaisie({ type: 'weekend', heures_prevues: 0 }, { heures_faites: null }, false)).toBe(false);
     // Forfait jours : le prévu par défaut vaut 1 jour, ce n'est pas une saisie.
-    expect(jourHorsContratAvecSaisie({ jour: 2, type: 'travail', heures_prevues: 1 }, { jour: 2, type: 'travail', heures_faites: null }, true)).toBe(false);
+    expect(jourHorsContratAvecSaisie({ type: 'travail', heures_prevues: 1 }, { heures_faites: null }, true)).toBe(false);
   });
 });

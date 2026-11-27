@@ -7,7 +7,7 @@ import {
   phraseAnnotations,
   type AnnotationsSalarie,
   type JourAnnote,
-} from './annotationsReleve';
+} from './annotationsDuReleve';
 
 /**
  * « Relevé à relire » lisible en entier (Elsa, 26/11) : chaque jour annoté sur
