@@ -9,7 +9,7 @@ import { estAbsentATyper } from '@/lib/absentATyper';
 import { cn } from '@/lib/utils';
 import type { PlannedEventData, ActualHoursData } from '@/api/calendar';
 import type { DayPatch } from '@/lib/schedulesOverview';
-import { horairesSaisis, noteHorairesJourNonTravaille } from '@/lib/horairesDuJour';
+import { horairesSaisis, lireHeure, noteHorairesJourNonTravaille } from '@/lib/horairesDuJour';
 import { REFUS_VIDER_ABSENCE, jourGardeParLeVidage, viderLeJour } from '@/lib/viderCalendrier';
 
 // Les types proposés sont ceux du calendrier complet (`editableTypeOptionsFor`) :
@@ -365,8 +365,16 @@ export function PlanningDayEditor({
             <Label htmlFor="arrivee-h" className="text-xs">Arrivée (facultatif)</Label>
             <Input
               id="arrivee-h"
-              type="time"
-              step={60}
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="hh:mm"
+              onBlur={() => {
+                // « 7h », « 0700 » → « 07:00 » ; illisible, laissé tel quel :
+                // l'enregistrement le refuse avec la raison.
+                const heure = lireHeure(arrivee);
+                if (heure && heure !== 'illisible') setArrivee(heure);
+              }}
               value={arrivee}
               onChange={(e) => {
                 setArrivee(e.target.value);
@@ -379,8 +387,16 @@ export function PlanningDayEditor({
             <Label htmlFor="depart-h" className="text-xs">Départ (facultatif)</Label>
             <Input
               id="depart-h"
-              type="time"
-              step={60}
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="hh:mm"
+              onBlur={() => {
+                // « 7h », « 0700 » → « 07:00 » ; illisible, laissé tel quel :
+                // l'enregistrement le refuse avec la raison.
+                const heure = lireHeure(depart);
+                if (heure && heure !== 'illisible') setDepart(heure);
+              }}
               value={depart}
               onChange={(e) => {
                 setDepart(e.target.value);
