@@ -26,7 +26,7 @@ import { log } from '@/lib/logger';
 import { SaisieModal } from "@/components/SaisieModal";
 import * as saisiesApi from '@/api/saisies';
 import { generatePayrollVariables, getJoursSansHeureDArrivee, type JoursSansHeureDArrivee } from '@/api/payrollVariables';
-import { phraseJoursSansHeureDArrivee } from '@/features/company/lib/primesPointage';
+import { phraseJoursDuSalarie } from '@/features/company/lib/primesPointage';
 import { libelleNombreDePaniers, lireNombreDePaniers, nombreDePaniersModifiable } from './panierSaisie';
 import apiClient from '@/api/apiClient';
 import { useAuth } from '@/contexts/AuthContext';
@@ -398,7 +398,7 @@ export function PrimesTab({
                       const nom = emp ? `${emp.first_name} ${emp.last_name}` : [j.first_name, j.last_name].filter(Boolean).join(' ');
                       return (
                         <li key={`${j.employee_id}-${j.rule_label}`}>
-                          {nom} — {j.rule_label} : {phraseJoursSansHeureDArrivee(j.dates.length, j.dates)}
+                          {nom} — {phraseJoursDuSalarie(j)}
                         </li>
                       );
                     })}

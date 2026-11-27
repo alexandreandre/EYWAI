@@ -68,7 +68,8 @@ def jours_sans_heure_d_arrivee(
     )
     sortie: list[dict[str, Any]] = []
     for item in res.get("preview") or []:
-        dates = (item.get("details") or {}).get("dates_sans_heure_de_debut") or []
+        details = item.get("details") or {}
+        dates = details.get("dates_sans_heure_de_debut") or []
         if dates:
             sortie.append(
                 {
@@ -77,12 +78,27 @@ def jours_sans_heure_d_arrivee(
                     "last_name": item.get("last_name"),
                     "rule_label": item.get("rule_label") or item.get("rule_code"),
                     "dates": list(dates),
+                    # Aucun jour de la fenêtre n'a d'heure d'arrivée (aucun
+                    # badge importé) : une seule phrase, sans les dates.
+                    "aucun_badge": bool(details.get("aucun_badge")),
                 }
             )
     return sortie
 
 
-def phrase_jours_sans_heure_d_arrivee(regle: Any, dates: list[str]) -> str:
+def phrase_aucune_heure_d_arrivee(regle: Any, nombre: int) -> str:
+    """Aucun badge du mois : une phrase par salarié et par règle, sans dates."""
+    jours = "jour travaillé" if nombre == 1 else "jours travaillés"
+    rien = "aucun panier compté" if "panier" in str(regle).lower() else "aucun jour compté"
+    return (
+        f"{regle} : aucune heure d'arrivée sur la période ({nombre} {jours}), {rien} : "
+        "importez les pointages ou saisissez les heures d'arrivée au calendrier."
+    )
+
+
+def phrase_jours_sans_heure_d_arrivee(regle: Any, dates: list[str], aucun_badge: bool = False) -> str:
+    if aucun_badge:
+        return phrase_aucune_heure_d_arrivee(regle, len(dates))
     n = len(dates)
     jours = "jour travaillé" if n == 1 else "jours travaillés"
     comptes = "non compté" if n == 1 else "non comptés"
@@ -171,7 +187,9 @@ def alertes_des_paniers_du_mois(
                     "code": CODE_ALERTE_JOURS_SANS_HEURE_D_ARRIVEE,
                     "critique": False,
                     "severity": "warning",
-                    "message": phrase_jours_sans_heure_d_arrivee(j["rule_label"], j["dates"]),
+                    "message": phrase_jours_sans_heure_d_arrivee(
+                        j["rule_label"], j["dates"], j.get("aucun_badge", False)
+                    ),
                 }
             )
     alertes.extend(alertes_de_montant_sans_le_nombre(saisies or [], regles))

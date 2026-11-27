@@ -518,7 +518,19 @@ class TestJoursSansHeureDArriveeDits:
         prevu, reel = _calendrier({})
         _brancher(monkeypatch, self.REGLE, FICHE, prevu, reel)
         alertes = alertes_des_paniers_du_mois("c", "e1", 2026, 10, [])
-        assert len(alertes) == 1 and "22 jours travaillés sans heure d'arrivée" in alertes[0]["message"]
+        # Aucun badge du mois : une seule phrase, sans la liste des dates.
+        assert [a["message"] for a in alertes] == [
+            "Panier : aucune heure d'arrivée sur la période (22 jours travaillés), aucun panier compté : "
+            "importez les pointages ou saisissez les heures d'arrivée au calendrier."
+        ]
+
+    def test_aucun_badge_l_ecran_le_sait(self, monkeypatch):
+        from app.modules.payroll_variables.application.alertes_paniers import jours_sans_heure_d_arrivee
+
+        prevu, reel = _calendrier({})
+        _brancher(monkeypatch, self.REGLE, FICHE, prevu, reel)
+        [jours] = jours_sans_heure_d_arrivee("c", 2026, 10)
+        assert jours["aucun_badge"] is True and len(jours["dates"]) == 22
 
     def test_l_ecran_primes_du_mois_les_lit_sans_rien_ecrire(self, monkeypatch):
         from app.modules.payroll_variables.application.alertes_paniers import jours_sans_heure_d_arrivee
@@ -533,6 +545,7 @@ class TestJoursSansHeureDArriveeDits:
                 "last_name": "B",
                 "rule_label": "Panier",
                 "dates": ["2026-10-05", "2026-10-06"],
+                "aucun_badge": False,
             }
         ]
         repo.upsert_monthly_input.assert_not_called()

@@ -211,6 +211,8 @@ export interface JoursSansHeureDArrivee {
   last_name?: string | null;
   rule_label?: string | null;
   dates: string[];
+  /** Aucun jour de la période n'a d'heure d'arrivée (aucun badge importé). */
+  aucun_badge?: boolean;
 }
 
 /** Relus au calendrier par la règle elle-même, sans rien écrire. */

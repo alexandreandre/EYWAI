@@ -33,12 +33,12 @@ def test_la_route_rend_les_jours_par_salarie(monkeypatch):
     def lecture(company_id, year, month, employee_id=None):
         appels.append((company_id, year, month, employee_id))
         return [{"employee_id": "e1", "first_name": "A", "last_name": "B", "rule_label": "Panier",
-                 "dates": ["2026-10-05"]}]
+                 "dates": ["2026-10-05"], "aucun_badge": False}]
 
     r = _client(monkeypatch, lecture).get(
         "/api/payroll-variables/jours-sans-heure-d-arrivee", params={"year": 2026, "month": 10}
     )
     assert r.status_code == 200
     assert r.json() == [{"employee_id": "e1", "first_name": "A", "last_name": "B", "rule_label": "Panier",
-                         "dates": ["2026-10-05"]}]
+                         "dates": ["2026-10-05"], "aucun_badge": False}]
     assert appels == [("c1", 2026, 10, None)]

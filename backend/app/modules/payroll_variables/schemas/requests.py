@@ -66,6 +66,8 @@ class JoursSansHeureDArriveeSchema(BaseModel):
     last_name: Optional[str] = None
     rule_label: Optional[str] = None
     dates: list[str]
+    #: Aucun jour de la période n'a d'heure d'arrivée (aucun badge importé).
+    aucun_badge: bool = False
 
 
 class PayrollVariableGenerateResponse(BaseModel):
