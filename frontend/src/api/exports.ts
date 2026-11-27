@@ -2,6 +2,7 @@
 // API pour les exports
 
 import apiClient from './apiClient';
+import { downloadBlob, parseContentDispositionFilename } from '@/lib/downloadBlob';
 
 export type ExportType = 
   | "journal_paie"
@@ -747,4 +748,23 @@ export async function runDispatchScheduleNow(
     { headers: dispatchHeaders(companyId) },
   );
   return data;
+}
+
+/**
+ * Fiche individuelle d'un salarié (Excel) : ses cumuls mois par mois, de
+ * `debut` à `fin` (AAAA-MM). Lecture seule, rien n'est enregistré.
+ */
+export async function telechargerFicheIndividuelle(
+  employeeId: string,
+  periode: { debut: string; fin: string },
+): Promise<void> {
+  const res = await apiClient.get<Blob>(
+    `/api/exports/fiche-individuelle/${encodeURIComponent(employeeId)}`,
+    { params: periode, responseType: 'blob' },
+  );
+  const nom = parseContentDispositionFilename(
+    res.headers['content-disposition'],
+    `fiche-individuelle-${periode.debut}-${periode.fin}.xlsx`,
+  );
+  downloadBlob(res.data as Blob, nom);
 }

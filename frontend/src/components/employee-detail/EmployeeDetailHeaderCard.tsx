@@ -110,6 +110,8 @@ interface EmployeeDetailHeaderCardProps {
   hasWorkplaceAccommodation?: boolean;
   /** Mode démo paie : masquer équipes, BOETH, titres de séjour, période d'essai, onboarding. */
   payrollFocus?: boolean;
+  /** Boutons de plus, à droite de « Modifier la fiche » (fiche individuelle Excel). */
+  actionsSupplementaires?: React.ReactNode;
 }
 
 function MetadataField({
@@ -166,6 +168,7 @@ export function EmployeeDetailHeaderCard({
   onOpenBoethSheet,
   hasWorkplaceAccommodation = false,
   payrollFocus = false,
+  actionsSupplementaires,
 }: EmployeeDetailHeaderCardProps) {
   const contradictionStatut = statutDsnContreditLaFiche(
     employee.statut,
@@ -311,6 +314,7 @@ export function EmployeeDetailHeaderCard({
                 Modifier la fiche
               </Button>
             ) : null}
+            {actionsSupplementaires}
             {!payrollFocus && showOnboarding ? (
               <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
                 <Link to={`/onboarding/${employee.id}`}>
