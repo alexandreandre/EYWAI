@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Sequence, Tuple
 
 from app.modules.schedules.application.employee_match import resolve_employee_for_timesheet
 from app.modules.schedules.application.timesheet_import.structured_parser import TabularDayRow
-from app.modules.schedules.schemas.ai import AiDayEntry, RosterEmployee
+from app.modules.schedules.schemas.ai import RosterEmployee
 
 
 def row_date(row: TabularDayRow) -> date | None:
@@ -75,6 +75,10 @@ def build_month_groups_from_rows(
     rows: Sequence[TabularDayRow],
     roster: List[RosterEmployee],
 ) -> List[Dict[str, Any]]:
+    from app.modules.schedules.application.timesheet_import.proposal_builder import (
+        jour_depuis_ligne,
+    )
+
     by_month_emp: Dict[Tuple[int, int, str], List[TabularDayRow]] = defaultdict(list)
     for row in rows:
         d = row_date(row)
@@ -93,19 +97,7 @@ def build_month_groups_from_rows(
             roster=roster,
             tabulaire=True,
         )
-        days = [
-            AiDayEntry(
-                jour=r.jour,
-                heures=r.heures,
-                type="travail",
-                nature="reel",
-                punch_entry_raw=str(r.entry_raw) if r.entry_raw is not None else None,
-                punch_exit_raw=str(r.exit_raw) if r.exit_raw is not None else None,
-                shift_code=r.shift_code,
-                punch_break_minutes=r.punched_break_minutes,
-            )
-            for r in emp_rows
-        ]
+        days = [jour_depuis_ligne(r) for r in emp_rows]
         groups_map[(year, month)].append(
             {
                 "employee_id": proposal.employee_id,
