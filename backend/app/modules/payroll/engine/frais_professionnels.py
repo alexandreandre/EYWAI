@@ -115,6 +115,53 @@ def reintegration_panier_plafonne(
     return round(max(0.0, montant - plafond * nombre), 2)
 
 
+def _texte_du_panier(saisie: Mapping[str, Any]) -> str:
+    return f"{saisie.get('prime_id') or ''} {saisie.get('libelle') or ''}".lower()
+
+
+def nombre_de_paniers(
+    montant: float, quantity: Any, quantity_kind: Any
+) -> float | None:
+    """Le nombre de paniers d'une saisie, ou None s'il n'a pas été saisi.
+
+    `quantity` porte un nombre (« count », ou rien : division historique) ou une
+    valeur unitaire (« unit_value ») : le nombre se lit comme le plafond le
+    compte (`reintegration_panier_plafonne`). Sans quantité, rien ne s'invente.
+    """
+    from app.modules.payroll.engine.calcul_frais import valeur_unitaire
+
+    try:
+        if quantity is None or float(quantity) <= 0 or float(montant) <= 0:
+            return None
+    except (TypeError, ValueError):
+        return None
+    unite = valeur_unitaire(float(montant), quantity, quantity_kind)
+    if unite <= 0:
+        return None
+    return float(max(1, round(float(montant) / unite)))
+
+
+def colonnes_du_panier(montant: float, nombre: float | None) -> dict[str, float]:
+    """Colonnes « base » (nombre de paniers) et « taux » (montant par panier)
+    d'une ligne de panier ; rien sans nombre. Le montant ne change pas."""
+    if not nombre or nombre <= 0 or montant <= 0:
+        return {}
+    return {"quantite": nombre, "taux": round(float(montant) / nombre, 4)}
+
+
+def libelle_de_reintegration_panier(libelle: Any) -> str:
+    """« Réintégration panier », « Réintégration panier chauffeur » : le mot
+    « panier » une seule fois (« Réintégration panier Panier » au bulletin
+    LEWIS d'octobre 2026)."""
+    texte = str(libelle or "").strip()
+    if not texte:
+        return "Réintégration panier"
+    minuscule = texte[0].lower() + texte[1:]
+    if "panier" in texte.lower():
+        return f"Réintégration {minuscule}"
+    return f"Réintégration panier ({texte})"
+
+
 def ligne_de_frais_professionnels(saisie: Mapping[str, Any]) -> dict[str, Any] | None:
     """La ligne non soumise d'un remboursement de frais, ou None si ce n'en est pas un.
 
@@ -147,14 +194,28 @@ def frais_et_reintegration(
     ligne_frais = ligne_de_frais_professionnels(saisie)
     if ligne_frais is None:
         return None, None
+    # Un panier porte son nombre et son montant unitaire (base et taux du
+    # bulletin) : le nombre gardé à l'entrée n'était plus imprimé.
+    nombre = (
+        nombre_de_paniers(
+            float(saisie.get("montant") or 0.0),
+            saisie.get("quantity"),
+            saisie.get("quantity_kind"),
+        )
+        if "panier" in _texte_du_panier(saisie) or "repas" in _texte_du_panier(saisie)
+        else None
+    )
     reint = reintegration_panier_plafonne(saisie, frais_pro)
     if reint <= 0:
+        ligne_frais.update(colonnes_du_panier(ligne_frais["montant"], nombre))
         return ligne_frais, None
     ligne_frais["montant"] = round(ligne_frais["montant"] - reint, 2)
+    ligne_frais.update(colonnes_du_panier(ligne_frais["montant"], nombre))
     return ligne_frais, {
-        "libelle": f"Réintégration panier {ligne_frais['libelle']}",
+        "libelle": libelle_de_reintegration_panier(ligne_frais["libelle"]),
         "montant": reint,
         "prime_id": "reintegration_panier",
+        **colonnes_du_panier(reint, nombre),
     }
 
 
@@ -172,9 +233,10 @@ def panier_non_soumis_plafonne(
     libelle: Any,
     montant: float,
     frais_pro: Mapping[str, Any] | None,
-) -> tuple[float, dict[str, Any] | None]:
-    """Un panier non soumis passé comme prime : la part exonérée, et la
-    réintégration au brut de ce qui dépasse le plafond par panier (ou None).
+) -> tuple[float, dict[str, Any] | None, dict[str, float]]:
+    """Un panier non soumis passé comme prime : la part exonérée, la
+    réintégration au brut de ce qui dépasse le plafond par panier (ou None),
+    et les colonnes base et taux de la ligne exonérée (vides sans nombre saisi).
 
     `quantity` porte selon le libellé un nombre d'unités ou une valeur
     unitaire : diviser sans distinction donnait 22 € le panier au lieu de
@@ -191,7 +253,7 @@ def panier_non_soumis_plafonne(
         and montant > 0
         and not saisie.get("soumise_a_cotisations", saisie.get("soumise_a_csg", True))
     ):
-        return montant, None
+        return montant, None, {}
     unit = valeur_unitaire(montant, saisie.get("quantity"), saisie.get("quantity_kind"))
     qty = max(1.0, round(montant / unit)) if unit > 0 else 1.0
     exo_total = 0.0
@@ -208,13 +270,16 @@ def panier_non_soumis_plafonne(
         )
         exo_total += exo
         reint_total += reint
+    nombre = nombre_de_paniers(montant, saisie.get("quantity"), saisie.get("quantity_kind"))
     reintegration = (
         {
-            "libelle": f"Réintégration panier {libelle}",
+            "libelle": libelle_de_reintegration_panier(libelle),
             "montant": round(reint_total, 2),
             "prime_id": "reintegration_panier",
+            **colonnes_du_panier(round(reint_total, 2), nombre),
         }
         if reint_total > 0
         else None
     )
-    return round(exo_total, 2), reintegration
+    exonere = round(exo_total, 2)
+    return exonere, reintegration, colonnes_du_panier(exonere, nombre)

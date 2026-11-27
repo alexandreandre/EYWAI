@@ -1067,3 +1067,19 @@ def test_une_ligne_d_arret_corrigee_a_la_main_reste_seule():
     ]
     libelles = [l["libelle"] for l in construire_vue_bulletin(bulletin)["lignes"]]
     assert any(l.startswith("Absence maladie du 06/10/26") for l in libelles)
+
+
+def test_hors_brut_un_panier_imprime_son_nombre_et_son_montant_unitaire():
+    """L19 (26/11) : « Panier » 112,50 € s'imprimait sans nombre ni taux."""
+    from app.modules.payroll.documents.bulletin_view import _lignes_hors_brut
+
+    bulletin = {
+        "primes_non_soumises": [
+            {"libelle": "Panier", "montant": 112.5, "quantite": 15.0, "taux": 7.5},
+            {"libelle": "Prime sans colonnes", "montant": 40.0},
+        ]
+    }
+    lignes = {l["libelle"]: l for l in _lignes_hors_brut(bulletin)}
+    assert (lignes["Panier"]["base"], lignes["Panier"]["taux"]) == (15.0, 7.5)
+    assert lignes["Panier"]["montant_salarial"] == 112.5
+    assert (lignes["Prime sans colonnes"]["base"], lignes["Prime sans colonnes"]["taux"]) == (None, None)

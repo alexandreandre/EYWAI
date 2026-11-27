@@ -173,6 +173,12 @@ def test_un_panier_au_dela_du_plafond_est_reintegre(tmp_path, moteur, panier):
     reint = [l for l in b["calcul_du_brut"] if "Réintégration panier" in str(l.get("libelle"))]
     # 2 paniers à 15 € sur le lieu de travail : 7,50 € exonérés chacun.
     assert [l["gain"] for l in reint] == [15.0]
+    # L19 (26/11) : nombre de paniers et part unitaire, libellé sans doublon.
+    assert [(l["libelle"], l["quantite"], l["taux"]) for l in reint] == [
+        ("Réintégration panier repas", 2.0, 7.5)
+    ]
+    non_soumis = [l for l in b["primes_non_soumises"] if l.get("libelle") == "Panier repas"]
+    assert [(l["montant"], l["quantite"], l["taux"]) for l in non_soumis] == [(15.0, 2.0, 7.5)]
 
 
 # --- Le générateur au forfait lit le calendrier comme en heures -----------
