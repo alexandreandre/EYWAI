@@ -66,6 +66,11 @@ class TempsDuMois:
     quotite: float = 1.0
     #: Durée à laquelle se rapportent les heures sup (151,67 h) ; la référence à défaut.
     reference_heures_sup: float | None = None
+    #: Le salaire du mois est retenu en entier (aucun jour prévu travaillé ; « Complément
+    #: retenue absence intégrale du mois », ou au forfait « Absence sur tout le mois ») :
+    #: le temps non payé couvre alors tout le temps sous contrat, au prorata des absences
+    #: qui ne sont pas payées (un arrêt maintenu reste payé).
+    mois_entierement_absent: bool = False
 
 
 @dataclass(frozen=True)
@@ -139,6 +144,18 @@ def ratio_du_temps_paye(
         + float(temps.hors_contrat)
         + arret_non_maintenu
     )
+    if temps.mois_entierement_absent:
+        absences = (
+            float(temps.absences_non_payees)
+            + float(temps.activite_partielle)
+            + sum(float(quantite) for _jour, quantite in temps.jours_arret)
+        )
+        if absences > 0:
+            part_non_payee = (
+                float(temps.absences_non_payees) + float(temps.activite_partielle) + arret_non_maintenu
+            ) / absences
+            sous_contrat = max(float(temps.reference) - float(temps.hors_contrat), 0.0)
+            non_paye = float(temps.hors_contrat) + sous_contrat * part_non_payee
     if reference <= 0:
         return TempsRetenuResult(
             temps_retenu=0.0,
@@ -166,5 +183,6 @@ def ratio_du_temps_paye(
             "arret_non_maintenu": round(arret_non_maintenu, 2),
             "heures_sup_majorees": round(heures_sup, 2),
             "quotite": round(quotite, 6),
+            "mois_entierement_absent": bool(temps.mois_entierement_absent),
         },
     )

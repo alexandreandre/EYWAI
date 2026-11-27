@@ -772,7 +772,10 @@ def calculer_salaire_brut_forfait(
     # du 20/04 au 10/06/2026 : 21 jours ouvrés absents en mai, fériés compris ;
     # seuls 17 étaient comptés, et 777,50 € restaient d'un forfait de 3 608 €.
     # Un férié payé hors de toute absence garde le mois partiel.
-    if jours_ouvres_contrat and jours_absence_non_payes >= len(jours_ouvres_contrat) - 1e-9:
+    salaire_retenu_en_entier = bool(
+        jours_ouvres_contrat and jours_absence_non_payes >= len(jours_ouvres_contrat) - 1e-9
+    )
+    if salaire_retenu_en_entier:
         perte_entree_sortie = sum(
             (ligne.get("perte") or 0.0)
             for ligne in lignes_composants_brut
@@ -835,6 +838,7 @@ def calculer_salaire_brut_forfait(
             hors_contrat=hors_contrat_prime,
             jours_arret=tuple(jours_arret_prime),
             quotite=quotite_forfait(jours_forfait_fiche),
+            mois_entierement_absent=salaire_retenu_en_entier,
         ),
     )
     # Comme au générateur des heures : la prime du mois saisie remplace le

@@ -322,3 +322,84 @@ def test_forfait_reduit_au_prorata_de_ses_jours():
 def test_forfait_plein_sur_la_fiche_prime_pleine():
     ctx = _contexte(forfait=True, jours_forfait=218)
     assert _forfait(_calendrier_forfait(*PERIODE_19_JOURS, {11: FERIE}), ctx=ctx) == PLEIN_FORFAIT
+
+
+# Mois entièrement absent (vague 2, 27/11) : le salaire est retenu en entier (« Complément retenue
+# absence intégrale du mois ») ; sans maintien, aucune prime, aux deux générateurs.
+JANVIER = (date(2026, 1, 1), date(2026, 1, 31))
+#: Janvier 2026 : 4 ans d'ancienneté, point de 5,70 €.
+PLEIN_JANVIER_HEURES = round(5.70 * 2.9 * 4, 2)
+
+
+def _arret_tout_le_mois(debut, fin, forfait=False):
+    cal = []
+    for jour in _jours(debut, fin):
+        if jour.weekday() < 5:
+            cal.append({"date_complete": jour.isoformat(), "type": "arret_maladie", "heures": 0.0})
+        elif forfait:
+            cal.append({"date_complete": jour.isoformat(), "type": "weekend", "heures": 0.0})
+    return cal
+
+
+def _ouvres(debut, fin):
+    return {j.day for j in _jours(debut, fin) if j.weekday() < 5}
+
+
+#: Cartol, janvier 2026 : arrêt du 02 au 30/01 (147 h), sans aucun jour prévu travaillé ; le
+#: salaire est retenu en entier par le complément de 109,09 €. Avant ce correctif, la prime
+#: valait (151,67 − 147) ÷ 151,67 du plein mois (2,04 €).
+ARRET_JANVIER = (date(2026, 1, 2), date(2026, 1, 30))
+
+
+def test_heures_mois_entierement_en_arret_non_maintenu_aucune_prime():
+    resultat = calculer_salaire_brut(
+        _contexte(), _arret_tout_le_mois(*ARRET_JANVIER), *JANVIER, [], jours_maintien=set(),
+        nb_jours_travail_planifies=0,
+    )
+    assert any("intégrale" in str(l.get("libelle")) for l in resultat["lignes_composants_brut"])
+    assert _prime(resultat) is None
+
+
+def test_heures_mois_entierement_en_arret_maintenu_prime_pleine():
+    resultat = calculer_salaire_brut(
+        _contexte(), _arret_tout_le_mois(*ARRET_JANVIER), *JANVIER, [],
+        jours_maintien=_ouvres(*ARRET_JANVIER), nb_jours_travail_planifies=0,
+    )
+    assert _prime(resultat) == PLEIN_JANVIER_HEURES
+
+
+def test_forfait_mois_entierement_en_arret_non_maintenu_aucune_prime():
+    resultat = calculer_salaire_brut_forfait(
+        _contexte(forfait=True), _arret_tout_le_mois(*JANVIER, forfait=True), *JANVIER, [], jours_maintien=set(),
+    )
+    assert _prime(resultat) is None
+
+
+def test_forfait_mois_entierement_en_arret_maintenu_prime_pleine():
+    resultat = calculer_salaire_brut_forfait(
+        _contexte(forfait=True), _arret_tout_le_mois(*JANVIER, forfait=True), *JANVIER, [],
+        jours_maintien=_ouvres(*JANVIER),
+    )
+    assert _prime(resultat) == round(PLEIN_JANVIER_HEURES * 1.3, 2)
+
+
+def test_heures_entree_en_fin_de_mois_la_prime_suit_les_heures_payees():
+    """Entré le vendredi 29/05, payé sur son horaire du jour (7 h sur 151,67) : la prime suit les
+    mêmes heures que le salaire (Cartol, mai, filet de la vague 2 : 127,60 € pleins avant L8)."""
+    ctx = _contexte()
+    ctx.contrat["contrat"]["date_entree"] = "2026-05-29"
+    ctx.contrat["contrat"]["seniority_reference_date"] = "2021-06-14"
+    mai = (date(2026, 5, 1), date(2026, 5, 31))
+    prevus = [
+        {"annee": 2026, "mois": 5, "jour": j.day, "type": "travail" if j.weekday() < 5 else "weekend",
+         "heures_prevues": 7.0 if j.weekday() < 5 else 0.0}
+        for j in _jours(*mai)
+    ]
+    resultat = calculer_salaire_brut(
+        ctx, _calendrier_heures(date(2026, 5, 29), date(2026, 5, 31)), *mai, [], jours_maintien=set(),
+        jours_prevus=prevus,
+    )
+    base = next(l for l in resultat["lignes_composants_brut"] if l.get("libelle") == "Salaire de base")
+    assert base["quantite"] == 7.0
+    plein = round(5.80 * 2.9 * 4, 2)  # point de mai 2026 : 5,80 € ; 4 ans d'ancienneté
+    assert _prime(resultat) == round(plein * round(7.0 / 151.67, 6), 2)

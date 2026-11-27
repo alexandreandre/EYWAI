@@ -2495,6 +2495,8 @@ def calculer_salaire_brut(
     # mois, quel que soit l'état du pointage. Ni pour un mois dont un férié payé
     # tombe hors de toute absence (`mois_entierement_absent`, plus haut) : la
     # retenue y reste celle des jours d'absence, jamais plus que le salaire.
+    #: Salaire du mois retenu en entier : la prime d'ancienneté le suit (`TempsDuMois`).
+    salaire_retenu_en_entier = False
     # Jours repoussés du mois précédent par la fenêtre des variables : quand ce
     # mois-là a été payé (au moins un jour travaillé ou payé au planning) et que
     # son bulletin Martine s'arrêtait avant eux, il ne les a pas retenus ; ils se
@@ -2512,6 +2514,7 @@ def calculer_salaire_brut(
         retenue_avant_le_mois if separer_les_jours_repousses else 0.0
     )
     if nb_jours_travail_planifies == 0 and retenue_du_mois > 0:
+        salaire_retenu_en_entier = mois_entierement_absent
         retenue_du_mois_finale = retenue_du_mois
         complement_absence_pleine = round(montant_base_mensualise - retenue_du_mois, 2)
         if complement_absence_pleine > 0.01 and mois_entierement_absent:
@@ -2710,6 +2713,10 @@ def calculer_salaire_brut(
     reference_prime = reference_heures_du_contrat(duree_contrat_hebdo)
     if retenue_entree_sortie_heures is not None:
         hors_contrat_prime = float(retenue_entree_sortie_heures)
+    elif heures_prevues_mois_partiel is not None:
+        # Mois d'entrée ou de sortie payé sur l'horaire des jours sous contrat :
+        # la prime suit les mêmes heures que le salaire.
+        hors_contrat_prime = max(reference_prime - heures_prevues_mois_partiel, 0.0)
     else:
         hors_contrat_prime = reference_prime * (1.0 - facteur_prorata)
     ligne_prime_anciennete = _calculer_prime_anciennete(
@@ -2736,6 +2743,7 @@ def calculer_salaire_brut(
             ),
             quotite=quotite_heures(duree_contrat_hebdo),
             reference_heures_sup=HEURES_MOIS_DUREE_LEGALE,
+            mois_entierement_absent=salaire_retenu_en_entier,
         ),
     )
     # La prime du mois saisie remplace le calcul conventionnel, et le bulletin
