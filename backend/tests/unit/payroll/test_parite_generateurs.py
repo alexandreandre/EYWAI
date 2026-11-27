@@ -222,7 +222,7 @@ HEURES_SEULEMENT: dict[str, dict[str, str]] = {
         "payroll_analyzer_analyser": "analyse des heures ; le forfait analyse ses jours dans le moteur",
         "regularisation_events_from_calendar": "régularisations d'heures d'un mois passé",
         "marquer_les_regularisations_du_conge_parental": "idem : le forfait n'a pas de régularisation antérieure",
-        "alerte_conge_parental_entre_deux_bulletins": (
+        "alertes_conge_parental_entre_bulletins": (
             "fenêtre des variables : le forfait n'en a pas, son congé parental suit "
             "la période du forfait comme l'arrêt, sans trou entre deux bulletins"
         ),

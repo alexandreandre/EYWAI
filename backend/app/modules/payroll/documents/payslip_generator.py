@@ -36,7 +36,7 @@ from app.shared.domain.conge_parental import (
     periode_du_jour,
     periodes_chainees,
 )
-from app.shared.seniority_reference import CLE_JOURS_NEUTRALISES
+from app.shared.seniority_reference import CLE_JOURS_NEUTRALISES, depart_de_l_anciennete
 from app.shared.reprise_paie import (
     CLE_DEPART_A_ZERO,
     RepriseNonPosee,
@@ -122,7 +122,7 @@ from app.modules.payroll.documents.bulletin_par_contrat import (
     suffixe_du_pdf,
     variables_du_bulletin,
 )
-from app.shared.cle_du_bulletin import CONFLIT_BULLETIN
+from app.shared.cle_du_bulletin import CONFLIT_BULLETIN, du_contrat
 from app.modules.payroll.application.salary_evolution_payroll import (
     prepare_salary_evolution_for_payslip,
 )
@@ -630,6 +630,22 @@ _LIGNE_CONGE_PARENTAL = re.compile(
 )
 
 
+_LIBELLES_DU_MOIS_ENTIER = (
+    "Complément retenue absence intégrale du mois",
+    "Retenue absence intégrale du mois limitée au salaire mensuel",
+)
+_LIGNE_NON_REMUNEREE = re.compile(r"^Absence non rémunérée du (\d{2}/\d{2}/\d{2})")
+
+
+def _lignes_d_absence(bulletin: dict) -> list:
+    return [
+        ligne
+        for cle in ("calcul_du_brut", "details_absences")
+        for ligne in (bulletin.get(cle) or [])
+        if isinstance(ligne, dict)
+    ]
+
+
 def jours_de_conge_parental_entre_deux_bulletins(
     bulletin_precedent: dict | None,
     year: int,
@@ -641,11 +657,17 @@ def jours_de_conge_parental_entre_deux_bulletins(
     retient : le bulletin précédent suivait encore la fenêtre des variables (il
     s'arrêtait avant la fin du mois) et ne les porte pas, alors que celui-ci
     retient le congé au mois civil. Arrive au premier mois après le passage au
-    mois civil, ou quand un sans solde déjà payé devient un congé parental."""
+    mois civil, ou quand un sans solde déjà payé devient un congé parental.
+
+    Rien quand le bulletin précédent retenait le mois entier (complément ou
+    plafond de l'absence intégrale) : ces jours y étaient déjà compris."""
     if not isinstance(bulletin_precedent, dict):
         return []
     chaines = periodes_chainees(demandes)
     if not chaines:
+        return []
+    lignes = _lignes_d_absence(bulletin_precedent)
+    if any(str(l.get("libelle") or "").startswith(_LIBELLES_DU_MOIS_ENTIER) for l in lignes):
         return []
     precedent = (year, month - 1) if month > 1 else (year - 1, 12)
     fin_mois_precedent = date(*precedent, calendar.monthrange(*precedent)[1])
@@ -658,14 +680,13 @@ def jours_de_conge_parental_entre_deux_bulletins(
     if fin_fenetre >= fin_mois_precedent:
         return []
     couverts: set = set()
-    for cle in ("calcul_du_brut", "details_absences"):
-        for ligne in bulletin_precedent.get(cle) or []:
-            trouve = _LIGNE_CONGE_PARENTAL.match(str((ligne or {}).get("libelle") or ""))
-            if not trouve:
-                continue
-            debut = datetime.strptime(trouve.group(1), "%d/%m/%y").date()
-            fin = datetime.strptime(trouve.group(2) or trouve.group(1), "%d/%m/%y").date()
-            couverts |= {debut + timedelta(days=k) for k in range((fin - debut).days + 1)}
+    for ligne in lignes:
+        trouve = _LIGNE_CONGE_PARENTAL.match(str(ligne.get("libelle") or ""))
+        if not trouve:
+            continue
+        debut = datetime.strptime(trouve.group(1), "%d/%m/%y").date()
+        fin = datetime.strptime(trouve.group(2) or trouve.group(1), "%d/%m/%y").date()
+        couverts |= {debut + timedelta(days=k) for k in range((fin - debut).days + 1)}
     jours = []
     for e in planned_entries or []:
         try:
@@ -681,54 +702,99 @@ def jours_de_conge_parental_entre_deux_bulletins(
     return sorted(jours)
 
 
-def alerte_conge_parental_entre_deux_bulletins(
-    employee_id: str, year: int, month: int, demandes: list, planned_entries: list
-) -> dict | None:
-    """L'alerte des jours de congé parental qu'aucun bulletin ne retient."""
-    if not periodes_chainees(demandes):
-        return None
-    precedent = (year, month - 1) if month > 1 else (year - 1, 12)
-    res = (
+def jours_de_conge_parental_deja_retenus_au_bulletin_suivant(
+    bulletin_suivant: dict | None, year: int, month: int, demandes: list
+) -> list:
+    """Les jours de congé parental de ce mois que le bulletin du mois suivant a
+    déjà retenus en « Absence non rémunérée » (fenêtre des variables, avant
+    qu'ils ne deviennent un congé parental) : ce bulletin-ci les retient
+    maintenant au mois civil ; sans recalcul du suivant, ils le seraient deux fois."""
+    if not isinstance(bulletin_suivant, dict):
+        return []
+    chaines = periodes_chainees(demandes)
+    if not chaines:
+        return []
+    jours = []
+    for ligne in _lignes_d_absence(bulletin_suivant):
+        trouve = _LIGNE_NON_REMUNEREE.match(str(ligne.get("libelle") or ""))
+        if not trouve:
+            continue
+        jour = datetime.strptime(trouve.group(1), "%d/%m/%y").date()
+        if (jour.year, jour.month) == (year, month) and periode_du_jour(chaines, jour.isoformat()):
+            jours.append(jour)
+    return sorted(set(jours))
+
+
+def _bulletin_du_mois(employee_id: str, annee: int, mois: int) -> dict | None:
+    """Le bulletin enregistré du contrat de la fiche pour ce mois, ou None."""
+    requete = (
         supabase.table("payslips")
         .select("payslip_data")
         .eq("employee_id", employee_id)
-        .eq("year", precedent[0])
-        .eq("month", precedent[1])
-        .execute()
+        .eq("year", annee)
+        .eq("month", mois)
     )
-    lignes = getattr(res, "data", None) or []
-    bulletin = (lignes[0] or {}).get("payslip_data") if lignes else None
-    jours = jours_de_conge_parental_entre_deux_bulletins(
-        bulletin, year, month, demandes, planned_entries
+    lignes = getattr(du_contrat(requete, None).execute(), "data", None) or []
+    return (lignes[0] or {}).get("payslip_data") if lignes else None
+
+
+def alertes_conge_parental_entre_bulletins(
+    employee_id: str,
+    year: int,
+    month: int,
+    demandes: list,
+    planned_entries: list,
+    contract_period_id: str | None = None,
+) -> list:
+    """Les deux alertes du passage du congé parental au mois civil : des jours
+    du mois précédent retenus nulle part, ou des jours de ce mois déjà retenus
+    par le bulletin suivant. Lues seulement quand un congé parental touche le
+    mois précédent ou celui-ci, pour le bulletin du contrat de la fiche."""
+    chaines = periodes_chainees(demandes)
+    if not chaines or contract_period_id:
+        return []
+    precedent = (year, month - 1) if month > 1 else (year - 1, 12)
+    suivant = (year, month + 1) if month < 12 else (year + 1, 1)
+    debut = date(*precedent, 1).isoformat()
+    fin = date(year, month, calendar.monthrange(year, month)[1]).isoformat()
+    if not any(c["debut"] <= fin and c["fin"] >= debut for c in chaines):
+        return []
+    alertes = []
+    trou = jours_de_conge_parental_entre_deux_bulletins(
+        _bulletin_du_mois(employee_id, *precedent), year, month, demandes, planned_entries
     )
-    if not jours:
-        return None
-    n = len(jours)
-    return {
-        "code": "conge_parental_jours_entre_deux_bulletins",
-        "message": (
-            f"Congé parental : {n} jour{'s' if n > 1 else ''} ouvré{'s' if n > 1 else ''} "
-            f"du {jours[0]:%d/%m/%Y} au {jours[-1]:%d/%m/%Y} retenu{'s' if n > 1 else ''} sur "
-            "aucun bulletin : le bulletin du mois précédent s'arrêtait à sa fenêtre des "
-            "variables, et le congé parental est retenu au mois civil. Ajoutez-les en "
-            "régularisation antérieure sur ce bulletin, ou recalculez le bulletin précédent."
-        ),
-    }
-
-
-def depart_de_l_anciennete(employee: dict | None) -> date | None:
-    """Le plus ancien de l'embauche et de la date d'ancienneté de la fiche."""
-    from app.shared.seniority_reference import resolve_seniority_reference_date
-
-    if not employee:
-        return None
-    dates = []
-    for valeur in (employee.get("hire_date"), resolve_seniority_reference_date(employee)):
-        try:
-            dates.append(date.fromisoformat(str(valeur)[:10]))
-        except ValueError:
-            continue
-    return min(dates) if dates else None
+    if trou:
+        n = len(trou)
+        alertes.append(
+            {
+                "code": "conge_parental_jours_entre_deux_bulletins",
+                "message": (
+                    f"Congé parental : {n} jour{'s' if n > 1 else ''} ouvré{'s' if n > 1 else ''} "
+                    f"du {trou[0]:%d/%m/%Y} au {trou[-1]:%d/%m/%Y} retenu{'s' if n > 1 else ''} sur "
+                    "aucun bulletin : le bulletin du mois précédent s'arrêtait à sa fenêtre des "
+                    "variables, et le congé parental est retenu au mois civil. Ajoutez-les en "
+                    "régularisation antérieure sur ce bulletin, ou recalculez le bulletin précédent."
+                ),
+            }
+        )
+    deja = jours_de_conge_parental_deja_retenus_au_bulletin_suivant(
+        _bulletin_du_mois(employee_id, *suivant), year, month, demandes
+    )
+    if deja:
+        n = len(deja)
+        alertes.append(
+            {
+                "code": "conge_parental_jours_deja_retenus_au_bulletin_suivant",
+                "message": (
+                    f"Congé parental : {n} jour{'s' if n > 1 else ''} du {deja[0]:%d/%m/%Y} au "
+                    f"{deja[-1]:%d/%m/%Y}, retenu{'s' if n > 1 else ''} ici au mois civil, "
+                    f"{'sont' if n > 1 else 'est'} déjà retenu{'s' if n > 1 else ''} en absence non "
+                    "rémunérée sur le bulletin du mois suivant : recalculez-le, sinon ces jours "
+                    "sont retenus deux fois."
+                ),
+            }
+        )
+    return alertes
 
 
 def neutralisation_de_l_anciennete(
@@ -1232,8 +1298,8 @@ def process_payslip_generation(
         # heures au-delà du contrat sont des heures complémentaires, que la
         # compensation payait une seconde fois en heures sup (10/10/2026).
         alerte_semaine_a_zero = None
-        alerte_conge_parental_trou = alerte_conge_parental_entre_deux_bulletins(
-            employee_id, year, month, absences_rows, planned_data_all_months
+        alertes_conge_parental = alertes_conge_parental_entre_bulletins(
+            employee_id, year, month, absences_rows, planned_data_all_months, contract_period_id
         )
         if option_active(company_data) and s_applique_au_contrat(duree_hebdo):
             contrat_compensation = bornes_du_contrat(
@@ -1764,11 +1830,11 @@ def process_payslip_generation(
                 *(payslip_json_data.get("alertes_baremes") or []),
                 alerte_effectif_annee,
             ]
-        if alerte_conge_parental_trou and isinstance(payslip_json_data, dict):
+        if alertes_conge_parental and isinstance(payslip_json_data, dict):
             payslip_json_data = dict(payslip_json_data)
             payslip_json_data["alertes_baremes"] = [
                 *(payslip_json_data.get("alertes_baremes") or []),
-                alerte_conge_parental_trou,
+                *alertes_conge_parental,
             ]
         if alerte_semaine_a_zero and isinstance(payslip_json_data, dict):
             payslip_json_data = dict(payslip_json_data)

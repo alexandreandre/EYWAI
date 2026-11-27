@@ -1442,6 +1442,58 @@ def evenements_de_la_periode(
     return retenus
 
 
+def _mois_precedent_paye(
+    jours_prevus: Optional[List[Dict[str, Any]]], debut_du_mois: date
+) -> Optional[bool]:
+    """Le mois civil précédent avait-il au moins un jour travaillé ou payé au
+    planning ? None si le planning des mois voisins n'est pas fourni."""
+    precedent = debut_du_mois - timedelta(days=1)
+    du_mois = [
+        j
+        for j in jours_prevus or []
+        if str(j.get("annee")) == str(precedent.year) and str(j.get("mois")) == str(precedent.month)
+    ]
+    if not du_mois:
+        return None
+    return any(
+        j.get("type") in ("travail", "work", "conges_payes", "ecole", "activite_partielle")
+        for j in du_mois
+    )
+
+
+def _rendre_les_jours_repousses(
+    contexte: ContextePaie, lignes: list, jours: list, montant: float
+) -> None:
+    """Les jours repoussés du mois précédent qu'aucun salaire ne peut plus porter :
+    rendus par une ligne, signalés par une alerte (le bulletin précédent ne les
+    a pas retenus : les y porter ne les retient pas deux fois)."""
+    montant_fr = f"{montant:.2f}".replace(".", ",")
+    lignes.append(
+        {
+            "libelle": "Absences du mois précédent non retenues (salaire du mois suspendu)",
+            "quantite": None,
+            "taux": None,
+            "gain": montant,
+            "perte": None,
+        }
+    )
+    alertes = getattr(contexte, "alertes_baremes", None)
+    if isinstance(alertes, list) and jours:
+        n = len(jours)
+        alertes.append(
+            {
+                "code": "absences_mois_precedent_non_retenues",
+                "message": (
+                    f"{n} jour{'s' if n > 1 else ''} d'absence non rémunérée du "
+                    f"{jours[0]:%d/%m/%Y} au {jours[-1]:%d/%m/%Y} ({montant_fr} €) n'ont pu "
+                    "être retenus : il ne reste rien à payer ce mois-ci. Le bulletin du mois "
+                    "précédent ne les a pas retenus (sa fenêtre s'arrêtait avant) : "
+                    "régularisez-les sur ce bulletin-là."
+                ),
+            }
+        )
+
+
 def calculer_salaire_brut(
     contexte: ContextePaie,
     calendrier_saisie: List[Dict[str, Any]],
@@ -1913,6 +1965,8 @@ def calculer_salaire_brut(
     # complément du mois entier, qui ne valent que pour le mois civil.
     retenue_avant_le_mois = 0.0
     jours_avant_le_mois: list[date] = []
+    #: Part d'heures sup structurelles de ces jours (contrat > 35 h).
+    heures_hs_avant_le_mois = 0.0
     #: Jours d'arrêt retenus : (date, type, heures, régularisation antérieure).
     jours_d_arret_a_retenir: list[tuple[date, str, float, bool]] = []
     # Congé parental d'éducation : retenu comme un sans solde, écrit par période.
@@ -2047,6 +2101,8 @@ def calculer_salaire_brut(
                 if jour_de_l_absence < date_debut_periode:
                     retenue_avant_le_mois += montant_deduction
                     jours_avant_le_mois.append(jour_de_l_absence)
+                    if duree_contrat_hebdo > lc.DUREE_LEGALE_HEBDO:
+                        heures_hs_avant_le_mois += part_hs
             if retenues_conge_parental.retient(evenement):
                 retenues_conge_parental.ajouter(
                     evenement, quantite=heures_abs, taux=taux_retenue, perte=montant_deduction
@@ -2258,6 +2314,9 @@ def calculer_salaire_brut(
             taux_hs_retenue = taux_horaire_majore * coef_retenue_du_mois
             montant_reduction_hs = round(heures_hs_perdues * taux_hs_retenue, 2)
             montant_absence_pleine_total += montant_reduction_hs
+            # La part d'heures sup des jours repoussés du mois précédent les
+            # suit (ligne et alerte des jours non retenus, plus bas).
+            retenue_avant_le_mois += round(heures_hs_avant_le_mois * taux_hs_retenue, 2)
             lignes_composants_brut.append(
                 {
                     "libelle": "Heures sup. du contrat non faites (absence)",
@@ -2332,13 +2391,22 @@ def calculer_salaire_brut(
     # mois, quel que soit l'état du pointage. Ni pour un mois dont un férié payé
     # tombe hors de toute absence (`mois_entierement_absent`, plus haut) : la
     # retenue y reste celle des jours d'absence, jamais plus que le salaire.
-    if (
-        nb_jours_travail_planifies == 0
-        and montant_absence_pleine_total - retenue_avant_le_mois > 0
-    ):
-        complement_absence_pleine = round(
-            montant_base_mensualise - (montant_absence_pleine_total - retenue_avant_le_mois), 2
-        )
+    # Jours repoussés du mois précédent par la fenêtre des variables : quand ce
+    # mois-là a été payé (au moins un jour travaillé ou payé au planning), son
+    # bulletin ne les a pas retenus ; ils se retiennent ici, sur ce qui reste du
+    # salaire, et ce qui ne tient pas est rendu et signalé. Quand il était
+    # lui-même entièrement absent, sa retenue du mois entier les couvrait déjà :
+    # les compter ici avec le mois est juste (aucune ligne, aucune alerte).
+    separer_les_jours_repousses = (
+        retenue_avant_le_mois > 0.01
+        and _mois_precedent_paye(jours_prevus, date_debut_periode) is True
+    )
+    retenue_du_mois = montant_absence_pleine_total - (
+        retenue_avant_le_mois if separer_les_jours_repousses else 0.0
+    )
+    if nb_jours_travail_planifies == 0 and retenue_du_mois > 0:
+        retenue_du_mois_finale = retenue_du_mois
+        complement_absence_pleine = round(montant_base_mensualise - retenue_du_mois, 2)
         if complement_absence_pleine > 0.01 and mois_entierement_absent:
             lignes_composants_brut.append(
                 {
@@ -2350,6 +2418,7 @@ def calculer_salaire_brut(
                     "perte": complement_absence_pleine,
                 }
             )
+            retenue_du_mois_finale = montant_base_mensualise
         elif complement_absence_pleine < -0.01:
             # Mois de plus de 21,67 jours ouvrés : la retenue jour par jour
             # (22 × 7,8 h pour un 39 h) dépasse le salaire mensualisé. Comme
@@ -2364,36 +2433,13 @@ def calculer_salaire_brut(
                     "perte": None,
                 }
             )
-        if retenue_avant_le_mois > 0.01 and mois_entierement_absent:
-            # Mois civil entièrement suspendu : les absences de la fin du mois
-            # précédent (fenêtre des variables) n'ont plus de salaire sur
-            # lequel se retenir. Rendues en clair, jamais absorbées en silence
-            # par la retenue du mois entier ; l'alerte dit où les porter.
-            jours_tries = sorted(jours_avant_le_mois)
-            montant_fr = f"{round(retenue_avant_le_mois, 2):.2f}".replace(".", ",")
-            lignes_composants_brut.append(
-                {
-                    "libelle": "Absences du mois précédent non retenues (salaire du mois suspendu)",
-                    "quantite": None,
-                    "taux": None,
-                    "gain": round(retenue_avant_le_mois, 2),
-                    "perte": None,
-                }
-            )
-            alertes = getattr(contexte, "alertes_baremes", None)
-            if isinstance(alertes, list):
-                alertes.append(
-                    {
-                        "code": "absences_mois_precedent_non_retenues",
-                        "message": (
-                            f"{len(jours_tries)} jour{'s' if len(jours_tries) > 1 else ''} "
-                            f"d'absence non rémunérée du {jours_tries[0]:%d/%m/%Y} au "
-                            f"{jours_tries[-1]:%d/%m/%Y} ({montant_fr} €) non retenus : le "
-                            "salaire de ce mois est entièrement suspendu. Portez-les sur le "
-                            "bulletin du mois précédent (régularisation) ou sur le premier "
-                            "mois payé."
-                        ),
-                    }
+            retenue_du_mois_finale = montant_base_mensualise
+        if separer_les_jours_repousses:
+            reste_du_salaire = max(0.0, montant_base_mensualise - retenue_du_mois_finale)
+            non_retenu = round(retenue_avant_le_mois - min(retenue_avant_le_mois, reste_du_salaire), 2)
+            if non_retenu > 0.01:
+                _rendre_les_jours_repousses(
+                    contexte, lignes_composants_brut, sorted(jours_avant_le_mois), non_retenu
                 )
 
     # Saisie manuelle (monthly_inputs) : HS conjoncturelles déclarées sans badgeage.
