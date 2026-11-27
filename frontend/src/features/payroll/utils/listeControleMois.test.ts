@@ -784,11 +784,42 @@ describe('DSN « faite » seulement une fois déposée (audit R1, geste 8)', () 
 });
 
 describe('listeControleDuMois — ce que le client doit poser', () => {
-  it('signale les taux d’impôt manquants et périmés, avec où aller', () => {
+  it('signale les taux d’impôt manquants et à actualiser, avec où aller', () => {
     const resultat = listeControleDuMois(entree({ tauxPas: OK({ a_jour: 3, manquant: 2, a_rafraichir: 1 }) }));
     expect(etape(resultat, ETAPE_TAUX_PAS).etat).toBe('a_faire');
-    expect(etape(resultat, ETAPE_TAUX_PAS).detail).toBe('2 salariés sans taux, à la grille par défaut ; 1 taux périmé.');
+    expect(etape(resultat, ETAPE_TAUX_PAS).detail).toBe(
+      '2 salariés sans taux, à la grille par défaut ; 1 taux à actualiser auprès de la DGFiP.',
+    );
     expect(resultat.actions.find((a) => a.id === ETAPE_TAUX_PAS)?.href).toBe('/taux-pas');
+  });
+  it('ne dit plus « périmé » (« ça fait un peu peur », Elsa, 26/11)', () => {
+    const resultat = listeControleDuMois(entree({ tauxPas: OK({ a_jour: 3, a_rafraichir: 11 }) }));
+    expect(etape(resultat, ETAPE_TAUX_PAS).detail).not.toMatch(/périm/i);
+    expect(etape(resultat, ETAPE_TAUX_PAS).detail).toBe('11 taux à actualiser auprès de la DGFiP.');
+  });
+  it('liste les salariés concernés, avec la date du taux et la fiche à ouvrir', () => {
+    const resultat = listeControleDuMois(
+      entree({
+        tauxPas: OK({ a_jour: 1, manquant: 1, a_rafraichir: 2 }),
+        tauxPasLignes: [
+          { employee_id: 'e-9', nom: 'Zola', prenom: 'Ana', statut: 'a_jour', periode: '2026-10' },
+          { employee_id: 'e-3', nom: 'Martin', prenom: 'Léo', statut: 'a_rafraichir', periode: '2026-07' },
+          { employee_id: 'e-4', nom: 'Bernard', prenom: 'Lou', statut: 'a_rafraichir', periode: null },
+          { employee_id: 'e-5', nom: 'Durand', prenom: 'Eva', statut: 'manquant', periode: null },
+        ],
+      }),
+    );
+    const e = etape(resultat, ETAPE_TAUX_PAS);
+    expect(e.detail).toBe(
+      '1 salarié sans taux, à la grille par défaut ; 2 taux à actualiser : 1 reçu il y a plus de 2 mois, 1 sans date connue.',
+    );
+    expect(e.concernes?.map((c) => c.nom)).toEqual(['Eva Durand', 'Lou Bernard', 'Léo Martin']);
+    const leo = e.concernes!.find((c) => c.id === 'e-3')!;
+    expect(leo.precision).toBe('Dernier taux reçu : juillet 2026 (plus de 2 mois)');
+    expect(leo.href).toBe('/employees/e-3');
+    expect(leo.action).toMatch(/compte rendu|DSN/);
+    expect(e.concernes!.find((c) => c.id === 'e-4')!.precision).toBe('Date du dernier taux inconnue');
+    expect(e.concernes!.find((c) => c.id === 'e-5')!.precision).toBe('Aucun taux reçu : grille par défaut appliquée');
   });
   it('coche les taux à jour', () => {
     const resultat = listeControleDuMois(entree({ tauxPas: OK({ a_jour: 3, bareme: 1 }) }));

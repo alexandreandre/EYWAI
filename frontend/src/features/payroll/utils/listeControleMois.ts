@@ -70,11 +70,33 @@ export type SalariePourListeControle = SalariePourSortieGuidee & {
   date_debut_execution?: string | null;
 };
 
+/** Un salarié derrière une étape, montré dans le dépliant de la liste. */
+export type ConcerneEtape = {
+  id: string;
+  nom: string;
+  /** Ce qui le concerne (« Dernier taux reçu : juillet 2026 (plus de 2 mois) »). */
+  precision: string;
+  /** Le geste possible pour lui. */
+  action: string;
+  href: string;
+};
+
 export type EtapeControle = {
   id: string;
   libelle: string;
   etat: EtatEtape;
   detail: string;
+  /** Les salariés concernés, quand la liste les connaît. */
+  concernes?: ConcerneEtape[];
+};
+
+/** Une ligne de `/api/pas-rates` : ce que la liste en lit. */
+export type LigneTauxPasControle = {
+  employee_id: string;
+  nom: string;
+  prenom: string;
+  statut: string;
+  periode: string | null;
 };
 
 export type ActionEnAttente = {
@@ -118,6 +140,8 @@ export type EntreeListeControle = {
   transmissionsDuMois?: Lecture<readonly TransmissionPourControle[]>;
   /** Compteurs de `/api/pas-rates` (statut → nombre). Absent : l'étape n'apparaît pas. */
   tauxPas?: Lecture<Record<string, number>>;
+  /** Lignes de `/api/pas-rates` : les salariés concernés, avec la date de leur taux. */
+  tauxPasLignes?: readonly LigneTauxPasControle[];
   /** Le compte bancaire de la société est-il posé ? Absent : l'étape n'apparaît pas. */
   compteSociete?: Lecture<boolean>;
 };
@@ -155,10 +179,10 @@ function aDesSalariesHorsRevue(salaries: readonly SalariePourListeControle[]): b
   return salaries.some((s) => !STATUTS_DE_LA_REVUE.has((s.employment_status || 'actif').trim().toLowerCase()));
 }
 
-function etatDepuisLecture<T>(
+function etatDepuisLecture<T, R extends { etat: EtatEtape; detail: string } = { etat: EtatEtape; detail: string }>(
   lecture: Lecture<T>,
-  quandOk: (valeur: T) => { etat: EtatEtape; detail: string }
-): { etat: EtatEtape; detail: string } {
+  quandOk: (valeur: T) => R
+): R | { etat: EtatEtape; detail: string } {
   if (lecture.statut === 'chargement') {
     return { etat: 'inconnu', detail: 'Vérification en cours.' };
   }
@@ -481,18 +505,81 @@ function etapeRib(salaries: readonly SalariePourListeControle[]): { etat: EtatEt
   };
 }
 
-function etapeTauxPas(lecture: Lecture<Record<string, number>>): { etat: EtatEtape; detail: string } {
+const MOIS_LONGS = [
+  'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+  'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+];
+
+function moisEnLettres(periode: string | null): string | null {
+  const m = /^(\d{4})-(\d{2})$/.exec(periode ?? '');
+  if (!m) return null;
+  const numero = Number(m[2]);
+  return numero >= 1 && numero <= 12 ? `${MOIS_LONGS[numero - 1]} ${m[1]}` : null;
+}
+
+/**
+ * Les salariés dont le taux d'impôt demande un geste. « À rafraîchir » côté
+ * serveur (`pas_rates/domain/model.py`) : un taux transmis par la DGFiP dont la
+ * période date de plus de deux mois (CGI 1671 : il vaut jusqu'à M+2), ou dont la
+ * période est inconnue. « Périmé » faisait peur (Elsa, 26/11) : on dit la date.
+ */
+export function salariesTauxPasConcernes(lignes: readonly LigneTauxPasControle[]): ConcerneEtape[] {
+  const nom = (l: LigneTauxPasControle) => `${l.prenom} ${l.nom}`.trim();
+  const tri = (a: LigneTauxPasControle, b: LigneTauxPasControle) =>
+    `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`, 'fr');
+  const manquants = lignes.filter((l) => l.statut === 'manquant').sort(tri);
+  const aActualiser = lignes.filter((l) => l.statut === 'a_rafraichir').sort(tri);
+  return [
+    ...manquants.map((l) => ({
+      id: l.employee_id,
+      nom: nom(l),
+      precision: 'Aucun taux reçu : grille par défaut appliquée',
+      action: 'Déposez la DSN ou le compte rendu qui porte son taux, ou saisissez-le sur sa fiche.',
+      href: `/employees/${l.employee_id}`,
+    })),
+    ...aActualiser.map((l) => {
+      const mois = moisEnLettres(l.periode);
+      return {
+        id: l.employee_id,
+        nom: nom(l),
+        precision: mois ? `Dernier taux reçu : ${mois} (plus de 2 mois)` : 'Date du dernier taux inconnue',
+        action: 'Déposez le dernier compte rendu de la DGFiP ou la DSN du mois, ou corrigez le taux sur sa fiche.',
+        href: `/employees/${l.employee_id}`,
+      };
+    }),
+  ];
+}
+
+function phraseAActualiser(n: number, lignes: readonly LigneTauxPasControle[] | undefined): string {
+  const enTete = pluriel(n, '1 taux à actualiser', `${n} taux à actualiser`);
+  const aActualiser = (lignes ?? []).filter((l) => l.statut === 'a_rafraichir');
+  if (aActualiser.length !== n) return `${enTete} auprès de la DGFiP`;
+  const sansDate = aActualiser.filter((l) => moisEnLettres(l.periode) === null).length;
+  if (sansDate === 0) return `${enTete} : le dernier reçu de la DGFiP date de plus de 2 mois`;
+  if (sansDate === n) return `${enTete} : date du dernier taux inconnue`;
+  return `${enTete} : ${n - sansDate} reçu${n - sansDate > 1 ? 's' : ''} il y a plus de 2 mois, ${sansDate} sans date connue`;
+}
+
+function etapeTauxPas(
+  lecture: Lecture<Record<string, number>>,
+  lignes: readonly LigneTauxPasControle[] | undefined
+): { etat: EtatEtape; detail: string; concernes?: ConcerneEtape[] } {
   return etatDepuisLecture(lecture, (compteurs) => {
     const manquants = compteurs.manquant ?? 0;
-    const perimes = compteurs.a_rafraichir ?? 0;
-    if (manquants + perimes === 0) {
+    const aActualiser = compteurs.a_rafraichir ?? 0;
+    if (manquants + aActualiser === 0) {
       return { etat: 'fait', detail: 'Les taux d’impôt du mois sont à jour.' };
     }
     const morceaux = [
       manquants ? pluriel(manquants, '1 salarié sans taux, à la grille par défaut', `${manquants} salariés sans taux, à la grille par défaut`) : '',
-      perimes ? pluriel(perimes, '1 taux périmé', `${perimes} taux périmés`) : '',
+      aActualiser ? phraseAActualiser(aActualiser, lignes) : '',
     ].filter(Boolean);
-    return { etat: 'a_faire', detail: `${morceaux.join(' ; ')}.` };
+    const concernes = lignes ? salariesTauxPasConcernes(lignes) : [];
+    return {
+      etat: 'a_faire',
+      detail: `${morceaux.join(' ; ')}.`,
+      ...(concernes.length > 0 ? { concernes } : {}),
+    };
   });
 }
 
@@ -623,7 +710,7 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
   };
 
   const tauxPas: EtapeControle | null = entree.tauxPas
-    ? { id: ETAPE_TAUX_PAS, libelle: 'Taux d’impôt à jour', ...etapeTauxPas(entree.tauxPas) }
+    ? { id: ETAPE_TAUX_PAS, libelle: 'Taux d’impôt à jour', ...etapeTauxPas(entree.tauxPas, entree.tauxPasLignes) }
     : null;
   const compteSociete: EtapeControle | null = entree.compteSociete
     ? { id: ETAPE_COMPTE_SOCIETE, libelle: 'Compte bancaire de la société', ...etapeCompteSociete(entree.compteSociete) }

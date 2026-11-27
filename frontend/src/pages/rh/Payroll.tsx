@@ -894,8 +894,9 @@ export default function Payroll() {
 
   // Ce que seul le client peut poser : Martine le dit ici, sans attendre qu'on le lui demande.
   const tauxPasQuery = useQuery({
-    queryKey: ['pas-rates', companyId, 'compteurs'],
-    queryFn: () => getPasRates().then((r) => r.data.compteurs),
+    // Compteurs et lignes : la liste nomme les salariés concernés (Elsa, 26/11).
+    queryKey: ['pas-rates', companyId, 'liste-controle'],
+    queryFn: () => getPasRates().then((r) => ({ compteurs: r.data.compteurs, lignes: r.data.lignes })),
     enabled: Boolean(companyId),
     staleTime: 60_000,
   });
@@ -908,7 +909,7 @@ export default function Payroll() {
   const lectureTauxPas = useMemo((): Lecture<Record<string, number>> => {
     if (tauxPasQuery.isError && tauxPasQuery.data === undefined) return { statut: 'erreur' };
     if (tauxPasQuery.data === undefined) return { statut: 'chargement' };
-    return { statut: 'ok', valeur: tauxPasQuery.data };
+    return { statut: 'ok', valeur: tauxPasQuery.data.compteurs };
   }, [tauxPasQuery.isError, tauxPasQuery.data]);
   const lectureCompteSociete = useMemo((): Lecture<boolean> => {
     if (compteSocieteQuery.isError && compteSocieteQuery.data === undefined) return { statut: 'erreur' };
@@ -937,6 +938,7 @@ export default function Payroll() {
       exportsDuMois: lectureExports,
       transmissionsDuMois: lectureTransmissions,
       tauxPas: lectureTauxPas,
+      tauxPasLignes: tauxPasQuery.data?.lignes,
       compteSociete: lectureCompteSociete,
     });
   }, [
@@ -953,6 +955,7 @@ export default function Payroll() {
     lectureExports,
     lectureTransmissions,
     lectureTauxPas,
+    tauxPasQuery.data?.lignes,
     lectureCompteSociete,
   ]);
 
