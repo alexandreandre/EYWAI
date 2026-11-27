@@ -55,4 +55,15 @@ describe('phraseMaintien', () => {
       "Dans la période de paie d'octobre : compté par le bulletin d'octobre",
     );
   });
+
+  it('dit le geste fait plus tard, et ce qui reste à reprendre à la main', () => {
+    const mois = { year: 2026, month: 9 };
+    expect(phraseMaintien(arret('porte_a_la_main_apres'), mois).texte).toBe(
+      'Déjà porté à la main sur le bulletin de novembre',
+    );
+    const p = phraseMaintien(arret('a_reprendre_a_la_main'), mois);
+    expect(p.texte).toContain('Bulletin de septembre');
+    expect(p.texte).toContain('régularisez à la main');
+    expect(p.ton).toBe('attente');
+  });
 });

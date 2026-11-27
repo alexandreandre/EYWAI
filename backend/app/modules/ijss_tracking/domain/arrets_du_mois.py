@@ -148,6 +148,10 @@ ETAT_REMIS_SANS_REPORT = "bulletin_remis_avant_l_arret"
 ETAT_COMPTE_PAR_LE_BULLETIN = "compte_par_le_bulletin"
 #: Arrêt saisi tard, déjà porté à la main par la gestionnaire sur le bulletin suivant.
 ETAT_PORTE_A_LA_MAIN = "porte_a_la_main"
+#: Le suivant validé sans l'arrêt, porté à la main sur le bulletin d'après.
+ETAT_PORTE_A_LA_MAIN_APRES = "porte_a_la_main_apres"
+#: Jours payés autrement (congé, activité partielle…) ou illisibles : à la main.
+ETAT_A_REPRENDRE_A_LA_MAIN = "a_reprendre_a_la_main"
 #: Au forfait jours : le jour est dans la période de paie du mois suivant.
 ETAT_DANS_LA_PERIODE_SUIVANTE = "dans_la_periode_suivante"
 

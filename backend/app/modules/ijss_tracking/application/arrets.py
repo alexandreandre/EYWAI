@@ -15,9 +15,12 @@ from typing import Any
 from app.core.database import get_supabase_admin_client
 from app.core.logging import get_logger
 from app.modules.ijss_tracking.domain.arrets_du_mois import (
+    ETAT_A_REPRENDRE_A_LA_MAIN,
     ETAT_COMPTE_PAR_LE_BULLETIN,
     ETAT_DANS_LA_PERIODE_SUIVANTE,
     ETAT_PORTE_A_LA_MAIN,
+    ETAT_PORTE_A_LA_MAIN_APRES,
+    ETAT_REMIS_SANS_REPORT,
     TYPES_JUSTIFICATIF,
     bornes_arret,
     bulletin_calcule_avant,
@@ -123,9 +126,10 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
         _fetch_employees,
     )
 
+    tous_les_arrets = _arrets_valides(company_id)
     arrets = [
         a
-        for a in _arrets_valides(company_id)
+        for a in tous_les_arrets
         if jours_dans_le_mois(a.get("selected_days"), year, month) > 0
     ]
     salaries = {str(e["id"]): e for e in _fetch_employees(company_id)}
@@ -173,7 +177,7 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
         # bulletin suivant qui reprend l'arrêt (même règle qu'au moteur).
         return bool(bulletin) and (bulletin.get("status") == "valide" or est_remis(bulletin))
 
-    report = _ReportDesArrets(company_id, year, month, bulletin_suivant)
+    report = _ReportDesArrets(company_id, year, month, bulletin_suivant, tous_les_arrets)
 
     lignes: list[dict[str, Any]] = []
     for a in arrets:
@@ -208,7 +212,10 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
             }
             reporte = report.bloc_reporte(a)
             if reporte is not None:
-                estimees = round(float(reporte.get("ijss_theorique") or 0.0), 2)
+                # Arrêt en partie compté par le bulletin du mois : ses IJ et celles
+                # du bloc reporté s'additionnent, l'une ne remplace pas l'autre.
+                deja = estimees if report.en_partie_compte(a) else None
+                estimees = round(float(deja or 0.0) + float(reporte.get("ijss_theorique") or 0.0), 2)
                 etat["montant_verse"] = round(float(reporte.get("maintien_verse") or 0.0), 2)
         lignes.append(
             {
@@ -245,19 +252,33 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
 
 class _ReportDesArrets:
     """L'état d'un arrêt saisi après le calcul du bulletin de son mois, lu comme
-    le moteur le lit (`payroll.application.arrets_reportes.analyser_le_report`).
+    le moteur le lit (`payroll.application.arrets_reportes.analyser_le_report`) :
+    tous les arrêts du salarié d'un seul appel, la période résolue comme le
+    moteur, les heures d'une journée de son contrat.
 
-    Les lectures (fiche, planning et saisies du mois suivant, bulletin repris
+    Les lectures (fiche, planning et saisies des mois suivants, bulletin repris
     voisin au forfait) ne se font que pour ces arrêts-là."""
 
-    def __init__(self, company_id: str, year: int, month: int, bulletin_suivant: Any) -> None:
+    def __init__(
+        self,
+        company_id: str,
+        year: int,
+        month: int,
+        bulletin_suivant: Any,
+        tous_les_arrets: list[dict[str, Any]] | None = None,
+    ) -> None:
         self.company_id = company_id
         self.year = year
         self.month = month
         self.bulletin_suivant = bulletin_suivant
+        self.tous_les_arrets = list(tous_les_arrets or [])
         self.suivant = (year, month + 1) if month < 12 else (year + 1, 1)
+        self.apres = (
+            (self.suivant[0], self.suivant[1] + 1) if self.suivant[1] < 12 else (self.suivant[0] + 1, 1)
+        )
         self._societe: dict[str, Any] | None = None
-        self._forfait: dict[str, bool] = {}
+        self._fiches: dict[str, dict[str, Any]] = {}
+        self._analyses: dict[tuple[str, bool], Any] = {}
 
     def _parametres(self) -> dict[str, Any]:
         if self._societe is None:
@@ -272,35 +293,40 @@ class _ReportDesArrets:
             self._societe = (getattr(ligne, "data", None) or {}) if ligne else {}
         return self._societe
 
-    def _est_au_forfait(self, eid: str) -> bool:
-        if eid not in self._forfait:
-            from app.shared.domain.employment_rules import est_au_forfait_jours
-
+    def _fiche(self, eid: str) -> dict[str, Any]:
+        if eid not in self._fiches:
             ligne = (
                 _client()
                 .table("employees")
-                .select("statut, is_forfait_jour")
+                .select("statut, is_forfait_jour, duree_hebdomadaire")
                 .eq("id", eid)
                 .maybe_single()
                 .execute()
             )
-            self._forfait[eid] = est_au_forfait_jours((getattr(ligne, "data", None) or {}) if ligne else {})
-        return self._forfait[eid]
+            self._fiches[eid] = (getattr(ligne, "data", None) or {}) if ligne else {}
+        return self._fiches[eid]
+
+    def _est_au_forfait(self, eid: str) -> bool:
+        from app.shared.domain.employment_rules import est_au_forfait_jours
+
+        return est_au_forfait_jours(self._fiche(eid))
+
+    def _heures_par_jour(self, eid: str) -> float:
+        try:
+            hebdo = float(self._fiche(eid).get("duree_hebdomadaire") or 0.0)
+        except (TypeError, ValueError):
+            hebdo = 0.0
+        return hebdo / 5.0 if hebdo > 0 else 7.0
 
     def _periode(self, eid: str) -> tuple[Any, Any]:
         from app.modules.payroll.application.arrets_reportes import bornes_de_la_periode
 
-        societe = self._parametres()
         return bornes_de_la_periode(
-            self.year,
-            self.month,
-            forfait_jours=self._est_au_forfait(eid),
-            # None : la règle par défaut (avant-dernier vendredi) ; 0 est un lundi.
-            jour_de_fin=societe.get("paie_jour_de_fin"),
-            occurrence=societe.get("paie_occurrence"),
+            self.year, self.month, forfait_jours=self._est_au_forfait(eid), company_data=self._parametres()
         )
 
-    def _deja_portes(self, eid: str) -> tuple[set[Any], float]:
+    def _deja_portes(self, eid: str, mois: tuple[int, int]) -> tuple[set[Any], float]:
+        """Ce que la gestionnaire a porté à la main sur le bulletin de `mois`."""
         from app.modules.payroll.application.arrets_reportes import (
             dates_des_regularisations_manuelles,
             heures_reprises_a_la_main,
@@ -309,7 +335,7 @@ class _ReportDesArrets:
             est_regularisation_heures,
         )
 
-        annee_s, mois_s = self.suivant
+        annee_s, mois_s = mois
         planning = (
             _client()
             .table("employee_schedules")
@@ -339,50 +365,89 @@ class _ReportDesArrets:
         dates = set() if self._est_au_forfait(eid) else dates_des_regularisations_manuelles(planned)
         return dates, heures
 
-    def etat(self, arret: dict[str, Any], bulletin: dict[str, Any] | None, valide: bool) -> str | None:
-        """None : l'état du maintien du bulletin dit vrai (arrêt connu au calcul)."""
+    def _analyse(self, eid: str, bulletin: dict[str, Any] | None, plus_tard: bool = False) -> Any:
+        """Tous les arrêts du salarié d'un seul appel, comme `_preparer_le_report`.
+        `plus_tard` : le geste à la main sur le bulletin d'après le suivant."""
+        cle = (eid, plus_tard)
+        if cle not in self._analyses:
+            from app.modules.payroll.application.arrets_reportes import (
+                analyser_le_report,
+            )
+
+            debut, fin = self._periode(eid)
+            dates, heures = self._deja_portes(eid, self.suivant)
+            if plus_tard:
+                dates_apres, heures_apres = self._deja_portes(eid, self.apres)
+                dates, heures = dates | dates_apres, heures + heures_apres
+            voisins = []
+            if debut.month != self.month:
+                from app.modules.ijss_tracking.application.service import (
+                    _bulletins_du_mois,
+                )
+
+                voisin = _bulletins_du_mois(self.company_id, debut.year, debut.month).get(eid)
+                voisins = [voisin] if voisin else []
+            self._analyses[cle] = analyser_le_report(
+                [a for a in self.tous_les_arrets if str(a.get("employee_id") or "") == eid],
+                [bulletin] if bulletin else [],
+                (debut, fin),
+                annee_origine=self.year,
+                mois_origine=self.month,
+                deja_portes=dates,
+                heures_a_la_main=heures,
+                heures_par_jour=self._heures_par_jour(eid),
+                bulletins_repris_voisins=voisins,
+            )
+        return self._analyses[cle]
+
+    @staticmethod
+    def _jours(arret: dict[str, Any]) -> set[Any]:
         from datetime import date as _date
 
-        from app.modules.payroll.application.arrets_reportes import analyser_le_report
+        jours = set()
+        for d in arret.get("selected_days") or []:
+            try:
+                jours.add(_date.fromisoformat(str(d)[:10]))
+            except ValueError:
+                continue
+        return jours
 
+    def etat(self, arret: dict[str, Any], bulletin: dict[str, Any] | None, valide: bool) -> str | None:
+        """None : l'état du maintien du bulletin dit vrai (arrêt connu au calcul)."""
         eid = str(arret.get("employee_id") or "")
         calcule_avant = bulletin_calcule_avant(bulletin, arret.get("created_at"))
         if not valide and not calcule_avant:
             return None
         debut, fin = self._periode(eid)
-        jours = sorted(
-            _date.fromisoformat(str(d)[:10]) for d in arret.get("selected_days") or []
-        )
+        jours = self._jours(arret)
         du_mois = [d for d in jours if (d.year, d.month) == (self.year, self.month)]
         if du_mois and all(d > fin for d in du_mois):
             # Au forfait jours, la période d'octobre commence en septembre.
             return ETAT_DANS_LA_PERIODE_SUIVANTE
         if not valide:
             return "bulletin_a_recalculer"
-        dates, heures = self._deja_portes(eid)
-        voisins = []
-        if debut.month != self.month:
-            from app.modules.ijss_tracking.application.service import _bulletins_du_mois
-
-            voisin = _bulletins_du_mois(self.company_id, debut.year, debut.month).get(eid)
-            voisins = [voisin] if voisin else []
-        analyse = analyser_le_report(
-            [arret],
-            [bulletin] if bulletin else [],
-            (debut, fin),
-            annee_origine=self.year,
-            mois_origine=self.month,
-            deja_portes=dates,
-            heures_a_la_main=heures,
-            bulletins_repris_voisins=voisins,
-        )
-        if analyse.jours:
-            return etat_du_report(str(arret["id"]), self.bulletin_suivant(eid))
-        if analyse.portes_a_la_main and not analyse.comptes:
+        analyse = self._analyse(eid, bulletin)
+        aid = str(arret["id"])
+        if any(j.absence_id == aid for j in analyse.jours):
+            etat = etat_du_report(aid, self.bulletin_suivant(eid))
+            if etat == ETAT_REMIS_SANS_REPORT:
+                # Le suivant était validé lui aussi : le geste à la main se fait
+                # sur le bulletin d'après. Fait, la consigne disparaît.
+                apres = self._analyse(eid, bulletin, plus_tard=True)
+                if not any(j.absence_id == aid for j in apres.jours) and jours & apres.portes_a_la_main:
+                    return ETAT_PORTE_A_LA_MAIN_APRES
+            return etat
+        if jours & analyse.a_reprendre_a_la_main:
+            return ETAT_A_REPRENDRE_A_LA_MAIN
+        if jours & analyse.portes_a_la_main and not jours & analyse.comptes:
             return ETAT_PORTE_A_LA_MAIN
         if calcule_avant:
             return ETAT_COMPTE_PAR_LE_BULLETIN
         return None
+
+    def en_partie_compte(self, arret: dict[str, Any]) -> bool:
+        analyse = self._analyses.get((str(arret.get("employee_id") or ""), False))
+        return bool(analyse) and bool(self._jours(arret) & analyse.comptes)
 
     def bloc_reporte(self, arret: dict[str, Any]) -> dict[str, Any] | None:
         """Le bloc de l'arrêt sur le bulletin suivant qui l'a repris."""

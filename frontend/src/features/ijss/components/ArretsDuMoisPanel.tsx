@@ -164,6 +164,23 @@ export function phraseMaintien(
           : 'Déjà porté à la main sur le bulletin suivant',
         ton: 'ok',
       };
+    case 'porte_a_la_main_apres':
+      return {
+        texte: mois
+          ? `Déjà porté à la main sur le bulletin ${duMois(mois.month + 2)}`
+          : 'Déjà porté à la main sur un bulletin suivant',
+        ton: 'ok',
+      };
+    case 'a_reprendre_a_la_main':
+      // Jour payé autrement (congé, activité partielle…) ou ligne illisible :
+      // Martine ne le reporte pas, le bulletin suivant porte l'alerte.
+      return {
+        texte:
+          `${mois ? `Bulletin ${duMois(mois.month)}` : 'Bulletin du mois'} : ces jours y étaient payés ` +
+          'autrement (congé, activité partielle…). Martine ne les reprend pas : régularisez à la main ' +
+          '(onglet « Corriger »)',
+        ton: 'attente',
+      };
     case 'dans_la_periode_suivante':
       // Forfait jours : la période de paie d'octobre commence en septembre.
       return {
