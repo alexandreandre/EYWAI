@@ -29,6 +29,7 @@ import {
   valeurModelePourLeJour,
 } from '@/lib/weekTemplateDays';
 import { calendarSaveFailureMessage } from '@/lib/calendarSaveFeedback';
+import { sansHoraires } from '@/lib/horairesDuJour';
 import { dernierJourDuContratDansLeMois } from '@/lib/employmentStatus';
 import { estAvantLEntree, premierJourDuContratDansLeMois } from '@/lib/joursHorsContrat';
 
@@ -225,6 +226,10 @@ export function useCalendar(
           jour: plannedDay.jour,
           type: plannedDay.type,
           heures_faites: apiDay ? apiDay.heures_faites : null,
+          // Arrivée et départ : affichés dans la case, jamais renvoyés d'ici
+          // (le serveur garde les siens, cf. `sansHoraires`).
+          ...(apiDay?.debut ? { debut: apiDay.debut } : {}),
+          ...(apiDay?.fin ? { fin: apiDay.fin } : {}),
         };
       });
 
@@ -410,7 +415,7 @@ export function useCalendar(
     try {
       const saved = await calendarApi.saveCalendar(employeeId, selectedDate.year, selectedDate.month, {
         expected_revision: revision, calendrier_prevu: plannedCalendar,
-        calendrier_reel: actualHours, recalculate_payroll: true,
+        calendrier_reel: sansHoraires(actualHours), recalculate_payroll: true,
       }, requestContext);
       if (!isCurrent()) return false;
       const snapshot = saved.data;
@@ -477,7 +482,11 @@ export function useCalendar(
   }, [isSavingAfterApply, isSaving, saveAllCalendarData]);
 
   const updateDayData = (
-    updatedDay: Partial<DayData> & { demi_journee?: 'matin' | 'apres_midi' | null }
+    updatedDay: Partial<DayData> & {
+      demi_journee?: 'matin' | 'apres_midi' | null;
+      /** « Vider ce jour » : le jour reste vide, sans les heures du modèle. */
+      vider?: boolean;
+    }
   ) => {
     if (!context.active || !isMonthDataReady || updatedDay.jour === undefined) return;
     ++editRevision.current;
@@ -498,7 +507,7 @@ export function useCalendar(
         const prevu = newPlannedData.heures_prevues !== undefined ? newPlannedData.heures_prevues : p.heures_prevues;
         const apresLaSortie = dernierJourContrat != null && p.jour > dernierJourContrat;
         const repasseEnTravail = p.type !== 'travail' || p.heures_prevues == null;
-        if (updatedDay.type === 'travail' && repasseEnTravail && !apresLaSortie && !(Number(prevu) > 0)) {
+        if (updatedDay.type === 'travail' && !updatedDay.vider && repasseEnTravail && !apresLaSortie && !(Number(prevu) > 0)) {
           const duModele = prevuDuModeleEnRepassantEnTravail(
             weekTemplate,
             new Date(selectedDate.year, selectedDate.month - 1, p.jour),
@@ -517,6 +526,10 @@ export function useCalendar(
         if (updatedDay.type !== undefined) newActualData.type = updatedDay.type;
         if (updatedDay.heures_faites !== undefined)
           newActualData.heures_faites = updatedDay.heures_faites;
+        if (updatedDay.vider) {
+          const { debut: _debut, fin: _fin, ...reste } = a;
+          return { ...reste, ...newActualData };
+        }
         return { ...a, ...newActualData };
       })
     );

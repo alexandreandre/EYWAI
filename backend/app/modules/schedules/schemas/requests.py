@@ -91,11 +91,23 @@ class ActualHoursEntry(BaseModel):
     jour: int
     heures_faites: float | None = None
     type: str | None = None
-    # Heure de début et de fin pointées (« HH:MM »), venues d'un import : voir
-    # `domain.horaires_pointes`. L'écran ne les renvoie pas ; le serveur les
-    # garde quand le jour n'a pas changé.
+    # Heure d'arrivée et de départ (« HH:MM »), venues d'un import ou saisies
+    # à l'écran : voir `domain.horaires_pointes.garder_les_horaires`. Absentes
+    # du corps : le serveur garde celles qu'il a ; envoyées vides : effacées.
     debut: str | None = None
     fin: str | None = None
+
+    @field_validator("debut", "fin", mode="before")
+    @classmethod
+    def _heure_lisible(cls, valeur: Any) -> str | None:
+        if valeur is None or (isinstance(valeur, str) and not valeur.strip()):
+            return None
+        from app.modules.schedules.domain.horaires_pointes import en_hhmm
+
+        heure = en_hhmm(valeur)
+        if heure is None:
+            raise ValueError("Heure illisible : attendu HH:MM (par exemple 07:00).")
+        return heure
 
 
 class ActualHoursRequest(BaseModel):

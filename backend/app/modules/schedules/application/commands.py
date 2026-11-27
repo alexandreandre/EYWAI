@@ -257,13 +257,17 @@ def update_actual_hours(employee_id: str, payload: Any) -> Dict[str, str]:
         log_app_debug(logger, f'Company ID récupéré: {company_id}')
         log_app_debug(logger, f'Statut employé: {employee_statut}')
 
+        # `debut` / `fin` : absents du corps, le serveur garde les siens ;
+        # envoyés (même vides), c'est une saisie ou un effacement à l'écran
+        # (primes liées à la prise de poste, 17/11 ; arrivée saisie à la main, 27/11).
         calendrier_reel_raw = [
-            {k: v for k, v in entry.model_dump().items() if k not in ("debut", "fin") or v}
+            {
+                k: v
+                for k, v in entry.model_dump().items()
+                if k not in ("debut", "fin") or v or k in entry.model_fields_set
+            }
             for entry in payload.calendrier_reel
         ]
-        # L'écran renvoie les jours sans l'heure de début et de fin pointées :
-        # elles restent tant que le jour n'a pas changé (primes liées à la
-        # prise de poste, 17/11).
         reel_stocke = (
             schedule_repository.get_actual_hours(employee_id, payload.year, payload.month)
             or {}

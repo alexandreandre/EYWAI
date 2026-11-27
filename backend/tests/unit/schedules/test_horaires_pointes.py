@@ -142,8 +142,11 @@ class TestEcritureAuCalendrier:
         ]
         jours = {j["jour"]: j for j in garder_les_horaires(ecran, stocke)}
         assert jours[19]["debut"] == "03:50" and jours[19]["fin"] == "12:00"
-        # Heures changées à la main, ou jour retypé : l'horaire ne décrit plus le jour.
-        assert "debut" not in jours[20]
+        # Heures changées à la main : l'arrivée reste (elle déclenche le panier,
+        # retour du 27/11), le départ ne décrit plus la journée.
+        assert jours[20]["debut"] == "05:44"
+        assert "fin" not in jours[20]
+        # Jour retypé en congé : plus d'horaire.
         assert "debut" not in jours[21]
 
     def test_un_samedi_travaille_garde_ses_horaires(self):
@@ -180,3 +183,71 @@ class TestEcritureAuCalendrier:
         jours = {j["jour"]: j for j in ecrit["actual"]["calendrier_reel"]}
         assert jours[19]["debut"] == "03:50"
         assert "debut" not in jours[20] and "fin" not in jours[20]
+
+
+class TestArriveeSaisieALaMain:
+    """Retour d'Elsa du 27/11 : « quand je rentre à la main 7 h, il faut pouvoir
+    rentrer ses horaires pour que ça déclenche un panier » (règle panier LEWIS
+    sur l'heure d'arrivée)."""
+
+    def test_une_arrivee_saisie_est_gardee(self):
+        jours = garder_les_horaires([{"jour": 3, "type": "travail", "heures_faites": 7.0, "debut": "04:00"}], [])
+        assert jours[0]["debut"] == "04:00"
+
+    def test_une_arrivee_effacee_a_l_ecran_disparait(self):
+        stocke = [{"jour": 3, "type": "travail", "heures_faites": 7.0, "debut": "04:00", "fin": "11:00"}]
+        jours = garder_les_horaires([{"jour": 3, "type": "travail", "heures_faites": 7.0, "debut": None, "fin": None}], stocke)
+        assert "debut" not in jours[0] and "fin" not in jours[0]
+
+    def test_une_nouvelle_arrivee_remplace_et_le_depart_ancien_tombe(self):
+        stocke = [{"jour": 3, "type": "travail", "heures_faites": 7.0, "debut": "04:00", "fin": "11:00"}]
+        jours = garder_les_horaires([{"jour": 3, "type": "travail", "heures_faites": 7.0, "debut": "12:00"}], stocke)
+        assert jours[0]["debut"] == "12:00"
+        assert "fin" not in jours[0]
+
+    def test_un_jour_non_travaille_ne_garde_aucun_horaire(self):
+        jours = garder_les_horaires(
+            [{"jour": 3, "type": "conges_payes", "heures_faites": 0, "debut": "04:00", "fin": "11:00"}], []
+        )
+        assert "debut" not in jours[0] and "fin" not in jours[0]
+
+    def test_le_schema_accepte_hh_mm_et_refuse_l_illisible(self):
+        import pytest
+        from pydantic import ValidationError
+
+        assert ActualHoursEntry(jour=3, heures_faites=7, type="travail", debut="7:05").debut == "07:05"
+        assert ActualHoursEntry(jour=3, heures_faites=7, type="travail", debut="").debut is None
+        with pytest.raises(ValidationError):
+            ActualHoursEntry(jour=3, heures_faites=7, type="travail", debut="sept heures")
+
+    def test_update_actual_hours_enregistre_l_arrivee_saisie_et_l_effacement(self):
+        stocke = {"calendrier_reel": [
+            {"jour": 4, "type": "travail", "heures_faites": 7.0, "debut": "05:00", "fin": "12:00"},
+        ]}
+        ecrit = {}
+
+        def _upsert(employee_id, company_id, year, month, actual_hours=None, **_):
+            ecrit["actual"] = actual_hours
+
+        repo = SimpleNamespace(
+            get_actual_hours=lambda *a: stocke,
+            get_planned_calendar=lambda *a: {"calendrier_prevu": []},
+            upsert_schedule=_upsert,
+        )
+        with patch.object(commands, "schedule_repository", repo), patch.object(
+            commands, "get_employee_company_and_statut", return_value=("societe", "Non-Cadre")
+        ):
+            commands.update_actual_hours(
+                "salarie",
+                ActualHoursRequest(
+                    year=2026,
+                    month=10,
+                    calendrier_reel=[
+                        ActualHoursEntry(jour=3, type="travail", heures_faites=7.0, debut="07:00"),
+                        ActualHoursEntry(jour=4, type="travail", heures_faites=7.0, debut=None),
+                    ],
+                ),
+            )
+        jours = {j["jour"]: j for j in ecrit["actual"]["calendrier_reel"]}
+        assert jours[3]["debut"] == "07:00"
+        assert "debut" not in jours[4] and "fin" not in jours[4]
