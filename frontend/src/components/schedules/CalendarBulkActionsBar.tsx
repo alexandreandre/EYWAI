@@ -10,7 +10,10 @@ import {
   Sparkles,
   Undo2,
   ScanLine,
+  Trash2,
 } from 'lucide-react';
+import { ViderCalendrierDialog } from './ViderCalendrierDialog';
+import { displayNamePrenomNom } from '@/lib/employeeName';
 import * as calendarApi from '@/api/calendar';
 import type { PlannedEventData } from '@/api/calendar';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -51,6 +54,7 @@ export function CalendarBulkActionsBar({
   const { activeCompany } = useCompany();
   const companyId = activeCompany?.company_id ?? '';
   const [busy, setBusy] = useState<string | null>(null);
+  const [viderOuvert, setViderOuvert] = useState(false);
 
   const runUndo = async (restore: () => Promise<void>) => {
     setBusy('undo');
@@ -342,12 +346,35 @@ export function CalendarBulkActionsBar({
       </Button>
       <Button
         size="sm"
+        variant="destructive"
+        onClick={() => setViderOuvert(true)}
+        disabled={!!busy}
+        className="shrink-0 whitespace-nowrap"
+        title="Annule un modèle appliqué par erreur : prévu et réel du mois remis à vide, sauf arrêts, congés, absences et jours d'un bulletin validé"
+      >
+        <Trash2 className="mr-1.5 h-4 w-4" />
+        Vider le calendrier du mois
+      </Button>
+      <Button
+        size="sm"
         variant="outline"
         onClick={onClearSelection}
         className="shrink-0 whitespace-nowrap border-2 border-foreground/20 text-muted-foreground"
       >
         Annuler
       </Button>
+      <ViderCalendrierDialog
+        open={viderOuvert}
+        onOpenChange={setViderOuvert}
+        salaries={selectedEmployeeIds.map((id) => {
+          const ligne = overviewRows.find((r) => r.employee.id === id);
+          return { id, nom: ligne ? displayNamePrenomNom(ligne.employee) : 'salarié' };
+        })}
+        year={year}
+        month={month}
+        companyId={companyId || undefined}
+        onDone={onActionComplete}
+      />
     </div>
   );
 }

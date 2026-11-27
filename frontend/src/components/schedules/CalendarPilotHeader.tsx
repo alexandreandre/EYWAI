@@ -8,6 +8,7 @@ import type { EmployeeCalendarOverviewRow, GlobalOverviewKpis } from '@/lib/sche
 import { Skeleton } from '@/components/ui/skeleton';
 import { CALENDAR_MONTHS } from './CalendarPeriodSelect';
 import { CalendarExportMenu } from './CalendarExportMenu';
+import type { BasculeDuMois } from '@/lib/basculeCalendrier';
 
 interface CalendarPilotHeaderProps {
   year: number;
@@ -19,6 +20,8 @@ interface CalendarPilotHeaderProps {
   /** Activité partielle en masse : le bouton n'apparaît que si la société l'a activée. */
   onOpenActivitePartielleEnMasse?: () => void;
   isLoading?: boolean;
+  /** Bascule de reprise qui retire des jours du mois affiché. */
+  bascule?: BasculeDuMois | null;
 }
 
 export function CalendarPilotHeader({
@@ -30,6 +33,7 @@ export function CalendarPilotHeader({
   onOpenPointageImport,
   onOpenActivitePartielleEnMasse,
   isLoading = false,
+  bascule = null,
 }: CalendarPilotHeaderProps) {
   const activitePartielle = useActivitePartielleActive();
   const periodLabel = `${CALENDAR_MONTHS[month - 1]} ${year}`;
@@ -106,6 +110,11 @@ export function CalendarPilotHeader({
           <Skeleton className="h-2 w-full" />
         ) : (
           <Progress value={kpis.progressPercent} className="h-2" />
+        )}
+        {!isLoading && bascule && (
+          <p className="text-xs text-muted-foreground" data-testid="jours-avant-bascule">
+            {bascule.phrase}
+          </p>
         )}
       </div>
     </div>

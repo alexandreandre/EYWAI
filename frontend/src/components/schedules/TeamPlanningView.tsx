@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { libelleJourForfait } from './libelleJourForfait';
 import { displayNameNomPrenom, displayNamePrenomNom } from '@/lib/employeeName';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
@@ -17,7 +16,10 @@ import {
 import type { EmployeeCalendarOverviewRow, DayPatch } from '@/lib/schedulesOverview';
 import { alerteDeSaisie } from '@/lib/alerteDeSaisie';
 import { libelleApresSortie } from '@/lib/employmentStatus';
+import { estAvantLEntree, jourHorsContratAvecSaisie, libelleAvantEntree } from '@/lib/joursHorsContrat';
 import { PlanningDayEditor } from './PlanningDayEditor';
+import { AbsenceRequestModal } from '@/components/AbsenceRequestModal';
+import { libelleArrivee } from '@/lib/horairesDuJour';
 import { CursorHint } from './CursorHint';
 import { CalendarPeriodSelect } from './CalendarPeriodSelect';
 import { usePaintSelect } from './usePaintSelect';
@@ -64,6 +66,8 @@ interface TeamPlanningViewProps {
   onMonthChange: (month: number) => void;
   weekIndex: number;
   onWeekIndexChange: (index: number) => void;
+  /** Un arrêt vient d'être enregistré depuis un jour : recharger les calendriers. */
+  onArretEnregistre?: () => void;
 }
 
 export function TeamPlanningView({
@@ -85,6 +89,7 @@ export function TeamPlanningView({
   onMonthChange,
   weekIndex,
   onWeekIndexChange,
+  onArretEnregistre,
 }: TeamPlanningViewProps) {
   const { toast } = useToast();
   const { observedHolidayIds } = useObservedPublicHolidays();
@@ -97,6 +102,9 @@ export function TeamPlanningView({
   });
   const [openEditor, setOpenEditor] = useState<{ employeeId: string; day: number } | null>(null);
   const [flashDays, setFlashDays] = useState<number[]>([]);
+  // « Signaler un arrêt à partir de ce jour » (retour d'Elsa) : la saisie
+  // d'Arrêts & IJ, salarié, nature et premier jour déjà remplis.
+  const [arret, setArret] = useState<{ employeeId: string; debut: Date } | null>(null);
 
   useEffect(() => {
     if (weekIndex > weeks.length - 1) {
@@ -167,12 +175,27 @@ export function TeamPlanningView({
   const handleApply = async (
     employeeId: string,
     day: number,
-    patch: DayPatch
+    patch: DayPatch,
+    titre = 'Jour mis à jour'
   ): Promise<boolean> => {
     try {
-      await onApplyDayPatch(employeeId, day, patch);
+      const ok = await onApplyDayPatch(employeeId, day, patch);
+      // Refus sans exception (calendrier en cours d'enregistrement, illisible) :
+      // le hook le dit déjà, ou rien n'est parti ; jamais un « enregistré » à tort.
+      if (ok === false) {
+        toast({
+          title: 'Jour non enregistré',
+          description: `${new Date(year, month - 1, day).toLocaleDateString('fr-FR', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+          })} n’a pas été enregistré. Rechargez la page, puis réessayez.`,
+          variant: 'destructive',
+        });
+        return false;
+      }
       toast({
-        title: 'Jour mis à jour',
+        title: titre,
         description: `${new Date(year, month - 1, day).toLocaleDateString('fr-FR', {
           weekday: 'short',
           day: 'numeric',
@@ -220,19 +243,25 @@ export function TeamPlanningView({
         />
       </div>
 
-      <ScrollArea className="w-full rounded-md border">
+      {/* Défilement dans le cadre : l'en-tête des jours reste visible quand
+          on descend dans la liste (retour d'Elsa), la colonne des noms quand
+          on va à droite. */}
+      <div
+        className="w-full max-h-[calc(100vh-14rem)] min-h-[16rem] overflow-auto rounded-md border"
+        data-testid="grille-planning"
+      >
         <div className="min-w-[760px]">
           <div className="grid grid-cols-[252px_repeat(7,minmax(90px,1fr))]">
             {/* Header */}
             <button
               type="button"
               className={cn(
-                'sticky left-0 z-10 flex w-full items-stretch border-b border-r text-left text-xs font-medium cursor-pointer transition-colors duration-150',
+                'sticky left-0 top-0 z-30 flex w-full items-stretch border-b border-r text-left text-xs font-medium cursor-pointer transition-colors duration-150',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                 rows.length > 0 &&
                   rows.every((r) => selectedIds.has(r.employee.id))
                   ? 'bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))]'
-                  : 'bg-muted/60',
+                  : 'bg-muted',
                 'hover:bg-[color-mix(in_srgb,hsl(var(--primary))_28%,hsl(var(--background)))] hover:text-primary',
               )}
               onClick={() => onToggleSelectAll(rows.map((r) => r.employee.id))}
@@ -262,7 +291,7 @@ export function TeamPlanningView({
                 return (
                   <div
                     key={`pad-${i}`}
-                    className="bg-muted/30 border-b border-r last:border-r-0"
+                    className="sticky top-0 z-20 bg-muted border-b border-r last:border-r-0"
                   />
                 );
               }
@@ -278,10 +307,11 @@ export function TeamPlanningView({
                 <div
                   key={day}
                   className={cn(
-                    'border-b border-r last:border-r-0 p-2 text-center',
-                    'bg-muted/60 text-xs font-medium',
-                    isToday && 'bg-primary/10'
+                    'sticky top-0 z-20 border-b border-r last:border-r-0 p-2 text-center',
+                    'bg-muted text-xs font-medium',
+                    isToday && 'bg-[color-mix(in_srgb,hsl(var(--primary))_10%,hsl(var(--muted)))]'
                   )}
+                  data-testid="entete-jour"
                 >
                   <div className={cn('uppercase', isToday && 'text-primary')}>
                     {WEEKDAY_LABELS[i]}
@@ -409,6 +439,29 @@ export function TeamPlanningView({
                       </div>
                     );
                   }
+                  // Avant l'entrée : hors contrat, grisé, rien n'est attendu
+                  // (retour d'Elsa : salarié entré le 05/10). Un jour qui porte
+                  // une saisie reste visible et modifiable, avec la mention.
+                  const avantEntree = estAvantLEntree(day, row.premierJourContrat);
+                  const saisieHorsContrat =
+                    avantEntree &&
+                    jourHorsContratAvecSaisie(
+                      row.planned.find((p) => p.jour === day),
+                      row.actual.find((a) => a.jour === day),
+                      row.isForfaitJour,
+                    );
+                  if (avantEntree && !saisieHorsContrat) {
+                    return (
+                      <div
+                        key={`${row.employee.id}-${day}`}
+                        className="border-b border-r last:border-r-0 min-h-[3.25rem] px-2 py-1 bg-muted/50 text-muted-foreground/70 text-[10px] flex items-center"
+                        title={libelleAvantEntree(row.premierJourContrat!, month)}
+                        data-testid="case-hors-contrat"
+                      >
+                        Hors contrat
+                      </div>
+                    );
+                  }
                   const planned = row.planned.find((p) => p.jour === day);
                   const actual = row.actual.find((a) => a.jour === day);
                   const type = planned?.type ?? 'travail';
@@ -472,6 +525,15 @@ export function TeamPlanningView({
                             <span className="text-[9px] uppercase tracking-wide text-muted-foreground">
                               {TYPE_LABEL[type] ?? type}
                             </span>
+                            {saisieHorsContrat && (
+                              <span
+                                className="text-[9px] font-medium text-amber-700"
+                                title={libelleAvantEntree(row.premierJourContrat!, month)}
+                                data-testid="mention-hors-contrat"
+                              >
+                                Hors contrat
+                              </span>
+                            )}
                             {row.isForfaitJour ? (
                               forfaitDayDisplay ? (
                                 <span
@@ -502,6 +564,14 @@ export function TeamPlanningView({
                                   {plannedDisplay ?? '–'}
                                 </span>
                               </div>
+                            )}
+                            {!row.isForfaitJour && libelleArrivee(actual) && (
+                              <span
+                                className="text-[10px] tabular-nums text-muted-foreground"
+                                data-testid="arrivee-du-jour"
+                              >
+                                {libelleArrivee(actual)}
+                              </span>
                             )}
                           </div>
                           {hasConflict && (
@@ -536,6 +606,16 @@ export function TeamPlanningView({
                             setOpenEditor(null);
                             onOpenEmployee(row.employee.id);
                           }}
+                          onVider={(patch) =>
+                            handleApply(row.employee.id, day, patch, 'Jour vidé')
+                          }
+                          onSignalerArret={() => {
+                            setOpenEditor(null);
+                            setArret({
+                              employeeId: row.employee.id,
+                              debut: new Date(year, month - 1, day),
+                            });
+                          }}
                         />
                       </PopoverContent>
                     </Popover>
@@ -545,8 +625,20 @@ export function TeamPlanningView({
             ))}
           </div>
         </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      </div>
+
+      <AbsenceRequestModal
+        isOpen={arret !== null}
+        onClose={() => setArret(null)}
+        onSuccess={() => {
+          setArret(null);
+          onArretEnregistre?.();
+        }}
+        mode="rh_arret"
+        salarieInitial={arret?.employeeId}
+        typeInitial="arret_maladie"
+        debutArretInitial={arret?.debut}
+      />
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
         <span className="font-medium text-foreground">Légende</span>

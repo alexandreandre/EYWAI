@@ -24,7 +24,10 @@ import { YearCalendarView } from '@/components/schedules/YearCalendarView';
 import { BulkDayActionPanel } from '@/components/schedules/BulkDayActionPanel';
 import { useCalendar } from '@/hooks/useCalendar';
 import { CalendarSyncNotice } from '@/components/schedules/CalendarSyncNotice';
-import { Loader2, Save, ChevronLeft, ChevronRight, CalendarDays, Grid3x3 } from 'lucide-react';
+import { Loader2, Save, ChevronLeft, ChevronRight, CalendarDays, Grid3x3, Trash2 } from 'lucide-react';
+import { ViderCalendrierDialog } from '@/components/schedules/ViderCalendrierDialog';
+import { AbsenceRequestModal } from '@/components/AbsenceRequestModal';
+import { useBasculeDeLaSociete } from '@/hooks/useBasculeDeLaSociete';
 import { Chargement } from '@/components/Chargement';
 import { cn } from '@/lib/utils';
 import { useCasesVoisines } from '@/components/schedules/useCasesVoisines';
@@ -39,6 +42,8 @@ interface EmployeeCalendarPanelProps {
   initialYear?: number;
   initialMonth?: number;
   onSaved?: () => void;
+  /** Début de la première paie Martine (bascule) : avant, rien n'est compté. */
+  debutMartine?: string | null;
 }
 
 export function EmployeeCalendarPanel({
@@ -50,8 +55,14 @@ export function EmployeeCalendarPanel({
   initialYear,
   initialMonth,
   onSaved,
+  debutMartine = null,
 }: EmployeeCalendarPanelProps) {
   const [calendarView, setCalendarView] = useState<'month' | 'year'>('month');
+  const [viderOuvert, setViderOuvert] = useState(false);
+  // Le tiroir change de mois : la bascule de la société vaut pour tous.
+  const basculeSociete = useBasculeDeLaSociete();
+  const debutPaieMartine = debutMartine ?? basculeSociete?.debutMartine ?? null;
+  const [debutArret, setDebutArret] = useState<Date | null>(null);
 
   const {
     selectedDate,
@@ -93,7 +104,7 @@ export function EmployeeCalendarPanel({
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
-  const { bornes, dernierJourContrat } = bornesDuSalarie(
+  const { bornes, dernierJourContrat, premierJourContrat, premierJourMartine } = bornesDuSalarie(
     {
       id: employeeId,
       first_name: '',
@@ -104,7 +115,7 @@ export function EmployeeCalendarPanel({
     selectedDate.year,
     selectedDate.month,
     isForfaitJour,
-    { finFenetre: fenetreQuery.data?.fin ?? null }
+    { finFenetre: fenetreQuery.data?.fin ?? null, debutMartine: debutPaieMartine }
   );
   const statutBorne =
     monthCompletionStatus === 'saisi'
@@ -134,6 +145,10 @@ export function EmployeeCalendarPanel({
           ),
           dernierJourJuge: bornes.dernierJour ?? null,
           dernierJourContrat,
+          premierJourContrat,
+          premierJourMartine,
+          debutMartine: debutPaieMartine,
+          logicielPrecedent: basculeSociete?.logiciel ?? null,
         },
         selectedDate.year,
         selectedDate.month
@@ -243,6 +258,23 @@ export function EmployeeCalendarPanel({
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+          {calendarView === 'month' && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setViderOuvert(true)}
+              disabled={isSaving || isDirty || isCalendarLoading || loadError}
+              title={
+                isDirty
+                  ? 'Enregistrez ou annulez d’abord vos changements'
+                  : 'Annule un modèle appliqué par erreur : prévu et réel du mois remis à vide, sauf arrêts, congés, absences et jours d’un bulletin validé'
+              }
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Vider le calendrier du mois
+            </Button>
+          )}
           <Button onClick={() => void handleSave()} disabled={isSaving || !isDirty} size="sm">
             {isSaving ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -251,6 +283,7 @@ export function EmployeeCalendarPanel({
             )}
             {isSaving ? 'Enregistrement…' : isDirty ? 'Enregistrer' : 'À jour'}
           </Button>
+          </div>
         </CardHeader>
 
         <CardContent className="p-0 md:p-2">
@@ -292,7 +325,7 @@ export function EmployeeCalendarPanel({
             <Chargement label="Chargement du calendrier…" className="h-48" />
           ) : calendarView === 'month' ? (
             <div className="flex flex-col gap-3 p-2">
-              <div className="grid grid-cols-7 text-center text-xs font-medium text-muted-foreground">
+              <div className="sticky top-[var(--entete-tiroir,0px)] z-20 -mx-2 grid grid-cols-7 bg-background/95 px-2 py-1.5 text-center backdrop-blur border-b text-xs font-medium text-muted-foreground" data-testid="entete-jours-du-mois">
                 {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((d) => (
                   <div key={d}>{d}</div>
                 ))}
@@ -333,6 +366,12 @@ export function EmployeeCalendarPanel({
                           onCopyPlannedToActual={copyPlannedToActualForDay}
                           dernierJourJuge={bornes.dernierJour ?? null}
                           dernierJourContrat={dernierJourContrat}
+                          premierJourJuge={bornes.premierJour ?? null}
+                          premierJourContrat={premierJourContrat}
+                          onSignalerArret={(jour) =>
+                            setDebutArret(new Date(selectedDate.year, selectedDate.month - 1, jour))
+                          }
+                          signalerArretIndisponible={isDirty ? 'Enregistrez d’abord le calendrier : la saisie de l’arrêt le recharge.' : null}
                         />
                       </div>
                     );
@@ -355,6 +394,32 @@ export function EmployeeCalendarPanel({
           )}
         </CardContent>
       </Card>
+
+      <AbsenceRequestModal
+        isOpen={debutArret !== null}
+        onClose={() => setDebutArret(null)}
+        onSuccess={() => {
+          setDebutArret(null);
+          void refetch();
+          onSaved?.();
+        }}
+        mode="rh_arret"
+        salarieInitial={employeeId}
+        typeInitial="arret_maladie"
+        debutArretInitial={debutArret ?? undefined}
+      />
+
+      <ViderCalendrierDialog
+        open={viderOuvert}
+        onOpenChange={setViderOuvert}
+        salaries={[{ id: employeeId, nom: employeeName }]}
+        year={selectedDate.year}
+        month={selectedDate.month}
+        onDone={() => {
+          void refetch();
+          onSaved?.();
+        }}
+      />
 
       {selectedDays.length > 0 && (
         <BulkDayActionPanel

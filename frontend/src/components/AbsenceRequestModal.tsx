@@ -40,6 +40,7 @@ import {
   getAvailableCongePayeDays,
   avertissementSoldeInsuffisantRh,
   typesArretProposes,
+  libelleTypeArret,
   bornesDesJours,
   estCongeParental,
   joursDeLaPeriode,
@@ -48,7 +49,7 @@ import {
   SOUS_TYPE_CONGE_PARENTAL,
   type EmployeeRequestableAbsenceType,
 } from "@/lib/employeeAbsencesUtils";
-import { formatPeriodeArret } from "@/lib/arretPeriode";
+import { formatPeriodeArret, periodeArretEnToutesLettres } from "@/lib/arretPeriode";
 import { accord } from '@/lib/pluriel';
 import { useQuery } from "@tanstack/react-query";
 import { getMaintenanceSettings } from "@/api/maintenanceSettings";
@@ -164,6 +165,11 @@ interface AbsenceRequestModalProps {
   salarieInitial?: string;
   typeInitial?: absencesApi.AbsenceCreationPayload['type'];
   joursInitiaux?: Date[];
+  /**
+   * « Signaler un arrêt à partir de ce jour » depuis le calendrier (retour
+   * d'Elsa) : premier jour de l'arrêt déjà choisi ; reste la date de fin.
+   */
+  debutArretInitial?: Date;
 }
 
 const RH_ARRET_TYPE_LABELS: Record<
@@ -205,6 +211,7 @@ export function AbsenceRequestModal({
   salarieInitial,
   typeInitial,
   joursInitiaux,
+  debutArretInitial,
 }: AbsenceRequestModalProps) {
   const effectiveMode = resolveModalMode(mode, showEmployeeSelector);
   const enModification = Boolean(absenceAModifier) && effectiveMode === "rh_leave";
@@ -241,6 +248,8 @@ export function AbsenceRequestModal({
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
   const [error, setError] = useState("");
   const [confirmSansSoldeOpen, setConfirmSansSoldeOpen] = useState(false);
+  // Double contrôle des dates d'un arrêt avant de l'enregistrer (retour d'Elsa).
+  const [confirmArretOpen, setConfirmArretOpen] = useState(false);
   const [arretType, setArretType] = useState<absencesApi.ArretType | "">("");
   const [dateAccident, setDateAccident] = useState("");
   // Case « subrogation » de l'arrêt (retour d'Elsa du 16/11) : par défaut la
@@ -297,6 +306,8 @@ export function AbsenceRequestModal({
       }
       if (typeInitial) setAbsenceType(typeInitial);
       if (joursInitiaux?.length) setSelectedDays(joursInitiaux);
+      if (debutArretInitial) setArretRange({ from: debutArretInitial, to: undefined });
+      setConfirmArretOpen(false);
       if (enModification && absenceAModifier) {
         // Le congé à modifier, tel qu'il est : on change ses jours.
         const a = absenceAModifier;
@@ -559,7 +570,10 @@ export function AbsenceRequestModal({
       onSuccess();
       onClose();
       setConfirmSansSoldeOpen(false);
+      setConfirmArretOpen(false);
     } catch (err) {
+      // L'erreur s'affiche dans la saisie : la confirmation se ferme pour la montrer.
+      setConfirmArretOpen(false);
       const apiMessage = getApiErrorMessage(err);
       if (apiMessage) {
         setError(apiMessage);
@@ -669,6 +683,12 @@ export function AbsenceRequestModal({
     }
 
     setError("");
+    if (isSaisiePeriode && arretRange?.from) {
+      // Double contrôle : salarié, nature et dates relus avant d'enregistrer
+      // (l'arrêt part au bulletin et au signalement DSN).
+      setConfirmArretOpen(true);
+      return;
+    }
     doSubmit();
   };
 
@@ -756,6 +776,16 @@ export function AbsenceRequestModal({
   const cpRestant = typeof cpBalance?.remaining === "number" ? cpBalance.remaining : 0;
   const prenomSalarie =
     employees.find((e) => e.id === selectedEmployeeId)?.first_name ?? "le salarié";
+  const salarieChoisi = employees.find((e) => e.id === selectedEmployeeId);
+  const nomCompletSalarie = salarieChoisi
+    ? `${salarieChoisi.first_name} ${salarieChoisi.last_name}`
+    : "Salarié non trouvé dans la liste";
+  const natureArret = [
+    (RH_ARRET_TYPE_LABELS as Record<string, string>)[absenceType] ?? "",
+    arretType ? libelleTypeArret(arretType) : "",
+  ]
+    .filter(Boolean)
+    .join(" — ");
 
   // Avertissement de solde (RH) : affiché dans la fenêtre dès que les jours
   // choisis dépassent le solde, avant d'enregistrer. Le serveur enregistre
@@ -1269,6 +1299,43 @@ export function AbsenceRequestModal({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={confirmArretOpen} onOpenChange={(o) => !isLoading && setConfirmArretOpen(o)}>
+        <AlertDialogContent data-testid="confirmation-arret">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Vérifiez l&apos;arrêt avant de l&apos;enregistrer</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-foreground">
+                  <dt className="text-muted-foreground">Salarié</dt>
+                  <dd className="font-medium">{nomCompletSalarie}</dd>
+                  <dt className="text-muted-foreground">Nature</dt>
+                  <dd className="font-medium">{natureArret}</dd>
+                  <dt className="text-muted-foreground">Période</dt>
+                  <dd className="font-medium" data-testid="recapitulatif-periode-arret">
+                    {arretRange?.from
+                      ? periodeArretEnToutesLettres(arretRange.from, arretRange.to ?? arretRange.from)
+                      : ""}
+                  </dd>
+                </dl>
+                <p>Ces dates partent au bulletin et au signalement d&apos;arrêt en DSN.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading}>Corriger les dates</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void doSubmit();
+              }}
+              disabled={isLoading}
+            >
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enregistrer l'arrêt"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmSansSoldeOpen} onOpenChange={setConfirmSansSoldeOpen}>
         <AlertDialogContent>

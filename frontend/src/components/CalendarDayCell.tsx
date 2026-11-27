@@ -28,6 +28,9 @@ import {
 import { isDayReadyForPayroll } from '@/lib/calendarStats';
 import { estAbsentATyper } from '@/lib/absentATyper';
 import { libelleApresSortie } from '@/lib/employmentStatus';
+import { estAvantLEntree, jourHorsContratAvecSaisie, libelleAvantEntree } from '@/lib/joursHorsContrat';
+import { libelleArrivee } from '@/lib/horairesDuJour';
+import { REFUS_VIDER_ABSENCE, jourGardeParLeVidage, typeDuJourVide } from '@/lib/viderCalendrier';
 import {
   TITRE_INFO_BULLE_CONFLIT,
   estJourEnConflit,
@@ -44,7 +47,9 @@ interface CalendarDayCellProps {
   arg: JourDeLaGrille;
   plannedCalendar: PlannedEventData[];
   actualHours: ActualHoursData[];
-  updateDayData: (day: Partial<DayData> & { demi_journee?: 'matin' | 'apres_midi' | null }) => void;
+  updateDayData: (
+    day: Partial<DayData> & { demi_journee?: 'matin' | 'apres_midi' | null; vider?: boolean }
+  ) => void;
   selectedDays?: number[];
   onDaySelect?: (dayNumber: number) => void;
   selectedDate: { month: number; year: number };
@@ -61,6 +66,13 @@ interface CalendarDayCellProps {
   dernierJourJuge?: number | null;
   /** Dernier jour du contrat (sortie) : après, la case est grisée et fermée. */
   dernierJourContrat?: number | null;
+  /** Premier jour du contrat (entrée) : avant, la case est « Hors contrat », grisée et fermée. */
+  premierJourContrat?: number | null;
+  /**
+   * Premier jour jugé (entrée, ou début de la paie Martine après une bascule) :
+   * avant, un jour vide n'est pas signalé à saisir.
+   */
+  premierJourJuge?: number | null;
   /**
    * Jours du mois pris en récupération (demande validée) : le calendrier les
    * porte comme un congé, la case dit « Récupération » (retour d'Elsa du 16/11).
@@ -68,6 +80,10 @@ interface CalendarDayCellProps {
   joursRecup?: number[];
   /** Choix « Récupération (compteur) » : ouvre la pose de la récupération. */
   onPoserRecup?: (dayNumber: number) => void;
+  /** « Signaler un arrêt à partir de ce jour » : ouvre la saisie d'Arrêts & IJ. */
+  onSignalerArret?: (dayNumber: number) => void;
+  /** Raison pour laquelle l'arrêt ne peut pas s'ouvrir tout de suite (changements non enregistrés). */
+  signalerArretIndisponible?: string | null;
 }
 
 // Types de saisie : source unique calendarTypes.ts — conges_payes/rtt créent
@@ -240,8 +256,12 @@ export function CalendarDayCell({
   pointe = true,
   dernierJourJuge = null,
   dernierJourContrat = null,
+  premierJourContrat = null,
+  premierJourJuge = null,
   joursRecup,
   onPoserRecup,
+  onSignalerArret,
+  signalerArretIndisponible = null,
 }: CalendarDayCellProps) {
   const { observedHolidayIds } = useObservedPublicHolidays();
   const activitePartielle = useActivitePartielleActive();
@@ -329,6 +349,24 @@ export function CalendarDayCell({
     );
   }
 
+  // Avant l'entrée : hors contrat, rien à saisir (retour d'Elsa, entrée le 05/10).
+  // Un jour qui porte une saisie reste visible et modifiable, avec la mention.
+  const avantEntree = estAvantLEntree(dayNumber, premierJourContrat);
+  const saisieHorsContrat =
+    avantEntree && jourHorsContratAvecSaisie(plannedDay, actualDay, isForfaitJour);
+  if (avantEntree && !saisieHorsContrat) {
+    return (
+      <div
+        className="flex h-full min-h-[7.5rem] flex-col gap-1 rounded-2xl border bg-muted/50 p-2 text-muted-foreground/70"
+        title={libelleAvantEntree(premierJourContrat!, selectedDate.month)}
+        data-testid="case-hors-contrat"
+      >
+        <span className="text-xs font-semibold tabular-nums">{arg.dayNumberText}</span>
+        <span className="text-[10px]">Hors contrat</span>
+      </div>
+    );
+  }
+
   if (!plannedDay || !actualDay) {
     return (
       <div className="flex h-full items-start justify-start p-2">
@@ -341,6 +379,7 @@ export function CalendarDayCell({
   // d'anomalie ici (retour du 10/11).
   const needsInput =
     (dernierJourJuge == null || dayNumber <= dernierJourJuge) &&
+    (premierJourJuge == null || dayNumber >= premierJourJuge) &&
     dayNeedsInput(plannedDay.type, plannedDay, actualDay, isForfaitJour, pointe);
 
   const handleTypeChange = (
@@ -422,6 +461,15 @@ export function CalendarDayCell({
           {isToday && (
             <span className="text-[9px] font-medium text-primary leading-none">Aujourd&apos;hui</span>
           )}
+          {saisieHorsContrat && (
+            <span
+              className="text-[9px] font-medium text-amber-700 leading-none"
+              title={libelleAvantEntree(premierJourContrat!, selectedDate.month)}
+              data-testid="mention-hors-contrat"
+            >
+              Hors contrat
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-0.5">
@@ -469,7 +517,7 @@ export function CalendarDayCell({
               )}
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-40 p-1" align="start" onClick={(e) => e.stopPropagation()}>
+          <PopoverContent className="w-52 p-1" align="start" onClick={(e) => e.stopPropagation()}>
             {absent && (
               <p
                 className="mb-1 rounded bg-red-50 px-2 py-1 text-[11px] font-medium text-red-800"
@@ -514,6 +562,47 @@ export function CalendarDayCell({
                   )}
               </div>
             ))}
+            <div className="my-1 border-t" />
+            {onSignalerArret && (
+              <button
+                type="button"
+                data-testid="signaler-arret-du-jour"
+                className="w-full text-left text-xs px-2 py-1.5 rounded text-red-700 hover:bg-muted disabled:opacity-50"
+                disabled={Boolean(signalerArretIndisponible)}
+                title={signalerArretIndisponible ?? 'Saisie d’arrêt (Arrêts & IJ) : salarié et premier jour déjà remplis'}
+                onClick={() => {
+                  setTypePopoverOpen(false);
+                  onSignalerArret(dayNumber);
+                }}
+              >
+                Signaler un arrêt à partir de ce jour…
+              </button>
+            )}
+            {onSignalerArret && signalerArretIndisponible && (
+              <p className="px-2 pb-1 text-[10px] text-muted-foreground">{signalerArretIndisponible}</p>
+            )}
+            <button
+              type="button"
+              data-testid="vider-le-jour"
+              className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted disabled:opacity-50"
+              disabled={jourGardeParLeVidage(plannedDay)}
+              title={jourGardeParLeVidage(plannedDay) ? REFUS_VIDER_ABSENCE : 'Prévu, réel et horaires du jour remis à vide'}
+              onClick={() => {
+                setTypePopoverOpen(false);
+                updateDayData({
+                  jour: dayNumber,
+                  type: typeDuJourVide(selectedDate.year, selectedDate.month, plannedDay),
+                  heures_prevues: null,
+                  heures_faites: null,
+                  vider: true,
+                });
+              }}
+            >
+              Vider ce jour
+            </button>
+            {jourGardeParLeVidage(plannedDay) && (
+              <p className="px-2 pb-1 text-[10px] text-muted-foreground">{REFUS_VIDER_ABSENCE}</p>
+            )}
             {onPoserRecup && !joursRecup?.includes(dayNumber) && (
               <button
                 type="button"
@@ -613,11 +702,21 @@ export function CalendarDayCell({
           )}
         </div>
       ) : (
-        <HourGauges
-          planned={plannedDay.heures_prevues}
-          actual={actualDay.heures_faites}
-          isForfaitJour={isForfaitJour}
-        />
+        <>
+          <HourGauges
+            planned={plannedDay.heures_prevues}
+            actual={actualDay.heures_faites}
+            isForfaitJour={isForfaitJour}
+          />
+          {!isForfaitJour && libelleArrivee(actualDay) && (
+            <p
+              className="px-2 pl-3 pb-1.5 -mt-1 text-[10px] tabular-nums text-muted-foreground"
+              data-testid="arrivee-du-jour"
+            >
+              {libelleArrivee(actualDay)}
+            </p>
+          )}
+        </>
       )}
     </div>
   );

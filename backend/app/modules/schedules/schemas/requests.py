@@ -91,11 +91,23 @@ class ActualHoursEntry(BaseModel):
     jour: int
     heures_faites: float | None = None
     type: str | None = None
-    # Heure de début et de fin pointées (« HH:MM »), venues d'un import : voir
-    # `domain.horaires_pointes`. L'écran ne les renvoie pas ; le serveur les
-    # garde quand le jour n'a pas changé.
+    # Heure d'arrivée et de départ (« HH:MM »), venues d'un import ou saisies
+    # à l'écran : voir `domain.horaires_pointes.garder_les_horaires`. Absentes
+    # du corps : le serveur garde celles qu'il a ; envoyées vides : effacées.
     debut: str | None = None
     fin: str | None = None
+
+    @field_validator("debut", "fin", mode="before")
+    @classmethod
+    def _heure_lisible(cls, valeur: Any) -> str | None:
+        if valeur is None or (isinstance(valeur, str) and not valeur.strip()):
+            return None
+        from app.modules.schedules.domain.horaires_pointes import en_hhmm
+
+        heure = en_hhmm(valeur)
+        if heure is None:
+            raise ValueError("Heure illisible : attendu HH:MM (par exemple 07:00).")
+        return heure
 
 
 class ActualHoursRequest(BaseModel):
@@ -153,6 +165,17 @@ class ActivitePartielleEnMasseRequest(BaseModel):
 
     employee_ids: List[str] = Field(min_length=1, max_length=5000)
     dates: List[date] = Field(min_length=1, max_length=366)
+
+
+class ViderMoisRequest(BaseModel):
+    """Corps de POST /calendar/vider-mois : vider le prévu et le réel du mois,
+    sans les absences posées ni les jours d'un bulletin validé. `apercu` : ne
+    rien écrire, dire seulement ce qui serait vidé et gardé."""
+
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
+    expected_revision: UUID | None = None
+    apercu: bool = False
 
 
 class EffacerJoursRequest(BaseModel):

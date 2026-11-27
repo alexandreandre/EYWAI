@@ -14,6 +14,7 @@ import {
   type JourASaisir,
 } from '@/lib/calendarStats';
 import { dernierJourDuContratDansLeMois } from '@/lib/employmentStatus';
+import { premierJourDansLeMois, premierJourDuContratDansLeMois } from '@/lib/joursHorsContrat';
 import {
   detectAbsenceConflictDays,
   validatedAbsenceDaysInMonth,
@@ -33,6 +34,10 @@ export interface DayPatch {
   heures_faites?: number | null;
   /** CP/RTT posé au calendrier : demi-journée (part avec la demande créée). */
   demi_journee?: 'matin' | 'apres_midi' | null;
+  /** Heure d'arrivée (« HH:MM ») ; `null` l'efface, absent la laisse. */
+  debut?: string | null;
+  /** Heure de départ (« HH:MM ») ; `null` l'efface, absent la laisse. */
+  fin?: string | null;
 }
 
 export interface SchedulesEmployeeInput {
@@ -80,6 +85,15 @@ export interface EmployeeCalendarOverviewRow {
   dernierJourJuge?: number | null;
   /** Dernier jour du contrat dans le mois (sortie) ; après, rien ne se saisit. */
   dernierJourContrat?: number | null;
+  /** Premier jour jugé (entrée ou début de la paie Martine) ; avant, rien n'est compté. */
+  premierJourJuge?: number | null;
+  /** Premier jour du contrat dans le mois (entrée) ; avant, la case est « Hors contrat ». */
+  premierJourContrat?: number | null;
+  /** Premier jour payé par Martine (bascule) ; avant, l'ancien logiciel a payé. */
+  premierJourMartine?: number | null;
+  /** Début de la première paie Martine (ISO), quand il tombe dans ou après le mois. */
+  debutMartine?: string | null;
+  logicielPrecedent?: string | null;
   /** Jours qui empêchent la paie, avec la raison : l'alerte les nomme. */
   joursASaisir?: JourASaisir[];
 }
@@ -88,11 +102,20 @@ export interface EmployeeCalendarOverviewRow {
 export interface ContexteDuMois {
   finFenetre?: string | null;
   companyId?: string;
+  /**
+   * Premier jour de la première paie faite par Martine (ISO) : début de la
+   * fenêtre des variables du premier mois calculé après la bascule. Les jours
+   * d'avant ont été payés par l'ancien logiciel : rien n'y est attendu.
+   */
+  debutMartine?: string | null;
+  /** Logiciel qui a payé avant la bascule (« Quadra »), pour la phrase. */
+  logicielPrecedent?: string | null;
 }
 
 /**
  * Les bornes de jugement d'un salarié : fin de la fenêtre des variables
- * (sauf forfait jours, jugé sur le mois civil comme au serveur) et sortie.
+ * (sauf forfait jours, jugé sur le mois civil comme au serveur), sortie,
+ * entrée et début de la paie Martine (bascule).
  */
 export function bornesDuSalarie(
   employee: SchedulesEmployeeInput,
@@ -100,8 +123,15 @@ export function bornesDuSalarie(
   month: number,
   forfait: boolean,
   contexte: ContexteDuMois = {},
-): { bornes: BornesDuMois; dernierJourContrat: number | null } {
+): {
+  bornes: BornesDuMois;
+  dernierJourContrat: number | null;
+  premierJourContrat: number | null;
+  premierJourMartine: number | null;
+} {
   const dernierJourContrat = dernierJourDuContratDansLeMois(employee, year, month);
+  const premierJourContrat = premierJourDuContratDansLeMois(employee, year, month);
+  const premierJourMartine = premierJourDansLeMois(contexte.debutMartine, year, month);
   const prefixe = `${year}-${String(month).padStart(2, '0')}`;
   const fin = contexte.finFenetre?.slice(0, 10);
   const finFenetre =
@@ -109,9 +139,26 @@ export function bornesDuSalarie(
   const candidats = [finFenetre, dernierJourContrat].filter(
     (j): j is number => typeof j === 'number'
   );
+  const debuts = [premierJourContrat, premierJourMartine].filter(
+    (j): j is number => typeof j === 'number'
+  );
   return {
-    bornes: { dernierJour: candidats.length > 0 ? Math.min(...candidats) : null },
+    bornes: {
+      dernierJour: candidats.length > 0 ? Math.min(...candidats) : null,
+      premierJour: debuts.length > 0 ? Math.max(...debuts) : null,
+    },
     dernierJourContrat,
+    premierJourContrat,
+    premierJourMartine,
+  };
+}
+
+/** Heures d'arrivée et de départ gardées au réel (badgeuse ou saisie), si présentes. */
+function horairesDuJour(jour: ActualHoursData | undefined): Pick<ActualHoursData, 'debut' | 'fin'> {
+  if (!jour) return {};
+  return {
+    ...(jour.debut ? { debut: jour.debut } : {}),
+    ...(jour.fin ? { fin: jour.fin } : {}),
   };
 }
 
@@ -147,13 +194,22 @@ async function fetchEmployeeOverview(
   contexte: ContexteDuMois = {}
 ): Promise<EmployeeCalendarOverviewRow> {
   const forfait = isForfaitJour(employee.statut, employee.is_forfait_jour);
-  const { bornes, dernierJourContrat } = bornesDuSalarie(
+  const { bornes, dernierJourContrat, premierJourContrat, premierJourMartine } = bornesDuSalarie(
     employee,
     year,
     month,
     forfait,
     contexte
   );
+  const bornesDeLaLigne = {
+    dernierJourJuge: bornes.dernierJour ?? null,
+    dernierJourContrat,
+    premierJourJuge: bornes.premierJour ?? null,
+    premierJourContrat,
+    premierJourMartine,
+    debutMartine: premierJourMartine != null ? contexte.debutMartine ?? null : null,
+    logicielPrecedent: contexte.logicielPrecedent ?? null,
+  };
 
   try {
     const precedent = moisPrecedent(year, month);
@@ -182,6 +238,7 @@ async function fetchEmployeeOverview(
         jour: plannedDay.jour,
         type: plannedDay.type,
         heures_faites: apiDay ? apiDay.heures_faites : null,
+        ...horairesDuJour(apiDay),
       };
     });
 
@@ -224,8 +281,7 @@ async function fetchEmployeeOverview(
       companyId: contexte.companyId,
       isForfaitJour: forfait,
       pointeMoisPrecedent,
-      dernierJourJuge: bornes.dernierJour ?? null,
-      dernierJourContrat,
+      ...bornesDeLaLigne,
       joursASaisir: joursASaisir(planned, actual, year, month, forfait, pointe, bornes),
     };
   } catch {
@@ -241,8 +297,7 @@ async function fetchEmployeeOverview(
       joursHeuresSurArret: [],
       loadError: true,
       isForfaitJour: forfait,
-      dernierJourJuge: bornes.dernierJour ?? null,
-      dernierJourContrat,
+      ...bornesDeLaLigne,
     };
   }
 }
@@ -368,12 +423,17 @@ export function applyDayPatchToRow(
       type: patch.type !== undefined ? patch.type : a.type,
       heures_faites:
         patch.heures_faites !== undefined ? patch.heures_faites : a.heures_faites,
+      ...(patch.debut !== undefined ? { debut: patch.debut } : {}),
+      ...(patch.fin !== undefined ? { fin: patch.fin } : {}),
     };
   });
 
   const stats = computeMonthStats(newPlanned, newActual, row.isForfaitJour);
   const pointe = (row.pointeMoisPrecedent ?? true) || aDesHeuresPointees(newActual);
-  const bornes: BornesDuMois = { dernierJour: row.dernierJourJuge ?? null };
+  const bornes: BornesDuMois = {
+    dernierJour: row.dernierJourJuge ?? null,
+    premierJour: row.premierJourJuge ?? null,
+  };
   const rowStatus = statutAvecHeuresSurArret(
     computeEmployeeRowStatus(
       newPlanned,
@@ -422,10 +482,10 @@ export async function persistEmployeeMonth(
 
 export function rowFromCalendarSnapshot(row: EmployeeCalendarOverviewRow, snapshot: calendarApi.CalendarSnapshot, year: number, month: number): EmployeeCalendarOverviewRow {
   const planned = mergePlannedCalendar(row.planned, snapshot.calendrier_prevu);
-  const actual = planned.map((day) => ({
-    jour: day.jour, type: day.type,
-    heures_faites: snapshot.calendrier_reel.find((d) => d.jour === day.jour)?.heures_faites ?? null,
-  }));
+  const actual = planned.map((day) => {
+    const reel = snapshot.calendrier_reel.find((d) => d.jour === day.jour);
+    return { jour: day.jour, type: day.type, heures_faites: reel?.heures_faites ?? null, ...horairesDuJour(reel) };
+  });
   return applyDayPatchToRow({ ...row, planned, actual, revision: snapshot.revision,
     joursHeuresSurArret: snapshot.jours_en_conflit ?? [], loadError: false,
   }, -1, {}, year, month);

@@ -29,7 +29,9 @@ import {
   valeurModelePourLeJour,
 } from '@/lib/weekTemplateDays';
 import { calendarSaveFailureMessage } from '@/lib/calendarSaveFeedback';
+import { horairesAEnvoyer } from '@/lib/horairesDuJour';
 import { dernierJourDuContratDansLeMois } from '@/lib/employmentStatus';
+import { estAvantLEntree, premierJourDansLeMois, premierJourDuContratDansLeMois } from '@/lib/joursHorsContrat';
 
 type PlannedEventData = calendarApi.PlannedEventData;
 type ActualHoursData = calendarApi.ActualHoursData;
@@ -51,6 +53,8 @@ export function useCalendar(
     dureeHebdomadaire?: number | null;
     /** Sortie du salarié : le modèle et la copie du prévu ne posent rien après. */
     sortie?: { exit_last_working_day?: string | null; hire_date?: string | null } | null;
+    /** Premier jour de la paie Martine (bascule) : avant, rien n'est compté. */
+    debutMartine?: string | null;
   },
 ) {
   const fetchEnabled = options?.enabled !== false;
@@ -144,6 +148,23 @@ export function useCalendar(
   // mois ni le précédent) n'a rien « à saisir », le prévu fait foi.
   const pointe = pointeMoisPrecedent || aDesHeuresPointees(actualHours);
 
+  // Contrat : rien n'est attendu avant l'entrée ni après la sortie.
+  const dernierJourContrat = options?.sortie
+    ? dernierJourDuContratDansLeMois(options.sortie, selectedDate.year, selectedDate.month)
+    : null;
+  const premierJourContrat = options?.sortie
+    ? premierJourDuContratDansLeMois(options.sortie, selectedDate.year, selectedDate.month)
+    : null;
+  const premierJourMartine = premierJourDansLeMois(
+    options?.debutMartine,
+    selectedDate.year,
+    selectedDate.month,
+  );
+  const debutsJuges = [premierJourContrat, premierJourMartine].filter(
+    (j): j is number => typeof j === 'number',
+  );
+  const premierJourJuge = debutsJuges.length > 0 ? Math.max(...debutsJuges) : null;
+
   const monthCompletionStatus = useMemo(() => {
     if (isLoading || !isMonthDataReady) return 'a_saisir' as const;
     return computeMonthCompletionStatus(
@@ -152,9 +173,12 @@ export function useCalendar(
       selectedDate.year,
       selectedDate.month,
       isForfaitJourMode,
-      pointe
+      pointe,
+      { premierJour: premierJourJuge, dernierJour: dernierJourContrat }
     );
   }, [
+    premierJourJuge,
+    dernierJourContrat,
     plannedCalendar,
     actualHours,
     selectedDate.year,
@@ -213,6 +237,10 @@ export function useCalendar(
           jour: plannedDay.jour,
           type: plannedDay.type,
           heures_faites: apiDay ? apiDay.heures_faites : null,
+          // Arrivée et départ : affichés dans la case ; l'arrivée est renvoyée
+          // telle quelle (cf. `horairesAEnvoyer`).
+          ...(apiDay?.debut ? { debut: apiDay.debut } : {}),
+          ...(apiDay?.fin ? { fin: apiDay.fin } : {}),
         };
       });
 
@@ -344,10 +372,6 @@ export function useCalendar(
     }
   }, [plannedCalendar, actualHours, originalPlanned, originalActual, isMonthDataReady]);
 
-  const dernierJourContrat = options?.sortie
-    ? dernierJourDuContratDansLeMois(options.sortie, selectedDate.year, selectedDate.month)
-    : null;
-
   const applyWeekTemplate = useCallback(() => {
     if (!context.active || !isMonthDataReady) return;
     ++editRevision.current;
@@ -356,6 +380,8 @@ export function useCalendar(
       if (dernierJourContrat != null && day.jour > dernierJourContrat && day.origine !== 'absence') {
         return { ...day, type: 'repos', heures_prevues: 0 };
       }
+      // Avant l'entrée : hors contrat, le modèle ne pose rien.
+      if (estAvantLEntree(day.jour, premierJourContrat)) return day;
       const date = new Date(selectedDate.year, selectedDate.month - 1, day.jour);
       const dayOfWeek = date.getDay();
 
@@ -384,7 +410,7 @@ export function useCalendar(
         ? 'Le calendrier prévisionnel a été mis à jour (mode forfait jour).'
         : 'Le calendrier prévisionnel a été mis à jour.',
     });
-  }, [plannedCalendar, selectedDate, weekTemplate, isForfaitJourMode, toast, dernierJourContrat, context, isMonthDataReady]);
+  }, [plannedCalendar, selectedDate, weekTemplate, isForfaitJourMode, toast, dernierJourContrat, premierJourContrat, context, isMonthDataReady]);
 
   const queryClient = useQueryClient();
   const saveAllCalendarData = useCallback(async () => {
@@ -400,7 +426,7 @@ export function useCalendar(
     try {
       const saved = await calendarApi.saveCalendar(employeeId, selectedDate.year, selectedDate.month, {
         expected_revision: revision, calendrier_prevu: plannedCalendar,
-        calendrier_reel: actualHours, recalculate_payroll: true,
+        calendrier_reel: horairesAEnvoyer(actualHours), recalculate_payroll: true,
       }, requestContext);
       if (!isCurrent()) return false;
       const snapshot = saved.data;
@@ -467,7 +493,11 @@ export function useCalendar(
   }, [isSavingAfterApply, isSaving, saveAllCalendarData]);
 
   const updateDayData = (
-    updatedDay: Partial<DayData> & { demi_journee?: 'matin' | 'apres_midi' | null }
+    updatedDay: Partial<DayData> & {
+      demi_journee?: 'matin' | 'apres_midi' | null;
+      /** « Vider ce jour » : le jour reste vide, sans les heures du modèle. */
+      vider?: boolean;
+    }
   ) => {
     if (!context.active || !isMonthDataReady || updatedDay.jour === undefined) return;
     ++editRevision.current;
@@ -488,7 +518,7 @@ export function useCalendar(
         const prevu = newPlannedData.heures_prevues !== undefined ? newPlannedData.heures_prevues : p.heures_prevues;
         const apresLaSortie = dernierJourContrat != null && p.jour > dernierJourContrat;
         const repasseEnTravail = p.type !== 'travail' || p.heures_prevues == null;
-        if (updatedDay.type === 'travail' && repasseEnTravail && !apresLaSortie && !(Number(prevu) > 0)) {
+        if (updatedDay.type === 'travail' && !updatedDay.vider && repasseEnTravail && !apresLaSortie && !(Number(prevu) > 0)) {
           const duModele = prevuDuModeleEnRepassantEnTravail(
             weekTemplate,
             new Date(selectedDate.year, selectedDate.month - 1, p.jour),
@@ -507,6 +537,8 @@ export function useCalendar(
         if (updatedDay.type !== undefined) newActualData.type = updatedDay.type;
         if (updatedDay.heures_faites !== undefined)
           newActualData.heures_faites = updatedDay.heures_faites;
+        // Vidé : arrivée et départ partent vides, le serveur les efface.
+        if (updatedDay.vider) return { ...a, ...newActualData, debut: null, fin: null };
         return { ...a, ...newActualData };
       })
     );
@@ -732,6 +764,14 @@ export function useCalendar(
     monthCompletionStatus,
     /** Le salarié pointe sur la période : sinon, un jour sans réel n'est pas « à saisir ». */
     pointe,
+    /** Entrée dans le mois affiché : avant, « Hors contrat ». */
+    premierJourContrat,
+    /** Premier jour jugé (entrée ou début de la paie Martine). */
+    premierJourJuge,
+    /** Premier jour payé par Martine dans le mois affiché (bascule), sinon `null`. */
+    premierJourMartine,
+    /** Sortie dans le mois affiché : après, rien à saisir. */
+    dernierJourContrat,
     copyPreviousMonthPlanned,
     copyPlannedToActualForDay,
     copyPlannedToActualForDays,

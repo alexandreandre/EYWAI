@@ -74,32 +74,56 @@ def _heures(valeur: Any) -> float | None:
 def garder_les_horaires(
     entrant: Iterable[Mapping[str, Any]], stocke: Iterable[Mapping[str, Any]] | None
 ) -> list[dict[str, Any]]:
-    """Le calendrier réel enregistré à l'écran, avec les horaires pointés gardés.
+    """Le calendrier réel enregistré à l'écran, avec les horaires gardés.
 
-    L'écran ne connaît pas `debut`/`fin` et renvoie les jours sans eux : un
-    simple enregistrement les effaçait. Ils restent quand le jour n'a pas
-    changé (mêmes heures faites, toujours travaillé) ; un jour modifié à la
-    main les perd, car ils ne décriraient plus la journée. L'écran renvoie le
-    type du prévu : un samedi ou un férié travaillé arrive en « weekend » ou
-    « ferie », avec ses heures.
+    Un jour peut porter `debut` (arrivée) et `fin` (départ), pointés ou saisis
+    à la main. Trois cas, par clé :
+
+    - clé absente (badgeuse, modèle de semaine…) : l'arrivée et le départ
+      stockés restent tant que les heures n'ont pas changé ; sinon ils ne
+      décrivent plus la journée et partent ;
+    - clé présente avec une heure : l'écran la renvoie (saisie ou gardée à la
+      main), elle est enregistrée même si les heures changent (retour d'Elsa du
+      27/11 : la règle panier LEWIS se déclenche sur l'heure d'arrivée). Le
+      départ non renvoyé ne reste que si les heures et l'arrivée n'ont pas
+      bougé ;
+    - clé présente vide (`None`, « ») : effacée à l'écran.
+
+    Un jour qui n'est plus travaillé (congé, arrêt, 0 h) ne garde aucun horaire.
+    L'écran renvoie le type du prévu : un samedi ou un férié travaillé arrive en
+    « weekend » ou « ferie », avec ses heures.
     """
     par_jour: dict[Any, Mapping[str, Any]] = {}
     for e in stocke or []:
-        if isinstance(e, Mapping) and e.get("jour") is not None and e.get("debut"):
+        if isinstance(e, Mapping) and e.get("jour") is not None and (e.get("debut") or e.get("fin")):
             par_jour[e.get("jour")] = e
     out: list[dict[str, Any]] = []
     for e in entrant:
         jour = dict(e)
-        ancien = par_jour.get(jour.get("jour"))
-        if (
-            ancien is not None
-            and not jour.get("debut")
-            and str(jour.get("type") or "").strip().lower() in TYPES_AVEC_HORAIRE
+        debut_explicite = "debut" in jour
+        fin_explicite = "fin" in jour
+        for cle in ("debut", "fin"):
+            if cle in jour and not jour[cle]:
+                jour.pop(cle)
+        travaille = (
+            str(jour.get("type") or "").strip().lower() in TYPES_AVEC_HORAIRE
             and (_heures(jour.get("heures_faites")) or 0) > 0
-            and _heures(jour.get("heures_faites")) == _heures(ancien.get("heures_faites"))
-        ):
-            jour["debut"] = ancien["debut"]
-            if ancien.get("fin"):
+        )
+        if not travaille:
+            jour.pop("debut", None)
+            jour.pop("fin", None)
+            out.append(jour)
+            continue
+        ancien = par_jour.get(jour.get("jour"))
+        if ancien is not None:
+            memes_heures = _heures(jour.get("heures_faites")) == _heures(ancien.get("heures_faites"))
+            # Arrivée non envoyée : gardée seulement si les heures n'ont pas
+            # changé (badgeuse, modèle de semaine : un nouveau total ne décrit
+            # plus la même journée). L'écran qui la renvoie la garde, lui.
+            if not debut_explicite and ancien.get("debut") and memes_heures:
+                jour["debut"] = ancien["debut"]
+            meme_arrivee = jour.get("debut") == ancien.get("debut")
+            if not fin_explicite and ancien.get("fin") and memes_heures and meme_arrivee:
                 jour["fin"] = ancien["fin"]
         out.append(jour)
     return out

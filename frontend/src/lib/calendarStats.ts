@@ -276,6 +276,11 @@ export function computeEmployeeRowStatus(
     planned = planned.filter((p) => p.jour <= borne);
     actual = actual.filter((a) => a.jour <= borne);
   }
+  if (bornes.premierJour != null) {
+    const borne = bornes.premierJour;
+    planned = planned.filter((p) => p.jour >= borne);
+    actual = actual.filter((a) => a.jour >= borne);
+  }
   // Sans aucune heure pointée, le prévu fait foi : pas d'écart à signaler.
   // Sauf un 0 saisi un jour travaillé (forfait à 0 jour) : le moteur paierait
   // le prévu, l'écart est le seul signal.
@@ -303,6 +308,12 @@ export function computeEmployeeRowStatus(
  */
 export interface BornesDuMois {
   dernierJour?: number | null;
+  /**
+   * Premier jour du mois qui compte : l'entrée du salarié, ou le début de la
+   * première paie faite par Martine (les jours d'avant la bascule sont payés
+   * par l'ancien logiciel). Absent : dès le 1er.
+   */
+  premierJour?: number | null;
 }
 
 export type MotifASaisir =
@@ -338,10 +349,11 @@ export function joursASaisir(
 ): JourASaisir[] {
   const daysInMonth = new Date(year, month, 0).getDate();
   const dernier = Math.min(daysInMonth, bornes.dernierJour ?? daysInMonth);
+  const premier = Math.max(1, bornes.premierJour ?? 1);
   const plannedByDay = new Map(planned.map((p) => [p.jour, p]));
   const actualByDay = new Map(actual.map((a) => [a.jour, a]));
   const manquants: JourASaisir[] = [];
-  for (let day = 1; day <= dernier; day++) {
+  for (let day = premier; day <= dernier; day++) {
     const plannedDay = plannedByDay.get(day);
     const actualDay = actualByDay.get(day);
     if (!isDayReadyForPayroll(plannedDay, actualDay, isForfaitJour, pointe)) {
