@@ -55,6 +55,8 @@ import {
   nomsHorsReleve,
 } from './reviewRowRules';
 import { ImportPunchRuleBar } from './ImportPunchRuleBar';
+import { AnnotationsReleveBandeau, AnnotationsReleveLigne } from './AnnotationsReleve';
+import { annotationsDesLignes, estAnnotationReleve } from './annotationsReleve';
 import { joursNonLus, phraseJoursNonLus, suiteResultatJoursNonLus } from './joursNonLus';
 import {
   absentsMarques,
@@ -1040,6 +1042,14 @@ export function AssistedFillReview({
   };
 
   const globalWarnings = useMemo(() => visibleGlobalWarnings(proposal), [proposal]);
+  // Annotations du relevé (« CP », « absent 7,5 »…), jour par jour et par salarié.
+  const annotationsReleve = useMemo(
+    () =>
+      annotationsDesLignes(
+        rows.map((r) => ({ cle: r.key, nom: r.matchedName ?? r.rawName, warnings: r.warnings })),
+      ),
+    [rows],
+  );
   const noiseWarningCount = proposal.warnings.length - globalWarnings.length;
 
   const periodRangeLabel = useMemo(() => {
@@ -1382,6 +1392,8 @@ export function AssistedFillReview({
         </div>
       )}
 
+      <AnnotationsReleveBandeau groupes={annotationsReleve} />
+
       {/* Liste : overflow natif — Radix ScrollArea + max-h seul ne défile pas. */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="space-y-1.5 pr-1">
@@ -1488,11 +1500,14 @@ export function AssistedFillReview({
                     {!expanded && ' — dépliez la ligne pour voir chaque jour.'}
                   </p>
                 )}
-                {visibleRowWarnings(row.warnings, status).map((warning) => (
-                  <p key={warning} className="mt-0.5 pl-6 text-[11px] text-amber-700">
-                    {warning}
-                  </p>
-                ))}
+                {visibleRowWarnings(row.warnings, status)
+                  .filter((warning) => !estAnnotationReleve(warning))
+                  .map((warning) => (
+                    <p key={warning} className="mt-0.5 pl-6 text-[11px] text-amber-700">
+                      {warning}
+                    </p>
+                  ))}
+                <AnnotationsReleveLigne warnings={row.warnings} />
                 {needsAssociate && (
                   <p className="mt-0.5 pl-6 text-[11px] text-muted-foreground">
                     {formatDocumentNameHint(row.rawName)}
