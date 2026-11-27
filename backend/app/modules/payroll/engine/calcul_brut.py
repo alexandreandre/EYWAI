@@ -1461,6 +1461,34 @@ def _mois_precedent_paye(
     )
 
 
+def _jours_repousses_non_retenus(
+    bulletin_precedent: Optional[Dict[str, Any]],
+    jours: List[date],
+    jours_prevus: Optional[List[Dict[str, Any]]],
+    debut_du_mois: date,
+) -> bool:
+    """Le bulletin du mois précédent a-t-il laissé ces jours sans retenue ?
+
+    Sur le bulletin lui-même quand il existe : non s'il retenait le mois entier
+    (complément ou plafond de l'absence intégrale), ni s'il vient de l'ancien
+    logiciel (sans fenêtre : il couvrait son mois) ou que sa fenêtre allait
+    au-delà de ces jours ; oui sinon. Sans bulletin du mois précédent, le
+    planning tranche : un mois payé n'aura pas ces jours dans sa fenêtre."""
+    if not jours:
+        return False
+    if isinstance(bulletin_precedent, dict) and bulletin_precedent.get("existe"):
+        if bulletin_precedent.get("mois_entier"):
+            return False
+        try:
+            fin = date.fromisoformat(str(bulletin_precedent.get("fin_variables") or "")[:10])
+        except ValueError:
+            return False
+        return all(jour > fin for jour in jours)
+    if isinstance(bulletin_precedent, dict):
+        return _mois_precedent_paye(jours_prevus, debut_du_mois) is True
+    return False
+
+
 def _rendre_les_jours_repousses(
     contexte: ContextePaie, lignes: list, jours: list, montant: float
 ) -> None:
@@ -2398,15 +2426,11 @@ def calculer_salaire_brut(
     # rendu et signalé. Quand il était
     # lui-même entièrement absent, sa retenue du mois entier les couvrait déjà :
     # les compter ici avec le mois est juste (aucune ligne, aucune alerte).
-    fin_du_bulletin_precedent = getattr(contexte, "fin_variables_bulletin_precedent", None)
-    separer_les_jours_repousses = (
-        retenue_avant_le_mois > 0.01
-        and _mois_precedent_paye(jours_prevus, date_debut_periode) is True
-        # Le bulletin Martine du mois précédent s'arrêtait avant ces jours : il
-        # ne les a pas retenus. Un bulletin repris (sans fenêtre) couvrait son
-        # mois entier : les retenir ici les retiendrait deux fois.
-        and isinstance(fin_du_bulletin_precedent, date)
-        and all(jour > fin_du_bulletin_precedent for jour in jours_avant_le_mois)
+    separer_les_jours_repousses = retenue_avant_le_mois > 0.01 and _jours_repousses_non_retenus(
+        getattr(contexte, "bulletin_precedent", None),
+        jours_avant_le_mois,
+        jours_prevus,
+        date_debut_periode,
     )
     retenue_du_mois = montant_absence_pleine_total - (
         retenue_avant_le_mois if separer_les_jours_repousses else 0.0

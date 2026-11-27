@@ -817,19 +817,17 @@ def absence_non_remuneree_avant_le_mois(
     return False
 
 
-def fin_variables_du_bulletin_precedent(
+def bulletin_precedent_pour_le_moteur(
     employee_id: str,
     year: int,
     month: int,
-    debut_variables: date,
     contract_period_id: str | None = None,
-) -> str | None:
-    """La fin de la fenêtre des variables du bulletin Martine du mois précédent
-    (ISO), lue seulement quand la fenêtre de ce mois commence avant le mois
-    civil. None sans bulletin précédent ou pour un bulletin repris de l'ancien
-    logiciel (sans fenêtre : il couvrait son mois entier)."""
-    if debut_variables >= date(year, month, 1):
-        return None
+) -> dict:
+    """Ce que le moteur doit savoir du bulletin du mois précédent pour les jours
+    que la fenêtre des variables y repousse : s'il existe, où sa fenêtre
+    s'arrêtait (None pour un bulletin repris de l'ancien logiciel, qui couvrait
+    son mois entier) et s'il retenait le mois entier (complément ou plafond de
+    l'absence intégrale : ces jours y étaient compris)."""
     precedent = (year, month - 1) if month > 1 else (year - 1, 12)
     requete = (
         supabase.table("payslips")
@@ -839,9 +837,20 @@ def fin_variables_du_bulletin_precedent(
         .eq("month", precedent[1])
     )
     lignes = getattr(du_contrat(requete, contract_period_id).execute(), "data", None) or []
-    donnees = ((lignes[0] or {}).get("payslip_data") or {}) if lignes else {}
-    valeur = (donnees.get("en_tete") or {}).get("date_fin_variables") if isinstance(donnees, dict) else None
-    return str(valeur)[:10] if valeur else None
+    if not lignes:
+        return {"existe": False, "fin_variables": None, "mois_entier": False}
+    donnees = (lignes[0] or {}).get("payslip_data") or {}
+    if not isinstance(donnees, dict):
+        donnees = {}
+    fin = (donnees.get("en_tete") or {}).get("date_fin_variables")
+    return {
+        "existe": True,
+        "fin_variables": str(fin)[:10] if fin else None,
+        "mois_entier": any(
+            str(l.get("libelle") or "").startswith(_LIBELLES_DU_MOIS_ENTIER)
+            for l in _lignes_d_absence(donnees)
+        ),
+    }
 
 
 def neutralisation_de_l_anciennete(
@@ -1445,11 +1454,9 @@ def process_payslip_generation(
         # mois restent ici.
         saisies_data["acompte"] = net_a_payer_only_correction_total
         # Jours repoussés du mois précédent : le moteur ne les dit « non retenus »
-        # que si le bulletin Martine du mois précédent s'arrêtait avant eux.
-        saisies_data["fin_variables_bulletin_precedent"] = (
-            fin_variables_du_bulletin_precedent(
-                employee_id, year, month, fenetre_variables.debut, contract_period_id
-            )
+        # que si le bulletin du mois précédent ne les a pas retenus.
+        saisies_data["bulletin_precedent"] = (
+            bulletin_precedent_pour_le_moteur(employee_id, year, month, contract_period_id)
             if absence_non_remuneree_avant_le_mois(
                 planned_data_all_months, fenetre_variables.debut, year, month
             )

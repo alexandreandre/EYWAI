@@ -57,9 +57,12 @@ def _prevus_d_un_mois(annee: int, mois: int, type_ouvre: str) -> list[dict]:
     ]
 
 
+_NOVEMBRE_MARTINE = {"existe": True, "fin_variables": "2026-11-22", "mois_entier": False}
+
+
 def _decembre(
     monkeypatch, novembre_au_planning: str | None, duree=35.0, salaire=1870.83,
-    fin_bulletin_novembre: date | None = date(2026, 11, 22),
+    bulletin_novembre: dict | None = _NOVEMBRE_MARTINE,
 ):
     from app.modules.payroll.engine import calcul_brut as cb
 
@@ -71,7 +74,7 @@ def _decembre(
     extra = {"specificites_extra": {"salaire_hors_hs_structurelles": True}} if duree > 35 else {}
     contexte = build_test_contexte(salaire_base=salaire, duree_hebdo=duree, date_entree="2020-01-06", **extra)
     contexte.alertes_baremes = []
-    contexte.fin_variables_bulletin_precedent = fin_bulletin_novembre
+    contexte.bulletin_precedent = bulletin_novembre
     prevus = (
         _prevus_d_un_mois(2026, 11, novembre_au_planning) if novembre_au_planning else None
     )
@@ -99,9 +102,14 @@ def test_novembre_paye_les_jours_repousses_non_retenus_sont_rendus_et_signales(m
 
 def test_novembre_deja_entierement_absent_l_absorption_est_juste(monkeypatch):
     """Sans solde continu : le bulletin de novembre retenait déjà le mois entier,
-    jours de fin de mois compris. Ni ligne ni alerte (elle ferait retenir deux fois)."""
-    for planning in ("absence_non_remuneree", None):
-        r, contexte = _decembre(monkeypatch, planning)
+    jours de fin de mois compris. Ni ligne ni alerte (elle ferait retenir deux fois).
+    Sans bulletin de novembre, le planning tranche (mois entièrement absent)."""
+    entier = {"existe": True, "fin_variables": "2026-11-22", "mois_entier": True}
+    sans_bulletin = {"existe": False, "fin_variables": None, "mois_entier": False}
+    for planning, bulletin in (
+        ("travail", entier), ("absence_non_remuneree", sans_bulletin), (None, sans_bulletin), ("travail", None),
+    ):
+        r, contexte = _decembre(monkeypatch, planning, bulletin_novembre=bulletin)
         assert r["salaire_brut_total"] == pytest.approx(0.0, abs=0.01)
         assert not any("non retenues" in l["libelle"] for l in r["lignes_composants_brut"])
         assert contexte.alertes_baremes == []
@@ -111,8 +119,10 @@ def test_bulletin_precedent_repris_qui_couvrait_son_mois_ni_ligne_ni_alerte(monk
     """Novembre payé mais son bulletin vient de l'ancien logiciel (pas de fenêtre :
     il couvrait le mois entier, jours de fin de mois compris), ou sa fenêtre
     allait au-delà de ces jours : rien n'est à porter (Mont Blanc, avril 2026)."""
-    for fin in (None, date(2026, 11, 30)):
-        r, contexte = _decembre(monkeypatch, "travail", fin_bulletin_novembre=fin)
+    for fin in (None, "2026-11-30"):
+        r, contexte = _decembre(
+            monkeypatch, "travail", bulletin_novembre={"existe": True, "fin_variables": fin, "mois_entier": False}
+        )
         assert not any("non retenues" in l["libelle"] for l in r["lignes_composants_brut"])
         assert contexte.alertes_baremes == []
         assert r["salaire_brut_total"] == pytest.approx(0.0, abs=0.01)
@@ -141,7 +151,7 @@ def test_jamais_de_brut_negatif_avec_un_ferie_paye_hors_absence(monkeypatch, dur
     extra = {"specificites_extra": {"salaire_hors_hs_structurelles": True}} if duree > 35 else {}
     ctx = build_test_contexte(salaire_base=salaire, duree_hebdo=duree, date_entree="2020-01-06", **extra)
     ctx.alertes_baremes = []
-    ctx.fin_variables_bulletin_precedent = date(2026, 4, 26)
+    ctx.bulletin_precedent = {"existe": True, "fin_variables": "2026-04-26", "mois_entier": False}
     r = cb.calculer_salaire_brut(
         ctx, cal, date(2026, 5, 1), date(2026, 5, 31), [], nb_jours_travail_planifies=0,
         date_debut_variables=date(2026, 4, 27), date_fin_variables=date(2026, 5, 22),
@@ -421,14 +431,54 @@ def test_un_jour_repasse_en_travail_garde_son_plafond():
     assert ratio == pytest.approx(1 / 30, abs=1e-6)
 
 
-def test_la_fin_de_fenetre_du_bulletin_precedent(monkeypatch):
+def test_ce_que_le_moteur_sait_du_bulletin_precedent(monkeypatch):
     from app.modules.payroll.documents import payslip_generator as pg
 
-    base = BaseEnMemoire({"payslips": [{"employee_id": "e-1", "year": 2026, "month": 11, "contract_period_id": None,
-                                        "payslip_data": {"en_tete": {"date_fin_variables": "2026-11-22"}}}]})
-    monkeypatch.setattr(pg, "supabase", base)
-    assert pg.fin_variables_du_bulletin_precedent("e-1", 2026, 12, date(2026, 11, 23)) == "2026-11-22"
-    assert pg.fin_variables_du_bulletin_precedent("e-1", 2026, 12, date(2026, 12, 1)) is None
+    def bulletin(lignes, fin="2026-11-22"):
+        return {"employee_id": "e-1", "year": 2026, "month": 11, "contract_period_id": None,
+                "payslip_data": {"en_tete": {"date_fin_variables": fin}, "details_absences": lignes}}
+
+    monkeypatch.setattr(pg, "supabase", BaseEnMemoire({"payslips": [bulletin([])]}))
+    assert pg.bulletin_precedent_pour_le_moteur("e-1", 2026, 12) == {
+        "existe": True, "fin_variables": "2026-11-22", "mois_entier": False}
+    monkeypatch.setattr(pg, "supabase", BaseEnMemoire({"payslips": [bulletin(
+        [{"libelle": "Retenue absence intégrale du mois limitée au salaire mensuel"}])]}))
+    assert pg.bulletin_precedent_pour_le_moteur("e-1", 2026, 12)["mois_entier"] is True
+    monkeypatch.setattr(pg, "supabase", BaseEnMemoire({"payslips": [bulletin([], fin=None)]}))
+    assert pg.bulletin_precedent_pour_le_moteur("e-1", 2026, 12)["fin_variables"] is None
+    monkeypatch.setattr(pg, "supabase", BaseEnMemoire({"payslips": []}))
+    assert pg.bulletin_precedent_pour_le_moteur("e-1", 2026, 12)["existe"] is False
+
+
+@pytest.mark.parametrize("juin", ["absence_non_remuneree", "arret_maladie"])
+def test_mai_avec_ferie_paye_puis_juin_entier_les_jours_de_fin_mai_ne_se_perdent_pas(monkeypatch, juin):
+    """Troisième relecture : 35 h, 2 000 €, fenêtre du 26 au 25. Mai : 1er mai férié
+    payé, sans solde du 4 au 29 : son bulletin (pas « mois entier ») s'arrête au 25
+    et ne retient pas les 26-29/05. Juin entièrement absent : ces jours, qui ne
+    tiennent plus sur rien, sont rendus en clair et signalés — jamais retenus nulle part
+    en silence. Le planning de mai (aucun jour travaillé) n'y change rien : c'est le
+    bulletin de mai qui décide."""
+    from app.modules.payroll.engine import calcul_brut as cb
+
+    monkeypatch.setattr(cb, "coefficient_horaire_reel", lambda *_: 1.0)
+    cal = _jours(date(2026, 5, 26), date(2026, 5, 29))
+    cal += [{**j, "type": juin} for j in _jours(date(2026, 6, 1), date(2026, 6, 30))]
+    prevus = [{"annee": 2026, "mois": 5, "jour": 1, "type": "ferie", "heures_prevues": 7.0}] + [
+        {"annee": 2026, "mois": 5, "jour": d, "type": "absence_non_remuneree", "heures_prevues": 7.0}
+        for d in range(4, 30)
+    ]
+    ctx = build_test_contexte(salaire_base=2000.0, duree_hebdo=35.0, date_entree="2020-01-06")
+    ctx.alertes_baremes = []
+    ctx.bulletin_precedent = {"existe": True, "fin_variables": "2026-05-25", "mois_entier": False}
+    r = cb.calculer_salaire_brut(
+        ctx, cal, date(2026, 6, 1), date(2026, 6, 30), [], nb_jours_travail_planifies=0,
+        date_debut_variables=date(2026, 5, 26), date_fin_variables=date(2026, 6, 25), jours_prevus=prevus,
+    )
+    assert r["salaire_brut_total"] >= -0.005
+    if juin == "absence_non_remuneree":
+        ligne = next(l for l in r["lignes_composants_brut"] if "non retenues" in l["libelle"])
+        assert ligne["gain"] > 0
+        assert any(a["code"] == "absences_mois_precedent_non_retenues" for a in ctx.alertes_baremes)
 
 
 def test_le_bulletin_precedent_n_est_relu_qu_avec_des_jours_repousses():
