@@ -1684,6 +1684,8 @@ def run_payslip_generation_heures(
         date_fin_periode,
         saisie_du_mois,
         effet_du_report.blocs,
+        contexte=contexte,
+        bornes_variables=(date_debut_variables, date_fin_variables),
     )
 
     smic_calcule_mois = (

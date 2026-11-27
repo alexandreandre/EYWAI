@@ -84,6 +84,7 @@ FAMILLES_RETENUES_FORFAIT = (
     "brut:absence_maladie",
     "brut:arret",
     "brut:retenue_absence_mois_complet",
+    "brut:retenue_arret_reporte_periode",
 )
 
 
@@ -298,6 +299,35 @@ def _ajouter_lignes_de_fin_de_contrat(
     if iccp_legale_calculee or iccp_saisie:
         lignes_sortie = [l for l in lignes_sortie if l.get("libelle") != LIBELLE_ICCP_DEPART]
     lignes.extend(lignes_sortie)
+
+
+def _jours_ouvres_entre(debut: date, fin: date) -> set[date]:
+    return {
+        debut + timedelta(days=k)
+        for k in range((fin - debut).days + 1)
+        if (debut + timedelta(days=k)).weekday() < 5
+    }
+
+
+def _toute_la_periode_d_origine(contexte: ContextePaie, jours: set[date], fin_de_periode: date) -> bool:
+    """Les jours reportés couvrent-ils tous les jours ouvrés de leur période d'origine ?"""
+    from .period_forfait import definir_periode_de_paie
+
+    premier = min(jours)
+    debut_mois = premier.replace(day=1)
+    fin_mois = (debut_mois + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    if _jours_ouvres_entre(debut_mois, fin_mois) <= jours:
+        return True
+    annee, mois = (fin_de_periode.year, fin_de_periode.month - 1) if fin_de_periode.month > 1 else (
+        fin_de_periode.year - 1,
+        12,
+    )
+    try:
+        debut, fin = definir_periode_de_paie(contexte, annee, mois)
+    except Exception:
+        return False
+    ouvres = _jours_ouvres_entre(debut, fin)
+    return bool(ouvres) and ouvres <= jours
 
 
 def calculer_salaire_brut_forfait(
@@ -569,7 +599,8 @@ def calculer_salaire_brut_forfait(
         if not (
             evenement.get("arret_reporte")
             and str(evenement.get("type") or "").startswith("arret")
-        ):
+        ) or evenement.get("sans_retenue"):
+            # Requalifié d'une absence déjà retenue : maintien et IJ seulement.
             continue
         try:
             jour_arret = date.fromisoformat(evenement["date_complete"])
@@ -597,6 +628,32 @@ def calculer_salaire_brut_forfait(
                 "arret_reporte": True,
             }
         )
+    # Toute la période d'origine reportée (son mois civil, ou la période de paie
+    # d'avant) : la retenue vaut le salaire du mois, comme aux heures.
+    if jours_d_arret_reporte and _toute_la_periode_d_origine(
+        contexte, set(jours_d_arret_reporte), date_fin_periode
+    ):
+        complement_reporte = round(
+            salaire_contractuel
+            - sum(
+                l.get("perte") or 0.0
+                for l in lignes_composants_brut
+                if l.get("arret_reporte")
+            ),
+            2,
+        )
+        if abs(complement_reporte) >= 0.01:
+            retenues_absence_mois += complement_reporte
+            lignes_composants_brut.append(
+                {
+                    "libelle": "Arrêt reporté sur toute la période : retenue ramenée au salaire du mois",
+                    "quantite": None,
+                    "taux": None,
+                    "gain": None if complement_reporte > 0 else round(-complement_reporte, 2),
+                    "perte": complement_reporte if complement_reporte > 0 else None,
+                    "arret_reporte": True,
+                }
+            )
 
     # 3. Calcul des congés payés (somme des quotités : une demi-journée = 0,5)
     if jours_conges_dans_periode:

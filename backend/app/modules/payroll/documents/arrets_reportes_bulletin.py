@@ -169,20 +169,26 @@ def maintien_des_arrets_reportes(
         # IJ saisies pour le mois : sans arrêt du mois, elles sont celles de
         # l'arrêt reporté ; avec un arrêt du mois, elles lui reviennent et
         # l'estimation de l'arrêt reporté ne s'y ajoute pas (dit plus bas).
-        ij_saisies_ailleurs = override is not None and (avec_arret_du_mois or len(groupes) > 1)
+        # Plusieurs arrêts reportés sans arrêt du mois : la saisie va au premier,
+        # les autres ne reçoivent pas d'estimation en plus.
+        ij_saisies_ailleurs = override is not None and (avec_arret_du_mois or bool(blocs))
         if override is not None and not ij_saisies_ailleurs:
             arret["ijss_brut_override"] = override
         poser_salaires_de_reference(arret, employee_id)
         resultat = calculer_maintien(arret, contexte, settings, debut, fin)
         noter_l_arret_apres_la_sortie(arret, resultat)
         if ij_saisies_ailleurs:
-            resultat = _sans_ij_estimees(resultat, jours)
+            resultat = _sans_ij_estimees(
+                resultat,
+                jours,
+                "celui de l'arrêt du mois" if avec_arret_du_mois else f"celui de l'arrêt reporté {libelle_des_jours(blocs[0].jours)}",
+            )
         absence_id = next((str(ev.get("absence_id") or "") for _, ev in groupe if ev.get("absence_id")), "")
         blocs.append(BlocReporte(absence_id, jours, resultat))
     return blocs
 
 
-def _sans_ij_estimees(resultat: dict[str, Any], jours: list[date]) -> dict[str, Any]:
+def _sans_ij_estimees(resultat: dict[str, Any], jours: list[date], attribue_a: str) -> dict[str, Any]:
     """IJ saisies pour le mois : l'estimation de l'arrêt reporté ne s'y ajoute jamais."""
     resultat = copy.deepcopy(resultat)
     ijss = resultat.setdefault("ijss", {})
@@ -192,7 +198,7 @@ def _sans_ij_estimees(resultat: dict[str, Any], jours: list[date]) -> dict[str, 
     if estimees > 0:
         resultat.setdefault("alertes", []).append(
             f"IJ de l'arrêt reporté {libelle_des_jours(jours)} ({estimees:.2f} € estimés) non versées : "
-            "le montant d'IJ saisi pour le mois est celui de l'arrêt du mois. "
+            f"le montant d'IJ saisi pour le mois est {attribue_a}. "
             "Si la CPAM les a payées avec, ajoutez-les à la saisie."
         )
     return resultat
@@ -313,33 +319,61 @@ def resume_des_arrets_reportes(blocs: list[BlocReporte]) -> list[dict[str, Any]]
     return resume
 
 
+#: Absences d'un autre type, retenues ou payées : la trace les note pour
+#: qu'une requalification en arrêt ne les retienne pas deux fois.
+_NATURES_DU_CALENDRIER = {
+    "absence_non_remuneree": "sans_solde",
+    "conges_payes": "conge",
+    "activite_partielle": "activite_partielle",
+    "rtt": "autre",
+    "conge": "autre",
+    "evenement_familial": "autre",
+}
+
+
+def _nature_du_jour(ev: dict[str, Any]) -> str | None:
+    type_ev = str(ev.get("type") or "")
+    if "absence_injustifiee" in type_ev:
+        return "sans_solde"
+    return _NATURES_DU_CALENDRIER.get(type_ev)
+
+
 def trace_des_arrets(
     calendrier: list[dict[str, Any]],
     debut: date,
     fin: date,
     repris: set[date] | frozenset[date] = frozenset(),
+    *,
+    contexte: Any = None,
+    bornes_variables: tuple[date, date] | None = None,
 ) -> dict[str, Any]:
-    """Les jours d'arrêt que ce bulletin a traités, et ceux qu'il reprend.
+    """Les jours d'absence que ce bulletin a traités, et les arrêts qu'il reprend.
 
-    `jours_comptes` : chaque jour calendaire d'un arrêt présent au calendrier
-    du bulletin dans sa période, week-ends compris (de son vrai début à sa vraie
-    fin, bornés à la période), hors jours déjà repris par le bulletin suivant
-    (`repris`) : ceux-là, ce bulletin ne les a pas comptés. Un jour absent de
-    cette liste n'était pas connu quand le bulletin a été calculé : le
-    bulletin suivant le reprend.
+    - `jours_comptes` : chaque jour calendaire d'un arrêt présent au calendrier
+      dans la période, week-ends compris (de son vrai début à sa vraie fin,
+      bornés à la période), hors jours repris par le bulletin suivant ;
+    - `jours_retenus` : les autres absences du bulletin (sans solde, congé,
+      activité partielle…), par nature, sur la période ou la fenêtre des
+      variables qui les porte ;
+    - `jours_repris_par_le_suivant` : jours d'arrêt écartés parce que le bulletin
+      suivant les avait repris : il les garde même si ce bulletin-ci est en brouillon ;
+    - `reportes` : jours d'arrêt du bulletin précédent repris ici, sous contrat.
     """
     comptes: set[date] = set()
-    reportes: dict[date, str] = {}
+    retenus: dict[date, str] = {}
+    debut_var, fin_var = bornes_variables or (debut, fin)
     for ev in calendrier or []:
+        d = _jour(ev)
+        if d is None or ev.get("arret_reporte") or ev.get("is_regularisation_anterieure"):
+            continue
+        nature = _nature_du_jour(ev)
+        if nature is not None:
+            if debut_var <= d <= fin_var if nature == "sans_solde" else debut <= d <= fin:
+                retenus.setdefault(d, nature)
+            continue
         if not str(ev.get("type") or "").startswith("arret") and not ev.get("date_debut_arret_reel"):
             continue
-        d = _jour(ev)
-        if d is None:
-            continue
-        if ev.get("arret_reporte"):
-            reportes[d] = str(ev.get("absence_id") or "")
-            continue
-        if ev.get("is_regularisation_anterieure") or not (debut <= d <= fin):
+        if not (debut <= d <= fin):
             continue
         comptes.add(d)
         try:
@@ -353,11 +387,20 @@ def trace_des_arrets(
         while jour <= min(vraie_fin, fin):
             comptes.add(jour)
             jour += timedelta(days=1)
-    comptes -= set(repris)
+    exclus = {j for j in repris if debut <= j <= fin}
+    comptes -= exclus
+    reportes = (
+        jours_reportes_sous_contrat(calendrier, contexte)
+        if contexte is not None
+        else jours_reportes_du_calendrier(calendrier)
+    )
     return {
         "jours_comptes": [j.isoformat() for j in sorted(comptes)],
+        "jours_retenus": {j.isoformat(): retenus[j] for j in sorted(retenus) if j not in comptes},
+        "jours_repris_par_le_suivant": [j.isoformat() for j in sorted(exclus)],
         "reportes": [
-            {"date": j.isoformat(), "absence_id": reportes[j]} for j in sorted(reportes)
+            {"date": d.isoformat(), "absence_id": str(ev.get("absence_id") or "")}
+            for d, ev in reportes
         ],
     }
 
@@ -369,11 +412,16 @@ def poser_la_trace(
     fin: date,
     saisie_du_mois: dict[str, Any] | None = None,
     blocs: list[BlocReporte] | None = None,
+    *,
+    contexte: Any = None,
+    bornes_variables: tuple[date, date] | None = None,
 ) -> None:
     """Sur tout bulletin calculé, même sans arrêt : une trace vide dit « rien
     compté ». Les blocs des arrêts reportés l'accompagnent."""
     repris = Report.depuis_les_saisies(saisie_du_mois).repris
-    bulletin[CLE_TRACE] = trace_des_arrets(calendrier, debut, fin, repris)
+    bulletin[CLE_TRACE] = trace_des_arrets(
+        calendrier, debut, fin, repris, contexte=contexte, bornes_variables=bornes_variables
+    )
     if blocs:
         bulletin[CLE_ARRETS_REPORTES] = resume_des_arrets_reportes(blocs)
 

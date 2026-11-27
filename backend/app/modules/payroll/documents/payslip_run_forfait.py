@@ -976,6 +976,7 @@ def run_payslip_generation_forfait(
         date_fin_periode,
         saisie_du_mois,
         effet_du_report.blocs,
+        contexte=contexte,
     )
 
     smic_calcule_mois = (

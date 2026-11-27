@@ -1899,6 +1899,9 @@ def calculer_salaire_brut(
     # en fin de calcul, quand la quote-part journaliere est connue.
     jours_absence_legale_ferie = 0.0
     jours_absence_legale_arret = 0.0
+    #: Dont jours d'arrêts reportés d'un bulletin précédent : leur part d'HS
+    #: structurelles porte sur le mois d'avant, hors du plafond de ce mois-ci.
+    jours_absence_legale_reportes = 0.0
     # Cumul des retenues "absence non rémunérée" / "arrêt maladie" / "réduction
     # HS structurelles" déjà appliquées jour par jour — comparé au montant
     # mensualisé total (ci-dessus) UNIQUEMENT si `nb_jours_travail_planifies==0`
@@ -2151,6 +2154,10 @@ def calculer_salaire_brut(
             jour_arret = date.fromisoformat(evenement["date_complete"])
             if jour_arret.weekday() >= 5 and not float(evenement.get("heures") or 0):
                 continue
+            # Arrêt reporté sur un jour déjà retenu comme absence non rémunérée
+            # (requalifié) : pas de seconde retenue ; maintien et IJ seulement.
+            if evenement.get("arret_reporte") and evenement.get("sans_retenue"):
+                continue
             heures_abs = min(
                 _heures_evenement_absence(evenement, duree_contrat_hebdo),
                 _heures_journalieres_contrat(duree_contrat_hebdo),
@@ -2171,6 +2178,8 @@ def calculer_salaire_brut(
                     heures_abs / lc.DUREE_LEGALE_HEBDO * 5
                 )
                 jours_absence_legale_arret += heures_abs / lc.DUREE_LEGALE_HEBDO * 5
+            if regularisation == "reporte":
+                jours_absence_legale_reportes += heures_abs / lc.DUREE_LEGALE_HEBDO * 5
             # La retenue s'écrit par période et par nature, après la boucle.
             jours_d_arret_a_retenir.append(
                 (jour_arret, _nature_de_l_arret(evenement), heures_abs, regularisation)
@@ -2202,6 +2211,7 @@ def calculer_salaire_brut(
     # jour ne génère pas non plus sa quote-part de l'heure supplémentaire structurelle de
     # ce jour-là (17,33 h/mois répartis sur les jours ouvrés légaux du mois).
     heures_hs_perdues = 0.0
+    heures_hs_perdues_reportees = 0.0
     if jours_absence_legale_equivalents > 0 and heures_sup_structurelles_mensuelles > 0:
         jours_legaux_mensuels = (
             jours_ouvres_presence
@@ -2219,6 +2229,7 @@ def calculer_salaire_brut(
         heures_hs_perdues = (
             quote_part_hs_journaliere * jours_absence_legale_equivalents
         )
+        heures_hs_perdues_reportees = quote_part_hs_journaliere * jours_absence_legale_reportes
         # Un jour non travaillé et non payé ne vaut pas 7 h mais 7,80 sur un
         # contrat de 39 h : 7 h de base plus la quote-part d'heure sup
         # structurelle du jour. Le brut retirait bien les deux, mais le
@@ -2241,7 +2252,10 @@ def calculer_salaire_brut(
         if heures_hs_perdues > 0:
             taux_hs_retenue = taux_horaire_majore * coef_retenue_du_mois
             montant_reduction_hs = round(heures_hs_perdues * taux_hs_retenue, 2)
-            montant_absence_pleine_total += montant_reduction_hs
+            # La part des jours reportés ne se ramène pas au salaire du mois.
+            montant_absence_pleine_total += montant_reduction_hs - round(
+                heures_hs_perdues_reportees * taux_hs_retenue, 2
+            )
             lignes_composants_brut.append(
                 {
                     "libelle": "Heures sup. du contrat non faites (absence)",
