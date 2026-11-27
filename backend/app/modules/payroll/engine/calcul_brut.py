@@ -2988,6 +2988,9 @@ def calculer_salaire_brut(
         # Heures retirées de la paie par une absence non rémunérée : à sortir du
         # SMIC de référence de la réduction générale (arrêt maladie exclu).
         "heures_absence_non_payees": round(heures_absence_non_payees, 2),
+        # Salaire du mois retenu en entier (aucun jour prévu travaillé) : les heures du
+        # contrat que la retenue jour par jour ne couvre pas ne sont pas payées non plus.
+        "salaire_retenu_en_entier": bool(salaire_retenu_en_entier),
         # Part « heures sup structurelles » de ces absences, déjà retirée du brut
         # par la ligne « Heures sup. du contrat non faites ». Le compteur d'heures sup
         # imprimé la retranche aussi (salarié 068 16,97 et non 17,33 ; salarié 140

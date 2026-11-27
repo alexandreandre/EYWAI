@@ -1588,15 +1588,40 @@ def run_payslip_generation_heures(
     )
     signaler_rappels_de_maintien_en_prime_libre(contexte, primes_soumises)
 
+    heures_absence_non_payees = float(resultat_brut.get("heures_absence_non_payees", 0.0) or 0.0)
+    heures_base_payees = max(0.0, heures_base_mois - heures_activite_partielle)
+    # Mois au salaire retenu en entier : la retenue jour par jour ne couvre pas toutes les
+    # heures du contrat (20 jours × 7 h = 140 h sur 151,67 h en février), le complément en
+    # retient l'argent mais en laissait les heures dans le SMIC de référence. Elles suivent
+    # l'absence : non payées dans la même proportion qu'elle (un arrêt maintenu les garde).
+    # Le salaire minimum se proratise sur la rémunération que l'absence laisse (BOSS,
+    # allègements généraux, § 760 à 790 ; CSS D. 241-7, IV) : mois sans salaire, aucune
+    # heure. Mont Blanc, février, mois entier sans solde : 18,91 h restaient, 120,30 € de
+    # réduction sur la seule prime d'ancienneté. Les heures sup structurelles du contrat
+    # (36,67 h) sont retenues avec le salaire : elles en font partie ; les conjoncturelles non.
+    heures_residuelles_non_payees = 0.0
+    if resultat_brut.get("salaire_retenu_en_entier"):
+        retirees = heures_absence_non_payees + heures_arret
+        heures_sup_structurelles = max(
+            0.0,
+            float(total_heures_supp or 0.0)
+            - float(resultat_brut.get("heures_sup_conjoncturelles", 0.0) or 0.0),
+        )
+        residu = heures_base_payees + heures_sup_structurelles - retirees
+        if residu > 0.0 and retirees > 0.0:
+            part_non_payee = min(1.0, (heures_absence_non_payees + heures_arret_non_maintenues) / retirees)
+            heures_residuelles_non_payees = round(residu * part_non_payee, 2)
+
     heures_remunerees_reduction = max(
         0.0,
-        max(0.0, heures_base_mois - heures_activite_partielle)
+        heures_base_payees
         - heures_arret_non_maintenues
+        - heures_residuelles_non_payees
         + heures_retablies_par_rappels
         + float(resultat_brut.get("heures_normales_regularisees", 0.0) or 0.0)
         + float(total_heures_supp or 0.0)
         + float(resultat_brut.get("heures_complementaires", 0.0) or 0.0)
-        - float(resultat_brut.get("heures_absence_non_payees", 0.0) or 0.0),
+        - heures_absence_non_payees,
     )
 
     ligne_exoneration_jei = calculer_exoneration_jei(
