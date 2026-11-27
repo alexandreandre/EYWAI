@@ -67,6 +67,7 @@ import {
   type JourVide,
 } from './casesAbsent';
 import { TYPE_ABSENT_A_TYPER } from '@/lib/absentATyper';
+import { modifierLeJour } from './modificationDuJour';
 import { libelleBadges } from './badgesDuJour';
 import { avertissementsDuJour, phraseResume, resumeAvertissements } from './avertissementsDuJour';
 import {
@@ -190,6 +191,8 @@ interface AssistedFillReviewProps {
   onApplied: (meta?: AssistedFillApplyMeta) => void;
   onBack: () => void;
   batchId?: string | null;
+  /** Relevés importés ensemble : le lot de chaque fichier, `batchId` compris. */
+  batchIds?: string[];
   /**
    * Correction par consigne pendant la revue : reçoit le texte et l'état
    * courant des jours (source de vérité), renvoie true si la proposition a
@@ -413,6 +416,7 @@ export function AssistedFillReview({
   onApplied,
   onBack,
   batchId = null,
+  batchIds = [],
   onRefine,
   isRefining = false,
 }: AssistedFillReviewProps) {
@@ -773,7 +777,7 @@ export function AssistedFillReview({
     setRows((prev) =>
       prev.map((r) =>
         r.key === rowKey
-          ? { ...r, days: r.days.map((d) => (memeJour(d, jour) ? { ...d, ...patch } : d)) }
+          ? { ...r, days: r.days.map((d) => (memeJour(d, jour) ? modifierLeJour(d, patch) : d)) }
           : r,
       ),
     );
@@ -975,7 +979,7 @@ export function AssistedFillReview({
             month: d.month ?? null,
           })),
         })),
-        { batchId: batchId ?? undefined, allowPartial: true },
+        { batchId: batchId ?? undefined, batchIds, allowPartial: true },
       );
 
       const applyMeta: AssistedFillApplyMeta = {
@@ -1588,7 +1592,14 @@ export function AssistedFillReview({
                             data-testid="badges-du-jour"
                           >
                             {libelleBadges(day.punch_entry_raw, day.punch_exit_raw)}
-                            {day.heures_fixees_par_fichier && ' · heures retenues du fichier'}
+                          </span>
+                        )}
+                        {day.heures_fixees_par_fichier && (
+                          <span
+                            className="text-[10px] text-muted-foreground"
+                            data-testid="heures-retenues-du-fichier"
+                          >
+                            heures retenues du fichier
                           </span>
                         )}
                         {vide && (
@@ -1609,7 +1620,7 @@ export function AssistedFillReview({
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
-                        {avertissementsDuJour(row.warnings, day.jour).map((message) => (
+                        {avertissementsDuJour(row.warnings, day.jour, day.month ?? proposal.month).map((message) => (
                           <p
                             key={message}
                             className="basis-full pl-[5.5rem] text-[10px] text-amber-800"

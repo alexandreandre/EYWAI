@@ -627,7 +627,13 @@ export const persistTimesheetBatch = async (
   year: number,
   month: number,
   employees: PersistTimesheetEmployeePayload[],
-  options?: { batchId?: string; allowPartial?: boolean; recalculatePayroll?: boolean },
+  options?: {
+    batchId?: string;
+    /** Relevés importés ensemble : le lot de chaque fichier (27/11). */
+    batchIds?: string[];
+    allowPartial?: boolean;
+    recalculatePayroll?: boolean;
+  },
 ): Promise<PersistTimesheetResponse> => {
   const { data } = await apiClient.post<PersistTimesheetResponse>(
     '/api/schedules/assisted-fill/persist-timesheet',
@@ -636,6 +642,7 @@ export const persistTimesheetBatch = async (
       month,
       employees,
       batch_id: options?.batchId ?? null,
+      batch_ids: options?.batchIds ?? [],
       allow_partial: options?.allowPartial ?? false,
       recalculate_payroll: options?.recalculatePayroll ?? false,
     },

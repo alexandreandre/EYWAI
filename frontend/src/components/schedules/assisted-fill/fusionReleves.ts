@@ -42,6 +42,27 @@ function dansLaFusion(d: AiDayEntry, releve: Mois, fusion: Mois): AiDayEntry {
 
 const cleJour = (d: AiDayEntry, fusion: Mois) => cleMois(moisDuJour(d, fusion)) * 100 + d.jour;
 
+const deux = (n: number) => String(n).padStart(2, '0');
+const AVERTISSEMENT_DU_JOUR = /^(\s*Jour )(\d{1,2}) : (.+)$/;
+
+/**
+ * « Jour 21 : … » d'un relevé devient « Jour 21/09/2026 : … » : fusionnés,
+ * deux mois peuvent avoir un 21, l'avertissement dit lequel.
+ */
+function avertissementsDates(e: AiEmployeeProposal, releve: Mois): string[] {
+  return e.warnings.map((w) => {
+    const m = AVERTISSEMENT_DU_JOUR.exec(w);
+    if (!m) return w;
+    const numero = Number(m[2]);
+    const leJour = e.days.find((d) => d.jour === numero);
+    const mois = leJour ? moisDuJour(leJour, releve) : releve;
+    return `${m[1]}${deux(numero)}/${deux(mois.month)}/${mois.year} : ${m[3]}`;
+  });
+}
+
+const somme = (a?: number | null, b?: number | null) =>
+  a == null && b == null ? null : (a ?? 0) + (b ?? 0);
+
 export function mergeEmployeeProposals(
   existing: AiEmployeeProposal[],
   incoming: AiEmployeeProposal[],
@@ -60,11 +81,17 @@ export function mergeEmployeeProposals(
     }
     const dayMap = new Map(prev.days.map((d) => [cleJour(d, fusion), d]));
     emp.days.forEach((d) => dayMap.set(cleJour(d, fusion), d));
+    // Couverture : les jours attendus et lus de chaque fichier s'additionnent.
+    const attendus = somme(prev.days_expected_count, emp.days_expected_count);
+    const lus = somme(prev.days_imported_count, emp.days_imported_count);
     byKey.set(key, {
       ...prev,
       ...emp,
       days: [...dayMap.values()],
       warnings: [...new Set([...prev.warnings, ...emp.warnings])],
+      days_expected_count: attendus,
+      days_imported_count: lus,
+      coverage_ratio: attendus && lus != null ? lus / attendus : emp.coverage_ratio,
     });
   });
   return [...byKey.values()].map((e) => ({
@@ -104,6 +131,7 @@ export function mergeProposals(proposals: AiCalendarProposal[]): AiCalendarPropo
     const releve: Mois = { year: p.year, month: p.month };
     const dates = p.employees.map((e) => ({
       ...e,
+      warnings: avertissementsDates(e, releve),
       days: e.days.map((d) => dansLaFusion(d, releve, fusion)),
     }));
     employees = mergeEmployeeProposals(employees, dates, fusion);
@@ -120,8 +148,17 @@ export function mergeProposals(proposals: AiCalendarProposal[]): AiCalendarPropo
   });
 
   const mois = moisTouches(employees, fusion);
+  // Période affichée : l'union des fichiers (dates ISO, comparables en texte).
+  const debuts = proposals.map((p) => p.detected_period_start).filter((x): x is string => !!x);
+  const fins = proposals.map((p) => p.detected_period_end).filter((x): x is string => !!x);
+  const datesLues = new Set(
+    employees.flatMap((e) => e.days.map((d) => cleJour(d, fusion))),
+  );
   return {
     ...base,
+    detected_period_start: debuts.length ? debuts.sort()[0] : base.detected_period_start,
+    detected_period_end: fins.length ? fins.sort()[fins.length - 1] : base.detected_period_end,
+    detected_days_count: datesLues.size,
     employees,
     warnings: [...warnings],
     source: `${pluriel(proposals.length, 'relevé')} ${accord(proposals.length, 'fusionné')}`,

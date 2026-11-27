@@ -19,6 +19,9 @@ class PersistTimesheetRequest(BaseModel):
     month: int
     employees: List[PersistTimesheetEmployee] = Field(default_factory=list)
     batch_id: Optional[str] = None
+    # Relevés importés ensemble (27/11) : le lot de chaque fichier ; `batch_id`
+    # (le dernier fichier) reste le lot qui s'enregistre.
+    batch_ids: List[str] = Field(default_factory=list)
     recalculate_payroll: bool = False
     allow_partial: bool = False
 

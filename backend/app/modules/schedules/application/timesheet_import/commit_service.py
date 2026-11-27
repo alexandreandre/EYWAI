@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import calendar as cal_mod
 import logging
+import re
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Sequence, Set
 
 from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.application.persist_timesheet import (
@@ -602,6 +603,40 @@ def _finalize_batch_as_committed(
     )
 
 
+def _valider_les_lots_fusionnes(
+    batch_id: str,
+    summary: Dict[str, Any],
+    *,
+    company_id: str,
+    request: TimesheetImportCommitRequest,
+) -> None:
+    """Les lots des autres fichiers d'un import groupé sont validés avec le
+    principal : le refus « déjà importé » reconnaît chacun de ces fichiers."""
+    for autre_id in summary.get("lots_fusionnes") or []:
+        lot = timesheet_import_repository.get_batch(autre_id, company_id=company_id)
+        if not lot or lot.get("status") == "committed":
+            continue
+        apercu = lot.get("preview_json") or {}
+        jours = sum(
+            1
+            for e in apercu.get("employees") or []
+            if e.get("employee_id")
+            for d in e.get("days") or []
+            if (d.get("nature") or "reel") == "reel"
+        )
+        _finalize_batch_as_committed(
+            autre_id,
+            company_id=company_id,
+            file_hash=lot.get("file_hash"),
+            summary=lot.get("summary_json") or {},
+            extra_summary_fields={
+                "fusionne_dans": batch_id,
+                "committed_days": jours,
+                "commit_request": request.model_dump(),
+            },
+        )
+
+
 def _emit_planning_commit_progress(
     batch_id: str,
     summary: Dict[str, Any],
@@ -860,6 +895,7 @@ def _commit_multi_month_batch(
             **(garde.resume() if garde is not None else {}),
         },
     )
+    _valider_les_lots_fusionnes(batch_id, summary, company_id=company_id, request=request)
 
     try:
         record_schedule_import_run(
@@ -985,11 +1021,69 @@ def _reporter_revue_dans_les_groupes(
             autre["days"] = []
 
 
+Mois = tuple  # (année, mois)
+
+
+def _jours_au_mois_de(
+    jours: List[Dict[str, Any]], mois_du_lot: Mois, mois_cible: Mois
+) -> List[Dict[str, Any]]:
+    """Les jours d'un lot, datés dans le repère d'un autre : sans année ni mois
+    quand ils sont du mois de ce repère, avec sinon."""
+    out: List[Dict[str, Any]] = []
+    for jour in jours or []:
+        d = dict(jour)
+        date = (int(d.get("year") or mois_du_lot[0]), int(d.get("month") or mois_du_lot[1]))
+        d["year"], d["month"] = (None, None) if date == tuple(mois_cible) else date
+        out.append(d)
+    return out
+
+
+def _cle_datee(jour: Dict[str, Any], mois_ref: Mois) -> tuple:
+    return (
+        int(jour.get("year") or mois_ref[0]),
+        int(jour.get("month") or mois_ref[1]),
+        int(jour.get("jour") or 0),
+        jour.get("nature") or "reel",
+    )
+
+
+_AVERTISSEMENT_DU_JOUR = re.compile(r"^(\s*Jour )(\d{1,2}) : (.+)$")
+
+
+def _avertissements_dates(warnings: List[str], mois_du_lot: Mois, mois_cible: Mois) -> List[str]:
+    """« Jour 21 : … » d'un lot d'un autre mois porte sa date complète."""
+    if tuple(mois_du_lot) == tuple(mois_cible):
+        return list(warnings)
+    out = []
+    for w in warnings:
+        m = _AVERTISSEMENT_DU_JOUR.match(w)
+        out.append(
+            f"{m.group(1)}{int(m.group(2)):02d}/{mois_du_lot[1]:02d}/{mois_du_lot[0]} : {m.group(3)}"
+            if m
+            else w
+        )
+    return out
+
+
+def _nom_du_salarie(
+    employee_id: str, relus: List[PersistTimesheetEmployee], lignes: List[Dict[str, Any]]
+) -> str:
+    """Prénom et nom pour un message d'erreur, jamais l'identifiant technique."""
+    for ligne in lignes:
+        if str(ligne.get("employee_id") or "") == employee_id and ligne.get("matched_name"):
+            return str(ligne["matched_name"])
+    for e in relus:
+        if e.employee_id == employee_id and (e.raw_name or "").strip():
+            return e.raw_name.strip()
+    return "salarié sans nom"
+
+
 def appliquer_revue_au_lot(
     batch_id: str,
     *,
     company_id: str,
     employees: List[PersistTimesheetEmployee],
+    autres_lots: Sequence[str] = (),
 ) -> None:
     """Les jours relus à l'écran remplacent ceux du modèle dans l'aperçu du lot.
 
@@ -998,6 +1092,12 @@ def appliquer_revue_au_lot(
     salarié relu voit ses jours remplacés dans sa première entrée ; ses autres
     entrées (même salarié sur plusieurs fichiers) sont vidées, le commit
     fusionnant par salarié. Les salariés non relus ne bougent pas.
+
+    `autres_lots` (27/11) : relevés importés ensemble, un lot par fichier, le
+    lot principal étant celui du dernier. Chaque jour reprend ses notes
+    (badges, heures en plus) du lot d'où il vient ; un salarié présent dans un
+    fichier antérieur seulement rejoint le lot principal ; chaque autre lot
+    garde les jours relus de son fichier et sera validé avec le principal.
     """
     relus: Dict[str, PersistTimesheetEmployee] = {}
     lignes_relues: Dict[str, int] = {}
@@ -1016,8 +1116,31 @@ def appliquer_revue_au_lot(
     if not batch:
         raise ScheduleAppError("validation", "Batch introuvable.", status_code=404)
     preview = dict(batch.get("preview_json") or {})
+    mois_lot: Mois = (int(preview.get("year") or 0), int(preview.get("month") or 0))
     entrees = [dict(e) for e in preview.get("employees") or []]
-    presents = {str(e.get("employee_id")) for e in entrees if e.get("employee_id")}
+
+    autres: List[tuple] = []
+    for autre_id in dict.fromkeys(str(b) for b in autres_lots if b and str(b) != batch_id):
+        lot = timesheet_import_repository.get_batch(autre_id, company_id=company_id)
+        if not lot:
+            raise ScheduleAppError(
+                "validation",
+                "Le lot d'un des fichiers importés est introuvable : relancez l'import, "
+                "rien n'a été enregistré.",
+                status_code=404,
+            )
+        apercu = dict(lot.get("preview_json") or {})
+        autres.append((
+            autre_id,
+            apercu,
+            (int(apercu.get("year") or 0), int(apercu.get("month") or 0)),
+            [dict(e) for e in apercu.get("employees") or []],
+        ))
+    lignes_des_autres = [ligne for _, _, _, lignes in autres for ligne in lignes]
+
+    presents = {
+        str(e.get("employee_id")) for e in entrees + lignes_des_autres if e.get("employee_id")
+    }
     summary = dict(batch.get("summary_json") or {})
     groupes = [
         {**g, "employees": [dict(e) for e in g.get("employees") or []]}
@@ -1029,7 +1152,7 @@ def appliquer_revue_au_lot(
         for e in employees
         if e.employee_id and e.employee_id not in presents and (e.raw_name or "").strip()
     }
-    for ligne in entrees + [e for g in groupes for e in g["employees"]]:
+    for ligne in entrees + [e for g in groupes for e in g["employees"]] + lignes_des_autres:
         nom = str(ligne.get("raw_name") or "").strip()
         if not ligne.get("employee_id") and nom in associes:
             ligne["employee_id"] = associes[nom]
@@ -1037,11 +1160,42 @@ def appliquer_revue_au_lot(
             presents.add(associes[nom])
     inconnus = sorted(set(relus) - presents)
     if inconnus:
+        noms = sorted(
+            _nom_du_salarie(eid, employees, entrees + lignes_des_autres) for eid in inconnus
+        )
         raise ScheduleAppError(
             "validation",
-            f"{accord(len(inconnus), 'Salarié relu absent', 'Salariés relus absents')} du lot : {', '.join(inconnus)}.",
+            f"{accord(len(inconnus), 'Salarié relu absent', 'Salariés relus absents')} "
+            f"des relevés importés : {', '.join(noms)}. Rien n'a été enregistré.",
             status_code=400,
         )
+
+    # Notes de chaque jour, dans le repère du lot principal : ce lot d'abord
+    # (dernier fichier, il l'emporte), puis les autres du plus récent au plus ancien.
+    notes: Dict[str, List[Dict[str, Any]]] = {}
+    avertissements: Dict[str, List[str]] = {}
+    sources = [(mois_lot, entrees)] + [(m, lignes) for _, _, m, lignes in reversed(autres)]
+    for mois_source, lignes in sources:
+        for ligne in lignes:
+            eid = str(ligne.get("employee_id") or "")
+            if eid not in relus:
+                continue
+            notes.setdefault(eid, []).extend(
+                _jours_au_mois_de(ligne.get("days") or [], mois_source, mois_lot)
+            )
+            avertissements.setdefault(eid, []).extend(
+                _avertissements_dates(list(ligne.get("warnings") or []), mois_source, mois_lot)
+            )
+
+    # Salarié d'un fichier antérieur seulement : sa ligne rejoint le lot principal.
+    principaux = {str(e.get("employee_id")) for e in entrees if e.get("employee_id")}
+    for _, _, _, lignes in reversed(autres):
+        for ligne in lignes:
+            eid = str(ligne.get("employee_id") or "")
+            if eid in relus and eid not in principaux:
+                entrees.append(dict(ligne))
+                principaux.add(eid)
+
     if groupes:
         ambigus = sorted(
             eid
@@ -1071,17 +1225,52 @@ def appliquer_revue_au_lot(
         if eid in deja:
             entree["days"] = []
             continue
-        du_lot = [dict(d) for d in entree.get("days") or []]
         entree["days"] = [
-            _avec_notes_du_serveur(d.model_dump(mode="json"), du_lot)
+            _avec_notes_du_serveur(d.model_dump(mode="json"), notes.get(eid, []))
             for d in relus[eid].days
         ]
+        if autres:
+            entree["warnings"] = list(dict.fromkeys(avertissements.get(eid, [])))
         deja.add(eid)
     preview["employees"] = entrees
     modifications: Dict[str, Any] = {"preview_json": preview}
     if groupes:
-        modifications["summary_json"] = {**summary, "month_groups": groupes}
+        summary["month_groups"] = groupes
+        modifications["summary_json"] = summary
+    if autres:
+        summary["lots_fusionnes"] = [autre_id for autre_id, _, _, _ in autres]
+        modifications["summary_json"] = summary
     timesheet_import_repository.update_batch(batch_id, modifications)
+
+    # Chaque autre lot garde les jours relus de son fichier (un jour présent
+    # dans un fichier plus récent appartient à celui-ci).
+    plus_recents: Set[tuple] = {
+        (str(e.get("employee_id") or ""), *_cle_datee(d, mois_lot))
+        for e in [dict(x) for x in (batch.get("preview_json") or {}).get("employees") or []]
+        for d in e.get("days") or []
+    }
+    for autre_id, apercu, mois_autre, lignes in reversed(autres):
+        siens = {
+            (str(e.get("employee_id") or ""), *_cle_datee(d, mois_autre))
+            for e in lignes
+            for d in e.get("days") or []
+        }
+        for ligne in lignes:
+            eid = str(ligne.get("employee_id") or "")
+            if eid not in relus:
+                continue
+            ligne["days"] = [
+                _avec_notes_du_serveur(jour, ligne.get("days") or [])
+                for jour in _jours_au_mois_de(
+                    [d.model_dump(mode="json") for d in relus[eid].days], mois_lot, mois_autre
+                )
+                if (eid, *_cle_datee(jour, mois_autre)) in siens
+                and (eid, *_cle_datee(jour, mois_autre)) not in plus_recents
+            ]
+        plus_recents |= siens
+        timesheet_import_repository.update_batch(
+            autre_id, {"preview_json": {**apercu, "employees": lignes}}
+        )
 
 
 def _employes_par_mois(
@@ -1246,6 +1435,7 @@ def commit_batch_bulk(
             **(garde.resume() if garde is not None else {}),
         },
     )
+    _valider_les_lots_fusionnes(batch_id, summary, company_id=company_id, request=request)
 
     try:
         record_schedule_import_run(

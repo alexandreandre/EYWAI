@@ -85,3 +85,55 @@ describe('mergeProposals : relevés de mois différents', () => {
     expect(le21[0].heures).toBe(7);
   });
 });
+
+describe('mergeProposals : avertissements, période et couverture', () => {
+  const avec = (p: AiCalendarProposal, extra: Partial<AiEmployeeProposal>, prop: Partial<AiCalendarProposal> = {}) => ({
+    ...p,
+    ...prop,
+    employees: [{ ...p.employees[0], ...extra }],
+  });
+
+  const septembre = avec(
+    releve(2026, 9, [jour(21, 7), jour(24, 7)]),
+    {
+      warnings: ['Jour 21 : Pointage incomplet.', 'Matricule absent.'],
+      days_expected_count: 5,
+      days_imported_count: 2,
+      coverage_ratio: 0.4,
+    },
+    { detected_period_start: '2026-09-21', detected_period_end: '2026-09-25', detected_days_count: 2 },
+  );
+  const octobre = avec(
+    releve(2026, 10, [jour(21, 7)]),
+    {
+      warnings: ['Jour 21 : Heures retenues vides.'],
+      days_expected_count: 5,
+      days_imported_count: 1,
+      coverage_ratio: 0.2,
+    },
+    { detected_period_start: '2026-10-19', detected_period_end: '2026-10-23', detected_days_count: 1 },
+  );
+
+  it('les avertissements « Jour N » portent la date complète', () => {
+    const fusion = mergeProposals([septembre, octobre]);
+    expect(fusion.employees[0].warnings).toEqual([
+      'Jour 21/09/2026 : Pointage incomplet.',
+      'Matricule absent.',
+      'Jour 21/10/2026 : Heures retenues vides.',
+    ]);
+  });
+
+  it('la période affichée est l’union des fichiers', () => {
+    const fusion = mergeProposals([octobre, septembre]);
+    expect(fusion.detected_period_start).toBe('2026-09-21');
+    expect(fusion.detected_period_end).toBe('2026-10-23');
+    expect(fusion.detected_days_count).toBe(3);
+  });
+
+  it('la couverture du salarié additionne les fichiers', () => {
+    const e = mergeProposals([septembre, octobre]).employees[0];
+    expect(e.days_expected_count).toBe(10);
+    expect(e.days_imported_count).toBe(3);
+    expect(e.coverage_ratio).toBeCloseTo(0.3);
+  });
+});

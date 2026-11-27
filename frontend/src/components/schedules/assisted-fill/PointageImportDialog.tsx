@@ -161,6 +161,8 @@ export function PointageImportDialog({
   } | null>(null);
   const [proposal, setProposal] = useState<AiCalendarProposal | null>(null);
   const [batchId, setBatchId] = useState<string | null>(null);
+  // Plusieurs fichiers : le lot de chacun, le dernier (`batchId`) compris.
+  const [batchIds, setBatchIds] = useState<string[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [localJobId, setLocalJobId] = useState<string | null>(null);
   const [documentScope, setDocumentScope] = useState<DocumentScopeInput>('auto');
@@ -215,6 +217,7 @@ export function PointageImportDialog({
     setFiles([]);
     setProposal(null);
     setBatchId(null);
+    setBatchIds([]);
     setActiveJobId(null);
     setLocalJobId(null);
     setIsAnalyzing(false);
@@ -425,6 +428,7 @@ export function PointageImportDialog({
         return;
       }
 
+      const lotsDesFichiers: string[] = [];
       for (let i = 0; i < files.length; i++) {
         if (abort.signal.aborted) return;
         const file = files[i];
@@ -461,10 +465,14 @@ export function PointageImportDialog({
           }
         }
         results.push(result);
+        if (lastBatchId && !lotsDesFichiers.includes(lastBatchId)) {
+          lotsDesFichiers.push(lastBatchId);
+        }
         setQueueProgress(Math.round(((i + 1) / files.length) * 100));
         setPageProgress(null);
       }
       setBatchId(lastBatchId);
+      setBatchIds(results.length > 1 ? lotsDesFichiers : []);
       const merged = results.length === 1 ? results[0] : mergeProposals(results);
       showProposal(merged, files.length, trackedId);
     } catch (e) {
@@ -569,6 +577,7 @@ export function PointageImportDialog({
               onApplied={handleApplied}
               onBack={() => setProposal(null)}
               batchId={batchId}
+              batchIds={batchIds}
             />
           ) : (
             <div className="max-h-full space-y-3 overflow-y-auto pr-1">
