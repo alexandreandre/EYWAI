@@ -18,6 +18,8 @@ import { alerteDeSaisie } from '@/lib/alerteDeSaisie';
 import { libelleApresSortie } from '@/lib/employmentStatus';
 import { estAvantLEntree, libelleAvantEntree } from '@/lib/joursHorsContrat';
 import { PlanningDayEditor } from './PlanningDayEditor';
+import { AbsenceRequestModal } from '@/components/AbsenceRequestModal';
+import { libelleArrivee } from '@/lib/horairesDuJour';
 import { CursorHint } from './CursorHint';
 import { CalendarPeriodSelect } from './CalendarPeriodSelect';
 import { usePaintSelect } from './usePaintSelect';
@@ -64,6 +66,8 @@ interface TeamPlanningViewProps {
   onMonthChange: (month: number) => void;
   weekIndex: number;
   onWeekIndexChange: (index: number) => void;
+  /** Un arrêt vient d'être enregistré depuis un jour : recharger les calendriers. */
+  onArretEnregistre?: () => void;
 }
 
 export function TeamPlanningView({
@@ -85,6 +89,7 @@ export function TeamPlanningView({
   onMonthChange,
   weekIndex,
   onWeekIndexChange,
+  onArretEnregistre,
 }: TeamPlanningViewProps) {
   const { toast } = useToast();
   const { observedHolidayIds } = useObservedPublicHolidays();
@@ -97,6 +102,9 @@ export function TeamPlanningView({
   });
   const [openEditor, setOpenEditor] = useState<{ employeeId: string; day: number } | null>(null);
   const [flashDays, setFlashDays] = useState<number[]>([]);
+  // « Signaler un arrêt à partir de ce jour » (retour d'Elsa) : la saisie
+  // d'Arrêts & IJ, salarié, nature et premier jour déjà remplis.
+  const [arret, setArret] = useState<{ employeeId: string; debut: Date } | null>(null);
 
   useEffect(() => {
     if (weekIndex > weeks.length - 1) {
@@ -167,12 +175,23 @@ export function TeamPlanningView({
   const handleApply = async (
     employeeId: string,
     day: number,
-    patch: DayPatch
+    patch: DayPatch,
+    titre = 'Jour mis à jour'
   ): Promise<boolean> => {
     try {
-      await onApplyDayPatch(employeeId, day, patch);
+      const ok = await onApplyDayPatch(employeeId, day, patch);
+      // Refus sans exception (calendrier en cours d'enregistrement, illisible) :
+      // le hook le dit déjà, ou rien n'est parti ; jamais un « enregistré » à tort.
+      if (ok === false) {
+        toast({
+          title: 'Jour non enregistré',
+          description: 'Le calendrier de ce salarié est en cours d’enregistrement ou illisible : rechargez la page puis réessayez.',
+          variant: 'destructive',
+        });
+        return false;
+      }
       toast({
-        title: 'Jour mis à jour',
+        title: titre,
         description: `${new Date(year, month - 1, day).toLocaleDateString('fr-FR', {
           weekday: 'short',
           day: 'numeric',
@@ -524,6 +543,14 @@ export function TeamPlanningView({
                                 </span>
                               </div>
                             )}
+                            {!row.isForfaitJour && libelleArrivee(actual) && (
+                              <span
+                                className="text-[10px] tabular-nums text-muted-foreground"
+                                data-testid="arrivee-du-jour"
+                              >
+                                {libelleArrivee(actual)}
+                              </span>
+                            )}
                           </div>
                           {hasConflict && (
                             <span
@@ -557,6 +584,16 @@ export function TeamPlanningView({
                             setOpenEditor(null);
                             onOpenEmployee(row.employee.id);
                           }}
+                          onVider={(patch) =>
+                            handleApply(row.employee.id, day, patch, 'Jour vidé')
+                          }
+                          onSignalerArret={() => {
+                            setOpenEditor(null);
+                            setArret({
+                              employeeId: row.employee.id,
+                              debut: new Date(year, month - 1, day),
+                            });
+                          }}
                         />
                       </PopoverContent>
                     </Popover>
@@ -567,6 +604,19 @@ export function TeamPlanningView({
           </div>
         </div>
       </div>
+
+      <AbsenceRequestModal
+        isOpen={arret !== null}
+        onClose={() => setArret(null)}
+        onSuccess={() => {
+          setArret(null);
+          onArretEnregistre?.();
+        }}
+        mode="rh_arret"
+        salarieInitial={arret?.employeeId}
+        typeInitial="arret_maladie"
+        debutArretInitial={arret?.debut}
+      />
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
         <span className="font-medium text-foreground">Légende</span>

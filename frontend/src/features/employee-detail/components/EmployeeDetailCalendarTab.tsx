@@ -3,7 +3,8 @@ import { useCasesVoisines } from "@/components/schedules/useCasesVoisines";
 import { LignePeriodeDuBulletin } from '@/features/payroll/components/LignePeriodeDuBulletin';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getAbsencesForEmployee } from "@/api/absences";
-import { CalendarDays, ChevronLeft, ChevronRight, Grid3x3, Hourglass, Loader2, Save, Sparkles, Upload } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Grid3x3, Hourglass, Loader2, Save, Sparkles, Trash2, Upload } from "lucide-react";
+import { ViderCalendrierDialog } from "@/components/schedules/ViderCalendrierDialog";
 import { AbsenceRequestModal } from "@/components/AbsenceRequestModal";
 import { useEmployeeAbsenceBalancesQuery } from "@/hooks/queries/useEmployeeAbsenceBalancesQuery";
 import { CalendarDayCell } from "@/components/CalendarDayCell";
@@ -166,6 +167,8 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
   };
 
   const [assistedFillOpen, setAssistedFillOpen] = useState(false);
+  const [viderOuvert, setViderOuvert] = useState(false);
+  const [debutArret, setDebutArret] = useState<Date | null>(null);
   const [pointageImportOpen, setPointageImportOpen] = useState(false);
   const [pointageReviewJob, setPointageReviewJob] = useState<PointageImportJob | null>(null);
   const {
@@ -339,6 +342,22 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                     <span className="hidden sm:inline">Importer un relevé</span>
                     <span className="sm:hidden">Import</span>
                   </Button>
+                  {calendarView === 'month' && (
+                    <Button
+                      variant="destructive"
+                      onClick={() => setViderOuvert(true)}
+                      disabled={isSaving || isDirty || isCalendarLoading || Boolean(calendarLoadError)}
+                      title={
+                        isDirty
+                          ? "Enregistrez ou annulez d'abord vos changements"
+                          : "Annule un modèle appliqué par erreur : prévu et réel du mois remis à vide, sauf arrêts, congés, absences et jours d'un bulletin validé"
+                      }
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      <span className="hidden sm:inline">Vider le calendrier du mois</span>
+                      <span className="sm:hidden">Vider</span>
+                    </Button>
+                  )}
                   <Button
                     onClick={saveAllCalendarData}
                     disabled={isSaving || !isDirty}
@@ -439,6 +458,10 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                                 dernierJourContrat={dernierJourContrat}
                                 dernierJourJuge={dernierJourContrat}
                                 joursRecup={joursRecup}
+                                onSignalerArret={(jour) =>
+                                  setDebutArret(new Date(selectedDate.year, selectedDate.month - 1, jour))
+                                }
+                                signalerArretIndisponible={isDirty ? "Enregistrez d’abord le calendrier : la saisie de l’arrêt le recharge." : null}
                                 onPoserRecup={
                                   compteurRecup && !isForfaitJour && !isDirty
                                     ? (jour) => poserRecup([jour])
@@ -496,6 +519,29 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
         salarieInitial={employeeId}
         typeInitial="recuperation_modulation"
         joursInitiaux={joursRecupInitiaux}
+      />
+      <AbsenceRequestModal
+        isOpen={debutArret !== null}
+        onClose={() => setDebutArret(null)}
+        onSuccess={() => {
+          setDebutArret(null);
+          reloadCalendar();
+          void queryClient.invalidateQueries({ queryKey: ['employee-absences-calendar', employeeId] });
+          void queryClient.invalidateQueries({ queryKey: ['absences'] });
+        }}
+        mode="rh_arret"
+        salarieInitial={employeeId}
+        typeInitial="arret_maladie"
+        debutArretInitial={debutArret ?? undefined}
+      />
+      <ViderCalendrierDialog
+        open={viderOuvert}
+        onOpenChange={setViderOuvert}
+        salaries={[{ id: employeeId, nom: `${employee.first_name} ${employee.last_name}` }]}
+        year={selectedDate.year}
+        month={selectedDate.month}
+        companyId={activeCompanyId || undefined}
+        onDone={reloadCalendar}
       />
       <AssistedFillDialog
         open={assistedFillOpen}

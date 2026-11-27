@@ -29,6 +29,8 @@ import { isDayReadyForPayroll } from '@/lib/calendarStats';
 import { estAbsentATyper } from '@/lib/absentATyper';
 import { libelleApresSortie } from '@/lib/employmentStatus';
 import { estAvantLEntree, libelleAvantEntree } from '@/lib/joursHorsContrat';
+import { libelleArrivee } from '@/lib/horairesDuJour';
+import { REFUS_VIDER_ABSENCE, jourGardeParLeVidage, typeDuJourVide } from '@/lib/viderCalendrier';
 import {
   TITRE_INFO_BULLE_CONFLIT,
   estJourEnConflit,
@@ -45,7 +47,9 @@ interface CalendarDayCellProps {
   arg: JourDeLaGrille;
   plannedCalendar: PlannedEventData[];
   actualHours: ActualHoursData[];
-  updateDayData: (day: Partial<DayData> & { demi_journee?: 'matin' | 'apres_midi' | null }) => void;
+  updateDayData: (
+    day: Partial<DayData> & { demi_journee?: 'matin' | 'apres_midi' | null; vider?: boolean }
+  ) => void;
   selectedDays?: number[];
   onDaySelect?: (dayNumber: number) => void;
   selectedDate: { month: number; year: number };
@@ -76,6 +80,10 @@ interface CalendarDayCellProps {
   joursRecup?: number[];
   /** Choix « Récupération (compteur) » : ouvre la pose de la récupération. */
   onPoserRecup?: (dayNumber: number) => void;
+  /** « Signaler un arrêt à partir de ce jour » : ouvre la saisie d'Arrêts & IJ. */
+  onSignalerArret?: (dayNumber: number) => void;
+  /** Raison pour laquelle l'arrêt ne peut pas s'ouvrir tout de suite (changements non enregistrés). */
+  signalerArretIndisponible?: string | null;
 }
 
 // Types de saisie : source unique calendarTypes.ts — conges_payes/rtt créent
@@ -252,6 +260,8 @@ export function CalendarDayCell({
   premierJourJuge = null,
   joursRecup,
   onPoserRecup,
+  onSignalerArret,
+  signalerArretIndisponible = null,
 }: CalendarDayCellProps) {
   const { observedHolidayIds } = useObservedPublicHolidays();
   const activitePartielle = useActivitePartielleActive();
@@ -494,7 +504,7 @@ export function CalendarDayCell({
               )}
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-40 p-1" align="start" onClick={(e) => e.stopPropagation()}>
+          <PopoverContent className="w-52 p-1" align="start" onClick={(e) => e.stopPropagation()}>
             {absent && (
               <p
                 className="mb-1 rounded bg-red-50 px-2 py-1 text-[11px] font-medium text-red-800"
@@ -539,6 +549,47 @@ export function CalendarDayCell({
                   )}
               </div>
             ))}
+            <div className="my-1 border-t" />
+            {onSignalerArret && (
+              <button
+                type="button"
+                data-testid="signaler-arret-du-jour"
+                className="w-full text-left text-xs px-2 py-1.5 rounded text-red-700 hover:bg-muted disabled:opacity-50"
+                disabled={Boolean(signalerArretIndisponible)}
+                title={signalerArretIndisponible ?? 'Saisie d’arrêt (Arrêts & IJ) : salarié et premier jour déjà remplis'}
+                onClick={() => {
+                  setTypePopoverOpen(false);
+                  onSignalerArret(dayNumber);
+                }}
+              >
+                Signaler un arrêt à partir de ce jour…
+              </button>
+            )}
+            {onSignalerArret && signalerArretIndisponible && (
+              <p className="px-2 pb-1 text-[10px] text-muted-foreground">{signalerArretIndisponible}</p>
+            )}
+            <button
+              type="button"
+              data-testid="vider-le-jour"
+              className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted disabled:opacity-50"
+              disabled={jourGardeParLeVidage(plannedDay)}
+              title={jourGardeParLeVidage(plannedDay) ? REFUS_VIDER_ABSENCE : 'Prévu, réel et horaires du jour remis à vide'}
+              onClick={() => {
+                setTypePopoverOpen(false);
+                updateDayData({
+                  jour: dayNumber,
+                  type: typeDuJourVide(selectedDate.year, selectedDate.month, plannedDay),
+                  heures_prevues: null,
+                  heures_faites: null,
+                  vider: true,
+                });
+              }}
+            >
+              Vider ce jour
+            </button>
+            {jourGardeParLeVidage(plannedDay) && (
+              <p className="px-2 pb-1 text-[10px] text-muted-foreground">{REFUS_VIDER_ABSENCE}</p>
+            )}
             {onPoserRecup && !joursRecup?.includes(dayNumber) && (
               <button
                 type="button"
@@ -638,11 +689,21 @@ export function CalendarDayCell({
           )}
         </div>
       ) : (
-        <HourGauges
-          planned={plannedDay.heures_prevues}
-          actual={actualDay.heures_faites}
-          isForfaitJour={isForfaitJour}
-        />
+        <>
+          <HourGauges
+            planned={plannedDay.heures_prevues}
+            actual={actualDay.heures_faites}
+            isForfaitJour={isForfaitJour}
+          />
+          {!isForfaitJour && libelleArrivee(actualDay) && (
+            <p
+              className="px-2 pl-3 pb-1.5 -mt-1 text-[10px] tabular-nums text-muted-foreground"
+              data-testid="arrivee-du-jour"
+            >
+              {libelleArrivee(actualDay)}
+            </p>
+          )}
+        </>
       )}
     </div>
   );

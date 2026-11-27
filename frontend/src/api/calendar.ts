@@ -176,6 +176,37 @@ export const effacerHeuresDesJours = async (
   return data;
 };
 
+export interface ViderMoisResultat {
+  year: number;
+  month: number;
+  apercu: boolean;
+  jours_vides: number[];
+  jours_gardes_absence: number[];
+  jours_gardes_bulletin: number[];
+  revision: string | null;
+  message: string;
+}
+
+/**
+ * Vide le prévu et le réel du mois d'un salarié (modèle appliqué par erreur),
+ * sans les arrêts, congés et absences posés ni les jours d'un bulletin validé.
+ * `apercu` : rien n'est écrit, la réponse dit ce qui serait vidé et gardé.
+ */
+export const viderMoisDuCalendrier = async (
+  employeeId: string,
+  year: number,
+  month: number,
+  options: { apercu: boolean; expectedRevision?: string | null },
+  context?: CalendarRequestContext,
+) => {
+  const { data } = await apiClient.post<ViderMoisResultat>(
+    `/api/employees/${employeeId}/calendar/vider-mois`,
+    { year, month, apercu: options.apercu, expected_revision: options.expectedRevision ?? null },
+    calendarRequestConfig(context),
+  );
+  return data;
+};
+
 export const calculatePayrollEvents = (employeeId: string, year: number, month: number, context?: CalendarRequestContext) => {
   return apiClient.post(`/api/employees/${employeeId}/calculate-payroll-events`, {
     year,

@@ -24,7 +24,9 @@ import { YearCalendarView } from '@/components/schedules/YearCalendarView';
 import { BulkDayActionPanel } from '@/components/schedules/BulkDayActionPanel';
 import { useCalendar } from '@/hooks/useCalendar';
 import { CalendarSyncNotice } from '@/components/schedules/CalendarSyncNotice';
-import { Loader2, Save, ChevronLeft, ChevronRight, CalendarDays, Grid3x3 } from 'lucide-react';
+import { Loader2, Save, ChevronLeft, ChevronRight, CalendarDays, Grid3x3, Trash2 } from 'lucide-react';
+import { ViderCalendrierDialog } from '@/components/schedules/ViderCalendrierDialog';
+import { AbsenceRequestModal } from '@/components/AbsenceRequestModal';
 import { Chargement } from '@/components/Chargement';
 import { cn } from '@/lib/utils';
 import { useCasesVoisines } from '@/components/schedules/useCasesVoisines';
@@ -55,6 +57,8 @@ export function EmployeeCalendarPanel({
   debutMartine = null,
 }: EmployeeCalendarPanelProps) {
   const [calendarView, setCalendarView] = useState<'month' | 'year'>('month');
+  const [viderOuvert, setViderOuvert] = useState(false);
+  const [debutArret, setDebutArret] = useState<Date | null>(null);
 
   const {
     selectedDate,
@@ -249,6 +253,23 @@ export function EmployeeCalendarPanel({
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+          {calendarView === 'month' && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setViderOuvert(true)}
+              disabled={isSaving || isDirty || isCalendarLoading || loadError}
+              title={
+                isDirty
+                  ? 'Enregistrez ou annulez d’abord vos changements'
+                  : 'Annule un modèle appliqué par erreur : prévu et réel du mois remis à vide, sauf arrêts, congés, absences et jours d’un bulletin validé'
+              }
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Vider le calendrier du mois
+            </Button>
+          )}
           <Button onClick={() => void handleSave()} disabled={isSaving || !isDirty} size="sm">
             {isSaving ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -257,6 +278,7 @@ export function EmployeeCalendarPanel({
             )}
             {isSaving ? 'Enregistrement…' : isDirty ? 'Enregistrer' : 'À jour'}
           </Button>
+          </div>
         </CardHeader>
 
         <CardContent className="p-0 md:p-2">
@@ -341,6 +363,10 @@ export function EmployeeCalendarPanel({
                           dernierJourContrat={dernierJourContrat}
                           premierJourJuge={bornes.premierJour ?? null}
                           premierJourContrat={premierJourContrat}
+                          onSignalerArret={(jour) =>
+                            setDebutArret(new Date(selectedDate.year, selectedDate.month - 1, jour))
+                          }
+                          signalerArretIndisponible={isDirty ? 'Enregistrez d’abord le calendrier : la saisie de l’arrêt le recharge.' : null}
                         />
                       </div>
                     );
@@ -363,6 +389,32 @@ export function EmployeeCalendarPanel({
           )}
         </CardContent>
       </Card>
+
+      <AbsenceRequestModal
+        isOpen={debutArret !== null}
+        onClose={() => setDebutArret(null)}
+        onSuccess={() => {
+          setDebutArret(null);
+          void refetch();
+          onSaved?.();
+        }}
+        mode="rh_arret"
+        salarieInitial={employeeId}
+        typeInitial="arret_maladie"
+        debutArretInitial={debutArret ?? undefined}
+      />
+
+      <ViderCalendrierDialog
+        open={viderOuvert}
+        onOpenChange={setViderOuvert}
+        salaries={[{ id: employeeId, nom: employeeName }]}
+        year={selectedDate.year}
+        month={selectedDate.month}
+        onDone={() => {
+          void refetch();
+          onSaved?.();
+        }}
+      />
 
       {selectedDays.length > 0 && (
         <BulkDayActionPanel

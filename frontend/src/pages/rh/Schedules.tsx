@@ -625,6 +625,7 @@ export default function Schedules() {
           onMonthChange={handleMonthChange}
           weekIndex={planningWeekIndex}
           onWeekIndexChange={setPlanningWeekIndex}
+          onArretEnregistre={refreshCalendars}
         />
       )
       )}

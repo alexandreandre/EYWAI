@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, ExternalLink, Briefcase, TreePalm, Sparkles, Stethoscope, Coffee, Leaf, Ban, Moon, GraduationCap, PauseCircle, type LucideIcon } from 'lucide-react';
+import { Loader2, ExternalLink, Eraser, Siren, Briefcase, TreePalm, Sparkles, Stethoscope, Coffee, Leaf, Ban, Moon, GraduationCap, PauseCircle, type LucideIcon } from 'lucide-react';
 import { useActivitePartielleActive } from '@/hooks/useActivitePartielleActive';
 import { editableTypeOptionsFor, reelApresChangementDeType } from '@/lib/calendarTypes';
 import { estAbsentATyper } from '@/lib/absentATyper';
 import { cn } from '@/lib/utils';
 import type { PlannedEventData, ActualHoursData } from '@/api/calendar';
 import type { DayPatch } from '@/lib/schedulesOverview';
+import { horairesSaisis } from '@/lib/horairesDuJour';
+import { REFUS_VIDER_ABSENCE, jourGardeParLeVidage, viderLeJour } from '@/lib/viderCalendrier';
 
 // Les types proposés sont ceux du calendrier complet (`editableTypeOptionsFor`) :
 // même liste, activité partielle comprise si la société l'a activée ; « Arrêt »
@@ -42,6 +44,10 @@ interface PlanningDayEditorProps {
   onApply: (patch: DayPatch) => Promise<boolean>;
   onClose: () => void;
   onOpenFullCalendar: () => void;
+  /** Vide le jour (prévu, réel, horaires) ; le message dit ce qui a été fait. */
+  onVider?: (patch: DayPatch) => Promise<boolean>;
+  /** Ouvre la saisie d'un arrêt qui commence ce jour-là (Arrêts & IJ). */
+  onSignalerArret?: () => void;
 }
 
 export function PlanningDayEditor({
@@ -56,6 +62,8 @@ export function PlanningDayEditor({
   onApply,
   onClose,
   onOpenFullCalendar,
+  onVider,
+  onSignalerArret,
 }: PlanningDayEditorProps) {
   const activitePartielle = useActivitePartielleActive();
   const [type, setType] = useState<string>(planned?.type ?? 'travail');
@@ -66,6 +74,11 @@ export function PlanningDayEditor({
     actual?.heures_faites != null ? String(actual.heures_faites) : ''
   );
   const [isSaving, setIsSaving] = useState(false);
+  // Heure d'arrivée et de départ, facultatives (retour du 27/11 : la règle
+  // panier se déclenche sur l'heure d'arrivée).
+  const [arrivee, setArrivee] = useState<string>(actual?.debut ?? '');
+  const [depart, setDepart] = useState<string>(actual?.fin ?? '');
+  const [erreur, setErreur] = useState<string | null>(null);
   // Demi-journée d'un CP ou d'un RTT posé ici, comme dans « Saisir les congés »
   // (retour du 10/11). Seulement pour un jour nouvellement typé : un congé
   // déjà posé se modifie dans « Gestion des congés ».
@@ -80,6 +93,9 @@ export function PlanningDayEditor({
     setActualHours(
       actual?.heures_faites != null ? String(actual.heures_faites) : ''
     );
+    setArrivee(actual?.debut ?? '');
+    setDepart(actual?.fin ?? '');
+    setErreur(null);
   }, [planned, actual]);
 
   const dateLabel = new Date(year, month - 1, day).toLocaleDateString('fr-FR', {
@@ -146,9 +162,43 @@ export function PlanningDayEditor({
   };
 
   const handleSave = async () => {
+    const patch = buildPatch();
+    if (!isForfaitJour) {
+      const horaires = horairesSaisis({
+        arrivee,
+        depart,
+        heuresFaites: patch.heures_faites == null ? '' : String(patch.heures_faites),
+        travaille: type === 'travail' || type === 'work',
+      });
+      if ('refus' in horaires) {
+        setErreur(horaires.refus);
+        return;
+      }
+      patch.debut = horaires.horaires.debut;
+      patch.fin = horaires.horaires.fin;
+    }
+    setErreur(null);
     setIsSaving(true);
     try {
-      const ok = await onApply(buildPatch());
+      const ok = await onApply(patch);
+      if (ok) onClose();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const jourAVider = planned ?? { jour: day, type: 'travail', heures_prevues: null };
+  const viderRefuse = jourGardeParLeVidage(planned);
+  const handleVider = async () => {
+    if (!onVider) return;
+    const vidage = viderLeJour(year, month, jourAVider);
+    if ('refus' in vidage) {
+      setErreur(vidage.refus);
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const ok = await onVider(vidage.patch);
       if (ok) onClose();
     } finally {
       setIsSaving(false);
@@ -300,6 +350,48 @@ export function PlanningDayEditor({
         </div>
       )}
 
+      {!isForfaitJour && (
+        <div className="grid grid-cols-2 gap-2" data-testid="horaires-du-jour">
+          <div>
+            <Label htmlFor="arrivee-h" className="text-xs">Arrivée (facultatif)</Label>
+            <Input
+              id="arrivee-h"
+              type="time"
+              step={60}
+              value={arrivee}
+              onChange={(e) => {
+                setArrivee(e.target.value);
+                setErreur(null);
+              }}
+              className="h-9 mt-1"
+            />
+          </div>
+          <div>
+            <Label htmlFor="depart-h" className="text-xs">Départ (facultatif)</Label>
+            <Input
+              id="depart-h"
+              type="time"
+              step={60}
+              value={depart}
+              onChange={(e) => {
+                setDepart(e.target.value);
+                setErreur(null);
+              }}
+              className="h-9 mt-1"
+            />
+          </div>
+          <p className="col-span-2 text-[11px] text-muted-foreground">
+            L&apos;heure d&apos;arrivée déclenche les paniers liés à la prise de poste.
+          </p>
+        </div>
+      )}
+
+      {erreur && (
+        <p role="alert" className="text-xs font-medium text-destructive" data-testid="erreur-editeur-jour">
+          {erreur}
+        </p>
+      )}
+
       {!isForfaitJour && plannedHours !== '' && (
         <Button
           type="button"
@@ -310,6 +402,41 @@ export function PlanningDayEditor({
         >
           Copier prévu → réel
         </Button>
+      )}
+
+      {(onVider || onSignalerArret) && (
+        <div className="flex flex-col gap-1 border-t pt-2">
+          {onSignalerArret && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 justify-start gap-1.5 text-xs text-red-700 hover:text-red-800"
+              onClick={onSignalerArret}
+              disabled={isSaving}
+            >
+              <Siren className="h-3.5 w-3.5" />
+              Signaler un arrêt à partir de ce jour
+            </Button>
+          )}
+          {onVider && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 justify-start gap-1.5 text-xs"
+              onClick={() => void handleVider()}
+              disabled={isSaving || viderRefuse}
+              title={viderRefuse ? REFUS_VIDER_ABSENCE : 'Prévu, réel et horaires du jour remis à vide'}
+            >
+              <Eraser className="h-3.5 w-3.5" />
+              Vider ce jour
+            </Button>
+          )}
+          {onVider && viderRefuse && (
+            <p className="px-2 text-[11px] text-muted-foreground">{REFUS_VIDER_ABSENCE}</p>
+          )}
+        </div>
       )}
 
       <div className="flex items-center justify-between gap-2 pt-1">
