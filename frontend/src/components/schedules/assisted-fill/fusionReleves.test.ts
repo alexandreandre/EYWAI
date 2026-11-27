@@ -137,3 +137,51 @@ describe('mergeProposals : avertissements, période et couverture', () => {
     expect(e.coverage_ratio).toBeCloseTo(0.3);
   });
 });
+
+describe('mergeProposals : plages couvertes et relectures', () => {
+  const s39 = {
+    ...releve(2026, 9, [jour(21, 7)]),
+    detected_period_start: '2026-09-21',
+    detected_period_end: '2026-09-25',
+    reimport: {
+      lots_precedents: [{ batch_id: 'ancien-s39', filename: 'S39.xlsx' }],
+      corrections_a_la_main: [
+        {
+          employee_id: 'e1', annee: 2026, mois: 9, jour: 21,
+          import_precedent: { heures: 7, type: 'travail' },
+          calendrier: { heures: 6, type: 'travail' },
+          fichier: { heures: 7, type: 'travail' },
+        },
+      ],
+      associations_reprises: ['SALARIE UN'],
+    },
+  } as AiCalendarProposal;
+  const s43 = {
+    ...releve(2026, 10, [jour(21, 6.75)]),
+    detected_period_start: '2026-10-19',
+    detected_period_end: '2026-10-25',
+  } as AiCalendarProposal;
+
+  it('les plages couvertes sont celles des fichiers, pas l’intervalle global', () => {
+    for (const ordre of [[s39, s43], [s43, s39]]) {
+      expect(mergeProposals(ordre).detected_periods).toEqual([
+        { start: '2026-09-21', end: '2026-09-25' },
+        { start: '2026-10-19', end: '2026-10-25' },
+      ]);
+    }
+  });
+
+  it('une relecture d’un des fichiers reste annoncée, quel que soit l’ordre', () => {
+    for (const ordre of [[s39, s43], [s43, s39]]) {
+      const r = mergeProposals(ordre).reimport;
+      expect(r?.lots_precedents.map((l) => l.batch_id)).toEqual(['ancien-s39']);
+      expect(r?.corrections_a_la_main).toHaveLength(1);
+      expect(r?.associations_reprises).toEqual(['SALARIE UN']);
+    }
+  });
+
+  it('sans relecture, rien n’est annoncé', () => {
+    const s40 = { ...s43, month: 10 } as AiCalendarProposal;
+    expect(mergeProposals([s43, s40]).reimport ?? null).toBeNull();
+  });
+});

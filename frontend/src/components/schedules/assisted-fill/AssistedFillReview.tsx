@@ -792,6 +792,7 @@ export function AssistedFillReview({
   const periodeDuDocument = {
     debut: proposal.detected_period_start ?? null,
     fin: proposal.detected_period_end ?? null,
+    plages: (proposal.detected_periods ?? []).map((p) => ({ debut: p.start, fin: p.end })),
     annee: proposal.year,
     mois: proposal.month,
   };
@@ -1057,11 +1058,17 @@ export function AssistedFillReview({
   const noiseWarningCount = proposal.warnings.length - globalWarnings.length;
 
   const periodRangeLabel = useMemo(() => {
+    // Relevés fusionnés : les plages réellement couvertes, pas l'intervalle global.
+    if (proposal.detected_periods && proposal.detected_periods.length > 1) {
+      return proposal.detected_periods
+        .map((p) => `${formatIsoDate(p.start)} – ${formatIsoDate(p.end)}`)
+        .join(' et ');
+    }
     if (proposal.detected_period_start && proposal.detected_period_end) {
       return `${formatIsoDate(proposal.detected_period_start)} – ${formatIsoDate(proposal.detected_period_end)}`;
     }
     return null;
-  }, [proposal.detected_period_start, proposal.detected_period_end]);
+  }, [proposal.detected_periods, proposal.detected_period_start, proposal.detected_period_end]);
 
   const formatLabel =
     proposal.detected_format === 'cegid_weekly'

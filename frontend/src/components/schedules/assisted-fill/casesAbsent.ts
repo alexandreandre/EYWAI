@@ -40,6 +40,9 @@ export interface PeriodeRevue {
   /** Période du document, ISO (yyyy-mm-dd) ; absente : seuls les jours lus comptent. */
   debut?: string | null;
   fin?: string | null;
+  /** Relevés fusionnés : les plages couvertes ; présentes, elles remplacent
+   * l'intervalle début-fin (rien à saisir entre deux fichiers). */
+  plages?: { debut: string; fin: string }[] | null;
   /** Mois affiché, pour les jours sans mois propre. */
   annee: number;
   mois: number;
@@ -82,8 +85,13 @@ export function joursVides(jours: JourRevu[], periode: PeriodeRevue): JourVide[]
     const mois = j.month ?? periode.mois;
     out.set(cle(annee, mois, j.jour), { jour: j.jour, annee, mois, lu: true });
   }
-  if (periode.debut && periode.fin) {
-    for (const d of datesOuvrees(periode.debut, periode.fin)) {
+  const plages = periode.plages?.length
+    ? periode.plages
+    : periode.debut && periode.fin
+      ? [{ debut: periode.debut, fin: periode.fin }]
+      : [];
+  for (const plage of plages) {
+    for (const d of datesOuvrees(plage.debut, plage.fin)) {
       const k = cle(d.annee, d.mois, d.jour);
       if (!parCle.has(k)) out.set(k, { ...d, lu: false });
     }

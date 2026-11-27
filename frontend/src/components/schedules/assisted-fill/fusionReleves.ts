@@ -3,6 +3,9 @@ import type {
   AiCalendarProposal,
   AiDayEntry,
   AiEmployeeProposal,
+  CorrectionALaMain,
+  LotPrecedent,
+  ReimportInfo,
 } from '@/api/calendar';
 import { accord, pluriel } from '@/lib/pluriel';
 
@@ -115,6 +118,61 @@ function moisTouches(employees: AiEmployeeProposal[], fusion: Mois): AffectedMon
     .map(([, m]) => ({ ...m, days: [...m.days].sort((a, b) => a - b) }));
 }
 
+interface Plage {
+  start: string;
+  end: string;
+}
+
+const lendemain = (iso: string) => {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${deux(d.getMonth() + 1)}-${deux(d.getDate())}`;
+};
+
+/** Les plages couvertes par les fichiers, fusionnées quand elles se touchent. */
+function plagesCouvertes(proposals: AiCalendarProposal[]): Plage[] {
+  const plages = proposals
+    .flatMap((p): Plage[] =>
+      p.detected_periods?.length
+        ? p.detected_periods
+        : p.detected_period_start && p.detected_period_end
+          ? [{ start: p.detected_period_start, end: p.detected_period_end }]
+          : [],
+    )
+    .sort((a, b) => a.start.localeCompare(b.start));
+  const out: Plage[] = [];
+  for (const p of plages) {
+    const derniere = out[out.length - 1];
+    if (derniere && p.start <= lendemain(derniere.end)) {
+      if (p.end > derniere.end) derniere.end = p.end;
+    } else {
+      out.push({ ...p });
+    }
+  }
+  return out;
+}
+
+/** Une relecture d'un des fichiers reste annoncée, quel que soit son rang. */
+function relecturesFusionnees(proposals: AiCalendarProposal[]): ReimportInfo | null {
+  const relectures = proposals.map((p) => p.reimport).filter((r): r is ReimportInfo => !!r);
+  if (relectures.length === 0) return null;
+  const lots = new Map<string, LotPrecedent>();
+  const corrections = new Map<string, CorrectionALaMain>();
+  const associations = new Set<string>();
+  for (const r of relectures) {
+    r.lots_precedents.forEach((l) => lots.set(l.batch_id, l));
+    r.corrections_a_la_main.forEach((c) =>
+      corrections.set(`${c.employee_id}|${c.annee}|${c.mois}|${c.jour}`, c),
+    );
+    (r.associations_reprises ?? []).forEach((a) => associations.add(a));
+  }
+  return {
+    lots_precedents: [...lots.values()],
+    corrections_a_la_main: [...corrections.values()],
+    associations_reprises: [...associations],
+  };
+}
+
 export function mergeProposals(proposals: AiCalendarProposal[]): AiCalendarProposal {
   const base = proposals[proposals.length - 1];
   const fusion: Mois = { year: base.year, month: base.month };
@@ -159,6 +217,8 @@ export function mergeProposals(proposals: AiCalendarProposal[]): AiCalendarPropo
     detected_period_start: debuts.length ? debuts.sort()[0] : base.detected_period_start,
     detected_period_end: fins.length ? fins.sort()[fins.length - 1] : base.detected_period_end,
     detected_days_count: datesLues.size,
+    detected_periods: plagesCouvertes(proposals),
+    reimport: relecturesFusionnees(proposals) ?? base.reimport ?? null,
     employees,
     warnings: [...warnings],
     source: `${pluriel(proposals.length, 'relevé')} ${accord(proposals.length, 'fusionné')}`,

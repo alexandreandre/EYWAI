@@ -120,3 +120,22 @@ describe('enregistrement', () => {
     ).toEqual([{ employeeId: 'e1', nom: 'Salariée Une', jours: [14] }]);
   });
 });
+
+describe('jours vides de plusieurs relevés fusionnés', () => {
+  it('seules les plages couvertes par un fichier proposent des jours à saisir', () => {
+    // S39 (21-25/09) et S43 (19-25/10) importés ensemble.
+    const vides = joursVides([], {
+      annee: 2026,
+      mois: 10,
+      debut: '2026-09-21',
+      fin: '2026-10-25',
+      plages: [
+        { debut: '2026-09-21', fin: '2026-09-25' },
+        { debut: '2026-10-19', fin: '2026-10-25' },
+      ],
+    });
+    const dates = vides.map((v) => `${v.jour}/${v.mois}`);
+    expect(dates).toEqual(['21/9', '22/9', '23/9', '24/9', '25/9', '19/10', '20/10', '21/10', '22/10', '23/10']);
+    expect(vides.some((v) => (v.mois === 9 && v.jour >= 28) || (v.mois === 10 && v.jour <= 16))).toBe(false);
+  });
+});

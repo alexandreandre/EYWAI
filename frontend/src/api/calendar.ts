@@ -321,6 +321,9 @@ export interface AiCalendarProposal {
   detected_scope?: TimesheetScope;
   detected_period_start?: string | null;
   detected_period_end?: string | null;
+  /** Relevés fusionnés : les plages réellement couvertes, une par fichier
+   * (fusionnées quand elles se touchent). Absent : la période ci-dessus. */
+  detected_periods?: { start: string; end: string }[] | null;
   period_confidence?: TimesheetConfidence;
   period_warnings?: string[];
   detected_days_count?: number;
