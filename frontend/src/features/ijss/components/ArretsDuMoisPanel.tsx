@@ -130,17 +130,90 @@ export function phraseMaintien(
         texte: "Bulletin calculé avant l'arrêt : régénérez-le pour qu'il compte l'arrêt",
         ton: 'attente',
       };
-    case 'bulletin_remis_avant_l_arret': {
-      // Retour d'Elsa du 26/11 : « le rappel se fait sur le mois suivant » était
-      // faux, rien ne reporte l'arrêt seul. L'arrêt reste au mois civil (c'est
-      // ce que fait Quadra chez LEWIS et Cartol, comme le cabinet de Colorplast) ;
-      // arrivé après la paie du mois, il se porte sur le bulletin suivant, à la main.
-      const ceBulletin = mois ? `Bulletin ${duMois(mois.month)}` : 'Bulletin du mois';
-      const suivant = mois ? `le bulletin ${duMois(mois.month + 1)}` : 'le bulletin suivant';
+    // Retour d'Elsa du 26/11 : un arrêt arrivé après la validation du bulletin de
+    // son mois passe sur le bulletin suivant, à ses dates, comme chez Quadra.
+    case 'reporte_sur_le_bulletin_suivant':
+      return {
+        texte: mois ? `Reporté sur le bulletin ${duMois(mois.month + 1)}` : 'Reporté sur le bulletin suivant',
+        ton: 'ok',
+      };
+    case 'report_au_prochain_calcul':
       return {
         texte:
-          `${ceBulletin} remis avant la saisie de l'arrêt : il ne le compte pas, et Martine ` +
-          `ne le reporte pas seule. À porter sur ${suivant} (onglet « Corriger »)`,
+          `${mois ? `Bulletin ${duMois(mois.month)}` : 'Bulletin du mois'} validé avant l'arrêt : ` +
+          `${mois ? `le bulletin ${duMois(mois.month + 1)}` : 'le bulletin suivant'} le reprendra à son calcul`,
+        ton: 'attente',
+      };
+    case 'report_a_recalculer':
+      return {
+        texte:
+          `${mois ? `Bulletin ${duMois(mois.month)}` : 'Bulletin du mois'} validé avant l'arrêt : ` +
+          `recalculez ${mois ? `le bulletin ${duMois(mois.month + 1)}` : 'le bulletin suivant'} pour qu'il le reprenne`,
+        ton: 'attente',
+      };
+    // Rien à reprendre : le dire, jamais une consigne qui ferait retenir deux fois.
+    case 'compte_par_le_bulletin':
+      return {
+        texte: mois ? `Compté par le bulletin ${duMois(mois.month)}` : 'Compté par le bulletin du mois',
+        ton: 'ok',
+      };
+    case 'porte_a_la_main':
+      return {
+        texte: mois
+          ? `Déjà porté à la main sur le bulletin ${duMois(mois.month + 1)}`
+          : 'Déjà porté à la main sur le bulletin suivant',
+        ton: 'ok',
+      };
+    case 'porte_a_la_main_apres':
+      return {
+        texte: mois
+          ? `Déjà porté à la main sur le bulletin ${duMois(mois.month + 2)}`
+          : 'Déjà porté à la main sur un bulletin suivant',
+        ton: 'ok',
+      };
+    case 'a_reprendre_a_la_main': {
+      // La cause vient de l'analyse : le jour était payé autrement, ou la ligne
+      // d'arrêt du bulletin d'origine n'a pas de date lisible.
+      const bulletin = mois ? `Bulletin ${duMois(mois.month)}` : 'Bulletin du mois';
+      const causes: Record<string, string> = {
+        conge: 'ces jours y étaient payés en congé',
+        activite_partielle: 'ces jours y étaient en activité partielle',
+        autre: 'ces jours y étaient payés en autre absence (RTT, repos, événement familial…)',
+      };
+      if (m.motif === 'illisible') {
+        return {
+          texte:
+            `${bulletin} : sa ligne d'arrêt n'a pas de date lisible. Martine ne reprend rien : ` +
+            "vérifiez s'il a compté l'arrêt, et portez-le à la main sinon (onglet « Corriger »)",
+          ton: 'attente',
+        };
+      }
+      return {
+        texte:
+          `${bulletin} : ${causes[m.motif ?? ''] ?? 'ces jours y étaient payés autrement'}. ` +
+          'Martine ne les reprend pas : régularisez à la main (onglet « Corriger »)',
+        ton: 'attente',
+      };
+    }
+    case 'dans_la_periode_suivante':
+      // Forfait jours : la période de paie d'octobre commence en septembre.
+      return {
+        texte: mois
+          ? `Dans la période de paie ${duMois(mois.month + 1)} : compté par le bulletin ${duMois(mois.month + 1)}`
+          : 'Dans la période de paie du mois suivant : compté par son bulletin',
+        ton: 'neutre',
+      };
+    case 'bulletin_remis_avant_l_arret': {
+      // Le bulletin suivant était déjà validé lui aussi : Martine ne remonte pas
+      // plus loin, l'arrêt se porte à la main.
+      const deux = mois
+        ? `Bulletins ${duMois(mois.month)} et ${duMois(mois.month + 1)}`
+        : 'Bulletin du mois et bulletin suivant';
+      const apres = mois ? `le bulletin ${duMois(mois.month + 2)}` : 'le prochain bulletin';
+      return {
+        texte:
+          `${deux} validés avant la saisie de l'arrêt : Martine ne le reporte pas seule. ` +
+          `À porter sur ${apres} (onglet « Corriger »)`,
         ton: 'attente',
       };
     }

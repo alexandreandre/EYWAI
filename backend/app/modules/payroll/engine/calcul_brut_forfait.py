@@ -19,6 +19,9 @@ from typing import Dict, Any, List, Optional
 from app.shared.domain.employment_rules import is_cadre
 from .calcul_conges import calculer_indemnite_conges
 from .calcul_brut import (
+    LIBELLES_ARRET,
+    _parse_date_contrat,
+    _nature_de_l_arret,
     LIBELLE_ICCP_DEPART,
     _calculer_iccp_cdd,
     _calculer_iccp_depart,
@@ -89,6 +92,7 @@ FAMILLES_RETENUES_FORFAIT = (
     "brut:absence_maladie",
     "brut:arret",
     "brut:retenue_absence_mois_complet",
+    "brut:retenue_arret_reporte_periode",
 )
 
 
@@ -303,6 +307,35 @@ def _ajouter_lignes_de_fin_de_contrat(
     lignes.extend(lignes_sortie)
 
 
+def _jours_ouvres_entre(debut: date, fin: date) -> set[date]:
+    return {
+        debut + timedelta(days=k)
+        for k in range((fin - debut).days + 1)
+        if (debut + timedelta(days=k)).weekday() < 5
+    }
+
+
+def _toute_la_periode_d_origine(contexte: ContextePaie, jours: set[date], fin_de_periode: date) -> bool:
+    """Les jours reportés couvrent-ils tous les jours ouvrés de leur période d'origine ?"""
+    from .period_forfait import definir_periode_de_paie
+
+    premier = min(jours)
+    debut_mois = premier.replace(day=1)
+    fin_mois = (debut_mois + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    if _jours_ouvres_entre(debut_mois, fin_mois) <= jours:
+        return True
+    annee, mois = (fin_de_periode.year, fin_de_periode.month - 1) if fin_de_periode.month > 1 else (
+        fin_de_periode.year - 1,
+        12,
+    )
+    try:
+        debut, fin = definir_periode_de_paie(contexte, annee, mois)
+    except Exception:
+        return False
+    ouvres = _jours_ouvres_entre(debut, fin)
+    return bool(ouvres) and ouvres <= jours
+
+
 def calculer_salaire_brut_forfait(
     contexte: ContextePaie,
     calendrier_saisie: List[Dict[str, Any]],
@@ -423,6 +456,8 @@ def calculer_salaire_brut_forfait(
         j
         for j in calendrier_saisie
         if "date_complete" in j
+        # Un arrêt reporté se retient à part (2 bis), une seule fois.
+        and not j.get("is_regularisation_anterieure")
         and date_debut_periode
         <= date.fromisoformat(j["date_complete"])
         <= date_fin_periode
@@ -566,6 +601,74 @@ def calculer_salaire_brut_forfait(
                 }
             )
 
+    # 2 bis. Arrêt reporté d'un bulletin précédent (régularisation antérieure,
+    # retour d'Elsa du 26/11) : hors de la période, retenu à ses dates sur la
+    # journée de forfait. Il ne rend pas ce mois-ci « entièrement absent » ; le
+    # maintien et les IJ de ses jours sont ajoutés en aval, comme pour le mois.
+    jours_d_arret_reporte: list[date] = []
+    entree_du_contrat = _parse_date_contrat(
+        ((contexte.contrat or {}).get("contrat") or {}).get("date_entree")
+    )
+    for evenement in calendrier_saisie:
+        if not (
+            evenement.get("arret_reporte")
+            and str(evenement.get("type") or "").startswith("arret")
+        ) or evenement.get("sans_retenue"):
+            # Requalifié d'une absence déjà retenue : maintien et IJ seulement.
+            continue
+        try:
+            jour_arret = date.fromisoformat(evenement["date_complete"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        # Un jour de forfait est un jour ouvré : le week-end ne se retient pas.
+        # Un jour d'avant l'entrée appartient au contrat d'avant (D3).
+        if jour_arret.weekday() >= 5 or jour_arret in jours_hors_contrat_set or (
+            entree_du_contrat is not None and jour_arret < entree_du_contrat
+        ):
+            continue
+        jours_d_arret_reporte.append(jour_arret)
+        jours_abs = _jours_evenement_absence(evenement)
+        montant_deduction = round(jours_abs * salaire_journalier_absence, 2)
+        retenues_absence_mois += montant_deduction
+        nature = LIBELLES_ARRET.get(_nature_de_l_arret(evenement), "arrêt de travail")
+        lignes_composants_brut.append(
+            {
+                "libelle": f"Absence {nature} du {jour_arret:%d/%m/%y} (arrêt reporté)",
+                "quantite": jours_abs,
+                "taux": round(salaire_journalier_absence, 4),
+                "gain": None,
+                "perte": montant_deduction,
+                "is_arret_maladie": True,
+                "arret_reporte": True,
+            }
+        )
+    # Toute la période d'origine reportée (son mois civil, ou la période de paie
+    # d'avant) : la retenue vaut le salaire du mois, comme aux heures.
+    if jours_d_arret_reporte and _toute_la_periode_d_origine(
+        contexte, set(jours_d_arret_reporte), date_fin_periode
+    ):
+        complement_reporte = round(
+            salaire_contractuel
+            - sum(
+                l.get("perte") or 0.0
+                for l in lignes_composants_brut
+                if l.get("arret_reporte")
+            ),
+            2,
+        )
+        if abs(complement_reporte) >= 0.01:
+            retenues_absence_mois += complement_reporte
+            lignes_composants_brut.append(
+                {
+                    "libelle": "Arrêt reporté sur toute la période : retenue ramenée au salaire du mois",
+                    "quantite": None,
+                    "taux": None,
+                    "gain": None if complement_reporte > 0 else round(-complement_reporte, 2),
+                    "perte": complement_reporte if complement_reporte > 0 else None,
+                    "arret_reporte": True,
+                }
+            )
+
     # 3. Calcul des congés payés (somme des quotités : une demi-journée = 0,5)
     if jours_conges_dans_periode:
         nombre_jours_conges = sum(
@@ -656,10 +759,14 @@ def calculer_salaire_brut_forfait(
             for ligne in lignes_composants_brut
             if ligne.get("is_entree_sortie")
         )
+        # La retenue d'un arrêt reporté porte sur le mois d'avant : le
+        # complément ne la reprend pas (elle s'ajoute au mois entier absent).
         perte_absences = sum(
             (ligne.get("perte") or 0.0)
             for ligne in lignes_composants_brut
-            if ligne.get("perte") and not ligne.get("is_entree_sortie")
+            if ligne.get("perte")
+            and not ligne.get("is_entree_sortie")
+            and not ligne.get("arret_reporte")
         )
         # Le salaire du mois tel que le bulletin le porte : corrigé à la main
         # s'il l'a été (relecture A2, 18/11 : 4 400 € saisis, 200 € restaient).
@@ -777,9 +884,17 @@ def calculer_salaire_brut_forfait(
         for ligne in lignes_composants_brut
         if not ligne.get("is_sous_total")
     )
+    # L'arrêt reporté reprend une journée payée le mois d'avant : ni le
+    # plafond des retenues ni le plancher du brut ne la portent. Le maintien
+    # de ses jours, ajouté en aval, s'y compense (mois entier absent compris).
+    pertes_reportees = sum(
+        ligne.get("perte", 0.0) or 0.0
+        for ligne in lignes_composants_brut
+        if ligne.get("arret_reporte")
+    )
     total_pertes = sum(
         ligne.get("perte", 0.0) or 0.0 for ligne in lignes_composants_brut
-    )
+    ) - pertes_reportees
 
     # Protection : Les déductions d'absence ne peuvent pas dépasser le salaire de base
     # (sauf si des primes/avantages sont ajoutés)
@@ -805,6 +920,7 @@ def calculer_salaire_brut_forfait(
     if total_brut < 0:
         logger.warning(f'AVERTISSEMENT: Le salaire brut calculé est négatif ({total_brut:.2f} €). Il est ramené à 0 €.')
         total_brut = 0.0
+    total_brut -= pertes_reportees
 
     # En forfait jour, pas d'heures supplémentaires
     remuneration_hs_totale = 0.0

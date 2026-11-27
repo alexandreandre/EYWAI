@@ -115,6 +115,10 @@ _MOTIFS_DE_GAIN: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
         ("complement_absence_integrale", r"^Complément retenue absence intégrale du mois"),
         ("retenue_absence_integrale", r"^Retenue absence intégrale du mois limitée au salaire mensuel$"),
         ("retenue_absence_mois_complet", r"^Absence sur tout le mois : retenue ramenée au salaire du mois$"),
+        (
+            "retenue_arret_reporte_periode",
+            r"^Arrêt reporté sur toute la période : retenue ramenée au salaire du mois$",
+        ),
         ("lissage_modulation", r"^Lissage modulation$"),
         ("absence_conges_payes", r"^Absence congés payés"),
         ("indemnite_conges_payes", r"^Indemnité de congés payés \((?P<d>.+)\)$"),

@@ -136,6 +136,44 @@ def chiffres_du_bulletin(payslip_data: Mapping[str, Any] | None) -> dict[str, An
     return chiffres
 
 
+#: Le bulletin suivant a repris l'arrêt (retour d'Elsa du 26/11).
+ETAT_REPORTE = "reporte_sur_le_bulletin_suivant"
+#: Pas encore de bulletin suivant : il reprendra l'arrêt à son calcul.
+ETAT_REPORT_AU_PROCHAIN_CALCUL = "report_au_prochain_calcul"
+#: Bulletin suivant calculé sans l'arrêt, encore modifiable : à recalculer.
+ETAT_REPORT_A_RECALCULER = "report_a_recalculer"
+#: Bulletin suivant validé lui aussi sans l'arrêt : à porter à la main.
+ETAT_REMIS_SANS_REPORT = "bulletin_remis_avant_l_arret"
+#: Arrêt saisi tard, mais déjà retenu par le bulletin de son mois (repris de Quadra).
+ETAT_COMPTE_PAR_LE_BULLETIN = "compte_par_le_bulletin"
+#: Arrêt saisi tard, déjà porté à la main par la gestionnaire sur le bulletin suivant.
+ETAT_PORTE_A_LA_MAIN = "porte_a_la_main"
+#: Le suivant validé sans l'arrêt, porté à la main sur le bulletin d'après.
+ETAT_PORTE_A_LA_MAIN_APRES = "porte_a_la_main_apres"
+#: Jours payés autrement (congé, activité partielle…) ou illisibles : à la main.
+ETAT_A_REPRENDRE_A_LA_MAIN = "a_reprendre_a_la_main"
+#: Au forfait jours : le jour est dans la période de paie du mois suivant.
+ETAT_DANS_LA_PERIODE_SUIVANTE = "dans_la_periode_suivante"
+
+
+def etat_du_report(absence_id: str, bulletin_suivant: Mapping[str, Any] | None) -> str:
+    """Où en est un arrêt arrivé après la validation du bulletin de son mois.
+
+    Martine le reporte sur le bulletin suivant (`payroll.application.arrets_reportes`) ;
+    la trace de ce bulletin dit s'il l'a fait."""
+    if not bulletin_suivant:
+        return ETAT_REPORT_AU_PROCHAIN_CALCUL
+    trace = ((bulletin_suivant.get("payslip_data") or {}).get("arrets_du_bulletin")) or {}
+    if any(
+        str((r or {}).get("absence_id") or "") == str(absence_id)
+        for r in trace.get("reportes") or []
+    ):
+        return ETAT_REPORTE
+    if bulletin_suivant.get("status") == "valide":
+        return ETAT_REMIS_SANS_REPORT
+    return ETAT_REPORT_A_RECALCULER
+
+
 def bulletin_calcule_avant(bulletin: Mapping[str, Any] | None, instant: Any) -> bool:
     """Bulletin calculé avant l'instant donné (création de l'arrêt, de la ligne) :
     il ne connaît pas ce qui a suivi, il est à recalculer pour en tenir compte."""

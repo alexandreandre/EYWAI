@@ -10,6 +10,7 @@ Ce service détecte automatiquement si un employé est en forfait jour
 et utilise le générateur approprié.
 """
 
+from app.modules.payroll.application import arrets_reportes
 from app.modules.payroll.documents.alertes_d_entree import alertes_d_entree_courantes
 from app.shared.domain.effectif_seuils import (
     alerte_effectif,
@@ -119,6 +120,14 @@ def _periode_de_paie_company(company_data: Dict[str, Any]) -> Dict[str, Any]:
             else -2
         ),
     }
+
+
+def _report_des_arrets(*args: Any, **kwargs: Any) -> arrets_reportes.Report:
+    """`preparer_le_report`, ou un refus clair si le bulletin suivant est illisible."""
+    try:
+        return arrets_reportes.preparer_le_report(*args, **kwargs)
+    except arrets_reportes.LectureDuBulletinSuivantImpossible as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 def process_payslip_generation_forfait(
@@ -684,6 +693,23 @@ def process_payslip_generation_forfait(
             employee_path / "cumuls" / f"{prev_month:02d}.json", previous_cumuls_data
         )
 
+        # Arrêt arrivé après la validation du bulletin précédent : le moteur le
+        # reprend à ses dates (il analyse lui-même les jours du forfait), et ne
+        # recompte pas les jours que le bulletin suivant a déjà repris (Elsa, 26/11).
+        saisies_data.update(
+            _report_des_arrets(
+                supabase,
+                employee_id,
+                year,
+                month,
+                forfait_jours=True,
+                company_data=company_data,
+                planned_calendar_du_mois=(db_data_map.get((year, month)) or {}).get(
+                    "planned_calendar"
+                ),
+                saisies=saisies_lues,
+            ).vers_les_saisies()
+        )
         write_temp_json(employee_path / "saisies" / f"{month:02d}.json", saisies_data)
 
         # --- ÉTAPE 4 : GÉNÉRATION IN-PROCESS (app uniquement) ---

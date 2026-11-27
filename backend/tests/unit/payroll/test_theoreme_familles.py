@@ -40,6 +40,7 @@ LIBELLES = {
     "complement_absence_integrale": "Complément retenue absence intégrale du mois",
     "retenue_absence_integrale": "Retenue absence intégrale du mois limitée au salaire mensuel",
     "retenue_absence_mois_complet": "Absence sur tout le mois : retenue ramenée au salaire du mois",
+    "retenue_arret_reporte_periode": "Arrêt reporté sur toute la période : retenue ramenée au salaire du mois",
     "lissage_modulation": "Lissage modulation",
     "absence_conges_payes": "Absence congés payés du 12/10/26",
     "indemnite_conges_payes": "Indemnité de congés payés (octobre)",

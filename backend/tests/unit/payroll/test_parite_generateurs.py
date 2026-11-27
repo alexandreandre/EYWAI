@@ -90,6 +90,7 @@ COMMUNES: dict[str, dict[str, str]] = {
         "fin_au_depart": "mois de sortie : jusqu'au départ (heures : fenêtre des variables ; forfait : période de l'activité partielle, A9 18/11)",
         "ranger_les_saisies": "primes, frais, participations, IJSS et acomptes saisis : une seule fonction (17/11)",
         "_stamp_source_absence_conges": "les absences validées du calendrier",
+        "_report_des_arrets": "arrêt arrivé après la validation du bulletin précédent : repris à ses dates (Elsa, 26/11)",
         "_heures_sup_conjoncturelles_from_monthly_inputs": "les heures sup saisies au mois",
         "notes_de_frais_dans_le_mns": "le réglage des notes de frais",
         "entree_de_note_de_frais": "les notes de frais validées",
@@ -195,6 +196,8 @@ COMMUNES: dict[str, dict[str, str]] = {
         "imprimer_le_bulletin": "le PDF",
         "fin_de_la_reprise_au_premier_mois": "premier mois après une reprise : absences déjà traitées (17/11)",
         "arrets_de_l_annee": "carence payée N jours par an : les arrêts de l'année (17/11)",
+        "appliquer_les_arrets_reportes": "maintien et IJ de l'arrêt repris du bulletin précédent, sur ses seules dates, un bloc par arrêt (26/11)",
+        "poser_la_trace": "les jours d'arrêt traités par le bulletin, pour le bulletin suivant (26/11)",
     },
 }
 
@@ -214,6 +217,7 @@ HEURES_SEULEMENT: dict[str, dict[str, str]] = {
         "resolve_effective_weekly_hours_map": "modulation des heures hebdomadaires",
         "payroll_analyzer_analyser": "analyse des heures ; le forfait analyse ses jours dans le moteur",
         "regularisation_events_from_calendar": "régularisations d'heures d'un mois passé",
+        "appliquer_le_report_aux_evenements": "arrêts repris du bulletin précédent : aux événements analysés ; au forfait, dans le moteur qui analyse ses jours",
         "option_active": "compensation des heures entre semaines",
         "s_applique_au_contrat": "idem",
         "bornes_du_contrat": "idem",
@@ -279,6 +283,8 @@ FORFAIT_SEULEMENT: dict[str, dict[str, str]] = {
         "absences_hors_reprise": "la période du forfait déborde sur le mois repris : ses absences en sortent (aux heures : dans calcul_brut)",
         "debut_apres_la_reprise": "idem, le maintien commence après la bascule (aux heures : mois civil)",
         "fin_au_depart": "mois de sortie après la fin de la période décalée : la période va jusqu'au départ (A9 ; aux heures, dans le générateur, sur la fenêtre des variables)",
+        "appliquer_le_report_aux_evenements": "arrêts repris du bulletin précédent : le moteur du forfait analyse ses jours (aux heures, dans le générateur)",
+        "depuis_les_saisies": "idem, le report passé par le générateur du forfait dans les saisies du mois (aux heures, lu par la trace et les lignes du report)",
     },
 }
 
