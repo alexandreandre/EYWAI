@@ -2355,10 +2355,17 @@ def calculer_salaire_brut(
     # 170826-310826 ») : les heures de la période au taux de base, arrondies une
     # seule fois. Une ligne par jour arrondissait chaque jour (7 h à 13,1430 =
     # 92,00) et perdait un centime sur 11 jours.
+    #: Arrêts d'un autre mois retenus ici (reportés du bulletin précédent ou régularisés) :
+    #: le SMIC de référence d'un mois retenu en entier les corrige à part (BOSS § 790).
+    heures_arret_d_autres_mois = 0.0
+    retenue_arret_d_autres_mois = 0.0
     for periode in _periodes_d_arret(jours_d_arret_a_retenir):
         taux_retenue = taux_horaire_de_base * coef_retenue(periode["debut"])
         montant_deduction = round(periode["heures"] * taux_retenue, 2)
         deduction_arret_maladie_total += montant_deduction
+        if periode["regularisation"]:
+            heures_arret_d_autres_mois += periode["heures"]
+            retenue_arret_d_autres_mois += montant_deduction
         if not periode["regularisation"]:
             montant_absence_pleine_total += montant_deduction
         lignes_composants_brut.append(
@@ -2422,6 +2429,8 @@ def calculer_salaire_brut(
             taux_hs_retenue = taux_horaire_majore * coef_retenue_du_mois
             montant_reduction_hs = round(heures_hs_perdues * taux_hs_retenue, 2)
             retenue_hs_des_arrets = round(heures_hs_des_arrets * taux_hs_retenue, 2)
+            heures_arret_d_autres_mois += heures_hs_perdues_reportees
+            retenue_arret_d_autres_mois += round(heures_hs_perdues_reportees * taux_hs_retenue, 2)
             # La part des jours reportés ne se ramène pas au salaire du mois.
             montant_absence_pleine_total += montant_reduction_hs - round(
                 heures_hs_perdues_reportees * taux_hs_retenue, 2
@@ -3005,6 +3014,9 @@ def calculer_salaire_brut(
         # Retenue de la part d'heures sup structurelles des jours d'arrêt (dans la ligne
         # « Heures sup. du contrat non faites ») : `heures_arret_deduites` la compte en heures.
         "retenue_hs_des_arrets": retenue_hs_des_arrets,
+        # Dont arrêts d'un autre mois (reportés ou régularisés), base et heures sup.
+        "heures_arret_d_autres_mois": round(heures_arret_d_autres_mois, 2),
+        "retenue_arret_d_autres_mois": round(retenue_arret_d_autres_mois, 2),
         "heures_arret_deduites": round(heures_arret_deduites, 2),
         "heures_complementaires": round(
             heures_travail_hc1_total

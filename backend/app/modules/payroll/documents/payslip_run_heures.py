@@ -1595,6 +1595,9 @@ def run_payslip_generation_heures(
         heures_retablies_par_rappels=heures_retablies_par_rappels,
         salaire_retenu_en_entier=bool(resultat_brut.get("salaire_retenu_en_entier")),
         salaire_du_mois_complet=salaire_du_mois_complet(contexte),
+        heures_arret_d_autres_mois=float(resultat_brut.get("heures_arret_d_autres_mois") or 0.0),
+        retenue_arret_d_autres_mois=float(resultat_brut.get("retenue_arret_d_autres_mois") or 0.0),
+        maintien_d_autres_mois=float(effet_du_report.maintien_verse or 0.0),
     )
 
     ligne_exoneration_jei = calculer_exoneration_jei(

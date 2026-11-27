@@ -68,6 +68,18 @@ def test_mois_entier_maintien_partiel_a_39_h():
     ) == 50.26
 
 
+def test_mois_entier_avec_un_arret_reporte_du_mois_precedent():
+    """Octobre entier en arrêt (2 925 €, 1 492,29 € maintenus) et arrêt de septembre reporté (119 h,
+    2 260,23 € retenus, 1 197,26 € maintenus) : les heures d'octobre au prorata de leur maintien, moins la
+    part non maintenue des jours de septembre, comptés au mois de septembre (BOSS § 790)."""
+    attendu = round(151.67 * 1492.29 / 2925.0 - 119.0 * (1 - 1197.26 / 2260.23), 2)
+    assert _heures(
+        heures_arret=154.0 + 119.0, retenue_arret_base=2925.0 + 2260.23, maintien_verse=1492.29 + 1197.26,
+        salaire_retenu_en_entier=True, salaire_du_mois_complet=2925.0,
+        heures_arret_d_autres_mois=119.0, retenue_arret_d_autres_mois=2260.23, maintien_d_autres_mois=1197.26,
+    ) == attendu == 21.41
+
+
 def test_mois_entier_sans_maintien_aucune_heure_sauf_les_conjoncturelles():
     assert _heures(
         heures_absence_non_payees=140.0, total_heures_supp=19.33, heures_sup_conjoncturelles=2.0,
