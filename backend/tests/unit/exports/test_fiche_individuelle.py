@@ -227,6 +227,8 @@ def test_la_route_exige_le_profil_rh():
 
 def test_un_salarie_d_une_autre_societe_est_introuvable():
     with patch(
+        "app.modules.exports.api.router.access_control_service.require_employee_access", return_value=None
+    ), patch(
         "app.modules.exports.application.service.generate_fiche_individuelle",
         side_effect=ValueError("Salarié non trouvé dans cette société."),
     ):
@@ -237,6 +239,8 @@ def test_un_salarie_d_une_autre_societe_est_introuvable():
 
 def test_la_route_rend_le_classeur():
     with patch(
+        "app.modules.exports.api.router.access_control_service.require_employee_access", return_value=None
+    ), patch(
         "app.modules.exports.application.service.generate_fiche_individuelle",
         return_value=(b"xlsx", "fiche-individuelle-Jean-EXEMPLE-2026-01-2026-12.xlsx"),
     ):
@@ -271,3 +275,62 @@ def test_au_forfait_jours_les_heures_le_disent():
     forfait["payslip_data"]["calcul_du_brut"][0] = {"libelle": "Salaire de base (forfait jour)", "gain": 2000.0}
     fiche = construire_fiche(EMPLOYE, [forfait], (2026, 10), (2026, 10), aujourd_hui=date(2026, 11, 27))
     assert _ligne(fiche, "Heures du salaire de base")["valeurs"][(2026, 10)] == "forfait jours"
+
+
+# --- Périmètre des équipes (relecture L18) -----------------------------------
+
+from app.modules.users.schemas.responses import CompanyAccess, User  # noqa: E402
+
+SERVICE_ACCES = "app.modules.access_control.application.service.access_control_service"
+
+
+def _role_personnalise_limite_a_ses_equipes() -> User:
+    return User(
+        id="dddddddd-4444-4444-4444-444444444444",
+        email="chef@societe.fr",
+        first_name="Chef",
+        last_name="Equipe",
+        is_platform_admin=False,
+        is_group_admin=False,
+        accessible_companies=[
+            CompanyAccess(
+                company_id="c1",
+                company_name="Société",
+                role="custom",
+                is_primary=True,
+                has_rh_permissions=True,
+            )
+        ],
+        active_company_id="c1",
+    )
+
+
+def test_un_role_limite_a_ses_equipes_sans_view_all_est_refuse():
+    """Comme les bulletins : sans `payslips.view_all`, pas de fiche d'un salarié."""
+    with patch(f"{SERVICE_ACCES}.assert_employee_in_company", return_value=None), patch(
+        f"{SERVICE_ACCES}.check_user_has_permission", return_value=False
+    ), patch(
+        "app.modules.exports.application.service.generate_fiche_individuelle",
+        return_value=(b"xlsx", "f.xlsx"),
+    ) as generer:
+        with pytest.raises(HTTPException) as exc:
+            route_fiche(
+                "hors-equipe", None, None, current_user=_role_personnalise_limite_a_ses_equipes(), company_id="c1"
+            )
+    assert exc.value.status_code == 403
+    generer.assert_not_called()
+
+
+def test_hors_de_ses_equipes_le_salarie_est_introuvable():
+    with patch(f"{SERVICE_ACCES}.assert_employee_in_company", return_value=None), patch(
+        f"{SERVICE_ACCES}.check_user_has_permission", return_value=True
+    ), patch(f"{SERVICE_ACCES}.user_can_access_employee", return_value=False), patch(
+        "app.modules.exports.application.service.generate_fiche_individuelle",
+        return_value=(b"xlsx", "f.xlsx"),
+    ) as generer:
+        with pytest.raises(HTTPException) as exc:
+            route_fiche(
+                "hors-equipe", None, None, current_user=_role_personnalise_limite_a_ses_equipes(), company_id="c1"
+            )
+    assert exc.value.status_code in (403, 404)
+    generer.assert_not_called()

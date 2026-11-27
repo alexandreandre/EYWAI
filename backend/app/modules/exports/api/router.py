@@ -185,6 +185,10 @@ def fiche_individuelle(
     n'est enregistré, pas même dans l'historique des exports."""
     try:
         _require_exports_company_access(current_user, company_id)
+        # Les bulletins d'un salarié : même périmètre que leur lecture (équipes).
+        access_control_service.require_employee_access(
+            current_user, company_id, "payslips.view_all", employee_id
+        )
         contenu, nom = export_service.generate_fiche_individuelle(
             company_id, employee_id, debut, fin
         )
