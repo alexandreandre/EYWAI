@@ -96,3 +96,12 @@ export function phraseResultatVidage(b: BilanVidage): string {
     restent.length > 0 ? ` Gardés : ${restent.join(' et ')}.` : ''
   }`;
 }
+
+/** Le message « Annuler » d'un vidage reste le temps de se raviser (relecture de L17). */
+export const DUREE_ANNULER_VIDAGE_MS = 30_000;
+
+/** Titre, texte et durée du message après un vidage. */
+export function messageDuVidage(b: BilanVidage): { title: string; description: string; duration?: number } {
+  if (b.joursVides === 0) return { title: 'Rien à vider', description: phraseConfirmationVidage(b) };
+  return { title: 'Calendrier vidé', description: phraseResultatVidage(b), duration: DUREE_ANNULER_VIDAGE_MS };
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PlannedEventData } from '@/api/calendar';
-import { jourGardeParLeVidage, phraseConfirmationVidage, phraseResultatVidage, viderLeJour } from './viderCalendrier';
+import { jourGardeParLeVidage, messageDuVidage, phraseConfirmationVidage, phraseResultatVidage, viderLeJour } from './viderCalendrier';
 
 const jour = (j: number, type: string, h: number | null = 7, extra: Partial<PlannedEventData> = {}): PlannedEventData => ({
   jour: j,
@@ -72,5 +72,18 @@ describe('phrases du vidage du mois', () => {
     expect(phraseResultatVidage({ joursVides: 18, joursAbsence: 3, joursBulletin: 0, salaries: 1, moisLabel: 'octobre 2026' })).toBe(
       '18 jours vidés en octobre 2026. Gardés : 3 jours d’arrêt, de congé ou d’absence posés.',
     );
+  });
+});
+
+describe('messageDuVidage', () => {
+  it('le message qui propose « Annuler » reste au moins 30 secondes', () => {
+    const m = messageDuVidage({ joursVides: 18, joursAbsence: 0, joursBulletin: 0, salaries: 1, moisLabel: 'octobre 2026' });
+    expect(m.title).toBe('Calendrier vidé');
+    expect(m.duration).toBeGreaterThanOrEqual(30_000);
+  });
+
+  it('rien à vider : message ordinaire', () => {
+    const m = messageDuVidage({ joursVides: 0, joursAbsence: 1, joursBulletin: 0, salaries: 1, moisLabel: 'octobre 2026' });
+    expect(m.title).toBe('Rien à vider');
   });
 });

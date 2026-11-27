@@ -17,8 +17,8 @@ import { runWithConcurrency } from '@/lib/concurrency';
 import { restoreCalendarSnapshots, type CalendarUndoSnapshot } from '@/lib/calendarBulkUndo';
 import { calendarSaveFailureMessage } from '@/lib/calendarSaveFeedback';
 import {
+  messageDuVidage,
   phraseConfirmationVidage,
-  phraseResultatVidage,
   type BilanVidage,
 } from '@/lib/viderCalendrier';
 
@@ -158,8 +158,7 @@ export function ViderCalendrierDialog({
     const bilan = bilanDe(resultats, moisLabel);
     if (resultats.length > 0) {
       toast({
-        title: bilan.joursVides > 0 ? 'Calendrier vidé' : 'Rien à vider',
-        description: bilan.joursVides > 0 ? phraseResultatVidage(bilan) : phraseConfirmationVidage(bilan),
+        ...messageDuVidage(bilan),
         action:
           snapshots.length > 0 ? (
             <ToastAction altText="Annuler le vidage" onClick={() => void annulerLeVidage(snapshots)}>
