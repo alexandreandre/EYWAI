@@ -104,3 +104,17 @@ def test_quotites():
     assert quotite_forfait(None) == 1.0
     assert quotite_forfait(109) == 0.5
     assert quotite_forfait(218) == 1.0
+
+
+def test_mois_entierement_absent_le_temps_non_paye_couvre_tout_le_mois():
+    arret = tuple((date(2026, 1, d), 7.0) for d in range(2, 31) if date(2026, 1, d).weekday() < 5)  # 147 h
+    temps = TempsDuMois(unite="heures", reference=151.67, jours_arret=arret, mois_entierement_absent=True)
+    assert ratio_du_temps_paye(temps, jours_maintien=set()).ratio == 0.0
+    assert ratio_du_temps_paye(temps, jours_maintien={j.day for j, _ in arret}).ratio == 1.0
+    # La moitié des journées maintenues : la moitié de la prime.
+    moitie = {j.day for j, _ in arret[: len(arret) // 2 + 1]}
+    part = (len(arret) - len(moitie)) / len(arret)
+    assert ratio_du_temps_paye(temps, jours_maintien=moitie).ratio == round(1 - part, 6)
+    # Sans le drapeau, l'ancien calcul laissait (151,67 − 147) ÷ 151,67.
+    sans = TempsDuMois(unite="heures", reference=151.67, jours_arret=arret)
+    assert ratio_du_temps_paye(sans, jours_maintien=set()).ratio == round(4.67 / 151.67, 6)

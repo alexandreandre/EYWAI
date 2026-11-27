@@ -2348,10 +2348,13 @@ def calculer_salaire_brut(
     # mois, quel que soit l'état du pointage. Ni pour un mois dont un férié payé
     # tombe hors de toute absence (`mois_entierement_absent`, plus haut) : la
     # retenue y reste celle des jours d'absence, jamais plus que le salaire.
+    #: Salaire du mois retenu en entier : la prime d'ancienneté le suit (`TempsDuMois`).
+    salaire_retenu_en_entier = False
     if (
         nb_jours_travail_planifies == 0
         and montant_absence_pleine_total > 0
     ):
+        salaire_retenu_en_entier = mois_entierement_absent
         complement_absence_pleine = round(
             montant_base_mensualise - montant_absence_pleine_total, 2
         )
@@ -2542,6 +2545,10 @@ def calculer_salaire_brut(
     reference_prime = reference_heures_du_contrat(duree_contrat_hebdo)
     if retenue_entree_sortie_heures is not None:
         hors_contrat_prime = float(retenue_entree_sortie_heures)
+    elif heures_prevues_mois_partiel is not None:
+        # Mois d'entrée ou de sortie payé sur l'horaire des jours sous contrat :
+        # la prime suit les mêmes heures que le salaire.
+        hors_contrat_prime = max(reference_prime - heures_prevues_mois_partiel, 0.0)
     else:
         hors_contrat_prime = reference_prime * (1.0 - facteur_prorata)
     ligne_prime_anciennete = _calculer_prime_anciennete(
@@ -2568,6 +2575,7 @@ def calculer_salaire_brut(
             ),
             quotite=quotite_heures(duree_contrat_hebdo),
             reference_heures_sup=HEURES_MOIS_DUREE_LEGALE,
+            mois_entierement_absent=salaire_retenu_en_entier,
         ),
     )
     # La prime du mois saisie remplace le calcul conventionnel, et le bulletin
