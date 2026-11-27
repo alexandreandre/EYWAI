@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { horairesAEnvoyer, horairesSaisis, libelleArrivee, noteHorairesJourNonTravaille } from './horairesDuJour';
+import { horairesAEnvoyer, horairesSaisis, libelleArrivee, lireHeure, noteHorairesJourNonTravaille } from './horairesDuJour';
 
 describe('horairesSaisis (éditeur du jour)', () => {
   it('une arrivée saisie part avec les heures faites', () => {
@@ -57,5 +57,31 @@ describe('affichage et enregistrement', () => {
     expect(horairesAEnvoyer([{ jour: 3, type: 'travail', heures_faites: 7 }])).toEqual([
       { jour: 3, type: 'travail', heures_faites: 7 },
     ]);
+  });
+});
+
+describe('lireHeure : une heure tapée au clavier, quel que soit le navigateur (e2e 38 du 27/11)', () => {
+  it('accepte les façons courantes de l’écrire', () => {
+    for (const saisie of ['7', '7h', '07h00', '7:00', '07:00', '700', '0700', ' 7 h ']) {
+      expect(lireHeure(saisie)).toBe('07:00');
+    }
+    expect(lireHeure('13h30')).toBe('13:30');
+    expect(lireHeure('4h05')).toBe('04:05');
+  });
+
+  it('vide : pas d’heure ; illisible : signalé', () => {
+    expect(lireHeure('')).toBeNull();
+    expect(lireHeure('25:00')).toBe('illisible');
+    expect(lireHeure('7:75')).toBe('illisible');
+    expect(lireHeure('sept heures')).toBe('illisible');
+  });
+
+  it('une heure illisible n’est jamais jetée en silence', () => {
+    expect(horairesSaisis({ arrivee: '7:75', depart: '', heuresFaites: '7', travaille: true })).toEqual({
+      refus: 'Heure d’arrivée illisible : tapez par exemple 07:00 ou 7h.',
+    });
+    expect(horairesSaisis({ arrivee: '7h', depart: '1530', heuresFaites: '7', travaille: true })).toEqual({
+      horaires: { debut: '07:00', fin: '15:30' },
+    });
   });
 });

@@ -64,7 +64,9 @@ test('heure d’arrivée saisie à la main dans l’éditeur du jour', async ({ 
   const heuresFaites = page.getByLabel('H. faites');
   await heuresFaites.fill('');
   await arrivee.click();
-  await page.keyboard.type('0700');
+  await page.keyboard.type('7h');
+  // En quittant le champ, l'heure se met en forme.
+  await page.keyboard.press('Tab');
   await expect(arrivee).toHaveValue('07:00');
 
   // Sans heures faites : refusé, avec la raison, rien n'est parti.

@@ -55,9 +55,14 @@ test('signaler un arrêt depuis un jour du planning, dates relues avant d’enre
 
   const saisie = page.getByRole('dialog', { name: 'Enregistrer un arrêt' });
   await expect(saisie).toBeVisible();
-  // Le premier jour est déjà choisi : il reste la fin (ici, un arrêt d'un jour).
+  // Le premier jour est déjà choisi ; sans date de fin, la saisie l'affiche
+  // comme un arrêt d'un jour (on garde ici un arrêt d'un jour).
   const jj = numero.padStart(2, '0');
-  await expect(saisie.getByRole('button', { name: new RegExp(`^Du ${jj}/\\d{2}/\\d{4} au …$`) })).toBeVisible();
+  await expect(
+    saisie.getByRole('button', {
+      name: new RegExp(`^Du ${jj}/(\\d{2})/(\\d{4}) au ${jj}/\\1/\\2 \\(1 jour calendaire\\)$`),
+    }),
+  ).toBeVisible();
 
   // Nature de l'arrêt : un type proposé, choisi au clavier.
   await saisie.locator('#arret-type').click();

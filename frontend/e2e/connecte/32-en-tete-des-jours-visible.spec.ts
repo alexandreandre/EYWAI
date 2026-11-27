@@ -9,7 +9,7 @@ import { API_URL } from '../helpers/env';
  *
  * Vue Planning : on descend dans la grille (molette), la ligne des jours reste
  * collée en haut du cadre. Calendrier du mois d'un salarié (fiche) : on descend
- * dans la page, la ligne « Lun … Dim » reste en haut. Lecture seule.
+ * dans le mois, la ligne « Lun … Dim » reste en haut de son cadre. Lecture seule.
  */
 async function entetes(page: Page) {
   const { jeton, societe } = await page.evaluate(() => ({
@@ -47,13 +47,15 @@ test('l’en-tête des jours reste visible quand on descend (Planning et calendr
   await expect(grille).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /^Éditer le \d+ pour / }).first()).toBeVisible({ timeout: 60_000 });
   const entete = page.getByTestId('entete-jour').first();
-  const hautGrille = (await grille.boundingBox())!.y;
 
   await grille.hover();
   await page.mouse.wheel(0, 1500);
   await expect.poll(() => grille.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  // Le cadre peut lui-même remonter avec la page : on compare au cadre tel
+  // qu'il est après le défilement.
+  const cadre = (await grille.boundingBox())!;
   const apres = (await entete.boundingBox())!;
-  expect(Math.abs(apres.y - hautGrille), 'la ligne des jours reste en haut du cadre').toBeLessThan(4);
+  expect(Math.abs(apres.y - cadre.y), 'la ligne des jours reste en haut du cadre').toBeLessThan(4);
   await expect(entete).toBeInViewport();
 
   // Calendrier du mois d'un salarié (fiche).
@@ -65,8 +67,14 @@ test('l’en-tête des jours reste visible quand on descend (Planning et calendr
   const jours = page.getByTestId('entete-jours-du-mois');
   await expect(jours).toBeVisible({ timeout: 60_000 });
   await expect(page.getByLabel('Sélectionner le jour 1', { exact: true })).toBeVisible({ timeout: 60_000 });
-  await page.getByLabel('Sélectionner le jour 28', { exact: true }).scrollIntoViewIfNeeded();
-  await page.mouse.wheel(0, 400);
+  // On descend dans le mois, à la molette, au-dessus des cases.
+  const mois = page.getByTestId('grille-du-mois');
+  await mois.hover();
+  await page.mouse.wheel(0, 600);
+  await expect.poll(() => mois.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  const cadreMois = (await mois.boundingBox())!;
+  const ligne = (await jours.boundingBox())!;
+  expect(Math.abs(ligne.y - cadreMois.y), 'la ligne « Lun … Dim » reste en haut du mois').toBeLessThan(4);
   await expect(jours).toBeInViewport();
   await expect(jours).toContainText('Lun');
   await verifierPageSaine(page, s);

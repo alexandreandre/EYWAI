@@ -14,6 +14,24 @@ export interface HorairesDuJour {
   fin: string | null;
 }
 
+/**
+ * Une heure tapée au clavier : « 7 », « 7h », « 07h00 », « 7:00 », « 0700 »
+ * → « 07:00 ». Vide : `null`. Sinon « illisible » (dit à l'écran, jamais jeté).
+ * Champ texte plutôt que le champ horaire du navigateur : celui-ci attend
+ * AM/PM dans un navigateur réglé en anglais et reste vide sans le dire
+ * (e2e 38 du 27/11).
+ */
+export function lireHeure(saisie: string): string | null | 'illisible' {
+  const texte = saisie.trim().toLowerCase().replace(/\s+/g, '');
+  if (!texte) return null;
+  const m = texte.match(/^(\d{1,2})(?:[:h]?(\d{2}))?h?$/);
+  if (!m) return 'illisible';
+  const heures = Number(m[1]);
+  const minutes = m[2] ? Number(m[2]) : 0;
+  if (heures > 23 || minutes > 59) return 'illisible';
+  return `${String(heures).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
 export function horairesSaisis(saisie: {
   arrivee: string;
   depart: string;
@@ -21,9 +39,11 @@ export function horairesSaisis(saisie: {
   /** Type du jour qui porte des heures (travail, samedi ou férié travaillé). */
   travaille: boolean;
 }): { horaires: HorairesDuJour } | { refus: string } {
-  const debut = saisie.arrivee.trim() || null;
-  const fin = saisie.depart.trim() || null;
   if (!saisie.travaille) return { horaires: { debut: null, fin: null } };
+  const debut = lireHeure(saisie.arrivee);
+  const fin = lireHeure(saisie.depart);
+  if (debut === 'illisible') return { refus: 'Heure d’arrivée illisible : tapez par exemple 07:00 ou 7h.' };
+  if (fin === 'illisible') return { refus: 'Heure de départ illisible : tapez par exemple 15:30 ou 15h30.' };
   const heures = Number(saisie.heuresFaites.replace(',', '.'));
   if ((debut || fin) && !(saisie.heuresFaites.trim() !== '' && heures > 0)) {
     return {
