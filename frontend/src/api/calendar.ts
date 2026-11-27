@@ -28,6 +28,14 @@ export interface ActualHoursData {
   jour: number;
   type: string | null;
   heures_faites: number | null;
+  /**
+   * Heure d'arrivée (« HH:MM »), pointée ou saisie à la main : elle déclenche
+   * les paniers liés à la prise de poste. Envoyée `null`, elle est effacée ;
+   * absente, le serveur garde celle qu'il a.
+   */
+  debut?: string | null;
+  /** Heure de départ (« HH:MM »), mêmes règles que `debut`. */
+  fin?: string | null;
 }
 
 // --- FONCTIONS D'API ---

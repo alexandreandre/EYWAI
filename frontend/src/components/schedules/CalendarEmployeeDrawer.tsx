@@ -21,6 +21,8 @@ interface CalendarEmployeeDrawerProps {
   month: number;
   onNavigate: (employeeId: string) => void;
   onSaved?: () => void;
+  /** Début de la première paie Martine (bascule) : avant, rien n'est compté. */
+  debutMartine?: string | null;
 }
 
 export function CalendarEmployeeDrawer({
@@ -32,6 +34,7 @@ export function CalendarEmployeeDrawer({
   month,
   onNavigate,
   onSaved,
+  debutMartine = null,
 }: CalendarEmployeeDrawerProps) {
   const currentIndex = employee
     ? orderedEmployees.findIndex((e) => e.id === employee.id)
@@ -129,6 +132,7 @@ export function CalendarEmployeeDrawer({
             initialYear={year}
             initialMonth={month}
             onSaved={onSaved}
+            debutMartine={debutMartine}
           />
         </div>
       </SheetContent>

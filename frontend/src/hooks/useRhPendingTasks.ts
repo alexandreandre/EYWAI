@@ -22,6 +22,8 @@ import {
   type SchedulesEmployeeInput,
 } from '@/lib/schedulesOverview';
 import { filterEmployeesSaisissables, filterPresentEmployees } from '@/lib/employmentStatus';
+import { fetchCompanyDetails } from '@/api/company';
+import { debutDeLaPaieMartine } from '@/lib/basculeCalendrier';
 import { getPeriodeVariables } from '@/api/periodeVariables';
 import { getModulationWorkflowStatus } from '@/api/modulation';
 import { getWorkMedalSummary } from '@/api/workMedals';
@@ -162,13 +164,24 @@ export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string |
       const finFenetre = await getPeriodeVariables(schedulesYear, schedulesMonth)
         .then((p) => p.fin)
         .catch((): null => null);
+      // Même bascule que l'écran Calendrier : les jours payés par l'ancien
+      // logiciel ne comptent pas.
+      const reprise = await fetchCompanyDetails()
+        .then((d) => d.company_data.reprise_paie ?? null)
+        .catch((): null => null);
+      const bascule = await debutDeLaPaieMartine(
+        reprise,
+        schedulesYear,
+        schedulesMonth,
+        getPeriodeVariables,
+      );
       const rows = await fetchAllEmployeesOverview(
         employees,
         schedulesYear,
         schedulesMonth,
         5,
         undefined,
-        { finFenetre },
+        { finFenetre, debutMartine: bascule?.debutMartine ?? null },
       );
       return countSchedulesToEnter(rows);
     },

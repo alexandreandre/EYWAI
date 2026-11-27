@@ -150,7 +150,7 @@ export default function Schedules() {
 
   const employeeInputs: SchedulesEmployeeInput[] = employees;
 
-  const { rows, isLoading, loadErrors, globalKpis, refetch, applyAndPersistDayPatch } =
+  const { rows, isLoading, loadErrors, globalKpis, bascule, refetch, applyAndPersistDayPatch } =
     useEmployeeCalendarOverview(employeeInputs, selectedYear, selectedMonth);
 
   const refreshCalendars = useCallback(() => {
@@ -422,6 +422,7 @@ export default function Schedules() {
         year={selectedYear}
         month={selectedMonth}
         kpis={globalKpis}
+        bascule={bascule}
         exportRows={sortedRows}
         isLoading={isPageLoading}
         onOpenAssistedFill={openAssistedFillFromHeader}
@@ -637,6 +638,7 @@ export default function Schedules() {
         month={selectedMonth}
         onNavigate={setDrawerEmployeeId}
         onSaved={refreshCalendars}
+        debutMartine={bascule?.debutMartine ?? null}
       />
 
       <CalendarBulkActionsBar

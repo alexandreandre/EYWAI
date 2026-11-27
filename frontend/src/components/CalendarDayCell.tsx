@@ -28,6 +28,7 @@ import {
 import { isDayReadyForPayroll } from '@/lib/calendarStats';
 import { estAbsentATyper } from '@/lib/absentATyper';
 import { libelleApresSortie } from '@/lib/employmentStatus';
+import { estAvantLEntree, libelleAvantEntree } from '@/lib/joursHorsContrat';
 import {
   TITRE_INFO_BULLE_CONFLIT,
   estJourEnConflit,
@@ -61,6 +62,13 @@ interface CalendarDayCellProps {
   dernierJourJuge?: number | null;
   /** Dernier jour du contrat (sortie) : après, la case est grisée et fermée. */
   dernierJourContrat?: number | null;
+  /** Premier jour du contrat (entrée) : avant, la case est « Hors contrat », grisée et fermée. */
+  premierJourContrat?: number | null;
+  /**
+   * Premier jour jugé (entrée, ou début de la paie Martine après une bascule) :
+   * avant, un jour vide n'est pas signalé à saisir.
+   */
+  premierJourJuge?: number | null;
   /**
    * Jours du mois pris en récupération (demande validée) : le calendrier les
    * porte comme un congé, la case dit « Récupération » (retour d'Elsa du 16/11).
@@ -240,6 +248,8 @@ export function CalendarDayCell({
   pointe = true,
   dernierJourJuge = null,
   dernierJourContrat = null,
+  premierJourContrat = null,
+  premierJourJuge = null,
   joursRecup,
   onPoserRecup,
 }: CalendarDayCellProps) {
@@ -329,6 +339,20 @@ export function CalendarDayCell({
     );
   }
 
+  // Avant l'entrée : hors contrat, rien à saisir (retour d'Elsa, entrée le 05/10).
+  if (estAvantLEntree(dayNumber, premierJourContrat)) {
+    return (
+      <div
+        className="flex h-full min-h-[7.5rem] flex-col gap-1 rounded-2xl border bg-muted/50 p-2 text-muted-foreground/70"
+        title={libelleAvantEntree(premierJourContrat!, selectedDate.month)}
+        data-testid="case-hors-contrat"
+      >
+        <span className="text-xs font-semibold tabular-nums">{arg.dayNumberText}</span>
+        <span className="text-[10px]">Hors contrat</span>
+      </div>
+    );
+  }
+
   if (!plannedDay || !actualDay) {
     return (
       <div className="flex h-full items-start justify-start p-2">
@@ -341,6 +365,7 @@ export function CalendarDayCell({
   // d'anomalie ici (retour du 10/11).
   const needsInput =
     (dernierJourJuge == null || dayNumber <= dernierJourJuge) &&
+    (premierJourJuge == null || dayNumber >= premierJourJuge) &&
     dayNeedsInput(plannedDay.type, plannedDay, actualDay, isForfaitJour, pointe);
 
   const handleTypeChange = (

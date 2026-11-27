@@ -6,12 +6,21 @@
  * bulletin se génère quand même après confirmation (forçage tracé).
  */
 import { phraseJoursASaisir, type JourASaisir } from '@/lib/calendarStats';
+import { phraseAvantBascule } from '@/lib/joursHorsContrat';
 
 export interface LigneAAlerter {
   rowStatus: string;
   joursASaisir?: JourASaisir[];
   dernierJourJuge?: number | null;
   dernierJourContrat?: number | null;
+  /** Entrée dans le mois : avant, rien n'est attendu. */
+  premierJourContrat?: number | null;
+  /** Premier jour payé par Martine dans le mois (bascule). */
+  premierJourMartine?: number | null;
+  /** Début de la première paie Martine (ISO), pour la phrase. */
+  debutMartine?: string | null;
+  /** Logiciel de la paie d'avant la bascule. */
+  logicielPrecedent?: string | null;
 }
 
 export interface AlerteDeSaisie {
@@ -37,6 +46,12 @@ export function alerteDeSaisie(
     borne = ` Rien n'est attendu après la sortie le ${jj(ligne.dernierJourContrat)}.`;
   } else if (ligne.dernierJourJuge != null && ligne.dernierJourJuge < finDuMois) {
     borne = ` Les jours après le ${jj(ligne.dernierJourJuge)} comptent pour le mois suivant (arrêté des variables).`;
+  }
+  if (ligne.premierJourContrat != null && ligne.premierJourContrat > 1 && ligne.premierJourContrat <= finDuMois) {
+    borne += ` Rien n’est attendu avant l’entrée le ${jj(ligne.premierJourContrat)}.`;
+  }
+  if (ligne.premierJourMartine != null && ligne.debutMartine) {
+    borne += ` ${phraseAvantBascule(ligne.debutMartine, ligne.logicielPrecedent)}`;
   }
   const detail =
     `À compléter : ${jours}.${borne} Si ces jours sont justes tels quels, le bulletin se ` +

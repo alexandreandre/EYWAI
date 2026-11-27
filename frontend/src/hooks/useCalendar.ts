@@ -30,6 +30,7 @@ import {
 } from '@/lib/weekTemplateDays';
 import { calendarSaveFailureMessage } from '@/lib/calendarSaveFeedback';
 import { dernierJourDuContratDansLeMois } from '@/lib/employmentStatus';
+import { estAvantLEntree, premierJourDuContratDansLeMois } from '@/lib/joursHorsContrat';
 
 type PlannedEventData = calendarApi.PlannedEventData;
 type ActualHoursData = calendarApi.ActualHoursData;
@@ -144,6 +145,14 @@ export function useCalendar(
   // mois ni le précédent) n'a rien « à saisir », le prévu fait foi.
   const pointe = pointeMoisPrecedent || aDesHeuresPointees(actualHours);
 
+  // Contrat : rien n'est attendu avant l'entrée ni après la sortie.
+  const dernierJourContrat = options?.sortie
+    ? dernierJourDuContratDansLeMois(options.sortie, selectedDate.year, selectedDate.month)
+    : null;
+  const premierJourContrat = options?.sortie
+    ? premierJourDuContratDansLeMois(options.sortie, selectedDate.year, selectedDate.month)
+    : null;
+
   const monthCompletionStatus = useMemo(() => {
     if (isLoading || !isMonthDataReady) return 'a_saisir' as const;
     return computeMonthCompletionStatus(
@@ -152,9 +161,12 @@ export function useCalendar(
       selectedDate.year,
       selectedDate.month,
       isForfaitJourMode,
-      pointe
+      pointe,
+      { premierJour: premierJourContrat, dernierJour: dernierJourContrat }
     );
   }, [
+    premierJourContrat,
+    dernierJourContrat,
     plannedCalendar,
     actualHours,
     selectedDate.year,
@@ -344,10 +356,6 @@ export function useCalendar(
     }
   }, [plannedCalendar, actualHours, originalPlanned, originalActual, isMonthDataReady]);
 
-  const dernierJourContrat = options?.sortie
-    ? dernierJourDuContratDansLeMois(options.sortie, selectedDate.year, selectedDate.month)
-    : null;
-
   const applyWeekTemplate = useCallback(() => {
     if (!context.active || !isMonthDataReady) return;
     ++editRevision.current;
@@ -356,6 +364,8 @@ export function useCalendar(
       if (dernierJourContrat != null && day.jour > dernierJourContrat && day.origine !== 'absence') {
         return { ...day, type: 'repos', heures_prevues: 0 };
       }
+      // Avant l'entrée : hors contrat, le modèle ne pose rien.
+      if (estAvantLEntree(day.jour, premierJourContrat)) return day;
       const date = new Date(selectedDate.year, selectedDate.month - 1, day.jour);
       const dayOfWeek = date.getDay();
 
@@ -384,7 +394,7 @@ export function useCalendar(
         ? 'Le calendrier prévisionnel a été mis à jour (mode forfait jour).'
         : 'Le calendrier prévisionnel a été mis à jour.',
     });
-  }, [plannedCalendar, selectedDate, weekTemplate, isForfaitJourMode, toast, dernierJourContrat, context, isMonthDataReady]);
+  }, [plannedCalendar, selectedDate, weekTemplate, isForfaitJourMode, toast, dernierJourContrat, premierJourContrat, context, isMonthDataReady]);
 
   const queryClient = useQueryClient();
   const saveAllCalendarData = useCallback(async () => {
@@ -732,6 +742,10 @@ export function useCalendar(
     monthCompletionStatus,
     /** Le salarié pointe sur la période : sinon, un jour sans réel n'est pas « à saisir ». */
     pointe,
+    /** Entrée dans le mois affiché : avant, « Hors contrat ». */
+    premierJourContrat,
+    /** Sortie dans le mois affiché : après, rien à saisir. */
+    dernierJourContrat,
     copyPreviousMonthPlanned,
     copyPlannedToActualForDay,
     copyPlannedToActualForDays,

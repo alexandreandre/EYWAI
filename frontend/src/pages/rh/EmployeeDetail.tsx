@@ -155,6 +155,8 @@ export default function EmployeeDetail() {
     isForfaitJour,
     monthCompletionStatus,
     pointe,
+    premierJourContrat,
+    dernierJourContrat,
     copyPreviousMonthPlanned,
     copyPlannedToActualForDay,
     bulkCopyPlannedToActual,
@@ -166,6 +168,11 @@ export default function EmployeeDetail() {
     enabled: activeTab === "calendrier",
     isForfaitJour: employee?.is_forfait_jour,
     dureeHebdomadaire: employee?.duree_hebdomadaire ?? null,
+    // Entrée et sortie : avant l'entrée la case est « Hors contrat », après la
+    // sortie rien n'est attendu (comme le calendrier de la page Plannings).
+    sortie: employee
+      ? { hire_date: employee.hire_date, exit_last_working_day: employee.exit_last_working_day ?? null }
+      : null,
   });
 
   const [saisieModalOpen, setSaisieModalOpen] = useState(false);
@@ -885,6 +892,8 @@ export default function EmployeeDetail() {
               isDirty={isDirty}
               monthCompletionStatus={monthCompletionStatus}
               pointe={pointe}
+              premierJourContrat={premierJourContrat}
+              dernierJourContrat={dernierJourContrat}
               copyPreviousMonthPlanned={copyPreviousMonthPlanned}
               copyPlannedToActualForDay={copyPlannedToActualForDay}
               bulkCopyPlannedToActual={bulkCopyPlannedToActual}

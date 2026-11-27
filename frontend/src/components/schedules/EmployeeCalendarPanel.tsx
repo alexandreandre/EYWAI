@@ -39,6 +39,8 @@ interface EmployeeCalendarPanelProps {
   initialYear?: number;
   initialMonth?: number;
   onSaved?: () => void;
+  /** Début de la première paie Martine (bascule) : avant, rien n'est compté. */
+  debutMartine?: string | null;
 }
 
 export function EmployeeCalendarPanel({
@@ -50,6 +52,7 @@ export function EmployeeCalendarPanel({
   initialYear,
   initialMonth,
   onSaved,
+  debutMartine = null,
 }: EmployeeCalendarPanelProps) {
   const [calendarView, setCalendarView] = useState<'month' | 'year'>('month');
 
@@ -93,7 +96,7 @@ export function EmployeeCalendarPanel({
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
-  const { bornes, dernierJourContrat } = bornesDuSalarie(
+  const { bornes, dernierJourContrat, premierJourContrat, premierJourMartine } = bornesDuSalarie(
     {
       id: employeeId,
       first_name: '',
@@ -104,7 +107,7 @@ export function EmployeeCalendarPanel({
     selectedDate.year,
     selectedDate.month,
     isForfaitJour,
-    { finFenetre: fenetreQuery.data?.fin ?? null }
+    { finFenetre: fenetreQuery.data?.fin ?? null, debutMartine }
   );
   const statutBorne =
     monthCompletionStatus === 'saisi'
@@ -134,6 +137,9 @@ export function EmployeeCalendarPanel({
           ),
           dernierJourJuge: bornes.dernierJour ?? null,
           dernierJourContrat,
+          premierJourContrat,
+          premierJourMartine,
+          debutMartine,
         },
         selectedDate.year,
         selectedDate.month
@@ -333,6 +339,8 @@ export function EmployeeCalendarPanel({
                           onCopyPlannedToActual={copyPlannedToActualForDay}
                           dernierJourJuge={bornes.dernierJour ?? null}
                           dernierJourContrat={dernierJourContrat}
+                          premierJourJuge={bornes.premierJour ?? null}
+                          premierJourContrat={premierJourContrat}
                         />
                       </div>
                     );

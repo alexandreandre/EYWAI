@@ -17,6 +17,7 @@ import {
 import type { EmployeeCalendarOverviewRow, DayPatch } from '@/lib/schedulesOverview';
 import { alerteDeSaisie } from '@/lib/alerteDeSaisie';
 import { libelleApresSortie } from '@/lib/employmentStatus';
+import { estAvantLEntree, libelleAvantEntree } from '@/lib/joursHorsContrat';
 import { PlanningDayEditor } from './PlanningDayEditor';
 import { CursorHint } from './CursorHint';
 import { CalendarPeriodSelect } from './CalendarPeriodSelect';
@@ -406,6 +407,20 @@ export function TeamPlanningView({
                         data-testid="case-apres-sortie"
                       >
                         Sorti(e) · 0
+                      </div>
+                    );
+                  }
+                  // Avant l'entrée : hors contrat, grisé, rien n'est attendu
+                  // (retour d'Elsa : salarié entré le 05/10).
+                  if (estAvantLEntree(day, row.premierJourContrat)) {
+                    return (
+                      <div
+                        key={`${row.employee.id}-${day}`}
+                        className="border-b border-r last:border-r-0 min-h-[3.25rem] px-2 py-1 bg-muted/50 text-muted-foreground/70 text-[10px] flex items-center"
+                        title={libelleAvantEntree(row.premierJourContrat!, month)}
+                        data-testid="case-hors-contrat"
+                      >
+                        Hors contrat
                       </div>
                     );
                   }

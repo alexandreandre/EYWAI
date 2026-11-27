@@ -14,6 +14,8 @@ import {
 import { calendarSaveFailureMessage } from '@/lib/calendarSaveFeedback';
 import { invalidateRhSidebarBadges } from '@/lib/invalidateRhSidebarBadges';
 import { getPeriodeVariables } from '@/api/periodeVariables';
+import { fetchCompanyDetails } from '@/api/company';
+import { debutDeLaPaieMartine, type BasculeDuMois } from '@/lib/basculeCalendrier';
 import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 import { useToast } from '@/components/ui/use-toast';
 import {
@@ -32,6 +34,7 @@ export function useEmployeeCalendarOverview(
   const { toast } = useToast();
   const { activeCompanyId, observedHolidayIds } = useObservedPublicHolidays();
   const [rows, setRows] = useState<EmployeeCalendarOverviewRow[]>([]);
+  const [bascule, setBascule] = useState<BasculeDuMois | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const rowsRef = useRef<EmployeeCalendarOverviewRow[]>([]);
   const pending = useRef(new Set<string>());
@@ -64,16 +67,29 @@ export function useEmployeeCalendarOverview(
       const finFenetre = await getPeriodeVariables(year, month)
         .then((p) => p.fin)
         .catch((): null => null);
+      // Bascule de reprise : les jours d'avant la première paie Martine ont
+      // été payés par l'ancien logiciel, ils ne sont pas « à saisir ».
+      // Illisible : rien n'est retiré (règle stricte).
+      const reprise = await fetchCompanyDetails()
+        .then((d) => d.company_data.reprise_paie ?? null)
+        .catch((): null => null);
+      const basculeDuMois = await debutDeLaPaieMartine(reprise, year, month, getPeriodeVariables);
       const result = await fetchAllEmployeesOverview(
         employees,
         year,
         month,
         5,
         observedHolidayIds,
-        { finFenetre, companyId: activeCompanyId }
+        {
+          finFenetre,
+          companyId: activeCompanyId,
+          debutMartine: basculeDuMois?.debutMartine ?? null,
+          logicielPrecedent: basculeDuMois?.logiciel ?? null,
+        }
       );
       if (!isCurrent()) return;
       setRows(result);
+      setBascule(basculeDuMois);
       setLoadedContext(context);
     } finally {
       if (isCurrent()) setIsLoading(false);
@@ -156,6 +172,8 @@ export function useEmployeeCalendarOverview(
     isLoading: isLoading || loadedContext !== context,
     loadErrors: visibleRows.filter((row) => row.loadError).length,
     globalKpis,
+    /** Bascule qui retire des jours du mois affiché (sinon `null`). */
+    bascule: loadedContext === context ? bascule : null,
     refetch: load,
     updateRow,
     applyAndPersistDayPatch,

@@ -58,6 +58,10 @@ interface CalendarTabProps {
   monthCompletionStatus: string;
   /** Le salarié pointe sur la période (`useCalendar`) ; absent : règle stricte. */
   pointe?: boolean;
+  /** Entrée dans le mois : avant, les cases sont « Hors contrat ». */
+  premierJourContrat?: number | null;
+  /** Sortie dans le mois : après, les cases sont grisées. */
+  dernierJourContrat?: number | null;
   copyPreviousMonthPlanned: () => void | Promise<void>;
   copyPlannedToActualForDay: (day: number) => void;
   bulkCopyPlannedToActual: () => void;
@@ -96,6 +100,8 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
     isDirty,
     monthCompletionStatus,
     pointe = true,
+    premierJourContrat = null,
+    dernierJourContrat = null,
     copyPreviousMonthPlanned,
     copyPlannedToActualForDay,
     bulkCopyPlannedToActual,
@@ -428,6 +434,10 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                                 isForfaitJour={isForfaitJour}
                                 pointe={pointe}
                                 onCopyPlannedToActual={copyPlannedToActualForDay}
+                                premierJourContrat={premierJourContrat}
+                                premierJourJuge={premierJourContrat}
+                                dernierJourContrat={dernierJourContrat}
+                                dernierJourJuge={dernierJourContrat}
                                 joursRecup={joursRecup}
                                 onPoserRecup={
                                   compteurRecup && !isForfaitJour && !isDirty
