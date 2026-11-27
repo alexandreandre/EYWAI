@@ -425,7 +425,14 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                 {calendarLoadError ? null : isCalendarLoading ? <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div> : (
                   <>
                     {calendarView === 'month' ? (
-                      <div className="flex flex-col gap-4 p-2">
+                      // Le mois défile dans son cadre : la page défile au niveau
+                      // de la fenêtre, où un en-tête collant ne tient pas (le
+                      // conteneur principal a son propre défilement). La ligne
+                      // des jours reste ainsi en haut du cadre (retour d'Elsa).
+                      <div
+                        className="flex max-h-[calc(100vh-7rem)] min-h-[20rem] flex-col gap-4 overflow-y-auto px-2 pb-2"
+                        data-testid="grille-du-mois"
+                      >
                     {/* Noms des jours */}
                     <div className="sticky top-0 z-20 -mx-2 grid grid-cols-7 bg-background/95 px-2 py-1.5 text-center backdrop-blur border-b text-sm font-medium text-muted-foreground" data-testid="entete-jours-du-mois">
                       {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => (
