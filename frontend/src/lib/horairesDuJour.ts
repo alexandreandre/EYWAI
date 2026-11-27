@@ -39,9 +39,27 @@ export function libelleArrivee(jour: Pick<ActualHoursData, 'debut'> | undefined)
 }
 
 /**
- * Le réel du mois sans les horaires : le calendrier du mois ne les modifie pas,
- * le serveur garde ceux qu'il a (l'arrivée même si les heures changent).
+ * Le réel du mois tel que le calendrier du mois l'envoie : l'arrivée qu'il
+ * connaît est renvoyée (une correction des heures à la main la garde), une
+ * arrivée vidée part vide (le serveur l'efface). Le départ n'est renvoyé que
+ * vidé : sinon le serveur le garde tant que les heures n'ont pas bougé.
  */
-export function sansHoraires(jours: ActualHoursData[]): ActualHoursData[] {
-  return jours.map(({ debut: _debut, fin: _fin, ...jour }) => jour);
+export function horairesAEnvoyer(jours: ActualHoursData[]): ActualHoursData[] {
+  return jours.map(({ debut, fin, ...jour }) => ({
+    ...jour,
+    ...(debut !== undefined ? { debut: debut || null } : {}),
+    ...(fin === null || fin === '' ? { fin: null } : {}),
+  }));
+}
+
+/** Ce qui sera effacé sur un jour non travaillé, ou `null` s'il n'y a rien. */
+export function noteHorairesJourNonTravaille(arrivee: string, depart: string): string | null {
+  const a = arrivee.trim();
+  const d = depart.trim();
+  if (a && d) {
+    return `Jour non travaillé : l’arrivée (${a}) et le départ (${d}) seront effacés à l’enregistrement.`;
+  }
+  if (a) return `Jour non travaillé : l’arrivée (${a}) sera effacée à l’enregistrement.`;
+  if (d) return `Jour non travaillé : le départ (${d}) sera effacé à l’enregistrement.`;
+  return null;
 }

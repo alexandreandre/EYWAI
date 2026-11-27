@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { horairesSaisis, libelleArrivee, sansHoraires } from './horairesDuJour';
+import { horairesAEnvoyer, horairesSaisis, libelleArrivee, noteHorairesJourNonTravaille } from './horairesDuJour';
 
 describe('horairesSaisis (éditeur du jour)', () => {
   it('une arrivée saisie part avec les heures faites', () => {
@@ -20,10 +20,17 @@ describe('horairesSaisis (éditeur du jour)', () => {
     });
   });
 
-  it('un jour non travaillé n’envoie aucun horaire', () => {
+  it('un jour non travaillé efface les horaires, et le dit', () => {
     expect(horairesSaisis({ arrivee: '07:00', depart: '15:00', heuresFaites: '0', travaille: false })).toEqual({
       horaires: { debut: null, fin: null },
     });
+    expect(noteHorairesJourNonTravaille('07:00', '')).toBe(
+      'Jour non travaillé : l’arrivée (07:00) sera effacée à l’enregistrement.',
+    );
+    expect(noteHorairesJourNonTravaille('07:00', '15:00')).toBe(
+      'Jour non travaillé : l’arrivée (07:00) et le départ (15:00) seront effacés à l’enregistrement.',
+    );
+    expect(noteHorairesJourNonTravaille('', '')).toBeNull();
   });
 });
 
@@ -34,9 +41,21 @@ describe('affichage et enregistrement', () => {
     expect(libelleArrivee(undefined)).toBeNull();
   });
 
-  it('le calendrier du mois n’envoie pas les horaires qu’il n’a pas changés', () => {
+  it('le calendrier du mois renvoie l’arrivée qu’il connaît (gardée à la main), sans le départ', () => {
     expect(
-      sansHoraires([{ jour: 1, type: 'travail', heures_faites: 7, debut: '07:00', fin: '14:00' }]),
-    ).toEqual([{ jour: 1, type: 'travail', heures_faites: 7 }]);
+      horairesAEnvoyer([{ jour: 1, type: 'travail', heures_faites: 6, debut: '07:00', fin: '14:00' }]),
+    ).toEqual([{ jour: 1, type: 'travail', heures_faites: 6, debut: '07:00' }]);
+  });
+
+  it('une arrivée vidée part vide, pour que le serveur l’efface', () => {
+    expect(
+      horairesAEnvoyer([{ jour: 2, type: 'travail', heures_faites: null, debut: null, fin: null }]),
+    ).toEqual([{ jour: 2, type: 'travail', heures_faites: null, debut: null, fin: null }]);
+  });
+
+  it('un jour sans horaire n’en envoie pas', () => {
+    expect(horairesAEnvoyer([{ jour: 3, type: 'travail', heures_faites: 7 }])).toEqual([
+      { jour: 3, type: 'travail', heures_faites: 7 },
+    ]);
   });
 });

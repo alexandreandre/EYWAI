@@ -142,9 +142,9 @@ class TestEcritureAuCalendrier:
         ]
         jours = {j["jour"]: j for j in garder_les_horaires(ecran, stocke)}
         assert jours[19]["debut"] == "03:50" and jours[19]["fin"] == "12:00"
-        # Heures changées à la main : l'arrivée reste (elle déclenche le panier,
-        # retour du 27/11), le départ ne décrit plus la journée.
-        assert jours[20]["debut"] == "05:44"
+        # Heures changées par un écrivain qui n'envoie pas l'arrivée (badgeuse,
+        # modèle de semaine) : l'horaire ne décrit plus le jour, il part.
+        assert "debut" not in jours[20]
         assert "fin" not in jours[20]
         # Jour retypé en congé : plus d'horaire.
         assert "debut" not in jours[21]
@@ -193,6 +193,14 @@ class TestArriveeSaisieALaMain:
     def test_une_arrivee_saisie_est_gardee(self):
         jours = garder_les_horaires([{"jour": 3, "type": "travail", "heures_faites": 7.0, "debut": "04:00"}], [])
         assert jours[0]["debut"] == "04:00"
+
+    def test_l_arrivee_renvoyee_par_l_ecran_reste_quand_les_heures_changent(self):
+        stocke = [{"jour": 3, "type": "travail", "heures_faites": 7.0, "debut": "04:00", "fin": "11:00"}]
+        jours = garder_les_horaires(
+            [{"jour": 3, "type": "travail", "heures_faites": 6.0, "debut": "04:00"}], stocke
+        )
+        assert jours[0]["debut"] == "04:00"
+        assert "fin" not in jours[0]
 
     def test_une_arrivee_effacee_a_l_ecran_disparait(self):
         stocke = [{"jour": 3, "type": "travail", "heures_faites": 7.0, "debut": "04:00", "fin": "11:00"}]

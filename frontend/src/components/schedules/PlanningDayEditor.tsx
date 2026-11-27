@@ -9,7 +9,7 @@ import { estAbsentATyper } from '@/lib/absentATyper';
 import { cn } from '@/lib/utils';
 import type { PlannedEventData, ActualHoursData } from '@/api/calendar';
 import type { DayPatch } from '@/lib/schedulesOverview';
-import { horairesSaisis } from '@/lib/horairesDuJour';
+import { horairesSaisis, noteHorairesJourNonTravaille } from '@/lib/horairesDuJour';
 import { REFUS_VIDER_ABSENCE, jourGardeParLeVidage, viderLeJour } from '@/lib/viderCalendrier';
 
 // Les types proposés sont ceux du calendrier complet (`editableTypeOptionsFor`) :
@@ -161,6 +161,8 @@ export function PlanningDayEditor({
     return patch;
   };
 
+  const jourTravaille = type === 'travail' || type === 'work';
+
   const handleSave = async () => {
     const patch = buildPatch();
     if (!isForfaitJour) {
@@ -168,7 +170,7 @@ export function PlanningDayEditor({
         arrivee,
         depart,
         heuresFaites: patch.heures_faites == null ? '' : String(patch.heures_faites),
-        travaille: type === 'travail' || type === 'work',
+        travaille: jourTravaille,
       });
       if ('refus' in horaires) {
         setErreur(horaires.refus);
@@ -350,7 +352,14 @@ export function PlanningDayEditor({
         </div>
       )}
 
-      {!isForfaitJour && (
+      {!isForfaitJour && !jourTravaille && (
+        <p className="text-[11px] text-muted-foreground" data-testid="horaires-jour-non-travaille">
+          {noteHorairesJourNonTravaille(arrivee, depart) ??
+            'Pas d’heure d’arrivée ni de départ sur un jour non travaillé.'}
+        </p>
+      )}
+
+      {!isForfaitJour && jourTravaille && (
         <div className="grid grid-cols-2 gap-2" data-testid="horaires-du-jour">
           <div>
             <Label htmlFor="arrivee-h" className="text-xs">Arrivée (facultatif)</Label>

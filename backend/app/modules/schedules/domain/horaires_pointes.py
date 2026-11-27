@@ -79,13 +79,14 @@ def garder_les_horaires(
     Un jour peut porter `debut` (arrivée) et `fin` (départ), pointés ou saisis
     à la main. Trois cas, par clé :
 
-    - clé absente : l'écran ne l'a pas touchée. L'arrivée stockée reste tant que
-      le jour est travaillé, même si les heures changent (retour d'Elsa du
-      27/11 : la règle panier LEWIS se déclenche sur l'heure d'arrivée, une
-      correction des heures à la main ne doit pas la perdre). Le départ ne reste
-      que si les heures et l'arrivée n'ont pas changé : sinon il ne décrit plus
-      la journée ;
-    - clé présente avec une heure : saisie à la main, enregistrée ;
+    - clé absente (badgeuse, modèle de semaine…) : l'arrivée et le départ
+      stockés restent tant que les heures n'ont pas changé ; sinon ils ne
+      décrivent plus la journée et partent ;
+    - clé présente avec une heure : l'écran la renvoie (saisie ou gardée à la
+      main), elle est enregistrée même si les heures changent (retour d'Elsa du
+      27/11 : la règle panier LEWIS se déclenche sur l'heure d'arrivée). Le
+      départ non renvoyé ne reste que si les heures et l'arrivée n'ont pas
+      bougé ;
     - clé présente vide (`None`, « ») : effacée à l'écran.
 
     Un jour qui n'est plus travaillé (congé, arrêt, 0 h) ne garde aucun horaire.
@@ -115,9 +116,12 @@ def garder_les_horaires(
             continue
         ancien = par_jour.get(jour.get("jour"))
         if ancien is not None:
-            if not debut_explicite and ancien.get("debut"):
-                jour["debut"] = ancien["debut"]
             memes_heures = _heures(jour.get("heures_faites")) == _heures(ancien.get("heures_faites"))
+            # Arrivée non envoyée : gardée seulement si les heures n'ont pas
+            # changé (badgeuse, modèle de semaine : un nouveau total ne décrit
+            # plus la même journée). L'écran qui la renvoie la garde, lui.
+            if not debut_explicite and ancien.get("debut") and memes_heures:
+                jour["debut"] = ancien["debut"]
             meme_arrivee = jour.get("debut") == ancien.get("debut")
             if not fin_explicite and ancien.get("fin") and memes_heures and meme_arrivee:
                 jour["fin"] = ancien["fin"]

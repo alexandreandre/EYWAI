@@ -29,7 +29,7 @@ import {
   valeurModelePourLeJour,
 } from '@/lib/weekTemplateDays';
 import { calendarSaveFailureMessage } from '@/lib/calendarSaveFeedback';
-import { sansHoraires } from '@/lib/horairesDuJour';
+import { horairesAEnvoyer } from '@/lib/horairesDuJour';
 import { dernierJourDuContratDansLeMois } from '@/lib/employmentStatus';
 import { estAvantLEntree, premierJourDuContratDansLeMois } from '@/lib/joursHorsContrat';
 
@@ -226,8 +226,8 @@ export function useCalendar(
           jour: plannedDay.jour,
           type: plannedDay.type,
           heures_faites: apiDay ? apiDay.heures_faites : null,
-          // Arrivée et départ : affichés dans la case, jamais renvoyés d'ici
-          // (le serveur garde les siens, cf. `sansHoraires`).
+          // Arrivée et départ : affichés dans la case ; l'arrivée est renvoyée
+          // telle quelle (cf. `horairesAEnvoyer`).
           ...(apiDay?.debut ? { debut: apiDay.debut } : {}),
           ...(apiDay?.fin ? { fin: apiDay.fin } : {}),
         };
@@ -415,7 +415,7 @@ export function useCalendar(
     try {
       const saved = await calendarApi.saveCalendar(employeeId, selectedDate.year, selectedDate.month, {
         expected_revision: revision, calendrier_prevu: plannedCalendar,
-        calendrier_reel: sansHoraires(actualHours), recalculate_payroll: true,
+        calendrier_reel: horairesAEnvoyer(actualHours), recalculate_payroll: true,
       }, requestContext);
       if (!isCurrent()) return false;
       const snapshot = saved.data;
@@ -526,10 +526,8 @@ export function useCalendar(
         if (updatedDay.type !== undefined) newActualData.type = updatedDay.type;
         if (updatedDay.heures_faites !== undefined)
           newActualData.heures_faites = updatedDay.heures_faites;
-        if (updatedDay.vider) {
-          const { debut: _debut, fin: _fin, ...reste } = a;
-          return { ...reste, ...newActualData };
-        }
+        // Vidé : arrivée et départ partent vides, le serveur les efface.
+        if (updatedDay.vider) return { ...a, ...newActualData, debut: null, fin: null };
         return { ...a, ...newActualData };
       })
     );
