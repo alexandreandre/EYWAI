@@ -43,7 +43,7 @@ def fetch_absences_validated_today(company_id: str, today_iso: str) -> List[dict
     client = _get_client()
     resp = (
         client.table("absence_requests")
-        .select("type, employee:employees(id, first_name, last_name, company_id)")
+        .select("type, event_subtype, employee:employees(id, first_name, last_name, company_id)")
         .eq("status", "validated")
         .eq("company_id", company_id)
         .contains("selected_days", [today_iso])

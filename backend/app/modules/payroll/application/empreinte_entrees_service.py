@@ -200,6 +200,9 @@ def _avec_source_absence(
         if not isinstance(entree, Mapping):
             continue
         copie = dict(entree)
+        # Bornes d'un congé parental : changer sa fin prévue réécrit les jours
+        # déjà payés sans changer leur paie ; ils ne passent pas « à recalculer ».
+        copie.pop("periode_absence", None)
         if copie.get("type") == "conges_payes":
             iso = _iso_jour(copie, year, month)
             if iso and iso in source:

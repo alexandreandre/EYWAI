@@ -154,6 +154,21 @@ class CalendarUpdateProvider(ICalendarUpdateService):
         if date_fin_arret_reel:
             entry["date_fin_arret_reel"] = date_fin_arret_reel
 
+    @staticmethod
+    def _appliquer_motif(
+        entry: Dict[str, Any],
+        motif_absence: Optional[str],
+        periode_absence: Optional[Dict[str, str]],
+    ) -> None:
+        """Motif et bornes d'un congé parental d'éducation sur un jour converti
+        (clés serveur) : le calendrier l'affiche, le moteur en tire le libellé
+        de la retenue et la DSN le motif 632."""
+        if not motif_absence:
+            return
+        entry["motif_absence"] = motif_absence
+        if periode_absence:
+            entry["periode_absence"] = dict(periode_absence)
+
     def update_calendar_from_days(
         self,
         employee_id: str,
@@ -167,6 +182,8 @@ class CalendarUpdateProvider(ICalendarUpdateService):
         demi_journees: Optional[Dict[str, str]] = None,
         adopter_jours_deja_types: bool = False,
         photos_avant: Optional[Dict[str, Dict[str, Any]]] = None,
+        motif_absence: Optional[str] = None,
+        periode_absence: Optional[Dict[str, str]] = None,
     ) -> None:
         # adopter_jours_deja_types : saisie RH directe au CALENDRIER — le jour
         # est DÉJÀ typé comme la cible quand la demande auto-créée se projette.
@@ -269,6 +286,7 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                         if demi:
                             entry["quotite_absence"] = 0.5
                             entry["demi_journee"] = demi
+                        self._appliquer_motif(entry, motif_absence, periode_absence)
                         calendrier_prevu.append(entry)
                     elif est_weekend:
                         # Jour de remplissage OU jour d'absence tombant le
@@ -333,6 +351,7 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                         entry["type"] = new_calendar_type
                         entry["heures_prevues"] = 0
                         entry["origine"] = ORIGINE_ABSENCE
+                        self._appliquer_motif(entry, motif_absence, periode_absence)
                         if new_calendar_type == "arret_maladie":
                             self._appliquer_meta_arret(
                                 entry,
@@ -392,6 +411,7 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                         if demi:
                             entry["quotite_absence"] = 0.5
                             entry["demi_journee"] = demi
+                        self._appliquer_motif(entry, motif_absence, periode_absence)
                     if new_calendar_type == "arret_maladie":
                         self._appliquer_meta_arret(
                             entry,
@@ -410,6 +430,39 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                         "year": year,
                         "month": month,
                     }
+                ).execute()
+
+    def poser_le_motif_du_conge_parental(
+        self,
+        employee_id: str,
+        days: List[date],
+        periode_absence: Optional[Dict[str, str]],
+    ) -> None:
+        """Un sans solde devenu congé parental (import d'un 632) : ses jours déjà
+        en absence non rémunérée prennent le motif et les bornes du congé ; le
+        type et les heures ne bougent pas."""
+        grouped: Dict[tuple, set] = {}
+        for d in days:
+            grouped.setdefault((d.year, d.month), set()).add(d.day)
+        for (year, month), jours in grouped.items():
+            schedule = (
+                supabase.table("employee_schedules")
+                .select("planned_calendar")
+                .match({"employee_id": employee_id, "year": year, "month": month})
+                .maybe_single()
+                .execute()
+            )
+            calendrier = (schedule.data or {}).get("planned_calendar") if schedule else None
+            if not isinstance(calendrier, dict):
+                continue
+            change = False
+            for entry in calendrier.get("calendrier_prevu", []):
+                if entry.get("jour") in jours and entry.get("type") == "absence_non_remuneree":
+                    self._appliquer_motif(entry, "conge_parental_education", periode_absence)
+                    change = True
+            if change:
+                supabase.table("employee_schedules").update({"planned_calendar": calendrier}).match(
+                    {"employee_id": employee_id, "year": year, "month": month}
                 ).execute()
 
     def restore_calendar_from_days(

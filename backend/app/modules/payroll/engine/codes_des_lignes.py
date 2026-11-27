@@ -96,7 +96,8 @@ _MOTIFS_DE_GAIN: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
         ("heures_complementaires", r"^Heures complémentaires majorées à (?P<d>.+)%$"),
         ("absence_entree_sortie", r"^Absence pour entrée ou sortie$"),
         ("absence_injustifiee", r"^Absence injustifiée (?P<d>.+)$"),
-        ("absence_non_remuneree", r"^Absence non rémunérée du (?P<d>.+)$"),
+        # Le congé parental d'éducation est un congé sans solde : même famille.
+        ("absence_non_remuneree", r"^Absence (?:non rémunérée|congé parental) du (?P<d>.+)$"),
         ("absence_evenement_familial", r"^Absence événement familial du (?P<d>.+)$"),
         ("absence_ferie_non_paye", r"^Abs\. jour férié non payé du (?P<d>.+)$"),
         ("absence_maladie", r"^Absence maladie du (?P<d>.+)$"),
@@ -119,6 +120,7 @@ _MOTIFS_DE_GAIN: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
             "retenue_arret_reporte_periode",
             r"^Arrêt reporté sur toute la période : retenue ramenée au salaire du mois$",
         ),
+        ("absences_mois_precedent_non_retenues", r"^Absences du mois précédent non retenues \(salaire du mois suspendu\)$"),
         ("lissage_modulation", r"^Lissage modulation$"),
         ("absence_conges_payes", r"^Absence congés payés"),
         ("indemnite_conges_payes", r"^Indemnité de congés payés \((?P<d>.+)\)$"),

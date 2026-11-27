@@ -65,7 +65,7 @@ export function JourVoisinCell({
             <span
               className={cn('inline-block h-2 w-2 rounded-full', CALENDAR_TYPE_BAR_COLORS[type ?? ''] ?? 'bg-slate-400')}
             />
-            {getCalendarTypeLabel(type)}
+            {getCalendarTypeLabel(type, prevu?.motif_absence)}
           </span>
           <span>Prévu : {formatCalendarValue(prevu?.heures_prevues, isForfaitJour)}</span>
           <span>Fait : {formatCalendarValue(reel?.heures_faites, isForfaitJour)}</span>

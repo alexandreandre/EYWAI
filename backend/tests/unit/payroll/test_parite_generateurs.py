@@ -16,6 +16,13 @@ Une étape nouvelle, ajoutée à un seul générateur, fait échouer
 `test_toute_etape_d_un_seul_generateur_est_rangee` : il faut la brancher dans
 l'autre, ou écrire ici en une phrase pourquoi elle ne le concerne pas.
 Une ligne par étape, une phrase par ligne : quelques secondes par lot.
+
+Congé parental d'éducation (26/11/2026) : même retenue et même ligne aux deux
+générateurs, mais pas la même période. Aux heures, il est retenu au mois civil
+alors que le sans solde suit la fenêtre des variables ; au forfait jours, qui n'a
+qu'une période (celle du forfait), il la suit comme l'arrêt. D'où les deux étapes
+propres aux heures ci-dessous (régularisations antérieures, jours entre deux
+bulletins).
 """
 
 from __future__ import annotations
@@ -218,6 +225,13 @@ HEURES_SEULEMENT: dict[str, dict[str, str]] = {
         "payroll_analyzer_analyser": "analyse des heures ; le forfait analyse ses jours dans le moteur",
         "regularisation_events_from_calendar": "régularisations d'heures d'un mois passé",
         "appliquer_le_report_aux_evenements": "arrêts repris du bulletin précédent : aux événements analysés ; au forfait, dans le moteur qui analyse ses jours",
+        "marquer_les_regularisations_du_conge_parental": "idem : le forfait n'a pas de régularisation antérieure",
+        "bulletin_precedent_pour_le_moteur": "fenêtre des variables du bulletin précédent : le forfait n'en a pas",
+        "absence_non_remuneree_avant_le_mois": "idem",
+        "alertes_conge_parental_entre_bulletins": (
+            "fenêtre des variables : le forfait n'en a pas, son congé parental suit "
+            "la période du forfait comme l'arrêt, sans trou entre deux bulletins"
+        ),
         "option_active": "compensation des heures entre semaines",
         "s_applique_au_contrat": "idem",
         "bornes_du_contrat": "idem",

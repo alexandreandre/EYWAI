@@ -50,7 +50,7 @@ import { AbsenceSignalementBadge } from '@/components/absences/AbsenceSignalemen
 import { listerSignalements } from '@/api/exports';
 import { AbsenceIjssStatusBadge } from '@/components/absences/AbsenceIjssStatusBadge';
 import { getAbsenceIjssStatus } from '@/api/ijssTracking';
-import { estArretIjss, libelleDeLaDemande } from '@/lib/employeeAbsencesUtils';
+import { estArretIjss, estCongeParental, LIBELLE_CONGE_PARENTAL, libelleDeLaDemande } from '@/lib/employeeAbsencesUtils';
 import { LeaveCampaignSection } from '@/features/absences/components/LeaveCampaignSection';
 import { LeaveNotificationSettingsPanel } from '@/features/absences/components/LeaveNotificationSettingsPanel';
 import { RttYearEndRhSection } from '@/features/absences/components/RttYearEndRhSection';
@@ -366,6 +366,8 @@ export default function AbsencesPage() {
                     <p className="text-xs text-muted-foreground">Consommé entièrement {req.event_familial_cycles_consumed}×</p>
                   )}
                 </div>
+              ) : estCongeParental(req) ? (
+                LIBELLE_CONGE_PARENTAL
               ) : (
                 libelleDeLaDemande(typeLabels[req.type], req.arret_type)
               )}

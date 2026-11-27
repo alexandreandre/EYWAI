@@ -12,6 +12,10 @@ from pydantic import BaseModel, model_validator
 from app.modules.absences.domain.date_accident import refus_date_accident
 from app.modules.absences.domain.enums import IJSS_ELIGIBLE_TYPES
 from app.shared.domain.absence_calendar import daterange_days
+from app.shared.domain.conge_parental import (
+    SOUS_TYPE_CONGE_PARENTAL,
+    TYPE_DEMANDE_CONGE_PARENTAL,
+)
 
 AbsenceType = Literal[
     "conge_paye",
@@ -74,6 +78,7 @@ class AbsenceRequestCreate(BaseModel):
     filename: str | None = None
     event_subtype: str | None = (
         None  # Requis si type = evenement_familial (ex: mariage_salarie, deces_enfant)
+        # ; « conge_parental_education » sur un sans solde : congé parental.
     )
     arret_type: Optional[ArretType] = None
     # Demi-journées : {"2026-09-14": "matin"} — un jour absent de ce dict est
@@ -136,6 +141,31 @@ class AbsenceRequestCreate(BaseModel):
                 )
         return self
 
+    def est_conge_parental(self) -> bool:
+        return (
+            self.type == TYPE_DEMANDE_CONGE_PARENTAL
+            and self.event_subtype == SOUS_TYPE_CONGE_PARENTAL
+        )
+
+    @model_validator(mode="after")
+    def sous_type_coherent(self) -> "AbsenceRequestCreate":
+        """« Congé parental d'éducation » ne qualifie qu'un congé sans solde, et se
+        prend en journées entières. Les autres sous-types restent ceux de
+        l'événement familial (ignorés ailleurs, comme avant)."""
+        if self.event_subtype != SOUS_TYPE_CONGE_PARENTAL:
+            return self
+        if not self.est_conge_parental():
+            raise ValueError(
+                "Le sous-type « congé parental d'éducation » ne s'applique qu'à un "
+                "congé sans solde."
+            )
+        if self.demi_journees:
+            raise ValueError(
+                "Un congé parental d'éducation se prend en journées entières, "
+                "pas en demi-journées."
+            )
+        return self
+
     @model_validator(mode="after")
     def demi_journees_reservees_aux_cp(self) -> "AbsenceRequestCreate":
         if not self.demi_journees:
@@ -168,7 +198,9 @@ class AbsenceRequestCreate(BaseModel):
         if a_periode:
             if self.date_debut is None or self.date_fin is None:
                 raise ValueError(
-                    "Une période d'arrêt doit porter une date de début ET une date de fin."
+                    "Un congé parental doit porter son premier jour ET sa fin prévue."
+                    if self.est_conge_parental()
+                    else "Une période d'arrêt doit porter une date de début ET une date de fin."
                 )
             if self.date_fin < self.date_debut:
                 raise ValueError(
@@ -178,9 +210,10 @@ class AbsenceRequestCreate(BaseModel):
                 raise ValueError(
                     "Fournissez soit des jours sélectionnés, soit une période, pas les deux."
                 )
-            if self.type not in _ARRETS_TYPES_PRINCIPAUX:
+            if self.type not in _ARRETS_TYPES_PRINCIPAUX and not self.est_conge_parental():
                 raise ValueError(
-                    "La saisie par période (du … au …) est réservée aux arrêts de travail."
+                    "La saisie par période (du … au …) est réservée aux arrêts de "
+                    "travail et au congé parental d'éducation."
                 )
             if self.arret_type == "mi_temps_therapeutique":
                 raise ValueError(
@@ -189,7 +222,9 @@ class AbsenceRequestCreate(BaseModel):
                 )
             if (self.date_fin - self.date_debut).days + 1 > _PERIODE_ARRET_MAX_JOURS:
                 raise ValueError(
-                    "Période d'arrêt de plus de 3 ans — vérifiez les dates saisies."
+                    "Période de plus de 3 ans — vérifiez les dates saisies."
+                    if self.est_conge_parental()
+                    else "Période d'arrêt de plus de 3 ans — vérifiez les dates saisies."
                 )
             # L'expansion calendaire vit ICI, à la frontière d'entrée : la
             # commande ne consomme qu'un seul contrat, selected_days, comme

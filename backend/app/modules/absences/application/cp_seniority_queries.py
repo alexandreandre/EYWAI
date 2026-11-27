@@ -125,6 +125,7 @@ def get_cp_seniority_settings(company_id: str) -> dict[str, Any]:
 
 def build_employee_cp_seniority_context(
     employee_row: dict[str, Any],
+    conges_parentaux: Any = (),
 ) -> EmployeeCpSeniorityContext:
     hire_raw = employee_row.get("hire_date")
     hire_date = None
@@ -165,6 +166,7 @@ def build_employee_cp_seniority_context(
             employee_row.get("classification_conventionnelle")
         )
         or None,
+        conges_parentaux=tuple(conges_parentaux or ()),
     )
 
 
@@ -179,7 +181,11 @@ def load_employee_cp_seniority_context(employee_id: str) -> EmployeeCpSeniorityC
     rows = resp.data or []
     if not rows:
         return EmployeeCpSeniorityContext(hire_date=None)
-    return build_employee_cp_seniority_context(rows[0])
+    from app.shared.infrastructure.conge_parental import conges_parentaux_du_salarie
+
+    return build_employee_cp_seniority_context(
+        rows[0], conges_parentaux_du_salarie(employee_id, supabase)
+    )
 
 
 def compute_and_persist_grant(

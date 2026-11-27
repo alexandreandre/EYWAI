@@ -92,7 +92,10 @@ def _date_anciennete(contexte: ContextePaie) -> Optional[date]:
         _parse_date(resolve_date_anciennete_from_contrat(contrat)),
     ]
     ancres = [d for d in ancres if d]
-    return min(ancres) if ancres else None
+    from app.shared.seniority_reference import decaler_selon_le_contrat
+
+    # Congé parental à temps plein : compté pour moitié (L1225-54).
+    return decaler_selon_le_contrat(min(ancres), contrat) if ancres else None
 
 
 def _mois_anciennete(date_entree: date, ref: date) -> int:

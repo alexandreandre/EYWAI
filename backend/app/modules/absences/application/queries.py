@@ -6,6 +6,7 @@ Retourne des dicts / listes de dicts compatibles avec les schémas de réponse A
 """
 
 from __future__ import annotations
+from app.shared.domain.conge_parental import est_conge_parental
 from app.shared.domain.effectif_seuils import effectif_retenu
 from app.shared.seniority_reference import resolve_seniority_reference_date
 from app.modules.payroll.infrastructure.arrets_connus import arrets_connus_du_salarie
@@ -887,7 +888,11 @@ def get_my_absence_balances(employee_id: str) -> List[dict]:
                 **soldes,
                 "fractionnement_days": float(frac.get("days_granted") or 0),
             }
-    ss_pris = count_absence_days_taken(validated_list, "sans_solde", today)
+    # Le congé parental d'éducation (sans solde de sous-type, saisi en jours
+    # calendaires) ne compte pas dans les jours de « Congé sans solde ».
+    ss_pris = count_absence_days_taken(
+        [r for r in validated_list if not est_conge_parental(r)], "sans_solde", today
+    )
     result = balances_to_api_list(soldes, policy=policy, cp_seniority=cp_seniority)
     result.append(
         {
@@ -970,7 +975,11 @@ def get_my_absences_page_data(employee_id: str, year: int, month: int) -> dict:
         hours_per_rest_day=_hours_per_rest_day_for_employee(employee_id),
         **extras,
     )
-    ss_pris = count_absence_days_taken(validated_requests, "sans_solde", today)
+    # Le congé parental d'éducation (sans solde de sous-type, saisi en jours
+    # calendaires) ne compte pas dans les jours de « Congé sans solde ».
+    ss_pris = count_absence_days_taken(
+        [r for r in validated_requests if not est_conge_parental(r)], "sans_solde", today
+    )
 
     balances_data = balances_to_api_list(
         soldes, policy=policy, cp_seniority=cp_seniority

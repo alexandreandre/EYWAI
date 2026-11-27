@@ -28,7 +28,9 @@ def build_employee_cp_seniority_context_from_db(employee_id: str):
         from app.modules.absences.domain.cp_seniority import EmployeeCpSeniorityContext
 
         return EmployeeCpSeniorityContext(hire_date=None)
-    return build_employee_cp_seniority_context(rows[0])
+    from app.shared.infrastructure.conge_parental import conges_parentaux_du_salarie
+
+    return build_employee_cp_seniority_context(rows[0], conges_parentaux_du_salarie(employee_id))
 
 
 def compute_auto_report_june_ouvres() -> float:

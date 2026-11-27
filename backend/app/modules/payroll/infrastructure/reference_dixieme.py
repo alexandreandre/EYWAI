@@ -43,7 +43,7 @@ def lignes_pour_dixieme(donnees: Mapping[str, Any], *, importe: bool = False) ->
             famille = code.split(":")[1] if code.startswith("brut:") else ""
             if not importe:
                 copie["code_dixieme"] = code or None
-                if famille in {"retenue_absence_integrale", "retenue_absence_mois_complet", "complement_absence_integrale", "reduction_hs_absence"}:
+                if famille in {"retenue_absence_integrale", "retenue_absence_mois_complet", "complement_absence_integrale", "reduction_hs_absence", "absences_mois_precedent_non_retenues"}:
                     # Dans calcul_brut, les CP sont retenus ensuite, avec
                     # leurs propres HS. Cette retenue concerne les autres absences.
                     copie["dixieme_hors_conges_payes"] = True

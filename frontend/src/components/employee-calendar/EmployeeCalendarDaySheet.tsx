@@ -142,7 +142,7 @@ export function EmployeeCalendarDaySheet({
             <>
               <p className="text-xs text-muted-foreground">
                 Type de journée :{' '}
-                <span className="text-foreground">{getCalendarTypeLabel(dayType)}</span>
+                <span className="text-foreground">{getCalendarTypeLabel(dayType, planned?.motif_absence)}</span>
               </p>
 
               <div className="space-y-1 text-sm">

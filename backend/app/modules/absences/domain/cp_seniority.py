@@ -93,6 +93,9 @@ class EmployeeCpSeniorityContext:
     is_forfait_jour: bool = False
     #: Lettre du groupe d'emplois de la classification (métallurgie : A à I).
     groupe_emploi: str | None = None
+    #: Congés parentaux d'éducation validés : comptés pour moitié dans
+    #: l'ancienneté (C. trav. L1225-54).
+    conges_parentaux: tuple = ()
 
     @property
     def is_forfait(self) -> bool:
@@ -213,6 +216,15 @@ def compute_seniority_years(
     else:
         start = career_reference_date(
             hire_date, ctx.prior_service_months, basis
+        )
+    if ctx.conges_parentaux:
+        from app.shared.domain.conge_parental import (
+            decaler_l_anciennete,
+            jours_d_anciennete_neutralises,
+        )
+
+        start = decaler_l_anciennete(
+            start, jours_d_anciennete_neutralises(ctx.conges_parentaux, reference_date, start)
         )
     if start > reference_date:
         return 0.0

@@ -833,6 +833,8 @@ def run_payslip_generation_heures(
     contexte.date_fin_periode = date_fin_periode
     contexte.date_debut_variables = date_debut_variables
     contexte.date_fin_variables = date_fin_variables
+    precedent = saisie_du_mois.get("bulletin_precedent")
+    contexte.bulletin_precedent = precedent if isinstance(precedent, dict) else None
     contexte.date_fin_variables_societe = fenetre_cfg.get("fin_societe")
     # Résumé de la compensation entre semaines (option société), pour la
     # mention du bulletin et payslip_data.

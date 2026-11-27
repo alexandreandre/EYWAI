@@ -58,6 +58,13 @@ def ChargerContexte(
                 or "",
                 "date_debut_execution": employee_data.get("date_debut_execution")
                 or "",
+                # Congé parental à temps plein : jours d'ancienneté neutralisés
+                # (L1225-54), posés comme par le générateur ; absents sinon.
+                **(
+                    {"jours_anciennete_neutralises": int(employee_data["jours_anciennete_neutralises"])}
+                    if employee_data.get("jours_anciennete_neutralises")
+                    else {}
+                ),
             },
             "remuneration": {
                 "salaire_de_base": {
@@ -469,10 +476,10 @@ class ContextePaie:
     @property
     def date_anciennete_prime(self) -> str:
         """Date reprise ou embauche pour prime d'ancienneté."""
+        from app.shared.seniority_reference import decaler_selon_le_contrat
+
         ref = resolve_date_anciennete_from_contrat(self.contrat)
-        if ref:
-            return ref
-        return self.date_entree
+        return decaler_selon_le_contrat(ref or self.date_entree, self.contrat)
 
     @property
     def date_fin_contrat(self) -> str:

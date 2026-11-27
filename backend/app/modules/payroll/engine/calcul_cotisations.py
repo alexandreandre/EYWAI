@@ -31,6 +31,7 @@ from .baremes_loader import resoudre_taux_vm_pour_paie
 from app.shared.domain.employment_rules import is_cadre
 from app.modules.payroll.engine.mutuelles import mutuelles_du_salarie
 from app.modules.payroll.engine.retraite_progressive import part_complementaire_prise_en_charge
+from app.shared.domain.conge_parental import bornes_du_jour, est_jour_de_conge_parental
 from app.modules.payroll.engine.codes_des_lignes import BLOC_COTISATIONS
 from app.modules.payroll.engine.corrections_manuelles import LignesCorrigees, journal_du_contexte
 
@@ -310,9 +311,28 @@ def ratio_plafond_periode(
     # un samedi ne réduit le plafond qu'à partir du lundi. salarié 086 (Colorplast,
     # mai 2026), accident du travail du 23 au 29/05 : le cabinet retire 7 jours,
     # nous n'en retirions que 4 — les 23, 24 et 25 manquaient.
+    # Un jour repassé en travail au planning au milieu d'un congé parental
+    # n'est pas suspendu : il garde son plafond (les bornes du congé viennent
+    # de la demande, pas du planning).
+    travailles_au_planning: set[date] = set()
+    for prevu in jours_prevus or []:
+        try:
+            if prevu.get("type") in ("travail", "work"):
+                travailles_au_planning.add(
+                    date(int(prevu["annee"]), int(prevu["mois"]), int(prevu["jour"]))
+                )
+        except (KeyError, TypeError, ValueError):
+            continue
     for ev in calendrier or []:
         debut_arret = _d(ev.get("date_debut_arret_reel"))
         fin_arret = _d(ev.get("date_fin_arret_reel"))
+        sauf: set[date] = set()
+        if not (debut_arret and fin_arret) and est_jour_de_conge_parental(ev):
+            # Le congé parental suspend le contrat de date à date, week-ends
+            # compris, comme un arrêt : ses bornes sont celles de la demande.
+            bornes = bornes_du_jour(ev)
+            debut_arret, fin_arret = bornes if bornes else (None, None)
+            sauf = travailles_au_planning
         if not (debut_arret and fin_arret):
             continue
         jour_arret = max(debut_arret, date_debut)
@@ -324,7 +344,8 @@ def ratio_plafond_periode(
             jour_arret = fin_reprise + timedelta(days=1)
         borne = min(fin_arret, date_fin)
         while jour_arret <= borne:
-            absents.add(jour_arret)
+            if jour_arret not in sauf:
+                absents.add(jour_arret)
             jour_arret += timedelta(days=1)
 
     prevues: Dict[date, float] = {}
@@ -469,7 +490,15 @@ def _calculer_assiettes(
     cumul_t1_applique_avant = _cumul_tranche_1_appliquee_debut_mois(
         contexte, cumul_brut_avant, cumul_t2_applique_avant
     )
-    cumul_tranche_1_correct = max(0.0, min(cumul_brut_incl, cumul_pss_incl))
+    # Le plancher suit le cumul déjà appliqué quand il est négatif (rappel
+    # d'IJSS repris en brut négatif, salariée A, LEWIS) : un plancher à 0
+    # « rattrapait » ce négatif sur le premier mois sans salaire ou à petit
+    # salaire (375,58 € de tranche 1 sur un brut nul en novembre 2026). Les
+    # cotisations portent sur les rémunérations versées (CSS L242-1). Cumul
+    # appliqué positif ou nul : formule inchangée.
+    cumul_tranche_1_correct = max(
+        min(0.0, cumul_t1_applique_avant), min(cumul_brut_incl, cumul_pss_incl)
+    )
     assiette_tranche_1 = round(
         max(0.0, cumul_tranche_1_correct - cumul_t1_applique_avant), 2
     )

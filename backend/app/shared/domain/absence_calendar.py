@@ -80,6 +80,11 @@ SERVER_OWNED_ABSENCE_KEYS: frozenset[str] = frozenset(
         # consommées par le moteur de paie (0,5 jour) et le décompte de solde.
         "quotite_absence",
         "demi_journee",
+        # Congé parental d'éducation (sans solde de sous-type
+        # conge_parental_education) : le motif et les bornes de la demande,
+        # pour le libellé du calendrier, du bulletin et le motif DSN 632.
+        "motif_absence",
+        "periode_absence",
     }
 )
 

@@ -39,6 +39,8 @@ from app.modules.employee_exits.infrastructure.repository import (
 from app.modules.employees.application.queries import employee_has_work_contract
 from app.modules.employees.infrastructure.repository import EmployeeRepository
 from app.modules.employee_exits.domain.notice_period import compute_notice_period
+from app.shared.domain.conge_parental import decaler_l_anciennete
+from app.shared.infrastructure.conge_parental import jours_neutralises_du_salarie
 from app.shared.seniority_reference import resolve_seniority_reference_date
 from app.modules.employee_exits.domain.rules import exit_block_reason
 from app.modules.dsn_export.domain.motif_rupture import resume_du_dossier
@@ -181,8 +183,14 @@ def get_notice_period_preview(
 
     result = compute_notice_period(
         exit_type=exit_type,
-        # L1234-1 : l'ancienneté de services, reprise comprise quand la fiche en porte une.
-        hire_date=_debut_anciennete_preavis(employee),
+        # L1234-1 : l'ancienneté de services, reprise comprise quand la fiche en
+        # porte une ; un congé parental à temps plein compte pour moitié (L1225-54).
+        hire_date=decaler_l_anciennete(
+            _debut_anciennete_preavis(employee),
+            jours_neutralises_du_salarie(
+                str(employee_id), reference_date, sb, _debut_anciennete_preavis(employee)
+            ),
+        ),
         reference_date=reference_date,
         statut=employee.get("statut"),
         is_gross_misconduct=is_gross_misconduct,

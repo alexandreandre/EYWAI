@@ -13,6 +13,7 @@ from app.modules.platform_settings.application.email_config import (
     get_resolved_email_config,
 )
 from app.shared.infrastructure.email.smtp_sender import get_smtp_mail_sender
+from app.shared.domain.conge_parental import est_conge_parental
 from app.shared.domain.pluriel import accord
 
 logger = logging.getLogger(__name__)
@@ -207,7 +208,11 @@ def _send_leave_request_email(
     )
     company_name = _company_name(company_id)
     absence_type = str(row.get("type") or "")
-    absence_label = ABSENCE_TYPE_LABELS.get(absence_type, "absence")
+    absence_label = (
+        "congé parental d'éducation"
+        if est_conge_parental(row)
+        else ABSENCE_TYPE_LABELS.get(absence_type, "absence")
+    )
     d0, d1 = absence_date_range_iso(row)
     days = list(row.get("selected_days") or [])
     # Demi-journées de CP : la durée annoncée pondère à 0,5.

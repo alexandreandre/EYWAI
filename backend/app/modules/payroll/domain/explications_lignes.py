@@ -400,6 +400,13 @@ def _dates_telles_qu_ecrites(libelle: str) -> str:
     apres_deux_points = re.search(r":\s*([^)]+)\)", libelle)
     if apres_deux_points:
         return apres_deux_points.group(1).strip()
+    if libelle.lower().startswith("absence congé parental"):
+        # Ligne par période du congé parental : ses deux dates, années comprises.
+        periode = re.search(
+            r"\bdu\s+\d{2}/\d{2}/\d{2}(?:\s+au\s+\d{2}/\d{2}/\d{2})?", libelle
+        )
+        if periode:
+            return periode.group(0)
     deja_ecrites = re.search(
         r"\bdu\s+\d{1,2}/\d{2}(?:\s+au\s+\d{1,2}/\d{2})?", libelle, flags=re.I
     )
@@ -424,6 +431,8 @@ def _nature_absence(libelle: str) -> str:
         ("conge supplementaire de naissance", "congé supplémentaire de naissance"),
         ("injustif", "injustifiée"),
         ("evenement familial", "événement familial"),
+        ("mois precedent non retenues", "jours du mois précédent non retenus, faute de salaire"),
+        ("conge parental", "congé parental d'éducation"),
         ("non remunere", "non rémunérée"),
         ("entree ou sortie", "entrée ou sortie"),
         ("arret de travail", "arrêt de travail"),

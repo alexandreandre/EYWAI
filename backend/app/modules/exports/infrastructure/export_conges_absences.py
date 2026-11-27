@@ -7,6 +7,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from app.core.database import supabase
 from app.shared.utils.export import format_period, generate_csv, generate_xlsx
 
+from app.shared.domain.conge_parental import LIBELLE_CONGE_PARENTAL, est_conge_parental
+
 ABSENCE_TYPE_LABELS: Dict[str, str] = {
     "conge_paye": "Congé payé",
     "rtt": "RTT",
@@ -54,6 +56,7 @@ def get_absences_for_export(
             id,
             employee_id,
             type,
+            event_subtype,
             status,
             selected_days,
             demi_journees,
@@ -87,7 +90,11 @@ def get_absences_for_export(
                 "id": row.get("id"),
                 "employee_id": row.get("employee_id"),
                 "type": absence_type,
-                "type_label": ABSENCE_TYPE_LABELS.get(absence_type, absence_type),
+                "type_label": (
+                    LIBELLE_CONGE_PARENTAL
+                    if est_conge_parental(row)
+                    else ABSENCE_TYPE_LABELS.get(absence_type, absence_type)
+                ),
                 "status": row.get("status"),
                 "days_count": days_count,
                 "days_in_period": days_in_period,

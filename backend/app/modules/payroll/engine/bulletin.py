@@ -1,6 +1,7 @@
 from app.core.logging import get_logger, log_payroll_debug
 
 from .contexte import ContextePaie
+from app.shared.seniority_reference import decaler_selon_le_contrat
 from typing import Any, Dict, List, Optional
 from datetime import date
 import calendar
@@ -1032,10 +1033,13 @@ def creer_bulletin_final(
                 "type_contrat": contexte.type_contrat,
                 "is_alternant": contexte.is_alternant,
                 "date_entree": contexte.contrat.get("contrat", {}).get("date_entree"),
-                "date_anciennete": contexte.contrat.get("contrat", {}).get(
-                    "seniority_reference_date"
-                )
-                or contexte.contrat.get("contrat", {}).get("date_entree"),
+                # Repoussée de la moitié d'un congé parental à temps plein
+                # (L1225-54) ; inchangée sans congé parental.
+                "date_anciennete": decaler_selon_le_contrat(
+                    contexte.contrat.get("contrat", {}).get("seniority_reference_date")
+                    or contexte.contrat.get("contrat", {}).get("date_entree"),
+                    contexte.contrat,
+                ),
                 "classification": _formater_classification(contexte.contrat),
                 "classification_brute": contexte.contrat.get("remuneration", {}).get(
                     "classification_conventionnelle"

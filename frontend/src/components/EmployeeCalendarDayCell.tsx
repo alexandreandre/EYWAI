@@ -112,7 +112,7 @@ export function EmployeeCalendarDayCell({
         )}
       </div>
       <p className="truncate px-1.5 text-[9px] font-medium text-muted-foreground leading-tight">
-        {getCalendarTypeLabel(dayType)}
+        {getCalendarTypeLabel(dayType, dayData?.motif_absence)}
       </p>
       {dayType === 'travail' && (
         <CompactGauges
@@ -156,7 +156,7 @@ export function EmployeeCalendarDayCell({
         type="button"
         onClick={() => onDayClick(day)}
         className={className}
-        aria-label={`${getCalendarTypeLabel(dayType)}, jour ${day}`}
+        aria-label={`${getCalendarTypeLabel(dayType, dayData?.motif_absence)}, jour ${day}`}
       >
         <span className={cn('absolute left-0 top-2 bottom-2 w-1 rounded-r', barColor)} aria-hidden />
         {content}

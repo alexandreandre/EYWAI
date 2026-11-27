@@ -58,7 +58,59 @@ export const ABSENCE_STATUS_FILTERS: {
   { value: 'cancelled', label: 'Annulées' },
 ];
 
+/**
+ * Congé parental d'éducation (retour d'Elsa du 26/11) : un congé sans solde de
+ * sous-type `conge_parental_education`. Même paie qu'un sans solde (aucun
+ * salaire, aucun congé payé acquis), déclaré 632 en DSN.
+ */
+export const SOUS_TYPE_CONGE_PARENTAL = 'conge_parental_education';
+export const LIBELLE_CONGE_PARENTAL = "Congé parental d'éducation";
+
+export function estCongeParental(
+  absence: Pick<AbsenceRequest, 'type' | 'event_subtype'> | null | undefined,
+): boolean {
+  return absence?.type === 'sans_solde' && absence?.event_subtype === SOUS_TYPE_CONGE_PARENTAL;
+}
+
+/** Tous les jours ISO du `debut` au `fin` inclus (congé parental, saisi par période). */
+export function joursDeLaPeriode(debut: string, fin: string): string[] {
+  const re = /^\d{4}-\d{2}-\d{2}$/;
+  if (!re.test(debut) || !re.test(fin) || fin < debut) return [];
+  const jours: string[] = [];
+  const courant = new Date(`${debut}T12:00:00Z`);
+  const dernier = new Date(`${fin}T12:00:00Z`);
+  while (courant <= dernier) {
+    jours.push(courant.toISOString().slice(0, 10));
+    courant.setUTCDate(courant.getUTCDate() + 1);
+  }
+  return jours;
+}
+
+/** Premier et dernier jour d'une demande, en ISO. */
+export function bornesDesJours(jours: readonly string[] | null | undefined): { debut: string; fin: string } | null {
+  const tries = [...(jours ?? [])].map((j) => String(j).slice(0, 10)).sort();
+  if (tries.length === 0) return null;
+  return { debut: tries[0], fin: tries[tries.length - 1] };
+}
+
+/**
+ * Refus de la période d'un congé parental, ou null. La fin prévue est
+ * obligatoire (C. trav. L1225-50 : le salarié informe l'employeur du point de
+ * départ et de la durée) ; la durée initiale est d'un an au plus (L1225-48),
+ * prolongeable : au-delà de 3 ans, c'est une faute de frappe.
+ */
+export function refusPeriodeCongeParental(debut: string, fin: string): string | null {
+  if (!debut) return 'Indiquez le premier jour du congé parental.';
+  if (!fin) return 'Indiquez la fin prévue du congé parental.';
+  if (fin < debut) return 'La fin prévue est antérieure au premier jour du congé.';
+  if (joursDeLaPeriode(debut, fin).length > 1096) {
+    return 'Période de plus de 3 ans — vérifiez les dates saisies.';
+  }
+  return null;
+}
+
 export function getAbsenceTypeLabel(absence: AbsenceRequest): string {
+  if (estCongeParental(absence)) return LIBELLE_CONGE_PARENTAL;
   if (
     absence.type === 'evenement_familial' &&
     absence.event_subtype

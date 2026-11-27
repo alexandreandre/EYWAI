@@ -660,8 +660,19 @@ def _alertes_d_entree(employee: dict[str, Any], year: int, month: int) -> list[d
     ailleurs, la RH tranche. Le bulletin se calcule sans ligne et porte l'alerte.
     """
     alertes: list[dict[str, Any]] = []
+    from app.shared.infrastructure.conge_parental import jours_neutralises_du_salarie
+    from app.shared.seniority_reference import depart_de_l_anciennete
+
     prevoyance = prevoyance_manquante(
-        employee,
+        {
+            **employee,
+            "jours_anciennete_neutralises": lambda: jours_neutralises_du_salarie(
+                employee.get("id"),
+                dernier_jour_du_mois(year, month),
+                supabase,
+                depart_de_l_anciennete(employee),
+            ),
+        },
         idcc=lambda: _idcc_du_salarie(employee, dernier_jour_du_mois(year, month)),
         fin_du_mois=dernier_jour_du_mois(year, month),
     )
