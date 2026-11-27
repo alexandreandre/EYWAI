@@ -1019,3 +1019,33 @@ def test_la_dsn_lit_les_deux_dates_d_un_libelle_avec_l_annee():
     assert _bornes_ligne_d_arret(ligne, 2027) == (date(2026, 12, 28), date(2027, 1, 2))
     assert _bornes_ligne_d_arret({"libelle": "Absence arrêt maladie du 01/10 au 30/10"}, 2026) == (
         date(2026, 10, 1), date(2026, 10, 30))
+
+
+def test_un_arret_repris_au_milieu_se_dit_au_bulletin_d_origine():
+    """Origine régénérée, arrêt repris au milieu par le suivant : alerte visible."""
+    from types import SimpleNamespace
+
+    from app.modules.payroll.documents.arrets_reportes_bulletin import (
+        MESSAGE_REPORT_PARTIEL,
+        appliquer_les_arrets_reportes,
+    )
+
+    contexte = SimpleNamespace(alertes_baremes=[])
+    calendrier = [
+        {"date_complete": "2026-09-21", "type": "arret_maladie", "report_partiel": True},
+        {"date_complete": "2026-09-22", "type": "travail"},
+    ]
+    appliquer_les_arrets_reportes(
+        contexte, calendrier, [], [], [],
+        company_id=None, employee_id=None, year=2026, month=9,
+        saisie_du_mois=None, avec_arret_du_mois=True,
+    )
+    assert contexte.alertes_baremes == [MESSAGE_REPORT_PARTIEL]
+
+    sans = SimpleNamespace(alertes_baremes=[])
+    appliquer_les_arrets_reportes(
+        sans, [{"date_complete": "2026-09-21", "type": "arret_maladie"}], [], [], [],
+        company_id=None, employee_id=None, year=2026, month=9,
+        saisie_du_mois=None, avec_arret_du_mois=True,
+    )
+    assert sans.alertes_baremes == []

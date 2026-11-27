@@ -36,6 +36,15 @@ logger = logging.getLogger(__name__)
 CLE_ARRETS_REPORTES = "arrets_reportes"
 
 
+#: Bulletin d'origine régénéré dont l'arrêt a été repris en partie, au milieu,
+#: par le bulletin suivant (`arrets_reportes.sans_les_jours_deja_reportes`).
+MESSAGE_REPORT_PARTIEL = (
+    "Arrêt de travail repris en partie par le bulletin suivant (jours au milieu de "
+    "l'arrêt) : les jours repris ne sont plus retenus ici, mais le maintien et les "
+    "IJ de cet arrêt sont à vérifier sur ce bulletin et à corriger à la main au besoin."
+)
+
+
 def _jour(ev: dict[str, Any]) -> date | None:
     try:
         return date.fromisoformat(str(ev.get("date_complete"))[:10])
@@ -258,6 +267,14 @@ def appliquer_les_arrets_reportes(
     alertes = getattr(contexte, "alertes_baremes", None)
     if isinstance(alertes, list):
         alertes.extend(a for a in rapport.alertes if a not in alertes)
+        partiels = sorted(
+            {d for ev in calendrier if ev.get("report_partiel") and (d := _jour(ev)) is not None}
+        )
+        if partiels and MESSAGE_REPORT_PARTIEL not in alertes:
+            # Jours repris au milieu d'un arrêt par le bulletin suivant : les jours
+            # gardés ici le sont, mais le maintien et les IJ de l'arrêt ne sont
+            # pas recalculés seuls. Jamais en silence.
+            alertes.append(MESSAGE_REPORT_PARTIEL)
     effet = EffetDuReport(list(lignes_csg_ijss), list(ijss_imposables))
     if not jours_reportes_du_calendrier(calendrier):
         return effet
