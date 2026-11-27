@@ -61,9 +61,14 @@ describe('phraseMaintien', () => {
     expect(phraseMaintien(arret('porte_a_la_main_apres'), mois).texte).toBe(
       'Déjà porté à la main sur le bulletin de novembre',
     );
-    const p = phraseMaintien(arret('a_reprendre_a_la_main'), mois);
-    expect(p.texte).toContain('Bulletin de septembre');
-    expect(p.texte).toContain('régularisez à la main');
-    expect(p.ton).toBe('attente');
+    const avec = (motif: string) =>
+      ({ maintien: { etat: 'a_reprendre_a_la_main', montant_verse: 0, montant_en_attente: 0, motif } }) as ArretDuMois;
+    expect(phraseMaintien(avec('conge'), mois).texte).toBe(
+      'Bulletin de septembre : ces jours y étaient payés en congé. Martine ne les reprend pas : régularisez à la main (onglet « Corriger »)',
+    );
+    expect(phraseMaintien(avec('activite_partielle'), mois).texte).toContain('en activité partielle');
+    const illisible = phraseMaintien(avec('illisible'), mois);
+    expect(illisible.texte).toContain("n'a pas de date lisible");
+    expect(illisible.ton).toBe('attente');
   });
 });

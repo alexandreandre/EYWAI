@@ -171,16 +171,30 @@ export function phraseMaintien(
           : 'Déjà porté à la main sur un bulletin suivant',
         ton: 'ok',
       };
-    case 'a_reprendre_a_la_main':
-      // Jour payé autrement (congé, activité partielle…) ou ligne illisible :
-      // Martine ne le reporte pas, le bulletin suivant porte l'alerte.
+    case 'a_reprendre_a_la_main': {
+      // La cause vient de l'analyse : le jour était payé autrement, ou la ligne
+      // d'arrêt du bulletin d'origine n'a pas de date lisible.
+      const bulletin = mois ? `Bulletin ${duMois(mois.month)}` : 'Bulletin du mois';
+      const causes: Record<string, string> = {
+        conge: 'ces jours y étaient payés en congé',
+        activite_partielle: 'ces jours y étaient en activité partielle',
+        autre: 'ces jours y étaient payés en autre absence (RTT, repos, événement familial…)',
+      };
+      if (m.motif === 'illisible') {
+        return {
+          texte:
+            `${bulletin} : sa ligne d'arrêt n'a pas de date lisible. Martine ne reprend rien : ` +
+            "vérifiez s'il a compté l'arrêt, et portez-le à la main sinon (onglet « Corriger »)",
+          ton: 'attente',
+        };
+      }
       return {
         texte:
-          `${mois ? `Bulletin ${duMois(mois.month)}` : 'Bulletin du mois'} : ces jours y étaient payés ` +
-          'autrement (congé, activité partielle…). Martine ne les reprend pas : régularisez à la main ' +
-          '(onglet « Corriger »)',
+          `${bulletin} : ${causes[m.motif ?? ''] ?? 'ces jours y étaient payés autrement'}. ` +
+          'Martine ne les reprend pas : régularisez à la main (onglet « Corriger »)',
         ton: 'attente',
       };
+    }
     case 'dans_la_periode_suivante':
       // Forfait jours : la période de paie d'octobre commence en septembre.
       return {

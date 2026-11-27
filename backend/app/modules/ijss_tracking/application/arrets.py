@@ -210,6 +210,8 @@ def lister_arrets_du_mois(company_id: str, year: int, month: int) -> dict[str, A
                 "montant_en_attente": 0.0,
                 "motif": None,
             }
+            if etat_tardif == ETAT_A_REPRENDRE_A_LA_MAIN:
+                etat["motif"] = report.cause_a_la_main(a)
             reporte = report.bloc_reporte(a)
             if reporte is not None:
                 # Arrêt en partie compté par le bulletin du mois : ses IJ et celles
@@ -418,7 +420,7 @@ class _ReportDesArrets:
         calcule_avant = bulletin_calcule_avant(bulletin, arret.get("created_at"))
         if not valide and not calcule_avant:
             return None
-        debut, fin = self._periode(eid)
+        _, fin = self._periode(eid)
         jours = self._jours(arret)
         du_mois = [d for d in jours if (d.year, d.month) == (self.year, self.month)]
         if du_mois and all(d > fin for d in du_mois):
@@ -444,6 +446,13 @@ class _ReportDesArrets:
         if calcule_avant:
             return ETAT_COMPTE_PAR_LE_BULLETIN
         return None
+
+    def cause_a_la_main(self, arret: dict[str, Any]) -> str | None:
+        """Pourquoi l'arrêt est à reprendre à la main : sa nature sur le bulletin
+        d'origine (congé, activité partielle, autre) ou une ligne illisible."""
+        analyse = self._analyses.get((str(arret.get("employee_id") or ""), False))
+        jours = self._jours(arret)
+        return next((c for d, c in (analyse.causes_a_la_main if analyse else ()) if d in jours), None)
 
     def en_partie_compte(self, arret: dict[str, Any]) -> bool:
         analyse = self._analyses.get((str(arret.get("employee_id") or ""), False))

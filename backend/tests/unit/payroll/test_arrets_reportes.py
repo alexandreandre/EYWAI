@@ -354,7 +354,7 @@ def test_la_trace_dit_les_jours_traites_et_les_jours_repris():
     ]
     trace = trace_des_arrets(cal, date(2026, 10, 1), date(2026, 10, 31))
     assert trace["jours_comptes"] == ["2026-10-15", "2026-10-16", "2026-10-17", "2026-10-18"]
-    assert trace["reportes"] == [{"date": "2026-09-29", "absence_id": ARRET_ID}]
+    assert trace["reportes"] == [{"date": "2026-09-29", "absence_id": ARRET_ID, "sans_retenue": False}]
     # Les jours repris sont ceux que le contrat du bulletin couvre (D3).
     nouveau = build_test_contexte(salaire_base=2275.0, duree_hebdo=35.0, date_entree="2026-10-01")
     assert trace_des_arrets(cal, date(2026, 10, 1), date(2026, 10, 31), contexte=nouveau)["reportes"] == []
@@ -662,8 +662,10 @@ def sans_base(monkeypatch):
 
 def _contexte(forfait: bool):
     if forfait:
-        return build_test_contexte(statut="Cadre", salaire_base=3831.39, date_entree="2015-01-01",
-                                   specificites_extra={"is_forfait_jour": True})
+        ctx = build_test_contexte(statut="Cadre", salaire_base=3831.39, date_entree="2015-01-01",
+                                  specificites_extra={"is_forfait_jour": True})
+        ctx.contrat["contrat"]["is_forfait_jour"] = True
+        return ctx
     return build_test_contexte(salaire_base=2275.0, duree_hebdo=35.0, date_entree="2015-01-01")
 
 
@@ -773,8 +775,154 @@ def test_parcours_forfait_jusqu_aux_lignes_et_a_la_trace(sans_base):
     assert [l["base"] for l in effet.lignes_csg_ijss] == [round(40.0 + ij, 2)] * len(effet.lignes_csg_ijss)
     bulletin: dict = {}
     poser_la_trace(bulletin, cal, date(2026, 9, 21), date(2026, 10, 25), saisie, effet.blocs)
-    assert bulletin["arrets_du_bulletin"]["reportes"] == [{"date": "2026-09-18", "absence_id": ARRET_ID}]
+    assert bulletin["arrets_du_bulletin"]["reportes"] == [
+        {"date": "2026-09-18", "absence_id": ARRET_ID, "sans_retenue": False}]
     assert bulletin["arrets_reportes"][0]["absence_id"] == ARRET_ID
+
+
+_AT = {"arret_type": "accident_travail", "subrogation_active": True}
+
+
+def _jour_d_arret(jour: date, debut: str, fin: str, type_ev: str = "arret_maladie") -> dict:
+    return {"date_complete": jour.isoformat(), "type": type_ev, "heures": 7.0 if type_ev.startswith("arret") else 0.0,
+            "date_debut_arret_reel": debut, "date_fin_arret_reel": fin, **_AT}
+
+
+def _maintien_de(cal, ctx, debut, fin):
+    from app.modules.payroll.documents.payslip_run_heures import _extraire_arret_pour_maintien
+    from app.modules.payroll.engine.maintien_salaire_service import calculer_maintien
+
+    arret = _extraire_arret_pour_maintien(cal, ctx, debut, fin)
+    return arret and calculer_maintien(arret, ctx, dict(REGLAGES), debut, fin)
+
+
+def test_origine_regeneree_ne_paie_plus_le_maintien_ni_les_ij_des_jours_repris(sans_base):
+    # AT du vendredi 25 au lundi 28/09 ; octobre a repris le 25 et le 28. Septembre
+    # régénéré : plus rien de cet arrêt, week-end compris (ses IJ étaient en double).
+    cal = [_jour_d_arret(date(2026, 9, d), "2026-09-25", "2026-09-28",
+                         "arret_maladie" if date(2026, 9, d).weekday() < 5 else "weekend") for d in (25, 26, 27, 28)]
+    reste = sans_les_jours_deja_reportes(cal, {date(2026, 9, 25), date(2026, 9, 28)}, 2026, 9)
+    assert reste == []
+    assert _maintien_de(reste, _contexte(False), *SEPTEMBRE) is None
+
+
+def test_origine_regeneree_l_arret_s_arrete_au_dernier_jour_garde(sans_base):
+    # AT du 21 au 30/09 ; octobre a repris la prolongation du 28 au 30. Septembre
+    # régénéré garde le 21 au 25, avec le même début (carence, rang).
+    cal = [_jour_d_arret(date(2026, 9, d), "2026-09-21", "2026-09-30",
+                         "arret_maladie" if date(2026, 9, d).weekday() < 5 else "weekend") for d in range(21, 31)]
+    repris = {date(2026, 9, d) for d in (26, 27, 28, 29, 30)}
+    reste = sans_les_jours_deja_reportes(cal, repris, 2026, 9)
+    assert [e["date_complete"][-2:] for e in reste] == ["21", "22", "23", "24", "25"]
+    assert {e["date_fin_arret_reel"] for e in reste} == {"2026-09-25"}
+    garde = _maintien_de(reste, _contexte(False), *SEPTEMBRE)
+    tout = _maintien_de(cal, _contexte(False), *SEPTEMBRE)
+    assert garde["ijss"]["nb_jours_indemnises"] < tout["ijss"]["nb_jours_indemnises"]
+
+
+def test_les_week_ends_d_un_arret_reporte_ont_leurs_ij(sans_base):
+    # AT du lundi 14 au dimanche 27/09 reporté en entier : 14 jours d'IJ, pas 12.
+    analyse = [_jour_d_arret(date(2026, 9, d), "2026-09-14", "2026-09-27")
+               for d in range(14, 28) if date(2026, 9, d).weekday() < 5]
+    jours = [JourReporte(date(2026, 9, d), ARRET_ID) for d in range(14, 28)]
+    evs = evenements_du_report(analyse, jours, 2026, 9)
+    assert [e["date_complete"][-2:] for e in evs] == [f"{d}" for d in range(14, 28)]
+    assert {e["type"] for e in evs if date.fromisoformat(e["date_complete"]).weekday() >= 5} == {"repos"}
+    blocs = maintien_des_arrets_reportes(evs, _contexte(False), company_id="societe", employee_id="A",
+                                         year=2026, month=10, saisie_du_mois={}, avec_arret_du_mois=False)
+    assert blocs[0].resultat["ijss"]["nb_jours_indemnises"] == 14
+    # Le week-end ne se retient pas : 10 journées.
+    ctx = build_test_contexte(salaire_base=2275.0, duree_hebdo=35.0)
+    res = calculer_salaire_brut(ctx, _octobre_travaille(7.0) + evs, date(2026, 10, 1), date(2026, 10, 31))
+    ligne = next(l for l in res["lignes_composants_brut"] if "arrêt reporté" in str(l.get("libelle")))
+    assert ligne["quantite"] == 70.0
+
+
+def test_une_prolongation_du_seul_week_end_est_payee_et_tracee(sans_base):
+    analyse = [_jour_d_arret(date(2026, 9, d), "2026-09-21", "2026-09-27") for d in range(21, 26)]
+    jours = [JourReporte(date(2026, 9, d), ARRET_ID) for d in (26, 27)]
+    evs = evenements_du_report(analyse, jours, 2026, 9)
+    assert [e["date_complete"] for e in evs] == ["2026-09-26", "2026-09-27"]
+    blocs = maintien_des_arrets_reportes(evs, _contexte(False), company_id="societe", employee_id="A",
+                                         year=2026, month=10, saisie_du_mois={}, avec_arret_du_mois=False)
+    assert blocs and blocs[0].resultat["ijss"]["nb_jours_indemnises"] == 2
+    trace = trace_des_arrets(evs, date(2026, 10, 1), date(2026, 10, 31))
+    assert [r["date"] for r in trace["reportes"]] == ["2026-09-26", "2026-09-27"]
+
+
+def test_forfait_periode_non_civile_entierement_reportee_maintien_sur_la_periode(sans_base, monkeypatch):
+    # Période de septembre au forfait : du 24/08 au 20/09. Toute reportée sur octobre.
+    import app.modules.payroll.engine.period_forfait as pf
+    from app.modules.payroll.engine import maintien_salaire_service as mss
+
+    monkeypatch.setattr(pf, "definir_periode_de_paie",
+                        lambda c, a, m: (date(2026, 8, 24), date(2026, 9, 20)) if m == 9 else (date(2026, 9, 21), date(2026, 10, 25)))
+    appels = []
+    vrai = mss.calculer_maintien
+    monkeypatch.setattr(mss, "calculer_maintien",
+                        lambda a, c, st, d, f, **kw: appels.append((a, d, f)) or vrai(a, c, st, d, f, **kw))
+    ctx = _contexte(True)
+    jours = [date(2026, 8, 24) + timedelta(days=k) for k in range(28)]
+    evs = [{**_jour_d_arret(d, "2026-08-24", "2026-09-20", "arret_maladie" if d.weekday() < 5 else "repos"),
+            "heures": 0.0, "annee": d.year, "mois": d.month, "jour": d.day,
+            "is_regularisation_anterieure": True, "arret_reporte": True, "absence_id": ARRET_ID} for d in jours]
+    res = calculer_salaire_brut_forfait(ctx, evs, date(2026, 9, 21), date(2026, 10, 25), [])
+    retenue = sum((l.get("perte") or 0) - (l.get("gain") or 0) for l in res["lignes_composants_brut"] if l.get("arret_reporte"))
+    assert retenue == pytest.approx(3831.39, abs=0.01)
+    blocs = maintien_des_arrets_reportes(evs, ctx, company_id="societe", employee_id="A", year=2026, month=10,
+                                         saisie_du_mois={}, avec_arret_du_mois=False)
+    arret, debut, fin = appels[-1]
+    assert (debut, fin) == (date(2026, 8, 24), date(2026, 9, 20)) and arret["mois_entier_en_arret"] is True
+    assert blocs[0].resultat["maintien"]["maintien_verse"] > 0
+
+
+def test_un_mot_d_arret_l_emporte_sur_non_paye_ou_conge():
+    from app.modules.payroll.application.arrets_reportes import nature_du_libelle
+
+    assert nature_du_libelle("Congé maternité 010326-310326") == "arret"
+    assert nature_du_libelle("Abs. maternité non payée 010326") == "arret"
+    assert nature_du_libelle("Abs. Abs injustifiée 290926") == "sans_solde"
+    assert nature_du_libelle("Abs. Enfant malade 020226") == "autre"
+
+
+def test_l_origine_regeneree_signale_un_jour_repris_sans_retenue():
+    client = _Client({
+        "absence_requests": [{**_arret(["2026-09-29"]), "employee_id": "A"}],
+        "payslips": [
+            {**_reprise([]), "employee_id": "A"},
+            {"employee_id": "A", "year": 2026, "month": 10, "status": "brouillon", "payslip_data": {
+                "arrets_du_bulletin": {"reportes": [
+                    {"date": "2026-09-29", "absence_id": ARRET_ID, "sans_retenue": True}]}}},
+        ],
+    })
+    report = preparer_le_report(client, "A", 2026, 9, forfait_jours=False, company_data={})
+    assert report.repris == {date(2026, 9, 29)}
+    assert any("sans seconde retenue" in a and "retenez-le à la main" in a for a in report.alertes)
+
+
+def test_une_autre_lecture_en_echec_garde_les_jours_repris_par_le_suivant():
+    class Client(_Client):
+        def table(self, nom):
+            requete = _Requete(self.donnees, nom)
+            if nom == "payslips":
+                execute = requete.execute
+
+                def lire():
+                    if requete._filtres.get("month") == 8:
+                        raise RuntimeError("bulletin d'août illisible")
+                    return execute()
+
+                requete.execute = lire
+            return requete
+
+    client = Client({
+        "absence_requests": [{**_arret(["2026-08-31", "2026-09-29"]), "employee_id": "A"}],
+        "payslips": [{"employee_id": "A", "year": 2026, "month": 10, "status": "valide", "payslip_data": {
+            "arrets_du_bulletin": {"reportes": [{"date": "2026-09-29", "absence_id": ARRET_ID}]}}}],
+    })
+    report = preparer_le_report(client, "A", 2026, 9, forfait_jours=False, company_data={})
+    assert report.repris == {date(2026, 9, 29)}
+    assert ar.MESSAGE_REPORT_ILLISIBLE in report.alertes
 
 
 # --- L'écran Arrêts & IJ -----------------------------------------------------------------
