@@ -13,6 +13,11 @@ from app.shared.utils.xlsx_safe import iter_sheet_rows
 
 MAX_HEADER_SCAN_ROWS = 25
 
+# Colonne sans en-tête : gardée sous un nom technique (« _col_13 » = 13e
+# colonne) pour que la colonne des heures retenues par le client, souvent sans
+# titre, reste lisible. Jamais proposée comme en-tête ni reconnue par alias.
+COLONNE_SANS_TITRE = "_col_"
+
 
 DEFAULT_COLUMN_ALIASES = {
     "matricule": (
@@ -95,6 +100,10 @@ class TabularDayRow:
     entry_raw: object = None
     exit_raw: object = None
     shift_code: Optional[str] = None
+    # Heures retenues par le client dans son fichier (colonne à côté des
+    # heures pointées) : quand elles sont remplies, `heures` les prend et le
+    # calcul des badges ne réécrit pas le jour.
+    heures_retenues: Optional[float] = None
     raw_payload: Dict[str, Any] = field(default_factory=dict)
     # Pause visible entre les paires entrée/sortie de la journée (None : une
     # seule paire, la pause n'est pas connue).
@@ -129,17 +138,65 @@ def _match_alias(header: str, aliases: Tuple[str, ...]) -> bool:
     return any(alias in norm for alias in aliases if len(alias) >= 3)
 
 
+# Heures décidées par l'entreprise à côté des heures pointées : elles font foi.
+# Titre exact seulement (une fois normalisé) : « Total heures semaine »,
+# « … nuit », « … théoriques », « … sup » ne sont jamais la colonne retenue.
+TITRES_HEURES_RETENUES = ("heures retenues", "heures payees")
+# « Total heures » n'est retenu qu'à côté d'un total POINTÉ (« Tot H Poin ») :
+# à côté d'« Heures normales » et « Heures sup », c'est leur somme.
+TITRE_TOTAL_HEURES = "total heures"
+
+
+def _heures_supplementaires(header: str) -> bool:
+    return re.search(r"\bsup", _normalize_header(header)) is not None
+
+
+def _total_pointe(header: str) -> bool:
+    norm = _normalize_header(header)
+    return "poin" in norm or "badg" in norm
+
+
+def _colonne_retenue_titree(headers: List[str], hours_col: Optional[str]) -> Optional[str]:
+    if not hours_col:
+        return None
+    for header in headers:
+        if not header or header == hours_col or header.startswith(COLONNE_SANS_TITRE):
+            continue
+        norm = _normalize_header(header)
+        if norm in TITRES_HEURES_RETENUES:
+            return header
+        if norm == TITRE_TOTAL_HEURES and _total_pointe(hours_col):
+            return header
+    return None
+
+
 def detect_column_mapping(headers: List[str]) -> Dict[str, str]:
     mapping: Dict[str, str] = {}
-    for header in headers:
-        if not header:
+    # « Heures retenues » / « Heures payées » ne prennent pas la place des
+    # heures pointées ; seules, elles restent la colonne des heures.
+    differees = [
+        h for h in headers if h and _normalize_header(h) in TITRES_HEURES_RETENUES
+    ]
+    for header in [h for h in headers if h not in differees] + differees:
+        if not header or header.startswith(COLONNE_SANS_TITRE):
             continue
         for field_name, aliases in DEFAULT_COLUMN_ALIASES.items():
             if field_name in mapping:
                 continue
+            if field_name == "hours" and _heures_supplementaires(header):
+                # « Heures sup » n'est jamais la colonne des heures du jour.
+                continue
             if _match_alias(header, aliases):
                 mapping[field_name] = header
                 break
+    retenue = _colonne_retenue_titree(headers, mapping.get("hours"))
+    if not retenue and mapping.get("hours") and (
+        _normalize_header(mapping["hours"]) in TITRES_HEURES_RETENUES
+    ):
+        # « Heures payées » seule : elle fait foi, un jour vide reste vide.
+        retenue = mapping["hours"]
+    if retenue:
+        mapping["hours_retained"] = retenue
     return mapping
 
 
@@ -202,11 +259,15 @@ def _rows_from_raw(
     if not raw_rows or header_idx >= len(raw_rows):
         return [], []
     header_cells = [_cell_str(c) for c in raw_rows[header_idx]]
-    header_pairs = [(i, name) for i, name in enumerate(header_cells) if name]
-    if not header_pairs:
+    if not any(header_cells):
         return [], []
-
-    headers = [name for _, name in header_pairs]
+    # Les colonnes sans en-tête sont gardées sous un nom technique (la colonne
+    # des heures retenues n'a souvent pas de titre) ; les en-têtes rendus
+    # restent les seuls titrés.
+    header_pairs = [
+        (i, name or f"{COLONNE_SANS_TITRE}{i + 1}") for i, name in enumerate(header_cells)
+    ]
+    headers = [name for name in header_cells if name]
     rows: List[Dict[str, Any]] = []
     for row in raw_rows[header_idx + 1 :]:
         cells = list(row) if row else []
@@ -273,8 +334,12 @@ def read_tabular_preview(
         headers, rows = _rows_from_xlsx(content, opts.get("sheet_name"))
     else:
         headers, rows = _rows_from_csv(content, opts.get("delimiter"))
-    if skip_rows:
-        rows = rows[skip_rows:]
+    rows = _sauter_lignes(rows, headers, skip_rows)
+    rows = [
+        {k: v for k, v in r.items() if not k.startswith(COLONNE_SANS_TITRE)}
+        for r in rows
+        if not _sans_colonne_titree(r, headers)
+    ]
     mapping = detect_column_mapping(headers)
     return headers, rows[:max_rows], mapping
 
@@ -394,8 +459,7 @@ def parse_tabular_file(
     else:
         headers, raw_rows = _rows_from_csv(content, opts.get("delimiter"))
 
-    if skip_rows:
-        raw_rows = raw_rows[skip_rows:]
+    raw_rows = _sauter_lignes(raw_rows, headers, skip_rows)
 
     mapping = column_mapping or detect_column_mapping(headers)
     result = TabularParseResult(headers=headers, column_mapping=mapping)
@@ -412,6 +476,19 @@ def parse_tabular_file(
 
     date_col = mapping.get("date")
     hours_col = mapping.get("hours")
+    if not punch_pairs_mode and not hours_col:
+        sup = [h for h in headers if h and _heures_supplementaires(h)]
+        if sup:
+            # Ni heures du jour ni badges : jamais 0 h partout, un refus lisible.
+            from app.modules.schedules.application.exceptions import ScheduleAppError
+
+            raise ScheduleAppError(
+                "validation",
+                "Colonne des heures du jour introuvable : seulement "
+                + ", ".join(f"« {h} »" for h in sup)
+                + ".",
+                status_code=422,
+            )
     mat_col = mapping.get("matricule")
     last_col = mapping.get("last_name")
     first_col = mapping.get("first_name")
@@ -435,24 +512,51 @@ def parse_tabular_file(
         punch_pairs_mode and use_last_exit and mapping.get("entry_2") and exit_1_col
     )
 
+    identity_cols = [c for c in (mat_col, last_col, first_col, full_name_col) if c]
+    badge_cols = [c for _, c in colonnes_paires if c]
+
     decimal_sep = str(opts.get("decimal_separator") or "")
     if not decimal_sep and hours_col:
-        comma_hits = dot_hits = 0
-        for row in raw_rows[:30]:
-            val = row.get(hours_col)
-            if val is None:
-                continue
-            text = str(val).strip()
-            if "," in text:
-                comma_hits += 1
-            elif "." in text:
-                dot_hits += 1
-        decimal_sep = "," if comma_hits >= dot_hits and comma_hits > 0 else "."
+        decimal_sep = _separateur_decimal(raw_rows, hours_col)
     elif not decimal_sep:
         decimal_sep = "."
 
+    # Heures retenues par l'entreprise : colonne au titre exact, sinon
+    # retrouvée par sa place, ses valeurs et les lignes de total.
+    retained_col = mapping.get("hours_retained")
+    if not retained_col and column_mapping:
+        # Mapping enregistré avant la colonne retenue : son titre la désigne.
+        retained_col = _colonne_retenue_titree(headers, hours_col)
+        if retained_col:
+            mapping = {**mapping, "hours_retained": retained_col}
+            result.column_mapping = mapping
+    if not retained_col and hours_col:
+        retained_col, alerte = _detecter_colonne_retenue(
+            raw_rows,
+            hours_col=hours_col,
+            date_col=date_col,
+            identity_cols=identity_cols,
+            badge_cols=badge_cols,
+        )
+        if retained_col:
+            mapping = {**mapping, "hours_retained": retained_col}
+            result.column_mapping = mapping
+        if alerte:
+            result.warnings.append(alerte)
+    retained_sep = (
+        str(opts.get("decimal_separator") or "") or _separateur_decimal(raw_rows, retained_col)
+        if retained_col
+        else "."
+    )
+
     parsed_count = 0
-    for idx, row in enumerate(raw_rows):
+    numero = 0  # numéro de ligne tel qu'avant ce lot (lignes titrées seules)
+    for row in raw_rows:
+        if _sans_colonne_titree(row, headers):
+            # Ligne de total d'un salarié (rien que la colonne retenue, sans
+            # titre) : ce n'est pas un jour.
+            continue
+        numero += 1
         heures = (
             _parse_hours(row.get(hours_col), decimal_separator=decimal_sep)
             if hours_col
@@ -480,7 +584,11 @@ def parse_tabular_file(
 
         if punch_pairs_mode:
             if date_parts is None:
-                result.warnings.append(f"Ligne {idx + 1} : date illisible.")
+                if _ligne_de_total(
+                    row, date_col=date_col, identity_cols=identity_cols, badge_cols=badge_cols
+                ):
+                    continue
+                result.warnings.append(f"Ligne {numero} : date illisible.")
                 continue
             y, m, d = date_parts
             if not skip_period_filter and (m != target_month or y != target_year):
@@ -491,7 +599,11 @@ def parse_tabular_file(
             if heures is None and date_parts is None:
                 continue
             if date_parts is None:
-                result.warnings.append(f"Ligne {idx + 1} : date illisible.")
+                if _ligne_de_total(
+                    row, date_col=date_col, identity_cols=identity_cols, badge_cols=badge_cols
+                ):
+                    continue
+                result.warnings.append(f"Ligne {numero} : date illisible.")
                 continue
             y, m, d = date_parts
             if not skip_period_filter and (m != target_month or y != target_year):
@@ -525,6 +637,31 @@ def parse_tabular_file(
                 if minutes is not None:
                     punches.append((kind, minutes))
 
+        heures_retenues: Optional[float] = None
+        notes: List[str] = []
+        if retained_col:
+            heures_retenues = _parse_hours(
+                row.get(retained_col), decimal_separator=retained_sep
+            )
+            if heures_retenues is not None:
+                heures = heures_retenues
+            elif (
+                punches
+                or _raw_time_present(entry_raw)
+                or _raw_time_present(exit_raw)
+            ):
+                notes.append(
+                    "Heures retenues vides dans le fichier : heures calculées "
+                    "depuis les badges, à vérifier."
+                )
+            elif retained_col == hours_col:
+                # Seule colonne d'heures, titrée « Heures payées » : vide, le
+                # jour reste vide (à compléter), jamais 0 h.
+                heures = None
+                notes.append(
+                    f"« {retained_col} » vide dans le fichier : jour à compléter."
+                )
+
         result.rows.append(
             TabularDayRow(
                 matricule=mat or None,
@@ -536,14 +673,30 @@ def parse_tabular_file(
                 entry_raw=entry_raw,
                 exit_raw=exit_raw,
                 shift_code=shift_code,
+                heures_retenues=heures_retenues,
                 raw_payload=dict(row),
                 punches=punches,
+                notes=notes,
             )
         )
         parsed_count += 1
 
     if paires_mode:
         _retraiter_paires(result.rows)
+
+    if retained_col and any(r.heures_retenues is not None for r in result.rows):
+        # Jamais d'état silencieux : l'écran dit d'où viennent les heures.
+        position = list(raw_rows[0].keys()).index(retained_col) + 1 if raw_rows else 0
+        titre = (
+            "sans titre"
+            if retained_col.startswith(COLONNE_SANS_TITRE)
+            else f"« {retained_col} »"
+        )
+        result.warnings.append(
+            f"Heures lues dans la colonne {titre} ({position}e colonne) : retenues "
+            "par l'entreprise, elles remplacent le calcul des badges ; aucune revue "
+            "d'heures en plus sur ces jours."
+        )
 
     if parsed_count == 0:
         result.confidence = 0.0
@@ -554,6 +707,208 @@ def parse_tabular_file(
         result.confidence = 0.75 if punch_pairs_mode else 0.65
 
     return result
+
+
+def _sans_colonne_titree(row: Dict[str, Any], headers: List[str]) -> bool:
+    """Vrai quand seules des colonnes sans titre sont remplies (ligne de total
+    du fichier) : une telle ligne n'existait pas avant qu'on les garde."""
+    return not any(_cell_str(row.get(h)) for h in headers)
+
+
+def _separateur_decimal(raw_rows: List[Dict[str, Any]], col: Optional[str]) -> str:
+    comma_hits = dot_hits = 0
+    for row in raw_rows[:30]:
+        val = row.get(col) if col else None
+        if val is None:
+            continue
+        text = str(val).strip()
+        if "," in text:
+            comma_hits += 1
+        elif "." in text:
+            dot_hits += 1
+    return "," if comma_hits >= dot_hits and comma_hits > 0 else "."
+
+
+def _nombre(raw: Any) -> Optional[float]:
+    if raw is None or isinstance(raw, bool):
+        return None
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    text = str(raw).strip().replace(" ", "").replace(",", ".")
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _est_colonne_commentaire(header: str) -> bool:
+    norm = _normalize_header(header)
+    return any(m in norm for m in ("comment", "observation", "remarque", "motif"))
+
+
+def _ligne_de_total(
+    row: Dict[str, Any],
+    *,
+    date_col: Optional[str],
+    identity_cols: List[str],
+    badge_cols: List[str],
+) -> bool:
+    """Sans date, sans salarié et sans aucun badge : la ligne qui clôt les
+    jours d'un salarié. Une ligne de suite avec des badges n'en est pas une."""
+    if date_col and _cell_str(row.get(date_col)):
+        return False
+    if any(_cell_str(row.get(c)) for c in identity_cols):
+        return False
+    return not any(_raw_time_present(row.get(c)) for c in badge_cols)
+
+
+def _sauter_lignes(
+    rows: List[Dict[str, Any]], headers: List[str], n: int
+) -> List[Dict[str, Any]]:
+    """`skip_rows` compte les lignes comme avant ce lot : les lignes où seules
+    des colonnes sans titre sont remplies ne comptent pas."""
+    if n <= 0:
+        return rows
+    vues = 0
+    for i, row in enumerate(rows):
+        if not _sans_colonne_titree(row, headers):
+            vues += 1
+            if vues == n:
+                return rows[i + 1 :]
+    return []
+
+
+# Lignes de total : au moins deux, et la majorité, doivent valoir la somme des
+# jours qui les précèdent. Chez le client du 27/11, certaines portent l'horaire
+# du contrat (35, 28…) plutôt que la somme : la majorité suffit.
+MIN_TOTAUX_CONCORDANTS = 2
+# Proche des heures pointées : sur les jours badgés, au moins 70 % à 1,5 h près.
+ECART_MAX_AU_POINTE = 1.5
+PART_MIN_PROCHE_DU_POINTE = 0.7
+# Cellules texte (« CP », « abs ») : vides, tant qu'elles restent rares.
+PART_MIN_NUMERIQUE = 0.8
+
+
+def _totaux_concordent(
+    raw_rows: List[Dict[str, Any]],
+    col: str,
+    *,
+    date_col: Optional[str],
+    identity_cols: List[str],
+    badge_cols: List[str],
+) -> bool:
+    accord = desaccord = 0
+    somme = 0.0
+    for row in raw_rows:
+        if date_col and _cell_str(row.get(date_col)):
+            somme += _nombre(row.get(col)) or 0.0
+            continue
+        if not _ligne_de_total(
+            row, date_col=date_col, identity_cols=identity_cols, badge_cols=badge_cols
+        ):
+            continue
+        total = _nombre(row.get(col))
+        if total is None:
+            continue
+        if abs(total - somme) <= 0.011:
+            accord += 1
+        else:
+            desaccord += 1
+        somme = 0.0
+    return accord >= MIN_TOTAUX_CONCORDANTS and accord > desaccord
+
+
+def _detecter_colonne_retenue(
+    raw_rows: List[Dict[str, Any]],
+    *,
+    hours_col: str,
+    date_col: Optional[str],
+    identity_cols: List[str],
+    badge_cols: List[str],
+) -> Tuple[Optional[str], Optional[str]]:
+    """Colonne des heures retenues sans en-tête : (colonne, alerte).
+
+    Jamais par sa lettre (une colonne en plus décale tout). Une colonne sans
+    titre, après les heures pointées et avant les commentaires, est retenue
+    si ses valeurs sont des heures plausibles (0 à 24 h, pas que des 0 et des
+    1, pas une seule valeur partout), proches des heures pointées (70 % des
+    jours badgés à 1,5 h près), confirmées par les lignes de total, et
+    numériques à 80 % au moins.
+
+    Une candidate rejetée sans ambiguïté (paniers, horaire théorique, numéro
+    de semaine, relevé sans badges) ne dit rien ; une candidate qui ressemble
+    aux heures retenues mais échoue sur les totaux ou le texte le dit.
+    """
+    if not raw_rows or not date_col or not badge_cols:
+        return None, None
+    ordre = list(raw_rows[0].keys())
+    if hours_col not in ordre:
+        return None, None
+    debut = ordre.index(hours_col) + 1
+    fin = next(
+        (i for i in range(debut, len(ordre)) if _est_colonne_commentaire(ordre[i])),
+        len(ordre),
+    )
+    jours = [r for r in raw_rows if _cell_str(r.get(date_col))]
+
+    retenues: List[str] = []
+    alertes: List[str] = []
+    for col in ordre[debut:fin]:
+        if not col.startswith(COLONNE_SANS_TITRE):
+            continue
+        remplies = [r.get(col) for r in jours if _cell_str(r.get(col))]
+        valeurs = [v for v in (_nombre(x) for x in remplies) if v is not None]
+        if not valeurs:
+            continue
+        distinctes = set(valeurs)
+        if (
+            any(v < 0 or v > 24 for v in valeurs)
+            or distinctes <= {0.0, 1.0}
+            or len(distinctes) == 1
+        ):
+            continue
+        ecarts = [
+            abs(v - h)
+            for r in jours
+            if any(_raw_time_present(r.get(c)) for c in badge_cols)
+            and (v := _nombre(r.get(col))) is not None
+            and (h := _nombre(r.get(hours_col))) is not None
+        ]
+        if not ecarts or (
+            sum(1 for e in ecarts if e <= ECART_MAX_AU_POINTE) / len(ecarts)
+            < PART_MIN_PROCHE_DU_POINTE
+        ):
+            continue
+        position = ordre.index(col) + 1
+        if not _totaux_concordent(
+            raw_rows, col, date_col=date_col, identity_cols=identity_cols, badge_cols=badge_cols
+        ):
+            alertes.append(
+                f"La colonne sans titre ({position}e colonne) après « {hours_col} » "
+                "ressemble à des heures retenues, mais ses lignes de total ne "
+                "concordent pas : heures calculées depuis les badges, à vérifier."
+            )
+            continue
+        if len(valeurs) / len(remplies) < PART_MIN_NUMERIQUE:
+            alertes.append(
+                f"La colonne sans titre ({position}e colonne) après « {hours_col} » "
+                f"contient trop de texte ({len(remplies) - len(valeurs)} cellules sur "
+                f"{len(remplies)}) pour y lire les heures retenues : heures calculées "
+                "depuis les badges, à vérifier."
+            )
+            continue
+        retenues.append(col)
+
+    if len(retenues) == 1:
+        return retenues[0], None
+    if len(retenues) > 1:
+        return None, (
+            f"Plusieurs colonnes sans titre après « {hours_col} » ressemblent à des "
+            "heures retenues : heures calculées depuis les badges, à vérifier."
+        )
+    return None, (alertes[0] if alertes else None)
 
 
 def _minutes_badge(raw: Any) -> Optional[int]:

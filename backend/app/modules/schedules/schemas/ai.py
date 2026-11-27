@@ -98,6 +98,10 @@ class AiDayEntry(BaseModel):
     heures_en_plus_a_valider: Optional[float] = None
     motif_heures_en_plus: Optional[str] = None
     creneau_applique_id: Optional[str] = None
+    # Heures du jour décidées par le client dans son fichier (colonne des
+    # heures retenues) : le calcul des badges ne les réécrit pas et n'ouvre pas
+    # de revue « heures en plus ». Les badges restent affichés.
+    heures_fixees_par_fichier: bool = False
     # Mois/année réels du jour si différents du (year, month) de la proposition
     # (semaine hebdomadaire à cheval sur deux mois). None = utiliser le mois de
     # la proposition, pour compatibilité avec les imports non ancrés.

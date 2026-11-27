@@ -38,3 +38,33 @@ describe('avertissements de pointage rangés par jour', () => {
     expect(phraseResume({ heuresEnPlus: 0, incomplets: 0 })).toBeNull();
   });
 });
+
+describe('avertissements datés (relevés de plusieurs mois fusionnés)', () => {
+  const FUSION = [
+    'Jour 21/09/2026 : Pointage incomplet : entrée 07:28 sans sortie.',
+    'Jour 21/10/2026 : Heures retenues vides dans le fichier : heures calculées depuis les badges, à vérifier.',
+  ];
+
+  it('un avertissement daté ne va que sous son jour de son mois', () => {
+    expect(avertissementsDuJour(FUSION, 21, 9)).toEqual([
+      'Pointage incomplet : entrée 07:28 sans sortie.',
+    ]);
+    expect(avertissementsDuJour(FUSION, 21, 10)).toEqual([
+      'Heures retenues vides dans le fichier : heures calculées depuis les badges, à vérifier.',
+    ]);
+  });
+
+  it('un avertissement sans mois reste celui du jour, quel que soit le mois', () => {
+    expect(avertissementsDuJour(['Jour 3 : Pointage incomplet.'], 3, 10)).toEqual(['Pointage incomplet.']);
+  });
+
+  it('daté ou non, il n’est pas « hors jour » et compte une fois par date', () => {
+    expect(avertissementsHorsJour(FUSION)).toEqual([]);
+    expect(
+      resumeAvertissements([
+        'Jour 21/09/2026 : Pointage incomplet.',
+        'Jour 21/10/2026 : Pointage incomplet.',
+      ]),
+    ).toEqual({ heuresEnPlus: 0, incomplets: 2 });
+  });
+});

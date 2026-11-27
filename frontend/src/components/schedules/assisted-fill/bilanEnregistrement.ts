@@ -1,3 +1,4 @@
+import { messageDeLErreur } from './aiFillUtils';
 /**
  * Ce que dit le toast après l'enregistrement d'un relevé : le vrai nombre de
  * jours écrits (09/10/2026 : « 6 jour(s) » pour un fichier de 3 jours, parce que
@@ -49,4 +50,16 @@ export function phraseHorsReleve(n: number): string {
   return n > 1
     ? `${n} salariés du roster absents du relevé — normal, non affichés.`
     : `${n} salarié du roster absent du relevé — normal, non affiché.`;
+}
+
+/**
+ * Le refus du serveur à l'enregistrement (409 déjà enregistré, 403 autre
+ * utilisateur, 400 salarié nommé…) : sa phrase, jamais « Request failed with
+ * status code 409 ».
+ */
+export function messageEnregistrementImpossible(error: unknown): string {
+  if (error && typeof error === 'object' && ('response' in error || error instanceof Error)) {
+    return messageDeLErreur(error);
+  }
+  return "L'enregistrement a échoué.";
 }

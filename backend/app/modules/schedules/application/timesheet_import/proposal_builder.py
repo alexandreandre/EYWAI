@@ -19,6 +19,22 @@ from app.modules.schedules.schemas.ai import (
 )
 
 
+def jour_depuis_ligne(r: TabularDayRow) -> AiDayEntry:
+    """Le jour proposé pour une ligne du relevé : badges, et heures retenues
+    par le client quand le fichier en porte (drapeau « fixées par le fichier »)."""
+    return AiDayEntry(
+        jour=r.jour,
+        heures=r.heures,
+        type="travail",
+        nature="reel",
+        punch_entry_raw=str(r.entry_raw) if r.entry_raw is not None else None,
+        punch_exit_raw=str(r.exit_raw) if r.exit_raw is not None else None,
+        shift_code=r.shift_code,
+        punch_break_minutes=r.punched_break_minutes,
+        heures_fixees_par_fichier=r.heures_retenues is not None,
+    )
+
+
 def build_proposal_from_tabular(
     parsed: TabularParseResult,
     *,
@@ -42,19 +58,7 @@ def build_proposal_from_tabular(
             roster=roster,
             tabulaire=True,
         )
-        days = [
-            AiDayEntry(
-                jour=r.jour,
-                heures=r.heures,
-                type="travail",
-                nature="reel",
-                punch_entry_raw=str(r.entry_raw) if r.entry_raw is not None else None,
-                punch_exit_raw=str(r.exit_raw) if r.exit_raw is not None else None,
-                shift_code=r.shift_code,
-                punch_break_minutes=r.punched_break_minutes,
-            )
-            for r in rows
-        ]
+        days = [jour_depuis_ligne(r) for r in rows]
         proposal.days = days
         proposal.warnings = list(proposal.warnings) + [
             f"Jour {r.jour} : {note}" for r in rows for note in r.notes
@@ -121,4 +125,4 @@ def build_proposal_from_attempt(
     return None
 
 
-__all__ = ["build_proposal_from_attempt", "build_proposal_from_tabular"]
+__all__ = ["build_proposal_from_attempt", "build_proposal_from_tabular", "jour_depuis_ligne"]

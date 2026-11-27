@@ -29,7 +29,9 @@ from app.modules.schedules.schemas.ai import (
 # même relevé peut donner des heures différentes — les aperçus mis en cache
 # sous une version antérieure sont alors ignorés.
 #   2 : pause des feuilles importées alignée sur le paramétrage société.
-PUNCH_CALC_RULES_VERSION = 3  # lot 4 : pauses brutes sur imports (prompt + repli supprimé)
+#   3 : lot 4, pauses brutes sur imports (prompt + repli supprimé).
+#   4 : heures retenues par le client dans son fichier (lot L16, 27/11).
+PUNCH_CALC_RULES_VERSION = 4
 
 
 def punch_calc_fingerprint(company_id: str | None) -> str:
@@ -96,6 +98,11 @@ def apply_punch_accounting_to_proposal(
         new_days: List[AiDayEntry] = []
         warnings = list(emp.warnings)
         for day in emp.days:
+            if day.heures_fixees_par_fichier:
+                # Le client a tranché dans son fichier (heures retenues) : ni
+                # recalcul par les badges, ni revue « heures en plus ».
+                new_days.append(day)
+                continue
             entry_raw = day.punch_entry_raw
             exit_raw = day.punch_exit_raw
             shift_code = day.shift_code

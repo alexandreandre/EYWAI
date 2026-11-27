@@ -779,8 +779,14 @@ def assisted_fill_persist_timesheet(
         if payload.batch_id:
             # Ce que la relecture affiche est ce qui s'enregistre : les jours
             # relus remplacent ceux du modèle avant le commit du lot.
+            # Relevés importés ensemble : les lots des autres fichiers donnent
+            # leurs notes à leurs jours et sont validés avec celui-ci.
             appliquer_revue_au_lot(
-                payload.batch_id, company_id=company_id, employees=payload.employees
+                payload.batch_id,
+                company_id=company_id,
+                employees=payload.employees,
+                autres_lots=[b for b in payload.batch_ids if b and b != payload.batch_id],
+                user_id=str(current_user.id),
             )
             commit_req = TimesheetImportCommitRequest(
                 allow_partial=payload.allow_partial,

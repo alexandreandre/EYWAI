@@ -302,6 +302,11 @@ export interface AiDayEntry {
   // (semaine hebdomadaire à cheval sur deux mois). Absent = mois de la proposition.
   year?: number | null;
   month?: number | null;
+  /** Heures décidées par le client dans son fichier (colonne des heures
+   * retenues) : le calcul des badges ne les a pas réécrites. */
+  heures_fixees_par_fichier?: boolean;
+  /** Relevés fusionnés : le jour vient d'un fichier refait (relecture). */
+  releve_refait?: boolean | null;
 }
 
 export type AiMatchConfidence = 'high' | 'medium' | 'none';
@@ -357,6 +362,9 @@ export interface AiCalendarProposal {
   detected_scope?: TimesheetScope;
   detected_period_start?: string | null;
   detected_period_end?: string | null;
+  /** Relevés fusionnés : les plages réellement couvertes, une par fichier
+   * (fusionnées quand elles se touchent). Absent : la période ci-dessus. */
+  detected_periods?: { start: string; end: string }[] | null;
   period_confidence?: TimesheetConfidence;
   period_warnings?: string[];
   detected_days_count?: number;
@@ -663,7 +671,13 @@ export const persistTimesheetBatch = async (
   year: number,
   month: number,
   employees: PersistTimesheetEmployeePayload[],
-  options?: { batchId?: string; allowPartial?: boolean; recalculatePayroll?: boolean },
+  options?: {
+    batchId?: string;
+    /** Relevés importés ensemble : le lot de chaque fichier (27/11). */
+    batchIds?: string[];
+    allowPartial?: boolean;
+    recalculatePayroll?: boolean;
+  },
 ): Promise<PersistTimesheetResponse> => {
   const { data } = await apiClient.post<PersistTimesheetResponse>(
     '/api/schedules/assisted-fill/persist-timesheet',
@@ -672,6 +686,7 @@ export const persistTimesheetBatch = async (
       month,
       employees,
       batch_id: options?.batchId ?? null,
+      batch_ids: options?.batchIds ?? [],
       allow_partial: options?.allowPartial ?? false,
       recalculate_payroll: options?.recalculatePayroll ?? false,
     },

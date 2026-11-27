@@ -40,7 +40,6 @@ import {
   startTimesheetExtractBatch,
   waitForTimesheetExtractJob,
   type AiCalendarProposal,
-  type AiEmployeeProposal,
   type DocumentScopeInput,
   type RefusDejaImporte,
   type RosterEmployee,
@@ -75,6 +74,7 @@ import {
   type PointageImportJob,
 } from '@/hooks/usePointageImportJobs';
 import { accord, pluriel } from '@/lib/pluriel';
+import { mergeProposals } from './fusionReleves';
 
 const MONTHS = [
   'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
@@ -121,76 +121,6 @@ function useSmoothedProgress(
   return active ? value : realPct;
 }
 
-function mergeEmployeeProposals(
-  existing: AiEmployeeProposal[],
-  incoming: AiEmployeeProposal[],
-): AiEmployeeProposal[] {
-  const byKey = new Map<string, AiEmployeeProposal>();
-  const keyOf = (e: AiEmployeeProposal) =>
-    e.time_tracking_id ?? e.employee_id ?? e.raw_name;
-
-  [...existing, ...incoming].forEach((emp) => {
-    const key = keyOf(emp);
-    const prev = byKey.get(key);
-    if (!prev) {
-      byKey.set(key, { ...emp, days: [...emp.days] });
-      return;
-    }
-    const dayMap = new Map(prev.days.map((d) => [d.jour, d]));
-    emp.days.forEach((d) => dayMap.set(d.jour, d));
-    byKey.set(key, {
-      ...prev,
-      ...emp,
-      days: [...dayMap.values()].sort((a, b) => a.jour - b.jour),
-      warnings: [...new Set([...prev.warnings, ...emp.warnings])],
-    });
-  });
-  return [...byKey.values()];
-}
-
-function mergeProposals(proposals: AiCalendarProposal[]): AiCalendarProposal {
-  const base = proposals[proposals.length - 1];
-  let employees: AiEmployeeProposal[] = [];
-  const warnings = new Set<string>();
-  let ready = 0;
-  let warning = 0;
-  let error = 0;
-  let empty = 0;
-  let incomplete = 0;
-  let gap = 0;
-
-  proposals.forEach((p) => {
-    employees = mergeEmployeeProposals(employees, p.employees);
-    p.warnings.forEach((w) => warnings.add(w));
-  });
-
-  employees.forEach((e) => {
-    if (e.review_status === 'empty') empty += 1;
-    else if (e.review_status === 'error' || !e.employee_id) error += 1;
-    else if (e.quality_issue === 'extraction_incomplete') incomplete += 1;
-    else if (e.quality_issue === 'weekly_total_gap') gap += 1;
-    else if (e.review_status === 'warning' || e.match_confidence === 'medium') warning += 1;
-    else ready += 1;
-  });
-
-  return {
-    ...base,
-    employees,
-    warnings: [...warnings],
-    source: `${pluriel(proposals.length, 'relevé')} ${accord(proposals.length, 'fusionné')}`,
-    review_summary: {
-      ready,
-      warning,
-      error,
-      empty,
-      incomplete,
-      gap,
-      total: employees.length,
-    },
-    quality_checks: proposals.flatMap((p) => p.quality_checks ?? []),
-  };
-}
-
 interface PointageImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -231,6 +161,8 @@ export function PointageImportDialog({
   } | null>(null);
   const [proposal, setProposal] = useState<AiCalendarProposal | null>(null);
   const [batchId, setBatchId] = useState<string | null>(null);
+  // Plusieurs fichiers : le lot de chacun, le dernier (`batchId`) compris.
+  const [batchIds, setBatchIds] = useState<string[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [localJobId, setLocalJobId] = useState<string | null>(null);
   const [documentScope, setDocumentScope] = useState<DocumentScopeInput>('auto');
@@ -285,6 +217,7 @@ export function PointageImportDialog({
     setFiles([]);
     setProposal(null);
     setBatchId(null);
+    setBatchIds([]);
     setActiveJobId(null);
     setLocalJobId(null);
     setIsAnalyzing(false);
@@ -495,6 +428,7 @@ export function PointageImportDialog({
         return;
       }
 
+      const lotsDesFichiers: string[] = [];
       for (let i = 0; i < files.length; i++) {
         if (abort.signal.aborted) return;
         const file = files[i];
@@ -531,10 +465,14 @@ export function PointageImportDialog({
           }
         }
         results.push(result);
+        if (lastBatchId && !lotsDesFichiers.includes(lastBatchId)) {
+          lotsDesFichiers.push(lastBatchId);
+        }
         setQueueProgress(Math.round(((i + 1) / files.length) * 100));
         setPageProgress(null);
       }
       setBatchId(lastBatchId);
+      setBatchIds(results.length > 1 ? lotsDesFichiers : []);
       const merged = results.length === 1 ? results[0] : mergeProposals(results);
       showProposal(merged, files.length, trackedId);
     } catch (e) {
@@ -639,6 +577,7 @@ export function PointageImportDialog({
               onApplied={handleApplied}
               onBack={() => setProposal(null)}
               batchId={batchId}
+              batchIds={batchIds}
             />
           ) : (
             <div className="max-h-full space-y-3 overflow-y-auto pr-1">

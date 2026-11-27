@@ -69,6 +69,7 @@ import {
   type JourVide,
 } from './casesAbsent';
 import { TYPE_ABSENT_A_TYPER } from '@/lib/absentATyper';
+import { modifierLeJour } from './modificationDuJour';
 import { libelleBadges } from './badgesDuJour';
 import { avertissementsDuJour, phraseResume, resumeAvertissements } from './avertissementsDuJour';
 import {
@@ -81,6 +82,7 @@ import {
 } from './joursDejaSaisis';
 import {
   joursEcritsDuLot,
+  messageEnregistrementImpossible,
   phraseAlertesMasquees,
   phraseEcartsOcr,
   phraseEnregistrement,
@@ -95,7 +97,7 @@ import {
   suiteResultatLignesIgnorees,
 } from './lignesIgnorees';
 import { ReimportBanner } from './ReimportBanner';
-import { bilanReimport, cleJour, libelleImportRefait } from './reimport';
+import { bilanReimport, cleJour, joursHorsRelecture, libelleImportRefait } from './reimport';
 import { appliquerRegleALaRevue, type PunchBreakRule } from '@/lib/punchBreakHours';
 import {
   getActualHours,
@@ -150,6 +152,10 @@ interface EditableDay {
   month?: number | null;
   /** Jour non lu ajouté par la case « absent » (décoché, il disparaît). */
   ajoutParCase?: boolean;
+  /** Heures retenues par le client dans son fichier, pas recalculées. */
+  heures_fixees_par_fichier?: boolean;
+  /** Relevés fusionnés : le jour vient d'un fichier refait. */
+  releve_refait?: boolean | null;
 }
 
 interface EditableRow {
@@ -190,6 +196,8 @@ interface AssistedFillReviewProps {
   onApplied: (meta?: AssistedFillApplyMeta) => void;
   onBack: () => void;
   batchId?: string | null;
+  /** Relevés importés ensemble : le lot de chaque fichier, `batchId` compris. */
+  batchIds?: string[];
   /**
    * Correction par consigne pendant la revue : reçoit le texte et l'état
    * courant des jours (source de vérité), renvoie true si la proposition a
@@ -413,6 +421,7 @@ export function AssistedFillReview({
   onApplied,
   onBack,
   batchId = null,
+  batchIds = [],
   onRefine,
   isRefining = false,
 }: AssistedFillReviewProps) {
@@ -494,6 +503,8 @@ export function AssistedFillReview({
         heure_fin: d.heure_fin ?? null,
         year: d.year ?? null,
         month: d.month ?? null,
+        heures_fixees_par_fichier: d.heures_fixees_par_fichier ?? false,
+        releve_refait: d.releve_refait ?? null,
       })),
       weeklyTotalPdf: emp.weekly_total_pdf ?? null,
       weeklyTotalImported: emp.weekly_total_imported ?? null,
@@ -624,7 +635,9 @@ export function AssistedFillReview({
         nom: r.matchedName ?? r.rawName,
         employeeId: r.employeeId,
         enregistrable: isSavableRow(r, includeOrange),
-        jours: r.days.map((d) => ({
+        // Les jours d'un fichier refait ont leur bilan de relecture ; les
+        // autres annoncent les jours déjà saisis qu'ils remplacent.
+        jours: joursHorsRelecture(r.days, !!reimport).map((d) => ({
           jour: d.jour,
           heures: d.heures,
           nature: d.nature,
@@ -632,19 +645,19 @@ export function AssistedFillReview({
           mois: d.month ?? proposal.month,
         })),
       })),
-    [rows, includeOrange, proposal.year, proposal.month],
+    [rows, includeOrange, proposal.year, proposal.month, reimport],
   );
   const moisALire = useMemo(() => {
     const vus = new Map<string, { employeeId: string; annee: number; mois: number }>();
     for (const l of lignesAvecJours) {
-      if (!l.enregistrable || !l.employeeId || reimport) continue;
+      if (!l.enregistrable || !l.employeeId) continue;
       for (const j of l.jours) {
         if (j.nature !== 'reel') continue;
         vus.set(`${l.employeeId}|${j.annee}|${j.mois}`, { employeeId: l.employeeId, annee: j.annee, mois: j.mois });
       }
     }
     return [...vus.values()];
-  }, [lignesAvecJours, reimport]);
+  }, [lignesAvecJours]);
   const lecturesExistantes = useQueries({
     queries: moisALire.map((m) => ({
       queryKey: ['import-heures-deja-saisies', m.employeeId, m.annee, m.mois],
@@ -761,11 +774,18 @@ export function AssistedFillReview({
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   };
 
-  const updateDay = (rowKey: string, jour: number, patch: Partial<EditableDay>) => {
+  // Un jour se désigne par sa date complète : deux relevés fusionnés peuvent
+  // porter le même numéro de jour dans deux mois (21/09 et 21/10).
+  const memeJour = (a: EditableDay, b: EditableDay) =>
+    a.jour === b.jour &&
+    (a.year ?? null) === (b.year ?? null) &&
+    (a.month ?? null) === (b.month ?? null);
+
+  const updateDay = (rowKey: string, jour: EditableDay, patch: Partial<EditableDay>) => {
     setRows((prev) =>
       prev.map((r) =>
         r.key === rowKey
-          ? { ...r, days: r.days.map((d) => (d.jour === jour ? { ...d, ...patch } : d)) }
+          ? { ...r, days: r.days.map((d) => (memeJour(d, jour) ? modifierLeJour(d, patch) : d)) }
           : r,
       ),
     );
@@ -780,14 +800,15 @@ export function AssistedFillReview({
   const periodeDuDocument = {
     debut: proposal.detected_period_start ?? null,
     fin: proposal.detected_period_end ?? null,
+    plages: (proposal.detected_periods ?? []).map((p) => ({ debut: p.start, fin: p.end })),
     annee: proposal.year,
     mois: proposal.month,
   };
 
-  const removeDay = (rowKey: string, jour: number) => {
+  const removeDay = (rowKey: string, jour: EditableDay) => {
     setRows((prev) =>
       prev.map((r) =>
-        r.key === rowKey ? { ...r, days: r.days.filter((d) => d.jour !== jour) } : r,
+        r.key === rowKey ? { ...r, days: r.days.filter((d) => !memeJour(d, jour)) } : r,
       ),
     );
   };
@@ -967,7 +988,7 @@ export function AssistedFillReview({
             month: d.month ?? null,
           })),
         })),
-        { batchId: batchId ?? undefined, allowPartial: true },
+        { batchId: batchId ?? undefined, batchIds, allowPartial: true },
       );
 
       const applyMeta: AssistedFillApplyMeta = {
@@ -1032,8 +1053,7 @@ export function AssistedFillReview({
       // on affiche sa phrase plutôt qu'un échec anonyme.
       toast({
         title: 'Erreur',
-        description:
-          e instanceof Error && e.message ? e.message : "L'enregistrement a échoué.",
+        description: messageEnregistrementImpossible(e),
         variant: 'destructive',
       });
     } finally {
@@ -1053,11 +1073,17 @@ export function AssistedFillReview({
   const noiseWarningCount = proposal.warnings.length - globalWarnings.length;
 
   const periodRangeLabel = useMemo(() => {
+    // Relevés fusionnés : les plages réellement couvertes, pas l'intervalle global.
+    if (proposal.detected_periods && proposal.detected_periods.length > 1) {
+      return proposal.detected_periods
+        .map((p) => `${formatIsoDate(p.start)} – ${formatIsoDate(p.end)}`)
+        .join(' et ');
+    }
     if (proposal.detected_period_start && proposal.detected_period_end) {
       return `${formatIsoDate(proposal.detected_period_start)} – ${formatIsoDate(proposal.detected_period_end)}`;
     }
     return null;
-  }, [proposal.detected_period_start, proposal.detected_period_end]);
+  }, [proposal.detected_periods, proposal.detected_period_start, proposal.detected_period_end]);
 
   const formatLabel =
     proposal.detected_format === 'cegid_weekly'
@@ -1560,7 +1586,7 @@ export function AssistedFillReview({
                           min="0"
                           value={day.heures ?? ''}
                           onChange={(e) =>
-                            updateDay(row.key, day.jour, {
+                            updateDay(row.key, day, {
                               heures: e.target.value === '' ? null : Number(e.target.value),
                             })
                           }
@@ -1568,7 +1594,7 @@ export function AssistedFillReview({
                         />
                         <Select
                           value={day.type}
-                          onValueChange={(v) => updateDay(row.key, day.jour, { type: v })}
+                          onValueChange={(v) => updateDay(row.key, day, { type: v })}
                         >
                           <SelectTrigger className="h-7 w-[72px] px-1 text-[11px]">
                             <SelectValue />
@@ -1583,7 +1609,7 @@ export function AssistedFillReview({
                         </Select>
                         <NatureToggle
                           nature={day.nature}
-                          onChange={(n) => updateDay(row.key, day.jour, { nature: n })}
+                          onChange={(n) => updateDay(row.key, day, { nature: n })}
                         />
                         </>
                         )}
@@ -1593,6 +1619,14 @@ export function AssistedFillReview({
                             data-testid="badges-du-jour"
                           >
                             {libelleBadges(day.punch_entry_raw, day.punch_exit_raw)}
+                          </span>
+                        )}
+                        {day.heures_fixees_par_fichier && (
+                          <span
+                            className="text-[10px] text-muted-foreground"
+                            data-testid="heures-retenues-du-fichier"
+                          >
+                            heures retenues du fichier
                           </span>
                         )}
                         {vide && (
@@ -1608,12 +1642,12 @@ export function AssistedFillReview({
                         )}
                         <button
                           type="button"
-                          onClick={() => removeDay(row.key, day.jour)}
+                          onClick={() => removeDay(row.key, day)}
                           className="ml-auto text-muted-foreground hover:text-destructive"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
-                        {avertissementsDuJour(row.warnings, day.jour).map((message) => (
+                        {avertissementsDuJour(row.warnings, day.jour, day.month ?? proposal.month).map((message) => (
                           <p
                             key={message}
                             className="basis-full pl-[5.5rem] text-[10px] text-amber-800"
