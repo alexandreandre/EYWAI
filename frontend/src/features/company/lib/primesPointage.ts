@@ -152,6 +152,37 @@ export function erreurDeLaRegle(
   return null;
 }
 
+function jourMois(iso: string): string {
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+}
+
+/**
+ * Les jours travaillés sans heure d'arrivée que la semaine ne tranche pas (ou
+ * hors du prévu) : non comptés, dits avec leurs dates (L19, 26/11).
+ */
+export function phraseJoursSansHeureDArrivee(nombre: number, dates?: string[]): string {
+  const jours = nombre > 1 ? 'jours travaillés' : 'jour travaillé';
+  const comptes = nombre > 1 ? 'non comptés' : 'non compté';
+  const liste = dates && dates.length ? ` (${dates.map(jourMois).join(', ')})` : '';
+  return `${nombre} ${jours} sans heure d'arrivée, ${comptes}${liste} : heure d'arrivée à saisir au calendrier, ou absence à poser`;
+}
+
+/**
+ * L'encadré de Primes du mois, par salarié et par règle : la liste des dates
+ * quand une partie des jours a une heure d'arrivée ; une seule phrase quand
+ * aucun n'en a (aucun badge importé), comme l'alerte du bulletin.
+ */
+export function phraseJoursDuSalarie(j: { rule_label?: string | null; dates: string[]; aucun_badge?: boolean }): string {
+  const regle = j.rule_label ?? 'Prime';
+  const n = j.dates.length;
+  if (j.aucun_badge) {
+    const jours = n > 1 ? 'jours travaillés' : 'jour travaillé';
+    const rien = /panier/i.test(regle) ? 'aucun panier compté' : 'aucun jour compté';
+    return `${regle} : aucune heure d'arrivée sur la période (${n} ${jours}), ${rien} : importez les pointages ou saisissez les heures d'arrivée au calendrier`;
+  }
+  return `${regle} : ${phraseJoursSansHeureDArrivee(n, j.dates)}`;
+}
+
 /** Une ligne de simulation qui demande l'attention de la RH (prime à 0, jours sans heure d'arrivée). */
 export function estUneAlerte(item: PayrollVariablePreviewItem): boolean {
   const d = item.details;

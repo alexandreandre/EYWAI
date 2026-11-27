@@ -173,6 +173,12 @@ def test_un_panier_au_dela_du_plafond_est_reintegre(tmp_path, moteur, panier):
     reint = [l for l in b["calcul_du_brut"] if "Réintégration panier" in str(l.get("libelle"))]
     # 2 paniers à 15 € sur le lieu de travail : 7,50 € exonérés chacun.
     assert [l["gain"] for l in reint] == [15.0]
+    # L19 (26/11) : nombre de paniers et part unitaire, libellé sans doublon.
+    assert [(l["libelle"], l["quantite"], l["taux"]) for l in reint] == [
+        ("Réintégration panier repas", 2.0, 7.5)
+    ]
+    non_soumis = [l for l in b["primes_non_soumises"] if l.get("libelle") == "Panier repas"]
+    assert [(l["montant"], l["quantite"], l["taux"]) for l in non_soumis] == [(15.0, 2.0, 7.5)]
 
 
 # --- Le générateur au forfait lit le calendrier comme en heures -----------
@@ -241,3 +247,19 @@ def test_les_deux_moteurs_prelevent_la_csg_de_l_indemnite(tmp_path, moteur):
     texte = json.dumps(b["structure_cotisations"], ensure_ascii=False)
     assert "CSG déductible activité partielle" in texte
     assert "CSG/CRDS non déductible activité partielle" in texte
+
+
+
+@pytest.mark.parametrize("moteur", sorted(MOTEURS))
+@pytest.mark.parametrize("panier", [PANIER_FRAIS, PANIER_PRIME], ids=["frais", "prime"])
+def test_le_total_du_panier_au_bulletin_egale_la_saisie(tmp_path, moteur, panier):
+    """Relecture du 27/11 : 22,60 € pour 3 paniers donnait 22,59 € au chemin
+    « prime » (taux unitaire arrondi puis multiplié)."""
+    from app.modules.payroll.engine.codes_des_lignes import code_de_ligne_de_gain
+
+    b = _bulletin(tmp_path, moteur, [{**panier, "montant": 22.60, "quantity": 3}])
+    reint = [l for l in b["calcul_du_brut"] if str(l.get("libelle")).startswith("Réintégration")]
+    non_soumis = [l for l in b["primes_non_soumises"] if l.get("libelle") == "Panier repas"]
+    total = sum(l["gain"] for l in reint) + sum(l["montant"] for l in non_soumis)
+    assert round(total, 2) == 22.60
+    assert [code_de_ligne_de_gain(l) for l in reint] == ["brut:reintegration:panier-panier-repas"]

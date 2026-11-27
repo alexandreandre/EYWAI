@@ -245,6 +245,9 @@ def _generer(monkeypatch, *, compensation: bool, reel_septembre=None, arrets=Non
     monkeypatch.setattr(pg, "supabase", base)
     lecteur = arrets if callable(arrets) else (lambda *_a, **_k: {EMP: [ARRET_VALIDE]})
     monkeypatch.setattr(arrets_valides_reader, "par_salarie", lecteur)
+    # Les alertes de paniers lisent les règles de variables : elles ont leurs
+    # propres tests (test_primes_de_pointage), la base factice n'en a pas.
+    monkeypatch.setattr(pg, "alertes_des_paniers_du_mois", lambda *_a, **_k: [])
     return pg.process_payslip_generation(EMP, ANNEE, MOIS, bac_a_sable=BacASable())
 
 

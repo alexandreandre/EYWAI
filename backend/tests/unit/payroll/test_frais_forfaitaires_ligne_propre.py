@@ -90,3 +90,20 @@ class TestLeGenerateurNeLaRangePlusDansLAcompte:
         assert entree["frais_professionnels"] is True
         assert entree["prime_id"] == "indemnite_panier_repas"
         assert entree["soumise_a_cotisations"] is False
+
+
+def test_au_bulletin_le_panier_saisi_avec_son_nombre_imprime_base_et_taux():
+    """L19 (26/11) : le nombre gardé à l'entrée arrive jusqu'à la ligne imprimée."""
+    from app.modules.payroll.engine.frais_professionnels import frais_et_reintegration
+
+    entree = entree_de_frais_professionnels(
+        {**PANIER, "amount": 112.5, "payroll_quantity": 15, "quantity_kind": "count"}
+    )
+    ligne, reint = frais_et_reintegration(entree, None)
+    assert reint is None
+
+    imprimee = next(
+        l for l in _lignes_hors_brut({"primes_non_soumises": [ligne]})
+        if l["libelle"] == "Indemnité panier repas"
+    )
+    assert (imprimee["base"], imprimee["taux"], imprimee["montant_salarial"]) == (15.0, 7.5, 112.5)

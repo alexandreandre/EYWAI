@@ -686,10 +686,13 @@ def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
                 lignes.append(ligne_frais)
                 frais_poses = True
             continue
+        # Un panier porte son nombre et son montant unitaire (L19, 26/11).
         lignes.append(
             _ligne(
                 "hors_brut",
                 prime.get("libelle") or "Prime non soumise",
+                base=prime.get("quantite"),
+                taux=prime.get("taux"),
                 montant_salarial=prime.get("montant"),
             )
         )

@@ -167,7 +167,9 @@ def _montant_seul(ligne: Mapping[str, Any]) -> bool:
 
 
 def code_de_ligne_de_gain(ligne: Mapping[str, Any]) -> str | None:
-    libelle = str(ligne.get("libelle") or "")
+    # Une ligne dont le libellé affiché a changé garde le code de son ancien
+    # libellé (réintégration d'un panier, L19) : une correction posée la retrouve.
+    libelle = str(ligne.get("libelle_du_code") or ligne.get("libelle") or "")
     regularisation_heures = ligne.get("regularisation_heures")
     if isinstance(regularisation_heures, Mapping):
         return f"brut:regularisation_heures:{regularisation_heures.get('saisie_id') or slug(libelle)}"
@@ -271,6 +273,12 @@ def mode_de_correction(
             return None, RAISON_SAISIE
         if famille == "brut:regularisation_heures":
             return None, RAISON_REGULARISATION_HEURES
+        if ligne.get("libelle_du_code"):
+            # Ligne dont seul l'affichage a changé (réintégration d'un panier,
+            # L19 : libellé, nombre et part unitaire imprimés) : elle se corrige
+            # comme avant, par son montant ; une correction posée s'applique
+            # toujours de la même façon.
+            return MODE_MONTANT, None
         if ligne.get("quantite") is not None and ligne.get("taux") is not None:
             return MODE_BASE_OU_TAUX, None
         return MODE_MONTANT, None

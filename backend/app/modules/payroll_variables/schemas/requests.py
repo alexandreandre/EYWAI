@@ -58,6 +58,18 @@ class PayrollVariablePreviewItem(BaseModel):
     details: Optional[dict[str, Any]] = None
 
 
+class JoursSansHeureDArriveeSchema(BaseModel):
+    """Jours travaillés sans heure d'arrivée, non comptés par une règle (L19)."""
+
+    employee_id: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    rule_label: Optional[str] = None
+    dates: list[str]
+    #: Aucun jour de la période n'a d'heure d'arrivée (aucun badge importé).
+    aucun_badge: bool = False
+
+
 class PayrollVariableGenerateResponse(BaseModel):
     company_id: str
     year: int

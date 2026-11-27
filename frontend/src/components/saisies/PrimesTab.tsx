@@ -25,7 +25,23 @@ import {
 import { log } from '@/lib/logger';
 import { SaisieModal } from "@/components/SaisieModal";
 import * as saisiesApi from '@/api/saisies';
-import { generatePayrollVariables } from '@/api/payrollVariables';
+import {
+  generatePayrollVariables,
+  getJoursSansHeureDArrivee,
+  listPayrollVariableRules,
+  type PayrollVariableRule,
+} from '@/api/payrollVariables';
+import {
+  cleDuMois,
+  compterJoursReels,
+  etatInitialDesJours,
+  montantPourLeNombre,
+  recevoirJours,
+  texteDeLEncadre,
+  type EtatDesJours,
+} from './joursSansArrivee';
+import { phraseJoursDuSalarie } from '@/features/company/lib/primesPointage';
+import { libelleNombreDePaniers, lireNombreDePaniers, nombreDePaniersModifiable } from './panierSaisie';
 import apiClient from '@/api/apiClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPayrollFocusActive } from '@/lib/payrollFocus';
@@ -74,6 +90,16 @@ export function PrimesTab({
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  // Jours travaillés sans heure d'arrivée, relus au calendrier (L19, 27/11) ;
+  // null tant qu'ils ne sont pas lus, « erreur » si la lecture a échoué.
+  // Relue au changement de mois et après « Générer », pas après chaque saisie ;
+  // une réponse d'un autre mois est ignorée (relecture du 27/11).
+  const [joursSansArrivee, setJoursSansArrivee] = useState<EtatDesJours>(() =>
+    etatInitialDesJours(selectedYear, selectedMonth),
+  );
+  const [relectureDesJours, setRelectureDesJours] = useState(0);
+  // Les règles de variables : le montant d'un panier généré suit son nombre.
+  const [regles, setRegles] = useState<PayrollVariableRule[]>([]);
 
   // Helper pour générer les listes des sélecteurs
   const yearOptions = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
@@ -96,6 +122,7 @@ export function PrimesTab({
       ]);
       setMonthlyInputs(inputsRes.data);
       setEmployees(employeesRes.data);
+
     } catch (error) {
       log.error(error);
       toast({ title: "Erreur", description: "Impossible de charger les données.", variant: "destructive" });
@@ -107,6 +134,23 @@ export function PrimesTab({
   useEffect(() => { 
     fetchData(); 
   }, [fetchData]);
+
+  useEffect(() => {
+    const cle = cleDuMois(selectedYear, selectedMonth);
+    setJoursSansArrivee(etatInitialDesJours(selectedYear, selectedMonth));
+    getJoursSansHeureDArrivee(selectedYear, selectedMonth)
+      .then((jours) => setJoursSansArrivee((courant) => recevoirJours(courant, cle, jours)))
+      .catch((erreur) => {
+        log.error(erreur);
+        setJoursSansArrivee((courant) => recevoirJours(courant, cle, 'erreur'));
+      });
+  }, [selectedYear, selectedMonth, relectureDesJours]);
+
+  useEffect(() => {
+    listPayrollVariableRules()
+      .then(setRegles)
+      .catch((erreur) => log.error(erreur));
+  }, []);
 
   // « Le bulletin d'octobre 2026 de … est à recalculer » : seulement s'il existe.
   const phraseARecalculer = (cibles: saisiesApi.BulletinsARecalculer['bulletins_a_recalculer']) =>
@@ -180,6 +224,42 @@ export function PrimesTab({
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingAmount, setEditingAmount] = useState<string>("");
+  const [editingNombreId, setEditingNombreId] = useState<string | null>(null);
+  const [editingNombre, setEditingNombre] = useState<string>("");
+
+  // Le nombre de paniers se corrige comme le montant : la part réintégrée se
+  // calcule sur lui (L19, 27/11).
+  const handleSaveNombre = async (id: string) => {
+    const nombre = lireNombreDePaniers(editingNombre);
+    if (nombre == null) {
+      toast({ title: "Nombre de paniers invalide", description: "Indiquez un nombre supérieur à zéro.", variant: "destructive" });
+      return;
+    }
+    try {
+      // Le montant suit le nombre (nombre × montant de la règle, ou prix d'un
+      // panier de la saisie) : l'écran l'a montré avant l'enregistrement.
+      const saisie = monthlyInputs.find((m) => m.id === id);
+      const montant = saisie ? montantPourLeNombre(saisie, nombre, regles) : null;
+      const reponse = await saisiesApi.updateMonthlyInput(
+        id,
+        montant != null ? { payroll_quantity: nombre, amount: montant } : { payroll_quantity: nombre },
+      );
+      toast({
+        title: montant != null ? "Nombre et montant mis à jour" : "Nombre de paniers mis à jour",
+        description: [
+          "Elle ne sera plus écrasée par la préparation du mois.",
+          phraseARecalculer(reponse.data?.bulletins_a_recalculer),
+        ].filter(Boolean).join(' '),
+        action: actionRecalculerMaintenant(reponse.data?.bulletins_a_recalculer, navigate),
+      });
+      setEditingNombreId(null);
+      fetchData();
+      apresSaisie();
+    } catch (error) {
+      log.error(error);
+      toast({ title: "Erreur", description: "Impossible de corriger le nombre de paniers.", variant: "destructive" });
+    }
+  };
 
   const handleSaveAmount = async (id: string) => {
     const parsed = Number(editingAmount.replace(",", "."));
@@ -220,6 +300,7 @@ export function PrimesTab({
         description: `${pluriel(result.written_count, 'saisie')} ${accord(result.written_count, 'créée')} pour ${monthOptions[selectedMonth - 1]?.label} ${selectedYear}.`,
       });
       fetchData();
+      setRelectureDesJours((n) => n + 1);
     } catch (error) {
       log.error(error);
       toast({
@@ -340,6 +421,33 @@ export function PrimesTab({
           {isLoading ? (
             <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
           ) : (
+            <>
+            {texteDeLEncadre(joursSansArrivee) && (
+              <p className="mb-3 rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900" data-testid="jours-sans-arrivee-etat">
+                {texteDeLEncadre(joursSansArrivee)}
+              </p>
+            )}
+            {Array.isArray(joursSansArrivee.etat) && (() => {
+              const lignes = joursSansArrivee.etat.filter((j) => !focusEmployeeId || j.employee_id === focusEmployeeId);
+              if (lignes.length === 0) return null;
+              const jours = compterJoursReels(lignes);
+              return (
+                <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900" data-testid="jours-sans-arrivee">
+                  <p className="font-medium">À vérifier : {pluriel(jours, 'jour travaillé', 'jours travaillés')} sans heure d'arrivée</p>
+                  <ul className="list-disc pl-5">
+                    {lignes.map((j) => {
+                      const emp = employees.find((e) => e.id === j.employee_id);
+                      const nom = emp ? `${emp.first_name} ${emp.last_name}` : [j.first_name, j.last_name].filter(Boolean).join(' ');
+                      return (
+                        <li key={`${j.employee_id}-${j.rule_label}`}>
+                          {nom} — {phraseJoursDuSalarie(j)}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              );
+            })()}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -392,6 +500,48 @@ export function PrimesTab({
                               {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(input.amount)}
                             </button>
                           )}
+                          {!heuresCorrigees && nombreDePaniersModifiable(input) && (
+                            editingNombreId === input.id ? (
+                              <div className="mt-1 flex items-center gap-2">
+                                <Input
+                                  className="h-8 w-20"
+                                  aria-label="Nombre de paniers"
+                                  value={editingNombre}
+                                  autoFocus
+                                  onChange={(e) => setEditingNombre(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") handleSaveNombre(input.id);
+                                    if (e.key === "Escape") setEditingNombreId(null);
+                                  }}
+                                />
+                                {(() => {
+                                  const nombre = lireNombreDePaniers(editingNombre);
+                                  const montant = nombre != null ? montantPourLeNombre(input, nombre, regles) : null;
+                                  return montant != null ? (
+                                    <span className="text-xs text-muted-foreground" data-testid="montant-du-nombre">
+                                      montant : {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(montant)}
+                                    </span>
+                                  ) : null;
+                                })()}
+                                <Button size="sm" onClick={() => handleSaveNombre(input.id)}>
+                                  OK
+                                </Button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="mt-1 block text-xs text-muted-foreground underline decoration-dotted underline-offset-4"
+                                title="Cliquer pour corriger le nombre de paniers"
+                                data-testid="nombre-de-paniers"
+                                onClick={() => {
+                                  setEditingNombreId(input.id);
+                                  setEditingNombre(input.payroll_quantity != null ? String(input.payroll_quantity).replace('.', ',') : '');
+                                }}
+                              >
+                                {libelleNombreDePaniers(input.payroll_quantity)}
+                              </button>
+                            )
+                          )}
                           {editingId !== input.id && libelleMontantSaisie(input.amount, !!input.sur_le_net) && (
                             <Badge variant="outline" className="ml-2">
                               {libelleMontantSaisie(input.amount, !!input.sur_le_net)}
@@ -431,6 +581,7 @@ export function PrimesTab({
                 )}
               </TableBody>
             </Table>
+            </>
           )}
         </CardContent>
       </Card>

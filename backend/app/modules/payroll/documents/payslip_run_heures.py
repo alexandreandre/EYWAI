@@ -1060,7 +1060,7 @@ def run_payslip_generation_heures(
                 if _exo and _exo > 0 and _plafond is not None:
                     montant = _exo
 
-            montant, reint_panier = panier_non_soumis_plafonne(
+            montant, reint_panier, colonnes_panier = panier_non_soumis_plafonne(
                 saisie, prime_id, libelle, montant, contexte.baremes.get("frais_pro")
             )
             if reint_panier:
@@ -1085,6 +1085,8 @@ def run_payslip_generation_heures(
                 saisie,
             )
             prime_calculee.update(heures_et_taux(montant, heures_chomees_saisie))
+            # Panier : nombre et montant unitaire en base et taux (L19, 26/11).
+            prime_calculee.update(colonnes_panier)
             if not soumise_cotis and est_une_ppv(prime_id, libelle):
                 # PPV, du catalogue ou saisie par son nom : effectif des seuils,
                 # 3 Smic, plafond annuel et nombre de primes (`engine.ppv`).

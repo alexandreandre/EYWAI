@@ -5,6 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.security import get_current_user
+from app.modules.payroll_variables.application.alertes_paniers import (
+    jours_sans_heure_d_arrivee,
+)
 from app.modules.payroll_variables.application.generate_monthly import (
     generate_monthly_variables,
 )
@@ -18,6 +21,7 @@ from app.modules.payroll_variables.domain.rules import conditions_du_type
 from app.modules.payroll_variables.infrastructure import repository as repo
 from app.modules.payroll_variables.schemas.requests import (
     AstreintePresetResponse,
+    JoursSansHeureDArriveeSchema,
     PayrollVariableGenerateResponse,
     PayrollVariablePreviewItem,
     PayrollVariableRuleSchema,
@@ -190,6 +194,21 @@ def generate_variables(
         preview=[PayrollVariablePreviewItem(**p) for p in result["preview"]],
         written_count=result["written_count"],
     )
+
+
+@router.get("/jours-sans-heure-d-arrivee", response_model=list[JoursSansHeureDArriveeSchema])
+def lire_jours_sans_heure_d_arrivee(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    """Jours travaillés sans heure d'arrivée que les règles « par jour
+    travaillé » ne comptent pas, relus au calendrier (L19, 27/11). Lecture
+    seule : la génération en simulation, rien d'écrit ni de stocké."""
+    cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
+    return jours_sans_heure_d_arrivee(str(cid), year, month)
 
 
 # ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ from __future__ import annotations
 import calendar
 import re
 from datetime import date, timedelta
+from collections.abc import Collection
 from typing import Any
 
 from app.core.database import supabase
@@ -547,13 +548,20 @@ def generate_monthly_variables(
     *,
     dry_run: bool = False,
     employee_id: str | None = None,
+    types_de_regle: Collection[str] | None = None,
 ) -> dict[str, Any]:
     """Variables automatiques du mois, pour les salariés actifs de la société.
 
     Avec `employee_id`, pour ce seul salarié : la génération de son bulletin ne
-    doit pas réécrire les variables du mois des autres [J8].
+    doit pas réécrire les variables du mois des autres [J8]. Avec
+    `types_de_regle`, seulement les règles de ces types (lecture des jours sans
+    heure d'arrivée, `alertes_paniers`).
     """
-    rules = [r for r in repo.list_rules(company_id) if r.get("enabled")]
+    rules = [
+        r
+        for r in repo.list_rules(company_id)
+        if r.get("enabled") and (types_de_regle is None or r.get("rule_type") in types_de_regle)
+    ]
     requete = (
         supabase.table("employees")
         .select(
@@ -902,6 +910,8 @@ def generate_monthly_variables(
                 }
                 if conditions.get("plages_debut"):
                     infos["jours_sans_heure_de_debut"] = detail["sans_heure_de_debut"]
+                    if detail.get("dates_sans_heure_de_debut"):
+                        infos["dates_sans_heure_de_debut"] = detail["dates_sans_heure_de_debut"]
                     if detail.get("aucun_badge"):
                         infos["aucun_badge"] = True
                     if detail.get("repris_de_la_semaine"):
