@@ -449,3 +449,52 @@ class TestRetombeAZero:
 
         monkeypatch.setattr(agg, "aggregate_shift_payroll_metrics", lambda *a, **k: {})
         assert gm.generate_monthly_variables("c", 2026, 10, dry_run=True)["preview"] == []
+
+
+class TestJoursSansHeureDArriveeDits:
+    """L19 (26/11) : les jours travaillés sans heure d'arrivée dont le panier
+    n'est pas compté étaient calculés mais dits nulle part quand le panier du
+    mois restait positif. La saisie générée le porte ; le bulletin l'alerte."""
+
+    REGLE = {
+        "rule_type": "per_worked_day",
+        "label": "Panier",
+        "amount": 10,
+        "conditions": {"plages_debut": PLAGES_4H_12H},
+    }
+
+    def _calendrier_avec_deux_oublis(self):
+        # Postes de 4 h badgés, sauf le lundi 5 et le mardi 6 : semaine mêlée
+        # (un seul autre badge au poste de 12 h) qui ne tranche pas.
+        debuts = {j: "03:50" for j in _ouvres(DEBUT, FIN)}
+        debuts.pop(date(2026, 10, 5))
+        debuts.pop(date(2026, 10, 6))
+        debuts[date(2026, 10, 7)] = "11:55"
+        return _calendrier(debuts)
+
+    def test_l_apercu_donne_les_dates(self, monkeypatch):
+        prevu, reel = self._calendrier_avec_deux_oublis()
+        _brancher(monkeypatch, self.REGLE, FICHE, prevu, reel)
+        res = gm.generate_monthly_variables("c", 2026, 10, dry_run=True)
+        details = res["preview"][0]["details"]
+        assert res["preview"][0]["amount"] > 0
+        assert details["jours_sans_heure_de_debut"] == 2
+        assert details["dates_sans_heure_de_debut"] == ["2026-10-05", "2026-10-06"]
+
+    def test_la_saisie_ecrite_le_dit(self, monkeypatch):
+        prevu, reel = self._calendrier_avec_deux_oublis()
+        repo = _brancher(monkeypatch, self.REGLE, FICHE, prevu, reel)
+        monkeypatch.setattr(gm, "_bonus_type_meta", lambda r: ("Panier", False, False, None, None, None))
+        gm.generate_monthly_variables("c", 2026, 10, dry_run=False)
+        payload = repo.upsert_monthly_input.call_args.args[0]
+        assert payload["description"] == (
+            "Auto: r — 2 jours travaillés sans heure d'arrivée, "
+            "non comptés pour « Panier » : 05/10, 06/10"
+        )
+
+    def test_sans_oubli_la_description_reste_courte(self, monkeypatch):
+        prevu, reel = _calendrier({j: "03:50" for j in _ouvres(DEBUT, FIN)})
+        repo = _brancher(monkeypatch, self.REGLE, FICHE, prevu, reel)
+        monkeypatch.setattr(gm, "_bonus_type_meta", lambda r: ("Panier", False, False, None, None, None))
+        gm.generate_monthly_variables("c", 2026, 10, dry_run=False)
+        assert repo.upsert_monthly_input.call_args.args[0]["description"] == "Auto: r"

@@ -19,6 +19,12 @@ de début (badge oublié) prend le poste des autres jours badgés de sa semaine
 (deux au moins, dans la fenêtre) quand ils sont tous au même poste (retour d'Alexandre, 21/11 : 236 jours sur
 390 en octobre, aucun ne contredit sa semaine) ; sinon il ne compte pas et il
 est compté à part, pour le dire à la RH.
+
+Seul un jour prévu travaillé reprend le poste de sa semaine : un week-end, un
+férié, un jour non planifié avec des heures et sans heure d'arrivée ne le
+reprend jamais (un dimanche saisi par erreur comptait un panier en trop,
+LEWIS, octobre 2026) ; il est compté à part, comme un jour que la semaine ne
+tranche pas.
 """
 
 from __future__ import annotations
@@ -71,6 +77,12 @@ def heures_du_jour(
     return 0.0
 
 
+def jour_prevu_travaille(p: Mapping[str, Any] | None) -> bool:
+    """Un jour « travail » du prévu, avec des heures prévues."""
+    p = p or {}
+    return str(p.get("type") or "").lower() in TYPES_TRAVAIL and (_heures(p.get("heures_prevues")) or 0.0) > 0
+
+
 def _poste(debut: Any, plages: list[Mapping[str, Any]]) -> int | None:
     """Rang de la plage où le poste commence, None hors de toute plage."""
     for i, plage in enumerate(plages):
@@ -115,13 +127,15 @@ def detail_jours_travailles(
     min_heures: float | None = None,
     plages_debut: Iterable[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """`{jours, sans_heure_de_debut, dates, repris_de_la_semaine, aucun_badge}` : les jours qui
-    comptent ; si des plages de début sont demandées, les jours travaillés sans
-    heure lue que leur semaine ne tranche pas, et ceux qu'elle a tranchés."""
+    """`{jours, sans_heure_de_debut, dates_sans_heure_de_debut, dates,
+    repris_de_la_semaine, aucun_badge}` : les jours qui comptent ; si des plages
+    de début sont demandées, les jours travaillés sans heure lue que leur semaine
+    ne tranche pas (ou hors du prévu), et ceux qu'elle a tranchés."""
     seuil = float(min_heures) if min_heures else 0.0
     plages = [p for p in (plages_debut or []) if isinstance(p, Mapping)]
     n = 0
     sans_debut = 0
+    dates_sans_debut: list[str] = []
     dates: list[str] = []
     repris: list[str] = []
     semaines = postes_par_semaine(reel, plages, debut, fin, seuil) if plages else {}
@@ -134,9 +148,16 @@ def detail_jours_travailles(
                 n += 1
                 dates.append(jour.isoformat())
             elif not r.get("debut"):
-                postes = semaines.get(jour.isocalendar()[:2]) or set()
+                # Hors du prévu (week-end, férié, jour non planifié) : la
+                # semaine ne tranche jamais.
+                postes = (
+                    semaines.get(jour.isocalendar()[:2]) or set()
+                    if jour_prevu_travaille(prevu.get(jour))
+                    else set()
+                )
                 if len(postes) != 1:
                     sans_debut += 1
+                    dates_sans_debut.append(jour.isoformat())
                 else:
                     repris.append(jour.isoformat())
                     if next(iter(postes)) is not None:
@@ -149,6 +170,7 @@ def detail_jours_travailles(
     return {
         "jours": n,
         "sans_heure_de_debut": sans_debut,
+        "dates_sans_heure_de_debut": dates_sans_debut,
         "dates": dates,
         "repris_de_la_semaine": repris,
         # Aucun badge de toute la fenêtre : relevé absent ou salarié hors

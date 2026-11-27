@@ -152,6 +152,21 @@ export function erreurDeLaRegle(
   return null;
 }
 
+function jourMois(iso: string): string {
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+}
+
+/**
+ * Les jours travaillés sans heure d'arrivée que la semaine ne tranche pas (ou
+ * hors du prévu) : non comptés, dits avec leurs dates (L19, 26/11).
+ */
+export function phraseJoursSansHeureDArrivee(nombre: number, dates?: string[]): string {
+  const jours = nombre > 1 ? 'jours travaillés' : 'jour travaillé';
+  const comptes = nombre > 1 ? 'non comptés' : 'non compté';
+  const liste = dates && dates.length ? ` (${dates.map(jourMois).join(', ')})` : '';
+  return `${nombre} ${jours} sans heure d'arrivée, ${comptes}${liste} : poser l'absence ou corriger le badge au calendrier`;
+}
+
 /** Une ligne de simulation qui demande l'attention de la RH (prime à 0, jours sans heure d'arrivée). */
 export function estUneAlerte(item: PayrollVariablePreviewItem): boolean {
   const d = item.details;

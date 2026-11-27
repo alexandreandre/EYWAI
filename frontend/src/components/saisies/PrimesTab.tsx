@@ -35,6 +35,7 @@ import {
   LIBELLE_SOUMISE_IMPOT,
   heuresDeclareesDeLaSaisie,
   messageBulletinsARecalculer,
+  remarqueDeSaisieGeneree,
   sousTitreSaisies,
 } from './libellesSaisie';
 
@@ -356,10 +357,18 @@ export function PrimesTab({
                   saisiesAffichees.map((input) => {
                     const emp = employees.find(e => e.id === input.employee_id);
                     const heuresCorrigees = heuresDeclareesDeLaSaisie(input);
+                    const remarque = remarqueDeSaisieGeneree(input.description);
                     return (
                       <TableRow key={input.id}>
                         <TableCell>{emp ? `${emp.first_name} ${emp.last_name}` : "Inconnu"}</TableCell>
-                        <TableCell className="font-medium">{heuresCorrigees ? heuresCorrigees.libelle : input.name}</TableCell>
+                        <TableCell className="font-medium">
+                          {heuresCorrigees ? heuresCorrigees.libelle : input.name}
+                          {remarque && (
+                            <p className="text-xs font-normal text-amber-700" data-testid="remarque-saisie-generee">
+                              {remarque}
+                            </p>
+                          )}
+                        </TableCell>
                         <TableCell>
                           {heuresCorrigees ? (
                             <span title="À corriger depuis l’onglet « Corriger » du bulletin">{heuresCorrigees.quantite}</span>

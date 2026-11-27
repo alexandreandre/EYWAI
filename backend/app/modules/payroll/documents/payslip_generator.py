@@ -95,7 +95,10 @@ from app.modules.payroll.documents.pdf_du_bulletin import (
     retirer_pdf_remplace,
 )
 from app.modules.payslips.domain.heures_sup import est_declaration_bulletin
-from app.modules.monthly_inputs.domain.rules import alertes_de_doublon_de_prime
+from app.modules.monthly_inputs.domain.rules import (
+    alertes_de_doublon_de_prime,
+    alertes_de_jours_sans_heure_d_arrivee,
+)
 from app.modules.payroll.documents.saisies_du_bulletin import ranger_les_saisies
 from app.modules.payroll.documents.variables_automatiques import (
     variables_automatiques_avant_bulletin,
@@ -1886,7 +1889,9 @@ def process_payslip_generation(
             payslip_json_data["alertes_baremes"] = fusionner_replis(
                 payslip_json_data.get("alertes_baremes"), alertes_de_repli_generateur
             )
+        # Jours travaillés sans heure d'arrivée, non comptés au panier (L19, 26/11).
         alertes_doublons = alertes_de_doublon_de_prime(saisies_res.data or [])
+        alertes_doublons += alertes_de_jours_sans_heure_d_arrivee(saisies_res.data or [])
         if alertes_doublons and isinstance(payslip_json_data, dict):
             payslip_json_data = dict(payslip_json_data)
             payslip_json_data["alertes_baremes"] = [

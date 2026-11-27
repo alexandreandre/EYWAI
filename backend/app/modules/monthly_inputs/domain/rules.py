@@ -40,6 +40,64 @@ def est_saisie_retiree(saisie: dict) -> bool:
 
 
 CODE_ALERTE_DOUBLON_PRIME = "doublon_prime_regle_auto"
+CODE_ALERTE_JOURS_SANS_HEURE_D_ARRIVEE = "jours_sans_heure_d_arrivee"
+
+#: Entre « Auto: <code> » et la remarque que la génération laisse sur la saisie.
+SEPARATEUR_REMARQUE = " — "
+
+
+def description_de_saisie_generee(code: object, remarque: str | None = None) -> str:
+    """« Auto: PANIER », ou « Auto: PANIER — <remarque> » quand la génération a
+    quelque chose à dire (jours non comptés, L19 du 26/11)."""
+    base = f"{PREFIXE_SAISIE_GENEREE} {code}"
+    return f"{base}{SEPARATEUR_REMARQUE}{remarque}" if remarque else base
+
+
+def remarque_de_saisie_generee(saisie: dict) -> str | None:
+    """La remarque laissée par la génération sur une saisie générée, ou None."""
+    if not est_saisie_generee(saisie):
+        return None
+    _, sep, remarque = str(saisie.get("description") or "").partition(SEPARATEUR_REMARQUE)
+    return remarque.strip() or None if sep else None
+
+
+def remarque_jours_sans_heure_d_arrivee(dates: list[str], libelle: object) -> str | None:
+    """« 2 jours travaillés sans heure d'arrivée, non comptés pour « Panier » :
+    05/10, 06/10 », ou None sans jour."""
+    if not dates:
+        return None
+    n = len(dates)
+    jours = "jour travaillé" if n == 1 else "jours travaillés"
+    comptes = "non compté" if n == 1 else "non comptés"
+    liste = ", ".join(f"{d[8:10]}/{d[5:7]}" for d in dates)
+    return f"{n} {jours} sans heure d'arrivée, {comptes} pour « {libelle} » : {liste}"
+
+
+def alertes_de_jours_sans_heure_d_arrivee(saisies: list[dict]) -> list[dict]:
+    """Une prime par jour travaillé (panier) versée au mois, mais sans les jours
+    travaillés dont l'heure d'arrivée manque : la génération le note sur la
+    saisie, le bulletin le dit (L19, 26/11 : rien ne le montrait quand le
+    panier du mois restait positif)."""
+    alertes: list[dict] = []
+    for saisie in saisies:
+        if est_saisie_retiree(saisie):
+            continue
+        remarque = remarque_de_saisie_generee(saisie)
+        if not remarque or "sans heure d'arrivée" not in remarque:
+            continue
+        alertes.append(
+            {
+                "code": CODE_ALERTE_JOURS_SANS_HEURE_D_ARRIVEE,
+                "critique": False,
+                "severity": "warning",
+                "message": (
+                    f"{remarque}. Corrigez l'heure d'arrivée au calendrier (ou posez "
+                    "l'absence), puis relancez les variables du mois ; sinon, ajustez "
+                    "la saisie dans « Primes du mois »."
+                ),
+            }
+        )
+    return alertes
 
 
 def _montant(saisie: dict) -> float:

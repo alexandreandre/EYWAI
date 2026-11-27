@@ -120,3 +120,67 @@ def test_la_situation_du_repas_de_la_regle_passe_a_la_saisie():
         }
     )
     assert situation == "sur_lieu_travail"
+
+
+# --- Badge oublié hors du prévu (L19, 26/11) ---------------------------------
+#
+# Constat LEWIS, octobre 2026 : un dimanche (« weekend » au prévu) avec des
+# heures saisies par erreur et sans heure d'arrivée prenait le poste de sa
+# semaine : un panier compté en trop. Seul un jour prévu travaillé reprend le
+# poste de sa semaine ; un week-end, un férié, un jour non planifié ne le
+# reprend jamais : il n'est pas compté et il est dit à la RH.
+
+from app.modules.payroll_variables.domain.jours_travailles import (  # noqa: E402
+    detail_jours_travailles,
+)
+
+PLAGES = [{"de": "03:30", "a": "04:30"}, {"de": "11:30", "a": "12:30"}]
+LUNDI, DIMANCHE = date(2026, 10, 5), date(2026, 10, 11)
+
+
+def _reel_semaine_badgee(**en_plus):
+    """Du lundi 5 au vendredi 9/10 badgés au poste de 4 h, plus les jours donnés."""
+    reel = {
+        date(2026, 10, j): {"jour": j, "type": "travail", "heures_faites": 7, "debut": "03:50"}
+        for j in range(5, 10)
+    }
+    reel.update(en_plus)
+    return reel
+
+
+@pytest.mark.parametrize(
+    "prevu_du_jour",
+    [
+        {"jour": 11, "type": "weekend"},
+        {"jour": 11, "type": "ferie", "heures_prevues": 0},
+        {"jour": 11, "type": "repos", "heures_prevues": 0},
+        None,
+    ],
+    ids=["week-end", "ferie", "repos", "non-planifie"],
+)
+def test_un_jour_hors_du_prevu_ne_reprend_pas_le_poste_de_sa_semaine(prevu_du_jour):
+    prevu = _semaine()
+    if prevu_du_jour is None:
+        prevu.pop(DIMANCHE)
+    else:
+        prevu[DIMANCHE] = prevu_du_jour
+    reel = _reel_semaine_badgee()
+    reel[DIMANCHE] = {"jour": 11, "type": "travail", "heures_faites": 7}
+
+    d = detail_jours_travailles(prevu, reel, set(), LUNDI, DIMANCHE, plages_debut=PLAGES)
+
+    assert d["jours"] == 5
+    assert d["repris_de_la_semaine"] == []
+    assert d["sans_heure_de_debut"] == 1
+    assert d["dates_sans_heure_de_debut"] == ["2026-10-11"]
+
+
+def test_un_jour_prevu_travaille_reprend_toujours_le_poste_de_sa_semaine():
+    reel = _reel_semaine_badgee()
+    reel[date(2026, 10, 7)] = {"jour": 7, "type": "travail", "heures_faites": 7}
+
+    d = detail_jours_travailles(_semaine(), reel, set(), LUNDI, DIMANCHE, plages_debut=PLAGES)
+
+    assert d["jours"] == 5
+    assert d["repris_de_la_semaine"] == ["2026-10-07"]
+    assert d["dates_sans_heure_de_debut"] == []

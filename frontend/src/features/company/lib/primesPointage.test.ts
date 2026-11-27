@@ -5,6 +5,7 @@ import {
   direPlage,
   erreurDeLaRegle,
   montantIgnore,
+  phraseJoursSansHeureDArrivee,
   plageAutourDe,
   trierLaSimulation,
 } from './primesPointage';
@@ -121,5 +122,35 @@ describe('trierLaSimulation', () => {
     } as never);
     expect(r.alertes.map((a) => a.employee_id)).toEqual(['2', '3']);
     expect(r.lignes.map((a) => a.employee_id)).toEqual(['1']);
+  });
+});
+
+describe('jours travaillés sans heure d\'arrivée (L19, 26/11)', () => {
+  it('donne le nombre et les dates, au singulier comme au pluriel', () => {
+    expect(phraseJoursSansHeureDArrivee(2, ['2026-10-05', '2026-10-06'])).toBe(
+      "2 jours travaillés sans heure d'arrivée, non comptés (05/10, 06/10) : poser l'absence ou corriger le badge au calendrier",
+    );
+    expect(phraseJoursSansHeureDArrivee(1, ['2026-10-11'])).toBe(
+      "1 jour travaillé sans heure d'arrivée, non compté (11/10) : poser l'absence ou corriger le badge au calendrier",
+    );
+  });
+
+  it('sans dates (simulation ancienne), le nombre seul', () => {
+    expect(phraseJoursSansHeureDArrivee(3)).toBe(
+      "3 jours travaillés sans heure d'arrivée, non comptés : poser l'absence ou corriger le badge au calendrier",
+    );
+  });
+
+  it('un panier positif avec des jours non comptés reste une alerte', () => {
+    const r = trierLaSimulation({
+      year: 2026,
+      month: 10,
+      dry_run: true,
+      written_count: 0,
+      preview: [
+        { employee_id: '1', amount: 190, quantity: 19, details: { jours_sans_heure_de_debut: 2, dates_sans_heure_de_debut: ['2026-10-05', '2026-10-06'] } },
+      ],
+    } as never);
+    expect(r.alertes.map((a) => a.employee_id)).toEqual(['1']);
   });
 });

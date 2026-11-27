@@ -65,6 +65,7 @@ import {
   TYPES_POINTAGE,
   erreurDeLaRegle,
   montantIgnore,
+  phraseJoursSansHeureDArrivee,
   trierLaSimulation,
 } from '@/features/company/lib/primesPointage';
 
@@ -152,9 +153,7 @@ function formatPreviewDetail(item: PayrollVariablePreviewItem): string {
       "aucun badge sur toute la période : importer son relevé, ou le retirer des salariés de la règle s'il ne badge pas",
     );
   } else if (d.jours_sans_heure_de_debut) {
-    parts.push(
-      `${d.jours_sans_heure_de_debut} jour(s) sans badge ni absence, que la semaine ne tranche pas : poser l'absence ou corriger le badge au calendrier`,
-    );
+    parts.push(phraseJoursSansHeureDArrivee(d.jours_sans_heure_de_debut, d.dates_sans_heure_de_debut));
   }
   if (d.jours_repris_de_la_semaine) {
     parts.push(`${d.jours_repris_de_la_semaine} jour(s) sans badge : poste repris des autres jours de la semaine`);

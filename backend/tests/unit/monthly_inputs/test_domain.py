@@ -219,3 +219,40 @@ def test_les_deux_generateurs_signalent_les_doublons(module):
         Path(__file__).resolve().parents[3] / f"app/modules/payroll/documents/{module}.py"
     ).read_text(encoding="utf-8")
     assert "alertes_de_doublon_de_prime(saisies_res.data or [])" in source
+
+
+# --- Jours sans heure d'arrivée, dits au bulletin (L19, 26/11) ---------------
+
+from app.modules.monthly_inputs.domain.rules import (  # noqa: E402
+    CODE_ALERTE_JOURS_SANS_HEURE_D_ARRIVEE,
+    alertes_de_jours_sans_heure_d_arrivee,
+)
+
+REMARQUE = "2 jours travaillés sans heure d'arrivée, non comptés pour « Panier » : 05/10, 06/10"
+
+
+def test_la_saisie_generee_qui_porte_des_jours_non_comptes_alerte_le_bulletin():
+    saisie = {"name": "Panier", "amount": 190.0, "description": f"Auto: PANIER — {REMARQUE}"}
+    alertes = alertes_de_jours_sans_heure_d_arrivee([saisie])
+    assert len(alertes) == 1
+    assert alertes[0]["code"] == CODE_ALERTE_JOURS_SANS_HEURE_D_ARRIVEE
+    assert alertes[0]["critique"] is False
+    assert alertes[0]["message"].startswith(REMARQUE)
+
+
+def test_sans_remarque_ni_saisie_generee_aucune_alerte():
+    assert alertes_de_jours_sans_heure_d_arrivee([{"name": "Panier", "amount": 190.0, "description": "Auto: PANIER"}]) == []
+    assert alertes_de_jours_sans_heure_d_arrivee([{"name": "Panier", "amount": 190.0, "description": f"À la main — {REMARQUE}"}]) == []
+
+
+def test_une_saisie_generee_retiree_par_la_rh_n_alerte_plus():
+    retiree = {"name": "Panier", "amount": 0, "manual_override": True, "description": f"Auto: PANIER — {REMARQUE}"}
+    assert alertes_de_jours_sans_heure_d_arrivee([retiree]) == []
+
+
+@pytest.mark.parametrize("module", ["payslip_generator", "payslip_generator_forfait"])
+def test_les_deux_generateurs_disent_les_jours_sans_heure_d_arrivee(module):
+    source = (
+        Path(__file__).resolve().parents[3] / f"app/modules/payroll/documents/{module}.py"
+    ).read_text(encoding="utf-8")
+    assert "alertes_de_jours_sans_heure_d_arrivee(saisies_res.data or [])" in source

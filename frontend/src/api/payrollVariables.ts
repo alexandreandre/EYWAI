@@ -69,6 +69,8 @@ export interface AstreinteWeekendMajorationConditions {
 export interface PayrollVariablePreviewDetails {
   /** Primes de pointage (17/11) : jours travaillés sans heure de début lue. */
   jours_sans_heure_de_debut?: number;
+  /** Leurs dates (AAAA-MM-JJ), L19 du 26/11. */
+  dates_sans_heure_de_debut?: string[];
   /** Badge oublié (21/11) : jours dont le poste est repris des autres jours de la semaine. */
   jours_repris_de_la_semaine?: number;
   /** Aucun badge de toute la période : relevé absent ou salarié hors badgeuse. */

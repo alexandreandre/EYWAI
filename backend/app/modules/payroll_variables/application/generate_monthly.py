@@ -46,6 +46,10 @@ from app.modules.payroll_variables.infrastructure.absence_queries import (
     list_validated_absences_for_employees_in_range,
 )
 from app.modules.payroll_variables.infrastructure import repository as repo
+from app.modules.monthly_inputs.domain.rules import (
+    description_de_saisie_generee,
+    remarque_jours_sans_heure_d_arrivee,
+)
 
 
 def _month_bounds(year: int, month: int) -> tuple[date, date]:
@@ -488,6 +492,7 @@ def _append_generated_input(
     name_suffix: str,
     details: dict[str, Any] | None = None,
     retirer_si_zero: bool = False,
+    dates_non_comptees: list[str] | None = None,
 ) -> int:
     if amount <= 0:
         if retirer_si_zero and not dry_run and rule.get("generation_mode") == "auto":
@@ -521,7 +526,12 @@ def _append_generated_input(
             "year": year,
             "month": month,
             "name": input_name,
-            "description": f"Auto: {rule.get('code')}",
+            # Les jours travaillés sans heure d'arrivée, non comptés, restent
+            # dits sur la saisie et au bulletin (L19, 26/11).
+            "description": description_de_saisie_generee(
+                rule.get("code"),
+                remarque_jours_sans_heure_d_arrivee(dates_non_comptees or [], label),
+            ),
             "amount": amount,
             "is_socially_taxed": social,
             "is_taxable": taxable,
@@ -902,6 +912,8 @@ def generate_monthly_variables(
                 }
                 if conditions.get("plages_debut"):
                     infos["jours_sans_heure_de_debut"] = detail["sans_heure_de_debut"]
+                    if detail.get("dates_sans_heure_de_debut"):
+                        infos["dates_sans_heure_de_debut"] = detail["dates_sans_heure_de_debut"]
                     if detail.get("aucun_badge"):
                         infos["aucun_badge"] = True
                     if detail.get("repris_de_la_semaine"):
@@ -940,6 +952,7 @@ def generate_monthly_variables(
                     name_suffix="",
                     details=infos,
                     retirer_si_zero=bool(conditions.get("plages_debut") or heures_par_jour),
+                    dates_non_comptees=detail.get("dates_sans_heure_de_debut") or None,
                 )
                 continue
 
