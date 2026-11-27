@@ -51,6 +51,16 @@ describe('annotations du relevé MBC (lot L18, Elsa 26/11)', () => {
     expect(phraseAnnotations(5, 2)).toBe('5 jours annotés sur le relevé, pour 2 salariés');
   });
 
+  it('une annotation qui contient « ; » reste avec son jour', () => {
+    const message =
+      'Relevé à relire — Martine a retenu les heures du badge, pas les annotations : ' +
+      'lun 21/09 « CP ; RTT » ; mar 22/09 « absent ; voir chef ».';
+    expect(lireAnnotationsReleve(message)).toEqual([
+      { jour: 'lun 21/09', annotation: '« CP ; RTT »' },
+      { jour: 'mar 22/09', annotation: '« absent ; voir chef »' },
+    ]);
+  });
+
   it('un message illisible reste montré tel quel', () => {
     expect(lireAnnotationsReleve('Relevé à relire — format inattendu')).toEqual([
       { jour: '', annotation: 'Relevé à relire — format inattendu' },

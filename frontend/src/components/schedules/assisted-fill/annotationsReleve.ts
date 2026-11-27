@@ -30,14 +30,19 @@ export function lireAnnotationsReleve(message: string): JourAnnote[] {
   const texte = message.trim();
   if (!ENTETE.test(texte)) return [{ jour: '', annotation: texte }];
   const corps = texte.replace(ENTETE, '').replace(/\.\s*$/, '');
-  const jours = corps
-    .split(/\s;\s/)
-    .map((morceau) => morceau.trim())
-    .filter(Boolean)
-    .map((morceau) => {
-      const m = JOUR.exec(morceau);
-      return m ? { jour: m[1], annotation: m[2].trim() } : { jour: '', annotation: morceau };
-    });
+  const jours: JourAnnote[] = [];
+  for (const morceau of corps.split(/\s;\s/).map((m) => m.trim()).filter(Boolean)) {
+    const m = JOUR.exec(morceau);
+    if (m) {
+      jours.push({ jour: m[1], annotation: m[2].trim() });
+    } else if (jours.length > 0) {
+      // « ; » écrit dans l'annotation même : le morceau reste avec son jour.
+      const precedent = jours[jours.length - 1];
+      precedent.annotation = `${precedent.annotation} ; ${morceau}`;
+    } else {
+      jours.push({ jour: '', annotation: morceau });
+    }
+  }
   return jours.length ? jours : [{ jour: '', annotation: texte }];
 }
 
