@@ -764,6 +764,7 @@ def assisted_fill_persist_timesheet(
                 company_id=company_id,
                 employees=payload.employees,
                 autres_lots=[b for b in payload.batch_ids if b and b != payload.batch_id],
+                user_id=str(current_user.id),
             )
             commit_req = TimesheetImportCommitRequest(
                 allow_partial=payload.allow_partial,

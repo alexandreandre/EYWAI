@@ -519,8 +519,93 @@ class GardeDesCorrections:
         return {"corrections_gardees": [c.to_dict() for c in self.gardees]}
 
 
+@dataclass
+class GardesDesFichiers:
+    """Import de plusieurs fichiers : chaque jour est jugé par la garde du
+    fichier d'où il vient (27/11).
+
+    Le lot principal (dernier fichier) porte tous les jours relus ; chaque
+    autre lot (`lots_fusionnes`) garde les jours relus de son fichier. Un jour
+    d'un autre lot passe par la garde de ce lot (s'il refait un import), les
+    autres par celle du principal : le résultat ne dépend pas de l'ordre des
+    fichiers. Même interface que `GardeDesCorrections`.
+    """
+
+    principale: GardeDesCorrections | None
+    par_lot: list[tuple[set[Cle], GardeDesCorrections | None]]
+
+    @classmethod
+    def du_lot(cls, batch: dict[str, Any], *, company_id: str) -> GardesDesFichiers | GardeDesCorrections | None:
+        principale = GardeDesCorrections.du_lot(batch, company_id=company_id)
+        summary = batch.get("summary_json") or {}
+        par_lot: list[tuple[set[Cle], GardeDesCorrections | None]] = []
+        for lot in _lots(company_id, summary.get("lots_fusionnes") or []):
+            apercu = lot.get("preview_json") or {}
+            annee, mois = int(apercu.get("year") or 0), int(apercu.get("month") or 0)
+            cles = {
+                cle
+                for emp in apercu.get("employees") or []
+                if emp.get("employee_id")
+                for jour in emp.get("days") or []
+                if (jour.get("nature") or "reel") == "reel"
+                and (cle := _cle_jour(str(emp["employee_id"]), jour, annee, mois)) is not None
+            }
+            par_lot.append((cles, GardeDesCorrections.du_lot(lot, company_id=company_id)))
+        if not par_lot:
+            return principale
+        if principale is None and all(g is None for _, g in par_lot):
+            return None
+        return cls(principale=principale, par_lot=par_lot)
+
+    @property
+    def gardees(self) -> list[CorrectionALaMain]:
+        gardes = [self.principale] + [g for _, g in self.par_lot]
+        return [c for g in gardes if g is not None for c in g.gardees]
+
+    def _garde_du_jour(self, cle: Cle) -> GardeDesCorrections | None:
+        for cles, garde in self.par_lot:
+            if cle in cles:
+                return garde
+        return self.principale
+
+    def filtrer(
+        self,
+        employees: list[PersistTimesheetEmployee],
+        annee: int,
+        mois: int,
+        existing_rows: dict[str, dict[str, Any]],
+        au_forfait: set[str] | None = None,
+    ) -> list[PersistTimesheetEmployee]:
+        # Répartit les jours par garde (les jours prévus suivent le principal).
+        paquets: dict[int, tuple[GardeDesCorrections | None, dict[str, list[Any]]]] = {}
+        for emp in employees:
+            for d in emp.days:
+                cle = (emp.employee_id, annee, mois, int(d.jour))
+                garde = self._garde_du_jour(cle) if d.nature == "reel" else self.principale
+                _, jours = paquets.setdefault(id(garde), (garde, {}))
+                jours.setdefault(emp.employee_id, []).append(d)
+        restants: dict[str, list[Any]] = {}
+        for garde, jours in paquets.values():
+            salaries = [
+                PersistTimesheetEmployee(employee_id=eid, days=days) for eid, days in jours.items()
+            ]
+            if garde is not None:
+                salaries = garde.filtrer(salaries, annee, mois, existing_rows, au_forfait=au_forfait)
+            for emp in salaries:
+                restants.setdefault(emp.employee_id, []).extend(emp.days)
+        return [
+            PersistTimesheetEmployee(employee_id=emp.employee_id, days=restants[emp.employee_id])
+            for emp in employees
+            if restants.get(emp.employee_id)
+        ]
+
+    def resume(self) -> dict[str, Any]:
+        return {"corrections_gardees": [c.to_dict() for c in self.gardees]}
+
+
 __all__ = [
     "CODE_DEJA_IMPORTE",
+    "GardesDesFichiers",
     "GardeDesCorrections",
     "annoter_reimport",
     "fiche_du_lot",

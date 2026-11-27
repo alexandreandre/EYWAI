@@ -271,3 +271,33 @@ def test_skip_rows_compte_les_lignes_comme_avant():
     ]
     res = _lire(PAIRES, lignes, skip_rows=1)
     assert [(r.raw_name, r.jour) for r in res.rows] == [("B", 2), ("B", 5)]
+
+
+# --- « Heures payées » suivie de « Heures sup » -----------------------------
+
+
+def test_heures_sup_ne_devient_jamais_la_colonne_des_heures():
+    for entete in (["Date", "Nom", "Heures payées", "Heures sup"],
+                   ["Date", "Nom", "Heures sup", "Heures payées"]):
+        i_payees, i_sup = entete.index("Heures payées"), entete.index("Heures sup")
+
+        def ligne(j, payees, sup):
+            l = [d(j), "A", None, None]
+            l[i_payees], l[i_sup] = payees, sup
+            return l
+
+        res = _lire(entete, [ligne(1, 7, 1), ligne(2, None, 2)])
+        assert res.column_mapping["hours"] == "Heures payées", entete
+        jours = {r.jour: r for r in res.rows}
+        assert jours[1].heures == 7.0
+        # Vide dans « Heures payées » : le jour reste vide, avec sa note.
+        assert jours[2].heures is None, entete
+        assert any("Heures payées" in n for n in jours[2].notes), entete
+
+
+def test_heures_sup_seule_n_est_pas_la_colonne_des_heures():
+    mapping = parse_tabular_file(
+        _classeur(["Date", "Nom", "Heures sup"], [[d(1), "A", 2]]), "r.xlsx",
+        target_year=2026, target_month=10, options={"skip_period_filter": True},
+    ).column_mapping
+    assert "hours" not in mapping

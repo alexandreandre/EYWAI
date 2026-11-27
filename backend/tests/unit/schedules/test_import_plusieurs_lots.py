@@ -167,11 +167,12 @@ def test_l_appel_a_un_seul_lot_reste_compatible(mock_repo):
     assert "lots_fusionnes" not in ecrits["lot-s43"].get("summary_json", {})
 
 
+@patch("app.modules.schedules.application.timesheet_import.reimport_service.timesheet_import_repository")
 @patch(f"{SERVICE}.record_schedule_import_run")
 @patch(f"{SERVICE}.schedule_repository")
 @patch(f"{SERVICE}.timesheet_import_repository")
 @patch(f"{SERVICE}.get_employee_company_and_statut")
-def test_le_commit_valide_aussi_les_lots_fusionnes(mock_statut, mock_repo, mock_sched, _audit):
+def test_le_commit_valide_aussi_les_lots_fusionnes(mock_statut, mock_repo, mock_sched, _audit, mock_reimport):
     from app.modules.schedules.application.timesheet_import.commit_service import (
         commit_batch_bulk,
     )
@@ -179,6 +180,7 @@ def test_le_commit_valide_aussi_les_lots_fusionnes(mock_statut, mock_repo, mock_
     lots = _lots()
     lots["lot-s43"]["summary_json"] = {"lots_fusionnes": ["lot-s39"]}
     mock_repo.get_batch.side_effect = lambda bid, **_: lots.get(bid)
+    mock_reimport.get_batch.side_effect = lambda bid, **_: lots.get(bid)
     mock_statut.return_value = ("c1", "CDI")
     mock_sched.list_schedules_for_employees.return_value = {}
 

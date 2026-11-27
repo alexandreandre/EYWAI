@@ -147,6 +147,10 @@ TITRES_HEURES_RETENUES = ("heures retenues", "heures payees")
 TITRE_TOTAL_HEURES = "total heures"
 
 
+def _heures_supplementaires(header: str) -> bool:
+    return re.search(r"\bsup", _normalize_header(header)) is not None
+
+
 def _total_pointe(header: str) -> bool:
     norm = _normalize_header(header)
     return "poin" in norm or "badg" in norm
@@ -179,10 +183,18 @@ def detect_column_mapping(headers: List[str]) -> Dict[str, str]:
         for field_name, aliases in DEFAULT_COLUMN_ALIASES.items():
             if field_name in mapping:
                 continue
+            if field_name == "hours" and _heures_supplementaires(header):
+                # « Heures sup » n'est jamais la colonne des heures du jour.
+                continue
             if _match_alias(header, aliases):
                 mapping[field_name] = header
                 break
     retenue = _colonne_retenue_titree(headers, mapping.get("hours"))
+    if not retenue and mapping.get("hours") and (
+        _normalize_header(mapping["hours"]) in TITRES_HEURES_RETENUES
+    ):
+        # « Heures payées » seule : elle fait foi, un jour vide reste vide.
+        retenue = mapping["hours"]
     if retenue:
         mapping["hours_retained"] = retenue
     return mapping
@@ -628,6 +640,13 @@ def parse_tabular_file(
                 notes.append(
                     "Heures retenues vides dans le fichier : heures calculées "
                     "depuis les badges, à vérifier."
+                )
+            elif retained_col == hours_col:
+                # Seule colonne d'heures, titrée « Heures payées » : vide, le
+                # jour reste vide (à compléter), jamais 0 h.
+                heures = None
+                notes.append(
+                    f"« {retained_col} » vide dans le fichier : jour à compléter."
                 )
 
         result.rows.append(

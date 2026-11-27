@@ -24,7 +24,7 @@ from app.modules.admin_import.infrastructure import repository as admin_repo
 from app.modules.schedules.infrastructure.arrets_valides import arrets_valides_reader
 from app.modules.schedules.infrastructure.repository import schedule_repository
 from app.modules.schedules.application.timesheet_import.reimport_service import (
-    GardeDesCorrections,
+    GardesDesFichiers,
 )
 from app.modules.schedules.infrastructure.timesheet_import_repository import (
     timesheet_import_repository,
@@ -741,7 +741,7 @@ def _commit_multi_month_batch(
     arrets_valides = _arrets_des_mois(
         sorted({e.employee_id for emps in by_month.values() for e in emps}), month_keys
     )
-    garde = GardeDesCorrections.du_lot(batch, company_id=company_id)
+    garde = GardesDesFichiers.du_lot(batch, company_id=company_id)
     # La case `is_forfait_jour` d'abord, le libellé en repli.
     au_forfait = {
         emp_id for emp_id, meta in employee_meta.items() if est_au_forfait_jours(meta)
@@ -1078,12 +1078,40 @@ def _nom_du_salarie(
     return "salarié sans nom"
 
 
+def _verifier_lot_ouvert(lot: Dict[str, Any], user_id: Optional[str]) -> None:
+    """Avant toute écriture : un lot déjà validé ou en cours d'enregistrement,
+    ou importé par un autre utilisateur, ne se relit pas ici."""
+    nom = f"« {lot.get('filename')} »" if lot.get("filename") else "de ce lot"
+    if lot.get("status") == "committed":
+        raise ScheduleAppError(
+            "validation",
+            f"Le relevé {nom} est déjà enregistré : relancez l'import pour le relire. "
+            "Rien n'a été enregistré.",
+            status_code=409,
+        )
+    if lot.get("status") == "committing":
+        raise ScheduleAppError(
+            "validation",
+            f"Le relevé {nom} est en cours d'enregistrement : attendez la fin avant "
+            "d'enregistrer à nouveau. Rien n'a été enregistré.",
+            status_code=409,
+        )
+    if user_id and lot.get("user_id") and str(lot["user_id"]) != str(user_id):
+        raise ScheduleAppError(
+            "forbidden",
+            f"Le relevé {nom} a été importé par un autre utilisateur : importez-le "
+            "vous-même pour l'enregistrer. Rien n'a été enregistré.",
+            status_code=403,
+        )
+
+
 def appliquer_revue_au_lot(
     batch_id: str,
     *,
     company_id: str,
     employees: List[PersistTimesheetEmployee],
     autres_lots: Sequence[str] = (),
+    user_id: Optional[str] = None,
 ) -> None:
     """Les jours relus à l'écran remplacent ceux du modèle dans l'aperçu du lot.
 
@@ -1115,6 +1143,7 @@ def appliquer_revue_au_lot(
     batch = timesheet_import_repository.get_batch(batch_id, company_id=company_id)
     if not batch:
         raise ScheduleAppError("validation", "Batch introuvable.", status_code=404)
+    _verifier_lot_ouvert(batch, user_id)
     preview = dict(batch.get("preview_json") or {})
     mois_lot: Mois = (int(preview.get("year") or 0), int(preview.get("month") or 0))
     entrees = [dict(e) for e in preview.get("employees") or []]
@@ -1129,6 +1158,7 @@ def appliquer_revue_au_lot(
                 "rien n'a été enregistré.",
                 status_code=404,
             )
+        _verifier_lot_ouvert(lot, user_id)
         apercu = dict(lot.get("preview_json") or {})
         autres.append((
             autre_id,
@@ -1364,7 +1394,7 @@ def commit_batch_bulk(
     arrets_valides = _arrets_des_mois(
         sorted({e.employee_id for e in employees}), sorted(par_mois)
     )
-    garde = GardeDesCorrections.du_lot(batch, company_id=company_id)
+    garde = GardesDesFichiers.du_lot(batch, company_id=company_id)
     for (annee, mois), employes_du_mois in sorted(par_mois.items()):
         existing_rows = schedule_repository.list_schedules_for_employees(
             [e.employee_id for e in employes_du_mois], annee, mois
