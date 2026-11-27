@@ -148,6 +148,8 @@ interface EditableDay {
   month?: number | null;
   /** Jour non lu ajouté par la case « absent » (décoché, il disparaît). */
   ajoutParCase?: boolean;
+  /** Heures retenues par le client dans son fichier, pas recalculées. */
+  heures_fixees_par_fichier?: boolean;
 }
 
 interface EditableRow {
@@ -492,6 +494,7 @@ export function AssistedFillReview({
         heure_fin: d.heure_fin ?? null,
         year: d.year ?? null,
         month: d.month ?? null,
+        heures_fixees_par_fichier: d.heures_fixees_par_fichier ?? false,
       })),
       weeklyTotalPdf: emp.weekly_total_pdf ?? null,
       weeklyTotalImported: emp.weekly_total_imported ?? null,
@@ -759,11 +762,18 @@ export function AssistedFillReview({
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   };
 
-  const updateDay = (rowKey: string, jour: number, patch: Partial<EditableDay>) => {
+  // Un jour se désigne par sa date complète : deux relevés fusionnés peuvent
+  // porter le même numéro de jour dans deux mois (21/09 et 21/10).
+  const memeJour = (a: EditableDay, b: EditableDay) =>
+    a.jour === b.jour &&
+    (a.year ?? null) === (b.year ?? null) &&
+    (a.month ?? null) === (b.month ?? null);
+
+  const updateDay = (rowKey: string, jour: EditableDay, patch: Partial<EditableDay>) => {
     setRows((prev) =>
       prev.map((r) =>
         r.key === rowKey
-          ? { ...r, days: r.days.map((d) => (d.jour === jour ? { ...d, ...patch } : d)) }
+          ? { ...r, days: r.days.map((d) => (memeJour(d, jour) ? { ...d, ...patch } : d)) }
           : r,
       ),
     );
@@ -782,10 +792,10 @@ export function AssistedFillReview({
     mois: proposal.month,
   };
 
-  const removeDay = (rowKey: string, jour: number) => {
+  const removeDay = (rowKey: string, jour: EditableDay) => {
     setRows((prev) =>
       prev.map((r) =>
-        r.key === rowKey ? { ...r, days: r.days.filter((d) => d.jour !== jour) } : r,
+        r.key === rowKey ? { ...r, days: r.days.filter((d) => !memeJour(d, jour)) } : r,
       ),
     );
   };
@@ -1545,7 +1555,7 @@ export function AssistedFillReview({
                           min="0"
                           value={day.heures ?? ''}
                           onChange={(e) =>
-                            updateDay(row.key, day.jour, {
+                            updateDay(row.key, day, {
                               heures: e.target.value === '' ? null : Number(e.target.value),
                             })
                           }
@@ -1553,7 +1563,7 @@ export function AssistedFillReview({
                         />
                         <Select
                           value={day.type}
-                          onValueChange={(v) => updateDay(row.key, day.jour, { type: v })}
+                          onValueChange={(v) => updateDay(row.key, day, { type: v })}
                         >
                           <SelectTrigger className="h-7 w-[72px] px-1 text-[11px]">
                             <SelectValue />
@@ -1568,7 +1578,7 @@ export function AssistedFillReview({
                         </Select>
                         <NatureToggle
                           nature={day.nature}
-                          onChange={(n) => updateDay(row.key, day.jour, { nature: n })}
+                          onChange={(n) => updateDay(row.key, day, { nature: n })}
                         />
                         </>
                         )}
@@ -1578,6 +1588,7 @@ export function AssistedFillReview({
                             data-testid="badges-du-jour"
                           >
                             {libelleBadges(day.punch_entry_raw, day.punch_exit_raw)}
+                            {day.heures_fixees_par_fichier && ' · heures retenues du fichier'}
                           </span>
                         )}
                         {vide && (
@@ -1593,7 +1604,7 @@ export function AssistedFillReview({
                         )}
                         <button
                           type="button"
-                          onClick={() => removeDay(row.key, day.jour)}
+                          onClick={() => removeDay(row.key, day)}
                           className="ml-auto text-muted-foreground hover:text-destructive"
                         >
                           <Trash2 className="h-3.5 w-3.5" />

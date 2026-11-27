@@ -40,7 +40,6 @@ import {
   startTimesheetExtractBatch,
   waitForTimesheetExtractJob,
   type AiCalendarProposal,
-  type AiEmployeeProposal,
   type DocumentScopeInput,
   type RefusDejaImporte,
   type RosterEmployee,
@@ -75,6 +74,7 @@ import {
   type PointageImportJob,
 } from '@/hooks/usePointageImportJobs';
 import { accord, pluriel } from '@/lib/pluriel';
+import { mergeProposals } from './fusionReleves';
 
 const MONTHS = [
   'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
@@ -119,76 +119,6 @@ function useSmoothedProgress(
   }, [active, expectedMs]);
 
   return active ? value : realPct;
-}
-
-function mergeEmployeeProposals(
-  existing: AiEmployeeProposal[],
-  incoming: AiEmployeeProposal[],
-): AiEmployeeProposal[] {
-  const byKey = new Map<string, AiEmployeeProposal>();
-  const keyOf = (e: AiEmployeeProposal) =>
-    e.time_tracking_id ?? e.employee_id ?? e.raw_name;
-
-  [...existing, ...incoming].forEach((emp) => {
-    const key = keyOf(emp);
-    const prev = byKey.get(key);
-    if (!prev) {
-      byKey.set(key, { ...emp, days: [...emp.days] });
-      return;
-    }
-    const dayMap = new Map(prev.days.map((d) => [d.jour, d]));
-    emp.days.forEach((d) => dayMap.set(d.jour, d));
-    byKey.set(key, {
-      ...prev,
-      ...emp,
-      days: [...dayMap.values()].sort((a, b) => a.jour - b.jour),
-      warnings: [...new Set([...prev.warnings, ...emp.warnings])],
-    });
-  });
-  return [...byKey.values()];
-}
-
-function mergeProposals(proposals: AiCalendarProposal[]): AiCalendarProposal {
-  const base = proposals[proposals.length - 1];
-  let employees: AiEmployeeProposal[] = [];
-  const warnings = new Set<string>();
-  let ready = 0;
-  let warning = 0;
-  let error = 0;
-  let empty = 0;
-  let incomplete = 0;
-  let gap = 0;
-
-  proposals.forEach((p) => {
-    employees = mergeEmployeeProposals(employees, p.employees);
-    p.warnings.forEach((w) => warnings.add(w));
-  });
-
-  employees.forEach((e) => {
-    if (e.review_status === 'empty') empty += 1;
-    else if (e.review_status === 'error' || !e.employee_id) error += 1;
-    else if (e.quality_issue === 'extraction_incomplete') incomplete += 1;
-    else if (e.quality_issue === 'weekly_total_gap') gap += 1;
-    else if (e.review_status === 'warning' || e.match_confidence === 'medium') warning += 1;
-    else ready += 1;
-  });
-
-  return {
-    ...base,
-    employees,
-    warnings: [...warnings],
-    source: `${pluriel(proposals.length, 'relevé')} ${accord(proposals.length, 'fusionné')}`,
-    review_summary: {
-      ready,
-      warning,
-      error,
-      empty,
-      incomplete,
-      gap,
-      total: employees.length,
-    },
-    quality_checks: proposals.flatMap((p) => p.quality_checks ?? []),
-  };
 }
 
 interface PointageImportDialogProps {

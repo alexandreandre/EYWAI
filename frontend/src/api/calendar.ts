@@ -263,6 +263,9 @@ export interface AiDayEntry {
   // (semaine hebdomadaire à cheval sur deux mois). Absent = mois de la proposition.
   year?: number | null;
   month?: number | null;
+  /** Heures décidées par le client dans son fichier (colonne des heures
+   * retenues) : le calcul des badges ne les a pas réécrites. */
+  heures_fixees_par_fichier?: boolean;
 }
 
 export type AiMatchConfidence = 'high' | 'medium' | 'none';
