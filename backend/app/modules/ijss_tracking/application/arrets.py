@@ -461,10 +461,23 @@ class _ReportDesArrets:
     def bloc_reporte(self, arret: dict[str, Any]) -> dict[str, Any] | None:
         """Le bloc de l'arrêt sur le bulletin suivant qui l'a repris."""
         suivant = self.bulletin_suivant(str(arret.get("employee_id") or ""))
-        for bloc in ((suivant or {}).get("payslip_data") or {}).get("arrets_reportes") or []:
-            if str((bloc or {}).get("absence_id") or "") == str(arret.get("id")):
-                return bloc
-        return None
+        blocs = [
+            bloc
+            for bloc in ((suivant or {}).get("payslip_data") or {}).get("arrets_reportes") or []
+            if str((bloc or {}).get("absence_id") or "") == str(arret.get("id"))
+        ]
+        if len(blocs) <= 1:
+            return blocs[0] if blocs else None
+        # Jours reportés en plusieurs suites (un calcul par suite) : leurs
+        # montants s'additionnent à l'écran.
+        return {
+            **blocs[0],
+            "du": min(str(b.get("du") or "") for b in blocs),
+            "au": max(str(b.get("au") or "") for b in blocs),
+            "maintien_verse": round(sum(float(b.get("maintien_verse") or 0.0) for b in blocs), 2),
+            "ijss_theorique": round(sum(float(b.get("ijss_theorique") or 0.0) for b in blocs), 2),
+            "nb_jours_indemnises": sum(int(b.get("nb_jours_indemnises") or 0) for b in blocs),
+        }
 
 
 def _arret_de_la_societe(company_id: str, absence_id: str) -> dict[str, Any]:

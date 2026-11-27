@@ -724,11 +724,16 @@ def sans_les_jours_deja_reportes(
             continue
         dernier = max(gardes)
         if all(r > dernier for r in repris_ici):
+            # Fin reprise : l'arrêt s'arrête ici la veille du premier jour repris.
+            # Un week-end compté par l'origine entre son dernier jour ouvré et la
+            # reprise reste le sien (ses IJ et son maintien n'iraient nulle part).
+            premier_repris = min(repris_ici)
+            fin_ici = (premier_repris - timedelta(days=1)).isoformat()
             for d, ev in membres:
-                if d > dernier:
+                if d >= premier_repris:
                     a_retirer.add(id(ev))
                 else:
-                    a_borner[id(ev)] = dernier.isoformat()
+                    a_borner[id(ev)] = fin_ici
         else:
             partiels.update(id(ev) for d, ev in membres if d not in jours)
     gardes_evs: list[dict[str, Any]] = []

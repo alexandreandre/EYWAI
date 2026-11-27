@@ -1051,3 +1051,73 @@ def test_un_arret_repris_au_milieu_se_dit_au_bulletin_d_origine():
         saisie_du_mois=None, avec_arret_du_mois=True,
     )
     assert sans.alertes_baremes == []
+
+
+# Quatrième relecture (26/11) : week-end gardé en fin d'arrêt, jours reportés non contigus.
+
+def _octobre_en_arret(fin: str) -> list[dict]:
+    meta = {"arret_type": "maladie", "subrogation_active": True,
+            "date_debut_arret_reel": "2026-10-19", "date_fin_arret_reel": fin}
+    dernier = int(fin[-2:])
+    cal = [{"date_complete": f"2026-10-{d:02d}", "type": "travail_base", "heures": 7.0}
+           for d in range(1, 32) if date(2026, 10, d).weekday() < 5 and not (19 <= d <= dernier)]
+    for d in range(19, dernier + 1):
+        we = date(2026, 10, d).weekday() >= 5
+        cal.append({"date_complete": f"2026-10-{d:02d}", "type": "weekend" if we else "arret_maladie",
+                    "heures": 0.0 if we else 7.0, **meta})
+    return cal
+
+
+def _ij_d_octobre(cal):
+    from app.modules.payroll.documents.payslip_run_heures import (
+        _extraire_arret_pour_maintien,
+    )
+    from app.modules.payroll.engine.maintien_salaire_service import calculer_maintien
+
+    ctx = _contexte(False)
+    arret = _extraire_arret_pour_maintien(cal, ctx, date(2026, 10, 1), date(2026, 10, 31))
+    r = calculer_maintien(arret, ctx, dict(REGLAGES), date(2026, 10, 1), date(2026, 10, 31))
+    return arret["date_fin"], r["ijss"].get("nb_jours_indemnises"), r["ijss"].get("ijss_theorique")
+
+
+def test_origine_regeneree_garde_le_week_end_compte_avant_la_reprise(sans_base):
+    """Arrêt du lun 19 au dim 25/10 validé, prolongé au 30 ; novembre reprend
+    26-30 ; octobre régénéré garde le 24 et le 25 (leurs IJ n'iraient nulle part)."""
+    from app.modules.payroll.application.arrets_reportes import (
+        sans_les_jours_deja_reportes,
+    )
+
+    valide = _ij_d_octobre(_octobre_en_arret("2026-10-25"))
+    reste = sans_les_jours_deja_reportes(
+        _octobre_en_arret("2026-10-30"), {date(2026, 10, d) for d in range(26, 31)}, 2026, 10
+    )
+    assert _ij_d_octobre(reste) == valide
+    assert valide[0] == "2026-10-25"
+
+
+def test_jours_reportes_non_contigus_ne_repaient_pas_le_trou(sans_base):
+    """Octobre validé avec l'arrêt 21-27/10 ; la demande devient 20-29/10 : seuls
+    le 20, le 28 et le 29 sont reportés, et seuls eux reçoivent IJ et maintien."""
+    from app.modules.payroll.application.arrets_reportes import (
+        JourReporte,
+        evenements_du_report,
+    )
+    from app.modules.payroll.documents.arrets_reportes_bulletin import (
+        maintien_des_arrets_reportes,
+    )
+
+    analyse = [
+        _jour_d_arret(date(2026, 10, d), "2026-10-20", "2026-10-29",
+                      "arret_maladie" if date(2026, 10, d).weekday() < 5 else "weekend")
+        for d in range(20, 30)
+    ]
+    jours = [JourReporte(date(2026, 10, d), ARRET_ID) for d in (20, 28, 29)]
+    evs = evenements_du_report(analyse, jours, 2026, 10)
+    blocs = maintien_des_arrets_reportes(
+        evs, _contexte(False), company_id="societe", employee_id="A",
+        year=2026, month=11, saisie_du_mois={}, avec_arret_du_mois=False,
+    )
+    assert [sorted(b.jours) for b in blocs] == [
+        [date(2026, 10, 20)], [date(2026, 10, 28), date(2026, 10, 29)]
+    ]
+    assert sum(int(b.resultat["ijss"].get("nb_jours_indemnises") or 0) for b in blocs) <= 3

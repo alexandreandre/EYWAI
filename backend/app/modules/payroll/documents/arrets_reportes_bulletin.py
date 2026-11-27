@@ -179,7 +179,11 @@ def maintien_des_arrets_reportes(
     saisie = saisie_du_mois or {}
     settings = get_maintenance_settings(company_id).model_dump(mode="json")
     sortie = _date_contrat(contexte, "date_sortie")
-    groupes = _regrouper_par_arret(candidats)
+    # Une suite de dates consécutives par calcul : des jours reportés d'un même
+    # arrêt séparés par des jours que l'origine a déjà payés (demande corrigée
+    # aux deux bouts) ne font pas payer ces jours-là une seconde fois. Chaque
+    # suite garde le vrai début de l'arrêt : carence et rang inchangés.
+    groupes = [suite for groupe in _regrouper_par_arret(candidats) for suite in _suites_consecutives(groupe)]
     override = saisie.get("ijss_brut_override")
     blocs: list[BlocReporte] = []
     for groupe in groupes:
@@ -220,6 +224,17 @@ def maintien_des_arrets_reportes(
         absence_id = next((str(ev.get("absence_id") or "") for _, ev in groupe if ev.get("absence_id")), "")
         blocs.append(BlocReporte(absence_id, jours, resultat))
     return blocs
+
+
+def _suites_consecutives(groupe: list[tuple[date, dict[str, Any]]]) -> list[list[tuple[date, dict[str, Any]]]]:
+    """Les jours d'un arrêt reporté, coupés là où une date manque."""
+    suites: list[list[tuple[date, dict[str, Any]]]] = []
+    for d, ev in sorted(groupe, key=lambda x: x[0]):
+        if suites and (d - suites[-1][-1][0]).days <= 1:
+            suites[-1].append((d, ev))
+        else:
+            suites.append([(d, ev)])
+    return suites
 
 
 def _sans_ij_estimees(resultat: dict[str, Any], jours: list[date], attribue_a: str) -> dict[str, Any]:
