@@ -137,14 +137,6 @@ def employee_to_payroll_payload(
 
     seniority_ref = resolve_seniority_reference_date(employee) or ""
     date_anciennete_prime = resolve_date_anciennete_prime(employee) or hire_date
-    if jours_anciennete_neutralises and date_anciennete_prime:
-        # Congé parental à temps plein : compté pour moitié (C. trav. L1225-54).
-        from datetime import date as _date, timedelta as _timedelta
-
-        date_anciennete_prime = (
-            _date.fromisoformat(str(date_anciennete_prime)[:10])
-            + _timedelta(days=int(jours_anciennete_neutralises))
-        ).isoformat()
     return {
         "id": employee.get("id"),
         "first_name": employee.get("first_name") or "",
@@ -172,6 +164,9 @@ def employee_to_payroll_payload(
         "maintien_regime_apprenti": bool(
             specificites.get("maintien_regime_apprenti", False)
         ),
+        # Congé parental à temps plein, compté pour moitié (L1225-54) : posé au
+        # bloc contrat comme par le générateur, lu par le même calcul.
+        "jours_anciennete_neutralises": int(jours_anciennete_neutralises or 0),
     }
 
 
@@ -279,25 +274,44 @@ def company_to_payroll_payload(
     }
 
 
-def _jours_neutralises(employee: Dict[str, Any]) -> int:
-    """Jours d'ancienneté que les congés parentaux validés ne donnent pas, à ce jour."""
-    from app.modules.payroll.documents.payslip_generator import depart_de_l_anciennete
+def _jours_neutralises(
+    employee: Dict[str, Any], month: Optional[int] = None, year: Optional[int] = None
+) -> int:
+    """Jours d'ancienneté que les congés parentaux validés ne donnent pas, au
+    dernier jour du mois simulé (à défaut, du mois en cours). Une lecture
+    impossible ne bloque pas la simulation : elle compte alors sans neutralisation."""
+    import calendar as _calendar
+
+    from app.shared.seniority_reference import depart_de_l_anciennete
     from app.shared.infrastructure.conge_parental import jours_neutralises_du_salarie
 
-    return jours_neutralises_du_salarie(
-        employee.get("id"), date.today(), None, depart_de_l_anciennete(employee)
-    )
+    aujourd_hui = date.today()
+    annee, mois = year or aujourd_hui.year, month or aujourd_hui.month
+    try:
+        return jours_neutralises_du_salarie(
+            employee.get("id"),
+            date(annee, mois, _calendar.monthrange(annee, mois)[1]),
+            None,
+            depart_de_l_anciennete(employee),
+        )
+    except Exception:  # noqa: BLE001 — la simulation continue, sans neutralisation
+        logger.exception("Congés parentaux illisibles pour la simulation de %s", employee.get("id"))
+        return 0
 
 
 def resolve_employee_payload(
     company_id: str,
     employee_id: Optional[str],
     options_or_scenario: Dict[str, Any],
+    month: Optional[int] = None,
+    year: Optional[int] = None,
 ) -> Dict[str, Any]:
     company = load_company(company_id)
     if employee_id:
         employee = load_employee(employee_id, company_id)
-        return employee_to_payroll_payload(employee, company, _jours_neutralises(employee))
+        return employee_to_payroll_payload(
+            employee, company, _jours_neutralises(employee, month, year)
+        )
     return manual_employee_payload(options_or_scenario, company)
 
 
@@ -340,7 +354,9 @@ def run_reverse_calculation_for_company(
         company=company,
         employee=load_employee(employee_id, company_id) if employee_id else None,
     )
-    employee_payload = resolve_employee_payload(company_id, employee_id, options or {})
+    employee_payload = resolve_employee_payload(
+        company_id, employee_id, options or {}, month, year
+    )
     return simulation_commands.run_reverse_calculation(
         employee_data=employee_payload,
         company_data=company_to_payroll_payload(company, year),
@@ -527,7 +543,7 @@ def create_payslip_simulation_record(
     )
     baremes = load_baremes()
     employee_payload = (
-        employee_to_payroll_payload(employee, company, _jours_neutralises(employee))
+        employee_to_payroll_payload(employee, company, _jours_neutralises(employee, month, year))
         if employee
         else manual_employee_payload(scenario_data or {}, company)
     )

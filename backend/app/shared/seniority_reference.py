@@ -62,6 +62,22 @@ def decaler_selon_le_contrat(valeur: Any, contrat: dict[str, Any] | None) -> Any
         return valeur
 
 
+def depart_de_l_anciennete(employee: dict[str, Any] | None):
+    """Le plus ancien de l'embauche et de la date d'ancienneté de la fiche : un
+    congé parental d'avant ne retire rien à l'ancienneté (L1225-54)."""
+    from datetime import date
+
+    if not employee:
+        return None
+    dates = []
+    for valeur in (employee.get("hire_date"), resolve_seniority_reference_date(employee)):
+        try:
+            dates.append(date.fromisoformat(str(valeur)[:10]))
+        except ValueError:
+            continue
+    return min(dates) if dates else None
+
+
 def resolve_date_anciennete_from_contrat(contrat: dict[str, Any] | None) -> str | None:
     """Lit la date ancienneté prime depuis un contrat.json paie."""
     if not contrat or not isinstance(contrat, dict):

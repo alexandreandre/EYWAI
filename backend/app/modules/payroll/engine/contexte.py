@@ -58,6 +58,13 @@ def ChargerContexte(
                 or "",
                 "date_debut_execution": employee_data.get("date_debut_execution")
                 or "",
+                # Congé parental à temps plein : jours d'ancienneté neutralisés
+                # (L1225-54), posés comme par le générateur ; absents sinon.
+                **(
+                    {"jours_anciennete_neutralises": int(employee_data["jours_anciennete_neutralises"])}
+                    if employee_data.get("jours_anciennete_neutralises")
+                    else {}
+                ),
             },
             "remuneration": {
                 "salaire_de_base": {
