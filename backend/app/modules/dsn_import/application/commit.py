@@ -13,6 +13,7 @@ from app.modules.dsn_import.application.cumuls import (
 )
 from app.modules.dsn_import.application.mapping import normalize_employee_edits
 from app.modules.dsn_import.domain.user_messages import (
+    absence_alert_issue,
     absence_blocked_by_exit_skip_issue,
     cumul_skipped_after_employee_error_issue,
     humanize_commit_error,
@@ -504,6 +505,12 @@ def commit_batch(
                     )
                     stats["skipped"] += 1
                     continue
+                for message in absence_result.get("alertes") or []:
+                    warnings.append(
+                        absence_alert_issue(
+                            message, source_ref=source_ref, item_label=_item_label(item)
+                        )
+                    )
                 dsn_import_stats["absences_created"] += 1
                 stats["created"] += 1
             elif item_type == "collective_agreement":

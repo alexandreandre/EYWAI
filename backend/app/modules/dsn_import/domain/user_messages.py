@@ -445,6 +445,20 @@ def is_absence_blocked_by_exit(exc: BaseException) -> bool:
     return "processus de sortie" in str(exc).lower()
 
 
+def absence_alert_issue(
+    message: str, *, source_ref: str = "", item_label: Optional[str] = None
+) -> Dict[str, Any]:
+    """Avertissement non bloquant posé par la reprise d'une absence (congé
+    parental : fin anticipée, jours déjà payés, sans solde non requalifié)."""
+    return build_issue(
+        "absence_import_alert",
+        message,
+        severity="warning",
+        source_ref=source_ref or None,
+        item_label=item_label,
+    )
+
+
 def absence_blocked_by_exit_skip_issue(
     *,
     source_ref: str = "",

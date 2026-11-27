@@ -712,30 +712,44 @@ def create_reconciliation_absence(
 def _requalifier_en_conge_parental(
     employee_id: str, jours_importes: list[str], existantes: list[dict], sb: Any
 ) -> list[str]:
-    """Import d'un 632 : les sans solde non typés qui recouvrent ses jours
-    deviennent le congé parental (sous-type, motif au planning). Rend les
-    alertes : une période importée qui finit avant le congé déjà saisi
-    (hors fin de mois, où l'ancien logiciel borne sa déclaration) annonce
-    peut-être une fin anticipée."""
+    """Import d'un 632 : un sans solde non typé dont tous les jours sont dans la
+    période déclarée devient le congé parental (sous-type, motif au planning).
+    Un sans solde qui en déborde n'est pas touché (un congé fini le 15/09 suivi
+    d'un sans solde posé par la RH, que l'ancien logiciel déclare jusqu'au 30/09) :
+    une alerte le dit. Rend les alertes, dont une fin anticipée possible et les
+    bulletins déjà calculés qui retiennent les jours requalifiés."""
     jours = set(jours_importes)
+    alertes: list[str] = []
+    requalifies: list[str] = []
     for row in existantes:
-        if est_conge_parental(row) or not jours & {str(j)[:10] for j in row.get("selected_days") or []}:
+        jours_de_la_demande = {str(j)[:10] for j in row.get("selected_days") or []}
+        if est_conge_parental(row) or not jours & jours_de_la_demande:
+            continue
+        if row.get("event_subtype") or not jours_de_la_demande <= jours:
+            debut, fin = min(jours_de_la_demande), max(jours_de_la_demande)
+            alertes.append(
+                f"Congé parental déclaré en DSN : le congé sans solde du "
+                f"{date.fromisoformat(debut):%d/%m/%Y} au {date.fromisoformat(fin):%d/%m/%Y} "
+                "en déborde et reste un sans solde. Vérifiez lequel des deux est juste."
+            )
             continue
         sb.table("absence_requests").update({"event_subtype": SOUS_TYPE_CONGE_PARENTAL}).eq(
             "id", row["id"]
         ).execute()
         row["event_subtype"] = SOUS_TYPE_CONGE_PARENTAL
+        requalifies.extend(sorted(jours_de_la_demande))
         meta = _meta_conge_parental({**row, "employee_id": employee_id}, existantes)
         try:
             calendar_update_provider.poser_le_motif_du_conge_parental(
                 employee_id,
-                [date.fromisoformat(str(j)[:10]) for j in row.get("selected_days") or []],
+                [date.fromisoformat(j) for j in sorted(jours_de_la_demande)],
                 meta.get("periode_absence"),
             )
         except Exception:
             logger.exception("Motif du congé parental non posé au planning pour %s", row.get("id"))
+    alertes.extend(_bulletins_qui_retiennent_deja(employee_id, requalifies, sb))
     if not jours_importes:
-        return []
+        return alertes
     fin_importee = max(jours_importes)
     chaine = periode_du_jour(
         periodes_chainees([*existantes, {"type": "sans_solde", "event_subtype": SOUS_TYPE_CONGE_PARENTAL,
@@ -745,12 +759,46 @@ def _requalifier_en_conge_parental(
     fin = date.fromisoformat(fin_importee)
     fin_de_mois = (fin + timedelta(days=1)).day == 1
     if chaine and chaine["fin"] > fin_importee and not fin_de_mois:
-        return [
+        alertes.append(
             f"Congé parental : la DSN déclare la fin au {fin:%d/%m/%Y}, le congé saisi va "
             f"jusqu'au {date.fromisoformat(chaine['fin']):%d/%m/%Y}. Fin anticipée ? "
             "Si oui, modifiez la fin prévue du congé."
-        ]
-    return []
+        )
+    return alertes
+
+
+def _bulletins_qui_retiennent_deja(employee_id: str, jours: list[str], sb: Any) -> list[str]:
+    """Les bulletins Martine déjà calculés qui retiennent ces jours, devenus congé
+    parental, en « Absence non rémunérée » : à recalculer (libellé, DSN 632)."""
+    if not jours:
+        return []
+    import re as _re
+
+    cherches = {date.fromisoformat(j).strftime("%d/%m/%y") for j in jours}
+    annees = sorted({int(j[:4]) for j in jours} | {int(max(jours)[:4]) + (1 if max(jours)[5:7] == "12" else 0)})
+    res = (
+        sb.table("payslips")
+        .select("year, month, payslip_data")
+        .eq("employee_id", employee_id)
+        .in_("year", annees)
+        .execute()
+    )
+    mois = set()
+    for row in getattr(res, "data", None) or []:
+        donnees = row.get("payslip_data") or {}
+        for cle in ("calcul_du_brut", "details_absences"):
+            for ligne in donnees.get(cle) or []:
+                trouve = _re.match(r"^Absence non rémunérée du (\d{2}/\d{2}/\d{2})", str((ligne or {}).get("libelle") or ""))
+                if trouve and trouve.group(1) in cherches:
+                    mois.add((int(row["year"]), int(row["month"])))
+    if not mois:
+        return []
+    liste = ", ".join(f"{m:02d}/{a}" for a, m in sorted(mois))
+    return [
+        f"Congé parental requalifié depuis la DSN : les bulletins de {liste} retiennent ces "
+        "jours en absence non rémunérée. Recalculez-les : le congé parental se retient au "
+        "mois civil et se déclare en 632."
+    ]
 
 
 def _jours_contigus(jours: list[str]) -> list[list[str]]:
