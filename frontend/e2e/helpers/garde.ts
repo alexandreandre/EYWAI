@@ -1,4 +1,5 @@
 import { test as base, expect } from '@playwright/test';
+import { ETAT_AUTH } from './env';
 
 /**
  * Garde anti-écriture des specs « connecté ».
@@ -36,10 +37,30 @@ export const test = base.extend<{ gardeEcritures: string[] }>({
         await route.abort('blockedbyclient');
       });
       await use(bloquees);
+      await reporterLaSession(page);
       expect(bloquees, 'écritures non simulées, bloquées par la garde').toEqual([]);
     },
     { auto: true },
   ],
 });
+
+/**
+ * Le jeton de renouvellement change à chaque usage (rotation) : si un test a
+ * renouvelé la session, les suivants, repartis du fichier d'origine, en
+ * présenteraient un périmé (401 sur /api/auth/refresh, puis session effacée).
+ * On reporte donc la session à jour dans le fichier, test après test
+ * (workers: 1). Une session effacée n'est jamais reportée.
+ */
+async function reporterLaSession(page: import('@playwright/test').Page) {
+  try {
+    if (!page.url().startsWith('http')) return;
+    const encoreConnecte = await page.evaluate(
+      () => !!window.localStorage.getItem('authToken') && !!window.localStorage.getItem('refreshToken'),
+    );
+    if (encoreConnecte) await page.context().storageState({ path: ETAT_AUTH });
+  } catch {
+    // page fermée ou navigation en cours : on garde le fichier tel quel.
+  }
+}
 
 export { expect };

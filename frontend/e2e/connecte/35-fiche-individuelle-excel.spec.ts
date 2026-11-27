@@ -1,5 +1,29 @@
 import { test, expect } from '../helpers/garde';
 import { surveiller, verifierPageSaine } from '../helpers/erreurs';
+import { API_URL } from '../helpers/env';
+import type { Page } from '@playwright/test';
+
+async function entetes(page: Page) {
+  const { jeton, societe } = await page.evaluate(() => ({
+    jeton: localStorage.getItem('authToken'),
+    societe: localStorage.getItem('activeCompanyId'),
+  }));
+  return { Authorization: `Bearer ${jeton}`, ...(societe ? { 'X-Active-Company': societe } : {}) };
+}
+
+/** Le compte QA (super-admin) voit toutes les sociétés : on fixe LEWIS, qui a des bulletins. */
+async function choisirLewis(page: Page) {
+  await page.goto('/');
+  const societes = (await (
+    await page.request.get(`${API_URL}/api/users/my-companies`, { headers: await entetes(page) })
+  ).json()) as { company_id: string; company_name?: string }[];
+  const soc = societes.find((c) => /^lewis/i.test(c.company_name ?? ''));
+  expect(soc, 'la société LEWIS du compte QA').toBeTruthy();
+  await page.evaluate((id) => {
+    localStorage.setItem('activeCompanyId', id);
+    localStorage.removeItem('martine-rq-cache-v2');
+  }, soc!.company_id);
+}
 
 /**
  * Lot L18 (27/11) : « Fiche individuelle (Excel) » sur la fiche collaborateur,
@@ -10,10 +34,12 @@ test.describe('Fiche individuelle', () => {
   test('le bouton télécharge la fiche Excel de l’année civile', async ({ page }) => {
     test.setTimeout(120_000);
     const s = surveiller(page);
+    await choisirLewis(page);
     await page.goto('/employees');
-    const lienFiche = page.locator('a[href^="/employees/"]').first();
-    await expect(lienFiche).toBeVisible({ timeout: 45_000 });
-    await lienFiche.click();
+    // La liste est un tableau à lignes cliquables (pas de liens).
+    const ligne = page.getByRole('row').filter({ hasText: /Ancienneté:|Entrée:/ }).first();
+    await expect(ligne).toBeVisible({ timeout: 45_000 });
+    await ligne.getByRole('cell').first().click();
     await page.waitForURL(/\/employees\/[^/?]+/, { timeout: 30_000 });
 
     await page.getByRole('button', { name: 'Fiche individuelle (Excel)' }).click({ timeout: 45_000 });
