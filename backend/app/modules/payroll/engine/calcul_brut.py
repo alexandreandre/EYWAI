@@ -2392,14 +2392,21 @@ def calculer_salaire_brut(
     # tombe hors de toute absence (`mois_entierement_absent`, plus haut) : la
     # retenue y reste celle des jours d'absence, jamais plus que le salaire.
     # Jours repoussés du mois précédent par la fenêtre des variables : quand ce
-    # mois-là a été payé (au moins un jour travaillé ou payé au planning), son
-    # bulletin ne les a pas retenus ; ils se retiennent ici, sur ce qui reste du
-    # salaire, et ce qui ne tient pas est rendu et signalé. Quand il était
+    # mois-là a été payé (au moins un jour travaillé ou payé au planning) et que
+    # son bulletin Martine s'arrêtait avant eux, il ne les a pas retenus ; ils se
+    # retiennent ici, sur ce qui reste du salaire, et ce qui ne tient pas est
+    # rendu et signalé. Quand il était
     # lui-même entièrement absent, sa retenue du mois entier les couvrait déjà :
     # les compter ici avec le mois est juste (aucune ligne, aucune alerte).
+    fin_du_bulletin_precedent = getattr(contexte, "fin_variables_bulletin_precedent", None)
     separer_les_jours_repousses = (
         retenue_avant_le_mois > 0.01
         and _mois_precedent_paye(jours_prevus, date_debut_periode) is True
+        # Le bulletin Martine du mois précédent s'arrêtait avant ces jours : il
+        # ne les a pas retenus. Un bulletin repris (sans fenêtre) couvrait son
+        # mois entier : les retenir ici les retiendrait deux fois.
+        and isinstance(fin_du_bulletin_precedent, date)
+        and all(jour > fin_du_bulletin_precedent for jour in jours_avant_le_mois)
     )
     retenue_du_mois = montant_absence_pleine_total - (
         retenue_avant_le_mois if separer_les_jours_repousses else 0.0

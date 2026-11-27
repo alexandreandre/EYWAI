@@ -57,7 +57,10 @@ def _prevus_d_un_mois(annee: int, mois: int, type_ouvre: str) -> list[dict]:
     ]
 
 
-def _decembre(monkeypatch, novembre_au_planning: str | None, duree=35.0, salaire=1870.83):
+def _decembre(
+    monkeypatch, novembre_au_planning: str | None, duree=35.0, salaire=1870.83,
+    fin_bulletin_novembre: date | None = date(2026, 11, 22),
+):
     from app.modules.payroll.engine import calcul_brut as cb
 
     monkeypatch.setattr(cb, "coefficient_horaire_reel", lambda *_: 1.0)
@@ -68,6 +71,7 @@ def _decembre(monkeypatch, novembre_au_planning: str | None, duree=35.0, salaire
     extra = {"specificites_extra": {"salaire_hors_hs_structurelles": True}} if duree > 35 else {}
     contexte = build_test_contexte(salaire_base=salaire, duree_hebdo=duree, date_entree="2020-01-06", **extra)
     contexte.alertes_baremes = []
+    contexte.fin_variables_bulletin_precedent = fin_bulletin_novembre
     prevus = (
         _prevus_d_un_mois(2026, 11, novembre_au_planning) if novembre_au_planning else None
     )
@@ -103,6 +107,17 @@ def test_novembre_deja_entierement_absent_l_absorption_est_juste(monkeypatch):
         assert contexte.alertes_baremes == []
 
 
+def test_bulletin_precedent_repris_qui_couvrait_son_mois_ni_ligne_ni_alerte(monkeypatch):
+    """Novembre payé mais son bulletin vient de l'ancien logiciel (pas de fenêtre :
+    il couvrait le mois entier, jours de fin de mois compris), ou sa fenêtre
+    allait au-delà de ces jours : rien n'est à porter (Mont Blanc, avril 2026)."""
+    for fin in (None, date(2026, 11, 30)):
+        r, contexte = _decembre(monkeypatch, "travail", fin_bulletin_novembre=fin)
+        assert not any("non retenues" in l["libelle"] for l in r["lignes_composants_brut"])
+        assert contexte.alertes_baremes == []
+        assert r["salaire_brut_total"] == pytest.approx(0.0, abs=0.01)
+
+
 def test_trente_neuf_heures_la_part_d_heures_sup_suit_les_jours_repousses(monkeypatch):
     r, contexte = _decembre(monkeypatch, "travail", duree=39.0, salaire=2100.0)
     ligne = next(l for l in r["lignes_composants_brut"] if "non retenues" in l["libelle"])
@@ -126,6 +141,7 @@ def test_jamais_de_brut_negatif_avec_un_ferie_paye_hors_absence(monkeypatch, dur
     extra = {"specificites_extra": {"salaire_hors_hs_structurelles": True}} if duree > 35 else {}
     ctx = build_test_contexte(salaire_base=salaire, duree_hebdo=duree, date_entree="2020-01-06", **extra)
     ctx.alertes_baremes = []
+    ctx.fin_variables_bulletin_precedent = date(2026, 4, 26)
     r = cb.calculer_salaire_brut(
         ctx, cal, date(2026, 5, 1), date(2026, 5, 31), [], nb_jours_travail_planifies=0,
         date_debut_variables=date(2026, 4, 27), date_fin_variables=date(2026, 5, 22),
@@ -403,3 +419,22 @@ def test_un_jour_repasse_en_travail_garde_son_plafond():
     prevus = [{"annee": 2026, "mois": 11, "jour": 18, "type": "travail", "heures_prevues": 7.0}]
     ratio = ratio_plafond_periode(cal, date(2026, 11, 1), date(2026, 11, 30), build_test_contexte(), jours_prevus=prevus)
     assert ratio == pytest.approx(1 / 30, abs=1e-6)
+
+
+def test_la_fin_de_fenetre_du_bulletin_precedent(monkeypatch):
+    from app.modules.payroll.documents import payslip_generator as pg
+
+    base = BaseEnMemoire({"payslips": [{"employee_id": "e-1", "year": 2026, "month": 11, "contract_period_id": None,
+                                        "payslip_data": {"en_tete": {"date_fin_variables": "2026-11-22"}}}]})
+    monkeypatch.setattr(pg, "supabase", base)
+    assert pg.fin_variables_du_bulletin_precedent("e-1", 2026, 12, date(2026, 11, 23)) == "2026-11-22"
+    assert pg.fin_variables_du_bulletin_precedent("e-1", 2026, 12, date(2026, 12, 1)) is None
+
+
+def test_le_bulletin_precedent_n_est_relu_qu_avec_des_jours_repousses():
+    from app.modules.payroll.documents.payslip_generator import absence_non_remuneree_avant_le_mois
+
+    novembre = _planning(2026, 11, [23, 24]) + _planning(2026, 11, [20], "travail")
+    assert absence_non_remuneree_avant_le_mois(novembre, date(2026, 11, 23), 2026, 12)
+    assert not absence_non_remuneree_avant_le_mois(novembre, date(2026, 12, 1), 2026, 12)
+    assert not absence_non_remuneree_avant_le_mois(_planning(2026, 11, [20], "travail"), date(2026, 11, 23), 2026, 12)
