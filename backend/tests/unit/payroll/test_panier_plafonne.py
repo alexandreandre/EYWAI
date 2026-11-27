@@ -71,6 +71,8 @@ def test_prime_non_soumise_nombre_et_taux_sur_les_deux_lignes():
     assert colonnes == {"quantite": 15.0, "taux": 7.5}
     assert reint == {
         "libelle": "Réintégration panier",
+        # Le code de correction reste celui de l'ancien libellé (relecture du 27/11).
+        "libelle_du_code": "Réintégration panier Panier",
         "montant": 1.5,
         "prime_id": "reintegration_panier",
         "quantite": 15.0,
@@ -150,3 +152,73 @@ def test_un_frais_qui_n_est_pas_un_panier_reste_sans_colonnes():
 )
 def test_le_libelle_de_la_reintegration_ne_double_pas_le_mot(libelle, attendu):
     assert libelle_de_reintegration_panier(libelle) == attendu
+
+
+# --- Relecture du 27/11 : code de ligne inchangé, total conservé au centime ---
+
+from app.modules.payroll.engine.codes_des_lignes import (  # noqa: E402
+    MODE_MONTANT,
+    code_de_ligne_de_gain,
+    mode_de_correction,
+)
+from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie  # noqa: E402
+
+
+def _ligne_de_brut(prime):
+    """Comme `calcul_brut` (heures et forfait) range une prime soumise."""
+    return lier_a_la_saisie(
+        {
+            "libelle": prime.get("libelle", "Prime"),
+            "quantite": prime.get("quantite"),
+            "taux": prime.get("taux"),
+            "gain": prime.get("montant", 0.0),
+            "perte": None,
+        },
+        prime,
+    )
+
+
+@pytest.mark.parametrize(
+    "libelle, code",
+    [
+        ("Panier", "brut:reintegration:panier-panier"),
+        ("Panier chauffeur", "brut:reintegration:panier-panier-chauffeur"),
+    ],
+)
+def test_la_reintegration_garde_son_code_de_correction(libelle, code):
+    _, reint, _ = panier_non_soumis_plafonne(LEWIS, LEWIS["prime_id"], libelle, 114.0, FRAIS)
+    ligne = _ligne_de_brut(reint)
+    assert code_de_ligne_de_gain(ligne) == code
+    # Une correction déjà posée par montant s'applique toujours par montant.
+    assert mode_de_correction("brut", ligne, code)[0] == MODE_MONTANT
+    assert ligne["libelle"] == libelle_de_reintegration_panier(libelle)
+
+
+def test_la_reintegration_des_frais_garde_son_code_de_correction():
+    _, reint = frais_et_reintegration({**LEWIS, "libelle": "Panier repas (SPAN)", "frais_professionnels": True}, FRAIS)
+    ligne = _ligne_de_brut(reint)
+    assert code_de_ligne_de_gain(ligne) == "brut:reintegration:panier-panier-repas-span"
+    assert mode_de_correction("brut", ligne, code_de_ligne_de_gain(ligne))[0] == MODE_MONTANT
+
+
+@pytest.mark.parametrize(
+    "montant, quantite, genre, exonere, reintegre, base",
+    [
+        (22.60, 3, "count", 22.50, 0.10, 3.0),
+        (108.75, 14.5, "count", 108.75, 0.0, 14.5),
+        (100.0, 7.6, "unit_value", 97.50, 2.50, 13.0),
+    ],
+    ids=["22,60-pour-3", "14,5-paniers", "100-a-7,60"],
+)
+def test_le_total_de_la_saisie_est_conserve_au_centime(montant, quantite, genre, exonere, reintegre, base):
+    saisie = {**LEWIS, "montant": montant, "quantity": quantite, "quantity_kind": genre}
+    # Chemin « prime » (paniers dans le montant net social).
+    exo, reint, colonnes = panier_non_soumis_plafonne(saisie, saisie["prime_id"], "Panier", montant, FRAIS)
+    part_reint = reint["montant"] if reint else 0.0
+    assert (exo, part_reint) == (exonere, reintegre)
+    assert round(exo + part_reint, 2) == montant
+    assert colonnes["quantite"] == base
+    # Chemin des frais professionnels : le même partage.
+    ligne, reint = frais_et_reintegration({**saisie, "frais_professionnels": True}, FRAIS)
+    assert (ligne["montant"], reint["montant"] if reint else 0.0) == (exonere, reintegre)
+    assert ligne["quantite"] == base

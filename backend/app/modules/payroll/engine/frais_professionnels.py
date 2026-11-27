@@ -86,6 +86,40 @@ def entree_de_frais_professionnels(row: Mapping[str, Any]) -> dict[str, Any]:
     return entree
 
 
+def nombre_de_paniers_du_plafond(montant: float, quantity: Any, quantity_kind: Any) -> float:
+    """Le nombre de paniers sur lequel se compte le plafond (1 sans quantité).
+
+    « count » (ou rien : la quantité est le nombre, division historique) : le
+    nombre saisi, tel quel (14,5 paniers restent 14,5). « unit_value » : la
+    quantité est la valeur d'un panier, le nombre est le montant divisé par elle,
+    arrondi à l'unité (au moins 1).
+    """
+    try:
+        qte = float(quantity) if quantity is not None else 0.0
+    except (TypeError, ValueError):
+        qte = 0.0
+    if qte <= 0 or float(montant or 0.0) <= 0:
+        return 1.0
+    if quantity_kind == "unit_value":
+        return float(max(1, round(float(montant) / round(qte, 2))))
+    return qte
+
+
+def partage_du_panier(
+    montant: float, nombre: float, plafond: float | None
+) -> tuple[float, float]:
+    """(part exonérée, part réintégrée) d'un panier : sur des totaux, plafond ×
+    nombre arrondi une fois ; la somme des deux parts est le montant saisi, au
+    centime. Jamais un taux unitaire arrondi puis multiplié (22,60 € pour 3
+    paniers donnait 22,59 € ; 14,5 paniers comptaient pour 14 ; relecture du
+    27/11)."""
+    montant = round(float(montant), 2)
+    if plafond is None:
+        return montant, 0.0
+    exonere = round(min(montant, round(float(plafond) * float(nombre), 2)), 2)
+    return exonere, round(montant - exonere, 2)
+
+
 def reintegration_panier_plafonne(
     ligne: Mapping[str, Any], frais_pro: Mapping[str, Any] | None
 ) -> float:
@@ -95,10 +129,7 @@ def reintegration_panier_plafonne(
     le lieu de travail en 2026) : sans elle, rien ne change (le plafond le plus
     haut ne se devine pas, cf. migration 20260803091000).
     """
-    from app.modules.payroll.engine.calcul_frais import (
-        exoneration_repas,
-        valeur_unitaire,
-    )
+    from app.modules.payroll.engine.calcul_frais import exoneration_repas
 
     situation = ligne.get("situation_repas")
     texte = f"{ligne.get('prime_id') or ''} {ligne.get('libelle') or ''}".lower()
@@ -110,9 +141,8 @@ def reintegration_panier_plafonne(
     plafond = exoneration_repas(frais_pro, "repas", situation=str(situation))
     if plafond is None:
         return 0.0
-    unite = valeur_unitaire(montant, ligne.get("quantity"), ligne.get("quantity_kind"))
-    nombre = max(1, round(montant / unite)) if unite > 0 else 1
-    return round(max(0.0, montant - plafond * nombre), 2)
+    nombre = nombre_de_paniers_du_plafond(montant, ligne.get("quantity"), ligne.get("quantity_kind"))
+    return partage_du_panier(montant, nombre, plafond)[1]
 
 
 def _texte_du_panier(saisie: Mapping[str, Any]) -> str:
@@ -122,23 +152,14 @@ def _texte_du_panier(saisie: Mapping[str, Any]) -> str:
 def nombre_de_paniers(
     montant: float, quantity: Any, quantity_kind: Any
 ) -> float | None:
-    """Le nombre de paniers d'une saisie, ou None s'il n'a pas été saisi.
-
-    `quantity` porte un nombre (« count », ou rien : division historique) ou une
-    valeur unitaire (« unit_value ») : le nombre se lit comme le plafond le
-    compte (`reintegration_panier_plafonne`). Sans quantité, rien ne s'invente.
-    """
-    from app.modules.payroll.engine.calcul_frais import valeur_unitaire
-
+    """Le nombre de paniers imprimé, ou None s'il n'a pas été saisi (rien ne
+    s'invente) ; le même que celui du plafond."""
     try:
         if quantity is None or float(quantity) <= 0 or float(montant) <= 0:
             return None
     except (TypeError, ValueError):
         return None
-    unite = valeur_unitaire(float(montant), quantity, quantity_kind)
-    if unite <= 0:
-        return None
-    return float(max(1, round(float(montant) / unite)))
+    return nombre_de_paniers_du_plafond(float(montant), quantity, quantity_kind)
 
 
 def colonnes_du_panier(montant: float, nombre: float | None) -> dict[str, float]:
@@ -147,6 +168,14 @@ def colonnes_du_panier(montant: float, nombre: float | None) -> dict[str, float]
     if not nombre or nombre <= 0 or montant <= 0:
         return {}
     return {"quantite": nombre, "taux": round(float(montant) / nombre, 4)}
+
+
+def libelle_du_code_de_reintegration(libelle: Any) -> str:
+    """Le libellé d'avant le 26/11 (« Réintégration panier Panier ») : c'est lui
+    qui donne le code de correction de la ligne (`codes_des_lignes`), pour
+    qu'une correction déjà posée continue de s'appliquer. Seul le libellé
+    affiché a changé."""
+    return f"Réintégration panier {libelle}"
 
 
 def libelle_de_reintegration_panier(libelle: Any) -> str:
@@ -213,6 +242,7 @@ def frais_et_reintegration(
     ligne_frais.update(colonnes_du_panier(ligne_frais["montant"], nombre))
     return ligne_frais, {
         "libelle": libelle_de_reintegration_panier(ligne_frais["libelle"]),
+        "libelle_du_code": libelle_du_code_de_reintegration(ligne_frais["libelle"]),
         "montant": reint,
         "prime_id": "reintegration_panier",
         **colonnes_du_panier(reint, nombre),
@@ -243,10 +273,7 @@ def panier_non_soumis_plafonne(
     7,50 € sur les 62 lignes Mont Blanc Composite. Toute autre saisie revient
     telle quelle. Appelée par les deux moteurs (heures et forfait jours).
     """
-    from app.modules.payroll.engine.calcul_frais import (
-        appliquer_exoneration_note_frais,
-        valeur_unitaire,
-    )
+    from app.modules.payroll.engine.calcul_frais import exoneration_repas
 
     if not (
         est_un_panier(prime_id, saisie)
@@ -254,32 +281,19 @@ def panier_non_soumis_plafonne(
         and not saisie.get("soumise_a_cotisations", saisie.get("soumise_a_csg", True))
     ):
         return montant, None, {}
-    unit = valeur_unitaire(montant, saisie.get("quantity"), saisie.get("quantity_kind"))
-    qty = max(1.0, round(montant / unit)) if unit > 0 else 1.0
-    exo_total = 0.0
-    reint_total = 0.0
-    for _ in range(int(qty)):
-        exo, reint, _plafond = appliquer_exoneration_note_frais(
-            {
-                "montant": unit,
-                "prime_id": prime_id,
-                "type": "panier",
-                "situation_repas": saisie.get("situation_repas"),
-            },
-            frais_pro,
-        )
-        exo_total += exo
-        reint_total += reint
+    plafond = exoneration_repas(frais_pro, "repas", situation=saisie.get("situation_repas"))
+    nombre_plafond = nombre_de_paniers_du_plafond(montant, saisie.get("quantity"), saisie.get("quantity_kind"))
+    exonere, reint_total = partage_du_panier(montant, nombre_plafond, plafond)
     nombre = nombre_de_paniers(montant, saisie.get("quantity"), saisie.get("quantity_kind"))
     reintegration = (
         {
             "libelle": libelle_de_reintegration_panier(libelle),
-            "montant": round(reint_total, 2),
+            "libelle_du_code": libelle_du_code_de_reintegration(libelle),
+            "montant": reint_total,
             "prime_id": "reintegration_panier",
-            **colonnes_du_panier(round(reint_total, 2), nombre),
+            **colonnes_du_panier(reint_total, nombre),
         }
         if reint_total > 0
         else None
     )
-    exonere = round(exo_total, 2)
     return exonere, reintegration, colonnes_du_panier(exonere, nombre)

@@ -13,8 +13,13 @@ from typing import Any, Mapping
 
 
 def lier_a_la_saisie(cible: dict[str, Any], source: Mapping[str, Any]) -> dict[str, Any]:
-    """`cible` enrichie du `saisie_id` de `source`, s'il existe."""
+    """`cible` enrichie du `saisie_id` de `source`, s'il existe, et du libellé
+    qui donne son code de correction quand il diffère du libellé affiché
+    (réintégration d'un panier, L19)."""
     saisie_id = source.get("saisie_id")
     if saisie_id:
         cible["saisie_id"] = str(saisie_id)
+    libelle_du_code = source.get("libelle_du_code")
+    if libelle_du_code:
+        cible["libelle_du_code"] = str(libelle_du_code)
     return cible
