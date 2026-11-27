@@ -15,6 +15,7 @@ from app.modules.payroll.documents.arrets_reportes_bulletin import (
     appliquer_les_arrets_reportes,
     poser_la_trace,
 )
+from app.modules.payroll.engine.heures_reduction_generale import heures_remunerees_pour_la_reduction
 from app.modules.payroll.engine.bulletin import creer_bulletin_final, creer_bulletin_sortie
 from app.modules.payroll.engine.calcul_brut import (
     calculer_salaire_brut,
@@ -1564,64 +1565,36 @@ def run_payslip_generation_heures(
         or min(heures_contractuelles_mois, heures_legales_mois)
     )
     # Un arrêt de travail ne sort du SMIC de référence qu'à proportion de ce que
-    # l'employeur NE maintient PAS : rémunération maintenue en entier, les heures
-    # restent ; maintien partiel, elles sortent d'autant ; aucun maintien, elles
-    # sortent toutes. Le moteur les gardait en bloc, en supposant le maintien
-    # acquis. salarié 086 et salarié 130 (Colorplast, mai 2026) ne reçoivent aucun maintien
-    # pendant leur arrêt : nous réclamions 347 € d'allègement sur des heures que
-    # personne n'a payées.
-    heures_arret = float(resultat_brut.get("heures_arret_deduites") or 0.0)
-    heures_arret_non_maintenues = 0.0
-    if heures_arret > 0:
-        deduction_arret = float(resultat_brut.get("deduction_arret_maladie") or 0.0)
-        # Le maintien des arrêts reportés répond à leurs heures, retenues ici aussi.
-        maintien_verse = float(
-            ((resultats_maintien or {}).get("maintien", {}) or {}).get("maintien_verse") or 0.0
-        ) + effet_du_report.maintien_verse
-        part_maintenue = (
-            min(1.0, maintien_verse / deduction_arret) if deduction_arret > 0 else 0.0
-        )
-        heures_arret_non_maintenues = round(heures_arret * (1.0 - part_maintenue), 2)
+    # l'employeur NE maintient PAS (salarié 086 et salarié 130, Colorplast, mai 2026 :
+    # 347 € d'allègement réclamés sur des heures que personne n'a payées). Le maintien
+    # se rapporte à la retenue de l'arrêt, base et part d'heures sup structurelles ;
+    # un mois au salaire retenu en entier, au salaire du mois complet
+    # (`heures_reduction_generale`, BOSS allègements § 750 à 790).
+    # Le maintien des arrêts reportés répond à leurs heures, retenues ici aussi.
+    maintien_verse = float(
+        ((resultats_maintien or {}).get("maintien", {}) or {}).get("maintien_verse") or 0.0
+    ) + effet_du_report.maintien_verse
     # Le maintien d'arrêts passés, payé ce mois-ci, en rétablit les heures (BOSS § 800).
     heures_retablies_par_rappels = heures_retablies_par_les_rappels_de_maintien(
         primes_soumises, heures_contractuelles_mois, salaire_du_mois_complet(contexte)
     )
     signaler_rappels_de_maintien_en_prime_libre(contexte, primes_soumises)
 
-    heures_absence_non_payees = float(resultat_brut.get("heures_absence_non_payees", 0.0) or 0.0)
-    heures_base_payees = max(0.0, heures_base_mois - heures_activite_partielle)
-    # Mois au salaire retenu en entier : la retenue jour par jour ne couvre pas toutes les
-    # heures du contrat (20 jours × 7 h = 140 h sur 151,67 h en février), le complément en
-    # retient l'argent mais en laissait les heures dans le SMIC de référence. Elles suivent
-    # l'absence : non payées dans la même proportion qu'elle (un arrêt maintenu les garde).
-    # Le salaire minimum se proratise sur la rémunération que l'absence laisse (BOSS,
-    # allègements généraux, § 760 à 790 ; CSS D. 241-7, IV) : mois sans salaire, aucune
-    # heure. Mont Blanc, février, mois entier sans solde : 18,91 h restaient, 120,30 € de
-    # réduction sur la seule prime d'ancienneté. Les heures sup structurelles du contrat
-    # (36,67 h) sont retenues avec le salaire : elles en font partie ; les conjoncturelles non.
-    heures_residuelles_non_payees = 0.0
-    if resultat_brut.get("salaire_retenu_en_entier"):
-        retirees = heures_absence_non_payees + heures_arret
-        heures_sup_structurelles = max(
-            0.0,
-            float(total_heures_supp or 0.0)
-            - float(resultat_brut.get("heures_sup_conjoncturelles", 0.0) or 0.0),
-        )
-        residu = heures_base_payees + heures_sup_structurelles - retirees
-        if residu > 0.0 and retirees > 0.0:
-            part_non_payee = min(1.0, (heures_absence_non_payees + heures_arret_non_maintenues) / retirees)
-            heures_residuelles_non_payees = round(residu * part_non_payee, 2)
-
-    heures_remunerees_reduction = max(
-        0.0,
-        heures_base_payees
-        - heures_arret_non_maintenues
-        - heures_residuelles_non_payees
-        + heures_retablies_par_rappels
-        + float(resultat_brut.get("heures_normales_regularisees", 0.0) or 0.0)
-        + float(total_heures_supp or 0.0)
-        + float(resultat_brut.get("heures_complementaires", 0.0) or 0.0)
-        - heures_absence_non_payees,
+    heures_remunerees_reduction = heures_remunerees_pour_la_reduction(
+        heures_base_mois=heures_base_mois,
+        heures_activite_partielle=heures_activite_partielle,
+        heures_absence_non_payees=float(resultat_brut.get("heures_absence_non_payees", 0.0) or 0.0),
+        heures_arret=float(resultat_brut.get("heures_arret_deduites") or 0.0),
+        retenue_arret_base=float(resultat_brut.get("deduction_arret_maladie") or 0.0),
+        retenue_arret_heures_sup=float(resultat_brut.get("retenue_hs_des_arrets") or 0.0),
+        maintien_verse=maintien_verse,
+        total_heures_supp=float(total_heures_supp or 0.0),
+        heures_sup_conjoncturelles=float(resultat_brut.get("heures_sup_conjoncturelles", 0.0) or 0.0),
+        heures_complementaires=float(resultat_brut.get("heures_complementaires", 0.0) or 0.0),
+        heures_normales_regularisees=float(resultat_brut.get("heures_normales_regularisees", 0.0) or 0.0),
+        heures_retablies_par_rappels=heures_retablies_par_rappels,
+        salaire_retenu_en_entier=bool(resultat_brut.get("salaire_retenu_en_entier")),
+        salaire_du_mois_complet=salaire_du_mois_complet(contexte),
     )
 
     ligne_exoneration_jei = calculer_exoneration_jei(

@@ -37,6 +37,8 @@ def _reduction(donnees: dict) -> float:
     )
 
 
+#: Février (20 jours ouvrés, 140 h retenues sur 151,67 h) : le résidu ; avril (22 jours, 154 h) ne
+#: l'avait pas, il reste en garde-fou, comme le forfait jours et le temps partiel.
 @pytest.mark.parametrize("profil", ("heures", "forfait_jours", "temps_partiel", "apprenti"))
 @pytest.mark.parametrize("mois", (2, 4))
 def test_mois_entier_sans_solde_avec_une_prime_aucune_reduction(banc, profil, mois):  # noqa: F811
@@ -58,8 +60,21 @@ def test_39_h_les_heures_sup_structurelles_sont_retenues_avec_le_salaire(banc, m
     assert _reduction(donnees) == pytest.approx(0.0, abs=0.005)
 
 
-def test_mois_partiel_sans_solde_garde_sa_reduction(banc):  # noqa: F811
-    """Cinq jours sans solde en février : la réduction reste celle des heures payées."""
+def _smic_reference(donnees: dict) -> float:
+    bloc = donnees["structure_cotisations"]["bloc_allegements"]
+    lignes = bloc if isinstance(bloc, list) else bloc.get("lignes", [])
+    return next(l for l in lignes if "générale" in str(l.get("libelle")))["smic_reference_mois"]
+
+
+@pytest.mark.parametrize("duree,heures_contrat,heures_retirees", ((35, 151.67, 35.0), (39, 169.0, 39.0)))
+def test_mois_partiel_sans_solde_garde_les_heures_payees(banc, duree, heures_contrat, heures_retirees):  # noqa: F811
+    """Cinq jours sans solde en février : 35 h retirées à 35 h (5 × 7 h) ; 39 h à 39 h (5 × 7 h de base
+    et 5 × 0,80 h sup structurelles). Le SMIC de référence reste celui des heures payées."""
+    fiche = {"duree_hebdomadaire": duree}
     jours = {d: "absence_non_remuneree" for d in (9, 10, 11, 12, 13)}
-    donnees = banc.generer("heures", jours=jours, mois=2)
-    assert _reduction(donnees) < -1.0
+    donnees = banc.generer("heures", jours=jours, mois=2, fiche_en_plus=fiche)
+    plein = banc.generer("heures", jours={}, mois=2, fiche_en_plus=fiche)
+    smic_horaire = _smic_reference(plein) / heures_contrat
+    assert _smic_reference(donnees) == pytest.approx(
+        round(smic_horaire * (heures_contrat - heures_retirees), 2), abs=0.011
+    )

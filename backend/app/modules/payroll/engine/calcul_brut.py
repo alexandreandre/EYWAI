@@ -2378,6 +2378,10 @@ def calculer_salaire_brut(
     # ce jour-là (17,33 h/mois répartis sur les jours ouvrés légaux du mois).
     heures_hs_perdues = 0.0
     heures_hs_perdues_reportees = 0.0
+    #: Part des heures sup structurelles perdues qui revient aux jours d'arrêt, et sa
+    #: retenue : le maintien de l'arrêt se rapporte à la base ET à cette part.
+    heures_hs_des_arrets = 0.0
+    retenue_hs_des_arrets = 0.0
     if jours_absence_legale_equivalents > 0 and heures_sup_structurelles_mensuelles > 0:
         jours_legaux_mensuels = (
             jours_ouvres_presence
@@ -2408,9 +2412,8 @@ def calculer_salaire_brut(
         heures_absence_non_payees += (
             quote_part_hs_journaliere * jours_absence_legale_ferie
         )
-        heures_arret_deduites += (
-            quote_part_hs_journaliere * jours_absence_legale_arret
-        )
+        heures_hs_des_arrets = quote_part_hs_journaliere * jours_absence_legale_arret
+        heures_arret_deduites += heures_hs_des_arrets
     # Part des absences retirée directement sur les HS structurelles (contrat
     # > 35 h, prorata du contrat) : elle s'ajoute à la quote-part par journée.
     heures_hs_perdues = round(heures_hs_perdues + heures_hs_structurelles_perdues, 2)
@@ -2418,6 +2421,7 @@ def calculer_salaire_brut(
         if heures_hs_perdues > 0:
             taux_hs_retenue = taux_horaire_majore * coef_retenue_du_mois
             montant_reduction_hs = round(heures_hs_perdues * taux_hs_retenue, 2)
+            retenue_hs_des_arrets = round(heures_hs_des_arrets * taux_hs_retenue, 2)
             # La part des jours reportés ne se ramène pas au salaire du mois.
             montant_absence_pleine_total += montant_reduction_hs - round(
                 heures_hs_perdues_reportees * taux_hs_retenue, 2
@@ -2998,6 +3002,9 @@ def calculer_salaire_brut(
         # `heures_absence_non_payees` la contient déjà.
         "heures_sup_perdues_absence": round(heures_hs_perdues, 2),
         "deduction_arret_maladie": round(deduction_arret_maladie_total, 2),
+        # Retenue de la part d'heures sup structurelles des jours d'arrêt (dans la ligne
+        # « Heures sup. du contrat non faites ») : `heures_arret_deduites` la compte en heures.
+        "retenue_hs_des_arrets": retenue_hs_des_arrets,
         "heures_arret_deduites": round(heures_arret_deduites, 2),
         "heures_complementaires": round(
             heures_travail_hc1_total

@@ -54,8 +54,14 @@ def test_sans_retirer_les_heures_chomees_la_reduction_serait_trop_forte():
 
 
 def test_le_pipeline_retire_les_heures_chomees_et_garde_l_indemnite_hors_du_brut():
+    from app.modules.payroll.engine.heures_reduction_generale import heures_remunerees_pour_la_reduction
+
     source = inspect.getsource(payslip_run_heures.run_payslip_generation_heures)
-    assert "max(0.0, heures_base_mois - heures_activite_partielle)" in source
+    # Les heures du SMIC de référence se comptent dans `heures_reduction_generale` (L15).
+    assert "heures_activite_partielle=heures_activite_partielle" in source
+    assert "max(0.0, heures_base_mois - heures_activite_partielle)" in inspect.getsource(
+        heures_remunerees_pour_la_reduction
+    )
     # Mêmes fonctions qu'au forfait jours (calcul complet des deux moteurs :
     # test_activite_partielle_deux_moteurs.py).
     assert "heures_chomees_de_la_retenue(" in source

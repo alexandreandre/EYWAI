@@ -267,6 +267,10 @@ HEURES_SEULEMENT: dict[str, dict[str, str]] = {
         "_taux_majoration_hs": "majoration des heures sup",
         "_get_salaire_horaire_base": "taux horaire",
         "salaire_du_mois_complet": "complément d'absence intégrale en heures",
+        "heures_remunerees_pour_la_reduction": (
+            "SMIC de référence en heures ; le forfait le compte en jours (D. 241-7, IV), "
+            "sans retenue jour par jour à rapprocher des heures du contrat"
+        ),
         "saisie_paiement_solde": "paiement du solde du compteur",
     },
 }
