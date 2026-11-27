@@ -789,7 +789,9 @@ def _jour_d_arret(jour: date, debut: str, fin: str, type_ev: str = "arret_maladi
 
 
 def _maintien_de(cal, ctx, debut, fin):
-    from app.modules.payroll.documents.payslip_run_heures import _extraire_arret_pour_maintien
+    from app.modules.payroll.documents.payslip_run_heures import (
+        _extraire_arret_pour_maintien,
+    )
     from app.modules.payroll.engine.maintien_salaire_service import calculer_maintien
 
     arret = _extraire_arret_pour_maintien(cal, ctx, debut, fin)
