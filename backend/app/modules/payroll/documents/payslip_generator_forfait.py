@@ -103,7 +103,10 @@ from app.modules.payroll.documents.payslip_generator import (
     _heures_sup_conjoncturelles_from_monthly_inputs,
 )
 from app.modules.monthly_inputs.domain.rules import alertes_de_doublon_de_prime
-from app.modules.payroll_variables.application.alertes_paniers import alertes_des_paniers_du_mois
+from app.modules.payroll_variables.application.alertes_paniers import (
+    alerte_paniers_non_verifiee,
+    alertes_des_paniers_du_mois,
+)
 from app.modules.payroll.documents.saisies_du_bulletin import ranger_les_saisies
 from app.modules.payroll.documents.plafond_transport import alertes_plafond_transport
 from app.modules.schedules.domain.conflits_arret import (
@@ -787,9 +790,13 @@ def process_payslip_generation_forfait(
         alertes_doublons = alertes_de_doublon_de_prime(saisies_res.data or [])
         # Paniers : jours sans heure d'arrivée relus au calendrier, montant changé
         # sans le nombre (L19, 27/11). Non bloquant.
-        alertes_doublons += alertes_des_paniers_du_mois(
-            str(company_id), str(employee_id), year, month, saisies_res.data or []
-        )
+        try:
+            alertes_doublons += alertes_des_paniers_du_mois(
+                str(company_id), str(employee_id), year, month, saisies_res.data or []
+            )
+        except Exception as exc_paniers:  # noqa: BLE001 — dit sur le bulletin, jamais bloquant
+            logger.warning("Alertes de paniers non calculées : %s", exc_paniers)
+            alertes_doublons.append(alerte_paniers_non_verifiee())
         if alertes_doublons and isinstance(payslip_json_data, dict):
             payslip_json_data = dict(payslip_json_data)
             payslip_json_data["alertes_baremes"] = [

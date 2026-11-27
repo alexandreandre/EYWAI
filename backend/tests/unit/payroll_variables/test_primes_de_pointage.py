@@ -568,9 +568,9 @@ class TestMontantModifieSansLeNombre:
 
         _brancher(monkeypatch, self.REGLE, FICHE, {}, {})
         alertes = alertes_des_paniers_du_mois("c", "e1", 2026, 10, [self._saisie(121.6)])
+        # Neutre : le montant ou le nombre a pu changer (relecture du 27/11).
         assert [a["message"] for a in alertes] == [
-            "Panier : montant modifié à la main (121,60 €) sans changer le nombre de paniers (15) : "
-            "la part réintégrée est calculée sur 15 paniers ; corrigez le nombre dans Primes du mois"
+            "Panier : 121,60 € pour 15 paniers à 7,60 € : le montant et le nombre ne correspondent pas."
         ]
         assert alertes[0]["critique"] is False
 
@@ -597,3 +597,24 @@ def test_les_deux_generateurs_disent_les_paniers_du_mois(module):
         Path(__file__).resolve().parents[3] / f"app/modules/payroll/documents/{module}.py"
     ).read_text(encoding="utf-8")
     assert "alertes_des_paniers_du_mois(" in source
+
+
+def test_des_conditions_illisibles_ne_cassent_pas_le_bulletin(monkeypatch):
+    """Relecture du 27/11 : des conditions qui ne sont pas un objet levaient
+    AttributeError ; le bulletin dit que les jours n'ont pas été vérifiés."""
+    from app.modules.payroll_variables.application.alertes_paniers import alertes_des_paniers_du_mois
+
+    _brancher(monkeypatch, {"rule_type": "per_worked_day", "label": "Panier", "amount": 7.6,
+                            "conditions": ["pas", "un", "objet"]}, FICHE, {}, {})
+    alertes = alertes_des_paniers_du_mois("c", "e1", 2026, 10, [])
+    assert [a["code"] for a in alertes] == ["jours_sans_heure_d_arrivee_non_verifies"]
+
+
+@pytest.mark.parametrize("module", ["payslip_generator", "payslip_generator_forfait"])
+def test_les_deux_generateurs_entourent_les_alertes_de_paniers(module):
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[3] / f"app/modules/payroll/documents/{module}.py"
+    ).read_text(encoding="utf-8")
+    assert "alerte_paniers_non_verifiee()" in source

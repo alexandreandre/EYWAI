@@ -101,6 +101,10 @@ def nombre_de_paniers_du_plafond(montant: float, quantity: Any, quantity_kind: A
     if qte <= 0 or float(montant or 0.0) <= 0:
         return 1.0
     if quantity_kind == "unit_value":
+        if round(qte, 2) <= 0:
+            # Valeur d'un panier arrondie à 0 : un panier, comme avant (relecture
+            # du 27/11 : division par zéro sinon).
+            return 1.0
         return float(max(1, round(float(montant) / round(qte, 2))))
     return qte
 
@@ -156,6 +160,8 @@ def nombre_de_paniers(
     s'invente) ; le même que celui du plafond."""
     try:
         if quantity is None or float(quantity) <= 0 or float(montant) <= 0:
+            return None
+        if quantity_kind == "unit_value" and round(float(quantity), 2) <= 0:
             return None
     except (TypeError, ValueError):
         return None

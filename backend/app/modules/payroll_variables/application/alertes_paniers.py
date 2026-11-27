@@ -122,7 +122,7 @@ def alertes_de_montant_sans_le_nombre(
         for r in regles
         if r.get("rule_type") in TYPES_NOMBRE_FOIS_MONTANT
         and r.get("amount") is not None
-        and not (r.get("conditions") or {}).get("heures_par_jour")
+        and not _conditions(r).get("heures_par_jour")
     }
     alertes: list[dict[str, Any]] = []
     for saisie in saisies:
@@ -142,26 +142,42 @@ def alertes_de_montant_sans_le_nombre(
             continue
         if abs(round(nombre * unitaire, 2) - montant) < 0.005:
             continue
+        # Neutre : le montant ou le nombre a pu changer seul (relecture du 27/11).
         alertes.append(
             {
                 "code": CODE_ALERTE_PANIER_MONTANT_SANS_NOMBRE,
                 "critique": False,
                 "severity": "warning",
                 "message": (
-                    f"{nom} : montant modifié à la main ({_euros(montant)} €) sans changer le nombre "
-                    f"de paniers ({_nombre(nombre)}) : la part réintégrée est calculée sur "
-                    f"{_nombre(nombre)} paniers ; corrigez le nombre dans Primes du mois"
+                    f"{nom} : {_euros(montant)} € pour {_nombre(nombre)} "
+                    f"{'panier' if nombre == 1 else 'paniers'} à {_euros(unitaire)} € : "
+                    "le montant et le nombre ne correspondent pas."
                 ),
             }
         )
     return alertes
 
 
+def _conditions(regle: Mapping[str, Any]) -> Mapping[str, Any]:
+    conditions = regle.get("conditions")
+    return conditions if isinstance(conditions, Mapping) else {}
+
+
 def alertes_des_paniers_du_mois(
     company_id: str, employee_id: str, year: int, month: int, saisies: list[dict[str, Any]] | None
 ) -> list[dict[str, Any]]:
     """Les alertes de paniers du bulletin, aux deux générateurs. Une lecture qui
-    échoue est dite, jamais tue."""
+    échoue est dite, jamais tue ; rien ici n'arrête le bulletin."""
+    try:
+        return _alertes_des_paniers_du_mois(company_id, employee_id, year, month, saisies)
+    except Exception as exc:  # noqa: BLE001 — dit sur le bulletin
+        logger.warning("Alertes de paniers non calculées : %s", exc)
+        return [alerte_paniers_non_verifiee()]
+
+
+def _alertes_des_paniers_du_mois(
+    company_id: str, employee_id: str, year: int, month: int, saisies: list[dict[str, Any]] | None
+) -> list[dict[str, Any]]:
     # Le dépôt de la génération : celui qu'elle lit (et que les tests remplacent).
     from app.modules.payroll_variables.application import generate_monthly as gm
 
@@ -169,10 +185,18 @@ def alertes_des_paniers_du_mois(
         regles = [r for r in gm.repo.list_rules(str(company_id)) if r.get("enabled")]
     except Exception as exc:  # noqa: BLE001 — dit sur le bulletin
         logger.warning("Règles de variables illisibles pour les alertes de paniers : %s", exc)
-        return [_alerte_non_verifiee()]
+        return [alerte_paniers_non_verifiee()]
     alertes: list[dict[str, Any]] = []
     if any(
-        r.get("rule_type") in TYPES_PAR_JOUR_TRAVAILLE and (r.get("conditions") or {}).get("plages_debut")
+        r.get("rule_type") in TYPES_PAR_JOUR_TRAVAILLE
+        and r.get("conditions") is not None
+        and not isinstance(r.get("conditions"), Mapping)
+        for r in regles
+    ):
+        # Conditions illisibles : on ne sait pas si la règle lit l'heure d'arrivée.
+        alertes.append(alerte_paniers_non_verifiee())
+    if any(
+        r.get("rule_type") in TYPES_PAR_JOUR_TRAVAILLE and _conditions(r).get("plages_debut")
         for r in regles
     ):
         try:
@@ -180,7 +204,7 @@ def alertes_des_paniers_du_mois(
         except Exception as exc:  # noqa: BLE001 — dit sur le bulletin
             logger.warning("Jours sans heure d'arrivée non relus : %s", exc)
             jours = None
-            alertes.append(_alerte_non_verifiee())
+            alertes.append(alerte_paniers_non_verifiee())
         for j in jours or []:
             alertes.append(
                 {
@@ -196,7 +220,8 @@ def alertes_des_paniers_du_mois(
     return alertes
 
 
-def _alerte_non_verifiee() -> dict[str, Any]:
+def alerte_paniers_non_verifiee() -> dict[str, Any]:
+    """Les jours sans heure d'arrivée n'ont pas pu être relus : dit, jamais tu."""
     return {
         "code": CODE_ALERTE_JOURS_NON_VERIFIES,
         "critique": False,

@@ -25,7 +25,21 @@ import {
 import { log } from '@/lib/logger';
 import { SaisieModal } from "@/components/SaisieModal";
 import * as saisiesApi from '@/api/saisies';
-import { generatePayrollVariables, getJoursSansHeureDArrivee, type JoursSansHeureDArrivee } from '@/api/payrollVariables';
+import {
+  generatePayrollVariables,
+  getJoursSansHeureDArrivee,
+  listPayrollVariableRules,
+  type PayrollVariableRule,
+} from '@/api/payrollVariables';
+import {
+  cleDuMois,
+  compterJoursReels,
+  etatInitialDesJours,
+  montantPourLeNombre,
+  recevoirJours,
+  texteDeLEncadre,
+  type EtatDesJours,
+} from './joursSansArrivee';
 import { phraseJoursDuSalarie } from '@/features/company/lib/primesPointage';
 import { libelleNombreDePaniers, lireNombreDePaniers, nombreDePaniersModifiable } from './panierSaisie';
 import apiClient from '@/api/apiClient';
@@ -78,7 +92,14 @@ export function PrimesTab({
   const [isGenerating, setIsGenerating] = useState(false);
   // Jours travaillés sans heure d'arrivée, relus au calendrier (L19, 27/11) ;
   // null tant qu'ils ne sont pas lus, « erreur » si la lecture a échoué.
-  const [joursSansArrivee, setJoursSansArrivee] = useState<JoursSansHeureDArrivee[] | null | 'erreur'>(null);
+  // Relue au changement de mois et après « Générer », pas après chaque saisie ;
+  // une réponse d'un autre mois est ignorée (relecture du 27/11).
+  const [joursSansArrivee, setJoursSansArrivee] = useState<EtatDesJours>(() =>
+    etatInitialDesJours(selectedYear, selectedMonth),
+  );
+  const [relectureDesJours, setRelectureDesJours] = useState(0);
+  // Les règles de variables : le montant d'un panier généré suit son nombre.
+  const [regles, setRegles] = useState<PayrollVariableRule[]>([]);
 
   // Helper pour générer les listes des sélecteurs
   const yearOptions = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
@@ -101,12 +122,7 @@ export function PrimesTab({
       ]);
       setMonthlyInputs(inputsRes.data);
       setEmployees(employeesRes.data);
-      getJoursSansHeureDArrivee(selectedYear, selectedMonth)
-        .then(setJoursSansArrivee)
-        .catch((erreur) => {
-          log.error(erreur);
-          setJoursSansArrivee('erreur');
-        });
+
     } catch (error) {
       log.error(error);
       toast({ title: "Erreur", description: "Impossible de charger les données.", variant: "destructive" });
@@ -118,6 +134,23 @@ export function PrimesTab({
   useEffect(() => { 
     fetchData(); 
   }, [fetchData]);
+
+  useEffect(() => {
+    const cle = cleDuMois(selectedYear, selectedMonth);
+    setJoursSansArrivee(etatInitialDesJours(selectedYear, selectedMonth));
+    getJoursSansHeureDArrivee(selectedYear, selectedMonth)
+      .then((jours) => setJoursSansArrivee((courant) => recevoirJours(courant, cle, jours)))
+      .catch((erreur) => {
+        log.error(erreur);
+        setJoursSansArrivee((courant) => recevoirJours(courant, cle, 'erreur'));
+      });
+  }, [selectedYear, selectedMonth, relectureDesJours]);
+
+  useEffect(() => {
+    listPayrollVariableRules()
+      .then(setRegles)
+      .catch((erreur) => log.error(erreur));
+  }, []);
 
   // « Le bulletin d'octobre 2026 de … est à recalculer » : seulement s'il existe.
   const phraseARecalculer = (cibles: saisiesApi.BulletinsARecalculer['bulletins_a_recalculer']) =>
@@ -203,9 +236,16 @@ export function PrimesTab({
       return;
     }
     try {
-      const reponse = await saisiesApi.updateMonthlyInput(id, { payroll_quantity: nombre });
+      // Le montant suit le nombre (nombre × montant de la règle, ou prix d'un
+      // panier de la saisie) : l'écran l'a montré avant l'enregistrement.
+      const saisie = monthlyInputs.find((m) => m.id === id);
+      const montant = saisie ? montantPourLeNombre(saisie, nombre, regles) : null;
+      const reponse = await saisiesApi.updateMonthlyInput(
+        id,
+        montant != null ? { payroll_quantity: nombre, amount: montant } : { payroll_quantity: nombre },
+      );
       toast({
-        title: "Nombre de paniers corrigé",
+        title: montant != null ? "Nombre et montant mis à jour" : "Nombre de paniers mis à jour",
         description: [
           "Elle ne sera plus écrasée par la préparation du mois.",
           phraseARecalculer(reponse.data?.bulletins_a_recalculer),
@@ -260,6 +300,7 @@ export function PrimesTab({
         description: `${pluriel(result.written_count, 'saisie')} ${accord(result.written_count, 'créée')} pour ${monthOptions[selectedMonth - 1]?.label} ${selectedYear}.`,
       });
       fetchData();
+      setRelectureDesJours((n) => n + 1);
     } catch (error) {
       log.error(error);
       toast({
@@ -381,17 +422,18 @@ export function PrimesTab({
             <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
           ) : (
             <>
-            {joursSansArrivee === 'erreur' && (
-              <p className="mb-3 rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900" data-testid="jours-sans-arrivee-erreur">
-                Les jours travaillés sans heure d'arrivée n'ont pas pu être relus au calendrier : vérifiez-les avant la paie.
+            {texteDeLEncadre(joursSansArrivee) && (
+              <p className="mb-3 rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900" data-testid="jours-sans-arrivee-etat">
+                {texteDeLEncadre(joursSansArrivee)}
               </p>
             )}
-            {Array.isArray(joursSansArrivee) && (() => {
-              const lignes = joursSansArrivee.filter((j) => !focusEmployeeId || j.employee_id === focusEmployeeId);
+            {Array.isArray(joursSansArrivee.etat) && (() => {
+              const lignes = joursSansArrivee.etat.filter((j) => !focusEmployeeId || j.employee_id === focusEmployeeId);
               if (lignes.length === 0) return null;
+              const jours = compterJoursReels(lignes);
               return (
                 <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900" data-testid="jours-sans-arrivee">
-                  <p className="font-medium">À vérifier : jours travaillés sans heure d'arrivée ({lignes.length})</p>
+                  <p className="font-medium">À vérifier : {pluriel(jours, 'jour travaillé', 'jours travaillés')} sans heure d'arrivée</p>
                   <ul className="list-disc pl-5">
                     {lignes.map((j) => {
                       const emp = employees.find((e) => e.id === j.employee_id);
@@ -472,6 +514,15 @@ export function PrimesTab({
                                     if (e.key === "Escape") setEditingNombreId(null);
                                   }}
                                 />
+                                {(() => {
+                                  const nombre = lireNombreDePaniers(editingNombre);
+                                  const montant = nombre != null ? montantPourLeNombre(input, nombre, regles) : null;
+                                  return montant != null ? (
+                                    <span className="text-xs text-muted-foreground" data-testid="montant-du-nombre">
+                                      montant : {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(montant)}
+                                    </span>
+                                  ) : null;
+                                })()}
                                 <Button size="sm" onClick={() => handleSaveNombre(input.id)}>
                                   OK
                                 </Button>

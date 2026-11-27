@@ -222,3 +222,16 @@ def test_le_total_de_la_saisie_est_conserve_au_centime(montant, quantite, genre,
     ligne, reint = frais_et_reintegration({**saisie, "frais_professionnels": True}, FRAIS)
     assert (ligne["montant"], reint["montant"] if reint else 0.0) == (exonere, reintegre)
     assert ligne["quantite"] == base
+
+
+# --- Relecture du 27/11 (2) : valeur unitaire minuscule -----------------------
+
+@pytest.mark.parametrize("qte", [0.004, 0.001])
+def test_une_valeur_unitaire_arrondie_a_zero_ne_divise_pas_par_zero(qte):
+    """`round(qte, 2) == 0` : l'ancien code comptait un panier, sans colonnes."""
+    saisie = {**LEWIS, "montant": 9.0, "quantity": qte, "quantity_kind": "unit_value"}
+    exo, reint, colonnes = panier_non_soumis_plafonne(saisie, saisie["prime_id"], "Panier", 9.0, FRAIS)
+    assert (exo, reint["montant"], colonnes) == (7.5, 1.5, {})
+    ligne, reint = frais_et_reintegration({**saisie, "frais_professionnels": True}, FRAIS)
+    assert (ligne["montant"], reint["montant"]) == (7.5, 1.5)
+    assert "quantite" not in ligne
