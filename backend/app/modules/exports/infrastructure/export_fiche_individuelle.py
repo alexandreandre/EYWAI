@@ -20,6 +20,7 @@ from openpyxl.utils import get_column_letter
 
 from app.core.database import supabase
 from app.modules.exports.infrastructure.fiche_individuelle import (
+    MOIS_BROUILLON,
     MOIS_NON_PAYE,
     construire_fiche,
     libelle_court,
@@ -30,6 +31,7 @@ from app.modules.exports.infrastructure.fiche_individuelle import (
 _ENTETE = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
 _SECTION = PatternFill(start_color="DCE6F1", end_color="DCE6F1", fill_type="solid")
 _NON_PAYE = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+_BROUILLON = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")
 _EUROS = '#,##0.00'
 _TOTAUX = {"SALAIRE BRUT", "NET IMPOSABLE", "NET A PAYER"}
 _HEURES = {"Heures du salaire de base", "Heures supplémentaires"}
@@ -111,8 +113,11 @@ def fiche_en_xlsx(fiche: Dict[str, Any]) -> bytes:
             cellule = feuille.cell(row=ligne, column=colonne, value=valeur)
             if isinstance(valeur, float) and donnees["libelle"] not in _HEURES:
                 cellule.number_format = _EUROS
-            if fiche["lignes"][0]["valeurs"].get(m) == MOIS_NON_PAYE:
+            etat = str(fiche["lignes"][0]["valeurs"].get(m) or "")
+            if etat == MOIS_NON_PAYE:
                 cellule.fill = _NON_PAYE
+            elif etat.startswith(MOIS_BROUILLON):
+                cellule.fill = _BROUILLON
         total = feuille.cell(row=ligne, column=len(entetes), value=donnees["total"])
         total.font = gras
         if isinstance(donnees["total"], float) and donnees["libelle"] not in _HEURES:
@@ -124,7 +129,12 @@ def fiche_en_xlsx(fiche: Dict[str, Any]) -> bytes:
     feuille.cell(
         row=ligne,
         column=1,
-        value=f"Salaire de référence de l'indemnité de départ (bulletins jusqu'à {libelle_long(fiche['fin'])})",
+        value=(
+            f"Salaire de référence de l'indemnité de départ, calculé sur les {fiche['mois_reference']}"
+            if fiche.get("mois_reference")
+            else "Salaire de référence de l'indemnité de départ : aucun bulletin dans Martine "
+            f"jusqu'à {libelle_long(fiche['fin'])}"
+        ),
     ).font = Font(bold=True, size=12)
     ligne += 1
     if reference.formule == "contrat":
@@ -141,6 +151,7 @@ def fiche_en_xlsx(fiche: Dict[str, Any]) -> bytes:
     if reference.arret:
         lignes_reference.append(("Arrêt maladie", reference.arret))
     lignes_reference += [("À vérifier", alerte) for alerte in reference.alertes]
+    lignes_reference += [("Note", note) for note in fiche.get("notes_reference", [])]
     for libelle, valeur in lignes_reference:
         feuille.cell(row=ligne, column=1, value=libelle).font = gras
         cellule = feuille.cell(row=ligne, column=2, value=valeur)
@@ -166,7 +177,7 @@ def fiche_en_xlsx(fiche: Dict[str, Any]) -> bytes:
 
 _COLONNES_EMPLOYE = (
     "id, company_id, first_name, last_name, matricule, hire_date, job_title, statut, "
-    "contract_type, salaire_de_base, duree_hebdomadaire"
+    "contract_type, salaire_de_base, duree_hebdomadaire, specificites_paie"
 )
 
 
@@ -198,7 +209,7 @@ def generer_fiche_individuelle(
     annee_min = min(premier[0], dernier[0] - 2)
     bulletins = (
         supabase.table("payslips")
-        .select("year, month, payslip_data")
+        .select("year, month, status, origine, payslip_data")
         .eq("company_id", company_id)
         .eq("employee_id", employee_id)
         .gte("year", annee_min)

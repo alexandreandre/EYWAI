@@ -13,7 +13,9 @@ from openpyxl import load_workbook
 from app.modules.exports.infrastructure.fiche_individuelle import (
     MOIS_A_VENIR,
     MOIS_AVANT_ENTREE,
+    MOIS_BROUILLON,
     MOIS_NON_PAYE,
+    MOIS_REPRIS,
     construire_fiche,
     periode_par_defaut,
     lire_periode,
@@ -49,6 +51,8 @@ def _bulletin(
     prime: float = 0.0,
     libelle_prime: str = "Prime exceptionnelle",
     absence: float = 0.0,
+    status: str = "valide",
+    origine: str = "calcule",
 ):
     brut = base + hs + prime - absence
     calcul = [
@@ -63,6 +67,8 @@ def _bulletin(
     return {
         "year": annee,
         "month": mois,
+        "status": status,
+        "origine": origine,
         "payslip_data": {
             "salaire_brut": brut,
             "net_a_payer": round(brut * 0.78 - 30, 2),
@@ -334,3 +340,108 @@ def test_hors_de_ses_equipes_le_salarie_est_introuvable():
             )
     assert exc.value.status_code in (403, 404)
     generer.assert_not_called()
+
+
+
+# --- Relecture L18 : brouillons, bulletins repris, salaire de référence -------
+
+
+def _texte_du_classeur(fiche) -> list:
+    classeur = load_workbook(io.BytesIO(fiche_en_xlsx(fiche)))
+    return [str(c) for ligne in classeur.active.iter_rows(values_only=True) for c in ligne if c is not None]
+
+
+def test_un_brouillon_le_dit_et_reste_dans_les_colonnes():
+    bulletins = [_bulletin(2026, 9), _bulletin(2026, 10, status="brouillon")]
+    fiche = construire_fiche(EMPLOYE, bulletins, (2026, 9), (2026, 10), aujourd_hui=date(2026, 11, 27))
+    etat = _ligne(fiche, "Bulletin Martine")
+    assert etat["valeurs"][(2026, 10)] == MOIS_BROUILLON == "brouillon, non validé"
+    assert etat["valeurs"][(2026, 9)] == "payé"
+    assert _ligne(fiche, "SALAIRE BRUT")["valeurs"][(2026, 10)] == 2000.0
+    note = next(n for n in fiche["notes"] if n.startswith("Brouillon"))
+    assert "octobre 2026" in note and "peuvent encore changer" in note
+    assert any("brouillon" in n.lower() and "salaire de référence" in n for n in fiche["notes_reference"])
+    # Surligné dans le classeur.
+    classeur = load_workbook(io.BytesIO(fiche_en_xlsx(fiche)))
+    feuille = classeur.active
+    ligne_brut = next(r for r in feuille.iter_rows() if r[0].value == "SALAIRE BRUT")
+    assert ligne_brut[2].fill.start_color.rgb.endswith("FCE4D6")
+
+
+def test_un_bulletin_repris_n_est_pas_paye_dans_martine():
+    bulletins = [_bulletin(2026, 8, status="brouillon", origine="importe"), _bulletin(2026, 9)]
+    bulletins[0]["payslip_data"]["reprise"] = {"logiciel_precedent": "Quadra"}
+    fiche = construire_fiche(EMPLOYE, bulletins, (2026, 8), (2026, 9), aujourd_hui=date(2026, 11, 27))
+    etat = _ligne(fiche, "Bulletin Martine")
+    assert etat["valeurs"][(2026, 8)] == MOIS_REPRIS == "repris de l'ancien logiciel"
+    assert not any(n.startswith("Brouillon") for n in fiche["notes"])
+    assert any("repris de l'ancien logiciel" in n.lower() and "août 2026" in n for n in fiche["notes"])
+    assert not any("enregistrés dans Martine ; rien" in n for n in fiche["notes"])
+
+
+def test_le_salaire_de_reference_dit_ses_mois_et_ne_se_dit_pas_identique():
+    bulletins = [_bulletin(2025, m) for m in range(11, 13)] + [_bulletin(2026, m) for m in range(1, 11)]
+    fiche = construire_fiche(EMPLOYE, bulletins, (2026, 1), (2026, 10), aujourd_hui=date(2026, 11, 27))
+    assert fiche["mois_reference"] == "bulletins de 11/2025 à 10/2026 inclus (12 mois)"
+    texte = " ".join(_texte_du_classeur(fiche))
+    assert "bulletins de 11/2025 à 10/2026 inclus" in texte
+    assert "identique" not in texte
+    assert "peut différer" in texte
+
+
+def test_le_salaire_de_reference_avant_un_arret_dit_ses_mois():
+    bulletins = [_bulletin(2025, m) for m in range(11, 13)] + [_bulletin(2026, m) for m in range(1, 11)]
+    bulletins[-1]["payslip_data"]["calcul_du_brut"].append({"libelle": "Absence maladie", "perte": 100.0})
+    fiche = construire_fiche(EMPLOYE, bulletins, (2026, 1), (2026, 10), aujourd_hui=date(2026, 11, 27))
+    assert fiche["mois_reference"] == "bulletins de 11/2025 à 09/2026 inclus (11 mois)"
+
+
+def test_le_repli_contrat_lit_les_specificites_de_paie_a_39_heures(monkeypatch):
+    """Sans bulletin, le salaire habituel du contrat : à 39 h payées hors heures
+    structurelles, la fiche les ajoute, comme le moteur (specificites_paie)."""
+    from app.modules.exports.infrastructure import export_fiche_individuelle as module
+
+    fiche_en_base = {
+        **EMPLOYE,
+        "company_id": "c1",
+        "duree_hebdomadaire": 39,
+        "specificites_paie": {"salaire_hors_hs_structurelles": True},
+    }
+
+    class Requete:
+        def __init__(self, table):
+            self.table, self.colonnes = table, None
+
+        def select(self, colonnes):
+            self.colonnes = [c.strip() for c in colonnes.split(",")]
+            return self
+
+        def __getattr__(self, _nom):
+            return lambda *a, **k: self
+
+        def execute(self):
+            if self.table == "employees":
+                return type("R", (), {"data": [{c: fiche_en_base.get(c) for c in self.colonnes}]})()
+            return type("R", (), {"data": []})()
+
+    monkeypatch.setattr(module, "supabase", type("S", (), {"table": staticmethod(Requete)})())
+    capture = {}
+    vrai = module.construire_fiche
+    monkeypatch.setattr(module, "construire_fiche", lambda *a, **k: capture.setdefault("fiche", vrai(*a, **k)))
+    module.generer_fiche_individuelle("c1", "e1", "2026-01", "2026-10", aujourd_hui=date(2026, 11, 27))
+    reference = capture["fiche"]["reference"]
+    assert reference.formule == "contrat"
+    assert reference.retenu > 2000.0
+
+
+def test_un_mois_mixte_forfait_et_heures_affiche_les_deux():
+    forfait = _bulletin(2026, 10)
+    forfait["payslip_data"]["calcul_du_brut"][0] = {"libelle": "Salaire de base (forfait jour)", "gain": 1000.0}
+    heures = _bulletin(2026, 10, base=1000.0)
+    fiche = construire_fiche(EMPLOYE, [heures, forfait], (2026, 10), (2026, 10), aujourd_hui=date(2026, 11, 27))
+    assert _ligne(fiche, "Heures du salaire de base")["valeurs"][(2026, 10)] == "151,67 h + forfait jours"
+    # Même dans un seul bulletin.
+    seul = _bulletin(2026, 10)
+    seul["payslip_data"]["calcul_du_brut"].append({"libelle": "Salaire de base (forfait jour)", "gain": 10.0})
+    fiche = construire_fiche(EMPLOYE, [seul], (2026, 10), (2026, 10), aujourd_hui=date(2026, 11, 27))
+    assert _ligne(fiche, "Heures du salaire de base")["valeurs"][(2026, 10)] == "151,67 h + forfait jours"
