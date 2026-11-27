@@ -8,7 +8,6 @@ import {
   moisEnToutesLettres,
   pastilleSoumise,
   phraseSaisiePonctuelle,
-  remarqueDeSaisieGeneree,
   sousTitreSaisies,
 } from './libellesSaisie';
 
@@ -120,19 +119,5 @@ describe('heuresDeclareesDeLaSaisie : les heures sup corrigées depuis le bullet
   });
   it('une saisie ordinaire n’est pas touchée', () => {
     expect(heuresDeclareesDeLaSaisie({ name: 'Prime de chantier', payroll_quantity: null })).toBeNull();
-  });
-});
-
-describe('remarqueDeSaisieGeneree (L19, 26/11)', () => {
-  it('lit la remarque laissée par la génération des variables', () => {
-    expect(
-      remarqueDeSaisieGeneree("Auto: PANIER — 2 jours travaillés sans heure d'arrivée, non comptés pour « Panier » : 05/10, 06/10"),
-    ).toBe("2 jours travaillés sans heure d'arrivée, non comptés pour « Panier » : 05/10, 06/10");
-  });
-
-  it("rien pour une saisie générée sans remarque ni pour une saisie à la main", () => {
-    expect(remarqueDeSaisieGeneree('Auto: PANIER')).toBeNull();
-    expect(remarqueDeSaisieGeneree('Prime — exceptionnelle')).toBeNull();
-    expect(remarqueDeSaisieGeneree(undefined)).toBeNull();
   });
 });

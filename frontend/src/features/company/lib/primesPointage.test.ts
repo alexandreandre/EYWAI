@@ -128,16 +128,16 @@ describe('trierLaSimulation', () => {
 describe('jours travaillés sans heure d\'arrivée (L19, 26/11)', () => {
   it('donne le nombre et les dates, au singulier comme au pluriel', () => {
     expect(phraseJoursSansHeureDArrivee(2, ['2026-10-05', '2026-10-06'])).toBe(
-      "2 jours travaillés sans heure d'arrivée, non comptés (05/10, 06/10) : poser l'absence ou corriger le badge au calendrier",
+      "2 jours travaillés sans heure d'arrivée, non comptés (05/10, 06/10) : heure d'arrivée à saisir au calendrier, ou absence à poser",
     );
     expect(phraseJoursSansHeureDArrivee(1, ['2026-10-11'])).toBe(
-      "1 jour travaillé sans heure d'arrivée, non compté (11/10) : poser l'absence ou corriger le badge au calendrier",
+      "1 jour travaillé sans heure d'arrivée, non compté (11/10) : heure d'arrivée à saisir au calendrier, ou absence à poser",
     );
   });
 
   it('sans dates (simulation ancienne), le nombre seul', () => {
     expect(phraseJoursSansHeureDArrivee(3)).toBe(
-      "3 jours travaillés sans heure d'arrivée, non comptés : poser l'absence ou corriger le badge au calendrier",
+      "3 jours travaillés sans heure d'arrivée, non comptés : heure d'arrivée à saisir au calendrier, ou absence à poser",
     );
   });
 

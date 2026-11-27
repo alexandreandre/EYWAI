@@ -451,10 +451,14 @@ class TestRetombeAZero:
         assert gm.generate_monthly_variables("c", 2026, 10, dry_run=True)["preview"] == []
 
 
+
 class TestJoursSansHeureDArriveeDits:
-    """L19 (26/11) : les jours travaillés sans heure d'arrivée dont le panier
+    """L19 (26-27/11) : les jours travaillés sans heure d'arrivée dont le panier
     n'est pas compté étaient calculés mais dits nulle part quand le panier du
-    mois restait positif. La saisie générée le porte ; le bulletin l'alerte."""
+    mois restait positif. Ils se recalculent au calendrier, par la même règle,
+    au bulletin et pour « Primes du mois » ; rien n'est stocké (relecture du
+    27/11 : une remarque dans la description pouvait faire payer la saisie en
+    heures sup)."""
 
     REGLE = {
         "rule_type": "per_worked_day",
@@ -481,20 +485,102 @@ class TestJoursSansHeureDArriveeDits:
         assert details["jours_sans_heure_de_debut"] == 2
         assert details["dates_sans_heure_de_debut"] == ["2026-10-05", "2026-10-06"]
 
-    def test_la_saisie_ecrite_le_dit(self, monkeypatch):
+    def test_la_saisie_ecrite_garde_sa_description(self, monkeypatch):
         prevu, reel = self._calendrier_avec_deux_oublis()
         repo = _brancher(monkeypatch, self.REGLE, FICHE, prevu, reel)
         monkeypatch.setattr(gm, "_bonus_type_meta", lambda r: ("Panier", False, False, None, None, None))
         gm.generate_monthly_variables("c", 2026, 10, dry_run=False)
-        payload = repo.upsert_monthly_input.call_args.args[0]
-        assert payload["description"] == (
-            "Auto: r — 2 jours travaillés sans heure d'arrivée, "
-            "non comptés pour « Panier » : 05/10, 06/10"
-        )
-
-    def test_sans_oubli_la_description_reste_courte(self, monkeypatch):
-        prevu, reel = _calendrier({j: "03:50" for j in _ouvres(DEBUT, FIN)})
-        repo = _brancher(monkeypatch, self.REGLE, FICHE, prevu, reel)
-        monkeypatch.setattr(gm, "_bonus_type_meta", lambda r: ("Panier", False, False, None, None, None))
-        gm.generate_monthly_variables("c", 2026, 10, dry_run=False)
         assert repo.upsert_monthly_input.call_args.args[0]["description"] == "Auto: r"
+
+    def test_le_bulletin_le_dit_recalcule_au_calendrier(self, monkeypatch):
+        from app.modules.payroll_variables.application.alertes_paniers import alertes_des_paniers_du_mois
+
+        prevu, reel = self._calendrier_avec_deux_oublis()
+        _brancher(monkeypatch, self.REGLE, FICHE, prevu, reel)
+        alertes = alertes_des_paniers_du_mois("c", "e1", 2026, 10, [])
+        assert [a["message"] for a in alertes] == [
+            "Panier : 2 jours travaillés sans heure d'arrivée, non comptés (05/10, 06/10) : "
+            "heure d'arrivée à saisir au calendrier, ou absence à poser."
+        ]
+        assert alertes[0]["code"] == "jours_sans_heure_d_arrivee"
+        assert alertes[0]["critique"] is False
+
+    def test_l_arrivee_corrigee_eteint_l_alerte(self, monkeypatch):
+        from app.modules.payroll_variables.application.alertes_paniers import alertes_des_paniers_du_mois
+
+        prevu, reel = _calendrier({j: "03:50" for j in _ouvres(DEBUT, FIN)})
+        _brancher(monkeypatch, self.REGLE, FICHE, prevu, reel)
+        assert alertes_des_paniers_du_mois("c", "e1", 2026, 10, []) == []
+
+    def test_panier_du_mois_a_zero_l_alerte_reste(self, monkeypatch):
+        from app.modules.payroll_variables.application.alertes_paniers import alertes_des_paniers_du_mois
+
+        prevu, reel = _calendrier({})
+        _brancher(monkeypatch, self.REGLE, FICHE, prevu, reel)
+        alertes = alertes_des_paniers_du_mois("c", "e1", 2026, 10, [])
+        assert len(alertes) == 1 and "22 jours travaillés sans heure d'arrivée" in alertes[0]["message"]
+
+    def test_l_ecran_primes_du_mois_les_lit_sans_rien_ecrire(self, monkeypatch):
+        from app.modules.payroll_variables.application.alertes_paniers import jours_sans_heure_d_arrivee
+
+        prevu, reel = self._calendrier_avec_deux_oublis()
+        repo = _brancher(monkeypatch, self.REGLE, FICHE, prevu, reel)
+        jours = jours_sans_heure_d_arrivee("c", 2026, 10)
+        assert jours == [
+            {
+                "employee_id": "e1",
+                "first_name": "A",
+                "last_name": "B",
+                "rule_label": "Panier",
+                "dates": ["2026-10-05", "2026-10-06"],
+            }
+        ]
+        repo.upsert_monthly_input.assert_not_called()
+        repo.retirer_saisie_generee.assert_not_called()
+
+
+class TestMontantModifieSansLeNombre:
+    """L19, relecture point B : un panier dont le montant est changé à la main
+    sans changer le nombre garde la réintégration calculée sur ce nombre ; le
+    bulletin le dit."""
+
+    REGLE = {"rule_type": "per_worked_day", "label": "Panier", "amount": 7.6, "conditions": {}}
+
+    def _saisie(self, montant):
+        return {"name": "Panier", "description": "Auto: r", "amount": montant, "payroll_quantity": 15,
+                "manual_override": True}
+
+    def test_montant_different_du_nombre_fois_le_taux(self, monkeypatch):
+        from app.modules.payroll_variables.application.alertes_paniers import alertes_des_paniers_du_mois
+
+        _brancher(monkeypatch, self.REGLE, FICHE, {}, {})
+        alertes = alertes_des_paniers_du_mois("c", "e1", 2026, 10, [self._saisie(121.6)])
+        assert [a["message"] for a in alertes] == [
+            "Panier : montant modifié à la main (121,60 €) sans changer le nombre de paniers (15) : "
+            "la part réintégrée est calculée sur 15 paniers ; corrigez le nombre dans Primes du mois"
+        ]
+        assert alertes[0]["critique"] is False
+
+    def test_montant_egal_au_nombre_fois_le_taux(self, monkeypatch):
+        from app.modules.payroll_variables.application.alertes_paniers import alertes_des_paniers_du_mois
+
+        _brancher(monkeypatch, self.REGLE, FICHE, {}, {})
+        assert alertes_des_paniers_du_mois("c", "e1", 2026, 10, [self._saisie(114.0)]) == []
+
+    def test_une_saisie_a_la_main_ou_retiree_ne_dit_rien(self, monkeypatch):
+        from app.modules.payroll_variables.application.alertes_paniers import alertes_des_paniers_du_mois
+
+        _brancher(monkeypatch, self.REGLE, FICHE, {}, {})
+        a_la_main = {**self._saisie(121.6), "description": "Saisie RH"}
+        retiree = {**self._saisie(0), "amount": 0}
+        assert alertes_des_paniers_du_mois("c", "e1", 2026, 10, [a_la_main, retiree]) == []
+
+
+@pytest.mark.parametrize("module", ["payslip_generator", "payslip_generator_forfait"])
+def test_les_deux_generateurs_disent_les_paniers_du_mois(module):
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[3] / f"app/modules/payroll/documents/{module}.py"
+    ).read_text(encoding="utf-8")
+    assert "alertes_des_paniers_du_mois(" in source

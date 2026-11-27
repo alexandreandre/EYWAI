@@ -95,10 +95,8 @@ from app.modules.payroll.documents.pdf_du_bulletin import (
     retirer_pdf_remplace,
 )
 from app.modules.payslips.domain.heures_sup import est_declaration_bulletin
-from app.modules.monthly_inputs.domain.rules import (
-    alertes_de_doublon_de_prime,
-    alertes_de_jours_sans_heure_d_arrivee,
-)
+from app.modules.monthly_inputs.domain.rules import alertes_de_doublon_de_prime, est_saisie_generee
+from app.modules.payroll_variables.application.alertes_paniers import alertes_des_paniers_du_mois
 from app.modules.payroll.documents.saisies_du_bulletin import ranger_les_saisies
 from app.modules.payroll.documents.variables_automatiques import (
     variables_automatiques_avant_bulletin,
@@ -154,9 +152,16 @@ def _parse_if_json_string(value: Any) -> Any:
 
 
 def _is_heures_sup_conjoncturelle_input(row: dict) -> bool:
-    """True si la saisie mensuelle porte une quantité d'HS conjoncturelles (pas une prime €)."""
+    """True si la saisie mensuelle porte une quantité d'HS conjoncturelles (pas une prime €).
+
+    Jamais une saisie écrite par une règle de variables (« Auto: <code> ») : une
+    règle de panier nommée « Panier supplémentaire » ou codée `prime_poste_hs`
+    aurait été payée en heures sup (relecture L19, 27/11).
+    """
     qty = row.get("payroll_quantity")
     if qty is None:
+        return False
+    if est_saisie_generee(row):
         return False
     label = " ".join(
         str(row.get(key) or "")
@@ -1889,9 +1894,12 @@ def process_payslip_generation(
             payslip_json_data["alertes_baremes"] = fusionner_replis(
                 payslip_json_data.get("alertes_baremes"), alertes_de_repli_generateur
             )
-        # Jours travaillés sans heure d'arrivée, non comptés au panier (L19, 26/11).
         alertes_doublons = alertes_de_doublon_de_prime(saisies_res.data or [])
-        alertes_doublons += alertes_de_jours_sans_heure_d_arrivee(saisies_res.data or [])
+        # Paniers : jours sans heure d'arrivée relus au calendrier, montant changé
+        # sans le nombre (L19, 27/11). Non bloquant.
+        alertes_doublons += alertes_des_paniers_du_mois(
+            str(company_id), str(employee_id), year, month, saisies_res.data or []
+        )
         if alertes_doublons and isinstance(payslip_json_data, dict):
             payslip_json_data = dict(payslip_json_data)
             payslip_json_data["alertes_baremes"] = [

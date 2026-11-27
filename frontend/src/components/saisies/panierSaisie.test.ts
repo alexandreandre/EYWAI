@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { champsDeLaSaisie } from './sensSaisie';
-import { afficherBlocPanier, casesApresNouveauNom, champsDuPanier, panierNonSoumisParDefaut } from './panierSaisie';
+import { afficherBlocPanier, casesApresNouveauNom, champsDuPanier, panierNonSoumisParDefaut,
+  libelleNombreDePaniers,
+  lireNombreDePaniers,
+  nombreDePaniersModifiable,
+} from './panierSaisie';
 
 const SOUMIS = { is_socially_taxed: true, is_taxable: true };
 const NON_SOUMIS = { is_socially_taxed: false, is_taxable: false };
@@ -82,5 +86,42 @@ describe('panier tapé à la main', () => {
   it('versement sur le net : pas de bloc panier', () => {
     const champs = champsDeLaSaisie('versement_net', 50, NON_SOUMIS);
     expect(afficherBlocPanier('Panier repas', champs)).toBe(false);
+  });
+});
+
+describe('nombre de paniers modifiable dans Primes du mois (L19, 27/11)', () => {
+  const saisie = (champs: Record<string, unknown>) => ({
+    name: 'Panier',
+    is_socially_taxed: false,
+    sur_le_net: false,
+    payroll_quantity: 15,
+    quantity_kind: 'count',
+    ...champs,
+  }) as never;
+
+  it('un panier non soumis compté en nombre se modifie', () => {
+    expect(nombreDePaniersModifiable(saisie({}))).toBe(true);
+    expect(nombreDePaniersModifiable(saisie({ quantity_kind: null }))).toBe(true);
+    expect(nombreDePaniersModifiable(saisie({ payroll_quantity: null }))).toBe(true);
+  });
+
+  it("ni une valeur unitaire, ni un panier soumis, ni une autre prime", () => {
+    expect(nombreDePaniersModifiable(saisie({ quantity_kind: 'unit_value' }))).toBe(false);
+    expect(nombreDePaniersModifiable(saisie({ is_socially_taxed: true }))).toBe(false);
+    expect(nombreDePaniersModifiable(saisie({ name: 'Prime de présence' }))).toBe(false);
+  });
+
+  it('lit un nombre positif, virgule comprise', () => {
+    expect(lireNombreDePaniers('15')).toBe(15);
+    expect(lireNombreDePaniers('14,5')).toBe(14.5);
+    expect(lireNombreDePaniers('0')).toBeNull();
+    expect(lireNombreDePaniers('abc')).toBeNull();
+  });
+
+  it('dit le nombre', () => {
+    expect(libelleNombreDePaniers(15)).toBe('15 paniers');
+    expect(libelleNombreDePaniers(1)).toBe('1 panier');
+    expect(libelleNombreDePaniers(14.5)).toBe('14,5 paniers');
+    expect(libelleNombreDePaniers(null)).toBe('Nombre de paniers ?');
   });
 });

@@ -53,3 +53,31 @@ export function champsDuPanier(
     situation_repas: situation,
   };
 }
+
+/**
+ * Primes du mois : le nombre de paniers d'une saisie se corrige comme le montant
+ * (L19, 27/11). Un montant changé seul garde la réintégration calculée sur
+ * l'ancien nombre. Pas pour une valeur unitaire (Mont Blanc) : la quantité y est
+ * le prix d'un panier, pas leur nombre.
+ */
+export function nombreDePaniersModifiable(saisie: {
+  name: string;
+  is_socially_taxed: boolean;
+  sur_le_net?: boolean;
+  quantity_kind?: 'count' | 'unit_value' | null;
+}): boolean {
+  return afficherBlocPanier(saisie.name, saisie) && saisie.quantity_kind !== 'unit_value';
+}
+
+/** « 15 », « 14,5 » : un nombre de paniers positif, ou null. */
+export function lireNombreDePaniers(texte: string): number | null {
+  const n = Number(texte.trim().replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** « 15 paniers », « 1 panier », « 14,5 paniers ». */
+export function libelleNombreDePaniers(nombre: number | null | undefined): string {
+  if (nombre == null) return 'Nombre de paniers ?';
+  const texte = String(nombre).replace('.', ',');
+  return `${texte} ${nombre > 1 ? 'paniers' : 'panier'}`;
+}

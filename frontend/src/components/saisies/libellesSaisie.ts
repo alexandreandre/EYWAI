@@ -93,19 +93,3 @@ export function heuresDeclareesDeLaSaisie(saisie: {
     quantite: `${heures} h`,
   };
 }
-
-/** Début de la description d'une saisie écrite par la génération des variables. */
-const PREFIXE_SAISIE_GENEREE = 'Auto:';
-const SEPARATEUR_REMARQUE = ' — ';
-
-/**
- * La remarque que la génération des variables laisse sur sa saisie (jours
- * travaillés sans heure d'arrivée, non comptés au panier : L19, 26/11), ou null.
- * Même lecture que `remarque_de_saisie_generee` côté serveur.
- */
-export function remarqueDeSaisieGeneree(description?: string | null): string | null {
-  if (!description || !description.startsWith(PREFIXE_SAISIE_GENEREE)) return null;
-  const i = description.indexOf(SEPARATEUR_REMARQUE);
-  if (i < 0) return null;
-  return description.slice(i + SEPARATEUR_REMARQUE.length).trim() || null;
-}

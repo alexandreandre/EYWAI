@@ -5,6 +5,7 @@ from __future__ import annotations
 import calendar
 import re
 from datetime import date, timedelta
+from collections.abc import Collection
 from typing import Any
 
 from app.core.database import supabase
@@ -46,10 +47,6 @@ from app.modules.payroll_variables.infrastructure.absence_queries import (
     list_validated_absences_for_employees_in_range,
 )
 from app.modules.payroll_variables.infrastructure import repository as repo
-from app.modules.monthly_inputs.domain.rules import (
-    description_de_saisie_generee,
-    remarque_jours_sans_heure_d_arrivee,
-)
 
 
 def _month_bounds(year: int, month: int) -> tuple[date, date]:
@@ -492,7 +489,6 @@ def _append_generated_input(
     name_suffix: str,
     details: dict[str, Any] | None = None,
     retirer_si_zero: bool = False,
-    dates_non_comptees: list[str] | None = None,
 ) -> int:
     if amount <= 0:
         if retirer_si_zero and not dry_run and rule.get("generation_mode") == "auto":
@@ -526,12 +522,7 @@ def _append_generated_input(
             "year": year,
             "month": month,
             "name": input_name,
-            # Les jours travaillés sans heure d'arrivée, non comptés, restent
-            # dits sur la saisie et au bulletin (L19, 26/11).
-            "description": description_de_saisie_generee(
-                rule.get("code"),
-                remarque_jours_sans_heure_d_arrivee(dates_non_comptees or [], label),
-            ),
+            "description": f"Auto: {rule.get('code')}",
             "amount": amount,
             "is_socially_taxed": social,
             "is_taxable": taxable,
@@ -557,13 +548,20 @@ def generate_monthly_variables(
     *,
     dry_run: bool = False,
     employee_id: str | None = None,
+    types_de_regle: Collection[str] | None = None,
 ) -> dict[str, Any]:
     """Variables automatiques du mois, pour les salariés actifs de la société.
 
     Avec `employee_id`, pour ce seul salarié : la génération de son bulletin ne
-    doit pas réécrire les variables du mois des autres [J8].
+    doit pas réécrire les variables du mois des autres [J8]. Avec
+    `types_de_regle`, seulement les règles de ces types (lecture des jours sans
+    heure d'arrivée, `alertes_paniers`).
     """
-    rules = [r for r in repo.list_rules(company_id) if r.get("enabled")]
+    rules = [
+        r
+        for r in repo.list_rules(company_id)
+        if r.get("enabled") and (types_de_regle is None or r.get("rule_type") in types_de_regle)
+    ]
     requete = (
         supabase.table("employees")
         .select(
@@ -952,7 +950,6 @@ def generate_monthly_variables(
                     name_suffix="",
                     details=infos,
                     retirer_si_zero=bool(conditions.get("plages_debut") or heures_par_jour),
-                    dates_non_comptees=detail.get("dates_sans_heure_de_debut") or None,
                 )
                 continue
 

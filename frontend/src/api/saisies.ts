@@ -81,7 +81,7 @@ export const deleteMonthlyInput = (id: string) => {
 export const updateMonthlyInput = (
   id: string,
   data: Partial<
-    Pick<MonthlyInput, 'amount' | 'name' | 'description' | 'is_socially_taxed' | 'is_taxable'>
+    Pick<MonthlyInput, 'amount' | 'name' | 'description' | 'is_socially_taxed' | 'is_taxable' | 'payroll_quantity'>
   >,
   companyId?: string | null,
 ) => {
