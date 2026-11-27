@@ -266,6 +266,8 @@ export interface AiDayEntry {
   /** Heures décidées par le client dans son fichier (colonne des heures
    * retenues) : le calcul des badges ne les a pas réécrites. */
   heures_fixees_par_fichier?: boolean;
+  /** Relevés fusionnés : le jour vient d'un fichier refait (relecture). */
+  releve_refait?: boolean | null;
 }
 
 export type AiMatchConfidence = 'high' | 'medium' | 'none';

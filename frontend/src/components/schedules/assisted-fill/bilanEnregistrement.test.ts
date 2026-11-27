@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { messageEnregistrementImpossible } from './bilanEnregistrement';
 import {
   joursEcritsDuLot,
   phraseAlertesMasquees,
@@ -59,5 +60,27 @@ describe('phrases accordées de la revue', () => {
     expect(phraseAlertesMasquees(1)).toBe('1 alerte masquée (salarié hors PDF)');
     expect(phraseHorsReleve(2)).toBe('2 salariés du roster absents du relevé — normal, non affichés.');
     expect(phraseHorsReleve(1)).toBe('1 salarié du roster absent du relevé — normal, non affiché.');
+  });
+});
+
+describe('messageEnregistrementImpossible', () => {
+  const refus = (status: number, detail: unknown) =>
+    Object.assign(new Error(`Request failed with status code ${status}`), {
+      response: { status, data: { detail } },
+    });
+
+  it('affiche la phrase du serveur, jamais « Request failed with status code »', () => {
+    for (const [status, phrase] of [
+      [409, 'Le relevé « S39.xlsx » est déjà enregistré : relancez l’import pour le relire.'],
+      [403, 'Le relevé « S43.xlsx » a été importé par un autre utilisateur.'],
+      [400, 'Salarié relu absent des relevés importés : Jeanne Exemple.'],
+    ] as const) {
+      expect(messageEnregistrementImpossible(refus(status, phrase))).toBe(phrase);
+    }
+  });
+
+  it('une erreur locale garde son message ; sinon une phrase d’enregistrement', () => {
+    expect(messageEnregistrementImpossible(new Error('Lot introuvable'))).toBe('Lot introuvable');
+    expect(messageEnregistrementImpossible(null)).toBe("L'enregistrement a échoué.");
   });
 });

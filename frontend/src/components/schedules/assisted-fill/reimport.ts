@@ -175,3 +175,16 @@ export function libelleBilan(bilan: BilanReimport): string {
       : 'aucune correction faite à la main à garder',
   ].join(' · ');
 }
+
+/**
+ * Les jours qui ne viennent pas d'un fichier refait : eux seuls annoncent des
+ * « jours déjà saisis remplacés ». Une relecture a son propre bilan
+ * (corrections faites à la main gardées). Un jour sans marque suit l'aperçu :
+ * relecture ou non.
+ */
+export function joursHorsRelecture<T extends { releve_refait?: boolean | null }>(
+  jours: T[],
+  apercuEnRelecture: boolean,
+): T[] {
+  return jours.filter((j) => !(j.releve_refait ?? apercuEnRelecture));
+}

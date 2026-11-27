@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AiCalendarProposal, AiDayEntry, AiEmployeeProposal } from '@/api/calendar';
 import { mergeProposals } from './fusionReleves';
+import { joursHorsRelecture } from './reimport';
+import { joursRemplaces } from './joursDejaSaisis';
 
 const jour = (j: number, heures: number, extra: Partial<AiDayEntry> = {}): AiDayEntry => ({
   jour: j,
@@ -183,5 +185,39 @@ describe('mergeProposals : plages couvertes et relectures', () => {
   it('sans relecture, rien n’est annoncé', () => {
     const s40 = { ...s43, month: 10 } as AiCalendarProposal;
     expect(mergeProposals([s43, s40]).reimport ?? null).toBeNull();
+  });
+});
+
+describe('mergeProposals : jours d’une relecture', () => {
+  const s39 = {
+    ...releve(2026, 9, [jour(21, 7)]),
+    reimport: { lots_precedents: [{ batch_id: 'ancien' }], corrections_a_la_main: [] },
+  } as AiCalendarProposal;
+  const s43 = releve(2026, 10, [jour(21, 6.75)]);
+
+  it('chaque jour dit s’il vient d’un fichier refait, quel que soit l’ordre', () => {
+    for (const ordre of [[s39, s43], [s43, s39]]) {
+      const fusion = mergeProposals(ordre);
+      const parDate = Object.fromEntries(
+        fusion.employees[0].days.map((d) => [cle(d, fusion), d.releve_refait]),
+      );
+      expect(parDate).toEqual({ '2026-09-21': true, '2026-10-21': false });
+    }
+  });
+
+  it('le 21/10 déjà à 7 h est annoncé remplacé ; le jour de la relecture ne l’est pas', () => {
+    const fusion = mergeProposals([s39, s43]);
+    const jours = joursHorsRelecture(fusion.employees[0].days, !!fusion.reimport).map((d) => ({
+      jour: d.jour,
+      heures: d.heures,
+      nature: d.nature,
+      annee: d.year ?? fusion.year,
+      mois: d.month ?? fusion.month,
+    }));
+    const remplaces = joursRemplaces(
+      [{ nom: 'Salarié Un', employeeId: 'e1', enregistrable: true, jours }],
+      { e1: { '2026-10-21': 7, '2026-09-21': 6 } },
+    );
+    expect(remplaces).toEqual([{ nom: 'Salarié Un', jours: 1 }]);
   });
 });

@@ -185,12 +185,17 @@ export function mergeProposals(proposals: AiCalendarProposal[]): AiCalendarPropo
   let incomplete = 0;
   let gap = 0;
 
+  // Une relecture dans la fusion : chaque jour dit s'il vient d'un fichier refait.
+  const avecRelecture = proposals.some((p) => !!p.reimport);
   proposals.forEach((p) => {
     const releve: Mois = { year: p.year, month: p.month };
     const dates = p.employees.map((e) => ({
       ...e,
       warnings: avertissementsDates(e, releve),
-      days: e.days.map((d) => dansLaFusion(d, releve, fusion)),
+      days: e.days.map((d) => ({
+        ...dansLaFusion(d, releve, fusion),
+        ...(avecRelecture ? { releve_refait: !!p.reimport } : {}),
+      })),
     }));
     employees = mergeEmployeeProposals(employees, dates, fusion);
     p.warnings.forEach((w) => warnings.add(w));

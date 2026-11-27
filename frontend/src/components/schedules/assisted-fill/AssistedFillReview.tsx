@@ -80,6 +80,7 @@ import {
 } from './joursDejaSaisis';
 import {
   joursEcritsDuLot,
+  messageEnregistrementImpossible,
   phraseAlertesMasquees,
   phraseEcartsOcr,
   phraseEnregistrement,
@@ -94,7 +95,7 @@ import {
   suiteResultatLignesIgnorees,
 } from './lignesIgnorees';
 import { ReimportBanner } from './ReimportBanner';
-import { bilanReimport, cleJour, libelleImportRefait } from './reimport';
+import { bilanReimport, cleJour, joursHorsRelecture, libelleImportRefait } from './reimport';
 import { appliquerRegleALaRevue, type PunchBreakRule } from '@/lib/punchBreakHours';
 import {
   getActualHours,
@@ -151,6 +152,8 @@ interface EditableDay {
   ajoutParCase?: boolean;
   /** Heures retenues par le client dans son fichier, pas recalculées. */
   heures_fixees_par_fichier?: boolean;
+  /** Relevés fusionnés : le jour vient d'un fichier refait. */
+  releve_refait?: boolean | null;
 }
 
 interface EditableRow {
@@ -499,6 +502,7 @@ export function AssistedFillReview({
         year: d.year ?? null,
         month: d.month ?? null,
         heures_fixees_par_fichier: d.heures_fixees_par_fichier ?? false,
+        releve_refait: d.releve_refait ?? null,
       })),
       weeklyTotalPdf: emp.weekly_total_pdf ?? null,
       weeklyTotalImported: emp.weekly_total_imported ?? null,
@@ -629,7 +633,9 @@ export function AssistedFillReview({
         nom: r.matchedName ?? r.rawName,
         employeeId: r.employeeId,
         enregistrable: isSavableRow(r, includeOrange),
-        jours: r.days.map((d) => ({
+        // Les jours d'un fichier refait ont leur bilan de relecture ; les
+        // autres annoncent les jours déjà saisis qu'ils remplacent.
+        jours: joursHorsRelecture(r.days, !!reimport).map((d) => ({
           jour: d.jour,
           heures: d.heures,
           nature: d.nature,
@@ -637,19 +643,19 @@ export function AssistedFillReview({
           mois: d.month ?? proposal.month,
         })),
       })),
-    [rows, includeOrange, proposal.year, proposal.month],
+    [rows, includeOrange, proposal.year, proposal.month, reimport],
   );
   const moisALire = useMemo(() => {
     const vus = new Map<string, { employeeId: string; annee: number; mois: number }>();
     for (const l of lignesAvecJours) {
-      if (!l.enregistrable || !l.employeeId || reimport) continue;
+      if (!l.enregistrable || !l.employeeId) continue;
       for (const j of l.jours) {
         if (j.nature !== 'reel') continue;
         vus.set(`${l.employeeId}|${j.annee}|${j.mois}`, { employeeId: l.employeeId, annee: j.annee, mois: j.mois });
       }
     }
     return [...vus.values()];
-  }, [lignesAvecJours, reimport]);
+  }, [lignesAvecJours]);
   const lecturesExistantes = useQueries({
     queries: moisALire.map((m) => ({
       queryKey: ['import-heures-deja-saisies', m.employeeId, m.annee, m.mois],
@@ -1045,8 +1051,7 @@ export function AssistedFillReview({
       // on affiche sa phrase plutôt qu'un échec anonyme.
       toast({
         title: 'Erreur',
-        description:
-          e instanceof Error && e.message ? e.message : "L'enregistrement a échoué.",
+        description: messageEnregistrementImpossible(e),
         variant: 'destructive',
       });
     } finally {
