@@ -67,15 +67,27 @@ def _est_absence(prevu: Mapping[str, Any] | None) -> bool:
     return prevu.get("type") in TYPES_GARDES or prevu.get("origine") == ORIGINE_ABSENCE
 
 
+def _nombre(valeur: Any) -> float | None:
+    if valeur is None or valeur == "":
+        return None
+    try:
+        return float(valeur)
+    except (TypeError, ValueError):
+        return None
+
+
 def _a_du_contenu(prevu: Mapping[str, Any] | None, reel: Mapping[str, Any] | None) -> bool:
-    if prevu and (
-        prevu.get("heures_prevues") is not None
-        or str(prevu.get("type") or "") not in ("", "travail", "weekend", "ferie")
-    ):
+    """Le jour porte-t-il une saisie ? Un week-end ou un férié à 0 h est l'état
+    par défaut : il n'est ni vidé ni compté."""
+    if reel and (reel.get("debut") or reel.get("fin") or (_nombre(reel.get("heures_faites")) or 0) > 0):
         return True
-    if reel and (reel.get("heures_faites") is not None or reel.get("debut") or reel.get("fin")):
+    type_prevu = str((prevu or {}).get("type") or "")
+    prevues = _nombre((prevu or {}).get("heures_prevues"))
+    if type_prevu in ("weekend", "ferie"):
+        return (prevues or 0) > 0
+    if prevu and (prevues is not None or type_prevu not in ("", "travail")):
         return True
-    return False
+    return bool(reel and _nombre(reel.get("heures_faites")) is not None)
 
 
 def plan_de_vidage(

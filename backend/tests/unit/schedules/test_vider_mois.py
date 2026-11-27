@@ -41,10 +41,11 @@ class TestPlanDeVidage:
         plan = plan_de_vidage(2026, 10, prevu, reel, jours_absence_validee={10}, jours_bulletin=set())
         assert set(plan.jours_gardes_absence) == {5, 10, 12, 13, 14}
         assert 5 not in plan.jours_vides and 12 not in plan.jours_vides and 10 not in plan.jours_vides
-        assert 1 in plan.jours_vides and 3 in plan.jours_vides  # jeudi, samedi
+        assert 1 in plan.jours_vides  # jeudi
+        # Un samedi à 0 h est l'état par défaut : ni vidé ni compté.
+        assert 3 not in plan.jours_vides
         prevu_envoye = {e["jour"]: e for e in plan.calendrier_prevu}
         assert prevu_envoye[1] == {"jour": 1, "type": "travail", "heures_prevues": None}
-        assert prevu_envoye[3] == {"jour": 3, "type": "weekend", "heures_prevues": None}
         assert 5 not in prevu_envoye
         reel_envoye = {e["jour"]: e for e in plan.calendrier_reel}
         assert reel_envoye[1] == {"jour": 1, "type": "travail", "heures_faites": None}
@@ -59,10 +60,20 @@ class TestPlanDeVidage:
         reel_envoye = {e["jour"]: e for e in plan.calendrier_reel}
         assert reel_envoye[1]["heures_faites"] == 7
 
+    def test_un_samedi_travaille_est_vide_en_week_end(self):
+        plan = plan_de_vidage(
+            2026, 10,
+            [{"jour": 3, "type": "travail", "heures_prevues": 6}],
+            [{"jour": 3, "type": "travail", "heures_faites": 6}],
+            jours_absence_validee=set(), jours_bulletin=set(),
+        )
+        assert plan.calendrier_prevu == [{"jour": 3, "type": "weekend", "heures_prevues": None}]
+        assert plan.calendrier_reel == [{"jour": 3, "type": "weekend", "heures_faites": None}]
+
     def test_un_ferie_reste_ferie_et_un_mois_vide_ne_change_rien(self):
         plan = plan_de_vidage(
             2026, 11,
-            [{"jour": 11, "type": "ferie", "heures_prevues": 0}],
+            [{"jour": 11, "type": "ferie", "heures_prevues": 7}],
             [], jours_absence_validee=set(), jours_bulletin=set(),
         )
         assert plan.calendrier_prevu == [{"jour": 11, "type": "ferie", "heures_prevues": None}]
@@ -92,7 +103,9 @@ class TestService:
         save.assert_not_called()
         assert resume["apercu"] is True
         assert resume["jours_gardes_absence"] == [5, 12, 13, 14]
-        assert len(resume["jours_vides"]) == 27
+        # 22 jours ouvrés, moins 4 jours d'absence ; les week-ends à 0 h sont
+        # l'état par défaut, ni vidés ni comptés.
+        assert len(resume["jours_vides"]) == 18
 
     def test_execution_ecrit_sur_la_revision_lue(self):
         saved = {"revision": "22222222-2222-2222-2222-222222222222", "calendrier_prevu": [], "calendrier_reel": []}

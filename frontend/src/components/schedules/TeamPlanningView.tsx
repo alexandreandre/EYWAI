@@ -185,7 +185,11 @@ export function TeamPlanningView({
       if (ok === false) {
         toast({
           title: 'Jour non enregistré',
-          description: 'Le calendrier de ce salarié est en cours d’enregistrement ou illisible : rechargez la page puis réessayez.',
+          description: `${new Date(year, month - 1, day).toLocaleDateString('fr-FR', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+          })} n’a pas été enregistré. Rechargez la page, puis réessayez.`,
           variant: 'destructive',
         });
         return false;
