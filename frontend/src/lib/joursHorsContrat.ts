@@ -55,8 +55,8 @@ export function estAvantLEntree(jour: number, premierJourContrat: number | null 
  * des heures que la paie pourrait lire. Un jour à son état par défaut est grisé.
  */
 export function jourHorsContratAvecSaisie(
-  planned: Pick<PlannedEventData, 'type' | 'heures_prevues' | 'origine'> | undefined,
-  actual: Pick<ActualHoursData, 'heures_faites' | 'debut'> | undefined,
+  planned: PlannedEventData | undefined,
+  actual: ActualHoursData | undefined,
   forfait: boolean,
 ): boolean {
   if (actual?.heures_faites != null && actual.heures_faites > 0) return true;
