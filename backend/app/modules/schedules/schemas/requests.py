@@ -167,6 +167,17 @@ class ActivitePartielleEnMasseRequest(BaseModel):
     dates: List[date] = Field(min_length=1, max_length=366)
 
 
+class ViderMoisRequest(BaseModel):
+    """Corps de POST /calendar/vider-mois : vider le prévu et le réel du mois,
+    sans les absences posées ni les jours d'un bulletin validé. `apercu` : ne
+    rien écrire, dire seulement ce qui serait vidé et gardé."""
+
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
+    expected_revision: UUID | None = None
+    apercu: bool = False
+
+
 class EffacerJoursRequest(BaseModel):
     """Corps de POST /actual-hours/effacer-jours : les jours du mois dont les
     heures, saisies sur un arrêt ou une absence, sont à effacer."""

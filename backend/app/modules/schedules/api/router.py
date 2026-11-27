@@ -61,6 +61,7 @@ from app.modules.schedules.schemas.requests import (
     CalendarSaveRequest,
     CalendarSaveResponse,
     CalendarSnapshotResponse,
+    ViderMoisRequest,
 )
 
 
@@ -105,6 +106,27 @@ def save_calendar(employee_id: str, payload: CalendarSaveRequest, current_user: 
     try:
         _require_employee_schedule_access(current_user, employee_id, "schedules.update")
         return calendar_edit.save_calendar(employee_id, str(current_user.active_company_id), payload)
+    except ScheduleAppError as exc:
+        _handle_schedule_error(exc)
+
+
+@router.post("/calendar/vider-mois", status_code=200)
+def vider_mois_du_calendrier(employee_id: str, payload: ViderMoisRequest, current_user: Annotated[User, Depends(get_current_user)]):
+    """Vide le prévu et le réel du mois (modèle appliqué par erreur), sans
+    toucher aux arrêts, congés et absences posés ni aux jours d'un bulletin
+    validé. `apercu` : rien n'est écrit, la réponse dit ce qui serait vidé."""
+    from app.modules.schedules.application.vider_mois import vider_mois
+
+    try:
+        _require_employee_schedule_access(current_user, employee_id, "schedules.update")
+        return vider_mois(
+            employee_id,
+            str(current_user.active_company_id),
+            payload.year,
+            payload.month,
+            expected_revision=payload.expected_revision,
+            apercu=payload.apercu,
+        )
     except ScheduleAppError as exc:
         _handle_schedule_error(exc)
 
