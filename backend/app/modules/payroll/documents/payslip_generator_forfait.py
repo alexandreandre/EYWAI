@@ -122,6 +122,14 @@ def _periode_de_paie_company(company_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _report_des_arrets(*args: Any, **kwargs: Any) -> arrets_reportes.Report:
+    """`preparer_le_report`, ou un refus clair si le bulletin suivant est illisible."""
+    try:
+        return arrets_reportes.preparer_le_report(*args, **kwargs)
+    except arrets_reportes.LectureDuBulletinSuivantImpossible as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
 def process_payslip_generation_forfait(
     employee_id: str,
     year: int,
@@ -689,7 +697,7 @@ def process_payslip_generation_forfait(
         # reprend à ses dates (il analyse lui-même les jours du forfait), et ne
         # recompte pas les jours que le bulletin suivant a déjà repris (Elsa, 26/11).
         saisies_data.update(
-            arrets_reportes.preparer_le_report(
+            _report_des_arrets(
                 supabase,
                 employee_id,
                 year,

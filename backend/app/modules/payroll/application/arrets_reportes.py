@@ -65,6 +65,9 @@ STATUT_VALIDE = "valide"
 class JourReporte:
     jour: date
     absence_id: str
+    #: Jour déjà retenu par le bulletin d'origine comme absence non rémunérée,
+    #: devenu un arrêt : maintien et IJ seulement, pas de nouvelle retenue.
+    sans_retenue: bool = False
 
 
 # --- Ce qu'un bulletin a compté --------------------------------------------------
@@ -99,11 +102,63 @@ def _date_sure(annee: int, mois: int, jour: int) -> date | None:
         return None
 
 
-def jours_des_libelles(
-    lignes: Iterable[Mapping[str, Any]] | None, annee: int, mois: int
-) -> set[date]:
-    """Les jours que couvrent les retenues datées d'un bulletin."""
+#: Nature d'une retenue d'absence, lue sur son libellé.
+NATURE_ARRET = "arret"
+NATURE_SANS_SOLDE = "sans_solde"
+NATURE_CONGE = "conge"
+NATURE_ACTIVITE_PARTIELLE = "activite_partielle"
+NATURE_AUTRE = "autre"
+
+_MOTS_ARRET = (
+    "maladie", "a.t.", "accident", "arrêt", "arret", "maternit", "paternit",
+    "rechute", "tps.part", "thérap", "therap",
+)
+_MOTS_SANS_SOLDE = (
+    "injustifi", "non rémunér", "non remuner", "nonpay", "non pay", "s.so",
+    "sans solde", "jf non", "férié non payé", "ferie non paye",
+)
+
+
+def nature_du_libelle(libelle: str) -> str:
+    texte = libelle.lower()
+    if any(m in texte for m in _MOTS_SANS_SOLDE):
+        return NATURE_SANS_SOLDE
+    if "act. partiel" in texte or "act.partiel" in texte or "activité partielle" in texte:
+        return NATURE_ACTIVITE_PARTIELLE
+    if "congé" in texte or "conge" in texte:
+        return NATURE_CONGE
+    if any(m in texte for m in _MOTS_ARRET):
+        return NATURE_ARRET
+    return NATURE_AUTRE
+
+
+def _dates_du_libelle(libelle: str, annee: int, mois: int) -> set[date]:
     jours: set[date] = set()
+    for m in _DATES_COMPACTES.finditer(libelle):
+        debut = _date_sure(2000 + int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        if debut is None:
+            continue
+        fin = (
+            _date_sure(2000 + int(m.group(6)), int(m.group(5)), int(m.group(4)))
+            if m.group(4)
+            else debut
+        )
+        jours |= _jours_entre(debut, fin or debut)
+    for m in _DATES_MARTINE.finditer(libelle):
+        mois_debut = int(m.group(2))
+        debut = _date_sure(_annee(m.group(3), mois_debut, annee, mois), mois_debut, int(m.group(1)))
+        if debut is None:
+            continue
+        fin = debut
+        if m.group(4):
+            mois_fin = int(m.group(5))
+            fin = _date_sure(_annee(m.group(6), mois_fin, annee, mois), mois_fin, int(m.group(4))) or debut
+        jours |= _jours_entre(debut, fin)
+    return jours
+
+
+def _retenues(lignes: Iterable[Mapping[str, Any]] | None) -> list[Mapping[str, Any]]:
+    gardees = []
     for ligne in lignes or []:
         if not isinstance(ligne, Mapping):
             continue
@@ -111,34 +166,31 @@ def jours_des_libelles(
             perte = float(ligne.get("perte") or 0.0)
         except (TypeError, ValueError):
             perte = 0.0
-        if perte <= 0:
-            continue
+        if perte > 0:
+            gardees.append(ligne)
+    return gardees
+
+
+def retenues_datees(
+    lignes: Iterable[Mapping[str, Any]] | None, annee: int, mois: int
+) -> dict[date, str]:
+    """Les jours que couvrent les retenues datées d'un bulletin, avec leur nature
+    (un arrêt l'emporte sur une autre retenue du même jour)."""
+    jours: dict[date, str] = {}
+    for ligne in _retenues(lignes):
         libelle = str(ligne.get("libelle") or "")
-        for m in _DATES_COMPACTES.finditer(libelle):
-            debut = _date_sure(2000 + int(m.group(3)), int(m.group(2)), int(m.group(1)))
-            if debut is None:
-                continue
-            fin = (
-                _date_sure(2000 + int(m.group(6)), int(m.group(5)), int(m.group(4)))
-                if m.group(4)
-                else debut
-            )
-            jours |= _jours_entre(debut, fin or debut)
-        for m in _DATES_MARTINE.finditer(libelle):
-            mois_debut = int(m.group(2))
-            debut = _date_sure(
-                _annee(m.group(3), mois_debut, annee, mois), mois_debut, int(m.group(1))
-            )
-            if debut is None:
-                continue
-            fin = debut
-            if m.group(4):
-                mois_fin = int(m.group(5))
-                fin = _date_sure(
-                    _annee(m.group(6), mois_fin, annee, mois), mois_fin, int(m.group(4))
-                ) or debut
-            jours |= _jours_entre(debut, fin)
+        nature = NATURE_ARRET if ligne.get("is_arret_maladie") else nature_du_libelle(libelle)
+        for jour in _dates_du_libelle(libelle, annee, mois):
+            if jours.get(jour) != NATURE_ARRET:
+                jours[jour] = nature
     return jours
+
+
+def jours_des_libelles(
+    lignes: Iterable[Mapping[str, Any]] | None, annee: int, mois: int
+) -> set[date]:
+    """Les jours que couvrent les retenues datées d'un bulletin."""
+    return set(retenues_datees(lignes, annee, mois))
 
 
 def trace_du_bulletin(payslip_data: Mapping[str, Any] | None) -> dict[str, Any] | None:
@@ -146,36 +198,70 @@ def trace_du_bulletin(payslip_data: Mapping[str, Any] | None) -> dict[str, Any] 
     return trace if isinstance(trace, Mapping) else None
 
 
-def jours_reportes_par_le_bulletin(payslip_data: Mapping[str, Any] | None) -> set[date]:
-    """Les jours d'une période précédente que ce bulletin a repris."""
-    trace = trace_du_bulletin(payslip_data) or {}
+def _dates(valeurs: Iterable[Any] | None) -> set[date]:
     jours: set[date] = set()
-    for entree in trace.get("reportes") or []:
+    for v in valeurs or []:
+        brut = v.get("date") if isinstance(v, Mapping) else v
         try:
-            jours.add(date.fromisoformat(str(entree.get("date"))[:10]))
-        except (AttributeError, ValueError):
+            jours.add(date.fromisoformat(str(brut)[:10]))
+        except ValueError:
             continue
     return jours
+
+
+def jours_reportes_par_le_bulletin(payslip_data: Mapping[str, Any] | None) -> set[date]:
+    """Les jours d'une période précédente que ce bulletin a repris."""
+    return _dates((trace_du_bulletin(payslip_data) or {}).get("reportes"))
+
+
+@dataclass
+class LectureDuBulletin:
+    """Ce qu'un bulletin d'origine dit de ses jours d'absence."""
+
+    arrets: set[date] = field(default_factory=set)
+    #: Jours retenus pour une autre absence (sans solde, congé, activité partielle).
+    autres: dict[date, str] = field(default_factory=dict)
+    #: Jours d'arrêt écartés parce que le bulletin suivant les avait repris.
+    repris_par_le_suivant: set[date] = field(default_factory=set)
+    avec_trace: bool = False
+    #: Une ligne d'arrêt sans date lisible : on ne sait pas ce qu'il a compté.
+    illisible: bool = False
+
+
+def lire_le_bulletin(bulletin: Mapping[str, Any], annee: int, mois: int) -> LectureDuBulletin:
+    """Sa trace (tout bulletin calculé depuis ce lot), sinon ses retenues datées."""
+    donnees = bulletin.get("payslip_data") or {}
+    trace = trace_du_bulletin(donnees)
+    if trace is not None:
+        autres = {}
+        for iso, nature in (trace.get("jours_retenus") or {}).items():
+            autres.update({j: str(nature) for j in _dates([iso])})
+        return LectureDuBulletin(
+            arrets=_dates(trace.get("jours_comptes")) | _dates(trace.get("reportes")),
+            autres=autres,
+            repris_par_le_suivant=_dates(trace.get("jours_repris_par_le_suivant")),
+            avec_trace=True,
+        )
+    lignes = list(donnees.get("calcul_du_brut") or []) + list(donnees.get("details_absences") or [])
+    lecture = LectureDuBulletin()
+    for jour, nature in retenues_datees(lignes, annee, mois).items():
+        if nature == NATURE_ARRET:
+            lecture.arrets.add(jour)
+        else:
+            lecture.autres[jour] = nature
+    lecture.illisible = any(
+        (ligne.get("is_arret_maladie") or nature_du_libelle(str(ligne.get("libelle") or "")) == NATURE_ARRET)
+        and not _dates_du_libelle(str(ligne.get("libelle") or ""), annee, mois)
+        for ligne in _retenues(lignes)
+    )
+    return lecture
 
 
 def jours_comptes_par_le_bulletin(
     bulletin: Mapping[str, Any], annee: int, mois: int
 ) -> set[date]:
-    """Les jours d'absence qu'un bulletin a retenus : sa trace, ou ses libellés."""
-    donnees = bulletin.get("payslip_data") or {}
-    trace = trace_du_bulletin(donnees)
-    if trace is not None:
-        jours: set[date] = set()
-        for iso in trace.get("jours_comptes") or []:
-            try:
-                jours.add(date.fromisoformat(str(iso)[:10]))
-            except ValueError:
-                continue
-        return jours | jours_reportes_par_le_bulletin(donnees)
-    lignes = list(donnees.get("calcul_du_brut") or []) + list(
-        donnees.get("details_absences") or []
-    )
-    return jours_des_libelles(lignes, annee, mois)
+    """Les jours d'arrêt qu'un bulletin a retenus : sa trace, ou ses libellés."""
+    return lire_le_bulletin(bulletin, annee, mois).arrets
 
 
 def _est_une_reprise(bulletin: Mapping[str, Any]) -> bool:
@@ -226,14 +312,17 @@ def dates_des_regularisations_manuelles(planned_calendar: Mapping[str, Any] | No
 class AnalyseDuReport:
     """Ce que l'examen du bulletin d'origine dit des jours d'un arrêt.
 
-    `jours` : à reprendre sur le bulletin suivant. `comptes` : déjà retenus par
-    le bulletin d'origine (ou par le bulletin repris du mois). `portes_a_la_main` :
-    déjà portés par la gestionnaire. `origine_validee` : le bulletin d'origine
+    `jours` : à reprendre sur le bulletin suivant. `comptes` : déjà retenus en
+    arrêt par le bulletin d'origine (ou par le bulletin repris du mois).
+    `portes_a_la_main` : déjà portés par la gestionnaire. `a_reprendre_a_la_main` :
+    payés autrement (congé, activité partielle) ou illisibles : rien n'est
+    repris, une alerte dit quoi faire. `origine_validee` : le bulletin d'origine
     existe et ne se régénère plus."""
 
     jours: tuple[JourReporte, ...] = ()
     comptes: frozenset[date] = frozenset()
     portes_a_la_main: frozenset[date] = frozenset()
+    a_reprendre_a_la_main: frozenset[date] = frozenset()
     alertes: tuple[str, ...] = ()
     origine_validee: bool = False
 
@@ -243,12 +332,15 @@ def _week_end(jour: date) -> bool:
 
 
 def _garder_les_week_ends_utiles(non_comptes: list[date], comptes: set[date]) -> list[date]:
-    """Un samedi ou un dimanche non compté ne se reprend qu'avec un jour ouvré repris.
+    """Sans trace : un samedi ou un dimanche non compté ne se reprend qu'avec un
+    jour ouvré repris.
 
-    Il suit le vendredi repris qui le précède, ou ouvre l'arrêt quand le lundi
-    qui le suit est repris et qu'aucun jour de l'arrêt n'a été compté avant lui.
-    Un bord de week-end d'un arrêt que le bulletin a retenu jusqu'au vendredi
-    (ou à partir du lundi) a déjà eu ses IJ : il n'est pas repris.
+    Les retenues d'un bulletin s'arrêtent au vendredi : un bord de week-end
+    d'un arrêt retenu jusqu'au vendredi (ou à partir du lundi) a déjà eu ses
+    IJ. Il suit le vendredi repris qui le précède, ou ouvre l'arrêt quand le
+    lundi qui le suit est repris et qu'aucun jour n'a été compté avant lui.
+    Avec une trace, le bulletin a noté ses jours calendaires : un week-end
+    absent de la trace n'a rien eu, il se reprend (maintien et IJ, sans retenue).
     """
     gardes: list[date] = []
     ensemble = set(non_comptes)
@@ -261,6 +353,18 @@ def _garder_les_week_ends_utiles(non_comptes: list[date], comptes: set[date]) ->
         if vendredi in ensemble or lundi in ensemble and not any(c < jour for c in comptes):
             gardes.append(jour)
     return gardes
+
+
+_LIBELLES_NATURE = {
+    NATURE_SANS_SOLDE: "absence non rémunérée",
+    NATURE_CONGE: "congé payé",
+    NATURE_ACTIVITE_PARTIELLE: "activité partielle",
+    NATURE_AUTRE: "autre absence payée (RTT, repos, événement familial…)",
+}
+
+
+def _jours_fr(jours: Iterable[date]) -> str:
+    return ", ".join(f"{j:%d/%m}" for j in sorted(jours))
 
 
 def analyser_le_report(
@@ -284,24 +388,47 @@ def analyser_le_report(
     a ajouté des jours que le bulletin n'a pas vus. Au forfait jours, la période
     déborde sur le mois civil d'avant : les retenues du bulletin repris de ce
     mois-là comptent aussi (`bulletins_repris_voisins`).
+
+    Un jour que le bulletin d'origine a retenu comme absence non rémunérée et
+    qui est devenu un arrêt se reprend sans nouvelle retenue (maintien et IJ
+    seulement). Payé en congé ou en activité partielle : rien n'est repris, une
+    alerte dit de le faire à la main. Une ligne d'arrêt sans date lisible :
+    rien n'est repris non plus, et le bulletin le dit.
+
+    Bulletin d'origine pas encore validé : il comptera l'arrêt à son calcul,
+    sauf les jours qu'il a écartés parce que le bulletin suivant les avait
+    repris (sa trace les note) : ceux-là restent repris.
     """
     if not bulletins_origine:
         return AnalyseDuReport()
-    if any(b.get("status") != STATUT_VALIDE for b in bulletins_origine):
-        return AnalyseDuReport()
+    valides = all(b.get("status") == STATUT_VALIDE for b in bulletins_origine)
     debut, fin = periode_origine
-    comptes: set[date] = set()
-    for b in bulletins_origine:
-        comptes |= jours_comptes_par_le_bulletin(b, annee_origine, mois_origine)
+    lectures = [lire_le_bulletin(b, annee_origine, mois_origine) for b in bulletins_origine]
     for b in bulletins_repris_voisins:
         if _est_une_reprise(b):
-            comptes |= jours_comptes_par_le_bulletin(
-                b, int(b.get("year") or annee_origine), int(b.get("month") or mois_origine)
+            lectures.append(
+                lire_le_bulletin(b, int(b.get("year") or annee_origine), int(b.get("month") or mois_origine))
             )
+    comptes: set[date] = set()
+    autres: dict[date, str] = {}
+    repris_par_le_suivant: set[date] = set()
+    for lecture in lectures:
+        comptes |= lecture.arrets
+        repris_par_le_suivant |= lecture.repris_par_le_suivant
+        for jour, nature in lecture.autres.items():
+            autres.setdefault(jour, nature)
+    avec_trace = all(l.avec_trace for l in lectures[: len(bulletins_origine)])
+    alertes: list[str] = []
+    # Le bulletin d'origine se recalcule : il comptera l'arrêt, sauf ce qu'il a
+    # laissé au bulletin suivant.
+    if not valides and not repris_par_le_suivant:
+        return AnalyseDuReport()
+    illisible = any(l.illisible for l in lectures)
     portes = set(deja_portes or ())
-    candidats: dict[date, str] = {}
+    candidats: dict[date, JourReporte] = {}
     comptes_vus: set[date] = set()
     portes_vus: set[date] = set()
+    a_la_main: dict[date, str] = {}
     for arret in arrets:
         if arret.get("type") not in TYPES_ARRET_REPORTABLES:
             continue
@@ -316,21 +443,58 @@ def analyser_le_report(
                 continue
             if not (debut <= jour <= fin):
                 continue
+            if not valides and jour not in repris_par_le_suivant:
+                continue
             if jour in comptes:
                 comptes_de_l_arret.add(jour)
                 continue
             if jour in portes:
                 portes_vus.add(jour)
                 continue
+            nature = autres.get(jour)
+            if nature is not None and nature != NATURE_SANS_SOLDE:
+                a_la_main[jour] = nature
+                continue
             jours_de_l_arret.append(jour)
         comptes_vus |= comptes_de_l_arret
-        gardes = _garder_les_week_ends_utiles(sorted(jours_de_l_arret), comptes_de_l_arret)
-        if not any(not _week_end(j) for j in gardes):
+        gardes = (
+            sorted(jours_de_l_arret)
+            if avec_trace
+            else _garder_les_week_ends_utiles(sorted(jours_de_l_arret), comptes_de_l_arret)
+        )
+        if not avec_trace and not any(not _week_end(j) for j in gardes):
             continue
         for jour in gardes:
-            candidats.setdefault(jour, str(arret.get("id") or ""))
+            candidats.setdefault(
+                jour,
+                JourReporte(jour, str(arret.get("id") or ""), autres.get(jour) == NATURE_SANS_SOLDE),
+            )
+    candidats_illisibles: list[date] = []
+    if illisible and candidats:
+        alertes.append(
+            f"Bulletin de {_mois(mois_origine)} {annee_origine} : une ligne d'arrêt sans date lisible. "
+            f"Les jours d'arrêt du {_jours_fr(candidats)} ne sont pas repris : vérifiez s'il les a "
+            "comptés et portez-les à la main sinon."
+        )
+        candidats_illisibles.extend(candidats)
+        a_la_main.update({j: NATURE_AUTRE for j in candidats})
+        candidats = {}
+    illisibles = set(candidats_illisibles)
+    for nature in sorted({n for j, n in a_la_main.items() if j not in illisibles}):
+        jours_nature = [j for j, n in a_la_main.items() if n == nature]
+        alertes.append(
+            f"Arrêt du {_jours_fr(jours_nature)} : ces jours étaient payés en "
+            f"{_LIBELLES_NATURE[nature]} sur le bulletin de {_mois(mois_origine)} {annee_origine}. "
+            "Martine ne les reprend pas : régularisez à la main (onglet « Corriger »)."
+        )
+    sans_retenue = [j for j, r in candidats.items() if r.sans_retenue]
+    if sans_retenue:
+        alertes.append(
+            f"Absence requalifiée en arrêt le {_jours_fr(sans_retenue)} : déjà retenue en "
+            f"{_mois(mois_origine)} {annee_origine} comme absence non rémunérée, elle n'est pas "
+            "retenue une seconde fois ; le maintien et les IJ sont repris."
+        )
     jours = sorted(candidats)
-    alertes: list[str] = []
     if heures_a_la_main > 0 and jours:
         # Heures du mois d'origine déjà reprises à la main : elles couvrent les
         # premiers jours ouvrés de l'arrêt, une journée par tranche ; le reste
@@ -358,11 +522,12 @@ def analyser_le_report(
             )
         )
     return AnalyseDuReport(
-        jours=tuple(JourReporte(j, candidats[j]) for j in jours),
+        jours=tuple(candidats[j] for j in jours),
         comptes=frozenset(comptes_vus),
         portes_a_la_main=frozenset(portes_vus),
+        a_reprendre_a_la_main=frozenset(a_la_main),
         alertes=tuple(alertes),
-        origine_validee=True,
+        origine_validee=valides,
     )
 
 
@@ -476,6 +641,8 @@ def evenements_du_report(
                 "is_regularisation_anterieure": True,
                 "arret_reporte": True,
                 "absence_id": par_date[jour].absence_id,
+                # Déjà retenu comme absence non rémunérée : maintien et IJ seulement.
+                "sans_retenue": par_date[jour].sans_retenue,
             }
         )
     return sorted(reportes, key=lambda e: e["date_complete"])
@@ -517,29 +684,30 @@ def periode_precedente(
     mois: int,
     *,
     forfait_jours: bool,
-    jour_de_fin: Any = None,
-    occurrence: Any = None,
+    company_data: Mapping[str, Any] | None = None,
 ) -> tuple[int, int, tuple[date, date]]:
     """(année, mois, bornes) de la période du bulletin précédent : le mois civil
     aux heures, la période de la société au forfait jours."""
     annee_o, mois_o = (annee, mois - 1) if mois > 1 else (annee - 1, 12)
     return annee_o, mois_o, bornes_de_la_periode(
-        annee_o, mois_o, forfait_jours=forfait_jours, jour_de_fin=jour_de_fin, occurrence=occurrence
+        annee_o, mois_o, forfait_jours=forfait_jours, company_data=company_data
     )
 
 
 def bornes_de_la_periode(
-    annee: int, mois: int, *, forfait_jours: bool, jour_de_fin: Any = None, occurrence: Any = None
+    annee: int, mois: int, *, forfait_jours: bool, company_data: Mapping[str, Any] | None = None
 ) -> tuple[date, date]:
+    """La période d'un bulletin, résolue comme le moteur : au forfait, la règle de
+    la société lue par `_periode_de_paie_company` (vide = mois civil) ; aux
+    heures, le mois civil."""
     if forfait_jours:
+        from app.modules.payroll.documents.payslip_generator_forfait import (
+            _periode_de_paie_company,
+        )
         from app.modules.payroll.engine.period_forfait import bornes_periode_de_paie
 
-        return bornes_periode_de_paie(
-            annee,
-            mois,
-            jour_de_fin if jour_de_fin is not None else 4,
-            occurrence if occurrence is not None else -2,
-        )
+        regle = _periode_de_paie_company(dict(company_data or {}))
+        return bornes_periode_de_paie(annee, mois, regle["jour_de_fin"], regle["occurrence"])
     from app.shared.domain.periode_variables import bornes_mois_civil
 
     return bornes_mois_civil(annee, mois)
@@ -625,7 +793,8 @@ class Report:
     def vers_les_saisies(self) -> dict[str, Any]:
         return {
             CLE_SAISIE_REPORT: [
-                {"date": j.jour.isoformat(), "absence_id": j.absence_id} for j in self.jours
+                {"date": j.jour.isoformat(), "absence_id": j.absence_id, "sans_retenue": j.sans_retenue}
+                for j in self.jours
             ],
             CLE_SAISIE_REPRIS: sorted(d.isoformat() for d in self.repris),
             CLE_SAISIE_PLANNING: {k: dict(v) for k, v in self.planning.items()},
@@ -642,6 +811,7 @@ class Report:
                     JourReporte(
                         date.fromisoformat(str(entree["date"])[:10]),
                         str(entree.get("absence_id") or ""),
+                        bool(entree.get("sans_retenue")),
                     )
                 )
             except (KeyError, TypeError, ValueError):
@@ -669,6 +839,10 @@ def _touche(arrets: list[dict[str, Any]], debut: date, fin: date) -> bool:
             except ValueError:
                 continue
     return False
+
+
+class LectureDuBulletinSuivantImpossible(RuntimeError):
+    """Le bulletin du mois suivant n'a pas pu être relu : le calcul s'arrête."""
 
 
 MESSAGE_REPORT_ILLISIBLE = (
@@ -705,6 +879,8 @@ def preparer_le_report(
             saisies=saisies,
             heures_par_jour=heures_par_jour,
         )
+    except LectureDuBulletinSuivantImpossible:
+        raise
     except Exception:
         logger.exception("Report des arrêts non préparé (salarié %s, %s/%s)", employee_id, mois, annee)
         return Report(alertes=(MESSAGE_REPORT_ILLISIBLE,))
@@ -729,11 +905,8 @@ def _preparer_le_report(
     arrets = lire_les_arrets(client, employee_id)
     if not arrets:
         return Report()
-    societe = company_data or {}
-    jour_de_fin = societe.get("paie_jour_de_fin")
-    occurrence = societe.get("paie_occurrence")
     annee_o, mois_o, bornes = periode_precedente(
-        annee, mois, forfait_jours=forfait_jours, jour_de_fin=jour_de_fin, occurrence=occurrence
+        annee, mois, forfait_jours=forfait_jours, company_data=company_data
     )
     analyse = AnalyseDuReport()
     planning: dict[str, dict[str, Any]] = {}
@@ -770,7 +943,16 @@ def _preparer_le_report(
     fin_du_mois = date(annee, mois, calendar.monthrange(annee, mois)[1])
     if _touche(arrets, debut_du_mois, fin_du_mois):
         annee_s, mois_s = (annee, mois + 1) if mois < 12 else (annee + 1, 1)
-        for b in lire_les_bulletins(client, employee_id, annee_s, mois_s):
+        try:
+            suivants = lire_les_bulletins(client, employee_id, annee_s, mois_s)
+        except Exception as exc:
+            # Sans lui, ce bulletin recompterait un arrêt que le suivant a peut-être
+            # déjà repris : il n'est pas calculé, et la raison est dite.
+            raise LectureDuBulletinSuivantImpossible(
+                f"Le bulletin de {_mois(mois_s)} {annee_s} n'a pas pu être relu : ce bulletin "
+                "pourrait recompter un arrêt qu'il a déjà repris. Il n'est pas calculé ; réessayez."
+            ) from exc
+        for b in suivants:
             repris |= jours_reportes_par_le_bulletin(b.get("payslip_data"))
     return Report(analyse.jours, frozenset(repris), planning, analyse.alertes)
 
@@ -806,6 +988,7 @@ __all__ = [
     "TYPES_ARRET_REPORTABLES",
     "AnalyseDuReport",
     "JourReporte",
+    "LectureDuBulletinSuivantImpossible",
     "Report",
     "analyser_le_report",
     "appliquer_le_report_aux_evenements",

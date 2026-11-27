@@ -90,7 +90,7 @@ COMMUNES: dict[str, dict[str, str]] = {
         "fin_au_depart": "mois de sortie : jusqu'au départ (heures : fenêtre des variables ; forfait : période de l'activité partielle, A9 18/11)",
         "ranger_les_saisies": "primes, frais, participations, IJSS et acomptes saisis : une seule fonction (17/11)",
         "_stamp_source_absence_conges": "les absences validées du calendrier",
-        "preparer_le_report": "arrêt arrivé après la validation du bulletin précédent : repris à ses dates (Elsa, 26/11)",
+        "_report_des_arrets": "arrêt arrivé après la validation du bulletin précédent : repris à ses dates (Elsa, 26/11)",
         "_heures_sup_conjoncturelles_from_monthly_inputs": "les heures sup saisies au mois",
         "notes_de_frais_dans_le_mns": "le réglage des notes de frais",
         "entree_de_note_de_frais": "les notes de frais validées",

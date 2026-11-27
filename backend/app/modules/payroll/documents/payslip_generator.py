@@ -671,6 +671,14 @@ def _stamp_nature_des_arrets(planned_entries: list, demandes: list) -> None:
             e["source_absence"] = nature
 
 
+def _report_des_arrets(*args: Any, **kwargs: Any) -> arrets_reportes.Report:
+    """`preparer_le_report`, ou un refus clair si le bulletin suivant est illisible."""
+    try:
+        return arrets_reportes.preparer_le_report(*args, **kwargs)
+    except arrets_reportes.LectureDuBulletinSuivantImpossible as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
 def process_payslip_generation(
     employee_id: str,
     year: int,
@@ -1073,7 +1081,7 @@ def process_payslip_generation(
         # ce bulletin, avec ses vraies dates, comme chez Quadra et au cabinet
         # (retour d'Elsa du 26/11). Et l'inverse : un jour déjà repris par le
         # bulletin suivant n'est pas recompté si ce bulletin-ci est régénéré.
-        report_des_arrets = arrets_reportes.preparer_le_report(
+        report_des_arrets = _report_des_arrets(
             supabase,
             employee_id,
             year,
