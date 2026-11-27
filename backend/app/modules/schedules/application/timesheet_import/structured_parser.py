@@ -476,6 +476,19 @@ def parse_tabular_file(
 
     date_col = mapping.get("date")
     hours_col = mapping.get("hours")
+    if not punch_pairs_mode and not hours_col:
+        sup = [h for h in headers if h and _heures_supplementaires(h)]
+        if sup:
+            # Ni heures du jour ni badges : jamais 0 h partout, un refus lisible.
+            from app.modules.schedules.application.exceptions import ScheduleAppError
+
+            raise ScheduleAppError(
+                "validation",
+                "Colonne des heures du jour introuvable : seulement "
+                + ", ".join(f"« {h} »" for h in sup)
+                + ".",
+                status_code=422,
+            )
     mat_col = mapping.get("matricule")
     last_col = mapping.get("last_name")
     first_col = mapping.get("first_name")

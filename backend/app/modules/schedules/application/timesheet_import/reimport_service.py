@@ -541,10 +541,18 @@ class GardesDesFichiers:
         par_lot: list[tuple[set[Cle], GardeDesCorrections | None]] = []
         for lot in _lots(company_id, summary.get("lots_fusionnes") or []):
             apercu = lot.get("preview_json") or {}
-            annee, mois = int(apercu.get("year") or 0), int(apercu.get("month") or 0)
+            # L'aperçu ne montre que le mois d'ancrage d'un lot sur plusieurs
+            # mois : ses groupes de mois disent aussi d'où viennent les jours.
+            sources = [
+                (int(apercu.get("year") or 0), int(apercu.get("month") or 0), apercu.get("employees") or [])
+            ] + [
+                (int(g["year"]), int(g["month"]), g.get("employees") or [])
+                for g in (lot.get("summary_json") or {}).get("month_groups") or []
+            ]
             cles = {
                 cle
-                for emp in apercu.get("employees") or []
+                for annee, mois, employes in sources
+                for emp in employes
                 if emp.get("employee_id")
                 for jour in emp.get("days") or []
                 if (jour.get("nature") or "reel") == "reel"

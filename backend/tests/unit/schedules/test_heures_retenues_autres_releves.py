@@ -296,8 +296,20 @@ def test_heures_sup_ne_devient_jamais_la_colonne_des_heures():
 
 
 def test_heures_sup_seule_n_est_pas_la_colonne_des_heures():
-    mapping = parse_tabular_file(
-        _classeur(["Date", "Nom", "Heures sup"], [[d(1), "A", 2]]), "r.xlsx",
-        target_year=2026, target_month=10, options={"skip_period_filter": True},
-    ).column_mapping
-    assert "hours" not in mapping
+    from app.modules.schedules.application.timesheet_import.structured_parser import (
+        detect_column_mapping,
+    )
+
+    assert "hours" not in detect_column_mapping(["Date", "Nom", "Heures sup"])
+
+
+def test_fichier_avec_seulement_heures_sup_refuse_avec_une_phrase():
+    """Ni heures du jour ni badges : refusé, jamais 0 h partout (scénario 12)."""
+    import pytest
+
+    from app.modules.schedules.application.exceptions import ScheduleAppError
+
+    with pytest.raises(ScheduleAppError) as err:
+        _lire(["Date", "Nom", "Heures sup"], [[d(1), "A", 2], [d(2), "A", 0]])
+    assert str(err.value) == "Colonne des heures du jour introuvable : seulement « Heures sup »."
+    assert err.value.status_code == 422
