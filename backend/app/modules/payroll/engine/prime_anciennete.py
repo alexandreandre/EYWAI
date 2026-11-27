@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import date
-from typing import Any, Dict, Optional, Set
+from typing import Any
 
 from app.modules.collective_agreements.rules.prime_calcul import (
     MOTIF_ANCIENNETE_INSUFFISANTE,
+    calculer_prime_anciennete_plein_mois,
     cap_anciennete_annees,
     check_eligibilite_prime_anciennete,
     compute_anciennete_annees,
-    calculer_prime_anciennete_plein_mois,
     resolve_prime_anciennete_config,
 )
 from app.modules.collective_agreements.rules.resolver import (
@@ -22,9 +22,12 @@ from app.modules.payroll.engine.contexte import ContextePaie
 
 #: Majoration de la prime d'ancienneté au forfait en jours sur l'année (CCN métallurgie, art. 142 et 139).
 MAJORATION_FORFAIT_JOURS_METALLURGIE = 0.30
-from app.modules.payroll.engine.temps_travail_mois import TempsDuMois, ratio_du_temps_paye
-from app.shared.seniority_reference import resolve_date_anciennete_from_contrat
 from app.modules.payroll.engine.salaire_contractuel import salaire_du_mois_complet
+from app.modules.payroll.engine.temps_travail_mois import (
+    TempsDuMois,
+    ratio_du_temps_paye,
+)
+from app.shared.seniority_reference import resolve_date_anciennete_from_contrat
 
 
 def _salaire_base_prime_anciennete(contexte: ContextePaie) -> float:
@@ -70,14 +73,66 @@ def _date_entree_brute(contexte: ContextePaie | Any, contrat: Any) -> str:
     return ""
 
 
+#: Prime d'ancienneté versée sur un mois dont aucun salaire n'est payé (L15, 27/11/2026).
+CODE_PRIME_MOIS_SANS_SALAIRE = "prime_anciennete_mois_sans_salaire"
+
+
+def _signaler_prime_sur_un_mois_sans_salaire(
+    contexte: ContextePaie,
+    montant: float,
+    temps_du_mois: TempsDuMois | None,
+    *,
+    jours_maintien: set[int] | None,
+    maladie_si_maintien: bool,
+) -> None:
+    """Prime versée alors que le salaire du mois est retenu en entier, sans maintien : on le dit.
+
+    Une convention qui ne la fait pas suivre le temps payé (plasturgie : « 0,80 % du salaire de
+    base par année d'ancienneté », avenant « Collaborateurs », art. 14.2, accord du 28/06/2011)
+    laisse un doute réel sur un mois sans aucun salaire : la prime « reste due intégralement sauf
+    si la convention collective en dispose autrement » (Cass. soc., 17 mars 1982, n° 80-40.167,
+    cité par Lamy), mais pas quand elle « s'ajoute au salaire réel » et varie avec l'horaire
+    (Cass. soc., 2 avril 2025, n° 23-22.190, métallurgie). Le cabinet la verse entière sur un sans
+    solde partiel. Le montant reste celui de la convention, la gestionnaire confirme ; le plafond
+    de la Sécurité sociale en dépend (BOSS, assiette générale, § 860). Une prime qui suit le temps
+    payé (métallurgie, L8) est déjà nulle ce mois-là et ne passe pas ici.
+    """
+    if temps_du_mois is None or not temps_du_mois.mois_entierement_absent:
+        return
+    paye = ratio_du_temps_paye(
+        temps_du_mois,
+        jours_maintien=jours_maintien,
+        maladie_si_maintien=maladie_si_maintien,
+        inclure_heures_sup=False,
+    )
+    if paye.temps_retenu > 0:
+        return
+    alertes = getattr(contexte, "alertes_baremes", None)
+    if not isinstance(alertes, list):
+        return
+    montant_txt = f"{montant:,.2f}".replace(",", " ").replace(".", ",")
+    alertes.append(
+        {
+            "code": CODE_PRIME_MOIS_SANS_SALAIRE,
+            "severity": "warning",
+            "critique": False,
+            "message": (
+                f"Prime d'ancienneté versée ({montant_txt} €) sur un mois sans aucun salaire "
+                "(absence non payée ou arrêt sans maintien sur tout le mois). La convention ne dit "
+                "pas si elle reste due : à confirmer. Si elle ne l'est pas, la retirer sur le bulletin."
+            ),
+        }
+    )
+
+
 def calculer_ligne_prime_anciennete(
     contexte: ContextePaie,
     *,
     date_debut_periode: date,
     date_fin_periode: date,
-    jours_maintien: Optional[Set[int]] = None,
-    temps_du_mois: Optional[TempsDuMois] = None,
-) -> Dict[str, Any] | None:
+    jours_maintien: set[int] | None = None,
+    temps_du_mois: TempsDuMois | None = None,
+) -> dict[str, Any] | None:
     """Calcule la ligne bulletin prime d'ancienneté (avec prorata si activé).
 
     `temps_du_mois` : ce que le générateur a retenu du mois (absences non payées,
@@ -297,6 +352,13 @@ def calculer_ligne_prime_anciennete(
     montant_final = round(plein_mois.montant_plein_mois * ratio, 2)
     if montant_final <= 0:
         return None
+    _signaler_prime_sur_un_mois_sans_salaire(
+        contexte,
+        montant_final,
+        temps_du_mois,
+        jours_maintien=jours_maintien,
+        maladie_si_maintien=prorata_cfg["maladie_si_maintien"],
+    )
 
     taux_affichage = (
         montant_final / plein_mois.base_plein_mois

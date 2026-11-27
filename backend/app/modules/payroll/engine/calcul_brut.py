@@ -1155,6 +1155,10 @@ def _alerte_prime_anciennete_remplacee(
     alertes = getattr(contexte, "alertes_baremes", None)
     if not isinstance(alertes, list):
         return
+    # La prime calculée est écartée : ce qu'on signalait sur elle ne vaut plus.
+    from app.modules.payroll.engine.prime_anciennete import CODE_PRIME_MOIS_SANS_SALAIRE
+
+    alertes[:] = [a for a in alertes if not (isinstance(a, dict) and a.get("code") == CODE_PRIME_MOIS_SANS_SALAIRE)]
 
     def _eur(valeur: Any) -> str:
         try:
