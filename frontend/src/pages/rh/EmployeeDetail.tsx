@@ -80,6 +80,8 @@ import {
 import { useEmployeeQuery, useUpdateEmployeeCache } from "@/hooks/queries/useEmployeeQuery";
 import { queryKeys } from "@/lib/queryKeys";
 import { Skeleton } from "@/components/ui/skeleton";
+import { FicheIndividuelleButton } from "@/features/employee-detail/components/FicheIndividuelleButton";
+import { estRoleRh } from "@/lib/rolesRh";
 import { accord, pluriel } from '@/lib/pluriel';
 
 const EmployeeDetailAugmentationsPromotionsTab = lazy(() =>
@@ -599,6 +601,9 @@ export default function EmployeeDetail() {
         canEditBoeth={canEditEmployeePaySettings}
         onOpenBoethSheet={() => setBoethSheetOpen(true)}
         payrollFocus={payrollFocus}
+        actionsSupplementaires={
+          employeeId && estRoleRh(user?.role) ? <FicheIndividuelleButton employeeId={employeeId} /> : null
+        }
       />
 
       {!payrollFocus && employee.employment_status === 'en_sortie' ? (

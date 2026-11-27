@@ -11,9 +11,35 @@ import { Button } from '@/components/ui/button';
 import {
   ETAPE_DECLARATIONS,
   phraseListeControle,
+  type ConcerneEtape,
   type ListeControleMois as Liste,
 } from '@/features/payroll/utils/listeControleMois';
 import { cn } from '@/lib/utils';
+
+/** Le dépliant d'une étape : chaque salarié, ce qui le concerne, le geste possible. */
+function SalariesConcernes({ concernes }: { concernes: ConcerneEtape[] }) {
+  return (
+    <details className="group mt-1.5" data-testid="salaries-concernes">
+      <summary className="cursor-pointer text-xs font-medium text-primary hover:underline">
+        Voir {concernes.length > 1 ? `les ${concernes.length} salariés concernés` : 'le salarié concerné'}
+      </summary>
+      <ul className="mt-1.5 space-y-1.5 border-l-2 border-amber-300/70 pl-3">
+        {concernes.map((c) => (
+          <li key={c.id} className="text-xs">
+            <p>
+              <Link to={c.href} className="font-medium text-primary hover:underline">
+                {c.nom}
+              </Link>
+              {' — '}
+              <span>{c.precision}</span>
+            </p>
+            <p className="text-muted-foreground">{c.action}</p>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
 
 type Props = {
   titreMois: string;
@@ -122,6 +148,9 @@ export function ListeControleMois({
                       ) : null}
                       Marquer faite : DSN déposée hors de Martine
                     </Button>
+                  ) : null}
+                  {etape.concernes && etape.concernes.length > 0 ? (
+                    <SalariesConcernes concernes={etape.concernes} />
                   ) : null}
                   {etape.etat === 'fait' ? (
                     <span className="sr-only">Fait</span>

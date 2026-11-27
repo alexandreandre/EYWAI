@@ -3,6 +3,7 @@
 from typing import List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app.core.security import get_current_user
@@ -167,6 +168,42 @@ def generate_export(
     except Exception as e:
         logger.exception("Échec de generate_export")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/fiche-individuelle/{employee_id}")
+def fiche_individuelle(
+    employee_id: str,
+    debut: Optional[str] = None,
+    fin: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    company_id: str = Depends(get_active_company_id),
+):
+    """Fiche individuelle d'un salarié (Excel) : ses cumuls mois par mois,
+    du mois `debut` au mois `fin` (AAAA-MM), l'année civile en cours sinon.
+
+    Mêmes droits que les autres exports RH de la société. Lecture seule : rien
+    n'est enregistré, pas même dans l'historique des exports."""
+    try:
+        _require_exports_company_access(current_user, company_id)
+        # Les bulletins d'un salarié : même périmètre que leur lecture (équipes).
+        access_control_service.require_employee_access(
+            current_user, company_id, "payslips.view_all", employee_id
+        )
+        contenu, nom = export_service.generate_fiche_individuelle(
+            company_id, employee_id, debut, fin
+        )
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise _value_error_to_http(e)
+    except Exception as e:
+        logger.exception("Échec de fiche_individuelle")
+        raise HTTPException(status_code=500, detail=str(e))
+    return Response(
+        content=contenu,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nom}"'},
+    )
 
 
 class DsnHorsMartineRequest(BaseModel):

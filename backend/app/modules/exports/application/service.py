@@ -1826,3 +1826,17 @@ def _generate_virement_acomptes(
         ),
         download_urls={filename: signed_url, bank_filename: bank_signed_url},
     )
+
+
+def generate_fiche_individuelle(
+    company_id: str,
+    employee_id: str,
+    debut: Optional[str] = None,
+    fin: Optional[str] = None,
+) -> tuple:
+    """Fiche individuelle d'un salarié en Excel : (contenu, nom du fichier)."""
+    from app.modules.exports.infrastructure.export_fiche_individuelle import (
+        generer_fiche_individuelle,
+    )
+
+    return generer_fiche_individuelle(company_id, employee_id, debut, fin)

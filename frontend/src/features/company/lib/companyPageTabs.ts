@@ -20,6 +20,7 @@ const LEGACY_HASH_TO_TAB: Record<string, CompanyPageTab> = {
   paie: "paie",
   parametres: "paie",
   mutuelle: "mutuelle",
+  prevoyance: "mutuelle",
   bibliotheque: "modeles",
   modeles: "modeles",
 };
