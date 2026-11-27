@@ -31,7 +31,7 @@ import {
 import { calendarSaveFailureMessage } from '@/lib/calendarSaveFeedback';
 import { horairesAEnvoyer } from '@/lib/horairesDuJour';
 import { dernierJourDuContratDansLeMois } from '@/lib/employmentStatus';
-import { estAvantLEntree, premierJourDuContratDansLeMois } from '@/lib/joursHorsContrat';
+import { estAvantLEntree, premierJourDansLeMois, premierJourDuContratDansLeMois } from '@/lib/joursHorsContrat';
 
 type PlannedEventData = calendarApi.PlannedEventData;
 type ActualHoursData = calendarApi.ActualHoursData;
@@ -53,6 +53,8 @@ export function useCalendar(
     dureeHebdomadaire?: number | null;
     /** Sortie du salarié : le modèle et la copie du prévu ne posent rien après. */
     sortie?: { exit_last_working_day?: string | null; hire_date?: string | null } | null;
+    /** Premier jour de la paie Martine (bascule) : avant, rien n'est compté. */
+    debutMartine?: string | null;
   },
 ) {
   const fetchEnabled = options?.enabled !== false;
@@ -153,6 +155,15 @@ export function useCalendar(
   const premierJourContrat = options?.sortie
     ? premierJourDuContratDansLeMois(options.sortie, selectedDate.year, selectedDate.month)
     : null;
+  const premierJourMartine = premierJourDansLeMois(
+    options?.debutMartine,
+    selectedDate.year,
+    selectedDate.month,
+  );
+  const debutsJuges = [premierJourContrat, premierJourMartine].filter(
+    (j): j is number => typeof j === 'number',
+  );
+  const premierJourJuge = debutsJuges.length > 0 ? Math.max(...debutsJuges) : null;
 
   const monthCompletionStatus = useMemo(() => {
     if (isLoading || !isMonthDataReady) return 'a_saisir' as const;
@@ -163,10 +174,10 @@ export function useCalendar(
       selectedDate.month,
       isForfaitJourMode,
       pointe,
-      { premierJour: premierJourContrat, dernierJour: dernierJourContrat }
+      { premierJour: premierJourJuge, dernierJour: dernierJourContrat }
     );
   }, [
-    premierJourContrat,
+    premierJourJuge,
     dernierJourContrat,
     plannedCalendar,
     actualHours,
@@ -755,6 +766,10 @@ export function useCalendar(
     pointe,
     /** Entrée dans le mois affiché : avant, « Hors contrat ». */
     premierJourContrat,
+    /** Premier jour jugé (entrée ou début de la paie Martine). */
+    premierJourJuge,
+    /** Premier jour payé par Martine dans le mois affiché (bascule), sinon `null`. */
+    premierJourMartine,
     /** Sortie dans le mois affiché : après, rien à saisir. */
     dernierJourContrat,
     copyPreviousMonthPlanned,

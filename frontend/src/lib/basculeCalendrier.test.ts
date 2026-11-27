@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { debutDeLaPaieMartine } from './basculeCalendrier';
+import { basculeDeLaSociete, debutDeLaPaieMartine } from './basculeCalendrier';
 
 const reprise = { dernier_mois_repris: '2026-09', premier_mois_calcule: '2026-10', logiciel_precedent: 'Quadra' };
 const fenetre = (debut: string) => vi.fn(async () => ({ debut }));
@@ -27,11 +27,28 @@ describe('debutDeLaPaieMartine', () => {
     expect(await debutDeLaPaieMartine(null, 2026, 9, fenetre('2026-09-21'))).toBeNull();
   });
 
-  it('fenêtre illisible : la paie Martine commence le 1er du premier mois calculé', async () => {
+  it('fenêtre illisible : rien n’est retiré (règle stricte)', async () => {
     const lire = vi.fn(async () => {
       throw new Error('hors ligne');
     });
-    const bascule = await debutDeLaPaieMartine(reprise, 2026, 9, lire);
-    expect(bascule?.debutMartine).toBe('2026-10-01');
+    expect(await debutDeLaPaieMartine(reprise, 2026, 9, lire)).toBeNull();
+  });
+});
+
+describe('basculeDeLaSociete (fiche salarié, tous les mois)', () => {
+  it('donne le premier jour de la paie Martine, quel que soit le mois affiché', async () => {
+    expect(await basculeDeLaSociete(reprise, fenetre('2026-09-21'))).toEqual({
+      debutMartine: '2026-09-21',
+      logiciel: 'Quadra',
+      phrase: 'Jours avant le 21/09/2026 : payés par l’ancien logiciel (Quadra), non comptés.',
+    });
+  });
+
+  it('sans reprise ou fenêtre illisible : rien n’est retiré', async () => {
+    expect(await basculeDeLaSociete(null, fenetre('2026-09-21'))).toBeNull();
+    const illisible = vi.fn(async () => {
+      throw new Error('hors ligne');
+    });
+    expect(await basculeDeLaSociete(reprise, illisible)).toBeNull();
   });
 });

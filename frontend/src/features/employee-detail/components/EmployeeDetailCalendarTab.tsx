@@ -61,6 +61,10 @@ interface CalendarTabProps {
   pointe?: boolean;
   /** Entrée dans le mois : avant, les cases sont « Hors contrat ». */
   premierJourContrat?: number | null;
+  /** Premier jour jugé (entrée ou début de la paie Martine) : avant, rien n'est « à saisir ». */
+  premierJourJuge?: number | null;
+  /** « Jours avant le 21/09/2026 : payés par l'ancien logiciel… », si la bascule touche le mois. */
+  phraseBascule?: string | null;
   /** Sortie dans le mois : après, les cases sont grisées. */
   dernierJourContrat?: number | null;
   copyPreviousMonthPlanned: () => void | Promise<void>;
@@ -102,6 +106,8 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
     monthCompletionStatus,
     pointe = true,
     premierJourContrat = null,
+    premierJourJuge = null,
+    phraseBascule = null,
     dernierJourContrat = null,
     copyPreviousMonthPlanned,
     copyPlannedToActualForDay,
@@ -232,6 +238,11 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                     </CardTitle>
                     {calendarView === 'month' && (
                       <LignePeriodeDuBulletin year={selectedDate.year} month={selectedDate.month} />
+                    )}
+                    {calendarView === 'month' && phraseBascule && (
+                      <p className="text-xs text-muted-foreground" data-testid="jours-avant-bascule">
+                        {phraseBascule}
+                      </p>
                     )}
 
                     <CardDescription className="flex items-center gap-3 mt-0">
@@ -454,7 +465,7 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                                 pointe={pointe}
                                 onCopyPlannedToActual={copyPlannedToActualForDay}
                                 premierJourContrat={premierJourContrat}
-                                premierJourJuge={premierJourContrat}
+                                premierJourJuge={premierJourJuge ?? premierJourContrat}
                                 dernierJourContrat={dernierJourContrat}
                                 dernierJourJuge={dernierJourContrat}
                                 joursRecup={joursRecup}

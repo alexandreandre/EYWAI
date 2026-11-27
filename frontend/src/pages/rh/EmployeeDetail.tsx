@@ -16,6 +16,7 @@ import { ouvreLaModification } from "@/features/employee-detail/utils/lienModifi
 import { isProfileIncomplete } from "@/features/employee-detail/components/employeeProfileFormUtils";
 import * as saisiesApi from "@/api/saisies";
 import { useCalendar } from "@/hooks/useCalendar";
+import { useBasculeDeLaSociete } from "@/hooks/useBasculeDeLaSociete";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, ArrowLeft, ClipboardEdit, MessageSquare, Calendar as CalendarIcon, FileText, TrendingUp, Stethoscope, ScanLine, Palmtree } from "lucide-react";
@@ -132,6 +133,7 @@ export default function EmployeeDetail() {
   const [boethSheetOpen, setBoethSheetOpen] = useState(false);
   const [isDeletingEmployee, setIsDeletingEmployee] = useState(false);
 
+  const basculeSociete = useBasculeDeLaSociete(activeTab === "calendrier");
   const {
     selectedDate,
     setSelectedDate,
@@ -156,6 +158,8 @@ export default function EmployeeDetail() {
     monthCompletionStatus,
     pointe,
     premierJourContrat,
+    premierJourJuge,
+    premierJourMartine,
     dernierJourContrat,
     copyPreviousMonthPlanned,
     copyPlannedToActualForDay,
@@ -166,6 +170,8 @@ export default function EmployeeDetail() {
     saveError: calendarSaveError,
   } = useCalendar(employeeId, employeeStatut, {
     enabled: activeTab === "calendrier",
+    // Bascule de reprise : avant la première paie Martine, rien n'est compté.
+    debutMartine: basculeSociete?.debutMartine ?? null,
     isForfaitJour: employee?.is_forfait_jour,
     dureeHebdomadaire: employee?.duree_hebdomadaire ?? null,
     // Entrée et sortie : avant l'entrée la case est « Hors contrat », après la
@@ -893,6 +899,8 @@ export default function EmployeeDetail() {
               monthCompletionStatus={monthCompletionStatus}
               pointe={pointe}
               premierJourContrat={premierJourContrat}
+              premierJourJuge={premierJourJuge}
+              phraseBascule={premierJourMartine != null ? basculeSociete?.phrase ?? null : null}
               dernierJourContrat={dernierJourContrat}
               copyPreviousMonthPlanned={copyPreviousMonthPlanned}
               copyPlannedToActualForDay={copyPlannedToActualForDay}

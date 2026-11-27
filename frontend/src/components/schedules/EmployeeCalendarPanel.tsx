@@ -27,6 +27,7 @@ import { CalendarSyncNotice } from '@/components/schedules/CalendarSyncNotice';
 import { Loader2, Save, ChevronLeft, ChevronRight, CalendarDays, Grid3x3, Trash2 } from 'lucide-react';
 import { ViderCalendrierDialog } from '@/components/schedules/ViderCalendrierDialog';
 import { AbsenceRequestModal } from '@/components/AbsenceRequestModal';
+import { useBasculeDeLaSociete } from '@/hooks/useBasculeDeLaSociete';
 import { Chargement } from '@/components/Chargement';
 import { cn } from '@/lib/utils';
 import { useCasesVoisines } from '@/components/schedules/useCasesVoisines';
@@ -58,6 +59,9 @@ export function EmployeeCalendarPanel({
 }: EmployeeCalendarPanelProps) {
   const [calendarView, setCalendarView] = useState<'month' | 'year'>('month');
   const [viderOuvert, setViderOuvert] = useState(false);
+  // Le tiroir change de mois : la bascule de la société vaut pour tous.
+  const basculeSociete = useBasculeDeLaSociete();
+  const debutPaieMartine = debutMartine ?? basculeSociete?.debutMartine ?? null;
   const [debutArret, setDebutArret] = useState<Date | null>(null);
 
   const {
@@ -111,7 +115,7 @@ export function EmployeeCalendarPanel({
     selectedDate.year,
     selectedDate.month,
     isForfaitJour,
-    { finFenetre: fenetreQuery.data?.fin ?? null, debutMartine }
+    { finFenetre: fenetreQuery.data?.fin ?? null, debutMartine: debutPaieMartine }
   );
   const statutBorne =
     monthCompletionStatus === 'saisi'
@@ -143,7 +147,8 @@ export function EmployeeCalendarPanel({
           dernierJourContrat,
           premierJourContrat,
           premierJourMartine,
-          debutMartine,
+          debutMartine: debutPaieMartine,
+          logicielPrecedent: basculeSociete?.logiciel ?? null,
         },
         selectedDate.year,
         selectedDate.month
