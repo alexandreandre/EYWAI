@@ -43,9 +43,15 @@ test('le mois choisi pour la paie de LEWIS est suivi par le menu', async ({ page
   await expect(page.locator('#month-select')).toContainText(/octobre 2026/i);
 
   // Le menu ne compte plus novembre : « Calendrier · octobre » s'il reste des
-  // calendriers d'octobre à saisir, « Calendrier » seul sinon.
-  await expect(page.getByRole('link', { name: /^Calendrier/ }).first()).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByRole('link', { name: /Calendrier · novembre/i })).toHaveCount(0, { timeout: 120_000 });
+  // calendriers d'octobre à saisir, « Calendrier » seul sinon. La fenêtre
+  // « Générer la Paie » rend le menu aria-hidden : includeHidden pour le lire,
+  // sinon l'absence de « novembre » serait vraie par construction.
+  await expect(page.getByRole('link', { name: /^Calendrier/, includeHidden: true }).first()).toBeVisible({
+    timeout: 45_000,
+  });
+  await expect(page.getByRole('link', { name: /Calendrier · novembre/i, includeHidden: true })).toHaveCount(0, {
+    timeout: 120_000,
+  });
 
   // Consulter septembre sur la page Paie ne change pas la paie en cours.
   await page.goto('/payroll?view=month&month=2026-09');

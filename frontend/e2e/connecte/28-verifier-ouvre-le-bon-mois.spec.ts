@@ -45,18 +45,28 @@ test('générer la paie d’octobre : la phrase nomme le mois, « Vérifier » o
   const bandeau = fenetre.getByText(/anomalies? détectées?/).first();
   await expect(bandeau).toBeVisible({ timeout: 90_000 });
   await bandeau.click();
-  const phrase = fenetre.getByText(/à compléter pour la paie d’octobre|à compléter pour la paie d'octobre/).first();
-  await expect(phrase, 'heures non saisies de la paie d’octobre').toBeVisible({ timeout: 30_000 });
   await expect(fenetre.getByText('fenêtre des variables (')).toHaveCount(0);
+  const phrase = fenetre.getByText(/à compléter pour la paie d’octobre|à compléter pour la paie d'octobre/).first();
+  const aCompleter = await phrase
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
 
-  // Le jour à compléter le plus tôt de cette anomalie donne le mois attendu.
-  const texte = await phrase.innerText();
-  const [, , mm] = texte.match(/: (\d{2})\/(\d{2})/) ?? [];
-  expect(mm, 'un jour à compléter dans la phrase').toBeTruthy();
-  const carte = phrase.locator('xpath=ancestor::*[.//button[normalize-space()="Vérifier"]][1]');
-  await carte.getByRole('button', { name: 'Vérifier', exact: true }).first().click();
-  await expect(page).toHaveURL(new RegExp(`tab=calendrier&year=2026&month=${Number(mm)}(&|$)`), {
-    timeout: 30_000,
-  });
+  if (aCompleter) {
+    // Le jour à compléter le plus tôt de cette anomalie donne le mois attendu.
+    const texte = await phrase.innerText();
+    const [, , mm] = texte.match(/: (\d{2})\/(\d{2})/) ?? [];
+    expect(mm, 'un jour à compléter dans la phrase').toBeTruthy();
+    const carte = phrase.locator('xpath=ancestor::*[.//button[normalize-space()="Vérifier"]][1]');
+    await carte.getByRole('button', { name: 'Vérifier', exact: true }).first().click();
+    await expect(page).toHaveURL(new RegExp(`tab=calendrier&year=2026&month=${Number(mm)}(&|$)`), {
+      timeout: 30_000,
+    });
+  } else {
+    // Calendriers d'octobre tous remplis (cas depuis le 27/11) : n'importe quelle
+    // anomalie ouvre un mois de la fenêtre d'octobre (21/09 → 25/10), jamais novembre.
+    await fenetre.getByRole('button', { name: 'Vérifier', exact: true }).first().click();
+    await expect(page).toHaveURL(/tab=calendrier&year=2026&month=(9|10)(&|$)/, { timeout: 30_000 });
+  }
   await verifierPageSaine(page, s);
 });
