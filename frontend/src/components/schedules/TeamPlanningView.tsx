@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { libelleJourForfait } from './libelleJourForfait';
 import { displayNameNomPrenom, displayNamePrenomNom } from '@/lib/employeeName';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
@@ -221,19 +220,25 @@ export function TeamPlanningView({
         />
       </div>
 
-      <ScrollArea className="w-full rounded-md border">
+      {/* Défilement dans le cadre : l'en-tête des jours reste visible quand
+          on descend dans la liste (retour d'Elsa), la colonne des noms quand
+          on va à droite. */}
+      <div
+        className="w-full max-h-[calc(100vh-14rem)] min-h-[16rem] overflow-auto rounded-md border"
+        data-testid="grille-planning"
+      >
         <div className="min-w-[760px]">
           <div className="grid grid-cols-[252px_repeat(7,minmax(90px,1fr))]">
             {/* Header */}
             <button
               type="button"
               className={cn(
-                'sticky left-0 z-10 flex w-full items-stretch border-b border-r text-left text-xs font-medium cursor-pointer transition-colors duration-150',
+                'sticky left-0 top-0 z-30 flex w-full items-stretch border-b border-r text-left text-xs font-medium cursor-pointer transition-colors duration-150',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                 rows.length > 0 &&
                   rows.every((r) => selectedIds.has(r.employee.id))
                   ? 'bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))]'
-                  : 'bg-muted/60',
+                  : 'bg-muted',
                 'hover:bg-[color-mix(in_srgb,hsl(var(--primary))_28%,hsl(var(--background)))] hover:text-primary',
               )}
               onClick={() => onToggleSelectAll(rows.map((r) => r.employee.id))}
@@ -263,7 +268,7 @@ export function TeamPlanningView({
                 return (
                   <div
                     key={`pad-${i}`}
-                    className="bg-muted/30 border-b border-r last:border-r-0"
+                    className="sticky top-0 z-20 bg-muted border-b border-r last:border-r-0"
                   />
                 );
               }
@@ -279,10 +284,11 @@ export function TeamPlanningView({
                 <div
                   key={day}
                   className={cn(
-                    'border-b border-r last:border-r-0 p-2 text-center',
-                    'bg-muted/60 text-xs font-medium',
-                    isToday && 'bg-primary/10'
+                    'sticky top-0 z-20 border-b border-r last:border-r-0 p-2 text-center',
+                    'bg-muted text-xs font-medium',
+                    isToday && 'bg-[color-mix(in_srgb,hsl(var(--primary))_10%,hsl(var(--muted)))]'
                   )}
+                  data-testid="entete-jour"
                 >
                   <div className={cn('uppercase', isToday && 'text-primary')}>
                     {WEEKDAY_LABELS[i]}
@@ -560,8 +566,7 @@ export function TeamPlanningView({
             ))}
           </div>
         </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
         <span className="font-medium text-foreground">Légende</span>

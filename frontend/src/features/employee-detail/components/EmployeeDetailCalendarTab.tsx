@@ -397,7 +397,7 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                     {calendarView === 'month' ? (
                       <div className="flex flex-col gap-4 p-2">
                     {/* Noms des jours */}
-                    <div className="grid grid-cols-7 text-center text-sm font-medium text-muted-foreground">
+                    <div className="sticky top-0 z-20 -mx-2 grid grid-cols-7 bg-background/95 px-2 py-1.5 text-center backdrop-blur border-b text-sm font-medium text-muted-foreground" data-testid="entete-jours-du-mois">
                       {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => (
                         <div key={d}>{d}</div>
                       ))}

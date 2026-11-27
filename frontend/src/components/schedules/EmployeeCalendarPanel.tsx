@@ -298,7 +298,7 @@ export function EmployeeCalendarPanel({
             <Chargement label="Chargement du calendrier…" className="h-48" />
           ) : calendarView === 'month' ? (
             <div className="flex flex-col gap-3 p-2">
-              <div className="grid grid-cols-7 text-center text-xs font-medium text-muted-foreground">
+              <div className="sticky top-[var(--entete-tiroir,0px)] z-20 -mx-2 grid grid-cols-7 bg-background/95 px-2 py-1.5 text-center backdrop-blur border-b text-xs font-medium text-muted-foreground" data-testid="entete-jours-du-mois">
                 {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((d) => (
                   <div key={d}>{d}</div>
                 ))}

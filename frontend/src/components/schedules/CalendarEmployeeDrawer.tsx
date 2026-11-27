@@ -1,10 +1,9 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { displayNamePrenomNom } from '@/lib/employeeName';
 import { Link } from 'react-router-dom';
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -40,6 +39,18 @@ export function CalendarEmployeeDrawer({
     ? orderedEmployees.findIndex((e) => e.id === employee.id)
     : -1;
   const hasPrev = currentIndex > 0;
+  // Hauteur de l'en-tête collant du tiroir : l'en-tête des jours du mois se
+  // colle juste dessous quand on descend dans le calendrier.
+  const [entete, setEntete] = useState<HTMLDivElement | null>(null);
+  const [hauteurEntete, setHauteurEntete] = useState(0);
+  useEffect(() => {
+    if (!entete) return;
+    setHauteurEntete(entete.offsetHeight);
+    if (typeof ResizeObserver === 'undefined') return;
+    const observateur = new ResizeObserver(() => setHauteurEntete(entete.offsetHeight));
+    observateur.observe(entete);
+    return () => observateur.disconnect();
+  }, [entete]);
   const hasNext =
     currentIndex >= 0 && currentIndex < orderedEmployees.length - 1;
 
@@ -76,8 +87,12 @@ export function CalendarEmployeeDrawer({
       <SheetContent
         side="right"
         className="w-full sm:max-w-[min(92vw,900px)] overflow-y-auto p-0"
+        style={{ '--entete-tiroir': `${hauteurEntete}px` } as CSSProperties}
       >
-        <SheetHeader className="sticky top-0 z-10 bg-background border-b px-6 py-4">
+        <div
+          ref={setEntete}
+          className="flex flex-col space-y-2 text-center sm:text-left sticky top-0 z-30 bg-background border-b px-6 py-4"
+        >
           <div className="flex items-center justify-between gap-2">
             <SheetTitle className="text-left text-base font-semibold">
               Calendrier — {employeeName}
@@ -116,7 +131,7 @@ export function CalendarEmployeeDrawer({
               {currentIndex + 1} / {orderedEmployees.length} — flèches ← → pour naviguer
             </p>
           )}
-        </SheetHeader>
+        </div>
 
         <div className="px-4 py-4">
           <EmployeeCalendarPanel
