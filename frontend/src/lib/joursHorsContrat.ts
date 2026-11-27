@@ -9,6 +9,8 @@
  * jour avant l'entrée n'est pas compté.
  */
 
+import type { ActualHoursData, PlannedEventData } from '@/api/calendar';
+
 function joursDuMois(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
 }
@@ -45,6 +47,26 @@ export function premierJourDuContratDansLeMois(
 
 export function estAvantLEntree(jour: number, premierJourContrat: number | null | undefined): boolean {
   return premierJourContrat != null && jour < premierJourContrat;
+}
+
+/**
+ * Un jour avant l'entrée qui porte une saisie (heures, absence, arrivée) reste
+ * visible et modifiable, avec la mention « hors contrat » : le griser cacherait
+ * des heures que la paie pourrait lire. Un jour à son état par défaut est grisé.
+ */
+export function jourHorsContratAvecSaisie(
+  planned: Pick<PlannedEventData, 'type' | 'heures_prevues' | 'origine'> | undefined,
+  actual: Pick<ActualHoursData, 'heures_faites' | 'debut'> | undefined,
+  forfait: boolean,
+): boolean {
+  if (actual?.heures_faites != null && actual.heures_faites > 0) return true;
+  if (actual?.debut) return true;
+  if (planned) {
+    if (planned.origine === 'absence') return true;
+    if (!['travail', 'work', 'weekend', 'ferie', ''].includes(planned.type)) return true;
+    if (!forfait && planned.heures_prevues != null && planned.heures_prevues > 0) return true;
+  }
+  return false;
 }
 
 /** Infobulle d'une case avant l'entrée. */

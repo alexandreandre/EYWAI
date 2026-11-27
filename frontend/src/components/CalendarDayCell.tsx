@@ -28,7 +28,7 @@ import {
 import { isDayReadyForPayroll } from '@/lib/calendarStats';
 import { estAbsentATyper } from '@/lib/absentATyper';
 import { libelleApresSortie } from '@/lib/employmentStatus';
-import { estAvantLEntree, libelleAvantEntree } from '@/lib/joursHorsContrat';
+import { estAvantLEntree, jourHorsContratAvecSaisie, libelleAvantEntree } from '@/lib/joursHorsContrat';
 import { libelleArrivee } from '@/lib/horairesDuJour';
 import { REFUS_VIDER_ABSENCE, jourGardeParLeVidage, typeDuJourVide } from '@/lib/viderCalendrier';
 import {
@@ -350,7 +350,11 @@ export function CalendarDayCell({
   }
 
   // Avant l'entrée : hors contrat, rien à saisir (retour d'Elsa, entrée le 05/10).
-  if (estAvantLEntree(dayNumber, premierJourContrat)) {
+  // Un jour qui porte une saisie reste visible et modifiable, avec la mention.
+  const avantEntree = estAvantLEntree(dayNumber, premierJourContrat);
+  const saisieHorsContrat =
+    avantEntree && jourHorsContratAvecSaisie(plannedDay, actualDay, isForfaitJour);
+  if (avantEntree && !saisieHorsContrat) {
     return (
       <div
         className="flex h-full min-h-[7.5rem] flex-col gap-1 rounded-2xl border bg-muted/50 p-2 text-muted-foreground/70"
@@ -456,6 +460,15 @@ export function CalendarDayCell({
           </span>
           {isToday && (
             <span className="text-[9px] font-medium text-primary leading-none">Aujourd&apos;hui</span>
+          )}
+          {saisieHorsContrat && (
+            <span
+              className="text-[9px] font-medium text-amber-700 leading-none"
+              title={libelleAvantEntree(premierJourContrat!, selectedDate.month)}
+              data-testid="mention-hors-contrat"
+            >
+              Hors contrat
+            </span>
           )}
         </div>
 

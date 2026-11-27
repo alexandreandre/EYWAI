@@ -16,7 +16,7 @@ import {
 import type { EmployeeCalendarOverviewRow, DayPatch } from '@/lib/schedulesOverview';
 import { alerteDeSaisie } from '@/lib/alerteDeSaisie';
 import { libelleApresSortie } from '@/lib/employmentStatus';
-import { estAvantLEntree, libelleAvantEntree } from '@/lib/joursHorsContrat';
+import { estAvantLEntree, jourHorsContratAvecSaisie, libelleAvantEntree } from '@/lib/joursHorsContrat';
 import { PlanningDayEditor } from './PlanningDayEditor';
 import { AbsenceRequestModal } from '@/components/AbsenceRequestModal';
 import { libelleArrivee } from '@/lib/horairesDuJour';
@@ -440,8 +440,17 @@ export function TeamPlanningView({
                     );
                   }
                   // Avant l'entrée : hors contrat, grisé, rien n'est attendu
-                  // (retour d'Elsa : salarié entré le 05/10).
-                  if (estAvantLEntree(day, row.premierJourContrat)) {
+                  // (retour d'Elsa : salarié entré le 05/10). Un jour qui porte
+                  // une saisie reste visible et modifiable, avec la mention.
+                  const avantEntree = estAvantLEntree(day, row.premierJourContrat);
+                  const saisieHorsContrat =
+                    avantEntree &&
+                    jourHorsContratAvecSaisie(
+                      row.planned.find((p) => p.jour === day),
+                      row.actual.find((a) => a.jour === day),
+                      row.isForfaitJour,
+                    );
+                  if (avantEntree && !saisieHorsContrat) {
                     return (
                       <div
                         key={`${row.employee.id}-${day}`}
@@ -516,6 +525,15 @@ export function TeamPlanningView({
                             <span className="text-[9px] uppercase tracking-wide text-muted-foreground">
                               {TYPE_LABEL[type] ?? type}
                             </span>
+                            {saisieHorsContrat && (
+                              <span
+                                className="text-[9px] font-medium text-amber-700"
+                                title={libelleAvantEntree(row.premierJourContrat!, month)}
+                                data-testid="mention-hors-contrat"
+                              >
+                                Hors contrat
+                              </span>
+                            )}
                             {row.isForfaitJour ? (
                               forfaitDayDisplay ? (
                                 <span

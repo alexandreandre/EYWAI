@@ -148,3 +148,16 @@ describe('modèle appliqué à un salarié sorti (retour du 10/11)', () => {
     expect(reel.find((d) => d.jour === 5)?.heures_faites).toBeNull();
   });
 });
+
+describe('modèle appliqué à un salarié entré en cours de mois (relecture L17)', () => {
+  it('ne pose rien avant l’entrée', () => {
+    const prevu = buildPlannedEntriesFromWeekConfig(2026, 10, week, false, { premierJour: 5 });
+    // 01/10/2026 : jeudi, avant l'entrée le 05/10.
+    expect(prevu.find((d) => d.jour === 1)).toEqual({ jour: 1, type: 'travail', heures_prevues: null });
+    expect(prevu.find((d) => d.jour === 5)?.heures_prevues).toBe(7);
+
+    const reel = buildActualEntriesFromWeekConfig(2026, 10, week, false, { premierJour: 5 });
+    expect(reel.find((d) => d.jour === 2)?.heures_faites).toBeNull();
+    expect(reel.find((d) => d.jour === 6)?.heures_faites).toBe(7);
+  });
+});

@@ -202,10 +202,12 @@ export function ApplyModelDialog({
         const line = overviewRows.find((row) => row.employee.id === id);
         const planned = writePlanned ? buildPlannedEntriesFromWeekConfig(year, month, weekConfig, line?.isForfaitJour ?? false, {
           existing: before.calendrier_prevu, onlyDays: scopedDays, dernierJour: line?.dernierJourContrat ?? null,
+          premierJour: line?.premierJourContrat ?? null,
         }) : undefined;
         const actual = writeActual ? buildActualEntriesFromWeekConfig(year, month, weekConfig, line?.isForfaitJour ?? false, {
           existing: before.calendrier_reel, planned: planned ?? before.calendrier_prevu,
           onlyDays: scopedDays, dernierJour: line?.dernierJourContrat ?? null,
+          premierJour: line?.premierJourContrat ?? null,
         }) : undefined;
         const saved = await calendarApi.saveCalendar(id, year, month, {
           expected_revision: before.revision, calendrier_prevu: planned, calendrier_reel: actual,

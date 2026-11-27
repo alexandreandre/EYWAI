@@ -88,6 +88,8 @@ export function buildActualEntriesFromWeekConfig(
     onlyDays?: number[];
     /** Dernier jour du contrat (sortie) : rien n'est fait après. */
     dernierJour?: number | null;
+    /** Premier jour du contrat (entrée) : rien n'est fait avant. */
+    premierJour?: number | null;
   },
 ): ActualHoursData[] {
   const existingByDay = new Map(
@@ -117,6 +119,13 @@ export function buildActualEntriesFromWeekConfig(
 
     if (options?.dernierJour != null && day > options.dernierJour) {
       entries.push({ jour: day, type: planned?.type ?? 'repos', heures_faites: null });
+      continue;
+    }
+
+    if (options?.premierJour != null && day < options.premierJour) {
+      entries.push(
+        existing ?? { jour: day, type: planned?.type ?? fallbackType(year, month, day), heures_faites: null },
+      );
       continue;
     }
 
@@ -158,6 +167,8 @@ export function buildPlannedEntriesFromWeekConfig(
     onlyDays?: number[];
     /** Dernier jour du contrat (sortie) : après, jour à 0 h (retour du 10/11). */
     dernierJour?: number | null;
+    /** Premier jour du contrat (entrée) : avant, le modèle ne pose rien. */
+    premierJour?: number | null;
   },
 ): PlannedEventData[] {
   const existingByDay = new Map(
@@ -188,6 +199,11 @@ export function buildPlannedEntriesFromWeekConfig(
 
     if (options?.dernierJour != null && day > options.dernierJour) {
       entries.push({ jour: day, type: 'repos', heures_prevues: 0 });
+      continue;
+    }
+
+    if (options?.premierJour != null && day < options.premierJour) {
+      entries.push(existing ?? { jour: day, type: fallbackType(year, month, day), heures_prevues: null });
       continue;
     }
 

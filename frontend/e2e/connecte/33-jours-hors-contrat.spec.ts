@@ -69,7 +69,7 @@ test('jours avant l’entrée grisés « Hors contrat », non comptés à saisir
 
   // Première semaine du mois : les jours d'avant l'entrée sont « Hors contrat ».
   await page.getByRole('tab').first().click();
-  const cases = page.getByTestId('case-hors-contrat');
+  const cases = page.getByTestId('case-hors-contrat').or(page.getByTestId('mention-hors-contrat'));
   await expect(cases.first()).toBeVisible({ timeout: 60_000 });
   await expect(cases.first()).toHaveText('Hors contrat');
   await expect(cases.first()).toHaveAttribute('title', /Avant l’entrée le \d{2}\/\d{2} : hors contrat, rien à saisir\./);
@@ -78,7 +78,10 @@ test('jours avant l’entrée grisés « Hors contrat », non comptés à saisir
   await page.getByRole('button', { name: 'Ouvrir le calendrier complet' }).first().click();
   const tiroir = page.getByRole('dialog');
   await expect(tiroir.getByTestId('entete-jours-du-mois')).toBeVisible({ timeout: 60_000 });
-  await expect(tiroir.getByTestId('case-hors-contrat')).toHaveCount(jourEntree - 1);
+  // Grisés, ou visibles avec la mention « Hors contrat » s'ils portent une saisie.
+  const grises = await tiroir.getByTestId('case-hors-contrat').count();
+  const mentionnes = await tiroir.getByTestId('mention-hors-contrat').count();
+  expect(grises + mentionnes).toBe(jourEntree - 1);
   // L'alerte du mois ne nomme aucun jour d'avant l'entrée.
   const alerte = tiroir.getByTestId('alerte-jours-a-saisir-tiroir');
   if (await alerte.isVisible()) {
