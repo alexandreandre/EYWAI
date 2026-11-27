@@ -323,7 +323,8 @@ export default function CompanyPage() {
           </TabsTrigger>
           <TabsTrigger value="mutuelle" className="flex items-center gap-2 text-xs sm:text-sm">
             <HeartHandshake className="h-4 w-4 shrink-0" />
-            Mutuelle
+            <span className="hidden sm:inline">Mutuelle et prévoyance</span>
+            <span className="sm:hidden">Mutuelle</span>
           </TabsTrigger>
           <TabsTrigger
             value="modeles"

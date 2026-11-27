@@ -96,7 +96,6 @@ export const PAYROLL_SECTION_KEYS = [
   "taux-paie",
   "declarations",
   "mutuelle",
-  "prevoyance",
   "temps-travail",
   "exoneration",
   "dialogue-social",
