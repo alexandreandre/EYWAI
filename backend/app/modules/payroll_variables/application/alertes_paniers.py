@@ -129,7 +129,7 @@ def phrase_aucune_heure_d_arrivee(regles: Any, nombre: int) -> str:
     rien = "aucun panier compté" if tout_panier else "aucun jour compté"
     return (
         f"{', '.join(noms)} : aucune heure d'arrivée sur la période ({nombre} {jours}), {rien} : "
-        "importez les pointages ou saisissez les heures d'arrivée au calendrier."
+        "importez les pointages, saisissez les heures d'arrivée au calendrier ou posez les absences."
     )
 
 
@@ -143,7 +143,7 @@ def phrase_jours_sans_heure_d_arrivee(regles: Any, dates: list[str], aucun_badge
     liste = ", ".join(_jour_mois(d) for d in dates)
     return (
         f"{', '.join(_regles(regles))} : {n} {jours} sans heure d'arrivée ({liste}) : "
-        f"aucun compté {ces_jours}. Importez les pointages ou saisissez l'heure d'arrivée au calendrier."
+        f"aucun compté {ces_jours}. Importez les pointages, saisissez l'heure d'arrivée au calendrier ou posez l'absence."
     )
 
 

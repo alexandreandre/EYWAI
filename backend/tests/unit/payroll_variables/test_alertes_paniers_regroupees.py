@@ -74,7 +74,7 @@ class TestAlerteDuBulletin:
         assert [a["message"] for a in alertes] == [
             "Panier, Panier de nuit, Prime de nuit : 6 jours travaillés sans heure d'arrivée "
             "(19/10, 20/10, 21/10, 22/10, 23/10, 26/10) : aucun compté ces jours-là. "
-            "Importez les pointages ou saisissez l'heure d'arrivée au calendrier."
+            "Importez les pointages, saisissez l'heure d'arrivée au calendrier ou posez l'absence."
         ]
         assert alertes[0]["code"] == "jours_sans_heure_d_arrivee" and alertes[0]["critique"] is False
 
@@ -87,9 +87,9 @@ class TestAlerteDuBulletin:
         alertes = ap.alertes_des_paniers_du_mois("c", "e1", 2026, 10, [])
         assert [a["message"] for a in alertes] == [
             "Panier, Prime de nuit : 2 jours travaillés sans heure d'arrivée (19/10, 20/10) : "
-            "aucun compté ces jours-là. Importez les pointages ou saisissez l'heure d'arrivée au calendrier.",
+            "aucun compté ces jours-là. Importez les pointages, saisissez l'heure d'arrivée au calendrier ou posez l'absence.",
             "Panier de nuit : 1 jour travaillé sans heure d'arrivée (19/10) : "
-            "aucun compté ce jour-là. Importez les pointages ou saisissez l'heure d'arrivée au calendrier.",
+            "aucun compté ce jour-là. Importez les pointages, saisissez l'heure d'arrivée au calendrier ou posez l'absence.",
         ]
 
     def test_aucune_heure_sur_la_periode_une_seule_phrase(self, monkeypatch):
@@ -97,8 +97,8 @@ class TestAlerteDuBulletin:
         alertes = ap.alertes_des_paniers_du_mois("c", "e1", 2026, 10, [])
         assert [a["message"] for a in alertes] == [
             "Panier, Panier de nuit, Prime de nuit : aucune heure d'arrivée sur la période "
-            "(6 jours travaillés), aucun jour compté : importez les pointages ou saisissez "
-            "les heures d'arrivée au calendrier."
+            "(6 jours travaillés), aucun jour compté : importez les pointages, saisissez "
+            "les heures d'arrivée au calendrier ou posez les absences."
         ]
 
     def test_que_des_paniers_le_dit(self, monkeypatch):

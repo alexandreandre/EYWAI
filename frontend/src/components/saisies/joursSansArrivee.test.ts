@@ -73,8 +73,8 @@ describe('encadré : une ligne par salarié (L23, 28/11)', () => {
     ]);
     expect(lignes.map((l) => l.employee_id)).toEqual(['a', 'b']);
     expect(lignes[0].phrase).toBe(
-      "Panier, Prime de nuit : 2 jours travaillés sans heure d'arrivée (19/10, 20/10) : aucun compté ces jours-là. Importez les pointages ou saisissez l'heure d'arrivée au calendrier. "
-        + "Panier de nuit : 1 jour travaillé sans heure d'arrivée (20/10) : aucun compté ce jour-là. Importez les pointages ou saisissez l'heure d'arrivée au calendrier.",
+      "Panier, Prime de nuit : 2 jours travaillés sans heure d'arrivée (19/10, 20/10) : aucun compté ces jours-là. Importez les pointages, saisissez l'heure d'arrivée au calendrier ou posez l'absence. "
+        + "Panier de nuit : 1 jour travaillé sans heure d'arrivée (20/10) : aucun compté ce jour-là. Importez les pointages, saisissez l'heure d'arrivée au calendrier ou posez l'absence.",
     );
     expect(lignes[1]).toMatchObject({ first_name: 'C', last_name: 'D' });
   });

@@ -185,10 +185,10 @@ export function phraseJoursDuSalarie(j: {
   const jours = n > 1 ? 'jours travaillés' : 'jour travaillé';
   if (j.aucun_badge) {
     const rien = noms.every((r) => /panier/i.test(r)) ? 'aucun panier compté' : 'aucun jour compté';
-    return `${regles} : aucune heure d'arrivée sur la période (${n} ${jours}), ${rien} : importez les pointages ou saisissez les heures d'arrivée au calendrier.`;
+    return `${regles} : aucune heure d'arrivée sur la période (${n} ${jours}), ${rien} : importez les pointages, saisissez les heures d'arrivée au calendrier ou posez les absences.`;
   }
   const cesJours = n > 1 ? 'ces jours-là' : 'ce jour-là';
-  return `${regles} : ${n} ${jours} sans heure d'arrivée (${j.dates.map(jourMois).join(', ')}) : aucun compté ${cesJours}. Importez les pointages ou saisissez l'heure d'arrivée au calendrier.`;
+  return `${regles} : ${n} ${jours} sans heure d'arrivée (${j.dates.map(jourMois).join(', ')}) : aucun compté ${cesJours}. Importez les pointages, saisissez l'heure d'arrivée au calendrier ou posez l'absence.`;
 }
 
 /** Une ligne de simulation qui demande l'attention de la RH (prime à 0, jours sans heure d'arrivée). */
