@@ -86,6 +86,16 @@ def refus_chevauchement_arret(
             f" Saisissez seulement les jours d'avant, jusqu'au "
             f"{_fr(debut - timedelta(days=1))}."
         )
+    elif nature != natures[debut]:
+        # Requalification (L20, capture du 27/11 : arrêt maladie à ressaisir
+        # en maladie professionnelle) : un arrêt ne change pas de nature en
+        # place, on annule puis on ressaisit ; le chemin est dit en entier.
+        phrase += (
+            f" Pour le requalifier en « {LIBELLES_NATURE.get(str(nature), 'Arrêt')} », "
+            "ouvrez-le dans Arrêts & IJ, annulez-le (« Annuler cet arrêt »), puis "
+            "saisissez de nouveau la période avec cette nature. Les bulletins déjà "
+            "faits sur ces mois changent quand vous les recalculez."
+        )
     else:
         phrase += (
             " Pour le remplacer, annulez-le, puis saisissez la "
