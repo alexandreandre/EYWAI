@@ -64,7 +64,10 @@ class JoursSansHeureDArriveeSchema(BaseModel):
     employee_id: str
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    #: Les règles du groupe, jointes (« Panier, Prime de nuit »).
     rule_label: Optional[str] = None
+    #: Les règles qui ne comptent pas ces jours-là (L23, 28/11).
+    rule_labels: list[str] = []
     dates: list[str]
     #: Aucun jour de la période n'a d'heure d'arrivée (aucun badge importé).
     aucun_badge: bool = False

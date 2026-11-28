@@ -499,8 +499,8 @@ class TestJoursSansHeureDArriveeDits:
         _brancher(monkeypatch, self.REGLE, FICHE, prevu, reel)
         alertes = alertes_des_paniers_du_mois("c", "e1", 2026, 10, [])
         assert [a["message"] for a in alertes] == [
-            "Panier : 2 jours travaillés sans heure d'arrivée, non comptés (05/10, 06/10) : "
-            "heure d'arrivée à saisir au calendrier, ou absence à poser."
+            "Panier : 2 jours travaillés sans heure d'arrivée (05/10, 06/10) : aucun compté ces jours-là. "
+            "Importez les pointages ou saisissez l'heure d'arrivée au calendrier."
         ]
         assert alertes[0]["code"] == "jours_sans_heure_d_arrivee"
         assert alertes[0]["critique"] is False

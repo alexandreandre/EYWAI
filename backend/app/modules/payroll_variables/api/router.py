@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.core.security import get_current_user
 from app.modules.payroll_variables.application.alertes_paniers import (
     jours_sans_heure_d_arrivee,
+    regrouper_jours_sans_heure_d_arrivee,
 )
 from app.modules.payroll_variables.application.generate_monthly import (
     generate_monthly_variables,
@@ -205,10 +206,11 @@ def lire_jours_sans_heure_d_arrivee(
 ):
     """Jours travaillés sans heure d'arrivée que les règles « par jour
     travaillé » ne comptent pas, relus au calendrier (L19, 27/11). Lecture
-    seule : la génération en simulation, rien d'écrit ni de stocké."""
+    seule : la génération en simulation, rien d'écrit ni de stocké. Une ligne
+    par salarié et par groupe de jours identiques, qui nomme les règles (L23)."""
     cid = _resolve_company_id(company_id, current_user)
     _require_rh(current_user, cid)
-    return jours_sans_heure_d_arrivee(str(cid), year, month)
+    return regrouper_jours_sans_heure_d_arrivee(jours_sans_heure_d_arrivee(str(cid), year, month))
 
 
 # ---------------------------------------------------------------------------

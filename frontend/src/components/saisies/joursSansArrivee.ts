@@ -3,6 +3,7 @@
  * nombre de paniers corrigé (L19, relecture du 27/11).
  */
 import type { JoursSansHeureDArrivee, PayrollVariableRule } from '@/api/payrollVariables';
+import { phraseJoursDuSalarie } from '@/features/company/lib/primesPointage';
 
 /** Les règles dont le montant est nombre × montant de la règle (comme `alertes_paniers`). */
 const TYPES_NOMBRE_FOIS_MONTANT = new Set(['per_worked_day', 'per_shift_type']);
@@ -46,6 +47,30 @@ export function montantPourLeNombre(
 /** Des jours réels : un salarié et une date comptent une fois, quelles que soient les règles. */
 export function compterJoursReels(jours: Pick<JoursSansHeureDArrivee, 'employee_id' | 'dates'>[]): number {
   return new Set(jours.flatMap((j) => j.dates.map((d) => `${j.employee_id}|${d}`))).size;
+}
+
+export type LigneDuSalarie = {
+  employee_id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  phrase: string;
+};
+
+/**
+ * Une ligne par salarié (L23, 28/11) : ses groupes de jours, chacun avec les
+ * règles qui ne les comptent pas, à la suite, dans l'ordre reçu.
+ */
+export function lignesParSalarie(groupes: JoursSansHeureDArrivee[]): LigneDuSalarie[] {
+  const parSalarie = new Map<string, { ligne: LigneDuSalarie; phrases: string[] }>();
+  for (const g of groupes) {
+    let entree = parSalarie.get(g.employee_id);
+    if (!entree) {
+      entree = { ligne: { employee_id: g.employee_id, first_name: g.first_name, last_name: g.last_name, phrase: '' }, phrases: [] };
+      parSalarie.set(g.employee_id, entree);
+    }
+    entree.phrases.push(phraseJoursDuSalarie(g));
+  }
+  return [...parSalarie.values()].map(({ ligne, phrases }) => ({ ...ligne, phrase: phrases.join(' ') }));
 }
 
 export function cleDuMois(year: number, month: number): string {

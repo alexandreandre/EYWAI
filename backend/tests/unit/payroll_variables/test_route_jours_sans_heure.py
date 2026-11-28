@@ -40,5 +40,5 @@ def test_la_route_rend_les_jours_par_salarie(monkeypatch):
     )
     assert r.status_code == 200
     assert r.json() == [{"employee_id": "e1", "first_name": "A", "last_name": "B", "rule_label": "Panier",
-                         "dates": ["2026-10-05"], "aucun_badge": False}]
+                         "rule_labels": ["Panier"], "dates": ["2026-10-05"], "aucun_badge": False}]
     assert appels == [("c1", 2026, 10, None)]

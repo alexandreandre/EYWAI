@@ -161,13 +161,36 @@ describe("encadré de Primes du mois : aucun badge du mois (L19, 27/11)", () => 
     expect(
       phraseJoursDuSalarie({ rule_label: 'Panier', dates: ['2026-10-01', '2026-10-02', '2026-10-05'], aucun_badge: true }),
     ).toBe(
-      "Panier : aucune heure d'arrivée sur la période (3 jours travaillés), aucun panier compté : importez les pointages ou saisissez les heures d'arrivée au calendrier",
+      "Panier : aucune heure d'arrivée sur la période (3 jours travaillés), aucun panier compté : importez les pointages ou saisissez les heures d'arrivée au calendrier.",
     );
   });
 
   it('les dates quand une partie des jours en a une', () => {
     expect(phraseJoursDuSalarie({ rule_label: 'Panier', dates: ['2026-10-05'], aucun_badge: false })).toBe(
-      "Panier : 1 jour travaillé sans heure d'arrivée, non compté (05/10) : heure d'arrivée à saisir au calendrier, ou absence à poser",
+      "Panier : 1 jour travaillé sans heure d'arrivée (05/10) : aucun compté ce jour-là. Importez les pointages ou saisissez l'heure d'arrivée au calendrier.",
+    );
+  });
+
+  it('les règles aux mêmes jours sont nommées ensemble (L23, 28/11)', () => {
+    expect(
+      phraseJoursDuSalarie({
+        rule_label: 'Panier, Panier de nuit, Prime de nuit',
+        rule_labels: ['Panier', 'Panier de nuit', 'Prime de nuit'],
+        dates: ['2026-10-19', '2026-10-20'],
+        aucun_badge: false,
+      }),
+    ).toBe(
+      "Panier, Panier de nuit, Prime de nuit : 2 jours travaillés sans heure d'arrivée (19/10, 20/10) : aucun compté ces jours-là. Importez les pointages ou saisissez l'heure d'arrivée au calendrier.",
+    );
+  });
+
+  it("aucun badge : « aucun panier » seulement quand toutes les règles sont des paniers (L23)", () => {
+    const base = { dates: ['2026-10-01', '2026-10-02'], aucun_badge: true };
+    expect(phraseJoursDuSalarie({ ...base, rule_labels: ['Panier', 'Panier de nuit'] })).toBe(
+      "Panier, Panier de nuit : aucune heure d'arrivée sur la période (2 jours travaillés), aucun panier compté : importez les pointages ou saisissez les heures d'arrivée au calendrier.",
+    );
+    expect(phraseJoursDuSalarie({ ...base, rule_labels: ['Panier', 'Prime de nuit'] })).toContain(
+      '(2 jours travaillés), aucun jour compté :',
     );
   });
 

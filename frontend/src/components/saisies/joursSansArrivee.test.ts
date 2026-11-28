@@ -3,6 +3,7 @@ import {
   cleDuMois,
   compterJoursReels,
   etatInitialDesJours,
+  lignesParSalarie,
   montantPourLeNombre,
   recevoirJours,
   texteDeLEncadre,
@@ -59,5 +60,22 @@ describe('encadré des jours sans heure d\'arrivée (relecture L19, 27/11)', () 
 
   it('rien à dire une fois lus sans jour', () => {
     expect(texteDeLEncadre(recevoirJours(etatInitialDesJours(2026, 10), cleDuMois(2026, 10), []))).toBeNull();
+  });
+});
+
+describe('encadré : une ligne par salarié (L23, 28/11)', () => {
+  const memes = ['2026-10-19', '2026-10-20'];
+  it('les groupes d\'un salarié tiennent sur une ligne, dans l\'ordre reçu', () => {
+    const lignes = lignesParSalarie([
+      { employee_id: 'a', first_name: 'A', last_name: 'B', rule_label: 'Panier, Prime de nuit', rule_labels: ['Panier', 'Prime de nuit'], dates: memes },
+      { employee_id: 'b', first_name: 'C', last_name: 'D', rule_label: 'Panier', rule_labels: ['Panier'], dates: memes.slice(0, 1) },
+      { employee_id: 'a', first_name: 'A', last_name: 'B', rule_label: 'Panier de nuit', rule_labels: ['Panier de nuit'], dates: memes.slice(1) },
+    ]);
+    expect(lignes.map((l) => l.employee_id)).toEqual(['a', 'b']);
+    expect(lignes[0].phrase).toBe(
+      "Panier, Prime de nuit : 2 jours travaillés sans heure d'arrivée (19/10, 20/10) : aucun compté ces jours-là. Importez les pointages ou saisissez l'heure d'arrivée au calendrier. "
+        + "Panier de nuit : 1 jour travaillé sans heure d'arrivée (20/10) : aucun compté ce jour-là. Importez les pointages ou saisissez l'heure d'arrivée au calendrier.",
+    );
+    expect(lignes[1]).toMatchObject({ first_name: 'C', last_name: 'D' });
   });
 });
