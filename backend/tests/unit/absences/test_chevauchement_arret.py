@@ -116,3 +116,119 @@ def test_l_enregistrement_est_refuse_avant_toute_ecriture():
             commands.create_absence_request(demande)
     assert "à partir du 01/07/2026" in str(refus.value)
     repo.create.assert_not_called()
+
+
+# L20 (capture du 27/11) : un arrêt maladie déjà enregistré du 01/09 au 29/11,
+# ressaisi en maladie professionnelle sur la même période.
+ARRET_MALADIE_AUTOMNE = {
+    "type": "arret_maladie",
+    "status": "validated",
+    "selected_days": _jours(date(2026, 9, 1), date(2026, 11, 29)),
+}
+
+
+def test_requalifier_en_maladie_professionnelle_dit_le_chemin():
+    refus = refus_chevauchement_arret(
+        "arret_maladie_pro", _jours(date(2026, 9, 1), date(2026, 11, 29)), [ARRET_MALADIE_AUTOMNE]
+    )
+    assert refus is not None
+    assert "du 01/09/2026 au 29/11/2026 (Arrêt maladie)" in refus
+    assert "Pour le requalifier en « Maladie professionnelle »" in refus
+    assert "Arrêts & IJ" in refus and "« Annuler cet arrêt »" in refus
+    assert "bulletins déjà faits" in refus
+
+
+def test_meme_nature_sur_la_meme_periode_dit_seulement_de_remplacer():
+    refus = refus_chevauchement_arret(
+        "arret_maladie", _jours(date(2026, 9, 1), date(2026, 11, 29)), [ARRET_MALADIE_AUTOMNE]
+    )
+    assert "requalifier" not in refus and "annulez-le" in refus
+
+
+def _demande_maladie_pro(**autres):
+    # Ce que la fenêtre envoie : nature et type de la maladie professionnelle,
+    # période du … au …, date de première constatation vide, subrogation
+    # « règle de la société » (absente).
+    return AbsenceRequestCreate(
+        employee_id="emp-1",
+        type="arret_maladie_pro",
+        arret_type="maladie_professionnelle",
+        date_debut=date(2026, 9, 1),
+        date_fin=date(2026, 11, 29),
+        **autres,
+    )
+
+
+def test_la_maladie_professionnelle_de_la_fenetre_est_acceptee():
+    with patch(
+        "app.modules.absences.application.commands.get_employee_company_id",
+        return_value="comp-1",
+    ), patch("app.modules.absences.application.commands.absence_repository") as repo:
+        repo.list_by_employee_id.return_value = []
+        repo.create.side_effect = lambda d: d
+        cree = commands.create_absence_request(_demande_maladie_pro())
+    assert cree["type"] == "arret_maladie_pro"
+    assert cree["arret_type"] == "maladie_professionnelle"
+    assert len(cree["selected_days"]) == 90
+    assert "demi_journees" not in cree
+
+
+def test_la_maladie_professionnelle_sur_un_arret_maladie_existant_dit_de_le_requalifier():
+    with patch(
+        "app.modules.absences.application.commands.get_employee_company_id",
+        return_value="comp-1",
+    ), patch("app.modules.absences.application.commands.absence_repository") as repo:
+        repo.list_by_employee_id.return_value = [ARRET_MALADIE_AUTOMNE]
+        with pytest.raises(ValueError) as refus:
+            commands.create_absence_request(_demande_maladie_pro(date_accident=date(2026, 8, 20)))
+    assert "Pour le requalifier en « Maladie professionnelle »" in str(refus.value)
+    assert "ne correspond pas à la nature" not in str(refus.value)
+    repo.create.assert_not_called()
+
+
+# Relecture de L20 : une nature différente dit toujours la requalification,
+# même quand la période déborde après ou avant l'arrêt existant.
+def test_maladie_pro_qui_deborde_apres_ne_propose_pas_une_prolongation():
+    refus = refus_chevauchement_arret(
+        "arret_maladie_pro", _jours(date(2026, 9, 1), date(2026, 12, 15)), [ARRET_MALADIE_AUTOMNE]
+    )
+    assert "prolongation" not in refus
+    assert "Pour le requalifier en « Maladie professionnelle »" in refus
+
+
+def test_maladie_pro_qui_commence_avant_ne_propose_pas_les_jours_d_avant():
+    refus = refus_chevauchement_arret(
+        "arret_maladie_pro", _jours(date(2026, 8, 20), date(2026, 11, 29)), [ARRET_MALADIE_AUTOMNE]
+    )
+    assert "jours d'avant" not in refus
+    assert "Pour le requalifier en « Maladie professionnelle »" in refus
+
+
+ARRET_EN_DEUX_LIGNES = [
+    {"type": "arret_maladie", "status": "validated",
+     "selected_days": _jours(date(2026, 10, 1), date(2026, 11, 29))},
+    {"type": "arret_maladie", "status": "validated",
+     "selected_days": _jours(date(2026, 9, 1), date(2026, 9, 30))},
+]
+
+
+def test_requalifier_un_arret_en_deux_lignes_dit_les_deux_a_annuler():
+    refus = refus_chevauchement_arret(
+        "arret_maladie_pro", _jours(date(2026, 9, 1), date(2026, 11, 29)), ARRET_EN_DEUX_LIGNES
+    )
+    assert "annulez-le" not in refus
+    assert (
+        "annulez les 2 arrêts concernés (du 01/09/2026 au 30/09/2026, "
+        "du 01/10/2026 au 29/11/2026)"
+    ) in refus
+
+
+def test_remplacer_un_arret_en_deux_lignes_dit_les_deux_a_annuler():
+    refus = refus_chevauchement_arret(
+        "arret_maladie", _jours(date(2026, 9, 10), date(2026, 10, 10)), ARRET_EN_DEUX_LIGNES
+    )
+    assert "annulez-le" not in refus
+    assert (
+        "Pour le remplacer, annulez les 2 arrêts concernés (du 01/09/2026 au "
+        "30/09/2026, du 01/10/2026 au 29/11/2026), puis saisissez la bonne période."
+    ) in refus

@@ -423,3 +423,71 @@ export function typesArretProposes(
         : TYPES_ARRET_MALADIE;
   return codes.map((value) => ({ value, label: libelleTypeArret(value) }));
 }
+
+/** Libellés des natures d'arrêt, ceux de la liste « Nature de l'arrêt ». */
+export const LIBELLES_NATURE_ARRET: Record<string, string> = {
+  arret_maladie: 'Arrêt maladie',
+  arret_at: 'Accident du travail',
+  arret_maladie_pro: 'Maladie professionnelle',
+  arret_maternite: 'Congé maternité',
+  arret_paternite: 'Congé paternité',
+};
+
+/**
+ * Types d'arrêt que le serveur accepte pour chaque nature : copie de
+ * `TYPES_D_ARRET_PAR_NATURE` (backend/app/modules/absences/domain/nature_arret.py),
+ * tenue à l'identique par un test de parité.
+ */
+export const TYPES_ARRET_PAR_NATURE: Record<string, readonly string[]> = {
+  arret_maladie: ['maladie_simple', 'ald', 'mi_temps_therapeutique', 'arret_exceptionnel'],
+  arret_at: ['accident_travail', 'accident_trajet', 'rechute_at', 'mi_temps_therapeutique'],
+  arret_maladie_pro: ['maladie_professionnelle', 'rechute_at', 'mi_temps_therapeutique'],
+  arret_maternite: ['maternite', 'adoption', 'conge_supplementaire_naissance'],
+  arret_paternite: ['paternite', 'adoption', 'conge_supplementaire_naissance'],
+};
+
+/** La nature qui va avec un type d'arrêt quand la nature choisie ne l'accepte pas
+ * (copie de `NATURE_DU_TYPE_D_ARRET` du serveur, même test de parité). */
+export const NATURE_DU_TYPE_ARRET: Record<string, string> = {
+  maladie_simple: 'arret_maladie',
+  ald: 'arret_maladie',
+  mi_temps_therapeutique: 'arret_maladie',
+  arret_exceptionnel: 'arret_maladie',
+  accident_travail: 'arret_at',
+  accident_trajet: 'arret_at',
+  rechute_at: 'arret_at',
+  maladie_professionnelle: 'arret_maladie_pro',
+  maternite: 'arret_maternite',
+  paternite: 'arret_paternite',
+};
+
+/**
+ * La nature à retenir quand on choisit `type` sous `nature` (L20, capture du
+ * 27/11) : la nature choisie si elle accepte ce type, sinon celle du type
+ * (« Maladie professionnelle » sous « Arrêt maladie » : maladie
+ * professionnelle). La liste des types ne mène ainsi jamais à un refus.
+ */
+export function natureAccordeeAuTypeArret(nature: string, type: string): string {
+  if (TYPES_ARRET_PAR_NATURE[nature]?.includes(type)) return nature;
+  return NATURE_DU_TYPE_ARRET[type] ?? nature;
+}
+
+/**
+ * Ce que la fenêtre dit quand elle a réglé la nature elle-même ; `dateVidee` :
+ * la date de l'accident déjà saisie ne valait que pour l'ancienne nature
+ * (accident du travail ↔ maladie professionnelle), elle a été vidée.
+ */
+export function phraseNatureReglee(nature: string, options: { dateVidee?: boolean } = {}): string {
+  const phrase = `Nature réglée sur « ${LIBELLES_NATURE_ARRET[nature] ?? nature} », qui va avec ce type d'arrêt.`;
+  if (!options.dateVidee) return phrase;
+  const laquelle = nature === 'arret_maladie_pro' ? 'de la première constatation' : "de l'accident";
+  return `${phrase} La date saisie est vidée : indiquez celle ${laquelle}, si vous l'avez.`;
+}
+
+/** Ce que la fenêtre dit quand elle a retiré un type que la nature n'accepte pas. */
+export function phraseTypeArretRetire(type: string, nature: string): string {
+  return (
+    `Le type « ${libelleTypeArret(type)} » ne va pas avec la nature ` +
+    `« ${LIBELLES_NATURE_ARRET[nature] ?? nature} » : choisissez le type d'arrêt.`
+  );
+}
