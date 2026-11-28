@@ -45,15 +45,27 @@ export function messagePeriodeRecap({ debut, fin }: PeriodeRecap): string | null
   return null;
 }
 
-export type EtatRecap = 'periode' | 'chargement' | 'erreur' | 'vide' | 'pret';
+/**
+ * La période à charger au clic sur « Afficher » : la saisie si elle est
+ * acceptée et diffère de la période affichée, sinon null (rien à envoyer).
+ */
+export function periodeAAfficher(saisie: PeriodeRecap, affichee: PeriodeRecap): PeriodeRecap | null {
+  if (messagePeriodeRecap(saisie)) return null;
+  if (saisie.debut === affichee.debut && saisie.fin === affichee.fin) return null;
+  return { debut: saisie.debut, fin: saisie.fin };
+}
+
+export type EtatRecap = 'societe' | 'periode' | 'chargement' | 'erreur' | 'vide' | 'pret';
 
 /** Ce que l'écran doit dire : jamais d'état muet. */
 export function etatDuRecap(args: {
+  sansSociete: boolean;
   periodeRefusee: boolean;
   chargement: boolean;
   erreur: boolean;
   recap: RecapConges | undefined;
 }): EtatRecap {
+  if (args.sansSociete) return 'societe';
   if (args.periodeRefusee) return 'periode';
   if (args.chargement) return 'chargement';
   if (args.erreur || !args.recap) return 'erreur';

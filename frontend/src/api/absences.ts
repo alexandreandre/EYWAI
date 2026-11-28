@@ -413,6 +413,8 @@ export interface RecapCongesSalarie {
   /** null : solde non calculé (salarié sorti ou sans date d'entrée). */
   solde_cp_n1: number | null;
   solde_cp_n: number | null;
+  /** Reprise de solde dans la période (AAAA-MM-JJ) : le calendrier d'avant peut être incomplet. */
+  reprise_au: string | null;
 }
 
 export interface RecapConges {
@@ -421,6 +423,7 @@ export interface RecapConges {
   colonnes: RecapCongesColonne[];
   source_soldes: string;
   note_arrets: string;
+  note_reprise: string;
   date_des_soldes: string;
   salaries: RecapCongesSalarie[];
   totaux: Record<string, number>;

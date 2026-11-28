@@ -8,6 +8,7 @@ import {
   formatJours,
   libellePeriode,
   messagePeriodeRecap,
+  periodeAAfficher,
   periodeDuMoisDePaie,
 } from './recapConges';
 
@@ -21,10 +22,11 @@ const recap = (totaux: Record<string, number>): RecapConges => ({
   ],
   source_soldes: 'Aperçu des soldes',
   note_arrets: 'Arrêts',
+  note_reprise: 'Reprise',
   date_des_soldes: '2026-11-28',
   salaries: [
-    { employee_id: 'a', prenom: 'Élodie', nom: 'Zed', matricule: '007', jours: {}, total_jours: 0, solde_cp_n1: 1, solde_cp_n: 2 },
-    { employee_id: 'b', prenom: 'Bob', nom: 'Yod', matricule: null, jours: {}, total_jours: 0, solde_cp_n1: null, solde_cp_n: null },
+    { employee_id: 'a', prenom: 'Élodie', nom: 'Zed', matricule: '007', jours: {}, total_jours: 0, solde_cp_n1: 1, solde_cp_n: 2, reprise_au: null },
+    { employee_id: 'b', prenom: 'Bob', nom: 'Yod', matricule: null, jours: {}, total_jours: 0, solde_cp_n1: null, solde_cp_n: null, reprise_au: '2026-11-15' },
   ],
   totaux,
   aucun_jour: Object.values(totaux).every((v) => v <= 0),
@@ -45,13 +47,26 @@ describe('récapitulatif des congés', () => {
   });
 
   it('dit toujours où il en est : chargement, erreur, aucun congé, prêt', () => {
-    const base = { periodeRefusee: false, chargement: false, erreur: false };
+    const base = { sansSociete: false, periodeRefusee: false, chargement: false, erreur: false };
+    // Requête désactivée faute de société : ni chargement ni erreur, on le dit.
+    expect(etatDuRecap({ ...base, sansSociete: true, recap: undefined })).toBe('societe');
     expect(etatDuRecap({ ...base, periodeRefusee: true, recap: undefined })).toBe('periode');
     expect(etatDuRecap({ ...base, chargement: true, recap: undefined })).toBe('chargement');
     expect(etatDuRecap({ ...base, erreur: true, recap: undefined })).toBe('erreur');
     expect(etatDuRecap({ ...base, recap: undefined })).toBe('erreur');
     expect(etatDuRecap({ ...base, recap: recap({ cp: 0 }) })).toBe('vide');
     expect(etatDuRecap({ ...base, recap: recap({ cp: 1.5 }) })).toBe('pret');
+  });
+
+  it('n’envoie la période qu’au clic sur Afficher, et dit quand la saisie diffère', () => {
+    const affichee = { debut: '2026-11-01', fin: '2026-11-30' };
+    expect(periodeAAfficher({ debut: '2026-11-01', fin: '2026-11-30' }, affichee)).toBeNull();
+    expect(periodeAAfficher({ debut: '2026-10-01', fin: '2026-11-30' }, affichee)).toEqual({
+      debut: '2026-10-01',
+      fin: '2026-11-30',
+    });
+    // Une saisie refusée n'est jamais envoyée.
+    expect(periodeAAfficher({ debut: '2026-12-01', fin: '2026-11-30' }, affichee)).toBeNull();
   });
 
   it('montre seulement les colonnes qui ont des jours et nomme les autres', () => {

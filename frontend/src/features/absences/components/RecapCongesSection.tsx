@@ -20,6 +20,7 @@ import {
   formatJours,
   libellePeriode,
   messagePeriodeRecap,
+  periodeAAfficher,
   periodeDuMoisDePaie,
 } from '@/features/absences/lib/recapConges';
 
@@ -42,18 +43,27 @@ export function RecapCongesSection({ recherche }: { recherche: string }) {
     () => periodeDuMoisDePaie({ year: mois.year, month: mois.month }),
     [mois.year, mois.month],
   );
-  const [periode, setPeriode] = useState<PeriodeRecap>(periodeDuMois);
-  useEffect(() => setPeriode(periodeDuMois), [periodeDuMois]);
+  // La saisie ne part qu'au clic sur « Afficher » : la période affichée ne
+  // change pas à chaque chiffre tapé dans un champ de date.
+  const [saisie, setSaisie] = useState<PeriodeRecap>(periodeDuMois);
+  const [affichee, setAffichee] = useState<PeriodeRecap>(periodeDuMois);
+  useEffect(() => {
+    setSaisie(periodeDuMois);
+    setAffichee(periodeDuMois);
+  }, [periodeDuMois]);
 
-  const refus = messagePeriodeRecap(periode);
+  const refus = messagePeriodeRecap(saisie);
+  const aAfficher = periodeAAfficher(saisie, affichee);
+  const saisieEnAttente = saisie.debut !== affichee.debut || saisie.fin !== affichee.fin;
   const query = useQuery({
-    queryKey: companyQueryKey(companyId, 'recap-conges', periode.debut, periode.fin),
-    queryFn: () => getRecapConges(periode),
-    enabled: Boolean(companyId) && !refus,
+    queryKey: companyQueryKey(companyId, 'recap-conges', affichee.debut, affichee.fin),
+    queryFn: () => getRecapConges(affichee),
+    enabled: Boolean(companyId),
     staleTime: 30_000,
   });
   const etat = etatDuRecap({
-    periodeRefusee: Boolean(refus),
+    sansSociete: !companyId,
+    periodeRefusee: Boolean(messagePeriodeRecap(affichee)),
     chargement: query.isLoading,
     erreur: query.isError,
     recap: query.data,
@@ -62,11 +72,11 @@ export function RecapCongesSection({ recherche }: { recherche: string }) {
   const [exportEnCours, setExportEnCours] = useState(false);
   const [erreurExport, setErreurExport] = useState<string | null>(null);
   const exporter = async () => {
-    if (refus) return;
+    if (saisieEnAttente) return;
     setExportEnCours(true);
     setErreurExport(null);
     try {
-      await telechargerRecapConges(periode);
+      await telechargerRecapConges(affichee);
     } catch (e) {
       setErreurExport(
         await messageDuServeur(e, 'Le fichier n’a pas pu être préparé. Réessayez dans un instant.'),
@@ -96,8 +106,8 @@ export function RecapCongesSection({ recherche }: { recherche: string }) {
             <Input
               id="recap-debut"
               type="date"
-              value={periode.debut}
-              onChange={(e) => setPeriode((p) => ({ ...p, debut: e.target.value }))}
+              value={saisie.debut}
+              onChange={(e) => setSaisie((p) => ({ ...p, debut: e.target.value }))}
               className="w-40"
             />
           </div>
@@ -106,12 +116,28 @@ export function RecapCongesSection({ recherche }: { recherche: string }) {
             <Input
               id="recap-fin"
               type="date"
-              value={periode.fin}
-              onChange={(e) => setPeriode((p) => ({ ...p, fin: e.target.value }))}
+              value={saisie.fin}
+              onChange={(e) => setSaisie((p) => ({ ...p, fin: e.target.value }))}
               className="w-40"
             />
           </div>
-          <Button type="button" variant="ghost" size="sm" onClick={() => setPeriode(periodeDuMois)}>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => aAfficher && setAffichee(aAfficher)}
+            disabled={!aAfficher}
+          >
+            Afficher
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSaisie(periodeDuMois);
+              setAffichee(periodeDuMois);
+            }}
+          >
             Mois de paie
           </Button>
           <Button
@@ -120,7 +146,7 @@ export function RecapCongesSection({ recherche }: { recherche: string }) {
             size="sm"
             className="ml-auto"
             onClick={() => void exporter()}
-            disabled={Boolean(refus) || exportEnCours}
+            disabled={saisieEnAttente || exportEnCours || etat === 'societe'}
           >
             {exportEnCours ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
@@ -136,9 +162,21 @@ export function RecapCongesSection({ recherche }: { recherche: string }) {
           </p>
         )}
 
-        {etat === 'periode' && (
+        {refus ? (
           <p className="text-sm text-destructive" role="alert">
             {refus}
+          </p>
+        ) : (
+          saisieEnAttente && (
+            <p className="text-sm text-muted-foreground" data-testid="recap-saisie-en-attente">
+              Nouvelle période saisie : cliquez sur « Afficher ». Le tableau et l’export portent
+              encore sur la période {libellePeriode(affichee)}.
+            </p>
+          )
+        )}
+        {etat === 'societe' && (
+          <p className="text-sm text-muted-foreground">
+            Choisissez une société pour afficher son récapitulatif.
           </p>
         )}
         {etat === 'chargement' && (
@@ -207,6 +245,15 @@ export function RecapCongesSection({ recherche }: { recherche: string }) {
                           {s.matricule && (
                             <span className="ml-2 text-xs text-muted-foreground">{s.matricule}</span>
                           )}
+                          {s.reprise_au && (
+                            <span
+                              className="block text-xs text-amber-700 dark:text-amber-400"
+                              title={recap.note_reprise}
+                            >
+                              Repris dans Martine au {s.reprise_au.split('-').reverse().join('/')} :
+                              jours d’avant non fiables
+                            </span>
+                          )}
                         </TableCell>
                         {colonnes.affichees.map((c) => {
                           const v = s.jours[c.cle] ?? 0;
@@ -256,9 +303,10 @@ export function RecapCongesSection({ recherche }: { recherche: string }) {
                 ))}
                 <li>
                   Soldes CP au {recap.date_des_soldes.split('-').reverse().join('/')} :{' '}
-                  {recap.source_soldes}. « non calculé » : salarié sorti ou sans date d’entrée.
+                  {recap.source_soldes}. « non calculé » : salarié parti ou sans date d’entrée.
                 </li>
                 <li>{recap.note_arrets}</li>
+                {recap.salaries.some((x) => x.reprise_au) && <li>{recap.note_reprise}</li>}
                 {colonnes.masquees.length > 0 && (
                   <li>
                     Aucun jour sur la période, colonnes masquées ici et gardées dans l’Excel :{' '}

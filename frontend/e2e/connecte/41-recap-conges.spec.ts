@@ -28,7 +28,9 @@ async function choisirLewis(page: Page) {
 /**
  * Lot L21 (demande du 27/11) : « Congés & absences », onglet Récapitulatif.
  * Une ligne par salarié sur la période (par défaut le mois de paie), d'où
- * vient chaque colonne, et l'export Excel. Lecture seule : rien n'est écrit.
+ * vient chaque colonne, et l'export Excel. Le test ne fait que des lectures ;
+ * côté serveur, le récapitulatif se calcule dans un bloc qui refuse toute
+ * écriture (aucun droit à congés d'ancienneté n'est enregistré au passage).
  */
 test.describe('Récapitulatif des congés', () => {
   test('montre la société sur le mois de paie et télécharge l’Excel', async ({ page }) => {
@@ -56,7 +58,22 @@ test.describe('Récapitulatif des congés', () => {
     await recap.locator('#recap-debut').fill(`${mois}-20`);
     await recap.locator('#recap-fin').fill(`${mois}-10`);
     await expect(recap.getByText('Le premier jour est après le dernier.')).toBeVisible();
+    await expect(recap.getByRole('button', { name: 'Afficher', exact: true })).toBeDisabled();
     await expect(recap.getByRole('button', { name: 'Exporter (Excel)' })).toBeDisabled();
+
+    // Une période acceptée ne part qu'au clic sur « Afficher ».
+    let demandes = 0;
+    page.on('request', (r) => {
+      if (r.url().includes('/api/absences/recap-societe?')) demandes += 1;
+    });
+    await recap.locator('#recap-debut').fill(`${mois}-01`);
+    await recap.locator('#recap-fin').fill(`${mois}-15`);
+    await expect(recap.getByTestId('recap-saisie-en-attente')).toBeVisible();
+    expect(demandes).toBe(0);
+    await recap.getByRole('button', { name: 'Afficher', exact: true }).click();
+    await expect(recap.getByTestId('recap-saisie-en-attente')).toHaveCount(0);
+    await expect.poll(() => demandes).toBe(1);
+    await expect(recap.getByText('Chargement du récapitulatif…')).toHaveCount(0, { timeout: 60_000 });
 
     await recap.getByRole('button', { name: 'Mois de paie' }).click();
     await expect(recap.locator('#recap-debut')).toHaveValue(`${mois}-01`);
