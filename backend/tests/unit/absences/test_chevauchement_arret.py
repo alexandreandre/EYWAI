@@ -184,3 +184,51 @@ def test_la_maladie_professionnelle_sur_un_arret_maladie_existant_dit_de_le_requ
     assert "Pour le requalifier en « Maladie professionnelle »" in str(refus.value)
     assert "ne correspond pas à la nature" not in str(refus.value)
     repo.create.assert_not_called()
+
+
+# Relecture de L20 : une nature différente dit toujours la requalification,
+# même quand la période déborde après ou avant l'arrêt existant.
+def test_maladie_pro_qui_deborde_apres_ne_propose_pas_une_prolongation():
+    refus = refus_chevauchement_arret(
+        "arret_maladie_pro", _jours(date(2026, 9, 1), date(2026, 12, 15)), [ARRET_MALADIE_AUTOMNE]
+    )
+    assert "prolongation" not in refus
+    assert "Pour le requalifier en « Maladie professionnelle »" in refus
+
+
+def test_maladie_pro_qui_commence_avant_ne_propose_pas_les_jours_d_avant():
+    refus = refus_chevauchement_arret(
+        "arret_maladie_pro", _jours(date(2026, 8, 20), date(2026, 11, 29)), [ARRET_MALADIE_AUTOMNE]
+    )
+    assert "jours d'avant" not in refus
+    assert "Pour le requalifier en « Maladie professionnelle »" in refus
+
+
+ARRET_EN_DEUX_LIGNES = [
+    {"type": "arret_maladie", "status": "validated",
+     "selected_days": _jours(date(2026, 10, 1), date(2026, 11, 29))},
+    {"type": "arret_maladie", "status": "validated",
+     "selected_days": _jours(date(2026, 9, 1), date(2026, 9, 30))},
+]
+
+
+def test_requalifier_un_arret_en_deux_lignes_dit_les_deux_a_annuler():
+    refus = refus_chevauchement_arret(
+        "arret_maladie_pro", _jours(date(2026, 9, 1), date(2026, 11, 29)), ARRET_EN_DEUX_LIGNES
+    )
+    assert "annulez-le" not in refus
+    assert (
+        "annulez les 2 arrêts concernés (du 01/09/2026 au 30/09/2026, "
+        "du 01/10/2026 au 29/11/2026)"
+    ) in refus
+
+
+def test_remplacer_un_arret_en_deux_lignes_dit_les_deux_a_annuler():
+    refus = refus_chevauchement_arret(
+        "arret_maladie", _jours(date(2026, 9, 10), date(2026, 10, 10)), ARRET_EN_DEUX_LIGNES
+    )
+    assert "annulez-le" not in refus
+    assert (
+        "Pour le remplacer, annulez les 2 arrêts concernés (du 01/09/2026 au "
+        "30/09/2026, du 01/10/2026 au 29/11/2026), puis saisissez la bonne période."
+    ) in refus

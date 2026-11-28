@@ -57,13 +57,16 @@ def refus_chevauchement_arret(
         return None
     existants: set[date] = set()
     natures: dict[date, str] = {}
+    lignes: list[tuple[date, date]] = []
     for absence in absences_existantes:
         if absence.get("type") not in IJSS_ELIGIBLE_TYPES:
             continue
         if absence.get("status") not in STATUTS_QUI_COMPTENT:
             continue
-        for j in absence.get("selected_days") or []:
-            jour = _jour(j)
+        jours_ligne = [_jour(j) for j in absence.get("selected_days") or []]
+        if jours_ligne:
+            lignes.append((min(jours_ligne), max(jours_ligne)))
+        for jour in jours_ligne:
             existants.add(jour)
             natures[jour] = str(absence.get("type"))
     if not existants & nouveaux:
@@ -76,7 +79,28 @@ def refus_chevauchement_arret(
         f"Ce salarié a déjà un arrêt enregistré du {_fr(debut)} au {_fr(fin)} "
         f"({libelle}), qui recouvre la période saisie."
     )
-    if min(nouveaux) >= debut and max(nouveaux) > fin:
+    # Un arrêt importé de la DSN est souvent découpé en plusieurs lignes : on
+    # les nomme toutes, chacune s'annule à part.
+    concernees = sorted({(d, f) for d, f in lignes if d <= fin and f >= debut})
+    if len(concernees) > 1:
+        dates = ", ".join(f"du {_fr(d)} au {_fr(f)}" for d, f in concernees)
+        annuler = f"annulez les {len(concernees)} arrêts concernés ({dates})"
+    else:
+        annuler = "annulez-le"
+    if nature != natures[debut]:
+        # Requalification (L20, capture du 27/11 : arrêt maladie à ressaisir
+        # en maladie professionnelle) : un arrêt ne change pas de nature en
+        # place, on annule puis on ressaisit. Testée d'abord : une
+        # « prolongation » ou des « jours d'avant » d'une autre nature
+        # laisseraient l'arrêt existant sous sa nature d'origine.
+        ouvrir = "ouvrez-les" if len(concernees) > 1 else "ouvrez-le"
+        phrase += (
+            f" Pour le requalifier en « {LIBELLES_NATURE.get(str(nature), 'Arrêt')} », "
+            f"{ouvrir} dans Arrêts & IJ, {annuler} (« Annuler cet arrêt »), puis "
+            "saisissez de nouveau la période avec cette nature. Les bulletins déjà "
+            "faits sur ces mois changent quand vous les recalculez."
+        )
+    elif min(nouveaux) >= debut and max(nouveaux) > fin:
         phrase += (
             f" Pour une prolongation, saisissez la période à partir du "
             f"{_fr(fin + timedelta(days=1))}."
@@ -86,19 +110,6 @@ def refus_chevauchement_arret(
             f" Saisissez seulement les jours d'avant, jusqu'au "
             f"{_fr(debut - timedelta(days=1))}."
         )
-    elif nature != natures[debut]:
-        # Requalification (L20, capture du 27/11 : arrêt maladie à ressaisir
-        # en maladie professionnelle) : un arrêt ne change pas de nature en
-        # place, on annule puis on ressaisit ; le chemin est dit en entier.
-        phrase += (
-            f" Pour le requalifier en « {LIBELLES_NATURE.get(str(nature), 'Arrêt')} », "
-            "ouvrez-le dans Arrêts & IJ, annulez-le (« Annuler cet arrêt »), puis "
-            "saisissez de nouveau la période avec cette nature. Les bulletins déjà "
-            "faits sur ces mois changent quand vous les recalculez."
-        )
     else:
-        phrase += (
-            " Pour le remplacer, annulez-le, puis saisissez la "
-            "bonne période."
-        )
+        phrase += f" Pour le remplacer, {annuler}, puis saisissez la bonne période."
     return phrase
