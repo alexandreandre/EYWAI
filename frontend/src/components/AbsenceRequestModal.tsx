@@ -41,6 +41,10 @@ import {
   avertissementSoldeInsuffisantRh,
   typesArretProposes,
   libelleTypeArret,
+  natureAccordeeAuTypeArret,
+  phraseNatureReglee,
+  phraseTypeArretRetire,
+  TYPES_ARRET_PAR_NATURE,
   bornesDesJours,
   estCongeParental,
   joursDeLaPeriode,
@@ -252,6 +256,11 @@ export function AbsenceRequestModal({
   const [confirmArretOpen, setConfirmArretOpen] = useState(false);
   const [arretType, setArretType] = useState<absencesApi.ArretType | "">("");
   const [dateAccident, setDateAccident] = useState("");
+  // Nature réglée par le type choisi, ou type retiré par la nature changée
+  // (L20, capture du 27/11) : la fenêtre le dit, jamais en silence.
+  const [noteNature, setNoteNature] = useState<
+    { sorte: "reglee" | "retire"; texte: string } | null
+  >(null);
   // Case « subrogation » de l'arrêt (retour d'Elsa du 16/11) : par défaut la
   // règle de la société, sinon le choix de la RH pour cet arrêt.
   const [subrogation, setSubrogation] = useState<ChoixSubrogation>("societe");
@@ -300,6 +309,7 @@ export function AbsenceRequestModal({
       setError("");
       setArretType("");
       setDateAccident("");
+      setNoteNature(null);
       setSubrogation("societe");
       if (isRhMode) {
         setSelectedEmployeeId(salarieInitial ?? "");
@@ -380,13 +390,11 @@ export function AbsenceRequestModal({
       setArretRange(undefined);
       return;
     }
-    // Un type d'arrêt d'un autre type d'absence (maladie → congé maternité) ne
-    // se garde pas.
-    setArretType((courant) =>
-      courant && !typesArretProposes(absenceType).some((t) => t.value === courant)
-        ? ""
-        : courant
-    );
+    // Un type d'arrêt que la nature n'accepte pas (maladie → congé maternité,
+    // maladie professionnelle → arrêt maladie) ne se garde pas : le serveur
+    // refuserait la combinaison.
+    const permis = TYPES_ARRET_PAR_NATURE[absenceType] ?? [];
+    setArretType((courant) => (courant && !permis.includes(courant) ? "" : courant));
   }, [absenceType]);
 
 
@@ -864,7 +872,17 @@ export function AbsenceRequestModal({
             </Label>
             <Select
               value={absenceType}
-              onValueChange={(value: AbsenceTypeValue) => setAbsenceType(value)}
+              onValueChange={(value: AbsenceTypeValue) => {
+                setError("");
+                setAbsenceType(value);
+                const retire =
+                  isArretPrincipalType(value) &&
+                  Boolean(arretType) &&
+                  !(TYPES_ARRET_PAR_NATURE[value] ?? []).includes(arretType);
+                setNoteNature(
+                  retire ? { sorte: "retire", texte: phraseTypeArretRetire(arretType, value) } : null,
+                );
+              }}
               disabled={enModification}
             >
               <SelectTrigger id="absence-type"><SelectValue placeholder="Sélectionner un type..." /></SelectTrigger>
@@ -940,7 +958,17 @@ export function AbsenceRequestModal({
                     setSelectedDays([]);
                     setArretRange(undefined);
                   }
+                  setError("");
                   setArretType(suivant);
+                  // « Maladie professionnelle » choisie sous « Arrêt maladie » :
+                  // la nature suit le type, et la fenêtre le dit.
+                  const nature = natureAccordeeAuTypeArret(absenceType, suivant);
+                  if (nature !== absenceType) {
+                    setAbsenceType(nature as AbsenceTypeValue);
+                    setNoteNature({ sorte: "reglee", texte: phraseNatureReglee(nature) });
+                  } else {
+                    setNoteNature(null);
+                  }
                 }}
               >
                 <SelectTrigger id="arret-type">
@@ -954,6 +982,20 @@ export function AbsenceRequestModal({
                   ))}
                 </SelectContent>
               </Select>
+              {noteNature?.sorte === "reglee" && (
+                <p data-testid="nature-reglee" role="status" className="text-xs font-medium text-foreground">
+                  {noteNature.texte}
+                </p>
+              )}
+              {noteNature?.sorte === "retire" && (
+                <p
+                  data-testid="type-arret-retire"
+                  role="status"
+                  className="text-xs font-medium text-amber-700 dark:text-amber-400"
+                >
+                  {noteNature.texte}
+                </p>
+              )}
               {arretType === "conge_supplementaire_naissance" && (
                 <p className="text-xs text-muted-foreground">
                   À saisir sous la nature du congé de naissance déjà pris : 1 ou 2 mois, fractionnable en 2 fois 1 mois. Pas de salaire ni de maintien : la CPAM indemnise le salarié. Le jour du signalement DSN, déposez aussi le formulaire de demande en PDF sur le compte employeur Net-entreprises.
