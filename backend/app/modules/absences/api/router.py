@@ -13,8 +13,10 @@ from postgrest.exceptions import APIError
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
+from fastapi.responses import Response
 
 from app.core.security import get_current_user
+from app.modules.access_control.application.service import access_control_service
 from app.modules.employees.api.deps import assert_can_read_employee_profile
 from app.modules.absences.application import router_support as absence_router
 from app.modules.audit.application.commands import log_audit_event
@@ -48,6 +50,7 @@ from app.modules.absences.application import (
     leave_settings_queries,
     notifications as absence_notif,
     queries,
+    recap_conges,
 )
 from app.modules.absences.domain.enums import SALARY_CERTIFICATE_ABSENCE_TYPES
 from app.modules.absences.schemas.leave_settings import (
@@ -71,6 +74,7 @@ from app.modules.absences.schemas.leave_settings_responses import (
     RttYearEndCloseResult,
     RttYearEndOverviewResponse,
 )
+from app.modules.absences.schemas.recap_conges import RecapCongesResponse
 from app.modules.absences.schemas.requests import (
     AbsenceRequestCreate,
     AbsenceRequestModification,
@@ -1411,6 +1415,69 @@ def override_cp_seniority_grant_route(
         body.days_granted,
         validated_by=str(current_user.id),
         note=body.note,
+    )
+
+
+# ----- Récapitulatif des congés de la société (lot L21) -----
+
+_RECAP_PERMISSION = "schedules.view_all"
+
+
+def _employes_du_perimetre(current_user: User, company_id: str) -> set[str] | None:
+    """Salariés que l'appelant peut voir ; None = toute la société.
+
+    Même règle que les vues planning : un grant scopé (équipes) restreint la
+    population ; une RH sans grant voit toute la société.
+    """
+    if current_user.is_platform_admin:
+        return None
+    autorises = access_control_service.filter_allowed_employee_ids(
+        str(current_user.id), company_id, _RECAP_PERMISSION
+    )
+    if not autorises and current_user.has_rh_access_in_company(company_id):
+        return None
+    return {str(e) for e in autorises}
+
+
+@router.get("/recap-societe", response_model=RecapCongesResponse)
+def get_recap_conges_route(
+    debut: str | None = Query(None, description="AAAA-MM-JJ"),
+    fin: str | None = Query(None, description="AAAA-MM-JJ"),
+    current_user: User = Depends(get_current_user),
+):
+    """Congés et absences de chaque salarié sur la période, avec ses soldes CP.
+
+    Lecture seule. RH de la société active, périmètre d'équipes respecté.
+    """
+    cid = _require_rh_company_context(current_user)
+    try:
+        return recap_conges.get_recap_conges(
+            cid, debut, fin, _employes_du_perimetre(current_user, cid)
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/recap-societe/excel")
+def get_recap_conges_excel_route(
+    debut: str | None = Query(None, description="AAAA-MM-JJ"),
+    fin: str | None = Query(None, description="AAAA-MM-JJ"),
+    current_user: User = Depends(get_current_user),
+):
+    """Le même récapitulatif en Excel (une ligne par salarié, une feuille des sources)."""
+    cid = _require_rh_company_context(current_user)
+    try:
+        recap = recap_conges.get_recap_conges(
+            cid, debut, fin, _employes_du_perimetre(current_user, cid)
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return Response(
+        content=recap_conges.recap_en_xlsx(recap),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{recap_conges.nom_du_fichier(recap)}"'
+        },
     )
 
 
