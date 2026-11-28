@@ -2,6 +2,7 @@
 
 import { log } from '@/lib/logger';
 import apiClient from './apiClient';
+import { downloadBlob, parseContentDispositionFilename } from '@/lib/downloadBlob';
 
 // --- INTERFACES DE BASE ---
 
@@ -392,4 +393,67 @@ export const getMaintenancePreview = (
     `/api/absences/${absenceId}/maintenance-preview`,
     { params }
   );
+};
+// --- RÉCAPITULATIF DES CONGÉS DE LA SOCIÉTÉ (lot L21, 28/11/2026) ---
+
+export interface RecapCongesColonne {
+  cle: string;
+  libelle: string;
+  /** D'où vient la colonne (calendrier, demandes validées), dit à l'écran. */
+  source: string;
+}
+
+export interface RecapCongesSalarie {
+  employee_id: string;
+  matricule?: string | null;
+  prenom: string;
+  nom: string;
+  jours: Record<string, number>;
+  total_jours: number;
+  /** null : solde non calculé (salarié sorti ou sans date d'entrée). */
+  solde_cp_n1: number | null;
+  solde_cp_n: number | null;
+  /** Reprise de solde dans la période (AAAA-MM-JJ) : le calendrier d'avant peut être incomplet. */
+  reprise_au: string | null;
+}
+
+export interface RecapConges {
+  debut: string;
+  fin: string;
+  colonnes: RecapCongesColonne[];
+  source_soldes: string;
+  note_arrets: string;
+  note_reprise: string;
+  date_des_soldes: string;
+  salaries: RecapCongesSalarie[];
+  totaux: Record<string, number>;
+  aucun_jour: boolean;
+}
+
+export interface PeriodeRecap {
+  /** AAAA-MM-JJ */
+  debut: string;
+  /** AAAA-MM-JJ */
+  fin: string;
+}
+
+/** Congés et absences de chaque salarié de la société sur la période. Lecture seule. */
+export const getRecapConges = async (periode: PeriodeRecap): Promise<RecapConges> => {
+  const { data } = await apiClient.get<RecapConges>('/api/absences/recap-societe', {
+    params: periode,
+  });
+  return data;
+};
+
+/** Le même récapitulatif en Excel, téléchargé. */
+export const telechargerRecapConges = async (periode: PeriodeRecap): Promise<void> => {
+  const res = await apiClient.get<Blob>('/api/absences/recap-societe/excel', {
+    params: periode,
+    responseType: 'blob',
+  });
+  const nom = parseContentDispositionFilename(
+    res.headers['content-disposition'],
+    `recap-conges-${periode.debut}-${periode.fin}.xlsx`,
+  );
+  downloadBlob(res.data as Blob, nom);
 };

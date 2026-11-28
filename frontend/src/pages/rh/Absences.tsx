@@ -54,6 +54,7 @@ import { estArretIjss, estCongeParental, LIBELLE_CONGE_PARENTAL, libelleDeLaDema
 import { LeaveCampaignSection } from '@/features/absences/components/LeaveCampaignSection';
 import { LeaveNotificationSettingsPanel } from '@/features/absences/components/LeaveNotificationSettingsPanel';
 import { RttYearEndRhSection } from '@/features/absences/components/RttYearEndRhSection';
+import { RecapCongesSection } from '@/features/absences/components/RecapCongesSection';
 import {
   bandeauAbsencesDuSalarie,
   lireNatureDuLien,
@@ -595,6 +596,7 @@ export default function AbsencesPage() {
           <TabsList>
             <TabsTrigger value="pending"><Clock className="mr-2 h-4 w-4" /> Demandes en attente <Badge className="ml-2">{pending.length}</Badge></TabsTrigger>
             <TabsTrigger value="processed">Historique</TabsTrigger>
+            <TabsTrigger value="recap" data-testid="onglet-recap-conges">Récapitulatif</TabsTrigger>
           </TabsList>
           <Input
             value={rechercheSalarie}
@@ -605,6 +607,7 @@ export default function AbsencesPage() {
           />
         </div>
         <TabsContent value="pending"><Card><CardHeader><CardTitle>Demandes à valider</CardTitle></CardHeader><CardContent>{isLoading ? <TableSkeleton rows={5} columns={5} /> : renderRequestsTable(filtrerParSalarie(pending))}</CardContent></Card></TabsContent>
+        <TabsContent value="recap"><RecapCongesSection recherche={rechercheSalarie} /></TabsContent>
         <TabsContent value="processed"><Card><CardHeader><CardTitle>Demandes traitées</CardTitle></CardHeader><CardContent>{isLoading ? <TableSkeleton rows={5} columns={5} /> : renderRequestsTable(filtrerParSalarie(processed))}</CardContent></Card></TabsContent>
       </Tabs>
     </div>
