@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  NATURE_DU_TYPE_ARRET,
   TYPES_ARRET_PAR_NATURE,
   natureAccordeeAuTypeArret,
   phraseNatureReglee,
@@ -75,6 +76,22 @@ describe("La nature d'un arrêt suit le type choisi", () => {
     for (const [nature, types] of Object.entries(serveur)) {
       expect([...TYPES_ARRET_PAR_NATURE[nature]].sort(), nature).toEqual([...types].sort());
     }
+    const blocNature = py.split("NATURE_DU_TYPE_D_ARRET: dict[str, str] = {")[1].split("\n}\n")[0];
+    const natureServeur = Object.fromEntries(
+      [...blocNature.matchAll(/"([a-z_]+)":\s*"([a-z_]+)"/g)].map((m) => [m[1], m[2]]),
+    );
+    expect(NATURE_DU_TYPE_ARRET).toEqual(natureServeur);
+  });
+
+  it("passer d'accident du travail à maladie professionnelle par le type vide la date, et le dit", () => {
+    expect(phraseNatureReglee("arret_maladie_pro", { dateVidee: true })).toBe(
+      "Nature réglée sur « Maladie professionnelle », qui va avec ce type d'arrêt. " +
+        "La date saisie est vidée : indiquez celle de la première constatation, si vous l'avez.",
+    );
+    expect(phraseNatureReglee("arret_at", { dateVidee: true })).toBe(
+      "Nature réglée sur « Accident du travail », qui va avec ce type d'arrêt. " +
+        "La date saisie est vidée : indiquez celle de l'accident, si vous l'avez.",
+    );
   });
 });
 
@@ -85,6 +102,17 @@ describe("La fenêtre d'arrêt règle la nature (Arrêts & IJ et calendrier)", (
     expect(modal).toContain("natureAccordeeAuTypeArret(absenceType, suivant)");
     expect(modal).toContain('data-testid="nature-reglee"');
     expect(modal).toContain('data-testid="type-arret-retire"');
+  });
+
+  it("la nature réglée par le type vide la date de l'accident déjà saisie", () => {
+    expect(modal).toContain('setDateAccident("")');
+    expect(modal).toContain("phraseNatureReglee(nature, { dateVidee })");
+  });
+
+  it("la subrogation ne part que si son choix est affiché (pas sous le congé supplémentaire de naissance)", () => {
+    expect(modal).toContain('subrogationVisible && subrogation !== "societe"');
+    expect(modal).toContain("{subrogationVisible && (");
+    expect(modal).not.toContain('isRhArret && isArretPrincipalType(absenceType) && subrogation !== "societe"');
   });
 
   it("un type qui ne va plus avec la nature changée à la main est retiré, et c'est dit", () => {

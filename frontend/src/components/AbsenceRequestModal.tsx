@@ -430,6 +430,12 @@ export function AbsenceRequestModal({
 
   // Un arrêt (hors mi-temps thérapeutique : travail partiel) se saisit en
   // période calendaire « du … au … » — l'expansion en jours est serveur.
+  // Le choix de la subrogation n'est affiché (et envoyé) que pour un arrêt
+  // saisi par la RH, hors congé supplémentaire de naissance (pas de maintien).
+  const subrogationVisible =
+    isRhArret &&
+    isArretPrincipalType(absenceType) &&
+    arretType !== "conge_supplementaire_naissance";
   const isSaisiePeriode =
     isRhArret &&
     isArretPrincipalType(absenceType) &&
@@ -517,7 +523,7 @@ export function AbsenceRequestModal({
       if (arretAvecDateAccident(absenceType) && dateAccident) {
         payload.date_accident = dateAccident;
       }
-      if (isRhArret && isArretPrincipalType(absenceType) && subrogation !== "societe") {
+      if (subrogationVisible && subrogation !== "societe") {
         payload.subrogation_active = subrogation === "oui";
       }
       if (typeAvecDemiJournees) {
@@ -965,7 +971,13 @@ export function AbsenceRequestModal({
                   const nature = natureAccordeeAuTypeArret(absenceType, suivant);
                   if (nature !== absenceType) {
                     setAbsenceType(nature as AbsenceTypeValue);
-                    setNoteNature({ sorte: "reglee", texte: phraseNatureReglee(nature) });
+                    // La date d'un accident du travail n'est pas la première
+                    // constatation d'une maladie professionnelle (ni l'inverse).
+                    // Une date restée d'une nature sans date (champ caché) est
+                    // vidée aussi ; seule une date affichée est annoncée.
+                    const dateVidee = arretAvecDateAccident(absenceType) && Boolean(dateAccident);
+                    setDateAccident("");
+                    setNoteNature({ sorte: "reglee", texte: phraseNatureReglee(nature, { dateVidee }) });
                   } else {
                     setNoteNature(null);
                   }
@@ -1004,7 +1016,7 @@ export function AbsenceRequestModal({
             </div>
           )}
 
-          {isRhArret && isArretPrincipalType(absenceType) && arretType !== "conge_supplementaire_naissance" && (
+          {subrogationVisible && (
             <div className="grid gap-2">
               <Label htmlFor="subrogation-arret">Subrogation</Label>
               <Select value={subrogation} onValueChange={(v) => setSubrogation(v as ChoixSubrogation)}>

@@ -446,8 +446,9 @@ export const TYPES_ARRET_PAR_NATURE: Record<string, readonly string[]> = {
   arret_paternite: ['paternite', 'adoption', 'conge_supplementaire_naissance'],
 };
 
-/** La nature qui va avec un type d'arrêt quand la nature choisie ne l'accepte pas. */
-const NATURE_DU_TYPE_ARRET: Record<string, string> = {
+/** La nature qui va avec un type d'arrêt quand la nature choisie ne l'accepte pas
+ * (copie de `NATURE_DU_TYPE_D_ARRET` du serveur, même test de parité). */
+export const NATURE_DU_TYPE_ARRET: Record<string, string> = {
   maladie_simple: 'arret_maladie',
   ald: 'arret_maladie',
   mi_temps_therapeutique: 'arret_maladie',
@@ -471,9 +472,16 @@ export function natureAccordeeAuTypeArret(nature: string, type: string): string 
   return NATURE_DU_TYPE_ARRET[type] ?? nature;
 }
 
-/** Ce que la fenêtre dit quand elle a réglé la nature elle-même. */
-export function phraseNatureReglee(nature: string): string {
-  return `Nature réglée sur « ${LIBELLES_NATURE_ARRET[nature] ?? nature} », qui va avec ce type d'arrêt.`;
+/**
+ * Ce que la fenêtre dit quand elle a réglé la nature elle-même ; `dateVidee` :
+ * la date de l'accident déjà saisie ne valait que pour l'ancienne nature
+ * (accident du travail ↔ maladie professionnelle), elle a été vidée.
+ */
+export function phraseNatureReglee(nature: string, options: { dateVidee?: boolean } = {}): string {
+  const phrase = `Nature réglée sur « ${LIBELLES_NATURE_ARRET[nature] ?? nature} », qui va avec ce type d'arrêt.`;
+  if (!options.dateVidee) return phrase;
+  const laquelle = nature === 'arret_maladie_pro' ? 'de la première constatation' : "de l'accident";
+  return `${phrase} La date saisie est vidée : indiquez celle ${laquelle}, si vous l'avez.`;
 }
 
 /** Ce que la fenêtre dit quand elle a retiré un type que la nature n'accepte pas. */

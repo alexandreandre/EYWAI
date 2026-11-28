@@ -114,8 +114,24 @@ test.describe('Arrêt en maladie professionnelle', () => {
     await expect(fenetre.getByTestId('nature-reglee')).toHaveText(
       "Nature réglée sur « Maladie professionnelle », qui va avec ce type d'arrêt.",
     );
-    // La date de première constatation est proposée ; on la laisse vide.
-    await expect(fenetre.getByLabel("Date de l'accident ou de la première constatation")).toHaveValue('');
+    const dateAccident = fenetre.getByLabel("Date de l'accident ou de la première constatation");
+    await expect(dateAccident).toHaveValue('');
+
+    // Détour par l'accident du travail avec une date : revenir à la maladie
+    // professionnelle par le type vide cette date, et la fenêtre le dit.
+    await fenetre.locator('#arret-type').click();
+    await page.getByRole('option', { name: 'Accident du travail', exact: true }).click();
+    await expect(fenetre.locator('#absence-type')).toContainText('Accident du travail');
+    // Champ de date natif : la valeur ISO se pose directement (cf. spec 27).
+    await dateAccident.fill('2026-08-20');
+    await fenetre.locator('#arret-type').click();
+    await page.getByRole('option', { name: 'Maladie professionnelle', exact: true }).click();
+    await expect(fenetre.getByTestId('nature-reglee')).toHaveText(
+      "Nature réglée sur « Maladie professionnelle », qui va avec ce type d'arrêt. " +
+        "La date saisie est vidée : indiquez celle de la première constatation, si vous l'avez.",
+    );
+    // La date de première constatation reste vide, comme sur la capture.
+    await expect(dateAccident).toHaveValue('');
     await expect(fenetre.getByText(/Règle de la société/)).toBeVisible();
 
     // Période du 01/09/2026 au 29/11/2026.
