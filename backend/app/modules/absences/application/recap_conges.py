@@ -1,32 +1,53 @@
 """Récapitulatif des congés et absences de la société (lot L21, 28/11/2026).
 
-Lecture seule : lit les salariés, leurs mois de calendrier et leurs demandes
-validées, puis les soldes CP de l'aperçu des soldes déjà utilisé par
-l'écran « Entreprise, onglet Paie, Congés & RTT ». Le décompte est dans
-`domain.recap_conges`.
+Lecture seule de bout en bout (`lecture_seule()`) : aucune écriture ne peut
+partir, pas même le droit à congés d'ancienneté que l'aperçu des soldes
+enregistre au passage. Moins de dix lectures, quel que soit l'effectif (au
+plus 150 salariés par lecture), les plus longues en parallèle :
+
+1. les salariés de la société ;
+2. leurs mois de calendrier de la période (une lecture par année touchée) ;
+3. leurs demandes validées, avec les congés payés du calendrier (deux lectures) ;
+4. leurs dates de reprise de solde ;
+5. pour les soldes : règles de congés, règles d'ancienneté, ajustements.
+
+Le décompte est dans `domain.recap_conges`.
 """
 
 from __future__ import annotations
 
+import contextvars
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import Any, Iterable, Optional
 
 from app.core.database import supabase
-from app.modules.absences.application import leave_settings_queries
+from app.core.lecture_seule import lecture_seule
+from app.modules.absences.application.cp_seniority_queries import (
+    build_employee_cp_seniority_context,
+    employee_cp_seniority_select,
+)
 from app.modules.absences.domain.recap_conges import (
     COLONNES,
     NOTE_ARRETS,
+    NOTE_REPRISE,
     SOURCE_SOLDES_CP,
-    TYPES_DEMANDE_HORS_CALENDRIER,
     construire_recap,
+    est_present,
     lignes_du_fichier,
-    lire_periode,
     mois_de_la_periode,
 )
+from app.modules.absences.domain.rules import compute_absence_balances
+from app.modules.absences.infrastructure import planning_cp_repository
+from app.modules.absences.infrastructure.cp_seniority_repository import get_cp_seniority_settings
+from app.modules.absences.infrastructure.leave_settings_repository import (
+    get_applicable_adjustments_by_employees,
+    get_leave_policy,
+)
 from app.modules.absences.infrastructure.pagination import fetch_all_rows
+from app.modules.absences.infrastructure.repository import absence_repository
+from app.shared.domain.conge_parental import est_conge_parental
 from app.shared.utils.export import generate_xlsx_feuilles
-
-_TYPES_DEMANDES_LUES = sorted(set(TYPES_DEMANDE_HORS_CALENDRIER) | {"sans_solde"})
 
 
 def _par_lots(ids: list[str], taille: int = 150) -> Iterable[list[str]]:
@@ -35,10 +56,12 @@ def _par_lots(ids: list[str], taille: int = 150) -> Iterable[list[str]]:
 
 
 def lire_employes(company_id: str) -> list[dict[str, Any]]:
+    champs = f"{employee_cp_seniority_select(include_id=True, include_status=True)}, nom_usage, matricule"
+
     def page(offset: int, size: int) -> list[dict[str, Any]]:
         return (
             supabase.table("employees")
-            .select("id, first_name, last_name, nom_usage, matricule, employment_status")
+            .select(champs)
             .eq("company_id", company_id)
             .order("id")
             .range(offset, offset + size - 1)
@@ -51,79 +74,159 @@ def lire_employes(company_id: str) -> list[dict[str, Any]]:
 
 
 def lire_calendriers(employee_ids: list[str], debut: date, fin: date) -> list[dict[str, Any]]:
-    mois = set(mois_de_la_periode(debut, fin))
+    """Les seuls mois de la période : une lecture par année touchée (et par lot de salariés)."""
+    mois_par_annee: dict[int, list[int]] = {}
+    for annee, mois in mois_de_la_periode(debut, fin):
+        mois_par_annee.setdefault(annee, []).append(mois)
     lignes: list[dict[str, Any]] = []
-    for lot in _par_lots(employee_ids):
+    for annee, mois in mois_par_annee.items():
+        for lot in _par_lots(employee_ids):
 
-        def page(offset: int, size: int, lot: list[str] = lot) -> list[dict[str, Any]]:
-            return (
-                supabase.table("employee_schedules")
-                .select("employee_id, year, month, planned_calendar")
-                .in_("employee_id", lot)
-                .gte("year", debut.year)
-                .lte("year", fin.year)
-                .order("id")
-                .range(offset, offset + size - 1)
-                .execute()
-                .data
-                or []
-            )
+            def page(offset: int, size: int, lot: list[str] = lot, annee: int = annee, mois: list[int] = mois):
+                return (
+                    supabase.table("employee_schedules")
+                    .select("employee_id, year, month, planned_calendar")
+                    .in_("employee_id", lot)
+                    .eq("year", annee)
+                    .in_("month", mois)
+                    .order("id")
+                    .range(offset, offset + size - 1)
+                    .execute()
+                    .data
+                    or []
+                )
 
-        lignes.extend(l for l in fetch_all_rows(page) if (l.get("year"), l.get("month")) in mois)
+            lignes.extend(fetch_all_rows(page))
     return lignes
 
 
 def lire_demandes_validees(employee_ids: list[str]) -> list[dict[str, Any]]:
-    lignes: list[dict[str, Any]] = []
-    for lot in _par_lots(employee_ids):
-
-        def page(offset: int, size: int, lot: list[str] = lot) -> list[dict[str, Any]]:
-            return (
-                supabase.table("absence_requests")
-                .select("employee_id, type, event_subtype, selected_days, demi_journees")
-                .in_("employee_id", lot)
-                .eq("status", "validated")
-                .in_("type", _TYPES_DEMANDES_LUES)
-                .order("id")
-                .range(offset, offset + size - 1)
-                .execute()
-                .data
-                or []
-            )
-
-        lignes.extend(fetch_all_rows(page))
-    return lignes
+    """Demandes validées et congés payés du calendrier : la lecture des soldes."""
+    return absence_repository.list_validated_for_employees(employee_ids)
 
 
-def lire_soldes_cp(company_id: str) -> dict[str, dict[str, float]]:
-    """Soldes CP N-1 et N de l'aperçu des soldes (salariés actifs, date du jour)."""
-    apercu = leave_settings_queries.get_leave_balances_overview(company_id, None)
-    return {
-        str(item.employee_id): {"cp_n1": item.cp_n1_remaining, "cp_n": item.cp_n_remaining}
-        for item in apercu.employees
-    }
+def lire_reprises(employee_ids: list[str]) -> dict[str, Optional[date]]:
+    return planning_cp_repository.get_cp_opening_reference_dates(employee_ids)
+
+
+def _date(valeur: Any) -> Optional[date]:
+    if not valeur:
+        return None
+    if isinstance(valeur, date):
+        return valeur
+    try:
+        return date.fromisoformat(str(valeur)[:10])
+    except ValueError:
+        return None
+
+
+def _presents_avec_entree(employes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [e for e in employes if est_present(e) and _date(e.get("hire_date"))]
+
+
+def charger_regles_des_soldes(
+    company_id: str, employee_ids: list[str], annee: int
+) -> tuple[Any, Any, dict[str, Any]]:
+    """Règles de congés, règles d'ancienneté, ajustements de l'année : trois lectures."""
+    return (
+        get_leave_policy(company_id),
+        get_cp_seniority_settings(company_id),
+        get_applicable_adjustments_by_employees(employee_ids, annee) if employee_ids else {},
+    )
+
+
+def _en_parallele(fonction, *args):
+    """Lance une lecture dans un fil, avec le contexte du bloc de lecture seule."""
+    return contextvars.copy_context().run, fonction, *args
+
+
+def soldes_cp(
+    company_id: str,
+    employes: list[dict[str, Any]],
+    demandes_validees: list[dict[str, Any]],
+    aujourd_hui: date,
+    regles: Optional[tuple[Any, Any, dict[str, Any]]] = None,
+) -> dict[str, dict[str, float]]:
+    """CP N-1 et N au jour, des salariés présents du périmètre, comme la fiche salarié.
+
+    Seulement `compute_absence_balances` : ni droit d'ancienneté enregistré, ni
+    droit de fractionnement relu. Les congés parentaux validés comptent pour
+    l'ancienneté, comme sur la fiche.
+    """
+    presents = _presents_avec_entree(employes)
+    if not presents:
+        return {}
+    policy, cp_seniority, ajustements = regles or charger_regles_des_soldes(
+        company_id, [str(e["id"]) for e in presents], aujourd_hui.year
+    )
+    demandes_par_salarie: dict[str, list[dict[str, Any]]] = {}
+    for demande in demandes_validees:
+        demandes_par_salarie.setdefault(str(demande.get("employee_id")), []).append(demande)
+
+    soldes: dict[str, dict[str, float]] = {}
+    for employe in presents:
+        eid = str(employe["id"])
+        demandes = demandes_par_salarie.get(eid, [])
+        contexte = build_employee_cp_seniority_context(
+            employe, [d for d in demandes if est_conge_parental(d)]
+        )
+        calcul = compute_absence_balances(
+            _date(employe.get("hire_date")),
+            demandes,
+            aujourd_hui,
+            policy=policy,
+            adjustment=ajustements.get(eid),
+            cp_seniority=cp_seniority,
+            employee_ctx=contexte,
+        )
+        n1 = calcul.get("conges_payes_n1") or {}
+        n = calcul.get("conges_payes_n") or {}
+        soldes[eid] = {
+            "cp_n1": max(0.0, float(n1.get("solde", 0))),
+            "cp_n": max(0.0, float(n.get("solde", 0))),
+        }
+    return soldes
 
 
 def get_recap_conges(
     company_id: str,
-    debut: Optional[str],
-    fin: Optional[str],
+    debut: date,
+    fin: date,
     employes_autorises: Optional[set[str]] = None,
 ) -> dict[str, Any]:
     """Le récapitulatif de la période ; `employes_autorises` None = toute la société."""
-    d0, d1 = lire_periode(debut, fin)
-    employes = lire_employes(company_id)
-    if employes_autorises is not None:
-        employes = [e for e in employes if str(e.get("id")) in employes_autorises]
-    ids = [str(e["id"]) for e in employes]
+    aujourd_hui = date.today()
+    with lecture_seule():
+        employes = lire_employes(company_id)
+        if employes_autorises is not None:
+            employes = [e for e in employes if str(e.get("id")) in employes_autorises]
+        ids = [str(e["id"]) for e in employes]
+        if not ids:
+            calendriers, demandes, reprises, soldes = [], [], {}, {}
+        else:
+            ids_soldes = [str(e["id"]) for e in _presents_avec_entree(employes)]
+            # Les demandes validées (avec les congés payés de tout le calendrier)
+            # sont la lecture longue : les autres partent pendant ce temps.
+            with ThreadPoolExecutor(max_workers=3) as fils:
+                f_demandes = fils.submit(*_en_parallele(lire_demandes_validees, ids))
+                f_regles = fils.submit(
+                    *_en_parallele(charger_regles_des_soldes, company_id, ids_soldes, aujourd_hui.year)
+                )
+                f_calendriers = fils.submit(*_en_parallele(lire_calendriers, ids, debut, fin))
+                demandes = f_demandes.result()
+                regles = f_regles.result()
+                calendriers = f_calendriers.result()
+            reprises = lire_reprises(ids)
+            soldes = soldes_cp(company_id, employes, demandes, aujourd_hui, regles)
     return construire_recap(
-        debut=d0,
-        fin=d1,
+        debut=debut,
+        fin=fin,
         employes=employes,
-        calendriers=lire_calendriers(ids, d0, d1) if ids else [],
-        demandes_validees=lire_demandes_validees(ids) if ids else [],
-        soldes=lire_soldes_cp(company_id) if ids else {},
-        date_des_soldes=date.today(),
+        calendriers=calendriers,
+        demandes_validees=demandes,
+        soldes=soldes,
+        date_des_soldes=aujourd_hui,
+        reprises=reprises,
     )
 
 
@@ -139,6 +242,7 @@ def recap_en_xlsx(recap: dict[str, Any]) -> bytes:
     ]
     sources.append({"Colonne": "Arrêts", "Source": NOTE_ARRETS})
     sources.append({"Colonne": "Solde CP N-1 (j) / Solde CP N (j)", "Source": SOURCE_SOLDES_CP})
+    sources.append({"Colonne": "Reprise dans Martine", "Source": NOTE_REPRISE})
     sources.append(
         {
             "Colonne": "Période",

@@ -74,6 +74,7 @@ from app.modules.absences.schemas.leave_settings_responses import (
     RttYearEndCloseResult,
     RttYearEndOverviewResponse,
 )
+from app.modules.absences.domain.recap_conges import lire_periode as lire_periode_du_recap
 from app.modules.absences.schemas.recap_conges import RecapCongesResponse
 from app.modules.absences.schemas.requests import (
     AbsenceRequestCreate,
@@ -1439,6 +1440,14 @@ def _employes_du_perimetre(current_user: User, company_id: str) -> set[str] | No
     return {str(e) for e in autorises}
 
 
+def _periode_du_recap(debut: str | None, fin: str | None):
+    """400 pour une période refusée, et seulement pour elle."""
+    try:
+        return lire_periode_du_recap(debut, fin)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.get("/recap-societe", response_model=RecapCongesResponse)
 def get_recap_conges_route(
     debut: str | None = Query(None, description="AAAA-MM-JJ"),
@@ -1450,12 +1459,8 @@ def get_recap_conges_route(
     Lecture seule. RH de la société active, périmètre d'équipes respecté.
     """
     cid = _require_rh_company_context(current_user)
-    try:
-        return recap_conges.get_recap_conges(
-            cid, debut, fin, _employes_du_perimetre(current_user, cid)
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    d0, d1 = _periode_du_recap(debut, fin)
+    return recap_conges.get_recap_conges(cid, d0, d1, _employes_du_perimetre(current_user, cid))
 
 
 @router.get("/recap-societe/excel")
@@ -1466,12 +1471,8 @@ def get_recap_conges_excel_route(
 ):
     """Le même récapitulatif en Excel (une ligne par salarié, une feuille des sources)."""
     cid = _require_rh_company_context(current_user)
-    try:
-        recap = recap_conges.get_recap_conges(
-            cid, debut, fin, _employes_du_perimetre(current_user, cid)
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    d0, d1 = _periode_du_recap(debut, fin)
+    recap = recap_conges.get_recap_conges(cid, d0, d1, _employes_du_perimetre(current_user, cid))
     return Response(
         content=recap_conges.recap_en_xlsx(recap),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
