@@ -168,19 +168,27 @@ export function phraseJoursSansHeureDArrivee(nombre: number, dates?: string[]): 
 }
 
 /**
- * L'encadré de Primes du mois, par salarié et par règle : la liste des dates
- * quand une partie des jours a une heure d'arrivée ; une seule phrase quand
- * aucun n'en a (aucun badge importé), comme l'alerte du bulletin.
+ * L'encadré de Primes du mois, par salarié et par groupe de jours identiques :
+ * les règles concernées nommées ensemble, la liste des dates quand une partie
+ * des jours a une heure d'arrivée ; une seule phrase quand aucun n'en a (aucun
+ * badge importé). Mot pour mot l'alerte du bulletin (`alertes_paniers`, L23).
  */
-export function phraseJoursDuSalarie(j: { rule_label?: string | null; dates: string[]; aucun_badge?: boolean }): string {
-  const regle = j.rule_label ?? 'Prime';
+export function phraseJoursDuSalarie(j: {
+  rule_label?: string | null;
+  rule_labels?: string[] | null;
+  dates: string[];
+  aucun_badge?: boolean;
+}): string {
+  const noms = j.rule_labels && j.rule_labels.length ? j.rule_labels : [j.rule_label ?? 'Prime'];
+  const regles = noms.join(', ');
   const n = j.dates.length;
+  const jours = n > 1 ? 'jours travaillés' : 'jour travaillé';
   if (j.aucun_badge) {
-    const jours = n > 1 ? 'jours travaillés' : 'jour travaillé';
-    const rien = /panier/i.test(regle) ? 'aucun panier compté' : 'aucun jour compté';
-    return `${regle} : aucune heure d'arrivée sur la période (${n} ${jours}), ${rien} : importez les pointages ou saisissez les heures d'arrivée au calendrier`;
+    const rien = noms.every((r) => /panier/i.test(r)) ? 'aucun panier compté' : 'aucun jour compté';
+    return `${regles} : aucune heure d'arrivée sur la période (${n} ${jours}), ${rien} : importez les pointages, saisissez les heures d'arrivée au calendrier ou posez les absences.`;
   }
-  return `${regle} : ${phraseJoursSansHeureDArrivee(n, j.dates)}`;
+  const cesJours = n > 1 ? 'ces jours-là' : 'ce jour-là';
+  return `${regles} : ${n} ${jours} sans heure d'arrivée (${j.dates.map(jourMois).join(', ')}) : aucun compté ${cesJours}. Importez les pointages, saisissez l'heure d'arrivée au calendrier ou posez l'absence.`;
 }
 
 /** Une ligne de simulation qui demande l'attention de la RH (prime à 0, jours sans heure d'arrivée). */

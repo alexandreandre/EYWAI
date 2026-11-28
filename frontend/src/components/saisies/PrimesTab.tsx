@@ -35,12 +35,12 @@ import {
   cleDuMois,
   compterJoursReels,
   etatInitialDesJours,
+  lignesParSalarie,
   montantPourLeNombre,
   recevoirJours,
   texteDeLEncadre,
   type EtatDesJours,
 } from './joursSansArrivee';
-import { phraseJoursDuSalarie } from '@/features/company/lib/primesPointage';
 import { libelleNombreDePaniers, lireNombreDePaniers, nombreDePaniersModifiable } from './panierSaisie';
 import apiClient from '@/api/apiClient';
 import { useAuth } from '@/contexts/AuthContext';
@@ -435,12 +435,12 @@ export function PrimesTab({
                 <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900" data-testid="jours-sans-arrivee">
                   <p className="font-medium">À vérifier : {pluriel(jours, 'jour travaillé', 'jours travaillés')} sans heure d'arrivée</p>
                   <ul className="list-disc pl-5">
-                    {lignes.map((j) => {
-                      const emp = employees.find((e) => e.id === j.employee_id);
-                      const nom = emp ? `${emp.first_name} ${emp.last_name}` : [j.first_name, j.last_name].filter(Boolean).join(' ');
+                    {lignesParSalarie(lignes).map((l) => {
+                      const emp = employees.find((e) => e.id === l.employee_id);
+                      const nom = emp ? `${emp.first_name} ${emp.last_name}` : [l.first_name, l.last_name].filter(Boolean).join(' ');
                       return (
-                        <li key={`${j.employee_id}-${j.rule_label}`}>
-                          {nom} — {phraseJoursDuSalarie(j)}
+                        <li key={l.employee_id}>
+                          {nom} — {l.phrase}
                         </li>
                       );
                     })}

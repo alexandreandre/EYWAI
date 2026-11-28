@@ -8,6 +8,9 @@
   mois tombe à 0. (La première version écrivait la remarque dans la
   description de la saisie, que la détection des heures sup lit : relecture du
   27/11.)
+- Les mêmes jours relevés par plusieurs règles (panier de jour, panier de
+  nuit, prime de nuit) : dits une fois par salarié, avec les règles nommées ;
+  une phrase par groupe de jours identiques (L23, 28/11).
 - Panier généré dont le montant a été changé à la main sans changer le nombre :
   la part réintégrée reste calculée sur le nombre ; le bulletin le dit.
 
@@ -86,26 +89,61 @@ def jours_sans_heure_d_arrivee(
     return sortie
 
 
-def phrase_aucune_heure_d_arrivee(regle: Any, nombre: int) -> str:
-    """Aucun badge du mois : une phrase par salarié et par règle, sans dates."""
+def regrouper_jours_sans_heure_d_arrivee(lignes: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Une ligne par salarié et par groupe de jours identiques, qui nomme les
+    règles concernées (dans l'ordre reçu, sans doublon). Les jours ne changent
+    pas : seule la façon de les dire change (L23, 28/11)."""
+    groupes: dict[tuple[str, tuple[str, ...], bool], dict[str, Any]] = {}
+    for ligne in lignes:
+        cle = (str(ligne.get("employee_id")), tuple(ligne.get("dates") or []), bool(ligne.get("aucun_badge")))
+        groupe = groupes.get(cle)
+        if groupe is None:
+            groupe = groupes[cle] = {
+                "employee_id": cle[0],
+                "first_name": ligne.get("first_name"),
+                "last_name": ligne.get("last_name"),
+                "rule_labels": [],
+                "dates": list(cle[1]),
+                "aucun_badge": cle[2],
+            }
+        regle = ligne.get("rule_label")
+        if regle and regle not in groupe["rule_labels"]:
+            groupe["rule_labels"].append(regle)
+    return [
+        {**g, "rule_label": ", ".join(g["rule_labels"]) or None}
+        for g in groupes.values()
+    ]
+
+
+def _regles(regles: Any) -> list[str]:
+    if isinstance(regles, (list, tuple)):
+        return [str(r) for r in regles if r] or ["Prime"]
+    return [str(regles or "Prime")]
+
+
+def phrase_aucune_heure_d_arrivee(regles: Any, nombre: int) -> str:
+    """Aucun badge du mois : une phrase par salarié, qui nomme les règles, sans dates."""
+    noms = _regles(regles)
     jours = "jour travaillé" if nombre == 1 else "jours travaillés"
-    rien = "aucun panier compté" if "panier" in str(regle).lower() else "aucun jour compté"
+    tout_panier = all("panier" in n.lower() for n in noms)
+    rien = "aucun panier compté" if tout_panier else "aucun jour compté"
     return (
-        f"{regle} : aucune heure d'arrivée sur la période ({nombre} {jours}), {rien} : "
-        "importez les pointages ou saisissez les heures d'arrivée au calendrier."
+        f"{', '.join(noms)} : aucune heure d'arrivée sur la période ({nombre} {jours}), {rien} : "
+        "importez les pointages, saisissez les heures d'arrivée au calendrier ou posez les absences."
     )
 
 
-def phrase_jours_sans_heure_d_arrivee(regle: Any, dates: list[str], aucun_badge: bool = False) -> str:
+def phrase_jours_sans_heure_d_arrivee(regles: Any, dates: list[str], aucun_badge: bool = False) -> str:
+    """Les jours d'un groupe, avec les règles qui ne les comptent pas."""
     if aucun_badge:
-        return phrase_aucune_heure_d_arrivee(regle, len(dates))
+        return phrase_aucune_heure_d_arrivee(regles, len(dates))
     n = len(dates)
     jours = "jour travaillé" if n == 1 else "jours travaillés"
-    comptes = "non compté" if n == 1 else "non comptés"
+    ces_jours = "ce jour-là" if n == 1 else "ces jours-là"
     liste = ", ".join(_jour_mois(d) for d in dates)
     return (
-        f"{regle} : {n} {jours} sans heure d'arrivée, {comptes} ({liste}) : "
-        "heure d'arrivée à saisir au calendrier, ou absence à poser."
+        f"{', '.join(_regles(regles))} : {n} {jours} sans heure d'arrivée ({liste}) : "
+        f"aucun compté {ces_jours}. Importez les pointages, saisissez l'heure d'arrivée au calendrier ou posez l'absence."
     )
 
 
@@ -205,14 +243,14 @@ def _alertes_des_paniers_du_mois(
             logger.warning("Jours sans heure d'arrivée non relus : %s", exc)
             jours = None
             alertes.append(alerte_paniers_non_verifiee())
-        for j in jours or []:
+        for g in regrouper_jours_sans_heure_d_arrivee(jours or []):
             alertes.append(
                 {
                     "code": CODE_ALERTE_JOURS_SANS_HEURE_D_ARRIVEE,
                     "critique": False,
                     "severity": "warning",
                     "message": phrase_jours_sans_heure_d_arrivee(
-                        j["rule_label"], j["dates"], j.get("aucun_badge", False)
+                        g["rule_labels"], g["dates"], g["aucun_badge"]
                     ),
                 }
             )

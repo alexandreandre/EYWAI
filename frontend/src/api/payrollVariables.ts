@@ -204,12 +204,15 @@ export async function deleteSpecialPayrollDay(dayId: string): Promise<void> {
   await apiClient.delete(`/api/payroll-variables/special-days/${dayId}`);
 }
 
-/** Jours travaillés sans heure d'arrivée qu'une règle « par jour travaillé » ne compte pas (L19, 27/11). */
+/** Jours travaillés sans heure d'arrivée que des règles « par jour travaillé » ne comptent pas (L19, 27/11 ; regroupés L23). */
 export interface JoursSansHeureDArrivee {
   employee_id: string;
   first_name?: string | null;
   last_name?: string | null;
+  /** Les règles du groupe, jointes (« Panier, Prime de nuit »). */
   rule_label?: string | null;
+  /** Les règles qui ne comptent pas ces jours-là : une ligne par groupe de jours identiques (L23). */
+  rule_labels?: string[];
   dates: string[];
   /** Aucun jour de la période n'a d'heure d'arrivée (aucun badge importé). */
   aucun_badge?: boolean;
